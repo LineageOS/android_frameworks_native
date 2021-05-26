@@ -86,8 +86,7 @@ bool RpcSession::addNullDebuggingClient() {
         return false;
     }
 
-    addClientConnection(std::move(serverFd));
-    return true;
+    return addClientConnection(std::move(serverFd));
 }
 
 sp<IBinder> RpcSession::getRootObject() {
@@ -100,12 +99,12 @@ status_t RpcSession::getRemoteMaxThreads(size_t* maxThreads) {
     return state()->getMaxThreads(connection.fd(), sp<RpcSession>::fromExisting(this), maxThreads);
 }
 
-status_t RpcSession::transact(const RpcAddress& address, uint32_t code, const Parcel& data,
+status_t RpcSession::transact(const sp<IBinder>& binder, uint32_t code, const Parcel& data,
                               Parcel* reply, uint32_t flags) {
     ExclusiveConnection connection(sp<RpcSession>::fromExisting(this),
                                    (flags & IBinder::FLAG_ONEWAY) ? ConnectionUse::CLIENT_ASYNC
                                                                   : ConnectionUse::CLIENT);
-    return state()->transact(connection.fd(), address, code, data,
+    return state()->transact(connection.fd(), binder, code, data,
                              sp<RpcSession>::fromExisting(this), reply, flags);
 }
 
@@ -199,7 +198,8 @@ void RpcSession::join(unique_fd client) {
                 state()->getAndExecuteCommand(connection->fd, sp<RpcSession>::fromExisting(this));
 
         if (error != OK) {
-            ALOGI("Binder connection thread closing w/ status %s", statusToString(error).c_str());
+            LOG_RPC_DETAIL("Binder connection thread closing w/ status %s",
+                           statusToString(error).c_str());
             break;
         }
     }
@@ -207,12 +207,19 @@ void RpcSession::join(unique_fd client) {
     LOG_ALWAYS_FATAL_IF(!removeServerConnection(connection),
                         "bad state: connection object guaranteed to be in list");
 
+    sp<RpcServer> server;
     {
         std::lock_guard<std::mutex> _l(mMutex);
         auto it = mThreads.find(std::this_thread::get_id());
         LOG_ALWAYS_FATAL_IF(it == mThreads.end());
         it->second.detach();
         mThreads.erase(it);
+
+        server = mForServer.promote();
+    }
+
+    if (server != nullptr) {
+        server->onSessionThreadEnding(sp<RpcSession>::fromExisting(this));
     }
 }
 
@@ -304,24 +311,36 @@ bool RpcSession::setupOneSocketClient(const RpcSocketAddress& addr, int32_t id) 
 
         LOG_RPC_DETAIL("Socket at %s client with fd %d", addr.toString().c_str(), serverFd.get());
 
-        addClientConnection(std::move(serverFd));
-        return true;
+        return addClientConnection(std::move(serverFd));
     }
 
     ALOGE("Ran out of retries to connect to %s", addr.toString().c_str());
     return false;
 }
 
-void RpcSession::addClientConnection(unique_fd fd) {
+bool RpcSession::addClientConnection(unique_fd fd) {
     std::lock_guard<std::mutex> _l(mMutex);
+
+    if (mShutdownTrigger == nullptr) {
+        mShutdownTrigger = FdTrigger::make();
+        if (mShutdownTrigger == nullptr) return false;
+    }
+
     sp<RpcConnection> session = sp<RpcConnection>::make();
     session->fd = std::move(fd);
     mClientConnections.push_back(session);
+    return true;
 }
 
-void RpcSession::setForServer(const wp<RpcServer>& server, int32_t sessionId) {
+void RpcSession::setForServer(const wp<RpcServer>& server, int32_t sessionId,
+                              const std::shared_ptr<FdTrigger>& shutdownTrigger) {
+    LOG_ALWAYS_FATAL_IF(mForServer.unsafe_get() != nullptr);
+    LOG_ALWAYS_FATAL_IF(mShutdownTrigger != nullptr);
+    LOG_ALWAYS_FATAL_IF(shutdownTrigger == nullptr);
+
     mId = sessionId;
     mForServer = server;
+    mShutdownTrigger = shutdownTrigger;
 }
 
 sp<RpcSession::RpcConnection> RpcSession::assignServerToThisThread(unique_fd fd) {
