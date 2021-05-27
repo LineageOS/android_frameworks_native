@@ -136,6 +136,10 @@ std::string jankTypeBitmaskToString(int32_t jankType) {
         janks.emplace_back("Unknown jank");
         jankType &= ~JankType::Unknown;
     }
+    if (jankType & JankType::SurfaceFlingerStuffing) {
+        janks.emplace_back("SurfaceFlinger Stuffing");
+        jankType &= ~JankType::SurfaceFlingerStuffing;
+    }
 
     // jankType should be 0 if all types of jank were checked for.
     LOG_ALWAYS_FATAL_IF(jankType != 0, "Unrecognized jank type value 0x%x", jankType);
