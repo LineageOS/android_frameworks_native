@@ -43,6 +43,11 @@
  */
 #define PROPERTY_DEBUG_RENDERENGINE_CAPTURE_SKIA_MS "debug.renderengine.capture_skia_ms"
 
+/**
+ * Set to the most recently saved file once the capture is finished.
+ */
+#define PROPERTY_DEBUG_RENDERENGINE_CAPTURE_FILENAME "debug.renderengine.capture_filename"
+
 struct ANativeWindowBuffer;
 
 namespace android {
