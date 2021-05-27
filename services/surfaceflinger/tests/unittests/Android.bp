@@ -23,7 +23,10 @@ package {
 
 cc_test {
     name: "libsurfaceflinger_unittest",
-    defaults: ["surfaceflinger_defaults"],
+    defaults: [
+        "skia_renderengine_deps",
+        "surfaceflinger_defaults",
+    ],
     test_suites: ["device-tests"],
     sanitize: {
         // Using the address sanitizer not only helps uncover issues in the code
