@@ -725,14 +725,14 @@ void Layer::commitTransaction(State&) {
     mDrawingState.bufferlessSurfaceFramesTX.clear();
 }
 
-uint32_t Layer::getTransactionFlags(uint32_t flags) {
-    auto ret = mTransactionFlags & flags;
-    mTransactionFlags &= ~flags;
-    return ret;
+uint32_t Layer::clearTransactionFlags(uint32_t mask) {
+    const auto flags = mTransactionFlags & mask;
+    mTransactionFlags &= ~mask;
+    return flags;
 }
 
-uint32_t Layer::setTransactionFlags(uint32_t flags) {
-    return mTransactionFlags |= flags;
+void Layer::setTransactionFlags(uint32_t mask) {
+    mTransactionFlags |= mask;
 }
 
 bool Layer::setPosition(float x, float y) {

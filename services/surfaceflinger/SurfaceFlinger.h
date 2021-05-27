@@ -352,7 +352,6 @@ protected:
             uint32_t permissions,
             std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks)
             REQUIRES(mStateLock);
-    virtual void commitTransactionLocked();
 
     // Used internally by computeLayerBounds() to gets the clip rectangle to use for the
     // root layers on a particular display in layer-coordinate space. The
@@ -804,8 +803,12 @@ private:
     // incoming transactions
     void onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncTime);
 
-    // Returns whether the transaction actually modified any state
-    bool handleMessageTransaction();
+    // Returns whether transactions were committed.
+    bool flushAndCommitTransactions() EXCLUDES(mStateLock);
+
+    void commitTransactions() EXCLUDES(mStateLock);
+    void commitTransactionsLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
+    void doCommitTransactions() REQUIRES(mStateLock);
 
     // Handle the REFRESH message queue event, sending the current frame down to RenderEngine and
     // the Composer HAL for presentation
@@ -813,9 +816,6 @@ private:
 
     // Returns whether a new buffer has been latched (see handlePageFlip())
     bool handleMessageInvalidate();
-
-    void handleTransaction(uint32_t transactionFlags);
-    void handleTransactionLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
 
     void updateInputFlinger();
     void notifyWindowInfos();
@@ -848,18 +848,23 @@ private:
     void flushTransactionQueues();
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
-    uint32_t getTransactionFlags(uint32_t flags);
-    uint32_t peekTransactionFlags();
-    // Can only be called from the main thread or with mStateLock held
-    uint32_t setTransactionFlags(uint32_t flags);
+
+    uint32_t getTransactionFlags() const;
+
+    // Sets the masked bits, and returns the old flags.
+    uint32_t setTransactionFlags(uint32_t mask);
+
+    // Clears and returns the masked bits.
+    uint32_t clearTransactionFlags(uint32_t mask);
+
     // Indicate SF should call doTraversal on layers, but don't trigger a wakeup! We use this cases
     // where there are still pending transactions but we know they won't be ready until a frame
     // arrives from a different layer. So we need to ensure we performTransaction from invalidate
     // but there is no need to try and wake up immediately to do it. Rather we rely on
     // onFrameAvailable or another layer update to wake us up.
     void setTraversalNeeded();
-    uint32_t setTransactionFlags(uint32_t flags, TransactionSchedule, const sp<IBinder>& = {});
-    void commitTransaction() REQUIRES(mStateLock);
+    uint32_t setTransactionFlags(uint32_t mask, TransactionSchedule,
+                                 const sp<IBinder>& applyToken = {});
     void commitOffscreenLayers();
     bool transactionIsReadyToBeApplied(
             const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,

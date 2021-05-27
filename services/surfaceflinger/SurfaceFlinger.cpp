@@ -1962,7 +1962,7 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
 
         mFrameTimeline->setSfWakeUp(vsyncId, frameStart, Fps::fromPeriodNsecs(stats.vsyncPeriod));
 
-        refreshNeeded |= handleMessageTransaction();
+        refreshNeeded |= flushAndCommitTransactions();
         refreshNeeded |= handleMessageInvalidate();
 
         if (tracePreComposition) {
@@ -2007,25 +2007,23 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
     notifyRegionSamplingThread();
 }
 
-bool SurfaceFlinger::handleMessageTransaction() {
+bool SurfaceFlinger::flushAndCommitTransactions() {
     ATRACE_CALL();
 
-    if (getTransactionFlags(eTransactionFlushNeeded)) {
+    if (clearTransactionFlags(eTransactionFlushNeeded)) {
         flushTransactionQueues();
     }
-    uint32_t transactionFlags = peekTransactionFlags();
-    bool runHandleTransaction =
-            ((transactionFlags & (~eTransactionFlushNeeded)) != 0) || mForceTraversal;
 
-    if (runHandleTransaction) {
-        handleTransaction(eTransactionMask);
+    const bool shouldCommit = (getTransactionFlags() & ~eTransactionFlushNeeded) || mForceTraversal;
+    if (shouldCommit) {
+        commitTransactions();
     }
 
     if (transactionFlushNeeded()) {
         setTransactionFlags(eTransactionFlushNeeded);
     }
 
-    return runHandleTransaction;
+    return shouldCommit;
 }
 
 void SurfaceFlinger::onMessageRefresh() {
@@ -2451,29 +2449,26 @@ void SurfaceFlinger::postFrame() {
     }
 }
 
-void SurfaceFlinger::handleTransaction(uint32_t transactionFlags) {
+void SurfaceFlinger::commitTransactions() {
     ATRACE_CALL();
 
-    // here we keep a copy of the drawing state (that is the state that's
-    // going to be overwritten by handleTransactionLocked()) outside of
-    // mStateLock so that the side-effects of the State assignment
-    // don't happen with mStateLock held (which can cause deadlocks).
+    // Keep a copy of the drawing state (that is going to be overwritten
+    // by commitTransactionsLocked) outside of mStateLock so that the side
+    // effects of the State assignment don't happen with mStateLock held,
+    // which can cause deadlocks.
     State drawingState(mDrawingState);
 
-    Mutex::Autolock _l(mStateLock);
+    Mutex::Autolock lock(mStateLock);
     mDebugInTransaction = systemTime();
 
     // Here we're guaranteed that some transaction flags are set
-    // so we can call handleTransactionLocked() unconditionally.
-    // We call getTransactionFlags(), which will also clear the flags,
-    // with mStateLock held to guarantee that mCurrentState won't change
-    // until the transaction is committed.
+    // so we can call commitTransactionsLocked unconditionally.
+    // We clear the flags with mStateLock held to guarantee that
+    // mCurrentState won't change until the transaction is committed.
     modulateVsync(&VsyncModulator::onTransactionCommit);
-    transactionFlags = getTransactionFlags(eTransactionMask);
-    handleTransactionLocked(transactionFlags);
+    commitTransactionsLocked(clearTransactionFlags(eTransactionMask));
 
     mDebugInTransaction = 0;
-    // here the transaction has been committed
 }
 
 void SurfaceFlinger::loadDisplayModes(PhysicalDisplayId displayId, DisplayModes& outModes,
@@ -2927,8 +2922,8 @@ void SurfaceFlinger::processDisplayChangesLocked() {
     mDrawingState.displays = mCurrentState.displays;
 }
 
-void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
-    // Commit display transactions
+void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
+    // Commit display transactions.
     const bool displayTransactionNeeded = transactionFlags & eDisplayTransactionNeeded;
     if (displayTransactionNeeded) {
         processDisplayChangesLocked();
@@ -2942,7 +2937,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
         mSomeChildrenChanged = false;
     }
 
-    // Update transform hint
+    // Update transform hint.
     if (transactionFlags & (eTransformHintUpdateNeeded | eDisplayTransactionNeeded)) {
         // Layers and/or displays have changed, so update the transform hint for each layer.
         //
@@ -2995,10 +2990,6 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
         });
     }
 
-    /*
-     * Perform our own transaction if needed
-     */
-
     if (mLayersAdded) {
         mLayersAdded = false;
         // Layers have been added.
@@ -3020,7 +3011,9 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
         });
     }
 
-    commitTransaction();
+    doCommitTransactions();
+    signalSynchronousTransactions(CountDownLatch::eSyncTransaction);
+    mAnimTransactionPending = false;
 }
 
 void SurfaceFlinger::updateInputFlinger() {
@@ -3169,14 +3162,9 @@ void SurfaceFlinger::setVsyncConfig(const VsyncModulator::VsyncConfig& config,
     mEventQueue->setDuration(config.sfWorkDuration);
 }
 
-void SurfaceFlinger::commitTransaction() {
+void SurfaceFlinger::doCommitTransactions() {
     ATRACE_CALL();
-    commitTransactionLocked();
-    signalSynchronousTransactions(CountDownLatch::eSyncTransaction);
-    mAnimTransactionPending = false;
-}
 
-void SurfaceFlinger::commitTransactionLocked() {
     if (!mLayersPendingRemoval.isEmpty()) {
         // Notify removed layers now that they can't be drawn from
         for (const auto& l : mLayersPendingRemoval) {
@@ -3220,11 +3208,10 @@ void SurfaceFlinger::commitTransactionLocked() {
 void SurfaceFlinger::commitOffscreenLayers() {
     for (Layer* offscreenLayer : mOffscreenLayers) {
         offscreenLayer->traverse(LayerVector::StateSet::Drawing, [](Layer* layer) {
-            uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
-            if (!trFlags) return;
-
-            layer->doTransaction(0);
-            layer->commitChildList();
+            if (layer->clearTransactionFlags(eTransactionNeeded)) {
+                layer->doTransaction(0);
+                layer->commitChildList();
+            }
         });
     }
 }
@@ -3260,14 +3247,14 @@ bool SurfaceFlinger::handlePageFlip() {
     // Display is now waiting on Layer 1's frame, which is behind layer 0's
     // second frame. But layer 0's second frame could be waiting on display.
     mDrawingState.traverse([&](Layer* layer) {
-         uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
-         if (trFlags || mForceTransactionDisplayChange) {
-             const uint32_t flags = layer->doTransaction(0);
-             if (flags & Layer::eVisibleRegion)
-                 mVisibleRegionsDirty = true;
-         }
+        if (layer->clearTransactionFlags(eTransactionNeeded) || mForceTransactionDisplayChange) {
+            const uint32_t flags = layer->doTransaction(0);
+            if (flags & Layer::eVisibleRegion) {
+                mVisibleRegionsDirty = true;
+            }
+        }
 
-         if (layer->hasReadyFrame()) {
+        if (layer->hasReadyFrame()) {
             frameQueued = true;
             if (layer->shouldPresentNow(expectedPresentTime)) {
                 mLayersWithQueuedFrames.emplace(layer);
@@ -3275,7 +3262,7 @@ bool SurfaceFlinger::handlePageFlip() {
                 ATRACE_NAME("!layer->shouldPresentNow()");
                 layer->useEmptyDamage();
             }
-         } else {
+        } else {
             layer->useEmptyDamage();
         }
     });
@@ -3374,23 +3361,23 @@ void SurfaceFlinger::removeGraphicBufferProducerAsync(const wp<IBinder>& binder)
     }));
 }
 
-uint32_t SurfaceFlinger::peekTransactionFlags() {
+uint32_t SurfaceFlinger::getTransactionFlags() const {
     return mTransactionFlags;
 }
 
-uint32_t SurfaceFlinger::getTransactionFlags(uint32_t flags) {
-    return mTransactionFlags.fetch_and(~flags) & flags;
+uint32_t SurfaceFlinger::clearTransactionFlags(uint32_t mask) {
+    return mTransactionFlags.fetch_and(~mask) & mask;
 }
 
-uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags) {
-    return setTransactionFlags(flags, TransactionSchedule::Late);
+uint32_t SurfaceFlinger::setTransactionFlags(uint32_t mask) {
+    return setTransactionFlags(mask, TransactionSchedule::Late);
 }
 
-uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags, TransactionSchedule schedule,
-                                             const sp<IBinder>& token) {
-    uint32_t old = mTransactionFlags.fetch_or(flags);
-    modulateVsync(&VsyncModulator::setTransactionSchedule, schedule, token);
-    if ((old & flags) == 0) scheduleInvalidate(FrameHint::kActive);
+uint32_t SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule schedule,
+                                             const sp<IBinder>& applyToken) {
+    const uint32_t old = mTransactionFlags.fetch_or(mask);
+    modulateVsync(&VsyncModulator::setTransactionSchedule, schedule, applyToken);
+    if ((old & mask) == 0) scheduleInvalidate(FrameHint::kActive);
     return old;
 }
 
