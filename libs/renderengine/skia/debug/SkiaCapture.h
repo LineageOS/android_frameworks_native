@@ -85,6 +85,8 @@ private:
     // Mutex to ensure that a frame in progress when the timer fires is allowed to run to
     // completion before we write the file to disk.
     std::mutex mMutex;
+
+    std::string mCaptureFile;
 };
 
 } // namespace skia
