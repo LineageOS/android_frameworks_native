@@ -51,7 +51,6 @@
 #include "SensorRecord.h"
 #include "SensorRegistrationInfo.h"
 
-#include <ctime>
 #include <inttypes.h>
 #include <math.h>
 #include <sched.h>
@@ -61,7 +60,12 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <ctime>
+#include <future>
+
 #include <private/android_filesystem_config.h>
+
+using namespace std::chrono_literals;
 
 namespace android {
 // ---------------------------------------------------------------------------
@@ -83,6 +87,8 @@ Mutex SensorService::sPackageTargetVersionLock;
 String16 SensorService::sSensorInterfaceDescriptorPrefix =
         String16("android.frameworks.sensorservice@");
 AppOpsManager SensorService::sAppOpsManager;
+std::atomic_uint64_t SensorService::curProxCallbackSeq(0);
+std::atomic_uint64_t SensorService::completedCallbackSeq(0);
 
 #define SENSOR_SERVICE_DIR "/data/system/sensor_service"
 #define SENSOR_SERVICE_HMAC_KEY_FILE  SENSOR_SERVICE_DIR "/hmac_key"
@@ -97,7 +103,7 @@ static const String16 sManageSensorsPermission("android.permission.MANAGE_SENSOR
 
 SensorService::SensorService()
     : mInitCheck(NO_INIT), mSocketBufferSize(SOCKET_BUFFER_SIZE_NON_BATCHED),
-      mWakeLockAcquired(false) {
+      mWakeLockAcquired(false), mProximityActiveCount(0) {
     mUidPolicy = new UidPolicy(this);
     mSensorPrivacyPolicy = new SensorPrivacyPolicy(this);
 }
@@ -168,7 +174,7 @@ void SensorService::onFirstRef() {
                     (1<<SENSOR_TYPE_GAME_ROTATION_VECTOR);
 
             for (ssize_t i=0 ; i<count ; i++) {
-                bool useThisSensor=true;
+                bool useThisSensor = true;
 
                 switch (list[i].type) {
                     case SENSOR_TYPE_ACCELEROMETER:
@@ -197,7 +203,11 @@ void SensorService::onFirstRef() {
                         break;
                 }
                 if (useThisSensor) {
-                    registerSensor( new HardwareSensor(list[i]) );
+                    if (list[i].type == SENSOR_TYPE_PROXIMITY) {
+                        registerSensor(new ProximitySensor(list[i], *this));
+                    } else {
+                        registerSensor( new HardwareSensor(list[i]) );
+                    }
                 }
             }
 
@@ -670,6 +680,10 @@ void SensorService::disableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
         bool hasAccess = hasSensorAccessLocked(conn->getUid(), conn->getOpPackageName());
         conn->onSensorAccessChanged(hasAccess);
     }
+    mSensors.forEachEntry([](const SensorServiceUtil::SensorList::Entry& e) {
+        e.si->willDisableAllSensors();
+        return true;
+    });
     dev.disableAllSensors();
     // Clear all pending flush connections for all active sensors. If one of the active
     // connections has called flush() and the underlying sensor has been disabled before a
@@ -695,6 +709,10 @@ void SensorService::enableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
     }
     SensorDevice& dev(SensorDevice::getInstance());
     dev.enableAllSensors();
+    mSensors.forEachEntry([](const SensorServiceUtil::SensorList::Entry& e) {
+        e.si->didEnableAllSensors();
+        return true;
+    });
     for (const sp<SensorDirectConnection>& conn : connLock->getDirectConnections()) {
         bool hasAccess = hasSensorAccessLocked(conn->getUid(), conn->getOpPackageName());
         conn->onSensorAccessChanged(hasAccess);
@@ -1520,6 +1538,10 @@ status_t SensorService::resetToNormalModeLocked() {
     if (err == NO_ERROR) {
         mCurrentOperatingMode = NORMAL;
         dev.enableAllSensors();
+        mSensors.forEachEntry([](const SensorServiceUtil::SensorList::Entry& e) {
+            e.si->didEnableAllSensors();
+            return true;
+        });
     }
     return err;
 }
@@ -1582,6 +1604,80 @@ void SensorService::cleanupConnection(SensorDirectConnection* c) {
     SensorDevice& dev(SensorDevice::getInstance());
     dev.unregisterDirectChannel(c->getHalChannelHandle());
     mConnectionHolder.removeDirectConnection(c);
+}
+
+void SensorService::onProximityActiveLocked(bool isActive) {
+    int prevCount = mProximityActiveCount;
+    bool activeStateChanged = false;
+    if (isActive) {
+        mProximityActiveCount++;
+        activeStateChanged = prevCount == 0;
+    } else {
+        mProximityActiveCount--;
+        if (mProximityActiveCount < 0) {
+            ALOGE("Proximity active count is negative (%d)!", mProximityActiveCount);
+        }
+        activeStateChanged = prevCount > 0 && mProximityActiveCount <= 0;
+    }
+
+    if (activeStateChanged) {
+        notifyProximityStateLocked(mProximityActiveListeners);
+    }
+}
+
+void SensorService::notifyProximityStateLocked(
+        const std::vector<sp<ProximityActiveListener>>& listnrs) {
+    std::async(
+        std::launch::async,
+        [](uint64_t mySeq, bool isActive, std::vector<sp<ProximityActiveListener>> listeners) {
+            while (completedCallbackSeq.load() != mySeq - 1)
+                std::this_thread::sleep_for(1ms);
+            for (auto& listener : listeners)
+                listener->onProximityActive(isActive);
+            completedCallbackSeq++;
+        },
+        ++curProxCallbackSeq, mProximityActiveCount > 0,
+        listnrs /* (this is meant to be a copy) */
+    );
+}
+
+status_t SensorService::addProximityActiveListener(const sp<ProximityActiveListener>& callback) {
+    if (callback == nullptr) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock _l(mLock);
+
+    // Check if the callback was already added.
+    for (const auto& cb : mProximityActiveListeners) {
+        if (cb == callback) {
+            return ALREADY_EXISTS;
+        }
+    }
+
+    mProximityActiveListeners.push_back(callback);
+    std::vector<sp<ProximityActiveListener>> listener(1, callback);
+    notifyProximityStateLocked(listener);
+    return OK;
+}
+
+status_t SensorService::removeProximityActiveListener(
+        const sp<ProximityActiveListener>& callback) {
+    if (callback == nullptr) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock _l(mLock);
+
+    for (auto iter = mProximityActiveListeners.begin();
+         iter != mProximityActiveListeners.end();
+         ++iter) {
+        if (*iter == callback) {
+            mProximityActiveListeners.erase(iter);
+            return OK;
+        }
+    }
+    return NAME_NOT_FOUND;
 }
 
 sp<SensorInterface> SensorService::getSensorInterfaceFromHandle(int handle) const {
