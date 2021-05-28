@@ -34,7 +34,7 @@ namespace renderengine {
 namespace skia {
 
 // The root of the filename to write a recorded SKP to. In order for this file to
-// be written to /data/user/, user must run 'adb shell setenforce 0' in the device.
+// be written to /data/user/, user must run 'adb shell setenforce 0' on the device.
 static const std::string CAPTURED_FILENAME_BASE = "/data/user/re_skiacapture";
 
 SkiaCapture::~SkiaCapture() {
@@ -152,11 +152,12 @@ void SkiaCapture::writeToFile() {
     // a smart pointer makes the lambda non-copyable. The lambda is only called
     // once, so this is safe.
     SkFILEWStream* stream = mOpenMultiPicStream.release();
-    CommonPool::post([doc = std::move(mMultiPic), stream] {
+    CommonPool::post([doc = std::move(mMultiPic), stream, name = std::move(mCaptureFile)] {
         ALOGD("Finalizing multi frame SKP");
         doc->close();
         delete stream;
-        ALOGD("Multi frame SKP complete.");
+        ALOGD("Multi frame SKP saved to %s.", name.c_str());
+        base::SetProperty(PROPERTY_DEBUG_RENDERENGINE_CAPTURE_FILENAME, name);
     });
     mCaptureRunning = false;
 }
@@ -164,12 +165,14 @@ void SkiaCapture::writeToFile() {
 bool SkiaCapture::setupMultiFrameCapture() {
     ATRACE_CALL();
     ALOGD("Set up multi-frame capture, ms = %llu", mTimerInterval.count());
+    base::SetProperty(PROPERTY_DEBUG_RENDERENGINE_CAPTURE_FILENAME, "");
+    const std::scoped_lock lock(mMutex);
 
-    std::string captureFile;
     // Attach a timestamp to the file.
-    base::StringAppendF(&captureFile, "%s_%lld.mskp", CAPTURED_FILENAME_BASE.c_str(),
+    mCaptureFile.clear();
+    base::StringAppendF(&mCaptureFile, "%s_%lld.mskp", CAPTURED_FILENAME_BASE.c_str(),
                         std::chrono::steady_clock::now().time_since_epoch().count());
-    auto stream = std::make_unique<SkFILEWStream>(captureFile.c_str());
+    auto stream = std::make_unique<SkFILEWStream>(mCaptureFile.c_str());
     // We own this stream and need to hold it until close() finishes.
     if (stream->isValid()) {
         mOpenMultiPicStream = std::move(stream);
@@ -194,7 +197,7 @@ bool SkiaCapture::setupMultiFrameCapture() {
         mCaptureRunning = true;
         return true;
     } else {
-        ALOGE("Could not open \"%s\" for writing.", captureFile.c_str());
+        ALOGE("Could not open \"%s\" for writing.", mCaptureFile.c_str());
         return false;
     }
 }
