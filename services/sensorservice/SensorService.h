@@ -89,8 +89,22 @@ public:
       UID_STATE_IDLE,
     };
 
+    class ProximityActiveListener : public virtual RefBase {
+    public:
+        // Note that the callback is invoked from an async thread and can interact with the
+        // SensorService directly.
+        virtual void onProximityActive(bool isActive) = 0;
+    };
+
+    static char const* getServiceName() ANDROID_API { return "sensorservice"; }
+    SensorService() ANDROID_API;
+
     void cleanupConnection(SensorEventConnection* connection);
     void cleanupConnection(SensorDirectConnection* c);
+
+    // Call with mLock held.
+    void onProximityActiveLocked(bool isActive);
+    void notifyProximityStateLocked(const std::vector<sp<ProximityActiveListener>>& listeners);
 
     status_t enable(const sp<SensorEventConnection>& connection, int handle,
                     nsecs_t samplingPeriodNs,  nsecs_t maxBatchReportLatencyNs, int reservedFlags,
@@ -103,6 +117,9 @@ public:
 
     status_t flushSensor(const sp<SensorEventConnection>& connection,
                          const String16& opPackageName);
+
+    status_t addProximityActiveListener(const sp<ProximityActiveListener>& callback) ANDROID_API;
+    status_t removeProximityActiveListener(const sp<ProximityActiveListener>& callback) ANDROID_API;
 
     // Returns true if a sensor should be throttled according to our rate-throttling rules.
     static bool isSensorInCappedSet(int sensorType);
@@ -305,8 +322,6 @@ private:
     };
 
     static const char* WAKE_LOCK_NAME;
-    static char const* getServiceName() ANDROID_API { return "sensorservice"; }
-    SensorService() ANDROID_API;
     virtual ~SensorService();
 
     virtual void onFirstRef();
@@ -326,6 +341,7 @@ private:
     virtual int setOperationParameter(
             int32_t handle, int32_t type, const Vector<float> &floats, const Vector<int32_t> &ints);
     virtual status_t dump(int fd, const Vector<String16>& args);
+
     status_t dumpProtoLocked(int fd, ConnectionSafeAutolock* connLock) const;
     String8 getSensorName(int handle) const;
     String8 getSensorStringType(int handle) const;
@@ -433,6 +449,9 @@ private:
     static uint8_t sHmacGlobalKey[128];
     static bool sHmacGlobalKeyIsValid;
 
+    static std::atomic_uint64_t curProxCallbackSeq;
+    static std::atomic_uint64_t completedCallbackSeq;
+
     SensorServiceUtil::SensorList mSensors;
     status_t mInitCheck;
 
@@ -476,6 +495,10 @@ private:
     std::map<userid_t, sp<SensorPrivacyPolicy>> mMicSensorPrivacyPolicies;
     // Checks if the mic sensor privacy is enabled for the uid
     bool isMicSensorPrivacyEnabledForUid(uid_t uid);
+
+    // Counts how many proximity sensors are currently active.
+    int mProximityActiveCount;
+    std::vector<sp<ProximityActiveListener>> mProximityActiveListeners;
 };
 
 } // namespace android
