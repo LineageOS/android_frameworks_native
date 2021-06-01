@@ -143,6 +143,7 @@ struct OutputTest : public testing::Test {
         mOutput->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
 
         mOutput->editState().displaySpace.bounds = kDefaultDisplaySize;
+        EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
     }
 
     void injectOutputLayer(InjectedLayer& layer) {
@@ -156,6 +157,7 @@ struct OutputTest : public testing::Test {
     static const Rect kDefaultDisplaySize;
 
     StrictMock<mock::CompositionEngine> mCompositionEngine;
+    StrictMock<renderengine::mock::RenderEngine> mRenderEngine;
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
     std::shared_ptr<Output> mOutput = createOutput(mCompositionEngine);
