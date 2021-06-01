@@ -64,6 +64,7 @@ class DisplayDevice : public RefBase {
 public:
     constexpr static float sDefaultMinLumiance = 0.0;
     constexpr static float sDefaultMaxLumiance = 500.0;
+    enum { eReceivesInput = 0x01 };
 
     explicit DisplayDevice(DisplayDeviceCreationArgs& args);
 
@@ -90,6 +91,7 @@ public:
     void setLayerStack(ui::LayerStack);
     void setDisplaySize(int width, int height);
     void setProjection(ui::Rotation orientation, Rect viewport, Rect frame);
+    void setFlags(uint32_t flags);
 
     ui::Rotation getPhysicalOrientation() const { return mPhysicalOrientation; }
     ui::Rotation getOrientation() const { return mOrientation; }
@@ -102,6 +104,7 @@ public:
     const Rect& getOrientedDisplaySpaceRect() const;
     bool needsFiltering() const;
     ui::LayerStack getLayerStack() const;
+    bool receivesInput() const { return mFlags & eReceivesInput; }
 
     // Returns the physical ID of this display. This function asserts the ID is physical and it
     // shouldn't be called for other display types, e.g. virtual.
@@ -221,6 +224,8 @@ private:
     // TODO(b/74619554): Remove special cases for primary display.
     const bool mIsPrimary;
 
+    uint32_t mFlags = 0;
+
     std::optional<DeviceProductInfo> mDeviceProductInfo;
 
     std::vector<ui::Hdr> mOverrideHdrTypes;
@@ -246,6 +251,7 @@ struct DisplayDeviceState {
     std::optional<Physical> physical;
     sp<IGraphicBufferProducer> surface;
     ui::LayerStack layerStack = ui::NO_LAYER_STACK;
+    uint32_t flags = 0;
     Rect layerStackSpaceRect;
     Rect orientedDisplaySpaceRect;
     ui::Rotation orientation = ui::ROTATION_0;
