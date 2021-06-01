@@ -563,6 +563,8 @@ public:
 
         void setDisplayLayerStack(const sp<IBinder>& token, uint32_t layerStack);
 
+        void setDisplayFlags(const sp<IBinder>& token, uint32_t flags);
+
         /* setDisplayProjection() defines the projection of layer stacks
          * to a given display.
          *

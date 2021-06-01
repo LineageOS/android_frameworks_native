@@ -2783,6 +2783,9 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
         if (currentState.layerStack != drawingState.layerStack) {
             display->setLayerStack(currentState.layerStack);
         }
+        if (currentState.flags != drawingState.flags) {
+            display->setFlags(currentState.flags);
+        }
         if ((currentState.orientation != drawingState.orientation) ||
             (currentState.layerStackSpaceRect != drawingState.layerStackSpaceRect) ||
             (currentState.orientedDisplaySpaceRect != drawingState.orientedDisplaySpaceRect)) {
@@ -2999,18 +3002,9 @@ void SurfaceFlinger::updateInputWindowInfo() {
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (!layer->needsInputInfo()) return;
-        sp<DisplayDevice> display;
-        if (enablePerWindowInputRotation()) {
-            for (const auto& pair : ON_MAIN_THREAD(mDisplays)) {
-                const auto& displayDevice = pair.second;
-                if (!displayDevice->getCompositionDisplay()
-                             ->belongsInOutput(layer->getLayerStack(),
-                                               layer->getPrimaryDisplayOnly())) {
-                    continue;
-                }
-                display = displayDevice;
-            }
-        }
+        sp<DisplayDevice> display = enablePerWindowInputRotation()
+                ? ON_MAIN_THREAD(getDisplayWithInputByLayer(layer))
+                : nullptr;
         // When calculating the screen bounds we ignore the transparent region since it may
         // result in an unwanted offset.
         inputInfos.push_back(layer->fillInputInfo(display));
@@ -3749,6 +3743,12 @@ uint32_t SurfaceFlinger::setDisplayStateLocked(const DisplayState& s) {
             flags |= eDisplayTransactionNeeded;
         }
     }
+    if (what & DisplayState::eFlagsChanged) {
+        if (state.flags != s.flags) {
+            state.flags = s.flags;
+            flags |= eDisplayTransactionNeeded;
+        }
+    }
     if (what & DisplayState::eDisplayProjectionChanged) {
         if (state.orientation != s.orientation) {
             state.orientation = s.orientation;
@@ -4406,6 +4406,26 @@ void SurfaceFlinger::onInitializeDisplays() {
 void SurfaceFlinger::initializeDisplays() {
     // Async since we may be called from the main thread.
     static_cast<void>(schedule([this]() MAIN_THREAD { onInitializeDisplays(); }));
+}
+
+sp<DisplayDevice> SurfaceFlinger::getDisplayWithInputByLayer(Layer* layer) const {
+    sp<DisplayDevice> display;
+    for (const auto& pair : mDisplays) {
+        const auto& displayDevice = pair.second;
+        if (!displayDevice->receivesInput() ||
+            !displayDevice->getCompositionDisplay()
+                     ->belongsInOutput(layer->getLayerStack(), layer->getPrimaryDisplayOnly())) {
+            continue;
+        }
+        // Don't return immediately so that we can log duplicates.
+        if (display) {
+            ALOGE("Multiple display devices claim to accept input for the same layerstack: %d",
+                  layer->getLayerStack());
+            continue;
+        }
+        display = displayDevice;
+    }
+    return display;
 }
 
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode) {

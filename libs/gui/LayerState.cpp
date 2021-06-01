@@ -315,6 +315,7 @@ status_t ComposerState::read(const Parcel& input) {
 DisplayState::DisplayState()
       : what(0),
         layerStack(0),
+        flags(0),
         layerStackSpaceRect(Rect::EMPTY_RECT),
         orientedDisplaySpaceRect(Rect::EMPTY_RECT),
         width(0),
@@ -325,6 +326,7 @@ status_t DisplayState::write(Parcel& output) const {
     SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(surface));
     SAFE_PARCEL(output.writeUint32, what);
     SAFE_PARCEL(output.writeUint32, layerStack);
+    SAFE_PARCEL(output.writeUint32, flags);
     SAFE_PARCEL(output.writeUint32, toRotationInt(orientation));
     SAFE_PARCEL(output.write, layerStackSpaceRect);
     SAFE_PARCEL(output.write, orientedDisplaySpaceRect);
@@ -341,6 +343,7 @@ status_t DisplayState::read(const Parcel& input) {
 
     SAFE_PARCEL(input.readUint32, &what);
     SAFE_PARCEL(input.readUint32, &layerStack);
+    SAFE_PARCEL(input.readUint32, &flags);
     uint32_t tmpUint = 0;
     SAFE_PARCEL(input.readUint32, &tmpUint);
     orientation = ui::toRotation(tmpUint);
@@ -360,6 +363,10 @@ void DisplayState::merge(const DisplayState& other) {
     if (other.what & eLayerStackChanged) {
         what |= eLayerStackChanged;
         layerStack = other.layerStack;
+    }
+    if (other.what & eFlagsChanged) {
+        what |= eFlagsChanged;
+        flags = other.flags;
     }
     if (other.what & eDisplayProjectionChanged) {
         what |= eDisplayProjectionChanged;
