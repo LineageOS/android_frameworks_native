@@ -37,6 +37,10 @@ const auto kScaleAndTranslate = mat4(0.7f,   0.f, 0.f, 0.f,
                                      0.f,  0.7f, 0.f, 0.f,
                                      0.f,   0.f, 1.f, 0.f,
                                    67.3f, 52.2f, 0.f, 1.f);
+const auto kScaleAsymmetric = mat4(0.8f, 0.f,  0.f, 0.f,
+                                   0.f,  1.1f, 0.f, 0.f,
+                                   0.f,  0.f,  1.f, 0.f,
+                                   0.f,  0.f,  0.f, 1.f);
 // clang-format on
 // When setting layer.sourceDataspace, whether it matches the destination or not determines whether
 // a color correction effect is added to the shader.
@@ -77,12 +81,7 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
     // This matrix, which has different scales for x and y, will
     // generate the slower (more general case) version, which has variants for translucent
     // casters and rounded rects.
-    // clang-format off
-    layer.geometry.positionTransform = mat4(0.7f, 0.f,  0.f, 0.f,
-                                            0.f, 0.8f, 0.f, 0.f,
-                                            0.f, 0.f,  1.f, 0.f,
-                                            0.f, 0.f,  0.f, 1.f);
-    // clang-format on
+    layer.geometry.positionTransform = kScaleAsymmetric;
     for (auto translucent : {false, true}) {
         layer.shadow.casterIsTranslucent = translucent;
         renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
@@ -150,7 +149,6 @@ static void drawSolidLayers(SkiaRenderEngine* renderengine, const DisplaySetting
                     PixelSource{
                             .solidColor = half3(0.1f, 0.2f, 0.3f),
                     },
-            .alpha = 1,
     };
 
     auto layers = std::vector<const LayerSettings*>{&layer};
@@ -186,23 +184,26 @@ static void drawBlurLayers(SkiaRenderEngine* renderengine, const DisplaySettings
 
 // The unique feature of these layers is that the boundary is slightly smaller than the rounded
 // rect crop, so the rounded edges intersect that boundary and require a different clipping method.
+// For buffers, this is done with a stage that computes coverage and it will differ for round and
+// elliptical corners.
 static void drawClippedLayers(SkiaRenderEngine* renderengine, const DisplaySettings& display,
                               const std::shared_ptr<ExternalTexture>& dstTexture,
                               const std::shared_ptr<ExternalTexture>& srcTexture) {
     const Rect& displayRect = display.physicalDisplay;
     FloatRect rect(0, 0, displayRect.width(), displayRect.height() - 20); // boundary is smaller
 
-    // clang-format off
-    const auto symmetric = mat4(0.9f, 0.f,  0.f, 0.f,
-                                0.f,  0.9f, 0.f, 0.f,
-                                0.f,  0.f,  1.f, 0.f,
-                                8.8f, 8.1f, 0.f, 1.f);
-    const auto asymmetric = mat4(0.9f, 0.f,  0.f, 0.f,
-                                 0.f,  0.7f, 0.f, 0.f,
-                                 0.f,  0.f,  1.f, 0.f,
-                                 8.8f, 8.1f, 0.f, 1.f);
+    PixelSource bufferSource{.buffer = Buffer{
+                                     .buffer = srcTexture,
+                                     .isOpaque = 0,
+                                     .maxLuminanceNits = 1000.f,
+                             }};
+    PixelSource bufferOpaque{.buffer = Buffer{
+                                     .buffer = srcTexture,
+                                     .isOpaque = 1,
+                                     .maxLuminanceNits = 1000.f,
+                             }};
+    PixelSource colorSource{.solidColor = half3(0.1f, 0.2f, 0.3f)};
 
-    // clang-format on
     LayerSettings layer{
             .geometry =
                     Geometry{
@@ -211,23 +212,24 @@ static void drawClippedLayers(SkiaRenderEngine* renderengine, const DisplaySetti
                             .roundedCornersCrop =
                                     FloatRect(0, 0, displayRect.width(), displayRect.height()),
                     },
-            .source = PixelSource{.buffer =
-                                          Buffer{
-                                                  .buffer = srcTexture,
-                                                  .isOpaque = 0,
-                                                  .maxLuminanceNits = 1000.f,
-                                          }},
-            .sourceDataspace = kOtherDataSpace,
     };
 
     auto layers = std::vector<const LayerSettings*>{&layer};
-    for (auto transform : {symmetric, asymmetric}) {
-        layer.geometry.positionTransform = transform;
-        // In real use, I saw alpha of 1.0 and 0.999, probably a mistake, but cache both shaders.
-        for (float alpha : {0.5f, 1.f}) {
-            layer.alpha = alpha,
-            renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                     base::unique_fd(), nullptr);
+    for (auto pixelSource : {bufferSource, bufferOpaque, colorSource}) {
+        layer.source = pixelSource;
+        for (auto dataspace : {kDestDataSpace, kOtherDataSpace}) {
+            layer.sourceDataspace = dataspace;
+            // Produce a CircularRRect clip and an EllipticalRRect clip
+            for (auto transform : {kScaleAndTranslate, kScaleAsymmetric}) {
+                layer.geometry.positionTransform = transform;
+                // In real use, I saw alpha of 1.0 and 0.999, probably a mistake, but cache both
+                // shaders.
+                for (float alpha : {0.5f, 1.f}) {
+                    layer.alpha = alpha,
+                    renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
+                                             base::unique_fd(), nullptr);
+                }
+            }
         }
     }
 }
