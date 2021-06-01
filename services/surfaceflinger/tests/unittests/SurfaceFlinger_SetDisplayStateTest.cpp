@@ -224,6 +224,74 @@ TEST_F(SetDisplayStateLockedTest, setDisplayStateLockedRequestsUpdateIfLayerStac
     EXPECT_EQ(456u, display.getCurrentDisplayState().layerStack);
 }
 
+TEST_F(SetDisplayStateLockedTest, setDisplayStateLockedDoesNothingIfFlagsNotChanged) {
+    using Case = SimplePrimaryDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // The display has flags set
+    display.mutableCurrentDisplayState().flags = 1u;
+
+    // The incoming request sets a different layer stack
+    DisplayState state;
+    state.what = DisplayState::eFlagsChanged;
+    state.token = display.token();
+    state.flags = 1u;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags are empty
+    EXPECT_EQ(0u, flags);
+
+    // The desired display state has been set to the new value.
+    EXPECT_EQ(1u, display.getCurrentDisplayState().flags);
+}
+
+TEST_F(SetDisplayStateLockedTest, setDisplayStateLockedRequestsUpdateIfFlagsChanged) {
+    using Case = SimplePrimaryDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // The display has a layer stack set
+    display.mutableCurrentDisplayState().flags = 0u;
+
+    // The incoming request sets a different layer stack
+    DisplayState state;
+    state.what = DisplayState::eFlagsChanged;
+    state.token = display.token();
+    state.flags = 1u;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags indicate a transaction is needed
+    EXPECT_EQ(eDisplayTransactionNeeded, flags);
+
+    // The desired display state has been set to the new value.
+    EXPECT_EQ(1u, display.getCurrentDisplayState().flags);
+}
+
 TEST_F(SetDisplayStateLockedTest, setDisplayStateLockedDoesNothingIfProjectionDidNotChange) {
     using Case = SimplePrimaryDisplayCase;
     constexpr ui::Rotation initialOrientation = ui::ROTATION_180;
