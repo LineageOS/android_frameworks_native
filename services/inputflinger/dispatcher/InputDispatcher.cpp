@@ -3898,12 +3898,6 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
                                               args->xCursorPosition, args->yCursorPosition,
                                               args->downTime, args->pointerCount,
                                               args->pointerProperties, args->pointerCoords, 0, 0);
-        if (args->id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
-            IdGenerator::getSource(args->id) == IdGenerator::Source::INPUT_READER &&
-            !mInputFilterEnabled) {
-            const bool isDown = args->action == AMOTION_EVENT_ACTION_DOWN;
-            mLatencyTracker.trackListener(args->id, isDown, args->eventTime, args->readTime);
-        }
 
         needWake = enqueueInboundEventLocked(std::move(newEntry));
         mLock.unlock();
