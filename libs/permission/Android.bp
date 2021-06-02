@@ -24,6 +24,11 @@ cc_library {
     name: "libpermission",
     host_supported: true,
     double_loadable: true,
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
     cflags: [
         "-Wall",
         "-Wextra",
