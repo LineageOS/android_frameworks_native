@@ -11,19 +11,24 @@ aidl_interface {
     name: "framework-permission-aidl",
     unstable: true,
     local_include_dir: "aidl",
-    backend: {
-        ndk: {
-            enabled: false
-        }
-    },
+    host_supported: true,
+    vendor_available: true,
+    double_loadable: true,
     srcs: [
         "aidl/android/content/AttributionSourceState.aidl",
         "aidl/android/permission/IPermissionChecker.aidl",
     ],
 }
 
-cc_library_shared {
+cc_library {
     name: "libpermission",
+    host_supported: true,
+    double_loadable: true,
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
     cflags: [
         "-Wall",
         "-Wextra",
@@ -45,5 +50,7 @@ cc_library_shared {
     static_libs: [
         "framework-permission-aidl-cpp",
     ],
-    export_static_lib_headers: ["framework-permission-aidl-cpp"],
+    export_static_lib_headers: [
+        "framework-permission-aidl-cpp"
+    ],
 }
