@@ -57,6 +57,7 @@ cc_test {
         "FpsTest.cpp",
         "FramebufferSurfaceTest.cpp",
         "FrameTimelineTest.cpp",
+        "GameModeTest.cpp",
         "HWComposerTest.cpp",
         "OneShotTimerTest.cpp",
         "LayerHistoryTest.cpp",
