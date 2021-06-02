@@ -30,6 +30,8 @@
 // ---------------------------------------------------------------------------
 namespace android {
 
+namespace permission {
+
 using android::content::AttributionSourceState;
 using android::permission::IPermissionChecker;
 
@@ -71,7 +73,8 @@ public:
      * Checks whether a given data access chain described by the given attribution source
      * has a given permission and whether the app op that corresponds to this permission
      * is allowed. Call this method if you are the datasource which would not blame you for
-     * access to the data since you are the data. Note that the attribution source chain
+     * access to the data since you are the data.  Use this API if you are the datasource of
+     * the protected state.
      *
      * NOTE: The attribution source should be for yourself with its next attribution
      * source being the app that would receive the data from you.
@@ -82,18 +85,49 @@ public:
      * @param permission The permission to check.
      * @param attributionSource The attribution chain to check.
      * @param message A message describing the reason the permission was checked.
+     * @param attributedOpCode The op code towards which to blame the access. If this
+     *     is a valid app op the op corresponding to the checked permission (if such)
+     *     would only be checked to ensure it is allowed and if that succeeds the
+     *     noting would be against the attributed op.
      * @return The permission check result which is either PERMISSION_GRANTED,
      *     or PERMISSION_SOFT_DENIED or PERMISSION_HARD_DENIED.
      */
     PermissionChecker::PermissionResult checkPermissionForDataDeliveryFromDatasource(
-            const String16& permission, AttributionSourceState& attributionSource,
-            const String16& message);
+            const String16& permission, const AttributionSourceState& attributionSource,
+            const String16& message, int32_t attributedOpCode);
+
+   /**
+     * Checks whether a given data access chain described by the given attribution source
+     * has a given permission and whether the app op that corresponds to this permission
+     * is allowed. The app ops are not noted/started.
+     *
+     * NOTE: The attribution source should be for yourself with its next attribution
+     * source being the app that would receive the data from you.
+     *
+     * NOTE: Use this method only for permission checks at the preflight point where you
+     * will not deliver the permission protected data to clients but schedule permission
+     * data delivery, apps register listeners, etc.
+     *
+     * @param permission The permission to check.
+     * @param attributionSource The attribution chain to check.
+     * @param message A message describing the reason the permission was checked.
+     * @param attributedOpCode The op code towards which to blame the access. If this
+     *     is a valid app op the op corresponding to the checked permission (if such)
+     *     would only be checked to ensure it is allowed and if that succeeds the
+     *     starting would be against the attributed op.
+     * @return The permission check result which is either PERMISSION_GRANTED,
+     *     or PERMISSION_SOFT_DENIED or PERMISSION_HARD_DENIED.
+     */
+    PermissionResult checkPermissionForPreflightFromDatasource(
+            const String16& permission, const AttributionSourceState& attributionSource,
+            const String16& message, int32_t attributedOpCode);
 
    /**
      * Checks whether a given data access chain described by the given attribution source
      * has a given permission and whether the app op that corresponds to this permission
      * is allowed. The app ops are also marked as started. This is useful for long running
-     * permissions like camera and microphone.
+     * permissions like camera and microphone. Use this API if you are the datasource of
+     * the protected state.
      *
      * NOTE: The attribution source should be for yourself with its next attribution
      * source being the app that would receive the data from you.
@@ -104,32 +138,45 @@ public:
      * @param permission The permission to check.
      * @param attributionSource The attribution chain to check.
      * @param message A message describing the reason the permission was checked.
+     * @param attributedOpCode The op code towards which to blame the access. If this
+     *     is a valid app op the op corresponding to the checked permission (if such)
+     *     would only be checked to ensure it is allowed and if that succeeds the
+     *     starting would be against the attributed op.
      * @return The permission check result which is either PERMISSION_GRANTED,
      *     or PERMISSION_SOFT_DENIED or PERMISSION_HARD_DENIED.
      */
     PermissionResult checkPermissionForStartDataDeliveryFromDatasource(
-            const String16& permission, AttributionSourceState& attributionSource,
-            const String16& message);
+            const String16& permission, const AttributionSourceState& attributionSource,
+            const String16& message, int32_t attributedOpCode);
 
     /**
      * Finishes an ongoing op for data access chain described by the given
-     * attribution source.
+     * attribution source. Use this API if you are the datasource of the protected
+     * state. Use this API if you are the datasource of the protected state.
+     *
+     * NOTE: The attribution source should be for yourself with its next attribution
+     * source being the app that would receive the data from you.
      *
      * @param op The op to finish.
      * @param attributionSource The attribution chain for which to finish data delivery.
+     * @param attributedOpCode The op code towards which to blame the access. If this
+     *     is a valid app op it is the op that would be finished.
      */
-    void finishDataDelivery(const String16& op, AttributionSourceState& attributionSource);
+    void finishDataDeliveryFromDatasource(int32_t op,
+            const AttributionSourceState& attributionSource);
 
 private:
     Mutex mLock;
     sp<IPermissionChecker> mService;
     sp<IPermissionChecker> getService();
 
-    int32_t checkPermission(const String16& permission, AttributionSourceState& attributionSource,
+    PermissionResult checkPermission(const String16& permission,
+            const AttributionSourceState& attributionSource,
             const String16& message, bool forDataDelivery, bool startDataDelivery,
-            bool fromDatasource);
+            bool fromDatasource, int32_t attributedOpCode);
 };
 
+} // namespace permission
 
 } // namespace android
 
