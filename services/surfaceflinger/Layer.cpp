@@ -574,7 +574,8 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
     layerSettings.geometry.positionTransform = getTransform().asMatrix4();
 
     // skip drawing content if the targetSettings indicate the content will be occluded
-    layerSettings.skipContentDraw = !targetSettings.realContentIsVisible;
+    layerSettings.skipContentDraw =
+            layerSettings.skipContentDraw || !targetSettings.realContentIsVisible;
 
     if (hasColorTransform()) {
         layerSettings.colorTransform = getColorTransform();
