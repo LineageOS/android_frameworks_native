@@ -630,6 +630,13 @@ void MotionEvent::applyTransform(const std::array<float, 9>& matrix) {
     // Apply the transformation to all samples.
     std::for_each(mSamplePointerCoords.begin(), mSamplePointerCoords.end(),
                   [&transform](PointerCoords& c) { c.transform(transform); });
+
+    if (mRawXCursorPosition != AMOTION_EVENT_INVALID_CURSOR_POSITION &&
+        mRawYCursorPosition != AMOTION_EVENT_INVALID_CURSOR_POSITION) {
+        const vec2 cursor = transform.transform(mRawXCursorPosition, mRawYCursorPosition);
+        mRawXCursorPosition = cursor.x;
+        mRawYCursorPosition = cursor.y;
+    }
 }
 
 #ifdef __linux__
