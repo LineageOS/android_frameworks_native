@@ -29,7 +29,8 @@ enum {
     METADATA_MOUSE_CURSOR = 4,
     METADATA_ACCESSIBILITY_ID = 5,
     METADATA_OWNER_PID = 6,
-    METADATA_DEQUEUE_TIME = 7
+    METADATA_DEQUEUE_TIME = 7,
+    METADATA_GAME_MODE = 8
 };
 
 struct LayerMetadata : public Parcelable {
