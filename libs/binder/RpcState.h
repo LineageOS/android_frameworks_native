@@ -81,12 +81,12 @@ public:
      * to the process, if this process already has one, or it takes ownership of
      * that refcount
      */
-    sp<IBinder> onBinderEntering(const sp<RpcSession>& session, const RpcAddress& address);
+    [[nodiscard]] status_t onBinderEntering(const sp<RpcSession>& session,
+                                            const RpcAddress& address, sp<IBinder>* out);
 
     size_t countBinders();
     void dump();
 
-private:
     /**
      * Called when reading or writing data to a session fails to clean up
      * data associated with the session in order to cleanup binders.
@@ -105,6 +105,7 @@ private:
      */
     void terminate();
 
+private:
     // Alternative to std::vector<uint8_t> that doesn't abort on allocation failure and caps
     // large allocations to avoid being requested from allocating too much data.
     struct CommandData {
