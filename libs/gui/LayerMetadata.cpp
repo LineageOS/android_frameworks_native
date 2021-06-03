@@ -136,6 +136,8 @@ std::string LayerMetadata::itemToString(uint32_t key, const char* separator) con
             return StringPrintf("ownerPID%s%d", separator, getInt32(key, 0));
         case view::LayerMetadataKey::METADATA_DEQUEUE_TIME:
             return StringPrintf("dequeueTime%s%" PRId64, separator, *getInt64(key));
+        case view::LayerMetadataKey::METADATA_GAME_MODE:
+            return StringPrintf("gameMode%s%d", separator, getInt32(key, 0));
         default:
             return StringPrintf("%d%s%dbytes", key, separator,
                                 static_cast<int>(mMap.at(key).size()));

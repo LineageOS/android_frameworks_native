@@ -789,11 +789,6 @@ void SurfaceFlinger::readPersistentProperties() {
 
     property_get("persist.sys.sf.color_mode", value, "0");
     mForceColorMode = static_cast<ColorMode>(atoi(value));
-
-    property_get("persist.sys.sf.disable_blurs", value, "0");
-    bool disableBlurs = atoi(value);
-    mDisableBlurs = disableBlurs;
-    ALOGI_IF(disableBlurs, "Disabling blur effects, user preference.");
 }
 
 void SurfaceFlinger::startBootAnim() {
@@ -3953,7 +3948,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         if (layer->setCornerRadius(s.cornerRadius))
             flags |= eTraversalNeeded;
     }
-    if (what & layer_state_t::eBackgroundBlurRadiusChanged && !mDisableBlurs && mSupportsBlur) {
+    if (what & layer_state_t::eBackgroundBlurRadiusChanged && mSupportsBlur) {
         if (layer->setBackgroundBlurRadius(s.backgroundBlurRadius)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eBlurRegionsChanged) {
@@ -4018,6 +4013,13 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     std::optional<nsecs_t> dequeueBufferTimestamp;
     if (what & layer_state_t::eMetadataChanged) {
         dequeueBufferTimestamp = s.metadata.getInt64(METADATA_DEQUEUE_TIME);
+        auto gameMode = s.metadata.getInt32(METADATA_GAME_MODE, -1);
+        if (gameMode != -1) {
+            // The transaction will be received on the Task layer and needs to be applied to all
+            // child layers. Child layers that are added at a later point will obtain the game mode
+            // info through addChild().
+            layer->setGameModeForTree(gameMode);
+        }
         if (layer->setMetadata(s.metadata)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eColorSpaceAgnosticChanged) {
