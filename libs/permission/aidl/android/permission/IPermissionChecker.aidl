@@ -28,9 +28,10 @@ interface IPermissionChecker {
 
     int checkPermission(String permission, in AttributionSourceState attributionSource,
             @nullable String message, boolean forDataDelivery, boolean startDataDelivery,
-            boolean fromDatasource);
+            boolean fromDatasource, int attributedOp);
 
-    void finishDataDelivery(String op, in AttributionSourceState attributionSource);
+    void finishDataDelivery(int op, in AttributionSourceState attributionSource,
+            boolean fromDatasource);
 
     int checkOp(int op, in AttributionSourceState attributionSource,
             String message, boolean forDataDelivery, boolean startDataDelivery);
