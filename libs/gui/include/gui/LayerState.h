@@ -247,7 +247,8 @@ struct DisplayState {
         eSurfaceChanged = 0x01,
         eLayerStackChanged = 0x02,
         eDisplayProjectionChanged = 0x04,
-        eDisplaySizeChanged = 0x08
+        eDisplaySizeChanged = 0x08,
+        eFlagsChanged = 0x10
     };
 
     DisplayState();
@@ -257,6 +258,7 @@ struct DisplayState {
     sp<IBinder> token;
     sp<IGraphicBufferProducer> surface;
     uint32_t layerStack;
+    uint32_t flags;
 
     // These states define how layers are projected onto the physical display.
     //

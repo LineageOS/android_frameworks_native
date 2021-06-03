@@ -973,6 +973,8 @@ private:
     // region of all screens presenting this layer stack.
     void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
 
+    sp<DisplayDevice> getDisplayWithInputByLayer(Layer* layer) const REQUIRES(mStateLock);
+
     /*
      * H/W composer
      */
@@ -1264,8 +1266,6 @@ private:
     bool mUseHwcVirtualDisplays = false;
     // If blurs should be enabled on this device.
     bool mSupportsBlur = false;
-    // Disable blurs, for debugging
-    std::atomic<bool> mDisableBlurs = false;
     // If blurs are considered expensive and should require high GPU frequency.
     bool mBlursAreExpensive = false;
     std::atomic<uint32_t> mFrameMissedCount = 0;

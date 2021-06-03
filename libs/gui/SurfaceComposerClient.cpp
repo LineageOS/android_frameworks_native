@@ -1731,6 +1731,12 @@ void SurfaceComposerClient::Transaction::setDisplayLayerStack(const sp<IBinder>&
     s.what |= DisplayState::eLayerStackChanged;
 }
 
+void SurfaceComposerClient::Transaction::setDisplayFlags(const sp<IBinder>& token, uint32_t flags) {
+    DisplayState& s(getDisplayState(token));
+    s.flags = flags;
+    s.what |= DisplayState::eFlagsChanged;
+}
+
 void SurfaceComposerClient::Transaction::setDisplayProjection(const sp<IBinder>& token,
                                                               ui::Rotation orientation,
                                                               const Rect& layerStackRect,

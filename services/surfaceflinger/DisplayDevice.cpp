@@ -219,6 +219,10 @@ void DisplayDevice::setLayerStack(ui::LayerStack stack) {
     mCompositionDisplay->setLayerStackFilter(stack, isPrimary());
 }
 
+void DisplayDevice::setFlags(uint32_t flags) {
+    mFlags = flags;
+}
+
 void DisplayDevice::setDisplaySize(int width, int height) {
     LOG_FATAL_IF(!isVirtual(), "Changing the display size is supported only for virtual displays.");
     mCompositionDisplay->setDisplaySize(ui::Size(width, height));
