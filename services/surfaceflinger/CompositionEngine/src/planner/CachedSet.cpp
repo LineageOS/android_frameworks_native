@@ -209,7 +209,6 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
         // Assume that the final layer contains the buffer that we want to
         // replace with a hole punch.
         holePunchSettings = clientCompositionList.back();
-        LOG_ALWAYS_FATAL_IF(!holePunchSettings.source.buffer.buffer, "Expected to have a buffer!");
         // This mimics Layer::prepareClearClientComposition
         holePunchSettings.source.buffer.buffer = nullptr;
         holePunchSettings.source.solidColor = half3(0.0f, 0.0f, 0.0f);
