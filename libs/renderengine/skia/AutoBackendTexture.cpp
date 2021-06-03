@@ -87,8 +87,15 @@ sk_sp<SkImage> AutoBackendTexture::makeImage(ui::Dataspace dataspace, SkAlphaTyp
         mUpdateProc(mImageCtx, context);
     }
 
+    auto colorType = mColorType;
+    if (alphaType == kOpaque_SkAlphaType) {
+        if (colorType == kRGBA_8888_SkColorType) {
+            colorType = kRGB_888x_SkColorType;
+        }
+    }
+
     sk_sp<SkImage> image =
-            SkImage::MakeFromTexture(context, mBackendTexture, kTopLeft_GrSurfaceOrigin, mColorType,
+            SkImage::MakeFromTexture(context, mBackendTexture, kTopLeft_GrSurfaceOrigin, colorType,
                                      alphaType, toSkColorSpace(dataspace), releaseImageProc, this);
     if (image.get()) {
         // The following ref will be counteracted by releaseProc, when SkImage is discarded.
