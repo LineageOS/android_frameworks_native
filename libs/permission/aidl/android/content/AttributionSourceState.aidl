@@ -23,8 +23,10 @@ package android.content;
  * {@hide}
  */
 parcelable AttributionSourceState {
+    /** The PID that is accessing the permission protected data. */
+    int pid = -1;
     /** The UID that is accessing the permission protected data. */
-    int uid;
+    int uid = -1;
     /** The package that is accessing the permission protected data. */
     @nullable @utf8InCpp String packageName;
     /** The attribution tag of the app accessing the permission protected data. */
@@ -36,5 +38,5 @@ parcelable AttributionSourceState {
     /** The next app to receive the permission protected data. */
     // TODO: We use an array as a workaround - the C++ backend doesn't
     // support referring to the parcelable as it expects ctor/dtor
-    @nullable AttributionSourceState[] next;
+    AttributionSourceState[] next;
 }
