@@ -971,11 +971,28 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                                       false);
             }
 
-            sk_sp<SkImage> image =
-                    imageTextureRef->makeImage(layerDataspace,
-                                               item.usePremultipliedAlpha ? kPremul_SkAlphaType
-                                                                          : kUnpremul_SkAlphaType,
-                                               grContext);
+            // isOpaque means we need to ignore the alpha in the image,
+            // replacing it with the alpha specified by the LayerSettings. See
+            // https://developer.android.com/reference/android/view/SurfaceControl.Builder#setOpaque(boolean)
+            // The proper way to do this is to use an SkColorType that ignores
+            // alpha, like kRGB_888x_SkColorType, and that is used if the
+            // incoming image is kRGBA_8888_SkColorType. However, the incoming
+            // image may be kRGBA_F16_SkColorType, for which there is no RGBX
+            // SkColorType, or kRGBA_1010102_SkColorType, for which we have
+            // kRGB_101010x_SkColorType, but it is not yet supported as a source
+            // on the GPU. (Adding both is tracked in skbug.com/12048.) In the
+            // meantime, we'll use a workaround that works unless we need to do
+            // any color conversion. The workaround requires that we pretend the
+            // image is already premultiplied, so that we do not premultiply it
+            // before applying SkBlendMode::kPlus.
+            const bool useIsOpaqueWorkaround = item.isOpaque &&
+                    (imageTextureRef->colorType() == kRGBA_1010102_SkColorType ||
+                     imageTextureRef->colorType() == kRGBA_F16_SkColorType);
+            const auto alphaType = useIsOpaqueWorkaround ? kPremul_SkAlphaType
+                    : item.isOpaque                      ? kOpaque_SkAlphaType
+                    : item.usePremultipliedAlpha         ? kPremul_SkAlphaType
+                                                         : kUnpremul_SkAlphaType;
+            sk_sp<SkImage> image = imageTextureRef->makeImage(layerDataspace, alphaType, grContext);
 
             auto texMatrix = getSkM44(item.textureTransform).asM33();
             // textureTansform was intended to be passed directly into a shader, so when
@@ -1004,27 +1021,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                 shader = image->makeShader(SkSamplingOptions(), matrix);
             }
 
-            // Handle opaque images - it's a little nonstandard how we do this.
-            // Fundamentally we need to support SurfaceControl.Builder#setOpaque:
-            // https://developer.android.com/reference/android/view/SurfaceControl.Builder#setOpaque(boolean)
-            // The important language is that when isOpaque is set, opacity is not sampled from the
-            // alpha channel, but blending may still be supported on a transaction via setAlpha. So,
-            // here's the conundrum:
-            // 1. We can't force the SkImage alpha type to kOpaque_SkAlphaType, because it's treated
-            // as an internal hint - composition is undefined when there are alpha bits present.
-            // 2. We can try to lie about the pixel layout, but that only works for RGBA8888
-            // buffers, i.e., treating them as RGBx8888 instead. But we can't do the same for
-            // RGBA1010102 because RGBx1010102 is not supported as a pixel layout for SkImages. It's
-            // also not clear what to use for F16 either, and lying about the pixel layout is a bit
-            // of a hack anyways.
-            // 3. We can't change the blendmode to src, because while this satisfies the requirement
-            // for ignoring the alpha channel, it doesn't quite satisfy the blending requirement
-            // because src always clobbers the destination content.
-            //
-            // So, what we do here instead is an additive blend mode where we compose the input
-            // image with a solid black. This might need to be reassess if this does not support
-            // FP16 incredibly well, but FP16 end-to-end isn't well supported anyway at the moment.
-            if (item.isOpaque) {
+            if (useIsOpaqueWorkaround) {
                 shader = SkShaders::Blend(SkBlendMode::kPlus, shader,
                                           SkShaders::Color(SkColors::kBlack,
                                                            toSkColorSpace(layerDataspace)));
