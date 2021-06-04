@@ -103,6 +103,13 @@ struct OutputLayerCompositionState {
         // be visible through it. Unowned - the OutputLayer's lifetime will
         // outlast this.)
         compositionengine::OutputLayer* peekThroughLayer = nullptr;
+        // True when this layer's blur has been cached with a previous layer, so that this layer
+        // does not need to request blurring.
+        // TODO(b/188816867): support blur regions too, which are less likely to be common if a
+        // device supports cross-window blurs. Blur region support should be doable, but we would
+        // need to make sure that layer caching works well with the blur region transform passed
+        // into RenderEngine
+        bool disableBackgroundBlur = false;
     } overrideInfo;
 
     /*

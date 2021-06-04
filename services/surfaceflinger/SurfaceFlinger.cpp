@@ -6202,9 +6202,12 @@ status_t SurfaceFlinger::renderScreenImplLocked(
                 clearRegion,
                 layerStackSpaceRect,
                 clientCompositionDisplay.outputDataspace,
-                true, /* realContentIsVisible */
+                true,  /* realContentIsVisible */
                 false, /* clearContent */
-                disableBlurs,
+                disableBlurs ? compositionengine::LayerFE::ClientCompositionTargetSettings::
+                                       BlurSetting::Disabled
+                             : compositionengine::LayerFE::ClientCompositionTargetSettings::
+                                       BlurSetting::Enabled,
         };
         std::vector<compositionengine::LayerFE::LayerSettings> results =
                 layer->prepareClientCompositionList(targetSettings);

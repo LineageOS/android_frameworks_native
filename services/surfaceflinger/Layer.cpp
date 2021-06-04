@@ -587,11 +587,24 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
 
     layerSettings.alpha = alpha;
     layerSettings.sourceDataspace = getDataSpace();
-    if (!targetSettings.disableBlurs) {
-        layerSettings.backgroundBlurRadius = getBackgroundBlurRadius();
-        layerSettings.blurRegions = getBlurRegions();
-        layerSettings.blurRegionTransform =
-                getActiveTransform(getDrawingState()).inverse().asMatrix4();
+    switch (targetSettings.blurSetting) {
+        case LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled:
+            layerSettings.backgroundBlurRadius = getBackgroundBlurRadius();
+            layerSettings.blurRegions = getBlurRegions();
+            layerSettings.blurRegionTransform =
+                    getActiveTransform(getDrawingState()).inverse().asMatrix4();
+            break;
+        case LayerFE::ClientCompositionTargetSettings::BlurSetting::BackgroundBlurOnly:
+            layerSettings.backgroundBlurRadius = getBackgroundBlurRadius();
+            break;
+        case LayerFE::ClientCompositionTargetSettings::BlurSetting::BlurRegionsOnly:
+            layerSettings.blurRegions = getBlurRegions();
+            layerSettings.blurRegionTransform =
+                    getActiveTransform(getDrawingState()).inverse().asMatrix4();
+            break;
+        case LayerFE::ClientCompositionTargetSettings::BlurSetting::Disabled:
+        default:
+            break;
     }
     layerSettings.stretchEffect = getStretchEffect();
     // Record the name of the layer for debugging further down the stack.
