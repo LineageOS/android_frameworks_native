@@ -22,18 +22,14 @@
 namespace android {
 namespace {
 
-class OnHotplugReceivedTest : public DisplayTransactionTest {};
+class HotplugTest : public DisplayTransactionTest {};
 
-TEST_F(OnHotplugReceivedTest, hotplugEnqueuesEventsForDisplayTransaction) {
-    constexpr int currentSequenceId = 123;
+TEST_F(HotplugTest, enqueuesEventsForDisplayTransaction) {
     constexpr HWDisplayId hwcDisplayId1 = 456;
     constexpr HWDisplayId hwcDisplayId2 = 654;
 
     // --------------------------------------------------------------------
     // Preconditions
-
-    // Set the current sequence id for accepted events
-    mFlinger.mutableComposerSequenceId() = currentSequenceId;
 
     // Set the main thread id so that the current thread does not appear to be
     // the main thread.
@@ -50,8 +46,8 @@ TEST_F(OnHotplugReceivedTest, hotplugEnqueuesEventsForDisplayTransaction) {
     // Invocation
 
     // Simulate two hotplug events (a connect and a disconnect)
-    mFlinger.onHotplugReceived(currentSequenceId, hwcDisplayId1, Connection::CONNECTED);
-    mFlinger.onHotplugReceived(currentSequenceId, hwcDisplayId2, Connection::DISCONNECTED);
+    mFlinger.onComposerHalHotplug(hwcDisplayId1, Connection::CONNECTED);
+    mFlinger.onComposerHalHotplug(hwcDisplayId2, Connection::DISCONNECTED);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -68,61 +64,20 @@ TEST_F(OnHotplugReceivedTest, hotplugEnqueuesEventsForDisplayTransaction) {
     EXPECT_EQ(Connection::DISCONNECTED, pendingEvents[1].connection);
 }
 
-TEST_F(OnHotplugReceivedTest, hotplugDiscardsUnexpectedEvents) {
-    constexpr int currentSequenceId = 123;
-    constexpr int otherSequenceId = 321;
-    constexpr HWDisplayId displayId = 456;
-
-    // --------------------------------------------------------------------
-    // Preconditions
-
-    // Set the current sequence id for accepted events
-    mFlinger.mutableComposerSequenceId() = currentSequenceId;
-
-    // Set the main thread id so that the current thread does not appear to be
-    // the main thread.
-    mFlinger.mutableMainThreadId() = std::thread::id();
-
-    // --------------------------------------------------------------------
-    // Call Expectations
-
-    // We do not expect any calls to invalidate().
-    EXPECT_CALL(*mMessageQueue, invalidate()).Times(0);
-
-    // --------------------------------------------------------------------
-    // Invocation
-
-    // Call with an unexpected sequence id
-    mFlinger.onHotplugReceived(otherSequenceId, displayId, Connection::INVALID);
-
-    // --------------------------------------------------------------------
-    // Postconditions
-
-    // The display transaction needed flag should not be set
-    EXPECT_FALSE(hasTransactionFlagSet(eDisplayTransactionNeeded));
-
-    // There should be no pending events
-    EXPECT_TRUE(mFlinger.mutablePendingHotplugEvents().empty());
-}
-
-TEST_F(OnHotplugReceivedTest, hotplugProcessesEnqueuedEventsIfCalledOnMainThread) {
-    constexpr int currentSequenceId = 123;
+TEST_F(HotplugTest, processesEnqueuedEventsIfCalledOnMainThread) {
     constexpr HWDisplayId displayId1 = 456;
 
     // --------------------------------------------------------------------
     // Note:
     // --------------------------------------------------------------------
     // This test case is a bit tricky. We want to verify that
-    // onHotplugReceived() calls processDisplayHotplugEventsLocked(), but we
+    // onComposerHalHotplug() calls processDisplayHotplugEventsLocked(), but we
     // don't really want to provide coverage for everything the later function
     // does as there are specific tests for it.
     // --------------------------------------------------------------------
 
     // --------------------------------------------------------------------
     // Preconditions
-
-    // Set the current sequence id for accepted events
-    mFlinger.mutableComposerSequenceId() = currentSequenceId;
 
     // Set the main thread id so that the current thread does appear to be the
     // main thread.
@@ -139,9 +94,9 @@ TEST_F(OnHotplugReceivedTest, hotplugProcessesEnqueuedEventsIfCalledOnMainThread
     // Invocation
 
     // Simulate a disconnect on a display id that is not connected. This should
-    // be enqueued by onHotplugReceived(), and dequeued by
+    // be enqueued by onComposerHalHotplug(), and dequeued by
     // processDisplayHotplugEventsLocked(), but then ignored as invalid.
-    mFlinger.onHotplugReceived(currentSequenceId, displayId1, Connection::DISCONNECTED);
+    mFlinger.onComposerHalHotplug(displayId1, Connection::DISCONNECTED);
 
     // --------------------------------------------------------------------
     // Postconditions
