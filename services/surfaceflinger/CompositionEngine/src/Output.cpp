@@ -1188,19 +1188,6 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                 !layerState.visibleRegion.subtract(layerState.shadowRegion).isEmpty();
 
         if (clientComposition || clearClientComposition) {
-            compositionengine::LayerFE::ClientCompositionTargetSettings
-                    targetSettings{.clip = clip,
-                                   .needsFiltering =
-                                           layer->needsFiltering() || outputState.needsFiltering,
-                                   .isSecure = outputState.isSecure,
-                                   .supportsProtectedContent = supportsProtectedContent,
-                                   .clearRegion = clientComposition ? clearRegion : stubRegion,
-                                   .viewport = outputState.layerStackSpace.content,
-                                   .dataspace = outputDataspace,
-                                   .realContentIsVisible = realContentIsVisible,
-                                   .clearContent = !clientComposition,
-                                   .disableBlurs = disableBlurs};
-
             std::vector<LayerFE::LayerSettings> results;
             if (layer->getState().overrideInfo.buffer != nullptr) {
                 if (layer->getState().overrideInfo.buffer->getBuffer() != previousOverrideBuffer) {
@@ -1212,6 +1199,25 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                           layer->getLayerFE().getDebugName());
                 }
             } else {
+                LayerFE::ClientCompositionTargetSettings::BlurSetting blurSetting = disableBlurs
+                        ? LayerFE::ClientCompositionTargetSettings::BlurSetting::Disabled
+                        : (layer->getState().overrideInfo.disableBackgroundBlur
+                                   ? LayerFE::ClientCompositionTargetSettings::BlurSetting::
+                                             BlurRegionsOnly
+                                   : LayerFE::ClientCompositionTargetSettings::BlurSetting::
+                                             Enabled);
+                compositionengine::LayerFE::ClientCompositionTargetSettings
+                        targetSettings{.clip = clip,
+                                       .needsFiltering = layer->needsFiltering() ||
+                                               outputState.needsFiltering,
+                                       .isSecure = outputState.isSecure,
+                                       .supportsProtectedContent = supportsProtectedContent,
+                                       .clearRegion = clientComposition ? clearRegion : stubRegion,
+                                       .viewport = outputState.layerStackSpace.content,
+                                       .dataspace = outputDataspace,
+                                       .realContentIsVisible = realContentIsVisible,
+                                       .clearContent = !clientComposition,
+                                       .blurSetting = blurSetting};
                 results = layerFE.prepareClientCompositionList(targetSettings);
                 if (realContentIsVisible && !results.empty()) {
                     layer->editState().clientCompositionTimestamp = systemTime();
