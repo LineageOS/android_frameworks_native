@@ -56,20 +56,16 @@ namespace hal = android::hardware::graphics::composer::hal;
 // Implement this interface to receive hardware composer events.
 //
 // These callback functions will generally be called on a hwbinder thread, but
-// when first registering the callback the onHotplugReceived() function will
+// when first registering the callback the onComposerHalHotplug() function will
 // immediately be called on the thread calling registerCallback().
-//
-// All calls receive a sequenceId, which will be the value that was supplied to
-// HWC2::Device::registerCallback(). It's used to help differentiate callbacks
-// from different hardware composer instances.
 struct ComposerCallback {
-    virtual void onHotplugReceived(int32_t sequenceId, hal::HWDisplayId, hal::Connection) = 0;
-    virtual void onRefreshReceived(int32_t sequenceId, hal::HWDisplayId) = 0;
-    virtual void onVsyncReceived(int32_t sequenceId, hal::HWDisplayId, int64_t timestamp,
-                                 std::optional<hal::VsyncPeriodNanos>) = 0;
-    virtual void onVsyncPeriodTimingChangedReceived(int32_t sequenceId, hal::HWDisplayId,
-                                                    const hal::VsyncPeriodChangeTimeline&) = 0;
-    virtual void onSeamlessPossible(int32_t sequenceId, hal::HWDisplayId) = 0;
+    virtual void onComposerHalHotplug(hal::HWDisplayId, hal::Connection) = 0;
+    virtual void onComposerHalRefresh(hal::HWDisplayId) = 0;
+    virtual void onComposerHalVsync(hal::HWDisplayId, int64_t timestamp,
+                                    std::optional<hal::VsyncPeriodNanos>) = 0;
+    virtual void onComposerHalVsyncPeriodTimingChanged(hal::HWDisplayId,
+                                                       const hal::VsyncPeriodChangeTimeline&) = 0;
+    virtual void onComposerHalSeamlessPossible(hal::HWDisplayId) = 0;
 
 protected:
     ~ComposerCallback() = default;
