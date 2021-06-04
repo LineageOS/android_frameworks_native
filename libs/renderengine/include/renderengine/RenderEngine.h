@@ -48,6 +48,11 @@
  */
 #define PROPERTY_DEBUG_RENDERENGINE_CAPTURE_FILENAME "debug.renderengine.capture_filename"
 
+/**
+ * Allows recording of Skia drawing commands with systrace.
+ */
+#define PROPERTY_SKIA_ATRACE_ENABLED "debug.renderengine.skia_atrace_enabled"
+
 struct ANativeWindowBuffer;
 
 namespace android {
@@ -93,10 +98,6 @@ public:
     };
 
     static std::unique_ptr<RenderEngine> create(const RenderEngineCreationArgs& args);
-
-    RenderEngine() : RenderEngine(RenderEngineType::GLES) {}
-
-    RenderEngine(RenderEngineType type) : mRenderEngineType(type) {}
 
     virtual ~RenderEngine() = 0;
 
@@ -204,6 +205,10 @@ public:
     static void validateOutputBufferUsage(const sp<GraphicBuffer>&);
 
 protected:
+    RenderEngine() : RenderEngine(RenderEngineType::GLES) {}
+
+    RenderEngine(RenderEngineType type) : mRenderEngineType(type) {}
+
     // Maps GPU resources for this buffer.
     // Note that work may be deferred to an additional thread, i.e. this call
     // is made asynchronously, but the caller can expect that map/unmap calls
