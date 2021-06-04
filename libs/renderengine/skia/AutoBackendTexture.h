@@ -65,6 +65,8 @@ public:
             return mTexture->getOrCreateSurface(dataspace, context);
         }
 
+        SkColorType colorType() const { return mTexture->mColorType; }
+
         DISALLOW_COPY_AND_ASSIGN(LocalRef);
 
     private:
