@@ -292,8 +292,8 @@ static void SetDex2OatScheduling(bool set_to_bg) {
     }
 }
 
-static unique_fd create_profile(uid_t uid, const std::string& profile, int32_t flags) {
-    unique_fd fd(TEMP_FAILURE_RETRY(open(profile.c_str(), flags, 0600)));
+static unique_fd create_profile(uid_t uid, const std::string& profile, int32_t flags, mode_t mode) {
+    unique_fd fd(TEMP_FAILURE_RETRY(open(profile.c_str(), flags, mode)));
     if (fd.get() < 0) {
         if (errno != EEXIST) {
             PLOG(ERROR) << "Failed to create profile " << profile;
@@ -310,7 +310,7 @@ static unique_fd create_profile(uid_t uid, const std::string& profile, int32_t f
     return fd;
 }
 
-static unique_fd open_profile(uid_t uid, const std::string& profile, int32_t flags) {
+static unique_fd open_profile(uid_t uid, const std::string& profile, int32_t flags, mode_t mode) {
     // Do not follow symlinks when opening a profile:
     //   - primary profiles should not contain symlinks in their paths
     //   - secondary dex paths should have been already resolved and validated
@@ -320,7 +320,7 @@ static unique_fd open_profile(uid_t uid, const std::string& profile, int32_t fla
     // Reference profiles and snapshots are created on the fly; so they might not exist beforehand.
     unique_fd fd;
     if ((flags & O_CREAT) != 0) {
-        fd = create_profile(uid, profile, flags);
+        fd = create_profile(uid, profile, flags, mode);
     } else {
         fd.reset(TEMP_FAILURE_RETRY(open(profile.c_str(), flags)));
     }
@@ -336,6 +336,16 @@ static unique_fd open_profile(uid_t uid, const std::string& profile, int32_t fla
             PLOG(ERROR) << "Failed to open profile " << profile;
         }
         return invalid_unique_fd();
+    } else {
+        // If we just create the file we need to set its mode because on Android
+        // open has a mask that only allows owner access.
+        if ((flags & O_CREAT) != 0) {
+            if (fchmod(fd.get(), mode) != 0) {
+                PLOG(ERROR) << "Could not set mode " << std::hex << mode << std::dec
+                        << " on profile" << profile;
+                // Not a terminal failure.
+            }
+        }
     }
 
     return fd;
@@ -345,20 +355,29 @@ static unique_fd open_current_profile(uid_t uid, userid_t user, const std::strin
         const std::string& location, bool is_secondary_dex) {
     std::string profile = create_current_profile_path(user, package_name, location,
             is_secondary_dex);
-    return open_profile(uid, profile, O_RDONLY);
+    return open_profile(uid, profile, O_RDONLY, /*mode=*/ 0);
 }
 
 static unique_fd open_reference_profile(uid_t uid, const std::string& package_name,
         const std::string& location, bool read_write, bool is_secondary_dex) {
     std::string profile = create_reference_profile_path(package_name, location, is_secondary_dex);
-    return open_profile(uid, profile, read_write ? (O_CREAT | O_RDWR) : O_RDONLY);
+    return open_profile(
+        uid,
+        profile,
+        read_write ? (O_CREAT | O_RDWR) : O_RDONLY,
+        S_IRUSR | S_IWUSR | S_IRGRP);  // so that ART can also read it when apps run.
 }
 
 static UniqueFile open_reference_profile_as_unique_file(uid_t uid, const std::string& package_name,
         const std::string& location, bool read_write, bool is_secondary_dex) {
     std::string profile_path = create_reference_profile_path(package_name, location,
                                                              is_secondary_dex);
-    unique_fd ufd = open_profile(uid, profile_path, read_write ? (O_CREAT | O_RDWR) : O_RDONLY);
+    unique_fd ufd = open_profile(
+        uid,
+        profile_path,
+        read_write ? (O_CREAT | O_RDWR) : O_RDONLY,
+        S_IRUSR | S_IWUSR | S_IRGRP);  // so that ART can also read it when apps run.
+
     return UniqueFile(ufd.release(), profile_path, [](const std::string& path) {
         clear_profile(path);
     });
@@ -367,7 +386,7 @@ static UniqueFile open_reference_profile_as_unique_file(uid_t uid, const std::st
 static unique_fd open_spnashot_profile(uid_t uid, const std::string& package_name,
         const std::string& location) {
     std::string profile = create_snapshot_profile_path(package_name, location);
-    return open_profile(uid, profile, O_CREAT | O_RDWR | O_TRUNC);
+    return open_profile(uid, profile, O_CREAT | O_RDWR | O_TRUNC,  S_IRUSR | S_IWUSR);
 }
 
 static void open_profile_files(uid_t uid, const std::string& package_name,
@@ -2484,7 +2503,7 @@ static bool create_boot_image_profile_snapshot(const std::string& package_name,
     for (size_t i = 0; i < profiles.size(); )  {
         std::vector<unique_fd> profiles_fd;
         for (size_t k = 0; k < kAggregationBatchSize && i < profiles.size(); k++, i++) {
-            unique_fd fd = open_profile(AID_SYSTEM, profiles[i], O_RDONLY);
+            unique_fd fd = open_profile(AID_SYSTEM, profiles[i], O_RDONLY, /*mode=*/ 0);
             if (fd.get() >= 0) {
                 profiles_fd.push_back(std::move(fd));
             }
