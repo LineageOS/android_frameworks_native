@@ -344,8 +344,8 @@ void Display::applyClientTargetRequests(const ClientTargetProperty& clientTarget
     if (clientTargetProperty.dataspace == ui::Dataspace::UNKNOWN) {
         return;
     }
-    auto outputState = editState();
-    outputState.dataspace = clientTargetProperty.dataspace;
+
+    editState().dataspace = clientTargetProperty.dataspace;
     getRenderSurface()->setBufferDataspace(clientTargetProperty.dataspace);
     getRenderSurface()->setBufferPixelFormat(clientTargetProperty.pixelFormat);
 }
