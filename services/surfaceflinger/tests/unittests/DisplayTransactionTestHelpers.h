@@ -263,40 +263,23 @@ struct DisplayVariant {
 
     static auto makeFakeExistingDisplayInjector(DisplayTransactionTest* test) {
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder();
-        if (auto displayId = PhysicalDisplayId::tryCast(DISPLAY_ID::get())) {
-            ceDisplayArgs.setPhysical({*displayId, ui::DisplayConnectionType::Internal});
-        } else {
-            // We turn off the use of HwcVirtualDisplays, to prevent Composition Engine
-            // from calling into HWComposer. This way all virtual displays will get
-            // a GpuVirtualDisplayId, even if we are in the HwcVirtualDisplayVariant.
-            // In this case we later override it by calling display.setDisplayIdForTesting().
-            ceDisplayArgs.setUseHwcVirtualDisplays(false);
+        ceDisplayArgs.setId(DISPLAY_ID::get())
+                .setPixels({WIDTH, HEIGHT})
+                .setPowerAdvisor(&test->mPowerAdvisor);
 
-            GpuVirtualDisplayId desiredDisplayId = GpuVirtualDisplayId::tryCast(DISPLAY_ID::get())
-                                                           .value_or(GpuVirtualDisplayId(0));
-
-            ON_CALL(test->mFlinger.gpuVirtualDisplayIdGenerator(), nextId())
-                    .WillByDefault(Return(desiredDisplayId));
-
-            auto& generator = test->mFlinger.gpuVirtualDisplayIdGenerator();
-            ceDisplayArgs.setGpuVirtualDisplayIdGenerator(generator);
+        const auto connectionType = CONNECTION_TYPE::value;
+        if (connectionType) {
+            ceDisplayArgs.setConnectionType(*connectionType);
         }
-        ceDisplayArgs.setPixels({WIDTH, HEIGHT}).setPowerAdvisor(&test->mPowerAdvisor);
 
         auto compositionDisplay =
                 compositionengine::impl::createDisplay(test->mFlinger.getCompositionEngine(),
                                                        ceDisplayArgs.build());
 
-        if (HalVirtualDisplayId::tryCast(DISPLAY_ID::get())) {
-            // CompositionEngine has assigned a placeholder GpuVirtualDisplayId and we need to
-            // override it with the correct HalVirtualDisplayId.
-            compositionDisplay->setDisplayIdForTesting(DISPLAY_ID::get());
-        }
-
         auto injector =
                 TestableSurfaceFlinger::FakeDisplayDeviceInjector(test->mFlinger,
                                                                   compositionDisplay,
-                                                                  CONNECTION_TYPE::value,
+                                                                  connectionType,
                                                                   HWC_DISPLAY_ID_OPT::value,
                                                                   static_cast<bool>(PRIMARY));
 
@@ -404,8 +387,8 @@ struct HwcDisplayVariant {
                 ::testing::UnitTest::GetInstance()->current_test_info();
 
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder()
-                                     .setPhysical({DisplayVariant::DISPLAY_ID::get(),
-                                                   PhysicalDisplay::CONNECTION_TYPE})
+                                     .setId(DisplayVariant::DISPLAY_ID::get())
+                                     .setConnectionType(PhysicalDisplay::CONNECTION_TYPE)
                                      .setPixels({DisplayVariant::WIDTH, DisplayVariant::HEIGHT})
                                      .setIsSecure(static_cast<bool>(DisplayVariant::SECURE))
                                      .setPowerAdvisor(&test->mPowerAdvisor)
@@ -558,17 +541,13 @@ struct NonHwcVirtualDisplayVariant
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
 
-        ON_CALL(test->mFlinger.gpuVirtualDisplayIdGenerator(), nextId())
-                .WillByDefault(Return(Base::DISPLAY_ID::get()));
-
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder()
+                                     .setId(Base::DISPLAY_ID::get())
                                      .setPixels({Base::WIDTH, Base::HEIGHT})
                                      .setIsSecure(static_cast<bool>(Base::SECURE))
                                      .setPowerAdvisor(&test->mPowerAdvisor)
                                      .setName(std::string("Injected display for ") +
                                               test_info->test_case_name() + "." + test_info->name())
-                                     .setGpuVirtualDisplayIdGenerator(
-                                             test->mFlinger.gpuVirtualDisplayIdGenerator())
                                      .build();
 
         return compositionengine::impl::createDisplay(test->mFlinger.getCompositionEngine(),
@@ -610,35 +589,22 @@ struct HwcVirtualDisplayVariant
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
 
-        // In order to prevent compostition engine calling into HWComposer, we
-        // 1. turn off the use of HWC virtual displays,
-        // 2. provide a GpuVirtualDisplayIdGenerator which always returns some fake ID
-        // 3. override the ID by calling setDisplayIdForTesting()
-
-        ON_CALL(test->mFlinger.gpuVirtualDisplayIdGenerator(), nextId())
-                .WillByDefault(Return(GpuVirtualDisplayId(0)));
-
+        const auto displayId = Base::DISPLAY_ID::get();
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder()
-                                     .setUseHwcVirtualDisplays(false)
+                                     .setId(displayId)
                                      .setPixels({Base::WIDTH, Base::HEIGHT})
                                      .setIsSecure(static_cast<bool>(Base::SECURE))
                                      .setPowerAdvisor(&test->mPowerAdvisor)
                                      .setName(std::string("Injected display for ") +
                                               test_info->test_case_name() + "." + test_info->name())
-                                     .setGpuVirtualDisplayIdGenerator(
-                                             test->mFlinger.gpuVirtualDisplayIdGenerator())
                                      .build();
 
         auto compositionDisplay =
                 compositionengine::impl::createDisplay(test->mFlinger.getCompositionEngine(),
                                                        ceDisplayArgs);
-        compositionDisplay->setDisplayIdForTesting(Base::DISPLAY_ID::get());
 
         // Insert display data so that the HWC thinks it created the virtual display.
-        if (const auto displayId = Base::DISPLAY_ID::get();
-            HalVirtualDisplayId::tryCast(displayId)) {
-            test->mFlinger.mutableHwcDisplayData().try_emplace(displayId);
-        }
+        test->mFlinger.mutableHwcDisplayData().try_emplace(displayId);
 
         return compositionDisplay;
     }
@@ -649,8 +615,8 @@ struct HwcVirtualDisplayVariant
     }
 
     static void setupHwcVirtualDisplayCreationCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mComposer, createVirtualDisplay(Base::WIDTH, Base::HEIGHT, _, _))
-                .WillOnce(DoAll(SetArgPointee<3>(Self::HWC_DISPLAY_ID), Return(Error::NONE)));
+        EXPECT_CALL(*test->mComposer, createVirtualDisplay(Base::WIDTH, Base::HEIGHT, _, _, _))
+                .WillOnce(DoAll(SetArgPointee<4>(Self::HWC_DISPLAY_ID), Return(Error::NONE)));
         EXPECT_CALL(*test->mComposer, setClientTargetSlotCount(_)).WillOnce(Return(Error::NONE));
     }
 };
