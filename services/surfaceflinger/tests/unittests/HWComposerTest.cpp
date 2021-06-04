@@ -79,7 +79,6 @@ TEST_F(HWComposerSetConfigurationTest, loadsLayerMetadataSupport) {
     const std::string kMetadata2Name = "com.example.metadata.2";
     constexpr bool kMetadata2Mandatory = true;
 
-    EXPECT_CALL(*mHal, getMaxVirtualDisplayCount()).WillOnce(Return(0));
     EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<hal::Capability>{}));
     EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
             .WillOnce(DoAll(SetArgPointee<0>(std::vector<hal::LayerGenericMetadataKey>{
@@ -102,7 +101,6 @@ TEST_F(HWComposerSetConfigurationTest, loadsLayerMetadataSupport) {
 }
 
 TEST_F(HWComposerSetConfigurationTest, handlesUnsupportedCallToGetLayerGenericMetadataKeys) {
-    EXPECT_CALL(*mHal, getMaxVirtualDisplayCount()).WillOnce(Return(0));
     EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<hal::Capability>{}));
     EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
             .WillOnce(Return(hardware::graphics::composer::V2_4::Error::UNSUPPORTED));
