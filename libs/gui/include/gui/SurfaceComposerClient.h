@@ -42,6 +42,7 @@
 #include <gui/ITransactionCompletedListener.h>
 #include <gui/LayerState.h>
 #include <gui/SurfaceControl.h>
+#include <gui/WindowInfosListenerReporter.h>
 #include <math/vec3.h>
 
 namespace android {
@@ -618,6 +619,9 @@ public:
             const sp<gui::ITunnelModeEnabledListener>& listener);
     static status_t removeTunnelModeEnabledListener(
             const sp<gui::ITunnelModeEnabledListener>& listener);
+
+    status_t addWindowInfosListener(const sp<gui::WindowInfosListener>& windowInfosListener);
+    status_t removeWindowInfosListener(const sp<gui::WindowInfosListener>& windowInfosListener);
 
 private:
     virtual void onFirstRef();
