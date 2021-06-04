@@ -51,6 +51,11 @@ public:
     void dump(std::string& result) const;
     void dumpLayers(std::string& result) const;
 
+    const std::optional<CachedSet>& getNewCachedSetForTesting() const { return mNewCachedSet; }
+
+protected:
+    std::optional<CachedSet> mNewCachedSet;
+
 private:
     size_t calculateDisplayCost(const std::vector<const LayerState*>& layers) const;
 
@@ -72,6 +77,7 @@ private:
             std::vector<CachedSet>::const_iterator mStart;
             std::vector<size_t> mLengths;
             const CachedSet* mHolePunchCandidate = nullptr;
+            const CachedSet* mBlurringLayer = nullptr;
 
         public:
             // Initializes a Builder a CachedSet to start from.
@@ -90,6 +96,10 @@ private:
                 mHolePunchCandidate = holePunchCandidate;
             }
 
+            void setBlurringLayer(const CachedSet* blurringLayer) {
+                mBlurringLayer = blurringLayer;
+            }
+
             // Builds a Run instance, if a valid Run may be built.
             std::optional<Run> validateAndBuild() {
                 if (mLengths.size() <= 1) {
@@ -99,7 +109,7 @@ private:
                 return Run(mStart,
                            std::reduce(mLengths.cbegin(), mLengths.cend(), 0u,
                                        [](size_t left, size_t right) { return left + right; }),
-                           mHolePunchCandidate);
+                           mHolePunchCandidate, mBlurringLayer);
             }
 
             void reset() { *this = {}; }
@@ -112,14 +122,19 @@ private:
         size_t getLayerLength() const { return mLength; }
         // Gets the hole punch candidate for this Run.
         const CachedSet* getHolePunchCandidate() const { return mHolePunchCandidate; }
+        const CachedSet* getBlurringLayer() const { return mBlurringLayer; }
 
     private:
         Run(std::vector<CachedSet>::const_iterator start, size_t length,
-            const CachedSet* holePunchCandidate)
-              : mStart(start), mLength(length), mHolePunchCandidate(holePunchCandidate) {}
+            const CachedSet* holePunchCandidate, const CachedSet* blurringLayer)
+              : mStart(start),
+                mLength(length),
+                mHolePunchCandidate(holePunchCandidate),
+                mBlurringLayer(blurringLayer) {}
         const std::vector<CachedSet>::const_iterator mStart;
         const size_t mLength;
         const CachedSet* const mHolePunchCandidate;
+        const CachedSet* const mBlurringLayer;
 
         friend class Builder;
     };
@@ -138,7 +153,6 @@ private:
     std::chrono::steady_clock::time_point mLastGeometryUpdate;
 
     std::vector<CachedSet> mLayers;
-    std::optional<CachedSet> mNewCachedSet;
 
     // Statistics
     size_t mUnflattenedDisplayCost = 0;
