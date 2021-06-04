@@ -37,12 +37,12 @@ class SurfaceFlinger;
 
 class RefreshRateOverlay {
 public:
-    RefreshRateOverlay(SurfaceFlinger&, bool showSpinner);
+    RefreshRateOverlay(SurfaceFlinger&, uint32_t lowFps, uint32_t highFps, bool showSpinner);
 
+    void setLayerStack(uint32_t stack);
     void setViewport(ui::Size);
     void changeRefreshRate(const Fps&);
     void onInvalidate();
-    void reset();
 
 private:
     class SevenSegmentDrawer {
@@ -91,8 +91,8 @@ private:
     const bool mShowSpinner;
 
     // Interpolate the colors between these values.
-    uint32_t mLowFps;
-    uint32_t mHighFps;
+    const uint32_t mLowFps;
+    const uint32_t mHighFps;
 };
 
 } // namespace android

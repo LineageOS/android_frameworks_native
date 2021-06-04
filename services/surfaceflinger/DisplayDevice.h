@@ -52,6 +52,7 @@ class Fence;
 class HWComposer;
 class IGraphicBufferProducer;
 class Layer;
+class RefreshRateOverlay;
 class SurfaceFlinger;
 
 struct CompositionInfo;
@@ -205,6 +206,12 @@ public:
         return mRefreshRateConfigs;
     }
 
+    // Enables an overlay to be displayed with the current refresh rate
+    void enableRefreshRateOverlay(bool enable, bool showSpinner);
+    bool isRefreshRateOverlayEnabled() const { return mRefreshRateOverlay != nullptr; }
+    bool onKernelTimerChanged(std::optional<DisplayModeId>, bool timerExpired);
+    void onInvalidate();
+
     void onVsync(nsecs_t timestamp);
     nsecs_t getVsyncPeriodFromHWC() const;
     nsecs_t getRefreshTimestamp() const;
@@ -252,6 +259,7 @@ private:
     std::vector<ui::Hdr> mOverrideHdrTypes;
 
     std::shared_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
+    std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay;
 };
 
 struct DisplayDeviceState {

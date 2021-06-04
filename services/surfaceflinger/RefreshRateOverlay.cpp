@@ -175,10 +175,14 @@ std::vector<sp<GraphicBuffer>> RefreshRateOverlay::SevenSegmentDrawer::drawNumbe
     return buffers;
 }
 
-RefreshRateOverlay::RefreshRateOverlay(SurfaceFlinger& flinger, bool showSpinner)
-      : mFlinger(flinger), mClient(new Client(&mFlinger)), mShowSpinner(showSpinner) {
+RefreshRateOverlay::RefreshRateOverlay(SurfaceFlinger& flinger, uint32_t lowFps, uint32_t highFps,
+                                       bool showSpinner)
+      : mFlinger(flinger),
+        mClient(new Client(&mFlinger)),
+        mShowSpinner(showSpinner),
+        mLowFps(lowFps),
+        mHighFps(highFps) {
     createLayer();
-    reset();
 }
 
 bool RefreshRateOverlay::createLayer() {
@@ -194,7 +198,6 @@ bool RefreshRateOverlay::createLayer() {
         return false;
     }
 
-    Mutex::Autolock _l(mFlinger.mStateLock);
     mLayer = mClient->getLayerUser(mIBinder);
     mLayer->setFrameRate(Layer::FrameRate(Fps(0.0f), Layer::FrameRateCompatibility::NoVote));
 
@@ -256,6 +259,11 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }
 
+void RefreshRateOverlay::setLayerStack(uint32_t stack) {
+    mLayer->setLayerStack(stack);
+    mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
+}
+
 void RefreshRateOverlay::changeRefreshRate(const Fps& fps) {
     mCurrentFps = fps.getIntValue();
     auto buffer = getOrCreateBuffers(*mCurrentFps)[mFrame];
@@ -279,22 +287,6 @@ void RefreshRateOverlay::onInvalidate() {
                       nullptr /* releaseBufferListener */);
 
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
-}
-
-void RefreshRateOverlay::reset() {
-    mBufferCache.clear();
-    // TODO: this is a temp hack that would be removed in the next CL
-    const auto range = [&]() NO_THREAD_SAFETY_ANALYSIS {
-        constexpr auto defaultFps = Fps(60);
-        const auto display = mFlinger.getDefaultDisplayDeviceLocked();
-        if (display) {
-            return display->refreshRateConfigs().getSupportedRefreshRateRange();
-        }
-        ALOGW("%s: default display is null", __func__);
-        return scheduler::RefreshRateConfigs::FpsRange{defaultFps, defaultFps};
-    }();
-    mLowFps = range.min.getIntValue();
-    mHighFps = range.max.getIntValue();
 }
 
 } // namespace android

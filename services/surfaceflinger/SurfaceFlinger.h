@@ -1449,8 +1449,7 @@ private:
     // This should only be accessed on the main thread.
     nsecs_t mFrameStartTime = 0;
 
-    void enableRefreshRateOverlay(bool enable);
-    std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay GUARDED_BY(mStateLock);
+    void enableRefreshRateOverlay(bool enable) REQUIRES(mStateLock);
 
     // Flag used to set override desired display mode from backdoor
     bool mDebugDisplayModeSetByBackdoor = false;
@@ -1501,6 +1500,13 @@ private:
 
     void scheduleRegionSamplingThread();
     void notifyRegionSamplingThread();
+
+    bool isRefreshRateOverlayEnabled() const REQUIRES(mStateLock) {
+        return std::any_of(mDisplays.begin(), mDisplays.end(),
+                           [](std::pair<wp<IBinder>, sp<DisplayDevice>> display) {
+                               return display.second->isRefreshRateOverlayEnabled();
+                           });
+    }
 
     wp<IBinder> mActiveDisplayToken GUARDED_BY(mStateLock);
 };

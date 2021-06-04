@@ -726,7 +726,7 @@ void SurfaceFlinger::bootFinished() {
         mBootStage = BootStage::FINISHED;
 
         if (property_get_bool("sf.debug.show_refresh_rate_overlay", false)) {
-            enableRefreshRateOverlay(true);
+            ON_MAIN_THREAD(enableRefreshRateOverlay(true));
         }
     }));
 }
@@ -1191,10 +1191,6 @@ void SurfaceFlinger::setActiveModeInternal() {
 
     updatePhaseConfiguration(refreshRate);
     ATRACE_INT("ActiveConfigFPS", refreshRate.getValue());
-
-    if (mRefreshRateOverlay) {
-        mRefreshRateOverlay->changeRefreshRate(upcomingMode->getFps());
-    }
 
     if (mUpcomingActiveMode.event != Scheduler::ModeEvent::None) {
         const nsecs_t vsyncPeriod = refreshRate.getPeriodNsecs();
@@ -1969,8 +1965,13 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
     }
 
     if (mRefreshRateOverlaySpinner) {
-        if (Mutex::Autolock lock(mStateLock); mRefreshRateOverlay) {
-            mRefreshRateOverlay->onInvalidate();
+        if (Mutex::Autolock lock(mStateLock);
+            const auto display = getDefaultDisplayDeviceLocked()) {
+            if (display) {
+                display->onInvalidate();
+            } else {
+                ALOGW("%s: default display is null", __func__);
+            }
         }
     }
 
@@ -2890,10 +2891,6 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             if (isDisplayActiveLocked(display)) {
                 onActiveDisplaySizeChanged(display);
             }
-
-            if (mRefreshRateOverlay) {
-                mRefreshRateOverlay->setViewport(display->getSize());
-            }
         }
     }
 }
@@ -2902,9 +2899,6 @@ void SurfaceFlinger::updateInternalDisplayVsyncLocked(const sp<DisplayDevice>& a
     const Fps refreshRate = activeDisplay->refreshRateConfigs().getCurrentRefreshRate().getFps();
     updatePhaseConfiguration(refreshRate);
     mRefreshRateStats->setRefreshRate(refreshRate);
-    if (mRefreshRateOverlay) {
-        mRefreshRateOverlay->reset();
-    }
 }
 
 void SurfaceFlinger::processDisplayChangesLocked() {
@@ -5659,16 +5653,17 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 return NO_ERROR;
             }
             case 1034: {
-                switch (n = data.readInt32()) {
-                    case 0:
-                    case 1:
-                        enableRefreshRateOverlay(static_cast<bool>(n));
-                        break;
-                    default: {
-                        Mutex::Autolock lock(mStateLock);
-                        reply->writeBool(mRefreshRateOverlay != nullptr);
+                schedule([&] {
+                    switch (n = data.readInt32()) {
+                        case 0:
+                        case 1:
+                            ON_MAIN_THREAD(enableRefreshRateOverlay(static_cast<bool>(n)));
+                            break;
+                        default: {
+                            reply->writeBool(ON_MAIN_THREAD(isRefreshRateOverlayEnabled()));
+                        }
                     }
-                }
+                }).get();
                 return NO_ERROR;
             }
             case 1035: {
@@ -5814,7 +5809,7 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
     static bool updateOverlay =
             property_get_bool("debug.sf.kernel_idle_timer_update_overlay", true);
     if (!updateOverlay) return;
-    if (Mutex::Autolock lock(mStateLock); !mRefreshRateOverlay) return;
+    if (Mutex::Autolock lock(mStateLock); !isRefreshRateOverlayEnabled()) return;
 
     // Update the overlay on the main thread to avoid race conditions with
     // mRefreshRateConfigs->getCurrentRefreshRate()
@@ -5829,12 +5824,7 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
             ALOGW("%s: default display is null", __func__);
             return;
         }
-        const auto newRefreshRate =
-                display->refreshRateConfigs().onKernelTimerChanged(desiredModeId, timerExpired);
-        if (newRefreshRate) {
-            if (Mutex::Autolock lock(mStateLock); mRefreshRateOverlay) {
-                mRefreshRateOverlay->changeRefreshRate(*newRefreshRate);
-            }
+        if (display->onKernelTimerChanged(desiredModeId, timerExpired)) {
             mEventQueue->invalidate();
         }
     }));
@@ -6816,25 +6806,11 @@ status_t SurfaceFlinger::setFrameTimelineInfo(const sp<IGraphicBufferProducer>& 
 }
 
 void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
-    static_cast<void>(schedule([=] {
-        std::unique_ptr<RefreshRateOverlay> overlay;
-        if (enable) {
-            overlay = std::make_unique<RefreshRateOverlay>(*this, mRefreshRateOverlaySpinner);
+    for (const auto& [ignored, display] : mDisplays) {
+        if (display->isInternal()) {
+            display->enableRefreshRateOverlay(enable, mRefreshRateOverlaySpinner);
         }
-
-        {
-            Mutex::Autolock lock(mStateLock);
-
-            // Destroy the layer of the current overlay, if any, outside the lock.
-            mRefreshRateOverlay.swap(overlay);
-            if (!mRefreshRateOverlay) return;
-
-            if (const auto display = getDefaultDisplayDeviceLocked()) {
-                mRefreshRateOverlay->setViewport(display->getSize());
-                mRefreshRateOverlay->changeRefreshRate(display->getActiveMode()->getFps());
-            }
-        }
-    }));
+    }
 }
 
 status_t SurfaceFlinger::addTransactionTraceListener(
@@ -7018,10 +6994,6 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activ
     updateInternalDisplayVsyncLocked(activeDisplay);
     mScheduler->setRefreshRateConfigs(activeDisplay->holdRefreshRateConfigs());
     onActiveDisplaySizeChanged(activeDisplay);
-    if (mRefreshRateOverlay) {
-        mRefreshRateOverlay->setViewport(activeDisplay->getSize());
-        mRefreshRateOverlay->changeRefreshRate(activeDisplay->getActiveMode()->getFps());
-    }
 }
 
 } // namespace android
