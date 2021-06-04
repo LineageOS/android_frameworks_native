@@ -229,10 +229,6 @@ public:
     // GL composition.
     static bool useHwcForRgbToYuv;
 
-    // Maximum dimension supported by HWC for virtual display.
-    // Equal to min(max_height, max_width).
-    static uint64_t maxVirtualDisplaySize;
-
     // Controls the number of buffers SurfaceFlinger will allocate for use in
     // FramebufferSurface
     static int64_t maxFrameBufferAcquiredBuffers;
@@ -1104,6 +1100,14 @@ private:
         return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
     }
 
+    // Toggles use of HAL/GPU virtual displays.
+    void enableHalVirtualDisplays(bool);
+
+    // Virtual display lifecycle for ID generation and HAL allocation.
+    VirtualDisplayId acquireVirtualDisplay(ui::Size, ui::PixelFormat, ui::LayerStack)
+            REQUIRES(mStateLock);
+    void releaseVirtualDisplay(VirtualDisplayId);
+
     /*
      * Debugging & dumpsys
      */
@@ -1256,7 +1260,10 @@ private:
     std::unordered_map<PhysicalDisplayId, sp<IBinder>> mPhysicalDisplayTokens
             GUARDED_BY(mStateLock);
 
-    RandomDisplayIdGenerator<GpuVirtualDisplayId> mGpuVirtualDisplayIdGenerator;
+    struct {
+        DisplayIdGenerator<GpuVirtualDisplayId> gpu;
+        std::optional<DisplayIdGenerator<HalVirtualDisplayId>> hal;
+    } mVirtualDisplayIdGenerators;
 
     std::unordered_map<BBinder*, wp<Layer>> mLayersByLocalBinderToken GUARDED_BY(mStateLock);
 
@@ -1279,7 +1286,7 @@ private:
     const std::shared_ptr<TimeStats> mTimeStats;
     const std::unique_ptr<FrameTracer> mFrameTracer;
     const std::unique_ptr<frametimeline::FrameTimeline> mFrameTimeline;
-    bool mUseHwcVirtualDisplays = false;
+
     // If blurs should be enabled on this device.
     bool mSupportsBlur = false;
     // If blurs are considered expensive and should require high GPU frequency.
