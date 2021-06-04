@@ -45,8 +45,11 @@ public:
     MOCK_CONST_METHOD1(hasCapability, bool(hal::Capability));
     MOCK_CONST_METHOD2(hasDisplayCapability, bool(HalDisplayId, hal::DisplayCapability));
 
-    MOCK_METHOD3(allocateVirtualDisplay,
-                 std::optional<DisplayId>(uint32_t, uint32_t, ui::PixelFormat*));
+    MOCK_CONST_METHOD0(getMaxVirtualDisplayCount, size_t());
+    MOCK_CONST_METHOD0(getMaxVirtualDisplayDimension, size_t());
+    MOCK_METHOD4(allocateVirtualDisplay,
+                 bool(HalVirtualDisplayId, ui::Size, ui::PixelFormat*,
+                      std::optional<PhysicalDisplayId>));
     MOCK_METHOD2(allocatePhysicalDisplay, void(hal::HWDisplayId, PhysicalDisplayId));
     MOCK_METHOD1(createLayer, std::shared_ptr<HWC2::Layer>(HalDisplayId));
     MOCK_METHOD4(getDeviceCompositionChanges,
