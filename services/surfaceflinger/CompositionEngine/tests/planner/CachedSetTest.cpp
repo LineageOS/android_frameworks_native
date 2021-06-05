@@ -24,6 +24,7 @@
 #include <renderengine/ExternalTexture.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <ui/GraphicTypes.h>
+#include <utils/Errors.h>
 #include <memory>
 
 namespace android::compositionengine {
@@ -41,6 +42,14 @@ using impl::planner::LayerState;
 using impl::planner::LayerStateField;
 
 namespace {
+
+MATCHER_P(ClientCompositionTargetSettingsBlurSettingsEq, expectedBlurSetting, "") {
+    *result_listener << "ClientCompositionTargetSettings' BlurSettings aren't equal \n";
+    *result_listener << "expected " << expectedBlurSetting << "\n";
+    *result_listener << "actual " << arg.blurSetting << "\n";
+
+    return expectedBlurSetting == arg.blurSetting;
+}
 
 class CachedSetTest : public testing::Test {
 public:
@@ -591,6 +600,79 @@ TEST_F(CachedSetTest, hasBlurBehind) {
     EXPECT_TRUE(cachedSet2.hasBlurBehind());
     EXPECT_TRUE(cachedSet3.hasBlurBehind());
     EXPECT_TRUE(cachedSet4.hasBlurBehind());
+}
+
+TEST_F(CachedSetTest, addBackgroundBlurLayer) {
+    CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();
+    CachedSet::Layer& layer2 = *mTestLayers[1]->cachedSetLayer.get();
+    CachedSet cachedSet(layer1);
+
+    EXPECT_EQ(nullptr, cachedSet.getBlurLayer());
+
+    cachedSet.addBackgroundBlurLayer(layer2);
+    EXPECT_EQ(layer2.getState()->getOutputLayer(), cachedSet.getBlurLayer());
+}
+
+TEST_F(CachedSetTest, addBlur) {
+    mTestLayers[0]->outputLayerCompositionState.displayFrame = Rect(0, 0, 5, 5);
+    CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE1 = mTestLayers[0]->layerFE;
+
+    CachedSet::Layer& layer2 = *mTestLayers[1]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE2 = mTestLayers[1]->layerFE;
+
+    CachedSet::Layer& layer3 = *mTestLayers[2]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE3 = mTestLayers[2]->layerFE;
+
+    CachedSet cachedSet(layer1);
+    cachedSet.addLayer(layer2.getState(), kStartTime + 10ms);
+
+    cachedSet.addBackgroundBlurLayer(layer3);
+
+    std::vector<compositionengine::LayerFE::LayerSettings> clientCompList1;
+    clientCompList1.push_back({});
+    std::vector<compositionengine::LayerFE::LayerSettings> clientCompList2;
+    clientCompList2.push_back({});
+    std::vector<compositionengine::LayerFE::LayerSettings> clientCompList3;
+    clientCompList3.push_back({});
+
+    clientCompList3[0].source.buffer.buffer = std::make_shared<
+            renderengine::ExternalTexture>(sp<GraphicBuffer>::make(), mRenderEngine,
+                                           renderengine::ExternalTexture::READABLE);
+
+    EXPECT_CALL(*layerFE1,
+                prepareClientCompositionList(ClientCompositionTargetSettingsBlurSettingsEq(
+                        compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::
+                                Enabled)))
+            .WillOnce(Return(clientCompList1));
+    EXPECT_CALL(*layerFE2,
+                prepareClientCompositionList(ClientCompositionTargetSettingsBlurSettingsEq(
+                        compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::
+                                Enabled)))
+            .WillOnce(Return(clientCompList2));
+    EXPECT_CALL(*layerFE3,
+                prepareClientCompositionList(ClientCompositionTargetSettingsBlurSettingsEq(
+                        compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::
+                                BackgroundBlurOnly)))
+            .WillOnce(Return(clientCompList3));
+
+    const auto drawLayers = [&](const renderengine::DisplaySettings&,
+                                const std::vector<const renderengine::LayerSettings*>& layers,
+                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                base::unique_fd&&, base::unique_fd*) -> int32_t {
+        // If the highlight layer is enabled, it will increase the size by 1.
+        // We're interested in the third layer either way.
+        EXPECT_GE(layers.size(), 3u);
+        const auto* blurSettings = layers[2];
+        EXPECT_TRUE(blurSettings->skipContentDraw);
+        EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), blurSettings->source.solidColor);
+        EXPECT_EQ(0.0f, blurSettings->alpha);
+
+        return NO_ERROR;
+    };
+
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
+    cachedSet.render(mRenderEngine, mOutputState);
 }
 
 } // namespace

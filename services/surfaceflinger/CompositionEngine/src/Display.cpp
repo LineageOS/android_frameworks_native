@@ -50,36 +50,14 @@ std::shared_ptr<Display> createDisplay(
 Display::~Display() = default;
 
 void Display::setConfiguration(const compositionengine::DisplayCreationArgs& args) {
-    mIsVirtual = !args.physical;
+    mId = args.id;
+    mIsVirtual = !args.connectionType;
     mPowerAdvisor = args.powerAdvisor;
     editState().isSecure = args.isSecure;
     editState().displaySpace.bounds = Rect(args.pixels);
     setLayerStackFilter(args.layerStackId,
-                        args.physical &&
-                                args.physical->type == ui::DisplayConnectionType::Internal);
+                        args.connectionType == ui::DisplayConnectionType::Internal);
     setName(args.name);
-    mGpuVirtualDisplayIdGenerator = args.gpuVirtualDisplayIdGenerator;
-
-    if (args.physical) {
-        mId = args.physical->id;
-    } else {
-        std::optional<DisplayId> id;
-        if (args.useHwcVirtualDisplays) {
-            id = maybeAllocateDisplayIdForVirtualDisplay(args.pixels, args.pixelFormat);
-        }
-        if (!id) {
-            id = mGpuVirtualDisplayIdGenerator->nextId();
-        }
-        LOG_ALWAYS_FATAL_IF(!id, "Failed to generate display ID");
-        mId = *id;
-    }
-}
-
-std::optional<DisplayId> Display::maybeAllocateDisplayIdForVirtualDisplay(
-        ui::Size pixels, ui::PixelFormat pixelFormat) const {
-    auto& hwc = getCompositionEngine().getHwComposer();
-    return hwc.allocateVirtualDisplay(static_cast<uint32_t>(pixels.width),
-                                      static_cast<uint32_t>(pixels.height), &pixelFormat);
 }
 
 bool Display::isValid() const {
@@ -102,23 +80,16 @@ std::optional<DisplayId> Display::getDisplayId() const {
     return mId;
 }
 
-void Display::setDisplayIdForTesting(DisplayId displayId) {
-    mId = displayId;
-}
-
 void Display::disconnect() {
     if (mIsDisconnected) {
         return;
     }
 
     mIsDisconnected = true;
-    if (const auto id = GpuVirtualDisplayId::tryCast(mId)) {
-        mGpuVirtualDisplayIdGenerator->markUnused(*id);
-        return;
+
+    if (const auto id = HalDisplayId::tryCast(mId)) {
+        getCompositionEngine().getHwComposer().disconnectDisplay(*id);
     }
-    const auto halDisplayId = HalDisplayId::tryCast(mId);
-    LOG_FATAL_IF(!halDisplayId);
-    getCompositionEngine().getHwComposer().disconnectDisplay(*halDisplayId);
 }
 
 void Display::setColorTransform(const compositionengine::CompositionRefreshArgs& args) {
@@ -344,8 +315,8 @@ void Display::applyClientTargetRequests(const ClientTargetProperty& clientTarget
     if (clientTargetProperty.dataspace == ui::Dataspace::UNKNOWN) {
         return;
     }
-    auto outputState = editState();
-    outputState.dataspace = clientTargetProperty.dataspace;
+
+    editState().dataspace = clientTargetProperty.dataspace;
     getRenderSurface()->setBufferDataspace(clientTargetProperty.dataspace);
     getRenderSurface()->setBufferPixelFormat(clientTargetProperty.pixelFormat);
 }
