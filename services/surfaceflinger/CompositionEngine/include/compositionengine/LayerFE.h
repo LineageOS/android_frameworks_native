@@ -78,6 +78,30 @@ public:
     virtual void prepareCompositionState(StateSubset) = 0;
 
     struct ClientCompositionTargetSettings {
+        enum class BlurSetting {
+            Disabled,
+            BackgroundBlurOnly,
+            BlurRegionsOnly,
+            Enabled,
+        };
+
+        friend std::string toString(BlurSetting blurSetting) {
+            switch (blurSetting) {
+                case BlurSetting::Enabled:
+                    return "Enabled";
+                case BlurSetting::BlurRegionsOnly:
+                    return "BlurRegionsOnly";
+                case BlurSetting::BackgroundBlurOnly:
+                    return "BackgroundBlurOnly";
+                case BlurSetting::Disabled:
+                    return "Disabled";
+            }
+        }
+
+        friend std::ostream& operator<<(std::ostream& os, const BlurSetting& setting) {
+            return os << toString(setting);
+        }
+
         // The clip region, or visible region that is being rendered to
         const Region& clip;
 
@@ -110,8 +134,8 @@ public:
         // This may be requested by the HWC
         const bool clearContent;
 
-        // If set to true, change the layer settings to not use any blurs.
-        const bool disableBlurs;
+        // Configure layer settings for using blurs
+        BlurSetting blurSetting;
     };
 
     // A superset of LayerSettings required by RenderEngine to compose a layer
@@ -186,6 +210,7 @@ static inline void PrintTo(const LayerFE::ClientCompositionTargetSettings& setti
     PrintTo(settings.dataspace, os);
     *os << "\n    .realContentIsVisible = " << settings.realContentIsVisible;
     *os << "\n    .clearContent = " << settings.clearContent;
+    *os << "\n    .blurSetting = " << settings.blurSetting;
     *os << "\n}";
 }
 
