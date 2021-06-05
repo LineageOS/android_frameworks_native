@@ -208,6 +208,7 @@ int ANativeWindow_query(const ANativeWindow* window, ANativeWindowQuery what, in
         case ANATIVEWINDOW_QUERY_DEFAULT_WIDTH:
         case ANATIVEWINDOW_QUERY_DEFAULT_HEIGHT:
         case ANATIVEWINDOW_QUERY_TRANSFORM_HINT:
+        case ANATIVEWINDOW_QUERY_BUFFER_AGE:
             // these are part of the VNDK API
             break;
         case ANATIVEWINDOW_QUERY_MIN_SWAP_INTERVAL:
