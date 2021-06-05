@@ -78,6 +78,8 @@ void OutputLayerCompositionState::dump(std::string& out) const {
     std::string visibleRegionString;
     overrideInfo.visibleRegion.dump(visibleRegionString, "");
     dumpVal(out, "override visible region", visibleRegionString);
+    dumpVal(out, "override peekThroughLayer", overrideInfo.peekThroughLayer);
+    dumpVal(out, "override disableBackgroundBlur", overrideInfo.disableBackgroundBlur);
 
     if (hwc) {
         dumpHwc(*hwc, out);

@@ -19,6 +19,7 @@
 #include <ftl/initializer_list.h>
 #include <ftl/small_vector.h>
 
+#include <algorithm>
 #include <functional>
 #include <optional>
 #include <type_traits>
@@ -28,7 +29,10 @@ namespace android::ftl {
 
 // Associative container with unique, unordered keys. Unlike std::unordered_map, key-value pairs are
 // stored in contiguous storage for cache efficiency. The map is allocated statically until its size
-// exceeds N, at which point mappings are relocated to dynamic memory.
+// exceeds N, at which point mappings are relocated to dynamic memory. The try_emplace operation has
+// a non-standard analogue try_replace that destructively emplaces. The API also defines an in-place
+// counterpart to insert_or_assign: emplace_or_replace. Lookup is done not via a subscript operator,
+// but immutable getters that can optionally transform the value.
 //
 // SmallMap<K, V, 0> unconditionally allocates on the heap.
 //
@@ -43,16 +47,19 @@ namespace android::ftl {
 //   assert(!map.dynamic());
 //
 //   assert(map.contains(123));
-//   assert(map.find(42, [](const std::string& s) { return s.size(); }) == 3u);
+//   assert(map.get(42, [](const std::string& s) { return s.size(); }) == 3u);
 //
-//   const auto opt = map.find(-1);
+//   const auto opt = map.get(-1);
 //   assert(opt);
 //
 //   std::string& ref = *opt;
 //   assert(ref.empty());
 //   ref = "xyz";
 //
-//   assert(map == SmallMap(ftl::init::map(-1, "xyz")(42, "???")(123, "abc")));
+//   map.emplace_or_replace(0, "vanilla", 2u, 3u);
+//   assert(map.dynamic());
+//
+//   assert(map == SmallMap(ftl::init::map(-1, "xyz")(0, "nil")(42, "???")(123, "abc")));
 //
 template <typename K, typename V, std::size_t N>
 class SmallMap final {
@@ -80,12 +87,7 @@ class SmallMap final {
   // The syntax for listing pairs is as follows:
   //
   //   ftl::SmallMap map = ftl::init::map<int, std::string>(123, "abc")(-1)(42, 3u, '?');
-  //
   //   static_assert(std::is_same_v<decltype(map), ftl::SmallMap<int, std::string, 3>>);
-  //   assert(map.size() == 3u);
-  //   assert(map.contains(-1) && map.find(-1)->get().empty());
-  //   assert(map.contains(42) && map.find(42)->get() == "???");
-  //   assert(map.contains(123) && map.find(123)->get() == "abc");
   //
   // The types of the key and value are deduced if the first pair contains exactly two arguments:
   //
@@ -95,7 +97,7 @@ class SmallMap final {
   template <typename U, std::size_t... Sizes, typename... Types>
   SmallMap(InitializerList<U, std::index_sequence<Sizes...>, Types...>&& list)
       : map_(std::move(list)) {
-    // TODO: Enforce unique keys.
+    deduplicate();
   }
 
   size_type max_size() const { return map_.max_size(); }
@@ -115,27 +117,27 @@ class SmallMap final {
 
   // Returns whether a mapping exists for the given key.
   bool contains(const key_type& key) const {
-    return find(key, [](const mapped_type&) {});
+    return get(key, [](const mapped_type&) {});
   }
 
   // Returns a reference to the value for the given key, or std::nullopt if the key was not found.
   //
   //   ftl::SmallMap map = ftl::init::map('a', 'A')('b', 'B')('c', 'C');
   //
-  //   const auto opt = map.find('c');
+  //   const auto opt = map.get('c');
   //   assert(opt == 'C');
   //
   //   char d = 'd';
-  //   const auto ref = map.find('d').value_or(std::ref(d));
+  //   const auto ref = map.get('d').value_or(std::ref(d));
   //   ref.get() = 'D';
   //   assert(d == 'D');
   //
-  auto find(const key_type& key) const -> std::optional<std::reference_wrapper<const mapped_type>> {
-    return find(key, [](const mapped_type& v) { return std::cref(v); });
+  auto get(const key_type& key) const -> std::optional<std::reference_wrapper<const mapped_type>> {
+    return get(key, [](const mapped_type& v) { return std::cref(v); });
   }
 
-  auto find(const key_type& key) -> std::optional<std::reference_wrapper<mapped_type>> {
-    return find(key, [](mapped_type& v) { return std::ref(v); });
+  auto get(const key_type& key) -> std::optional<std::reference_wrapper<mapped_type>> {
+    return get(key, [](mapped_type& v) { return std::ref(v); });
   }
 
   // Returns the result R of a unary operation F on (a constant or mutable reference to) the value
@@ -144,11 +146,11 @@ class SmallMap final {
   //
   //   ftl::SmallMap map = ftl::init::map('a', 'x')('b', 'y')('c', 'z');
   //
-  //   assert(map.find('c', [](char c) { return std::toupper(c); }) == 'Z');
-  //   assert(map.find('c', [](char& c) { c = std::toupper(c); }));
+  //   assert(map.get('c', [](char c) { return std::toupper(c); }) == 'Z');
+  //   assert(map.get('c', [](char& c) { c = std::toupper(c); }));
   //
   template <typename F, typename R = std::invoke_result_t<F, const mapped_type&>>
-  auto find(const key_type& key, F f) const
+  auto get(const key_type& key, F f) const
       -> std::conditional_t<std::is_void_v<R>, bool, std::optional<R>> {
     for (auto& [k, v] : *this) {
       if (k == key) {
@@ -165,12 +167,96 @@ class SmallMap final {
   }
 
   template <typename F>
-  auto find(const key_type& key, F f) {
-    return std::as_const(*this).find(
+  auto get(const key_type& key, F f) {
+    return std::as_const(*this).get(
         key, [&f](const mapped_type& v) { return f(const_cast<mapped_type&>(v)); });
   }
 
+  // Returns an iterator to an existing mapping for the given key, or the end() iterator otherwise.
+  const_iterator find(const key_type& key) const { return const_cast<SmallMap&>(*this).find(key); }
+  iterator find(const key_type& key) { return find(key, begin()); }
+
+  // Inserts a mapping unless it exists. Returns an iterator to the inserted or existing mapping,
+  // and whether the mapping was inserted.
+  //
+  // On emplace, if the map reaches its static or dynamic capacity, then all iterators are
+  // invalidated. Otherwise, only the end() iterator is invalidated.
+  //
+  template <typename... Args>
+  std::pair<iterator, bool> try_emplace(const key_type& key, Args&&... args) {
+    if (const auto it = find(key); it != end()) {
+      return {it, false};
+    }
+
+    auto& ref = map_.emplace_back(std::piecewise_construct, std::forward_as_tuple(key),
+                                  std::forward_as_tuple(std::forward<Args>(args)...));
+    return {&ref, true};
+  }
+
+  // Replaces a mapping if it exists, and returns an iterator to it. Returns the end() iterator
+  // otherwise.
+  //
+  // The value is replaced via move constructor, so type V does not need to define copy/move
+  // assignment, e.g. its data members may be const.
+  //
+  // The arguments may directly or indirectly refer to the mapping being replaced.
+  //
+  // Iterators to the replaced mapping point to its replacement, and others remain valid.
+  //
+  template <typename... Args>
+  iterator try_replace(const key_type& key, Args&&... args) {
+    const auto it = find(key);
+    if (it == end()) return it;
+    map_.replace(it, std::piecewise_construct, std::forward_as_tuple(key),
+                 std::forward_as_tuple(std::forward<Args>(args)...));
+    return it;
+  }
+
+  // In-place counterpart of std::unordered_map's insert_or_assign. Returns true on emplace, or
+  // false on replace.
+  //
+  // The value is emplaced and replaced via move constructor, so type V does not need to define
+  // copy/move assignment, e.g. its data members may be const.
+  //
+  // On emplace, if the map reaches its static or dynamic capacity, then all iterators are
+  // invalidated. Otherwise, only the end() iterator is invalidated. On replace, iterators
+  // to the replaced mapping point to its replacement, and others remain valid.
+  //
+  template <typename... Args>
+  std::pair<iterator, bool> emplace_or_replace(const key_type& key, Args&&... args) {
+    const auto [it, ok] = try_emplace(key, std::forward<Args>(args)...);
+    if (ok) return {it, ok};
+    map_.replace(it, std::piecewise_construct, std::forward_as_tuple(key),
+                 std::forward_as_tuple(std::forward<Args>(args)...));
+    return {it, ok};
+  }
+
+  // Removes a mapping if it exists, and returns whether it did.
+  //
+  // The last() and end() iterators, as well as those to the erased mapping, are invalidated.
+  //
+  bool erase(const key_type& key) { return erase(key, begin()); }
+
  private:
+  iterator find(const key_type& key, iterator first) {
+    return std::find_if(first, end(), [&key](const auto& pair) { return pair.first == key; });
+  }
+
+  bool erase(const key_type& key, iterator first) {
+    const auto it = find(key, first);
+    if (it == end()) return false;
+    map_.unstable_erase(it);
+    return true;
+  }
+
+  void deduplicate() {
+    for (auto it = begin(); it != end();) {
+      if (const auto key = it->first; ++it != end()) {
+        while (erase(key, it));
+      }
+    }
+  }
+
   Map map_;
 };
 
@@ -186,7 +272,7 @@ bool operator==(const SmallMap<K, V, N>& lhs, const SmallMap<Q, W, M>& rhs) {
 
   for (const auto& [k, v] : lhs) {
     const auto& lv = v;
-    if (!rhs.find(k, [&lv](const auto& rv) { return lv == rv; }).value_or(false)) {
+    if (!rhs.get(k, [&lv](const auto& rv) { return lv == rv; }).value_or(false)) {
       return false;
     }
   }
