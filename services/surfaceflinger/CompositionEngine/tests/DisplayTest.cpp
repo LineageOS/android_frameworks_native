@@ -800,6 +800,29 @@ TEST_F(DisplayApplyLayerRequestsToLayersTest, appliesDeviceLayerRequests) {
 }
 
 /*
+ * Display::applyClientTargetRequests()
+ */
+
+using DisplayApplyClientTargetRequests = DisplayWithLayersTestCommon;
+
+TEST_F(DisplayApplyLayerRequestsToLayersTest, applyClientTargetRequests) {
+    Display::ClientTargetProperty clientTargetProperty = {
+            .pixelFormat = hal::PixelFormat::RGB_565,
+            .dataspace = hal::Dataspace::STANDARD_BT470M,
+    };
+
+    mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
+    mDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
+
+    EXPECT_CALL(*renderSurface, setBufferPixelFormat(clientTargetProperty.pixelFormat));
+    EXPECT_CALL(*renderSurface, setBufferDataspace(clientTargetProperty.dataspace));
+    mDisplay->applyClientTargetRequests(clientTargetProperty);
+
+    auto& state = mDisplay->getState();
+    EXPECT_EQ(clientTargetProperty.dataspace, state.dataspace);
+}
+
+/*
  * Display::presentAndGetFrameFences()
  */
 

@@ -39,6 +39,7 @@ public:
 
         const LayerState* getState() const { return mState; }
         const std::string& getName() const { return mState->getName(); }
+        int32_t getBackgroundBlurRadius() const { return mState->getBackgroundBlurRadius(); }
         Rect getDisplayFrame() const { return mState->getDisplayFrame(); }
         const Region& getVisibleRegion() const { return mState->getVisibleRegion(); }
         const sp<GraphicBuffer>& getBuffer() const {
@@ -91,6 +92,7 @@ public:
         mTexture = nullptr;
         mOutputDataspace = ui::Dataspace::UNKNOWN;
         mDrawFence = nullptr;
+        mBlurLayer = nullptr;
 
         mLayers.insert(mLayers.end(), other.mLayers.cbegin(), other.mLayers.cend());
         Region boundingRegion;
@@ -123,8 +125,12 @@ public:
     // nothing (besides the hole punch layer) will be drawn behind it.
     void addHolePunchLayerIfFeasible(const CachedSet&, bool isFirstLayer);
 
+    void addBackgroundBlurLayer(const CachedSet&);
+
     // Retrieve the layer that will be drawn behind this one.
     compositionengine::OutputLayer* getHolePunchLayer() const;
+
+    compositionengine::OutputLayer* getBlurLayer() const;
 
 private:
     CachedSet() = default;
@@ -135,6 +141,7 @@ private:
 
     // Unowned.
     const LayerState* mHolePunchLayer = nullptr;
+    const LayerState* mBlurLayer = nullptr;
     Rect mBounds = Rect::EMPTY_RECT;
     Region mVisibleRegion;
     size_t mAge = 0;

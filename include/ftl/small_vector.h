@@ -348,7 +348,7 @@ class SmallVector<T, 0> final : ArrayTraits<T>,
   using Impl::pop_back;
 
   void unstable_erase(iterator it) {
-    if (it != last()) std::iter_swap(it, last());
+    if (it != last()) replace(it, std::move(back()));
     pop_back();
   }
 
