@@ -106,15 +106,21 @@ public:
     ui::LayerStack getLayerStack() const;
     bool receivesInput() const { return mFlags & eReceivesInput; }
 
-    // Returns the physical ID of this display. This function asserts the ID is physical and it
-    // shouldn't be called for other display types, e.g. virtual.
+    DisplayId getId() const;
+
+    // Shorthand to upcast the ID of a display whose type is known as a precondition.
     PhysicalDisplayId getPhysicalId() const {
-        const auto displayIdOpt = PhysicalDisplayId::tryCast(getId());
-        LOG_FATAL_IF(!displayIdOpt);
-        return *displayIdOpt;
+        const auto id = PhysicalDisplayId::tryCast(getId());
+        LOG_FATAL_IF(!id);
+        return *id;
     }
 
-    DisplayId getId() const;
+    VirtualDisplayId getVirtualId() const {
+        const auto id = VirtualDisplayId::tryCast(getId());
+        LOG_FATAL_IF(!id);
+        return *id;
+    }
+
     const wp<IBinder>& getDisplayToken() const { return mDisplayToken; }
     int32_t getSequenceId() const { return mSequenceId; }
 
@@ -289,6 +295,18 @@ struct DisplayDeviceCreationArgs {
             hardware::graphics::composer::hal::PowerMode::ON};
     bool isPrimary{false};
     DisplayModes supportedModes;
+};
+
+// Predicates for display lookup.
+
+struct WithLayerStack {
+    explicit WithLayerStack(ui::LayerStack layerStack) : layerStack(layerStack) {}
+
+    bool operator()(const DisplayDevice& display) const {
+        return display.getLayerStack() == layerStack;
+    }
+
+    ui::LayerStack layerStack;
 };
 
 } // namespace android

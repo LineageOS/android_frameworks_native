@@ -70,13 +70,14 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
         mIsPrimary(args.isPrimary) {
     mCompositionDisplay->editState().isSecure = args.isSecure;
     mCompositionDisplay->createRenderSurface(
-            compositionengine::
-                    RenderSurfaceCreationArgs{ANativeWindow_getWidth(args.nativeWindow.get()),
-                                              ANativeWindow_getHeight(args.nativeWindow.get()),
-                                              args.nativeWindow, args.displaySurface,
-                                              static_cast<size_t>(
-                                                      SurfaceFlinger::
-                                                              maxFrameBufferAcquiredBuffers)});
+            compositionengine::RenderSurfaceCreationArgsBuilder()
+                    .setDisplayWidth(ANativeWindow_getWidth(args.nativeWindow.get()))
+                    .setDisplayHeight(ANativeWindow_getHeight(args.nativeWindow.get()))
+                    .setNativeWindow(std::move(args.nativeWindow))
+                    .setDisplaySurface(std::move(args.displaySurface))
+                    .setMaxTextureCacheSize(
+                            static_cast<size_t>(SurfaceFlinger::maxFrameBufferAcquiredBuffers))
+                    .build());
 
     if (!mFlinger->mDisableClientCompositionCache &&
         SurfaceFlinger::maxFrameBufferAcquiredBuffers > 0) {
