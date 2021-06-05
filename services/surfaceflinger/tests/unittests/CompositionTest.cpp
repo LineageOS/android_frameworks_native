@@ -105,21 +105,15 @@ public:
 
         mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
         mFlinger.setupTimeStats(std::shared_ptr<TimeStats>(mTimeStats));
-        setupComposer(0);
+
+        mComposer = new Hwc2::mock::Composer();
+        mFlinger.setupComposer(std::unique_ptr<Hwc2::Composer>(mComposer));
     }
 
     ~CompositionTest() {
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
         ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
-    }
-
-    void setupComposer(int virtualDisplayCount) {
-        mComposer = new Hwc2::mock::Composer();
-        EXPECT_CALL(*mComposer, getMaxVirtualDisplayCount()).WillOnce(Return(virtualDisplayCount));
-        mFlinger.setupComposer(std::unique_ptr<Hwc2::Composer>(mComposer));
-
-        Mock::VerifyAndClear(mComposer);
     }
 
     void setupScheduler() {
@@ -289,16 +283,16 @@ struct BaseDisplayVariant {
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
 
-        auto ceDisplayArgs =
-                compositionengine::DisplayCreationArgsBuilder()
-                        .setPhysical({DEFAULT_DISPLAY_ID, ui::DisplayConnectionType::Internal})
-                        .setPixels({DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT})
-                        .setIsSecure(Derived::IS_SECURE)
-                        .setLayerStackId(DEFAULT_LAYER_STACK)
-                        .setPowerAdvisor(&test->mPowerAdvisor)
-                        .setName(std::string("Injected display for ") +
-                                 test_info->test_case_name() + "." + test_info->name())
-                        .build();
+        auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder()
+                                     .setId(DEFAULT_DISPLAY_ID)
+                                     .setConnectionType(ui::DisplayConnectionType::Internal)
+                                     .setPixels({DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT})
+                                     .setIsSecure(Derived::IS_SECURE)
+                                     .setLayerStackId(DEFAULT_LAYER_STACK)
+                                     .setPowerAdvisor(&test->mPowerAdvisor)
+                                     .setName(std::string("Injected display for ") +
+                                              test_info->test_case_name() + "." + test_info->name())
+                                     .build();
 
         auto compositionDisplay =
                 compositionengine::impl::createDisplay(test->mFlinger.getCompositionEngine(),

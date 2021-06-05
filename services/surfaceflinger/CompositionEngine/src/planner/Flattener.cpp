@@ -245,6 +245,12 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
 
     auto currentLayerIter = mLayers.begin();
     auto incomingLayerIter = layers.begin();
+
+    // If not null, this represents the layer that is blurring the layer before
+    // currentLayerIter. The blurring was stored in the override buffer, so the
+    // layer that requests the blur no longer needs to do any blurring.
+    compositionengine::OutputLayer* priorBlurLayer = nullptr;
+
     while (incomingLayerIter != layers.end()) {
         if (mNewCachedSet &&
             mNewCachedSet->getFirstLayer().getState()->getId() == (*incomingLayerIter)->getId()) {
@@ -259,6 +265,8 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                     auto* peekThroughLayer = mNewCachedSet->getHolePunchLayer();
                     const size_t layerCount = currentLayerIter->getLayerCount();
                     for (size_t i = 0; i < layerCount; ++i) {
+                        bool disableBlur = priorBlurLayer &&
+                                priorBlurLayer == (*incomingLayerIter)->getOutputLayer();
                         OutputLayer::CompositionState& state =
                                 (*incomingLayerIter)->getOutputLayer()->editState();
                         state.overrideInfo = {
@@ -270,6 +278,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                                 .damageRegion = Region::INVALID_REGION,
                                 .visibleRegion = mNewCachedSet->getVisibleRegion(),
                                 .peekThroughLayer = peekThroughLayer,
+                                .disableBackgroundBlur = disableBlur,
                         };
                         ++incomingLayerIter;
                     }
@@ -281,6 +290,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
 
                     skipCount -= layerCount;
                 }
+                priorBlurLayer = mNewCachedSet->getBlurLayer();
                 merged.emplace_back(std::move(*mNewCachedSet));
                 mNewCachedSet = std::nullopt;
                 continue;
@@ -295,6 +305,8 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
             const size_t layerCount = currentLayerIter->getLayerCount();
             auto* peekThroughLayer = currentLayerIter->getHolePunchLayer();
             for (size_t i = 0; i < layerCount; ++i) {
+                bool disableBlur =
+                        priorBlurLayer && priorBlurLayer == (*incomingLayerIter)->getOutputLayer();
                 OutputLayer::CompositionState& state =
                         (*incomingLayerIter)->getOutputLayer()->editState();
                 state.overrideInfo = {
@@ -306,6 +318,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                         .damageRegion = Region(),
                         .visibleRegion = currentLayerIter->getVisibleRegion(),
                         .peekThroughLayer = peekThroughLayer,
+                        .disableBackgroundBlur = disableBlur,
                 };
                 ++incomingLayerIter;
             }
@@ -313,15 +326,26 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
             // Break the current layer into its constituent layers
             ++mInvalidatedCachedSetAges[currentLayerIter->getAge()];
             for (CachedSet& layer : currentLayerIter->decompose()) {
+                bool disableBlur =
+                        priorBlurLayer && priorBlurLayer == (*incomingLayerIter)->getOutputLayer();
+                OutputLayer::CompositionState& state =
+                        (*incomingLayerIter)->getOutputLayer()->editState();
+                state.overrideInfo.disableBackgroundBlur = disableBlur;
                 layer.updateAge(now);
                 merged.emplace_back(layer);
                 ++incomingLayerIter;
             }
         } else {
+            bool disableBlur =
+                    priorBlurLayer && priorBlurLayer == (*incomingLayerIter)->getOutputLayer();
+            OutputLayer::CompositionState& state =
+                    (*incomingLayerIter)->getOutputLayer()->editState();
+            state.overrideInfo.disableBackgroundBlur = disableBlur;
             currentLayerIter->updateAge(now);
             merged.emplace_back(*currentLayerIter);
             ++incomingLayerIter;
         }
+        priorBlurLayer = currentLayerIter->getBlurLayer();
         ++currentLayerIter;
     }
 
@@ -361,6 +385,15 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
             }
         } else if (isPartOfRun) {
             builder.setHolePunchCandidate(&(*currentSet));
+
+            // If we're here then this blur layer recently had an active buffer updating, meaning
+            // that there is exactly one layer. Blur radius currently is part of layer stack
+            // geometry, so we're also guaranteed that the background blur radius hasn't changed for
+            // at least as long as this new inactive cached set.
+            if (runHasFirstLayer && layerHasBlur &&
+                currentSet->getFirstLayer().getBackgroundBlurRadius() > 0) {
+                builder.setBlurringLayer(&(*currentSet));
+            }
             if (auto run = builder.validateAndBuild(); run) {
                 runs.push_back(*run);
             }
@@ -420,6 +453,10 @@ void Flattener::buildCachedSets(time_point now) {
     while (mNewCachedSet->getLayerCount() < bestRun->getLayerLength()) {
         ++currentSet;
         mNewCachedSet->append(*currentSet);
+    }
+
+    if (bestRun->getBlurringLayer()) {
+        mNewCachedSet->addBackgroundBlurLayer(*bestRun->getBlurringLayer());
     }
 
     if (mEnableHolePunch && bestRun->getHolePunchCandidate() &&

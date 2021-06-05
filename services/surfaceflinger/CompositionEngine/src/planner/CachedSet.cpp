@@ -25,6 +25,7 @@
 #include <math/HashCombine.h>
 #include <renderengine/DisplaySettings.h>
 #include <renderengine/RenderEngine.h>
+#include <utils/Trace.h>
 
 #include <utils/Trace.h>
 
@@ -184,7 +185,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
             .dataspace = outputDataspace,
             .realContentIsVisible = true,
             .clearContent = false,
-            .disableBlurs = false,
+            .blurSetting = LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
     };
 
     std::vector<renderengine::LayerSettings> layerSettings;
@@ -201,6 +202,24 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
     std::transform(layerSettings.cbegin(), layerSettings.cend(),
                    std::back_inserter(layerSettingsPointers),
                    [](const renderengine::LayerSettings& settings) { return &settings; });
+
+    renderengine::LayerSettings blurLayerSettings;
+    if (mBlurLayer) {
+        auto blurSettings = targetSettings;
+        blurSettings.blurSetting =
+                LayerFE::ClientCompositionTargetSettings::BlurSetting::BackgroundBlurOnly;
+        auto clientCompositionList =
+                mBlurLayer->getOutputLayer()->getLayerFE().prepareClientCompositionList(
+                        blurSettings);
+        blurLayerSettings = clientCompositionList.back();
+        // This mimics Layer::prepareClearClientComposition
+        blurLayerSettings.skipContentDraw = true;
+        blurLayerSettings.name = std::string("blur layer");
+        // Clear out the shadow settings
+        blurLayerSettings.shadow = {};
+        layerSettingsPointers.push_back(&blurLayerSettings);
+    }
+
     renderengine::LayerSettings holePunchSettings;
     if (mHolePunchLayer) {
         auto clientCompositionList =
@@ -315,8 +334,16 @@ void CachedSet::addHolePunchLayerIfFeasible(const CachedSet& holePunchLayer, boo
     }
 }
 
+void CachedSet::addBackgroundBlurLayer(const CachedSet& blurLayer) {
+    mBlurLayer = blurLayer.getFirstLayer().getState();
+}
+
 compositionengine::OutputLayer* CachedSet::getHolePunchLayer() const {
     return mHolePunchLayer ? mHolePunchLayer->getOutputLayer() : nullptr;
+}
+
+compositionengine::OutputLayer* CachedSet::getBlurLayer() const {
+    return mBlurLayer ? mBlurLayer->getOutputLayer() : nullptr;
 }
 
 void CachedSet::dump(std::string& result) const {

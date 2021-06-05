@@ -58,28 +58,26 @@ using ::testing::SetArgPointee;
 using ::testing::StrictMock;
 
 struct MockHWC2ComposerCallback final : StrictMock<HWC2::ComposerCallback> {
-    MOCK_METHOD3(onHotplugReceived, void(int32_t sequenceId, hal::HWDisplayId, hal::Connection));
-    MOCK_METHOD2(onRefreshReceived, void(int32_t sequenceId, hal::HWDisplayId));
-    MOCK_METHOD4(onVsyncReceived,
-                 void(int32_t sequenceId, hal::HWDisplayId, int64_t timestamp,
-                      std::optional<hal::VsyncPeriodNanos>));
-    MOCK_METHOD3(onVsyncPeriodTimingChangedReceived,
-                 void(int32_t sequenceId, hal::HWDisplayId, const hal::VsyncPeriodChangeTimeline&));
-    MOCK_METHOD2(onSeamlessPossible, void(int32_t sequenceId, hal::HWDisplayId));
+    MOCK_METHOD2(onComposerHalHotplug, void(hal::HWDisplayId, hal::Connection));
+    MOCK_METHOD1(onComposerHalRefresh, void(hal::HWDisplayId));
+    MOCK_METHOD3(onComposerHalVsync,
+                 void(hal::HWDisplayId, int64_t timestamp, std::optional<hal::VsyncPeriodNanos>));
+    MOCK_METHOD2(onComposerHalVsyncPeriodTimingChanged,
+                 void(hal::HWDisplayId, const hal::VsyncPeriodChangeTimeline&));
+    MOCK_METHOD1(onComposerHalSeamlessPossible, void(hal::HWDisplayId));
 };
 
-struct HWComposerSetConfigurationTest : testing::Test {
+struct HWComposerSetCallbackTest : testing::Test {
     Hwc2::mock::Composer* mHal = new StrictMock<Hwc2::mock::Composer>();
     MockHWC2ComposerCallback mCallback;
 };
 
-TEST_F(HWComposerSetConfigurationTest, loadsLayerMetadataSupport) {
+TEST_F(HWComposerSetCallbackTest, loadsLayerMetadataSupport) {
     const std::string kMetadata1Name = "com.example.metadata.1";
     constexpr bool kMetadata1Mandatory = false;
     const std::string kMetadata2Name = "com.example.metadata.2";
     constexpr bool kMetadata2Mandatory = true;
 
-    EXPECT_CALL(*mHal, getMaxVirtualDisplayCount()).WillOnce(Return(0));
     EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<hal::Capability>{}));
     EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
             .WillOnce(DoAll(SetArgPointee<0>(std::vector<hal::LayerGenericMetadataKey>{
@@ -91,7 +89,7 @@ TEST_F(HWComposerSetConfigurationTest, loadsLayerMetadataSupport) {
     EXPECT_CALL(*mHal, isVsyncPeriodSwitchSupported()).WillOnce(Return(false));
 
     impl::HWComposer hwc{std::unique_ptr<Hwc2::Composer>(mHal)};
-    hwc.setConfiguration(&mCallback, 123);
+    hwc.setCallback(&mCallback);
 
     const auto& supported = hwc.getSupportedLayerGenericMetadata();
     EXPECT_EQ(2u, supported.size());
@@ -101,8 +99,7 @@ TEST_F(HWComposerSetConfigurationTest, loadsLayerMetadataSupport) {
     EXPECT_EQ(kMetadata2Mandatory, supported.find(kMetadata2Name)->second);
 }
 
-TEST_F(HWComposerSetConfigurationTest, handlesUnsupportedCallToGetLayerGenericMetadataKeys) {
-    EXPECT_CALL(*mHal, getMaxVirtualDisplayCount()).WillOnce(Return(0));
+TEST_F(HWComposerSetCallbackTest, handlesUnsupportedCallToGetLayerGenericMetadataKeys) {
     EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<hal::Capability>{}));
     EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
             .WillOnce(Return(hardware::graphics::composer::V2_4::Error::UNSUPPORTED));
@@ -110,7 +107,7 @@ TEST_F(HWComposerSetConfigurationTest, handlesUnsupportedCallToGetLayerGenericMe
     EXPECT_CALL(*mHal, isVsyncPeriodSwitchSupported()).WillOnce(Return(false));
 
     impl::HWComposer hwc{std::unique_ptr<Hwc2::Composer>(mHal)};
-    hwc.setConfiguration(&mCallback, 123);
+    hwc.setCallback(&mCallback);
 
     const auto& supported = hwc.getSupportedLayerGenericMetadata();
     EXPECT_EQ(0u, supported.size());

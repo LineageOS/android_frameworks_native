@@ -27,6 +27,7 @@
 
 namespace android::compositionengine {
 using namespace std::chrono_literals;
+using impl::planner::CachedSet;
 using impl::planner::Flattener;
 using impl::planner::LayerState;
 using impl::planner::NonBufferHash;
@@ -43,9 +44,15 @@ using testing::SetArgPointee;
 
 namespace {
 
+class TestableFlattener : public Flattener {
+public:
+    TestableFlattener(bool enableHolePunch) : Flattener(enableHolePunch) {}
+    const std::optional<CachedSet>& getNewCachedSetForTesting() const { return mNewCachedSet; }
+};
+
 class FlattenerTest : public testing::Test {
 public:
-    FlattenerTest() : mFlattener(std::make_unique<Flattener>(true)) {}
+    FlattenerTest() : mFlattener(std::make_unique<TestableFlattener>(true)) {}
     void SetUp() override;
 
 protected:
@@ -55,7 +62,7 @@ protected:
 
     // mRenderEngine may be held as a pointer to mFlattener, so mFlattener must be destroyed first.
     renderengine::mock::RenderEngine mRenderEngine;
-    std::unique_ptr<Flattener> mFlattener;
+    std::unique_ptr<TestableFlattener> mFlattener;
 
     const std::chrono::steady_clock::time_point kStartTime = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point mTime = kStartTime;
@@ -784,6 +791,56 @@ TEST_F(FlattenerTest, flattenLayers_flattenSkipsLayerWithBlurBehind) {
     EXPECT_EQ(nullptr, blurOverrideBuffer);
     EXPECT_NE(nullptr, overrideBuffer3);
     EXPECT_EQ(overrideBuffer3, overrideBuffer4);
+}
+
+TEST_F(FlattenerTest, flattenLayers_whenBlurLayerIsChanging_appliesBlurToInactiveBehindLayers) {
+    auto& layerState1 = mTestLayers[0]->layerState;
+    auto& layerState2 = mTestLayers[1]->layerState;
+
+    auto& layerStateWithBlurBehind = mTestLayers[2]->layerState;
+    mTestLayers[2]->layerFECompositionState.backgroundBlurRadius = 1;
+    layerStateWithBlurBehind->update(&mTestLayers[2]->outputLayer);
+    const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
+    const auto& overrideBuffer2 = layerState2->getOutputLayer()->getState().overrideInfo.buffer;
+    const auto& blurOverrideBuffer =
+            layerStateWithBlurBehind->getOutputLayer()->getState().overrideInfo.buffer;
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerState2.get(),
+            layerStateWithBlurBehind.get(),
+    };
+
+    initializeFlattener(layers);
+
+    // Mark the first two layers inactive, but update the blur layer
+    mTime += 200ms;
+    layerStateWithBlurBehind->resetFramesSinceBufferUpdate();
+
+    // layers would be flattened but the buffer would not be overridden
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Return(NO_ERROR));
+
+    initializeOverrideBuffer(layers);
+    EXPECT_EQ(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+
+    const auto& cachedSet = mFlattener->getNewCachedSetForTesting();
+    ASSERT_NE(std::nullopt, cachedSet);
+    EXPECT_EQ(&mTestLayers[2]->outputLayer, cachedSet->getBlurLayer());
+
+    for (const auto layer : layers) {
+        EXPECT_EQ(nullptr, layer->getOutputLayer()->getState().overrideInfo.buffer);
+    }
+
+    // the new flattened layer is replaced
+    initializeOverrideBuffer(layers);
+    EXPECT_NE(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+    EXPECT_NE(nullptr, overrideBuffer1);
+    EXPECT_EQ(overrideBuffer2, overrideBuffer1);
+    EXPECT_EQ(nullptr, blurOverrideBuffer);
 }
 
 TEST_F(FlattenerTest, flattenLayers_renderCachedSets_doesNotRenderTwice) {
