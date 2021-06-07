@@ -64,6 +64,7 @@ cc_defaults {
         "libstatspull",
         "libstatssocket",
         "libui",
+        "libgui",
         "libutils",
         "lib-platform-compat-native-api",
         "server_configurable_flags",

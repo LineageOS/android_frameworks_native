@@ -58,6 +58,7 @@
 
 #include <InputListener.h>
 #include <InputReporterInterface.h>
+#include <gui/WindowInfosListener.h>
 
 namespace android::inputdispatcher {
 
@@ -80,7 +81,7 @@ class Connection;
  *
  *     A 'LockedInterruptible' method may called a 'Locked' method, but NOT vice-versa.
  */
-class InputDispatcher : public android::InputDispatcherInterface {
+class InputDispatcher : public android::InputDispatcherInterface, public gui::WindowInfosListener {
 protected:
     ~InputDispatcher() override;
 
@@ -141,6 +142,8 @@ public:
     std::array<uint8_t, 32> sign(const VerifiedInputEvent& event) const;
 
     void displayRemoved(int32_t displayId) override;
+
+    void onWindowInfosChanged(const std::vector<gui::WindowInfo>& windowInfos) override;
 
 private:
     enum class DropReason {
@@ -659,6 +662,8 @@ private:
 
     sp<InputReporterInterface> mReporter;
     sp<com::android::internal::compat::IPlatformCompatNative> mCompatService;
+
+    void onFirstRef() override;
 };
 
 } // namespace android::inputdispatcher

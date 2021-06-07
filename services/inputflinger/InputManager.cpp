@@ -114,15 +114,6 @@ sp<InputDispatcherInterface> InputManager::getDispatcher() {
     return mDispatcher;
 }
 
-class BinderWindowHandle : public WindowInfoHandle {
-public:
-    BinderWindowHandle(const WindowInfo& info) { mInfo = info; }
-
-    bool updateInfo() override {
-        return true;
-    }
-};
-
 binder::Status InputManager::setInputWindows(
         const std::vector<WindowInfo>& infos,
         const sp<ISetInputWindowsListener>& setInputWindowsListener) {
@@ -131,7 +122,7 @@ binder::Status InputManager::setInputWindows(
     std::vector<sp<WindowInfoHandle>> handles;
     for (const auto& info : infos) {
         handlesPerDisplay.emplace(info.displayId, std::vector<sp<WindowInfoHandle>>());
-        handlesPerDisplay[info.displayId].push_back(new BinderWindowHandle(info));
+        handlesPerDisplay[info.displayId].push_back(new WindowInfoHandle(info));
     }
     mDispatcher->setInputWindows(handlesPerDisplay);
 
