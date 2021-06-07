@@ -1453,7 +1453,9 @@ EGLBoolean eglSurfaceAttribImpl(EGLDisplay dpy, EGLSurface surface, EGLint attri
 
     if (attribute == EGL_TIMESTAMPS_ANDROID) {
         if (!s->getNativeWindow()) {
-            return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
+            // According to the spec, "if surface is not a window surface this has no
+            // effect."
+            return EGL_TRUE;
         }
         int err = native_window_enable_frame_timestamps(s->getNativeWindow(), value != 0);
         return (err == 0) ? EGL_TRUE : setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
