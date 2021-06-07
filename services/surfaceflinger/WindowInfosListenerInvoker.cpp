@@ -17,11 +17,31 @@
 #include "WindowInfosListenerInvoker.h"
 #include <gui/ISurfaceComposer.h>
 #include <unordered_set>
+#include "SurfaceFlinger.h"
 
 namespace android {
 
 using gui::IWindowInfosListener;
 using gui::WindowInfo;
+
+struct WindowInfosReportedListener : gui::BnWindowInfosReportedListener {
+    explicit WindowInfosReportedListener(std::function<void()> listenerCb)
+          : mListenerCb(listenerCb) {}
+
+    binder::Status onWindowInfosReported() override {
+        if (mListenerCb != nullptr) {
+            mListenerCb();
+        }
+        return binder::Status::ok();
+    }
+
+    std::function<void()> mListenerCb;
+};
+
+WindowInfosListenerInvoker::WindowInfosListenerInvoker(const sp<SurfaceFlinger>& sf) : mSf(sf) {
+    mWindowInfosReportedListener =
+            new WindowInfosReportedListener([&]() { windowInfosReported(); });
+}
 
 void WindowInfosListenerInvoker::addWindowInfosListener(
         const sp<IWindowInfosListener>& windowInfosListener) {
@@ -46,7 +66,8 @@ void WindowInfosListenerInvoker::binderDied(const wp<IBinder>& who) {
     mWindowInfosListeners.erase(who);
 }
 
-void WindowInfosListenerInvoker::windowInfosChanged(const std::vector<WindowInfo>& windowInfos) {
+void WindowInfosListenerInvoker::windowInfosChanged(const std::vector<WindowInfo>& windowInfos,
+                                                    bool shouldSync) {
     std::unordered_set<sp<IWindowInfosListener>, ISurfaceComposer::SpHash<IWindowInfosListener>>
             windowInfosListeners;
 
@@ -57,8 +78,18 @@ void WindowInfosListenerInvoker::windowInfosChanged(const std::vector<WindowInfo
         }
     }
 
+    mCallbacksPending = windowInfosListeners.size();
+
     for (const auto& listener : windowInfosListeners) {
-        listener->onWindowInfosChanged(windowInfos);
+        listener->onWindowInfosChanged(windowInfos,
+                                       shouldSync ? mWindowInfosReportedListener : nullptr);
+    }
+}
+
+void WindowInfosListenerInvoker::windowInfosReported() {
+    mCallbacksPending--;
+    if (mCallbacksPending == 0) {
+        mSf->windowInfosReported();
     }
 }
 

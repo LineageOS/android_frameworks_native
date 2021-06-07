@@ -31,7 +31,6 @@
 #include <android/hardware/configstore/1.1/types.h>
 #include <android/hardware/power/Boost.h>
 #include <android/native_window.h>
-#include <android/os/BnSetInputWindowsListener.h>
 #include <android/os/IInputFlinger.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
@@ -277,21 +276,6 @@ enum Permission {
 
 }  // namespace anonymous
 
-struct SetInputWindowsListener : os::BnSetInputWindowsListener {
-    explicit SetInputWindowsListener(std::function<void()> listenerCb) : mListenerCb(listenerCb) {}
-
-    binder::Status onSetInputWindowsFinished() override;
-
-    std::function<void()> mListenerCb;
-};
-
-binder::Status SetInputWindowsListener::onSetInputWindowsFinished() {
-    if (mListenerCb != nullptr) {
-        mListenerCb();
-    }
-    return binder::Status::ok();
-}
-
 // ---------------------------------------------------------------------------
 
 const String16 sHardwareTest("android.permission.HARDWARE_TEST");
@@ -358,10 +342,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
         mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)),
         mPowerAdvisor(*this),
-        mWindowInfosListenerInvoker(new WindowInfosListenerInvoker()) {
+        mWindowInfosListenerInvoker(new WindowInfosListenerInvoker(this)) {
     ALOGI("Using HWComposer service: %s", mHwcServiceName.c_str());
-
-    mSetInputWindowsListener = new SetInputWindowsListener([&]() { setInputWindowsFinished(); });
 }
 
 SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipInitialization) {
@@ -3058,11 +3040,11 @@ void SurfaceFlinger::updateInputFlinger() {
 
     if (mVisibleRegionsDirty || mInputInfoChanged) {
         mInputInfoChanged = false;
-        updateInputWindowInfo();
+        notifyWindowInfos();
     } else if (mInputWindowCommands.syncInputWindows) {
         // If the caller requested to sync input windows, but there are no
         // changes to input windows, notify immediately.
-        setInputWindowsFinished();
+        windowInfosReported();
     }
 
     for (const auto& focusRequest : mInputWindowCommands.focusRequests) {
@@ -3077,8 +3059,8 @@ bool enablePerWindowInputRotation() {
     return value;
 }
 
-void SurfaceFlinger::updateInputWindowInfo() {
-    std::vector<WindowInfo> inputInfos;
+void SurfaceFlinger::notifyWindowInfos() {
+    std::vector<WindowInfo> windowInfos;
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (!layer->needsInputInfo()) return;
@@ -3087,12 +3069,10 @@ void SurfaceFlinger::updateInputWindowInfo() {
                 : nullptr;
         // When calculating the screen bounds we ignore the transparent region since it may
         // result in an unwanted offset.
-        inputInfos.push_back(layer->fillInputInfo(display));
+        windowInfos.push_back(layer->fillInputInfo(display));
     });
-
-    mInputFlinger->setInputWindows(inputInfos,
-                               mInputWindowCommands.syncInputWindows ? mSetInputWindowsListener
-                                                                     : nullptr);
+    mWindowInfosListenerInvoker->windowInfosChanged(windowInfos,
+                                                    mInputWindowCommands.syncInputWindows);
 }
 
 void SurfaceFlinger::updateCursorAsync() {
@@ -6444,7 +6424,7 @@ status_t SurfaceFlinger::renderScreenImplLocked(
     return NO_ERROR;
 }
 
-void SurfaceFlinger::setInputWindowsFinished() {
+void SurfaceFlinger::windowInfosReported() {
     Mutex::Autolock _l(mStateLock);
     signalSynchronousTransactions(CountDownLatch::eSyncInputWindows);
 }

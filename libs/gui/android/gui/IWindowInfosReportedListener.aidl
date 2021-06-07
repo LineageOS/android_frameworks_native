@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package android.os;
+package android.gui;
 
 /** @hide */
-oneway interface ISetInputWindowsListener
+oneway interface IWindowInfosReportedListener
 {
-    void onSetInputWindowsFinished();
+    void onWindowInfosReported();
 }
