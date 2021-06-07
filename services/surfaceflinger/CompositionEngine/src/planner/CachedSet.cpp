@@ -346,6 +346,11 @@ compositionengine::OutputLayer* CachedSet::getBlurLayer() const {
     return mBlurLayer ? mBlurLayer->getOutputLayer() : nullptr;
 }
 
+bool CachedSet::hasHdrLayers() const {
+    return std::any_of(mLayers.cbegin(), mLayers.cend(),
+                       [](const Layer& layer) { return layer.getState()->isHdr(); });
+}
+
 void CachedSet::dump(std::string& result) const {
     const auto now = std::chrono::steady_clock::now();
 
