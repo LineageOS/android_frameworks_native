@@ -43,11 +43,13 @@ namespace android {
 using PresentState = frametimeline::SurfaceFrame::PresentState;
 namespace {
 void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
-                               const sp<GraphicBuffer>& buffer, const sp<Fence>& releaseFence) {
+                               const sp<GraphicBuffer>& buffer, const sp<Fence>& releaseFence,
+                               uint32_t transformHint) {
     if (!listener) {
         return;
     }
-    listener->onReleaseBuffer(buffer->getId(), releaseFence ? releaseFence : Fence::NO_FENCE);
+    listener->onReleaseBuffer(buffer->getId(), releaseFence ? releaseFence : Fence::NO_FENCE,
+                              transformHint);
 }
 } // namespace
 
@@ -72,7 +74,8 @@ BufferStateLayer::~BufferStateLayer() {
     // issue with the clone layer trying to use the texture.
     if (mBufferInfo.mBuffer != nullptr && !isClone()) {
         callReleaseBufferCallback(mDrawingState.releaseBufferListener,
-                                  mBufferInfo.mBuffer->getBuffer(), mBufferInfo.mFence);
+                                  mBufferInfo.mBuffer->getBuffer(), mBufferInfo.mFence,
+                                  mTransformHint);
     }
 }
 
@@ -427,7 +430,8 @@ bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTex
             // call any release buffer callbacks if set.
             callReleaseBufferCallback(mCurrentState.releaseBufferListener,
                                       mCurrentState.buffer->getBuffer(),
-                                      mCurrentState.acquireFence);
+                                      mCurrentState.acquireFence,
+                                      mTransformHint);
             decrementPendingBufferCount();
             if (mCurrentState.bufferSurfaceFrameTX != nullptr) {
                 addSurfaceFrameDroppedForBuffer(mCurrentState.bufferSurfaceFrameTX);
@@ -946,7 +950,8 @@ void BufferStateLayer::bufferMayChange(const sp<GraphicBuffer>& newBuffer) {
         // then we will drop a buffer and should decrement the pending buffer count and
         // call any release buffer callbacks if set.
         callReleaseBufferCallback(mDrawingState.releaseBufferListener,
-                                  mDrawingState.buffer->getBuffer(), mDrawingState.acquireFence);
+                                  mDrawingState.buffer->getBuffer(), mDrawingState.acquireFence,
+                                  mTransformHint);
         decrementPendingBufferCount();
     }
 }
