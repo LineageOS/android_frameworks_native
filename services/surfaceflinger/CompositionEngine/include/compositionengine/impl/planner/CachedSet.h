@@ -93,6 +93,7 @@ public:
         mOutputDataspace = ui::Dataspace::UNKNOWN;
         mDrawFence = nullptr;
         mBlurLayer = nullptr;
+        mHolePunchLayer = nullptr;
 
         mLayers.insert(mLayers.end(), other.mLayers.cbegin(), other.mLayers.cend());
         Region boundingRegion;
