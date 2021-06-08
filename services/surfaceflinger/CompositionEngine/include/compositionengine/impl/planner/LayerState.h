@@ -240,6 +240,15 @@ public:
     void resetFramesSinceBufferUpdate() { mFramesSinceBufferUpdate = 0; }
     int64_t getFramesSinceBufferUpdate() const { return mFramesSinceBufferUpdate; }
 
+    ui::Dataspace getDataspace() const { return mOutputDataspace.get(); }
+
+    bool isHdr() const {
+        const ui::Dataspace transfer =
+                static_cast<ui::Dataspace>(getDataspace() & ui::Dataspace::TRANSFER_MASK);
+        return (transfer == ui::Dataspace::TRANSFER_ST2084 ||
+                transfer == ui::Dataspace::TRANSFER_HLG);
+    }
+
     void dump(std::string& result) const;
     std::optional<std::string> compare(const LayerState& other) const;
 
