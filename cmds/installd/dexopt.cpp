@@ -53,6 +53,7 @@
 #include "execv_helper.h"
 #include "globals.h"
 #include "installd_deps.h"
+#include "installd_constants.h"
 #include "otapreopt_utils.h"
 #include "run_dex2oat.h"
 #include "unique_file.h"
@@ -416,11 +417,12 @@ static void open_profile_files(uid_t uid, const std::string& package_name,
 
 static constexpr int PROFMAN_BIN_RETURN_CODE_SUCCESS = 0;
 static constexpr int PROFMAN_BIN_RETURN_CODE_COMPILE = 1;
-static constexpr int PROFMAN_BIN_RETURN_CODE_SKIP_COMPILATION = 2;
+static constexpr int PROFMAN_BIN_RETURN_CODE_SKIP_COMPILATION_NOT_ENOUGH_DELTA = 2;
 static constexpr int PROFMAN_BIN_RETURN_CODE_BAD_PROFILES = 3;
 static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_IO = 4;
 static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_LOCKING = 5;
 static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_DIFFERENT_VERSIONS = 6;
+static constexpr int PROFMAN_BIN_RETURN_CODE_SKIP_COMPILATION_EMPTY_PROFILES = 7;
 
 class RunProfman : public ExecVHelper {
   public:
@@ -555,15 +557,7 @@ class RunProfman : public ExecVHelper {
     std::vector<unique_fd> apk_fds_;
 };
 
-
-
-// Decides if profile guided compilation is needed or not based on existing profiles.
-// The location is the package name for primary apks or the dex path for secondary dex files.
-// Returns true if there is enough information in the current profiles that makes it
-// worth to recompile the given location.
-// If the return value is true all the current profiles would have been merged into
-// the reference profiles accessible with open_reference_profile().
-static bool analyze_profiles(uid_t uid, const std::string& package_name,
+static int analyze_profiles(uid_t uid, const std::string& package_name,
         const std::string& location, bool is_secondary_dex) {
     std::vector<unique_fd> profiles_fd;
     unique_fd reference_profile_fd;
@@ -572,7 +566,7 @@ static bool analyze_profiles(uid_t uid, const std::string& package_name,
     if (profiles_fd.empty() || (reference_profile_fd.get() < 0)) {
         // Skip profile guided compilation because no profiles were found.
         // Or if the reference profile info couldn't be opened.
-        return false;
+        return PROFILES_ANALYSIS_DONT_OPTIMIZE_EMPTY_PROFILES;
     }
 
     RunProfman profman_merge;
@@ -594,6 +588,7 @@ static bool analyze_profiles(uid_t uid, const std::string& package_name,
     /* parent */
     int return_code = wait_child(pid);
     bool need_to_compile = false;
+    bool empty_profiles = false;
     bool should_clear_current_profiles = false;
     bool should_clear_reference_profile = false;
     if (!WIFEXITED(return_code)) {
@@ -606,8 +601,14 @@ static bool analyze_profiles(uid_t uid, const std::string& package_name,
                 should_clear_current_profiles = true;
                 should_clear_reference_profile = false;
                 break;
-            case PROFMAN_BIN_RETURN_CODE_SKIP_COMPILATION:
+            case PROFMAN_BIN_RETURN_CODE_SKIP_COMPILATION_NOT_ENOUGH_DELTA:
                 need_to_compile = false;
+                should_clear_current_profiles = false;
+                should_clear_reference_profile = false;
+                break;
+            case PROFMAN_BIN_RETURN_CODE_SKIP_COMPILATION_EMPTY_PROFILES:
+                need_to_compile = false;
+                empty_profiles = true;
                 should_clear_current_profiles = false;
                 should_clear_reference_profile = false;
                 break;
@@ -653,16 +654,29 @@ static bool analyze_profiles(uid_t uid, const std::string& package_name,
     if (should_clear_reference_profile) {
         clear_reference_profile(package_name, location, is_secondary_dex);
     }
-    return need_to_compile;
+    int result = 0;
+    if (need_to_compile) {
+        result = PROFILES_ANALYSIS_OPTIMIZE;
+    } else if (empty_profiles) {
+        result = PROFILES_ANALYSIS_DONT_OPTIMIZE_EMPTY_PROFILES;
+    } else {
+        result = PROFILES_ANALYSIS_DONT_OPTIMIZE_SMALL_DELTA;
+    }
+    return result;
 }
 
 // Decides if profile guided compilation is needed or not based on existing profiles.
-// The analysis is done for the primary apks of the given package.
-// Returns true if there is enough information in the current profiles that makes it
-// worth to recompile the package.
-// If the return value is true all the current profiles would have been merged into
-// the reference profiles accessible with open_reference_profile().
-bool analyze_primary_profiles(uid_t uid, const std::string& package_name,
+// The analysis is done for a single profile name (which corresponds to a single code path).
+//
+// Returns PROFILES_ANALYSIS_OPTIMIZE if there is enough information in the current profiles
+// that makes it worth to recompile the package.
+// If the return value is PROFILES_ANALYSIS_OPTIMIZE all the current profiles would have been
+// merged into the reference profiles accessible with open_reference_profile().
+//
+// Return PROFILES_ANALYSIS_DONT_OPTIMIZE_SMALL_DELTA if the package should not optimize.
+// As a special case returns PROFILES_ANALYSIS_DONT_OPTIMIZE_EMPTY_PROFILES if all profiles are
+// empty.
+int analyze_primary_profiles(uid_t uid, const std::string& package_name,
         const std::string& profile_name) {
     return analyze_profiles(uid, package_name, profile_name, /*is_secondary_dex*/false);
 }
@@ -1166,7 +1180,7 @@ class RunDexoptAnalyzer : public ExecVHelper {
                       int zip_fd,
                       const std::string& instruction_set,
                       const std::string& compiler_filter,
-                      bool profile_was_updated,
+                      int profile_analysis_result,
                       bool downgrade,
                       const char* class_loader_context,
                       const std::string& class_loader_context_fds) {
@@ -1182,7 +1196,8 @@ class RunDexoptAnalyzer : public ExecVHelper {
         std::string zip_fd_arg = "--zip-fd=" + std::to_string(zip_fd);
         std::string isa_arg = "--isa=" + instruction_set;
         std::string compiler_filter_arg = "--compiler-filter=" + compiler_filter;
-        const char* assume_profile_changed = "--assume-profile-changed";
+        std::string profile_analysis_arg = "--profile-analysis-result="
+                + std::to_string(profile_analysis_result);
         const char* downgrade_flag = "--downgrade";
         std::string class_loader_context_arg = "--class-loader-context=";
         if (class_loader_context != nullptr) {
@@ -1204,9 +1219,8 @@ class RunDexoptAnalyzer : public ExecVHelper {
             AddArg(vdex_fd_arg);
         }
         AddArg(zip_fd_arg);
-        if (profile_was_updated) {
-            AddArg(assume_profile_changed);
-        }
+        AddArg(profile_analysis_arg);
+
         if (downgrade) {
             AddArg(downgrade_flag);
         }
@@ -1578,7 +1592,7 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
         }
 
         // Analyze profiles.
-        bool profile_was_updated = analyze_profiles(uid, pkgname, dex_path,
+        int profile_analysis_result = analyze_profiles(uid, pkgname, dex_path,
                 /*is_secondary_dex*/true);
 
         // Run dexoptanalyzer to get dexopt_needed code. This is not expected to return.
@@ -1589,7 +1603,8 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
                                               oat_file_fd.get(),
                                               zip_fd.get(),
                                               instruction_set,
-                                              compiler_filter, profile_was_updated,
+                                              compiler_filter,
+                                              profile_analysis_result,
                                               downgrade,
                                               class_loader_context,
                                               join_fds(context_zip_fds));
