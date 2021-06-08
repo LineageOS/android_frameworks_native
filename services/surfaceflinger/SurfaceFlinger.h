@@ -186,6 +186,9 @@ public:
     // set main thread scheduling policy
     static status_t setSchedFifo(bool enabled) ANDROID_API;
 
+    // set main thread scheduling attributes
+    static status_t setSchedAttr(bool enabled);
+
     static char const* getServiceName() ANDROID_API { return "SurfaceFlinger"; }
 
     // This is the phase offset in nanoseconds of the software vsync event
