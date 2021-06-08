@@ -444,7 +444,7 @@ bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTex
 
     const int32_t layerId = getSequence();
     mFlinger->mTimeStats->setPostTime(layerId, mCurrentState.frameNumber, getName().c_str(),
-                                      mOwnerUid, postTime);
+                                      mOwnerUid, postTime, getGameMode());
     mCurrentState.desiredPresentTime = desiredPresentTime;
     mCurrentState.isAutoTimestamp = isAutoTimestamp;
 
