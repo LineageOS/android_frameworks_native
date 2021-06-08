@@ -122,7 +122,7 @@ public:
     binder::Status rmdex(const std::string& codePath, const std::string& instructionSet);
 
     binder::Status mergeProfiles(int32_t uid, const std::string& packageName,
-            const std::string& profileName, bool* _aidl_return);
+            const std::string& profileName, int* _aidl_return);
     binder::Status dumpProfiles(int32_t uid, const std::string& packageName,
             const std::string& profileName, const std::string& codePath, bool* _aidl_return);
     binder::Status copySystemProfile(const std::string& systemProfile,

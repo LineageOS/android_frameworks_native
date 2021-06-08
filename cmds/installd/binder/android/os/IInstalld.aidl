@@ -71,7 +71,7 @@ interface IInstalld {
 
     void rmdex(@utf8InCpp String codePath, @utf8InCpp String instructionSet);
 
-    boolean mergeProfiles(int uid, @utf8InCpp String packageName, @utf8InCpp String profileName);
+    int mergeProfiles(int uid, @utf8InCpp String packageName, @utf8InCpp String profileName);
     boolean dumpProfiles(int uid, @utf8InCpp String packageName, @utf8InCpp String  profileName,
             @utf8InCpp String codePath);
     boolean copySystemProfile(@utf8InCpp String systemProfile, int uid,
