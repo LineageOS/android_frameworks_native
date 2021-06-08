@@ -331,7 +331,8 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                         callback(surfaceStats.previousBufferId,
                                  surfaceStats.previousReleaseFence
                                          ? surfaceStats.previousReleaseFence
-                                         : Fence::NO_FENCE);
+                                         : Fence::NO_FENCE,
+                                 surfaceStats.transformHint);
                     }
                 }
             }
@@ -357,7 +358,8 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
 }
 
 void TransactionCompletedListener::onReleaseBuffer(uint64_t graphicBufferId,
-                                                   sp<Fence> releaseFence) {
+                                                   sp<Fence> releaseFence,
+                                                   uint32_t transformHint) {
     ReleaseBufferCallback callback;
     {
         std::scoped_lock<std::mutex> lock(mMutex);
@@ -367,7 +369,7 @@ void TransactionCompletedListener::onReleaseBuffer(uint64_t graphicBufferId,
         ALOGE("Could not call release buffer callback, buffer not found %" PRIu64, graphicBufferId);
         return;
     }
-    callback(graphicBufferId, releaseFence);
+    callback(graphicBufferId, releaseFence, transformHint);
 }
 
 ReleaseBufferCallback TransactionCompletedListener::popReleaseBufferCallbackLocked(
