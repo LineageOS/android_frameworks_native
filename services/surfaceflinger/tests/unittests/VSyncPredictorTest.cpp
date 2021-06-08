@@ -478,7 +478,7 @@ TEST_F(VSyncPredictorTest, isVSyncInPhase) {
     }
 }
 
-TEST_F(VSyncPredictorTest, InconsistentVsyncValueIsFlushedEventually) {
+TEST_F(VSyncPredictorTest, inconsistentVsyncValueIsFlushedEventually) {
     EXPECT_TRUE(tracker.addVsyncTimestamp(600));
     EXPECT_TRUE(tracker.needsMoreSamples());
 
@@ -490,6 +490,24 @@ TEST_F(VSyncPredictorTest, InconsistentVsyncValueIsFlushedEventually) {
     }
 
     EXPECT_FALSE(tracker.needsMoreSamples());
+}
+
+TEST_F(VSyncPredictorTest, knownVsyncIsUpdated) {
+    EXPECT_TRUE(tracker.addVsyncTimestamp(600));
+    EXPECT_TRUE(tracker.needsMoreSamples());
+    EXPECT_EQ(600, tracker.nextAnticipatedVSyncTimeFrom(mNow));
+
+    EXPECT_FALSE(tracker.addVsyncTimestamp(mNow += mPeriod));
+    EXPECT_EQ(mNow + 1000, tracker.nextAnticipatedVSyncTimeFrom(mNow));
+
+    for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
+        EXPECT_TRUE(tracker.needsMoreSamples());
+        EXPECT_TRUE(tracker.addVsyncTimestamp(mNow += mPeriod));
+        EXPECT_EQ(mNow + 1000, tracker.nextAnticipatedVSyncTimeFrom(mNow));
+    }
+
+    EXPECT_FALSE(tracker.needsMoreSamples());
+    EXPECT_EQ(mNow + 1000, tracker.nextAnticipatedVSyncTimeFrom(mNow));
 }
 
 } // namespace android::scheduler
