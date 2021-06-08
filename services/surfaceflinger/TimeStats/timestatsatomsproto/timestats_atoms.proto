@@ -166,6 +166,23 @@ message SurfaceflingerStatsLayerInfo {
     // This is intended to be used as a dimension in collecting per-render rate
     // jank statistics.
     optional int32 render_rate_bucket = 23;
+
+    enum GameMode {
+         GAME_MODE_UNSPECIFIED = 0;
+         GAME_MODE_UNSUPPORTED = 1;
+         GAME_MODE_STANDARD = 2;
+         GAME_MODE_PERFORMANCE = 3;
+         GAME_MODE_BATTERY = 4;
+    }
+
+    // Game mode that the layer was running at. Used to track user engagement
+    // in different modes. The modes are defined in GameManager.java
+    // Game modes are used only for integrating with GameManager. All non-game
+    // layers will have this field set to UNSUPPORTED.
+    // Introduced in Android 12
+    // This is intended to be used as a dimension in collecting per-game mode
+    // fps and frame related metrics.
+    optional GameMode game_mode = 26;
     // The layer for this set of metrics
     // In many scenarios the package name is included in the layer name, e.g.,
     // layers created by Window Manager. But this is not a guarantee - in the
@@ -271,7 +288,7 @@ message SurfaceflingerStatsLayerInfo {
     // Introduced in Android 12.
     optional FrameTimingHistogram app_deadline_misses = 25;
 
-    // Next ID: 26
+    // Next ID: 27
 }
 
 /**

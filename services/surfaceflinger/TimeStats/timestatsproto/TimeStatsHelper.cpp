@@ -122,6 +122,20 @@ std::string TimeStatsHelper::SetFrameRateVote::toString() const {
     return result;
 }
 
+std::string TimeStatsHelper::TimeStatsLayer::toString(int32_t gameMode) const {
+    switch (gameMode) {
+        case TimeStatsHelper::GameModeUnsupported:
+            return "GameModeUnsupported";
+        case TimeStatsHelper::GameModeStandard:
+            return "GameModeStandard";
+        case TimeStatsHelper::GameModePerformance:
+            return "GameModePerformance";
+        case TimeStatsHelper::GameModeBattery:
+            return "GameModeBattery";
+        default:
+            return "GameModeUnspecified";
+    }
+}
 std::string TimeStatsHelper::TimeStatsLayer::toString() const {
     std::string result = "\n";
     StringAppendF(&result, "displayRefreshRate = %d fps\n", displayRefreshRateBucket);
@@ -129,6 +143,7 @@ std::string TimeStatsHelper::TimeStatsLayer::toString() const {
     StringAppendF(&result, "uid = %d\n", uid);
     StringAppendF(&result, "layerName = %s\n", layerName.c_str());
     StringAppendF(&result, "packageName = %s\n", packageName.c_str());
+    StringAppendF(&result, "gameMode = %s\n", toString(gameMode).c_str());
     StringAppendF(&result, "totalFrames = %d\n", totalFrames);
     StringAppendF(&result, "droppedFrames = %d\n", droppedFrames);
     StringAppendF(&result, "lateAcquireFrames = %d\n", lateAcquireFrames);
