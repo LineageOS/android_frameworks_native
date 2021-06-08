@@ -350,6 +350,11 @@ bool CachedSet::hasHdrLayers() const {
                        [](const Layer& layer) { return layer.getState()->isHdr(); });
 }
 
+bool CachedSet::hasProtectedLayers() const {
+    return std::any_of(mLayers.cbegin(), mLayers.cend(),
+                       [](const Layer& layer) { return layer.getState()->isProtected(); });
+}
+
 void CachedSet::dump(std::string& result) const {
     const auto now = std::chrono::steady_clock::now();
 
