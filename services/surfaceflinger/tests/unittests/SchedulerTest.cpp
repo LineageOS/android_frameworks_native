@@ -220,4 +220,25 @@ TEST_F(SchedulerTest, calculateExtraBufferCount) {
     EXPECT_EQ(0, mFlinger.calculateExtraBufferCount(Fps(60), 10ms));
 }
 
+MATCHER(Is120Hz, "") {
+    return arg.getFps().equalsWithMargin(Fps(120.f));
+}
+
+TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
+    mConfigs.updateDisplayModes({mode60, mode120}, /* activeMode */ mode60->getId());
+
+    sp<mock::MockLayer> layer = sp<mock::MockLayer>::make(mFlinger.flinger());
+
+    mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
+
+    constexpr bool kPowerStateNormal = true;
+    mScheduler->setDisplayPowerState(kPowerStateNormal);
+
+    constexpr uint32_t kDisplayArea = 999'999;
+    mScheduler->onPrimaryDisplayAreaChanged(kDisplayArea);
+
+    EXPECT_CALL(mSchedulerCallback, changeRefreshRate(Is120Hz(), _)).Times(1);
+    mScheduler->chooseRefreshRateForContent();
+}
+
 } // namespace android

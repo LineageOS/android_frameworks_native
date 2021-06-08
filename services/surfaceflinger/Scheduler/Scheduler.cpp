@@ -622,9 +622,6 @@ void Scheduler::chooseRefreshRateForContent() {
     bool frameRateOverridesChanged;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        if (mFeatures.contentRequirements == summary) {
-            return;
-        }
         mFeatures.contentRequirements = summary;
 
         newModeId = calculateRefreshRateModeId(&consideredSignals);
