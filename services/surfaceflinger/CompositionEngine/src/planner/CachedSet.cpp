@@ -228,7 +228,6 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
         // Assume that the final layer contains the buffer that we want to
         // replace with a hole punch.
         holePunchSettings = clientCompositionList.back();
-        LOG_ALWAYS_FATAL_IF(!holePunchSettings.source.buffer.buffer, "Expected to have a buffer!");
         // This mimics Layer::prepareClearClientComposition
         holePunchSettings.source.buffer.buffer = nullptr;
         holePunchSettings.source.solidColor = half3(0.0f, 0.0f, 0.0f);
@@ -344,6 +343,11 @@ compositionengine::OutputLayer* CachedSet::getHolePunchLayer() const {
 
 compositionengine::OutputLayer* CachedSet::getBlurLayer() const {
     return mBlurLayer ? mBlurLayer->getOutputLayer() : nullptr;
+}
+
+bool CachedSet::hasHdrLayers() const {
+    return std::any_of(mLayers.cbegin(), mLayers.cend(),
+                       [](const Layer& layer) { return layer.getState()->isHdr(); });
 }
 
 void CachedSet::dump(std::string& result) const {
