@@ -2897,6 +2897,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
     // Commit layer transactions. This needs to happen after display transactions are
     // committed because some geometry logic relies on display orientation.
     if ((transactionFlags & eTraversalNeeded) || mForceTraversal || displayTransactionNeeded) {
+        mForceTraversal = false;
         mCurrentState.traverse([&](Layer* layer) {
             uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
             if (!trFlags && !displayTransactionNeeded) return;
