@@ -89,6 +89,12 @@ int main(int, char**) {
     // binder threads to 4.
     ProcessState::self()->setThreadPoolMaxThreadCount(4);
 
+    // Set uclamp.min setting on all threads, maybe an overkill but we want
+    // to cover important threads like RenderEngine.
+    if (SurfaceFlinger::setSchedAttr(true) != NO_ERROR) {
+        ALOGW("Couldn't set uclamp.min: %s\n", strerror(errno));
+    }
+
     // The binder threadpool we start will inherit sched policy and priority
     // of (this) creating thread. We want the binder thread pool to have
     // SCHED_FIFO policy and priority 1 (lowest RT priority)
