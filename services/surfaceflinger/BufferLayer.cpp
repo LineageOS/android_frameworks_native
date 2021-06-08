@@ -425,7 +425,8 @@ bool BufferLayer::onPostComposition(const DisplayDevice* display,
         mFlinger->mTimeStats->setPresentFence(layerId, mCurrentFrameNumber, presentFence,
                                               refreshRate, renderRate,
                                               frameRateToSetFrameRateVotePayload(
-                                                      mDrawingState.frameRate));
+                                                      mDrawingState.frameRate),
+                                              getGameMode());
         mFlinger->mFrameTracer->traceFence(layerId, getCurrentBufferId(), mCurrentFrameNumber,
                                            presentFence, FrameTracer::FrameEvent::PRESENT_FENCE);
         mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
@@ -439,7 +440,8 @@ bool BufferLayer::onPostComposition(const DisplayDevice* display,
         mFlinger->mTimeStats->setPresentTime(layerId, mCurrentFrameNumber, actualPresentTime,
                                              refreshRate, renderRate,
                                              frameRateToSetFrameRateVotePayload(
-                                                     mDrawingState.frameRate));
+                                                     mDrawingState.frameRate),
+                                             getGameMode());
         mFlinger->mFrameTracer->traceTimestamp(layerId, getCurrentBufferId(), mCurrentFrameNumber,
                                                actualPresentTime,
                                                FrameTracer::FrameEvent::PRESENT_FENCE);
