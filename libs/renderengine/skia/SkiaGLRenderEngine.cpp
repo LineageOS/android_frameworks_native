@@ -315,6 +315,7 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGL
     GrContextOptions options;
     options.fDisableDriverCorrectnessWorkarounds = true;
     options.fDisableDistanceFieldPaths = true;
+    options.fReducedShaderVariations = true;
     options.fPersistentCache = &mSkSLCacheMonitor;
     mGrContext = GrDirectContext::MakeGL(glInterface, options);
     if (useProtectedContext(true)) {
