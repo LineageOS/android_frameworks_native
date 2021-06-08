@@ -607,6 +607,25 @@ TEST_F(CachedSetTest, addHolePunch_noBuffer) {
     cachedSet.render(mRenderEngine, mOutputState);
 }
 
+TEST_F(CachedSetTest, append_removesHolePunch) {
+    mTestLayers[0]->outputLayerCompositionState.displayFrame = Rect(0, 0, 5, 5);
+    mTestLayers[0]->layerFECompositionState.isOpaque = true;
+    CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();
+    CachedSet::Layer& layer2 = *mTestLayers[1]->cachedSetLayer.get();
+    CachedSet::Layer& layer3 = *mTestLayers[2]->cachedSetLayer.get();
+
+    CachedSet cachedSet(layer1);
+    cachedSet.addLayer(layer2.getState(), kStartTime + 10ms);
+
+    cachedSet.addHolePunchLayerIfFeasible(layer3, false);
+
+    ASSERT_EQ(&mTestLayers[2]->outputLayer, cachedSet.getHolePunchLayer());
+
+    CachedSet cachedSet3(layer3);
+    cachedSet.append(cachedSet3);
+    ASSERT_EQ(nullptr, cachedSet.getHolePunchLayer());
+}
+
 TEST_F(CachedSetTest, decompose_removesHolePunch) {
     mTestLayers[0]->outputLayerCompositionState.displayFrame = Rect(0, 0, 5, 5);
     CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();
