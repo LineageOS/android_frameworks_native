@@ -251,10 +251,11 @@ public:
                                                                   stats);
     }
 
-    void onReleaseBuffer(uint64_t graphicBufferId, sp<Fence> releaseFence) override {
+    void onReleaseBuffer(uint64_t graphicBufferId, sp<Fence> releaseFence,
+                         uint32_t transformHint) override {
         callRemoteAsync<decltype(
                 &ITransactionCompletedListener::onReleaseBuffer)>(Tag::ON_RELEASE_BUFFER,
-                                                                  graphicBufferId, releaseFence);
+                graphicBufferId, releaseFence, transformHint);
     }
 };
 
