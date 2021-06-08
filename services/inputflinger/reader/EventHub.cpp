@@ -67,6 +67,8 @@ static const char* DEVICE_PATH = "/dev/input";
 // v4l2 devices go directly into /dev
 static const char* VIDEO_DEVICE_PATH = "/dev";
 
+static constexpr size_t OBFUSCATED_LENGTH = 8;
+
 static constexpr int32_t FF_STRONG_MAGNITUDE_CHANNEL_IDX = 0;
 static constexpr int32_t FF_WEAK_MAGNITUDE_CHANNEL_IDX = 1;
 
@@ -1828,9 +1830,21 @@ void EventHub::unregisterVideoDeviceFromEpollLocked(const TouchVideoDevice& vide
 
 void EventHub::reportDeviceAddedForStatisticsLocked(const InputDeviceIdentifier& identifier,
                                                     Flags<InputDeviceClass> classes) {
+    SHA256_CTX ctx;
+    SHA256_Init(&ctx);
+    SHA256_Update(&ctx, reinterpret_cast<const uint8_t*>(identifier.uniqueId.c_str()),
+                  identifier.uniqueId.size());
+    std::array<uint8_t, SHA256_DIGEST_LENGTH> digest;
+    SHA256_Final(digest.data(), &ctx);
+
+    std::string obfuscatedId;
+    for (size_t i = 0; i < OBFUSCATED_LENGTH; i++) {
+        obfuscatedId += StringPrintf("%02x", digest[i]);
+    }
+
     android::util::stats_write(android::util::INPUTDEVICE_REGISTERED, identifier.name.c_str(),
                                identifier.vendor, identifier.product, identifier.version,
-                               identifier.bus, identifier.uniqueId.c_str(), classes.get());
+                               identifier.bus, obfuscatedId.c_str(), classes.get());
 }
 
 void EventHub::openDeviceLocked(const std::string& devicePath) {
