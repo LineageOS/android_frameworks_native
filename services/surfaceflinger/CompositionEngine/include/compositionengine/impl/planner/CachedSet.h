@@ -135,6 +135,8 @@ public:
 
     bool hasHdrLayers() const;
 
+    bool hasProtectedLayers() const;
+
 private:
     CachedSet() = default;
 
