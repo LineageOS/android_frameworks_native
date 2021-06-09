@@ -257,13 +257,9 @@ public:
         return mMotionRanges;
     }
 
-    const InputDeviceSensorInfo* getSensorInfo(InputDeviceSensorType type);
+    std::vector<InputDeviceSensorInfo> getSensors();
 
-    const std::vector<InputDeviceSensorType> getSensorTypes();
-
-    const std::vector<int32_t> getLightIds();
-
-    const InputDeviceLightInfo* getLightInfo(int32_t id);
+    std::vector<InputDeviceLightInfo> getLights();
 
 private:
     int32_t mId;

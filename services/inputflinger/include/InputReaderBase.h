@@ -113,9 +113,9 @@ public:
     /* Get battery status of a particular input device. */
     virtual std::optional<int32_t> getBatteryStatus(int32_t deviceId) = 0;
 
-    virtual std::vector<int32_t> getLightIds(int32_t deviceId) = 0;
+    virtual std::vector<InputDeviceLightInfo> getLights(int32_t deviceId) = 0;
 
-    virtual const InputDeviceLightInfo* getLightInfo(int32_t deviceId, int32_t lightId) = 0;
+    virtual std::vector<InputDeviceSensorInfo> getSensors(int32_t deviceId) = 0;
 
     /* Return true if the device can send input events to the specified display. */
     virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) = 0;
