@@ -37,7 +37,7 @@ class Predictor;
 
 class Flattener {
 public:
-    Flattener(bool enableHolePunch = false) : mEnableHolePunch(enableHolePunch) {}
+    Flattener(bool enableHolePunch = false);
 
     void setDisplaySize(ui::Size size) { mDisplaySize = size; }
 
@@ -162,6 +162,7 @@ private:
     size_t mCachedSetCreationCount = 0;
     size_t mCachedSetCreationCost = 0;
     std::unordered_map<size_t, size_t> mInvalidatedCachedSetAges;
+    std::chrono::nanoseconds mActiveLayerTimeout = kActiveLayerTimeout;
 
     static constexpr auto kActiveLayerTimeout = std::chrono::nanoseconds(150ms);
 };

@@ -19,6 +19,7 @@
 // #define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <android-base/properties.h>
 #include <compositionengine/impl/planner/Flattener.h>
 #include <compositionengine/impl/planner/LayerState.h>
 
@@ -58,6 +59,14 @@ bool isSameStack(const std::vector<const LayerState*>& incomingLayers,
 }
 
 } // namespace
+
+Flattener::Flattener(bool enableHolePunch) : mEnableHolePunch(enableHolePunch) {
+    const int timeoutInMs =
+            base::GetIntProperty(std::string("debug.sf.layer_caching_active_layer_timeout_ms"), 0);
+    if (timeoutInMs != 0) {
+        mActiveLayerTimeout = std::chrono::milliseconds(timeoutInMs);
+    }
+}
 
 NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& layers,
                                        NonBufferHash hash, time_point now) {
@@ -370,7 +379,7 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
     bool runHasFirstLayer = false;
 
     for (auto currentSet = mLayers.cbegin(); currentSet != mLayers.cend(); ++currentSet) {
-        const bool layerIsInactive = now - currentSet->getLastUpdate() > kActiveLayerTimeout;
+        const bool layerIsInactive = now - currentSet->getLastUpdate() > mActiveLayerTimeout;
         const bool layerHasBlur = currentSet->hasBlurBehind();
         if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur) &&
             !currentSet->hasHdrLayers() && !currentSet->hasProtectedLayers()) {
