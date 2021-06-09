@@ -557,6 +557,75 @@ TEST_F(CachedSetTest, addHolePunch) {
     cachedSet.render(mRenderEngine, mOutputState);
 }
 
+TEST_F(CachedSetTest, addHolePunch_noBuffer) {
+    // Same as addHolePunch, except that clientCompList3 does not contain a
+    // buffer. This imitates the case where the buffer had protected content, so
+    // BufferLayer did not add it to the LayerSettings. This should not assert.
+    mTestLayers[0]->outputLayerCompositionState.displayFrame = Rect(0, 0, 5, 5);
+    CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE1 = mTestLayers[0]->layerFE;
+
+    CachedSet::Layer& layer2 = *mTestLayers[1]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE2 = mTestLayers[1]->layerFE;
+
+    CachedSet::Layer& layer3 = *mTestLayers[2]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE3 = mTestLayers[2]->layerFE;
+
+    CachedSet cachedSet(layer1);
+    cachedSet.addLayer(layer2.getState(), kStartTime + 10ms);
+
+    cachedSet.addHolePunchLayerIfFeasible(layer3, true);
+
+    std::vector<compositionengine::LayerFE::LayerSettings> clientCompList1;
+    clientCompList1.push_back({});
+    std::vector<compositionengine::LayerFE::LayerSettings> clientCompList2;
+    clientCompList2.push_back({});
+    std::vector<compositionengine::LayerFE::LayerSettings> clientCompList3;
+    clientCompList3.push_back({});
+
+    EXPECT_CALL(*layerFE1, prepareClientCompositionList(_)).WillOnce(Return(clientCompList1));
+    EXPECT_CALL(*layerFE2, prepareClientCompositionList(_)).WillOnce(Return(clientCompList2));
+    EXPECT_CALL(*layerFE3, prepareClientCompositionList(_)).WillOnce(Return(clientCompList3));
+
+    const auto drawLayers = [&](const renderengine::DisplaySettings&,
+                                const std::vector<const renderengine::LayerSettings*>& layers,
+                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                base::unique_fd&&, base::unique_fd*) -> size_t {
+        // If the highlight layer is enabled, it will increase the size by 1.
+        // We're interested in the third layer either way.
+        EXPECT_GE(layers.size(), 3u);
+        const auto* holePunchSettings = layers[2];
+        EXPECT_EQ(nullptr, holePunchSettings->source.buffer.buffer);
+        EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchSettings->source.solidColor);
+        EXPECT_TRUE(holePunchSettings->disableBlending);
+        EXPECT_EQ(0.0f, holePunchSettings->alpha);
+
+        return NO_ERROR;
+    };
+
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
+    cachedSet.render(mRenderEngine, mOutputState);
+}
+
+TEST_F(CachedSetTest, append_removesHolePunch) {
+    mTestLayers[0]->outputLayerCompositionState.displayFrame = Rect(0, 0, 5, 5);
+    mTestLayers[0]->layerFECompositionState.isOpaque = true;
+    CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();
+    CachedSet::Layer& layer2 = *mTestLayers[1]->cachedSetLayer.get();
+    CachedSet::Layer& layer3 = *mTestLayers[2]->cachedSetLayer.get();
+
+    CachedSet cachedSet(layer1);
+    cachedSet.addLayer(layer2.getState(), kStartTime + 10ms);
+
+    cachedSet.addHolePunchLayerIfFeasible(layer3, false);
+
+    ASSERT_EQ(&mTestLayers[2]->outputLayer, cachedSet.getHolePunchLayer());
+
+    CachedSet cachedSet3(layer3);
+    cachedSet.append(cachedSet3);
+    ASSERT_EQ(nullptr, cachedSet.getHolePunchLayer());
+}
+
 TEST_F(CachedSetTest, decompose_removesHolePunch) {
     mTestLayers[0]->outputLayerCompositionState.displayFrame = Rect(0, 0, 5, 5);
     CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();

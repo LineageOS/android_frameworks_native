@@ -231,6 +231,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
         return false;
     }
 
+    // the compiler should strip out the following no-op loops when ALOGV is off
     ALOGV("[%s] Incoming layers:", __func__);
     for (const LayerState* layer : layers) {
         ALOGV("%s", layer->getName().c_str());
@@ -238,9 +239,12 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
 
     ALOGV("[%s] Current layers:", __func__);
     for (const CachedSet& layer : mLayers) {
-        std::string dump;
-        layer.dump(dump);
-        ALOGV("%s", dump.c_str());
+        const auto dumper = [&] {
+            std::string dump;
+            layer.dump(dump);
+            return dump;
+        };
+        ALOGV("%s", dumper().c_str());
     }
 
     auto currentLayerIter = mLayers.begin();
@@ -368,7 +372,8 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
     for (auto currentSet = mLayers.cbegin(); currentSet != mLayers.cend(); ++currentSet) {
         const bool layerIsInactive = now - currentSet->getLastUpdate() > kActiveLayerTimeout;
         const bool layerHasBlur = currentSet->hasBlurBehind();
-        if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur)) {
+        if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur) &&
+            !currentSet->hasHdrLayers()) {
             if (isPartOfRun) {
                 builder.append(currentSet->getLayerCount());
             } else {
@@ -472,9 +477,14 @@ void Flattener::buildCachedSets(time_point now) {
 
     ++mCachedSetCreationCount;
     mCachedSetCreationCost += mNewCachedSet->getCreationCost();
-    std::string setDump;
-    mNewCachedSet->dump(setDump);
-    ALOGV("[%s] Added new cached set:\n%s", __func__, setDump.c_str());
+
+    // note the compiler should strip the follow no-op statements when ALOGV is off
+    const auto dumper = [&] {
+        std::string setDump;
+        mNewCachedSet->dump(setDump);
+        return setDump;
+    };
+    ALOGV("[%s] Added new cached set:\n%s", __func__, dumper().c_str());
 }
 
 } // namespace android::compositionengine::impl::planner

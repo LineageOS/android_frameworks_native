@@ -77,6 +77,18 @@ public:
         std::string toString() const;
     };
 
+    /**
+     * GameMode of the layer. GameModes are set by SysUI through WMShell.
+     * Actual game mode definitions are managed by GameManager.java
+     * The values defined here should always be in sync with the ones in GameManager.
+     */
+    enum GameMode {
+        GameModeUnsupported = 0,
+        GameModeStandard = 1,
+        GameModePerformance = 2,
+        GameModeBattery = 3,
+    };
+
     class TimeStatsLayer {
     public:
         uid_t uid;
@@ -84,6 +96,7 @@ public:
         std::string packageName;
         int32_t displayRefreshRateBucket = 0;
         int32_t renderRateBucket = 0;
+        int32_t gameMode = 0;
         int32_t totalFrames = 0;
         int32_t droppedFrames = 0;
         int32_t lateAcquireFrames = 0;
@@ -93,6 +106,7 @@ public:
         std::unordered_map<std::string, Histogram> deltas;
 
         std::string toString() const;
+        std::string toString(int32_t gameMode) const;
         SFTimeStatsLayerProto toProto() const;
     };
 
@@ -123,24 +137,19 @@ public:
     struct LayerStatsKey {
         uid_t uid = 0;
         std::string layerName;
+        int32_t gameMode = 0;
 
         struct Hasher {
             size_t operator()(const LayerStatsKey& key) const {
-                size_t result = std::hash<uid_t>{}(key.uid);
-                return HashCombine(result, std::hash<std::string>{}(key.layerName));
+                size_t uidHash = std::hash<uid_t>{}(key.uid);
+                size_t layerNameHash = std::hash<std::string>{}(key.layerName);
+                size_t gameModeHash = std::hash<int32_t>{}(key.gameMode);
+                return HashCombine(uidHash, HashCombine(layerNameHash, gameModeHash));
             }
         };
 
         bool operator==(const LayerStatsKey& o) const {
-            return uid == o.uid && layerName == o.layerName;
-        }
-    };
-
-    struct LayerStatsHasher {
-        size_t operator()(const std::pair<uid_t, std::string>& p) const {
-            // Normally this isn't a very good hash function due to symmetry reasons,
-            // but these are distinct types so this should be good enough
-            return std::hash<uid_t>{}(p.first) ^ std::hash<std::string>{}(p.second);
+            return uid == o.uid && layerName == o.layerName && gameMode == o.gameMode;
         }
     };
 
