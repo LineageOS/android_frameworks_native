@@ -1357,7 +1357,7 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForTransac
             mFlinger->mFrameTimeline->createSurfaceFrameForToken(info, mOwnerPid, mOwnerUid,
                                                                  getSequence(), mName,
                                                                  mTransactionName,
-                                                                 /*isBuffer*/ false);
+                                                                 /*isBuffer*/ false, getGameMode());
     // For Transactions, the post time is considered to be both queue and acquire fence time.
     surfaceFrame->setActualQueueTime(postTime);
     surfaceFrame->setAcquireFenceTime(postTime);
@@ -1374,7 +1374,7 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
     auto surfaceFrame =
             mFlinger->mFrameTimeline->createSurfaceFrameForToken(info, mOwnerPid, mOwnerUid,
                                                                  getSequence(), mName, debugName,
-                                                                 /*isBuffer*/ true);
+                                                                 /*isBuffer*/ true, getGameMode());
     // For buffers, acquire fence time will set during latch.
     surfaceFrame->setActualQueueTime(queueTime);
     const auto fps = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
@@ -1635,7 +1635,8 @@ void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                      FrameEventHistoryDelta* outDelta) {
     if (newTimestamps) {
         mFlinger->mTimeStats->setPostTime(getSequence(), newTimestamps->frameNumber,
-                                          getName().c_str(), mOwnerUid, newTimestamps->postedTime);
+                                          getName().c_str(), mOwnerUid, newTimestamps->postedTime,
+                                          getGameMode());
         mFlinger->mTimeStats->setAcquireFence(getSequence(), newTimestamps->frameNumber,
                                               newTimestamps->acquireFence);
     }
