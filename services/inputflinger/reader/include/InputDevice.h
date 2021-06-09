@@ -80,7 +80,7 @@ public:
     void timeoutExpired(nsecs_t when);
     void updateExternalStylusState(const StylusState& state);
 
-    void getDeviceInfo(InputDeviceInfo* outDeviceInfo);
+    InputDeviceInfo getDeviceInfo();
     int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode);
     int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
     int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode);

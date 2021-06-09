@@ -99,9 +99,9 @@ public:
 
     std::optional<int32_t> getBatteryStatus(int32_t deviceId) override;
 
-    std::vector<int32_t> getLightIds(int32_t deviceId) override;
+    std::vector<InputDeviceLightInfo> getLights(int32_t deviceId) override;
 
-    const InputDeviceLightInfo* getLightInfo(int32_t deviceId, int32_t lightId) override;
+    std::vector<InputDeviceSensorInfo> getSensors(int32_t deviceId) override;
 
     bool setLightColor(int32_t deviceId, int32_t lightId, int32_t color) override;
 
@@ -130,24 +130,24 @@ protected:
         // lock is already held by the input loop
         void updateGlobalMetaState() NO_THREAD_SAFETY_ANALYSIS override;
         int32_t getGlobalMetaState() NO_THREAD_SAFETY_ANALYSIS override;
-        void disableVirtualKeysUntil(nsecs_t time) NO_THREAD_SAFETY_ANALYSIS override;
-        bool shouldDropVirtualKey(nsecs_t now, int32_t keyCode,
-                                  int32_t scanCode) NO_THREAD_SAFETY_ANALYSIS override;
-        void fadePointer() NO_THREAD_SAFETY_ANALYSIS override;
+        void disableVirtualKeysUntil(nsecs_t time) REQUIRES(mReader->mLock) override;
+        bool shouldDropVirtualKey(nsecs_t now, int32_t keyCode, int32_t scanCode)
+                REQUIRES(mReader->mLock) override;
+        void fadePointer() REQUIRES(mReader->mLock) override;
         std::shared_ptr<PointerControllerInterface> getPointerController(int32_t deviceId)
-                NO_THREAD_SAFETY_ANALYSIS override;
-        void requestTimeoutAtTime(nsecs_t when) NO_THREAD_SAFETY_ANALYSIS override;
+                REQUIRES(mReader->mLock) override;
+        void requestTimeoutAtTime(nsecs_t when) REQUIRES(mReader->mLock) override;
         int32_t bumpGeneration() NO_THREAD_SAFETY_ANALYSIS override;
         void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices)
-                NO_THREAD_SAFETY_ANALYSIS override;
+                REQUIRES(mReader->mLock) override;
         void dispatchExternalStylusState(const StylusState& outState)
-                NO_THREAD_SAFETY_ANALYSIS override;
-        InputReaderPolicyInterface* getPolicy() NO_THREAD_SAFETY_ANALYSIS override;
-        InputListenerInterface* getListener() NO_THREAD_SAFETY_ANALYSIS override;
-        EventHubInterface* getEventHub() NO_THREAD_SAFETY_ANALYSIS override;
+                REQUIRES(mReader->mLock) override;
+        InputReaderPolicyInterface* getPolicy() REQUIRES(mReader->mLock) override;
+        InputListenerInterface* getListener() REQUIRES(mReader->mLock) override;
+        EventHubInterface* getEventHub() REQUIRES(mReader->mLock) override;
         int32_t getNextId() NO_THREAD_SAFETY_ANALYSIS override;
-        void updateLedMetaState(int32_t metaState) NO_THREAD_SAFETY_ANALYSIS override;
-        int32_t getLedMetaState() NO_THREAD_SAFETY_ANALYSIS override;
+        void updateLedMetaState(int32_t metaState) REQUIRES(mReader->mLock) override;
+        int32_t getLedMetaState() REQUIRES(mReader->mLock) REQUIRES(mLock) override;
     } mContext;
 
     friend class ContextImpl;
