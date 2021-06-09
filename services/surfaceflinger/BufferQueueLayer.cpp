@@ -125,11 +125,11 @@ bool BufferQueueLayer::isBufferDue(nsecs_t expectedPresentTime) const {
 // -----------------------------------------------------------------------
 
 bool BufferQueueLayer::fenceHasSignaled() const {
+    Mutex::Autolock lock(mQueueItemLock);
     if (!hasFrameUpdate()) {
         return true;
     }
 
-    Mutex::Autolock lock(mQueueItemLock);
     if (mQueueItems[0].item.mIsDroppable) {
         // Even though this buffer's fence may not have signaled yet, it could
         // be replaced by another buffer before it has a chance to, which means
@@ -148,11 +148,12 @@ bool BufferQueueLayer::fenceHasSignaled() const {
 }
 
 bool BufferQueueLayer::framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const {
+    Mutex::Autolock lock(mQueueItemLock);
+
     if (!hasFrameUpdate() || isRemovedFromCurrentState()) {
         return true;
     }
 
-    Mutex::Autolock lock(mQueueItemLock);
     return mQueueItems[0].item.mTimestamp <= expectedPresentTime;
 }
 
@@ -264,13 +265,15 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         // and return early
         if (queuedBuffer) {
             Mutex::Autolock lock(mQueueItemLock);
-            mConsumer->mergeSurfaceDamage(mQueueItems[0].item.mSurfaceDamage);
-            mFlinger->mTimeStats->removeTimeRecord(layerId, mQueueItems[0].item.mFrameNumber);
-            if (mQueueItems[0].surfaceFrame) {
-                addSurfaceFrameDroppedForBuffer(mQueueItems[0].surfaceFrame);
+            if (mQueuedFrames > 0) {
+                mConsumer->mergeSurfaceDamage(mQueueItems[0].item.mSurfaceDamage);
+                mFlinger->mTimeStats->removeTimeRecord(layerId, mQueueItems[0].item.mFrameNumber);
+                if (mQueueItems[0].surfaceFrame) {
+                    addSurfaceFrameDroppedForBuffer(mQueueItems[0].surfaceFrame);
+                }
+                mQueueItems.erase(mQueueItems.begin());
+                mQueuedFrames--;
             }
-            mQueueItems.erase(mQueueItems.begin());
-            mQueuedFrames--;
         }
         return BAD_VALUE;
     } else if (updateResult != NO_ERROR || mUpdateTexImageFailed) {
@@ -300,6 +303,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         return BAD_VALUE;
     }
 
+    bool more_frames_pending = false;
     if (queuedBuffer) {
         // Autolock scope
         auto currentFrameNumber = mConsumer->getFrameNumber();
@@ -308,7 +312,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
 
         // Remove any stale buffers that have been dropped during
         // updateTexImage
-        while (mQueueItems[0].item.mFrameNumber != currentFrameNumber) {
+        while (mQueuedFrames > 0 && mQueueItems[0].item.mFrameNumber != currentFrameNumber) {
             mConsumer->mergeSurfaceDamage(mQueueItems[0].item.mSurfaceDamage);
             mFlinger->mTimeStats->removeTimeRecord(layerId, mQueueItems[0].item.mFrameNumber);
             if (mQueueItems[0].surfaceFrame) {
@@ -329,11 +333,12 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
                                               latchTime);
         }
         mQueueItems.erase(mQueueItems.begin());
+        more_frames_pending = (mQueuedFrames.fetch_sub(1) > 1);
     }
 
     // Decrement the queued-frames count.  Signal another event if we
     // have more frames pending.
-    if ((queuedBuffer && mQueuedFrames.fetch_sub(1) > 1) || mAutoRefresh) {
+    if ((queuedBuffer && more_frames_pending) || mAutoRefresh) {
         mFlinger->signalLayerUpdate();
     }
 
