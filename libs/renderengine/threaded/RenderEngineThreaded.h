@@ -42,7 +42,7 @@ public:
 
     RenderEngineThreaded(CreateInstanceFactory factory, RenderEngineType type);
     ~RenderEngineThreaded() override;
-    void primeCache() override;
+    std::future<void> primeCache() override;
 
     void dump(std::string& result) override;
 
@@ -74,6 +74,7 @@ protected:
 private:
     void threadMain(CreateInstanceFactory factory);
     void waitUntilInitialized() const;
+    static status_t setSchedFifo(bool enabled);
 
     /* ------------------------------------------------------------------------
      * Threading

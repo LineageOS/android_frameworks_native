@@ -53,7 +53,7 @@ public:
                        EGLSurface protectedPlaceholder);
     ~SkiaGLRenderEngine() override EXCLUDES(mRenderingMutex);
 
-    void primeCache() override;
+    std::future<void> primeCache() override;
     status_t drawLayers(const DisplaySettings& display,
                         const std::vector<const LayerSettings*>& layers,
                         const std::shared_ptr<ExternalTexture>& buffer,

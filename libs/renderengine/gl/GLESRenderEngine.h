@@ -57,7 +57,7 @@ public:
                      EGLSurface protectedStub);
     ~GLESRenderEngine() override EXCLUDES(mRenderingMutex);
 
-    void primeCache() override;
+    std::future<void> primeCache() override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
     bool isProtected() const override { return mInProtectedContext; }

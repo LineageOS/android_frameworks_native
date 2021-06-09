@@ -234,8 +234,9 @@ std::unique_ptr<SkiaGLRenderEngine> SkiaGLRenderEngine::create(
     return engine;
 }
 
-void SkiaGLRenderEngine::primeCache() {
+std::future<void> SkiaGLRenderEngine::primeCache() {
     Cache::primeShaderCache(this);
+    return {};
 }
 
 EGLConfig SkiaGLRenderEngine::chooseEglConfig(EGLDisplay display, int format, bool logConfig) {
