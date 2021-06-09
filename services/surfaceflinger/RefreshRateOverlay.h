@@ -22,6 +22,8 @@
 #include <ui/Size.h>
 #include <utils/StrongPointer.h>
 
+#include <SkCanvas.h>
+#include <SkColor.h>
 #include <unordered_map>
 
 #include "Fps.h"
@@ -47,20 +49,16 @@ public:
 private:
     class SevenSegmentDrawer {
     public:
-        static std::vector<sp<GraphicBuffer>> drawNumber(int number, const half4& color,
-                                                         bool showSpinner);
+        static std::vector<sp<GraphicBuffer>> draw(int number, SkColor& color,
+                                                   ui::Transform::RotationFlags, bool showSpinner);
         static uint32_t getHeight() { return BUFFER_HEIGHT; }
         static uint32_t getWidth() { return BUFFER_WIDTH; }
 
     private:
-        enum class Segment { Upper, UpperLeft, UpperRight, Middle, LowerLeft, LowerRight, Buttom };
+        enum class Segment { Upper, UpperLeft, UpperRight, Middle, LowerLeft, LowerRight, Bottom };
 
-        static void drawRect(const Rect& r, const half4& color, const sp<GraphicBuffer>& buffer,
-                             uint8_t* pixels);
-        static void drawSegment(Segment segment, int left, const half4& color,
-                                const sp<GraphicBuffer>& buffer, uint8_t* pixels);
-        static void drawDigit(int digit, int left, const half4& color,
-                              const sp<GraphicBuffer>& buffer, uint8_t* pixels);
+        static void drawSegment(Segment segment, int left, SkColor& color, SkCanvas& canvas);
+        static void drawDigit(int digit, int left, SkColor& color, SkCanvas& canvas);
 
         static constexpr uint32_t DIGIT_HEIGHT = 100;
         static constexpr uint32_t DIGIT_WIDTH = 64;
@@ -80,13 +78,15 @@ private:
     sp<IBinder> mIBinder;
     sp<IGraphicBufferProducer> mGbp;
 
-    std::unordered_map<int, std::vector<std::shared_ptr<renderengine::ExternalTexture>>>
+    std::unordered_map<
+            ui::Transform::RotationFlags,
+            std::unordered_map<int, std::vector<std::shared_ptr<renderengine::ExternalTexture>>>>
             mBufferCache;
     std::optional<int> mCurrentFps;
     int mFrame = 0;
     static constexpr float ALPHA = 0.8f;
-    const half3 LOW_FPS_COLOR = half3(1.0f, 0.0f, 0.0f);
-    const half3 HIGH_FPS_COLOR = half3(0.0f, 1.0f, 0.0f);
+    const SkColor LOW_FPS_COLOR = SK_ColorRED;
+    const SkColor HIGH_FPS_COLOR = SK_ColorGREEN;
 
     const bool mShowSpinner;
 
