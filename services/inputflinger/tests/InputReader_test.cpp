@@ -1524,20 +1524,6 @@ protected:
     }
 };
 
-TEST_F(InputReaderTest, ReaderGetInputDevices) {
-    ASSERT_NO_FATAL_FAILURE(addDevice(1, "keyboard", InputDeviceClass::KEYBOARD, nullptr));
-    ASSERT_NO_FATAL_FAILURE(addDevice(2, "ignored", Flags<InputDeviceClass>(0),
-                                      nullptr)); // no classes so device will be ignored
-
-    const std::vector<InputDeviceInfo> inputDevices = mReader->getInputDevices();
-    ASSERT_EQ(1U, inputDevices.size());
-    ASSERT_EQ(END_RESERVED_ID + 1, inputDevices[0].getId());
-    ASSERT_STREQ("keyboard", inputDevices[0].getIdentifier().name.c_str());
-    ASSERT_EQ(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC, inputDevices[0].getKeyboardType());
-    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, inputDevices[0].getSources());
-    ASSERT_EQ(size_t(0), inputDevices[0].getMotionRanges().size());
-}
-
 TEST_F(InputReaderTest, PolicyGetInputDevices) {
     ASSERT_NO_FATAL_FAILURE(addDevice(1, "keyboard", InputDeviceClass::KEYBOARD, nullptr));
     ASSERT_NO_FATAL_FAILURE(addDevice(2, "ignored", Flags<InputDeviceClass>(0),
@@ -1550,7 +1536,7 @@ TEST_F(InputReaderTest, PolicyGetInputDevices) {
     ASSERT_STREQ("keyboard", inputDevices[0].getIdentifier().name.c_str());
     ASSERT_EQ(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC, inputDevices[0].getKeyboardType());
     ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, inputDevices[0].getSources());
-    ASSERT_EQ(size_t(0), inputDevices[0].getMotionRanges().size());
+    ASSERT_EQ(0U, inputDevices[0].getMotionRanges().size());
 }
 
 TEST_F(InputReaderTest, GetMergedInputDevices) {
@@ -1571,7 +1557,7 @@ TEST_F(InputReaderTest, GetMergedInputDevices) {
             addDevice(eventHubIds[1], "fake2", InputDeviceClass::KEYBOARD, nullptr));
 
     // Two devices will be merged to one input device as they have same identifier
-    ASSERT_EQ(1U, mReader->getInputDevices().size());
+    ASSERT_EQ(1U, mFakePolicy->getInputDevices().size());
 }
 
 TEST_F(InputReaderTest, GetMergedInputDevicesEnabled) {
@@ -2189,7 +2175,7 @@ TEST_F(InputReaderIntegrationTest, AddNewDevice) {
     ASSERT_EQ(initialNumDevices + 1, mFakePolicy->getInputDevices().size());
 
     // Find the test device by its name.
-    const std::vector<InputDeviceInfo> inputDevices = mReader->getInputDevices();
+    const std::vector<InputDeviceInfo> inputDevices = mFakePolicy->getInputDevices();
     const auto& it =
             std::find_if(inputDevices.begin(), inputDevices.end(),
                          [&keyboard](const InputDeviceInfo& info) {
@@ -2463,8 +2449,7 @@ TEST_F(InputDeviceTest, WhenNoMappersAreRegistered_DeviceIsIgnored) {
     ASSERT_TRUE(mDevice->isIgnored());
     ASSERT_EQ(AINPUT_SOURCE_UNKNOWN, mDevice->getSources());
 
-    InputDeviceInfo info;
-    mDevice->getDeviceInfo(&info);
+    InputDeviceInfo info = mDevice->getDeviceInfo();
     ASSERT_EQ(DEVICE_ID, info.getId());
     ASSERT_STREQ(DEVICE_NAME, info.getIdentifier().name.c_str());
     ASSERT_EQ(AINPUT_KEYBOARD_TYPE_NONE, info.getKeyboardType());
@@ -2533,8 +2518,7 @@ TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRe
     ASSERT_FALSE(mDevice->isIgnored());
     ASSERT_EQ(uint32_t(AINPUT_SOURCE_KEYBOARD | AINPUT_SOURCE_TOUCHSCREEN), mDevice->getSources());
 
-    InputDeviceInfo info;
-    mDevice->getDeviceInfo(&info);
+    InputDeviceInfo info = mDevice->getDeviceInfo();
     ASSERT_EQ(DEVICE_ID, info.getId());
     ASSERT_STREQ(DEVICE_NAME, info.getIdentifier().name.c_str());
     ASSERT_EQ(AINPUT_KEYBOARD_TYPE_ALPHABETIC, info.getKeyboardType());
@@ -8444,8 +8428,7 @@ TEST_F(MultiTouchInputMapperTest, Process_TouchpadCapture) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
     ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
 
-    InputDeviceInfo deviceInfo;
-    mDevice->getDeviceInfo(&deviceInfo);
+    InputDeviceInfo deviceInfo = mDevice->getDeviceInfo();
 
     const InputDeviceInfo::MotionRange* relRangeX =
             deviceInfo.getMotionRange(AMOTION_EVENT_AXIS_RELATIVE_X, AINPUT_SOURCE_TOUCHPAD);
@@ -8755,12 +8738,12 @@ TEST_F(LightControllerTest, MonoLight) {
     PeripheralController& controller = addControllerAndConfigure<PeripheralController>();
     InputDeviceInfo info;
     controller.populateDeviceInfo(&info);
-    const auto& ids = info.getLightIds();
-    ASSERT_EQ(1UL, ids.size());
-    ASSERT_EQ(InputDeviceLightType::MONO, info.getLightInfo(ids[0])->type);
+    std::vector<InputDeviceLightInfo> lights = info.getLights();
+    ASSERT_EQ(1U, lights.size());
+    ASSERT_EQ(InputDeviceLightType::MONO, lights[0].type);
 
-    ASSERT_TRUE(controller.setLightColor(ids[0], LIGHT_BRIGHTNESS));
-    ASSERT_EQ(controller.getLightColor(ids[0]).value_or(-1), LIGHT_BRIGHTNESS);
+    ASSERT_TRUE(controller.setLightColor(lights[0].id, LIGHT_BRIGHTNESS));
+    ASSERT_EQ(controller.getLightColor(lights[0].id).value_or(-1), LIGHT_BRIGHTNESS);
 }
 
 TEST_F(LightControllerTest, RGBLight) {
@@ -8786,12 +8769,12 @@ TEST_F(LightControllerTest, RGBLight) {
     PeripheralController& controller = addControllerAndConfigure<PeripheralController>();
     InputDeviceInfo info;
     controller.populateDeviceInfo(&info);
-    const auto& ids = info.getLightIds();
-    ASSERT_EQ(1UL, ids.size());
-    ASSERT_EQ(InputDeviceLightType::RGB, info.getLightInfo(ids[0])->type);
+    std::vector<InputDeviceLightInfo> lights = info.getLights();
+    ASSERT_EQ(1U, lights.size());
+    ASSERT_EQ(InputDeviceLightType::RGB, lights[0].type);
 
-    ASSERT_TRUE(controller.setLightColor(ids[0], LIGHT_COLOR));
-    ASSERT_EQ(controller.getLightColor(ids[0]).value_or(-1), LIGHT_COLOR);
+    ASSERT_TRUE(controller.setLightColor(lights[0].id, LIGHT_COLOR));
+    ASSERT_EQ(controller.getLightColor(lights[0].id).value_or(-1), LIGHT_COLOR);
 }
 
 TEST_F(LightControllerTest, MultiColorRGBLight) {
@@ -8808,12 +8791,12 @@ TEST_F(LightControllerTest, MultiColorRGBLight) {
     PeripheralController& controller = addControllerAndConfigure<PeripheralController>();
     InputDeviceInfo info;
     controller.populateDeviceInfo(&info);
-    const auto& ids = info.getLightIds();
-    ASSERT_EQ(1UL, ids.size());
-    ASSERT_EQ(InputDeviceLightType::MULTI_COLOR, info.getLightInfo(ids[0])->type);
+    std::vector<InputDeviceLightInfo> lights = info.getLights();
+    ASSERT_EQ(1U, lights.size());
+    ASSERT_EQ(InputDeviceLightType::MULTI_COLOR, lights[0].type);
 
-    ASSERT_TRUE(controller.setLightColor(ids[0], LIGHT_COLOR));
-    ASSERT_EQ(controller.getLightColor(ids[0]).value_or(-1), LIGHT_COLOR);
+    ASSERT_TRUE(controller.setLightColor(lights[0].id, LIGHT_COLOR));
+    ASSERT_EQ(controller.getLightColor(lights[0].id).value_or(-1), LIGHT_COLOR);
 }
 
 TEST_F(LightControllerTest, PlayerIdLight) {
@@ -8845,13 +8828,13 @@ TEST_F(LightControllerTest, PlayerIdLight) {
     PeripheralController& controller = addControllerAndConfigure<PeripheralController>();
     InputDeviceInfo info;
     controller.populateDeviceInfo(&info);
-    const auto& ids = info.getLightIds();
-    ASSERT_EQ(1UL, ids.size());
-    ASSERT_EQ(InputDeviceLightType::PLAYER_ID, info.getLightInfo(ids[0])->type);
+    std::vector<InputDeviceLightInfo> lights = info.getLights();
+    ASSERT_EQ(1U, lights.size());
+    ASSERT_EQ(InputDeviceLightType::PLAYER_ID, lights[0].type);
 
-    ASSERT_FALSE(controller.setLightColor(ids[0], LIGHT_COLOR));
-    ASSERT_TRUE(controller.setLightPlayerId(ids[0], LIGHT_PLAYER_ID));
-    ASSERT_EQ(controller.getLightPlayerId(ids[0]).value_or(-1), LIGHT_PLAYER_ID);
+    ASSERT_FALSE(controller.setLightColor(lights[0].id, LIGHT_COLOR));
+    ASSERT_TRUE(controller.setLightPlayerId(lights[0].id, LIGHT_PLAYER_ID));
+    ASSERT_EQ(controller.getLightPlayerId(lights[0].id).value_or(-1), LIGHT_PLAYER_ID);
 }
 
 } // namespace android
