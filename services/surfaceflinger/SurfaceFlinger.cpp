@@ -2838,7 +2838,9 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             (currentState.orientedDisplaySpaceRect != drawingState.orientedDisplaySpaceRect)) {
             display->setProjection(currentState.orientation, currentState.layerStackSpaceRect,
                                    currentState.orientedDisplaySpaceRect);
-            mDefaultDisplayTransformHint = display->getTransformHint();
+            if (display->isPrimary()) {
+                mDefaultDisplayTransformHint = display->getTransformHint();
+            }
         }
         if (currentState.width != drawingState.width ||
             currentState.height != drawingState.height) {
@@ -6874,6 +6876,8 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle, bo
     } else {
         parent->addChild(layer);
     }
+
+    layer->updateTransformHint(mDefaultDisplayTransformHint);
 
     if (state->initialProducer != nullptr) {
         mGraphicBufferProducerList.insert(state->initialProducer);
