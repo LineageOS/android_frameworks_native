@@ -302,23 +302,25 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
 // So we pass in a weak pointer to the BBQ and if it still alive, then we release the buffer.
 // Otherwise, this is a no-op.
 static void releaseBufferCallbackThunk(wp<BLASTBufferQueue> context, uint64_t graphicBufferId,
-                                       const sp<Fence>& releaseFence) {
+                                       const sp<Fence>& releaseFence, uint32_t transformHint) {
     sp<BLASTBufferQueue> blastBufferQueue = context.promote();
     ALOGV("releaseBufferCallbackThunk graphicBufferId=%" PRIu64 " blastBufferQueue=%s",
           graphicBufferId, blastBufferQueue ? "alive" : "dead");
     if (blastBufferQueue) {
-        blastBufferQueue->releaseBufferCallback(graphicBufferId, releaseFence);
+        blastBufferQueue->releaseBufferCallback(graphicBufferId, releaseFence, transformHint);
     }
 }
 
 void BLASTBufferQueue::releaseBufferCallback(uint64_t graphicBufferId,
-                                             const sp<Fence>& releaseFence) {
+                                             const sp<Fence>& releaseFence,
+                                             uint32_t transformHint) {
     ATRACE_CALL();
     std::unique_lock _lock{mMutex};
     BQA_LOGV("releaseBufferCallback graphicBufferId=%" PRIu64, graphicBufferId);
 
     if (mSurfaceControl != nullptr) {
-        mTransformHint = mSurfaceControl->getTransformHint();
+        mTransformHint = transformHint;
+        mSurfaceControl->setTransformHint(transformHint);
         mBufferItemConsumer->setTransformHint(mTransformHint);
     }
 
@@ -412,7 +414,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
 
     auto releaseBufferCallback =
             std::bind(releaseBufferCallbackThunk, wp<BLASTBufferQueue>(this) /* callbackContext */,
-                      std::placeholders::_1, std::placeholders::_2);
+                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
     t->setBuffer(mSurfaceControl, buffer, releaseBufferCallback);
     t->setDataspace(mSurfaceControl, static_cast<ui::Dataspace>(bufferItem.mDataSpace));
     t->setHdrMetadata(mSurfaceControl, bufferItem.mHdrMetadata);

@@ -25,6 +25,10 @@
 #include "Client.h"
 #include "Layer.h"
 
+#include <SkBlendMode.h>
+#include <SkPaint.h>
+#include <SkRect.h>
+#include <SkSurface.h>
 #include <gui/IProducerListener.h>
 
 #undef LOG_TAG
@@ -32,85 +36,64 @@
 
 namespace android {
 
-void RefreshRateOverlay::SevenSegmentDrawer::drawRect(const Rect& r, const half4& color,
-                                                      const sp<GraphicBuffer>& buffer,
-                                                      uint8_t* pixels) {
-    for (int32_t j = r.top; j < r.bottom; j++) {
-        if (j >= buffer->getHeight()) {
-            break;
-        }
-
-        for (int32_t i = r.left; i < r.right; i++) {
-            if (i >= buffer->getWidth()) {
-                break;
-            }
-
-            uint8_t* iter = pixels + 4 * (i + (buffer->getStride() * j));
-            iter[0] = uint8_t(color.r * 255);
-            iter[1] = uint8_t(color.g * 255);
-            iter[2] = uint8_t(color.b * 255);
-            iter[3] = uint8_t(color.a * 255);
-        }
-    }
-}
-
-void RefreshRateOverlay::SevenSegmentDrawer::drawSegment(Segment segment, int left,
-                                                         const half4& color,
-                                                         const sp<GraphicBuffer>& buffer,
-                                                         uint8_t* pixels) {
-    const Rect rect = [&]() {
+void RefreshRateOverlay::SevenSegmentDrawer::drawSegment(Segment segment, int left, SkColor& color,
+                                                         SkCanvas& canvas) {
+    const SkRect rect = [&]() {
         switch (segment) {
             case Segment::Upper:
-                return Rect(left, 0, left + DIGIT_WIDTH, DIGIT_SPACE);
+                return SkRect::MakeLTRB(left, 0, left + DIGIT_WIDTH, DIGIT_SPACE);
             case Segment::UpperLeft:
-                return Rect(left, 0, left + DIGIT_SPACE, DIGIT_HEIGHT / 2);
+                return SkRect::MakeLTRB(left, 0, left + DIGIT_SPACE, DIGIT_HEIGHT / 2);
             case Segment::UpperRight:
-                return Rect(left + DIGIT_WIDTH - DIGIT_SPACE, 0, left + DIGIT_WIDTH,
-                            DIGIT_HEIGHT / 2);
+                return SkRect::MakeLTRB(left + DIGIT_WIDTH - DIGIT_SPACE, 0, left + DIGIT_WIDTH,
+                                        DIGIT_HEIGHT / 2);
             case Segment::Middle:
-                return Rect(left, DIGIT_HEIGHT / 2 - DIGIT_SPACE / 2, left + DIGIT_WIDTH,
-                            DIGIT_HEIGHT / 2 + DIGIT_SPACE / 2);
+                return SkRect::MakeLTRB(left, DIGIT_HEIGHT / 2 - DIGIT_SPACE / 2,
+                                        left + DIGIT_WIDTH, DIGIT_HEIGHT / 2 + DIGIT_SPACE / 2);
             case Segment::LowerLeft:
-                return Rect(left, DIGIT_HEIGHT / 2, left + DIGIT_SPACE, DIGIT_HEIGHT);
+                return SkRect::MakeLTRB(left, DIGIT_HEIGHT / 2, left + DIGIT_SPACE, DIGIT_HEIGHT);
             case Segment::LowerRight:
-                return Rect(left + DIGIT_WIDTH - DIGIT_SPACE, DIGIT_HEIGHT / 2, left + DIGIT_WIDTH,
-                            DIGIT_HEIGHT);
-            case Segment::Buttom:
-                return Rect(left, DIGIT_HEIGHT - DIGIT_SPACE, left + DIGIT_WIDTH, DIGIT_HEIGHT);
+                return SkRect::MakeLTRB(left + DIGIT_WIDTH - DIGIT_SPACE, DIGIT_HEIGHT / 2,
+                                        left + DIGIT_WIDTH, DIGIT_HEIGHT);
+            case Segment::Bottom:
+                return SkRect::MakeLTRB(left, DIGIT_HEIGHT - DIGIT_SPACE, left + DIGIT_WIDTH,
+                                        DIGIT_HEIGHT);
         }
     }();
 
-    drawRect(rect, color, buffer, pixels);
+    SkPaint paint;
+    paint.setColor(color);
+    paint.setBlendMode(SkBlendMode::kSrc);
+    canvas.drawRect(rect, paint);
 }
 
-void RefreshRateOverlay::SevenSegmentDrawer::drawDigit(int digit, int left, const half4& color,
-                                                       const sp<GraphicBuffer>& buffer,
-                                                       uint8_t* pixels) {
+void RefreshRateOverlay::SevenSegmentDrawer::drawDigit(int digit, int left, SkColor& color,
+                                                       SkCanvas& canvas) {
     if (digit < 0 || digit > 9) return;
 
     if (digit == 0 || digit == 2 || digit == 3 || digit == 5 || digit == 6 || digit == 7 ||
         digit == 8 || digit == 9)
-        drawSegment(Segment::Upper, left, color, buffer, pixels);
+        drawSegment(Segment::Upper, left, color, canvas);
     if (digit == 0 || digit == 4 || digit == 5 || digit == 6 || digit == 8 || digit == 9)
-        drawSegment(Segment::UpperLeft, left, color, buffer, pixels);
+        drawSegment(Segment::UpperLeft, left, color, canvas);
     if (digit == 0 || digit == 1 || digit == 2 || digit == 3 || digit == 4 || digit == 7 ||
         digit == 8 || digit == 9)
-        drawSegment(Segment::UpperRight, left, color, buffer, pixels);
+        drawSegment(Segment::UpperRight, left, color, canvas);
     if (digit == 2 || digit == 3 || digit == 4 || digit == 5 || digit == 6 || digit == 8 ||
         digit == 9)
-        drawSegment(Segment::Middle, left, color, buffer, pixels);
+        drawSegment(Segment::Middle, left, color, canvas);
     if (digit == 0 || digit == 2 || digit == 6 || digit == 8)
-        drawSegment(Segment::LowerLeft, left, color, buffer, pixels);
+        drawSegment(Segment::LowerLeft, left, color, canvas);
     if (digit == 0 || digit == 1 || digit == 3 || digit == 4 || digit == 5 || digit == 6 ||
         digit == 7 || digit == 8 || digit == 9)
-        drawSegment(Segment::LowerRight, left, color, buffer, pixels);
+        drawSegment(Segment::LowerRight, left, color, canvas);
     if (digit == 0 || digit == 2 || digit == 3 || digit == 5 || digit == 6 || digit == 8 ||
         digit == 9)
-        drawSegment(Segment::Buttom, left, color, buffer, pixels);
+        drawSegment(Segment::Bottom, left, color, canvas);
 }
 
-std::vector<sp<GraphicBuffer>> RefreshRateOverlay::SevenSegmentDrawer::drawNumber(
-        int number, const half4& color, bool showSpinner) {
+std::vector<sp<GraphicBuffer>> RefreshRateOverlay::SevenSegmentDrawer::draw(
+        int number, SkColor& color, ui::Transform::RotationFlags rotation, bool showSpinner) {
     if (number < 0 || number > 1000) return {};
 
     const auto hundreds = number / 100;
@@ -120,55 +103,76 @@ std::vector<sp<GraphicBuffer>> RefreshRateOverlay::SevenSegmentDrawer::drawNumbe
     std::vector<sp<GraphicBuffer>> buffers;
     const auto loopCount = showSpinner ? 6 : 1;
     for (int i = 0; i < loopCount; i++) {
+        // Pre-rotate the buffer before it reaches SurfaceFlinger.
+        SkMatrix canvasTransform = SkMatrix();
+        auto [bufferWidth, bufferHeight] = [&] {
+            switch (rotation) {
+                case ui::Transform::ROT_90:
+                    canvasTransform.setTranslate(BUFFER_HEIGHT, 0);
+                    canvasTransform.preRotate(90);
+                    return std::make_tuple(BUFFER_HEIGHT, BUFFER_WIDTH);
+                case ui::Transform::ROT_270:
+                    canvasTransform.setRotate(270, BUFFER_WIDTH / 2.0, BUFFER_WIDTH / 2.0);
+                    return std::make_tuple(BUFFER_HEIGHT, BUFFER_WIDTH);
+                default:
+                    return std::make_tuple(BUFFER_WIDTH, BUFFER_HEIGHT);
+            }
+        }();
         sp<GraphicBuffer> buffer =
-                new GraphicBuffer(BUFFER_WIDTH, BUFFER_HEIGHT, HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                new GraphicBuffer(bufferWidth, bufferHeight, HAL_PIXEL_FORMAT_RGBA_8888, 1,
                                   GRALLOC_USAGE_SW_WRITE_RARELY | GRALLOC_USAGE_HW_COMPOSER |
                                           GRALLOC_USAGE_HW_TEXTURE,
                                   "RefreshRateOverlayBuffer");
         const status_t bufferStatus = buffer->initCheck();
         LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "RefreshRateOverlay: Buffer failed to allocate: %d",
                             bufferStatus);
-        uint8_t* pixels;
-        buffer->lock(GRALLOC_USAGE_SW_WRITE_RARELY, reinterpret_cast<void**>(&pixels));
-        // Clear buffer content
-        drawRect(Rect(BUFFER_WIDTH, BUFFER_HEIGHT), half4(0), buffer, pixels);
+
+        sk_sp<SkSurface> surface = SkSurface::MakeRasterN32Premul(bufferWidth, bufferHeight);
+        SkCanvas* canvas = surface->getCanvas();
+        canvas->setMatrix(canvasTransform);
+
         int left = 0;
         if (hundreds != 0) {
-            drawDigit(hundreds, left, color, buffer, pixels);
+            drawDigit(hundreds, left, color, *canvas);
         }
         left += DIGIT_WIDTH + DIGIT_SPACE;
 
         if (tens != 0) {
-            drawDigit(tens, left, color, buffer, pixels);
+            drawDigit(tens, left, color, *canvas);
         }
         left += DIGIT_WIDTH + DIGIT_SPACE;
 
-        drawDigit(ones, left, color, buffer, pixels);
+        drawDigit(ones, left, color, *canvas);
         left += DIGIT_WIDTH + DIGIT_SPACE;
 
         if (showSpinner) {
             switch (i) {
                 case 0:
-                    drawSegment(Segment::Upper, left, color, buffer, pixels);
+                    drawSegment(Segment::Upper, left, color, *canvas);
                     break;
                 case 1:
-                    drawSegment(Segment::UpperRight, left, color, buffer, pixels);
+                    drawSegment(Segment::UpperRight, left, color, *canvas);
                     break;
                 case 2:
-                    drawSegment(Segment::LowerRight, left, color, buffer, pixels);
+                    drawSegment(Segment::LowerRight, left, color, *canvas);
                     break;
                 case 3:
-                    drawSegment(Segment::Buttom, left, color, buffer, pixels);
+                    drawSegment(Segment::Bottom, left, color, *canvas);
                     break;
                 case 4:
-                    drawSegment(Segment::LowerLeft, left, color, buffer, pixels);
+                    drawSegment(Segment::LowerLeft, left, color, *canvas);
                     break;
                 case 5:
-                    drawSegment(Segment::UpperLeft, left, color, buffer, pixels);
+                    drawSegment(Segment::UpperLeft, left, color, *canvas);
                     break;
             }
         }
 
+        void* pixels = nullptr;
+        buffer->lock(GRALLOC_USAGE_SW_WRITE_RARELY, reinterpret_cast<void**>(&pixels));
+        const SkImageInfo& imageInfo = surface->imageInfo();
+        size_t dstRowBytes = buffer->getStride() * imageInfo.bytesPerPixel();
+        canvas->readPixels(imageInfo, pixels, dstRowBytes, 0, 0);
         buffer->unlock();
         buffers.emplace_back(buffer);
     }
@@ -210,7 +214,22 @@ bool RefreshRateOverlay::createLayer() {
 
 const std::vector<std::shared_ptr<renderengine::ExternalTexture>>&
 RefreshRateOverlay::getOrCreateBuffers(uint32_t fps) {
-    if (mBufferCache.find(fps) == mBufferCache.end()) {
+    ui::Transform::RotationFlags transformHint = mLayer->getTransformHint();
+    // Tell SurfaceFlinger about the pre-rotation on the buffer.
+    const auto transform = [&] {
+        switch (transformHint) {
+            case ui::Transform::ROT_90:
+                return ui::Transform::ROT_270;
+            case ui::Transform::ROT_270:
+                return ui::Transform::ROT_90;
+            default:
+                return ui::Transform::ROT_0;
+        }
+    }();
+    mLayer->setTransform(transform);
+
+    if (mBufferCache.find(transformHint) == mBufferCache.end() ||
+        mBufferCache.at(transformHint).find(fps) == mBufferCache.at(transformHint).end()) {
         // Ensure the range is > 0, so we don't divide by 0.
         const auto rangeLength = std::max(1u, mHighFps - mLowFps);
         // Clip values outside the range [mLowFps, mHighFps]. The current fps may be outside
@@ -218,12 +237,14 @@ RefreshRateOverlay::getOrCreateBuffers(uint32_t fps) {
         fps = std::max(fps, mLowFps);
         fps = std::min(fps, mHighFps);
         const auto fpsScale = static_cast<float>(fps - mLowFps) / rangeLength;
-        half4 color;
-        color.r = HIGH_FPS_COLOR.r * fpsScale + LOW_FPS_COLOR.r * (1 - fpsScale);
-        color.g = HIGH_FPS_COLOR.g * fpsScale + LOW_FPS_COLOR.g * (1 - fpsScale);
-        color.b = HIGH_FPS_COLOR.b * fpsScale + LOW_FPS_COLOR.b * (1 - fpsScale);
-        color.a = ALPHA;
-        auto buffers = SevenSegmentDrawer::drawNumber(fps, color, mShowSpinner);
+        SkColor4f colorBase = SkColor4f::FromColor(HIGH_FPS_COLOR) * fpsScale;
+        SkColor4f lowFpsColor = SkColor4f::FromColor(LOW_FPS_COLOR) * (1 - fpsScale);
+        colorBase.fR = colorBase.fR + lowFpsColor.fR;
+        colorBase.fG = colorBase.fG + lowFpsColor.fG;
+        colorBase.fB = colorBase.fB + lowFpsColor.fB;
+        colorBase.fA = ALPHA;
+        SkColor color = colorBase.toSkColor();
+        auto buffers = SevenSegmentDrawer::draw(fps, color, transformHint, mShowSpinner);
         std::vector<std::shared_ptr<renderengine::ExternalTexture>> textures;
         std::transform(buffers.begin(), buffers.end(), std::back_inserter(textures),
                        [&](const auto& buffer) -> std::shared_ptr<renderengine::ExternalTexture> {
@@ -233,10 +254,10 @@ RefreshRateOverlay::getOrCreateBuffers(uint32_t fps) {
                                                                   renderengine::ExternalTexture::
                                                                           Usage::READABLE);
                        });
-        mBufferCache.emplace(fps, textures);
+        mBufferCache[transformHint].emplace(fps, textures);
     }
 
-    return mBufferCache[fps];
+    return mBufferCache[transformHint][fps];
 }
 
 void RefreshRateOverlay::setViewport(ui::Size viewport) {
