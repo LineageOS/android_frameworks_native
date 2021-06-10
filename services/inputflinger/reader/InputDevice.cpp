@@ -89,8 +89,7 @@ void InputDevice::setEnabled(bool enabled, nsecs_t when) {
 }
 
 void InputDevice::dump(std::string& dump, const std::string& eventHubDevStr) {
-    InputDeviceInfo deviceInfo;
-    getDeviceInfo(&deviceInfo);
+    InputDeviceInfo deviceInfo = getDeviceInfo();
 
     dump += StringPrintf(INDENT "Device %d: %s\n", deviceInfo.getId(),
                          deviceInfo.getDisplayName().c_str());
@@ -417,15 +416,17 @@ void InputDevice::updateExternalStylusState(const StylusState& state) {
     for_each_mapper([state](InputMapper& mapper) { mapper.updateExternalStylusState(state); });
 }
 
-void InputDevice::getDeviceInfo(InputDeviceInfo* outDeviceInfo) {
-    outDeviceInfo->initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias, mIsExternal,
-                              mHasMic);
+InputDeviceInfo InputDevice::getDeviceInfo() {
+    InputDeviceInfo outDeviceInfo;
+    outDeviceInfo.initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias, mIsExternal,
+                             mHasMic);
     for_each_mapper(
-            [outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(outDeviceInfo); });
+            [&outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(&outDeviceInfo); });
 
     if (mController) {
-        mController->populateDeviceInfo(outDeviceInfo);
+        mController->populateDeviceInfo(&outDeviceInfo);
     }
+    return outDeviceInfo;
 }
 
 int32_t InputDevice::getKeyCodeState(uint32_t sourceMask, int32_t keyCode) {
