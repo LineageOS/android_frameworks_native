@@ -29,12 +29,13 @@
 
 namespace android::compositionengine::impl::planner {
 
-Planner::Planner()
+Planner::Planner(renderengine::RenderEngine& renderEngine)
       // Implicitly, layer caching must also be enabled for the hole punch or
       // predictor to have any effect.
       // E.g., setprop debug.sf.enable_layer_caching 1, or
       // adb shell service call SurfaceFlinger 1040 i32 1 [i64 <display ID>]
-      : mFlattener(base::GetBoolProperty(std::string("debug.sf.enable_hole_punch_pip"), true)) {
+      : mFlattener(renderEngine,
+                   base::GetBoolProperty(std::string("debug.sf.enable_hole_punch_pip"), true)) {
     mPredictorEnabled =
             base::GetBoolProperty(std::string("debug.sf.enable_planner_prediction"), false);
 }
@@ -160,10 +161,9 @@ void Planner::reportFinalPlan(
                             finalPlan);
 }
 
-void Planner::renderCachedSets(renderengine::RenderEngine& renderEngine,
-                               const OutputCompositionState& outputState) {
+void Planner::renderCachedSets(const OutputCompositionState& outputState) {
     ATRACE_CALL();
-    mFlattener.renderCachedSets(renderEngine, outputState);
+    mFlattener.renderCachedSets(outputState);
 }
 
 void Planner::dump(const Vector<String16>& args, std::string& result) {

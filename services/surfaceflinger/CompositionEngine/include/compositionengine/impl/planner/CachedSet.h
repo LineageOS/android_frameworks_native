@@ -19,6 +19,7 @@
 #include <compositionengine/Output.h>
 #include <compositionengine/ProjectionSpace.h>
 #include <compositionengine/impl/planner/LayerState.h>
+#include <compositionengine/impl/planner/TexturePool.h>
 #include <renderengine/RenderEngine.h>
 
 #include <chrono>
@@ -64,9 +65,12 @@ public:
     size_t getLayerCount() const { return mLayers.size(); }
     const Layer& getFirstLayer() const { return mLayers[0]; }
     const Rect& getBounds() const { return mBounds; }
+    Rect getTextureBounds() const { return mOutputSpace.content; }
     const Region& getVisibleRegion() const { return mVisibleRegion; }
     size_t getAge() const { return mAge; }
-    const std::shared_ptr<renderengine::ExternalTexture>& getBuffer() const { return mTexture; }
+    std::shared_ptr<renderengine::ExternalTexture> getBuffer() const {
+        return mTexture ? mTexture->get() : nullptr;
+    }
     const sp<Fence>& getDrawFence() const { return mDrawFence; }
     const ProjectionSpace& getOutputSpace() const { return mOutputSpace; }
     ui::Dataspace getOutputDataspace() const { return mOutputDataspace; }
@@ -89,7 +93,7 @@ public:
 
     void setLastUpdate(std::chrono::steady_clock::time_point now) { mLastUpdate = now; }
     void append(const CachedSet& other) {
-        mTexture = nullptr;
+        mTexture.reset();
         mOutputDataspace = ui::Dataspace::UNKNOWN;
         mDrawFence = nullptr;
         mBlurLayer = nullptr;
@@ -105,7 +109,8 @@ public:
     void incrementAge() { ++mAge; }
 
     // Renders the cached set with the supplied output composition state.
-    void render(renderengine::RenderEngine& re, const OutputCompositionState& outputState);
+    void render(renderengine::RenderEngine& re, TexturePool& texturePool,
+                const OutputCompositionState& outputState);
 
     void dump(std::string& result) const;
 
@@ -151,7 +156,9 @@ private:
     Region mVisibleRegion;
     size_t mAge = 0;
 
-    std::shared_ptr<renderengine::ExternalTexture> mTexture;
+    // TODO(b/190411067): This is a shared pointer only because CachedSets are copied into different
+    // containers in the Flattener. Logically this should have unique ownership otherwise.
+    std::shared_ptr<TexturePool::AutoTexture> mTexture;
     sp<Fence> mDrawFence;
     ProjectionSpace mOutputSpace;
     ui::Dataspace mOutputDataspace;
