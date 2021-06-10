@@ -41,7 +41,7 @@ namespace compositionengine::impl::planner {
 // as a more efficient representation of parts of the layer stack.
 class Planner {
 public:
-    Planner();
+    Planner(renderengine::RenderEngine& renderengine);
 
     void setDisplaySize(ui::Size);
 
@@ -59,8 +59,7 @@ public:
             compositionengine::Output::OutputLayersEnumerator<compositionengine::Output>&& layers);
 
     // The planner will call to the Flattener to render any pending cached set
-    void renderCachedSets(renderengine::RenderEngine& re,
-                          const OutputCompositionState& outputState);
+    void renderCachedSets(const OutputCompositionState& outputState);
 
     void dump(const Vector<String16>& args, std::string&);
 
