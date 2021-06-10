@@ -134,7 +134,7 @@ bool CachedSet::hasBufferUpdate() const {
 }
 
 bool CachedSet::hasReadyBuffer() const {
-    return mTexture != nullptr && mDrawFence->getStatus() == Fence::Status::Signaled;
+    return mTexture && mDrawFence->getStatus() == Fence::Status::Signaled;
 }
 
 std::vector<CachedSet> CachedSet::decompose() const {
@@ -156,7 +156,7 @@ void CachedSet::updateAge(std::chrono::steady_clock::time_point now) {
     }
 }
 
-void CachedSet::render(renderengine::RenderEngine& renderEngine,
+void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& texturePool,
                        const OutputCompositionState& outputState) {
     ATRACE_CALL();
     const Rect& viewport = outputState.layerStackSpace.content;
@@ -165,10 +165,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
             ui::Transform::toRotationFlags(outputState.framebufferSpace.orientation);
 
     renderengine::DisplaySettings displaySettings{
-            .physicalDisplay = Rect(-mBounds.left + outputState.framebufferSpace.content.left,
-                                    -mBounds.top + outputState.framebufferSpace.content.top,
-                                    -mBounds.left + outputState.framebufferSpace.content.right,
-                                    -mBounds.top + outputState.framebufferSpace.content.bottom),
+            .physicalDisplay = outputState.framebufferSpace.content,
             .clip = viewport,
             .outputDataspace = outputDataspace,
             .orientation = orientation,
@@ -255,30 +252,33 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
         layerSettingsPointers.emplace_back(&highlight);
     }
 
-    const uint64_t usageFlags = GraphicBuffer::USAGE_HW_RENDER | GraphicBuffer::USAGE_HW_COMPOSER |
-            GraphicBuffer::USAGE_HW_TEXTURE;
-    sp<GraphicBuffer> buffer = new GraphicBuffer(static_cast<uint32_t>(mBounds.getWidth()),
-                                                 static_cast<uint32_t>(mBounds.getHeight()),
-                                                 HAL_PIXEL_FORMAT_RGBA_8888, 1, usageFlags);
-    const auto texture = std::make_shared<
-            renderengine::ExternalTexture>(buffer, renderEngine,
-                                           renderengine::ExternalTexture::Usage::READABLE |
-                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
-    LOG_ALWAYS_FATAL_IF(buffer->initCheck() != OK);
-    base::unique_fd drawFence;
+    auto texture = texturePool.borrowTexture();
+    LOG_ALWAYS_FATAL_IF(texture->get()->getBuffer()->initCheck() != OK);
 
-    status_t result = renderEngine.drawLayers(displaySettings, layerSettingsPointers, texture,
-                                              false, base::unique_fd(), &drawFence);
+    base::unique_fd bufferFence;
+    if (texture->getReadyFence()) {
+        // Bail out if the buffer is not ready, because there is some pending GPU work left.
+        if (texture->getReadyFence()->getStatus() != Fence::Status::Signaled) {
+            return;
+        }
+        bufferFence.reset(texture->getReadyFence()->dup());
+    }
+
+    base::unique_fd drawFence;
+    status_t result =
+            renderEngine.drawLayers(displaySettings, layerSettingsPointers, texture->get(), false,
+                                    std::move(bufferFence), &drawFence);
 
     if (result == NO_ERROR) {
         mDrawFence = new Fence(drawFence.release());
         mOutputSpace = outputState.framebufferSpace;
-        mTexture = std::move(texture);
+        mTexture = texture;
+        mTexture->setReadyFence(mDrawFence);
         mOutputSpace.orientation = outputState.framebufferSpace.orientation;
         mOutputDataspace = outputDataspace;
         mOrientation = orientation;
     } else {
-        mTexture = nullptr;
+        mTexture.reset();
     }
 }
 
@@ -363,7 +363,7 @@ void CachedSet::dump(std::string& result) const {
     base::StringAppendF(&result, "  + Fingerprint %016zx, last update %sago, age %zd\n",
                         mFingerprint, durationString(lastUpdate).c_str(), mAge);
     {
-        const auto b = mTexture ? mTexture->getBuffer().get() : nullptr;
+        const auto b = mTexture ? mTexture->get()->getBuffer().get() : nullptr;
         base::StringAppendF(&result, "    Override buffer: %p\n", b);
     }
     base::StringAppendF(&result, "    HolePunchLayer: %p\n", mHolePunchLayer);
