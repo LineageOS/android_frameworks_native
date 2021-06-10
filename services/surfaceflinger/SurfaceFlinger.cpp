@@ -2897,6 +2897,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
     // Commit layer transactions. This needs to happen after display transactions are
     // committed because some geometry logic relies on display orientation.
     if ((transactionFlags & eTraversalNeeded) || mForceTraversal || displayTransactionNeeded) {
+        mForceTraversal = false;
         mCurrentState.traverse([&](Layer* layer) {
             uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
             if (!trFlags && !displayTransactionNeeded) return;
@@ -4494,6 +4495,11 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     }
     const auto vsyncPeriod = mRefreshRateConfigs->getCurrentRefreshRate().getVsyncPeriod();
     if (currentMode == hal::PowerMode::OFF) {
+        // Keep uclamp in a separate syscall and set it before changing to RT due to b/190237315.
+        // We can merge the syscall later.
+        if (SurfaceFlinger::setSchedAttr(true) != NO_ERROR) {
+            ALOGW("Couldn't set uclamp.min on display on: %s\n", strerror(errno));
+        }
         if (SurfaceFlinger::setSchedFifo(true) != NO_ERROR) {
             ALOGW("Couldn't set SCHED_FIFO on display on: %s\n", strerror(errno));
         }
@@ -4511,6 +4517,9 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         // Turn off the display
         if (SurfaceFlinger::setSchedFifo(false) != NO_ERROR) {
             ALOGW("Couldn't set SCHED_OTHER on display off: %s\n", strerror(errno));
+        }
+        if (SurfaceFlinger::setSchedAttr(false) != NO_ERROR) {
+            ALOGW("Couldn't set uclamp.min on display off: %s\n", strerror(errno));
         }
         if (display->isPrimary() && currentMode != hal::PowerMode::DOZE_SUSPEND) {
             mScheduler->disableHardwareVsync(true);
@@ -5861,6 +5870,44 @@ status_t SurfaceFlinger::setSchedFifo(bool enabled) {
     if (sched_setscheduler(0, sched_policy, &param) != 0) {
         return -errno;
     }
+
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::setSchedAttr(bool enabled) {
+    static const unsigned int kUclampMin =
+            base::GetUintProperty<unsigned int>("ro.surface_flinger.uclamp.min", 0U);
+
+    if (!kUclampMin) {
+        // uclamp.min set to 0 (default), skip setting
+        return NO_ERROR;
+    }
+
+    // Currently, there is no wrapper in bionic: b/183240349.
+    struct sched_attr {
+        uint32_t size;
+        uint32_t sched_policy;
+        uint64_t sched_flags;
+        int32_t sched_nice;
+        uint32_t sched_priority;
+        uint64_t sched_runtime;
+        uint64_t sched_deadline;
+        uint64_t sched_period;
+        uint32_t sched_util_min;
+        uint32_t sched_util_max;
+    };
+
+    sched_attr attr = {};
+    attr.size = sizeof(attr);
+
+    attr.sched_flags = (SCHED_FLAG_KEEP_ALL | SCHED_FLAG_UTIL_CLAMP);
+    attr.sched_util_min = enabled ? kUclampMin : 0;
+    attr.sched_util_max = 1024;
+
+    if (syscall(__NR_sched_setattr, 0, &attr, 0)) {
+        return -errno;
+    }
+
     return NO_ERROR;
 }
 
