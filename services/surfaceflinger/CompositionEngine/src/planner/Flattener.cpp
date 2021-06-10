@@ -60,7 +60,10 @@ bool isSameStack(const std::vector<const LayerState*>& incomingLayers,
 
 } // namespace
 
-Flattener::Flattener(bool enableHolePunch) : mEnableHolePunch(enableHolePunch) {
+Flattener::Flattener(renderengine::RenderEngine& renderEngine, bool enableHolePunch)
+      : mRenderEngine(renderEngine),
+        mEnableHolePunch(enableHolePunch),
+        mTexturePool(mRenderEngine) {
     const int timeoutInMs =
             base::GetIntProperty(std::string("debug.sf.layer_caching_active_layer_timeout_ms"), 0);
     if (timeoutInMs != 0) {
@@ -102,14 +105,13 @@ NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& lay
     return hash;
 }
 
-void Flattener::renderCachedSets(renderengine::RenderEngine& renderEngine,
-                                 const OutputCompositionState& outputState) {
+void Flattener::renderCachedSets(const OutputCompositionState& outputState) {
     ATRACE_CALL();
     if (!mNewCachedSet || mNewCachedSet->hasRenderedBuffer()) {
         return;
     }
 
-    mNewCachedSet->render(renderEngine, outputState);
+    mNewCachedSet->render(mRenderEngine, mTexturePool, outputState);
 }
 
 void Flattener::dumpLayers(std::string& result) const {
@@ -285,7 +287,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                         state.overrideInfo = {
                                 .buffer = mNewCachedSet->getBuffer(),
                                 .acquireFence = mNewCachedSet->getDrawFence(),
-                                .displayFrame = mNewCachedSet->getBounds(),
+                                .displayFrame = mNewCachedSet->getTextureBounds(),
                                 .dataspace = mNewCachedSet->getOutputDataspace(),
                                 .displaySpace = mNewCachedSet->getOutputSpace(),
                                 .damageRegion = Region::INVALID_REGION,
@@ -325,7 +327,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                 state.overrideInfo = {
                         .buffer = currentLayerIter->getBuffer(),
                         .acquireFence = currentLayerIter->getDrawFence(),
-                        .displayFrame = currentLayerIter->getBounds(),
+                        .displayFrame = currentLayerIter->getTextureBounds(),
                         .dataspace = currentLayerIter->getOutputDataspace(),
                         .displaySpace = currentLayerIter->getOutputSpace(),
                         .damageRegion = Region(),
