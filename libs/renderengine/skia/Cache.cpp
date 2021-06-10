@@ -149,6 +149,7 @@ static void drawSolidLayers(SkiaRenderEngine* renderengine, const DisplaySetting
                     PixelSource{
                             .solidColor = half3(0.1f, 0.2f, 0.3f),
                     },
+            .alpha = 0.5,
     };
 
     auto layers = std::vector<const LayerSettings*>{&layer};
