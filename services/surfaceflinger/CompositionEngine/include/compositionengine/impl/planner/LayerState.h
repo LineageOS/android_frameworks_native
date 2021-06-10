@@ -249,6 +249,10 @@ public:
                 transfer == ui::Dataspace::TRANSFER_HLG);
     }
 
+    bool isProtected() const {
+        return getOutputLayer()->getLayerFE().getCompositionState()->hasProtectedContent;
+    }
+
     void dump(std::string& result) const;
     std::optional<std::string> compare(const LayerState& other) const;
 

@@ -247,36 +247,22 @@ void InputDeviceInfo::addLightInfo(const InputDeviceLightInfo& info) {
     mLights.insert_or_assign(info.id, info);
 }
 
-const std::vector<InputDeviceSensorType> InputDeviceInfo::getSensorTypes() {
-    std::vector<InputDeviceSensorType> types;
+std::vector<InputDeviceSensorInfo> InputDeviceInfo::getSensors() {
+    std::vector<InputDeviceSensorInfo> infos;
+    infos.reserve(mSensors.size());
     for (const auto& [type, info] : mSensors) {
-        types.push_back(type);
+        infos.push_back(info);
     }
-    return types;
+    return infos;
 }
 
-const InputDeviceSensorInfo* InputDeviceInfo::getSensorInfo(InputDeviceSensorType type) {
-    auto it = mSensors.find(type);
-    if (it == mSensors.end()) {
-        return nullptr;
-    }
-    return &it->second;
-}
-
-const std::vector<int32_t> InputDeviceInfo::getLightIds() {
-    std::vector<int32_t> ids;
+std::vector<InputDeviceLightInfo> InputDeviceInfo::getLights() {
+    std::vector<InputDeviceLightInfo> infos;
+    infos.reserve(mLights.size());
     for (const auto& [id, info] : mLights) {
-        ids.push_back(id);
+        infos.push_back(info);
     }
-    return ids;
-}
-
-const InputDeviceLightInfo* InputDeviceInfo::getLightInfo(int32_t id) {
-    auto it = mLights.find(id);
-    if (it == mLights.end()) {
-        return nullptr;
-    }
-    return &it->second;
+    return infos;
 }
 
 } // namespace android
