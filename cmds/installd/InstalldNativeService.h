@@ -147,7 +147,7 @@ public:
     binder::Status moveAb(const std::string& apkPath, const std::string& instructionSet,
             const std::string& outputPath);
     binder::Status deleteOdex(const std::string& apkPath, const std::string& instructionSet,
-            const std::optional<std::string>& outputPath);
+            const std::optional<std::string>& outputPath, int64_t* _aidl_return);
     binder::Status installApkVerity(const std::string& filePath,
             android::base::unique_fd verityInput, int32_t contentSize);
     binder::Status assertFsverityRootHashMatches(const std::string& filePath,

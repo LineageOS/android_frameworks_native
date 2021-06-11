@@ -93,7 +93,7 @@ interface IInstalld {
             @utf8InCpp String toBase);
     void moveAb(@utf8InCpp String apkPath, @utf8InCpp String instructionSet,
             @utf8InCpp String outputPath);
-    void deleteOdex(@utf8InCpp String apkPath, @utf8InCpp String instructionSet,
+    long deleteOdex(@utf8InCpp String apkPath, @utf8InCpp String instructionSet,
             @nullable @utf8InCpp String outputPath);
     void installApkVerity(@utf8InCpp String filePath, in FileDescriptor verityInput,
             int contentSize);
