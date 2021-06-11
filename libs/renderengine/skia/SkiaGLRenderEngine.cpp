@@ -36,6 +36,7 @@
 #include <SkSurface.h>
 #include <android-base/stringprintf.h>
 #include <gl/GrGLInterface.h>
+#include <gui/TraceUtils.h>
 #include <sync/sync.h>
 #include <ui/BlurRegion.h>
 #include <ui/DebugUtils.h>
@@ -792,7 +793,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     }
 
     for (const auto& layer : layers) {
-        ATRACE_NAME("DrawLayer");
+        ATRACE_FORMAT("DrawLayer: %s", layer->name.c_str());
 
         if (kPrintLayerSettings) {
             std::stringstream ls;
