@@ -540,10 +540,16 @@ bool BufferStateLayer::setApi(int32_t api) {
 
 bool BufferStateLayer::setSidebandStream(const sp<NativeHandle>& sidebandStream) {
     if (mDrawingState.sidebandStream == sidebandStream) return false;
+
+    if (mDrawingState.sidebandStream != nullptr && sidebandStream == nullptr) {
+        mFlinger->mTunnelModeEnabledReporter->decrementTunnelModeCount();
+    } else if (sidebandStream != nullptr) {
+        mFlinger->mTunnelModeEnabledReporter->incrementTunnelModeCount();
+    }
+
     mDrawingState.sidebandStream = sidebandStream;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
-
     if (!mSidebandStreamChanged.exchange(true)) {
         // mSidebandStreamChanged was false
         mFlinger->signalLayerUpdate();
