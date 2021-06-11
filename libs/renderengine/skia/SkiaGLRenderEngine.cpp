@@ -531,7 +531,7 @@ void SkiaGLRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffe
         std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef =
                 std::make_shared<AutoBackendTexture::LocalRef>(grContext,
                                                                buffer->toAHardwareBuffer(),
-                                                               isRenderable);
+                                                               isRenderable, mTextureCleanupMgr);
         cache.insert({buffer->getId(), imageTextureRef});
     }
 }
@@ -558,6 +558,31 @@ void SkiaGLRenderEngine::unmapExternalTextureBuffer(const sp<GraphicBuffer>& buf
         }
     }
 }
+
+bool SkiaGLRenderEngine::canSkipPostRenderCleanup() const {
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    return mTextureCleanupMgr.isEmpty();
+}
+
+void SkiaGLRenderEngine::cleanupPostRender() {
+    ATRACE_CALL();
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    mTextureCleanupMgr.cleanup();
+}
+
+// Helper class intended to be used on the stack to ensure that texture cleanup
+// is deferred until after this class goes out of scope.
+class DeferTextureCleanup final {
+public:
+    DeferTextureCleanup(AutoBackendTexture::CleanupManager& mgr) : mMgr(mgr) {
+        mMgr.setDeferredStatus(true);
+    }
+    ~DeferTextureCleanup() { mMgr.setDeferredStatus(false); }
+
+private:
+    DISALLOW_COPY_AND_ASSIGN(DeferTextureCleanup);
+    AutoBackendTexture::CleanupManager& mMgr;
+};
 
 sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
         sk_sp<SkShader> shader,
@@ -707,6 +732,9 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     auto grContext = getActiveGrContext();
     auto& cache = mTextureCache;
 
+    // any AutoBackendTexture deletions will now be deferred until cleanupPostRender is called
+    DeferTextureCleanup dtc(mTextureCleanupMgr);
+
     std::shared_ptr<AutoBackendTexture::LocalRef> surfaceTextureRef;
     if (const auto& it = cache.find(buffer->getBuffer()->getId()); it != cache.end()) {
         surfaceTextureRef = it->second;
@@ -715,7 +743,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                 std::make_shared<AutoBackendTexture::LocalRef>(grContext,
                                                                buffer->getBuffer()
                                                                        ->toAHardwareBuffer(),
-                                                               true);
+                                                               true, mTextureCleanupMgr);
     }
 
     const ui::Dataspace dstDataspace =
@@ -971,7 +999,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                 imageTextureRef = std::make_shared<
                         AutoBackendTexture::LocalRef>(grContext,
                                                       item.buffer->getBuffer()->toAHardwareBuffer(),
-                                                      false);
+                                                      false, mTextureCleanupMgr);
             }
 
             // isOpaque means we need to ignore the alpha in the image,
