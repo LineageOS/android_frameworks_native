@@ -109,7 +109,8 @@ bool prepare_app_profile(const std::string& package_name,
                          const std::string& code_path,
                          const std::optional<std::string>& dex_metadata);
 
-bool delete_odex(const char* apk_path, const char* instruction_set, const char* output_path);
+// Returns the total bytes that were freed, or -1 in case of errors.
+int64_t delete_odex(const char* apk_path, const char* instruction_set, const char* output_path);
 
 bool reconcile_secondary_dex_file(const std::string& dex_path,
         const std::string& pkgname, int uid, const std::vector<std::string>& isas,

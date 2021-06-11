@@ -518,7 +518,8 @@ protected:
         // Check the access to the compiler output.
         //  - speed-profile artifacts are not world-wide readable.
         //  - files are owned by the system uid.
-        std::string odex = GetPrimaryDexArtifact(oat_dir, apk_path_, "odex");
+        std::string odex = GetPrimaryDexArtifact(oat_dir, apk_path_,
+                oat_dir == nullptr ? "dex" : "odex");
         std::string vdex = GetPrimaryDexArtifact(oat_dir, apk_path_, "vdex");
         std::string art = GetPrimaryDexArtifact(oat_dir, apk_path_, "art");
 
@@ -546,13 +547,60 @@ protected:
                 }
             }
             return android_data_dir + DALVIK_CACHE + '/' + kRuntimeIsa + "/" + path
-                    + "@classes.dex";
+                    + "@classes." + type;
         } else {
             std::string::size_type name_end = dex_path.rfind('.');
             std::string::size_type name_start = dex_path.rfind('/');
             return std::string(oat_dir) + "/" + kRuntimeIsa + "/" +
                     dex_path.substr(name_start + 1, name_end - name_start) + type;
         }
+    }
+
+    int64_t GetSize(const std::string& path) {
+        struct stat file_stat;
+        if (stat(path.c_str(), &file_stat) == 0) {
+            return static_cast<int64_t>(file_stat.st_size);
+        }
+        PLOG(ERROR) << "Cannot stat path: " << path;
+        return -1;
+    }
+
+    void TestDeleteOdex(bool in_dalvik_cache) {
+        const char* oat_dir = in_dalvik_cache ? nullptr : app_oat_dir_.c_str();
+        CompilePrimaryDexOk(
+                "speed-profile",
+                DEXOPT_BOOTCOMPLETE | DEXOPT_PROFILE_GUIDED | DEXOPT_PUBLIC
+                        | DEXOPT_GENERATE_APP_IMAGE,
+                oat_dir,
+                kTestAppGid,
+                DEX2OAT_FROM_SCRATCH,
+                /*binder_result=*/nullptr,
+                empty_dm_file_.c_str());
+
+
+        int64_t odex_size = GetSize(GetPrimaryDexArtifact(oat_dir, apk_path_,
+                in_dalvik_cache ? "dex" : "odex"));
+        int64_t vdex_size = GetSize(GetPrimaryDexArtifact(oat_dir, apk_path_, "vdex"));
+        int64_t art_size = GetSize(GetPrimaryDexArtifact(oat_dir, apk_path_, "art"));
+
+        LOG(ERROR) << "test odex " << odex_size;
+        LOG(ERROR) << "test vdex_size " << vdex_size;
+        LOG(ERROR) << "test art_size " << art_size;
+        int64_t expected_bytes_freed = odex_size + vdex_size + art_size;
+
+        int64_t bytes_freed;
+        binder::Status result = service_->deleteOdex(
+            apk_path_,
+            kRuntimeIsa,
+            in_dalvik_cache ? std::nullopt : std::make_optional<std::string>(app_oat_dir_.c_str()),
+            &bytes_freed);
+        ASSERT_TRUE(result.isOk()) << result.toString8().c_str();
+
+        ASSERT_GE(odex_size, 0);
+        ASSERT_GE(vdex_size, 0);
+        ASSERT_GE(art_size, 0);
+
+        ASSERT_EQ(expected_bytes_freed, bytes_freed);
     }
 };
 
@@ -700,6 +748,16 @@ TEST_F(DexoptTest, DexoptPrimaryBackgroundOk) {
                         DEX2OAT_FROM_SCRATCH,
                         /*binder_result=*/nullptr,
                         empty_dm_file_.c_str());
+}
+
+TEST_F(DexoptTest, DeleteDexoptArtifactsData) {
+    LOG(INFO) << "DeleteDexoptArtifactsData";
+    TestDeleteOdex(/*in_dalvik_cache=*/ false);
+}
+
+TEST_F(DexoptTest, DeleteDexoptArtifactsDalvikCache) {
+    LOG(INFO) << "DeleteDexoptArtifactsDalvikCache";
+    TestDeleteOdex(/*in_dalvik_cache=*/ true);
 }
 
 TEST_F(DexoptTest, ResolveStartupConstStrings) {
