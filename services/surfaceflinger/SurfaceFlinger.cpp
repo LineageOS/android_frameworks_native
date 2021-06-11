@@ -3224,9 +3224,12 @@ void SurfaceFlinger::commitTransactionLocked() {
     // clear the "changed" flags in current state
     mCurrentState.colorMatrixChanged = false;
 
-    for (const auto& rootLayer : mDrawingState.layersSortedByZ) {
-        rootLayer->commitChildList();
+    if (mVisibleRegionsDirty) {
+        for (const auto& rootLayer : mDrawingState.layersSortedByZ) {
+            rootLayer->commitChildList();
+        }
     }
+
     // TODO(b/163019109): See if this traversal is needed at all...
     if (!mOffscreenLayers.empty()) {
         mDrawingState.traverse([&](Layer* layer) {

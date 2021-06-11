@@ -772,6 +772,8 @@ bool Layer::setLayer(int32_t z) {
     mDrawingState.z = z;
     mDrawingState.modified = true;
 
+    mFlinger->mSomeChildrenChanged = true;
+
     // Discard all relative layering.
     if (mDrawingState.zOrderRelativeOf != nullptr) {
         sp<Layer> strongRelative = mDrawingState.zOrderRelativeOf.promote();
@@ -821,6 +823,8 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relati
         mDrawingState.zOrderRelativeOf == relative) {
         return false;
     }
+
+    mFlinger->mSomeChildrenChanged = true;
 
     mDrawingState.sequence++;
     mDrawingState.modified = true;
