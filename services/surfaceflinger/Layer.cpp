@@ -700,11 +700,6 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         mNeedsFiltering = getActiveTransform(s).needsBilinearFiltering();
     }
 
-    if (mDrawingState.inputInfoChanged) {
-        flags |= eInputInfoChanged;
-        mDrawingState.inputInfoChanged = false;
-    }
-
     commitTransaction(mDrawingState);
 
     return flags;
@@ -1986,7 +1981,7 @@ void Layer::setInputInfo(const InputWindowInfo& info) {
     mDrawingState.inputInfo = info;
     mDrawingState.touchableRegionCrop = extractLayerFromBinder(info.touchableRegionCropHandle);
     mDrawingState.modified = true;
-    mDrawingState.inputInfoChanged = true;
+    mFlinger->mInputInfoChanged = true;
     setTransactionFlags(eTransactionNeeded);
 }
 
