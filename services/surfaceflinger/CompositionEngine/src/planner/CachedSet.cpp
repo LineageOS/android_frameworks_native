@@ -294,6 +294,12 @@ bool CachedSet::requiresHolePunch() const {
         return false;
     }
 
+    // Do not use a hole punch with an HDR layer; this should be done in client
+    // composition to properly mix HDR with SDR.
+    if (hasHdrLayers()) {
+        return false;
+    }
+
     const auto& layerFE = mLayers[0].getState()->getOutputLayer()->getLayerFE();
     if (layerFE.getCompositionState()->forceClientComposition) {
         return false;
