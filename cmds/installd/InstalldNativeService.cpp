@@ -342,7 +342,8 @@ static int restorecon_app_data_lazy(const std::string& path, const std::string& 
 
     // If the initial top-level restorecon above changed the label, then go
     // back and restorecon everything recursively
-    if (strcmp(before, after)) {
+    // TODO(b/190567190, b/188141923) Remove recursive fixup of com.google.android.gsf.
+    if (strcmp(before, after) || (path.find("com.google.android.gsf") != std::string::npos)) {
         if (existing) {
             LOG(DEBUG) << "Detected label change from " << before << " to " << after << " at "
                     << path << "; running recursive restorecon";
