@@ -73,10 +73,11 @@ private:
     void writeOutputIndependentGeometryStateToHWC(HWC2::Layer*, const LayerFECompositionState&,
                                                   bool skipLayer);
     void writeOutputDependentPerFrameStateToHWC(HWC2::Layer*);
-    void writeOutputIndependentPerFrameStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
+    void writeOutputIndependentPerFrameStateToHWC(HWC2::Layer*, const LayerFECompositionState&,
+                                                  bool skipLayer);
     void writeSolidColorStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
     void writeSidebandStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
-    void writeBufferStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
+    void writeBufferStateToHWC(HWC2::Layer*, const LayerFECompositionState&, bool skipLayer);
     void writeCompositionTypeToHWC(HWC2::Layer*, Hwc2::IComposerClient::Composition,
                                    bool isPeekingThrough, bool skipLayer);
     void detectDisallowedCompositionTypeChange(Hwc2::IComposerClient::Composition from,
