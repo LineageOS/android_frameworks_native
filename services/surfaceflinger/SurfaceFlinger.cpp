@@ -2246,14 +2246,14 @@ void SurfaceFlinger::postComposition() {
         compositorTiming = getBE().mCompositorTiming;
     }
 
-    mDrawingState.traverse([&](Layer* layer) {
+    for (const auto& layer: mLayersWithQueuedFrames) {
         const bool frameLatched =
                 layer->onPostComposition(display, glCompositionDoneFenceTime,
                                          mPreviousPresentFences[0].fenceTime, compositorTiming);
         if (frameLatched) {
             recordBufferingStats(layer->getName(), layer->getOccupancyHistory(false));
         }
-    });
+    }
 
     std::vector<std::pair<std::shared_ptr<compositionengine::Display>, sp<HdrLayerInfoReporter>>>
             hdrInfoListeners;
