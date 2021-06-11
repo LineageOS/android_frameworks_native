@@ -37,16 +37,18 @@ class Predictor;
 
 class Flattener {
 public:
-    Flattener(bool enableHolePunch = false) : mEnableHolePunch(enableHolePunch) {}
+    Flattener(renderengine::RenderEngine& renderEngine, bool enableHolePunch = false);
 
-    void setDisplaySize(ui::Size size) { mDisplaySize = size; }
+    void setDisplaySize(ui::Size size) {
+        mDisplaySize = size;
+        mTexturePool.setDisplaySize(size);
+    }
 
     NonBufferHash flattenLayers(const std::vector<const LayerState*>& layers, NonBufferHash,
                                 std::chrono::steady_clock::time_point now);
 
     // Renders the newest cached sets with the supplied output composition state
-    void renderCachedSets(renderengine::RenderEngine& re,
-                          const OutputCompositionState& outputState);
+    void renderCachedSets(const OutputCompositionState& outputState);
 
     void dump(std::string& result) const;
     void dumpLayers(std::string& result) const;
@@ -145,7 +147,10 @@ private:
 
     void buildCachedSets(std::chrono::steady_clock::time_point now);
 
+    renderengine::RenderEngine& mRenderEngine;
     const bool mEnableHolePunch;
+
+    TexturePool mTexturePool;
 
     ui::Size mDisplaySize;
 
@@ -162,6 +167,7 @@ private:
     size_t mCachedSetCreationCount = 0;
     size_t mCachedSetCreationCost = 0;
     std::unordered_map<size_t, size_t> mInvalidatedCachedSetAges;
+    std::chrono::nanoseconds mActiveLayerTimeout = kActiveLayerTimeout;
 
     static constexpr auto kActiveLayerTimeout = std::chrono::nanoseconds(150ms);
 };

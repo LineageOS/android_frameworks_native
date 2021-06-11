@@ -82,6 +82,14 @@ PermissionChecker::PermissionResult
             /*startDataDelivery*/ true, /*fromDatasource*/ true, attributedOpCode);
 }
 
+PermissionChecker::PermissionResult PermissionChecker::checkPermissionForPreflight(
+        const String16& permission, const AttributionSourceState& attributionSource,
+        const String16& message, int32_t attributedOpCode)
+{
+    return checkPermission(permission, attributionSource, message, /*forDataDelivery*/ false,
+            /*startDataDelivery*/ false, /*fromDatasource*/ false, attributedOpCode);
+}
+
 PermissionChecker::PermissionResult PermissionChecker::checkPermissionForPreflightFromDatasource(
         const String16& permission, const AttributionSourceState& attributionSource,
         const String16& message, int32_t attributedOpCode)

@@ -19,6 +19,7 @@
 // #define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <android-base/properties.h>
 #include <compositionengine/impl/planner/Flattener.h>
 #include <compositionengine/impl/planner/LayerState.h>
 
@@ -59,6 +60,17 @@ bool isSameStack(const std::vector<const LayerState*>& incomingLayers,
 
 } // namespace
 
+Flattener::Flattener(renderengine::RenderEngine& renderEngine, bool enableHolePunch)
+      : mRenderEngine(renderEngine),
+        mEnableHolePunch(enableHolePunch),
+        mTexturePool(mRenderEngine) {
+    const int timeoutInMs =
+            base::GetIntProperty(std::string("debug.sf.layer_caching_active_layer_timeout_ms"), 0);
+    if (timeoutInMs != 0) {
+        mActiveLayerTimeout = std::chrono::milliseconds(timeoutInMs);
+    }
+}
+
 NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& layers,
                                        NonBufferHash hash, time_point now) {
     ATRACE_CALL();
@@ -93,14 +105,13 @@ NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& lay
     return hash;
 }
 
-void Flattener::renderCachedSets(renderengine::RenderEngine& renderEngine,
-                                 const OutputCompositionState& outputState) {
+void Flattener::renderCachedSets(const OutputCompositionState& outputState) {
     ATRACE_CALL();
     if (!mNewCachedSet || mNewCachedSet->hasRenderedBuffer()) {
         return;
     }
 
-    mNewCachedSet->render(renderEngine, outputState);
+    mNewCachedSet->render(mRenderEngine, mTexturePool, outputState);
 }
 
 void Flattener::dumpLayers(std::string& result) const {
@@ -276,7 +287,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                         state.overrideInfo = {
                                 .buffer = mNewCachedSet->getBuffer(),
                                 .acquireFence = mNewCachedSet->getDrawFence(),
-                                .displayFrame = mNewCachedSet->getBounds(),
+                                .displayFrame = mNewCachedSet->getTextureBounds(),
                                 .dataspace = mNewCachedSet->getOutputDataspace(),
                                 .displaySpace = mNewCachedSet->getOutputSpace(),
                                 .damageRegion = Region::INVALID_REGION,
@@ -316,7 +327,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                 state.overrideInfo = {
                         .buffer = currentLayerIter->getBuffer(),
                         .acquireFence = currentLayerIter->getDrawFence(),
-                        .displayFrame = currentLayerIter->getBounds(),
+                        .displayFrame = currentLayerIter->getTextureBounds(),
                         .dataspace = currentLayerIter->getOutputDataspace(),
                         .displaySpace = currentLayerIter->getOutputSpace(),
                         .damageRegion = Region(),
@@ -370,7 +381,7 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
     bool runHasFirstLayer = false;
 
     for (auto currentSet = mLayers.cbegin(); currentSet != mLayers.cend(); ++currentSet) {
-        const bool layerIsInactive = now - currentSet->getLastUpdate() > kActiveLayerTimeout;
+        const bool layerIsInactive = now - currentSet->getLastUpdate() > mActiveLayerTimeout;
         const bool layerHasBlur = currentSet->hasBlurBehind();
         if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur) &&
             !currentSet->hasHdrLayers() && !currentSet->hasProtectedLayers()) {
