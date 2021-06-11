@@ -429,6 +429,20 @@ TEST_F(CachedSetTest, holePunch_requiresSingleLayer) {
     EXPECT_FALSE(cachedSet.requiresHolePunch());
 }
 
+TEST_F(CachedSetTest, holePunch_requiresNonHdr) {
+    mTestLayers[0]->outputLayerCompositionState.dataspace = ui::Dataspace::BT2020_PQ;
+    mTestLayers[0]->layerState->update(&mTestLayers[0]->outputLayer);
+
+    CachedSet::Layer& layer = *mTestLayers[0]->cachedSetLayer.get();
+    mTestLayers[0]->layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    sp<mock::LayerFE> layerFE = mTestLayers[0]->layerFE;
+
+    CachedSet cachedSet(layer);
+    EXPECT_CALL(*layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
+
+    EXPECT_FALSE(cachedSet.requiresHolePunch());
+}
+
 TEST_F(CachedSetTest, requiresHolePunch) {
     CachedSet::Layer& layer = *mTestLayers[0]->cachedSetLayer.get();
     mTestLayers[0]->layerFECompositionState.buffer = sp<GraphicBuffer>::make();
