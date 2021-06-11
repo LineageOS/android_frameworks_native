@@ -289,7 +289,7 @@ public:
     }
 
     static void setLayerDrawingParent(const sp<Layer>& layer, const sp<Layer>& drawingParent) {
-        layer->mDrawingParent = drawingParent;
+        layer->mDrawingParent = drawingParent.get();
     }
 
     /* ------------------------------------------------------------------------
