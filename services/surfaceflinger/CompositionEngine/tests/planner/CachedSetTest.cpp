@@ -40,6 +40,7 @@ using testing::SetArgPointee;
 using impl::planner::CachedSet;
 using impl::planner::LayerState;
 using impl::planner::LayerStateField;
+using impl::planner::TexturePool;
 
 namespace {
 
@@ -50,6 +51,7 @@ MATCHER_P(ClientCompositionTargetSettingsBlurSettingsEq, expectedBlurSetting, ""
 
     return expectedBlurSetting == arg.blurSetting;
 }
+static const ui::Size kOutputSize = ui::Size(1, 1);
 
 class CachedSetTest : public testing::Test {
 public:
@@ -76,9 +78,11 @@ protected:
     impl::OutputCompositionState mOutputState;
 
     android::renderengine::mock::RenderEngine mRenderEngine;
+    TexturePool mTexturePool = TexturePool(mRenderEngine);
 };
 
 void CachedSetTest::SetUp() {
+    mTexturePool.setDisplaySize(kOutputSize);
     for (size_t i = 0; i < kNumLayers; i++) {
         auto testLayer = std::make_unique<TestLayer>();
         auto pos = static_cast<int32_t>(i);
@@ -319,7 +323,7 @@ TEST_F(CachedSetTest, render) {
                                 const std::vector<const renderengine::LayerSettings*>& layers,
                                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
                                 base::unique_fd&&, base::unique_fd*) -> size_t {
-        EXPECT_EQ(Rect(-1, -1, 9, 4), displaySettings.physicalDisplay);
+        EXPECT_EQ(mOutputState.framebufferSpace.content, displaySettings.physicalDisplay);
         EXPECT_EQ(mOutputState.layerStackSpace.content, displaySettings.clip);
         EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.orientation),
                   displaySettings.orientation);
@@ -333,10 +337,11 @@ TEST_F(CachedSetTest, render) {
     EXPECT_CALL(*layerFE1, prepareClientCompositionList(_)).WillOnce(Return(clientCompList1));
     EXPECT_CALL(*layerFE2, prepareClientCompositionList(_)).WillOnce(Return(clientCompList2));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
-    cachedSet.render(mRenderEngine, mOutputState);
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
     expectReadyBuffer(cachedSet);
 
     EXPECT_EQ(mOutputState.framebufferSpace, cachedSet.getOutputSpace());
+    EXPECT_EQ(mOutputState.framebufferSpace.content, cachedSet.getTextureBounds());
 
     // Now check that appending a new cached set properly cleans up RenderEngine resources.
     CachedSet::Layer& layer3 = *mTestLayers[2]->cachedSetLayer.get();
@@ -367,7 +372,7 @@ TEST_F(CachedSetTest, rendersWithOffsetFramebufferContent) {
                                 const std::vector<const renderengine::LayerSettings*>& layers,
                                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
                                 base::unique_fd&&, base::unique_fd*) -> size_t {
-        EXPECT_EQ(Rect(1, 2, 9, 4), displaySettings.physicalDisplay);
+        EXPECT_EQ(mOutputState.framebufferSpace.content, displaySettings.physicalDisplay);
         EXPECT_EQ(mOutputState.layerStackSpace.content, displaySettings.clip);
         EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.orientation),
                   displaySettings.orientation);
@@ -381,7 +386,7 @@ TEST_F(CachedSetTest, rendersWithOffsetFramebufferContent) {
     EXPECT_CALL(*layerFE1, prepareClientCompositionList(_)).WillOnce(Return(clientCompList1));
     EXPECT_CALL(*layerFE2, prepareClientCompositionList(_)).WillOnce(Return(clientCompList2));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
-    cachedSet.render(mRenderEngine, mOutputState);
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
     expectReadyBuffer(cachedSet);
 
     EXPECT_EQ(mOutputState.framebufferSpace, cachedSet.getOutputSpace());
@@ -420,6 +425,20 @@ TEST_F(CachedSetTest, holePunch_requiresSingleLayer) {
 
     CachedSet cachedSet(layer1);
     cachedSet.append(layer2);
+
+    EXPECT_FALSE(cachedSet.requiresHolePunch());
+}
+
+TEST_F(CachedSetTest, holePunch_requiresNonHdr) {
+    mTestLayers[0]->outputLayerCompositionState.dataspace = ui::Dataspace::BT2020_PQ;
+    mTestLayers[0]->layerState->update(&mTestLayers[0]->outputLayer);
+
+    CachedSet::Layer& layer = *mTestLayers[0]->cachedSetLayer.get();
+    mTestLayers[0]->layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    sp<mock::LayerFE> layerFE = mTestLayers[0]->layerFE;
+
+    CachedSet cachedSet(layer);
+    EXPECT_CALL(*layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
 
     EXPECT_FALSE(cachedSet.requiresHolePunch());
 }
@@ -554,7 +573,7 @@ TEST_F(CachedSetTest, addHolePunch) {
     };
 
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
-    cachedSet.render(mRenderEngine, mOutputState);
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
 }
 
 TEST_F(CachedSetTest, addHolePunch_noBuffer) {
@@ -604,7 +623,7 @@ TEST_F(CachedSetTest, addHolePunch_noBuffer) {
     };
 
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
-    cachedSet.render(mRenderEngine, mOutputState);
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
 }
 
 TEST_F(CachedSetTest, append_removesHolePunch) {
@@ -741,7 +760,7 @@ TEST_F(CachedSetTest, addBlur) {
     };
 
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
-    cachedSet.render(mRenderEngine, mOutputState);
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
 }
 
 } // namespace

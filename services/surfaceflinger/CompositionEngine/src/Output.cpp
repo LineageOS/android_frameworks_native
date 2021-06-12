@@ -129,7 +129,7 @@ void Output::setLayerCachingEnabled(bool enabled) {
     }
 
     if (enabled) {
-        mPlanner = std::make_unique<planner::Planner>();
+        mPlanner = std::make_unique<planner::Planner>(getCompositionEngine().getRenderEngine());
         if (mRenderSurface) {
             mPlanner->setDisplaySize(mRenderSurface->getSize());
         }
@@ -1314,7 +1314,7 @@ void Output::postFramebuffer() {
 
 void Output::renderCachedSets() {
     if (mPlanner) {
-        mPlanner->renderCachedSets(getCompositionEngine().getRenderEngine(), getState());
+        mPlanner->renderCachedSets(getState());
     }
 }
 
