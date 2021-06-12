@@ -349,7 +349,7 @@ void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t
     }
 
     writeOutputDependentPerFrameStateToHWC(hwcLayer.get());
-    writeOutputIndependentPerFrameStateToHWC(hwcLayer.get(), *outputIndependentState);
+    writeOutputIndependentPerFrameStateToHWC(hwcLayer.get(), *outputIndependentState, skipLayer);
 
     writeCompositionTypeToHWC(hwcLayer.get(), requestedCompositionType, isPeekingThrough,
                               skipLayer);
@@ -471,7 +471,8 @@ void OutputLayer::writeOutputDependentPerFrameStateToHWC(HWC2::Layer* hwcLayer) 
 }
 
 void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
-        HWC2::Layer* hwcLayer, const LayerFECompositionState& outputIndependentState) {
+        HWC2::Layer* hwcLayer, const LayerFECompositionState& outputIndependentState,
+        bool skipLayer) {
     switch (auto error = hwcLayer->setColorTransform(outputIndependentState.colorTransform)) {
         case hal::Error::NONE:
             break;
@@ -504,7 +505,7 @@ void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
             break;
         case hal::Composition::CURSOR:
         case hal::Composition::DEVICE:
-            writeBufferStateToHWC(hwcLayer, outputIndependentState);
+            writeBufferStateToHWC(hwcLayer, outputIndependentState, skipLayer);
             break;
         case hal::Composition::INVALID:
         case hal::Composition::CLIENT:
@@ -541,7 +542,8 @@ void OutputLayer::writeSidebandStateToHWC(HWC2::Layer* hwcLayer,
 }
 
 void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
-                                        const LayerFECompositionState& outputIndependentState) {
+                                        const LayerFECompositionState& outputIndependentState,
+                                        bool skipLayer) {
     auto supportedPerFrameMetadata =
             getOutput().getDisplayColorProfile()->getSupportedPerFrameMetadata();
     if (auto error = hwcLayer->setPerFrameMetadata(supportedPerFrameMetadata,
@@ -554,7 +556,7 @@ void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
     sp<GraphicBuffer> buffer = outputIndependentState.buffer;
     sp<Fence> acquireFence = outputIndependentState.acquireFence;
     int slot = outputIndependentState.bufferSlot;
-    if (getState().overrideInfo.buffer != nullptr) {
+    if (getState().overrideInfo.buffer != nullptr && !skipLayer) {
         buffer = getState().overrideInfo.buffer->getBuffer();
         acquireFence = getState().overrideInfo.acquireFence;
         slot = HwcBufferCache::FLATTENER_CACHING_SLOT;
