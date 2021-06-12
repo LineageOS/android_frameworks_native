@@ -101,6 +101,29 @@ public:
      * has a given permission and whether the app op that corresponds to this permission
      * is allowed. The app ops are not noted/started.
      *
+     * NOTE: Use this method only for permission checks at the preflight point where you
+     * will not deliver the permission protected data to clients but schedule permission
+     * data delivery, apps register listeners, etc.
+     *
+     * @param permission The permission to check.
+     * @param attributionSource The attribution chain to check.
+     * @param message A message describing the reason the permission was checked.
+     * @param attributedOpCode The op code towards which to blame the access. If this
+     *     is a valid app op the op corresponding to the checked permission (if such)
+     *     would only be checked to ensure it is allowed and if that succeeds the
+     *     starting would be against the attributed op.
+     * @return The permission check result which is either PERMISSION_GRANTED,
+     *     or PERMISSION_SOFT_DENIED or PERMISSION_HARD_DENIED.
+     */
+    PermissionResult checkPermissionForPreflight(
+            const String16& permission, const AttributionSourceState& attributionSource,
+            const String16& message, int32_t attributedOpCode);
+
+   /**
+     * Checks whether a given data access chain described by the given attribution source
+     * has a given permission and whether the app op that corresponds to this permission
+     * is allowed. The app ops are not noted/started.
+     *
      * NOTE: The attribution source should be for yourself with its next attribution
      * source being the app that would receive the data from you.
      *
