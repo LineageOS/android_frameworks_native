@@ -39,7 +39,7 @@ public:
     SkiaRenderEngine(RenderEngineType type) : RenderEngine(type) {}
     ~SkiaRenderEngine() override {}
 
-    virtual void primeCache() override{};
+    virtual std::future<void> primeCache() override { return {}; };
     virtual void genTextures(size_t /*count*/, uint32_t* /*names*/) override{};
     virtual void deleteTextures(size_t /*count*/, uint32_t const* /*names*/) override{};
     virtual bool isProtected() const override { return false; } // mInProtectedContext; }
