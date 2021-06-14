@@ -86,6 +86,9 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
         // in the learning phase we should just clear all timestamps and start
         // over.
         if (mTimestamps.size() < kMinimumSamplesForPrediction) {
+            // Add the timestamp to mTimestamps before clearing it so we could
+            // update mKnownTimestamp based on the new timestamp.
+            mTimestamps.push_back(timestamp);
             clearTimestamps();
         } else if (!mTimestamps.empty()) {
             mKnownTimestamp =
