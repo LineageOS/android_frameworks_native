@@ -42,7 +42,10 @@ public:
     static HalResult<T> unsupported() { return HalResult("", /* unsupported= */ true); }
 
     static HalResult<T> fromStatus(binder::Status status, T data) {
-        if (status.exceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
+        if (status.exceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION ||
+            status.transactionError() == android::UNKNOWN_TRANSACTION) {
+            // UNKNOWN_TRANSACTION means the HAL implementation is an older version, so this is
+            // the same as the operation being unsupported by this HAL. Should not retry.
             return HalResult<T>::unsupported();
         }
         if (status.isOk()) {
