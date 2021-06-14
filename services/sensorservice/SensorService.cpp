@@ -2172,6 +2172,13 @@ bool SensorService::isRateCappedBasedOnPermission(const String16& opPackageName)
     return true;
 }
 
+/**
+ * Checks if a sensor should be capped according to HIGH_SAMPLING_RATE_SENSORS
+ * permission.
+ *
+ * This needs to be kept in sync with the list defined on the Java side
+ * in frameworks/base/core/java/android/hardware/SystemSensorManager.java
+ */
 bool SensorService::isSensorInCappedSet(int sensorType) {
     return (sensorType == SENSOR_TYPE_ACCELEROMETER
             || sensorType == SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED
