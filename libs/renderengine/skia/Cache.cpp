@@ -292,7 +292,11 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
 
         drawSolidLayers(renderengine, display, dstTexture);
         drawShadowLayers(renderengine, display, srcTexture);
-        drawBlurLayers(renderengine, display, dstTexture);
+
+        if (renderengine->supportsBackgroundBlur()) {
+            drawBlurLayers(renderengine, display, dstTexture);
+        }
+
         // The majority of shaders are related to sampling images.
         drawImageLayers(renderengine, display, dstTexture, srcTexture);
 

@@ -36,10 +36,10 @@ class BlurFilter;
 class SkiaRenderEngine : public RenderEngine {
 public:
     static std::unique_ptr<SkiaRenderEngine> create(const RenderEngineCreationArgs& args);
-    SkiaRenderEngine(RenderEngineType type) : RenderEngine(type) {}
+    SkiaRenderEngine(RenderEngineType type);
     ~SkiaRenderEngine() override {}
 
-    virtual void primeCache() override{};
+    virtual std::future<void> primeCache() override { return {}; };
     virtual void genTextures(size_t /*count*/, uint32_t* /*names*/) override{};
     virtual void deleteTextures(size_t /*count*/, uint32_t const* /*names*/) override{};
     virtual bool isProtected() const override { return false; } // mInProtectedContext; }
@@ -60,8 +60,8 @@ public:
 
 protected:
     virtual void mapExternalTextureBuffer(const sp<GraphicBuffer>& /*buffer*/,
-                                          bool /*isRenderable*/) override;
-    virtual void unmapExternalTextureBuffer(const sp<GraphicBuffer>& /*buffer*/) override;
+                                          bool /*isRenderable*/) override = 0;
+    virtual void unmapExternalTextureBuffer(const sp<GraphicBuffer>& /*buffer*/) override = 0;
 };
 
 } // namespace skia

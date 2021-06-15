@@ -14,13 +14,22 @@
  * limitations under the License.
  */
 
-//#define LOG_NDEBUG 0
 #undef LOG_TAG
 #define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include "SkiaRenderEngine.h"
+
+#include <android-base/properties.h>
+#include <src/core/SkTraceEventCommon.h>
+
 namespace android {
 namespace renderengine {
-namespace skia {} // namespace skia
+namespace skia {
+SkiaRenderEngine::SkiaRenderEngine(RenderEngineType type) : RenderEngine(type) {
+    SkAndroidFrameworkTraceUtil::setEnableTracing(
+            base::GetBoolProperty(PROPERTY_SKIA_ATRACE_ENABLED, false));
+}
+} // namespace skia
 } // namespace renderengine
 } // namespace android
