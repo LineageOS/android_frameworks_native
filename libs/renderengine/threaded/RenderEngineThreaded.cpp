@@ -24,6 +24,7 @@
 
 #include <android-base/stringprintf.h>
 #include <private/gui/SyncFeatures.h>
+#include <processgroup/processgroup.h>
 #include <utils/Trace.h>
 
 #include "gl/GLESRenderEngine.h"
@@ -79,6 +80,10 @@ status_t RenderEngineThreaded::setSchedFifo(bool enabled) {
 // NO_THREAD_SAFETY_ANALYSIS is because std::unique_lock presently lacks thread safety annotations.
 void RenderEngineThreaded::threadMain(CreateInstanceFactory factory) NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_CALL();
+
+    if (!SetTaskProfiles(0, {"SFRenderEnginePolicy"})) {
+        ALOGW("Failed to set render-engine task profile!");
+    }
 
     if (setSchedFifo(true) != NO_ERROR) {
         ALOGW("Couldn't set SCHED_FIFO");
