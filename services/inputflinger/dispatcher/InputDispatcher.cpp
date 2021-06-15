@@ -3787,7 +3787,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
         if (shouldSendKeyToInputFilterLocked(args)) {
             mLock.unlock();
 
-            policyFlags |= POLICY_FLAG_FILTERED;
+            policyFlags |= POLICY_FLAG_FILTERED | POLICY_FLAG_INPUTFILTER_TRUSTED;
             if (!mPolicy->filterInputEvent(&event, policyFlags)) {
                 return; // event was consumed by the filter
             }
@@ -4009,6 +4009,19 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
         policyFlags |= POLICY_FLAG_TRUSTED;
     }
 
+    // For all injected events, set device id = VIRTUAL_KEYBOARD_ID. The only exception is events
+    // that have gone through the InputFilter. If the event passed through the InputFilter,
+    // but did not get modified, assign the provided device id. If the InputFilter modifies the
+    // events in any way, it is responsible for removing this flag.
+    // If the injected event originated from accessibility, assign the accessibility device id,
+    // so that it can be distinguished from regular injected events.
+    int32_t resolvedDeviceId = VIRTUAL_KEYBOARD_ID;
+    if (policyFlags & POLICY_FLAG_INPUTFILTER_TRUSTED) {
+        resolvedDeviceId = event->getDeviceId();
+    } else if (policyFlags & POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY) {
+        resolvedDeviceId = ACCESSIBILITY_DEVICE_ID;
+    }
+
     std::queue<std::unique_ptr<EventEntry>> injectedEntries;
     switch (event->getType()) {
         case AINPUT_EVENT_TYPE_KEY: {
@@ -4021,10 +4034,10 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
             int32_t flags = incomingKey.getFlags();
             int32_t keyCode = incomingKey.getKeyCode();
             int32_t metaState = incomingKey.getMetaState();
-            accelerateMetaShortcuts(VIRTUAL_KEYBOARD_ID, action,
+            accelerateMetaShortcuts(resolvedDeviceId, action,
                                     /*byref*/ keyCode, /*byref*/ metaState);
             KeyEvent keyEvent;
-            keyEvent.initialize(incomingKey.getId(), VIRTUAL_KEYBOARD_ID, incomingKey.getSource(),
+            keyEvent.initialize(incomingKey.getId(), resolvedDeviceId, incomingKey.getSource(),
                                 incomingKey.getDisplayId(), INVALID_HMAC, action, flags, keyCode,
                                 incomingKey.getScanCode(), metaState, incomingKey.getRepeatCount(),
                                 incomingKey.getDownTime(), incomingKey.getEventTime());
@@ -4045,7 +4058,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
             mLock.lock();
             std::unique_ptr<KeyEntry> injectedEntry =
                     std::make_unique<KeyEntry>(incomingKey.getId(), incomingKey.getEventTime(),
-                                               VIRTUAL_KEYBOARD_ID, incomingKey.getSource(),
+                                               resolvedDeviceId, incomingKey.getSource(),
                                                incomingKey.getDisplayId(), policyFlags, action,
                                                flags, keyCode, incomingKey.getScanCode(), metaState,
                                                incomingKey.getRepeatCount(),
@@ -4055,18 +4068,18 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
         }
 
         case AINPUT_EVENT_TYPE_MOTION: {
-            const MotionEvent* motionEvent = static_cast<const MotionEvent*>(event);
-            int32_t action = motionEvent->getAction();
-            size_t pointerCount = motionEvent->getPointerCount();
-            const PointerProperties* pointerProperties = motionEvent->getPointerProperties();
-            int32_t actionButton = motionEvent->getActionButton();
-            int32_t displayId = motionEvent->getDisplayId();
+            const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
+            int32_t action = motionEvent.getAction();
+            size_t pointerCount = motionEvent.getPointerCount();
+            const PointerProperties* pointerProperties = motionEvent.getPointerProperties();
+            int32_t actionButton = motionEvent.getActionButton();
+            int32_t displayId = motionEvent.getDisplayId();
             if (!validateMotionEvent(action, actionButton, pointerCount, pointerProperties)) {
                 return InputEventInjectionResult::FAILED;
             }
 
             if (!(policyFlags & POLICY_FLAG_FILTERED)) {
-                nsecs_t eventTime = motionEvent->getEventTime();
+                nsecs_t eventTime = motionEvent.getEventTime();
                 android::base::Timer t;
                 mPolicy->interceptMotionBeforeQueueing(displayId, eventTime, /*byref*/ policyFlags);
                 if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
@@ -4076,47 +4089,46 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
             }
 
             mLock.lock();
-            const nsecs_t* sampleEventTimes = motionEvent->getSampleEventTimes();
-            const PointerCoords* samplePointerCoords = motionEvent->getSamplePointerCoords();
+            const nsecs_t* sampleEventTimes = motionEvent.getSampleEventTimes();
+            const PointerCoords* samplePointerCoords = motionEvent.getSamplePointerCoords();
             std::unique_ptr<MotionEntry> injectedEntry =
-                    std::make_unique<MotionEntry>(motionEvent->getId(), *sampleEventTimes,
-                                                  VIRTUAL_KEYBOARD_ID, motionEvent->getSource(),
-                                                  motionEvent->getDisplayId(), policyFlags, action,
-                                                  actionButton, motionEvent->getFlags(),
-                                                  motionEvent->getMetaState(),
-                                                  motionEvent->getButtonState(),
-                                                  motionEvent->getClassification(),
-                                                  motionEvent->getEdgeFlags(),
-                                                  motionEvent->getXPrecision(),
-                                                  motionEvent->getYPrecision(),
-                                                  motionEvent->getRawXCursorPosition(),
-                                                  motionEvent->getRawYCursorPosition(),
-                                                  motionEvent->getDownTime(),
-                                                  uint32_t(pointerCount), pointerProperties,
-                                                  samplePointerCoords, motionEvent->getXOffset(),
-                                                  motionEvent->getYOffset());
+                    std::make_unique<MotionEntry>(motionEvent.getId(), *sampleEventTimes,
+                                                  resolvedDeviceId, motionEvent.getSource(),
+                                                  motionEvent.getDisplayId(), policyFlags, action,
+                                                  actionButton, motionEvent.getFlags(),
+                                                  motionEvent.getMetaState(),
+                                                  motionEvent.getButtonState(),
+                                                  motionEvent.getClassification(),
+                                                  motionEvent.getEdgeFlags(),
+                                                  motionEvent.getXPrecision(),
+                                                  motionEvent.getYPrecision(),
+                                                  motionEvent.getRawXCursorPosition(),
+                                                  motionEvent.getRawYCursorPosition(),
+                                                  motionEvent.getDownTime(), uint32_t(pointerCount),
+                                                  pointerProperties, samplePointerCoords,
+                                                  motionEvent.getXOffset(),
+                                                  motionEvent.getYOffset());
             injectedEntries.push(std::move(injectedEntry));
-            for (size_t i = motionEvent->getHistorySize(); i > 0; i--) {
+            for (size_t i = motionEvent.getHistorySize(); i > 0; i--) {
                 sampleEventTimes += 1;
                 samplePointerCoords += pointerCount;
                 std::unique_ptr<MotionEntry> nextInjectedEntry =
-                        std::make_unique<MotionEntry>(motionEvent->getId(), *sampleEventTimes,
-                                                      VIRTUAL_KEYBOARD_ID, motionEvent->getSource(),
-                                                      motionEvent->getDisplayId(), policyFlags,
-                                                      action, actionButton, motionEvent->getFlags(),
-                                                      motionEvent->getMetaState(),
-                                                      motionEvent->getButtonState(),
-                                                      motionEvent->getClassification(),
-                                                      motionEvent->getEdgeFlags(),
-                                                      motionEvent->getXPrecision(),
-                                                      motionEvent->getYPrecision(),
-                                                      motionEvent->getRawXCursorPosition(),
-                                                      motionEvent->getRawYCursorPosition(),
-                                                      motionEvent->getDownTime(),
+                        std::make_unique<MotionEntry>(motionEvent.getId(), *sampleEventTimes,
+                                                      resolvedDeviceId, motionEvent.getSource(),
+                                                      motionEvent.getDisplayId(), policyFlags,
+                                                      action, actionButton, motionEvent.getFlags(),
+                                                      motionEvent.getMetaState(),
+                                                      motionEvent.getButtonState(),
+                                                      motionEvent.getClassification(),
+                                                      motionEvent.getEdgeFlags(),
+                                                      motionEvent.getXPrecision(),
+                                                      motionEvent.getYPrecision(),
+                                                      motionEvent.getRawXCursorPosition(),
+                                                      motionEvent.getRawYCursorPosition(),
+                                                      motionEvent.getDownTime(),
                                                       uint32_t(pointerCount), pointerProperties,
-                                                      samplePointerCoords,
-                                                      motionEvent->getXOffset(),
-                                                      motionEvent->getYOffset());
+                                                      samplePointerCoords, motionEvent.getXOffset(),
+                                                      motionEvent.getYOffset());
                 injectedEntries.push(std::move(nextInjectedEntry));
             }
             break;
