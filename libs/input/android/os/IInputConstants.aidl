@@ -40,4 +40,18 @@ interface IInputConstants
      * available.
      */
     const int INVALID_INPUT_EVENT_ID = 0;
+
+    /**
+     * The injected event was originally sent from InputDispatcher. Most likely, the journey of the
+     * event looked as follows:
+     * InputDispatcherPolicyInterface::filterInputEvent -> InputFilter.java::onInputEvent ->
+     * InputFilter.java::sendInputEvent -> InputDispatcher::injectInputEvent, without being modified
+     * along the way.
+     */
+    const int POLICY_FLAG_INPUTFILTER_TRUSTED = 0x10000;
+
+    /**
+     * The input event was injected from accessibility
+     */
+    const int POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY = 0x20000;
 }
