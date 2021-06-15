@@ -223,6 +223,16 @@ TEST_F(CachedSetTest, incrementAge) {
     EXPECT_EQ(2u, cachedSet.getAge());
 }
 
+TEST_F(CachedSetTest, incrementSkipCount) {
+    CachedSet::Layer& layer = *mTestLayers[0]->cachedSetLayer.get();
+    CachedSet cachedSet(layer);
+    EXPECT_EQ(0u, cachedSet.getSkipCount());
+    cachedSet.incrementSkipCount();
+    EXPECT_EQ(1u, cachedSet.getSkipCount());
+    cachedSet.incrementSkipCount();
+    EXPECT_EQ(2u, cachedSet.getSkipCount());
+}
+
 TEST_F(CachedSetTest, hasBufferUpdate_NoUpdate) {
     CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();
     CachedSet::Layer& layer2 = *mTestLayers[1]->cachedSetLayer.get();
@@ -257,6 +267,8 @@ TEST_F(CachedSetTest, append) {
     CachedSet cachedSet1(layer1);
     CachedSet cachedSet2(layer2);
     cachedSet1.addLayer(layer3.getState(), kStartTime + 10ms);
+    cachedSet1.incrementSkipCount();
+    EXPECT_EQ(1u, cachedSet1.getSkipCount());
     cachedSet1.append(cachedSet2);
 
     EXPECT_EQ(kStartTime, cachedSet1.getLastUpdate());
@@ -268,6 +280,8 @@ TEST_F(CachedSetTest, append) {
     EXPECT_TRUE(cachedSet1.getVisibleRegion().hasSameRects(expectedRegion));
     EXPECT_EQ(3u, cachedSet1.getLayerCount());
     EXPECT_EQ(0u, cachedSet1.getAge());
+    EXPECT_EQ(0u, cachedSet1.getSkipCount());
+
     expectNoBuffer(cachedSet1);
     // TODO(b/181192080): check that getNonBufferHash returns the correct hash value
     // EXPECT_EQ(android::hashCombine(layer1.getHash(), layer2.getHash()),
