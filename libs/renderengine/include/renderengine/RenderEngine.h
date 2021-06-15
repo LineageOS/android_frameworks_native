@@ -29,6 +29,7 @@
 #include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
 
+#include <future>
 #include <memory>
 
 /**
@@ -47,6 +48,11 @@
  * Set to the most recently saved file once the capture is finished.
  */
 #define PROPERTY_DEBUG_RENDERENGINE_CAPTURE_FILENAME "debug.renderengine.capture_filename"
+
+/**
+ * Allows recording of Skia drawing commands with systrace.
+ */
+#define PROPERTY_SKIA_ATRACE_ENABLED "debug.renderengine.skia_atrace_enabled"
 
 struct ANativeWindowBuffer;
 
@@ -94,17 +100,13 @@ public:
 
     static std::unique_ptr<RenderEngine> create(const RenderEngineCreationArgs& args);
 
-    RenderEngine() : RenderEngine(RenderEngineType::GLES) {}
-
-    RenderEngine(RenderEngineType type) : mRenderEngineType(type) {}
-
     virtual ~RenderEngine() = 0;
 
     // ----- BEGIN DEPRECATED INTERFACE -----
     // This interface, while still in use until a suitable replacement is built,
     // should be considered deprecated, minus some methods which still may be
     // used to support legacy behavior.
-    virtual void primeCache() = 0;
+    virtual std::future<void> primeCache() = 0;
 
     // dump the extension strings. always call the base class.
     virtual void dump(std::string& result) = 0;
@@ -204,6 +206,10 @@ public:
     static void validateOutputBufferUsage(const sp<GraphicBuffer>&);
 
 protected:
+    RenderEngine() : RenderEngine(RenderEngineType::GLES) {}
+
+    RenderEngine(RenderEngineType type) : mRenderEngineType(type) {}
+
     // Maps GPU resources for this buffer.
     // Note that work may be deferred to an additional thread, i.e. this call
     // is made asynchronously, but the caller can expect that map/unmap calls

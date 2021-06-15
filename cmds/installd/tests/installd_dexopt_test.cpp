@@ -919,7 +919,7 @@ class ProfileTest : public DexoptTest {
             return;
         }
 
-        // Check that the snapshot was created witht he expected acess flags.
+        // Check that the snapshot was created with the expected access flags.
         CheckFileAccess(snap_profile_, kSystemUid, kSystemGid, 0600 | S_IFREG);
 
         // The snapshot should be equivalent to the merge of profiles.
@@ -962,8 +962,8 @@ class ProfileTest : public DexoptTest {
             return;
         }
 
-        // Check that the snapshot was created witht he expected acess flags.
-        CheckFileAccess(ref_profile_, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
+        // Check that the snapshot was created with the expected access flags.
+        CheckFileAccess(ref_profile_, kTestAppUid, kTestAppUid, 0640 | S_IFREG);
 
         // The snapshot should be equivalent to the merge of profiles.
         std::string ref_profile_content = ref_profile_ + ".expected";

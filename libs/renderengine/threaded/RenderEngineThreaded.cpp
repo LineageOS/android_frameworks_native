@@ -56,14 +56,32 @@ RenderEngineThreaded::~RenderEngineThreaded() {
     }
 }
 
+status_t RenderEngineThreaded::setSchedFifo(bool enabled) {
+    static constexpr int kFifoPriority = 2;
+    static constexpr int kOtherPriority = 0;
+
+    struct sched_param param = {0};
+    int sched_policy;
+    if (enabled) {
+        sched_policy = SCHED_FIFO;
+        param.sched_priority = kFifoPriority;
+    } else {
+        sched_policy = SCHED_OTHER;
+        param.sched_priority = kOtherPriority;
+    }
+
+    if (sched_setscheduler(0, sched_policy, &param) != 0) {
+        return -errno;
+    }
+    return NO_ERROR;
+}
+
 // NO_THREAD_SAFETY_ANALYSIS is because std::unique_lock presently lacks thread safety annotations.
 void RenderEngineThreaded::threadMain(CreateInstanceFactory factory) NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_CALL();
 
-    struct sched_param param = {0};
-    param.sched_priority = 2;
-    if (sched_setscheduler(0, SCHED_FIFO, &param) != 0) {
-        ALOGE("Couldn't set SCHED_FIFO");
+    if (setSchedFifo(true) != NO_ERROR) {
+        ALOGW("Couldn't set SCHED_FIFO");
     }
 
     mRenderEngine = factory();
@@ -108,18 +126,31 @@ void RenderEngineThreaded::waitUntilInitialized() const {
     mInitializedCondition.wait(lock, [=] { return mIsInitialized; });
 }
 
-void RenderEngineThreaded::primeCache() {
+std::future<void> RenderEngineThreaded::primeCache() {
+    const auto resultPromise = std::make_shared<std::promise<void>>();
+    std::future<void> resultFuture = resultPromise->get_future();
     ATRACE_CALL();
     // This function is designed so it can run asynchronously, so we do not need to wait
     // for the futures.
     {
         std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([](renderengine::RenderEngine& instance) {
+        mFunctionCalls.push([resultPromise](renderengine::RenderEngine& instance) {
             ATRACE_NAME("REThreaded::primeCache");
+            if (setSchedFifo(false) != NO_ERROR) {
+                ALOGW("Couldn't set SCHED_OTHER for primeCache");
+            }
+
             instance.primeCache();
+            resultPromise->set_value();
+
+            if (setSchedFifo(true) != NO_ERROR) {
+                ALOGW("Couldn't set SCHED_FIFO for primeCache");
+            }
         });
     }
     mCondition.notify_one();
+
+    return resultFuture;
 }
 
 void RenderEngineThreaded::dump(std::string& result) {
