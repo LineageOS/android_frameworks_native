@@ -877,7 +877,7 @@ ProtoExpectedSurfaceFrameStart createProtoExpectedSurfaceFrameStart(int64_t cook
 ProtoActualSurfaceFrameStart createProtoActualSurfaceFrameStart(
         int64_t cookie, int64_t token, int64_t displayFrameToken, pid_t pid, std::string layerName,
         ProtoPresentType presentType, bool onTimeFinish, bool gpuComposition,
-        ProtoJankType jankType, ProtoPredictionType predictionType) {
+        ProtoJankType jankType, ProtoPredictionType predictionType, bool isBuffer) {
     ProtoActualSurfaceFrameStart proto;
     proto.set_cookie(cookie);
     proto.set_token(token);
@@ -889,6 +889,7 @@ ProtoActualSurfaceFrameStart createProtoActualSurfaceFrameStart(
     proto.set_gpu_composition(gpuComposition);
     proto.set_jank_type(jankType);
     proto.set_prediction_type(predictionType);
+    proto.set_is_buffer(isBuffer);
     return proto;
 }
 
@@ -978,6 +979,8 @@ void validateTraceEvent(const ProtoActualSurfaceFrameStart& received,
     EXPECT_EQ(received.jank_type(), source.jank_type());
     ASSERT_TRUE(received.has_prediction_type());
     EXPECT_EQ(received.prediction_type(), source.prediction_type());
+    ASSERT_TRUE(received.has_is_buffer());
+    EXPECT_EQ(received.is_buffer(), source.is_buffer());
 }
 
 void validateTraceEvent(const ProtoFrameEnd& received, const ProtoFrameEnd& source) {
@@ -1154,7 +1157,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
                                                displayFrameToken1, sPidOne, sLayerNameOne,
                                                FrameTimelineEvent::PRESENT_DROPPED, false, false,
                                                FrameTimelineEvent::JANK_NONE,
-                                               FrameTimelineEvent::PREDICTION_VALID);
+                                               FrameTimelineEvent::PREDICTION_VALID, true);
     auto protoDroppedSurfaceFrameActualEnd = createProtoFrameEnd(traceCookie + 2);
 
     auto protoPresentedSurfaceFrameExpectedStart =
@@ -1166,7 +1169,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
                                                displayFrameToken1, sPidOne, sLayerNameOne,
                                                FrameTimelineEvent::PRESENT_ON_TIME, true, false,
                                                FrameTimelineEvent::JANK_NONE,
-                                               FrameTimelineEvent::PREDICTION_VALID);
+                                               FrameTimelineEvent::PREDICTION_VALID, true);
     auto protoPresentedSurfaceFrameActualEnd = createProtoFrameEnd(traceCookie + 4);
 
     // Set up the display frame
@@ -1309,7 +1312,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredDoesNotTraceExpecte
                                                displayFrameToken, sPidOne, sLayerNameOne,
                                                FrameTimelineEvent::PRESENT_UNSPECIFIED, false,
                                                false, FrameTimelineEvent::JANK_UNKNOWN,
-                                               FrameTimelineEvent::PREDICTION_EXPIRED);
+                                               FrameTimelineEvent::PREDICTION_EXPIRED, true);
     auto protoActualSurfaceFrameEnd = createProtoFrameEnd(traceCookie + 1);
 
     // Set up the display frame
@@ -1383,7 +1386,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredDroppedFramesTraced
                                                displayFrameToken, sPidOne, sLayerNameOne,
                                                FrameTimelineEvent::PRESENT_DROPPED, false, false,
                                                FrameTimelineEvent::JANK_NONE,
-                                               FrameTimelineEvent::PREDICTION_EXPIRED);
+                                               FrameTimelineEvent::PREDICTION_EXPIRED, true);
     auto protoActualSurfaceFrameEnd = createProtoFrameEnd(traceCookie + 1);
 
     // Set up the display frame
