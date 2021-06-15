@@ -2052,6 +2052,7 @@ void SurfaceFlinger::onMessageRefresh() {
     }
 
     refreshArgs.earliestPresentTime = mScheduler->getPreviousVsyncFrom(mExpectedPresentTime);
+    refreshArgs.nextInvalidateTime = mEventQueue->nextExpectedInvalidate();
 
     mGeometryInvalid = false;
 
