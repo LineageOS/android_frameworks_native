@@ -680,6 +680,10 @@ void SurfaceFlinger::bootFinished() {
     if (mStartPropertySetThread->join() != NO_ERROR) {
         ALOGE("Join StartPropertySetThread failed!");
     }
+
+    if (mRenderEnginePrimeCacheFuture.valid()) {
+        mRenderEnginePrimeCacheFuture.get();
+    }
     const nsecs_t now = systemTime();
     const nsecs_t duration = now - mBootTime;
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
@@ -807,7 +811,15 @@ void SurfaceFlinger::init() {
     char primeShaderCache[PROPERTY_VALUE_MAX];
     property_get("service.sf.prime_shader_cache", primeShaderCache, "1");
     if (atoi(primeShaderCache)) {
-        getRenderEngine().primeCache();
+        if (setSchedFifo(false) != NO_ERROR) {
+            ALOGW("Can't set SCHED_OTHER for primeCache");
+        }
+
+        mRenderEnginePrimeCacheFuture = getRenderEngine().primeCache();
+
+        if (setSchedFifo(true) != NO_ERROR) {
+            ALOGW("Can't set SCHED_OTHER for primeCache");
+        }
     }
 
     getRenderEngine().onPrimaryDisplaySizeChanged(display->getSize());

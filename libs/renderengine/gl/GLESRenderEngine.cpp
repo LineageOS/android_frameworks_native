@@ -515,9 +515,10 @@ Framebuffer* GLESRenderEngine::getFramebufferForDrawing() {
     return mDrawingBuffer.get();
 }
 
-void GLESRenderEngine::primeCache() {
+std::future<void> GLESRenderEngine::primeCache() {
     ProgramCache::getInstance().primeCache(mInProtectedContext ? mProtectedEGLContext : mEGLContext,
                                            mUseColorManagement, mPrecacheToneMapperShaderOnly);
+    return {};
 }
 
 base::unique_fd GLESRenderEngine::flush() {
