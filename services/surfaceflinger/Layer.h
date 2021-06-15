@@ -1057,6 +1057,10 @@ private:
     // null.
     sp<Layer> getRootLayer();
 
+    // Fills in the touch occlusion mode of the first parent (including this layer) that
+    // hasInputInfo() or no-op if no such parent is found.
+    void fillTouchOcclusionMode(InputWindowInfo& info);
+
     // Fills in the frame and transform info for the InputWindowInfo
     void fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhysicalDisplay);
 
