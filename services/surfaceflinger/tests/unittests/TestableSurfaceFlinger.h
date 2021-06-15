@@ -391,9 +391,9 @@ public:
 
     auto getGPUContextPriority() { return mFlinger->getGPUContextPriority(); }
 
-    auto calculateExtraBufferCount(Fps maxSupportedRefreshRate,
-                                   std::chrono::nanoseconds presentLatency) const {
-        return SurfaceFlinger::calculateExtraBufferCount(maxSupportedRefreshRate, presentLatency);
+    auto calculateMaxAcquiredBufferCount(Fps refreshRate,
+                                         std::chrono::nanoseconds presentLatency) const {
+        return SurfaceFlinger::calculateMaxAcquiredBufferCount(refreshRate, presentLatency);
     }
 
     /* ------------------------------------------------------------------------
