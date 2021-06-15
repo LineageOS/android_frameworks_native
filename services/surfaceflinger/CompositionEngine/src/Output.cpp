@@ -434,7 +434,7 @@ void Output::present(const compositionengine::CompositionRefreshArgs& refreshArg
     devOptRepaintFlash(refreshArgs);
     finishFrame(refreshArgs);
     postFramebuffer();
-    renderCachedSets();
+    renderCachedSets(refreshArgs);
 }
 
 void Output::rebuildLayerStacks(const compositionengine::CompositionRefreshArgs& refreshArgs,
@@ -1312,9 +1312,9 @@ void Output::postFramebuffer() {
     mReleasedLayers.clear();
 }
 
-void Output::renderCachedSets() {
+void Output::renderCachedSets(const CompositionRefreshArgs& refreshArgs) {
     if (mPlanner) {
-        mPlanner->renderCachedSets(getState());
+        mPlanner->renderCachedSets(getState(), refreshArgs.nextInvalidateTime);
     }
 }
 

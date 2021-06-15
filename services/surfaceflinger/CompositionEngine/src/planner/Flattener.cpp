@@ -23,7 +23,7 @@
 #include <compositionengine/impl/planner/Flattener.h>
 #include <compositionengine/impl/planner/LayerState.h>
 
-#include <utils/Trace.h>
+#include <gui/TraceUtils.h>
 
 using time_point = std::chrono::steady_clock::time_point;
 using namespace std::chrono_literals;
@@ -60,9 +60,12 @@ bool isSameStack(const std::vector<const LayerState*>& incomingLayers,
 
 } // namespace
 
-Flattener::Flattener(renderengine::RenderEngine& renderEngine, bool enableHolePunch)
+Flattener::Flattener(
+        renderengine::RenderEngine& renderEngine, bool enableHolePunch,
+        std::optional<CachedSetRenderSchedulingTunables> cachedSetRenderSchedulingTunables)
       : mRenderEngine(renderEngine),
         mEnableHolePunch(enableHolePunch),
+        mCachedSetRenderSchedulingTunables(cachedSetRenderSchedulingTunables),
         mTexturePool(mRenderEngine) {
     const int timeoutInMs =
             base::GetIntProperty(std::string("debug.sf.layer_caching_active_layer_timeout_ms"), 0);
@@ -105,10 +108,43 @@ NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& lay
     return hash;
 }
 
-void Flattener::renderCachedSets(const OutputCompositionState& outputState) {
+void Flattener::renderCachedSets(
+        const OutputCompositionState& outputState,
+        std::optional<std::chrono::steady_clock::time_point> renderDeadline) {
     ATRACE_CALL();
-    if (!mNewCachedSet || mNewCachedSet->hasRenderedBuffer()) {
+
+    if (!mNewCachedSet) {
         return;
+    }
+
+    // Ensure that a cached set has a valid buffer first
+    if (mNewCachedSet->hasRenderedBuffer()) {
+        ATRACE_NAME("mNewCachedSet->hasRenderedBuffer()");
+        return;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+
+    // If we have a render deadline, and the flattener is configured to skip rendering if we don't
+    // have enough time, then we skip rendering the cached set if we think that we'll steal too much
+    // time from the next frame.
+    if (renderDeadline && mCachedSetRenderSchedulingTunables) {
+        if (const auto estimatedRenderFinish =
+                    now + mCachedSetRenderSchedulingTunables->cachedSetRenderDuration;
+            estimatedRenderFinish > *renderDeadline) {
+            mNewCachedSet->incrementSkipCount();
+
+            if (mNewCachedSet->getSkipCount() <=
+                mCachedSetRenderSchedulingTunables->maxDeferRenderAttempts) {
+                ATRACE_FORMAT("DeadlinePassed: exceeded deadline by: %d us",
+                              std::chrono::duration_cast<std::chrono::microseconds>(
+                                      estimatedRenderFinish - *renderDeadline)
+                                      .count());
+                return;
+            } else {
+                ATRACE_NAME("DeadlinePassed: exceeded max skips");
+            }
+        }
     }
 
     mNewCachedSet->render(mRenderEngine, mTexturePool, outputState);
