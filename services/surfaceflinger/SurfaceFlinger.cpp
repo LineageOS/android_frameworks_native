@@ -63,6 +63,7 @@
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
 #include <private/gui/SyncFeatures.h>
+#include <processgroup/processgroup.h>
 #include <renderengine/RenderEngine.h>
 #include <sys/types.h>
 #include <ui/ColorSpace.h>
@@ -785,6 +786,12 @@ void SurfaceFlinger::init() {
                                     ? renderengine::RenderEngine::ContextPriority::REALTIME
                                     : renderengine::RenderEngine::ContextPriority::MEDIUM)
                     .build()));
+
+    // Set SF main policy after initializing RenderEngine which has its own policy.
+    if (!SetTaskProfiles(0, {"SFMainPolicy"})) {
+        ALOGW("Failed to set main task profile");
+    }
+
     mCompositionEngine->setTimeStats(mTimeStats);
     mCompositionEngine->setHwComposer(getFactory().createHWComposer(mHwcServiceName));
     mCompositionEngine->getHwComposer().setCallback(this);
