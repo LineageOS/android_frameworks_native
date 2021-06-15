@@ -95,7 +95,10 @@ HalResult<void> HalResult<void>::fromStatus(status_t status) {
 }
 
 HalResult<void> HalResult<void>::fromStatus(binder::Status status) {
-    if (status.exceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
+    if (status.exceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION ||
+        status.transactionError() == android::UNKNOWN_TRANSACTION) {
+        // UNKNOWN_TRANSACTION means the HAL implementation is an older version, so this is
+        // the same as the operation being unsupported by this HAL. Should not retry.
         return HalResult<void>::unsupported();
     }
     if (status.isOk()) {

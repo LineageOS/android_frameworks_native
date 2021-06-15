@@ -189,8 +189,7 @@ TEST_F(VibratorHalWrapperAidlTest, TestOnWithoutCallbackSupport) {
                 .WillRepeatedly(vibrator::TriggerSchedulerCallback());
         EXPECT_CALL(*mMockHal.get(), on(Eq(11), _))
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(
-                        Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+                .WillRepeatedly(Return(Status::fromStatusT(UNKNOWN_TRANSACTION)));
         EXPECT_CALL(*mMockHal.get(), on(Eq(12), _))
                 .Times(Exactly(1))
                 .WillRepeatedly(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)));
@@ -228,8 +227,7 @@ TEST_F(VibratorHalWrapperAidlTest, TestSetAmplitude) {
         EXPECT_CALL(*mMockHal.get(), setAmplitude(Eq(0.1f))).Times(Exactly(1));
         EXPECT_CALL(*mMockHal.get(), setAmplitude(Eq(0.2f)))
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(
-                        Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+                .WillRepeatedly(Return(Status::fromStatusT(UNKNOWN_TRANSACTION)));
         EXPECT_CALL(*mMockHal.get(), setAmplitude(Eq(0.5f)))
                 .Times(Exactly(1))
                 .WillRepeatedly(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)));
@@ -265,8 +263,7 @@ TEST_F(VibratorHalWrapperAidlTest, TestAlwaysOnEnable) {
         EXPECT_CALL(*mMockHal.get(),
                     alwaysOnEnable(Eq(2), Eq(Effect::TICK), Eq(EffectStrength::MEDIUM)))
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(
-                        Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+                .WillRepeatedly(Return(Status::fromStatusT(UNKNOWN_TRANSACTION)));
         EXPECT_CALL(*mMockHal.get(),
                     alwaysOnEnable(Eq(3), Eq(Effect::POP), Eq(EffectStrength::STRONG)))
                 .Times(Exactly(1))
@@ -397,8 +394,7 @@ TEST_F(VibratorHalWrapperAidlTest, TestGetInfoCachesResult) {
                     Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
     EXPECT_CALL(*mMockHal.get(), getSupportedPrimitives(_))
             .Times(Exactly(1))
-            .WillRepeatedly(
-                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+            .WillRepeatedly(Return(Status::fromStatusT(UNKNOWN_TRANSACTION)));
     EXPECT_CALL(*mMockHal.get(), getFrequencyMinimum(_))
             .Times(Exactly(1))
             .WillRepeatedly(DoAll(SetArgPointee<0>(F_MIN), Return(Status())));
@@ -411,8 +407,7 @@ TEST_F(VibratorHalWrapperAidlTest, TestGetInfoCachesResult) {
                     Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
     EXPECT_CALL(*mMockHal.get(), getBandwidthAmplitudeMap(_))
             .Times(Exactly(1))
-            .WillRepeatedly(
-                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+            .WillRepeatedly(Return(Status::fromStatusT(UNKNOWN_TRANSACTION)));
     EXPECT_CALL(*mMockHal.get(), getSupportedBraking(_))
             .Times(Exactly(1))
             .WillRepeatedly(
@@ -451,8 +446,7 @@ TEST_F(VibratorHalWrapperAidlTest, TestPerformEffectWithCallbackSupport) {
                         DoAll(SetArgPointee<3>(1000), TriggerCallbackInArg2(), Return(Status())));
         EXPECT_CALL(*mMockHal.get(), perform(Eq(Effect::POP), Eq(EffectStrength::MEDIUM), _, _))
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(
-                        Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+                .WillRepeatedly(Return(Status::fromStatusT(UNKNOWN_TRANSACTION)));
         EXPECT_CALL(*mMockHal.get(), perform(Eq(Effect::THUD), Eq(EffectStrength::STRONG), _, _))
                 .Times(Exactly(1))
                 .WillRepeatedly(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)));
@@ -549,8 +543,7 @@ TEST_F(VibratorHalWrapperAidlTest, TestPerformComposedEffect) {
                 .WillRepeatedly(DoAll(TriggerCallbackInArg1(), Return(Status())));
         EXPECT_CALL(*mMockHal.get(), compose(Eq(singleEffect), _))
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(
-                        Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+                .WillRepeatedly(Return(Status::fromStatusT(UNKNOWN_TRANSACTION)));
         EXPECT_CALL(*mMockHal.get(), compose(Eq(multipleEffects), _))
                 .Times(Exactly(1))
                 .WillRepeatedly(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)));

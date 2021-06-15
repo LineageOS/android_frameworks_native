@@ -53,7 +53,7 @@ public:
                        EGLSurface protectedPlaceholder);
     ~SkiaGLRenderEngine() override EXCLUDES(mRenderingMutex);
 
-    void primeCache() override;
+    std::future<void> primeCache() override;
     status_t drawLayers(const DisplaySettings& display,
                         const std::vector<const LayerSettings*>& layers,
                         const std::shared_ptr<ExternalTexture>& buffer,
@@ -126,11 +126,9 @@ private:
     // Number of external holders of ExternalTexture references, per GraphicBuffer ID.
     std::unordered_map<GraphicBufferId, int32_t> mGraphicBufferExternalRefs
             GUARDED_BY(mRenderingMutex);
-    // Cache of GL textures that we'll store per GraphicBuffer ID, sliced by GPU context.
+    // Cache of GL textures that we'll store per GraphicBuffer ID, shared between GPU contexts.
     std::unordered_map<GraphicBufferId, std::shared_ptr<AutoBackendTexture::LocalRef>> mTextureCache
             GUARDED_BY(mRenderingMutex);
-    std::unordered_map<GraphicBufferId, std::shared_ptr<AutoBackendTexture::LocalRef>>
-            mProtectedTextureCache GUARDED_BY(mRenderingMutex);
     std::unordered_map<LinearEffect, sk_sp<SkRuntimeEffect>, LinearEffectHasher> mRuntimeEffects;
 
     StretchShaderFactory mStretchShaderFactory;
