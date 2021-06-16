@@ -4920,6 +4920,9 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         // Update display while dozing
         getHwComposer().setPowerMode(displayId, mode);
         if (isDisplayActiveLocked(display) && currentMode == hal::PowerMode::DOZE_SUSPEND) {
+            ALOGI("Force repainting for DOZE_SUSPEND -> DOZE or ON.");
+            mVisibleRegionsDirty = true;
+            scheduleRepaint();
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, refreshRate);
         }
