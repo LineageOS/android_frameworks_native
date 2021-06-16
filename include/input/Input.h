@@ -24,7 +24,9 @@
  */
 
 #include <android/input.h>
+#ifdef __linux__
 #include <android/os/IInputConstants.h>
+#endif
 #include <math.h>
 #include <stdint.h>
 #include <ui/Transform.h>
@@ -220,12 +222,16 @@ enum {
     POLICY_FLAG_GESTURE = 0x00000008,
 
     POLICY_FLAG_RAW_MASK = 0x0000ffff,
-
+#ifdef __linux__
     POLICY_FLAG_INPUTFILTER_TRUSTED = android::os::IInputConstants::POLICY_FLAG_INPUTFILTER_TRUSTED,
 
     POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY =
             android::os::IInputConstants::POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY,
+#else
+    POLICY_FLAG_INPUTFILTER_TRUSTED = 0x10000,
 
+    POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY = 0x20000,
+#endif
     /* These flags are set by the input dispatcher. */
 
     // Indicates that the input event was injected.
