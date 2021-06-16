@@ -194,8 +194,6 @@ Scheduler::VsyncSchedule Scheduler::createVsyncSchedule(bool supportKernelTimer)
 
 std::unique_ptr<LayerHistory> Scheduler::createLayerHistory(
         const scheduler::RefreshRateConfigs& configs) {
-    if (!configs.canSwitch()) return nullptr;
-
     return std::make_unique<scheduler::LayerHistory>(configs);
 }
 
@@ -579,8 +577,6 @@ void Scheduler::setIgnorePresentFences(bool ignore) {
 }
 
 void Scheduler::registerLayer(Layer* layer) {
-    if (!mLayerHistory) return;
-
     scheduler::LayerHistory::LayerVoteType voteType;
 
     if (!mOptions.useContentDetection ||
@@ -600,26 +596,22 @@ void Scheduler::registerLayer(Layer* layer) {
 }
 
 void Scheduler::deregisterLayer(Layer* layer) {
-    if (mLayerHistory) {
-        mLayerHistory->deregisterLayer(layer);
-    }
+    mLayerHistory->deregisterLayer(layer);
 }
 
 void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime,
                                    LayerHistory::LayerUpdateType updateType) {
-    if (mLayerHistory) {
+    if (mRefreshRateConfigs.canSwitch()) {
         mLayerHistory->record(layer, presentTime, systemTime(), updateType);
     }
 }
 
 void Scheduler::setModeChangePending(bool pending) {
-    if (mLayerHistory) {
-        mLayerHistory->setModeChangePending(pending);
-    }
+    mLayerHistory->setModeChangePending(pending);
 }
 
 void Scheduler::chooseRefreshRateForContent() {
-    if (!mLayerHistory) return;
+    if (!mRefreshRateConfigs.canSwitch()) return;
 
     ATRACE_CALL();
 
@@ -630,9 +622,6 @@ void Scheduler::chooseRefreshRateForContent() {
     bool frameRateOverridesChanged;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        if (mFeatures.contentRequirements == summary) {
-            return;
-        }
         mFeatures.contentRequirements = summary;
 
         newModeId = calculateRefreshRateModeId(&consideredSignals);
@@ -691,9 +680,7 @@ void Scheduler::setDisplayPowerState(bool normal) {
 
     // Display Power event will boost the refresh rate to performance.
     // Clear Layer History to get fresh FPS detection
-    if (mLayerHistory) {
-        mLayerHistory->clear();
-    }
+    mLayerHistory->clear();
 }
 
 void Scheduler::kernelIdleTimerCallback(TimerState state) {
@@ -732,9 +719,7 @@ void Scheduler::touchTimerCallback(TimerState state) {
     // NOTE: Instead of checking all the layers, we should be checking the layer
     // that is currently on top. b/142507166 will give us this capability.
     if (handleTimerStateChanged(&mFeatures.touch, touch)) {
-        if (mLayerHistory) {
-            mLayerHistory->clear();
-        }
+        mLayerHistory->clear();
     }
     ATRACE_INT("TouchState", static_cast<int>(touch));
 }
@@ -908,9 +893,7 @@ void Scheduler::onDisplayRefreshed(nsecs_t timestamp) {
 }
 
 void Scheduler::onPrimaryDisplayAreaChanged(uint32_t displayArea) {
-    if (mLayerHistory) {
-        mLayerHistory->setDisplayArea(displayArea);
-    }
+    mLayerHistory->setDisplayArea(displayArea);
 }
 
 void Scheduler::setPreferredRefreshRateForUid(FrameRateOverride frameRateOverride) {

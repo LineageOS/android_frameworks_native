@@ -2382,6 +2382,16 @@ void Layer::fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhy
     info.touchableRegion = inputTransform.transform(info.touchableRegion);
 }
 
+void Layer::fillTouchOcclusionMode(InputWindowInfo& info) {
+    sp<Layer> p = this;
+    while (p != nullptr && !p->hasInputInfo()) {
+        p = p->mDrawingParent.promote();
+    }
+    if (p != nullptr) {
+        info.touchOcclusionMode = p->mDrawingState.inputInfo.touchOcclusionMode;
+    }
+}
+
 InputWindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     if (!hasInputInfo()) {
         mDrawingState.inputInfo.name = getName();
@@ -2419,6 +2429,7 @@ InputWindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     // anything.
     info.visible = hasInputInfo() ? canReceiveInput() : isVisible();
     info.alpha = getAlpha();
+    fillTouchOcclusionMode(info);
 
     auto cropLayer = mDrawingState.touchableRegionCrop.promote();
     if (info.replaceTouchableRegionWithCrop) {
