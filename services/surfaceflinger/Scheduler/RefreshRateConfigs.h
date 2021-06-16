@@ -250,6 +250,10 @@ public:
         bool touch = false;
         // True if the system hasn't seen any buffers posted to layers recently.
         bool idle = false;
+
+        bool operator==(const GlobalSignals& other) const {
+            return touch == other.touch && idle == other.idle;
+        }
     };
 
     // Returns the refresh rate that fits best to the given layers.
@@ -350,6 +354,15 @@ private:
             const std::function<bool(const RefreshRate&)>& shouldAddRefreshRate,
             std::vector<const RefreshRate*>* outRefreshRates) REQUIRES(mLock);
 
+    std::optional<RefreshRate> getCachedBestRefreshRate(const std::vector<LayerRequirement>& layers,
+                                                        const GlobalSignals& globalSignals,
+                                                        GlobalSignals* outSignalsConsidered) const
+            REQUIRES(mLock);
+
+    RefreshRate getBestRefreshRateLocked(const std::vector<LayerRequirement>& layers,
+                                         const GlobalSignals& globalSignals,
+                                         GlobalSignals* outSignalsConsidered) const REQUIRES(mLock);
+
     // Returns the refresh rate with the highest score in the collection specified from begin
     // to end. If there are more than one with the same highest refresh rate, the first one is
     // returned.
@@ -414,6 +427,15 @@ private:
 
     const bool mEnableFrameRateOverride;
     bool mSupportsFrameRateOverride;
+
+    struct GetBestRefreshRateInvocation {
+        std::vector<LayerRequirement> layerRequirements;
+        GlobalSignals globalSignals;
+        GlobalSignals outSignalsConsidered;
+        RefreshRate resultingBestRefreshRate;
+    };
+    mutable std::optional<GetBestRefreshRateInvocation> lastBestRefreshRateInvocation
+            GUARDED_BY(mLock);
 };
 
 } // namespace android::scheduler

@@ -63,6 +63,7 @@
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
 #include <private/gui/SyncFeatures.h>
+#include <processgroup/processgroup.h>
 #include <renderengine/RenderEngine.h>
 #include <sys/types.h>
 #include <ui/ColorSpace.h>
@@ -785,6 +786,12 @@ void SurfaceFlinger::init() {
                                     ? renderengine::RenderEngine::ContextPriority::REALTIME
                                     : renderengine::RenderEngine::ContextPriority::MEDIUM)
                     .build()));
+
+    // Set SF main policy after initializing RenderEngine which has its own policy.
+    if (!SetTaskProfiles(0, {"SFMainPolicy"})) {
+        ALOGW("Failed to set main task profile");
+    }
+
     mCompositionEngine->setTimeStats(mTimeStats);
     mCompositionEngine->setHwComposer(getFactory().createHWComposer(mHwcServiceName));
     mCompositionEngine->getHwComposer().setCallback(this);
@@ -1151,7 +1158,18 @@ void SurfaceFlinger::setActiveModeInternal() {
         // have been already updated with the upcoming active mode.
         return;
     }
-    const Fps oldRefreshRate = display->getActiveMode()->getFps();
+
+    if (display->getActiveMode()->getSize() != upcomingMode->getSize()) {
+        auto& state = mCurrentState.displays.editValueFor(display->getDisplayToken());
+        // We need to generate new sequenceId in order to recreate the display (and this
+        // way the framebuffer).
+        state.sequenceId = DisplayDeviceState{}.sequenceId;
+        state.physical->activeMode = upcomingMode;
+        processDisplayChangesLocked();
+
+        // processDisplayChangesLocked will update all necessary components so we're done here.
+        return;
+    }
 
     std::lock_guard<std::mutex> lock(mActiveModeLock);
     mRefreshRateConfigs->setCurrentModeId(mUpcomingActiveMode.modeId);
@@ -1161,9 +1179,6 @@ void SurfaceFlinger::setActiveModeInternal() {
 
     mRefreshRateStats->setRefreshRate(refreshRate);
 
-    if (!refreshRate.equalsWithMargin(oldRefreshRate)) {
-        mTimeStats->incrementRefreshRateSwitches();
-    }
     updatePhaseConfiguration(refreshRate);
     ATRACE_INT("ActiveConfigFPS", refreshRate.getValue());
 
@@ -2052,6 +2067,7 @@ void SurfaceFlinger::onMessageRefresh() {
     }
 
     refreshArgs.earliestPresentTime = mScheduler->getPreviousVsyncFrom(mExpectedPresentTime);
+    refreshArgs.nextInvalidateTime = mEventQueue->nextExpectedInvalidate();
 
     mGeometryInvalid = false;
 
@@ -2820,7 +2836,10 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
                 mRefreshRateConfigs->updateDisplayModes(currentState.physical->supportedModes,
                                                         currentState.physical->activeMode->getId());
                 mVsyncConfiguration->reset();
-                updatePhaseConfiguration(mRefreshRateConfigs->getCurrentRefreshRate().getFps());
+                const Fps refreshRate = currentState.physical->activeMode->getFps();
+                updatePhaseConfiguration(refreshRate);
+                mRefreshRateStats->setRefreshRate(refreshRate);
+
                 if (mRefreshRateOverlay) {
                     mRefreshRateOverlay->reset();
                 }
