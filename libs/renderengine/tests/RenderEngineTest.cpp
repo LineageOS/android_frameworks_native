@@ -43,6 +43,7 @@ constexpr int DEFAULT_DISPLAY_OFFSET = 64;
 constexpr bool WRITE_BUFFER_TO_FILE_ON_FAILURE = false;
 
 namespace android {
+namespace renderengine {
 
 class RenderEngineFactory {
 public:
@@ -1779,13 +1780,6 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_translucentCasterWithAlpha) {
 }
 
 TEST_P(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
-    const auto& renderEngineFactory = GetParam();
-
-    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
-        // GLES-specific test
-        return;
-    }
-
     initializeRenderEngine();
 
     renderengine::DisplaySettings settings;
@@ -1810,53 +1804,9 @@ TEST_P(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
         sync_wait(fd, -1);
     }
     // Only cleanup the first time.
-    EXPECT_TRUE(mRE->cleanupPostRender(
-            renderengine::RenderEngine::CleanupMode::CLEAN_OUTPUT_RESOURCES));
-    EXPECT_FALSE(mRE->cleanupPostRender(
-            renderengine::RenderEngine::CleanupMode::CLEAN_OUTPUT_RESOURCES));
-}
-
-TEST_P(RenderEngineTest, cleanupPostRender_whenCleaningAll_replacesTextureMemory) {
-    const auto& renderEngineFactory = GetParam();
-
-    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
-        // GLES-specific test
-        return;
-    }
-
-    initializeRenderEngine();
-
-    renderengine::DisplaySettings settings;
-    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
-    settings.physicalDisplay = fullscreenRect();
-    settings.clip = fullscreenRect();
-
-    std::vector<const renderengine::LayerSettings*> layers;
-    renderengine::LayerSettings layer;
-    layer.geometry.boundaries = fullscreenRect().toFloatRect();
-    BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
-    layer.alpha = 1.0;
-    layers.push_back(&layer);
-
-    base::unique_fd fence;
-    mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd(), &fence);
-
-    const int fd = fence.get();
-    if (fd >= 0) {
-        sync_wait(fd, -1);
-    }
-
-    uint64_t bufferId = layer.source.buffer.buffer->getBuffer()->getId();
-    uint32_t texName = layer.source.buffer.textureName;
-    EXPECT_TRUE(mGLESRE->isImageCachedForTesting(bufferId));
-    EXPECT_EQ(bufferId, mGLESRE->getBufferIdForTextureNameForTesting(texName));
-
-    EXPECT_TRUE(mRE->cleanupPostRender(renderengine::RenderEngine::CleanupMode::CLEAN_ALL));
-
-    // Now check that our view of memory is good.
-    EXPECT_FALSE(mGLESRE->isImageCachedForTesting(bufferId));
-    EXPECT_EQ(std::nullopt, mGLESRE->getBufferIdForTextureNameForTesting(bufferId));
-    EXPECT_TRUE(mGLESRE->isTextureNameKnownForTesting(texName));
+    EXPECT_FALSE(mRE->canSkipPostRenderCleanup());
+    mRE->cleanupPostRender();
+    EXPECT_TRUE(mRE->canSkipPostRenderCleanup());
 }
 
 TEST_P(RenderEngineTest, testRoundedCornersCrop) {
@@ -2080,6 +2030,7 @@ TEST_P(RenderEngineTest, test_isOpaque) {
         expectBufferColor(rect, 0, 255, 0, 255);
     }
 }
+} // namespace renderengine
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
