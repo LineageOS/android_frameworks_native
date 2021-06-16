@@ -25,6 +25,9 @@
 
 #include "android-base/macros.h"
 
+#include <mutex>
+#include <vector>
+
 namespace android {
 namespace renderengine {
 namespace skia {
@@ -36,13 +39,50 @@ namespace skia {
  */
 class AutoBackendTexture {
 public:
+    // Manager class that is responsible for the immediate or deferred cleanup
+    // of AutoBackendTextures.  Clients of AutoBackendTexture are responsible for
+    // ensuring that access to this class is thread safe.  Clients also control when
+    // the resources are reclaimed by setting the manager into deferred mode.
+    class CleanupManager {
+    public:
+        CleanupManager() = default;
+        void add(AutoBackendTexture* abt) {
+            if (mDeferCleanup) {
+                mCleanupList.push_back(abt);
+            } else {
+                delete abt;
+            }
+        }
+
+        void setDeferredStatus(bool enabled) { mDeferCleanup = enabled; }
+
+        bool isEmpty() const { return mCleanupList.empty(); }
+
+        // If any AutoBackedTextures were added while in deferred mode this method
+        // will ensure they are deleted before returning.  It must only be called
+        // on the thread where the GPU context that created the AutoBackedTexture
+        // is active.
+        void cleanup() {
+            for (auto abt : mCleanupList) {
+                delete abt;
+            }
+            mCleanupList.clear();
+        }
+
+    private:
+        DISALLOW_COPY_AND_ASSIGN(CleanupManager);
+        bool mDeferCleanup = false;
+        std::vector<AutoBackendTexture*> mCleanupList;
+    };
+
     // Local reference that supports RAII-style management of an AutoBackendTexture
     // AutoBackendTexture by itself can't be managed in a similar fashion because
     // of shared ownership with Skia objects, so we wrap it here instead.
     class LocalRef {
     public:
-        LocalRef(GrDirectContext* context, AHardwareBuffer* buffer, bool isOutputBuffer) {
-            mTexture = new AutoBackendTexture(context, buffer, isOutputBuffer);
+        LocalRef(GrDirectContext* context, AHardwareBuffer* buffer, bool isOutputBuffer,
+                 CleanupManager& cleanupMgr) {
+            mTexture = new AutoBackendTexture(context, buffer, isOutputBuffer, cleanupMgr);
             mTexture->ref();
         }
 
@@ -75,10 +115,11 @@ public:
 
 private:
     // Creates a GrBackendTexture whose contents come from the provided buffer.
-    AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer, bool isOutputBuffer);
+    AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer, bool isOutputBuffer,
+                       CleanupManager& cleanupMgr);
 
     // The only way to invoke dtor is with unref, when mUsageCount is 0.
-    ~AutoBackendTexture() {}
+    ~AutoBackendTexture();
 
     void ref() { mUsageCount++; }
 
@@ -99,6 +140,8 @@ private:
     GrAHardwareBufferUtils::DeleteImageProc mDeleteProc;
     GrAHardwareBufferUtils::UpdateImageProc mUpdateProc;
     GrAHardwareBufferUtils::TexImageCtx mImageCtx;
+
+    CleanupManager& mCleanupMgr;
 
     static void releaseSurfaceProc(SkSurface::ReleaseContext releaseContext);
     static void releaseImageProc(SkImage::ReleaseContext releaseContext);
