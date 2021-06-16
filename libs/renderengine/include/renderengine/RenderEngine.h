@@ -114,25 +114,6 @@ public:
     virtual void genTextures(size_t count, uint32_t* names) = 0;
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
 
-    enum class CleanupMode {
-        CLEAN_OUTPUT_RESOURCES,
-        CLEAN_ALL,
-    };
-    // Clean-up method that should be called on the main thread after the
-    // drawFence returned by drawLayers fires. This method will free up
-    // resources used by the most recently drawn frame. If the frame is still
-    // being drawn, then this call is silently ignored.
-    //
-    // If mode is CLEAN_OUTPUT_RESOURCES, then only resources related to the
-    // output framebuffer are cleaned up, including the sibling texture.
-    //
-    // If mode is CLEAN_ALL, then we also cleanup resources related to any input
-    // buffers.
-    //
-    // Returns true if resources were cleaned up, and false if we didn't need to
-    // do any work.
-    virtual bool cleanupPostRender(CleanupMode mode = CleanupMode::CLEAN_OUTPUT_RESOURCES) = 0;
-
     // queries that are required to be thread safe
     virtual size_t getMaxTextureSize() const = 0;
     virtual size_t getMaxViewportDims() const = 0;
@@ -186,6 +167,13 @@ public:
                                 const std::shared_ptr<ExternalTexture>& buffer,
                                 const bool useFramebufferCache, base::unique_fd&& bufferFence,
                                 base::unique_fd* drawFence) = 0;
+
+    // Clean-up method that should be called on the main thread after the
+    // drawFence returned by drawLayers fires. This method will free up
+    // resources used by the most recently drawn frame. If the frame is still
+    // being drawn, then the implementation is free to silently ignore this call.
+    virtual void cleanupPostRender() = 0;
+
     virtual void cleanFramebufferCache() = 0;
     // Returns the priority this context was actually created with. Note: this may not be
     // the same as specified at context creation time, due to implementation limits on the
@@ -234,8 +222,15 @@ protected:
     // that's conflict serializable, i.e. unmap a buffer should never occur before binding the
     // buffer if the caller called mapExternalTextureBuffer before calling unmap.
     virtual void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) = 0;
+
+    // A thread safe query to determine if any post rendering cleanup is necessary.  Returning true
+    // is a signal that calling the postRenderCleanup method would be a no-op and that callers can
+    // avoid any thread synchronization that may be required by directly calling postRenderCleanup.
+    virtual bool canSkipPostRenderCleanup() const = 0;
+
     friend class ExternalTexture;
     friend class threaded::RenderEngineThreaded;
+    friend class RenderEngineTest_cleanupPostRender_cleansUpOnce_Test;
     const RenderEngineType mRenderEngineType;
 };
 
