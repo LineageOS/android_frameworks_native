@@ -51,9 +51,18 @@ protected:
 
     SchedulerTest();
 
-    const scheduler::RefreshRateConfigs
-            mConfigs{{DisplayMode::Builder(0).setVsyncPeriod(16'666'667).setGroup(0).build()},
-                     DisplayModeId(0)};
+    const DisplayModePtr mode60 = DisplayMode::Builder(0)
+                                          .setId(DisplayModeId(0))
+                                          .setVsyncPeriod(Fps(60.f).getPeriodNsecs())
+                                          .setGroup(0)
+                                          .build();
+    const DisplayModePtr mode120 = DisplayMode::Builder(1)
+                                           .setId(DisplayModeId(1))
+                                           .setVsyncPeriod(Fps(120.f).getPeriodNsecs())
+                                           .setGroup(0)
+                                           .build();
+
+    scheduler::RefreshRateConfigs mConfigs{{mode60}, mode60->getId()};
 
     mock::SchedulerCallback mSchedulerCallback;
 
@@ -149,15 +158,14 @@ TEST_F(SchedulerTest, validConnectionHandle) {
     EXPECT_EQ(kEventConnections, mScheduler->getEventThreadConnectionCount(mConnectionHandle));
 }
 
-TEST_F(SchedulerTest, noLayerHistory) {
-    // Layer history should not be created if there is a single config.
-    ASSERT_FALSE(mScheduler->hasLayerHistory());
-
+TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSupported) {
+    // The layer is registered at creation time and deregistered at destruction time.
     sp<mock::MockLayer> layer = sp<mock::MockLayer>::make(mFlinger.flinger());
 
-    // Content detection should be no-op.
-    mScheduler->registerLayer(layer.get());
+    // recordLayerHistory should be a noop
+    ASSERT_EQ(static_cast<size_t>(0), mScheduler->getNumActiveLayers());
     mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
+    ASSERT_EQ(static_cast<size_t>(0), mScheduler->getNumActiveLayers());
 
     constexpr bool kPowerStateNormal = true;
     mScheduler->setDisplayPowerState(kPowerStateNormal);
@@ -167,6 +175,18 @@ TEST_F(SchedulerTest, noLayerHistory) {
 
     EXPECT_CALL(mSchedulerCallback, changeRefreshRate(_, _)).Times(0);
     mScheduler->chooseRefreshRateForContent();
+}
+
+TEST_F(SchedulerTest, updateDisplayModes) {
+    ASSERT_EQ(static_cast<size_t>(0), mScheduler->layerHistorySize());
+    sp<mock::MockLayer> layer = sp<mock::MockLayer>::make(mFlinger.flinger());
+    ASSERT_EQ(static_cast<size_t>(1), mScheduler->layerHistorySize());
+
+    mConfigs.updateDisplayModes({mode60, mode120}, /* activeMode */ mode60->getId());
+
+    ASSERT_EQ(static_cast<size_t>(0), mScheduler->getNumActiveLayers());
+    mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
+    ASSERT_EQ(static_cast<size_t>(1), mScheduler->getNumActiveLayers());
 }
 
 TEST_F(SchedulerTest, testDispatchCachedReportedMode) {
@@ -198,6 +218,27 @@ TEST_F(SchedulerTest, calculateExtraBufferCount) {
     EXPECT_EQ(1, mFlinger.calculateExtraBufferCount(Fps(60), 40ms));
 
     EXPECT_EQ(0, mFlinger.calculateExtraBufferCount(Fps(60), 10ms));
+}
+
+MATCHER(Is120Hz, "") {
+    return arg.getFps().equalsWithMargin(Fps(120.f));
+}
+
+TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
+    mConfigs.updateDisplayModes({mode60, mode120}, /* activeMode */ mode60->getId());
+
+    sp<mock::MockLayer> layer = sp<mock::MockLayer>::make(mFlinger.flinger());
+
+    mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
+
+    constexpr bool kPowerStateNormal = true;
+    mScheduler->setDisplayPowerState(kPowerStateNormal);
+
+    constexpr uint32_t kDisplayArea = 999'999;
+    mScheduler->onPrimaryDisplayAreaChanged(kDisplayArea);
+
+    EXPECT_CALL(mSchedulerCallback, changeRefreshRate(Is120Hz(), _)).Times(1);
+    mScheduler->chooseRefreshRateForContent();
 }
 
 } // namespace android

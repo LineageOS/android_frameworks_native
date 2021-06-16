@@ -98,6 +98,7 @@ public:
         mDrawFence = nullptr;
         mBlurLayer = nullptr;
         mHolePunchLayer = nullptr;
+        mSkipCount = 0;
 
         mLayers.insert(mLayers.end(), other.mLayers.cbegin(), other.mLayers.cend());
         Region boundingRegion;
@@ -107,6 +108,8 @@ public:
         mVisibleRegion.orSelf(other.mVisibleRegion);
     }
     void incrementAge() { ++mAge; }
+    void incrementSkipCount() { mSkipCount++; }
+    size_t getSkipCount() { return mSkipCount; }
 
     // Renders the cached set with the supplied output composition state.
     void render(renderengine::RenderEngine& re, TexturePool& texturePool,
@@ -155,6 +158,7 @@ private:
     Rect mBounds = Rect::EMPTY_RECT;
     Region mVisibleRegion;
     size_t mAge = 0;
+    size_t mSkipCount = 0;
 
     // TODO(b/190411067): This is a shared pointer only because CachedSets are copied into different
     // containers in the Flattener. Logically this should have unique ownership otherwise.

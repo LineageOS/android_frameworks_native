@@ -693,6 +693,7 @@ void SurfaceFrame::traceActuals(int64_t displayFrameToken) const {
         actualSurfaceFrameStartEvent->set_gpu_composition(mGpuComposition);
         actualSurfaceFrameStartEvent->set_jank_type(jankTypeBitmaskToProto(mJankType));
         actualSurfaceFrameStartEvent->set_prediction_type(toProto(mPredictionState));
+        actualSurfaceFrameStartEvent->set_is_buffer(mIsBuffer);
     });
 
     // Actual timeline end

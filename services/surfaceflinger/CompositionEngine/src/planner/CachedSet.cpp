@@ -277,6 +277,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
         mOutputSpace.orientation = outputState.framebufferSpace.orientation;
         mOutputDataspace = outputDataspace;
         mOrientation = orientation;
+        mSkipCount = 0;
     } else {
         mTexture.reset();
     }
