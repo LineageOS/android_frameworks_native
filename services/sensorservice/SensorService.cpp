@@ -1626,19 +1626,17 @@ void SensorService::onProximityActiveLocked(bool isActive) {
 }
 
 void SensorService::notifyProximityStateLocked(
-        const std::vector<sp<ProximityActiveListener>>& listnrs) {
-    std::async(
-        std::launch::async,
-        [](uint64_t mySeq, bool isActive, std::vector<sp<ProximityActiveListener>> listeners) {
-            while (completedCallbackSeq.load() != mySeq - 1)
-                std::this_thread::sleep_for(1ms);
-            for (auto& listener : listeners)
-                listener->onProximityActive(isActive);
-            completedCallbackSeq++;
-        },
-        ++curProxCallbackSeq, mProximityActiveCount > 0,
-        listnrs /* (this is meant to be a copy) */
-    );
+        const std::vector<sp<ProximityActiveListener>>& listeners) {
+    const bool isActive = mProximityActiveCount > 0;
+    const uint64_t mySeq = ++curProxCallbackSeq;
+    std::thread t([isActive, mySeq, listenersCopy = listeners]() {
+        while (completedCallbackSeq.load() != mySeq - 1)
+            std::this_thread::sleep_for(1ms);
+        for (auto& listener : listenersCopy)
+            listener->onProximityActive(isActive);
+        completedCallbackSeq++;
+    });
+    t.detach();
 }
 
 status_t SensorService::addProximityActiveListener(const sp<ProximityActiveListener>& callback) {
