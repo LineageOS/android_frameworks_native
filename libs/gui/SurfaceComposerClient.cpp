@@ -182,12 +182,12 @@ CallbackId TransactionCompletedListener::addCallbackFunction(
 
 void TransactionCompletedListener::addJankListener(const sp<JankDataListener>& listener,
                                                    sp<SurfaceControl> surfaceControl) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock<std::recursive_mutex> lock(mJankListenerMutex);
     mJankListeners.insert({surfaceControl->getHandle(), listener});
 }
 
 void TransactionCompletedListener::removeJankListener(const sp<JankDataListener>& listener) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock<std::recursive_mutex> lock(mJankListenerMutex);
     for (auto it = mJankListeners.begin(); it != mJankListeners.end();) {
         if (it->second == listener) {
             it = mJankListeners.erase(it);
@@ -242,7 +242,6 @@ void TransactionCompletedListener::addSurfaceControlToCallbacks(
 
 void TransactionCompletedListener::onTransactionCompleted(ListenerStats listenerStats) {
     std::unordered_map<CallbackId, CallbackTranslation, CallbackIdHash> callbacksMap;
-    std::multimap<sp<IBinder>, sp<JankDataListener>> jankListenersMap;
     std::multimap<sp<IBinder>, SurfaceStatsCallbackEntry> surfaceListeners;
     {
         std::lock_guard<std::mutex> lock(mMutex);
@@ -259,7 +258,6 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
          * sp<SurfaceControl> that could possibly exist for the callbacks.
          */
         callbacksMap = mCallbacks;
-        jankListenersMap = mJankListeners;
         surfaceListeners = mSurfaceStatsListeners;
         for (const auto& transactionStats : listenerStats.transactionStats) {
             for (auto& callbackId : transactionStats.callbackIds) {
@@ -349,7 +347,12 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
             }
 
             if (surfaceStats.jankData.empty()) continue;
-            auto jankRange = jankListenersMap.equal_range(surfaceStats.surfaceControl);
+
+            // Acquire jank listener lock such that we guarantee that after calling unregister,
+            // there won't be any further callback.
+            std::scoped_lock<std::recursive_mutex> lock(mJankListenerMutex);
+            auto copy = mJankListeners;
+            auto jankRange = copy.equal_range(surfaceStats.surfaceControl);
             for (auto it = jankRange.first; it != jankRange.second; it++) {
                 it->second->onJankDataAvailable(surfaceStats.jankData);
             }

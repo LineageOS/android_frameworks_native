@@ -24,6 +24,7 @@
  */
 
 #include <android/input.h>
+#include <android/os/IInputConstants.h>
 #include <math.h>
 #include <stdint.h>
 #include <ui/Transform.h>
@@ -219,6 +220,11 @@ enum {
     POLICY_FLAG_GESTURE = 0x00000008,
 
     POLICY_FLAG_RAW_MASK = 0x0000ffff,
+
+    POLICY_FLAG_INPUTFILTER_TRUSTED = android::os::IInputConstants::POLICY_FLAG_INPUTFILTER_TRUSTED,
+
+    POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY =
+            android::os::IInputConstants::POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY,
 
     /* These flags are set by the input dispatcher. */
 
