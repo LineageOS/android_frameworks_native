@@ -61,6 +61,7 @@ public:
         if (mCurrentRefreshRate.equalsWithMargin(currRefreshRate)) {
             return;
         }
+        mTimeStats.incrementRefreshRateSwitches();
         flushTime();
         mCurrentRefreshRate = currRefreshRate;
     }

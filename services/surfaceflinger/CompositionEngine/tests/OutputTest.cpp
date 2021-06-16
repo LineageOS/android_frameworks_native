@@ -1767,7 +1767,7 @@ struct OutputPresentTest : public testing::Test {
         MOCK_METHOD1(devOptRepaintFlash, void(const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD1(finishFrame, void(const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD0(postFramebuffer, void());
-        MOCK_METHOD0(renderCachedSets, void());
+        MOCK_METHOD1(renderCachedSets, void(const compositionengine::CompositionRefreshArgs&));
     };
 
     StrictMock<OutputPartialMock> mOutput;
@@ -1787,7 +1787,7 @@ TEST_F(OutputPresentTest, justInvokesChildFunctionsInSequence) {
     EXPECT_CALL(mOutput, devOptRepaintFlash(Ref(args)));
     EXPECT_CALL(mOutput, finishFrame(Ref(args)));
     EXPECT_CALL(mOutput, postFramebuffer());
-    EXPECT_CALL(mOutput, renderCachedSets());
+    EXPECT_CALL(mOutput, renderCachedSets(Ref(args)));
 
     mOutput.present(args);
 }

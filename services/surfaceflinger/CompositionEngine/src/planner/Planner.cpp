@@ -26,8 +26,34 @@
 #include <compositionengine/impl/planner/Planner.h>
 
 #include <utils/Trace.h>
+#include <chrono>
 
 namespace android::compositionengine::impl::planner {
+
+namespace {
+
+std::optional<Flattener::CachedSetRenderSchedulingTunables> buildFlattenerTuneables() {
+    if (!base::GetBoolProperty(std::string("debug.sf.enable_cached_set_render_scheduling"), true)) {
+        return std::nullopt;
+    }
+
+    auto renderDuration = std::chrono::nanoseconds(
+            base::GetUintProperty<uint64_t>(std::string("debug.sf.cached_set_render_duration_ns"),
+                                            Flattener::CachedSetRenderSchedulingTunables::
+                                                    kDefaultCachedSetRenderDuration.count()));
+
+    auto maxDeferRenderAttempts = base::GetUintProperty<
+            size_t>(std::string("debug.sf.cached_set_max_defer_render_attmpts"),
+                    Flattener::CachedSetRenderSchedulingTunables::kDefaultMaxDeferRenderAttempts);
+
+    return std::make_optional<Flattener::CachedSetRenderSchedulingTunables>(
+            Flattener::CachedSetRenderSchedulingTunables{
+                    .cachedSetRenderDuration = renderDuration,
+                    .maxDeferRenderAttempts = maxDeferRenderAttempts,
+            });
+}
+
+} // namespace
 
 Planner::Planner(renderengine::RenderEngine& renderEngine)
       // Implicitly, layer caching must also be enabled for the hole punch or
@@ -35,7 +61,8 @@ Planner::Planner(renderengine::RenderEngine& renderEngine)
       // E.g., setprop debug.sf.enable_layer_caching 1, or
       // adb shell service call SurfaceFlinger 1040 i32 1 [i64 <display ID>]
       : mFlattener(renderEngine,
-                   base::GetBoolProperty(std::string("debug.sf.enable_hole_punch_pip"), true)) {
+                   base::GetBoolProperty(std::string("debug.sf.enable_hole_punch_pip"), true),
+                   buildFlattenerTuneables()) {
     mPredictorEnabled =
             base::GetBoolProperty(std::string("debug.sf.enable_planner_prediction"), false);
 }
@@ -161,9 +188,11 @@ void Planner::reportFinalPlan(
                             finalPlan);
 }
 
-void Planner::renderCachedSets(const OutputCompositionState& outputState) {
+void Planner::renderCachedSets(
+        const OutputCompositionState& outputState,
+        std::optional<std::chrono::steady_clock::time_point> renderDeadline) {
     ATRACE_CALL();
-    mFlattener.renderCachedSets(outputState);
+    mFlattener.renderCachedSets(outputState, renderDeadline);
 }
 
 void Planner::dump(const Vector<String16>& args, std::string& result) {
