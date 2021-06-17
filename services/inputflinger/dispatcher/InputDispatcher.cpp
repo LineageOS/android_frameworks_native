@@ -3304,10 +3304,10 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
             int32_t flags = incomingKey.getFlags();
             int32_t keyCode = incomingKey.getKeyCode();
             int32_t metaState = incomingKey.getMetaState();
-            accelerateMetaShortcuts(VIRTUAL_KEYBOARD_ID, action,
+            accelerateMetaShortcuts(incomingKey.getDeviceId(), action,
                                     /*byref*/ keyCode, /*byref*/ metaState);
             KeyEvent keyEvent;
-            keyEvent.initialize(incomingKey.getId(), VIRTUAL_KEYBOARD_ID, incomingKey.getSource(),
+            keyEvent.initialize(incomingKey.getId(), incomingKey.getDeviceId(), incomingKey.getSource(),
                                 incomingKey.getDisplayId(), INVALID_HMAC, action, flags, keyCode,
                                 incomingKey.getScanCode(), metaState, incomingKey.getRepeatCount(),
                                 incomingKey.getDownTime(), incomingKey.getEventTime());
@@ -3328,7 +3328,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
             mLock.lock();
             KeyEntry* injectedEntry =
                     new KeyEntry(incomingKey.getId(), incomingKey.getEventTime(),
-                                 VIRTUAL_KEYBOARD_ID, incomingKey.getSource(),
+                                 incomingKey.getDeviceId(), incomingKey.getSource(),
                                  incomingKey.getDisplayId(), policyFlags, action, flags, keyCode,
                                  incomingKey.getScanCode(), metaState, incomingKey.getRepeatCount(),
                                  incomingKey.getDownTime());
@@ -3361,7 +3361,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
             const nsecs_t* sampleEventTimes = motionEvent->getSampleEventTimes();
             const PointerCoords* samplePointerCoords = motionEvent->getSamplePointerCoords();
             MotionEntry* injectedEntry =
-                    new MotionEntry(motionEvent->getId(), *sampleEventTimes, VIRTUAL_KEYBOARD_ID,
+                    new MotionEntry(motionEvent->getId(), *sampleEventTimes, motionEvent->getDeviceId(),
                                     motionEvent->getSource(), motionEvent->getDisplayId(),
                                     policyFlags, action, actionButton, motionEvent->getFlags(),
                                     motionEvent->getMetaState(), motionEvent->getButtonState(),
@@ -3378,7 +3378,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
                 samplePointerCoords += pointerCount;
                 MotionEntry* nextInjectedEntry =
                         new MotionEntry(motionEvent->getId(), *sampleEventTimes,
-                                        VIRTUAL_KEYBOARD_ID, motionEvent->getSource(),
+                                        motionEvent->getDeviceId(), motionEvent->getSource(),
                                         motionEvent->getDisplayId(), policyFlags, action,
                                         actionButton, motionEvent->getFlags(),
                                         motionEvent->getMetaState(), motionEvent->getButtonState(),
