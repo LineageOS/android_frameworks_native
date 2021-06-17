@@ -846,8 +846,8 @@ void TimeStats::incrementJankyFrames(const JankyFramesInfo& info) {
         timelineStats.stats[layerKey].displayRefreshRateBucket = refreshRateBucket;
         timelineStats.stats[layerKey].renderRateBucket = renderRateBucket;
         timelineStats.stats[layerKey].uid = info.uid;
-        timelineStats.stats[layerKey].layerName = kDefaultGameMode;
-        timelineStats.stats[layerKey].gameMode = info.gameMode;
+        timelineStats.stats[layerKey].layerName = kDefaultLayerName;
+        timelineStats.stats[layerKey].gameMode = kDefaultGameMode;
     }
 
     TimeStatsHelper::TimeStatsLayer& timeStatsLayer = timelineStats.stats[layerKey];
