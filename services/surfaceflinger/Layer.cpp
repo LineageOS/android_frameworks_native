@@ -847,11 +847,13 @@ void Layer::commitTransaction(State& stateToCommit) {
 }
 
 uint32_t Layer::getTransactionFlags(uint32_t flags) {
-    return mTransactionFlags.fetch_and(~flags) & flags;
+    auto ret = mTransactionFlags & flags;
+    mTransactionFlags &= ~flags;
+    return ret;
 }
 
 uint32_t Layer::setTransactionFlags(uint32_t flags) {
-    return mTransactionFlags.fetch_or(flags);
+    return mTransactionFlags |= flags;
 }
 
 bool Layer::setPosition(float x, float y) {
