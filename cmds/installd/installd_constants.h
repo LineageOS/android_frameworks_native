@@ -77,6 +77,12 @@ constexpr int DEXOPT_MASK =
 constexpr int FLAG_STORAGE_DE = 1 << 0;
 constexpr int FLAG_STORAGE_CE = 1 << 1;
 
+// TODO: import them from dexoptanalyzer.h
+// NOTE: keep in sync with Installer.java
+constexpr int PROFILES_ANALYSIS_OPTIMIZE                     = 1;
+constexpr int PROFILES_ANALYSIS_DONT_OPTIMIZE_SMALL_DELTA    = 2;
+constexpr int PROFILES_ANALYSIS_DONT_OPTIMIZE_EMPTY_PROFILES = 3;
+
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(*(a)))
 
 }  // namespace installd
