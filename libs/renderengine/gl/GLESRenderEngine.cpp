@@ -970,37 +970,17 @@ void GLESRenderEngine::unbindFrameBuffer(Framebuffer* /*framebuffer*/) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-bool GLESRenderEngine::cleanupPostRender(CleanupMode mode) {
+bool GLESRenderEngine::canSkipPostRenderCleanup() const {
+    return mPriorResourcesCleaned ||
+            (mLastDrawFence != nullptr && mLastDrawFence->getStatus() != Fence::Status::Signaled);
+}
+
+void GLESRenderEngine::cleanupPostRender() {
     ATRACE_CALL();
 
-    if (mPriorResourcesCleaned ||
-        (mLastDrawFence != nullptr && mLastDrawFence->getStatus() != Fence::Status::Signaled)) {
+    if (canSkipPostRenderCleanup()) {
         // If we don't have a prior frame needing cleanup, then don't do anything.
-        return false;
-    }
-
-    // This is a bit of a band-aid fix for FrameCaptureProcessor, as we should
-    // not need to keep memory around if we don't need to do so.
-    if (mode == CleanupMode::CLEAN_ALL) {
-        // TODO: SurfaceFlinger memory utilization may benefit from resetting
-        // texture bindings as well. Assess if it does and there's no performance regression
-        // when rebinding the same image data to the same texture, and if so then its mode
-        // behavior can be tweaked.
-        if (mPlaceholderImage != EGL_NO_IMAGE_KHR) {
-            for (auto [textureName, bufferId] : mTextureView) {
-                if (bufferId && mPlaceholderImage != EGL_NO_IMAGE_KHR) {
-                    glBindTexture(GL_TEXTURE_EXTERNAL_OES, textureName);
-                    glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES,
-                                                 static_cast<GLeglImageOES>(mPlaceholderImage));
-                    mTextureView[textureName] = std::nullopt;
-                    checkErrors();
-                }
-            }
-        }
-        {
-            std::lock_guard<std::mutex> lock(mRenderingMutex);
-            mImageCache.clear();
-        }
+        return;
     }
 
     // Bind the texture to placeholder so that backing image data can be freed.
@@ -1011,7 +991,6 @@ bool GLESRenderEngine::cleanupPostRender(CleanupMode mode) {
     // we could no-op repeated calls of this method instead.
     mLastDrawFence = nullptr;
     mPriorResourcesCleaned = true;
-    return true;
 }
 
 void GLESRenderEngine::cleanFramebufferCache() {
