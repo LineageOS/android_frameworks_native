@@ -29,8 +29,8 @@ namespace renderengine {
 namespace skia {
 
 AutoBackendTexture::AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer,
-                                       bool isOutputBuffer)
-      : mIsOutputBuffer(isOutputBuffer) {
+                                       bool isOutputBuffer, CleanupManager& cleanupMgr)
+      : mCleanupMgr(cleanupMgr), mIsOutputBuffer(isOutputBuffer) {
     ATRACE_CALL();
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
@@ -49,6 +49,13 @@ AutoBackendTexture::AutoBackendTexture(GrDirectContext* context, AHardwareBuffer
              this, desc.width, desc.height, createProtectedImage, isOutputBuffer, desc.format);
 }
 
+AutoBackendTexture::~AutoBackendTexture() {
+    if (mBackendTexture.isValid()) {
+        mDeleteProc(mImageCtx);
+        mBackendTexture = {};
+    }
+}
+
 void AutoBackendTexture::unref(bool releaseLocalResources) {
     if (releaseLocalResources) {
         mSurface = nullptr;
@@ -57,11 +64,7 @@ void AutoBackendTexture::unref(bool releaseLocalResources) {
 
     mUsageCount--;
     if (mUsageCount <= 0) {
-        if (mBackendTexture.isValid()) {
-            mDeleteProc(mImageCtx);
-            mBackendTexture = {};
-        }
-        delete this;
+        mCleanupMgr.add(this);
     }
 }
 
