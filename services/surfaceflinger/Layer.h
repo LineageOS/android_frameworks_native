@@ -960,7 +960,7 @@ protected:
 
     // these are protected by an external lock (mStateLock)
     State mCurrentState;
-    std::atomic<uint32_t> mTransactionFlags{0};
+    uint32_t mTransactionFlags{0};
 
     // Timestamp history for UIAutomation. Thread safe.
     FrameTracker mFrameTracker;
