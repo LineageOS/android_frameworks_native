@@ -2354,7 +2354,7 @@ binder::Status InstalldNativeService::copySystemProfile(const std::string& syste
 
 // TODO: Consider returning error codes.
 binder::Status InstalldNativeService::mergeProfiles(int32_t uid, const std::string& packageName,
-        const std::string& profileName, bool* _aidl_return) {
+        const std::string& profileName, int* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
@@ -2654,7 +2654,8 @@ binder::Status InstalldNativeService::moveAb(const std::string& apkPath,
 }
 
 binder::Status InstalldNativeService::deleteOdex(const std::string& apkPath,
-        const std::string& instructionSet, const std::optional<std::string>& outputPath) {
+        const std::string& instructionSet, const std::optional<std::string>& outputPath,
+        int64_t* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PATH(apkPath);
     CHECK_ARGUMENT_PATH(outputPath);
@@ -2664,8 +2665,8 @@ binder::Status InstalldNativeService::deleteOdex(const std::string& apkPath,
     const char* instruction_set = instructionSet.c_str();
     const char* oat_dir = outputPath ? outputPath->c_str() : nullptr;
 
-    bool res = delete_odex(apk_path, instruction_set, oat_dir);
-    return res ? ok() : error();
+    *_aidl_return = delete_odex(apk_path, instruction_set, oat_dir);
+    return *_aidl_return == -1 ? error() : ok();
 }
 
 // This kernel feature is experimental.
