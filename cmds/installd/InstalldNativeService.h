@@ -122,7 +122,7 @@ public:
     binder::Status rmdex(const std::string& codePath, const std::string& instructionSet);
 
     binder::Status mergeProfiles(int32_t uid, const std::string& packageName,
-            const std::string& profileName, bool* _aidl_return);
+            const std::string& profileName, int* _aidl_return);
     binder::Status dumpProfiles(int32_t uid, const std::string& packageName,
             const std::string& profileName, const std::string& codePath, bool* _aidl_return);
     binder::Status copySystemProfile(const std::string& systemProfile,
@@ -147,7 +147,7 @@ public:
     binder::Status moveAb(const std::string& apkPath, const std::string& instructionSet,
             const std::string& outputPath);
     binder::Status deleteOdex(const std::string& apkPath, const std::string& instructionSet,
-            const std::optional<std::string>& outputPath);
+            const std::optional<std::string>& outputPath, int64_t* _aidl_return);
     binder::Status installApkVerity(const std::string& filePath,
             android::base::unique_fd verityInput, int32_t contentSize);
     binder::Status assertFsverityRootHashMatches(const std::string& filePath,
