@@ -268,7 +268,7 @@ private:
     VsyncSchedule mVsyncSchedule;
 
     // Used to choose refresh rate if content detection is enabled.
-    const std::unique_ptr<LayerHistory> mLayerHistory;
+    std::unique_ptr<LayerHistory> mLayerHistory;
 
     // Timer that records time between requests for next vsync.
     std::optional<scheduler::OneShotTimer> mIdleTimer;
