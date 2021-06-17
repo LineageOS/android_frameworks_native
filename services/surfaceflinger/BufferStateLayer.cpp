@@ -33,6 +33,7 @@
 #include <gui/BufferQueue.h>
 #include <private/gui/SyncFeatures.h>
 #include <renderengine/Image.h>
+#include "TunnelModeEnabledReporter.h"
 
 #include "EffectLayer.h"
 #include "FrameTracer/FrameTracer.h"
