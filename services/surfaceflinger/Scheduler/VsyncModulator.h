@@ -69,9 +69,12 @@ public:
         VsyncConfig early;    // Used for early transactions, and during refresh rate change.
         VsyncConfig earlyGpu; // Used during GPU composition.
         VsyncConfig late;     // Default.
+        std::chrono::nanoseconds hwcMinWorkDuration; // Used for calculating the
+                                                     // earliest present time
 
         bool operator==(const VsyncConfigSet& other) const {
-            return early == other.early && earlyGpu == other.earlyGpu && late == other.late;
+            return early == other.early && earlyGpu == other.earlyGpu && late == other.late &&
+                    hwcMinWorkDuration == other.hwcMinWorkDuration;
         }
 
         bool operator!=(const VsyncConfigSet& other) const { return !(*this == other); }

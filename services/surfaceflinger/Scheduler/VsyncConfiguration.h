@@ -111,7 +111,8 @@ protected:
                  nsecs_t highFpsSfVSyncPhaseOffsetNs, std::optional<nsecs_t> highFpsEarlySfOffsetNs,
                  std::optional<nsecs_t> highFpsEarlyGpuSfOffsetNs,
                  std::optional<nsecs_t> highFpsEarlyAppOffsetNs,
-                 std::optional<nsecs_t> highFpsEarlyGpuAppOffsetNs, nsecs_t thresholdForNextVsync);
+                 std::optional<nsecs_t> highFpsEarlyGpuAppOffsetNs, nsecs_t thresholdForNextVsync,
+                 nsecs_t hwcMinWorkDuration);
 
 private:
     VsyncConfiguration::VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const override;
@@ -134,6 +135,7 @@ private:
     const std::optional<nsecs_t> mHighFpsEarlyGpuAppOffsetNs;
 
     const nsecs_t mThresholdForNextVsync;
+    const nsecs_t mHwcMinWorkDuration;
 };
 
 /*
@@ -148,7 +150,8 @@ public:
 protected:
     // Used for unit tests
     WorkDuration(Fps currentFps, nsecs_t sfDuration, nsecs_t appDuration, nsecs_t sfEarlyDuration,
-                 nsecs_t appEarlyDuration, nsecs_t sfEarlyGpuDuration, nsecs_t appEarlyGpuDuration);
+                 nsecs_t appEarlyDuration, nsecs_t sfEarlyGpuDuration, nsecs_t appEarlyGpuDuration,
+                 nsecs_t hwcMinWorkDuration);
 
 private:
     VsyncConfiguration::VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const override;
@@ -161,6 +164,8 @@ private:
 
     const nsecs_t mSfEarlyGpuDuration;
     const nsecs_t mAppEarlyGpuDuration;
+
+    const nsecs_t mHwcMinWorkDuration;
 };
 
 } // namespace impl

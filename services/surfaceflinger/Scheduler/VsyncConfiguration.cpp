@@ -59,7 +59,7 @@ PhaseOffsets::VsyncConfigSet VsyncConfiguration::getConfigsForRefreshRateLocked(
 }
 
 void VsyncConfiguration::dump(std::string& result) const {
-    const auto [early, earlyGpu, late] = getCurrentConfigs();
+    const auto [early, earlyGpu, late, hwcMinWorkDuration] = getCurrentConfigs();
     using base::StringAppendF;
     StringAppendF(&result,
                   "           app phase:    %9" PRId64 " ns\t         SF phase:    %9" PRId64
@@ -70,7 +70,8 @@ void VsyncConfiguration::dump(std::string& result) const {
                   "     early app duration: %9lld ns\t   early SF duration: %9lld ns\n"
                   "  GL early app phase:    %9" PRId64 " ns\tGL early SF phase:    %9" PRId64
                   " ns\n"
-                  "  GL early app duration: %9lld ns\tGL early SF duration: %9lld ns\n",
+                  "  GL early app duration: %9lld ns\tGL early SF duration: %9lld ns\n"
+                  "       HWC min duration: %9lld ns\n",
                   late.appOffset, late.sfOffset,
 
                   late.appWorkDuration.count(), late.sfWorkDuration.count(),
@@ -81,7 +82,9 @@ void VsyncConfiguration::dump(std::string& result) const {
 
                   earlyGpu.appOffset, earlyGpu.sfOffset,
 
-                  earlyGpu.appWorkDuration.count(), earlyGpu.sfWorkDuration.count());
+                  earlyGpu.appWorkDuration.count(), earlyGpu.sfWorkDuration.count(),
+
+                  hwcMinWorkDuration.count());
 }
 
 PhaseOffsets::PhaseOffsets(Fps currentRefreshRate)
@@ -103,7 +106,8 @@ PhaseOffsets::PhaseOffsets(Fps currentRefreshRate)
                      // offset >= threshold, SF wake up (2 * vsync_duration - offset) before HW
                      // vsync.
                      getProperty("debug.sf.phase_offset_threshold_for_next_vsync_ns")
-                             .value_or(std::numeric_limits<nsecs_t>::max())) {}
+                             .value_or(std::numeric_limits<nsecs_t>::max()),
+                     getProperty("debug.sf.hwc.min.duration").value_or(0)) {}
 
 PhaseOffsets::PhaseOffsets(Fps currentFps, nsecs_t vsyncPhaseOffsetNs, nsecs_t sfVSyncPhaseOffsetNs,
                            std::optional<nsecs_t> earlySfOffsetNs,
@@ -115,7 +119,7 @@ PhaseOffsets::PhaseOffsets(Fps currentFps, nsecs_t vsyncPhaseOffsetNs, nsecs_t s
                            std::optional<nsecs_t> highFpsEarlyGpuSfOffsetNs,
                            std::optional<nsecs_t> highFpsEarlyAppOffsetNs,
                            std::optional<nsecs_t> highFpsEarlyGpuAppOffsetNs,
-                           nsecs_t thresholdForNextVsync)
+                           nsecs_t thresholdForNextVsync, nsecs_t hwcMinWorkDuration)
       : VsyncConfiguration(currentFps),
         mVSyncPhaseOffsetNs(vsyncPhaseOffsetNs),
         mSfVSyncPhaseOffsetNs(sfVSyncPhaseOffsetNs),
@@ -129,7 +133,8 @@ PhaseOffsets::PhaseOffsets(Fps currentFps, nsecs_t vsyncPhaseOffsetNs, nsecs_t s
         mHighFpsEarlyGpuSfOffsetNs(highFpsEarlyGpuSfOffsetNs),
         mHighFpsEarlyAppOffsetNs(highFpsEarlyAppOffsetNs),
         mHighFpsEarlyGpuAppOffsetNs(highFpsEarlyGpuAppOffsetNs),
-        mThresholdForNextVsync(thresholdForNextVsync) {}
+        mThresholdForNextVsync(thresholdForNextVsync),
+        mHwcMinWorkDuration(hwcMinWorkDuration) {}
 
 PhaseOffsets::VsyncConfigSet PhaseOffsets::constructOffsets(nsecs_t vsyncDuration) const {
     if (vsyncDuration < std::chrono::nanoseconds(15ms).count()) {
@@ -189,6 +194,7 @@ PhaseOffsets::VsyncConfigSet PhaseOffsets::getDefaultOffsets(nsecs_t vsyncDurati
                      .sfWorkDuration = sfOffsetToDuration(lateSfOffset, vsyncDuration),
                      .appWorkDuration =
                              appOffsetToDuration(lateAppOffset, lateSfOffset, vsyncDuration)},
+            .hwcMinWorkDuration = std::chrono::nanoseconds(mHwcMinWorkDuration),
     };
 }
 
@@ -234,6 +240,7 @@ PhaseOffsets::VsyncConfigSet PhaseOffsets::getHighFpsOffsets(nsecs_t vsyncDurati
                             .appWorkDuration =
                                     appOffsetToDuration(lateAppOffset, lateSfOffset, vsyncDuration),
                     },
+            .hwcMinWorkDuration = std::chrono::nanoseconds(mHwcMinWorkDuration),
     };
 }
 
@@ -342,6 +349,7 @@ WorkDuration::VsyncConfigSet WorkDuration::constructOffsets(nsecs_t vsyncDuratio
                             .sfWorkDuration = sfDuration,
                             .appWorkDuration = appDuration,
                     },
+            .hwcMinWorkDuration = std::chrono::nanoseconds(mHwcMinWorkDuration),
     };
 }
 
@@ -351,19 +359,22 @@ WorkDuration::WorkDuration(Fps currentRefreshRate)
                      getProperty("debug.sf.early.sf.duration").value_or(mSfDuration),
                      getProperty("debug.sf.early.app.duration").value_or(mAppDuration),
                      getProperty("debug.sf.earlyGl.sf.duration").value_or(mSfDuration),
-                     getProperty("debug.sf.earlyGl.app.duration").value_or(mAppDuration)) {
+                     getProperty("debug.sf.earlyGl.app.duration").value_or(mAppDuration),
+                     getProperty("debug.sf.hwc.min.duration").value_or(0)) {
     validateSysprops();
 }
 
 WorkDuration::WorkDuration(Fps currentRefreshRate, nsecs_t sfDuration, nsecs_t appDuration,
                            nsecs_t sfEarlyDuration, nsecs_t appEarlyDuration,
-                           nsecs_t sfEarlyGpuDuration, nsecs_t appEarlyGpuDuration)
+                           nsecs_t sfEarlyGpuDuration, nsecs_t appEarlyGpuDuration,
+                           nsecs_t hwcMinWorkDuration)
       : VsyncConfiguration(currentRefreshRate),
         mSfDuration(sfDuration),
         mAppDuration(appDuration),
         mSfEarlyDuration(sfEarlyDuration),
         mAppEarlyDuration(appEarlyDuration),
         mSfEarlyGpuDuration(sfEarlyGpuDuration),
-        mAppEarlyGpuDuration(appEarlyGpuDuration) {}
+        mAppEarlyGpuDuration(appEarlyGpuDuration),
+        mHwcMinWorkDuration(hwcMinWorkDuration) {}
 
 } // namespace android::scheduler::impl
