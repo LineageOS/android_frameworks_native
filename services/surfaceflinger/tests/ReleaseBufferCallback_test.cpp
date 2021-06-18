@@ -30,7 +30,8 @@ using android::hardware::graphics::common::V1_1::BufferUsage;
 class ReleaseBufferCallbackHelper {
 public:
     static void function(void* callbackContext, uint64_t graphicsBufferId,
-                         const sp<Fence>& releaseFence) {
+                         const sp<Fence>& releaseFence,
+                         uint32_t /*currentMaxAcquiredBufferCount*/) {
         if (!callbackContext) {
             FAIL() << "failed to get callback context";
         }
@@ -66,7 +67,7 @@ public:
 
     android::ReleaseBufferCallback getCallback() {
         return std::bind(function, static_cast<void*>(this) /* callbackContext */,
-                         std::placeholders::_1, std::placeholders::_2);
+                         std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
     }
 
     std::mutex mMutex;
