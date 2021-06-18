@@ -1897,10 +1897,10 @@ TEST_F(RefreshRateConfigsTest, testKernelIdleTimerAction) {
               0);
     EXPECT_EQ(KernelIdleTimerAction::TurnOn, refreshRateConfigs->getIdleTimerAction());
 
-    // SetPolicy(60, 60), current 60Hz => NoChange, avoid extra calls.
+    // SetPolicy(60, 60), current 60Hz => TurnOff
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {Fps(60), Fps(60)}}),
               0);
-    EXPECT_EQ(KernelIdleTimerAction::NoChange, refreshRateConfigs->getIdleTimerAction());
+    EXPECT_EQ(KernelIdleTimerAction::TurnOff, refreshRateConfigs->getIdleTimerAction());
 
     // SetPolicy(90, 90), current 90Hz => TurnOff.
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, {Fps(90), Fps(90)}}),
