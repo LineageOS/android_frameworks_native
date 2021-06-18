@@ -47,10 +47,6 @@ public:
 
     bool isBufferDue(nsecs_t /*expectedPresentTime*/) const override { return true; }
 
-    uint32_t doTransactionResize(uint32_t flags, Layer::State* /*stateToCommit*/) override {
-        return flags;
-    }
-
     Region getActiveTransparentRegion(const Layer::State& s) const override {
         return s.transparentRegionHint;
     }
@@ -87,7 +83,7 @@ public:
 
     bool setBufferCrop(const Rect& bufferCrop) override;
     bool setDestinationFrame(const Rect& destinationFrame) override;
-    void updateGeometry() override;
+    bool updateGeometry() override;
 
     // -----------------------------------------------------------------------
 

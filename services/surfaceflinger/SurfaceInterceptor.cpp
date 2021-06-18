@@ -130,25 +130,25 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
     transaction->set_animation(layerFlags & BnSurfaceComposer::eAnimation);
 
     const int32_t layerId(getLayerId(layer));
-    addPositionLocked(transaction, layerId, layer->mCurrentState.transform.tx(),
-                      layer->mCurrentState.transform.ty());
-    addDepthLocked(transaction, layerId, layer->mCurrentState.z);
-    addAlphaLocked(transaction, layerId, layer->mCurrentState.color.a);
+    addPositionLocked(transaction, layerId, layer->mDrawingState.transform.tx(),
+                      layer->mDrawingState.transform.ty());
+    addDepthLocked(transaction, layerId, layer->mDrawingState.z);
+    addAlphaLocked(transaction, layerId, layer->mDrawingState.color.a);
     addTransparentRegionLocked(transaction, layerId,
-                               layer->mCurrentState.activeTransparentRegion_legacy);
-    addLayerStackLocked(transaction, layerId, layer->mCurrentState.layerStack);
-    addCropLocked(transaction, layerId, layer->mCurrentState.crop);
-    addCornerRadiusLocked(transaction, layerId, layer->mCurrentState.cornerRadius);
-    addBackgroundBlurRadiusLocked(transaction, layerId, layer->mCurrentState.backgroundBlurRadius);
-    addBlurRegionsLocked(transaction, layerId, layer->mCurrentState.blurRegions);
-    addFlagsLocked(transaction, layerId, layer->mCurrentState.flags,
+                               layer->mDrawingState.activeTransparentRegion_legacy);
+    addLayerStackLocked(transaction, layerId, layer->mDrawingState.layerStack);
+    addCropLocked(transaction, layerId, layer->mDrawingState.crop);
+    addCornerRadiusLocked(transaction, layerId, layer->mDrawingState.cornerRadius);
+    addBackgroundBlurRadiusLocked(transaction, layerId, layer->mDrawingState.backgroundBlurRadius);
+    addBlurRegionsLocked(transaction, layerId, layer->mDrawingState.blurRegions);
+    addFlagsLocked(transaction, layerId, layer->mDrawingState.flags,
                    layer_state_t::eLayerHidden | layer_state_t::eLayerOpaque |
                            layer_state_t::eLayerSecure);
-    addReparentLocked(transaction, layerId, getLayerIdFromWeakRef(layer->mCurrentParent));
+    addReparentLocked(transaction, layerId, getLayerIdFromWeakRef(layer->mDrawingParent));
     addRelativeParentLocked(transaction, layerId,
-                            getLayerIdFromWeakRef(layer->mCurrentState.zOrderRelativeOf),
-                            layer->mCurrentState.z);
-    addShadowRadiusLocked(transaction, layerId, layer->mCurrentState.shadowRadius);
+                            getLayerIdFromWeakRef(layer->mDrawingState.zOrderRelativeOf),
+                            layer->mDrawingState.z);
+    addShadowRadiusLocked(transaction, layerId, layer->mDrawingState.shadowRadius);
 }
 
 void SurfaceInterceptor::addInitialDisplayStateLocked(Increment* increment,
@@ -515,8 +515,8 @@ void SurfaceInterceptor::addSurfaceCreationLocked(Increment* increment,
     SurfaceCreation* creation(increment->mutable_surface_creation());
     creation->set_id(getLayerId(layer));
     creation->set_name(layer->getName());
-    creation->set_w(layer->mCurrentState.active_legacy.w);
-    creation->set_h(layer->mCurrentState.active_legacy.h);
+    creation->set_w(layer->mDrawingState.active_legacy.w);
+    creation->set_h(layer->mDrawingState.active_legacy.h);
 }
 
 void SurfaceInterceptor::addSurfaceDeletionLocked(Increment* increment,
