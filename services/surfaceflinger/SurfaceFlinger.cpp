@@ -5815,8 +5815,6 @@ void SurfaceFlinger::toggleKernelIdleTimer() {
                 mKernelIdleTimerEnabled = true;
             }
             break;
-        case KernelIdleTimerAction::NoChange:
-            break;
     }
 }
 
