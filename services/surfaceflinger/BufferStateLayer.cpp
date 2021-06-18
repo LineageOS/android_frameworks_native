@@ -45,12 +45,12 @@ using PresentState = frametimeline::SurfaceFrame::PresentState;
 namespace {
 void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
                                const sp<GraphicBuffer>& buffer, const sp<Fence>& releaseFence,
-                               uint32_t transformHint) {
+                               uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount) {
     if (!listener) {
         return;
     }
     listener->onReleaseBuffer(buffer->getId(), releaseFence ? releaseFence : Fence::NO_FENCE,
-                              transformHint);
+                              transformHint, currentMaxAcquiredBufferCount);
 }
 } // namespace
 
@@ -76,7 +76,9 @@ BufferStateLayer::~BufferStateLayer() {
     if (mBufferInfo.mBuffer != nullptr && !isClone()) {
         callReleaseBufferCallback(mDrawingState.releaseBufferListener,
                                   mBufferInfo.mBuffer->getBuffer(), mBufferInfo.mFence,
-                                  mTransformHint);
+                                  mTransformHint,
+                                  mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(
+                                          mOwnerUid));
     }
 }
 
@@ -200,6 +202,8 @@ void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     for (const auto& handle : mDrawingState.callbackHandles) {
         handle->transformHint = mTransformHint;
         handle->dequeueReadyTime = dequeueReadyTime;
+        handle->currentMaxAcquiredBufferCount =
+                mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(mOwnerUid);
     }
 
     // If there are multiple transactions in this frame, set the previous id on the earliest
@@ -430,9 +434,10 @@ bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTex
             // dropped and we should decrement the pending buffer count and
             // call any release buffer callbacks if set.
             callReleaseBufferCallback(mCurrentState.releaseBufferListener,
-                                      mCurrentState.buffer->getBuffer(),
-                                      mCurrentState.acquireFence,
-                                      mTransformHint);
+                                      mCurrentState.buffer->getBuffer(), mCurrentState.acquireFence,
+                                      mTransformHint,
+                                      mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(
+                                              mOwnerUid));
             decrementPendingBufferCount();
             if (mCurrentState.bufferSurfaceFrameTX != nullptr) {
                 addSurfaceFrameDroppedForBuffer(mCurrentState.bufferSurfaceFrameTX);
@@ -952,7 +957,9 @@ void BufferStateLayer::bufferMayChange(const sp<GraphicBuffer>& newBuffer) {
         // call any release buffer callbacks if set.
         callReleaseBufferCallback(mDrawingState.releaseBufferListener,
                                   mDrawingState.buffer->getBuffer(), mDrawingState.acquireFence,
-                                  mTransformHint);
+                                  mTransformHint,
+                                  mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(
+                                          mOwnerUid));
         decrementPendingBufferCount();
     }
 }
