@@ -34,7 +34,8 @@ struct FakePhaseOffsets : VsyncConfiguration {
                 {FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS, FAKE_DURATION_OFFSET_NS,
                  FAKE_DURATION_OFFSET_NS},
                 {FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS, FAKE_DURATION_OFFSET_NS,
-                 FAKE_DURATION_OFFSET_NS}};
+                 FAKE_DURATION_OFFSET_NS},
+                FAKE_DURATION_OFFSET_NS};
     }
 
     void reset() override {}
