@@ -859,11 +859,6 @@ RefreshRateConfigs::KernelIdleTimerAction RefreshRateConfigs::getIdleTimerAction
         return RefreshRateConfigs::KernelIdleTimerAction::TurnOff;
     }
     if (minByPolicy == maxByPolicy) {
-        // Do not sent the call to toggle off kernel idle timer if the device min and policy min and
-        // max are all the same. This saves us extra unnecessary calls to sysprop.
-        if (deviceMin == minByPolicy) {
-            return RefreshRateConfigs::KernelIdleTimerAction::NoChange;
-        }
         return RefreshRateConfigs::KernelIdleTimerAction::TurnOff;
     }
     // Turn on the timer in all other cases.
