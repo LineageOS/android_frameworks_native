@@ -688,6 +688,10 @@ uint64_t AHardwareBuffer_convertToGrallocUsageBits(uint64_t usage) {
             "gralloc and AHardwareBuffer flags don't match");
     static_assert(AHARDWAREBUFFER_USAGE_GPU_MIPMAP_COMPLETE == (uint64_t)BufferUsage::GPU_MIPMAP_COMPLETE,
             "gralloc and AHardwareBuffer flags don't match");
+    static_assert(AHARDWAREBUFFER_USAGE_CAMERA_WRITE == (uint64_t)BufferUsage::CAMERA_OUTPUT,
+            "gralloc and AHardwareBuffer flags don't match");
+    static_assert(AHARDWAREBUFFER_USAGE_CAMERA_READ == (uint64_t)BufferUsage::CAMERA_INPUT,
+            "gralloc and AHardwareBuffer flags don't match");
     return usage;
 }
 
