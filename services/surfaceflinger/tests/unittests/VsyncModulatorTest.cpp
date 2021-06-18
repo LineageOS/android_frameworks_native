@@ -35,6 +35,7 @@ class VsyncModulatorTest : public testing::Test {
         APP_OFFSET_EARLY_GPU,
         SF_DURATION_EARLY_GPU,
         APP_DURATION_EARLY_GPU,
+        HWC_MIN_WORK_DURATION,
     };
 
     static VsyncModulator::TimePoint Now() {
@@ -57,7 +58,8 @@ protected:
                                             nanos(SF_DURATION_EARLY_GPU),
                                             nanos(APP_DURATION_EARLY_GPU)};
 
-    const VsyncModulator::VsyncConfigSet mOffsets = {kEarly, kEarlyGpu, kLate};
+    const VsyncModulator::VsyncConfigSet mOffsets = {kEarly, kEarlyGpu, kLate,
+                                                     nanos(HWC_MIN_WORK_DURATION)};
     VsyncModulator mVsyncModulator{mOffsets, Now};
 
     void SetUp() override { EXPECT_EQ(kLate, mVsyncModulator.setVsyncConfigSet(mOffsets)); }
