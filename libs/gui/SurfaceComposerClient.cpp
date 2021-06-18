@@ -210,13 +210,13 @@ void TransactionCompletedListener::removeReleaseBufferCallback(uint64_t graphicB
 
 void TransactionCompletedListener::addSurfaceStatsListener(void* context, void* cookie,
         sp<SurfaceControl> surfaceControl, SurfaceStatsCallback listener) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock<std::recursive_mutex> lock(mSurfaceStatsListenerMutex);
     mSurfaceStatsListeners.insert({surfaceControl->getHandle(),
             SurfaceStatsCallbackEntry(context, cookie, listener)});
 }
 
 void TransactionCompletedListener::removeSurfaceStatsListener(void* context, void* cookie) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock<std::recursive_mutex> lock(mSurfaceStatsListenerMutex);
     for (auto it = mSurfaceStatsListeners.begin(); it != mSurfaceStatsListeners.end();) {
         auto [itContext, itCookie, itListener] = it->second;
         if (itContext == context && itCookie == cookie) {
@@ -242,7 +242,6 @@ void TransactionCompletedListener::addSurfaceControlToCallbacks(
 
 void TransactionCompletedListener::onTransactionCompleted(ListenerStats listenerStats) {
     std::unordered_map<CallbackId, CallbackTranslation, CallbackIdHash> callbacksMap;
-    std::multimap<sp<IBinder>, SurfaceStatsCallbackEntry> surfaceListeners;
     {
         std::lock_guard<std::mutex> lock(mMutex);
 
@@ -258,7 +257,6 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
          * sp<SurfaceControl> that could possibly exist for the callbacks.
          */
         callbacksMap = mCallbacks;
-        surfaceListeners = mSurfaceStatsListeners;
         for (const auto& transactionStats : listenerStats.transactionStats) {
             for (auto& callbackId : transactionStats.callbackIds) {
                 mCallbacks.erase(callbackId);
@@ -339,11 +337,17 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                              surfaceControlStats);
         }
         for (const auto& surfaceStats : transactionStats.surfaceStats) {
-            auto listenerRange = surfaceListeners.equal_range(surfaceStats.surfaceControl);
-            for (auto it = listenerRange.first; it != listenerRange.second; it++) {
-                auto entry = it->second;
-                entry.callback(entry.context, transactionStats.latchTime,
-                    transactionStats.presentFence, surfaceStats);
+            {
+                // Acquire surface stats listener lock such that we guarantee that after calling
+                // unregister, there won't be any further callback.
+                std::scoped_lock<std::recursive_mutex> lock(mSurfaceStatsListenerMutex);
+                auto listenerRange = mSurfaceStatsListeners.equal_range(
+                        surfaceStats.surfaceControl);
+                for (auto it = listenerRange.first; it != listenerRange.second; it++) {
+                    auto entry = it->second;
+                    entry.callback(entry.context, transactionStats.latchTime,
+                        transactionStats.presentFence, surfaceStats);
+                }
             }
 
             if (surfaceStats.jankData.empty()) continue;
