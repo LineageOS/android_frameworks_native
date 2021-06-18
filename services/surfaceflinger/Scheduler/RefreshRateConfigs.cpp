@@ -422,7 +422,15 @@ RefreshRate RefreshRateConfigs::getBestRefreshRateLocked(
     // actually increase the refresh rate over the normal selection.
     const RefreshRate& touchRefreshRate = getMaxRefreshRateByPolicyLocked();
 
-    bool touchBoostForExplicitExact = explicitExact == 0 || mSupportsFrameRateOverride;
+    const bool touchBoostForExplicitExact = [&] {
+        if (mSupportsFrameRateOverride) {
+            // Enable touch boost if there are other layers besides exact
+            return explicitExact + noVoteLayers != layers.size();
+        } else {
+            // Enable touch boost if there are no exact layers
+            return explicitExact == 0;
+        }
+    }();
     if (globalSignals.touch && explicitDefaultVoteLayers == 0 && touchBoostForExplicitExact &&
         bestRefreshRate->fps.lessThanWithMargin(touchRefreshRate.fps)) {
         setTouchConsidered();
