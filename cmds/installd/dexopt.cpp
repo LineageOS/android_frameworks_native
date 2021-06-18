@@ -2252,38 +2252,52 @@ bool move_ab(const char* apk_path, const char* instruction_set, const char* oat_
     return success;
 }
 
-bool delete_odex(const char* apk_path, const char* instruction_set, const char* oat_dir) {
+int64_t delete_odex(const char* apk_path, const char* instruction_set, const char* oat_dir) {
     // Delete the oat/odex file.
     char out_path[PKG_PATH_MAX];
     if (!create_oat_out_path(apk_path, instruction_set, oat_dir,
             /*is_secondary_dex*/false, out_path)) {
-        return false;
+        LOG(ERROR) << "Cannot create apk path for " << apk_path;
+        return -1;
     }
 
     // In case of a permission failure report the issue. Otherwise just print a warning.
-    auto unlink_and_check = [](const char* path) -> bool {
-        int result = unlink(path);
-        if (result != 0) {
-            if (errno == EACCES || errno == EPERM) {
-                PLOG(ERROR) << "Could not unlink " << path;
-                return false;
+    auto unlink_and_check = [](const char* path) -> int64_t {
+        struct stat file_stat;
+        if (stat(path, &file_stat) != 0) {
+            if (errno != ENOENT) {
+                PLOG(ERROR) << "Could not stat " << path;
+                return -1;
             }
-            PLOG(WARNING) << "Could not unlink " << path;
+            return 0;
         }
-        return true;
+
+        if (unlink(path) != 0) {
+            if (errno != ENOENT) {
+                PLOG(ERROR) << "Could not unlink " << path;
+                return -1;
+            }
+        }
+        return static_cast<int64_t>(file_stat.st_size);
     };
 
     // Delete the oat/odex file.
-    bool return_value_oat = unlink_and_check(out_path);
+    int64_t return_value_oat = unlink_and_check(out_path);
 
     // Derive and delete the app image.
-    bool return_value_art = unlink_and_check(create_image_filename(out_path).c_str());
+    int64_t return_value_art = unlink_and_check(create_image_filename(out_path).c_str());
 
     // Derive and delete the vdex file.
-    bool return_value_vdex = unlink_and_check(create_vdex_filename(out_path).c_str());
+    int64_t return_value_vdex = unlink_and_check(create_vdex_filename(out_path).c_str());
 
-    // Report success.
-    return return_value_oat && return_value_art && return_value_vdex;
+    // Report result
+    if (return_value_oat == -1
+            || return_value_art == -1
+            || return_value_vdex == -1) {
+        return -1;
+    }
+
+    return return_value_oat + return_value_art + return_value_vdex;
 }
 
 static bool is_absolute_path(const std::string& path) {
