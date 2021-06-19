@@ -55,7 +55,7 @@ void FpsReporter::dispatchLayerFps() {
     std::vector<std::pair<TrackedListener, sp<Layer>>> listenersAndLayersToReport;
 
     mFlinger.mCurrentState.traverse([&](Layer* layer) {
-        auto& currentState = layer->getCurrentState();
+        auto& currentState = layer->getDrawingState();
         if (currentState.metadata.has(METADATA_TASK_ID)) {
             int32_t taskId = currentState.metadata.getInt32(METADATA_TASK_ID, 0);
             if (seenTasks.count(taskId) == 0) {

@@ -1215,16 +1215,17 @@ public:
         return reply.readInt32();
     }
 
-    status_t getExtraBufferCount(int* extraBuffers) const override {
+    status_t getMaxAcquiredBufferCount(int* buffers) const override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        status_t err = remote()->transact(BnSurfaceComposer::GET_EXTRA_BUFFER_COUNT, data, &reply);
+        status_t err =
+                remote()->transact(BnSurfaceComposer::GET_MAX_ACQUIRED_BUFFER_COUNT, data, &reply);
         if (err != NO_ERROR) {
-            ALOGE("getExtraBufferCount failed to read data:  %s (%d)", strerror(-err), err);
+            ALOGE("getMaxAcquiredBufferCount failed to read data:  %s (%d)", strerror(-err), err);
             return err;
         }
 
-        return reply.readInt32(extraBuffers);
+        return reply.readInt32(buffers);
     }
 };
 
@@ -2069,14 +2070,14 @@ status_t BnSurfaceComposer::onTransact(
             SAFE_PARCEL(reply->writeInt32, priority);
             return NO_ERROR;
         }
-        case GET_EXTRA_BUFFER_COUNT: {
+        case GET_MAX_ACQUIRED_BUFFER_COUNT: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            int extraBuffers = 0;
-            int err = getExtraBufferCount(&extraBuffers);
+            int buffers = 0;
+            int err = getMaxAcquiredBufferCount(&buffers);
             if (err != NO_ERROR) {
                 return err;
             }
-            SAFE_PARCEL(reply->writeInt32, extraBuffers);
+            SAFE_PARCEL(reply->writeInt32, buffers);
             return NO_ERROR;
         }
         case OVERRIDE_HDR_TYPES: {

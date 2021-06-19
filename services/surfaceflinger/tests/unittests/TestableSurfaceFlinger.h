@@ -259,7 +259,6 @@ public:
         memcpy(&mFlinger->mInternalDisplayPrimaries, &primaries, sizeof(ui::DisplayPrimaries));
     }
 
-    static auto& mutableLayerCurrentState(const sp<Layer>& layer) { return layer->mCurrentState; }
     static auto& mutableLayerDrawingState(const sp<Layer>& layer) { return layer->mDrawingState; }
 
     auto& mutableStateLock() { return mFlinger->mStateLock; }
@@ -272,7 +271,6 @@ public:
     static void setLayerSidebandStream(const sp<Layer>& layer,
                                        const sp<NativeHandle>& sidebandStream) {
         layer->mDrawingState.sidebandStream = sidebandStream;
-        layer->mCurrentState.sidebandStream = sidebandStream;
         layer->mSidebandStream = sidebandStream;
         layer->editCompositionState()->sidebandStream = sidebandStream;
     }
@@ -391,9 +389,9 @@ public:
 
     auto getGPUContextPriority() { return mFlinger->getGPUContextPriority(); }
 
-    auto calculateExtraBufferCount(Fps maxSupportedRefreshRate,
-                                   std::chrono::nanoseconds presentLatency) const {
-        return SurfaceFlinger::calculateExtraBufferCount(maxSupportedRefreshRate, presentLatency);
+    auto calculateMaxAcquiredBufferCount(Fps refreshRate,
+                                         std::chrono::nanoseconds presentLatency) const {
+        return SurfaceFlinger::calculateMaxAcquiredBufferCount(refreshRate, presentLatency);
     }
 
     /* ------------------------------------------------------------------------
