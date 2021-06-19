@@ -394,7 +394,11 @@ TEST_F(BLASTBufferQueueTest, TripleBuffering) {
     setUpProducer(adapter, igbProducer);
 
     std::vector<std::pair<int, sp<Fence>>> allocated;
-    for (int i = 0; i < 3; i++) {
+    int minUndequeuedBuffers = 0;
+    ASSERT_EQ(OK, igbProducer->query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &minUndequeuedBuffers));
+    const auto bufferCount = minUndequeuedBuffers + 2;
+
+    for (int i = 0; i < bufferCount; i++) {
         int slot;
         sp<Fence> fence;
         sp<GraphicBuffer> buf;

@@ -510,6 +510,28 @@ TEST_F(VSyncPredictorTest, knownVsyncIsUpdated) {
     EXPECT_EQ(mNow + 1000, tracker.nextAnticipatedVSyncTimeFrom(mNow));
 }
 
+TEST_F(VSyncPredictorTest, robustToDuplicateTimestamps_60hzRealTraceData) {
+    // these are real vsync timestamps from b/190331974 which caused vsync predictor
+    // period to spike to 18ms due to very close timestamps
+    std::vector<nsecs_t> const simulatedVsyncs{
+            198353408177, 198370074844, 198371400000, 198374274000, 198390941000, 198407565000,
+            198540887994, 198607538588, 198624218276, 198657655939, 198674224176, 198690880955,
+            198724204319, 198740988133, 198758166681, 198790869196, 198824205052, 198840871678,
+            198857715631, 198890885797, 198924199640, 198940873834, 198974204401,
+    };
+    auto constexpr idealPeriod = 16'666'666;
+    auto constexpr expectedPeriod = 16'644'742;
+    auto constexpr expectedIntercept = 125'626;
+
+    tracker.setPeriod(idealPeriod);
+    for (auto const& timestamp : simulatedVsyncs) {
+        tracker.addVsyncTimestamp(timestamp);
+    }
+    auto [slope, intercept] = tracker.getVSyncPredictionModel();
+    EXPECT_THAT(slope, IsCloseTo(expectedPeriod, mMaxRoundingError));
+    EXPECT_THAT(intercept, IsCloseTo(expectedIntercept, mMaxRoundingError));
+}
+
 } // namespace android::scheduler
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues

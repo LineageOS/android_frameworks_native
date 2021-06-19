@@ -62,7 +62,7 @@ public:
     }
 
     void commitTransaction(Layer* layer) {
-        auto c = layer->getCurrentState();
+        auto c = layer->getDrawingState();
         layer->commitTransaction(c);
     }
 
