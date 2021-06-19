@@ -38,6 +38,7 @@
 #include "binder_test_utils.h"
 #include "dexopt.h"
 #include "InstalldNativeService.h"
+#include "installd_constants.h"
 #include "globals.h"
 #include "tests/test_utils.h"
 #include "utils.h"
@@ -517,7 +518,8 @@ protected:
         // Check the access to the compiler output.
         //  - speed-profile artifacts are not world-wide readable.
         //  - files are owned by the system uid.
-        std::string odex = GetPrimaryDexArtifact(oat_dir, apk_path_, "odex");
+        std::string odex = GetPrimaryDexArtifact(oat_dir, apk_path_,
+                oat_dir == nullptr ? "dex" : "odex");
         std::string vdex = GetPrimaryDexArtifact(oat_dir, apk_path_, "vdex");
         std::string art = GetPrimaryDexArtifact(oat_dir, apk_path_, "art");
 
@@ -545,13 +547,60 @@ protected:
                 }
             }
             return android_data_dir + DALVIK_CACHE + '/' + kRuntimeIsa + "/" + path
-                    + "@classes.dex";
+                    + "@classes." + type;
         } else {
             std::string::size_type name_end = dex_path.rfind('.');
             std::string::size_type name_start = dex_path.rfind('/');
             return std::string(oat_dir) + "/" + kRuntimeIsa + "/" +
                     dex_path.substr(name_start + 1, name_end - name_start) + type;
         }
+    }
+
+    int64_t GetSize(const std::string& path) {
+        struct stat file_stat;
+        if (stat(path.c_str(), &file_stat) == 0) {
+            return static_cast<int64_t>(file_stat.st_size);
+        }
+        PLOG(ERROR) << "Cannot stat path: " << path;
+        return -1;
+    }
+
+    void TestDeleteOdex(bool in_dalvik_cache) {
+        const char* oat_dir = in_dalvik_cache ? nullptr : app_oat_dir_.c_str();
+        CompilePrimaryDexOk(
+                "speed-profile",
+                DEXOPT_BOOTCOMPLETE | DEXOPT_PROFILE_GUIDED | DEXOPT_PUBLIC
+                        | DEXOPT_GENERATE_APP_IMAGE,
+                oat_dir,
+                kTestAppGid,
+                DEX2OAT_FROM_SCRATCH,
+                /*binder_result=*/nullptr,
+                empty_dm_file_.c_str());
+
+
+        int64_t odex_size = GetSize(GetPrimaryDexArtifact(oat_dir, apk_path_,
+                in_dalvik_cache ? "dex" : "odex"));
+        int64_t vdex_size = GetSize(GetPrimaryDexArtifact(oat_dir, apk_path_, "vdex"));
+        int64_t art_size = GetSize(GetPrimaryDexArtifact(oat_dir, apk_path_, "art"));
+
+        LOG(ERROR) << "test odex " << odex_size;
+        LOG(ERROR) << "test vdex_size " << vdex_size;
+        LOG(ERROR) << "test art_size " << art_size;
+        int64_t expected_bytes_freed = odex_size + vdex_size + art_size;
+
+        int64_t bytes_freed;
+        binder::Status result = service_->deleteOdex(
+            apk_path_,
+            kRuntimeIsa,
+            in_dalvik_cache ? std::nullopt : std::make_optional<std::string>(app_oat_dir_.c_str()),
+            &bytes_freed);
+        ASSERT_TRUE(result.isOk()) << result.toString8().c_str();
+
+        ASSERT_GE(odex_size, 0);
+        ASSERT_GE(vdex_size, 0);
+        ASSERT_GE(art_size, 0);
+
+        ASSERT_EQ(expected_bytes_freed, bytes_freed);
     }
 };
 
@@ -699,6 +748,16 @@ TEST_F(DexoptTest, DexoptPrimaryBackgroundOk) {
                         DEX2OAT_FROM_SCRATCH,
                         /*binder_result=*/nullptr,
                         empty_dm_file_.c_str());
+}
+
+TEST_F(DexoptTest, DeleteDexoptArtifactsData) {
+    LOG(INFO) << "DeleteDexoptArtifactsData";
+    TestDeleteOdex(/*in_dalvik_cache=*/ false);
+}
+
+TEST_F(DexoptTest, DeleteDexoptArtifactsDalvikCache) {
+    LOG(INFO) << "DeleteDexoptArtifactsDalvikCache";
+    TestDeleteOdex(/*in_dalvik_cache=*/ true);
 }
 
 TEST_F(DexoptTest, ResolveStartupConstStrings) {
@@ -951,14 +1010,14 @@ class ProfileTest : public DexoptTest {
 
     void mergePackageProfiles(const std::string& package_name,
                               const std::string& code_path,
-                              bool expected_result) {
-        bool result;
+                              int expected_result) {
+        int result;
         ASSERT_BINDER_SUCCESS(service_->mergeProfiles(
                 kTestAppUid, package_name, code_path, &result));
         ASSERT_EQ(expected_result, result);
 
-        if (!expected_result) {
-            // Do not check the files if we expect to fail.
+        // There's nothing to check if the files are empty.
+        if (result == PROFILES_ANALYSIS_DONT_OPTIMIZE_EMPTY_PROFILES) {
             return;
         }
 
@@ -1077,7 +1136,7 @@ TEST_F(ProfileTest, ProfileMergeOk) {
     LOG(INFO) << "ProfileMergeOk";
 
     SetupProfiles(/*setup_ref*/ true);
-    mergePackageProfiles(package_name_, "primary.prof", /*expected_result*/ true);
+    mergePackageProfiles(package_name_, "primary.prof", PROFILES_ANALYSIS_OPTIMIZE);
 }
 
 // The reference profile is created on the fly. We need to be able to
@@ -1086,14 +1145,15 @@ TEST_F(ProfileTest, ProfileMergeOkNoReference) {
     LOG(INFO) << "ProfileMergeOkNoReference";
 
     SetupProfiles(/*setup_ref*/ false);
-    mergePackageProfiles(package_name_, "primary.prof", /*expected_result*/ true);
+    mergePackageProfiles(package_name_, "primary.prof", PROFILES_ANALYSIS_OPTIMIZE);
 }
 
 TEST_F(ProfileTest, ProfileMergeFailWrongPackage) {
     LOG(INFO) << "ProfileMergeFailWrongPackage";
 
     SetupProfiles(/*setup_ref*/ true);
-    mergePackageProfiles("not.there", "primary.prof", /*expected_result*/ false);
+    mergePackageProfiles("not.there", "primary.prof",
+            PROFILES_ANALYSIS_DONT_OPTIMIZE_EMPTY_PROFILES);
 }
 
 TEST_F(ProfileTest, ProfileDirOk) {

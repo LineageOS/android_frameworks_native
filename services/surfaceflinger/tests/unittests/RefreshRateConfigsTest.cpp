@@ -144,6 +144,7 @@ protected:
                                        mConfig30DifferentGroup,
                                        mConfig25DifferentGroup,
                                        mConfig50};
+    DisplayModes m60_120Device = {mConfig60, mConfig120};
 
     // Expected RefreshRate objects
     RefreshRate mExpected60Config = {HWC_CONFIG_ID_60, mConfig60, Fps(60),
@@ -1844,6 +1845,38 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_WritesCache) {
     ASSERT_FALSE(detaultSignals == lastInvocation->outSignalsConsidered);
 }
 
+TEST_F(RefreshRateConfigsTest, getBestRefreshRate_ExplicitExactTouchBoost) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_120Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60,
+                                                 /*enableFrameRateOverride=*/true);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f},
+                                                LayerRequirement{.weight = 0.5f}};
+    auto& explicitExactLayer = layers[0];
+    auto& explicitExactOrMultipleLayer = layers[1];
+
+    explicitExactOrMultipleLayer.vote = LayerVoteType::ExplicitExactOrMultiple;
+    explicitExactOrMultipleLayer.name = "ExplicitExactOrMultiple";
+    explicitExactOrMultipleLayer.desiredRefreshRate = Fps(60);
+
+    explicitExactLayer.vote = LayerVoteType::ExplicitExact;
+    explicitExactLayer.name = "ExplicitExact";
+    explicitExactLayer.desiredRefreshRate = Fps(30);
+
+    EXPECT_EQ(mExpected60Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+    EXPECT_EQ(mExpected120Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = true, .idle = false}));
+
+    explicitExactOrMultipleLayer.vote = LayerVoteType::NoVote;
+
+    EXPECT_EQ(mExpected60Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+    EXPECT_EQ(mExpected60Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = true, .idle = false}));
+}
+
 TEST_F(RefreshRateConfigsTest, testComparisonOperator) {
     EXPECT_TRUE(mExpected60Config < mExpected90Config);
     EXPECT_FALSE(mExpected60Config < mExpected60Config);
@@ -1864,10 +1897,10 @@ TEST_F(RefreshRateConfigsTest, testKernelIdleTimerAction) {
               0);
     EXPECT_EQ(KernelIdleTimerAction::TurnOn, refreshRateConfigs->getIdleTimerAction());
 
-    // SetPolicy(60, 60), current 60Hz => NoChange, avoid extra calls.
+    // SetPolicy(60, 60), current 60Hz => TurnOff
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {Fps(60), Fps(60)}}),
               0);
-    EXPECT_EQ(KernelIdleTimerAction::NoChange, refreshRateConfigs->getIdleTimerAction());
+    EXPECT_EQ(KernelIdleTimerAction::TurnOff, refreshRateConfigs->getIdleTimerAction());
 
     // SetPolicy(90, 90), current 90Hz => TurnOff.
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, {Fps(90), Fps(90)}}),

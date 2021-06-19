@@ -78,28 +78,28 @@ bool EffectLayer::isVisible() const {
 }
 
 bool EffectLayer::setColor(const half3& color) {
-    if (mCurrentState.color.r == color.r && mCurrentState.color.g == color.g &&
-        mCurrentState.color.b == color.b) {
+    if (mDrawingState.color.r == color.r && mDrawingState.color.g == color.g &&
+        mDrawingState.color.b == color.b) {
         return false;
     }
 
-    mCurrentState.sequence++;
-    mCurrentState.color.r = color.r;
-    mCurrentState.color.g = color.g;
-    mCurrentState.color.b = color.b;
-    mCurrentState.modified = true;
+    mDrawingState.sequence++;
+    mDrawingState.color.r = color.r;
+    mDrawingState.color.g = color.g;
+    mDrawingState.color.b = color.b;
+    mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
 
 bool EffectLayer::setDataspace(ui::Dataspace dataspace) {
-    if (mCurrentState.dataspace == dataspace) {
+    if (mDrawingState.dataspace == dataspace) {
         return false;
     }
 
-    mCurrentState.sequence++;
-    mCurrentState.dataspace = dataspace;
-    mCurrentState.modified = true;
+    mDrawingState.sequence++;
+    mDrawingState.dataspace = dataspace;
+    mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
 }

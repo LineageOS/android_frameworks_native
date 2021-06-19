@@ -318,7 +318,6 @@ public:
     // Class to enumerate options around toggling the kernel timer on and off. We have an option
     // for no change to avoid extra calls to kernel.
     enum class KernelIdleTimerAction {
-        NoChange, // Do not change the idle timer.
         TurnOff,  // Turn off the idle timer.
         TurnOn    // Turn on the idle timer.
     };
