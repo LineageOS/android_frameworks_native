@@ -16,18 +16,10 @@
 
 #pragma once
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
 #include <cstdint>
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-#pragma clang diagnostic ignored "-Wextra"
-
-#include <android/hardware/graphics/composer/2.4/IComposerClient.h>
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
 #include <../Fps.h>
+#include <android/hardware/graphics/composer/2.4/IComposerClient.h>
 #include <gui/JankInfo.h>
 #include <timestatsproto/TimeStatsHelper.h>
 #include <timestatsproto/TimeStatsProtoHeader.h>
