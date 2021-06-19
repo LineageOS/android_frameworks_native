@@ -537,22 +537,21 @@ public:
     virtual int getGPUContextPriority() = 0;
 
     /**
-     * Gets the extra buffers a client would need to allocate if it passes
-     * the Choreographer#getVsyncId with its buffers.
-     *
-     * When Choreographer#getVsyncId is passed to SurfaceFlinger, it is used
-     * as an indication of when to latch the buffer. SurfaceFlinger will make
-     * sure that it will give the app at least the time configured as the
-     * 'appDuration' before trying to latch the buffer.
+     * Gets the number of buffers SurfaceFlinger would need acquire. This number
+     * would be propagated to the client via MIN_UNDEQUEUED_BUFFERS so that the
+     * client could allocate enough buffers to match SF expectations of the
+     * pipeline depth. SurfaceFlinger will make sure that it will give the app at
+     * least the time configured as the 'appDuration' before trying to latch
+     * the buffer.
      *
      * The total buffers needed for a given configuration is basically the
      * numbers of vsyncs a single buffer is used across the stack. For the default
      * configuration a buffer is held ~1 vsync by the app, ~1 vsync by SurfaceFlinger
      * and 1 vsync by the display. The extra buffers are calculated as the
-     * number of additional buffers on top of the 3 buffers already allocated
-     * by the app.
+     * number of additional buffers on top of the 2 buffers already present
+     * in MIN_UNDEQUEUED_BUFFERS.
      */
-    virtual status_t getExtraBufferCount(int* extraBuffers) const = 0;
+    virtual status_t getMaxAcquiredBufferCount(int* buffers) const = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -615,7 +614,7 @@ public:
         SET_FRAME_TIMELINE_INFO,
         ADD_TRANSACTION_TRACE_LISTENER,
         GET_GPU_CONTEXT_PRIORITY,
-        GET_EXTRA_BUFFER_COUNT,
+        GET_MAX_ACQUIRED_BUFFER_COUNT,
         GET_DYNAMIC_DISPLAY_INFO,
         ADD_FPS_LISTENER,
         REMOVE_FPS_LISTENER,
