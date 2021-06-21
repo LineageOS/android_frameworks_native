@@ -205,6 +205,10 @@ std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(
 }
 
 std::optional<Fps> Scheduler::getFrameRateOverride(uid_t uid) const {
+    if (!mRefreshRateConfigs.supportsFrameRateOverride()) {
+        return std::nullopt;
+    }
+
     std::lock_guard lock(mFrameRateOverridesMutex);
     {
         const auto iter = mFrameRateOverridesFromBackdoor.find(uid);
@@ -224,10 +228,6 @@ std::optional<Fps> Scheduler::getFrameRateOverride(uid_t uid) const {
 }
 
 bool Scheduler::isVsyncValid(nsecs_t expectedVsyncTimestamp, uid_t uid) const {
-    if (!mRefreshRateConfigs.supportsFrameRateOverride()) {
-        return true;
-    }
-
     const auto frameRate = getFrameRateOverride(uid);
     if (!frameRate.has_value()) {
         return true;

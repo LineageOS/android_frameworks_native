@@ -83,7 +83,7 @@ using TransactionCompletedCallback =
                            const std::vector<SurfaceControlStats>& /*stats*/)>;
 using ReleaseBufferCallback =
         std::function<void(uint64_t /* graphicsBufferId */, const sp<Fence>& /*releaseFence*/,
-                           uint32_t transformHint)>;
+                           uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount)>;
 
 using SurfaceStatsCallback =
         std::function<void(void* /*context*/, nsecs_t /*latchTime*/,
@@ -731,7 +731,7 @@ public:
     // BnTransactionCompletedListener overrides
     void onTransactionCompleted(ListenerStats stats) override;
     void onReleaseBuffer(uint64_t /* graphicsBufferId */, sp<Fence> releaseFence,
-                         uint32_t transformHint) override;
+                         uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount) override;
 
 private:
     ReleaseBufferCallback popReleaseBufferCallbackLocked(uint64_t /* graphicsBufferId */);
