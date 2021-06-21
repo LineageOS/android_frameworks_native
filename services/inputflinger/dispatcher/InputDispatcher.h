@@ -139,6 +139,8 @@ public:
 
     std::array<uint8_t, 32> sign(const VerifiedInputEvent& event) const;
 
+    void displayRemoved(int32_t displayId) override;
+
 private:
     enum class DropReason {
         NOT_DROPPED,
@@ -343,6 +345,9 @@ private:
     std::unordered_map<int32_t, TouchState> mTouchStatesByDisplay GUARDED_BY(mLock);
     std::unique_ptr<DragState> mDragState GUARDED_BY(mLock);
 
+    void setFocusedApplicationLocked(
+            int32_t displayId,
+            const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) REQUIRES(mLock);
     // Focused applications.
     std::unordered_map<int32_t, std::shared_ptr<InputApplicationHandle>>
             mFocusedApplicationHandlesByDisplay GUARDED_BY(mLock);
