@@ -679,11 +679,6 @@ bool Layer::isSecure() const {
 uint32_t Layer::doTransaction(uint32_t flags) {
     ATRACE_CALL();
 
-    if (mChildrenChanged) {
-        flags |= eVisibleRegion;
-        mChildrenChanged = false;
-    }
-
     // TODO: This is unfortunate.
     mDrawingStateModified = mDrawingState.modified;
     mDrawingState.modified = false;
@@ -1562,7 +1557,7 @@ void Layer::setGameModeForTree(int parentGameMode) {
 }
 
 void Layer::addChild(const sp<Layer>& layer) {
-    mChildrenChanged = true;
+    mFlinger->mSomeChildrenChanged = true;
     setTransactionFlags(eTransactionNeeded);
 
     mCurrentChildren.add(layer);
@@ -1572,7 +1567,7 @@ void Layer::addChild(const sp<Layer>& layer) {
 }
 
 ssize_t Layer::removeChild(const sp<Layer>& layer) {
-    mChildrenChanged = true;
+    mFlinger->mSomeChildrenChanged = true;
     setTransactionFlags(eTransactionNeeded);
 
     layer->setParent(nullptr);

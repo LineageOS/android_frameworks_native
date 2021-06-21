@@ -1230,8 +1230,13 @@ private:
     // don't need synchronization
     State mDrawingState{LayerVector::StateSet::Drawing};
     bool mVisibleRegionsDirty = false;
-    // Set during transaction commit stage to track if the input info for a layer has changed.
+
+    // Set during transaction application stage to track if the input info or children
+    // for a layer has changed.
+    // TODO: Also move visibleRegions over to a boolean system.
     bool mInputInfoChanged = false;
+    bool mSomeChildrenChanged;
+
     bool mGeometryInvalid = false;
     bool mAnimCompositionPending = false;
 
