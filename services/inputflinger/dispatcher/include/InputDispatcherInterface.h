@@ -209,6 +209,11 @@ public:
      * Returns true on success.
      */
     virtual bool flushSensor(int deviceId, InputDeviceSensorType sensorType) = 0;
+
+    /**
+     * Called when a display has been removed from the system.
+     */
+    virtual void displayRemoved(int32_t displayId) = 0;
 };
 
 } // namespace android
