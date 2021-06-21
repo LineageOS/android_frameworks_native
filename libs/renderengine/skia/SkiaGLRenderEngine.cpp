@@ -552,9 +552,24 @@ void SkiaGLRenderEngine::unmapExternalTextureBuffer(const sp<GraphicBuffer>& buf
 
         iter->second--;
 
+        // Swap contexts if needed prior to deleting this buffer
+        // See Issue 1 of
+        // https://www.khronos.org/registry/EGL/extensions/EXT/EGL_EXT_protected_content.txt: even
+        // when a protected context and an unprotected context are part of the same share group,
+        // protected surfaces may not be accessed by an unprotected context, implying that protected
+        // surfaces may only be freed when a protected context is active.
+        const bool inProtected = mInProtectedContext;
+        useProtectedContext(buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
+
         if (iter->second == 0) {
             mTextureCache.erase(buffer->getId());
             mGraphicBufferExternalRefs.erase(buffer->getId());
+        }
+
+        // Swap back to the previous context so that cached values of isProtected in SurfaceFlinger
+        // are up-to-date.
+        if (inProtected != mInProtectedContext) {
+            useProtectedContext(inProtected);
         }
     }
 }
