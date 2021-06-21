@@ -420,7 +420,7 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
         const bool layerIsInactive = now - currentSet->getLastUpdate() > mActiveLayerTimeout;
         const bool layerHasBlur = currentSet->hasBlurBehind();
         if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur) &&
-            !currentSet->hasHdrLayers() && !currentSet->hasProtectedLayers()) {
+            !currentSet->hasHdrLayers()) {
             if (isPartOfRun) {
                 builder.append(currentSet->getLayerCount());
             } else {
@@ -489,6 +489,14 @@ void Flattener::buildCachedSets(time_point now) {
     // Don't try to build a new cached set if we already have a new one in progress
     if (mNewCachedSet) {
         return;
+    }
+
+    for (const CachedSet& layer : mLayers) {
+        // TODO (b/191997217): make it less aggressive, and sync with findCandidateRuns
+        if (layer.hasProtectedLayers()) {
+            ATRACE_NAME("layer->hasProtectedLayers()");
+            return;
+        }
     }
 
     std::vector<Run> runs = findCandidateRuns(now);
