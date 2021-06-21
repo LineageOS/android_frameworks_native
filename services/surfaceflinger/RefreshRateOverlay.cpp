@@ -199,10 +199,10 @@ bool RefreshRateOverlay::createLayer() {
     mLayer->setFrameRate(Layer::FrameRate(Fps(0.0f), Layer::FrameRateCompatibility::NoVote));
 
     // setting Layer's Z requires resorting layersSortedByZ
-    ssize_t idx = mFlinger.mCurrentState.layersSortedByZ.indexOf(mLayer);
+    ssize_t idx = mFlinger.mDrawingState.layersSortedByZ.indexOf(mLayer);
     if (mLayer->setLayer(INT32_MAX - 2) && idx >= 0) {
-        mFlinger.mCurrentState.layersSortedByZ.removeAt(idx);
-        mFlinger.mCurrentState.layersSortedByZ.add(mLayer);
+        mFlinger.mDrawingState.layersSortedByZ.removeAt(idx);
+        mFlinger.mDrawingState.layersSortedByZ.add(mLayer);
     }
 
     return true;
