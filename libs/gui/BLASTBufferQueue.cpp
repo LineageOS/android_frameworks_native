@@ -259,15 +259,18 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
 
                 mTransformHint = stat.transformHint;
                 mBufferItemConsumer->setTransformHint(mTransformHint);
-                mBufferItemConsumer
-                        ->updateFrameTimestamps(stat.frameEventStats.frameNumber,
-                                                stat.frameEventStats.refreshStartTime,
-                                                stat.frameEventStats.gpuCompositionDoneFence,
-                                                stat.presentFence, stat.previousReleaseFence,
-                                                stat.frameEventStats.compositorTiming,
-                                                stat.latchTime,
-                                                stat.frameEventStats.dequeueReadyTime);
-
+                // Update frametime stamps if the frame was latched and presented, indicated by a
+                // valid latch time.
+                if (stat.latchTime > 0) {
+                    mBufferItemConsumer
+                            ->updateFrameTimestamps(stat.frameEventStats.frameNumber,
+                                                    stat.frameEventStats.refreshStartTime,
+                                                    stat.frameEventStats.gpuCompositionDoneFence,
+                                                    stat.presentFence, stat.previousReleaseFence,
+                                                    stat.frameEventStats.compositorTiming,
+                                                    stat.latchTime,
+                                                    stat.frameEventStats.dequeueReadyTime);
+                }
                 currFrameNumber = stat.frameEventStats.frameNumber;
 
                 if (mTransactionCompleteCallback &&
