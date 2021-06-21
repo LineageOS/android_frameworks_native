@@ -2942,6 +2942,11 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
         });
     }
 
+    if (mSomeChildrenChanged) {
+        mVisibleRegionsDirty = true;
+        mSomeChildrenChanged = false;
+    }
+
     // Update transform hint
     if (transactionFlags & (eTransformHintUpdateNeeded | eDisplayTransactionNeeded)) {
         // The transform hint might have changed for some layers
