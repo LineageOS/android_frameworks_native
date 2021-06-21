@@ -2688,6 +2688,23 @@ TEST_F(InputDispatcherTest, SetFocusedWindow_DeferInvisibleWindow) {
     window->consumeKeyDown(ADISPLAY_ID_DEFAULT);
 }
 
+TEST_F(InputDispatcherTest, DisplayRemoved) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "window", ADISPLAY_ID_DEFAULT);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+    // window is granted focus.
+    window->setFocusable(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
+    window->consumeFocusEvent(true);
+
+    // When a display is removed window loses focus.
+    mDispatcher->displayRemoved(ADISPLAY_ID_DEFAULT);
+    window->consumeFocusEvent(false);
+}
+
 /**
  * Launch two windows, with different owners. One window (slipperyExitWindow) has Flag::SLIPPERY,
  * and overlaps the other window, slipperyEnterWindow. The window 'slipperyExitWindow' is on top
