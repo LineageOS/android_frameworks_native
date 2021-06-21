@@ -54,15 +54,20 @@ bool clear_primary_current_profile(const std::string& pkgname, const std::string
 // Clear all current profiles identified by the given profile name (all users).
 bool clear_primary_current_profiles(const std::string& pkgname, const std::string& profile_name);
 
-// Decide if profile guided compilation is needed or not based on existing profiles.
+// Decides if profile guided compilation is needed or not based on existing profiles.
 // The analysis is done for a single profile name (which corresponds to a single code path).
-// Returns true if there is enough information in the current profiles that makes it
-// worth to recompile the package.
-// If the return value is true all the current profiles would have been merged into
-// the reference profiles accessible with open_reference_profile().
-bool analyze_primary_profiles(uid_t uid,
-                              const std::string& pkgname,
-                              const std::string& profile_name);
+//
+// Returns PROFILES_ANALYSIS_OPTIMIZE if there is enough information in the current profiles
+// that makes it worth to recompile the package.
+// If the return value is PROFILES_ANALYSIS_OPTIMIZE all the current profiles would have been
+// merged into the reference profiles accessible with open_reference_profile().
+//
+// Return PROFILES_ANALYSIS_DONT_OPTIMIZE_SMALL_DELTA if the package should not optimize.
+// As a special case returns PROFILES_ANALYSIS_DONT_OPTIMIZE_EMPTY_PROFILES if all profiles are
+// empty.
+int analyze_primary_profiles(uid_t uid,
+                             const std::string& pkgname,
+                             const std::string& profile_name);
 
 // Create a snapshot of the profile information for the given package profile.
 // If appId is -1, the method creates the profile snapshot for the boot image.

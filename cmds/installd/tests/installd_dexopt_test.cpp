@@ -38,6 +38,7 @@
 #include "binder_test_utils.h"
 #include "dexopt.h"
 #include "InstalldNativeService.h"
+#include "installd_constants.h"
 #include "globals.h"
 #include "tests/test_utils.h"
 #include "utils.h"
@@ -951,14 +952,14 @@ class ProfileTest : public DexoptTest {
 
     void mergePackageProfiles(const std::string& package_name,
                               const std::string& code_path,
-                              bool expected_result) {
-        bool result;
+                              int expected_result) {
+        int result;
         ASSERT_BINDER_SUCCESS(service_->mergeProfiles(
                 kTestAppUid, package_name, code_path, &result));
         ASSERT_EQ(expected_result, result);
 
-        if (!expected_result) {
-            // Do not check the files if we expect to fail.
+        // There's nothing to check if the files are empty.
+        if (result == PROFILES_ANALYSIS_DONT_OPTIMIZE_EMPTY_PROFILES) {
             return;
         }
 
@@ -1077,7 +1078,7 @@ TEST_F(ProfileTest, ProfileMergeOk) {
     LOG(INFO) << "ProfileMergeOk";
 
     SetupProfiles(/*setup_ref*/ true);
-    mergePackageProfiles(package_name_, "primary.prof", /*expected_result*/ true);
+    mergePackageProfiles(package_name_, "primary.prof", PROFILES_ANALYSIS_OPTIMIZE);
 }
 
 // The reference profile is created on the fly. We need to be able to
@@ -1086,14 +1087,15 @@ TEST_F(ProfileTest, ProfileMergeOkNoReference) {
     LOG(INFO) << "ProfileMergeOkNoReference";
 
     SetupProfiles(/*setup_ref*/ false);
-    mergePackageProfiles(package_name_, "primary.prof", /*expected_result*/ true);
+    mergePackageProfiles(package_name_, "primary.prof", PROFILES_ANALYSIS_OPTIMIZE);
 }
 
 TEST_F(ProfileTest, ProfileMergeFailWrongPackage) {
     LOG(INFO) << "ProfileMergeFailWrongPackage";
 
     SetupProfiles(/*setup_ref*/ true);
-    mergePackageProfiles("not.there", "primary.prof", /*expected_result*/ false);
+    mergePackageProfiles("not.there", "primary.prof",
+            PROFILES_ANALYSIS_DONT_OPTIMIZE_EMPTY_PROFILES);
 }
 
 TEST_F(ProfileTest, ProfileDirOk) {
