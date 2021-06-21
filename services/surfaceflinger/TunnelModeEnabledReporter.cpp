@@ -31,8 +31,8 @@ TunnelModeEnabledReporter::TunnelModeEnabledReporter(SurfaceFlinger& flinger) : 
 void TunnelModeEnabledReporter::updateTunnelModeStatus() {
     bool tunnelModeEnabled = false;
     mFlinger.mCurrentState.traverse([&](Layer* layer) {
-        auto& currentState = layer->getCurrentState();
-        if (currentState.sidebandStream != nullptr) {
+        auto& state = layer->getDrawingState();
+        if (state.sidebandStream != nullptr) {
             tunnelModeEnabled = true;
             return;
         }
