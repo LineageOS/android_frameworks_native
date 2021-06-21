@@ -132,7 +132,7 @@ private:
 
     // BufferQueue internally allows 1 more than
     // the max to be acquired
-    static const int MAX_ACQUIRED_BUFFERS = 1;
+    int32_t mMaxAcquiredBuffers = 1;
 
     int32_t mNumFrameAvailable GUARDED_BY(mMutex);
     int32_t mNumAcquired GUARDED_BY(mMutex);
