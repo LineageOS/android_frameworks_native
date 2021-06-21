@@ -902,7 +902,7 @@ public:
 
     int getGPUContextPriority() override { return 0; };
 
-    status_t getExtraBufferCount(int* /*extraBuffers*/) const override { return NO_ERROR; }
+    status_t getMaxAcquiredBufferCount(int* /*buffers*/) const override { return NO_ERROR; }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }

@@ -5267,7 +5267,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case CAPTURE_DISPLAY:
         case SET_FRAME_TIMELINE_INFO:
         case GET_GPU_CONTEXT_PRIORITY:
-        case GET_EXTRA_BUFFER_COUNT: {
+        case GET_MAX_ACQUIRED_BUFFER_COUNT: {
             // This is not sensitive information, so should not require permission control.
             return OK;
         }
@@ -6820,23 +6820,36 @@ int SurfaceFlinger::getGPUContextPriority() {
     return getRenderEngine().getContextPriority();
 }
 
-int SurfaceFlinger::calculateExtraBufferCount(Fps maxSupportedRefreshRate,
-                                              std::chrono::nanoseconds presentLatency) {
-    auto pipelineDepth = presentLatency.count() / maxSupportedRefreshRate.getPeriodNsecs();
-    if (presentLatency.count() % maxSupportedRefreshRate.getPeriodNsecs()) {
+int SurfaceFlinger::calculateMaxAcquiredBufferCount(Fps refreshRate,
+                                                    std::chrono::nanoseconds presentLatency) {
+    auto pipelineDepth = presentLatency.count() / refreshRate.getPeriodNsecs();
+    if (presentLatency.count() % refreshRate.getPeriodNsecs()) {
         pipelineDepth++;
     }
-    return std::max(0ll, pipelineDepth - 2);
+    return std::max(1ll, pipelineDepth - 1);
 }
 
-status_t SurfaceFlinger::getExtraBufferCount(int* extraBuffers) const {
+status_t SurfaceFlinger::getMaxAcquiredBufferCount(int* buffers) const {
     const auto maxSupportedRefreshRate = mRefreshRateConfigs->getSupportedRefreshRateRange().max;
-    const auto vsyncConfig =
-            mVsyncConfiguration->getConfigsForRefreshRate(maxSupportedRefreshRate).late;
-    const auto presentLatency = vsyncConfig.appWorkDuration + vsyncConfig.sfWorkDuration;
-
-    *extraBuffers = calculateExtraBufferCount(maxSupportedRefreshRate, presentLatency);
+    *buffers = getMaxAcquiredBufferCountForRefreshRate(maxSupportedRefreshRate);
     return NO_ERROR;
+}
+
+int SurfaceFlinger::getMaxAcquiredBufferCountForCurrentRefreshRate(uid_t uid) const {
+    const auto refreshRate = [&] {
+        const auto frameRateOverride = mScheduler->getFrameRateOverride(uid);
+        if (frameRateOverride.has_value()) {
+            return frameRateOverride.value();
+        }
+        return mRefreshRateConfigs->getCurrentRefreshRate().getFps();
+    }();
+    return getMaxAcquiredBufferCountForRefreshRate(refreshRate);
+}
+
+int SurfaceFlinger::getMaxAcquiredBufferCountForRefreshRate(Fps refreshRate) const {
+    const auto vsyncConfig = mVsyncConfiguration->getConfigsForRefreshRate(refreshRate).late;
+    const auto presentLatency = vsyncConfig.appWorkDuration + vsyncConfig.sfWorkDuration;
+    return calculateMaxAcquiredBufferCount(refreshRate, presentLatency);
 }
 
 void SurfaceFlinger::TransactionState::traverseStatesWithBuffers(
