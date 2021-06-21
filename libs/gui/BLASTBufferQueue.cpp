@@ -29,8 +29,9 @@
 #include <gui/IProducerListener.h>
 #include <gui/Surface.h>
 #include <utils/Singleton.h>
-
 #include <utils/Trace.h>
+
+#include <private/gui/ComposerService.h>
 
 #include <chrono>
 
@@ -157,6 +158,11 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     mBufferItemConsumer->setDefaultBufferSize(mSize.width, mSize.height);
     mBufferItemConsumer->setDefaultBufferFormat(convertBufferFormat(format));
     mBufferItemConsumer->setBlastBufferQueue(this);
+
+    int extraBufferCount = 0;
+    ComposerService::getComposerService()->getExtraBufferCount(&extraBufferCount);
+    mMaxAcquiredBuffers = 1 + extraBufferCount;
+    mBufferItemConsumer->setMaxAcquiredBufferCount(mMaxAcquiredBuffers);
 
     mTransformHint = mSurfaceControl->getTransformHint();
     mBufferItemConsumer->setTransformHint(mTransformHint);
@@ -567,7 +573,7 @@ void BLASTBufferQueue::setTransactionCompleteCallback(
 // includeExtraAcquire is true to include this buffer to the count. Since this depends on the state
 // of the buffer, the next acquire may return with NO_BUFFER_AVAILABLE.
 bool BLASTBufferQueue::maxBuffersAcquired(bool includeExtraAcquire) const {
-    int maxAcquiredBuffers = MAX_ACQUIRED_BUFFERS + (includeExtraAcquire ? 2 : 1);
+    int maxAcquiredBuffers = mMaxAcquiredBuffers + (includeExtraAcquire ? 2 : 1);
     return mNumAcquired == maxAcquiredBuffers;
 }
 
