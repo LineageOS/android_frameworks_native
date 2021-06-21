@@ -4082,27 +4082,27 @@ void TouchInputMapper::process(const RawEvent* rawEvent) {
 }
 
 void TouchInputMapper::sync(nsecs_t when) {
-    const RawState* last = mRawStatesPending.isEmpty() ?
-            &mCurrentRawState : &mRawStatesPending.top();
-
     // Push a new state.
     mRawStatesPending.push();
-    RawState* next = &mRawStatesPending.editTop();
-    next->clear();
-    next->when = when;
+    RawState& next = mRawStatesPending.editTop();
+    next.clear();
+    next.when = when;
 
     // Sync button state.
-    next->buttonState = mTouchButtonAccumulator.getButtonState()
+    next.buttonState = mTouchButtonAccumulator.getButtonState()
             | mCursorButtonAccumulator.getButtonState();
 
     // Sync scroll
-    next->rawVScroll = mCursorScrollAccumulator.getRelativeVWheel();
-    next->rawHScroll = mCursorScrollAccumulator.getRelativeHWheel();
+    next.rawVScroll = mCursorScrollAccumulator.getRelativeVWheel();
+    next.rawHScroll = mCursorScrollAccumulator.getRelativeHWheel();
     mCursorScrollAccumulator.finishSync();
 
     // Sync touch
-    syncTouch(when, next);
+    syncTouch(when, &next);
 
+    // The last RawState is actually the second to last, since we just added a new state
+    const RawState& last = mRawStatesPending.size() == 1 ?
+            mCurrentRawState : mRawStatesPending.editItemAt(mRawStatesPending.size() - 2);
     // Assign pointer ids.
     if (!mHavePointerIds) {
         assignPointerIds(last, next);
@@ -4111,12 +4111,12 @@ void TouchInputMapper::sync(nsecs_t when) {
 #if DEBUG_RAW_EVENTS
     ALOGD("syncTouch: pointerCount %d -> %d, touching ids 0x%08x -> 0x%08x, "
             "hovering ids 0x%08x -> 0x%08x",
-            last->rawPointerData.pointerCount,
-            next->rawPointerData.pointerCount,
-            last->rawPointerData.touchingIdBits.value,
-            next->rawPointerData.touchingIdBits.value,
-            last->rawPointerData.hoveringIdBits.value,
-            next->rawPointerData.hoveringIdBits.value);
+            last.rawPointerData.pointerCount,
+            next.rawPointerData.pointerCount,
+            last.rawPointerData.touchingIdBits.value,
+            next.rawPointerData.touchingIdBits.value,
+            last.rawPointerData.hoveringIdBits.value,
+            next.rawPointerData.hoveringIdBits.value);
 #endif
 
     processRawTouches(false /*timeout*/);
@@ -6368,11 +6368,11 @@ const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(
     return NULL;
 }
 
-void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current) {
-    uint32_t currentPointerCount = current->rawPointerData.pointerCount;
-    uint32_t lastPointerCount = last->rawPointerData.pointerCount;
+void TouchInputMapper::assignPointerIds(const RawState& last, RawState& current) {
+    uint32_t currentPointerCount = current.rawPointerData.pointerCount;
+    uint32_t lastPointerCount = last.rawPointerData.pointerCount;
 
-    current->rawPointerData.clearIdBits();
+    current.rawPointerData.clearIdBits();
 
     if (currentPointerCount == 0) {
         // No pointers to assign.
@@ -6383,21 +6383,21 @@ void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current)
         // All pointers are new.
         for (uint32_t i = 0; i < currentPointerCount; i++) {
             uint32_t id = i;
-            current->rawPointerData.pointers[i].id = id;
-            current->rawPointerData.idToIndex[id] = i;
-            current->rawPointerData.markIdBit(id, current->rawPointerData.isHovering(i));
+            current.rawPointerData.pointers[i].id = id;
+            current.rawPointerData.idToIndex[id] = i;
+            current.rawPointerData.markIdBit(id, current.rawPointerData.isHovering(i));
         }
         return;
     }
 
     if (currentPointerCount == 1 && lastPointerCount == 1
-            && current->rawPointerData.pointers[0].toolType
-                    == last->rawPointerData.pointers[0].toolType) {
+            && current.rawPointerData.pointers[0].toolType
+                    == last.rawPointerData.pointers[0].toolType) {
         // Only one pointer and no change in count so it must have the same id as before.
-        uint32_t id = last->rawPointerData.pointers[0].id;
-        current->rawPointerData.pointers[0].id = id;
-        current->rawPointerData.idToIndex[id] = 0;
-        current->rawPointerData.markIdBit(id, current->rawPointerData.isHovering(0));
+        uint32_t id = last.rawPointerData.pointers[0].id;
+        current.rawPointerData.pointers[0].id = id;
+        current.rawPointerData.idToIndex[id] = 0;
+        current.rawPointerData.markIdBit(id, current.rawPointerData.isHovering(0));
         return;
     }
 
@@ -6415,9 +6415,9 @@ void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current)
         for (uint32_t lastPointerIndex = 0; lastPointerIndex < lastPointerCount;
                 lastPointerIndex++) {
             const RawPointerData::Pointer& currentPointer =
-                    current->rawPointerData.pointers[currentPointerIndex];
+                    current.rawPointerData.pointers[currentPointerIndex];
             const RawPointerData::Pointer& lastPointer =
-                    last->rawPointerData.pointers[lastPointerIndex];
+                    last.rawPointerData.pointers[lastPointerIndex];
             if (currentPointer.toolType == lastPointer.toolType) {
                 int64_t deltaX = currentPointer.x - lastPointer.x;
                 int64_t deltaY = currentPointer.y - lastPointer.y;
@@ -6523,11 +6523,11 @@ void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current)
             matchedCurrentBits.markBit(currentPointerIndex);
             matchedLastBits.markBit(lastPointerIndex);
 
-            uint32_t id = last->rawPointerData.pointers[lastPointerIndex].id;
-            current->rawPointerData.pointers[currentPointerIndex].id = id;
-            current->rawPointerData.idToIndex[id] = currentPointerIndex;
-            current->rawPointerData.markIdBit(id,
-                    current->rawPointerData.isHovering(currentPointerIndex));
+            uint32_t id = last.rawPointerData.pointers[lastPointerIndex].id;
+            current.rawPointerData.pointers[currentPointerIndex].id = id;
+            current.rawPointerData.idToIndex[id] = currentPointerIndex;
+            current.rawPointerData.markIdBit(id,
+                    current.rawPointerData.isHovering(currentPointerIndex));
             usedIdBits.markBit(id);
 
 #if DEBUG_POINTER_ASSIGNMENT
@@ -6543,10 +6543,10 @@ void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current)
         uint32_t currentPointerIndex = matchedCurrentBits.markFirstUnmarkedBit();
         uint32_t id = usedIdBits.markFirstUnmarkedBit();
 
-        current->rawPointerData.pointers[currentPointerIndex].id = id;
-        current->rawPointerData.idToIndex[id] = currentPointerIndex;
-        current->rawPointerData.markIdBit(id,
-                current->rawPointerData.isHovering(currentPointerIndex));
+        current.rawPointerData.pointers[currentPointerIndex].id = id;
+        current.rawPointerData.idToIndex[id] = currentPointerIndex;
+        current.rawPointerData.markIdBit(id,
+                current.rawPointerData.isHovering(currentPointerIndex));
 
 #if DEBUG_POINTER_ASSIGNMENT
         ALOGD("assignPointerIds - assigned: cur=%d, id=%d",
