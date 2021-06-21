@@ -34,16 +34,18 @@ class TestableWorkDuration : public impl::WorkDuration {
 public:
     TestableWorkDuration(Fps currentFps, nsecs_t sfDuration, nsecs_t appDuration,
                          nsecs_t sfEarlyDuration, nsecs_t appEarlyDuration,
-                         nsecs_t sfEarlyGlDuration, nsecs_t appEarlyGlDuration)
+                         nsecs_t sfEarlyGlDuration, nsecs_t appEarlyGlDuration,
+                         nsecs_t hwcMinWorkDuration)
           : impl::WorkDuration(currentFps, sfDuration, appDuration, sfEarlyDuration,
-                               appEarlyDuration, sfEarlyGlDuration, appEarlyGlDuration) {}
+                               appEarlyDuration, sfEarlyGlDuration, appEarlyGlDuration,
+                               hwcMinWorkDuration) {}
 };
 
 class WorkDurationTest : public testing::Test {
 protected:
     WorkDurationTest()
           : mWorkDuration(Fps(60.0f), 10'500'000, 20'500'000, 16'000'000, 16'500'000, 13'500'000,
-                          21'000'000) {}
+                          21'000'000, 1234) {}
 
     ~WorkDurationTest() = default;
 
@@ -104,7 +106,7 @@ TEST_F(WorkDurationTest, getConfigsForRefreshRate_90Hz) {
 }
 
 TEST_F(WorkDurationTest, getConfigsForRefreshRate_DefaultOffsets) {
-    TestableWorkDuration phaseOffsetsWithDefaultValues(Fps(60.0f), -1, -1, -1, -1, -1, -1);
+    TestableWorkDuration phaseOffsetsWithDefaultValues(Fps(60.0f), -1, -1, -1, -1, -1, -1, 0);
 
     auto validateOffsets = [](const auto& offsets, std::chrono::nanoseconds vsyncPeriod) {
         EXPECT_EQ(offsets.late.sfOffset, 1'000'000);
@@ -124,6 +126,8 @@ TEST_F(WorkDurationTest, getConfigsForRefreshRate_DefaultOffsets) {
 
         EXPECT_EQ(offsets.earlyGpu.sfWorkDuration, vsyncPeriod - 1'000'000ns);
         EXPECT_EQ(offsets.earlyGpu.appWorkDuration, vsyncPeriod);
+
+        EXPECT_EQ(offsets.hwcMinWorkDuration, 0ns);
     };
 
     const auto testForRefreshRate = [&](Fps refreshRate) {
@@ -160,6 +164,10 @@ TEST_F(WorkDurationTest, getConfigsForRefreshRate_unknownRefreshRate) {
     EXPECT_EQ(offsets.earlyGpu.appWorkDuration, 21'000'000ns);
 }
 
+TEST_F(WorkDurationTest, minHwcWorkDuration) {
+    EXPECT_EQ(mWorkDuration.getCurrentConfigs().hwcMinWorkDuration, 1234ns);
+}
+
 class TestablePhaseOffsets : public impl::PhaseOffsets {
 public:
     TestablePhaseOffsets(nsecs_t vsyncPhaseOffsetNs, nsecs_t sfVSyncPhaseOffsetNs,
@@ -172,13 +180,14 @@ public:
                          std::optional<nsecs_t> highFpsEarlyGpuSfOffsetNs,
                          std::optional<nsecs_t> highFpsEarlyAppOffsetNs,
                          std::optional<nsecs_t> highFpsEarlyGpuAppOffsetNs,
-                         nsecs_t thresholdForNextVsync)
+                         nsecs_t thresholdForNextVsync, nsecs_t hwcMinWorkDuration)
           : impl::PhaseOffsets(Fps(60.0f), vsyncPhaseOffsetNs, sfVSyncPhaseOffsetNs,
                                earlySfOffsetNs, earlyGpuSfOffsetNs, earlyAppOffsetNs,
                                earlyGpuAppOffsetNs, highFpsVsyncPhaseOffsetNs,
                                highFpsSfVSyncPhaseOffsetNs, highFpsEarlySfOffsetNs,
                                highFpsEarlyGpuSfOffsetNs, highFpsEarlyAppOffsetNs,
-                               highFpsEarlyGpuAppOffsetNs, thresholdForNextVsync) {}
+                               highFpsEarlyGpuAppOffsetNs, thresholdForNextVsync,
+                               hwcMinWorkDuration) {}
 };
 
 class PhaseOffsetsTest : public testing::Test {
@@ -186,9 +195,9 @@ protected:
     PhaseOffsetsTest() = default;
     ~PhaseOffsetsTest() = default;
 
-    TestablePhaseOffsets mPhaseOffsets{2'000'000, 6'000'000, 7'000'000, 8'000'000, 3'000'000,
-                                       4'000'000, 2'000'000, 1'000'000, 2'000'000, 3'000'000,
-                                       3'000'000, 4'000'000, 10'000'000};
+    TestablePhaseOffsets mPhaseOffsets{2'000'000, 6'000'000, 7'000'000,  8'000'000, 3'000'000,
+                                       4'000'000, 2'000'000, 1'000'000,  2'000'000, 3'000'000,
+                                       3'000'000, 4'000'000, 10'000'000, 1234};
 };
 
 TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_unknownRefreshRate) {
@@ -258,8 +267,8 @@ TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_90Hz) {
 }
 
 TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_DefaultValues_60Hz) {
-    TestablePhaseOffsets phaseOffsets{1'000'000, 1'000'000, {}, {}, {}, {},        2'000'000,
-                                      1'000'000, {},        {}, {}, {}, 10'000'000};
+    TestablePhaseOffsets phaseOffsets{1'000'000, 1'000'000, {}, {}, {}, {},         2'000'000,
+                                      1'000'000, {},        {}, {}, {}, 10'000'000, 1234};
     auto offsets = phaseOffsets.getConfigsForRefreshRate(Fps(60.0f));
 
     EXPECT_EQ(offsets.late.sfOffset, 1'000'000);
@@ -282,8 +291,8 @@ TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_DefaultValues_60Hz) {
 }
 
 TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_DefaultValues_90Hz) {
-    TestablePhaseOffsets phaseOffsets{1'000'000, 1'000'000, {}, {}, {}, {},        2'000'000,
-                                      1'000'000, {},        {}, {}, {}, 10'000'000};
+    TestablePhaseOffsets phaseOffsets{1'000'000, 1'000'000, {}, {}, {}, {},         2'000'000,
+                                      1'000'000, {},        {}, {}, {}, 10'000'000, 1234};
     auto offsets = phaseOffsets.getConfigsForRefreshRate(Fps(90.0f));
 
     EXPECT_EQ(offsets.late.sfOffset, 1'000'000);
@@ -303,6 +312,12 @@ TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_DefaultValues_90Hz) {
 
     EXPECT_EQ(offsets.earlyGpu.sfWorkDuration, 10'111'111ns);
     EXPECT_EQ(offsets.earlyGpu.appWorkDuration, 21'222'222ns);
+}
+
+TEST_F(PhaseOffsetsTest, minHwcWorkDuration) {
+    TestablePhaseOffsets phaseOffsets{1'000'000, 1'000'000, {}, {}, {}, {},         2'000'000,
+                                      1'000'000, {},        {}, {}, {}, 10'000'000, 1234};
+    EXPECT_EQ(phaseOffsets.getCurrentConfigs().hwcMinWorkDuration, 1234ns);
 }
 
 } // namespace android::scheduler
