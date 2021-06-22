@@ -47,6 +47,7 @@ static constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 // Log debug messages about hover events.
 #define DEBUG_HOVER 0
 
+#include <InputFlingerProperties.sysprop.h>
 #include <android-base/chrono_utils.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
@@ -93,7 +94,8 @@ namespace android::inputdispatcher {
 // coordinates and SurfaceFlinger includes the display rotation in the input window transforms.
 static bool isPerWindowInputRotationEnabled() {
     static const bool PER_WINDOW_INPUT_ROTATION =
-            base::GetBoolProperty("persist.debug.per_window_input_rotation", false);
+            sysprop::InputFlingerProperties::per_window_input_rotation().value_or(false);
+
     return PER_WINDOW_INPUT_ROTATION;
 }
 
@@ -319,11 +321,11 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
                                                           int32_t inputTargetFlags) {
     if (eventEntry->type == EventEntry::Type::MOTION) {
         const MotionEntry& motionEntry = static_cast<const MotionEntry&>(*eventEntry);
-        if ((motionEntry.source & AINPUT_SOURCE_CLASS_POINTER) == 0) {
+        if ((motionEntry.source & AINPUT_SOURCE_CLASS_JOYSTICK) ||
+            (motionEntry.source & AINPUT_SOURCE_CLASS_POSITION)) {
             const ui::Transform identityTransform;
-            // Use identity transform for events that are not pointer events because their axes
-            // values do not represent on-screen coordinates, so they should not have any window
-            // transformations applied to them.
+            // Use identity transform for joystick and position-based (touchpad) events because they
+            // don't depend on the window transform.
             return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, identityTransform,
                                                    1.0f /*globalScaleFactor*/,
                                                    inputTarget.displaySize);

@@ -91,6 +91,19 @@ vec2 rotatePoint(const ui::Transform& transform, float x, float y, int32_t displ
     return xy;
 }
 
+vec2 applyTransformWithoutTranslation(const ui::Transform& transform, float x, float y) {
+    const vec2 transformedXy = transform.transform(x, y);
+    const vec2 transformedOrigin = transform.transform(0, 0);
+    return transformedXy - transformedOrigin;
+}
+
+bool shouldDisregardWindowTranslation(uint32_t source) {
+    // Pointer events are the only type of events that refer to absolute coordinates on the display,
+    // so we should apply the entire window transform. For other types of events, we should make
+    // sure to not apply the window translation/offset.
+    return (source & AINPUT_SOURCE_CLASS_POINTER) == 0;
+}
+
 } // namespace
 
 const char* motionClassificationToString(MotionClassification classification) {
@@ -305,6 +318,8 @@ void PointerCoords::scale(float globalScaleFactor, float windowXScale, float win
     scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOUCH_MINOR, globalScaleFactor);
     scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOOL_MAJOR, globalScaleFactor);
     scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOOL_MINOR, globalScaleFactor);
+    scaleAxisValue(*this, AMOTION_EVENT_AXIS_RELATIVE_X, windowXScale);
+    scaleAxisValue(*this, AMOTION_EVENT_AXIS_RELATIVE_Y, windowYScale);
 }
 
 void PointerCoords::scale(float globalScaleFactor) {
@@ -372,6 +387,15 @@ void PointerCoords::transform(const ui::Transform& transform) {
     const vec2 xy = transform.transform(getXYValue());
     setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
     setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
+
+    if (BitSet64::hasBit(bits, AMOTION_EVENT_AXIS_RELATIVE_X) ||
+        BitSet64::hasBit(bits, AMOTION_EVENT_AXIS_RELATIVE_Y)) {
+        const ui::Transform rotation(transform.getOrientation());
+        const vec2 relativeXy = rotation.transform(getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
+                                                   getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y));
+        setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, relativeXy.x);
+        setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, relativeXy.y);
+    }
 
     if (BitSet64::hasBit(bits, AMOTION_EVENT_AXIS_ORIENTATION)) {
         const float val = getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
@@ -509,23 +533,46 @@ float MotionEvent::getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
     if (axis == AMOTION_EVENT_AXIS_X || axis == AMOTION_EVENT_AXIS_Y) {
         // For compatibility, convert raw coordinates into "oriented screen space". Once app
         // developers are educated about getRaw, we can consider removing this.
-        const vec2 xy = rotatePoint(mTransform, coords->getX(), coords->getY(), mDisplayWidth,
-                                    mDisplayHeight);
+        const vec2 xy = shouldDisregardWindowTranslation(mSource)
+                ? rotatePoint(mTransform, coords->getX(), coords->getY())
+                : rotatePoint(mTransform, coords->getX(), coords->getY(), mDisplayWidth,
+                              mDisplayHeight);
         static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
         return xy[axis];
+    }
+
+    if (axis == AMOTION_EVENT_AXIS_RELATIVE_X || axis == AMOTION_EVENT_AXIS_RELATIVE_Y) {
+        // For compatibility, since we convert raw coordinates into "oriented screen space", we
+        // need to convert the relative axes into the same orientation for consistency.
+        const vec2 relativeXy =
+                rotatePoint(mTransform, coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
+                            coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y));
+        return axis == AMOTION_EVENT_AXIS_RELATIVE_X ? relativeXy.x : relativeXy.y;
     }
 
     return coords->getAxisValue(axis);
 }
 
 float MotionEvent::getHistoricalAxisValue(int32_t axis, size_t pointerIndex,
-        size_t historicalIndex) const {
+                                          size_t historicalIndex) const {
     const PointerCoords* coords = getHistoricalRawPointerCoords(pointerIndex, historicalIndex);
 
     if (axis == AMOTION_EVENT_AXIS_X || axis == AMOTION_EVENT_AXIS_Y) {
-        const vec2 xy = mTransform.transform(coords->getXYValue());
+        const vec2 xy = shouldDisregardWindowTranslation(mSource)
+                ? applyTransformWithoutTranslation(mTransform, coords->getX(), coords->getY())
+                : mTransform.transform(coords->getXYValue());
         static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
         return xy[axis];
+    }
+
+    if (axis == AMOTION_EVENT_AXIS_RELATIVE_X || axis == AMOTION_EVENT_AXIS_RELATIVE_Y) {
+        const vec2 relativeXy =
+                applyTransformWithoutTranslation(mTransform,
+                                                 coords->getAxisValue(
+                                                         AMOTION_EVENT_AXIS_RELATIVE_X),
+                                                 coords->getAxisValue(
+                                                         AMOTION_EVENT_AXIS_RELATIVE_Y));
+        return axis == AMOTION_EVENT_AXIS_RELATIVE_X ? relativeXy.x : relativeXy.y;
     }
 
     return coords->getAxisValue(axis);
@@ -583,6 +630,13 @@ void MotionEvent::applyTransform(const std::array<float, 9>& matrix) {
     // Apply the transformation to all samples.
     std::for_each(mSamplePointerCoords.begin(), mSamplePointerCoords.end(),
                   [&transform](PointerCoords& c) { c.transform(transform); });
+
+    if (mRawXCursorPosition != AMOTION_EVENT_INVALID_CURSOR_POSITION &&
+        mRawYCursorPosition != AMOTION_EVENT_INVALID_CURSOR_POSITION) {
+        const vec2 cursor = transform.transform(mRawXCursorPosition, mRawYCursorPosition);
+        mRawXCursorPosition = cursor.x;
+        mRawYCursorPosition = cursor.y;
+    }
 }
 
 #ifdef __linux__
