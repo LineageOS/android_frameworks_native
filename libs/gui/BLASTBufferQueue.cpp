@@ -205,6 +205,11 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
         applyTransaction = true;
     }
 
+    if (mSurfaceControl != nullptr) {
+        mTransformHint = mSurfaceControl->getTransformHint();
+        mBufferItemConsumer->setTransformHint(mTransformHint);
+    }
+
     ui::Size newSize(width, height);
     if (mRequestedSize != newSize) {
         mRequestedSize.set(newSize);
