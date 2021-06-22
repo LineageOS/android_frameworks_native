@@ -206,6 +206,10 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetInfoDoesNotCacheFailedResult) {
     ASSERT_TRUE(info.supportedBraking.isUnsupported());
     ASSERT_TRUE(info.supportedPrimitives.isUnsupported());
     ASSERT_TRUE(info.primitiveDurations.isUnsupported());
+    ASSERT_TRUE(info.primitiveDelayMax.isUnsupported());
+    ASSERT_TRUE(info.pwlePrimitiveDurationMax.isUnsupported());
+    ASSERT_TRUE(info.compositionSizeMax.isUnsupported());
+    ASSERT_TRUE(info.pwleSizeMax.isUnsupported());
     ASSERT_TRUE(info.minFrequency.isUnsupported());
     ASSERT_TRUE(info.resonantFrequency.isUnsupported());
     ASSERT_TRUE(info.frequencyResolution.isUnsupported());
