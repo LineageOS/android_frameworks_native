@@ -700,11 +700,6 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         mNeedsFiltering = getActiveTransform(s).needsBilinearFiltering();
     }
 
-    if (mDrawingState.inputInfoChanged) {
-        flags |= eInputInfoChanged;
-        mDrawingState.inputInfoChanged = false;
-    }
-
     commitTransaction(mDrawingState);
 
     return flags;
@@ -777,6 +772,8 @@ bool Layer::setLayer(int32_t z) {
     mDrawingState.z = z;
     mDrawingState.modified = true;
 
+    mFlinger->mSomeChildrenChanged = true;
+
     // Discard all relative layering.
     if (mDrawingState.zOrderRelativeOf != nullptr) {
         sp<Layer> strongRelative = mDrawingState.zOrderRelativeOf.promote();
@@ -826,6 +823,8 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relati
         mDrawingState.zOrderRelativeOf == relative) {
         return false;
     }
+
+    mFlinger->mSomeChildrenChanged = true;
 
     mDrawingState.sequence++;
     mDrawingState.modified = true;
@@ -1986,7 +1985,7 @@ void Layer::setInputInfo(const InputWindowInfo& info) {
     mDrawingState.inputInfo = info;
     mDrawingState.touchableRegionCrop = extractLayerFromBinder(info.touchableRegionCropHandle);
     mDrawingState.modified = true;
-    mDrawingState.inputInfoChanged = true;
+    mFlinger->mInputInfoChanged = true;
     setTransactionFlags(eTransactionNeeded);
 }
 

@@ -1236,6 +1236,7 @@ private:
     // TODO: Also move visibleRegions over to a boolean system.
     bool mInputInfoChanged = false;
     bool mSomeChildrenChanged;
+    bool mForceTransactionDisplayChange = false;
 
     bool mGeometryInvalid = false;
     bool mAnimCompositionPending = false;
