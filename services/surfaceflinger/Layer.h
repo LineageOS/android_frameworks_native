@@ -1003,9 +1003,6 @@ protected:
     wp<Layer> mCurrentParent;
     wp<Layer> mDrawingParent;
 
-    // Can only be accessed with the SF state lock held.
-    bool mChildrenChanged{false};
-
     // Window types from WindowManager.LayoutParams
     const InputWindowInfo::Type mWindowType;
 

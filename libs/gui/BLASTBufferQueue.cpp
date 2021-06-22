@@ -151,6 +151,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
                                                       1, false);
     static int32_t id = 0;
     auto consumerName = mName + "(BLAST Consumer)" + std::to_string(id);
+    mPendingBufferTrace = "PendingBuffer - " + mName + "BLAST#" + std::to_string(id);
     id++;
     mBufferItemConsumer->setName(String8(consumerName.c_str()));
     mBufferItemConsumer->setFrameAvailableListener(this);
@@ -168,7 +169,6 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
           .setFlags(surface, layer_state_t::eEnableBackpressure,
                     layer_state_t::eEnableBackpressure)
           .apply();
-
     mNumAcquired = 0;
     mNumFrameAvailable = 0;
 }
@@ -259,15 +259,18 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
 
                 mTransformHint = stat.transformHint;
                 mBufferItemConsumer->setTransformHint(mTransformHint);
-                mBufferItemConsumer
-                        ->updateFrameTimestamps(stat.frameEventStats.frameNumber,
-                                                stat.frameEventStats.refreshStartTime,
-                                                stat.frameEventStats.gpuCompositionDoneFence,
-                                                stat.presentFence, stat.previousReleaseFence,
-                                                stat.frameEventStats.compositorTiming,
-                                                stat.latchTime,
-                                                stat.frameEventStats.dequeueReadyTime);
-
+                // Update frametime stamps if the frame was latched and presented, indicated by a
+                // valid latch time.
+                if (stat.latchTime > 0) {
+                    mBufferItemConsumer
+                            ->updateFrameTimestamps(stat.frameEventStats.frameNumber,
+                                                    stat.frameEventStats.refreshStartTime,
+                                                    stat.frameEventStats.gpuCompositionDoneFence,
+                                                    stat.presentFence, stat.previousReleaseFence,
+                                                    stat.frameEventStats.compositorTiming,
+                                                    stat.latchTime,
+                                                    stat.frameEventStats.dequeueReadyTime);
+                }
                 currFrameNumber = stat.frameEventStats.frameNumber;
 
                 if (mTransactionCompleteCallback &&
@@ -361,6 +364,7 @@ void BLASTBufferQueue::releaseBufferCallback(uint64_t graphicBufferId,
     ATRACE_INT("PendingRelease", mPendingRelease.size());
 
     mNumAcquired--;
+    ATRACE_INT(mPendingBufferTrace.c_str(), mNumFrameAvailable + mNumAcquired);
     processNextBufferLocked(false /* useNextTransaction */);
     mCallbackCV.notify_all();
 }
@@ -529,6 +533,7 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     }
     // add to shadow queue
     mNumFrameAvailable++;
+    ATRACE_INT(mPendingBufferTrace.c_str(), mNumFrameAvailable + mNumAcquired);
 
     BQA_LOGV("onFrameAvailable framenumber=%" PRIu64 " nextTransactionSet=%s", item.mFrameNumber,
              toString(nextTransactionSet));
