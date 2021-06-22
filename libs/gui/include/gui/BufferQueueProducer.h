@@ -186,6 +186,10 @@ public:
     virtual status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence, float outTransformMatrix[16]) override;
 
+    // See IGraphicBufferProducer::getLastQueuedBuffer
+    virtual status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer, sp<Fence>* outFence,
+                                         Rect* outRect, uint32_t* outTransform) override;
+
     // See IGraphicBufferProducer::getFrameTimestamps
     virtual void getFrameTimestamps(FrameEventHistoryDelta* outDelta) override;
 
