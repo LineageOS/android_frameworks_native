@@ -186,7 +186,6 @@ public:
         float cornerRadius;
         int backgroundBlurRadius;
 
-        bool inputInfoChanged;
         InputWindowInfo inputInfo;
         wp<Layer> touchableRegionCrop;
 
