@@ -101,12 +101,14 @@ public:
 
     SurfaceStats() = default;
     SurfaceStats(const sp<IBinder>& sc, nsecs_t time, const sp<Fence>& prevReleaseFence,
-                 uint32_t hint, FrameEventHistoryStats frameEventStats,
-                 std::vector<JankData> jankData, uint64_t previousBufferId)
+                 uint32_t hint, uint32_t currentMaxAcquiredBuffersCount,
+                 FrameEventHistoryStats frameEventStats, std::vector<JankData> jankData,
+                 uint64_t previousBufferId)
           : surfaceControl(sc),
             acquireTime(time),
             previousReleaseFence(prevReleaseFence),
             transformHint(hint),
+            currentMaxAcquiredBufferCount(currentMaxAcquiredBuffersCount),
             eventStats(frameEventStats),
             jankData(std::move(jankData)),
             previousBufferId(previousBufferId) {}
@@ -115,6 +117,7 @@ public:
     nsecs_t acquireTime = -1;
     sp<Fence> previousReleaseFence;
     uint32_t transformHint = 0;
+    uint32_t currentMaxAcquiredBufferCount = 0;
     FrameEventHistoryStats eventStats;
     std::vector<JankData> jankData;
     uint64_t previousBufferId;
@@ -159,7 +162,8 @@ public:
     virtual void onTransactionCompleted(ListenerStats stats) = 0;
 
     virtual void onReleaseBuffer(uint64_t graphicBufferId, sp<Fence> releaseFence,
-                                 uint32_t transformHint) = 0;
+                                 uint32_t transformHint,
+                                 uint32_t currentMaxAcquiredBufferCount) = 0;
 };
 
 class BnTransactionCompletedListener : public SafeBnInterface<ITransactionCompletedListener> {

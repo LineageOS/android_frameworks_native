@@ -235,8 +235,9 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
                                           handle->dequeueReadyTime);
         transactionStats->surfaceStats.emplace_back(surfaceControl, handle->acquireTime,
                                                     handle->previousReleaseFence,
-                                                    handle->transformHint, eventStats, jankData,
-                                                    handle->previousBufferId);
+                                                    handle->transformHint,
+                                                    handle->currentMaxAcquiredBufferCount,
+                                                    eventStats, jankData, handle->previousBufferId);
     }
     return NO_ERROR;
 }

@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C) 2007 The Android Open Source Project
  *
@@ -732,8 +733,7 @@ public:
     void updateTransformHint(ui::Transform::RotationFlags);
 
     inline const State& getDrawingState() const { return mDrawingState; }
-    inline const State& getCurrentState() const { return mCurrentState; }
-    inline State& getCurrentState() { return mCurrentState; }
+    inline State& getDrawingState() { return mDrawingState; }
 
     LayerDebugInfo getLayerDebugInfo(const DisplayDevice*) const;
 
@@ -884,7 +884,7 @@ public:
     virtual bool setDestinationFrame(const Rect& /* destinationFrame */) { return false; }
     virtual std::atomic<int32_t>* getPendingBufferCounter() { return nullptr; }
     virtual std::string getPendingBufferCounterName() { return ""; }
-    virtual void updateGeometry() {}
+    virtual bool updateGeometry() { return false; }
 
 protected:
     friend class impl::SurfaceInterceptor;
@@ -902,7 +902,6 @@ protected:
             compositionengine::LayerFE::ClientCompositionTargetSettings&);
     virtual void preparePerFrameCompositionState();
     virtual void commitTransaction(State& stateToCommit);
-    virtual uint32_t doTransactionResize(uint32_t flags, Layer::State* stateToCommit);
     virtual void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>&) {}
 
     // Returns mCurrentScaling mode (originating from the
@@ -958,9 +957,11 @@ protected:
     // These are only accessed by the main thread or the tracing thread.
     State mDrawingState;
 
-    // these are protected by an external lock (mStateLock)
-    State mCurrentState;
     uint32_t mTransactionFlags{0};
+    // Updated in doTransaction, used to track the last sequence number we
+    // committed. Currently this is really only used for updating visible
+    // regions.
+    int32_t mLastCommittedTxSequence = -1;
 
     // Timestamp history for UIAutomation. Thread safe.
     FrameTracker mFrameTracker;
@@ -983,7 +984,7 @@ protected:
     // Whether filtering is needed b/c of the drawingstate
     bool mNeedsFiltering{false};
 
-    std::atomic<bool> mRemovedFromCurrentState{false};
+    std::atomic<bool> mRemovedFromDrawingState{false};
 
     // page-flip thread (currently main thread)
     bool mProtectedByApp{false}; // application requires protected path to external sink
@@ -996,16 +997,11 @@ protected:
     // This layer can be a cursor on some displays.
     bool mPotentialCursor{false};
 
-    // Child list about to be committed/used for editing.
-    LayerVector mCurrentChildren{LayerVector::StateSet::Current};
-    // Child list used for rendering.
+    LayerVector mCurrentChildren{LayerVector::StateSet::Drawing};
     LayerVector mDrawingChildren{LayerVector::StateSet::Drawing};
 
     wp<Layer> mCurrentParent;
     wp<Layer> mDrawingParent;
-
-    // Can only be accessed with the SF state lock held.
-    bool mChildrenChanged{false};
 
     // Window types from WindowManager.LayoutParams
     const InputWindowInfo::Type mWindowType;
@@ -1022,7 +1018,7 @@ protected:
     // Used in buffer stuffing analysis in FrameTimeline.
     nsecs_t mLastLatchTime = 0;
 
-    mutable bool mCurrentStateModified = false;
+    mutable bool mDrawingStateModified = false;
 
 private:
     virtual void setTransformHint(ui::Transform::RotationFlags) {}

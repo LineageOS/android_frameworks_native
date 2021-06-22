@@ -394,7 +394,11 @@ TEST_F(BLASTBufferQueueTest, TripleBuffering) {
     setUpProducer(adapter, igbProducer);
 
     std::vector<std::pair<int, sp<Fence>>> allocated;
-    for (int i = 0; i < 3; i++) {
+    int minUndequeuedBuffers = 0;
+    ASSERT_EQ(OK, igbProducer->query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &minUndequeuedBuffers));
+    const auto bufferCount = minUndequeuedBuffers + 2;
+
+    for (int i = 0; i < bufferCount; i++) {
         int slot;
         sp<Fence> fence;
         sp<GraphicBuffer> buf;
@@ -944,21 +948,22 @@ TEST_F(BLASTBufferQueueTransformTest, setTransform_ROT_270) {
 class BLASTFrameEventHistoryTest : public BLASTBufferQueueTest {
 public:
     void setUpAndQueueBuffer(const sp<IGraphicBufferProducer>& igbProducer,
-                             nsecs_t* requestedPresentTime, nsecs_t* postedTime,
+                             nsecs_t* outRequestedPresentTime, nsecs_t* postedTime,
                              IGraphicBufferProducer::QueueBufferOutput* qbOutput,
-                             bool getFrameTimestamps, nsecs_t requestedPresentTimeDelay = 0) {
+                             bool getFrameTimestamps, nsecs_t requestedPresentTime = systemTime()) {
         int slot;
         sp<Fence> fence;
         sp<GraphicBuffer> buf;
         auto ret = igbProducer->dequeueBuffer(&slot, &fence, mDisplayWidth, mDisplayHeight,
                                               PIXEL_FORMAT_RGBA_8888, GRALLOC_USAGE_SW_WRITE_OFTEN,
                                               nullptr, nullptr);
-        ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, ret);
-        ASSERT_EQ(OK, igbProducer->requestBuffer(slot, &buf));
+        if (IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION == ret) {
+            ASSERT_EQ(OK, igbProducer->requestBuffer(slot, &buf));
+        }
 
-        nsecs_t requestedTime = systemTime() + requestedPresentTimeDelay;
-        if (requestedPresentTime) *requestedPresentTime = requestedTime;
-        IGraphicBufferProducer::QueueBufferInput input(requestedTime, false, HAL_DATASPACE_UNKNOWN,
+        *outRequestedPresentTime = requestedPresentTime;
+        IGraphicBufferProducer::QueueBufferInput input(requestedPresentTime, false,
+                                                       HAL_DATASPACE_UNKNOWN,
                                                        Rect(mDisplayWidth, mDisplayHeight),
                                                        NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
                                                        Fence::NO_FENCE, /*sticky*/ 0,
@@ -1030,9 +1035,11 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_DroppedFrame) {
     IGraphicBufferProducer::QueueBufferOutput qbOutput;
     nsecs_t requestedPresentTimeA = 0;
     nsecs_t postedTimeA = 0;
-    nsecs_t presentTimeDelay = std::chrono::nanoseconds(500ms).count();
+    // Present the frame sometime in the future so we can add two frames to the queue so the older
+    // one will be dropped.
+    nsecs_t presentTime = systemTime() + std::chrono::nanoseconds(500ms).count();
     setUpAndQueueBuffer(igbProducer, &requestedPresentTimeA, &postedTimeA, &qbOutput, true,
-                        presentTimeDelay);
+                        presentTime);
     history.applyDelta(qbOutput.frameTimestamps);
 
     FrameEvents* events = nullptr;
@@ -1045,7 +1052,10 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_DroppedFrame) {
     // queue another buffer so the first can be dropped
     nsecs_t requestedPresentTimeB = 0;
     nsecs_t postedTimeB = 0;
-    setUpAndQueueBuffer(igbProducer, &requestedPresentTimeB, &postedTimeB, &qbOutput, true);
+    adapter.setTransactionCompleteCallback(2);
+    presentTime = systemTime() + std::chrono::nanoseconds(1ms).count();
+    setUpAndQueueBuffer(igbProducer, &requestedPresentTimeB, &postedTimeB, &qbOutput, true,
+                        presentTime);
     history.applyDelta(qbOutput.frameTimestamps);
     events = history.getFrame(1);
     ASSERT_NE(nullptr, events);
@@ -1055,20 +1065,48 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_DroppedFrame) {
     ASSERT_EQ(requestedPresentTimeA, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeA);
 
-    // a valid latchtime should not be set
+    // a valid latchtime and pre and post composition info should not be set for the dropped frame
     ASSERT_FALSE(events->hasLatchInfo());
     ASSERT_FALSE(events->hasDequeueReadyInfo());
+    ASSERT_FALSE(events->hasGpuCompositionDoneInfo());
+    ASSERT_FALSE(events->hasDisplayPresentInfo());
+    ASSERT_FALSE(events->hasReleaseInfo());
 
-    ASSERT_NE(nullptr, events->gpuCompositionDoneFence);
-    ASSERT_NE(nullptr, events->displayPresentFence);
-    ASSERT_NE(nullptr, events->releaseFence);
+    // wait for the last transaction to be completed.
+    adapter.waitForCallback(2);
 
-    // we should also have gotten the initial values for the next frame
+    // queue another buffer so we query for frame event deltas
+    nsecs_t requestedPresentTimeC = 0;
+    nsecs_t postedTimeC = 0;
+    setUpAndQueueBuffer(igbProducer, &requestedPresentTimeC, &postedTimeC, &qbOutput, true);
+    history.applyDelta(qbOutput.frameTimestamps);
+
+    // frame number, requestedPresentTime, and postTime should not have changed
+    ASSERT_EQ(1, events->frameNumber);
+    ASSERT_EQ(requestedPresentTimeA, events->requestedPresentTime);
+    ASSERT_GE(events->postedTime, postedTimeA);
+
+    // a valid latchtime and pre and post composition info should not be set for the dropped frame
+    ASSERT_FALSE(events->hasLatchInfo());
+    ASSERT_FALSE(events->hasDequeueReadyInfo());
+    ASSERT_FALSE(events->hasGpuCompositionDoneInfo());
+    ASSERT_FALSE(events->hasDisplayPresentInfo());
+    ASSERT_FALSE(events->hasReleaseInfo());
+
+    // we should also have gotten values for the presented frame
     events = history.getFrame(2);
     ASSERT_NE(nullptr, events);
     ASSERT_EQ(2, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeB, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeB);
+    ASSERT_GE(events->latchTime, postedTimeB);
+    ASSERT_GE(events->dequeueReadyTime, events->latchTime);
+    ASSERT_NE(nullptr, events->gpuCompositionDoneFence);
+    ASSERT_NE(nullptr, events->displayPresentFence);
+    ASSERT_NE(nullptr, events->releaseFence);
+
+    // wait for any callbacks that have not been received
+    adapter.waitForCallbacks();
 }
 
 } // namespace android

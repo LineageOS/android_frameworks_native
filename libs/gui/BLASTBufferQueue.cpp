@@ -29,8 +29,9 @@
 #include <gui/IProducerListener.h>
 #include <gui/Surface.h>
 #include <utils/Singleton.h>
-
 #include <utils/Trace.h>
+
+#include <private/gui/ComposerService.h>
 
 #include <chrono>
 
@@ -150,6 +151,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
                                                       1, false);
     static int32_t id = 0;
     auto consumerName = mName + "(BLAST Consumer)" + std::to_string(id);
+    mPendingBufferTrace = "PendingBuffer - " + mName + "BLAST#" + std::to_string(id);
     id++;
     mBufferItemConsumer->setName(String8(consumerName.c_str()));
     mBufferItemConsumer->setFrameAvailableListener(this);
@@ -158,13 +160,15 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     mBufferItemConsumer->setDefaultBufferFormat(convertBufferFormat(format));
     mBufferItemConsumer->setBlastBufferQueue(this);
 
+    ComposerService::getComposerService()->getMaxAcquiredBufferCount(&mMaxAcquiredBuffers);
+    mBufferItemConsumer->setMaxAcquiredBufferCount(mMaxAcquiredBuffers);
+
     mTransformHint = mSurfaceControl->getTransformHint();
     mBufferItemConsumer->setTransformHint(mTransformHint);
     SurfaceComposerClient::Transaction()
           .setFlags(surface, layer_state_t::eEnableBackpressure,
                     layer_state_t::eEnableBackpressure)
           .apply();
-
     mNumAcquired = 0;
     mNumFrameAvailable = 0;
 }
@@ -255,15 +259,18 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
 
                 mTransformHint = stat.transformHint;
                 mBufferItemConsumer->setTransformHint(mTransformHint);
-                mBufferItemConsumer
-                        ->updateFrameTimestamps(stat.frameEventStats.frameNumber,
-                                                stat.frameEventStats.refreshStartTime,
-                                                stat.frameEventStats.gpuCompositionDoneFence,
-                                                stat.presentFence, stat.previousReleaseFence,
-                                                stat.frameEventStats.compositorTiming,
-                                                stat.latchTime,
-                                                stat.frameEventStats.dequeueReadyTime);
-
+                // Update frametime stamps if the frame was latched and presented, indicated by a
+                // valid latch time.
+                if (stat.latchTime > 0) {
+                    mBufferItemConsumer
+                            ->updateFrameTimestamps(stat.frameEventStats.frameNumber,
+                                                    stat.frameEventStats.refreshStartTime,
+                                                    stat.frameEventStats.gpuCompositionDoneFence,
+                                                    stat.presentFence, stat.previousReleaseFence,
+                                                    stat.frameEventStats.compositorTiming,
+                                                    stat.latchTime,
+                                                    stat.frameEventStats.dequeueReadyTime);
+                }
                 currFrameNumber = stat.frameEventStats.frameNumber;
 
                 if (mTransactionCompleteCallback &&
@@ -302,18 +309,20 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
 // So we pass in a weak pointer to the BBQ and if it still alive, then we release the buffer.
 // Otherwise, this is a no-op.
 static void releaseBufferCallbackThunk(wp<BLASTBufferQueue> context, uint64_t graphicBufferId,
-                                       const sp<Fence>& releaseFence, uint32_t transformHint) {
+                                       const sp<Fence>& releaseFence, uint32_t transformHint,
+                                       uint32_t currentMaxAcquiredBufferCount) {
     sp<BLASTBufferQueue> blastBufferQueue = context.promote();
     ALOGV("releaseBufferCallbackThunk graphicBufferId=%" PRIu64 " blastBufferQueue=%s",
           graphicBufferId, blastBufferQueue ? "alive" : "dead");
     if (blastBufferQueue) {
-        blastBufferQueue->releaseBufferCallback(graphicBufferId, releaseFence, transformHint);
+        blastBufferQueue->releaseBufferCallback(graphicBufferId, releaseFence, transformHint,
+                                                currentMaxAcquiredBufferCount);
     }
 }
 
 void BLASTBufferQueue::releaseBufferCallback(uint64_t graphicBufferId,
-                                             const sp<Fence>& releaseFence,
-                                             uint32_t transformHint) {
+                                             const sp<Fence>& releaseFence, uint32_t transformHint,
+                                             uint32_t currentMaxAcquiredBufferCount) {
     ATRACE_CALL();
     std::unique_lock _lock{mMutex};
     BQA_LOGV("releaseBufferCallback graphicBufferId=%" PRIu64, graphicBufferId);
@@ -324,16 +333,38 @@ void BLASTBufferQueue::releaseBufferCallback(uint64_t graphicBufferId,
         mBufferItemConsumer->setTransformHint(mTransformHint);
     }
 
-    auto it = mSubmitted.find(graphicBufferId);
-    if (it == mSubmitted.end()) {
-        BQA_LOGE("ERROR: releaseBufferCallback without corresponding submitted buffer %" PRIu64,
-                 graphicBufferId);
-        return;
+    // Calculate how many buffers we need to hold before we release them back
+    // to the buffer queue. This will prevent higher latency when we are running
+    // on a lower refresh rate than the max supported. We only do that for EGL
+    // clients as others don't care about latency
+    const bool isEGL = [&] {
+        const auto it = mSubmitted.find(graphicBufferId);
+        return it != mSubmitted.end() && it->second.mApi == NATIVE_WINDOW_API_EGL;
+    }();
+
+    const auto numPendingBuffersToHold =
+            isEGL ? std::max(0u, mMaxAcquiredBuffers - currentMaxAcquiredBufferCount) : 0;
+    mPendingRelease.emplace_back(ReleasedBuffer{graphicBufferId, releaseFence});
+
+    // Release all buffers that are beyond the ones that we need to hold
+    while (mPendingRelease.size() > numPendingBuffersToHold) {
+        const auto releaseBuffer = mPendingRelease.front();
+        mPendingRelease.pop_front();
+        auto it = mSubmitted.find(releaseBuffer.bufferId);
+        if (it == mSubmitted.end()) {
+            BQA_LOGE("ERROR: releaseBufferCallback without corresponding submitted buffer %" PRIu64,
+                     graphicBufferId);
+            return;
+        }
+
+        mBufferItemConsumer->releaseBuffer(it->second, releaseBuffer.releaseFence);
+        mSubmitted.erase(it);
     }
 
-    mBufferItemConsumer->releaseBuffer(it->second, releaseFence);
-    mSubmitted.erase(it);
+    ATRACE_INT("PendingRelease", mPendingRelease.size());
+
     mNumAcquired--;
+    ATRACE_INT(mPendingBufferTrace.c_str(), mNumFrameAvailable + mNumAcquired);
     processNextBufferLocked(false /* useNextTransaction */);
     mCallbackCV.notify_all();
 }
@@ -414,7 +445,8 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
 
     auto releaseBufferCallback =
             std::bind(releaseBufferCallbackThunk, wp<BLASTBufferQueue>(this) /* callbackContext */,
-                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
+                      std::placeholders::_4);
     t->setBuffer(mSurfaceControl, buffer, releaseBufferCallback);
     t->setDataspace(mSurfaceControl, static_cast<ui::Dataspace>(bufferItem.mDataSpace));
     t->setHdrMetadata(mSurfaceControl, bufferItem.mHdrMetadata);
@@ -501,6 +533,7 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     }
     // add to shadow queue
     mNumFrameAvailable++;
+    ATRACE_INT(mPendingBufferTrace.c_str(), mNumFrameAvailable + mNumAcquired);
 
     BQA_LOGV("onFrameAvailable framenumber=%" PRIu64 " nextTransactionSet=%s", item.mFrameNumber,
              toString(nextTransactionSet));
@@ -567,7 +600,7 @@ void BLASTBufferQueue::setTransactionCompleteCallback(
 // includeExtraAcquire is true to include this buffer to the count. Since this depends on the state
 // of the buffer, the next acquire may return with NO_BUFFER_AVAILABLE.
 bool BLASTBufferQueue::maxBuffersAcquired(bool includeExtraAcquire) const {
-    int maxAcquiredBuffers = MAX_ACQUIRED_BUFFERS + (includeExtraAcquire ? 2 : 1);
+    int maxAcquiredBuffers = mMaxAcquiredBuffers + (includeExtraAcquire ? 2 : 1);
     return mNumAcquired == maxAcquiredBuffers;
 }
 
