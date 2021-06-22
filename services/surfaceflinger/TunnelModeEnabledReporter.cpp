@@ -26,17 +26,10 @@
 
 namespace android {
 
-TunnelModeEnabledReporter::TunnelModeEnabledReporter(SurfaceFlinger& flinger) : mFlinger(flinger) {}
+TunnelModeEnabledReporter::TunnelModeEnabledReporter() {}
 
 void TunnelModeEnabledReporter::updateTunnelModeStatus() {
-    bool tunnelModeEnabled = false;
-    mFlinger.mCurrentState.traverse([&](Layer* layer) {
-        auto& state = layer->getDrawingState();
-        if (state.sidebandStream != nullptr) {
-            tunnelModeEnabled = true;
-            return;
-        }
-    });
+    bool tunnelModeEnabled = mTunnelModeCount > 0;
     dispatchTunnelModeEnabled(tunnelModeEnabled);
 }
 

@@ -342,6 +342,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mHwcServiceName(base::GetProperty("debug.sf.hwc_service_name"s, "default"s)),
+        mTunnelModeEnabledReporter(new TunnelModeEnabledReporter()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
         mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)) {
     ALOGI("Using HWComposer service: %s", mHwcServiceName.c_str());
@@ -3153,7 +3154,6 @@ void SurfaceFlinger::initScheduler(const DisplayDeviceState& displayState) {
     mRegionSamplingThread =
             new RegionSamplingThread(*this, RegionSamplingThread::EnvironmentTimingTunables());
     mFpsReporter = new FpsReporter(*mFrameTimeline, *this);
-    mTunnelModeEnabledReporter = new TunnelModeEnabledReporter(*this);
     // Dispatch a mode change request for the primary display on scheduler
     // initialization, so that the EventThreads always contain a reference to a
     // prior configuration.
