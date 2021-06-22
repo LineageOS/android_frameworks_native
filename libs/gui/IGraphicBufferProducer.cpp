@@ -74,6 +74,7 @@ enum {
     GET_CONSUMER_USAGE,
     SET_LEGACY_BUFFER_DROP,
     SET_AUTO_PREROTATION,
+    GET_LAST_QUEUED_BUFFER2,
 };
 
 class BpGraphicBufferProducer : public BpInterface<IGraphicBufferProducer>
@@ -491,6 +492,56 @@ public:
         return result;
     }
 
+    virtual status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer, sp<Fence>* outFence,
+                                         Rect* outRect, uint32_t* outTransform) override {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGraphicBufferProducer::getInterfaceDescriptor());
+        status_t result = remote()->transact(GET_LAST_QUEUED_BUFFER2, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("getLastQueuedBuffer failed to transact: %d", result);
+            return result;
+        }
+        status_t remoteError = NO_ERROR;
+        result = reply.readInt32(&remoteError);
+        if (result != NO_ERROR) {
+            ALOGE("getLastQueuedBuffer failed to read status: %d", result);
+            return result;
+        }
+        if (remoteError != NO_ERROR) {
+            return remoteError;
+        }
+        bool hasBuffer = false;
+        result = reply.readBool(&hasBuffer);
+        if (result != NO_ERROR) {
+            ALOGE("getLastQueuedBuffer failed to read buffer: %d", result);
+            return result;
+        }
+        sp<GraphicBuffer> buffer;
+        if (hasBuffer) {
+            buffer = new GraphicBuffer();
+            result = reply.read(*buffer);
+            if (result == NO_ERROR) {
+                result = reply.read(*outRect);
+            }
+            if (result == NO_ERROR) {
+                result = reply.readUint32(outTransform);
+            }
+        }
+        if (result != NO_ERROR) {
+            ALOGE("getLastQueuedBuffer failed to read buffer: %d", result);
+            return result;
+        }
+        sp<Fence> fence(new Fence);
+        result = reply.read(*fence);
+        if (result != NO_ERROR) {
+            ALOGE("getLastQueuedBuffer failed to read fence: %d", result);
+            return result;
+        }
+        *outBuffer = buffer;
+        *outFence = fence;
+        return result;
+    }
+
     virtual void getFrameTimestamps(FrameEventHistoryDelta* outDelta) {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(
@@ -674,6 +725,11 @@ public:
             float outTransformMatrix[16]) override {
         return mBase->getLastQueuedBuffer(
                 outBuffer, outFence, outTransformMatrix);
+    }
+
+    status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer, sp<Fence>* outFence, Rect* outRect,
+                                 uint32_t* outTransform) override {
+        return mBase->getLastQueuedBuffer(outBuffer, outFence, outRect, outTransform);
     }
 
     void getFrameTimestamps(FrameEventHistoryDelta* outDelta) override {
@@ -1025,6 +1081,45 @@ status_t BnGraphicBufferProducer::onTransact(
             }
             return NO_ERROR;
         }
+        case GET_LAST_QUEUED_BUFFER2: {
+            CHECK_INTERFACE(IGraphicBufferProducer, data, reply);
+            sp<GraphicBuffer> buffer(nullptr);
+            sp<Fence> fence(Fence::NO_FENCE);
+            Rect crop;
+            uint32_t transform;
+            status_t result = getLastQueuedBuffer(&buffer, &fence, &crop, &transform);
+            reply->writeInt32(result);
+            if (result != NO_ERROR) {
+                return result;
+            }
+            if (!buffer.get()) {
+                reply->writeBool(false);
+            } else {
+                reply->writeBool(true);
+                result = reply->write(*buffer);
+                if (result == NO_ERROR) {
+                    result = reply->write(crop);
+                }
+                if (result == NO_ERROR) {
+                    result = reply->writeUint32(transform);
+                }
+            }
+            if (result != NO_ERROR) {
+                ALOGE("getLastQueuedBuffer failed to write buffer: %d", result);
+                return result;
+            }
+            if (fence == nullptr) {
+                ALOGE("getLastQueuedBuffer returned a NULL fence, setting to Fence::NO_FENCE");
+                fence = Fence::NO_FENCE;
+            }
+            result = reply->write(*fence);
+            if (result != NO_ERROR) {
+                ALOGE("getLastQueuedBuffer failed to write fence: %d", result);
+                return result;
+            }
+            return NO_ERROR;
+        }
+
         case GET_FRAME_TIMESTAMPS: {
             CHECK_INTERFACE(IGraphicBufferProducer, data, reply);
             FrameEventHistoryDelta frameTimestamps;
