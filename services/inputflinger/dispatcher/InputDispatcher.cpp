@@ -4620,28 +4620,32 @@ void InputDispatcher::setFocusedApplication(
     }
     { // acquire lock
         std::scoped_lock _l(mLock);
-
-        std::shared_ptr<InputApplicationHandle> oldFocusedApplicationHandle =
-                getValueByKey(mFocusedApplicationHandlesByDisplay, displayId);
-
-        if (sharedPointersEqual(oldFocusedApplicationHandle, inputApplicationHandle)) {
-            return; // This application is already focused. No need to wake up or change anything.
-        }
-
-        // Set the new application handle.
-        if (inputApplicationHandle != nullptr) {
-            mFocusedApplicationHandlesByDisplay[displayId] = inputApplicationHandle;
-        } else {
-            mFocusedApplicationHandlesByDisplay.erase(displayId);
-        }
-
-        // No matter what the old focused application was, stop waiting on it because it is
-        // no longer focused.
-        resetNoFocusedWindowTimeoutLocked();
+        setFocusedApplicationLocked(displayId, inputApplicationHandle);
     } // release lock
 
     // Wake up poll loop since it may need to make new input dispatching choices.
     mLooper->wake();
+}
+
+void InputDispatcher::setFocusedApplicationLocked(
+        int32_t displayId, const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) {
+    std::shared_ptr<InputApplicationHandle> oldFocusedApplicationHandle =
+            getValueByKey(mFocusedApplicationHandlesByDisplay, displayId);
+
+    if (sharedPointersEqual(oldFocusedApplicationHandle, inputApplicationHandle)) {
+        return; // This application is already focused. No need to wake up or change anything.
+    }
+
+    // Set the new application handle.
+    if (inputApplicationHandle != nullptr) {
+        mFocusedApplicationHandlesByDisplay[displayId] = inputApplicationHandle;
+    } else {
+        mFocusedApplicationHandlesByDisplay.erase(displayId);
+    }
+
+    // No matter what the old focused application was, stop waiting on it because it is
+    // no longer focused.
+    resetNoFocusedWindowTimeoutLocked();
 }
 
 /**
@@ -6213,6 +6217,21 @@ void InputDispatcher::doSetPointerCaptureLockedInterruptible(
     mPolicy->setPointerCapture(commandEntry->enabled);
 
     mLock.lock();
+}
+
+void InputDispatcher::displayRemoved(int32_t displayId) {
+    { // acquire lock
+        std::scoped_lock _l(mLock);
+        // Set an empty list to remove all handles from the specific display.
+        setInputWindowsLocked(/* window handles */ {}, displayId);
+        setFocusedApplicationLocked(displayId, nullptr);
+        // Call focus resolver to clean up stale requests. This must be called after input windows
+        // have been removed for the removed display.
+        mFocusResolver.displayRemoved(displayId);
+    } // release lock
+
+    // Wake up poll loop since it may need to make new input dispatching choices.
+    mLooper->wake();
 }
 
 } // namespace android::inputdispatcher

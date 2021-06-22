@@ -216,4 +216,9 @@ std::string FocusResolver::dump() const {
     return dump;
 }
 
+void FocusResolver::displayRemoved(int32_t displayId) {
+    mFocusRequestByDisplay.erase(displayId);
+    mLastFocusResultByDisplay.erase(displayId);
+}
+
 } // namespace android::inputdispatcher
