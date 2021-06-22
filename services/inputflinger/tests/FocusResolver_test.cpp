@@ -256,5 +256,37 @@ TEST(FocusResolverTest, ConditionalFocusRequestsAreNotPersistent) {
     // dropped.
     ASSERT_FALSE(changes);
 }
+TEST(FocusResolverTest, FocusRequestsAreClearedWhenWindowIsRemoved) {
+    sp<IBinder> windowToken = new BBinder();
+    std::vector<sp<InputWindowHandle>> windows;
+
+    sp<FakeWindowHandle> window = new FakeWindowHandle("Test Window", windowToken,
+                                                       true /* focusable */, true /* visible */);
+    windows.push_back(window);
+
+    FocusRequest request;
+    request.displayId = 42;
+    request.token = windowToken;
+    FocusResolver focusResolver;
+    std::optional<FocusResolver::FocusChanges> changes =
+            focusResolver.setFocusedWindow(request, windows);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ windowToken);
+    ASSERT_EQ(request.displayId, changes->displayId);
+
+    // Start with a focused window
+    window->setFocusable(true);
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ windowToken);
+
+    // When a display is removed, all windows are removed from the display
+    // and our focused window loses focus
+    changes = focusResolver.setInputWindows(request.displayId, {});
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ windowToken, /*to*/ nullptr);
+    focusResolver.displayRemoved(request.displayId);
+
+    // When a display is readded, the window does not get focus since the request was cleared.
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    ASSERT_FALSE(changes);
+}
 
 } // namespace android::inputdispatcher
