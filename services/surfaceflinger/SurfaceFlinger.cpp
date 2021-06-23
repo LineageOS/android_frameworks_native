@@ -342,6 +342,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mHwcServiceName(base::GetProperty("debug.sf.hwc_service_name"s, "default"s)),
+        mTunnelModeEnabledReporter(new TunnelModeEnabledReporter()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
         mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)) {
     ALOGI("Using HWComposer service: %s", mHwcServiceName.c_str());
@@ -2231,18 +2232,15 @@ void SurfaceFlinger::postComposition() {
 
     getBE().mDisplayTimeline.push(mPreviousPresentFences[0].fenceTime);
 
+    nsecs_t now = systemTime();
+
     // Set presentation information before calling Layer::releasePendingBuffer, such that jank
     // information from previous' frame classification is already available when sending jank info
     // to clients, so they get jank classification as early as possible.
-    mFrameTimeline->setSfPresent(systemTime(), mPreviousPresentFences[0].fenceTime,
+    mFrameTimeline->setSfPresent(/* sfPresentTime */ now, mPreviousPresentFences[0].fenceTime,
                                  glCompositionDoneFenceTime);
 
-    nsecs_t dequeueReadyTime = systemTime();
-    for (const auto& layer : mLayersWithQueuedFrames) {
-        layer->releasePendingBuffer(dequeueReadyTime);
-    }
-
-    const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(systemTime());
+    const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(now);
 
     // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
     // be sampled a little later than when we started doing work for this frame,
@@ -2259,6 +2257,7 @@ void SurfaceFlinger::postComposition() {
         const bool frameLatched =
                 layer->onPostComposition(display, glCompositionDoneFenceTime,
                                          mPreviousPresentFences[0].fenceTime, compositorTiming);
+        layer->releasePendingBuffer(/*dequeueReadyTime*/ now);
         if (frameLatched) {
             recordBufferingStats(layer->getName(), layer->getOccupancyHistory(false));
         }
@@ -2862,7 +2861,9 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             (currentState.orientedDisplaySpaceRect != drawingState.orientedDisplaySpaceRect)) {
             display->setProjection(currentState.orientation, currentState.layerStackSpaceRect,
                                    currentState.orientedDisplaySpaceRect);
-            mDefaultDisplayTransformHint = display->getTransformHint();
+            if (display->isPrimary()) {
+                mDefaultDisplayTransformHint = display->getTransformHint();
+            }
         }
         if (currentState.width != drawingState.width ||
             currentState.height != drawingState.height) {
@@ -2926,23 +2927,12 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
         processDisplayChangesLocked();
         processDisplayHotplugEventsLocked();
     }
+    mForceTraversal = false;
+    mForceTransactionDisplayChange = displayTransactionNeeded;
 
-    // Commit layer transactions. This needs to happen after display transactions are
-    // committed because some geometry logic relies on display orientation.
-    if ((transactionFlags & eTraversalNeeded) || mForceTraversal || displayTransactionNeeded) {
-        mForceTraversal = false;
-        mCurrentState.traverse([&](Layer* layer) {
-            uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
-            if (!trFlags && !displayTransactionNeeded) return;
-
-            const uint32_t flags = layer->doTransaction(0);
-            if (flags & Layer::eVisibleRegion)
-                mVisibleRegionsDirty = true;
-
-            if (flags & Layer::eInputInfoChanged) {
-                mInputInfoChanged = true;
-            }
-        });
+    if (mSomeChildrenChanged) {
+        mVisibleRegionsDirty = true;
+        mSomeChildrenChanged = false;
     }
 
     // Update transform hint
@@ -3158,7 +3148,6 @@ void SurfaceFlinger::initScheduler(const DisplayDeviceState& displayState) {
     mRegionSamplingThread =
             new RegionSamplingThread(*this, RegionSamplingThread::EnvironmentTimingTunables());
     mFpsReporter = new FpsReporter(*mFrameTimeline, *this);
-    mTunnelModeEnabledReporter = new TunnelModeEnabledReporter(*this);
     // Dispatch a mode change request for the primary display on scheduler
     // initialization, so that the EventThreads always contain a reference to a
     // prior configuration.
@@ -3229,9 +3218,12 @@ void SurfaceFlinger::commitTransactionLocked() {
     // clear the "changed" flags in current state
     mCurrentState.colorMatrixChanged = false;
 
-    for (const auto& rootLayer : mDrawingState.layersSortedByZ) {
-        rootLayer->commitChildList();
+    if (mVisibleRegionsDirty) {
+        for (const auto& rootLayer : mDrawingState.layersSortedByZ) {
+            rootLayer->commitChildList();
+        }
     }
+
     // TODO(b/163019109): See if this traversal is needed at all...
     if (!mOffscreenLayers.empty()) {
         mDrawingState.traverse([&](Layer* layer) {
@@ -3290,7 +3282,14 @@ bool SurfaceFlinger::handlePageFlip() {
     // Display is now waiting on Layer 1's frame, which is behind layer 0's
     // second frame. But layer 0's second frame could be waiting on display.
     mDrawingState.traverse([&](Layer* layer) {
-        if (layer->hasReadyFrame()) {
+         uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
+         if (trFlags || mForceTransactionDisplayChange) {
+             const uint32_t flags = layer->doTransaction(0);
+             if (flags & Layer::eVisibleRegion)
+                 mVisibleRegionsDirty = true;
+         }
+
+         if (layer->hasReadyFrame()) {
             frameQueued = true;
             if (layer->shouldPresentNow(expectedPresentTime)) {
                 mLayersWithQueuedFrames.emplace(layer);
@@ -3298,10 +3297,11 @@ bool SurfaceFlinger::handlePageFlip() {
                 ATRACE_NAME("!layer->shouldPresentNow()");
                 layer->useEmptyDamage();
             }
-        } else {
+         } else {
             layer->useEmptyDamage();
         }
     });
+    mForceTransactionDisplayChange = false;
 
     // The client can continue submitting buffers for offscreen layers, but they will not
     // be shown on screen. Therefore, we need to latch and release buffers of offscreen
@@ -4468,10 +4468,11 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.height = 0;
     displays.add(d);
 
+    nsecs_t now = systemTime();
     // It should be on the main thread, apply it directly.
     applyTransactionState(FrameTimelineInfo{}, state, displays, 0, mInputWindowCommands,
-                          systemTime(), true, {}, systemTime(), true, false, {}, getpid(), getuid(),
-                          0 /* Undefined transactionId */);
+                          /* desiredPresentTime */ now, true, {}, /* postTime */ now, true, false,
+                          {}, getpid(), getuid(), 0 /* Undefined transactionId */);
 
     setPowerModeInternal(display, hal::PowerMode::ON);
     const nsecs_t vsyncPeriod = mRefreshRateConfigs->getCurrentRefreshRate().getVsyncPeriod();
@@ -6908,6 +6909,8 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle, bo
     } else {
         parent->addChild(layer);
     }
+
+    layer->updateTransformHint(mDefaultDisplayTransformHint);
 
     if (state->initialProducer != nullptr) {
         mGraphicBufferProducerList.insert(state->initialProducer);

@@ -125,6 +125,7 @@ private:
     static PixelFormat convertBufferFormat(PixelFormat& format);
 
     std::string mName;
+    std::string mPendingBufferTrace;
     sp<SurfaceControl> mSurfaceControl;
 
     std::mutex mMutex;

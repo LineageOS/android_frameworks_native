@@ -62,6 +62,9 @@ public:
     std::optional<FocusResolver::FocusChanges> setFocusedWindow(
             const FocusRequest& request, const std::vector<sp<InputWindowHandle>>& windows);
 
+    // Display has been removed from the system, clean up old references.
+    void displayRemoved(int32_t displayId);
+
     // exposed for debugging
     bool hasFocusedWindowTokens() const { return !mFocusedWindowTokenByDisplay.empty(); }
     std::string dumpFocusedWindows() const;
