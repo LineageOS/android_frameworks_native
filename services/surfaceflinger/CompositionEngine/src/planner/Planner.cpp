@@ -113,15 +113,6 @@ void Planner::plan(
         }
     }
 
-    for (LayerId removedLayer : removedLayers) {
-        if (const auto layerEntry = mPreviousLayers.find(removedLayer);
-            layerEntry != mPreviousLayers.end()) {
-            const auto& [id, state] = *layerEntry;
-            ALOGV("Removed layer %s", state.getName().c_str());
-            mPreviousLayers.erase(removedLayer);
-        }
-    }
-
     mCurrentLayers.clear();
     mCurrentLayers.reserve(currentLayerIds.size());
     std::transform(currentLayerIds.cbegin(), currentLayerIds.cend(),
@@ -135,6 +126,7 @@ void Planner::plan(
     mFlattenedHash =
             mFlattener.flattenLayers(mCurrentLayers, hash, std::chrono::steady_clock::now());
     const bool layersWereFlattened = hash != mFlattenedHash;
+
     ALOGV("[%s] Initial hash %zx flattened hash %zx", __func__, hash, mFlattenedHash);
 
     if (mPredictorEnabled) {
@@ -146,6 +138,17 @@ void Planner::plan(
             ALOGV("[%s] Predicting plan %s", __func__, to_string(mPredictedPlan->plan).c_str());
         } else {
             ALOGV("[%s] No prediction found\n", __func__);
+        }
+    }
+
+    // Clean up the set of previous layers now that the view of the LayerStates in the flattener are
+    // up-to-date.
+    for (LayerId removedLayer : removedLayers) {
+        if (const auto layerEntry = mPreviousLayers.find(removedLayer);
+            layerEntry != mPreviousLayers.end()) {
+            const auto& [id, state] = *layerEntry;
+            ALOGV("Removed layer %s", state.getName().c_str());
+            mPreviousLayers.erase(removedLayer);
         }
     }
 }
