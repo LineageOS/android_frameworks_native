@@ -2432,7 +2432,7 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
     EXPECT_EQ(motionArgs.buttonState, verifiedMotion.buttonState);
 }
 
-TEST_F(InputDispatcherTest, NonPointerMotionEvent_NotTransformed) {
+TEST_F(InputDispatcherTest, NonPointerMotionEvent_JoystickAndTouchpadNotTransformed) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
@@ -2452,20 +2452,19 @@ TEST_F(InputDispatcherTest, NonPointerMotionEvent_NotTransformed) {
     // Second, we consume focus event if it is right or wrong according to onFocusChangedLocked.
     window->consumeFocusEvent(true);
 
-    constexpr const std::array nonPointerSources = {AINPUT_SOURCE_TRACKBALL,
-                                                    AINPUT_SOURCE_MOUSE_RELATIVE,
-                                                    AINPUT_SOURCE_JOYSTICK};
-    for (const int source : nonPointerSources) {
-        // Notify motion with a non-pointer source.
-        NotifyMotionArgs motionArgs =
-                generateMotionArgs(AMOTION_EVENT_ACTION_MOVE, source, ADISPLAY_ID_DEFAULT);
+    constexpr const std::array nonTransformedSources = {std::pair(AINPUT_SOURCE_TOUCHPAD,
+                                                                  AMOTION_EVENT_ACTION_DOWN),
+                                                        std::pair(AINPUT_SOURCE_JOYSTICK,
+                                                                  AMOTION_EVENT_ACTION_MOVE)};
+    for (const auto& [source, action] : nonTransformedSources) {
+        const NotifyMotionArgs motionArgs = generateMotionArgs(action, source, ADISPLAY_ID_DEFAULT);
         mDispatcher->notifyMotion(&motionArgs);
 
         MotionEvent* event = window->consumeMotion();
         ASSERT_NE(event, nullptr);
 
         const MotionEvent& motionEvent = *event;
-        EXPECT_EQ(AMOTION_EVENT_ACTION_MOVE, motionEvent.getAction());
+        EXPECT_EQ(action, motionEvent.getAction());
         EXPECT_EQ(motionArgs.pointerCount, motionEvent.getPointerCount());
 
         float expectedX = motionArgs.pointerCoords[0].getX();
@@ -2686,6 +2685,23 @@ TEST_F(InputDispatcherTest, SetFocusedWindow_DeferInvisibleWindow) {
     window->consumeFocusEvent(true);
     // Focused window receives key down.
     window->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+}
+
+TEST_F(InputDispatcherTest, DisplayRemoved) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "window", ADISPLAY_ID_DEFAULT);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+    // window is granted focus.
+    window->setFocusable(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
+    window->consumeFocusEvent(true);
+
+    // When a display is removed window loses focus.
+    mDispatcher->displayRemoved(ADISPLAY_ID_DEFAULT);
+    window->consumeFocusEvent(false);
 }
 
 /**

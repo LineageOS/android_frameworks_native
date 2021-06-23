@@ -1109,4 +1109,31 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_DroppedFrame) {
     adapter.waitForCallbacks();
 }
 
+TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_CompositorTimings) {
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+    sp<IGraphicBufferProducer> igbProducer;
+    ProducerFrameEventHistory history;
+    setUpProducer(adapter, igbProducer);
+
+    IGraphicBufferProducer::QueueBufferOutput qbOutput;
+    nsecs_t requestedPresentTimeA = 0;
+    nsecs_t postedTimeA = 0;
+    adapter.setTransactionCompleteCallback(1);
+    setUpAndQueueBuffer(igbProducer, &requestedPresentTimeA, &postedTimeA, &qbOutput, true);
+    history.applyDelta(qbOutput.frameTimestamps);
+    adapter.waitForCallback(1);
+
+    // queue another buffer so we query for frame event deltas
+    nsecs_t requestedPresentTimeB = 0;
+    nsecs_t postedTimeB = 0;
+    setUpAndQueueBuffer(igbProducer, &requestedPresentTimeB, &postedTimeB, &qbOutput, true);
+    history.applyDelta(qbOutput.frameTimestamps);
+
+    // check for a valid compositor deadline
+    ASSERT_NE(0, history.getReportedCompositeDeadline());
+
+    // wait for any callbacks that have not been received
+    adapter.waitForCallbacks();
+}
+
 } // namespace android

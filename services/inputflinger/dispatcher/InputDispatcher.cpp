@@ -47,6 +47,7 @@ static constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 // Log debug messages about hover events.
 #define DEBUG_HOVER 0
 
+#include <InputFlingerProperties.sysprop.h>
 #include <android-base/chrono_utils.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
@@ -93,7 +94,8 @@ namespace android::inputdispatcher {
 // coordinates and SurfaceFlinger includes the display rotation in the input window transforms.
 static bool isPerWindowInputRotationEnabled() {
     static const bool PER_WINDOW_INPUT_ROTATION =
-            base::GetBoolProperty("persist.debug.per_window_input_rotation", false);
+            sysprop::InputFlingerProperties::per_window_input_rotation().value_or(false);
+
     return PER_WINDOW_INPUT_ROTATION;
 }
 
@@ -319,11 +321,11 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
                                                           int32_t inputTargetFlags) {
     if (eventEntry->type == EventEntry::Type::MOTION) {
         const MotionEntry& motionEntry = static_cast<const MotionEntry&>(*eventEntry);
-        if ((motionEntry.source & AINPUT_SOURCE_CLASS_POINTER) == 0) {
+        if ((motionEntry.source & AINPUT_SOURCE_CLASS_JOYSTICK) ||
+            (motionEntry.source & AINPUT_SOURCE_CLASS_POSITION)) {
             const ui::Transform identityTransform;
-            // Use identity transform for events that are not pointer events because their axes
-            // values do not represent on-screen coordinates, so they should not have any window
-            // transformations applied to them.
+            // Use identity transform for joystick and position-based (touchpad) events because they
+            // don't depend on the window transform.
             return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, identityTransform,
                                                    1.0f /*globalScaleFactor*/,
                                                    inputTarget.displaySize);
@@ -4613,28 +4615,32 @@ void InputDispatcher::setFocusedApplication(
     }
     { // acquire lock
         std::scoped_lock _l(mLock);
-
-        std::shared_ptr<InputApplicationHandle> oldFocusedApplicationHandle =
-                getValueByKey(mFocusedApplicationHandlesByDisplay, displayId);
-
-        if (sharedPointersEqual(oldFocusedApplicationHandle, inputApplicationHandle)) {
-            return; // This application is already focused. No need to wake up or change anything.
-        }
-
-        // Set the new application handle.
-        if (inputApplicationHandle != nullptr) {
-            mFocusedApplicationHandlesByDisplay[displayId] = inputApplicationHandle;
-        } else {
-            mFocusedApplicationHandlesByDisplay.erase(displayId);
-        }
-
-        // No matter what the old focused application was, stop waiting on it because it is
-        // no longer focused.
-        resetNoFocusedWindowTimeoutLocked();
+        setFocusedApplicationLocked(displayId, inputApplicationHandle);
     } // release lock
 
     // Wake up poll loop since it may need to make new input dispatching choices.
     mLooper->wake();
+}
+
+void InputDispatcher::setFocusedApplicationLocked(
+        int32_t displayId, const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) {
+    std::shared_ptr<InputApplicationHandle> oldFocusedApplicationHandle =
+            getValueByKey(mFocusedApplicationHandlesByDisplay, displayId);
+
+    if (sharedPointersEqual(oldFocusedApplicationHandle, inputApplicationHandle)) {
+        return; // This application is already focused. No need to wake up or change anything.
+    }
+
+    // Set the new application handle.
+    if (inputApplicationHandle != nullptr) {
+        mFocusedApplicationHandlesByDisplay[displayId] = inputApplicationHandle;
+    } else {
+        mFocusedApplicationHandlesByDisplay.erase(displayId);
+    }
+
+    // No matter what the old focused application was, stop waiting on it because it is
+    // no longer focused.
+    resetNoFocusedWindowTimeoutLocked();
 }
 
 /**
@@ -6206,6 +6212,21 @@ void InputDispatcher::doSetPointerCaptureLockedInterruptible(
     mPolicy->setPointerCapture(commandEntry->enabled);
 
     mLock.lock();
+}
+
+void InputDispatcher::displayRemoved(int32_t displayId) {
+    { // acquire lock
+        std::scoped_lock _l(mLock);
+        // Set an empty list to remove all handles from the specific display.
+        setInputWindowsLocked(/* window handles */ {}, displayId);
+        setFocusedApplicationLocked(displayId, nullptr);
+        // Call focus resolver to clean up stale requests. This must be called after input windows
+        // have been removed for the removed display.
+        mFocusResolver.displayRemoved(displayId);
+    } // release lock
+
+    // Wake up poll loop since it may need to make new input dispatching choices.
+    mLooper->wake();
 }
 
 } // namespace android::inputdispatcher

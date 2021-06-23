@@ -2231,18 +2231,15 @@ void SurfaceFlinger::postComposition() {
 
     getBE().mDisplayTimeline.push(mPreviousPresentFences[0].fenceTime);
 
+    nsecs_t now = systemTime();
+
     // Set presentation information before calling Layer::releasePendingBuffer, such that jank
     // information from previous' frame classification is already available when sending jank info
     // to clients, so they get jank classification as early as possible.
-    mFrameTimeline->setSfPresent(systemTime(), mPreviousPresentFences[0].fenceTime,
+    mFrameTimeline->setSfPresent(/* sfPresentTime */ now, mPreviousPresentFences[0].fenceTime,
                                  glCompositionDoneFenceTime);
 
-    nsecs_t dequeueReadyTime = systemTime();
-    for (const auto& layer : mLayersWithQueuedFrames) {
-        layer->releasePendingBuffer(dequeueReadyTime);
-    }
-
-    const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(systemTime());
+    const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(now);
 
     // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
     // be sampled a little later than when we started doing work for this frame,
@@ -2259,6 +2256,7 @@ void SurfaceFlinger::postComposition() {
         const bool frameLatched =
                 layer->onPostComposition(display, glCompositionDoneFenceTime,
                                          mPreviousPresentFences[0].fenceTime, compositorTiming);
+        layer->releasePendingBuffer(/*dequeueReadyTime*/ now);
         if (frameLatched) {
             recordBufferingStats(layer->getName(), layer->getOccupancyHistory(false));
         }
@@ -2862,7 +2860,9 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             (currentState.orientedDisplaySpaceRect != drawingState.orientedDisplaySpaceRect)) {
             display->setProjection(currentState.orientation, currentState.layerStackSpaceRect,
                                    currentState.orientedDisplaySpaceRect);
-            mDefaultDisplayTransformHint = display->getTransformHint();
+            if (display->isPrimary()) {
+                mDefaultDisplayTransformHint = display->getTransformHint();
+            }
         }
         if (currentState.width != drawingState.width ||
             currentState.height != drawingState.height) {
@@ -4473,10 +4473,11 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.height = 0;
     displays.add(d);
 
+    nsecs_t now = systemTime();
     // It should be on the main thread, apply it directly.
     applyTransactionState(FrameTimelineInfo{}, state, displays, 0, mInputWindowCommands,
-                          systemTime(), true, {}, systemTime(), true, false, {}, getpid(), getuid(),
-                          0 /* Undefined transactionId */);
+                          /* desiredPresentTime */ now, true, {}, /* postTime */ now, true, false,
+                          {}, getpid(), getuid(), 0 /* Undefined transactionId */);
 
     setPowerModeInternal(display, hal::PowerMode::ON);
     const nsecs_t vsyncPeriod = mRefreshRateConfigs->getCurrentRefreshRate().getVsyncPeriod();
@@ -6932,6 +6933,8 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle, bo
     } else {
         parent->addChild(layer);
     }
+
+    layer->updateTransformHint(mDefaultDisplayTransformHint);
 
     if (state->initialProducer != nullptr) {
         mGraphicBufferProducerList.insert(state->initialProducer);
