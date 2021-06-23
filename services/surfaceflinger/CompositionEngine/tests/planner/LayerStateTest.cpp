@@ -117,6 +117,22 @@ TEST_F(LayerStateTest, getOutputLayer) {
     EXPECT_EQ(&mOutputLayer, mLayerState->getOutputLayer());
 }
 
+TEST_F(LayerStateTest, updateOutputLayer) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+    EXPECT_EQ(&mOutputLayer, mLayerState->getOutputLayer());
+
+    mock::OutputLayer newOutputLayer;
+    mock::LayerFE newLayerFE;
+    setupMocksForLayer(newOutputLayer, newLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(&newOutputLayer, mLayerState->getOutputLayer());
+}
+
 TEST_F(LayerStateTest, getId) {
     OutputLayerCompositionState outputLayerCompositionState;
     LayerFECompositionState layerFECompositionState;
