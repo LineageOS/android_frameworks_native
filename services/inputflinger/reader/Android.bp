@@ -71,6 +71,7 @@ cc_defaults {
         "libstatslog",
         "libui",
         "libutils",
+        "InputFlingerProperties",
     ],
     static_libs: [
         "libc++fs",

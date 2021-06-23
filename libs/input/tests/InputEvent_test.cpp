@@ -588,7 +588,7 @@ TEST_F(MotionEventTest, Transform) {
     }
     MotionEvent event;
     ui::Transform identityTransform;
-    event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_UNKNOWN, DISPLAY_ID,
+    event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID,
                      INVALID_HMAC, AMOTION_EVENT_ACTION_MOVE, 0 /*actionButton*/, 0 /*flags*/,
                      AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
                      MotionClassification::NONE, identityTransform, 0 /*xPrecision*/,
@@ -636,13 +636,16 @@ TEST_F(MotionEventTest, Transform) {
     ASSERT_NEAR(originalRawY, event.getRawY(0), 0.001);
 }
 
-MotionEvent createTouchDownEvent(int x, int y, ui::Transform transform) {
+MotionEvent createTouchDownEvent(float x, float y, float dx, float dy,
+                                 const ui::Transform& transform) {
     std::vector<PointerProperties> pointerProperties;
     pointerProperties.push_back(PointerProperties{/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER});
     std::vector<PointerCoords> pointerCoords;
     pointerCoords.emplace_back().clear();
     pointerCoords.back().setAxisValue(AMOTION_EVENT_AXIS_X, x);
     pointerCoords.back().setAxisValue(AMOTION_EVENT_AXIS_Y, y);
+    pointerCoords.back().setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, dx);
+    pointerCoords.back().setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, dy);
     nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
     MotionEvent event;
     event.initialize(InputEvent::nextId(), /* deviceId */ 1, AINPUT_SOURCE_TOUCHSCREEN,
@@ -661,26 +664,56 @@ TEST_F(MotionEventTest, ApplyTransform) {
     ui::Transform identity;
     ui::Transform xform(ui::Transform::ROT_90, 800, 400);
     xform.set(xform.tx() + 20, xform.ty() + 40);
-    MotionEvent event = createTouchDownEvent(60, 100, xform);
+    MotionEvent event = createTouchDownEvent(60, 100, 42, 96, xform);
     ASSERT_EQ(700, event.getRawX(0));
     ASSERT_EQ(60, event.getRawY(0));
     ASSERT_NE(event.getRawX(0), event.getX(0));
     ASSERT_NE(event.getRawY(0), event.getY(0));
+    // Relative values should be rotated but not translated.
+    ASSERT_EQ(-96, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0));
+    ASSERT_EQ(42, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0));
 
-    MotionEvent changedEvent = createTouchDownEvent(60, 100, identity);
+    MotionEvent changedEvent = createTouchDownEvent(60, 100, 42, 96, identity);
     const std::array<float, 9> rowMajor{xform[0][0], xform[1][0], xform[2][0],
                                         xform[0][1], xform[1][1], xform[2][1],
                                         xform[0][2], xform[1][2], xform[2][2]};
     changedEvent.applyTransform(rowMajor);
 
     // transformContent effectively rotates the raw coordinates, so those should now include
-    // both rotation AND offset
+    // both rotation AND offset.
     ASSERT_EQ(720, changedEvent.getRawX(0));
     ASSERT_EQ(100, changedEvent.getRawY(0));
+    // Relative values should be rotated but not translated.
+    ASSERT_EQ(-96, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0));
+    ASSERT_EQ(42, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0));
 
-    // The transformed output should be the same then
+    // The transformed output should be the same then.
     ASSERT_NEAR(event.getX(0), changedEvent.getX(0), 0.001);
     ASSERT_NEAR(event.getY(0), changedEvent.getY(0), 0.001);
+    ASSERT_NEAR(event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0),
+                changedEvent.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0), 0.001);
+    ASSERT_NEAR(event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0),
+                changedEvent.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0), 0.001);
+}
+
+TEST_F(MotionEventTest, NonPointerSourcesAreNotTranslated) {
+    constexpr static auto NON_POINTER_SOURCES = {AINPUT_SOURCE_TRACKBALL,
+                                                 AINPUT_SOURCE_MOUSE_RELATIVE,
+                                                 AINPUT_SOURCE_JOYSTICK};
+    for (uint32_t source : NON_POINTER_SOURCES) {
+        // Create a rotate-90 transform with an offset (like a window which isn't fullscreen).
+        ui::Transform xform(ui::Transform::ROT_90, 800, 400);
+        xform.set(xform.tx() + 20, xform.ty() + 40);
+        MotionEvent event = createTouchDownEvent(60, 100, 42, 96, xform);
+        event.setSource(source);
+
+        // Since this event comes from a non-pointer source, it should include rotation but not
+        // translation/offset.
+        ASSERT_EQ(-100, event.getX(0));
+        ASSERT_EQ(60, event.getY(0));
+        ASSERT_EQ(event.getRawX(0), event.getX(0));
+        ASSERT_EQ(event.getRawY(0), event.getY(0));
+    }
 }
 
 TEST_F(MotionEventTest, RawCompatTransform) {
@@ -688,11 +721,14 @@ TEST_F(MotionEventTest, RawCompatTransform) {
         // Make sure raw is raw regardless of transform translation.
         ui::Transform xform;
         xform.set(20, 40);
-        MotionEvent event = createTouchDownEvent(60, 100, xform);
+        MotionEvent event = createTouchDownEvent(60, 100, 42, 96, xform);
         ASSERT_EQ(60, event.getRawX(0));
         ASSERT_EQ(100, event.getRawY(0));
         ASSERT_NE(event.getRawX(0), event.getX(0));
         ASSERT_NE(event.getRawY(0), event.getY(0));
+        // Relative values should not be modified.
+        ASSERT_EQ(42, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0));
+        ASSERT_EQ(96, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0));
     }
 
     // Next check that getRaw contains rotation (for compatibility) but otherwise is still
@@ -701,29 +737,38 @@ TEST_F(MotionEventTest, RawCompatTransform) {
         // Create a rotate-90 transform with an offset (like a window which isn't fullscreen).
         ui::Transform xform(ui::Transform::ROT_90, 800, 400);
         xform.set(xform.tx() + 20, xform.ty() + 40);
-        MotionEvent event = createTouchDownEvent(60, 100, xform);
+        MotionEvent event = createTouchDownEvent(60, 100, 42, 96, xform);
         ASSERT_EQ(700, event.getRawX(0));
         ASSERT_EQ(60, event.getRawY(0));
         ASSERT_NE(event.getRawX(0), event.getX(0));
         ASSERT_NE(event.getRawY(0), event.getY(0));
+        // Relative values should be rotated but not translated.
+        ASSERT_EQ(-96, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0));
+        ASSERT_EQ(42, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0));
     }
 
     {
         // Same as above, but check rotate-180.
         ui::Transform xform(ui::Transform::ROT_180, 400, 800);
         xform.set(xform.tx() + 20, xform.ty() + 40);
-        MotionEvent event = createTouchDownEvent(60, 100, xform);
+        MotionEvent event = createTouchDownEvent(60, 100, 42, 96, xform);
         ASSERT_EQ(340, event.getRawX(0));
         ASSERT_EQ(700, event.getRawY(0));
+        // Relative values should be rotated but not translated.
+        ASSERT_EQ(-42, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0));
+        ASSERT_EQ(-96, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0));
     }
 
     {
         // Same as above, but check rotate-270.
         ui::Transform xform(ui::Transform::ROT_270, 800, 400);
         xform.set(xform.tx() + 20, xform.ty() + 40);
-        MotionEvent event = createTouchDownEvent(60, 100, xform);
+        MotionEvent event = createTouchDownEvent(60, 100, 42, 96, xform);
         ASSERT_EQ(100, event.getRawX(0));
         ASSERT_EQ(340, event.getRawY(0));
+        // Relative values should be rotated but not translated.
+        ASSERT_EQ(96, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0));
+        ASSERT_EQ(-42, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0));
     }
 }
 
