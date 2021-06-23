@@ -2665,9 +2665,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
 
     sp<DisplayDevice> display = getFactory().createDisplayDevice(creationArgs);
 
-    if (maxFrameBufferAcquiredBuffers >= 3) {
-        nativeWindowSurface->preallocateBuffers();
-    }
+    nativeWindowSurface->preallocateBuffers();
 
     ColorMode defaultColorMode = ColorMode::NATIVE;
     Dataspace defaultDataSpace = Dataspace::UNKNOWN;
