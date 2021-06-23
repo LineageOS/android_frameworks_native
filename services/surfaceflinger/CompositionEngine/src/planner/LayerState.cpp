@@ -42,7 +42,13 @@ LayerState::LayerState(compositionengine::OutputLayer* layer)
 }
 
 Flags<LayerStateField> LayerState::update(compositionengine::OutputLayer* layer) {
-    ALOGE_IF(layer != mOutputLayer, "[%s] Expected mOutputLayer to never change", __func__);
+    ALOGE_IF(mOutputLayer != layer && layer->getLayerFE().getSequence() != mId.get(),
+             "[%s] Expected mOutputLayer ID to never change: %d, %d", __func__,
+             layer->getLayerFE().getSequence(), mId.get());
+
+    // It's possible for the OutputLayer pointer to change even when the layer is logically the
+    // same, i.e., the LayerFE is the same. An example use-case is screen rotation.
+    mOutputLayer = layer;
 
     Flags<LayerStateField> differences;
 
