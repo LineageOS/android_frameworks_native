@@ -140,6 +140,11 @@ status_t MonitoredProducer::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             outTransformMatrix);
 }
 
+status_t MonitoredProducer::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer, sp<Fence>* outFence,
+                                                Rect* outRect, uint32_t* outTransform) {
+    return mProducer->getLastQueuedBuffer(outBuffer, outFence, outRect, outTransform);
+}
+
 void MonitoredProducer::getFrameTimestamps(FrameEventHistoryDelta* outDelta) {
     mProducer->getFrameTimestamps(outDelta);
 }
