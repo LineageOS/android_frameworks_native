@@ -181,6 +181,7 @@ DisplayModePtr RefreshRateConfigsTest::createDisplayMode(DisplayModeId modeId, i
                                                          int64_t vsyncPeriod, ui::Size resolution) {
     return DisplayMode::Builder(hal::HWConfigId(modeId.value()))
             .setId(modeId)
+            .setPhysicalDisplayId(PhysicalDisplayId(0))
             .setVsyncPeriod(int32_t(vsyncPeriod))
             .setGroup(group)
             .setHeight(resolution.height)

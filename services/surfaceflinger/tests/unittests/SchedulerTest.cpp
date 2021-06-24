@@ -53,11 +53,13 @@ protected:
 
     const DisplayModePtr mode60 = DisplayMode::Builder(0)
                                           .setId(DisplayModeId(0))
+                                          .setPhysicalDisplayId(PhysicalDisplayId(0))
                                           .setVsyncPeriod(Fps(60.f).getPeriodNsecs())
                                           .setGroup(0)
                                           .build();
     const DisplayModePtr mode120 = DisplayMode::Builder(1)
                                            .setId(DisplayModeId(1))
+                                           .setPhysicalDisplayId(PhysicalDisplayId(0))
                                            .setVsyncPeriod(Fps(120.f).getPeriodNsecs())
                                            .setGroup(0)
                                            .build();
