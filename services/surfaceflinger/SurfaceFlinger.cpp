@@ -3112,10 +3112,15 @@ void SurfaceFlinger::initScheduler(const DisplayDeviceState& displayState) {
         return;
     }
     const auto displayId = displayState.physical->id;
-    mRefreshRateConfigs = std::make_unique<
-            scheduler::RefreshRateConfigs>(displayState.physical->supportedModes,
-                                           displayState.physical->activeMode->getId(),
-                                           android::sysprop::enable_frame_rate_override(false));
+    scheduler::RefreshRateConfigs::Config config =
+            {.enableFrameRateOverride = android::sysprop::enable_frame_rate_override(false),
+             .frameRateMultipleThreshold =
+                     base::GetIntProperty("debug.sf.frame_rate_multiple_threshold", 0)};
+    mRefreshRateConfigs =
+            std::make_unique<scheduler::RefreshRateConfigs>(displayState.physical->supportedModes,
+                                                            displayState.physical->activeMode
+                                                                    ->getId(),
+                                                            config);
     const auto currRefreshRate = displayState.physical->activeMode->getFps();
     mRefreshRateStats = std::make_unique<scheduler::RefreshRateStats>(*mTimeStats, currRefreshRate,
                                                                       hal::PowerMode::OFF);
