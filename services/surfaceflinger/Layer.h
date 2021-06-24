@@ -186,7 +186,6 @@ public:
         float cornerRadius;
         int backgroundBlurRadius;
 
-        bool inputInfoChanged;
         InputWindowInfo inputInfo;
         wp<Layer> touchableRegionCrop;
 
@@ -997,7 +996,7 @@ protected:
     // This layer can be a cursor on some displays.
     bool mPotentialCursor{false};
 
-    LayerVector mCurrentChildren{LayerVector::StateSet::Drawing};
+    LayerVector mCurrentChildren{LayerVector::StateSet::Current};
     LayerVector mDrawingChildren{LayerVector::StateSet::Drawing};
 
     wp<Layer> mCurrentParent;

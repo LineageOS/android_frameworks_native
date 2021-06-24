@@ -70,6 +70,7 @@
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
 #include "TimeStats/TimeStats.h"
+#include "TunnelModeEnabledReporter.h"
 #include "input/InputWindow.h"
 
 #define DEBUG_RESIZE 0
@@ -172,6 +173,10 @@ Layer::~Layer() {
 
     mFrameTracker.logAndResetStats(mName);
     mFlinger->onLayerDestroyed(this);
+
+    if (mDrawingState.sidebandStream != nullptr) {
+        mFlinger->mTunnelModeEnabledReporter->decrementTunnelModeCount();
+    }
 }
 
 LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, sp<Client> client, std::string name,
@@ -700,11 +705,6 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         mNeedsFiltering = getActiveTransform(s).needsBilinearFiltering();
     }
 
-    if (mDrawingState.inputInfoChanged) {
-        flags |= eInputInfoChanged;
-        mDrawingState.inputInfoChanged = false;
-    }
-
     commitTransaction(mDrawingState);
 
     return flags;
@@ -777,6 +777,8 @@ bool Layer::setLayer(int32_t z) {
     mDrawingState.z = z;
     mDrawingState.modified = true;
 
+    mFlinger->mSomeChildrenChanged = true;
+
     // Discard all relative layering.
     if (mDrawingState.zOrderRelativeOf != nullptr) {
         sp<Layer> strongRelative = mDrawingState.zOrderRelativeOf.promote();
@@ -826,6 +828,8 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relati
         mDrawingState.zOrderRelativeOf == relative) {
         return false;
     }
+
+    mFlinger->mSomeChildrenChanged = true;
 
     mDrawingState.sequence++;
     mDrawingState.modified = true;
@@ -1986,7 +1990,7 @@ void Layer::setInputInfo(const InputWindowInfo& info) {
     mDrawingState.inputInfo = info;
     mDrawingState.touchableRegionCrop = extractLayerFromBinder(info.touchableRegionCropHandle);
     mDrawingState.modified = true;
-    mDrawingState.inputInfoChanged = true;
+    mFlinger->mInputInfoChanged = true;
     setTransactionFlags(eTransactionNeeded);
 }
 

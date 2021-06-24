@@ -29,7 +29,7 @@ class SurfaceFlinger;
 
 class TunnelModeEnabledReporter : public IBinder::DeathRecipient {
 public:
-    TunnelModeEnabledReporter(SurfaceFlinger& flinger);
+    TunnelModeEnabledReporter();
 
     // Checks if there is a tunnel mode enabled state change and if so, dispatches the updated
     // tunnel mode enabled/disabled state to the registered listeners
@@ -49,6 +49,9 @@ public:
     // Deregisters a TunnelModeEnabled listener
     void removeListener(const sp<gui::ITunnelModeEnabledListener>& listener);
 
+    inline void incrementTunnelModeCount() { mTunnelModeCount++; }
+    inline void decrementTunnelModeCount() { mTunnelModeCount--; }
+
 private:
     mutable std::mutex mMutex;
     struct WpHash {
@@ -57,10 +60,10 @@ private:
         }
     };
 
-    SurfaceFlinger& mFlinger;
     std::unordered_map<wp<IBinder>, sp<gui::ITunnelModeEnabledListener>, WpHash> mListeners
             GUARDED_BY(mMutex);
     bool mTunnelModeEnabled GUARDED_BY(mMutex) = false;
+    uint32_t mTunnelModeCount = 0;
 };
 
 } // namespace android

@@ -27,6 +27,7 @@
 #include "TunnelModeEnabledReporter.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/MockEventThread.h"
+#include "mock/MockMessageQueue.h"
 
 namespace android {
 
@@ -71,15 +72,20 @@ protected:
     sp<TestableTunnelModeEnabledListener> mTunnelModeEnabledListener =
             new TestableTunnelModeEnabledListener();
     sp<TunnelModeEnabledReporter> mTunnelModeEnabledReporter =
-            new TunnelModeEnabledReporter(*(mFlinger.flinger()));
+            new TunnelModeEnabledReporter();
+
+    mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
 };
 
 TunnelModeEnabledReporterTest::TunnelModeEnabledReporterTest() {
     const ::testing::TestInfo* const test_info =
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
+
+    mFlinger.mutableEventQueue().reset(mMessageQueue);
     setupScheduler();
     mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
+    mFlinger.flinger()->mTunnelModeEnabledReporter = mTunnelModeEnabledReporter;
     mTunnelModeEnabledReporter->dispatchTunnelModeEnabled(false);
 }
 
@@ -156,16 +162,18 @@ TEST_F(TunnelModeEnabledReporterTest, callsNewListenerWithFreshInformation) {
     sp<NativeHandle> stream =
             NativeHandle::create(reinterpret_cast<native_handle_t*>(DEFAULT_SIDEBAND_STREAM),
                                  false);
-    mFlinger.setLayerSidebandStream(layer, stream);
+    layer->setSidebandStream(stream);
     mFlinger.mutableCurrentState().layersSortedByZ.add(layer);
     mTunnelModeEnabledReporter->updateTunnelModeStatus();
     mTunnelModeEnabledReporter->addListener(mTunnelModeEnabledListener);
     EXPECT_EQ(true, mTunnelModeEnabledListener->mTunnelModeEnabled);
     mTunnelModeEnabledReporter->removeListener(mTunnelModeEnabledListener);
-
     mFlinger.mutableCurrentState().layersSortedByZ.remove(layer);
+    layer = nullptr;
+
     mTunnelModeEnabledReporter->updateTunnelModeStatus();
     mTunnelModeEnabledReporter->addListener(mTunnelModeEnabledListener);
+
     EXPECT_EQ(false, mTunnelModeEnabledListener->mTunnelModeEnabled);
 }
 
@@ -178,7 +186,7 @@ TEST_F(TunnelModeEnabledReporterTest, layerWithSidebandStreamTriggersUpdate) {
     sp<NativeHandle> stream =
             NativeHandle::create(reinterpret_cast<native_handle_t*>(DEFAULT_SIDEBAND_STREAM),
                                  false);
-    mFlinger.setLayerSidebandStream(layerWithSidebandStream, stream);
+    layerWithSidebandStream->setSidebandStream(stream);
 
     mFlinger.mutableCurrentState().layersSortedByZ.add(simpleLayer);
     mFlinger.mutableCurrentState().layersSortedByZ.add(layerWithSidebandStream);
@@ -186,6 +194,7 @@ TEST_F(TunnelModeEnabledReporterTest, layerWithSidebandStreamTriggersUpdate) {
     EXPECT_EQ(true, mTunnelModeEnabledListener->mTunnelModeEnabled);
 
     mFlinger.mutableCurrentState().layersSortedByZ.remove(layerWithSidebandStream);
+    layerWithSidebandStream = nullptr;
     mTunnelModeEnabledReporter->updateTunnelModeStatus();
     EXPECT_EQ(false, mTunnelModeEnabledListener->mTunnelModeEnabled);
 }
