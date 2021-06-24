@@ -22,6 +22,8 @@
 #undef LOG_TAG
 #define LOG_TAG "DisplayDevice"
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include <android-base/stringprintf.h>
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/Display.h>
@@ -66,6 +68,8 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
         mSequenceId(args.sequenceId),
         mConnectionType(args.connectionType),
         mCompositionDisplay{args.compositionDisplay},
+        mActiveModeFPSTrace("ActiveModeFPS -" + to_string(getId())),
+        mActiveModeFPSHwcTrace("ActiveModeFPS_HWC -" + to_string(getId())),
         mPhysicalOrientation(args.physicalOrientation),
         mSupportedModes(std::move(args.supportedModes)),
         mIsPrimary(args.isPrimary),
@@ -156,6 +160,7 @@ bool DisplayDevice::isPoweredOn() const {
 void DisplayDevice::setActiveMode(DisplayModeId id) {
     const auto mode = getMode(id);
     LOG_FATAL_IF(!mode, "Cannot set active mode which is not supported.");
+    ATRACE_INT(mActiveModeFPSTrace.c_str(), mode->getFps().getIntValue());
     mActiveMode = mode;
     if (mRefreshRateConfigs) {
         mRefreshRateConfigs->setCurrentModeId(mActiveMode->getId());
@@ -165,17 +170,19 @@ void DisplayDevice::setActiveMode(DisplayModeId id) {
     }
 }
 
-status_t DisplayDevice::initiateModeChange(DisplayModeId modeId,
+status_t DisplayDevice::initiateModeChange(const ActiveModeInfo& info,
                                            const hal::VsyncPeriodChangeConstraints& constraints,
-                                           hal::VsyncPeriodChangeTimeline* outTimeline) const {
-    const auto mode = getMode(modeId);
-    if (!mode) {
+                                           hal::VsyncPeriodChangeTimeline* outTimeline) {
+    if (!info.mode || info.mode->getPhysicalDisplayId() != getPhysicalId()) {
         ALOGE("Trying to initiate a mode change to invalid mode %s on display %s",
-              std::to_string(modeId.value()).c_str(), to_string(getId()).c_str());
+              info.mode ? std::to_string(info.mode->getId().value()).c_str() : "null",
+              to_string(getId()).c_str());
         return BAD_VALUE;
     }
-    return mHwComposer.setActiveModeWithConstraints(getPhysicalId(), mode->getHwcId(), constraints,
-                                                    outTimeline);
+    mUpcomingActiveMode = info;
+    ATRACE_INT(mActiveModeFPSHwcTrace.c_str(), info.mode->getFps().getIntValue());
+    return mHwComposer.setActiveModeWithConstraints(getPhysicalId(), info.mode->getHwcId(),
+                                                    constraints, outTimeline);
 }
 
 const DisplayModePtr& DisplayDevice::getActiveMode() const {
@@ -433,6 +440,46 @@ void DisplayDevice::onInvalidate() {
     if (mRefreshRateOverlay) {
         mRefreshRateOverlay->onInvalidate();
     }
+}
+
+bool DisplayDevice::setDesiredActiveMode(const ActiveModeInfo& info) {
+    ATRACE_CALL();
+
+    LOG_ALWAYS_FATAL_IF(!info.mode, "desired mode not provided");
+    LOG_ALWAYS_FATAL_IF(getPhysicalId() != info.mode->getPhysicalDisplayId(), "DisplayId mismatch");
+
+    ALOGV("%s(%s)", __func__, to_string(*info.mode).c_str());
+
+    std::scoped_lock lock(mActiveModeLock);
+    if (mDesiredActiveModeChanged) {
+        // If a mode change is pending, just cache the latest request in mDesiredActiveMode
+        const Scheduler::ModeEvent prevConfig = mDesiredActiveMode.event;
+        mDesiredActiveMode = info;
+        mDesiredActiveMode.event = mDesiredActiveMode.event | prevConfig;
+        return false;
+    }
+
+    // Check if we are already at the desired mode
+    if (getActiveMode()->getId() == info.mode->getId()) {
+        return false;
+    }
+
+    // Initiate a mode change.
+    mDesiredActiveModeChanged = true;
+    mDesiredActiveMode = info;
+    return true;
+}
+
+std::optional<DisplayDevice::ActiveModeInfo> DisplayDevice::getDesiredActiveMode() const {
+    std::scoped_lock lock(mActiveModeLock);
+    if (mDesiredActiveModeChanged) return mDesiredActiveMode;
+    return std::nullopt;
+}
+
+void DisplayDevice::clearDesiredActiveModeState() {
+    std::scoped_lock lock(mActiveModeLock);
+    mDesiredActiveMode.event = Scheduler::ModeEvent::None;
+    mDesiredActiveModeChanged = false;
 }
 
 std::atomic<int32_t> DisplayDeviceState::sNextSequenceId(1);
