@@ -53,7 +53,7 @@ class RefreshRateConfigs {
 public:
     // Margin used when matching refresh rates to the content desired ones.
     static constexpr nsecs_t MARGIN_FOR_PERIOD_CALCULATION =
-        std::chrono::nanoseconds(800us).count();
+            std::chrono::nanoseconds(800us).count();
 
     class RefreshRate {
     private:
@@ -302,8 +302,19 @@ public:
     // Returns a known frame rate that is the closest to frameRate
     Fps findClosestKnownFrameRate(Fps frameRate) const;
 
+    // Configuration flags.
+    struct Config {
+        bool enableFrameRateOverride = false;
+
+        // Specifies the upper refresh rate threshold (inclusive) for layer vote types of multiple
+        // or heuristic, such that refresh rates higher than this value will not be voted for. 0 if
+        // no threshold is set.
+        int frameRateMultipleThreshold = 0;
+    };
+
     RefreshRateConfigs(const DisplayModes& modes, DisplayModeId currentModeId,
-                       bool enableFrameRateOverride = false);
+                       Config config = {.enableFrameRateOverride = false,
+                                        .frameRateMultipleThreshold = 0});
 
     void updateDisplayModes(const DisplayModes& mode, DisplayModeId currentModeId) EXCLUDES(mLock);
 
@@ -387,6 +398,9 @@ private:
     const Policy* getCurrentPolicyLocked() const REQUIRES(mLock);
     bool isPolicyValidLocked(const Policy& policy) const REQUIRES(mLock);
 
+    // Returns whether the layer is allowed to vote for the given refresh rate.
+    bool isVoteAllowed(const LayerRequirement&, const RefreshRate&) const;
+
     // calculates a score for a layer. Used to determine the display refresh rate
     // and the frame rate override for certains applications.
     float calculateLayerScoreLocked(const LayerRequirement&, const RefreshRate&,
@@ -424,7 +438,7 @@ private:
     // from based on the closest value.
     const std::vector<Fps> mKnownFrameRates;
 
-    const bool mEnableFrameRateOverride;
+    const Config mConfig;
     bool mSupportsFrameRateOverride;
 
     struct GetBestRefreshRateInvocation {
