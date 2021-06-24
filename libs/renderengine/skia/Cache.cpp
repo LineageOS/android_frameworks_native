@@ -72,6 +72,8 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
             // have color correction added, and important that it be srgb, so the *vertex* shader
             // doesn't have color correction added.
             .sourceDataspace = kDestDataSpace,
+            // setting this is mandatory for shadows and blurs
+            .skipContentDraw = true,
     };
 
     auto layers = std::vector<const LayerSettings*>{&layer};
@@ -173,9 +175,12 @@ static void drawBlurLayers(SkiaRenderEngine* renderengine, const DisplaySettings
                             .boundaries = rect,
                     },
             .alpha = 1,
+            // setting this is mandatory for shadows and blurs
+            .skipContentDraw = true,
     };
 
     auto layers = std::vector<const LayerSettings*>{&layer};
+    // Different blur code is invoked for radii less and greater than 30 pixels
     for (int radius : {9, 60}) {
         layer.backgroundBlurRadius = radius;
         renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
@@ -290,10 +295,13 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
                                                   ExternalTexture::Usage::READABLE |
                                                           ExternalTexture::Usage::WRITEABLE);
 
+        // 6 shaders
         drawSolidLayers(renderengine, display, dstTexture);
+        // 8 shaders
         drawShadowLayers(renderengine, display, srcTexture);
 
         if (renderengine->supportsBackgroundBlur()) {
+            // 2 shaders
             drawBlurLayers(renderengine, display, dstTexture);
         }
 
