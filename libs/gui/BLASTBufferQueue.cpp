@@ -151,7 +151,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
                                                       1, false);
     static int32_t id = 0;
     auto consumerName = mName + "(BLAST Consumer)" + std::to_string(id);
-    mPendingBufferTrace = "PendingBuffer - " + mName + "BLAST#" + std::to_string(id);
+    mQueuedBufferTrace = "QueuedBuffer - " + mName + "BLAST#" + std::to_string(id);
     id++;
     mBufferItemConsumer->setName(String8(consumerName.c_str()));
     mBufferItemConsumer->setFrameAvailableListener(this);
@@ -361,16 +361,15 @@ void BLASTBufferQueue::releaseBufferCallback(uint64_t graphicBufferId,
                      graphicBufferId);
             return;
         }
-
+        mNumAcquired--;
         mBufferItemConsumer->releaseBuffer(it->second, releaseBuffer.releaseFence);
         mSubmitted.erase(it);
+        processNextBufferLocked(false /* useNextTransaction */);
     }
 
     ATRACE_INT("PendingRelease", mPendingRelease.size());
-
-    mNumAcquired--;
-    ATRACE_INT(mPendingBufferTrace.c_str(), mNumFrameAvailable + mNumAcquired);
-    processNextBufferLocked(false /* useNextTransaction */);
+    ATRACE_INT(mQueuedBufferTrace.c_str(),
+               mNumFrameAvailable + mNumAcquired - mPendingRelease.size());
     mCallbackCV.notify_all();
 }
 
@@ -538,7 +537,8 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     }
     // add to shadow queue
     mNumFrameAvailable++;
-    ATRACE_INT(mPendingBufferTrace.c_str(), mNumFrameAvailable + mNumAcquired);
+    ATRACE_INT(mQueuedBufferTrace.c_str(),
+               mNumFrameAvailable + mNumAcquired - mPendingRelease.size());
 
     BQA_LOGV("onFrameAvailable framenumber=%" PRIu64 " nextTransactionSet=%s", item.mFrameNumber,
              toString(nextTransactionSet));
