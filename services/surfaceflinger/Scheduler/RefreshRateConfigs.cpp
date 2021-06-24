@@ -107,9 +107,39 @@ std::pair<nsecs_t, nsecs_t> RefreshRateConfigs::getDisplayFrames(nsecs_t layerPe
     return {quotient, remainder};
 }
 
+bool RefreshRateConfigs::isVoteAllowed(const LayerRequirement& layer,
+                                       const RefreshRate& refreshRate) const {
+    switch (layer.vote) {
+        case LayerVoteType::ExplicitExactOrMultiple:
+        case LayerVoteType::Heuristic:
+            if (mConfig.frameRateMultipleThreshold != 0 &&
+                refreshRate.fps.greaterThanOrEqualWithMargin(
+                        Fps(mConfig.frameRateMultipleThreshold)) &&
+                layer.desiredRefreshRate.lessThanWithMargin(
+                        Fps(mConfig.frameRateMultipleThreshold / 2))) {
+                // Don't vote high refresh rates past the threshold for layers with a low desired
+                // refresh rate. For example, desired 24 fps with 120 Hz threshold means no vote for
+                // 120 Hz, but desired 60 fps should have a vote.
+                return false;
+            }
+            break;
+        case LayerVoteType::ExplicitDefault:
+        case LayerVoteType::ExplicitExact:
+        case LayerVoteType::Max:
+        case LayerVoteType::Min:
+        case LayerVoteType::NoVote:
+            break;
+    }
+    return true;
+}
+
 float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& layer,
                                                     const RefreshRate& refreshRate,
                                                     bool isSeamlessSwitch) const {
+    if (!isVoteAllowed(layer, refreshRate)) {
+        return 0;
+    }
+
     // Slightly prefer seamless switches.
     constexpr float kSeamedSwitchPenalty = 0.95f;
     const float seamlessness = isSeamlessSwitch ? 1.0f : kSeamedSwitchPenalty;
@@ -331,8 +361,9 @@ RefreshRate RefreshRateConfigs::getBestRefreshRateLocked(
     const auto& defaultMode = mRefreshRates.at(policy->defaultMode);
 
     for (const auto& layer : layers) {
-        ALOGV("Calculating score for %s (%s, weight %.2f)", layer.name.c_str(),
-              layerVoteTypeString(layer.vote).c_str(), layer.weight);
+        ALOGV("Calculating score for %s (%s, weight %.2f, desired %.2f) ", layer.name.c_str(),
+              layerVoteTypeString(layer.vote).c_str(), layer.weight,
+              layer.desiredRefreshRate.getValue());
         if (layer.vote == LayerVoteType::NoVote || layer.vote == LayerVoteType::Min) {
             continue;
         }
@@ -646,9 +677,8 @@ void RefreshRateConfigs::setCurrentModeId(DisplayModeId modeId) {
 }
 
 RefreshRateConfigs::RefreshRateConfigs(const DisplayModes& modes, DisplayModeId currentModeId,
-                                       bool enableFrameRateOverride)
-      : mKnownFrameRates(constructKnownFrameRates(modes)),
-        mEnableFrameRateOverride(enableFrameRateOverride) {
+                                       Config config)
+      : mKnownFrameRates(constructKnownFrameRates(modes)), mConfig(config) {
     updateDisplayModes(modes, currentModeId);
 }
 
@@ -685,7 +715,7 @@ void RefreshRateConfigs::updateDisplayModes(const DisplayModes& modes,
     mMaxSupportedRefreshRate = sortedModes.back();
 
     mSupportsFrameRateOverride = false;
-    if (mEnableFrameRateOverride) {
+    if (mConfig.enableFrameRateOverride) {
         for (const auto& mode1 : sortedModes) {
             for (const auto& mode2 : sortedModes) {
                 if (getFrameRateDivider(mode1->getFps(), mode2->getFps()) >= 2) {
