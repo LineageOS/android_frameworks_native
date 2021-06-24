@@ -51,8 +51,7 @@ protected:
     ~RefreshRateConfigsTest();
 
     RefreshRate createRefreshRate(DisplayModePtr displayMode) {
-        return {displayMode->getId(), displayMode, displayMode->getFps(),
-                RefreshRate::ConstructorTag(0)};
+        return {displayMode, RefreshRate::ConstructorTag(0)};
     }
 
     Fps findClosestKnownFrameRate(const RefreshRateConfigs& refreshRateConfigs, Fps frameRate) {
@@ -147,24 +146,17 @@ protected:
     DisplayModes m60_120Device = {mConfig60, mConfig120};
 
     // Expected RefreshRate objects
-    RefreshRate mExpected60Config = {HWC_CONFIG_ID_60, mConfig60, Fps(60),
-                                     RefreshRate::ConstructorTag(0)};
-    RefreshRate mExpectedAlmost60Config = {HWC_CONFIG_ID_60,
-                                           createDisplayMode(HWC_CONFIG_ID_60, 0, 16666665),
-                                           Fps(60), RefreshRate::ConstructorTag(0)};
-    RefreshRate mExpected90Config = {HWC_CONFIG_ID_90, mConfig90, Fps(90),
-                                     RefreshRate::ConstructorTag(0)};
-    RefreshRate mExpected90DifferentGroupConfig = {HWC_CONFIG_ID_90, mConfig90DifferentGroup,
-                                                   Fps(90), RefreshRate::ConstructorTag(0)};
-    RefreshRate mExpected90DifferentResolutionConfig = {HWC_CONFIG_ID_90,
-                                                        mConfig90DifferentResolution, Fps(90),
+    RefreshRate mExpected60Config = {mConfig60, RefreshRate::ConstructorTag(0)};
+    RefreshRate mExpectedAlmost60Config = {createDisplayMode(HWC_CONFIG_ID_60, 0, 16666665),
+                                           RefreshRate::ConstructorTag(0)};
+    RefreshRate mExpected90Config = {mConfig90, RefreshRate::ConstructorTag(0)};
+    RefreshRate mExpected90DifferentGroupConfig = {mConfig90DifferentGroup,
+                                                   RefreshRate::ConstructorTag(0)};
+    RefreshRate mExpected90DifferentResolutionConfig = {mConfig90DifferentResolution,
                                                         RefreshRate::ConstructorTag(0)};
-    RefreshRate mExpected72Config = {HWC_CONFIG_ID_72, mConfig72, Fps(72.0f),
-                                     RefreshRate::ConstructorTag(0)};
-    RefreshRate mExpected30Config = {HWC_CONFIG_ID_30, mConfig30, Fps(30),
-                                     RefreshRate::ConstructorTag(0)};
-    RefreshRate mExpected120Config = {HWC_CONFIG_ID_120, mConfig120, Fps(120),
-                                      RefreshRate::ConstructorTag(0)};
+    RefreshRate mExpected72Config = {mConfig72, RefreshRate::ConstructorTag(0)};
+    RefreshRate mExpected30Config = {mConfig30, RefreshRate::ConstructorTag(0)};
+    RefreshRate mExpected120Config = {mConfig120, RefreshRate::ConstructorTag(0)};
 
 private:
     DisplayModePtr createDisplayMode(DisplayModeId modeId, int32_t group, int64_t vsyncPeriod,

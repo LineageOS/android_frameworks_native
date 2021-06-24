@@ -64,25 +64,22 @@ public:
         };
 
     public:
-        RefreshRate(DisplayModeId modeId, DisplayModePtr mode, Fps fps, ConstructorTag)
-              : modeId(modeId), mode(mode), fps(std::move(fps)) {}
+        RefreshRate(DisplayModePtr mode, ConstructorTag) : mode(mode) {}
 
-        DisplayModeId getModeId() const { return modeId; }
+        DisplayModeId getModeId() const { return mode->getId(); }
         nsecs_t getVsyncPeriod() const { return mode->getVsyncPeriod(); }
         int32_t getModeGroup() const { return mode->getGroup(); }
-        std::string getName() const { return to_string(fps); }
-        Fps getFps() const { return fps; }
+        std::string getName() const { return to_string(getFps()); }
+        Fps getFps() const { return mode->getFps(); }
 
         // Checks whether the fps of this RefreshRate struct is within a given min and max refresh
         // rate passed in. Margin of error is applied to the boundaries for approximation.
         bool inPolicy(Fps minRefreshRate, Fps maxRefreshRate) const {
-            return minRefreshRate.lessThanOrEqualWithMargin(fps) &&
-                    fps.lessThanOrEqualWithMargin(maxRefreshRate);
+            return minRefreshRate.lessThanOrEqualWithMargin(getFps()) &&
+                    getFps().lessThanOrEqualWithMargin(maxRefreshRate);
         }
 
-        bool operator!=(const RefreshRate& other) const {
-            return modeId != other.modeId || mode != other.mode;
-        }
+        bool operator!=(const RefreshRate& other) const { return mode != other.mode; }
 
         bool operator<(const RefreshRate& other) const {
             return getFps().getValue() < other.getFps().getValue();
@@ -99,10 +96,7 @@ public:
         friend RefreshRateConfigs;
         friend class RefreshRateConfigsTest;
 
-        const DisplayModeId modeId;
         DisplayModePtr mode;
-        // Refresh rate in frames per second
-        const Fps fps{0.0f};
     };
 
     using AllRefreshRatesMapType =
