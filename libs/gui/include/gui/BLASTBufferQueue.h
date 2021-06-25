@@ -125,7 +125,11 @@ private:
     static PixelFormat convertBufferFormat(PixelFormat& format);
 
     std::string mName;
-    std::string mPendingBufferTrace;
+    // Represents the queued buffer count from buffer queue,
+    // pre-BLAST. This is mNumFrameAvailable (buffers that queued to blast) +
+    // mNumAcquired (buffers that queued to SF)  mPendingRelease.size() (buffers that are held by
+    // blast). This counter is read by android studio profiler.
+    std::string mQueuedBufferTrace;
     sp<SurfaceControl> mSurfaceControl;
 
     std::mutex mMutex;

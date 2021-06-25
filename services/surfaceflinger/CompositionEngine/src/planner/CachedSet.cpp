@@ -378,10 +378,14 @@ void CachedSet::dump(std::string& result) const {
     if (mLayers.size() == 1) {
         base::StringAppendF(&result, "    Layer [%s]\n", mLayers[0].getName().c_str());
         base::StringAppendF(&result, "    Buffer %p", mLayers[0].getBuffer().get());
+        base::StringAppendF(&result, "    Protected [%s]",
+                            mLayers[0].getState()->isProtected() ? "true" : "false");
     } else {
         result.append("    Cached set of:");
         for (const Layer& layer : mLayers) {
             base::StringAppendF(&result, "\n      Layer [%s]", layer.getName().c_str());
+            base::StringAppendF(&result, "\n      Protected [%s]",
+                                layer.getState()->isProtected() ? "true" : "false");
         }
     }
 
