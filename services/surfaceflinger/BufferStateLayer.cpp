@@ -725,7 +725,7 @@ bool BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
 
 bool BufferStateLayer::hasFrameUpdate() const {
     const State& c(getDrawingState());
-    return mDrawingStateModified && (c.buffer != nullptr || c.bgColorLayer != nullptr);
+    return (mDrawingStateModified || mDrawingState.modified) && (c.buffer != nullptr || c.bgColorLayer != nullptr);
 }
 
 status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime,
