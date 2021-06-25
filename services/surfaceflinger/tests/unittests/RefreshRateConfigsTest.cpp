@@ -2066,6 +2066,35 @@ TEST_F(RefreshRateConfigsTest, testKernelIdleTimerAction) {
     EXPECT_EQ(KernelIdleTimerAction::TurnOff, refreshRateConfigs->getIdleTimerAction());
 }
 
+TEST_F(RefreshRateConfigsTest, testKernelIdleTimerActionFor120Hz) {
+    using KernelIdleTimerAction = scheduler::RefreshRateConfigs::KernelIdleTimerAction;
+
+    // Tests with 120Hz
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_120Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_120);
+    // SetPolicy(0, 60), current 60Hz => TurnOn.
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {Fps(0), Fps(60)}}),
+              0);
+    EXPECT_EQ(KernelIdleTimerAction::TurnOn, refreshRateConfigs->getIdleTimerAction());
+
+    // SetPolicy(60, 60), current 60Hz => TurnOff.
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {Fps(60), Fps(60)}}),
+              0);
+    EXPECT_EQ(KernelIdleTimerAction::TurnOff, refreshRateConfigs->getIdleTimerAction());
+
+    // SetPolicy(60, 120), current 60Hz => TurnOn.
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {Fps(60), Fps(120)}}),
+              0);
+    EXPECT_EQ(KernelIdleTimerAction::TurnOn, refreshRateConfigs->getIdleTimerAction());
+
+    // SetPolicy(120, 120), current 120Hz => TurnOff.
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(
+                      {HWC_CONFIG_ID_120, {Fps(120), Fps(120)}}),
+              0);
+    EXPECT_EQ(KernelIdleTimerAction::TurnOff, refreshRateConfigs->getIdleTimerAction());
+}
+
 TEST_F(RefreshRateConfigsTest, getFrameRateDivider) {
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device,
