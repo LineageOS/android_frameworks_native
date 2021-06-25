@@ -237,7 +237,8 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
                                                     handle->previousReleaseFence,
                                                     handle->transformHint,
                                                     handle->currentMaxAcquiredBufferCount,
-                                                    eventStats, jankData, handle->previousBufferId);
+                                                    eventStats, jankData,
+                                                    handle->previousReleaseCallbackId);
     }
     return NO_ERROR;
 }
