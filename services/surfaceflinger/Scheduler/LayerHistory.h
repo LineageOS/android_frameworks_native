@@ -42,7 +42,7 @@ class LayerHistory {
 public:
     using LayerVoteType = RefreshRateConfigs::LayerVoteType;
 
-    LayerHistory(const RefreshRateConfigs&);
+    LayerHistory();
     ~LayerHistory();
 
     // Layers are unregistered when the weak reference expires.
@@ -67,7 +67,7 @@ public:
     using Summary = std::vector<RefreshRateConfigs::LayerRequirement>;
 
     // Rebuilds sets of active/inactive layers, and accumulates stats for active layers.
-    Summary summarize(nsecs_t now);
+    Summary summarize(const RefreshRateConfigs&, nsecs_t now);
 
     void clear();
 

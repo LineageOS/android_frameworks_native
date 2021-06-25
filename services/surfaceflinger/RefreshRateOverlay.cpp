@@ -283,7 +283,16 @@ void RefreshRateOverlay::onInvalidate() {
 
 void RefreshRateOverlay::reset() {
     mBufferCache.clear();
-    const auto range = mFlinger.mRefreshRateConfigs->getSupportedRefreshRateRange();
+    // TODO: this is a temp hack that would be removed in the next CL
+    const auto range = [&]() NO_THREAD_SAFETY_ANALYSIS {
+        constexpr auto defaultFps = Fps(60);
+        const auto display = mFlinger.getDefaultDisplayDeviceLocked();
+        if (display) {
+            return display->refreshRateConfigs().getSupportedRefreshRateRange();
+        }
+        ALOGW("%s: default display is null", __func__);
+        return scheduler::RefreshRateConfigs::FpsRange{defaultFps, defaultFps};
+    }();
     mLowFps = range.min.getIntValue();
     mHighFps = range.max.getIntValue();
 }

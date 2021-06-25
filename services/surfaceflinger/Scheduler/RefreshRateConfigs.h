@@ -316,8 +316,6 @@ public:
                        Config config = {.enableFrameRateOverride = false,
                                         .frameRateMultipleThreshold = 0});
 
-    void updateDisplayModes(const DisplayModes& mode, DisplayModeId currentModeId) EXCLUDES(mLock);
-
     // Returns whether switching modes (refresh rate or resolution) is possible.
     // TODO(b/158780872): Consider HAL support, and skip frame rate detection if the modes only
     // differ in resolution.
@@ -353,6 +351,9 @@ public:
             EXCLUDES(mLock);
 
     void dump(std::string& result) const EXCLUDES(mLock);
+
+    RefreshRateConfigs(const RefreshRateConfigs&) = delete;
+    void operator=(const RefreshRateConfigs&) = delete;
 
 private:
     friend class RefreshRateConfigsTest;
@@ -404,6 +405,8 @@ private:
     // and the frame rate override for certains applications.
     float calculateLayerScoreLocked(const LayerRequirement&, const RefreshRate&,
                                     bool isSeamlessSwitch) const REQUIRES(mLock);
+
+    void updateDisplayModes(const DisplayModes& mode, DisplayModeId currentModeId) EXCLUDES(mLock);
 
     // The list of refresh rates, indexed by display modes ID. This may change after this
     // object is initialized.

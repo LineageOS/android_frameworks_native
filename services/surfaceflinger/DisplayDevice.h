@@ -44,6 +44,8 @@
 #include "DisplayHardware/Hal.h"
 #include "DisplayHardware/PowerAdvisor.h"
 
+#include "Scheduler/RefreshRateConfigs.h"
+
 namespace android {
 
 class Fence;
@@ -193,6 +195,16 @@ public:
     // set-top boxes after a hotplug reconnect.
     DisplayModePtr getMode(DisplayModeId) const;
 
+    // Returns the refresh rate configs for this display.
+    scheduler::RefreshRateConfigs& refreshRateConfigs() const { return *mRefreshRateConfigs; }
+
+    // Returns a shared pointer to the refresh rate configs for this display.
+    // Clients can store this refresh rate configs and use it even if the DisplayDevice
+    // is destroyed.
+    std::shared_ptr<scheduler::RefreshRateConfigs> holdRefreshRateConfigs() const {
+        return mRefreshRateConfigs;
+    }
+
     void onVsync(nsecs_t timestamp);
     nsecs_t getVsyncPeriodFromHWC() const;
     nsecs_t getRefreshTimestamp() const;
@@ -238,6 +250,8 @@ private:
     std::optional<DeviceProductInfo> mDeviceProductInfo;
 
     std::vector<ui::Hdr> mOverrideHdrTypes;
+
+    std::shared_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
 };
 
 struct DisplayDeviceState {
@@ -283,6 +297,7 @@ struct DisplayDeviceCreationArgs {
     HWComposer& hwComposer;
     const wp<IBinder> displayToken;
     const std::shared_ptr<compositionengine::Display> compositionDisplay;
+    std::shared_ptr<scheduler::RefreshRateConfigs> refreshRateConfigs;
 
     int32_t sequenceId{0};
     std::optional<ui::DisplayConnectionType> connectionType;
@@ -298,6 +313,7 @@ struct DisplayDeviceCreationArgs {
             hardware::graphics::composer::hal::PowerMode::ON};
     bool isPrimary{false};
     DisplayModes supportedModes;
+    DisplayModeId activeModeId;
 };
 
 // Predicates for display lookup.

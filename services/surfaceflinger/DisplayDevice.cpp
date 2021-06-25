@@ -67,7 +67,8 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
         mCompositionDisplay{args.compositionDisplay},
         mPhysicalOrientation(args.physicalOrientation),
         mSupportedModes(std::move(args.supportedModes)),
-        mIsPrimary(args.isPrimary) {
+        mIsPrimary(args.isPrimary),
+        mRefreshRateConfigs(std::move(args.refreshRateConfigs)) {
     mCompositionDisplay->editState().isSecure = args.isSecure;
     mCompositionDisplay->createRenderSurface(
             compositionengine::RenderSurfaceCreationArgsBuilder()
@@ -155,6 +156,9 @@ void DisplayDevice::setActiveMode(DisplayModeId id) {
     const auto mode = getMode(id);
     LOG_FATAL_IF(!mode, "Cannot set active mode which is not supported.");
     mActiveMode = mode;
+    if (mRefreshRateConfigs) {
+        mRefreshRateConfigs->setCurrentModeId(mActiveMode->getId());
+    }
 }
 
 status_t DisplayDevice::initiateModeChange(DisplayModeId modeId,
@@ -296,6 +300,10 @@ void DisplayDevice::dump(std::string& result) const {
     }
     result.append("\n");
     getCompositionDisplay()->dump(result);
+
+    if (mRefreshRateConfigs) {
+        mRefreshRateConfigs->dump(result);
+    }
 }
 
 bool DisplayDevice::hasRenderIntent(ui::RenderIntent intent) const {
