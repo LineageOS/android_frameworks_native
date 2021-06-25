@@ -2161,8 +2161,9 @@ bool SensorService::isUidActive(uid_t uid) {
 
 bool SensorService::isRateCappedBasedOnPermission(const String16& opPackageName) {
     int targetSdk = getTargetSdkVersion(opPackageName);
-    bool hasSamplingRatePermission = PermissionCache::checkCallingPermission(
-                    sAccessHighSensorSamplingRatePermission);
+    bool hasSamplingRatePermission = checkPermission(sAccessHighSensorSamplingRatePermission,
+            IPCThreadState::self()->getCallingPid(),
+            IPCThreadState::self()->getCallingUid());
     if (targetSdk < __ANDROID_API_S__ ||
             (targetSdk >= __ANDROID_API_S__ && hasSamplingRatePermission)) {
         return false;
