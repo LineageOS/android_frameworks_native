@@ -133,6 +133,7 @@ protected:
         bool mTransformToDisplayInverse{false};
 
         std::shared_ptr<renderengine::ExternalTexture> mBuffer;
+        uint64_t mFrameNumber;
         int mBufferSlot{BufferQueue::INVALID_BUFFER_SLOT};
 
         bool mFrameLatencyNeeded{false};
