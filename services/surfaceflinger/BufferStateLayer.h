@@ -143,15 +143,8 @@ private:
 
     bool bufferNeedsFiltering() const override;
 
-    static const std::array<float, 16> IDENTITY_MATRIX;
-
-    std::unique_ptr<renderengine::Image> mTextureImage;
-
-    mutable uint64_t mFrameNumber{0};
-    uint64_t mFrameCounter{0};
-
     sp<Fence> mPreviousReleaseFence;
-    uint64_t mPreviousBufferId = 0;
+    ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     uint64_t mPreviousReleasedFrameNumber = 0;
 
     bool mReleasePreviousBuffer = false;

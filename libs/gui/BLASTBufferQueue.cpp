@@ -132,8 +132,7 @@ void BLASTBufferItemConsumer::onSidebandStreamChanged() {
 
 BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceControl>& surface,
                                    int width, int height, int32_t format)
-      : mName(name),
-        mSurfaceControl(surface),
+      : mSurfaceControl(surface),
         mSize(width, height),
         mRequestedSize(mSize),
         mFormat(format),
@@ -150,6 +149,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
                                                               GraphicBuffer::USAGE_HW_TEXTURE,
                                                       1, false);
     static int32_t id = 0;
+    mName = name + "#" + std::to_string(id);
     auto consumerName = mName + "(BLAST Consumer)" + std::to_string(id);
     mQueuedBufferTrace = "QueuedBuffer - " + mName + "BLAST#" + std::to_string(id);
     id++;
@@ -313,24 +313,24 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
 // BBQ. This is because if the BBQ is destroyed, then the buffers will be released by the client.
 // So we pass in a weak pointer to the BBQ and if it still alive, then we release the buffer.
 // Otherwise, this is a no-op.
-static void releaseBufferCallbackThunk(wp<BLASTBufferQueue> context, uint64_t graphicBufferId,
+static void releaseBufferCallbackThunk(wp<BLASTBufferQueue> context, const ReleaseCallbackId& id,
                                        const sp<Fence>& releaseFence, uint32_t transformHint,
                                        uint32_t currentMaxAcquiredBufferCount) {
     sp<BLASTBufferQueue> blastBufferQueue = context.promote();
-    ALOGV("releaseBufferCallbackThunk graphicBufferId=%" PRIu64 " blastBufferQueue=%s",
-          graphicBufferId, blastBufferQueue ? "alive" : "dead");
     if (blastBufferQueue) {
-        blastBufferQueue->releaseBufferCallback(graphicBufferId, releaseFence, transformHint,
+        blastBufferQueue->releaseBufferCallback(id, releaseFence, transformHint,
                                                 currentMaxAcquiredBufferCount);
+    } else {
+        ALOGV("releaseBufferCallbackThunk %s blastBufferQueue is dead", id.to_string().c_str());
     }
 }
 
-void BLASTBufferQueue::releaseBufferCallback(uint64_t graphicBufferId,
+void BLASTBufferQueue::releaseBufferCallback(const ReleaseCallbackId& id,
                                              const sp<Fence>& releaseFence, uint32_t transformHint,
                                              uint32_t currentMaxAcquiredBufferCount) {
     ATRACE_CALL();
     std::unique_lock _lock{mMutex};
-    BQA_LOGV("releaseBufferCallback graphicBufferId=%" PRIu64, graphicBufferId);
+    BQA_LOGV("releaseBufferCallback %s", id.to_string().c_str());
 
     if (mSurfaceControl != nullptr) {
         mTransformHint = transformHint;
@@ -343,25 +343,26 @@ void BLASTBufferQueue::releaseBufferCallback(uint64_t graphicBufferId,
     // on a lower refresh rate than the max supported. We only do that for EGL
     // clients as others don't care about latency
     const bool isEGL = [&] {
-        const auto it = mSubmitted.find(graphicBufferId);
+        const auto it = mSubmitted.find(id);
         return it != mSubmitted.end() && it->second.mApi == NATIVE_WINDOW_API_EGL;
     }();
 
     const auto numPendingBuffersToHold =
             isEGL ? std::max(0u, mMaxAcquiredBuffers - currentMaxAcquiredBufferCount) : 0;
-    mPendingRelease.emplace_back(ReleasedBuffer{graphicBufferId, releaseFence});
+    mPendingRelease.emplace_back(ReleasedBuffer{id, releaseFence});
 
     // Release all buffers that are beyond the ones that we need to hold
     while (mPendingRelease.size() > numPendingBuffersToHold) {
         const auto releaseBuffer = mPendingRelease.front();
         mPendingRelease.pop_front();
-        auto it = mSubmitted.find(releaseBuffer.bufferId);
+        auto it = mSubmitted.find(releaseBuffer.callbackId);
         if (it == mSubmitted.end()) {
-            BQA_LOGE("ERROR: releaseBufferCallback without corresponding submitted buffer %" PRIu64,
-                     graphicBufferId);
+            BQA_LOGE("ERROR: releaseBufferCallback without corresponding submitted buffer %s",
+                     releaseBuffer.callbackId.to_string().c_str());
             return;
         }
         mNumAcquired--;
+        BQA_LOGV("released %s", id.to_string().c_str());
         mBufferItemConsumer->releaseBuffer(it->second, releaseBuffer.releaseFence);
         mSubmitted.erase(it);
         processNextBufferLocked(false /* useNextTransaction */);
@@ -428,7 +429,9 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     }
 
     mNumAcquired++;
-    mSubmitted[buffer->getId()] = bufferItem;
+    mLastAcquiredFrameNumber = bufferItem.mFrameNumber;
+    ReleaseCallbackId releaseCallbackId(buffer->getId(), mLastAcquiredFrameNumber);
+    mSubmitted[releaseCallbackId] = bufferItem;
 
     bool needsDisconnect = false;
     mBufferItemConsumer->getConnectionEvents(bufferItem.mFrameNumber, &needsDisconnect);
@@ -442,7 +445,6 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     incStrong((void*)transactionCallbackThunk);
 
     Rect crop = computeCrop(bufferItem);
-    mLastAcquiredFrameNumber = bufferItem.mFrameNumber;
     mLastBufferInfo.update(true /* hasBuffer */, bufferItem.mGraphicBuffer->getWidth(),
                            bufferItem.mGraphicBuffer->getHeight(), bufferItem.mTransform,
                            bufferItem.mScalingMode, crop);
@@ -451,7 +453,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
             std::bind(releaseBufferCallbackThunk, wp<BLASTBufferQueue>(this) /* callbackContext */,
                       std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
                       std::placeholders::_4);
-    t->setBuffer(mSurfaceControl, buffer, releaseBufferCallback);
+    t->setBuffer(mSurfaceControl, buffer, releaseCallbackId, releaseBufferCallback);
     t->setDataspace(mSurfaceControl, static_cast<ui::Dataspace>(bufferItem.mDataSpace));
     t->setHdrMetadata(mSurfaceControl, bufferItem.mHdrMetadata);
     t->setSurfaceDamageRegion(mSurfaceControl, bufferItem.mSurfaceDamage);
@@ -510,11 +512,11 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
 
     BQA_LOGV("processNextBufferLocked size=%dx%d mFrameNumber=%" PRIu64
              " applyTransaction=%s mTimestamp=%" PRId64 "%s mPendingTransactions.size=%d"
-             " graphicBufferId=%" PRIu64,
+             " graphicBufferId=%" PRIu64 "%s",
              mSize.width, mSize.height, bufferItem.mFrameNumber, toString(applyTransaction),
              bufferItem.mTimestamp, bufferItem.mIsAutoTimestamp ? "(auto)" : "",
-             static_cast<uint32_t>(mPendingTransactions.size()),
-             bufferItem.mGraphicBuffer->getId());
+             static_cast<uint32_t>(mPendingTransactions.size()), bufferItem.mGraphicBuffer->getId(),
+             bufferItem.mAutoRefresh ? " mAutoRefresh" : "");
 }
 
 Rect BLASTBufferQueue::computeCrop(const BufferItem& item) {
