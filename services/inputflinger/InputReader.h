@@ -1868,7 +1868,7 @@ private:
     bool isPointInsideSurface(int32_t x, int32_t y);
     const VirtualKey* findVirtualKeyHit(int32_t x, int32_t y);
 
-    static void assignPointerIds(const RawState* last, RawState* current);
+    static void assignPointerIds(const RawState& last, RawState& current);
 
     const char* modeToString(DeviceMode deviceMode);
 };
