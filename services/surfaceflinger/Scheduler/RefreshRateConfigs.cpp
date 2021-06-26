@@ -889,6 +889,7 @@ RefreshRateConfigs::KernelIdleTimerAction RefreshRateConfigs::getIdleTimerAction
     const auto& deviceMin = *mMinSupportedRefreshRate;
     const auto& minByPolicy = getMinRefreshRateByPolicyLocked();
     const auto& maxByPolicy = getMaxRefreshRateByPolicyLocked();
+    const auto& currentPolicy = getCurrentPolicyLocked();
 
     // Kernel idle timer will set the refresh rate to the device min. If DisplayManager says that
     // the min allowed refresh rate is higher than the device min, we do not want to enable the
@@ -897,6 +898,10 @@ RefreshRateConfigs::KernelIdleTimerAction RefreshRateConfigs::getIdleTimerAction
         return RefreshRateConfigs::KernelIdleTimerAction::TurnOff;
     }
     if (minByPolicy == maxByPolicy) {
+        // when min primary range in display manager policy is below device min turn on the timer.
+        if (currentPolicy->primaryRange.min.lessThanWithMargin(deviceMin.getFps())) {
+            return RefreshRateConfigs::KernelIdleTimerAction::TurnOn;
+        }
         return RefreshRateConfigs::KernelIdleTimerAction::TurnOff;
     }
     // Turn on the timer in all other cases.
