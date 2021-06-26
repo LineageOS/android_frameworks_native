@@ -295,9 +295,7 @@ bool CachedSet::requiresHolePunch() const {
         return false;
     }
 
-    // Do not use a hole punch with an HDR layer; this should be done in client
-    // composition to properly mix HDR with SDR.
-    if (hasHdrLayers()) {
+    if (hasUnsupportedDataspace()) {
         return false;
     }
 
@@ -352,9 +350,22 @@ compositionengine::OutputLayer* CachedSet::getBlurLayer() const {
     return mBlurLayer ? mBlurLayer->getOutputLayer() : nullptr;
 }
 
-bool CachedSet::hasHdrLayers() const {
-    return std::any_of(mLayers.cbegin(), mLayers.cend(),
-                       [](const Layer& layer) { return layer.getState()->isHdr(); });
+bool CachedSet::hasUnsupportedDataspace() const {
+    return std::any_of(mLayers.cbegin(), mLayers.cend(), [](const Layer& layer) {
+        auto dataspace = layer.getState()->getDataspace();
+        const auto transfer = static_cast<ui::Dataspace>(dataspace & ui::Dataspace::TRANSFER_MASK);
+        if (transfer == ui::Dataspace::TRANSFER_ST2084 || transfer == ui::Dataspace::TRANSFER_HLG) {
+            // Skip HDR.
+            return true;
+        }
+
+        if ((dataspace & HAL_DATASPACE_STANDARD_MASK) == HAL_DATASPACE_STANDARD_BT601_625) {
+            // RenderEngine does not match some DPUs, so skip
+            // to avoid flickering/color differences.
+            return true;
+        }
+        return false;
+    });
 }
 
 bool CachedSet::hasProtectedLayers() const {

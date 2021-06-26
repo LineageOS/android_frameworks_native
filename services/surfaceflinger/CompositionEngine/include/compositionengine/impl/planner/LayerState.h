@@ -242,13 +242,6 @@ public:
 
     ui::Dataspace getDataspace() const { return mOutputDataspace.get(); }
 
-    bool isHdr() const {
-        const ui::Dataspace transfer =
-                static_cast<ui::Dataspace>(getDataspace() & ui::Dataspace::TRANSFER_MASK);
-        return (transfer == ui::Dataspace::TRANSFER_ST2084 ||
-                transfer == ui::Dataspace::TRANSFER_HLG);
-    }
-
     bool isProtected() const {
         return getOutputLayer()->getLayerFE().getCompositionState()->hasProtectedContent;
     }
