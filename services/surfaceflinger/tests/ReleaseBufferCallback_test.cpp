@@ -29,7 +29,7 @@ using android::hardware::graphics::common::V1_1::BufferUsage;
 // b/181132765 - disabled until cuttlefish failures are investigated
 class ReleaseBufferCallbackHelper {
 public:
-    static void function(void* callbackContext, uint64_t graphicsBufferId,
+    static void function(void* callbackContext, ReleaseCallbackId callbackId,
                          const sp<Fence>& releaseFence,
                          uint32_t /*currentMaxAcquiredBufferCount*/) {
         if (!callbackContext) {
@@ -38,11 +38,11 @@ public:
         ReleaseBufferCallbackHelper* helper =
                 static_cast<ReleaseBufferCallbackHelper*>(callbackContext);
         std::lock_guard lock(helper->mMutex);
-        helper->mCallbackDataQueue.emplace(graphicsBufferId, releaseFence);
+        helper->mCallbackDataQueue.emplace(callbackId, releaseFence);
         helper->mConditionVariable.notify_all();
     }
 
-    void getCallbackData(uint64_t* bufferId) {
+    void getCallbackData(ReleaseCallbackId* callbackId) {
         std::unique_lock lock(mMutex);
         if (mCallbackDataQueue.empty()) {
             if (!mConditionVariable.wait_for(lock, std::chrono::seconds(3),
@@ -53,7 +53,7 @@ public:
 
         auto callbackData = mCallbackDataQueue.front();
         mCallbackDataQueue.pop();
-        *bufferId = callbackData.first;
+        *callbackId = callbackData.first;
     }
 
     void verifyNoCallbacks() {
@@ -72,7 +72,7 @@ public:
 
     std::mutex mMutex;
     std::condition_variable mConditionVariable;
-    std::queue<std::pair<uint64_t, sp<Fence>>> mCallbackDataQueue;
+    std::queue<std::pair<ReleaseCallbackId, sp<Fence>>> mCallbackDataQueue;
 };
 
 class ReleaseBufferCallbackTest : public LayerTransactionTest {
@@ -82,10 +82,11 @@ public:
     }
 
     static void submitBuffer(const sp<SurfaceControl>& layer, sp<GraphicBuffer> buffer,
-                             sp<Fence> fence, CallbackHelper& callback,
+                             sp<Fence> fence, CallbackHelper& callback, const ReleaseCallbackId& id,
                              ReleaseBufferCallbackHelper& releaseCallback) {
         Transaction t;
-        t.setBuffer(layer, buffer, releaseCallback.getCallback());
+        t.setFrameNumber(layer, id.framenumber);
+        t.setBuffer(layer, buffer, id, releaseCallback.getCallback());
         t.setAcquireFence(layer, fence);
         t.addTransactionCompletedCallback(callback.function, callback.getContext());
         t.apply();
@@ -98,10 +99,10 @@ public:
     }
 
     static void waitForReleaseBufferCallback(ReleaseBufferCallbackHelper& releaseCallback,
-                                             uint64_t expectedReleaseBufferId) {
-        uint64_t actualReleaseBufferId;
+                                             const ReleaseCallbackId& expectedCallbackId) {
+        ReleaseCallbackId actualReleaseBufferId;
         releaseCallback.getCallbackData(&actualReleaseBufferId);
-        EXPECT_EQ(expectedReleaseBufferId, actualReleaseBufferId);
+        EXPECT_EQ(expectedCallbackId, actualReleaseBufferId);
         releaseCallback.verifyNoCallbacks();
     }
     static ReleaseBufferCallbackHelper* getReleaseBufferCallbackHelper() {
@@ -116,6 +117,10 @@ public:
                                          BufferUsage::COMPOSER_OVERLAY,
                                  "test");
     }
+    static uint64_t generateFrameNumber() {
+        static uint64_t sFrameNumber = 0;
+        return ++sFrameNumber;
+    }
 };
 
 TEST_F(ReleaseBufferCallbackTest, DISABLED_PresentBuffer) {
@@ -125,7 +130,9 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_PresentBuffer) {
 
     // If a buffer is being presented, we should not emit a release callback.
     sp<GraphicBuffer> firstBuffer = getBuffer();
-    submitBuffer(layer, firstBuffer, Fence::NO_FENCE, transactionCallback, *releaseCallback);
+    ReleaseCallbackId firstBufferCallbackId(firstBuffer->getId(), generateFrameNumber());
+    submitBuffer(layer, firstBuffer, Fence::NO_FENCE, transactionCallback, firstBufferCallbackId,
+                 *releaseCallback);
     ExpectedResult expected;
     expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
                         ExpectedResult::Buffer::NOT_ACQUIRED);
@@ -143,13 +150,15 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_PresentBuffer) {
     // If a presented buffer is replaced, we should emit a release callback for the
     // previously presented buffer.
     sp<GraphicBuffer> secondBuffer = getBuffer();
-    submitBuffer(layer, secondBuffer, Fence::NO_FENCE, transactionCallback, *releaseCallback);
+    ReleaseCallbackId secondBufferCallbackId(secondBuffer->getId(), generateFrameNumber());
+    submitBuffer(layer, secondBuffer, Fence::NO_FENCE, transactionCallback, secondBufferCallbackId,
+                 *releaseCallback);
     expected = ExpectedResult();
     expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
                         ExpectedResult::Buffer::NOT_ACQUIRED,
                         ExpectedResult::PreviousBuffer::RELEASED);
     ASSERT_NO_FATAL_FAILURE(waitForCallback(transactionCallback, expected));
-    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBuffer->getId()));
+    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBufferCallbackId));
 }
 
 TEST_F(ReleaseBufferCallbackTest, DISABLED_OffScreenLayer) {
@@ -160,7 +169,9 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_OffScreenLayer) {
 
     // If a buffer is being presented, we should not emit a release callback.
     sp<GraphicBuffer> firstBuffer = getBuffer();
-    submitBuffer(layer, firstBuffer, Fence::NO_FENCE, transactionCallback, *releaseCallback);
+    ReleaseCallbackId firstBufferCallbackId(firstBuffer->getId(), generateFrameNumber());
+    submitBuffer(layer, firstBuffer, Fence::NO_FENCE, transactionCallback, firstBufferCallbackId,
+                 *releaseCallback);
     ExpectedResult expected;
     expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
                         ExpectedResult::Buffer::NOT_ACQUIRED);
@@ -184,23 +195,27 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_OffScreenLayer) {
     // If a presented buffer is replaced, we should emit a release callback for the
     // previously presented buffer.
     sp<GraphicBuffer> secondBuffer = getBuffer();
-    submitBuffer(layer, secondBuffer, Fence::NO_FENCE, transactionCallback, *releaseCallback);
+    ReleaseCallbackId secondBufferCallbackId(secondBuffer->getId(), generateFrameNumber());
+    submitBuffer(layer, secondBuffer, Fence::NO_FENCE, transactionCallback, secondBufferCallbackId,
+                 *releaseCallback);
     expected = ExpectedResult();
     expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
                         ExpectedResult::Buffer::NOT_ACQUIRED,
                         ExpectedResult::PreviousBuffer::NOT_RELEASED);
     ASSERT_NO_FATAL_FAILURE(waitForCallback(transactionCallback, expected));
-    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBuffer->getId()));
+    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBufferCallbackId));
 
     // If continue to submit buffer we continue to get release callbacks
     sp<GraphicBuffer> thirdBuffer = getBuffer();
-    submitBuffer(layer, thirdBuffer, Fence::NO_FENCE, transactionCallback, *releaseCallback);
+    ReleaseCallbackId thirdBufferCallbackId(secondBuffer->getId(), generateFrameNumber());
+    submitBuffer(layer, thirdBuffer, Fence::NO_FENCE, transactionCallback, thirdBufferCallbackId,
+                 *releaseCallback);
     expected = ExpectedResult();
     expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
                         ExpectedResult::Buffer::NOT_ACQUIRED,
                         ExpectedResult::PreviousBuffer::NOT_RELEASED);
     ASSERT_NO_FATAL_FAILURE(waitForCallback(transactionCallback, expected));
-    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, secondBuffer->getId()));
+    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, secondBufferCallbackId));
 }
 
 TEST_F(ReleaseBufferCallbackTest, DISABLED_LayerLifecycle_layerdestroy) {
@@ -210,7 +225,9 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_LayerLifecycle_layerdestroy) {
 
     // If a buffer is being presented, we should not emit a release callback.
     sp<GraphicBuffer> firstBuffer = getBuffer();
-    submitBuffer(layer, firstBuffer, Fence::NO_FENCE, *transactionCallback, *releaseCallback);
+    ReleaseCallbackId firstBufferCallbackId(firstBuffer->getId(), generateFrameNumber());
+    submitBuffer(layer, firstBuffer, Fence::NO_FENCE, *transactionCallback, firstBufferCallbackId,
+                 *releaseCallback);
     {
         ExpectedResult expected;
         expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
@@ -225,7 +242,7 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_LayerLifecycle_layerdestroy) {
     t.apply();
     layer = nullptr;
 
-    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBuffer->getId()));
+    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBufferCallbackId));
 }
 
 // Destroying a never presented layer emits a callback.
@@ -242,7 +259,9 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_LayerLifecycle_OffScreenLayerDestroy)
 
     // Submitting a buffer does not emit a callback.
     sp<GraphicBuffer> firstBuffer = getBuffer();
-    submitBuffer(layer, firstBuffer, Fence::NO_FENCE, *transactionCallback, *releaseCallback);
+    ReleaseCallbackId firstBufferCallbackId(firstBuffer->getId(), generateFrameNumber());
+    submitBuffer(layer, firstBuffer, Fence::NO_FENCE, *transactionCallback, firstBufferCallbackId,
+                 *releaseCallback);
     {
         ExpectedResult expected;
         expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
@@ -253,19 +272,21 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_LayerLifecycle_OffScreenLayerDestroy)
 
     // Submitting a second buffer will replace the drawing state buffer and emit a callback.
     sp<GraphicBuffer> secondBuffer = getBuffer();
-    submitBuffer(layer, secondBuffer, Fence::NO_FENCE, *transactionCallback, *releaseCallback);
+    ReleaseCallbackId secondBufferCallbackId(secondBuffer->getId(), generateFrameNumber());
+    submitBuffer(layer, secondBuffer, Fence::NO_FENCE, *transactionCallback, secondBufferCallbackId,
+                 *releaseCallback);
     {
         ExpectedResult expected;
         expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
                             ExpectedResult::Buffer::NOT_ACQUIRED);
         ASSERT_NO_FATAL_FAILURE(waitForCallback(*transactionCallback, expected));
         ASSERT_NO_FATAL_FAILURE(
-                waitForReleaseBufferCallback(*releaseCallback, firstBuffer->getId()));
+                waitForReleaseBufferCallback(*releaseCallback, firstBufferCallbackId));
     }
 
     // Destroying the offscreen layer emits a callback.
     layer = nullptr;
-    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, secondBuffer->getId()));
+    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, secondBufferCallbackId));
 }
 
 TEST_F(ReleaseBufferCallbackTest, DISABLED_FrameDropping) {
@@ -275,12 +296,13 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_FrameDropping) {
 
     // If a buffer is being presented, we should not emit a release callback.
     sp<GraphicBuffer> firstBuffer = getBuffer();
+    ReleaseCallbackId firstBufferCallbackId(firstBuffer->getId(), generateFrameNumber());
 
     // Try to present 100ms in the future
     nsecs_t time = systemTime() + std::chrono::nanoseconds(100ms).count();
 
     Transaction t;
-    t.setBuffer(layer, firstBuffer, releaseCallback->getCallback());
+    t.setBuffer(layer, firstBuffer, firstBufferCallbackId, releaseCallback->getCallback());
     t.setAcquireFence(layer, Fence::NO_FENCE);
     t.addTransactionCompletedCallback(transactionCallback.function,
                                       transactionCallback.getContext());
@@ -295,7 +317,8 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_FrameDropping) {
 
     // Dropping frames in transaction queue emits a callback
     sp<GraphicBuffer> secondBuffer = getBuffer();
-    t.setBuffer(layer, secondBuffer, releaseCallback->getCallback());
+    ReleaseCallbackId secondBufferCallbackId(secondBuffer->getId(), generateFrameNumber());
+    t.setBuffer(layer, secondBuffer, secondBufferCallbackId, releaseCallback->getCallback());
     t.setAcquireFence(layer, Fence::NO_FENCE);
     t.addTransactionCompletedCallback(transactionCallback.function,
                                       transactionCallback.getContext());
@@ -307,7 +330,7 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_FrameDropping) {
                         ExpectedResult::Buffer::NOT_ACQUIRED,
                         ExpectedResult::PreviousBuffer::RELEASED);
     ASSERT_NO_FATAL_FAILURE(waitForCallback(transactionCallback, expected));
-    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBuffer->getId()));
+    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBufferCallbackId));
 }
 
 } // namespace android
