@@ -324,6 +324,27 @@ TEST_F(OutputLayerDisplayFrameTest, outputTransformAffectsDisplayFrame) {
     EXPECT_THAT(calculateOutputDisplayFrame(), expected);
 }
 
+TEST_F(OutputLayerDisplayFrameTest, shadowExpandsDisplayFrame) {
+    const int kShadowRadius = 5;
+    mLayerFEState.shadowRadius = kShadowRadius;
+    mLayerFEState.forceClientComposition = true;
+
+    mLayerFEState.geomLayerBounds = FloatRect{100.f, 100.f, 200.f, 200.f};
+    Rect expected{mLayerFEState.geomLayerBounds};
+    expected.inset(-kShadowRadius, -kShadowRadius, -kShadowRadius, -kShadowRadius);
+    EXPECT_THAT(calculateOutputDisplayFrame(), expected);
+}
+
+TEST_F(OutputLayerDisplayFrameTest, shadowExpandsDisplayFrame_onlyIfForcingClientComposition) {
+    const int kShadowRadius = 5;
+    mLayerFEState.shadowRadius = kShadowRadius;
+    mLayerFEState.forceClientComposition = false;
+
+    mLayerFEState.geomLayerBounds = FloatRect{100.f, 100.f, 200.f, 200.f};
+    Rect expected{mLayerFEState.geomLayerBounds};
+    EXPECT_THAT(calculateOutputDisplayFrame(), expected);
+}
+
 /*
  * OutputLayer::calculateOutputRelativeBufferTransform()
  */
