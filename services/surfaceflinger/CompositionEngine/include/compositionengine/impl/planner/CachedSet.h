@@ -141,7 +141,7 @@ public:
 
     compositionengine::OutputLayer* getBlurLayer() const;
 
-    bool hasHdrLayers() const;
+    bool hasUnsupportedDataspace() const;
 
     bool hasProtectedLayers() const;
 
