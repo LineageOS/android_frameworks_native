@@ -44,24 +44,17 @@ namespace android {
 using PresentState = frametimeline::SurfaceFrame::PresentState;
 namespace {
 void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
-                               const sp<GraphicBuffer>& buffer, const sp<Fence>& releaseFence,
-                               uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount) {
+                               const sp<GraphicBuffer>& buffer, uint64_t framenumber,
+                               const sp<Fence>& releaseFence, uint32_t transformHint,
+                               uint32_t currentMaxAcquiredBufferCount) {
     if (!listener) {
         return;
     }
-    listener->onReleaseBuffer(buffer->getId(), releaseFence ? releaseFence : Fence::NO_FENCE,
-                              transformHint, currentMaxAcquiredBufferCount);
+    listener->onReleaseBuffer({buffer->getId(), framenumber},
+                              releaseFence ? releaseFence : Fence::NO_FENCE, transformHint,
+                              currentMaxAcquiredBufferCount);
 }
 } // namespace
-
-// clang-format off
-const std::array<float, 16> BufferStateLayer::IDENTITY_MATRIX{
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1
-};
-// clang-format on
 
 BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args)
       : BufferLayer(args), mHwcSlotGenerator(new HwcSlotGenerator()) {
@@ -75,8 +68,8 @@ BufferStateLayer::~BufferStateLayer() {
     // issue with the clone layer trying to use the texture.
     if (mBufferInfo.mBuffer != nullptr && !isClone()) {
         callReleaseBufferCallback(mDrawingState.releaseBufferListener,
-                                  mBufferInfo.mBuffer->getBuffer(), mBufferInfo.mFence,
-                                  mTransformHint,
+                                  mBufferInfo.mBuffer->getBuffer(), mBufferInfo.mFrameNumber,
+                                  mBufferInfo.mFence, mTransformHint,
                                   mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(
                                           mOwnerUid));
     }
@@ -87,7 +80,7 @@ status_t BufferStateLayer::addReleaseFence(const sp<CallbackHandle>& ch,
     if (ch == nullptr) {
         return OK;
     }
-    ch->previousBufferId = mPreviousBufferId;
+    ch->previousReleaseCallbackId = mPreviousReleaseCallbackId;
     if (!ch->previousReleaseFence.get()) {
         ch->previousReleaseFence = fence;
         return OK;
@@ -214,7 +207,7 @@ void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     // see BufferStateLayer::onLayerDisplayed.
     for (auto& handle : mDrawingState.callbackHandles) {
         if (handle->releasePreviousBuffer) {
-            handle->previousBufferId = mPreviousBufferId;
+            handle->previousReleaseCallbackId = mPreviousReleaseCallbackId;
             break;
         }
     }
@@ -438,8 +431,8 @@ bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTex
             // dropped and we should decrement the pending buffer count and
             // call any release buffer callbacks if set.
             callReleaseBufferCallback(mDrawingState.releaseBufferListener,
-                                      mDrawingState.buffer->getBuffer(), mDrawingState.acquireFence,
-                                      mTransformHint,
+                                      mDrawingState.buffer->getBuffer(), mDrawingState.frameNumber,
+                                      mDrawingState.acquireFence, mTransformHint,
                                       mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(
                                               mOwnerUid));
             decrementPendingBufferCount();
@@ -684,7 +677,7 @@ uint64_t BufferStateLayer::getFrameNumber(nsecs_t /*expectedPresentTime*/) const
  *     DeferTransactionUntil -> frameNumber = 2
  *     Random other stuff
  *  }
- * Now imagine getHeadFrameNumber returned mDrawingState.mFrameNumber (or mCurrentFrameNumber).
+ * Now imagine mFrameNumber returned mDrawingState.frameNumber (or mCurrentFrameNumber).
  * Prior to doTransaction SurfaceFlinger will call notifyAvailableFrames, but because we
  * haven't swapped mDrawingState to mDrawingState yet we will think the sync point
  * is not ready. So we will return false from applyPendingState and not swap
@@ -725,7 +718,7 @@ bool BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
 
 bool BufferStateLayer::hasFrameUpdate() const {
     const State& c(getDrawingState());
-    return mDrawingStateModified && (c.buffer != nullptr || c.bgColorLayer != nullptr);
+    return (mDrawingStateModified || mDrawingState.modified) && (c.buffer != nullptr || c.bgColorLayer != nullptr);
 }
 
 status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime,
@@ -792,9 +785,10 @@ status_t BufferStateLayer::updateActiveBuffer() {
         decrementPendingBufferCount();
     }
 
-    mPreviousBufferId = getCurrentBufferId();
+    mPreviousReleaseCallbackId = {getCurrentBufferId(), mBufferInfo.mFrameNumber};
     mBufferInfo.mBuffer = s.buffer;
     mBufferInfo.mFence = s.acquireFence;
+    mBufferInfo.mFrameNumber = s.frameNumber;
 
     return NO_ERROR;
 }
@@ -969,8 +963,8 @@ void BufferStateLayer::bufferMayChange(const sp<GraphicBuffer>& newBuffer) {
         // then we will drop a buffer and should decrement the pending buffer count and
         // call any release buffer callbacks if set.
         callReleaseBufferCallback(mDrawingState.releaseBufferListener,
-                                  mDrawingState.buffer->getBuffer(), mDrawingState.acquireFence,
-                                  mTransformHint,
+                                  mDrawingState.buffer->getBuffer(), mDrawingState.frameNumber,
+                                  mDrawingState.acquireFence, mTransformHint,
                                   mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(
                                           mOwnerUid));
         decrementPendingBufferCount();

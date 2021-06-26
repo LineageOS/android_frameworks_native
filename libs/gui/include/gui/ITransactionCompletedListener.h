@@ -53,6 +53,36 @@ struct CallbackIdHash {
     std::size_t operator()(const CallbackId& key) const { return std::hash<int64_t>()(key.id); }
 };
 
+class ReleaseCallbackId : public Parcelable {
+public:
+    static const ReleaseCallbackId INVALID_ID;
+
+    uint64_t bufferId;
+    uint64_t framenumber;
+    ReleaseCallbackId() {}
+    ReleaseCallbackId(uint64_t bufferId, uint64_t framenumber)
+          : bufferId(bufferId), framenumber(framenumber) {}
+    status_t writeToParcel(Parcel* output) const override;
+    status_t readFromParcel(const Parcel* input) override;
+
+    bool operator==(const ReleaseCallbackId& rhs) const {
+        return bufferId == rhs.bufferId && framenumber == rhs.framenumber;
+    }
+    bool operator!=(const ReleaseCallbackId& rhs) const { return !operator==(rhs); }
+    std::string to_string() const {
+        if (*this == INVALID_ID) return "INVALID_ID";
+
+        return "bufferId:" + std::to_string(bufferId) +
+                " framenumber:" + std::to_string(framenumber);
+    }
+};
+
+struct ReleaseBufferCallbackIdHash {
+    std::size_t operator()(const ReleaseCallbackId& key) const {
+        return std::hash<uint64_t>()(key.bufferId);
+    }
+};
+
 class FrameEventHistoryStats : public Parcelable {
 public:
     status_t writeToParcel(Parcel* output) const override;
@@ -103,7 +133,7 @@ public:
     SurfaceStats(const sp<IBinder>& sc, nsecs_t time, const sp<Fence>& prevReleaseFence,
                  uint32_t hint, uint32_t currentMaxAcquiredBuffersCount,
                  FrameEventHistoryStats frameEventStats, std::vector<JankData> jankData,
-                 uint64_t previousBufferId)
+                 ReleaseCallbackId previousReleaseCallbackId)
           : surfaceControl(sc),
             acquireTime(time),
             previousReleaseFence(prevReleaseFence),
@@ -111,7 +141,7 @@ public:
             currentMaxAcquiredBufferCount(currentMaxAcquiredBuffersCount),
             eventStats(frameEventStats),
             jankData(std::move(jankData)),
-            previousBufferId(previousBufferId) {}
+            previousReleaseCallbackId(previousReleaseCallbackId) {}
 
     sp<IBinder> surfaceControl;
     nsecs_t acquireTime = -1;
@@ -120,7 +150,7 @@ public:
     uint32_t currentMaxAcquiredBufferCount = 0;
     FrameEventHistoryStats eventStats;
     std::vector<JankData> jankData;
-    uint64_t previousBufferId;
+    ReleaseCallbackId previousReleaseCallbackId;
 };
 
 class TransactionStats : public Parcelable {
@@ -161,7 +191,7 @@ public:
 
     virtual void onTransactionCompleted(ListenerStats stats) = 0;
 
-    virtual void onReleaseBuffer(uint64_t graphicBufferId, sp<Fence> releaseFence,
+    virtual void onReleaseBuffer(ReleaseCallbackId callbackId, sp<Fence> releaseFence,
                                  uint32_t transformHint,
                                  uint32_t currentMaxAcquiredBufferCount) = 0;
 };
