@@ -234,6 +234,12 @@ struct layer_state_t {
     // layers only. The callback includes a release fence as well as the graphic
     // buffer id to identify the buffer.
     sp<ITransactionCompletedListener> releaseBufferListener;
+
+    // Keeps track of the release callback id associated with the listener. This
+    // is not sent to the server since the id can be reconstructed there. This
+    // is used to remove the old callback from the client process map if it is
+    // overwritten by another setBuffer call.
+    ReleaseCallbackId releaseCallbackId;
 };
 
 struct ComposerState {
