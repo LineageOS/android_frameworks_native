@@ -216,8 +216,18 @@ Rect OutputLayer::calculateOutputDisplayFrame() const {
 
     // reduce uses a FloatRect to provide more accuracy during the
     // transformation. We then round upon constructing 'frame'.
-    Rect frame{
-            layerTransform.transform(reduce(layerState.geomLayerBounds, activeTransparentRegion))};
+    FloatRect geomLayerBounds = layerState.geomLayerBounds;
+
+    // Some HWCs may clip client composited input to its displayFrame. Make sure
+    // that this does not cut off the shadow.
+    if (layerState.forceClientComposition && layerState.shadowRadius > 0.0f) {
+        const auto outset = layerState.shadowRadius;
+        geomLayerBounds.left -= outset;
+        geomLayerBounds.top -= outset;
+        geomLayerBounds.right += outset;
+        geomLayerBounds.bottom += outset;
+    }
+    Rect frame{layerTransform.transform(reduce(geomLayerBounds, activeTransparentRegion))};
     if (!frame.intersect(outputState.layerStackSpace.content, &frame)) {
         frame.clear();
     }
