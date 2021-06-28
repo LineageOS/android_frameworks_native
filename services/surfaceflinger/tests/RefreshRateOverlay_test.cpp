@@ -20,6 +20,10 @@
 
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
+#include <chrono>
+
+using ::std::literals::chrono_literals::operator""ms;
+using ::std::literals::chrono_literals::operator""s;
 
 static constexpr int kRefreshRateOverlayCode = 1034;
 static constexpr int kRefreshRateOverlayEnable = 1;

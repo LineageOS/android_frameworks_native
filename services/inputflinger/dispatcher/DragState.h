@@ -17,22 +17,22 @@
 #ifndef _UI_INPUT_INPUTDISPATCHER_DRAGSTATE_H
 #define _UI_INPUT_INPUTDISPATCHER_DRAGSTATE_H
 
+#include <gui/WindowInfo.h>
 #include <utils/RefBase.h>
 #include <string>
 
 namespace android {
 
-class InputWindowHandle;
-
 namespace inputdispatcher {
+
 struct DragState {
-    DragState(const sp<android::InputWindowHandle>& windowHandle) : dragWindow(windowHandle) {}
+    DragState(const sp<android::gui::WindowInfoHandle>& windowHandle) : dragWindow(windowHandle) {}
     void dump(std::string& dump, const char* prefix = "");
 
     // The window being dragged.
-    const sp<InputWindowHandle> dragWindow;
+    const sp<android::gui::WindowInfoHandle> dragWindow;
     // The last drag hover window which could receive the drag event.
-    sp<InputWindowHandle> dragHoverWindowHandle;
+    sp<android::gui::WindowInfoHandle> dragHoverWindowHandle;
     // Indicates the if received first event to check for button state.
     bool isStartDrag = false;
     // Indicate if the stylus button is down at the start of the drag.

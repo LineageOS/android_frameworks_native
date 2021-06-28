@@ -16,6 +16,7 @@
 
 #include "../InputClassifier.h"
 #include <gtest/gtest.h>
+#include <gui/constants.h>
 
 #include "TestInputListener.h"
 

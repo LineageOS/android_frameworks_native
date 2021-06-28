@@ -22,11 +22,10 @@
 #include <string>
 #include <type_traits>
 
-#include "NamedEnum.h"
+#include <ftl/NamedEnum.h>
 #include "utils/BitSet.h"
 
-#ifndef __UI_INPUT_FLAGS_H
-#define __UI_INPUT_FLAGS_H
+#pragma once
 
 namespace android {
 
@@ -279,5 +278,3 @@ Flags<F> operator|(F lhs, F rhs) {
 
 } // namespace flag_operators
 } // namespace android
-
-#endif // __UI_INPUT_FLAGS_H

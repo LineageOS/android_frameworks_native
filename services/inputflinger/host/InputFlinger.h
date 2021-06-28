@@ -30,6 +30,8 @@
 #include <utils/String8.h>
 #include <utils/StrongPointer.h>
 
+using android::gui::FocusRequest;
+using android::gui::WindowInfo;
 using android::os::BnInputFlinger;
 using android::os::ISetInputWindowsListener;
 
@@ -44,7 +46,7 @@ public:
     InputFlinger() ANDROID_API;
 
     status_t dump(int fd, const Vector<String16>& args) override;
-    binder::Status setInputWindows(const std::vector<InputWindowInfo>&,
+    binder::Status setInputWindows(const std::vector<WindowInfo>&,
                                    const sp<ISetInputWindowsListener>&) override {
         return binder::Status::ok();
     }

@@ -15,43 +15,40 @@
  */
 
 #include <type_traits>
-#define LOG_TAG "InputWindow"
+#define LOG_TAG "WindowInfo"
 #define LOG_NDEBUG 0
 
 #include <android-base/stringprintf.h>
 #include <binder/Parcel.h>
-#include <input/InputTransport.h>
-#include <input/InputWindow.h>
+#include <gui/WindowInfo.h>
 
 #include <log/log.h>
 
-namespace android {
+namespace android::gui {
 
-
-// --- InputWindowInfo ---
-void InputWindowInfo::addTouchableRegion(const Rect& region) {
+// --- WindowInfo ---
+void WindowInfo::addTouchableRegion(const Rect& region) {
     touchableRegion.orSelf(region);
 }
 
-bool InputWindowInfo::touchableRegionContainsPoint(int32_t x, int32_t y) const {
-    return touchableRegion.contains(x,y);
+bool WindowInfo::touchableRegionContainsPoint(int32_t x, int32_t y) const {
+    return touchableRegion.contains(x, y);
 }
 
-bool InputWindowInfo::frameContainsPoint(int32_t x, int32_t y) const {
-    return x >= frameLeft && x < frameRight
-            && y >= frameTop && y < frameBottom;
+bool WindowInfo::frameContainsPoint(int32_t x, int32_t y) const {
+    return x >= frameLeft && x < frameRight && y >= frameTop && y < frameBottom;
 }
 
-bool InputWindowInfo::supportsSplitTouch() const {
+bool WindowInfo::supportsSplitTouch() const {
     return flags.test(Flag::SPLIT_TOUCH);
 }
 
-bool InputWindowInfo::overlaps(const InputWindowInfo* other) const {
-    return frameLeft < other->frameRight && frameRight > other->frameLeft
-            && frameTop < other->frameBottom && frameBottom > other->frameTop;
+bool WindowInfo::overlaps(const WindowInfo* other) const {
+    return frameLeft < other->frameRight && frameRight > other->frameLeft &&
+            frameTop < other->frameBottom && frameBottom > other->frameTop;
 }
 
-bool InputWindowInfo::operator==(const InputWindowInfo& info) const {
+bool WindowInfo::operator==(const WindowInfo& info) const {
     return info.token == token && info.id == id && info.name == name && info.flags == flags &&
             info.type == type && info.dispatchingTimeout == dispatchingTimeout &&
             info.frameLeft == frameLeft && info.frameTop == frameTop &&
@@ -69,7 +66,7 @@ bool InputWindowInfo::operator==(const InputWindowInfo& info) const {
             info.applicationInfo == applicationInfo;
 }
 
-status_t InputWindowInfo::writeToParcel(android::Parcel* parcel) const {
+status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
     if (parcel == nullptr) {
         ALOGE("%s: Null parcel", __func__);
         return BAD_VALUE;
@@ -86,7 +83,7 @@ status_t InputWindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeInt32(id) ?:
         parcel->writeUtf8AsUtf16(name) ?:
         parcel->writeInt32(flags.get()) ?:
-        parcel->writeInt32(static_cast<std::underlying_type_t<InputWindowInfo::Type>>(type)) ?:
+        parcel->writeInt32(static_cast<std::underlying_type_t<WindowInfo::Type>>(type)) ?:
         parcel->writeInt32(frameLeft) ?:
         parcel->writeInt32(frameTop) ?:
         parcel->writeInt32(frameRight) ?:
@@ -122,7 +119,7 @@ status_t InputWindowInfo::writeToParcel(android::Parcel* parcel) const {
     return status;
 }
 
-status_t InputWindowInfo::readFromParcel(const android::Parcel* parcel) {
+status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
     if (parcel == nullptr) {
         ALOGE("%s: Null parcel", __func__);
         return BAD_VALUE;
@@ -176,11 +173,13 @@ status_t InputWindowInfo::readFromParcel(const android::Parcel* parcel) {
     touchOcclusionMode = static_cast<TouchOcclusionMode>(touchOcclusionModeInt);
 
     inputFeatures = Flags<Feature>(parcel->readInt32());
+    // clang-format off
     status = parcel->readInt32(&displayId) ?:
         parcel->readInt32(&portalToDisplayId) ?:
         applicationInfo.readFromParcel(parcel) ?:
         parcel->read(touchableRegion) ?:
         parcel->readBool(&replaceTouchableRegionWithCrop);
+    // clang-format on
 
     if (status != OK) {
         return status;
@@ -192,33 +191,33 @@ status_t InputWindowInfo::readFromParcel(const android::Parcel* parcel) {
     return OK;
 }
 
-// --- InputWindowHandle ---
+// --- WindowInfoHandle ---
 
-InputWindowHandle::InputWindowHandle() {}
+WindowInfoHandle::WindowInfoHandle() {}
 
-InputWindowHandle::~InputWindowHandle() {}
+WindowInfoHandle::~WindowInfoHandle() {}
 
-InputWindowHandle::InputWindowHandle(const InputWindowHandle& other) : mInfo(other.mInfo) {}
+WindowInfoHandle::WindowInfoHandle(const WindowInfoHandle& other) : mInfo(other.mInfo) {}
 
-InputWindowHandle::InputWindowHandle(const InputWindowInfo& other) : mInfo(other) {}
+WindowInfoHandle::WindowInfoHandle(const WindowInfo& other) : mInfo(other) {}
 
-status_t InputWindowHandle::writeToParcel(android::Parcel* parcel) const {
+status_t WindowInfoHandle::writeToParcel(android::Parcel* parcel) const {
     return mInfo.writeToParcel(parcel);
 }
 
-status_t InputWindowHandle::readFromParcel(const android::Parcel* parcel) {
+status_t WindowInfoHandle::readFromParcel(const android::Parcel* parcel) {
     return mInfo.readFromParcel(parcel);
 }
 
-void InputWindowHandle::releaseChannel() {
+void WindowInfoHandle::releaseChannel() {
     mInfo.token.clear();
 }
 
-sp<IBinder> InputWindowHandle::getToken() const {
+sp<IBinder> WindowInfoHandle::getToken() const {
     return mInfo.token;
 }
 
-void InputWindowHandle::updateFrom(sp<InputWindowHandle> handle) {
+void WindowInfoHandle::updateFrom(sp<WindowInfoHandle> handle) {
     mInfo = handle->mInfo;
 }
-} // namespace android
+} // namespace android::gui

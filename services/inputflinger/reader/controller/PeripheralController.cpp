@@ -19,8 +19,8 @@
 
 #include "../Macros.h"
 
+#include <ftl/NamedEnum.h>
 #include "PeripheralController.h"
-#include "input/NamedEnum.h"
 
 // Log detailed debug messages about input device lights.
 static constexpr bool DEBUG_LIGHT_DETAILS = false;

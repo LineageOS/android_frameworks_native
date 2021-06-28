@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,25 +14,24 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_TOUCHEDWINDOW_H
-#define _UI_INPUT_INPUTDISPATCHER_TOUCHEDWINDOW_H
+#pragma once
+
+#include <stdint.h>
 
 namespace android {
 
-namespace gui {
-class WindowInfoHandle;
-}
+/**
+ * Invalid value for display size. Used when display size isn't available.
+ */
+constexpr int32_t INVALID_DISPLAY_SIZE = 0;
 
-namespace inputdispatcher {
+enum {
+    /* Used when an event is not associated with any display.
+     * Typically used for non-pointer events. */
+    ADISPLAY_ID_NONE = -1,
 
-// Focus tracking for touch.
-struct TouchedWindow {
-    sp<gui::WindowInfoHandle> windowHandle;
-    int32_t targetFlags;
-    BitSet32 pointerIds; // zero unless target flag FLAG_SPLIT is set
+    /* The default display id. */
+    ADISPLAY_ID_DEFAULT = 0,
 };
 
-} // namespace inputdispatcher
 } // namespace android
-
-#endif // _UI_INPUT_INPUTDISPATCHER_TOUCHEDWINDOW_H

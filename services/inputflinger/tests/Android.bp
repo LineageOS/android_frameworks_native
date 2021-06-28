@@ -52,6 +52,7 @@ cc_test {
     ],
     aidl: {
         include_dirs: [
+            "frameworks/native/libs/gui",
             "frameworks/native/libs/input",
         ],
     },

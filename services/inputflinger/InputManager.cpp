@@ -31,6 +31,10 @@
 
 namespace android {
 
+using gui::FocusRequest;
+using gui::WindowInfo;
+using gui::WindowInfoHandle;
+
 static int32_t exceptionCodeFromStatusT(status_t status) {
     switch (status) {
         case OK:
@@ -110,9 +114,9 @@ sp<InputDispatcherInterface> InputManager::getDispatcher() {
     return mDispatcher;
 }
 
-class BinderWindowHandle : public InputWindowHandle {
+class BinderWindowHandle : public WindowInfoHandle {
 public:
-    BinderWindowHandle(const InputWindowInfo& info) { mInfo = info; }
+    BinderWindowHandle(const WindowInfo& info) { mInfo = info; }
 
     bool updateInfo() override {
         return true;
@@ -120,13 +124,13 @@ public:
 };
 
 binder::Status InputManager::setInputWindows(
-        const std::vector<InputWindowInfo>& infos,
+        const std::vector<WindowInfo>& infos,
         const sp<ISetInputWindowsListener>& setInputWindowsListener) {
-    std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>> handlesPerDisplay;
+    std::unordered_map<int32_t, std::vector<sp<WindowInfoHandle>>> handlesPerDisplay;
 
-    std::vector<sp<InputWindowHandle>> handles;
+    std::vector<sp<WindowInfoHandle>> handles;
     for (const auto& info : infos) {
-        handlesPerDisplay.emplace(info.displayId, std::vector<sp<InputWindowHandle>>());
+        handlesPerDisplay.emplace(info.displayId, std::vector<sp<WindowInfoHandle>>());
         handlesPerDisplay[info.displayId].push_back(new BinderWindowHandle(info));
     }
     mDispatcher->setInputWindows(handlesPerDisplay);

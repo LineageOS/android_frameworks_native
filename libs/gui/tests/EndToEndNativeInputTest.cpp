@@ -37,9 +37,9 @@
 #include <gui/SurfaceControl.h>
 
 #include <android/os/IInputFlinger.h>
+#include <gui/WindowInfo.h>
 #include <input/Input.h>
 #include <input/InputTransport.h>
-#include <input/InputWindow.h>
 
 #include <ui/DisplayMode.h>
 #include <ui/Rect.h>
@@ -48,6 +48,11 @@
 using android::os::IInputFlinger;
 
 using android::hardware::graphics::common::V1_1::BufferUsage;
+
+using android::gui::FocusRequest;
+using android::gui::InputApplicationInfo;
+using android::gui::TouchOcclusionMode;
+using android::gui::WindowInfo;
 
 namespace android::test {
 
@@ -221,8 +226,8 @@ private:
     void populateInputInfo(int width, int height) {
         mInputInfo.token = mClientChannel->getConnectionToken();
         mInputInfo.name = "Test info";
-        mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCH_MODAL;
-        mInputInfo.type = InputWindowInfo::Type::BASE_APPLICATION;
+        mInputInfo.flags = WindowInfo::Flag::NOT_TOUCH_MODAL;
+        mInputInfo.type = WindowInfo::Type::BASE_APPLICATION;
         mInputInfo.dispatchingTimeout = 5s;
         mInputInfo.globalScaleFactor = 1.0;
         mInputInfo.focusable = true;
@@ -249,7 +254,7 @@ public:
     std::shared_ptr<InputChannel> mClientChannel;
     sp<IInputFlinger> mInputFlinger;
 
-    InputWindowInfo mInputInfo;
+    WindowInfo mInputInfo;
 
     PreallocatedInputEventFactory mInputEventFactory;
     InputConsumer* mInputConsumer;
@@ -686,7 +691,7 @@ TEST_F(InputSurfacesTest, touch_flag_obscured) {
     // Add non touchable window to fully cover touchable window. Window behind gets touch, but
     // with flag AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED
     std::unique_ptr<InputSurface> nonTouchableSurface = makeSurface(100, 100);
-    nonTouchableSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    nonTouchableSurface->mInputInfo.flags = WindowInfo::Flag::NOT_TOUCHABLE;
     nonTouchableSurface->mInputInfo.ownerUid = 22222;
     // Overriding occlusion mode otherwise the touch would be discarded at InputDispatcher by
     // the default obscured/untrusted touch filter introduced in S.
@@ -706,8 +711,8 @@ TEST_F(InputSurfacesTest, touch_flag_partially_obscured_with_crop) {
     // AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED
     std::unique_ptr<InputSurface> parentSurface = makeSurface(100, 100);
     std::unique_ptr<InputSurface> nonTouchableSurface = makeSurface(100, 100);
-    nonTouchableSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
-    parentSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    nonTouchableSurface->mInputInfo.flags = WindowInfo::Flag::NOT_TOUCHABLE;
+    parentSurface->mInputInfo.flags = WindowInfo::Flag::NOT_TOUCHABLE;
     nonTouchableSurface->mInputInfo.ownerUid = 22222;
     parentSurface->mInputInfo.ownerUid = 22222;
     nonTouchableSurface->showAt(0, 0);
@@ -730,8 +735,8 @@ TEST_F(InputSurfacesTest, touch_not_obscured_with_crop) {
     // the touchable window. Window behind gets touch with no obscured flags.
     std::unique_ptr<InputSurface> parentSurface = makeSurface(100, 100);
     std::unique_ptr<InputSurface> nonTouchableSurface = makeSurface(100, 100);
-    nonTouchableSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
-    parentSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    nonTouchableSurface->mInputInfo.flags = WindowInfo::Flag::NOT_TOUCHABLE;
+    parentSurface->mInputInfo.flags = WindowInfo::Flag::NOT_TOUCHABLE;
     nonTouchableSurface->mInputInfo.ownerUid = 22222;
     parentSurface->mInputInfo.ownerUid = 22222;
     nonTouchableSurface->showAt(0, 0);
@@ -751,7 +756,7 @@ TEST_F(InputSurfacesTest, touch_not_obscured_with_zero_sized_bql) {
 
     std::unique_ptr<InputSurface> bufferSurface =
             InputSurface::makeBufferInputSurface(mComposerClient, 0, 0);
-    bufferSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    bufferSurface->mInputInfo.flags = WindowInfo::Flag::NOT_TOUCHABLE;
     bufferSurface->mInputInfo.ownerUid = 22222;
 
     surface->showAt(10, 10);
@@ -766,7 +771,7 @@ TEST_F(InputSurfacesTest, touch_not_obscured_with_zero_sized_blast) {
 
     std::unique_ptr<BlastInputSurface> bufferSurface =
             BlastInputSurface::makeBlastInputSurface(mComposerClient, 0, 0);
-    bufferSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    bufferSurface->mInputInfo.flags = WindowInfo::Flag::NOT_TOUCHABLE;
     bufferSurface->mInputInfo.ownerUid = 22222;
 
     surface->showAt(10, 10);
