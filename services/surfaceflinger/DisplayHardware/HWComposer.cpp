@@ -471,6 +471,7 @@ status_t HWComposer::setClientTarget(HalDisplayId displayId, uint32_t slot,
 status_t HWComposer::getDeviceCompositionChanges(
         HalDisplayId displayId, bool frameUsesClientComposition,
         std::chrono::steady_clock::time_point earliestPresentTime,
+        const std::shared_ptr<FenceTime>& previousPresentFence,
         std::optional<android::HWComposer::DeviceRequestedChanges>* outChanges) {
     ATRACE_CALL();
 
@@ -487,12 +488,16 @@ status_t HWComposer::getDeviceCompositionChanges(
 
     hal::Error error = hal::Error::NONE;
 
-    // First try to skip validate altogether when we passed the earliest time
-    // to present and there is no client. Otherwise, we may present a frame too
-    // early or in case of client composition we first need to render the
+    // First try to skip validate altogether. We can do that when
+    // 1. The previous frame has not been presented yet or already passed the
+    // earliest time to present. Otherwise, we may present a frame too early.
+    // 2. There is no client composition. Otherwise, we first need to render the
     // client target buffer.
-    const bool canSkipValidate =
-            std::chrono::steady_clock::now() >= earliestPresentTime && !frameUsesClientComposition;
+    const bool prevFencePending =
+            previousPresentFence->getSignalTime() == Fence::SIGNAL_TIME_PENDING;
+    const bool canPresentEarly =
+            !prevFencePending && std::chrono::steady_clock::now() < earliestPresentTime;
+    const bool canSkipValidate = !canPresentEarly && !frameUsesClientComposition;
     displayData.validateWasSkipped = false;
     if (canSkipValidate) {
         sp<Fence> outPresentFence;
@@ -559,7 +564,8 @@ sp<Fence> HWComposer::getLayerReleaseFence(HalDisplayId displayId, HWC2::Layer* 
 }
 
 status_t HWComposer::presentAndGetReleaseFences(
-        HalDisplayId displayId, std::chrono::steady_clock::time_point earliestPresentTime) {
+        HalDisplayId displayId, std::chrono::steady_clock::time_point earliestPresentTime,
+        const std::shared_ptr<FenceTime>& previousPresentFence) {
     ATRACE_CALL();
 
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
@@ -575,7 +581,9 @@ status_t HWComposer::presentAndGetReleaseFences(
         return NO_ERROR;
     }
 
-    {
+    const bool previousFramePending =
+            previousPresentFence->getSignalTime() == Fence::SIGNAL_TIME_PENDING;
+    if (!previousFramePending) {
         ATRACE_NAME("wait for earliest present time");
         std::this_thread::sleep_until(earliestPresentTime);
     }

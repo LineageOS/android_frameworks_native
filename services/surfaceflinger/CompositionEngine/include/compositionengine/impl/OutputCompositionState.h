@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include <math/mat4.h>
+#include <ui/FenceTime.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
@@ -117,6 +118,10 @@ struct OutputCompositionState {
 
     // The earliest time to send the present command to the HAL
     std::chrono::steady_clock::time_point earliestPresentTime;
+
+    // The previous present fence. Used together with earliestPresentTime
+    // to prevent an early presentation of a frame.
+    std::shared_ptr<FenceTime> previousPresentFence;
 
     // Current display brightness
     float displayBrightnessNits{-1.f};
