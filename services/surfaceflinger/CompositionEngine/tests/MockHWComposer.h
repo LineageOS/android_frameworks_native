@@ -52,14 +52,16 @@ public:
                       std::optional<PhysicalDisplayId>));
     MOCK_METHOD2(allocatePhysicalDisplay, void(hal::HWDisplayId, PhysicalDisplayId));
     MOCK_METHOD1(createLayer, std::shared_ptr<HWC2::Layer>(HalDisplayId));
-    MOCK_METHOD4(getDeviceCompositionChanges,
+    MOCK_METHOD5(getDeviceCompositionChanges,
                  status_t(HalDisplayId, bool, std::chrono::steady_clock::time_point,
+                          const std::shared_ptr<FenceTime>&,
                           std::optional<android::HWComposer::DeviceRequestedChanges>*));
     MOCK_METHOD5(setClientTarget,
                  status_t(HalDisplayId, uint32_t, const sp<Fence>&, const sp<GraphicBuffer>&,
                           ui::Dataspace));
-    MOCK_METHOD2(presentAndGetReleaseFences,
-                 status_t(HalDisplayId, std::chrono::steady_clock::time_point));
+    MOCK_METHOD3(presentAndGetReleaseFences,
+                 status_t(HalDisplayId, std::chrono::steady_clock::time_point,
+                          const std::shared_ptr<FenceTime>&));
     MOCK_METHOD2(setPowerMode, status_t(PhysicalDisplayId, hal::PowerMode));
     MOCK_METHOD2(setActiveConfig, status_t(HalDisplayId, size_t));
     MOCK_METHOD2(setColorTransform, status_t(HalDisplayId, const mat4&));
