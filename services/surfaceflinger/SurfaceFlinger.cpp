@@ -2071,6 +2071,7 @@ void SurfaceFlinger::onMessageRefresh() {
     const auto prevVsyncTime = mScheduler->getPreviousVsyncFrom(mExpectedPresentTime);
     const auto hwcMinWorkDuration = mVsyncConfiguration->getCurrentConfigs().hwcMinWorkDuration;
     refreshArgs.earliestPresentTime = prevVsyncTime - hwcMinWorkDuration;
+    refreshArgs.previousPresentFence = mPreviousPresentFences[0].fenceTime;
     refreshArgs.nextInvalidateTime = mEventQueue->nextExpectedInvalidate();
 
     mGeometryInvalid = false;
