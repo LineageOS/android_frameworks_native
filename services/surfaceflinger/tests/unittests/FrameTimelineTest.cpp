@@ -160,7 +160,7 @@ public:
     size_t maxTokens;
     static constexpr pid_t kSurfaceFlingerPid = 666;
     static constexpr nsecs_t kPresentThreshold = std::chrono::nanoseconds(2ns).count();
-    static constexpr nsecs_t kDeadlineThreshold = std::chrono::nanoseconds(2ns).count();
+    static constexpr nsecs_t kDeadlineThreshold = std::chrono::nanoseconds(0ns).count();
     static constexpr nsecs_t kStartThreshold = std::chrono::nanoseconds(2ns).count();
     static constexpr JankClassificationThresholds kTestThresholds{kPresentThreshold,
                                                                   kDeadlineThreshold,
