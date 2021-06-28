@@ -27,7 +27,7 @@
 #include <vector>
 
 #include <android-base/thread_annotations.h>
-#include <ui/Fence.h>
+#include <ui/FenceTime.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
@@ -134,6 +134,7 @@ public:
     virtual status_t getDeviceCompositionChanges(
             HalDisplayId, bool frameUsesClientComposition,
             std::chrono::steady_clock::time_point earliestPresentTime,
+            const std::shared_ptr<FenceTime>& previousPresentFence,
             std::optional<DeviceRequestedChanges>* outChanges) = 0;
 
     virtual status_t setClientTarget(HalDisplayId, uint32_t slot, const sp<Fence>& acquireFence,
@@ -141,7 +142,8 @@ public:
 
     // Present layers to the display and read releaseFences.
     virtual status_t presentAndGetReleaseFences(
-            HalDisplayId, std::chrono::steady_clock::time_point earliestPresentTime) = 0;
+            HalDisplayId, std::chrono::steady_clock::time_point earliestPresentTime,
+            const std::shared_ptr<FenceTime>& previousPresentFence) = 0;
 
     // set power mode
     virtual status_t setPowerMode(PhysicalDisplayId, hal::PowerMode) = 0;
@@ -275,6 +277,7 @@ public:
     status_t getDeviceCompositionChanges(
             HalDisplayId, bool frameUsesClientComposition,
             std::chrono::steady_clock::time_point earliestPresentTime,
+            const std::shared_ptr<FenceTime>& previousPresentFence,
             std::optional<DeviceRequestedChanges>* outChanges) override;
 
     status_t setClientTarget(HalDisplayId, uint32_t slot, const sp<Fence>& acquireFence,
@@ -282,7 +285,8 @@ public:
 
     // Present layers to the display and read releaseFences.
     status_t presentAndGetReleaseFences(
-            HalDisplayId, std::chrono::steady_clock::time_point earliestPresentTime) override;
+            HalDisplayId, std::chrono::steady_clock::time_point earliestPresentTime,
+            const std::shared_ptr<FenceTime>& previousPresentFence) override;
 
     // set power mode
     status_t setPowerMode(PhysicalDisplayId, hal::PowerMode mode) override;
