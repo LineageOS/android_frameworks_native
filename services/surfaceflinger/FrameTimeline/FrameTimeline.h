@@ -96,7 +96,7 @@ struct JankClassificationThresholds {
     // The various thresholds for App and SF. If the actual timestamp falls within the threshold
     // compared to prediction, we treat it as on time.
     nsecs_t presentThreshold = std::chrono::duration_cast<std::chrono::nanoseconds>(2ms).count();
-    nsecs_t deadlineThreshold = std::chrono::duration_cast<std::chrono::nanoseconds>(2ms).count();
+    nsecs_t deadlineThreshold = std::chrono::duration_cast<std::chrono::nanoseconds>(0ms).count();
     nsecs_t startThreshold = std::chrono::duration_cast<std::chrono::nanoseconds>(2ms).count();
 };
 
