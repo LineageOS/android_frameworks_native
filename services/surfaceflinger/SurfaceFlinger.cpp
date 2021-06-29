@@ -345,7 +345,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mHwcServiceName(base::GetProperty("debug.sf.hwc_service_name"s, "default"s)),
         mTunnelModeEnabledReporter(new TunnelModeEnabledReporter()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
-        mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)) {
+        mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)),
+        mPowerAdvisor(*this) {
     ALOGI("Using HWComposer service: %s", mHwcServiceName.c_str());
 
     mSetInputWindowsListener = new SetInputWindowsListener([&]() { setInputWindowsFinished(); });
@@ -819,6 +820,8 @@ void SurfaceFlinger::init() {
     // set initial conditions (e.g. unblank default device)
     initializeDisplays();
 
+    mPowerAdvisor.init();
+
     char primeShaderCache[PROPERTY_VALUE_MAX];
     property_get("service.sf.prime_shader_cache", primeShaderCache, "1");
     if (atoi(primeShaderCache)) {
@@ -1274,6 +1277,19 @@ void SurfaceFlinger::performSetActiveMode() {
 
     // Scheduler will submit an empty frame to HWC if needed.
     mSetActiveModePending = true;
+}
+
+void SurfaceFlinger::disableExpensiveRendering() {
+    schedule([=]() MAIN_THREAD {
+        ATRACE_CALL();
+        if (mPowerAdvisor.isUsingExpensiveRendering()) {
+            const auto& displays = ON_MAIN_THREAD(mDisplays);
+            for (const auto& [_, display] : displays) {
+                const static constexpr auto kDisable = false;
+                mPowerAdvisor.setExpensiveRenderingExpected(display->getId(), kDisable);
+            }
+        }
+    }).wait();
 }
 
 std::vector<ColorMode> SurfaceFlinger::getDisplayColorModes(PhysicalDisplayId displayId) {
