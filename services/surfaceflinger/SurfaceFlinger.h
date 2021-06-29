@@ -331,6 +331,10 @@ public:
     bool mDisableClientCompositionCache = false;
     void setInputWindowsFinished();
 
+    // Disables expensive rendering for all displays
+    // This is scheduled on the main thread
+    void disableExpensiveRendering();
+
 protected:
     // We're reference counted, never destroy SurfaceFlinger directly
     virtual ~SurfaceFlinger();
