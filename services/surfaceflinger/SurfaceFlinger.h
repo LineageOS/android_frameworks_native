@@ -270,6 +270,8 @@ public:
     // being treated as native display brightness
     static bool enableSdrDimming;
 
+    static bool enableLatchUnsignaled;
+
     // must be called before clients can connect
     void init() ANDROID_API;
 
