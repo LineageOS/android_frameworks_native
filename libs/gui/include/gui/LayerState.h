@@ -105,6 +105,7 @@ struct layer_state_t {
         eBackgroundBlurRadiusChanged = 0x80'00000000,
         eProducerDisconnect = 0x100'00000000,
         eFixedTransformHintChanged = 0x200'00000000,
+        eTrustedOverlayChanged = 0x400'00000000,
     };
 
     layer_state_t()
@@ -139,7 +140,8 @@ struct layer_state_t {
             frameRateSelectionPriority(-1),
             frameRate(0.0f),
             frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
-            fixedTransformHint(ui::Transform::ROT_INVALID) {
+            fixedTransformHint(ui::Transform::ROT_INVALID),
+            isTrustedOverlay(false) {
         matrix.dsdx = matrix.dtdy = 1.0f;
         matrix.dsdy = matrix.dtdx = 0.0f;
         hdrMetadata.validTypes = 0;
@@ -237,6 +239,10 @@ struct layer_state_t {
     // a buffer of a different size. -1 means the transform hint is not set,
     // otherwise the value will be a valid ui::Rotation.
     ui::Transform::RotationFlags fixedTransformHint;
+
+    // An inherited state that indicates that this surface control and its children
+    // should be trusted for input occlusion detection purposes
+    bool isTrustedOverlay;
 };
 
 struct ComposerState {
