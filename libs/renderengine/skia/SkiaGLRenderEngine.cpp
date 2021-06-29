@@ -618,9 +618,9 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
 
     if (requiresLinearEffect) {
         const ui::Dataspace inputDataspace =
-                mUseColorManagement ? layer->sourceDataspace : ui::Dataspace::UNKNOWN;
+                mUseColorManagement ? layer->sourceDataspace : ui::Dataspace::V0_SRGB_LINEAR;
         const ui::Dataspace outputDataspace =
-                mUseColorManagement ? display.outputDataspace : ui::Dataspace::UNKNOWN;
+                mUseColorManagement ? display.outputDataspace : ui::Dataspace::V0_SRGB_LINEAR;
 
         LinearEffect effect = LinearEffect{.inputDataspace = inputDataspace,
                                            .outputDataspace = outputDataspace,
@@ -762,7 +762,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     }
 
     const ui::Dataspace dstDataspace =
-            mUseColorManagement ? display.outputDataspace : ui::Dataspace::UNKNOWN;
+            mUseColorManagement ? display.outputDataspace : ui::Dataspace::V0_SRGB_LINEAR;
     sk_sp<SkSurface> dstSurface = surfaceTextureRef->getOrCreateSurface(dstDataspace, grContext);
 
     SkCanvas* dstCanvas = mCapture->tryCapture(dstSurface.get());
