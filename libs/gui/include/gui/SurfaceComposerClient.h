@@ -529,6 +529,9 @@ public:
         // a buffer of a different size.
         Transaction& setFixedTransformHint(const sp<SurfaceControl>& sc, int32_t transformHint);
 
+        // Sets that this surface control and its children are trusted overlays for input
+        Transaction& setTrustedOverlay(const sp<SurfaceControl>& sc, bool isTrustedOverlay);
+        
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
 
