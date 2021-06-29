@@ -1145,6 +1145,23 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relati
     return true;
 }
 
+bool Layer::setTrustedOverlay(bool isTrustedOverlay) {
+    if (mCurrentState.isTrustedOverlay == isTrustedOverlay) return false;
+    mCurrentState.isTrustedOverlay = isTrustedOverlay;
+    mCurrentState.modified = true;
+    mCurrentState.inputInfoChanged = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool Layer::isTrustedOverlay() const {
+    if (getDrawingState().isTrustedOverlay) {
+        return true;
+    }
+    const auto& p = mDrawingParent.promote();
+    return (p != nullptr) && p->isTrustedOverlay();
+}
+
 bool Layer::setSize(uint32_t w, uint32_t h) {
     if (mCurrentState.requested_legacy.w == w && mCurrentState.requested_legacy.h == h)
         return false;
@@ -2255,6 +2272,7 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
         layerInfo->set_effective_scaling_mode(getEffectiveScalingMode());
 
         layerInfo->set_corner_radius(getRoundedCornerState().radius);
+        layerInfo->set_is_trusted_overlay(isTrustedOverlay());
         LayerProtoHelper::writeToProto(transform, layerInfo->mutable_transform());
         LayerProtoHelper::writePositionToProto(transform.tx(), transform.ty(),
                                                [&]() { return layerInfo->mutable_position(); });
@@ -2452,6 +2470,10 @@ InputWindowInfo Layer::fillInputInfo() {
     } else if (cropLayer != nullptr) {
         info.touchableRegion = info.touchableRegion.intersect(Rect{cropLayer->mScreenBounds});
     }
+
+    // Inherit the trusted state from the parent hierarchy, but don't clobber the trusted state
+    // if it was set by WM for a known system overlay
+    info.trustedOverlay = info.trustedOverlay || isTrustedOverlay();
 
     // If the layer is a clone, we need to crop the input region to cloned root to prevent
     // touches from going outside the cloned area.

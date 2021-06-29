@@ -53,6 +53,7 @@ message SurfaceChange {
         ReparentChildrenChange      reparent_children       = 20;
         BackgroundBlurRadiusChange  background_blur_radius  = 21;
         ShadowRadiusChange          shadow_radius           = 22;
+        TrustedOverlayChange        trusted_overlay         = 23;
     }
 }
 
@@ -208,4 +209,8 @@ message DetachChildrenChange {
 
 message ShadowRadiusChange {
     required float radius = 1;
+}
+
+message TrustedOverlayChange {
+    required float is_trusted_overlay = 1;
 }

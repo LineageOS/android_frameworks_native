@@ -280,6 +280,9 @@ public:
         // a buffer of a different size. ui::Transform::ROT_INVALID means the
         // a fixed transform hint is not set.
         ui::Transform::RotationFlags fixedTransformHint;
+
+        // Whether or not this layer is a trusted overlay for input
+        bool isTrustedOverlay;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -357,6 +360,7 @@ public:
     // is specified in pixels.
     virtual bool setBackgroundBlurRadius(int backgroundBlurRadius);
     virtual bool setTransparentRegionHint(const Region& transparent);
+    virtual bool setTrustedOverlay(bool);
     virtual bool setFlags(uint8_t flags, uint8_t mask);
     virtual bool setLayerStack(uint32_t layerStack);
     virtual uint32_t getLayerStack() const;
@@ -1097,6 +1101,7 @@ private:
                                           const std::vector<Layer*>& layersInTree);
 
     void updateTreeHasFrameRateVote();
+    bool isTrustedOverlay() const;
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling.
