@@ -20,7 +20,11 @@
 #include <gui/SurfaceControl.h>
 #include <ui/Fence.h>
 #include <utils/Timers.h>
+#include <chrono>
 #include <thread>
+
+using ::std::literals::chrono_literals::operator""ms;
+using ::std::literals::chrono_literals::operator""s;
 
 namespace android {
 

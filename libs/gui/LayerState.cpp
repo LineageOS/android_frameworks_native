@@ -31,6 +31,9 @@
 
 namespace android {
 
+using gui::FocusRequest;
+using gui::WindowInfoHandle;
+
 layer_state_t::layer_state_t()
       : what(0),
         x(0),
@@ -94,9 +97,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeFloat, color.r);
     SAFE_PARCEL(output.writeFloat, color.g);
     SAFE_PARCEL(output.writeFloat, color.b);
-#ifndef NO_INPUT
-    SAFE_PARCEL(inputHandle->writeToParcel, &output);
-#endif
+    SAFE_PARCEL(windowInfoHandle->writeToParcel, &output);
     SAFE_PARCEL(output.write, transparentRegion);
     SAFE_PARCEL(output.writeUint32, transform);
     SAFE_PARCEL(output.writeBool, transformToDisplayInverse);
@@ -205,9 +206,7 @@ status_t layer_state_t::read(const Parcel& input)
     color.g = tmpFloat;
     SAFE_PARCEL(input.readFloat, &tmpFloat);
     color.b = tmpFloat;
-#ifndef NO_INPUT
-    SAFE_PARCEL(inputHandle->readFromParcel, &input);
-#endif
+    SAFE_PARCEL(windowInfoHandle->readFromParcel, &input);
 
     SAFE_PARCEL(input.read, transparentRegion);
     SAFE_PARCEL(input.readUint32, &transform);
@@ -491,14 +490,10 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eHasListenerCallbacksChanged) {
         what |= eHasListenerCallbacksChanged;
     }
-
-#ifndef NO_INPUT
     if (other.what & eInputInfoChanged) {
         what |= eInputInfoChanged;
-        inputHandle = new InputWindowHandle(*other.inputHandle);
+        windowInfoHandle = new WindowInfoHandle(*other.windowInfoHandle);
     }
-#endif
-
     if (other.what & eCachedBufferChanged) {
         what |= eCachedBufferChanged;
         cachedBuffer = other.cachedBuffer;
@@ -589,11 +584,9 @@ status_t layer_state_t::matrix22_t::read(const Parcel& input) {
 
 bool InputWindowCommands::merge(const InputWindowCommands& other) {
     bool changes = false;
-#ifndef NO_INPUT
     changes |= !other.focusRequests.empty();
     focusRequests.insert(focusRequests.end(), std::make_move_iterator(other.focusRequests.begin()),
                          std::make_move_iterator(other.focusRequests.end()));
-#endif
     changes |= other.syncInputWindows && !syncInputWindows;
     syncInputWindows |= other.syncInputWindows;
     return changes;
@@ -601,31 +594,23 @@ bool InputWindowCommands::merge(const InputWindowCommands& other) {
 
 bool InputWindowCommands::empty() const {
     bool empty = true;
-#ifndef NO_INPUT
     empty = focusRequests.empty() && !syncInputWindows;
-#endif
     return empty;
 }
 
 void InputWindowCommands::clear() {
-#ifndef NO_INPUT
     focusRequests.clear();
-#endif
     syncInputWindows = false;
 }
 
 status_t InputWindowCommands::write(Parcel& output) const {
-#ifndef NO_INPUT
     SAFE_PARCEL(output.writeParcelableVector, focusRequests);
-#endif
     SAFE_PARCEL(output.writeBool, syncInputWindows);
     return NO_ERROR;
 }
 
 status_t InputWindowCommands::read(const Parcel& input) {
-#ifndef NO_INPUT
     SAFE_PARCEL(input.readParcelableVector, &focusRequests);
-#endif
     SAFE_PARCEL(input.readBool, &syncInputWindows);
     return NO_ERROR;
 }

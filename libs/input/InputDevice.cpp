@@ -21,9 +21,9 @@
 #include <ctype.h>
 
 #include <android-base/stringprintf.h>
+#include <ftl/NamedEnum.h>
 #include <input/InputDevice.h>
 #include <input/InputEventLabels.h>
-#include <input/NamedEnum.h>
 
 using android::base::StringPrintf;
 

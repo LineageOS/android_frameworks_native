@@ -1,5 +1,4 @@
-/* //device/java/android/android/view/InputChannel.aidl
-**
+/*
 ** Copyright 2020, The Android Open Source Project
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +14,6 @@
 ** limitations under the License.
 */
 
-package android;
+package android.gui;
 
-parcelable InputWindowInfo cpp_header "input/InputWindow.h";
+parcelable WindowInfo cpp_header "gui/WindowInfo.h";

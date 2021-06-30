@@ -19,17 +19,17 @@
 
 #include <string>
 
-#include <android/InputApplicationInfo.h>
+#include <android/gui/InputApplicationInfo.h>
 
 #include <binder/IBinder.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
 
-#include <input/Input.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
 namespace android {
+
 /*
  * Handle for an application that can receive input.
  *
@@ -38,13 +38,9 @@ namespace android {
  */
 class InputApplicationHandle {
 public:
-    inline const InputApplicationInfo* getInfo() const {
-        return &mInfo;
-    }
+    inline const gui::InputApplicationInfo* getInfo() const { return &mInfo; }
 
-    inline std::string getName() const {
-        return !mInfo.name.empty() ? mInfo.name : "<invalid>";
-    }
+    inline std::string getName() const { return !mInfo.name.empty() ? mInfo.name : "<invalid>"; }
 
     inline std::chrono::nanoseconds getDispatchingTimeout(
             std::chrono::nanoseconds defaultValue) const {
@@ -52,9 +48,7 @@ public:
                            : defaultValue;
     }
 
-    inline sp<IBinder> getApplicationToken() const {
-        return mInfo.token;
-    }
+    inline sp<IBinder> getApplicationToken() const { return mInfo.token; }
 
     bool operator==(const InputApplicationHandle& other) const {
         return getName() == other.getName() && getApplicationToken() == other.getApplicationToken();
@@ -77,7 +71,7 @@ protected:
     InputApplicationHandle() = default;
     virtual ~InputApplicationHandle() = default;
 
-    InputApplicationInfo mInfo;
+    gui::InputApplicationInfo mInfo;
 };
 
 } // namespace android

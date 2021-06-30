@@ -20,6 +20,7 @@
 #include <attestation/HmacKeyManager.h>
 #include <binder/Parcel.h>
 #include <gtest/gtest.h>
+#include <gui/constants.h>
 #include <input/Input.h>
 
 namespace android {
@@ -271,9 +272,8 @@ void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
                       AMOTION_EVENT_EDGE_FLAG_TOP, AMETA_ALT_ON, AMOTION_EVENT_BUTTON_PRIMARY,
                       MotionClassification::NONE, mTransform, 2.0f, 2.1f,
                       AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                      AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                      ARBITRARY_DOWN_TIME, ARBITRARY_EVENT_TIME, 2, pointerProperties,
-                      pointerCoords);
+                      INVALID_DISPLAY_SIZE, INVALID_DISPLAY_SIZE, ARBITRARY_DOWN_TIME,
+                      ARBITRARY_EVENT_TIME, 2, pointerProperties, pointerCoords);
 
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 110);
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, 111);
@@ -593,9 +593,8 @@ TEST_F(MotionEventTest, Transform) {
                      AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
                      MotionClassification::NONE, identityTransform, 0 /*xPrecision*/,
                      0 /*yPrecision*/, 3 + RADIUS /*xCursorPosition*/, 2 /*yCursorPosition*/,
-                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                     0 /*downTime*/, 0 /*eventTime*/, pointerCount, pointerProperties,
-                     pointerCoords);
+                     INVALID_DISPLAY_SIZE, INVALID_DISPLAY_SIZE, 0 /*downTime*/, 0 /*eventTime*/,
+                     pointerCount, pointerProperties, pointerCoords);
     float originalRawX = 0 + 3;
     float originalRawY = -RADIUS + 2;
 
@@ -795,9 +794,9 @@ TEST_F(MotionEventTest, Initialize_SetsClassification) {
                          DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
                          AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0, classification,
                          identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                         AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                         AMOTION_EVENT_INVALID_DISPLAY_SIZE, 0 /*downTime*/, 0 /*eventTime*/,
-                         pointerCount, pointerProperties, pointerCoords);
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION, INVALID_DISPLAY_SIZE,
+                         INVALID_DISPLAY_SIZE, 0 /*downTime*/, 0 /*eventTime*/, pointerCount,
+                         pointerProperties, pointerCoords);
         ASSERT_EQ(classification, event.getClassification());
     }
 }
@@ -817,10 +816,9 @@ TEST_F(MotionEventTest, Initialize_SetsCursorPosition) {
     event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_MOUSE, DISPLAY_ID,
                      INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0, AMOTION_EVENT_EDGE_FLAG_NONE,
                      AMETA_NONE, 0, MotionClassification::NONE, identityTransform, 0, 0,
-                     280 /*xCursorPosition*/, 540 /*yCursorPosition*/,
-                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                     0 /*downTime*/, 0 /*eventTime*/, pointerCount, pointerProperties,
-                     pointerCoords);
+                     280 /*xCursorPosition*/, 540 /*yCursorPosition*/, INVALID_DISPLAY_SIZE,
+                     INVALID_DISPLAY_SIZE, 0 /*downTime*/, 0 /*eventTime*/, pointerCount,
+                     pointerProperties, pointerCoords);
     event.offsetLocation(20, 60);
     ASSERT_EQ(280, event.getRawXCursorPosition());
     ASSERT_EQ(540, event.getRawYCursorPosition());

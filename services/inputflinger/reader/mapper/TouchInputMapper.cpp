@@ -18,7 +18,7 @@
 #include "../Macros.h"
 // clang-format on
 
-#include <input/NamedEnum.h>
+#include <ftl/NamedEnum.h>
 #include "TouchInputMapper.h"
 
 #include "CursorButtonAccumulator.h"

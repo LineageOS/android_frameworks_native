@@ -21,7 +21,7 @@
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
-#include <input/Flags.h>
+#include <ftl/Flags.h>
 
 #include <string>
 

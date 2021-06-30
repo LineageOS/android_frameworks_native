@@ -11,25 +11,23 @@ package {
 cc_test {
     name: "libinput_tests",
     srcs: [
-        "NamedEnum_test.cpp",
-        "Flags_test.cpp",
         "IdGenerator_test.cpp",
         "InputChannel_test.cpp",
         "InputDevice_test.cpp",
         "InputEvent_test.cpp",
         "InputPublisherAndConsumer_test.cpp",
-        "InputWindow_test.cpp",
         "TouchVideoFrame_test.cpp",
         "VelocityTracker_test.cpp",
         "VerifiedInputEvent_test.cpp",
+    ],
+    static_libs: [
+        "libgui_window_info_static",
+        "libinput",
     ],
     cflags: [
         "-Wall",
         "-Wextra",
         "-Werror",
-    ],
-    static_libs: [
-        "libinput",
     ],
     shared_libs: [
         "libbase",
