@@ -22,7 +22,9 @@
 
 namespace android {
 
-class InputWindowHandle;
+namespace gui {
+class WindowInfoHandle;
+}
 
 namespace inputdispatcher {
 
@@ -40,14 +42,14 @@ struct TouchState {
     ~TouchState();
     void reset();
     void copyFrom(const TouchState& other);
-    void addOrUpdateWindow(const sp<android::InputWindowHandle>& windowHandle, int32_t targetFlags,
-                           BitSet32 pointerIds);
-    void addPortalWindow(const sp<android::InputWindowHandle>& windowHandle);
+    void addOrUpdateWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
+                           int32_t targetFlags, BitSet32 pointerIds);
+    void addPortalWindow(const sp<android::gui::WindowInfoHandle>& windowHandle);
     void addGestureMonitors(const std::vector<TouchedMonitor>& monitors);
     void removeWindowByToken(const sp<IBinder>& token);
     void filterNonAsIsTouchWindows();
     void filterNonMonitors();
-    sp<InputWindowHandle> getFirstForegroundWindowHandle() const;
+    sp<android::gui::WindowInfoHandle> getFirstForegroundWindowHandle() const;
     bool isSlippery() const;
 };
 

@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_WINDOW_H
-#define _UI_INPUT_WINDOW_H
+#pragma once
 
-#include <android/os/TouchOcclusionMode.h>
+#include <android/gui/TouchOcclusionMode.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
-#include <input/Flags.h>
-#include <input/Input.h>
-#include <input/InputTransport.h>
+#include <ftl/Flags.h>
+#include <gui/constants.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/Transform.h>
@@ -31,15 +29,13 @@
 
 #include "InputApplication.h"
 
-using android::os::TouchOcclusionMode;
-
-namespace android {
+namespace android::gui {
 
 /*
  * Describes the properties of a window that can receive input.
  */
-struct InputWindowInfo : public Parcelable {
-    InputWindowInfo() = default;
+struct WindowInfo : public Parcelable {
+    WindowInfo() = default;
 
     // Window flags from WindowManager.LayoutParams
     enum class Flag : uint32_t {
@@ -169,8 +165,8 @@ struct InputWindowInfo : public Parcelable {
     ui::Transform transform;
 
     // Display size in its natural rotation. Used to rotate raw coordinates for compatibility.
-    int32_t displayWidth = AMOTION_EVENT_INVALID_DISPLAY_SIZE;
-    int32_t displayHeight = AMOTION_EVENT_INVALID_DISPLAY_SIZE;
+    int32_t displayWidth = 0;
+    int32_t displayHeight = 0;
 
     /*
      * This is filled in by the WM relative to the frame and then translated
@@ -206,9 +202,9 @@ struct InputWindowInfo : public Parcelable {
 
     bool supportsSplitTouch() const;
 
-    bool overlaps(const InputWindowInfo* other) const;
+    bool overlaps(const WindowInfo* other) const;
 
-    bool operator==(const InputWindowInfo& inputChannel) const;
+    bool operator==(const WindowInfo& inputChannel) const;
 
     status_t writeToParcel(android::Parcel* parcel) const override;
 
@@ -221,13 +217,13 @@ struct InputWindowInfo : public Parcelable {
  * Used by the native input dispatcher to indirectly refer to the window manager objects
  * that describe a window.
  */
-class InputWindowHandle : public RefBase {
+class WindowInfoHandle : public RefBase {
 public:
-    explicit InputWindowHandle();
-    InputWindowHandle(const InputWindowHandle& other);
-    InputWindowHandle(const InputWindowInfo& other);
+    explicit WindowInfoHandle();
+    WindowInfoHandle(const WindowInfoHandle& other);
+    WindowInfoHandle(const WindowInfo& other);
 
-    inline const InputWindowInfo* getInfo() const { return &mInfo; }
+    inline const WindowInfo* getInfo() const { return &mInfo; }
 
     sp<IBinder> getToken() const;
 
@@ -257,7 +253,7 @@ public:
     /**
      * Updates from another input window handle.
      */
-    void updateFrom(const sp<InputWindowHandle> handle);
+    void updateFrom(const sp<WindowInfoHandle> handle);
 
     /**
      * Releases the channel used by the associated information when it is
@@ -270,10 +266,8 @@ public:
     status_t writeToParcel(android::Parcel* parcel) const;
 
 protected:
-    virtual ~InputWindowHandle();
+    virtual ~WindowInfoHandle();
 
-    InputWindowInfo mInfo;
+    WindowInfo mInfo;
 };
-} // namespace android
-
-#endif // _UI_INPUT_WINDOW_H
+} // namespace android::gui

@@ -22,7 +22,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <input/Flags.h>
+#include <ftl/Flags.h>
 #include <filesystem>
 
 #include <batteryservice/BatteryService.h>

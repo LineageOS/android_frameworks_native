@@ -38,7 +38,7 @@
 using namespace std::chrono_literals;
 
 namespace {
-inline const char* toString(bool b) {
+inline const char* boolToString(bool b) {
     return b ? "true" : "false";
 }
 } // namespace
@@ -513,7 +513,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     BQA_LOGV("processNextBufferLocked size=%dx%d mFrameNumber=%" PRIu64
              " applyTransaction=%s mTimestamp=%" PRId64 "%s mPendingTransactions.size=%d"
              " graphicBufferId=%" PRIu64 "%s",
-             mSize.width, mSize.height, bufferItem.mFrameNumber, toString(applyTransaction),
+             mSize.width, mSize.height, bufferItem.mFrameNumber, boolToString(applyTransaction),
              bufferItem.mTimestamp, bufferItem.mIsAutoTimestamp ? "(auto)" : "",
              static_cast<uint32_t>(mPendingTransactions.size()), bufferItem.mGraphicBuffer->getId(),
              bufferItem.mAutoRefresh ? " mAutoRefresh" : "");
@@ -543,7 +543,7 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
                mNumFrameAvailable + mNumAcquired - mPendingRelease.size());
 
     BQA_LOGV("onFrameAvailable framenumber=%" PRIu64 " nextTransactionSet=%s", item.mFrameNumber,
-             toString(nextTransactionSet));
+             boolToString(nextTransactionSet));
     processNextBufferLocked(nextTransactionSet /* useNextTransaction */);
 }
 

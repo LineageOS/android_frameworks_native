@@ -105,12 +105,12 @@ public:
 
     status_t dump(int fd, const Vector<String16>& args) override;
     binder::Status setInputWindows(
-            const std::vector<InputWindowInfo>& handles,
+            const std::vector<gui::WindowInfo>& handles,
             const sp<ISetInputWindowsListener>& setInputWindowsListener) override;
 
     binder::Status createInputChannel(const std::string& name, InputChannel* outChannel) override;
     binder::Status removeInputChannel(const sp<IBinder>& connectionToken) override;
-    binder::Status setFocusedWindow(const FocusRequest&) override;
+    binder::Status setFocusedWindow(const gui::FocusRequest&) override;
 
 private:
     sp<InputReaderInterface> mReader;
