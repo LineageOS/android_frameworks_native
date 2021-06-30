@@ -26,14 +26,12 @@
 #include <gui/ITransactionCompletedListener.h>
 #include <math/mat4.h>
 
-#ifndef NO_INPUT
-#include <android/FocusRequest.h>
-#include <input/InputWindow.h>
-#endif
+#include <android/gui/FocusRequest.h>
 
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerMetadata.h>
 #include <gui/SurfaceControl.h>
+#include <gui/WindowInfo.h>
 #include <math/vec3.h>
 #include <ui/BlurRegion.h>
 #include <ui/GraphicTypes.h>
@@ -176,9 +174,7 @@ struct layer_state_t {
     mat4 colorTransform;
     std::vector<BlurRegion> blurRegions;
 
-#ifndef NO_INPUT
-    sp<InputWindowHandle> inputHandle = new InputWindowHandle();
-#endif
+    sp<gui::WindowInfoHandle> windowInfoHandle = new gui::WindowInfoHandle();
 
     client_cache_t cachedBuffer;
 
@@ -288,9 +284,7 @@ struct DisplayState {
 };
 
 struct InputWindowCommands {
-#ifndef NO_INPUT
-    std::vector<FocusRequest> focusRequests;
-#endif
+    std::vector<gui::FocusRequest> focusRequests;
     bool syncInputWindows{false};
 
     // Merges the passed in commands and returns true if there were any changes.

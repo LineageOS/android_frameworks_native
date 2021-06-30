@@ -21,7 +21,7 @@
 #include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
-#include <input/InputWindow.h>
+#include <gui/WindowInfo.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <math/vec4.h>
 #include <renderengine/Mesh.h>
@@ -186,7 +186,7 @@ public:
         float cornerRadius;
         int backgroundBlurRadius;
 
-        InputWindowInfo inputInfo;
+        gui::WindowInfo inputInfo;
         wp<Layer> touchableRegionCrop;
 
         // dataspace is only used by BufferStateLayer and EffectLayer
@@ -686,7 +686,7 @@ public:
     void writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet,
                                  uint32_t traceFlags = SurfaceTracing::TRACE_ALL);
 
-    InputWindowInfo::Type getWindowType() const { return mWindowType; }
+    gui::WindowInfo::Type getWindowType() const { return mWindowType; }
 
     bool getPrimaryDisplayOnly() const;
 
@@ -838,9 +838,9 @@ public:
     sp<IBinder> getHandle();
     const std::string& getName() const { return mName; }
     bool getPremultipledAlpha() const;
-    void setInputInfo(const InputWindowInfo& info);
+    void setInputInfo(const gui::WindowInfo& info);
 
-    InputWindowInfo fillInputInfo(const sp<DisplayDevice>& display);
+    gui::WindowInfo fillInputInfo(const sp<DisplayDevice>& display);
     /**
      * Returns whether this layer has an explicitly set input-info.
      */
@@ -1003,7 +1003,7 @@ protected:
     wp<Layer> mDrawingParent;
 
     // Window types from WindowManager.LayoutParams
-    const InputWindowInfo::Type mWindowType;
+    const gui::WindowInfo::Type mWindowType;
 
     // The owner of the layer. If created from a non system process, it will be the calling uid.
     // If created from a system process, the value can be passed in.
@@ -1054,10 +1054,10 @@ private:
 
     // Fills in the touch occlusion mode of the first parent (including this layer) that
     // hasInputInfo() or no-op if no such parent is found.
-    void fillTouchOcclusionMode(InputWindowInfo& info);
+    void fillTouchOcclusionMode(gui::WindowInfo& info);
 
-    // Fills in the frame and transform info for the InputWindowInfo
-    void fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhysicalDisplay);
+    // Fills in the frame and transform info for the gui::WindowInfo
+    void fillInputFrameInfo(gui::WindowInfo& info, const ui::Transform& toPhysicalDisplay);
 
     bool updateFrameRateForLayerTree(bool treeHasFrameRateVote);
 

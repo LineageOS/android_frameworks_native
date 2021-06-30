@@ -37,10 +37,10 @@
 
 #include <attestation/HmacKeyManager.h>
 #include <com/android/internal/compat/IPlatformCompatNative.h>
+#include <gui/InputApplication.h>
+#include <gui/WindowInfo.h>
 #include <input/Input.h>
-#include <input/InputApplication.h>
 #include <input/InputTransport.h>
-#include <input/InputWindow.h>
 #include <limits.h>
 #include <stddef.h>
 #include <ui/Region.h>
@@ -109,8 +109,9 @@ public:
 
     std::unique_ptr<VerifiedInputEvent> verifyInputEvent(const InputEvent& event) override;
 
-    void setInputWindows(const std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>>&
-                                 handlesPerDisplay) override;
+    void setInputWindows(
+            const std::unordered_map<int32_t, std::vector<sp<android::gui::WindowInfoHandle>>>&
+                    handlesPerDisplay) override;
     void setFocusedApplication(
             int32_t displayId,
             const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) override;
@@ -127,7 +128,7 @@ public:
 
     base::Result<std::unique_ptr<InputChannel>> createInputChannel(
             const std::string& name) override;
-    void setFocusedWindow(const FocusRequest&) override;
+    void setFocusedWindow(const android::gui::FocusRequest&) override;
     base::Result<std::unique_ptr<InputChannel>> createInputMonitor(int32_t displayId,
                                                                    bool isGestureMonitor,
                                                                    const std::string& name,
@@ -190,8 +191,8 @@ private:
     void enqueueFocusEventLocked(const sp<IBinder>& windowToken, bool hasFocus,
                                  const std::string& reason) REQUIRES(mLock);
     // Enqueues a drag event.
-    void enqueueDragEventLocked(const sp<InputWindowHandle>& windowToken, bool isExiting,
-                                const MotionEntry& motionEntry) REQUIRES(mLock);
+    void enqueueDragEventLocked(const sp<android::gui::WindowInfoHandle>& windowToken,
+                                bool isExiting, const MotionEntry& motionEntry) REQUIRES(mLock);
 
     // Adds an event to a queue of recent events for debugging purposes.
     void addRecentEventLocked(std::shared_ptr<EventEntry> entry) REQUIRES(mLock);
@@ -208,11 +209,12 @@ private:
     // to transfer focus to a new application.
     std::shared_ptr<EventEntry> mNextUnblockedEvent GUARDED_BY(mLock);
 
-    sp<InputWindowHandle> findTouchedWindowAtLocked(int32_t displayId, int32_t x, int32_t y,
-                                                    TouchState* touchState,
-                                                    bool addOutsideTargets = false,
-                                                    bool addPortalWindows = false,
-                                                    bool ignoreDragWindow = false) REQUIRES(mLock);
+    sp<android::gui::WindowInfoHandle> findTouchedWindowAtLocked(int32_t displayId, int32_t x,
+                                                                 int32_t y, TouchState* touchState,
+                                                                 bool addOutsideTargets = false,
+                                                                 bool addPortalWindows = false,
+                                                                 bool ignoreDragWindow = false)
+            REQUIRES(mLock);
 
     sp<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) const
             REQUIRES(mLock);
@@ -314,33 +316,36 @@ private:
     float mMaximumObscuringOpacityForTouch GUARDED_BY(mLock);
     android::os::BlockUntrustedTouchesMode mBlockUntrustedTouchesMode GUARDED_BY(mLock);
 
-    std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>> mWindowHandlesByDisplay
-            GUARDED_BY(mLock);
-    void setInputWindowsLocked(const std::vector<sp<InputWindowHandle>>& inputWindowHandles,
-                               int32_t displayId) REQUIRES(mLock);
+    std::unordered_map<int32_t, std::vector<sp<android::gui::WindowInfoHandle>>>
+            mWindowHandlesByDisplay GUARDED_BY(mLock);
+    void setInputWindowsLocked(
+            const std::vector<sp<android::gui::WindowInfoHandle>>& inputWindowHandles,
+            int32_t displayId) REQUIRES(mLock);
     // Get a reference to window handles by display, return an empty vector if not found.
-    const std::vector<sp<InputWindowHandle>>& getWindowHandlesLocked(int32_t displayId) const
-            REQUIRES(mLock);
-    sp<InputWindowHandle> getWindowHandleLocked(const sp<IBinder>& windowHandleToken) const
-            REQUIRES(mLock);
+    const std::vector<sp<android::gui::WindowInfoHandle>>& getWindowHandlesLocked(
+            int32_t displayId) const REQUIRES(mLock);
+    sp<android::gui::WindowInfoHandle> getWindowHandleLocked(
+            const sp<IBinder>& windowHandleToken) const REQUIRES(mLock);
 
     // Same function as above, but faster. Since displayId is provided, this avoids the need
     // to loop through all displays.
-    sp<InputWindowHandle> getWindowHandleLocked(const sp<IBinder>& windowHandleToken,
-                                                int displayId) const REQUIRES(mLock);
-    sp<InputWindowHandle> getWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const
-            REQUIRES(mLock);
+    sp<android::gui::WindowInfoHandle> getWindowHandleLocked(const sp<IBinder>& windowHandleToken,
+                                                             int displayId) const REQUIRES(mLock);
+    sp<android::gui::WindowInfoHandle> getWindowHandleLocked(
+            const sp<android::gui::WindowInfoHandle>& windowHandle) const REQUIRES(mLock);
     std::shared_ptr<InputChannel> getInputChannelLocked(const sp<IBinder>& windowToken) const
             REQUIRES(mLock);
-    sp<InputWindowHandle> getFocusedWindowHandleLocked(int displayId) const REQUIRES(mLock);
-    bool hasResponsiveConnectionLocked(InputWindowHandle& windowHandle) const REQUIRES(mLock);
+    sp<android::gui::WindowInfoHandle> getFocusedWindowHandleLocked(int displayId) const
+            REQUIRES(mLock);
+    bool hasResponsiveConnectionLocked(android::gui::WindowInfoHandle& windowHandle) const
+            REQUIRES(mLock);
 
     /*
      * Validate and update InputWindowHandles for a given display.
      */
     void updateWindowHandlesForDisplayLocked(
-            const std::vector<sp<InputWindowHandle>>& inputWindowHandles, int32_t displayId)
-            REQUIRES(mLock);
+            const std::vector<sp<android::gui::WindowInfoHandle>>& inputWindowHandles,
+            int32_t displayId) REQUIRES(mLock);
 
     std::unordered_map<int32_t, TouchState> mTouchStatesByDisplay GUARDED_BY(mLock);
     std::unique_ptr<DragState> mDragState GUARDED_BY(mLock);
@@ -471,7 +476,7 @@ private:
     AnrTracker mAnrTracker GUARDED_BY(mLock);
 
     // Contains the last window which received a hover event.
-    sp<InputWindowHandle> mLastHoverWindowHandle GUARDED_BY(mLock);
+    sp<android::gui::WindowInfoHandle> mLastHoverWindowHandle GUARDED_BY(mLock);
 
     void cancelEventsForAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
     nsecs_t getTimeSpentWaitingForApplicationLocked(nsecs_t currentTime) REQUIRES(mLock);
@@ -490,20 +495,21 @@ private:
             nsecs_t currentTime, const MotionEntry& entry, std::vector<InputTarget>& inputTargets,
             nsecs_t* nextWakeupTime, bool* outConflictingPointerActions) REQUIRES(mLock);
     std::vector<TouchedMonitor> findTouchedGestureMonitorsLocked(
-            int32_t displayId, const std::vector<sp<InputWindowHandle>>& portalWindows) const
+            int32_t displayId,
+            const std::vector<sp<android::gui::WindowInfoHandle>>& portalWindows) const
             REQUIRES(mLock);
     std::vector<TouchedMonitor> selectResponsiveMonitorsLocked(
             const std::vector<TouchedMonitor>& gestureMonitors) const REQUIRES(mLock);
 
-    void addWindowTargetLocked(const sp<InputWindowHandle>& windowHandle, int32_t targetFlags,
-                               BitSet32 pointerIds, std::vector<InputTarget>& inputTargets)
-            REQUIRES(mLock);
+    void addWindowTargetLocked(const sp<android::gui::WindowInfoHandle>& windowHandle,
+                               int32_t targetFlags, BitSet32 pointerIds,
+                               std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
     void addMonitoringTargetLocked(const Monitor& monitor, float xOffset, float yOffset,
                                    std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
     void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId,
                                           float xOffset = 0, float yOffset = 0) REQUIRES(mLock);
     void pokeUserActivityLocked(const EventEntry& eventEntry) REQUIRES(mLock);
-    bool checkInjectionPermission(const sp<InputWindowHandle>& windowHandle,
+    bool checkInjectionPermission(const sp<android::gui::WindowInfoHandle>& windowHandle,
                                   const InjectionState* injectionState);
     // Enqueue a drag event if needed, and update the touch state.
     // Uses findTouchedWindowTargetsLocked to make the decision
@@ -518,15 +524,18 @@ private:
         std::vector<std::string> debugInfo;
     };
 
-    TouchOcclusionInfo computeTouchOcclusionInfoLocked(const sp<InputWindowHandle>& windowHandle,
-                                                       int32_t x, int32_t y) const REQUIRES(mLock);
+    TouchOcclusionInfo computeTouchOcclusionInfoLocked(
+            const sp<android::gui::WindowInfoHandle>& windowHandle, int32_t x, int32_t y) const
+            REQUIRES(mLock);
     bool isTouchTrustedLocked(const TouchOcclusionInfo& occlusionInfo) const REQUIRES(mLock);
-    bool isWindowObscuredAtPointLocked(const sp<InputWindowHandle>& windowHandle, int32_t x,
-                                       int32_t y) const REQUIRES(mLock);
-    bool isWindowObscuredLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);
-    std::string dumpWindowForTouchOcclusion(const InputWindowInfo* info, bool isTouchWindow) const;
+    bool isWindowObscuredAtPointLocked(const sp<android::gui::WindowInfoHandle>& windowHandle,
+                                       int32_t x, int32_t y) const REQUIRES(mLock);
+    bool isWindowObscuredLocked(const sp<android::gui::WindowInfoHandle>& windowHandle) const
+            REQUIRES(mLock);
+    std::string dumpWindowForTouchOcclusion(const android::gui::WindowInfo* info,
+                                            bool isTouchWindow) const;
     std::string getApplicationWindowLabel(const InputApplicationHandle* applicationHandle,
-                                          const sp<InputWindowHandle>& windowHandle);
+                                          const sp<android::gui::WindowInfoHandle>& windowHandle);
 
     // Manage the dispatch cycle for a single connection.
     // These methods are deliberately not Interruptible because doing all of the work
@@ -605,8 +614,8 @@ private:
     void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
     void onAnrLocked(std::shared_ptr<InputApplicationHandle> application) REQUIRES(mLock);
     void onUntrustedTouchLocked(const std::string& obscuringPackage) REQUIRES(mLock);
-    void updateLastAnrStateLocked(const sp<InputWindowHandle>& window, const std::string& reason)
-            REQUIRES(mLock);
+    void updateLastAnrStateLocked(const sp<android::gui::WindowInfoHandle>& window,
+                                  const std::string& reason) REQUIRES(mLock);
     void updateLastAnrStateLocked(const InputApplicationHandle& application,
                                   const std::string& reason) REQUIRES(mLock);
     void updateLastAnrStateLocked(const std::string& windowLabel, const std::string& reason)

@@ -159,6 +159,7 @@ using namespace android::sysprop;
 
 using android::hardware::power::Boost;
 using base::StringAppendF;
+using gui::WindowInfo;
 using ui::ColorMode;
 using ui::Dataspace;
 using ui::DisplayPrimaries;
@@ -3078,7 +3079,7 @@ bool enablePerWindowInputRotation() {
 }
 
 void SurfaceFlinger::updateInputWindowInfo() {
-    std::vector<InputWindowInfo> inputInfos;
+    std::vector<WindowInfo> inputInfos;
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (!layer->needsInputInfo()) return;
@@ -4105,10 +4106,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     if (what & layer_state_t::eInputInfoChanged) {
         if (privileged) {
-            layer->setInputInfo(*s.inputHandle->getInfo());
+            layer->setInputInfo(*s.windowInfoHandle->getInfo());
             flags |= eTraversalNeeded;
         } else {
-            ALOGE("Attempt to update InputWindowInfo without permission ACCESS_SURFACE_FLINGER");
+            ALOGE("Attempt to update WindowInfo without permission ACCESS_SURFACE_FLINGER");
         }
     }
     std::optional<nsecs_t> dequeueBufferTimestamp;

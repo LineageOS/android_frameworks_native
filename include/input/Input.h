@@ -106,15 +106,6 @@ constexpr int32_t VERIFIED_MOTION_EVENT_FLAGS =
 constexpr int32_t AMOTION_EVENT_FLAG_CANCELED = 0x20;
 
 enum {
-    /* Used when a motion event is not associated with any display.
-     * Typically used for non-pointer events. */
-    ADISPLAY_ID_NONE = -1,
-
-    /* The default display id. */
-    ADISPLAY_ID_DEFAULT = 0,
-};
-
-enum {
     /*
      * Indicates that an input device has switches.
      * This input source flag is hidden from the API because switches are only used by the system
@@ -337,12 +328,6 @@ private:
  * IEEE 754. Use isnan() instead to check if a cursor position is valid.
  */
 constexpr float AMOTION_EVENT_INVALID_CURSOR_POSITION = std::numeric_limits<float>::quiet_NaN();
-
-/**
- * Invalid value for display size. Used when display size isn't available for an event or doesn't
- * matter. This is just a constant 0 so that it has no effect if unused.
- */
-constexpr int32_t AMOTION_EVENT_INVALID_DISPLAY_SIZE = 0;
 
 /*
  * Pointer coordinate data.

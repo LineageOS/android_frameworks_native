@@ -16,9 +16,7 @@
 
 #include "DragState.h"
 #include <android-base/stringprintf.h>
-#include <input/InputWindow.h>
 
-using android::InputWindowHandle;
 using android::base::StringPrintf;
 
 namespace android::inputdispatcher {
