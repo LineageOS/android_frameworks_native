@@ -254,6 +254,7 @@ void Layer::addToCurrentState() {
     if (mRemovedFromDrawingState) {
         mRemovedFromDrawingState = false;
         mFlinger->mScheduler->registerLayer(this);
+        mFlinger->removeFromOffscreenLayers(this);
     }
 
     for (const auto& child : mCurrentChildren) {
