@@ -99,6 +99,9 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
     LayerSettings layer{
             .geometry =
                     Geometry{
+                            // The position transform doesn't matter when the reduced shader mode
+                            // in in effect. A matrix transform stage is always included.
+                            .positionTransform = mat4(),
                             .boundaries = rect,
                             .roundedCornersCrop = rect,
                     },
@@ -109,29 +112,18 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
                                           }},
     };
 
-    auto threeCornerRadii = {0.0f, 0.05f, 50.f};
-    auto oneCornerRadius = {50.f};
-
-    // Test both drawRect and drawRRect
     auto layers = std::vector<const LayerSettings*>{&layer};
     for (auto dataspace : {kDestDataSpace, kOtherDataSpace}) {
         layer.sourceDataspace = dataspace;
-        for (bool identity : {true, false}) {
-            layer.geometry.positionTransform = identity ? mat4() : kScaleAndTranslate;
-            // Corner radii less than 0.5 creates a special shader. This likely occurs in real usage
-            // due to animating corner radius.
-            // For the non-idenity matrix, only the large corner radius will create a new shader.
-            for (float roundedCornersRadius : identity ? threeCornerRadii : oneCornerRadius) {
-                // roundedCornersCrop is always set, but it is this radius that triggers the
-                // behavior
-                layer.geometry.roundedCornersRadius = roundedCornersRadius;
-                for (bool isOpaque : {true, false}) {
-                    layer.source.buffer.isOpaque = isOpaque;
-                    for (auto alpha : {half(.23999f), half(1.0f)}) {
-                        layer.alpha = alpha;
-                        renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                                 base::unique_fd(), nullptr);
-                    }
+        for (float roundedCornersRadius : {0.0f, 50.0f}) {
+            // roundedCornersCrop is always set, but the radius triggers the behavior
+            layer.geometry.roundedCornersRadius = roundedCornersRadius;
+            for (bool isOpaque : {true, false}) {
+                layer.source.buffer.isOpaque = isOpaque;
+                for (auto alpha : {half(.2f), half(1.0f)}) {
+                    layer.alpha = alpha;
+                    renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
+                                             base::unique_fd(), nullptr);
                 }
             }
         }
@@ -157,7 +149,7 @@ static void drawSolidLayers(SkiaRenderEngine* renderengine, const DisplaySetting
     auto layers = std::vector<const LayerSettings*>{&layer};
     for (auto transform : {mat4(), kScaleAndTranslate}) {
         layer.geometry.positionTransform = transform;
-        for (float roundedCornersRadius : {0.0f, 0.05f, 50.f}) {
+        for (float roundedCornersRadius : {0.0f, 50.f}) {
             layer.geometry.roundedCornersRadius = roundedCornersRadius;
             renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
                                      base::unique_fd(), nullptr);
@@ -295,34 +287,37 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
                                                   ExternalTexture::Usage::READABLE |
                                                           ExternalTexture::Usage::WRITEABLE);
 
-        // 6 shaders
         drawSolidLayers(renderengine, display, dstTexture);
-        // 8 shaders
         drawShadowLayers(renderengine, display, srcTexture);
 
         if (renderengine->supportsBackgroundBlur()) {
-            // 2 shaders
             drawBlurLayers(renderengine, display, dstTexture);
         }
 
-        // The majority of shaders are related to sampling images.
-        drawImageLayers(renderengine, display, dstTexture, srcTexture);
-
         // should be the same as AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
         const int64_t usageExternal = GRALLOC_USAGE_HW_TEXTURE;
-
         sp<GraphicBuffer> externalBuffer =
                 new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888,
                                   1, usageExternal, "primeShaderCache_external");
         const auto externalTexture =
                 std::make_shared<ExternalTexture>(externalBuffer, *renderengine,
                                                   ExternalTexture::Usage::READABLE);
-        // TODO(b/184665179) doubles number of image shader compilations, but only somewhere
-        // between 6 and 8 will occur in real uses.
-        drawImageLayers(renderengine, display, dstTexture, externalTexture);
 
-        // Draw layers for b/185569240.
-        drawClippedLayers(renderengine, display, dstTexture, externalTexture);
+        // Another external texture with a different pixel format triggers useIsOpaqueWorkaround
+        sp<GraphicBuffer> f16ExternalBuffer =
+                new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_FP16,
+                                  1, usageExternal, "primeShaderCache_external_f16");
+        const auto f16ExternalTexture =
+                std::make_shared<ExternalTexture>(f16ExternalBuffer, *renderengine,
+                                                  ExternalTexture::Usage::READABLE);
+
+        // The majority of shaders are related to sampling images.
+        // These need to be generated with various source textures
+        for (auto texture : {srcTexture, externalTexture, f16ExternalTexture}) {
+            drawImageLayers(renderengine, display, dstTexture, texture);
+            // Draw layers for b/185569240.
+            drawClippedLayers(renderengine, display, dstTexture, texture);
+        }
 
         const nsecs_t timeAfter = systemTime();
         const float compileTimeMs = static_cast<float>(timeAfter - timeBefore) / 1.0E6;
