@@ -39,13 +39,10 @@
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
+#include <gui/WindowInfo.h>
 #include <private/gui/ParcelUtils.h>
 #include <ui/DisplayMode.h>
 #include <ui/DynamicDisplayInfo.h>
-
-#ifndef NO_INPUT
-#include <input/InputWindow.h>
-#endif
 
 #include <private/gui/ComposerService.h>
 
@@ -54,6 +51,9 @@
 
 namespace android {
 
+using gui::FocusRequest;
+using gui::WindowInfo;
+using gui::WindowInfoHandle;
 using ui::ColorMode;
 // ---------------------------------------------------------------------------
 
@@ -1491,16 +1491,14 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrame
     return *this;
 }
 
-#ifndef NO_INPUT
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setInputWindowInfo(
-        const sp<SurfaceControl>& sc,
-        const InputWindowInfo& info) {
+        const sp<SurfaceControl>& sc, const WindowInfo& info) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
-    s->inputHandle = new InputWindowHandle(info);
+    s->windowInfoHandle = new WindowInfoHandle(info);
     s->what |= layer_state_t::eInputInfoChanged;
     return *this;
 }
@@ -1515,8 +1513,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::syncInpu
     mInputWindowCommands.syncInputWindows = true;
     return *this;
 }
-
-#endif
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColorTransform(
     const sp<SurfaceControl>& sc, const mat3& matrix, const vec3& translation) {

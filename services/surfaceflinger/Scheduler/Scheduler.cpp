@@ -25,7 +25,7 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
-#include <input/InputWindow.h>
+#include <gui/WindowInfo.h>
 #include <system/window.h>
 #include <ui/DisplayStatInfo.h>
 #include <utils/Timers.h>
@@ -63,6 +63,8 @@
 using namespace std::string_literals;
 
 namespace android {
+
+using gui::WindowInfo;
 
 namespace {
 
@@ -579,10 +581,9 @@ void Scheduler::setIgnorePresentFences(bool ignore) {
 void Scheduler::registerLayer(Layer* layer) {
     scheduler::LayerHistory::LayerVoteType voteType;
 
-    if (!mOptions.useContentDetection ||
-        layer->getWindowType() == InputWindowInfo::Type::STATUS_BAR) {
+    if (!mOptions.useContentDetection || layer->getWindowType() == WindowInfo::Type::STATUS_BAR) {
         voteType = scheduler::LayerHistory::LayerVoteType::NoVote;
-    } else if (layer->getWindowType() == InputWindowInfo::Type::WALLPAPER) {
+    } else if (layer->getWindowType() == WindowInfo::Type::WALLPAPER) {
         // Running Wallpaper at Min is considered as part of content detection.
         voteType = scheduler::LayerHistory::LayerVoteType::Min;
     } else {

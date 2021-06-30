@@ -126,6 +126,11 @@ bool BufferQueueLayer::isBufferDue(nsecs_t expectedPresentTime) const {
 
 bool BufferQueueLayer::fenceHasSignaled() const {
     Mutex::Autolock lock(mQueueItemLock);
+
+    if (SurfaceFlinger::enableLatchUnsignaled) {
+        return true;
+    }
+
     if (!hasFrameUpdate()) {
         return true;
     }

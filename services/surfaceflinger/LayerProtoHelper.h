@@ -17,7 +17,7 @@
 #include <layerproto/LayerProtoHeader.h>
 
 #include <Layer.h>
-#include <input/InputWindow.h>
+#include <gui/WindowInfo.h>
 #include <math/vec4.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
@@ -40,7 +40,7 @@ public:
     static void writeToProto(const ui::Transform& transform, TransformProto* transformProto);
     static void writeToProto(const sp<GraphicBuffer>& buffer,
                              std::function<ActiveBufferProto*()> getActiveBufferProto);
-    static void writeToProto(const InputWindowInfo& inputInfo,
+    static void writeToProto(const gui::WindowInfo& inputInfo,
                              const wp<Layer>& touchableRegionBounds,
                              std::function<InputWindowInfoProto*()> getInputWindowInfoProto);
     static void writeToProto(const mat4 matrix, ColorTransformProto* colorTransformProto);

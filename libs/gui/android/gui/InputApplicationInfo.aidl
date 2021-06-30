@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android;
+package android.gui;
 
 parcelable InputApplicationInfo {
     @nullable IBinder token;

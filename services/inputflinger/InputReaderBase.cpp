@@ -19,9 +19,9 @@
 //#define LOG_NDEBUG 0
 
 #include "InputReaderBase.h"
+#include <ftl/NamedEnum.h>
 #include "input/DisplayViewport.h"
 #include "input/Input.h"
-#include "input/NamedEnum.h"
 
 #include <android/log.h>
 #include <android-base/stringprintf.h>

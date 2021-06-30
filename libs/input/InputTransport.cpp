@@ -33,8 +33,8 @@ static constexpr bool DEBUG_TRANSPORT_ACTIONS = false;
 #include <log/log.h>
 #include <utils/Trace.h>
 
+#include <ftl/NamedEnum.h>
 #include <input/InputTransport.h>
-#include <input/NamedEnum.h>
 
 using android::base::StringPrintf;
 

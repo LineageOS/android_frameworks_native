@@ -15,7 +15,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <input/NamedEnum.h>
+#include <ftl/NamedEnum.h>
 
 namespace android {
 

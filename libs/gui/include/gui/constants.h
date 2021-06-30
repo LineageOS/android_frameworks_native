@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,22 +16,22 @@
 
 #pragma once
 
-#include <gmock/gmock.h>
+#include <stdint.h>
 
-#include "DisplayHardware/PowerAdvisor.h"
+namespace android {
 
-namespace android::Hwc2::mock {
+/**
+ * Invalid value for display size. Used when display size isn't available.
+ */
+constexpr int32_t INVALID_DISPLAY_SIZE = 0;
 
-class PowerAdvisor : public android::Hwc2::PowerAdvisor {
-public:
-    PowerAdvisor();
-    ~PowerAdvisor() override;
+enum {
+    /* Used when an event is not associated with any display.
+     * Typically used for non-pointer events. */
+    ADISPLAY_ID_NONE = -1,
 
-    MOCK_METHOD0(init, void());
-    MOCK_METHOD0(onBootFinished, void());
-    MOCK_METHOD2(setExpensiveRenderingExpected, void(DisplayId displayId, bool expected));
-    MOCK_METHOD0(isUsingExpensiveRendering, bool());
-    MOCK_METHOD0(notifyDisplayUpdateImminent, void());
+    /* The default display id. */
+    ADISPLAY_ID_DEFAULT = 0,
 };
 
-} // namespace android::Hwc2::mock
+} // namespace android

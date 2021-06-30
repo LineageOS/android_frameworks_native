@@ -15,7 +15,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <input/Flags.h>
+#include <ftl/Flags.h>
 
 #include <type_traits>
 
