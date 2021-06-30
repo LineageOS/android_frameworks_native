@@ -81,6 +81,7 @@ public:
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
                         .setRenderEngineType(type())
+                        .setUseColorManagerment(useColorManagement())
                         .build();
         return renderengine::gl::GLESRenderEngine::create(reCreationArgs);
     }
@@ -110,7 +111,7 @@ public:
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
                         .setRenderEngineType(type())
-                        .setUseColorManagerment(true)
+                        .setUseColorManagerment(useColorManagement())
                         .build();
         return renderengine::gl::GLESRenderEngine::create(reCreationArgs);
     }
@@ -136,16 +137,12 @@ public:
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
                         .setRenderEngineType(type())
-                        // FIXME (b/189935602): This version is currently color managed.
-                        // We should change it and fix the tests that fail.
-                        //.setUseColorManagerment(false)
+                        .setUseColorManagerment(useColorManagement())
                         .build();
         return renderengine::skia::SkiaGLRenderEngine::create(reCreationArgs);
     }
 
-    // FIXME (b/189935602): This version is currently color managed.
-    // We should change it and fix the tests that fail.
-    bool useColorManagement() const override { return true; }
+    bool useColorManagement() const override { return false; }
 };
 
 class SkiaGLESCMRenderEngineFactory : public RenderEngineFactory {
@@ -166,7 +163,7 @@ public:
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
                         .setRenderEngineType(type())
-                        .setUseColorManagerment(true)
+                        .setUseColorManagerment(useColorManagement())
                         .build();
         return renderengine::skia::SkiaGLRenderEngine::create(reCreationArgs);
     }
