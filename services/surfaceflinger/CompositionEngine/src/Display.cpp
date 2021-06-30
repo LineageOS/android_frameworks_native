@@ -229,7 +229,8 @@ void Display::chooseCompositionStrategy() {
     auto& hwc = getCompositionEngine().getHwComposer();
     if (status_t result =
                 hwc.getDeviceCompositionChanges(*halDisplayId, anyLayersRequireClientComposition(),
-                                                getState().earliestPresentTime, &changes);
+                                                getState().earliestPresentTime,
+                                                getState().previousPresentFence, &changes);
         result != NO_ERROR) {
         ALOGE("chooseCompositionStrategy failed for %s: %d (%s)", getName().c_str(), result,
               strerror(-result));
@@ -330,7 +331,8 @@ compositionengine::Output::FrameFences Display::presentAndGetFrameFences() {
     }
 
     auto& hwc = getCompositionEngine().getHwComposer();
-    hwc.presentAndGetReleaseFences(*halDisplayIdOpt, getState().earliestPresentTime);
+    hwc.presentAndGetReleaseFences(*halDisplayIdOpt, getState().earliestPresentTime,
+                                   getState().previousPresentFence);
 
     fences.presentFence = hwc.getPresentFence(*halDisplayIdOpt);
 
