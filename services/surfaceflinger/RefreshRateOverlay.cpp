@@ -240,8 +240,11 @@ RefreshRateOverlay::getOrCreateBuffers(uint32_t fps) {
 }
 
 void RefreshRateOverlay::setViewport(ui::Size viewport) {
-    Rect frame((3 * viewport.width) >> 4, viewport.height >> 5);
-    frame.offsetBy(viewport.width >> 5, viewport.height >> 4);
+    constexpr int32_t kMaxWidth = 1000;
+    const auto width = std::min(kMaxWidth, std::min(viewport.width, viewport.height));
+    const auto height = 2 * width;
+    Rect frame((3 * width) >> 4, height >> 5);
+    frame.offsetBy(width >> 5, height >> 4);
 
     layer_state_t::matrix22_t matrix;
     matrix.dsdx = frame.getWidth() / static_cast<float>(SevenSegmentDrawer::getWidth());
