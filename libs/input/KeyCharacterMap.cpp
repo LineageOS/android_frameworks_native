@@ -28,10 +28,11 @@
 #include <input/KeyCharacterMap.h>
 #include <input/Keyboard.h>
 
-#include <utils/Log.h>
+#include <gui/constants.h>
 #include <utils/Errors.h>
-#include <utils/Tokenizer.h>
+#include <utils/Log.h>
 #include <utils/Timers.h>
+#include <utils/Tokenizer.h>
 
 // Enables debug output for the parser.
 #define DEBUG_PARSER 0

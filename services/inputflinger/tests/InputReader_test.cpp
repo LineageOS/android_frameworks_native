@@ -32,6 +32,7 @@
 #include <VibratorInputMapper.h>
 #include <android-base/thread_annotations.h>
 #include <gtest/gtest.h>
+#include <gui/constants.h>
 #include <inttypes.h>
 #include <math.h>
 

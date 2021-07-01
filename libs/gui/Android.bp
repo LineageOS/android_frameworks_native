@@ -51,6 +51,51 @@ cc_library_headers {
     ],
 }
 
+// AIDL files that should be exposed to java
+filegroup {
+    name: "guiconstants_aidl",
+    srcs: [
+        "android/**/TouchOcclusionMode.aidl",
+    ],
+}
+
+cc_library_static {
+    name: "libgui_window_info_static",
+    vendor_available: true,
+    host_supported: true,
+    srcs: [
+        ":guiconstants_aidl",
+        "android/gui/FocusRequest.aidl",
+        "android/gui/InputApplicationInfo.aidl",
+        "android/gui/WindowInfo.aidl",
+        "WindowInfo.cpp",
+    ],
+
+    shared_libs: [
+        "libbinder",
+    ],
+
+    local_include_dirs: [
+        "include",
+    ],
+
+    export_shared_lib_headers: [
+        "libbinder",
+    ],
+
+    static_libs: [
+        "libui-types",
+    ],
+
+    aidl: {
+        export_aidl_headers: true
+    },
+
+    include_dirs: [
+        "frameworks/native/include",
+    ],
+}
+
 filegroup {
     name: "libgui_aidl",
     srcs: ["aidl/**/*.aidl"],
@@ -77,11 +122,14 @@ cc_library_static {
         "libbinder",
     ],
 
+    static_libs: [
+        "libui-types",
+    ],
+
     aidl: {
         export_aidl_headers: true
     }
 }
-
 
 cc_library_shared {
     name: "libgui",
@@ -96,9 +144,11 @@ cc_library_shared {
 
     static_libs: [
         "libgui_aidl_static",
+        "libgui_window_info_static",
     ],
     export_static_lib_headers: [
         "libgui_aidl_static",
+        "libgui_window_info_static",
     ],
 
     srcs: [
@@ -150,13 +200,11 @@ cc_library_shared {
         "libbinder",
         "libbufferhub",
         "libbufferhubqueue", // TODO(b/70046255): Remove this once BufferHub is integrated into libgui.
-        "libinput",
         "libpdx_default_transport",
     ],
 
     export_shared_lib_headers: [
         "libbinder",
-        "libinput",
     ],
 
     export_header_lib_headers: [
@@ -168,7 +216,6 @@ cc_library_shared {
         vendor: {
             cflags: [
                 "-DNO_BUFFERHUB",
-                "-DNO_INPUT",
             ],
             exclude_srcs: [
                 "BufferHubConsumer.cpp",
@@ -178,7 +225,6 @@ cc_library_shared {
                 "android.frameworks.bufferhub@1.0",
                 "libbufferhub",
                 "libbufferhubqueue",
-                "libinput",
                 "libpdx_default_transport",
             ],
         },

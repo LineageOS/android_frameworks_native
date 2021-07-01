@@ -38,7 +38,7 @@
 using namespace std::chrono_literals;
 
 namespace {
-inline const char* toString(bool b) {
+inline const char* boolToString(bool b) {
     return b ? "true" : "false";
 }
 } // namespace
@@ -197,15 +197,18 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
     }
 
     SurfaceComposerClient::Transaction t;
+    const bool setBackpressureFlag = !SurfaceControl::isSameSurface(mSurfaceControl, surface);
     bool applyTransaction = false;
-    if (!SurfaceControl::isSameSurface(mSurfaceControl, surface)) {
-        mSurfaceControl = surface;
-        t.setFlags(mSurfaceControl, layer_state_t::eEnableBackpressure,
-                   layer_state_t::eEnableBackpressure);
-        applyTransaction = true;
-    }
 
+    // Always update the native object even though they might have the same layer handle, so we can
+    // get the updated transform hint from WM.
+    mSurfaceControl = surface;
     if (mSurfaceControl != nullptr) {
+        if (setBackpressureFlag) {
+            t.setFlags(mSurfaceControl, layer_state_t::eEnableBackpressure,
+                       layer_state_t::eEnableBackpressure);
+            applyTransaction = true;
+        }
         mTransformHint = mSurfaceControl->getTransformHint();
         mBufferItemConsumer->setTransformHint(mTransformHint);
     }
@@ -221,7 +224,7 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
             // We only need to update the scale if we've received at least one buffer. The reason
             // for this is the scale is calculated based on the requested size and buffer size.
             // If there's no buffer, the scale will always be 1.
-            if (mLastBufferInfo.hasBuffer) {
+            if (mSurfaceControl != nullptr && mLastBufferInfo.hasBuffer) {
                 t.setDestinationFrame(mSurfaceControl,
                                       Rect(0, 0, newSize.getWidth(), newSize.getHeight()));
             }
@@ -513,7 +516,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     BQA_LOGV("processNextBufferLocked size=%dx%d mFrameNumber=%" PRIu64
              " applyTransaction=%s mTimestamp=%" PRId64 "%s mPendingTransactions.size=%d"
              " graphicBufferId=%" PRIu64 "%s",
-             mSize.width, mSize.height, bufferItem.mFrameNumber, toString(applyTransaction),
+             mSize.width, mSize.height, bufferItem.mFrameNumber, boolToString(applyTransaction),
              bufferItem.mTimestamp, bufferItem.mIsAutoTimestamp ? "(auto)" : "",
              static_cast<uint32_t>(mPendingTransactions.size()), bufferItem.mGraphicBuffer->getId(),
              bufferItem.mAutoRefresh ? " mAutoRefresh" : "");
@@ -543,7 +546,7 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
                mNumFrameAvailable + mNumAcquired - mPendingRelease.size());
 
     BQA_LOGV("onFrameAvailable framenumber=%" PRIu64 " nextTransactionSet=%s", item.mFrameNumber,
-             toString(nextTransactionSet));
+             boolToString(nextTransactionSet));
     processNextBufferLocked(nextTransactionSet /* useNextTransaction */);
 }
 
