@@ -3790,7 +3790,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
         if (shouldSendKeyToInputFilterLocked(args)) {
             mLock.unlock();
 
-            policyFlags |= POLICY_FLAG_FILTERED | POLICY_FLAG_INPUTFILTER_TRUSTED;
+            policyFlags |= POLICY_FLAG_FILTERED;
             if (!mPolicy->filterInputEvent(&event, policyFlags)) {
                 return; // event was consumed by the filter
             }
@@ -4013,16 +4013,14 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
     }
 
     // For all injected events, set device id = VIRTUAL_KEYBOARD_ID. The only exception is events
-    // that have gone through the InputFilter. If the event passed through the InputFilter,
-    // but did not get modified, assign the provided device id. If the InputFilter modifies the
-    // events in any way, it is responsible for removing this flag.
-    // If the injected event originated from accessibility, assign the accessibility device id,
-    // so that it can be distinguished from regular injected events.
+    // that have gone through the InputFilter. If the event passed through the InputFilter, assign
+    // the provided device id. If the InputFilter is accessibility, and it modifies or synthesizes
+    // the injected event, it is responsible for setting POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY.
+    // For those events, we will set FLAG_IS_ACCESSIBILITY_EVENT to allow apps to distinguish them
+    // from events that originate from actual hardware.
     int32_t resolvedDeviceId = VIRTUAL_KEYBOARD_ID;
-    if (policyFlags & POLICY_FLAG_INPUTFILTER_TRUSTED) {
+    if (policyFlags & POLICY_FLAG_FILTERED) {
         resolvedDeviceId = event->getDeviceId();
-    } else if (policyFlags & POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY) {
-        resolvedDeviceId = ACCESSIBILITY_DEVICE_ID;
     }
 
     std::queue<std::unique_ptr<EventEntry>> injectedEntries;
@@ -4035,6 +4033,9 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
             }
 
             int32_t flags = incomingKey.getFlags();
+            if (policyFlags & POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY) {
+                flags |= AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT;
+            }
             int32_t keyCode = incomingKey.getKeyCode();
             int32_t metaState = incomingKey.getMetaState();
             accelerateMetaShortcuts(resolvedDeviceId, action,
@@ -4076,6 +4077,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
             size_t pointerCount = motionEvent.getPointerCount();
             const PointerProperties* pointerProperties = motionEvent.getPointerProperties();
             int32_t actionButton = motionEvent.getActionButton();
+            int32_t flags = motionEvent.getFlags();
             int32_t displayId = motionEvent.getDisplayId();
             if (!validateMotionEvent(action, actionButton, pointerCount, pointerProperties)) {
                 return InputEventInjectionResult::FAILED;
@@ -4091,6 +4093,10 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
                 }
             }
 
+            if (policyFlags & POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY) {
+                flags |= AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT;
+            }
+
             mLock.lock();
             const nsecs_t* sampleEventTimes = motionEvent.getSampleEventTimes();
             const PointerCoords* samplePointerCoords = motionEvent.getSamplePointerCoords();
@@ -4098,8 +4104,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
                     std::make_unique<MotionEntry>(motionEvent.getId(), *sampleEventTimes,
                                                   resolvedDeviceId, motionEvent.getSource(),
                                                   motionEvent.getDisplayId(), policyFlags, action,
-                                                  actionButton, motionEvent.getFlags(),
-                                                  motionEvent.getMetaState(),
+                                                  actionButton, flags, motionEvent.getMetaState(),
                                                   motionEvent.getButtonState(),
                                                   motionEvent.getClassification(),
                                                   motionEvent.getEdgeFlags(),
@@ -4119,7 +4124,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
                         std::make_unique<MotionEntry>(motionEvent.getId(), *sampleEventTimes,
                                                       resolvedDeviceId, motionEvent.getSource(),
                                                       motionEvent.getDisplayId(), policyFlags,
-                                                      action, actionButton, motionEvent.getFlags(),
+                                                      action, actionButton, flags,
                                                       motionEvent.getMetaState(),
                                                       motionEvent.getButtonState(),
                                                       motionEvent.getClassification(),
