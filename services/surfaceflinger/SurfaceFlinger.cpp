@@ -1190,6 +1190,10 @@ void SurfaceFlinger::setActiveModeInternal() {
     updatePhaseConfiguration(refreshRate);
     ATRACE_INT("ActiveConfigFPS", refreshRate.getValue());
 
+    if (mRefreshRateOverlay) {
+        mRefreshRateOverlay->changeRefreshRate(upcomingMode->getFps());
+    }
+
     if (mUpcomingActiveMode.event != Scheduler::ModeEvent::None) {
         const nsecs_t vsyncPeriod = refreshRate.getPeriodNsecs();
         const auto physicalId = display->getPhysicalId();
@@ -1272,9 +1276,6 @@ void SurfaceFlinger::performSetActiveMode() {
     }
 
     mScheduler->onNewVsyncPeriodChangeTimeline(outTimeline);
-    if (mRefreshRateOverlay) {
-        mRefreshRateOverlay->changeRefreshRate(desiredMode->getFps());
-    }
 
     // Scheduler will submit an empty frame to HWC if needed.
     mSetActiveModePending = true;
