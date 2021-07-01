@@ -79,6 +79,9 @@ public:
 
     bool isVirtual() const { return !mConnectionType; }
     bool isPrimary() const { return mIsPrimary; }
+    bool isInternal() const {
+        return !isVirtual() && mConnectionType == ui::DisplayConnectionType::Internal;
+    }
 
     // isSecure indicates whether this display can be trusted to display
     // secure surfaces.
