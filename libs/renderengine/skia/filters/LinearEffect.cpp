@@ -167,13 +167,12 @@ static void generateToneMapInterpolation(ui::Dataspace inputDataspace,
 
                                 float nits = xyz.y;
 
-                                // clamp to max input luminance
-                                nits = clamp(nits, 0.0, maxInLumi);
-
-                                // scale [0.0, maxInLumi] to [0.0, maxOutLumi]
+                                // if the max input luminance is less than what we can output then
+                                // no tone mapping is needed as all color values will be in range.
                                 if (maxInLumi <= maxOutLumi) {
-                                    return xyz * (maxOutLumi / maxInLumi);
+                                    return xyz;
                                 } else {
+
                                     // three control points
                                     const float x0 = 10.0;
                                     const float y0 = 17.0;
