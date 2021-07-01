@@ -313,6 +313,7 @@ public:
     void onLayerFirstRef(Layer*);
     void onLayerDestroyed(Layer*);
 
+    void removeHierarchyFromOffscreenLayers(Layer* layer);
     void removeFromOffscreenLayers(Layer* layer);
 
     TransactionCallbackInvoker& getTransactionCallbackInvoker() {
