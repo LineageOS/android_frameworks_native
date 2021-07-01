@@ -67,7 +67,7 @@ public:
     bool useProtectedContext(bool useProtectedContext) override;
     bool supportsBackgroundBlur() override { return mBlurFilter != nullptr; }
     void assertShadersCompiled(int numShaders) override;
-    void onPrimaryDisplaySizeChanged(ui::Size size) override;
+    void onActiveDisplaySizeChanged(ui::Size size) override;
     int reportShadersCompiled() override;
 
 protected:

@@ -354,14 +354,14 @@ bool RenderEngineThreaded::supportsBackgroundBlur() {
     return mRenderEngine->supportsBackgroundBlur();
 }
 
-void RenderEngineThreaded::onPrimaryDisplaySizeChanged(ui::Size size) {
+void RenderEngineThreaded::onActiveDisplaySizeChanged(ui::Size size) {
     // This function is designed so it can run asynchronously, so we do not need to wait
     // for the futures.
     {
         std::lock_guard lock(mThreadMutex);
         mFunctionCalls.push([size](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::onPrimaryDisplaySizeChanged");
-            instance.onPrimaryDisplaySizeChanged(size);
+            ATRACE_NAME("REThreaded::onActiveDisplaySizeChanged");
+            instance.onActiveDisplaySizeChanged(size);
         });
     }
     mCondition.notify_one();
