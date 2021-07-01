@@ -313,7 +313,13 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
 
         // The majority of shaders are related to sampling images.
         // These need to be generated with various source textures
-        for (auto texture : {srcTexture, externalTexture, f16ExternalTexture}) {
+        // The F16 texture may not be usable on all devices, so check first that it was created with
+        // the requested usage bit.
+        auto textures = {srcTexture, externalTexture};
+        auto texturesWithF16 = {srcTexture, externalTexture, f16ExternalTexture};
+        bool canUsef16 = f16ExternalBuffer->getUsage() & GRALLOC_USAGE_HW_TEXTURE;
+
+        for (auto texture : canUsef16 ? texturesWithF16 : textures) {
             drawImageLayers(renderengine, display, dstTexture, texture);
             // Draw layers for b/185569240.
             drawClippedLayers(renderengine, display, dstTexture, texture);
