@@ -54,7 +54,7 @@ public:
     MOCK_METHOD0(cleanFramebufferCache, void());
     MOCK_METHOD0(getContextPriority, int());
     MOCK_METHOD0(supportsBackgroundBlur, bool());
-    MOCK_METHOD1(onPrimaryDisplaySizeChanged, void(ui::Size));
+    MOCK_METHOD1(onActiveDisplaySizeChanged, void(ui::Size));
 
 protected:
     // mock renderengine still needs to implement these, but callers should never need to call them.
