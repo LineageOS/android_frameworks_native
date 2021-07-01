@@ -66,14 +66,11 @@ float transformAngle(const ui::Transform& transform, float angleRadians) {
     return result;
 }
 
-// Rotates the given point to the transform's orientation. If the display width and height are
+// Rotates the given point to the specified orientation. If the display width and height are
 // provided, the point is rotated in the screen space. Otherwise, the point is rotated about the
 // origin. This helper is used to avoid the extra overhead of creating new Transforms.
-vec2 rotatePoint(const ui::Transform& transform, float x, float y, int32_t displayWidth = 0,
+vec2 rotatePoint(uint32_t orientation, float x, float y, int32_t displayWidth = 0,
                  int32_t displayHeight = 0) {
-    // 0x7 encapsulates all 3 rotations (see ui::Transform::RotationFlags)
-    static const int ALL_ROTATIONS_MASK = 0x7;
-    const uint32_t orientation = (transform.getOrientation() & ALL_ROTATIONS_MASK);
     if (orientation == ui::Transform::ROT_0) {
         return {x, y};
     }
@@ -425,9 +422,9 @@ void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int3
                              int32_t buttonState, MotionClassification classification,
                              const ui::Transform& transform, float xPrecision, float yPrecision,
                              float rawXCursorPosition, float rawYCursorPosition,
-                             int32_t displayWidth, int32_t displayHeight, nsecs_t downTime,
-                             nsecs_t eventTime, size_t pointerCount,
-                             const PointerProperties* pointerProperties,
+                             uint32_t displayOrientation, int32_t displayWidth,
+                             int32_t displayHeight, nsecs_t downTime, nsecs_t eventTime,
+                             size_t pointerCount, const PointerProperties* pointerProperties,
                              const PointerCoords* pointerCoords) {
     InputEvent::initialize(id, deviceId, source, displayId, hmac);
     mAction = action;
@@ -442,6 +439,7 @@ void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int3
     mYPrecision = yPrecision;
     mRawXCursorPosition = rawXCursorPosition;
     mRawYCursorPosition = rawYCursorPosition;
+    mDisplayOrientation = displayOrientation;
     mDisplayWidth = displayWidth;
     mDisplayHeight = displayHeight;
     mDownTime = downTime;
@@ -467,6 +465,7 @@ void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
     mYPrecision = other->mYPrecision;
     mRawXCursorPosition = other->mRawXCursorPosition;
     mRawYCursorPosition = other->mRawYCursorPosition;
+    mDisplayOrientation = other->mDisplayOrientation;
     mDisplayWidth = other->mDisplayWidth;
     mDisplayHeight = other->mDisplayHeight;
     mDownTime = other->mDownTime;
@@ -535,8 +534,8 @@ float MotionEvent::getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
         // For compatibility, convert raw coordinates into "oriented screen space". Once app
         // developers are educated about getRaw, we can consider removing this.
         const vec2 xy = shouldDisregardWindowTranslation(mSource)
-                ? rotatePoint(mTransform, coords->getX(), coords->getY())
-                : rotatePoint(mTransform, coords->getX(), coords->getY(), mDisplayWidth,
+                ? rotatePoint(mDisplayOrientation, coords->getX(), coords->getY())
+                : rotatePoint(mDisplayOrientation, coords->getX(), coords->getY(), mDisplayWidth,
                               mDisplayHeight);
         static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
         return xy[axis];
@@ -545,9 +544,9 @@ float MotionEvent::getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
     if (axis == AMOTION_EVENT_AXIS_RELATIVE_X || axis == AMOTION_EVENT_AXIS_RELATIVE_Y) {
         // For compatibility, since we convert raw coordinates into "oriented screen space", we
         // need to convert the relative axes into the same orientation for consistency.
-        const vec2 relativeXy =
-                rotatePoint(mTransform, coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
-                            coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y));
+        const vec2 relativeXy = rotatePoint(mDisplayOrientation,
+                                            coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
+                                            coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y));
         return axis == AMOTION_EVENT_AXIS_RELATIVE_X ? relativeXy.x : relativeXy.y;
     }
 
@@ -698,6 +697,7 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
     mYPrecision = parcel->readFloat();
     mRawXCursorPosition = parcel->readFloat();
     mRawYCursorPosition = parcel->readFloat();
+    mDisplayOrientation = parcel->readUint32();
     mDisplayWidth = parcel->readInt32();
     mDisplayHeight = parcel->readInt32();
     mDownTime = parcel->readInt64();
@@ -759,6 +759,7 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
     parcel->writeFloat(mYPrecision);
     parcel->writeFloat(mRawXCursorPosition);
     parcel->writeFloat(mRawYCursorPosition);
+    parcel->writeUint32(mDisplayOrientation);
     parcel->writeInt32(mDisplayWidth);
     parcel->writeInt32(mDisplayHeight);
     parcel->writeInt64(mDownTime);
