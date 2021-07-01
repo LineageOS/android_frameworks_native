@@ -318,8 +318,6 @@ extern std::string getInputDeviceConfigurationFilePathByName(
         const std::string& name, InputDeviceConfigurationFileType type);
 
 enum ReservedInputDeviceId : int32_t {
-    // Device id assigned to input events generated inside accessibility service
-    ACCESSIBILITY_DEVICE_ID = -2,
     // Device id of a special "virtual" keyboard that is always present.
     VIRTUAL_KEYBOARD_ID = -1,
     // Device id of the "built-in" keyboard if there is one.
