@@ -44,7 +44,6 @@ public:
     virtual void deleteTextures(size_t /*count*/, uint32_t const* /*names*/) override{};
     virtual bool isProtected() const override { return false; } // mInProtectedContext; }
     virtual bool supportsProtectedContent() const override { return false; };
-    virtual bool useProtectedContext(bool /*useProtectedContext*/) override { return false; };
     virtual status_t drawLayers(const DisplaySettings& /*display*/,
                                 const std::vector<const LayerSettings*>& /*layers*/,
                                 const std::shared_ptr<ExternalTexture>& /*buffer*/,

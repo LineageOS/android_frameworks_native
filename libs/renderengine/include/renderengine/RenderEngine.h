@@ -127,7 +127,7 @@ public:
     virtual bool supportsProtectedContent() const = 0;
 
     // Attempt to switch RenderEngine into and out of protectedContext mode
-    virtual bool useProtectedContext(bool useProtectedContext) = 0;
+    virtual void useProtectedContext(bool useProtectedContext) = 0;
 
     // Notify RenderEngine of changes to the dimensions of the active display
     // so that it can configure its internal caches accordingly.
