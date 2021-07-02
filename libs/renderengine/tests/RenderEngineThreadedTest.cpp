@@ -118,16 +118,26 @@ TEST_F(RenderEngineThreadedTest, supportsProtectedContent_returnsTrue) {
     ASSERT_EQ(true, result);
 }
 
-TEST_F(RenderEngineThreadedTest, useProtectedContext_returnsFalse) {
-    EXPECT_CALL(*mRenderEngine, useProtectedContext(false)).WillOnce(Return(false));
-    status_t result = mThreadedRE->useProtectedContext(false);
-    ASSERT_EQ(false, result);
+TEST_F(RenderEngineThreadedTest, useProtectedContext) {
+    EXPECT_CALL(*mRenderEngine, useProtectedContext(true));
+    auto& ipExpect = EXPECT_CALL(*mRenderEngine, isProtected()).WillOnce(Return(false));
+    EXPECT_CALL(*mRenderEngine, supportsProtectedContent()).WillOnce(Return(true));
+    EXPECT_CALL(*mRenderEngine, isProtected()).After(ipExpect).WillOnce(Return(true));
+
+    mThreadedRE->useProtectedContext(true);
+    ASSERT_EQ(true, mThreadedRE->isProtected());
+
+    // call ANY synchronous function to ensure that useProtectedContext has completed.
+    mThreadedRE->getContextPriority();
+    ASSERT_EQ(true, mThreadedRE->isProtected());
 }
 
-TEST_F(RenderEngineThreadedTest, useProtectedContext_returnsTrue) {
-    EXPECT_CALL(*mRenderEngine, useProtectedContext(false)).WillOnce(Return(true));
-    status_t result = mThreadedRE->useProtectedContext(false);
-    ASSERT_EQ(true, result);
+TEST_F(RenderEngineThreadedTest, useProtectedContext_quickReject) {
+    EXPECT_CALL(*mRenderEngine, useProtectedContext(false)).Times(0);
+    EXPECT_CALL(*mRenderEngine, isProtected()).WillOnce(Return(false));
+    mThreadedRE->useProtectedContext(false);
+    // call ANY synchronous function to ensure that useProtectedContext has completed.
+    mThreadedRE->getContextPriority();
 }
 
 TEST_F(RenderEngineThreadedTest, PostRenderCleanup_skipped) {
