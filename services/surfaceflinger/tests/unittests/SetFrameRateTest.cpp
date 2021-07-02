@@ -479,7 +479,9 @@ TEST_P(SetFrameRateTest, SetOnParentActivatesTree) {
             ->record(child.get(), 0, 0, LayerHistory::LayerUpdateType::Buffer);
 
     const auto layerHistorySummary =
-            mFlinger.mutableScheduler().mutableLayerHistory()->summarize(0);
+            mFlinger.mutableScheduler()
+                    .mutableLayerHistory()
+                    ->summarize(*mFlinger.mutableScheduler().refreshRateConfigs(), 0);
     ASSERT_EQ(2u, layerHistorySummary.size());
     EXPECT_TRUE(FRAME_RATE_VOTE1.rate.equalsWithMargin(layerHistorySummary[0].desiredRefreshRate));
     EXPECT_TRUE(FRAME_RATE_VOTE1.rate.equalsWithMargin(layerHistorySummary[1].desiredRefreshRate));

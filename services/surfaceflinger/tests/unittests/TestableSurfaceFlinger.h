@@ -82,8 +82,8 @@ public:
         return std::make_unique<scheduler::FakePhaseOffsets>();
     }
 
-    std::unique_ptr<Scheduler> createScheduler(const scheduler::RefreshRateConfigs&,
-                                               ISchedulerCallback&) override {
+    std::unique_ptr<Scheduler> createScheduler(
+            const std::shared_ptr<scheduler::RefreshRateConfigs>&, ISchedulerCallback&) override {
         return nullptr;
     }
 
@@ -222,18 +222,16 @@ public:
         }
 
         const auto currMode = DisplayModeId(0);
-        mFlinger->mRefreshRateConfigs =
-                std::make_unique<scheduler::RefreshRateConfigs>(modes, currMode);
-        const auto currFps =
-                mFlinger->mRefreshRateConfigs->getRefreshRateFromModeId(currMode).getFps();
+        mRefreshRateConfigs = std::make_shared<scheduler::RefreshRateConfigs>(modes, currMode);
+        const auto currFps = mRefreshRateConfigs->getCurrentRefreshRate().getFps();
+        mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(currFps);
+        mFlinger->mVsyncModulator.emplace(mFlinger->mVsyncConfiguration->getCurrentConfigs());
         mFlinger->mRefreshRateStats =
                 std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mTimeStats, currFps,
                                                               /*powerMode=*/hal::PowerMode::OFF);
-        mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(currFps);
-        mFlinger->mVsyncModulator.emplace(mFlinger->mVsyncConfiguration->getCurrentConfigs());
 
         mScheduler = new TestableScheduler(std::move(vsyncController), std::move(vsyncTracker),
-                                           *mFlinger->mRefreshRateConfigs, *(callback ?: this));
+                                           mRefreshRateConfigs, *(callback ?: this));
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
@@ -653,6 +651,7 @@ public:
 
             DisplayModes modes{activeMode};
             mCreationArgs.supportedModes = modes;
+            mCreationArgs.refreshRateConfigs = flinger.mRefreshRateConfigs;
         }
 
         sp<IBinder> token() const { return mDisplayToken; }
@@ -769,6 +768,7 @@ private:
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(mFactory, SurfaceFlinger::SkipInitialization);
     TestableScheduler* mScheduler = nullptr;
+    std::shared_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
 };
 
 } // namespace android
