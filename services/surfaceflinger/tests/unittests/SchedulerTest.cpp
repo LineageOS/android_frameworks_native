@@ -199,20 +199,21 @@ TEST_F(SchedulerTest, testDispatchCachedReportedMode) {
     // onModeChange is called.
     mScheduler->clearOptionalFieldsInFeatures();
     EXPECT_NO_FATAL_FAILURE(mScheduler->dispatchCachedReportedMode());
-    EXPECT_CALL(*mEventThread, onModeChanged(_, _, _)).Times(0);
+    EXPECT_CALL(*mEventThread, onModeChanged(_)).Times(0);
 }
 
 TEST_F(SchedulerTest, onNonPrimaryDisplayModeChanged_invalidParameters) {
-    DisplayModeId modeId = DisplayModeId(111);
-    nsecs_t vsyncPeriod = 111111;
+    const auto mode = DisplayMode::Builder(hal::HWConfigId(0))
+                              .setId(DisplayModeId(111))
+                              .setPhysicalDisplayId(PHYSICAL_DISPLAY_ID)
+                              .setVsyncPeriod(111111)
+                              .build();
 
     // If the handle is incorrect, the function should return before
     // onModeChange is called.
     Scheduler::ConnectionHandle invalidHandle = {.id = 123};
-    EXPECT_NO_FATAL_FAILURE(mScheduler->onNonPrimaryDisplayModeChanged(invalidHandle,
-                                                                       PHYSICAL_DISPLAY_ID, modeId,
-                                                                       vsyncPeriod));
-    EXPECT_CALL(*mEventThread, onModeChanged(_, _, _)).Times(0);
+    EXPECT_NO_FATAL_FAILURE(mScheduler->onNonPrimaryDisplayModeChanged(invalidHandle, mode));
+    EXPECT_CALL(*mEventThread, onModeChanged(_)).Times(0);
 }
 
 TEST_F(SchedulerTest, calculateMaxAcquiredBufferCount) {
