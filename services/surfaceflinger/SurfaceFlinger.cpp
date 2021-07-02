@@ -2531,6 +2531,7 @@ void SurfaceFlinger::loadDisplayModes(PhysicalDisplayId displayId, DisplayModes&
     for (const auto& hwcMode : hwcModes) {
         newModes.push_back(DisplayMode::Builder(hwcMode.hwcId)
                                    .setId(DisplayModeId{nextModeId++})
+                                   .setPhysicalDisplayId(displayId)
                                    .setWidth(hwcMode.width)
                                    .setHeight(hwcMode.height)
                                    .setVsyncPeriod(hwcMode.vsyncPeriod)

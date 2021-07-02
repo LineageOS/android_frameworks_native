@@ -22,6 +22,7 @@
 
 #include <android-base/stringprintf.h>
 #include <android/configuration.h>
+#include <ui/DisplayId.h>
 #include <ui/DisplayMode.h>
 #include <ui/Size.h>
 #include <utils/Timers.h>
@@ -51,6 +52,11 @@ public:
 
         Builder& setId(DisplayModeId id) {
             mDisplayMode->mId = id;
+            return *this;
+        }
+
+        Builder& setPhysicalDisplayId(PhysicalDisplayId id) {
+            mDisplayMode->mPhysicalDisplayId = id;
             return *this;
         }
 
@@ -112,6 +118,7 @@ public:
 
     DisplayModeId getId() const { return mId; }
     hal::HWConfigId getHwcId() const { return mHwcId; }
+    PhysicalDisplayId getPhysicalDisplayId() const { return mPhysicalDisplayId; }
 
     int32_t getWidth() const { return mWidth; }
     int32_t getHeight() const { return mHeight; }
@@ -136,6 +143,7 @@ private:
 
     hal::HWConfigId mHwcId;
     DisplayModeId mId;
+    PhysicalDisplayId mPhysicalDisplayId;
 
     int32_t mWidth = -1;
     int32_t mHeight = -1;
