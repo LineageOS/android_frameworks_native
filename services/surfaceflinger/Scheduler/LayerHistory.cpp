@@ -75,10 +75,9 @@ void trace(const LayerInfo& info, LayerHistory::LayerVoteType type, int fps) {
 }
 } // namespace
 
-LayerHistory::LayerHistory(const RefreshRateConfigs& refreshRateConfigs)
+LayerHistory::LayerHistory()
       : mTraceEnabled(traceEnabled()), mUseFrameRatePriority(useFrameRatePriority()) {
     LayerInfo::setTraceEnabled(mTraceEnabled);
-    LayerInfo::setRefreshRateConfigs(refreshRateConfigs);
 }
 
 LayerHistory::~LayerHistory() = default;
@@ -138,7 +137,8 @@ void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
     }
 }
 
-LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
+LayerHistory::Summary LayerHistory::summarize(const RefreshRateConfigs& refreshRateConfigs,
+                                              nsecs_t now) {
     LayerHistory::Summary summary;
 
     std::lock_guard lock(mLock);
@@ -151,7 +151,7 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
         ALOGV("%s has priority: %d %s focused", info->getName().c_str(), frameRateSelectionPriority,
               layerFocused ? "" : "not");
 
-        const auto vote = info->getRefreshRateVote(now);
+        const auto vote = info->getRefreshRateVote(refreshRateConfigs, now);
         // Skip NoVote layer as those don't have any requirements
         if (vote.type == LayerHistory::LayerVoteType::NoVote) {
             continue;
