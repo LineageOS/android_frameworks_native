@@ -724,7 +724,7 @@ public:
             return *this;
         }
 
-        sp<DisplayDevice> inject() {
+        sp<DisplayDevice> inject() NO_THREAD_SAFETY_ANALYSIS {
             const auto displayId = mCreationArgs.compositionDisplay->getDisplayId();
 
             DisplayDeviceState state;
