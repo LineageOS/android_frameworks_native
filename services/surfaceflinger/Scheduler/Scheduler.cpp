@@ -371,23 +371,22 @@ void Scheduler::onFrameRateOverridesChanged(ConnectionHandle handle, PhysicalDis
     thread->onFrameRateOverridesChanged(displayId, std::move(overrides));
 }
 
-void Scheduler::onPrimaryDisplayModeChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
-                                            DisplayModeId modeId, nsecs_t vsyncPeriod) {
+void Scheduler::onPrimaryDisplayModeChanged(ConnectionHandle handle, DisplayModePtr mode) {
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
         // Cache the last reported modes for primary display.
-        mFeatures.cachedModeChangedParams = {handle, displayId, modeId, vsyncPeriod};
+        mFeatures.cachedModeChangedParams = {handle, mode};
 
         // Invalidate content based refresh rate selection so it could be calculated
         // again for the new refresh rate.
         mFeatures.contentRequirements.clear();
     }
-    onNonPrimaryDisplayModeChanged(handle, displayId, modeId, vsyncPeriod);
+    onNonPrimaryDisplayModeChanged(handle, mode);
 }
 
 void Scheduler::dispatchCachedReportedMode() {
     // Check optional fields first.
-    if (!mFeatures.modeId.has_value()) {
+    if (!mFeatures.mode) {
         ALOGW("No mode ID found, not dispatching cached mode.");
         return;
     }
@@ -396,35 +395,24 @@ void Scheduler::dispatchCachedReportedMode() {
         return;
     }
 
-    const auto modeId = *mFeatures.modeId;
-    const auto vsyncPeriod = [&] {
-        std::scoped_lock lock(mRefreshRateConfigsLock);
-        return mRefreshRateConfigs->getRefreshRateFromModeId(modeId).getVsyncPeriod();
-    }();
-
     // If there is no change from cached mode, there is no need to dispatch an event
-    if (modeId == mFeatures.cachedModeChangedParams->modeId &&
-        vsyncPeriod == mFeatures.cachedModeChangedParams->vsyncPeriod) {
+    if (mFeatures.mode == mFeatures.cachedModeChangedParams->mode) {
         return;
     }
 
-    mFeatures.cachedModeChangedParams->modeId = modeId;
-    mFeatures.cachedModeChangedParams->vsyncPeriod = vsyncPeriod;
+    mFeatures.cachedModeChangedParams->mode = mFeatures.mode;
     onNonPrimaryDisplayModeChanged(mFeatures.cachedModeChangedParams->handle,
-                                   mFeatures.cachedModeChangedParams->displayId,
-                                   mFeatures.cachedModeChangedParams->modeId,
-                                   mFeatures.cachedModeChangedParams->vsyncPeriod);
+                                   mFeatures.cachedModeChangedParams->mode);
 }
 
-void Scheduler::onNonPrimaryDisplayModeChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
-                                               DisplayModeId modeId, nsecs_t vsyncPeriod) {
+void Scheduler::onNonPrimaryDisplayModeChanged(ConnectionHandle handle, DisplayModePtr mode) {
     android::EventThread* thread;
     {
         std::lock_guard<std::mutex> lock(mConnectionsLock);
         RETURN_IF_INVALID_HANDLE(handle);
         thread = mConnections[handle].thread.get();
     }
-    thread->onModeChanged(displayId, modeId, vsyncPeriod);
+    thread->onModeChanged(mode);
 }
 
 size_t Scheduler::getEventThreadConnectionCount(ConnectionHandle handle) {
@@ -642,19 +630,17 @@ void Scheduler::chooseRefreshRateForContent() {
     scheduler::LayerHistory::Summary summary =
             mLayerHistory->summarize(*refreshRateConfigs, systemTime());
     scheduler::RefreshRateConfigs::GlobalSignals consideredSignals;
-    DisplayModeId newModeId;
+    DisplayModePtr newMode;
     bool frameRateChanged;
     bool frameRateOverridesChanged;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
         mFeatures.contentRequirements = summary;
 
-        newModeId = calculateRefreshRateModeId(&consideredSignals);
-        auto newRefreshRate = refreshRateConfigs->getRefreshRateFromModeId(newModeId);
-        frameRateOverridesChanged =
-                updateFrameRateOverrides(consideredSignals, newRefreshRate.getFps());
+        newMode = calculateRefreshRateModeId(&consideredSignals);
+        frameRateOverridesChanged = updateFrameRateOverrides(consideredSignals, newMode->getFps());
 
-        if (mFeatures.modeId == newModeId) {
+        if (mFeatures.mode == newMode) {
             // We don't need to change the display mode, but we might need to send an event
             // about a mode change, since it was suppressed due to a previous idleConsidered
             if (!consideredSignals.idle) {
@@ -662,12 +648,12 @@ void Scheduler::chooseRefreshRateForContent() {
             }
             frameRateChanged = false;
         } else {
-            mFeatures.modeId = newModeId;
+            mFeatures.mode = newMode;
             frameRateChanged = true;
         }
     }
     if (frameRateChanged) {
-        auto newRefreshRate = refreshRateConfigs->getRefreshRateFromModeId(newModeId);
+        auto newRefreshRate = refreshRateConfigs->getRefreshRateFromModeId(newMode->getId());
         mSchedulerCallback.changeRefreshRate(newRefreshRate,
                                              consideredSignals.idle ? ModeEvent::None
                                                                     : ModeEvent::Changed);
@@ -820,7 +806,7 @@ bool Scheduler::updateFrameRateOverrides(
 
 template <class T>
 bool Scheduler::handleTimerStateChanged(T* currentState, T newState) {
-    DisplayModeId newModeId;
+    DisplayModePtr newMode;
     bool refreshRateChanged = false;
     bool frameRateOverridesChanged;
     scheduler::RefreshRateConfigs::GlobalSignals consideredSignals;
@@ -831,23 +817,22 @@ bool Scheduler::handleTimerStateChanged(T* currentState, T newState) {
             return false;
         }
         *currentState = newState;
-        newModeId = calculateRefreshRateModeId(&consideredSignals);
-        const RefreshRate& newRefreshRate = refreshRateConfigs->getRefreshRateFromModeId(newModeId);
-        frameRateOverridesChanged =
-                updateFrameRateOverrides(consideredSignals, newRefreshRate.getFps());
-        if (mFeatures.modeId == newModeId) {
+        newMode = calculateRefreshRateModeId(&consideredSignals);
+        frameRateOverridesChanged = updateFrameRateOverrides(consideredSignals, newMode->getFps());
+        if (mFeatures.mode == newMode) {
             // We don't need to change the display mode, but we might need to send an event
             // about a mode change, since it was suppressed due to a previous idleConsidered
             if (!consideredSignals.idle) {
                 dispatchCachedReportedMode();
             }
         } else {
-            mFeatures.modeId = newModeId;
+            mFeatures.mode = newMode;
             refreshRateChanged = true;
         }
     }
     if (refreshRateChanged) {
-        const RefreshRate& newRefreshRate = refreshRateConfigs->getRefreshRateFromModeId(newModeId);
+        const RefreshRate& newRefreshRate =
+                refreshRateConfigs->getRefreshRateFromModeId(newMode->getId());
 
         mSchedulerCallback.changeRefreshRate(newRefreshRate,
                                              consideredSignals.idle ? ModeEvent::None
@@ -859,7 +844,7 @@ bool Scheduler::handleTimerStateChanged(T* currentState, T newState) {
     return consideredSignals.touch;
 }
 
-DisplayModeId Scheduler::calculateRefreshRateModeId(
+DisplayModePtr Scheduler::calculateRefreshRateModeId(
         scheduler::RefreshRateConfigs::GlobalSignals* consideredSignals) {
     ATRACE_CALL();
     if (consideredSignals) *consideredSignals = {};
@@ -870,7 +855,7 @@ DisplayModeId Scheduler::calculateRefreshRateModeId(
     if (mDisplayPowerTimer &&
         (!mFeatures.isDisplayPowerStateNormal ||
          mFeatures.displayPowerTimer == TimerState::Reset)) {
-        return refreshRateConfigs->getMaxRefreshRateByPolicy().getModeId();
+        return refreshRateConfigs->getMaxRefreshRateByPolicy().getMode();
     }
 
     const bool touchActive = mTouchTimer && mFeatures.touch == TouchState::Active;
@@ -879,16 +864,16 @@ DisplayModeId Scheduler::calculateRefreshRateModeId(
     return refreshRateConfigs
             ->getBestRefreshRate(mFeatures.contentRequirements,
                                  {.touch = touchActive, .idle = idle}, consideredSignals)
-            .getModeId();
+            .getMode();
 }
 
-std::optional<DisplayModeId> Scheduler::getPreferredModeId() {
+DisplayModePtr Scheduler::getPreferredDisplayMode() {
     std::lock_guard<std::mutex> lock(mFeatureStateLock);
     // Make sure that the default mode ID is first updated, before returned.
-    if (mFeatures.modeId.has_value()) {
-        mFeatures.modeId = calculateRefreshRateModeId();
+    if (mFeatures.mode) {
+        mFeatures.mode = calculateRefreshRateModeId();
     }
-    return mFeatures.modeId;
+    return mFeatures.mode;
 }
 
 void Scheduler::onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline) {
