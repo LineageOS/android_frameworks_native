@@ -32,6 +32,15 @@
       ]
     },
     {
+      "name": "FrameworksCoreTests",
+      "options": [
+        {
+          "include-filter": "android.view.VerifiedKeyEventTest",
+          "include-filter": "android.view.VerifiedMotionEventTest"
+        }
+      ]
+    },
+    {
       "name": "CtsSecurityTestCases",
       "options": [
         {
