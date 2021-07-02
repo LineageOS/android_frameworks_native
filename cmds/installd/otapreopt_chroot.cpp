@@ -21,15 +21,21 @@
 #include <sys/wait.h>
 
 #include <array>
+#include <chrono>
 #include <fstream>
 #include <sstream>
+#include <thread>
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/macros.h>
+#include <android-base/parseint.h>
 #include <android-base/scopeguard.h>
 #include <android-base/stringprintf.h>
+#include <android-base/strings.h>
 #include <android-base/unique_fd.h>
+#include <android/content/pm/IOtaDexopt.h>
+#include <binder/IServiceManager.h>
 #include <libdm/dm.h>
 #include <selinux/android.h>
 
@@ -45,20 +51,13 @@ using android::base::StringPrintf;
 namespace android {
 namespace installd {
 
+using namespace std::literals::chrono_literals;
+
 static void CloseDescriptor(int fd) {
     if (fd >= 0) {
         int result = close(fd);
         UNUSED(result);  // Ignore result. Printing to logcat will open a new descriptor
                          // that we do *not* want.
-    }
-}
-
-static void CloseDescriptor(const char* descriptor_string) {
-    int fd = -1;
-    std::istringstream stream(descriptor_string);
-    stream >> fd;
-    if (!stream.fail()) {
-        CloseDescriptor(fd);
     }
 }
 
@@ -113,6 +112,38 @@ static void TryExtraMount(const char* name, const char* slot, const char* target
     UNUSED(mount_result);
 }
 
+static android::sp<android::content::pm::IOtaDexopt> GetDexoptService() {
+    auto binder = android::defaultServiceManager()->getService(android::String16("otadexopt"));
+    if (binder == nullptr) {
+        return nullptr;
+    }
+    return android::interface_cast<android::content::pm::IOtaDexopt>(binder);
+}
+
+static bool RunDexoptCommand(int argc, char **arg, const std::string& dexopt_cmd) {
+    // Incoming:  cmd + status-fd + target-slot + cmd...      | Incoming | = argc
+    // Outgoing:  cmd             + target-slot + cmd...      | Outgoing | = argc - 1
+    std::vector<std::string> cmd;
+    cmd.reserve(argc);
+    cmd.push_back("/system/bin/otapreopt");
+
+    // The first parameter is the status file descriptor, skip.
+    for (size_t i = 2; i < static_cast<size_t>(argc); ++i) {
+        cmd.push_back(arg[i]);
+    }
+    for (const std::string& part : android::base::Split(dexopt_cmd, " ")) {
+        cmd.push_back(part);
+    }
+
+    // Fork and execute otapreopt in its own process.
+    std::string error_msg;
+    bool exec_result = Exec(cmd, &error_msg);
+    if (!exec_result) {
+        LOG(ERROR) << "Running otapreopt failed: " << error_msg;
+    }
+    return exec_result;
+}
+
 // Entry for otapreopt_chroot. Expected parameters are:
 //   [cmd] [status-fd] [target-slot] "dexopt" [dexopt-params]
 // The file descriptor denoted by status-fd will be closed. The rest of the parameters will
@@ -130,8 +161,18 @@ static int otapreopt_chroot(const int argc, char **arg) {
     CloseDescriptor(STDIN_FILENO);
     CloseDescriptor(STDOUT_FILENO);
     CloseDescriptor(STDERR_FILENO);
-    // 2) The status channel.
-    CloseDescriptor(arg[1]);
+
+    int fd;
+    if (!android::base::ParseInt(arg[1], &fd)) {
+        LOG(ERROR) << "Failed to parse " << arg[1];
+        exit(225);
+    }
+    // Add O_CLOEXEC to status channel, since we don't want to pass it across fork/exec, but we need
+    // to keep it open in otapreopt_chroot to report progress
+    if (fcntl(fd, F_SETFD, FD_CLOEXEC) == -1) {
+        PLOG(ERROR) << "Failed to set O_CLOEXEC on " << fd;
+        exit(226);
+    }
 
     // We need to run the otapreopt tool from the postinstall partition. As such, set up a
     // mount namespace and change root.
@@ -313,28 +354,50 @@ static int otapreopt_chroot(const int argc, char **arg) {
         exit(218);
     }
 
+    android::sp<android::content::pm::IOtaDexopt> dexopt = GetDexoptService();
+    if (dexopt == nullptr) {
+        LOG(ERROR) << "Failed to find otadexopt service";
+        exit(222);
+    }
+
+    android::base::borrowed_fd status_fd(fd);
     // Now go on and run otapreopt.
+    constexpr const int kMaximumPackages = 1000;
+    for (int iter = 0; iter < kMaximumPackages; iter++) {
+        android::String16 cmd;
+        android::binder::Status status = dexopt->nextDexoptCommand(&cmd);
+        if (!status.isOk()) {
+            LOG(ERROR) << "Failed to retrieve next dexopt command";
+            // Should we fail instead?
+            exit(224);
+        }
+        if (!RunDexoptCommand(argc, arg, android::String8(cmd).string())) {
+            exit(213);
+        }
 
-    // Incoming:  cmd + status-fd + target-slot + cmd...      | Incoming | = argc
-    // Outgoing:  cmd             + target-slot + cmd...      | Outgoing | = argc - 1
-    std::vector<std::string> cmd;
-    cmd.reserve(argc);
-    cmd.push_back("/system/bin/otapreopt");
+        float progress;
+        status = dexopt->getProgress(&progress);
+        if (!status.isOk()) {
+            LOG(ERROR) << "Failed to retrieve dexopt progress";
+            continue;
+        }
+        LOG(VERBOSE) << "Progress: " << progress;
+        std::string progress_str = StringPrintf("global_progress %.2f\n", progress);
+        if (!android::base::WriteStringToFd(progress_str, status_fd)) {
+            PLOG(ERROR) << "Failed to write '" << progress_str << "' to " << status_fd.get();
+        }
 
-    // The first parameter is the status file descriptor, skip.
-    for (size_t i = 2; i < static_cast<size_t>(argc); ++i) {
-        cmd.push_back(arg[i]);
-    }
-
-    // Fork and execute otapreopt in its own process.
-    std::string error_msg;
-    bool exec_result = Exec(cmd, &error_msg);
-    if (!exec_result) {
-        LOG(ERROR) << "Running otapreopt failed: " << error_msg;
-    }
-
-    if (!exec_result) {
-        exit(213);
+        bool done;
+        status = dexopt->isDone(&done);
+        if (!status.isOk()) {
+            LOG(WARNING) << "Failed to check if dexopt is done";
+            continue;
+        }
+        if (done) {
+            LOG(INFO) << "dexopt is done";
+            break;
+        }
+        std::this_thread::sleep_for(1s);
     }
 
     return 0;
