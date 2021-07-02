@@ -87,10 +87,8 @@ public:
     sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
     void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
-    void onPrimaryDisplayModeChanged(ConnectionHandle, PhysicalDisplayId, DisplayModeId,
-                                     nsecs_t vsyncPeriod) EXCLUDES(mFeatureStateLock);
-    void onNonPrimaryDisplayModeChanged(ConnectionHandle, PhysicalDisplayId, DisplayModeId,
-                                        nsecs_t vsyncPeriod);
+    void onPrimaryDisplayModeChanged(ConnectionHandle, DisplayModePtr) EXCLUDES(mFeatureStateLock);
+    void onNonPrimaryDisplayModeChanged(ConnectionHandle, DisplayModePtr);
     void onScreenAcquired(ConnectionHandle);
     void onScreenReleased(ConnectionHandle);
 
@@ -157,7 +155,7 @@ public:
     void dumpVsync(std::string&) const;
 
     // Get the appropriate refresh for current conditions.
-    std::optional<DisplayModeId> getPreferredModeId();
+    DisplayModePtr getPreferredDisplayMode();
 
     // Notifies the scheduler about a refresh rate timeline change.
     void onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline);
@@ -245,7 +243,7 @@ private:
     // This function checks whether individual features that are affecting the refresh rate
     // selection were initialized, prioritizes them, and calculates the DisplayModeId
     // for the suggested refresh rate.
-    DisplayModeId calculateRefreshRateModeId(
+    DisplayModePtr calculateRefreshRateModeId(
             scheduler::RefreshRateConfigs::GlobalSignals* consideredSignals = nullptr)
             REQUIRES(mFeatureStateLock);
 
@@ -308,7 +306,7 @@ private:
         TouchState touch = TouchState::Inactive;
         TimerState displayPowerTimer = TimerState::Expired;
 
-        std::optional<DisplayModeId> modeId;
+        DisplayModePtr mode;
         LayerHistory::Summary contentRequirements;
 
         bool isDisplayPowerStateNormal = true;
@@ -316,9 +314,7 @@ private:
         // Used to cache the last parameters of onPrimaryDisplayModeChanged
         struct ModeChangedParams {
             ConnectionHandle handle;
-            PhysicalDisplayId displayId;
-            DisplayModeId modeId;
-            nsecs_t vsyncPeriod;
+            DisplayModePtr mode;
         };
 
         std::optional<ModeChangedParams> cachedModeChangedParams;
