@@ -1401,7 +1401,7 @@ int SkiaGLRenderEngine::getContextPriority() {
     return value;
 }
 
-void SkiaGLRenderEngine::onPrimaryDisplaySizeChanged(ui::Size size) {
+void SkiaGLRenderEngine::onActiveDisplaySizeChanged(ui::Size size) {
     // This cache multiplier was selected based on review of cache sizes relative
     // to the screen resolution. Looking at the worst case memory needed by blur (~1.5x),
     // shadows (~1x), and general data structures (e.g. vertex buffers) we selected this as a
