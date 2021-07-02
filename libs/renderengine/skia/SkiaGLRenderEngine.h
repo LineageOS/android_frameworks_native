@@ -64,7 +64,7 @@ public:
     int getContextPriority() override;
     bool isProtected() const override { return mInProtectedContext; }
     bool supportsProtectedContent() const override;
-    bool useProtectedContext(bool useProtectedContext) override;
+    void useProtectedContext(bool useProtectedContext) override;
     bool supportsBackgroundBlur() override { return mBlurFilter != nullptr; }
     void assertShadersCompiled(int numShaders) override;
     void onActiveDisplaySizeChanged(ui::Size size) override;

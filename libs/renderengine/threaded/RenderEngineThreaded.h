@@ -53,7 +53,7 @@ public:
 
     bool isProtected() const override;
     bool supportsProtectedContent() const override;
-    bool useProtectedContext(bool useProtectedContext) override;
+    void useProtectedContext(bool useProtectedContext) override;
     void cleanupPostRender() override;
 
     status_t drawLayers(const DisplaySettings& display,
@@ -100,6 +100,7 @@ private:
      * Render Engine
      */
     std::unique_ptr<renderengine::RenderEngine> mRenderEngine;
+    std::atomic<bool> mIsProtected = false;
 };
 } // namespace threaded
 } // namespace renderengine
