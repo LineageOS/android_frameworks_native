@@ -43,6 +43,13 @@
  * Additional private constants not defined in ndk/ui/input.h.
  */
 enum {
+#ifdef __linux__
+    /* This event was generated or modified by accessibility service. */
+    AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT =
+            android::os::IInputConstants::INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT, // 0x800,
+#else
+    AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT = 0x800;
+#endif
     /* Signifies that the key is being predispatched */
     AKEY_EVENT_FLAG_PREDISPATCH = 0x20000000,
 
@@ -81,6 +88,16 @@ enum {
      */
     AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE = 0x40,
 
+#ifdef __linux__
+    /**
+     * This event was generated or modified by accessibility service.
+     */
+    AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT =
+            android::os::IInputConstants::INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT, // 0x800,
+#else
+    AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT = 0x800;
+#endif
+
     /* Motion event is inconsistent with previously sent motion events. */
     AMOTION_EVENT_FLAG_TAINTED = 0x80000000,
 };
@@ -89,14 +106,15 @@ enum {
  * Allowed VerifiedKeyEvent flags. All other flags from KeyEvent do not get verified.
  * These values must be kept in sync with VerifiedKeyEvent.java
  */
-constexpr int32_t VERIFIED_KEY_EVENT_FLAGS = AKEY_EVENT_FLAG_CANCELED;
+constexpr int32_t VERIFIED_KEY_EVENT_FLAGS =
+        AKEY_EVENT_FLAG_CANCELED | AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT;
 
 /**
  * Allowed VerifiedMotionEventFlags. All other flags from MotionEvent do not get verified.
  * These values must be kept in sync with VerifiedMotionEvent.java
  */
-constexpr int32_t VERIFIED_MOTION_EVENT_FLAGS =
-        AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED | AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
+constexpr int32_t VERIFIED_MOTION_EVENT_FLAGS = AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED |
+        AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED | AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT;
 
 /**
  * This flag indicates that the point up event has been canceled.
@@ -213,16 +231,14 @@ enum {
     POLICY_FLAG_GESTURE = 0x00000008,
 
     POLICY_FLAG_RAW_MASK = 0x0000ffff,
-#ifdef __linux__
-    POLICY_FLAG_INPUTFILTER_TRUSTED = android::os::IInputConstants::POLICY_FLAG_INPUTFILTER_TRUSTED,
 
+#ifdef __linux__
     POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY =
             android::os::IInputConstants::POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY,
 #else
-    POLICY_FLAG_INPUTFILTER_TRUSTED = 0x10000,
-
     POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY = 0x20000,
 #endif
+
     /* These flags are set by the input dispatcher. */
 
     // Indicates that the input event was injected.

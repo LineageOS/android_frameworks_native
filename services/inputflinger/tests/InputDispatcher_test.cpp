@@ -3160,7 +3160,8 @@ protected:
         mWindow->consumeFocusEvent(true);
     }
 
-    void testInjectedKey(int32_t policyFlags, int32_t injectedDeviceId, int32_t resolvedDeviceId) {
+    void testInjectedKey(int32_t policyFlags, int32_t injectedDeviceId, int32_t resolvedDeviceId,
+                         int32_t flags) {
         KeyEvent event;
 
         const nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
@@ -3177,6 +3178,45 @@ protected:
         InputEvent* received = mWindow->consume();
         ASSERT_NE(nullptr, received);
         ASSERT_EQ(resolvedDeviceId, received->getDeviceId());
+        ASSERT_EQ(received->getType(), AINPUT_EVENT_TYPE_KEY);
+        KeyEvent& keyEvent = static_cast<KeyEvent&>(*received);
+        ASSERT_EQ(flags, keyEvent.getFlags());
+    }
+
+    void testInjectedMotion(int32_t policyFlags, int32_t injectedDeviceId, int32_t resolvedDeviceId,
+                            int32_t flags) {
+        MotionEvent event;
+        PointerProperties pointerProperties[1];
+        PointerCoords pointerCoords[1];
+        pointerProperties[0].clear();
+        pointerProperties[0].id = 0;
+        pointerCoords[0].clear();
+        pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 300);
+        pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, 400);
+
+        ui::Transform identityTransform;
+        const nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
+        event.initialize(InputEvent::nextId(), injectedDeviceId, AINPUT_SOURCE_TOUCHSCREEN,
+                         DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
+                         AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0, MotionClassification::NONE,
+                         identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                         0 /*AMOTION_EVENT_INVALID_DISPLAY_SIZE*/,
+                         0 /*AMOTION_EVENT_INVALID_DISPLAY_SIZE*/, eventTime, eventTime,
+                         /*pointerCount*/ 1, pointerProperties, pointerCoords);
+
+        const int32_t additionalPolicyFlags = POLICY_FLAG_PASS_TO_USER;
+        ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+                  mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
+                                                InputEventInjectionSync::WAIT_FOR_RESULT, 10ms,
+                                                policyFlags | additionalPolicyFlags));
+
+        InputEvent* received = mWindow->consume();
+        ASSERT_NE(nullptr, received);
+        ASSERT_EQ(resolvedDeviceId, received->getDeviceId());
+        ASSERT_EQ(received->getType(), AINPUT_EVENT_TYPE_MOTION);
+        MotionEvent& motionEvent = static_cast<MotionEvent&>(*received);
+        ASSERT_EQ(flags, motionEvent.getFlags());
     }
 
 private:
@@ -3184,20 +3224,29 @@ private:
 };
 
 TEST_F(InputFilterInjectionPolicyTest, TrustedFilteredEvents_KeepOriginalDeviceId) {
-    // We don't need POLICY_FLAG_FILTERED here, but it will be set in practice, so keep it to make
-    // the test more closely resemble the real usage
-    testInjectedKey(POLICY_FLAG_FILTERED | POLICY_FLAG_INPUTFILTER_TRUSTED, 3 /*injectedDeviceId*/,
-                    3 /*resolvedDeviceId*/);
+    // Must have POLICY_FLAG_FILTERED here to indicate that the event has gone through the input
+    // filter. Without it, the event will no different from a regularly injected event, and the
+    // injected device id will be overwritten.
+    testInjectedKey(POLICY_FLAG_FILTERED, 3 /*injectedDeviceId*/, 3 /*resolvedDeviceId*/,
+                    0 /*flags*/);
 }
 
-TEST_F(InputFilterInjectionPolicyTest, EventsInjectedFromAccessibility_HaveAccessibilityDeviceId) {
+TEST_F(InputFilterInjectionPolicyTest, KeyEventsInjectedFromAccessibility_HaveAccessibilityFlag) {
     testInjectedKey(POLICY_FLAG_FILTERED | POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY,
-                    3 /*injectedDeviceId*/, ACCESSIBILITY_DEVICE_ID /*resolvedDeviceId*/);
+                    3 /*injectedDeviceId*/, 3 /*resolvedDeviceId*/,
+                    AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT);
+}
+
+TEST_F(InputFilterInjectionPolicyTest,
+       MotionEventsInjectedFromAccessibility_HaveAccessibilityFlag) {
+    testInjectedMotion(POLICY_FLAG_FILTERED | POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY,
+                       3 /*injectedDeviceId*/, 3 /*resolvedDeviceId*/,
+                       AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT);
 }
 
 TEST_F(InputFilterInjectionPolicyTest, RegularInjectedEvents_ReceiveVirtualDeviceId) {
     testInjectedKey(0 /*policyFlags*/, 3 /*injectedDeviceId*/,
-                    VIRTUAL_KEYBOARD_ID /*resolvedDeviceId*/);
+                    VIRTUAL_KEYBOARD_ID /*resolvedDeviceId*/, 0 /*flags*/);
 }
 
 class InputDispatcherOnPointerDownOutsideFocus : public InputDispatcherTest {
