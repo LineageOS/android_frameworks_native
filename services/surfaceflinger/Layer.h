@@ -863,6 +863,8 @@ public:
     // The layers in the cloned hierarchy will match the lifetime of the real layers. That is
     // if the real layer is destroyed, then the clone layer will also be destroyed.
     sp<Layer> mClonedChild;
+    bool mHadClonedChild = false;
+    void setClonedChild(const sp<Layer>& mClonedChild);
 
     mutable bool contentDirty{false};
     Region surfaceDamageRegion;

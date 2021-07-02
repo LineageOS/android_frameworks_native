@@ -3255,7 +3255,9 @@ void SurfaceFlinger::commitTransactionLocked() {
     }
 
     commitOffscreenLayers();
-    mDrawingState.traverse([&](Layer* layer) { layer->updateMirrorInfo(); });
+    if (mNumClones > 0) {
+        mDrawingState.traverse([&](Layer* layer) { layer->updateMirrorInfo(); });
+    }
 }
 
 void SurfaceFlinger::commitOffscreenLayers() {
@@ -3361,7 +3363,9 @@ bool SurfaceFlinger::handlePageFlip() {
         mBootStage = BootStage::BOOTANIMATION;
     }
 
-    mDrawingState.traverse([&](Layer* layer) { layer->updateCloneBufferInfo(); });
+    if (mNumClones > 0) {
+        mDrawingState.traverse([&](Layer* layer) { layer->updateCloneBufferInfo(); });
+    }
 
     // Only continue with the refresh if there is actually new work to do
     return !mLayersWithQueuedFrames.empty() && newDataLatched;
@@ -4246,7 +4250,7 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
             return result;
         }
 
-        mirrorLayer->mClonedChild = mirrorFrom->createClone();
+        mirrorLayer->setClonedChild(mirrorFrom->createClone());
     }
 
     *outLayerId = mirrorLayer->sequence;
