@@ -632,9 +632,7 @@ void SurfaceFlinger::releaseVirtualDisplay(VirtualDisplayId displayId) {
     mVirtualDisplayIdGenerators.gpu.releaseId(*id);
 }
 
-std::vector<PhysicalDisplayId> SurfaceFlinger::getPhysicalDisplayIds() const {
-    Mutex::Autolock lock(mStateLock);
-
+std::vector<PhysicalDisplayId> SurfaceFlinger::getPhysicalDisplayIdsLocked() const {
     const auto internalDisplayId = getInternalDisplayIdLocked();
     if (!internalDisplayId) {
         return {};
@@ -837,7 +835,7 @@ void SurfaceFlinger::init() {
         }
     }
 
-    getRenderEngine().onPrimaryDisplaySizeChanged(display->getSize());
+    onActiveDisplaySizeChanged(display);
 
     // Inform native graphics APIs whether the present timestamp is supported:
 
@@ -1190,6 +1188,10 @@ void SurfaceFlinger::setActiveModeInternal() {
     updatePhaseConfiguration(refreshRate);
     ATRACE_INT("ActiveConfigFPS", refreshRate.getValue());
 
+    if (mRefreshRateOverlay) {
+        mRefreshRateOverlay->changeRefreshRate(upcomingMode->getFps());
+    }
+
     if (mUpcomingActiveMode.event != Scheduler::ModeEvent::None) {
         const nsecs_t vsyncPeriod = refreshRate.getPeriodNsecs();
         const auto physicalId = display->getPhysicalId();
@@ -1272,9 +1274,6 @@ void SurfaceFlinger::performSetActiveMode() {
     }
 
     mScheduler->onNewVsyncPeriodChangeTimeline(outTimeline);
-    if (mRefreshRateOverlay) {
-        mRefreshRateOverlay->changeRefreshRate(desiredMode->getFps());
-    }
 
     // Scheduler will submit an empty frame to HWC if needed.
     mSetActiveModePending = true;
@@ -2334,7 +2333,7 @@ void SurfaceFlinger::postComposition() {
     mTransactionCallbackInvoker.addPresentFence(mPreviousPresentFences[0].fence);
     mTransactionCallbackInvoker.sendCallbacks();
 
-    if (display && display->isPrimary() && display->getPowerMode() == hal::PowerMode::ON &&
+    if (display && display->isInternal() && display->getPowerMode() == hal::PowerMode::ON &&
         mPreviousPresentFences[0].fenceTime->isValid()) {
         mScheduler->addPresentFence(mPreviousPresentFences[0].fenceTime);
     }
@@ -2784,11 +2783,6 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
     if (!state.isVirtual()) {
         dispatchDisplayHotplugEvent(display->getPhysicalId(), true);
     }
-
-    if (display->isPrimary()) {
-        mScheduler->onPrimaryDisplayAreaChanged(display->getWidth() * display->getHeight());
-        getRenderEngine().onPrimaryDisplaySizeChanged(display->getSize());
-    }
 }
 
 void SurfaceFlinger::processDisplayRemoved(const wp<IBinder>& displayToken) {
@@ -2853,16 +2847,8 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
 
             // TODO(b/175678251) Call a listener instead.
             if (currentState.physical->hwcDisplayId == getHwComposer().getInternalHwcDisplayId()) {
-                mRefreshRateConfigs->updateDisplayModes(currentState.physical->supportedModes,
-                                                        currentState.physical->activeMode->getId());
-                mVsyncConfiguration->reset();
-                const Fps refreshRate = currentState.physical->activeMode->getFps();
-                updatePhaseConfiguration(refreshRate);
-                mRefreshRateStats->setRefreshRate(refreshRate);
-
-                if (mRefreshRateOverlay) {
-                    mRefreshRateOverlay->reset();
-                }
+                updateInternalDisplayVsyncLocked(currentState.physical->supportedModes,
+                                                 currentState.physical->activeMode->getId());
             }
         }
         return;
@@ -2888,14 +2874,25 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             currentState.height != drawingState.height) {
             display->setDisplaySize(currentState.width, currentState.height);
 
-            if (display->isPrimary()) {
-                mScheduler->onPrimaryDisplayAreaChanged(currentState.width * currentState.height);
+            if (isDisplayActiveLocked(display)) {
+                onActiveDisplaySizeChanged(display);
             }
 
             if (mRefreshRateOverlay) {
                 mRefreshRateOverlay->setViewport(display->getSize());
             }
         }
+    }
+}
+void SurfaceFlinger::updateInternalDisplayVsyncLocked(const DisplayModes& modes,
+                                                      DisplayModeId currentModeId) {
+    mRefreshRateConfigs->updateDisplayModes(modes, currentModeId);
+    mVsyncConfiguration->reset();
+    const Fps refreshRate = mRefreshRateConfigs->getCurrentRefreshRate().getFps();
+    updatePhaseConfiguration(refreshRate);
+    mRefreshRateStats->setRefreshRate(refreshRate);
+    if (mRefreshRateOverlay) {
+        mRefreshRateOverlay->reset();
     }
 }
 
@@ -4554,6 +4551,11 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     }
     const auto vsyncPeriod = mRefreshRateConfigs->getCurrentRefreshRate().getVsyncPeriod();
     if (currentMode == hal::PowerMode::OFF) {
+        const auto activeDisplay = getDisplayDeviceLocked(mActiveDisplayToken);
+        if (display->isInternal() && (!activeDisplay || !activeDisplay->isPoweredOn())) {
+            mActiveDisplayToken = display->getDisplayToken();
+            onActiveDisplayChangedLocked(getDisplayDeviceLocked(mActiveDisplayToken));
+        }
         // Keep uclamp in a separate syscall and set it before changing to RT due to b/190237315.
         // We can merge the syscall later.
         if (SurfaceFlinger::setSchedAttr(true) != NO_ERROR) {
@@ -4563,7 +4565,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
             ALOGW("Couldn't set SCHED_FIFO on display on: %s\n", strerror(errno));
         }
         getHwComposer().setPowerMode(displayId, mode);
-        if (display->isPrimary() && mode != hal::PowerMode::DOZE_SUSPEND) {
+        if (display->isInternal() && mode != hal::PowerMode::DOZE_SUSPEND) {
             getHwComposer().setVsyncEnabled(displayId, mHWCVsyncPendingState);
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, vsyncPeriod);
@@ -4580,7 +4582,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         if (SurfaceFlinger::setSchedAttr(false) != NO_ERROR) {
             ALOGW("Couldn't set uclamp.min on display off: %s\n", strerror(errno));
         }
-        if (display->isPrimary() && currentMode != hal::PowerMode::DOZE_SUSPEND) {
+        if (display->isInternal() && currentMode != hal::PowerMode::DOZE_SUSPEND) {
             mScheduler->disableHardwareVsync(true);
             mScheduler->onScreenReleased(mAppConnectionHandle);
         }
@@ -4594,13 +4596,13 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     } else if (mode == hal::PowerMode::DOZE || mode == hal::PowerMode::ON) {
         // Update display while dozing
         getHwComposer().setPowerMode(displayId, mode);
-        if (display->isPrimary() && currentMode == hal::PowerMode::DOZE_SUSPEND) {
+        if (display->isInternal() && currentMode == hal::PowerMode::DOZE_SUSPEND) {
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, vsyncPeriod);
         }
     } else if (mode == hal::PowerMode::DOZE_SUSPEND) {
         // Leave display going to doze
-        if (display->isPrimary()) {
+        if (display->isInternal()) {
             mScheduler->disableHardwareVsync(true);
             mScheduler->onScreenReleased(mAppConnectionHandle);
         }
@@ -4610,7 +4612,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         getHwComposer().setPowerMode(displayId, mode);
     }
 
-    if (display->isPrimary()) {
+    if (display->isInternal()) {
         mTimeStats->setPowerMode(mode);
         mRefreshRateStats->setPowerMode(mode);
         mScheduler->setDisplayPowerState(mode == hal::PowerMode::ON);
@@ -5674,7 +5676,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 const auto display = [&]() -> sp<IBinder> {
                     uint64_t value;
                     if (data.readUint64(&value) != NO_ERROR) {
-                        return getInternalDisplayToken();
+                        return getDefaultDisplayDevice()->getDisplayToken().promote();
                     }
 
                     if (const auto id = DisplayId::fromValue<PhysicalDisplayId>(value)) {
@@ -6439,8 +6441,10 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy) {
     Mutex::Autolock lock(mStateLock);
 
-    LOG_ALWAYS_FATAL_IF(!display->isPrimary() && overridePolicy,
-                        "Can only set override policy on the primary display");
+    const bool isDefaultDisplay = display == getDefaultDisplayDeviceLocked();
+
+    LOG_ALWAYS_FATAL_IF(!isDefaultDisplay && overridePolicy,
+                        "Can only set override policy on the default display");
     LOG_ALWAYS_FATAL_IF(!policy && !overridePolicy, "Can only clear the override policy");
 
     if (mDebugDisplayModeSetByBackdoor) {
@@ -6448,11 +6452,11 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         return NO_ERROR;
     }
 
-    if (!display->isPrimary()) {
-        // TODO(b/144711714): For non-primary displays we should be able to set an active mode
+    if (!isDefaultDisplay) {
+        // TODO(b/144711714): For non-default displays we should be able to set an active mode
         // as well. For now, just call directly to initiateModeChange but ideally
         // it should go thru setDesiredActiveMode, similar to primary display.
-        ALOGV("%s for non-primary display", __func__);
+        ALOGV("%s for non-default display", __func__);
         const auto displayId = display->getPhysicalId();
 
         hal::VsyncPeriodChangeConstraints constraints;
@@ -6570,7 +6574,7 @@ status_t SurfaceFlinger::getDesiredDisplayModeSpecs(const sp<IBinder>& displayTo
         return NAME_NOT_FOUND;
     }
 
-    if (display->isPrimary()) {
+    if (display == getDefaultDisplayDeviceLocked()) {
         scheduler::RefreshRateConfigs::Policy policy =
                 mRefreshRateConfigs->getDisplayManagerPolicy();
         *outDefaultMode = policy.defaultMode.value();
@@ -6962,6 +6966,27 @@ void SurfaceFlinger::notifyRegionSamplingThread() {
     }
 
     mRegionSamplingThread->onCompositionComplete(mEventQueue->nextExpectedInvalidate());
+}
+
+void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<DisplayDevice>& activeDisplay) {
+    mScheduler->onActiveDisplayAreaChanged(activeDisplay->getWidth() * activeDisplay->getHeight());
+    getRenderEngine().onActiveDisplaySizeChanged(activeDisplay->getSize());
+}
+
+void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay) {
+    ATRACE_CALL();
+
+    if (!activeDisplay) {
+        ALOGE("%s: activeDisplay is null", __func__);
+        return;
+    }
+    updateInternalDisplayVsyncLocked(activeDisplay->getSupportedModes(),
+                                     activeDisplay->getActiveMode()->getId());
+    onActiveDisplaySizeChanged(activeDisplay);
+    if (mRefreshRateOverlay) {
+        mRefreshRateOverlay->setViewport(activeDisplay->getSize());
+        mRefreshRateOverlay->changeRefreshRate(activeDisplay->getActiveMode()->getFps());
+    }
 }
 
 } // namespace android

@@ -171,7 +171,7 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSup
     mScheduler->setDisplayPowerState(kPowerStateNormal);
 
     constexpr uint32_t kDisplayArea = 999'999;
-    mScheduler->onPrimaryDisplayAreaChanged(kDisplayArea);
+    mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
 
     EXPECT_CALL(mSchedulerCallback, changeRefreshRate(_, _)).Times(0);
     mScheduler->chooseRefreshRateForContent();
@@ -235,7 +235,7 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
     mScheduler->setDisplayPowerState(kPowerStateNormal);
 
     constexpr uint32_t kDisplayArea = 999'999;
-    mScheduler->onPrimaryDisplayAreaChanged(kDisplayArea);
+    mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
 
     EXPECT_CALL(mSchedulerCallback, changeRefreshRate(Is120Hz(), _)).Times(1);
     mScheduler->chooseRefreshRateForContent();

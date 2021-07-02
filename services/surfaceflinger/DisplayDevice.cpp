@@ -217,7 +217,7 @@ ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
 }
 
 void DisplayDevice::setLayerStack(ui::LayerStack stack) {
-    mCompositionDisplay->setLayerStackFilter(stack, isPrimary());
+    mCompositionDisplay->setLayerStackFilter(stack, isInternal());
 }
 
 void DisplayDevice::setFlags(uint32_t flags) {
@@ -266,7 +266,7 @@ ui::Transform::RotationFlags DisplayDevice::getPrimaryDisplayRotationFlags() {
 std::string DisplayDevice::getDebugName() const {
     const char* type = "virtual";
     if (mConnectionType) {
-        type = *mConnectionType == ui::DisplayConnectionType::Internal ? "internal" : "external";
+        type = isInternal() ? "internal" : "external";
     }
 
     return base::StringPrintf("DisplayDevice{%s, %s%s, \"%s\"}", to_string(getId()).c_str(), type,
