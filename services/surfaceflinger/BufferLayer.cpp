@@ -421,7 +421,7 @@ bool BufferLayer::onPostComposition(const DisplayDevice* display,
         mFrameTracker.setFrameReadyTime(desiredPresentTime);
     }
 
-    const Fps refreshRate = mFlinger->mRefreshRateConfigs->getCurrentRefreshRate().getFps();
+    const Fps refreshRate = display->refreshRateConfigs().getCurrentRefreshRate().getFps();
     const std::optional<Fps> renderRate = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
     if (presentFence->isValid()) {
         mFlinger->mTimeStats->setPresentFence(layerId, mCurrentFrameNumber, presentFence,

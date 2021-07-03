@@ -65,8 +65,9 @@ std::unique_ptr<scheduler::VsyncConfiguration> DefaultFactory::createVsyncConfig
 }
 
 std::unique_ptr<Scheduler> DefaultFactory::createScheduler(
-        const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback) {
-    return std::make_unique<Scheduler>(configs, callback);
+        const std::shared_ptr<scheduler::RefreshRateConfigs>& refreshRateConfigs,
+        ISchedulerCallback& callback) {
+    return std::make_unique<Scheduler>(std::move(refreshRateConfigs), callback);
 }
 
 sp<SurfaceInterceptor> DefaultFactory::createSurfaceInterceptor() {

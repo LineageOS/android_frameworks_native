@@ -74,6 +74,7 @@ public:
         EXPECT_CALL(*mVSyncTracker, currentPeriod())
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
 
+        mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
         mFlinger.setupScheduler(std::unique_ptr<mock::VsyncController>(mVsyncController),
                                 std::unique_ptr<mock::VSyncTracker>(mVSyncTracker),
                                 std::move(eventThread), std::move(sfEventThread));

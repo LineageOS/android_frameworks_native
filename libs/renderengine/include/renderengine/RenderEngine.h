@@ -129,9 +129,9 @@ public:
     // Attempt to switch RenderEngine into and out of protectedContext mode
     virtual bool useProtectedContext(bool useProtectedContext) = 0;
 
-    // Notify RenderEngine of changes to the dimensions of the primary display
+    // Notify RenderEngine of changes to the dimensions of the active display
     // so that it can configure its internal caches accordingly.
-    virtual void onPrimaryDisplaySizeChanged(ui::Size size) = 0;
+    virtual void onActiveDisplaySizeChanged(ui::Size size) = 0;
 
     // Renders layers for a particular display via GPU composition. This method
     // should be called for every display that needs to be rendered via the GPU.

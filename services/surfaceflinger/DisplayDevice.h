@@ -44,12 +44,15 @@
 #include "DisplayHardware/Hal.h"
 #include "DisplayHardware/PowerAdvisor.h"
 
+#include "Scheduler/RefreshRateConfigs.h"
+
 namespace android {
 
 class Fence;
 class HWComposer;
 class IGraphicBufferProducer;
 class Layer;
+class RefreshRateOverlay;
 class SurfaceFlinger;
 
 struct CompositionInfo;
@@ -79,6 +82,9 @@ public:
 
     bool isVirtual() const { return !mConnectionType; }
     bool isPrimary() const { return mIsPrimary; }
+    bool isInternal() const {
+        return !isVirtual() && mConnectionType == ui::DisplayConnectionType::Internal;
+    }
 
     // isSecure indicates whether this display can be trusted to display
     // secure surfaces.
@@ -190,6 +196,22 @@ public:
     // set-top boxes after a hotplug reconnect.
     DisplayModePtr getMode(DisplayModeId) const;
 
+    // Returns the refresh rate configs for this display.
+    scheduler::RefreshRateConfigs& refreshRateConfigs() const { return *mRefreshRateConfigs; }
+
+    // Returns a shared pointer to the refresh rate configs for this display.
+    // Clients can store this refresh rate configs and use it even if the DisplayDevice
+    // is destroyed.
+    std::shared_ptr<scheduler::RefreshRateConfigs> holdRefreshRateConfigs() const {
+        return mRefreshRateConfigs;
+    }
+
+    // Enables an overlay to be displayed with the current refresh rate
+    void enableRefreshRateOverlay(bool enable, bool showSpinner);
+    bool isRefreshRateOverlayEnabled() const { return mRefreshRateOverlay != nullptr; }
+    bool onKernelTimerChanged(std::optional<DisplayModeId>, bool timerExpired);
+    void onInvalidate();
+
     void onVsync(nsecs_t timestamp);
     nsecs_t getVsyncPeriodFromHWC() const;
     nsecs_t getRefreshTimestamp() const;
@@ -235,6 +257,9 @@ private:
     std::optional<DeviceProductInfo> mDeviceProductInfo;
 
     std::vector<ui::Hdr> mOverrideHdrTypes;
+
+    std::shared_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
+    std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay;
 };
 
 struct DisplayDeviceState {
@@ -280,6 +305,7 @@ struct DisplayDeviceCreationArgs {
     HWComposer& hwComposer;
     const wp<IBinder> displayToken;
     const std::shared_ptr<compositionengine::Display> compositionDisplay;
+    std::shared_ptr<scheduler::RefreshRateConfigs> refreshRateConfigs;
 
     int32_t sequenceId{0};
     std::optional<ui::DisplayConnectionType> connectionType;
@@ -295,6 +321,7 @@ struct DisplayDeviceCreationArgs {
             hardware::graphics::composer::hal::PowerMode::ON};
     bool isPrimary{false};
     DisplayModes supportedModes;
+    DisplayModeId activeModeId;
 };
 
 // Predicates for display lookup.

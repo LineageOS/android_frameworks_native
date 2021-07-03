@@ -62,7 +62,8 @@ protected:
                                            .setGroup(0)
                                            .build();
 
-    scheduler::RefreshRateConfigs mConfigs{{mode60}, mode60->getId()};
+    std::shared_ptr<scheduler::RefreshRateConfigs> mConfigs =
+            std::make_shared<scheduler::RefreshRateConfigs>(DisplayModes{mode60}, mode60->getId());
 
     mock::SchedulerCallback mSchedulerCallback;
 
@@ -171,7 +172,7 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSup
     mScheduler->setDisplayPowerState(kPowerStateNormal);
 
     constexpr uint32_t kDisplayArea = 999'999;
-    mScheduler->onPrimaryDisplayAreaChanged(kDisplayArea);
+    mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
 
     EXPECT_CALL(mSchedulerCallback, changeRefreshRate(_, _)).Times(0);
     mScheduler->chooseRefreshRateForContent();
@@ -182,7 +183,9 @@ TEST_F(SchedulerTest, updateDisplayModes) {
     sp<mock::MockLayer> layer = sp<mock::MockLayer>::make(mFlinger.flinger());
     ASSERT_EQ(static_cast<size_t>(1), mScheduler->layerHistorySize());
 
-    mConfigs.updateDisplayModes({mode60, mode120}, /* activeMode */ mode60->getId());
+    mScheduler->setRefreshRateConfigs(
+            std::make_shared<scheduler::RefreshRateConfigs>(DisplayModes{mode60, mode120},
+                                                            mode60->getId()));
 
     ASSERT_EQ(static_cast<size_t>(0), mScheduler->getNumActiveLayers());
     mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
@@ -225,7 +228,9 @@ MATCHER(Is120Hz, "") {
 }
 
 TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
-    mConfigs.updateDisplayModes({mode60, mode120}, /* activeMode */ mode60->getId());
+    mScheduler->setRefreshRateConfigs(
+            std::make_shared<scheduler::RefreshRateConfigs>(DisplayModes{mode60, mode120},
+                                                            mode60->getId()));
 
     sp<mock::MockLayer> layer = sp<mock::MockLayer>::make(mFlinger.flinger());
 
@@ -235,7 +240,7 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
     mScheduler->setDisplayPowerState(kPowerStateNormal);
 
     constexpr uint32_t kDisplayArea = 999'999;
-    mScheduler->onPrimaryDisplayAreaChanged(kDisplayArea);
+    mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
 
     EXPECT_CALL(mSchedulerCallback, changeRefreshRate(Is120Hz(), _)).Times(1);
     mScheduler->chooseRefreshRateForContent();
