@@ -113,7 +113,7 @@ bool RefreshRateConfigs::isVoteAllowed(const LayerRequirement& layer,
         case LayerVoteType::ExplicitExactOrMultiple:
         case LayerVoteType::Heuristic:
             if (mConfig.frameRateMultipleThreshold != 0 &&
-                refreshRate.fps.greaterThanOrEqualWithMargin(
+                refreshRate.getFps().greaterThanOrEqualWithMargin(
                         Fps(mConfig.frameRateMultipleThreshold)) &&
                 layer.desiredRefreshRate.lessThanWithMargin(
                         Fps(mConfig.frameRateMultipleThreshold / 2))) {
@@ -146,8 +146,8 @@ float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& laye
 
     // If the layer wants Max, give higher score to the higher refresh rate
     if (layer.vote == LayerVoteType::Max) {
-        const auto ratio =
-                refreshRate.fps.getValue() / mAppRequestRefreshRates.back()->fps.getValue();
+        const auto ratio = refreshRate.getFps().getValue() /
+                mAppRequestRefreshRates.back()->getFps().getValue();
         // use ratio^2 to get a lower score the more we get further from peak
         return ratio * ratio;
     }
@@ -463,7 +463,7 @@ RefreshRate RefreshRateConfigs::getBestRefreshRateLocked(
         }
     }();
     if (globalSignals.touch && explicitDefaultVoteLayers == 0 && touchBoostForExplicitExact &&
-        bestRefreshRate->fps.lessThanWithMargin(touchRefreshRate.fps)) {
+        bestRefreshRate->getFps().lessThanWithMargin(touchRefreshRate.getFps())) {
         setTouchConsidered();
         ALOGV("TouchBoost - choose %s", touchRefreshRate.getName().c_str());
         return touchRefreshRate;
@@ -699,8 +699,7 @@ void RefreshRateConfigs::updateDisplayModes(const DisplayModes& modes,
     for (const auto& mode : modes) {
         const auto modeId = mode->getId();
         mRefreshRates.emplace(modeId,
-                              std::make_unique<RefreshRate>(modeId, mode, mode->getFps(),
-                                                            RefreshRate::ConstructorTag(0)));
+                              std::make_unique<RefreshRate>(mode, RefreshRate::ConstructorTag(0)));
         if (modeId == currentModeId) {
             mCurrentRefreshRate = mRefreshRates.at(modeId).get();
         }
@@ -793,7 +792,7 @@ RefreshRateConfigs::Policy RefreshRateConfigs::getDisplayManagerPolicy() const {
 bool RefreshRateConfigs::isModeAllowed(DisplayModeId modeId) const {
     std::lock_guard lock(mLock);
     for (const RefreshRate* refreshRate : mAppRequestRefreshRates) {
-        if (refreshRate->modeId == modeId) {
+        if (refreshRate->getModeId() == modeId) {
             return true;
         }
     }
@@ -808,7 +807,7 @@ void RefreshRateConfigs::getSortedRefreshRateListLocked(
     for (const auto& [type, refreshRate] : mRefreshRates) {
         if (shouldAddRefreshRate(*refreshRate)) {
             ALOGV("getSortedRefreshRateListLocked: mode %d added to list policy",
-                  refreshRate->modeId.value());
+                  refreshRate->getModeId().value());
             outRefreshRates->push_back(refreshRate.get());
         }
     }

@@ -122,10 +122,6 @@ public:
 
     static void setTraceEnabled(bool enabled) { sTraceEnabled = enabled; }
 
-    static void setRefreshRateConfigs(const RefreshRateConfigs& refreshRateConfigs) {
-        sRefreshRateConfigs = &refreshRateConfigs;
-    }
-
     LayerInfo(const std::string& name, uid_t ownerUid, LayerHistory::LayerVoteType defaultVote);
 
     LayerInfo(const LayerInfo&) = delete;
@@ -161,7 +157,7 @@ public:
 
     uid_t getOwnerUid() const { return mOwnerUid; }
 
-    LayerVote getRefreshRateVote(nsecs_t now);
+    LayerVote getRefreshRateVote(const RefreshRateConfigs&, nsecs_t now);
 
     // Return the last updated time. If the present time is farther in the future than the
     // updated time, the updated time is the present time.
@@ -263,7 +259,7 @@ private:
     bool isFrequent(nsecs_t now) const;
     bool isAnimating(nsecs_t now) const;
     bool hasEnoughDataForHeuristic() const;
-    std::optional<Fps> calculateRefreshRateIfPossible(nsecs_t now);
+    std::optional<Fps> calculateRefreshRateIfPossible(const RefreshRateConfigs&, nsecs_t now);
     std::optional<nsecs_t> calculateAverageFrameTime() const;
     bool isFrameTimeValid(const FrameTimeData&) const;
 
@@ -300,7 +296,6 @@ private:
     mutable std::unordered_map<LayerHistory::LayerVoteType, std::string> mTraceTags;
 
     // Shared for all LayerInfo instances
-    static const RefreshRateConfigs* sRefreshRateConfigs;
     static bool sTraceEnabled;
 };
 

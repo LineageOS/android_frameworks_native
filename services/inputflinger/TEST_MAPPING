@@ -27,7 +27,8 @@
       "name": "CtsViewTestCases",
       "options": [
         {
-          "include-filter": "android.view.cts.MotionEventTest"
+          "include-filter": "android.view.cts.MotionEventTest",
+          "include-filter": "android.view.cts.VerifyInputEventTest"
         }
       ]
     },
