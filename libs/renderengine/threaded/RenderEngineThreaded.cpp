@@ -90,6 +90,7 @@ void RenderEngineThreaded::threadMain(CreateInstanceFactory factory) NO_THREAD_S
     }
 
     mRenderEngine = factory();
+    mIsProtected = mRenderEngine->isProtected();
 
     pthread_setname_np(pthread_self(), mThreadName);
 
@@ -248,10 +249,8 @@ size_t RenderEngineThreaded::getMaxViewportDims() const {
 
 bool RenderEngineThreaded::isProtected() const {
     waitUntilInitialized();
-    // ensure that useProtectedContext is not currently being changed by some
-    // other thread.
     std::lock_guard lock(mThreadMutex);
-    return mRenderEngine->isProtected();
+    return mIsProtected;
 }
 
 bool RenderEngineThreaded::supportsProtectedContent() const {
@@ -259,20 +258,28 @@ bool RenderEngineThreaded::supportsProtectedContent() const {
     return mRenderEngine->supportsProtectedContent();
 }
 
-bool RenderEngineThreaded::useProtectedContext(bool useProtectedContext) {
-    std::promise<bool> resultPromise;
-    std::future<bool> resultFuture = resultPromise.get_future();
+void RenderEngineThreaded::useProtectedContext(bool useProtectedContext) {
+    if (isProtected() == useProtectedContext ||
+        (useProtectedContext && !supportsProtectedContent())) {
+        return;
+    }
+
     {
         std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push(
-                [&resultPromise, useProtectedContext](renderengine::RenderEngine& instance) {
-                    ATRACE_NAME("REThreaded::useProtectedContext");
-                    bool returnValue = instance.useProtectedContext(useProtectedContext);
-                    resultPromise.set_value(returnValue);
-                });
+        mFunctionCalls.push([useProtectedContext, this](renderengine::RenderEngine& instance) {
+            ATRACE_NAME("REThreaded::useProtectedContext");
+            instance.useProtectedContext(useProtectedContext);
+            if (instance.isProtected() != useProtectedContext) {
+                ALOGE("Failed to switch RenderEngine context.");
+                // reset the cached mIsProtected value to a good state, but this does not
+                // prevent other callers of this method and isProtected from reading the
+                // invalid cached value.
+                mIsProtected = instance.isProtected();
+            }
+        });
+        mIsProtected = useProtectedContext;
     }
     mCondition.notify_one();
-    return resultFuture.get();
 }
 
 void RenderEngineThreaded::cleanupPostRender() {

@@ -313,7 +313,11 @@ public:
     void onLayerFirstRef(Layer*);
     void onLayerDestroyed(Layer*);
 
+    void removeHierarchyFromOffscreenLayers(Layer* layer);
     void removeFromOffscreenLayers(Layer* layer);
+
+    // TODO: Remove atomic if move dtor to main thread CL lands
+    std::atomic<uint32_t> mNumClones;
 
     TransactionCallbackInvoker& getTransactionCallbackInvoker() {
         return mTransactionCallbackInvoker;
