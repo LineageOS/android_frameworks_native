@@ -48,7 +48,7 @@ enum {
     AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT =
             android::os::IInputConstants::INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT, // 0x800,
 #else
-    AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT = 0x800;
+    AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT = 0x800,
 #endif
     /* Signifies that the key is being predispatched */
     AKEY_EVENT_FLAG_PREDISPATCH = 0x20000000,

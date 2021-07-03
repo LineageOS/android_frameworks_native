@@ -209,6 +209,7 @@ public:
                         ISchedulerCallback* callback = nullptr, bool hasMultipleModes = false) {
         DisplayModes modes{DisplayMode::Builder(0)
                                    .setId(DisplayModeId(0))
+                                   .setPhysicalDisplayId(PhysicalDisplayId(0))
                                    .setVsyncPeriod(16'666'667)
                                    .setGroup(0)
                                    .build()};
@@ -216,6 +217,7 @@ public:
         if (hasMultipleModes) {
             modes.emplace_back(DisplayMode::Builder(1)
                                        .setId(DisplayModeId(1))
+                                       .setPhysicalDisplayId(PhysicalDisplayId(0))
                                        .setVsyncPeriod(11'111'111)
                                        .setGroup(0)
                                        .build());
@@ -641,6 +643,7 @@ public:
             DisplayModePtr activeMode =
                     DisplayMode::Builder(FakeHwcDisplayInjector::DEFAULT_ACTIVE_CONFIG)
                             .setId(mActiveModeId)
+                            .setPhysicalDisplayId(PhysicalDisplayId(0))
                             .setWidth(FakeHwcDisplayInjector::DEFAULT_WIDTH)
                             .setHeight(FakeHwcDisplayInjector::DEFAULT_HEIGHT)
                             .setVsyncPeriod(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD)
@@ -721,7 +724,7 @@ public:
             return *this;
         }
 
-        sp<DisplayDevice> inject() {
+        sp<DisplayDevice> inject() NO_THREAD_SAFETY_ANALYSIS {
             const auto displayId = mCreationArgs.compositionDisplay->getDisplayId();
 
             DisplayDeviceState state;

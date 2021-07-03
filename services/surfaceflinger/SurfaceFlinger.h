@@ -316,6 +316,9 @@ public:
     void removeHierarchyFromOffscreenLayers(Layer* layer);
     void removeFromOffscreenLayers(Layer* layer);
 
+    // TODO: Remove atomic if move dtor to main thread CL lands
+    std::atomic<uint32_t> mNumClones;
+
     TransactionCallbackInvoker& getTransactionCallbackInvoker() {
         return mTransactionCallbackInvoker;
     }
@@ -453,14 +456,7 @@ private:
                 mCounterByLayerHandle GUARDED_BY(mLock);
     };
 
-    struct ActiveModeInfo {
-        DisplayModeId modeId;
-        Scheduler::ModeEvent event = Scheduler::ModeEvent::None;
-
-        bool operator!=(const ActiveModeInfo& other) const {
-            return modeId != other.modeId || event != other.event;
-        }
-    };
+    using ActiveModeInfo = DisplayDevice::ActiveModeInfo;
 
     enum class BootStage {
         BOOTLOADER,
@@ -780,9 +776,9 @@ private:
     // Calls to setActiveMode on the main thread if there is a pending mode change
     // that needs to be applied.
     void performSetActiveMode() REQUIRES(mStateLock);
-    void clearDesiredActiveModeState() REQUIRES(mStateLock) EXCLUDES(mActiveModeLock);
+    void clearDesiredActiveModeState(const sp<DisplayDevice>&) REQUIRES(mStateLock);
     // Called when active mode is no longer is progress
-    void desiredActiveModeChangeDone() REQUIRES(mStateLock);
+    void desiredActiveModeChangeDone(const sp<DisplayDevice>&) REQUIRES(mStateLock);
     // Called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode)
             REQUIRES(mStateLock);
@@ -954,6 +950,10 @@ private:
 
     sp<const DisplayDevice> getDisplayDeviceLocked(PhysicalDisplayId id) const
             REQUIRES(mStateLock) {
+        return const_cast<SurfaceFlinger*>(this)->getDisplayDeviceLocked(id);
+    }
+
+    sp<DisplayDevice> getDisplayDeviceLocked(PhysicalDisplayId id) REQUIRES(mStateLock) {
         if (const auto token = getPhysicalDisplayTokenLocked(id)) {
             return getDisplayDeviceLocked(token);
         }
@@ -1062,8 +1062,6 @@ private:
     // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
     void changeRefreshRateLocked(const RefreshRate&, Scheduler::ModeEvent) REQUIRES(mStateLock);
-
-    bool isDisplayModeAllowed(DisplayModeId) const REQUIRES(mStateLock);
 
     struct FenceWithFenceTime {
         sp<Fence> fence = Fence::NO_FENCE;
@@ -1198,13 +1196,6 @@ private:
     /*
      * Misc
      */
-
-    std::optional<ActiveModeInfo> getDesiredActiveMode() EXCLUDES(mActiveModeLock) {
-        std::lock_guard<std::mutex> lock(mActiveModeLock);
-        if (mDesiredActiveModeChanged) return mDesiredActiveMode;
-        return std::nullopt;
-    }
-
     std::vector<ui::ColorMode> getDisplayColorModes(PhysicalDisplayId displayId)
             REQUIRES(mStateLock);
 
@@ -1417,17 +1408,7 @@ private:
     nsecs_t mScheduledPresentTime = 0;
     hal::Vsync mHWCVsyncPendingState = hal::Vsync::DISABLE;
 
-    std::mutex mActiveModeLock;
-    // This bit is set once we start setting the mode. We read from this bit during the
-    // process. If at the end, this bit is different than mDesiredActiveMode, we restart
-    // the process.
-    ActiveModeInfo mUpcomingActiveMode; // Always read and written on the main thread.
-    // This bit can be set at any point in time when the system wants the new mode.
-    ActiveModeInfo mDesiredActiveMode GUARDED_BY(mActiveModeLock);
-
     // below flags are set by main thread only
-    TracedOrdinal<bool> mDesiredActiveModeChanged
-            GUARDED_BY(mActiveModeLock) = {"DesiredActiveModeChanged", false};
     bool mSetActiveModePending = false;
 
     bool mLumaSampling = true;

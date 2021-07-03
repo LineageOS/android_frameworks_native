@@ -100,9 +100,8 @@ public:
         mFeatures.cachedModeChangedParams.reset();
     }
 
-    void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
-                                        DisplayModeId modeId, nsecs_t vsyncPeriod) {
-        return Scheduler::onNonPrimaryDisplayModeChanged(handle, displayId, modeId, vsyncPeriod);
+    void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, DisplayModePtr mode) {
+        return Scheduler::onNonPrimaryDisplayModeChanged(handle, mode);
     }
 
     ~TestableScheduler() {

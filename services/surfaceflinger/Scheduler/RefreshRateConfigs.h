@@ -71,6 +71,7 @@ public:
         int32_t getModeGroup() const { return mode->getGroup(); }
         std::string getName() const { return to_string(getFps()); }
         Fps getFps() const { return mode->getFps(); }
+        DisplayModePtr getMode() const { return mode; }
 
         // Checks whether the fps of this RefreshRate struct is within a given min and max refresh
         // rate passed in. Margin of error is applied to the boundaries for approximation.

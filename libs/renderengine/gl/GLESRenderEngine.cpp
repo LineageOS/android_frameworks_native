@@ -1028,20 +1028,17 @@ bool GLESRenderEngine::supportsProtectedContent() const {
     return mProtectedEGLContext != EGL_NO_CONTEXT;
 }
 
-bool GLESRenderEngine::useProtectedContext(bool useProtectedContext) {
-    if (useProtectedContext == mInProtectedContext) {
-        return true;
+void GLESRenderEngine::useProtectedContext(bool useProtectedContext) {
+    if (useProtectedContext == mInProtectedContext ||
+        (useProtectedContext && !supportsProtectedContent())) {
+        return;
     }
-    if (useProtectedContext && mProtectedEGLContext == EGL_NO_CONTEXT) {
-        return false;
-    }
+
     const EGLSurface surface = useProtectedContext ? mProtectedStubSurface : mStubSurface;
     const EGLContext context = useProtectedContext ? mProtectedEGLContext : mEGLContext;
-    const bool success = eglMakeCurrent(mEGLDisplay, surface, surface, context) == EGL_TRUE;
-    if (success) {
+    if (eglMakeCurrent(mEGLDisplay, surface, surface, context) == EGL_TRUE) {
         mInProtectedContext = useProtectedContext;
     }
-    return success;
 }
 EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer,
                                                              bool isProtected,
