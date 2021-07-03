@@ -81,6 +81,7 @@ DisplayModePtr RefreshRateStatsTest::createDisplayMode(DisplayModeId modeId, int
                                                        int64_t vsyncPeriod) {
     return DisplayMode::Builder(static_cast<hal::HWConfigId>(modeId.value()))
             .setId(modeId)
+            .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
             .setVsyncPeriod(static_cast<int32_t>(vsyncPeriod))
             .setGroup(group)
             .build();

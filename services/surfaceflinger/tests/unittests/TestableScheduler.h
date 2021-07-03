@@ -32,15 +32,18 @@ namespace android {
 
 class TestableScheduler : public Scheduler {
 public:
-    TestableScheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback)
+    TestableScheduler(const std::shared_ptr<scheduler::RefreshRateConfigs>& refreshRateConfigs,
+                      ISchedulerCallback& callback)
           : TestableScheduler(std::make_unique<mock::VsyncController>(),
-                              std::make_unique<mock::VSyncTracker>(), configs, callback) {}
+                              std::make_unique<mock::VSyncTracker>(), refreshRateConfigs,
+                              callback) {}
 
     TestableScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
                       std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
-                      const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback)
-          : Scheduler({std::move(vsyncController), std::move(vsyncTracker), nullptr}, configs,
-                      callback, createLayerHistory(configs),
+                      const std::shared_ptr<scheduler::RefreshRateConfigs>& refreshRateConfigs,
+                      ISchedulerCallback& callback)
+          : Scheduler({std::move(vsyncController), std::move(vsyncTracker), nullptr},
+                      refreshRateConfigs, callback, createLayerHistory(),
                       {.supportKernelTimer = false, .useContentDetection = true}) {}
 
     // Used to inject mock event thread.
@@ -63,6 +66,8 @@ public:
         if (!mLayerHistory) return 0;
         return mutableLayerHistory()->mLayerInfos.size();
     }
+
+    auto refreshRateConfigs() { return holdRefreshRateConfigs(); }
 
     size_t getNumActiveLayers() NO_THREAD_SAFETY_ANALYSIS {
         if (!mLayerHistory) return 0;
@@ -95,9 +100,8 @@ public:
         mFeatures.cachedModeChangedParams.reset();
     }
 
-    void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
-                                        DisplayModeId modeId, nsecs_t vsyncPeriod) {
-        return Scheduler::onNonPrimaryDisplayModeChanged(handle, displayId, modeId, vsyncPeriod);
+    void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, DisplayModePtr mode) {
+        return Scheduler::onNonPrimaryDisplayModeChanged(handle, mode);
     }
 
     ~TestableScheduler() {

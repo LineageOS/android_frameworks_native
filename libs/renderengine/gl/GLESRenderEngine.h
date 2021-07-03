@@ -62,7 +62,7 @@ public:
     void deleteTextures(size_t count, uint32_t const* names) override;
     bool isProtected() const override { return mInProtectedContext; }
     bool supportsProtectedContent() const override;
-    bool useProtectedContext(bool useProtectedContext) override;
+    void useProtectedContext(bool useProtectedContext) override;
     status_t drawLayers(const DisplaySettings& display,
                         const std::vector<const LayerSettings*>& layers,
                         const std::shared_ptr<ExternalTexture>& buffer,

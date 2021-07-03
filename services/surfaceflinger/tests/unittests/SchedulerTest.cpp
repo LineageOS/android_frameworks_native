@@ -53,16 +53,19 @@ protected:
 
     const DisplayModePtr mode60 = DisplayMode::Builder(0)
                                           .setId(DisplayModeId(0))
+                                          .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
                                           .setVsyncPeriod(Fps(60.f).getPeriodNsecs())
                                           .setGroup(0)
                                           .build();
     const DisplayModePtr mode120 = DisplayMode::Builder(1)
                                            .setId(DisplayModeId(1))
+                                           .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
                                            .setVsyncPeriod(Fps(120.f).getPeriodNsecs())
                                            .setGroup(0)
                                            .build();
 
-    scheduler::RefreshRateConfigs mConfigs{{mode60}, mode60->getId()};
+    std::shared_ptr<scheduler::RefreshRateConfigs> mConfigs =
+            std::make_shared<scheduler::RefreshRateConfigs>(DisplayModes{mode60}, mode60->getId());
 
     mock::SchedulerCallback mSchedulerCallback;
 
@@ -182,7 +185,9 @@ TEST_F(SchedulerTest, updateDisplayModes) {
     sp<mock::MockLayer> layer = sp<mock::MockLayer>::make(mFlinger.flinger());
     ASSERT_EQ(static_cast<size_t>(1), mScheduler->layerHistorySize());
 
-    mConfigs.updateDisplayModes({mode60, mode120}, /* activeMode */ mode60->getId());
+    mScheduler->setRefreshRateConfigs(
+            std::make_shared<scheduler::RefreshRateConfigs>(DisplayModes{mode60, mode120},
+                                                            mode60->getId()));
 
     ASSERT_EQ(static_cast<size_t>(0), mScheduler->getNumActiveLayers());
     mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
@@ -194,20 +199,21 @@ TEST_F(SchedulerTest, testDispatchCachedReportedMode) {
     // onModeChange is called.
     mScheduler->clearOptionalFieldsInFeatures();
     EXPECT_NO_FATAL_FAILURE(mScheduler->dispatchCachedReportedMode());
-    EXPECT_CALL(*mEventThread, onModeChanged(_, _, _)).Times(0);
+    EXPECT_CALL(*mEventThread, onModeChanged(_)).Times(0);
 }
 
 TEST_F(SchedulerTest, onNonPrimaryDisplayModeChanged_invalidParameters) {
-    DisplayModeId modeId = DisplayModeId(111);
-    nsecs_t vsyncPeriod = 111111;
+    const auto mode = DisplayMode::Builder(hal::HWConfigId(0))
+                              .setId(DisplayModeId(111))
+                              .setPhysicalDisplayId(PHYSICAL_DISPLAY_ID)
+                              .setVsyncPeriod(111111)
+                              .build();
 
     // If the handle is incorrect, the function should return before
     // onModeChange is called.
     Scheduler::ConnectionHandle invalidHandle = {.id = 123};
-    EXPECT_NO_FATAL_FAILURE(mScheduler->onNonPrimaryDisplayModeChanged(invalidHandle,
-                                                                       PHYSICAL_DISPLAY_ID, modeId,
-                                                                       vsyncPeriod));
-    EXPECT_CALL(*mEventThread, onModeChanged(_, _, _)).Times(0);
+    EXPECT_NO_FATAL_FAILURE(mScheduler->onNonPrimaryDisplayModeChanged(invalidHandle, mode));
+    EXPECT_CALL(*mEventThread, onModeChanged(_)).Times(0);
 }
 
 TEST_F(SchedulerTest, calculateMaxAcquiredBufferCount) {
@@ -225,7 +231,9 @@ MATCHER(Is120Hz, "") {
 }
 
 TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
-    mConfigs.updateDisplayModes({mode60, mode120}, /* activeMode */ mode60->getId());
+    mScheduler->setRefreshRateConfigs(
+            std::make_shared<scheduler::RefreshRateConfigs>(DisplayModes{mode60, mode120},
+                                                            mode60->getId()));
 
     sp<mock::MockLayer> layer = sp<mock::MockLayer>::make(mFlinger.flinger());
 
