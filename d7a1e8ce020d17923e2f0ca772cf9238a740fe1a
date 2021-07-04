@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "87309581_6e5312a6",
+        "filename": "services/inputflinger/dispatcher/InputDispatcher.cpp",
+        "patchSetId": 6
+      },
+      "lineNbr": 3357,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2021-07-04T08:58:04Z",
+      "side": 1,
+      "message": "Unnecessary new line.",
+      "revId": "d7a1e8ce020d17923e2f0ca772cf9238a740fe1a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
