@@ -596,8 +596,10 @@ void SurfaceFlinger::enableHalVirtualDisplays(bool enable) {
 }
 
 VirtualDisplayId SurfaceFlinger::acquireVirtualDisplay(ui::Size resolution,
-                                                       ui::PixelFormat format) {
-    if (auto& generator = mVirtualDisplayIdGenerators.hal) {
+                                                       ui::PixelFormat format,
+                                                       bool canAllocateHwcForVDS) {
+    auto& generator = mVirtualDisplayIdGenerators.hal;
+    if (canAllocateHwcForVDS && generator) {
         if (const auto id = generator->generateId()) {
             if (getHwComposer().allocateVirtualDisplay(*id, resolution, &format)) {
                 return *id;
@@ -3425,7 +3427,7 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
     if (const auto& physical = state.physical) {
         builder.setId(physical->id);
     } else {
-        builder.setId(acquireVirtualDisplay(resolution, pixelFormat));
+        builder.setId(acquireVirtualDisplay(resolution, pixelFormat, canAllocateHwcForVDS));
     }
 
     builder.setPixels(resolution);
