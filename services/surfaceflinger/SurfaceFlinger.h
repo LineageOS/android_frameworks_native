@@ -1261,7 +1261,8 @@ private:
     // Virtual display lifecycle for ID generation and HAL allocation.
     std::optional<VirtualDisplayIdVariant> acquireVirtualDisplay(
             ui::Size, ui::PixelFormat, const std::string& uniqueId,
-            compositionengine::DisplayCreationArgsBuilder&) REQUIRES(mStateLock);
+            compositionengine::DisplayCreationArgsBuilder&, bool canAllocateHwcDisplayIdForVDS)
+            REQUIRES(mStateLock);
 
     template <typename ID>
     bool acquireVirtualDisplaySnapshot(ID displayId, const std::string& uniqueId) {
