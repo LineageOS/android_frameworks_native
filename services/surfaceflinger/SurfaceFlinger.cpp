@@ -597,8 +597,10 @@ void SurfaceFlinger::enableHalVirtualDisplays(bool enable) {
 }
 
 VirtualDisplayId SurfaceFlinger::acquireVirtualDisplay(ui::Size resolution, ui::PixelFormat format,
-                                                       ui::LayerStack layerStack) {
-    if (auto& generator = mVirtualDisplayIdGenerators.hal) {
+                                                       ui::LayerStack layerStack,
+                                                       bool canAllocateHwcForVDS) {
+    auto& generator = mVirtualDisplayIdGenerators.hal;
+    if (canAllocateHwcForVDS && generator) {
         if (const auto id = generator->generateId()) {
             std::optional<PhysicalDisplayId> mirror;
 
@@ -2777,7 +2779,8 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
         builder.setId(physical->id);
         builder.setConnectionType(physical->type);
     } else {
-        builder.setId(acquireVirtualDisplay(resolution, pixelFormat, state.layerStack));
+        builder.setId(acquireVirtualDisplay(resolution, pixelFormat, state.layerStack,
+                                            canAllocateHwcForVDS));
     }
 
     builder.setPixels(resolution);
