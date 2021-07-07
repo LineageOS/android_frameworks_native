@@ -191,10 +191,6 @@ cc_binary {
         "libbase",
         "liblog",
         "libutils",
-        "libbinder",
-    ],
-    static_libs: [
-      "ota_dexopt_aidl_interface-cpp",
     ],
     required: [
       "apexd"
