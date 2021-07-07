@@ -56,42 +56,64 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
                              const std::shared_ptr<ExternalTexture>& dstTexture) {
     // Somewhat arbitrary dimensions, but on screen and slightly shorter, based
     // on actual use.
-    FloatRect rect(0, 0, display.physicalDisplay.width(), display.physicalDisplay.height() - 30);
+    const Rect& displayRect = display.physicalDisplay;
+    FloatRect rect(0, 0, displayRect.width(), displayRect.height());
+    FloatRect smallerRect(20, 20, displayRect.width()-20, displayRect.height()-20);
+
     LayerSettings layer{
             .geometry =
                     Geometry{
                             .boundaries = rect,
                             .roundedCornersCrop = rect,
+                            .roundedCornersRadius = 50.f,
                     },
             // drawShadow ignores alpha
             .shadow =
                     ShadowSettings{
+                            .boundaries = rect,
                             .ambientColor = vec4(0, 0, 0, 0.00935997f),
                             .spotColor = vec4(0, 0, 0, 0.0455841f),
-                            .lightPos = vec3(370.508f, -1527.03f, 1650.f),
-                            .lightRadius = 2200.0f,
-                            .length = 0.955342f,
+                            .lightPos = vec3(500.f, -1500.f, 1500.f),
+                            .lightRadius = 2500.0f,
+                            .length = 15.f,
                     },
-            // important that this matches dest so the general shadow fragment shader doesn't
-            // have color correction added, and important that it be srgb, so the *vertex* shader
-            // doesn't have color correction added.
-            .sourceDataspace = kDestDataSpace,
             // setting this is mandatory for shadows and blurs
             .skipContentDraw = true,
+            .alpha = 1,
+    };
+    LayerSettings caster{
+            .geometry =
+                    Geometry{
+                            .boundaries = smallerRect,
+                            .roundedCornersCrop = rect,
+                            .roundedCornersRadius = 50.f,
+                    },
+            .source =
+                    PixelSource{
+                            .solidColor = half3(0.f, 0.f, 0.f),
+                    },
+            .alpha = 1,
     };
 
-    auto layers = std::vector<const LayerSettings*>{&layer};
-    // The identity matrix will generate the fast shader
-    renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache, base::unique_fd(),
-                             nullptr);
-    // This matrix, which has different scales for x and y, will
-    // generate the slower (more general case) version, which has variants for translucent
-    // casters and rounded rects.
-    layer.geometry.positionTransform = kScaleAsymmetric;
-    for (auto translucent : {false, true}) {
-        layer.shadow.casterIsTranslucent = translucent;
-        renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                 base::unique_fd(), nullptr);
+    auto layers = std::vector<const LayerSettings*>{&layer, &caster};
+    // When sourceDataspace matches dest, the general shadow fragment shader doesn't
+    // have color correction added.
+    // independently, when it is not srgb, the *vertex* shader has color correction added.
+    // This may be a bug, but the shader still needs to be cached as it is triggered
+    // during youtube pip.
+    for (auto dataspace : {kDestDataSpace, kOtherDataSpace}) {
+        layer.sourceDataspace = dataspace;
+        // The 2nd matrix, which has different scales for x and y, will
+        // generate the slower (more general case) shadow shader
+        for (auto transform : {mat4(), kScaleAndTranslate, kFlip}) {
+            layer.geometry.positionTransform = transform;
+            caster.geometry.positionTransform = transform;
+            for (bool translucent : {false, true}){
+                layer.shadow.casterIsTranslucent = translucent;
+                renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
+                                        base::unique_fd(), nullptr);
+            }
+        }
     }
 }
 
@@ -329,6 +351,12 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
                 .maxLuminance = 500,
                 .outputDataspace = kDestDataSpace,
         };
+        DisplaySettings p3Display{
+                .physicalDisplay = displayRect,
+                .clip = displayRect,
+                .maxLuminance = 500,
+                .outputDataspace = kOtherDataSpace,
+        };
 
         const int64_t usage = GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
 
@@ -354,6 +382,7 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
         drawHolePunchLayer(renderengine, display, dstTexture);
         drawSolidLayers(renderengine, display, dstTexture);
         drawShadowLayers(renderengine, display, srcTexture);
+        drawShadowLayers(renderengine, p3Display, srcTexture);
 
         if (renderengine->supportsBackgroundBlur()) {
             drawBlurLayers(renderengine, display, dstTexture);
