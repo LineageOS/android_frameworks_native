@@ -2277,6 +2277,7 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessSingleTouch) {
     const Point centerPoint = mDevice->getCenterPoint();
 
     // ACTION_DOWN
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
     mDevice->sendDown(centerPoint);
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, args.action);
@@ -2297,6 +2298,8 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessMultiTouch) {
     const Point centerPoint = mDevice->getCenterPoint();
 
     // ACTION_DOWN
+    mDevice->sendSlot(FIRST_SLOT);
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
     mDevice->sendDown(centerPoint);
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, args.action);
@@ -8216,6 +8219,70 @@ TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType_KeepFirstPoin
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(AMOTION_EVENT_ACTION_UP, motionArgs.action);
     ASSERT_NE(AMOTION_EVENT_FLAG_CANCELED, motionArgs.flags);
+}
+
+/**
+ * Test multi-touch should sent ACTION_POINTER_UP/ACTION_UP when received the INVALID_TRACKING_ID,
+ * to prevent the driver side may send unexpected data after set tracking id as INVALID_TRACKING_ID
+ * cause slot be valid again.
+ */
+TEST_F(MultiTouchInputMapperTest, Process_MultiTouch_WithInvalidTrackingId) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT | PRESSURE);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    NotifyMotionArgs motionArgs;
+
+    constexpr int32_t x1 = 100, y1 = 200, x2 = 0, y2 = 0;
+    // First finger down.
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1, y1);
+    processPressure(mapper, RAW_PRESSURE_MAX);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_EQ(uint32_t(1), motionArgs.pointerCount);
+
+    // First finger move.
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1 + 1, y1 + 1);
+    processPressure(mapper, RAW_PRESSURE_MAX);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+    ASSERT_EQ(uint32_t(1), motionArgs.pointerCount);
+
+    // Second finger down.
+    processSlot(mapper, SECOND_SLOT);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2, y2);
+    processPressure(mapper, RAW_PRESSURE_MAX);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+              motionArgs.action);
+    ASSERT_EQ(uint32_t(2), motionArgs.pointerCount);
+
+    // second finger up with some unexpected data.
+    processSlot(mapper, SECOND_SLOT);
+    processId(mapper, INVALID_TRACKING_ID);
+    processPosition(mapper, x2, y2);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_UP | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+              motionArgs.action);
+    ASSERT_EQ(uint32_t(2), motionArgs.pointerCount);
+
+    // first finger up with some unexpected data.
+    processSlot(mapper, FIRST_SLOT);
+    processId(mapper, INVALID_TRACKING_ID);
+    processPosition(mapper, x2, y2);
+    processPressure(mapper, RAW_PRESSURE_MAX);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_UP, motionArgs.action);
+    ASSERT_EQ(uint32_t(1), motionArgs.pointerCount);
 }
 
 // --- MultiTouchInputMapperTest_ExternalDevice ---
