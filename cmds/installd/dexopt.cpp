@@ -492,14 +492,6 @@ class RunProfman : public ExecVHelper {
                  std::to_string(min_new_methods_percent_change));
         }
 
-        // On-device signing related. odsign sets the system property odsign.verification.success if
-        // AOT artifacts have the expected signatures.
-        const bool trust_art_apex_data_files =
-                ::android::base::GetBoolProperty("odsign.verification.success", false);
-        if (!trust_art_apex_data_files) {
-            AddRuntimeArg("-Xdeny-art-apex-data-files");
-        }
-
         // Do not add after dex2oat_flags, they should override others for debugging.
         PrepareArgs(profman_bin);
     }
