@@ -71,6 +71,10 @@ public:
         return mBlastBufferQueueAdapter->mSurfaceControl;
     }
 
+    sp<Surface> getSurface() {
+        return mBlastBufferQueueAdapter->getSurface(false /* includeSurfaceControlHandle */);
+    }
+
     void waitForCallbacks() {
         std::unique_lock lock{mBlastBufferQueueAdapter->mMutex};
         // Wait until all but one of the submitted buffers have been released.
@@ -756,6 +760,48 @@ TEST_F(BLASTBufferQueueTest, OutOfOrderTransactionTest) {
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b,
                                {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight / 2}));
+}
+
+TEST_F(BLASTBufferQueueTest, TransformHint) {
+    // Transform hint is provided to BBQ via the surface control passed by WM
+    mSurfaceControl->setTransformHint(ui::Transform::ROT_90);
+
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+    sp<IGraphicBufferProducer> igbProducer = adapter.getIGraphicBufferProducer();
+    ASSERT_NE(nullptr, igbProducer.get());
+    ASSERT_EQ(NO_ERROR, igbProducer->setMaxDequeuedBufferCount(2));
+    sp<Surface> surface = adapter.getSurface();
+
+    // Before connecting to the surface, we do not get a valid transform hint
+    int transformHint;
+    surface->query(NATIVE_WINDOW_TRANSFORM_HINT, &transformHint);
+    ASSERT_EQ(ui::Transform::ROT_0, transformHint);
+
+    ASSERT_EQ(NO_ERROR,
+              surface->connect(NATIVE_WINDOW_API_CPU, new TestProducerListener(igbProducer)));
+
+    // After connecting to the surface, we should get the correct hint.
+    surface->query(NATIVE_WINDOW_TRANSFORM_HINT, &transformHint);
+    ASSERT_EQ(ui::Transform::ROT_90, transformHint);
+
+    ANativeWindow_Buffer buffer;
+    surface->lock(&buffer, nullptr /* inOutDirtyBounds */);
+
+    // Transform hint is updated via callbacks or surface control updates
+    mSurfaceControl->setTransformHint(ui::Transform::ROT_0);
+    adapter.update(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+
+    // The hint does not change and matches the value used when dequeueing the buffer.
+    surface->query(NATIVE_WINDOW_TRANSFORM_HINT, &transformHint);
+    ASSERT_EQ(ui::Transform::ROT_90, transformHint);
+
+    surface->unlockAndPost();
+
+    // After queuing the buffer, we get the updated transform hint
+    surface->query(NATIVE_WINDOW_TRANSFORM_HINT, &transformHint);
+    ASSERT_EQ(ui::Transform::ROT_0, transformHint);
+
+    adapter.waitForCallbacks();
 }
 
 class BLASTBufferQueueTransformTest : public BLASTBufferQueueTest {
