@@ -524,10 +524,6 @@ public:
 
     void fillGreenColorBufferThenClearRegion();
 
-    void clearLeftRegion();
-
-    void clearRegion();
-
     template <typename SourceVariant>
     void drawShadow(const renderengine::LayerSettings& castingLayer,
                     const renderengine::ShadowSettings& shadow, const ubyte4& casterColor,
@@ -1195,28 +1191,6 @@ void RenderEngineTest::fillBufferWithoutPremultiplyAlpha() {
     expectBufferColor(fullscreenRect(), 128, 0, 0, 128, 1);
 }
 
-void RenderEngineTest::clearLeftRegion() {
-    renderengine::DisplaySettings settings;
-    settings.physicalDisplay = fullscreenRect();
-    // Here logical space is 4x4
-    settings.clip = Rect(4, 4);
-    settings.clearRegion = Region(Rect(2, 4));
-    std::vector<const renderengine::LayerSettings*> layers;
-    // fake layer, without bounds should not render anything
-    renderengine::LayerSettings layer;
-    layers.push_back(&layer);
-    invokeDraw(settings, layers);
-}
-
-void RenderEngineTest::clearRegion() {
-    // Reuse mBuffer
-    clearLeftRegion();
-    expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 2, DEFAULT_DISPLAY_HEIGHT), 0, 0, 0, 255);
-    expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 2, 0, DEFAULT_DISPLAY_WIDTH,
-                           DEFAULT_DISPLAY_HEIGHT),
-                      0, 0, 0, 0);
-}
-
 template <typename SourceVariant>
 void RenderEngineTest::drawShadow(const renderengine::LayerSettings& castingLayer,
                                   const renderengine::ShadowSettings& shadow,
@@ -1645,11 +1619,6 @@ TEST_P(RenderEngineTest, drawLayers_fillBuffer_premultipliesAlpha) {
 TEST_P(RenderEngineTest, drawLayers_fillBuffer_withoutPremultiplyingAlpha) {
     initializeRenderEngine();
     fillBufferWithoutPremultiplyAlpha();
-}
-
-TEST_P(RenderEngineTest, drawLayers_clearRegion) {
-    initializeRenderEngine();
-    clearRegion();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillShadow_castsWithoutCasterLayer) {

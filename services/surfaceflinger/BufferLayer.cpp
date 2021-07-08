@@ -152,39 +152,10 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
         return result;
     }
 
-    if (CC_UNLIKELY(mBufferInfo.mBuffer == 0)) {
-        // the texture has not been created yet, this Layer has
-        // in fact never been drawn into. This happens frequently with
-        // SurfaceView because the WindowManager can't know when the client
-        // has drawn the first time.
-
-        // If there is nothing under us, we paint the screen in black, otherwise
-        // we just skip this update.
-
-        // figure out if there is something below us
-        Region under;
-        bool finished = false;
-        mFlinger->mDrawingState.traverseInZOrder([&](Layer* layer) {
-            if (finished || layer == static_cast<BufferLayer const*>(this)) {
-                finished = true;
-                return;
-            }
-
-            under.orSelf(layer->getScreenBounds());
-        });
-        // if not everything below us is covered, we plug the holes!
-        Region holes(targetSettings.clip.subtract(under));
-        if (!holes.isEmpty()) {
-            targetSettings.clearRegion.orSelf(holes);
-        }
-
-        if (mSidebandStream != nullptr) {
-            // For surfaceview of tv sideband, there is no activeBuffer
-            // in bufferqueue, we need return LayerSettings.
-            return result;
-        } else {
-            return std::nullopt;
-        }
+    if (CC_UNLIKELY(mBufferInfo.mBuffer == 0) && mSidebandStream != nullptr) {
+        // For surfaceview of tv sideband, there is no activeBuffer
+        // in bufferqueue, we need return LayerSettings.
+        return result;
     }
     const bool blackOutLayer = (isProtected() && !targetSettings.supportsProtectedContent) ||
             ((isSecure() || isProtected()) && !targetSettings.isSecure);

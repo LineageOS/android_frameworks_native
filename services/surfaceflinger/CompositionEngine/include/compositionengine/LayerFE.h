@@ -115,10 +115,6 @@ public:
         // If set to true, the target buffer has protected content support.
         const bool supportsProtectedContent;
 
-        // Modified by each call to prepareClientComposition to indicate the
-        // region of the target buffer that should be cleared.
-        Region& clearRegion;
-
         // Viewport of the target being rendered to. This is used to determine
         // the shadow light position.
         const Rect& viewport;
@@ -177,11 +173,10 @@ using LayerFESet = std::unordered_set<sp<LayerFE>, LayerFESpHash>;
 
 static inline bool operator==(const LayerFE::ClientCompositionTargetSettings& lhs,
                               const LayerFE::ClientCompositionTargetSettings& rhs) {
-    return lhs.clip.hasSameRects(rhs.clip) &&
-            lhs.needsFiltering == rhs.needsFiltering && lhs.isSecure == rhs.isSecure &&
+    return lhs.clip.hasSameRects(rhs.clip) && lhs.needsFiltering == rhs.needsFiltering &&
+            lhs.isSecure == rhs.isSecure &&
             lhs.supportsProtectedContent == rhs.supportsProtectedContent &&
-            lhs.clearRegion.hasSameRects(rhs.clearRegion) && lhs.viewport == rhs.viewport &&
-            lhs.dataspace == rhs.dataspace &&
+            lhs.viewport == rhs.viewport && lhs.dataspace == rhs.dataspace &&
             lhs.realContentIsVisible == rhs.realContentIsVisible &&
             lhs.clearContent == rhs.clearContent;
 }
@@ -202,8 +197,6 @@ static inline void PrintTo(const LayerFE::ClientCompositionTargetSettings& setti
     *os << "\n    .needsFiltering = " << settings.needsFiltering;
     *os << "\n    .isSecure = " << settings.isSecure;
     *os << "\n    .supportsProtectedContent = " << settings.supportsProtectedContent;
-    *os << "\n    .clearRegion = ";
-    PrintTo(settings.clearRegion, os);
     *os << "\n    .viewport = ";
     PrintTo(settings.viewport, os);
     *os << "\n    .dataspace = ";

@@ -110,8 +110,7 @@ protected:
     bool getSkipColorTransform() const override;
     compositionengine::Output::FrameFences presentAndGetFrameFences() override;
     std::vector<LayerFE::LayerSettings> generateClientCompositionRequests(
-            bool supportsProtectedContent, Region& clearRegion,
-            ui::Dataspace outputDataspace) override;
+            bool supportsProtectedContent, ui::Dataspace outputDataspace) override;
     void appendRegionFlashRequests(const Region&, std::vector<LayerFE::LayerSettings>&) override;
     void setExpensiveRenderingExpected(bool enabled) override;
     void dumpBase(std::string&) const;

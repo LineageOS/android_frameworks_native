@@ -291,7 +291,7 @@ protected:
     virtual bool getSkipColorTransform() const = 0;
     virtual FrameFences presentAndGetFrameFences() = 0;
     virtual std::vector<LayerFE::LayerSettings> generateClientCompositionRequests(
-            bool supportsProtectedContent, Region& clearRegion, ui::Dataspace outputDataspace) = 0;
+            bool supportsProtectedContent, ui::Dataspace outputDataspace) = 0;
     virtual void appendRegionFlashRequests(
             const Region& flashRegion,
             std::vector<LayerFE::LayerSettings>& clientCompositionLayers) = 0;

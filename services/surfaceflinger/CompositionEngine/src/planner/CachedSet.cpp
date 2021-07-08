@@ -171,13 +171,11 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
             .orientation = orientation,
     };
 
-    Region clearRegion = Region::INVALID_REGION;
     LayerFE::ClientCompositionTargetSettings targetSettings{
             .clip = Region(viewport),
             .needsFiltering = false,
             .isSecure = true,
             .supportsProtectedContent = false,
-            .clearRegion = clearRegion,
             .viewport = viewport,
             .dataspace = outputDataspace,
             .realContentIsVisible = true,

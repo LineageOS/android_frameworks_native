@@ -51,10 +51,6 @@ struct DisplaySettings {
     // dataspace, in non-linear space.
     mat4 colorTransform = mat4();
 
-    // Region that will be cleared to (0, 0, 0, 1) prior to rendering.
-    // This is specified in layer-stack space.
-    Region clearRegion = Region::INVALID_REGION;
-
     // An additional orientation flag to be applied after clipping the output.
     // By way of example, this may be used for supporting fullscreen screenshot
     // capture of a device in landscape while the buffer is in portrait
@@ -68,8 +64,7 @@ struct DisplaySettings {
 static inline bool operator==(const DisplaySettings& lhs, const DisplaySettings& rhs) {
     return lhs.physicalDisplay == rhs.physicalDisplay && lhs.clip == rhs.clip &&
             lhs.maxLuminance == rhs.maxLuminance && lhs.outputDataspace == rhs.outputDataspace &&
-            lhs.colorTransform == rhs.colorTransform &&
-            lhs.clearRegion.hasSameRects(rhs.clearRegion) && lhs.orientation == rhs.orientation;
+            lhs.colorTransform == rhs.colorTransform && lhs.orientation == rhs.orientation;
 }
 
 // Defining PrintTo helps with Google Tests.
@@ -84,9 +79,6 @@ static inline void PrintTo(const DisplaySettings& settings, ::std::ostream* os) 
     PrintTo(settings.outputDataspace, os);
     *os << "\n    .colorTransform = " << settings.colorTransform;
     *os << "\n    .clearRegion = ";
-    PrintTo(settings.clearRegion, os);
-    *os << "\n    .orientation = " << settings.orientation;
-    *os << "\n}";
 }
 
 } // namespace renderengine
