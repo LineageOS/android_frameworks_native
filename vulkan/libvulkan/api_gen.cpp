@@ -560,6 +560,7 @@ VKAPI_ATTR PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pNa
     }
 
     static const char* const known_non_device_names[] = {
+        "vkAcquireDrmDisplayEXT",
         "vkCreateAndroidSurfaceKHR",
         "vkCreateDebugReportCallbackEXT",
         "vkCreateDebugUtilsMessengerEXT",
@@ -581,6 +582,7 @@ VKAPI_ATTR PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pNa
         "vkEnumeratePhysicalDevices",
         "vkGetDisplayModeProperties2KHR",
         "vkGetDisplayPlaneCapabilities2KHR",
+        "vkGetDrmDisplayEXT",
         "vkGetInstanceProcAddr",
         "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT",
         "vkGetPhysicalDeviceDisplayPlaneProperties2KHR",
@@ -624,6 +626,8 @@ VKAPI_ATTR PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pNa
         "vkGetPhysicalDeviceSurfacePresentModesKHR",
         "vkGetPhysicalDeviceSurfaceSupportKHR",
         "vkGetPhysicalDeviceToolPropertiesEXT",
+        "vkGetPhysicalDeviceVideoCapabilitiesKHR",
+        "vkGetPhysicalDeviceVideoFormatPropertiesKHR",
         "vkSubmitDebugUtilsMessageEXT",
     };
     // clang-format on
