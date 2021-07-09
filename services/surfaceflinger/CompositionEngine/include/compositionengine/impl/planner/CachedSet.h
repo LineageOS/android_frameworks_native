@@ -65,7 +65,9 @@ public:
     size_t getLayerCount() const { return mLayers.size(); }
     const Layer& getFirstLayer() const { return mLayers[0]; }
     const Rect& getBounds() const { return mBounds; }
-    Rect getTextureBounds() const { return mOutputSpace.content; }
+    Rect getTextureBounds() const {
+        return mTexture ? mTexture->get()->getBuffer()->getBounds() : Rect::INVALID_RECT;
+    }
     const Region& getVisibleRegion() const { return mVisibleRegion; }
     size_t getAge() const { return mAge; }
     std::shared_ptr<renderengine::ExternalTexture> getBuffer() const {
