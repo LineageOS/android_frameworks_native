@@ -643,6 +643,8 @@ uint32_t AHardwareBuffer_bytesPerPixel(uint32_t format) {
       case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:
       case AHARDWAREBUFFER_FORMAT_D24_UNORM_S8_UINT:
           return 4;
+      case AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT:
+          return 8;
       default:
           return 0;
   }
