@@ -590,6 +590,7 @@ bool BufferStateLayer::setTransactionCompletedListeners(
 }
 
 bool BufferStateLayer::setTransparentRegionHint(const Region& transparent) {
+    mDrawingState.sequence++;
     mDrawingState.transparentRegionHint = transparent;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
