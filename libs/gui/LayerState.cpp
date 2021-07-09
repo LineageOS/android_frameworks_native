@@ -564,6 +564,10 @@ bool layer_state_t::hasBufferChanges() const {
     return (what & layer_state_t::eBufferChanged) || (what & layer_state_t::eCachedBufferChanged);
 }
 
+bool layer_state_t::hasValidBuffer() const {
+    return buffer || cachedBuffer.isValid();
+}
+
 status_t layer_state_t::matrix22_t::write(Parcel& output) const {
     SAFE_PARCEL(output.writeFloat, dsdx);
     SAFE_PARCEL(output.writeFloat, dtdx);
