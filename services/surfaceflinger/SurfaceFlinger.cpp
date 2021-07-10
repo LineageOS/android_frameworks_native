@@ -45,6 +45,7 @@
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/RenderSurface.h>
 #include <compositionengine/impl/OutputCompositionState.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <configstore/Utils.h>
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
@@ -2300,21 +2301,24 @@ void SurfaceFlinger::postComposition() {
         HdrLayerInfoReporter::HdrLayerInfo info;
         int32_t maxArea = 0;
         mDrawingState.traverse([&, compositionDisplay = compositionDisplay](Layer* layer) {
-            if (layer->isVisible() &&
-                compositionDisplay->belongsInOutput(layer->getCompositionEngineLayerFE())) {
+            const auto layerFe = layer->getCompositionEngineLayerFE();
+            if (layer->isVisible() && compositionDisplay->belongsInOutput(layerFe)) {
                 const Dataspace transfer =
                         static_cast<Dataspace>(layer->getDataSpace() & Dataspace::TRANSFER_MASK);
                 const bool isHdr = (transfer == Dataspace::TRANSFER_ST2084 ||
                                     transfer == Dataspace::TRANSFER_HLG);
 
                 if (isHdr) {
-                    info.numberOfHdrLayers++;
-                    auto bufferRect = layer->getCompositionState()->geomBufferSize;
-                    int32_t area = bufferRect.width() * bufferRect.height();
-                    if (area > maxArea) {
-                        maxArea = area;
-                        info.maxW = bufferRect.width();
-                        info.maxH = bufferRect.height();
+                    const auto* outputLayer = compositionDisplay->getOutputLayerForLayer(layerFe);
+                    if (outputLayer) {
+                        info.numberOfHdrLayers++;
+                        const auto displayFrame = outputLayer->getState().displayFrame;
+                        const int32_t area = displayFrame.width() * displayFrame.height();
+                        if (area > maxArea) {
+                            maxArea = area;
+                            info.maxW = displayFrame.width();
+                            info.maxH = displayFrame.height();
+                        }
                     }
                 }
             }
