@@ -355,7 +355,7 @@ TEST_F(CachedSetTest, render) {
     expectReadyBuffer(cachedSet);
 
     EXPECT_EQ(mOutputState.framebufferSpace, cachedSet.getOutputSpace());
-    EXPECT_EQ(mOutputState.framebufferSpace.content, cachedSet.getTextureBounds());
+    EXPECT_EQ(Rect(kOutputSize.width, kOutputSize.height), cachedSet.getTextureBounds());
 
     // Now check that appending a new cached set properly cleans up RenderEngine resources.
     CachedSet::Layer& layer3 = *mTestLayers[2]->cachedSetLayer.get();
