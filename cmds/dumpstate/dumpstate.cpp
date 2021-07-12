@@ -1241,8 +1241,15 @@ static Dumpstate::RunStatus RunDumpsysTextByPriority(const std::string& title, i
         if (status == OK) {
             dumpsys.writeDumpHeader(STDOUT_FILENO, service, priority);
             std::chrono::duration<double> elapsed_seconds;
-            status = dumpsys.writeDump(STDOUT_FILENO, service, service_timeout,
-                                       /* as_proto = */ false, elapsed_seconds, bytes_written);
+            if (priority == IServiceManager::DUMP_FLAG_PRIORITY_HIGH &&
+                service == String16("meminfo")) {
+                // Use a longer timeout for meminfo, since 30s is not always enough.
+                status = dumpsys.writeDump(STDOUT_FILENO, service, 60s,
+                                           /* as_proto = */ false, elapsed_seconds, bytes_written);
+            } else {
+                status = dumpsys.writeDump(STDOUT_FILENO, service, service_timeout,
+                                           /* as_proto = */ false, elapsed_seconds, bytes_written);
+            }
             dumpsys.writeDumpFooter(STDOUT_FILENO, service, elapsed_seconds);
             bool dump_complete = (status == OK);
             dumpsys.stopDumpThread(dump_complete);
