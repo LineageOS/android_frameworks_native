@@ -1371,10 +1371,12 @@ static SecondaryDexAccess check_secondary_dex_access(const std::string& dex_path
         return kSecondaryDexAccessReadOk;
     } else {
         if (errno == ENOENT) {
-            LOG(INFO) << "Secondary dex does not exist: " <<  dex_path;
+            async_safe_format_log(ANDROID_LOG_INFO, LOG_TAG,
+                    "Secondary dex does not exist: %s", dex_path.c_str());
             return kSecondaryDexAccessDoesNotExist;
         } else {
-            PLOG(ERROR) << "Could not access secondary dex " << dex_path;
+            async_safe_format_log(ANDROID_LOG_ERROR, LOG_TAG,
+                    "Could not access secondary dex: %s (%d)", dex_path.c_str(), errno);
             return errno == EACCES
                 ? kSecondaryDexAccessPermissionError
                 : kSecondaryDexAccessIOError;
