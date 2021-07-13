@@ -812,28 +812,6 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     canvas->clear(SK_ColorTRANSPARENT);
     initCanvas(canvas, display);
 
-    // TODO: clearRegion was required for SurfaceView when a buffer is not yet available but the
-    // view is still on-screen. The clear region could be re-specified as a black color layer,
-    // however.
-    if (!display.clearRegion.isEmpty()) {
-        ATRACE_NAME("ClearRegion");
-        size_t numRects = 0;
-        Rect const* rects = display.clearRegion.getArray(&numRects);
-        SkIRect skRects[numRects];
-        for (int i = 0; i < numRects; ++i) {
-            skRects[i] =
-                    SkIRect::MakeLTRB(rects[i].left, rects[i].top, rects[i].right, rects[i].bottom);
-        }
-        SkRegion clearRegion;
-        SkPaint paint;
-        sk_sp<SkShader> shader =
-                SkShaders::Color(SkColor4f{.fR = 0., .fG = 0., .fB = 0., .fA = 1.0},
-                                 toSkColorSpace(dstDataspace));
-        paint.setShader(shader);
-        clearRegion.setRects(skRects, numRects);
-        canvas->drawRegion(clearRegion, paint);
-    }
-
     for (const auto& layer : layers) {
         ATRACE_FORMAT("DrawLayer: %s", layer->name.c_str());
 
