@@ -69,9 +69,9 @@ namespace android {
 
 static constexpr bool DEBUG = false;
 
-static const char* DEVICE_PATH = "/dev/input";
+static const char* DEVICE_INPUT_PATH = "/dev/input";
 // v4l2 devices go directly into /dev
-static const char* VIDEO_DEVICE_PATH = "/dev";
+static const char* DEVICE_PATH = "/dev";
 
 static inline const char* toString(bool value) {
     return value ? "true" : "false";
@@ -298,15 +298,23 @@ EventHub::EventHub(void)
     LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance: %s", strerror(errno));
 
     mINotifyFd = inotify_init();
-    mInputWd = inotify_add_watch(mINotifyFd, DEVICE_PATH, IN_DELETE | IN_CREATE);
-    LOG_ALWAYS_FATAL_IF(mInputWd < 0, "Could not register INotify for %s: %s", DEVICE_PATH,
-                        strerror(errno));
-    if (isV4lScanningEnabled()) {
-        mVideoWd = inotify_add_watch(mINotifyFd, VIDEO_DEVICE_PATH, IN_DELETE | IN_CREATE);
-        LOG_ALWAYS_FATAL_IF(mVideoWd < 0, "Could not register INotify for %s: %s",
-                            VIDEO_DEVICE_PATH, strerror(errno));
+
+    std::error_code errorCode;
+    bool isDeviceInotifyAdded = false;
+    if (std::filesystem::exists(DEVICE_INPUT_PATH, errorCode)) {
+        addDeviceInputInotify();
     } else {
-        mVideoWd = -1;
+        addDeviceInotify();
+        isDeviceInotifyAdded = true;
+        if (errorCode) {
+            ALOGW("Could not run filesystem::exists() due to error %d : %s.", errorCode.value(),
+                  errorCode.message().c_str());
+        }
+    }
+
+    if (isV4lScanningEnabled() && !isDeviceInotifyAdded) {
+        addDeviceInotify();
+    } else {
         ALOGI("Video device scanning disabled");
     }
 
@@ -350,6 +358,23 @@ EventHub::~EventHub(void) {
     ::close(mINotifyFd);
     ::close(mWakeReadPipeFd);
     ::close(mWakeWritePipeFd);
+}
+
+/**
+ * On devices that don't have any input devices (like some development boards), the /dev/input
+ * directory will be absent. However, the user may still plug in an input device at a later time.
+ * Add watch for contents of /dev/input only when /dev/input appears.
+ */
+void EventHub::addDeviceInputInotify() {
+    mDeviceInputWd = inotify_add_watch(mINotifyFd, DEVICE_INPUT_PATH, IN_DELETE | IN_CREATE);
+    LOG_ALWAYS_FATAL_IF(mDeviceInputWd < 0, "Could not register INotify for %s: %s",
+                        DEVICE_INPUT_PATH, strerror(errno));
+}
+
+void EventHub::addDeviceInotify() {
+    mDeviceWd = inotify_add_watch(mINotifyFd, DEVICE_PATH, IN_DELETE | IN_CREATE);
+    LOG_ALWAYS_FATAL_IF(mDeviceWd < 0, "Could not register INotify for %s: %s",
+                        DEVICE_PATH, strerror(errno));
 }
 
 InputDeviceIdentifier EventHub::getDeviceIdentifier(int32_t deviceId) const {
@@ -1109,14 +1134,24 @@ void EventHub::wake() {
 }
 
 void EventHub::scanDevicesLocked() {
-    status_t result = scanDirLocked(DEVICE_PATH);
-    if (result < 0) {
-        ALOGE("scan dir failed for %s", DEVICE_PATH);
+    status_t result;
+    std::error_code errorCode;
+
+    if (std::filesystem::exists(DEVICE_INPUT_PATH, errorCode)) {
+        result = scanDirLocked(DEVICE_INPUT_PATH);
+        if (result < 0) {
+            ALOGE("scan dir failed for %s", DEVICE_INPUT_PATH);
+        }
+    } else {
+        if (errorCode) {
+            ALOGW("Could not run filesystem::exists() due to error %d : %s.", errorCode.value(),
+                  errorCode.message().c_str());
+        }
     }
     if (isV4lScanningEnabled()) {
-        result = scanVideoDirLocked(VIDEO_DEVICE_PATH);
+        result = scanVideoDirLocked(DEVICE_PATH);
         if (result != OK) {
-            ALOGE("scan video dir failed for %s", VIDEO_DEVICE_PATH);
+            ALOGE("scan video dir failed for %s", DEVICE_PATH);
         }
     }
     if (mDevices.indexOfKey(ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID) < 0) {
@@ -1834,23 +1869,25 @@ status_t EventHub::readNotifyLocked() {
     while (res >= (int)sizeof(*event)) {
         event = (struct inotify_event*)(event_buf + event_pos);
         if (event->len) {
-            if (event->wd == mInputWd) {
-                std::string filename = std::string(DEVICE_PATH) + "/" + event->name;
+            if (event->wd == mDeviceInputWd) {
+                std::string filename = std::string(DEVICE_INPUT_PATH) + "/" + event->name;
                 if (event->mask & IN_CREATE) {
                     openDeviceLocked(filename);
                 } else {
                     ALOGI("Removing device '%s' due to inotify event\n", filename.c_str());
                     closeDeviceByPathLocked(filename);
                 }
-            } else if (event->wd == mVideoWd) {
+            } else if (event->wd == mDeviceWd) {
                 if (isV4lTouchNode(event->name)) {
-                    std::string filename = std::string(VIDEO_DEVICE_PATH) + "/" + event->name;
+                    std::string filename = std::string(DEVICE_PATH) + "/" + event->name;
                     if (event->mask & IN_CREATE) {
                         openVideoDeviceLocked(filename);
                     } else {
                         ALOGI("Removing video device '%s' due to inotify event", filename.c_str());
                         closeVideoDeviceByPathLocked(filename);
                     }
+                } else if (strcmp(event->name, "input") == 0 && event->mask & IN_CREATE ) {
+                    addDeviceInputInotify();
                 }
             } else {
                 LOG_ALWAYS_FATAL("Unexpected inotify event, wd = %i", event->wd);
