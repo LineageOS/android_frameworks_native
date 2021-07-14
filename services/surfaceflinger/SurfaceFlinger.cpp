@@ -4181,6 +4181,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 : nullptr;
         if (layer->reparent(parentHandle)) {
             if (!hadParent) {
+                layer->setIsAtRoot(false);
                 mCurrentState.layersSortedByZ.remove(layer);
             }
             flags |= eTransactionNeeded | eTraversalNeeded;
@@ -4447,7 +4448,8 @@ void SurfaceFlinger::onHandleDestroyed(sp<Layer>& layer) {
     // with the idea that the parent holds a reference and will eventually
     // be cleaned up. However no one cleans up the top-level so we do so
     // here.
-    if (layer->getParent() == nullptr) {
+    if (layer->isAtRoot()) {
+        layer->setIsAtRoot(false);
         mCurrentState.layersSortedByZ.remove(layer);
     }
     markLayerPendingRemovalLocked(layer);
@@ -6924,6 +6926,7 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle, bo
     }
 
     if (parent == nullptr && allowAddRoot) {
+        layer->setIsAtRoot(true);
         mCurrentState.layersSortedByZ.add(layer);
     } else if (parent == nullptr) {
         layer->onRemovedFromCurrentState();
