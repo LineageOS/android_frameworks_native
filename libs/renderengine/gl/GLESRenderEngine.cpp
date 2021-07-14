@@ -1156,10 +1156,6 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
 
     const mat4 projectionMatrix =
             ui::Transform(display.orientation).asMatrix4() * mState.projectionMatrix;
-    if (!display.clearRegion.isEmpty()) {
-        glDisable(GL_BLEND);
-        fillRegionWithColor(display.clearRegion, 0.0, 0.0, 0.0, 1.0);
-    }
 
     Mesh mesh = Mesh::Builder()
                         .setPrimitive(Mesh::TRIANGLE_FAN)

@@ -1069,13 +1069,9 @@ std::optional<base::unique_fd> Output::composeSurfaces(
         clientCompositionDisplay.colorTransform = outputState.colorTransformMatrix;
     }
 
-    // Note: Updated by generateClientCompositionRequests
-    clientCompositionDisplay.clearRegion = Region::INVALID_REGION;
-
     // Generate the client composition requests for the layers on this output.
     std::vector<LayerFE::LayerSettings> clientCompositionLayers =
             generateClientCompositionRequests(supportsProtectedContent,
-                                              clientCompositionDisplay.clearRegion,
                                               clientCompositionDisplay.outputDataspace);
     appendRegionFlashRequests(debugRegion, clientCompositionLayers);
 
@@ -1143,15 +1139,13 @@ std::optional<base::unique_fd> Output::composeSurfaces(
 }
 
 std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
-        bool supportsProtectedContent, Region& clearRegion, ui::Dataspace outputDataspace) {
+        bool supportsProtectedContent, ui::Dataspace outputDataspace) {
     std::vector<LayerFE::LayerSettings> clientCompositionLayers;
     ALOGV("Rendering client layers");
 
     const auto& outputState = getState();
     const Region viewportRegion(outputState.layerStackSpace.content);
     bool firstLayer = true;
-    // Used when a layer clears part of the buffer.
-    Region stubRegion;
 
     bool disableBlurs = false;
     sp<GraphicBuffer> previousOverrideBuffer = nullptr;
@@ -1213,7 +1207,6 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                                                outputState.needsFiltering,
                                        .isSecure = outputState.isSecure,
                                        .supportsProtectedContent = supportsProtectedContent,
-                                       .clearRegion = clientComposition ? clearRegion : stubRegion,
                                        .viewport = outputState.layerStackSpace.content,
                                        .dataspace = outputDataspace,
                                        .realContentIsVisible = realContentIsVisible,

@@ -6299,7 +6299,6 @@ status_t SurfaceFlinger::renderScreenImplLocked(
 
     const auto display = renderArea.getDisplayDevice();
     std::vector<Layer*> renderedLayers;
-    Region clearRegion = Region::INVALID_REGION;
     bool disableBlurs = false;
     traverseLayers([&](Layer* layer) {
         disableBlurs |= layer->getDrawingState().sidebandStream != nullptr;
@@ -6311,7 +6310,6 @@ status_t SurfaceFlinger::renderScreenImplLocked(
                         renderArea.needsFiltering(),
                 renderArea.isSecure(),
                 useProtected,
-                clearRegion,
                 layerStackSpaceRect,
                 clientCompositionDisplay.outputDataspace,
                 true,  /* realContentIsVisible */
@@ -6349,7 +6347,6 @@ status_t SurfaceFlinger::renderScreenImplLocked(
                    clientCompositionLayerPointers.begin(),
                    std::pointer_traits<renderengine::LayerSettings*>::pointer_to);
 
-    clientCompositionDisplay.clearRegion = clearRegion;
     // Use an empty fence for the buffer fence, since we just created the buffer so
     // there is no need for synchronization with the GPU.
     base::unique_fd bufferFence;

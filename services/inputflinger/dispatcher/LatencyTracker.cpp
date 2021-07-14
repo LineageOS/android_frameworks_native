@@ -50,13 +50,12 @@ static bool isMatureEvent(nsecs_t eventTime, nsecs_t now) {
  * key-value pair. Equivalent to the imaginary std api std::multimap::erase(key, value).
  */
 template <typename K, typename V>
-static void eraseByKeyAndValue(std::multimap<K, V>& map, K key, V value) {
-    auto iterpair = map.equal_range(key);
-
-    for (auto it = iterpair.first; it != iterpair.second; ++it) {
+static void eraseByValue(std::multimap<K, V>& map, const V& value) {
+    for (auto it = map.begin(); it != map.end();) {
         if (it->second == value) {
-            map.erase(it);
-            break;
+            it = map.erase(it);
+        } else {
+            it++;
         }
     }
 }
@@ -76,9 +75,7 @@ void LatencyTracker::trackListener(int32_t inputEventId, bool isDown, nsecs_t ev
         // confuse us by reporting the rest of the timeline for one of them. This should happen
         // rarely, so we won't lose much data
         mTimelines.erase(it);
-        // In case we have another input event with a different id and at the same eventTime,
-        // only erase this specific inputEventId.
-        eraseByKeyAndValue(mEventTimes, eventTime, inputEventId);
+        eraseByValue(mEventTimes, inputEventId);
         return;
     }
     mTimelines.emplace(inputEventId, InputEventTimeline(isDown, eventTime, readTime));
@@ -90,7 +87,8 @@ void LatencyTracker::trackFinishedEvent(int32_t inputEventId, const sp<IBinder>&
                                         nsecs_t finishTime) {
     const auto it = mTimelines.find(inputEventId);
     if (it == mTimelines.end()) {
-        // It's possible that an app sends a bad (or late)'Finish' signal, since it's free to do
+        // This could happen if we erased this event when duplicate events were detected. It's
+        // also possible that an app sent a bad (or late) 'Finish' signal, since it's free to do
         // anything in its process. Just drop the report and move on.
         return;
     }
@@ -120,7 +118,8 @@ void LatencyTracker::trackGraphicsLatency(
         std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline) {
     const auto it = mTimelines.find(inputEventId);
     if (it == mTimelines.end()) {
-        // It's possible that an app sends a bad (or late) 'Timeline' signal, since it's free to do
+        // This could happen if we erased this event when duplicate events were detected. It's
+        // also possible that an app sent a bad (or late) 'Timeline' signal, since it's free to do
         // anything in its process. Just drop the report and move on.
         return;
     }
@@ -164,14 +163,6 @@ void LatencyTracker::reportAndPruneMatureRecords(nsecs_t newEventTime) {
             return;
         }
     }
-}
-
-void LatencyTracker::reportNow() {
-    for (const auto& [inputEventId, timeline] : mTimelines) {
-        mTimelineProcessor->processTimeline(timeline);
-    }
-    mTimelines.clear();
-    mEventTimes.clear();
 }
 
 std::string LatencyTracker::dump(const char* prefix) {

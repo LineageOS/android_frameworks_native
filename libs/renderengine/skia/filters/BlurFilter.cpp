@@ -81,7 +81,7 @@ sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t 
     // Kawase is an approximation of Gaussian, but it behaves differently from it.
     // A radius transformation is required for approximating them, and also to introduce
     // non-integer steps, necessary to smoothly interpolate large radii.
-    float tmpRadius = (float)blurRadius / 6.0f;
+    float tmpRadius = (float)blurRadius / 2.0f;
     float numberOfPasses = std::min(kMaxPasses, (uint32_t)ceil(tmpRadius));
     float radiusByPasses = tmpRadius / (float)numberOfPasses;
 
