@@ -56,6 +56,7 @@ protected:
     void PublishAndConsumeFocusEvent();
     void PublishAndConsumeCaptureEvent();
     void PublishAndConsumeDragEvent();
+    void PublishAndConsumeTouchModeEvent();
 };
 
 TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
@@ -411,6 +412,46 @@ void InputPublisherAndConsumerTest::PublishAndConsumeDragEvent() {
             << "finished signal's consume time should be greater than publish time";
 }
 
+void InputPublisherAndConsumerTest::PublishAndConsumeTouchModeEvent() {
+    status_t status;
+
+    constexpr uint32_t seq = 15;
+    int32_t eventId = InputEvent::nextId();
+    constexpr bool touchModeEnabled = true;
+    const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
+
+    status = mPublisher->publishTouchModeEvent(seq, eventId, touchModeEnabled);
+    ASSERT_EQ(OK, status) << "publisher publishTouchModeEvent should return OK";
+
+    uint32_t consumeSeq;
+    InputEvent* event;
+    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    ASSERT_EQ(OK, status) << "consumer consume should return OK";
+
+    ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
+    ASSERT_EQ(AINPUT_EVENT_TYPE_TOUCH_MODE, event->getType())
+            << "consumer should have returned a touch mode event";
+
+    const TouchModeEvent& touchModeEvent = static_cast<const TouchModeEvent&>(*event);
+    EXPECT_EQ(seq, consumeSeq);
+    EXPECT_EQ(eventId, touchModeEvent.getId());
+    EXPECT_EQ(touchModeEnabled, touchModeEvent.isInTouchMode());
+
+    status = mConsumer->sendFinishedSignal(seq, true);
+    ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
+
+    Result<InputPublisher::ConsumerResponse> result = mPublisher->receiveConsumerResponse();
+    ASSERT_TRUE(result.ok()) << "receiveConsumerResponse should return OK";
+    ASSERT_TRUE(std::holds_alternative<InputPublisher::Finished>(*result));
+    const InputPublisher::Finished& finish = std::get<InputPublisher::Finished>(*result);
+    ASSERT_EQ(seq, finish.seq)
+            << "receiveConsumerResponse should have returned the original sequence number";
+    ASSERT_TRUE(finish.handled)
+            << "receiveConsumerResponse should have set handled to consumer's reply";
+    ASSERT_GE(finish.consumeTime, publishTime)
+            << "finished signal's consume time should be greater than publish time";
+}
+
 TEST_F(InputPublisherAndConsumerTest, SendTimeline) {
     const int32_t inputEventId = 20;
     std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline;
@@ -445,6 +486,10 @@ TEST_F(InputPublisherAndConsumerTest, PublishCaptureEvent_EndToEnd) {
 
 TEST_F(InputPublisherAndConsumerTest, PublishDragEvent_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeDragEvent());
+}
+
+TEST_F(InputPublisherAndConsumerTest, PublishTouchModeEvent_EndToEnd) {
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeTouchModeEvent());
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZero_ReturnsError) {
@@ -515,6 +560,7 @@ TEST_F(InputPublisherAndConsumerTest, PublishMultipleEvents_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeDragEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeTouchModeEvent());
 }
 
 } // namespace android

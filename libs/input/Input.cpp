@@ -163,6 +163,9 @@ const char* inputEventTypeToString(int32_t type) {
         case AINPUT_EVENT_TYPE_DRAG: {
             return "DRAG";
         }
+        case AINPUT_EVENT_TYPE_TOUCH_MODE: {
+            return "TOUCH_MODE";
+        }
     }
     return "UNKNOWN";
 }
@@ -882,6 +885,19 @@ void DragEvent::initialize(const DragEvent& from) {
     mY = from.mY;
 }
 
+// --- TouchModeEvent ---
+
+void TouchModeEvent::initialize(int32_t id, bool isInTouchMode) {
+    InputEvent::initialize(id, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
+                           ADISPLAY_ID_NONE, INVALID_HMAC);
+    mIsInTouchMode = isInTouchMode;
+}
+
+void TouchModeEvent::initialize(const TouchModeEvent& from) {
+    InputEvent::initialize(from);
+    mIsInTouchMode = from.mIsInTouchMode;
+}
+
 // --- PooledInputEventFactory ---
 
 PooledInputEventFactory::PooledInputEventFactory(size_t maxPoolSize) :
@@ -933,6 +949,15 @@ DragEvent* PooledInputEventFactory::createDragEvent() {
     }
     DragEvent* event = mDragEventPool.front().release();
     mDragEventPool.pop();
+    return event;
+}
+
+TouchModeEvent* PooledInputEventFactory::createTouchModeEvent() {
+    if (mTouchModeEventPool.empty()) {
+        return new TouchModeEvent();
+    }
+    TouchModeEvent* event = mTouchModeEventPool.front().release();
+    mTouchModeEventPool.pop();
     return event;
 }
 

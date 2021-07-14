@@ -116,6 +116,7 @@ bool InputMessage::isValid(size_t actualSize) const {
         case Type::FOCUS:
         case Type::CAPTURE:
         case Type::DRAG:
+        case Type::TOUCH_MODE:
             return true;
         case Type::TIMELINE: {
             const nsecs_t gpuCompletedTime =
@@ -151,6 +152,8 @@ size_t InputMessage::size() const {
             return sizeof(Header) + body.drag.size();
         case Type::TIMELINE:
             return sizeof(Header) + body.timeline.size();
+        case Type::TOUCH_MODE:
+            return sizeof(Header) + body.touchMode.size();
     }
     return sizeof(Header);
 }
@@ -290,6 +293,10 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
             msg->body.timeline.eventId = body.timeline.eventId;
             msg->body.timeline.graphicsTimeline = body.timeline.graphicsTimeline;
             break;
+        }
+        case InputMessage::Type::TOUCH_MODE: {
+            msg->body.touchMode.eventId = body.touchMode.eventId;
+            msg->body.touchMode.isInTouchMode = body.touchMode.isInTouchMode;
         }
     }
 }
@@ -661,6 +668,22 @@ status_t InputPublisher::publishDragEvent(uint32_t seq, int32_t eventId, float x
     return mChannel->sendMessage(&msg);
 }
 
+status_t InputPublisher::publishTouchModeEvent(uint32_t seq, int32_t eventId, bool isInTouchMode) {
+    if (ATRACE_ENABLED()) {
+        std::string message =
+                StringPrintf("publishTouchModeEvent(inputChannel=%s, isInTouchMode=%s)",
+                             mChannel->getName().c_str(), toString(isInTouchMode));
+        ATRACE_NAME(message.c_str());
+    }
+
+    InputMessage msg;
+    msg.header.type = InputMessage::Type::TOUCH_MODE;
+    msg.header.seq = seq;
+    msg.body.touchMode.eventId = eventId;
+    msg.body.touchMode.isInTouchMode = isInTouchMode;
+    return mChannel->sendMessage(&msg);
+}
+
 android::base::Result<InputPublisher::ConsumerResponse> InputPublisher::receiveConsumerResponse() {
     if (DEBUG_TRANSPORT_ACTIONS) {
         ALOGD("channel '%s' publisher ~ %s", mChannel->getName().c_str(), __func__);
@@ -860,6 +883,16 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory, bool consum
                 initializeDragEvent(dragEvent, &mMsg);
                 *outSeq = mMsg.header.seq;
                 *outEvent = dragEvent;
+                break;
+            }
+
+            case InputMessage::Type::TOUCH_MODE: {
+                TouchModeEvent* touchModeEvent = factory->createTouchModeEvent();
+                if (!touchModeEvent) return NO_MEMORY;
+
+                initializeTouchModeEvent(touchModeEvent, &mMsg);
+                *outSeq = mMsg.header.seq;
+                *outEvent = touchModeEvent;
                 break;
             }
         }
@@ -1366,6 +1399,10 @@ void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage
                       pointerProperties, pointerCoords);
 }
 
+void InputConsumer::initializeTouchModeEvent(TouchModeEvent* event, const InputMessage* msg) {
+    event->initialize(msg->body.touchMode.eventId, msg->body.touchMode.isInTouchMode);
+}
+
 void InputConsumer::addSample(MotionEvent* event, const InputMessage* msg) {
     uint32_t pointerCount = msg->body.motion.pointerCount;
     PointerCoords pointerCoords[pointerCount];
@@ -1470,6 +1507,11 @@ std::string InputConsumer::dump() const {
                                                        ", presentTime=%" PRId64,
                                                        msg.body.timeline.eventId, gpuCompletedTime,
                                                        presentTime);
+                    break;
+                }
+                case InputMessage::Type::TOUCH_MODE: {
+                    out += android::base::StringPrintf("isInTouchMode=%s",
+                                                       toString(msg.body.touchMode.isInTouchMode));
                     break;
                 }
             }
