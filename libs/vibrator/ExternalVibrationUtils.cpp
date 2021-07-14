@@ -56,6 +56,36 @@ float getHapticMaxAmplitudeRatio(HapticScale scale) {
     }
 }
 
+void applyHapticScale(float* buffer, size_t length, HapticScale scale) {
+    if (scale == HapticScale::MUTE) {
+        memset(buffer, 0, length * sizeof(float));
+        return;
+    }
+    if (scale == HapticScale::NONE) {
+        return;
+    }
+    float gamma = getHapticScaleGamma(scale);
+    float maxAmplitudeRatio = getHapticMaxAmplitudeRatio(scale);
+    for (size_t i = 0; i < length; i++) {
+        float sign = buffer[i] >= 0 ? 1.0 : -1.0;
+        buffer[i] = powf(fabsf(buffer[i] / HAPTIC_MAX_AMPLITUDE_FLOAT), gamma)
+                * maxAmplitudeRatio * HAPTIC_MAX_AMPLITUDE_FLOAT * sign;
+    }
+}
+
+void clipHapticData(float* buffer, size_t length, float limit) {
+    if (isnan(limit) || limit == 0) {
+        return;
+    }
+    limit = fabsf(limit);
+    for (size_t i = 0; i < length; i++) {
+        float sign = buffer[i] >= 0 ? 1.0 : -1.0;
+        if (fabsf(buffer[i]) > limit) {
+            buffer[i] = limit * sign;
+        }
+    }
+}
+
 } // namespace
 
 bool isValidHapticScale(HapticScale scale) {
@@ -71,21 +101,11 @@ bool isValidHapticScale(HapticScale scale) {
     return false;
 }
 
-void scaleHapticData(float* buffer, size_t length, HapticScale scale) {
-    if (!isValidHapticScale(scale) || scale == HapticScale::NONE) {
-        return;
+void scaleHapticData(float* buffer, size_t length, HapticScale scale, float limit) {
+    if (isValidHapticScale(scale)) {
+        applyHapticScale(buffer, length, scale);
     }
-    if (scale == HapticScale::MUTE) {
-        memset(buffer, 0, length * sizeof(float));
-        return;
-    }
-    float gamma = getHapticScaleGamma(scale);
-    float maxAmplitudeRatio = getHapticMaxAmplitudeRatio(scale);
-    for (size_t i = 0; i < length; i++) {
-        float sign = buffer[i] >= 0 ? 1.0 : -1.0;
-        buffer[i] = powf(fabsf(buffer[i] / HAPTIC_MAX_AMPLITUDE_FLOAT), gamma)
-                * maxAmplitudeRatio * HAPTIC_MAX_AMPLITUDE_FLOAT * sign;
-    }
+    clipHapticData(buffer, length, limit);
 }
 
 } // namespace android::os
