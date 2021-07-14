@@ -796,6 +796,11 @@ public:
     // for symmetry with Vector::remove
     ssize_t removeChild(const sp<Layer>& layer);
     sp<Layer> getParent() const { return mCurrentParent.promote(); }
+
+    // Should be called with the surfaceflinger statelock held
+    bool isAtRoot() const { return mIsAtRoot; }
+    void setIsAtRoot(bool isAtRoot) { mIsAtRoot = isAtRoot; }
+
     bool hasParent() const { return getParent() != nullptr; }
     Rect getScreenBounds(bool reduceTransparentRegion = true) const;
     bool setChildLayer(const sp<Layer>& childLayer, int32_t z);
@@ -1103,6 +1108,8 @@ private:
 
     // A list of regions on this layer that should have blurs.
     const std::vector<BlurRegion> getBlurRegions() const;
+
+    bool mIsAtRoot = false;
 };
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate);
