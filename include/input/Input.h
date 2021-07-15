@@ -577,6 +577,8 @@ public:
 
     void setCursorPosition(float x, float y);
 
+    uint32_t getDisplayOrientation() const { return mDisplayOrientation; }
+
     int2 getDisplaySize() const { return {mDisplayWidth, mDisplayHeight}; }
 
     static inline bool isValidCursorPosition(float x, float y) { return !isnan(x) && !isnan(y); }
@@ -753,8 +755,8 @@ public:
                     int32_t flags, int32_t edgeFlags, int32_t metaState, int32_t buttonState,
                     MotionClassification classification, const ui::Transform& transform,
                     float xPrecision, float yPrecision, float rawXCursorPosition,
-                    float rawYCursorPosition, int32_t displayWidth, int32_t displayHeight,
-                    nsecs_t downTime, nsecs_t eventTime, size_t pointerCount,
+                    float rawYCursorPosition, uint32_t displayOrientation, int32_t displayWidth,
+                    int32_t displayHeight, nsecs_t downTime, nsecs_t eventTime, size_t pointerCount,
                     const PointerProperties* pointerProperties, const PointerCoords* pointerCoords);
 
     void copyFrom(const MotionEvent* other, bool keepHistory);
@@ -812,6 +814,7 @@ protected:
     float mYPrecision;
     float mRawXCursorPosition;
     float mRawYCursorPosition;
+    uint32_t mDisplayOrientation;
     int32_t mDisplayWidth;
     int32_t mDisplayHeight;
     nsecs_t mDownTime;
