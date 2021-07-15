@@ -1707,10 +1707,10 @@ void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t t
     ATRACE_CALL();
 
     Mutex::Autolock lock(mStateLock);
-
-    if (const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId)) {
-        auto token = getPhysicalDisplayTokenLocked(*displayId);
-        auto display = getDisplayDeviceLocked(token);
+    const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId);
+    if (displayId) {
+        const auto token = getPhysicalDisplayTokenLocked(*displayId);
+        const auto display = getDisplayDeviceLocked(token);
         display->onVsync(timestamp);
     }
 
@@ -1718,8 +1718,10 @@ void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t t
         return;
     }
 
-    if (hwcDisplayId != getHwComposer().getInternalHwcDisplayId()) {
-        // For now, we don't do anything with external display vsyncs.
+    const bool isActiveDisplay =
+            displayId && getPhysicalDisplayTokenLocked(*displayId) == mActiveDisplayToken;
+    if (!isActiveDisplay) {
+        // For now, we don't do anything with non active display vsyncs.
         return;
     }
 
