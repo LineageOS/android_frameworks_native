@@ -2298,6 +2298,10 @@ WindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     ui::Transform toPhysicalDisplay;
     if (display) {
         toPhysicalDisplay = display->getTransform();
+        // getOrientation() without masking can contain more-significant bits (eg. ROT_INVALID).
+        static constexpr uint32_t ALL_ROTATIONS_MASK =
+                ui::Transform::ROT_90 | ui::Transform::ROT_180 | ui::Transform::ROT_270;
+        info.displayOrientation = toPhysicalDisplay.getOrientation() & ALL_ROTATIONS_MASK;
         info.displayWidth = display->getWidth();
         info.displayHeight = display->getHeight();
     }
