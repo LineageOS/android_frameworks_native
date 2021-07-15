@@ -1157,6 +1157,12 @@ void SurfaceFlinger::setActiveModeInternal() {
     }
 
     const auto upcomingModeInfo = MAIN_THREAD_GUARD(display->getUpcomingActiveMode());
+    if (!upcomingModeInfo.mode) {
+        // There is no pending mode change. This can happen if the active
+        // display changed and the mode change happened on a different display.
+        return;
+    }
+
     if (display->getActiveMode()->getSize() != upcomingModeInfo.mode->getSize()) {
         auto& state = mCurrentState.displays.editValueFor(display->getDisplayToken());
         // We need to generate new sequenceId in order to recreate the display (and this
