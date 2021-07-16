@@ -80,6 +80,8 @@ public:
     void renderCachedSets(const OutputCompositionState& outputState,
                           std::optional<std::chrono::steady_clock::time_point> renderDeadline);
 
+    void setTexturePoolEnabled(bool enabled) { mTexturePool.setEnabled(enabled); }
+
     void dump(std::string& result) const;
     void dumpLayers(std::string& result) const;
 
