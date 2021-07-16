@@ -242,9 +242,11 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
             msg->body.motion.xCursorPosition = body.motion.xCursorPosition;
             // float yCursorPosition
             msg->body.motion.yCursorPosition = body.motion.yCursorPosition;
-            // int32_t displayW
+            // uint32_t displayOrientation
+            msg->body.motion.displayOrientation = body.motion.displayOrientation;
+            // int32_t displayWidth
             msg->body.motion.displayWidth = body.motion.displayWidth;
-            // int32_t displayH
+            // int32_t displayHeight
             msg->body.motion.displayHeight = body.motion.displayHeight;
             // uint32_t pointerCount
             msg->body.motion.pointerCount = body.motion.pointerCount;
@@ -533,9 +535,10 @@ status_t InputPublisher::publishMotionEvent(
         std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton, int32_t flags,
         int32_t edgeFlags, int32_t metaState, int32_t buttonState,
         MotionClassification classification, const ui::Transform& transform, float xPrecision,
-        float yPrecision, float xCursorPosition, float yCursorPosition, int32_t displayWidth,
-        int32_t displayHeight, nsecs_t downTime, nsecs_t eventTime, uint32_t pointerCount,
-        const PointerProperties* pointerProperties, const PointerCoords* pointerCoords) {
+        float yPrecision, float xCursorPosition, float yCursorPosition, uint32_t displayOrientation,
+        int32_t displayWidth, int32_t displayHeight, nsecs_t downTime, nsecs_t eventTime,
+        uint32_t pointerCount, const PointerProperties* pointerProperties,
+        const PointerCoords* pointerCoords) {
     if (ATRACE_ENABLED()) {
         std::string message = StringPrintf(
                 "publishMotionEvent(inputChannel=%s, action=%" PRId32 ")",
@@ -593,6 +596,7 @@ status_t InputPublisher::publishMotionEvent(
     msg.body.motion.yPrecision = yPrecision;
     msg.body.motion.xCursorPosition = xCursorPosition;
     msg.body.motion.yCursorPosition = yCursorPosition;
+    msg.body.motion.displayOrientation = displayOrientation;
     msg.body.motion.displayWidth = displayWidth;
     msg.body.motion.displayHeight = displayHeight;
     msg.body.motion.downTime = downTime;
@@ -1361,9 +1365,9 @@ void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage
                       msg->body.motion.buttonState, msg->body.motion.classification, transform,
                       msg->body.motion.xPrecision, msg->body.motion.yPrecision,
                       msg->body.motion.xCursorPosition, msg->body.motion.yCursorPosition,
-                      msg->body.motion.displayWidth, msg->body.motion.displayHeight,
-                      msg->body.motion.downTime, msg->body.motion.eventTime, pointerCount,
-                      pointerProperties, pointerCoords);
+                      msg->body.motion.displayOrientation, msg->body.motion.displayWidth,
+                      msg->body.motion.displayHeight, msg->body.motion.downTime,
+                      msg->body.motion.eventTime, pointerCount, pointerProperties, pointerCoords);
 }
 
 void InputConsumer::addSample(MotionEvent* event, const InputMessage* msg) {
