@@ -101,6 +101,9 @@ struct InputTarget {
     // (ignored for KeyEvents)
     float globalScaleFactor = 1.0f;
 
+    // Current display orientation
+    uint32_t displayOrientation = ui::Transform::ROT_0;
+
     // Display-size in its natural rotation. Used for compatibility transform of raw coordinates.
     int2 displaySize = {INVALID_DISPLAY_SIZE, INVALID_DISPLAY_SIZE};
 

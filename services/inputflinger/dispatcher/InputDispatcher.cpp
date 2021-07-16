@@ -331,6 +331,7 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
             // don't depend on the window transform.
             return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, identityTransform,
                                                    1.0f /*globalScaleFactor*/,
+                                                   inputTarget.displayOrientation,
                                                    inputTarget.displaySize);
         }
     }
@@ -339,6 +340,7 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
         const ui::Transform& transform = inputTarget.getDefaultPointerTransform();
         return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, transform,
                                                inputTarget.globalScaleFactor,
+                                               inputTarget.displayOrientation,
                                                inputTarget.displaySize);
     }
 
@@ -391,6 +393,7 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
     std::unique_ptr<DispatchEntry> dispatchEntry =
             std::make_unique<DispatchEntry>(std::move(combinedMotionEntry), inputTargetFlags,
                                             firstPointerTransform, inputTarget.globalScaleFactor,
+                                            inputTarget.displayOrientation,
                                             inputTarget.displaySize);
     return dispatchEntry;
 }
@@ -2448,6 +2451,7 @@ void InputDispatcher::addWindowTargetLocked(const sp<WindowInfoHandle>& windowHa
         inputTarget.inputChannel = inputChannel;
         inputTarget.flags = targetFlags;
         inputTarget.globalScaleFactor = windowInfo->globalScaleFactor;
+        inputTarget.displayOrientation = windowInfo->displayOrientation;
         inputTarget.displaySize =
                 int2(windowHandle->getInfo()->displayWidth, windowHandle->getInfo()->displayHeight);
         inputTargets.push_back(inputTarget);
@@ -3161,6 +3165,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                      motionEntry.xPrecision, motionEntry.yPrecision,
                                                      motionEntry.xCursorPosition,
                                                      motionEntry.yCursorPosition,
+                                                     dispatchEntry->displayOrientation,
                                                      dispatchEntry->displaySize.x,
                                                      dispatchEntry->displaySize.y,
                                                      motionEntry.downTime, motionEntry.eventTime,
@@ -3873,9 +3878,9 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
                              args->action, args->actionButton, args->flags, args->edgeFlags,
                              args->metaState, args->buttonState, args->classification, transform,
                              args->xPrecision, args->yPrecision, args->xCursorPosition,
-                             args->yCursorPosition, INVALID_DISPLAY_SIZE, INVALID_DISPLAY_SIZE,
-                             args->downTime, args->eventTime, args->pointerCount,
-                             args->pointerProperties, args->pointerCoords);
+                             args->yCursorPosition, ui::Transform::ROT_0, INVALID_DISPLAY_SIZE,
+                             INVALID_DISPLAY_SIZE, args->downTime, args->eventTime,
+                             args->pointerCount, args->pointerProperties, args->pointerCoords);
 
             policyFlags |= POLICY_FLAG_FILTERED;
             if (!mPolicy->filterInputEvent(&event, policyFlags)) {
