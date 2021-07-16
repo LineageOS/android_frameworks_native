@@ -619,17 +619,17 @@ void SurfaceFlinger::releaseVirtualDisplay(VirtualDisplayId displayId) {
 }
 
 std::vector<PhysicalDisplayId> SurfaceFlinger::getPhysicalDisplayIdsLocked() const {
-    const auto internalDisplayId = getInternalDisplayIdLocked();
-    if (!internalDisplayId) {
+    const auto display = getDefaultDisplayDeviceLocked();
+    if (!display) {
         return {};
     }
 
     std::vector<PhysicalDisplayId> displayIds;
     displayIds.reserve(mPhysicalDisplayTokens.size());
-    displayIds.push_back(*internalDisplayId);
+    displayIds.push_back(display->getPhysicalId());
 
     for (const auto& [id, token] : mPhysicalDisplayTokens) {
-        if (id != *internalDisplayId) {
+        if (id != display->getPhysicalId()) {
             displayIds.push_back(id);
         }
     }
