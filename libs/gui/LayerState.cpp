@@ -553,10 +553,13 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eDestinationFrameChanged;
         destinationFrame = other.destinationFrame;
     }
+    if (other.what & eProducerDisconnect) {
+        what |= eProducerDisconnect;
+    }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "
-              "other.what=0x%" PRIu64 " what=0x%" PRIu64,
-              other.what, what);
+              "other.what=0x%" PRIX64 " what=0x%" PRIX64 " unmerged flags=0x%" PRIX64,
+              other.what, what, (other.what & what) ^ other.what);
     }
 }
 
