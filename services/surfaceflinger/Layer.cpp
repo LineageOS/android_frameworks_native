@@ -958,7 +958,6 @@ bool Layer::setTransparentRegionHint(const Region& transparent) {
 }
 
 bool Layer::setBlurRegions(const std::vector<BlurRegion>& blurRegions) {
-    mDrawingState.sequence++;
     mDrawingState.blurRegions = blurRegions;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
