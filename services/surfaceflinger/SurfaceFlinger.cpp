@@ -3134,7 +3134,7 @@ void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
                                                                       hal::PowerMode::OFF);
 
     mVsyncConfiguration = getFactory().createVsyncConfiguration(currRefreshRate);
-    mVsyncModulator.emplace(mVsyncConfiguration->getCurrentConfigs());
+    mVsyncModulator = sp<VsyncModulator>::make(mVsyncConfiguration->getCurrentConfigs());
 
     // start the EventThread
     mScheduler = getFactory().createScheduler(display->holdRefreshRateConfigs(), *this);
@@ -3412,9 +3412,10 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags) {
     return setTransactionFlags(flags, TransactionSchedule::Late);
 }
 
-uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags, TransactionSchedule schedule) {
+uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags, TransactionSchedule schedule,
+                                             const sp<IBinder>& token) {
     uint32_t old = mTransactionFlags.fetch_or(flags);
-    modulateVsync(&VsyncModulator::setTransactionSchedule, schedule);
+    modulateVsync(&VsyncModulator::setTransactionSchedule, schedule, token);
     if ((old & flags) == 0) signalTransaction();
     return old;
 }
@@ -3634,7 +3635,7 @@ void SurfaceFlinger::queueTransaction(TransactionState& state) {
         return TransactionSchedule::Late;
     }(state.flags);
 
-    setTransactionFlags(eTransactionFlushNeeded, schedule);
+    setTransactionFlags(eTransactionFlushNeeded, schedule, state.applyToken);
 }
 
 void SurfaceFlinger::waitForSynchronousTransaction(

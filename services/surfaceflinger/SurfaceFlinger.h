@@ -847,7 +847,7 @@ private:
     // but there is no need to try and wake up immediately to do it. Rather we rely on
     // onFrameAvailable or another layer update to wake us up.
     void setTraversalNeeded();
-    uint32_t setTransactionFlags(uint32_t flags, TransactionSchedule);
+    uint32_t setTransactionFlags(uint32_t flags, TransactionSchedule, const sp<IBinder>& = {});
     void commitTransaction() REQUIRES(mStateLock);
     void commitOffscreenLayers();
     bool transactionIsReadyToBeApplied(
@@ -1400,7 +1400,7 @@ private:
     std::unique_ptr<scheduler::VsyncConfiguration> mVsyncConfiguration;
 
     // Optional to defer construction until PhaseConfiguration is created.
-    std::optional<scheduler::VsyncModulator> mVsyncModulator;
+    sp<VsyncModulator> mVsyncModulator;
 
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
 
