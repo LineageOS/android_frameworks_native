@@ -146,6 +146,12 @@ void Output::setLayerCachingEnabled(bool enabled) {
     }
 }
 
+void Output::setLayerCachingTexturePoolEnabled(bool enabled) {
+    if (mPlanner) {
+        mPlanner->setTexturePoolEnabled(enabled);
+    }
+}
+
 void Output::setProjection(ui::Rotation orientation, const Rect& layerStackSpaceRect,
                            const Rect& orientedDisplaySpaceRect) {
     auto& outputState = editState();
