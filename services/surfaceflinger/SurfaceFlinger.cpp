@@ -4538,8 +4538,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     if (currentMode == hal::PowerMode::OFF) {
         const auto activeDisplay = getDisplayDeviceLocked(mActiveDisplayToken);
         if (display->isInternal() && (!activeDisplay || !activeDisplay->isPoweredOn())) {
-            mActiveDisplayToken = display->getDisplayToken();
-            onActiveDisplayChangedLocked(getDisplayDeviceLocked(mActiveDisplayToken));
+            onActiveDisplayChangedLocked(display);
         }
         // Keep uclamp in a separate syscall and set it before changing to RT due to b/190237315.
         // We can merge the syscall later.
@@ -6936,10 +6935,17 @@ void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<DisplayDevice>& activeD
 void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay) {
     ATRACE_CALL();
 
+    if (const auto display = getDisplayDeviceLocked(mActiveDisplayToken)) {
+        display->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
+    }
+
     if (!activeDisplay) {
         ALOGE("%s: activeDisplay is null", __func__);
         return;
     }
+    mActiveDisplayToken = activeDisplay->getDisplayToken();
+
+    activeDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
     updateInternalDisplayVsyncLocked(activeDisplay);
     mScheduler->setModeChangePending(false);
     mScheduler->setRefreshRateConfigs(activeDisplay->holdRefreshRateConfigs());

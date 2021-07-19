@@ -205,6 +205,9 @@ void Flattener::dump(std::string& result) const {
                         durationString(lastUpdate).c_str());
 
     dumpLayers(result);
+
+    base::StringAppendF(&result, "\n");
+    mTexturePool.dump(result);
 }
 
 size_t Flattener::calculateDisplayCost(const std::vector<const LayerState*>& layers) const {
