@@ -434,6 +434,7 @@ public:
     auto& mutableTransactionFlags() { return mFlinger->mTransactionFlags; }
     auto& mutablePowerAdvisor() { return mFlinger->mPowerAdvisor; }
     auto& mutableDebugDisableHWC() { return mFlinger->mDebugDisableHWC; }
+    auto& mutableMaxRenderTargetSize() { return mFlinger->mMaxRenderTargetSize; }
 
     auto& mutableHwcDisplayData() { return getHwComposer().mDisplayData; }
     auto& mutableHwcPhysicalDisplayIdMap() { return getHwComposer().mPhysicalDisplayIdMap; }
