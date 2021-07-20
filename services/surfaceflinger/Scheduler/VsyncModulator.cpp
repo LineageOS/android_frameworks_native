@@ -46,27 +46,36 @@ VsyncModulator::VsyncConfig VsyncModulator::setVsyncConfigSet(const VsyncConfigS
     return updateVsyncConfigLocked();
 }
 
-VsyncModulator::VsyncConfigOpt VsyncModulator::setTransactionSchedule(
-        TransactionSchedule schedule) {
+VsyncModulator::VsyncConfigOpt VsyncModulator::setTransactionSchedule(TransactionSchedule schedule,
+                                                                      const sp<IBinder>& token) {
+    std::lock_guard<std::mutex> lock(mMutex);
     switch (schedule) {
         case Schedule::EarlyStart:
-            ALOGW_IF(mEarlyWakeup, "%s: Duplicate EarlyStart", __FUNCTION__);
-            mEarlyWakeup = true;
+            if (token) {
+                mEarlyWakeupRequests.emplace(token);
+                token->linkToDeath(this);
+            } else {
+                ALOGW("%s: EarlyStart requested without a valid token", __func__);
+            }
             break;
-        case Schedule::EarlyEnd:
-            ALOGW_IF(!mEarlyWakeup, "%s: Unexpected EarlyEnd", __FUNCTION__);
-            mEarlyWakeup = false;
+        case Schedule::EarlyEnd: {
+            if (token && mEarlyWakeupRequests.erase(token) > 0) {
+                token->unlinkToDeath(this);
+            } else {
+                ALOGW("%s: Unexpected EarlyEnd", __func__);
+            }
             break;
+        }
         case Schedule::Late:
             // No change to mEarlyWakeup for non-explicit states.
             break;
     }
 
     if (mTraceDetailedInfo) {
-        ATRACE_INT("mEarlyWakeup", mEarlyWakeup);
+        ATRACE_INT("mEarlyWakeup", static_cast<int>(mEarlyWakeupRequests.size()));
     }
 
-    if (!mEarlyWakeup && schedule == Schedule::EarlyEnd) {
+    if (mEarlyWakeupRequests.empty() && schedule == Schedule::EarlyEnd) {
         mEarlyTransactionFrames = MIN_EARLY_TRANSACTION_FRAMES;
         mEarlyTransactionStartTime = mNow();
     }
@@ -76,7 +85,7 @@ VsyncModulator::VsyncConfigOpt VsyncModulator::setTransactionSchedule(
         return std::nullopt;
     }
     mTransactionSchedule = schedule;
-    return updateVsyncConfig();
+    return updateVsyncConfigLocked();
 }
 
 VsyncModulator::VsyncConfigOpt VsyncModulator::onTransactionCommit() {
@@ -128,8 +137,8 @@ VsyncModulator::VsyncConfig VsyncModulator::getVsyncConfig() const {
 const VsyncModulator::VsyncConfig& VsyncModulator::getNextVsyncConfig() const {
     // Early offsets are used if we're in the middle of a refresh rate
     // change, or if we recently begin a transaction.
-    if (mEarlyWakeup || mTransactionSchedule == Schedule::EarlyEnd || mEarlyTransactionFrames > 0 ||
-        mRefreshRateChangePending) {
+    if (!mEarlyWakeupRequests.empty() || mTransactionSchedule == Schedule::EarlyEnd ||
+        mEarlyTransactionFrames > 0 || mRefreshRateChangePending) {
         return mVsyncConfigSet.early;
     } else if (mEarlyGpuFrames > 0) {
         return mVsyncConfigSet.earlyGpu;
@@ -158,6 +167,13 @@ VsyncModulator::VsyncConfig VsyncModulator::updateVsyncConfigLocked() {
     }
 
     return offsets;
+}
+
+void VsyncModulator::binderDied(const wp<IBinder>& who) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mEarlyWakeupRequests.erase(who);
+
+    static_cast<void>(updateVsyncConfigLocked());
 }
 
 } // namespace android::scheduler
