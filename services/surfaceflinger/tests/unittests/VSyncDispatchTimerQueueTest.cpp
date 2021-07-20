@@ -942,6 +942,27 @@ TEST_F(VSyncDispatchTimerQueueTest, basicAlarmSettingFutureWithReadyDuration) {
     EXPECT_THAT(cb.mReadyTime[0], 970);
 }
 
+TEST_F(VSyncDispatchTimerQueueTest, updatesVsyncTimeForCloseWakeupTime) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmAt(_, 600)).InSequence(seq);
+
+    CountingCallback cb(mDispatch);
+
+    mDispatch.schedule(cb, {.workDuration = 400, .readyDuration = 0, .earliestVsync = 1000});
+    mDispatch.schedule(cb, {.workDuration = 1400, .readyDuration = 0, .earliestVsync = 1000});
+
+    advanceToNextCallback();
+
+    advanceToNextCallback();
+
+    ASSERT_THAT(cb.mCalls.size(), Eq(1));
+    EXPECT_THAT(cb.mCalls[0], Eq(2000));
+    ASSERT_THAT(cb.mWakeupTime.size(), Eq(1));
+    EXPECT_THAT(cb.mWakeupTime[0], Eq(600));
+    ASSERT_THAT(cb.mReadyTime.size(), Eq(1));
+    EXPECT_THAT(cb.mReadyTime[0], Eq(2000));
+}
+
 class VSyncDispatchTimerQueueEntryTest : public testing::Test {
 protected:
     nsecs_t const mPeriod = 1000;
