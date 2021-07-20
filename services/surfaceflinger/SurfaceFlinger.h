@@ -901,7 +901,7 @@ private:
     status_t addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
                             const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
                             const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer,
-                            bool addToCurrentState, uint32_t* outTransformHint);
+                            bool addToRoot, uint32_t* outTransformHint);
 
     // Traverse through all the layers and compute and cache its bounds.
     void computeLayerBounds();
@@ -1453,11 +1453,12 @@ private:
     mutable Mutex mCreatedLayersLock;
     struct LayerCreatedState {
         LayerCreatedState(const wp<Layer>& layer, const wp<IBinder>& parent,
-                          const wp<Layer> parentLayer, const wp<IBinder>& producer)
+                          const wp<Layer> parentLayer, const wp<IBinder>& producer, bool addToRoot)
               : layer(layer),
                 initialParent(parent),
                 initialParentLayer(parentLayer),
-                initialProducer(producer) {}
+                initialProducer(producer),
+                addToRoot(addToRoot) {}
         wp<Layer> layer;
         // Indicates the initial parent of the created layer, only used for creating layer in
         // SurfaceFlinger. If nullptr, it may add the created layer into the current root layers.
@@ -1466,6 +1467,10 @@ private:
         // Indicates the initial graphic buffer producer of the created layer, only used for
         // creating layer in SurfaceFlinger.
         wp<IBinder> initialProducer;
+        // Indicates whether the layer getting created should be added at root if there's no parent
+        // and has permission ACCESS_SURFACE_FLINGER. If set to false and no parent, the layer will
+        // be added offscreen.
+        bool addToRoot;
     };
 
     // A temporay pool that store the created layers and will be added to current state in main
@@ -1473,10 +1478,9 @@ private:
     std::unordered_map<BBinder*, std::unique_ptr<LayerCreatedState>> mCreatedLayers;
     void setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
                               const wp<IBinder>& parent, const wp<Layer> parentLayer,
-                              const wp<IBinder>& producer);
+                              const wp<IBinder>& producer, bool addToRoot);
     auto getLayerCreatedState(const sp<IBinder>& handle);
-    sp<Layer> handleLayerCreatedLocked(const sp<IBinder>& handle, bool privileged)
-            REQUIRES(mStateLock);
+    sp<Layer> handleLayerCreatedLocked(const sp<IBinder>& handle) REQUIRES(mStateLock);
 
     std::atomic<ui::Transform::RotationFlags> mDefaultDisplayTransformHint;
 
