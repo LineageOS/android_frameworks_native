@@ -41,6 +41,7 @@ public:
     std::optional<DisplayId> getDisplayId() const override;
     void setCompositionEnabled(bool) override;
     void setLayerCachingEnabled(bool) override;
+    void setLayerCachingTexturePoolEnabled(bool) override;
     void setProjection(ui::Rotation orientation, const Rect& layerStackSpaceRect,
                        const Rect& orientedDisplaySpaceRect) override;
     void setDisplaySize(const ui::Size&) override;

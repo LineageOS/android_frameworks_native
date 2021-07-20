@@ -68,12 +68,10 @@ cc_library {
 
     static_libs: [
         "libui-types",
-        "libgui_window_info_static",
     ],
 
     export_static_lib_headers: [
         "libui-types",
-        "libgui_window_info_static",
     ],
 
     target: {
@@ -94,6 +92,14 @@ cc_library {
                 "libutils",
                 "libbinder",
                 "libui",
+            ],
+
+            static_libs: [
+                "libgui_window_info_static",
+            ],
+
+            export_static_lib_headers: [
+                "libgui_window_info_static",
             ],
 
             sanitize: {
@@ -117,9 +123,14 @@ cc_library {
             ],
             static_libs: [
                 "libhostgraphics",
+                "libgui_window_info_static",
             ],
             shared_libs: [
                 "libbinder",
+            ],
+
+            export_static_lib_headers: [
+                "libgui_window_info_static",
             ],
         },
     },

@@ -303,7 +303,7 @@ bool SensorInputMapper::setSensorEnabled(InputDeviceSensorType sensorType, bool 
      * the device
      */
     mDeviceEnabled = false;
-    for (const auto& [sensorType, sensor] : mSensors) {
+    for (const auto& [_, sensor] : mSensors) {
         // If any sensor is on we will turn on the device.
         if (sensor.enabled) {
             mDeviceEnabled = true;
