@@ -3357,7 +3357,7 @@ void SurfaceFlinger::invalidateHwcGeometry() {
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
                                         const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
                                         const sp<IBinder>& parentHandle,
-                                        const sp<Layer>& parentLayer, bool addToCurrentState,
+                                        const sp<Layer>& parentLayer, bool addToRoot,
                                         uint32_t* outTransformHint) {
     if (mNumLayers >= ISurfaceComposer::MAX_LAYERS) {
         ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
@@ -3369,7 +3369,7 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
     if (gbc != nullptr) {
         initialProducer = IInterface::asBinder(gbc);
     }
-    setLayerCreatedState(handle, lbc, parentHandle, parentLayer, initialProducer);
+    setLayerCreatedState(handle, lbc, parentHandle, parentLayer, initialProducer, addToRoot);
 
     // Create a transaction includes the initial parent and producer.
     Vector<ComposerState> states;
@@ -3899,7 +3899,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     sp<Layer> layer = nullptr;
     if (s.surface) {
         if (what & layer_state_t::eLayerCreated) {
-            layer = handleLayerCreatedLocked(s.surface, privileged);
+            layer = handleLayerCreatedLocked(s.surface);
             if (layer) {
                 // put the created layer into mLayersByLocalBinderToken.
                 mLayersByLocalBinderToken.emplace(s.surface->localBinder(), layer);
@@ -4309,9 +4309,9 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
         return result;
     }
 
-    bool addToCurrentState = callingThreadHasUnscopedSurfaceFlingerAccess();
-    result = addClientLayer(client, *handle, *gbp, layer, parentHandle, parentLayer,
-                            addToCurrentState, outTransformHint);
+    bool addToRoot = callingThreadHasUnscopedSurfaceFlingerAccess();
+    result = addClientLayer(client, *handle, *gbp, layer, parentHandle, parentLayer, addToRoot,
+                            outTransformHint);
     if (result != NO_ERROR) {
         return result;
     }
@@ -6832,10 +6832,10 @@ void SurfaceFlinger::TransactionState::traverseStatesWithBuffers(
 
 void SurfaceFlinger::setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
                                           const wp<IBinder>& parent, const wp<Layer> parentLayer,
-                                          const wp<IBinder>& producer) {
+                                          const wp<IBinder>& producer, bool addToRoot) {
     Mutex::Autolock lock(mCreatedLayersLock);
     mCreatedLayers[handle->localBinder()] =
-            std::make_unique<LayerCreatedState>(layer, parent, parentLayer, producer);
+            std::make_unique<LayerCreatedState>(layer, parent, parentLayer, producer, addToRoot);
 }
 
 auto SurfaceFlinger::getLayerCreatedState(const sp<IBinder>& handle) {
@@ -6860,7 +6860,7 @@ auto SurfaceFlinger::getLayerCreatedState(const sp<IBinder>& handle) {
     return state;
 }
 
-sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle, bool privileged) {
+sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
     const auto& state = getLayerCreatedState(handle);
     if (!state) {
         return nullptr;
@@ -6873,7 +6873,7 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle, bo
     }
 
     sp<Layer> parent;
-    bool allowAddRoot = privileged;
+    bool allowAddRoot = state->addToRoot;
     if (state->initialParent != nullptr) {
         parent = fromHandleLocked(state->initialParent.promote()).promote();
         if (parent == nullptr) {
