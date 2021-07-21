@@ -175,7 +175,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
     LayerFE::ClientCompositionTargetSettings targetSettings{
             .clip = Region(viewport),
             .needsFiltering = false,
-            .isSecure = true,
+            .isSecure = outputState.isSecure,
             .supportsProtectedContent = false,
             .clearRegion = clearRegion,
             .viewport = viewport,
