@@ -93,6 +93,21 @@ using com::android::internal::compat::IPlatformCompatNative;
 
 namespace android::inputdispatcher {
 
+namespace {
+
+// Temporarily releases a held mutex for the lifetime of the instance.
+// Named to match std::scoped_lock
+class scoped_unlock {
+public:
+    explicit scoped_unlock(std::mutex& mutex) : mMutex(mutex) { mMutex.unlock(); }
+    ~scoped_unlock() { mMutex.lock(); }
+
+private:
+    std::mutex& mMutex;
+};
+
+} // namespace
+
 // When per-window-input-rotation is enabled, InputFlinger works in the un-rotated display
 // coordinates and SurfaceFlinger includes the display rotation in the input window transforms.
 static bool isPerWindowInputRotationEnabled() {
@@ -512,6 +527,20 @@ static bool shouldReportFinishedEvent(const DispatchEntry& dispatchEntry,
     return true;
 }
 
+/**
+ * Connection is responsive if it has no events in the waitQueue that are older than the
+ * current time.
+ */
+static bool isConnectionResponsive(const Connection& connection) {
+    const nsecs_t currentTime = now();
+    for (const DispatchEntry* entry : connection.waitQueue) {
+        if (entry->timeoutTime < currentTime) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy)
@@ -545,17 +574,17 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
 }
 
 InputDispatcher::~InputDispatcher() {
-    { // acquire lock
-        std::scoped_lock _l(mLock);
+    std::scoped_lock _l(mLock);
 
-        resetKeyRepeatLocked();
-        releasePendingEventLocked();
-        drainInboundQueueLocked();
-    }
+    resetKeyRepeatLocked();
+    releasePendingEventLocked();
+    drainInboundQueueLocked();
+    mCommandQueue.clear();
 
     while (!mConnectionsByToken.empty()) {
         sp<Connection> connection = mConnectionsByToken.begin()->second;
-        removeInputChannel(connection->inputChannel->getConnectionToken());
+        removeInputChannelLocked(connection->inputChannel->getConnectionToken(),
+                                 false /* notify */);
     }
 }
 
@@ -591,7 +620,7 @@ void InputDispatcher::dispatchOnce() {
 
         // Run all pending commands if there are any.
         // If any commands were run then force the next poll to wake up immediately.
-        if (runCommandsLockedInterruptible()) {
+        if (runCommandsLockedInterruptable()) {
             nextWakeupTime = LONG_LONG_MIN;
         }
 
@@ -1147,24 +1176,22 @@ bool InputDispatcher::haveCommandsLocked() const {
     return !mCommandQueue.empty();
 }
 
-bool InputDispatcher::runCommandsLockedInterruptible() {
+bool InputDispatcher::runCommandsLockedInterruptable() {
     if (mCommandQueue.empty()) {
         return false;
     }
 
     do {
-        std::unique_ptr<CommandEntry> commandEntry = std::move(mCommandQueue.front());
+        auto command = std::move(mCommandQueue.front());
         mCommandQueue.pop_front();
-        Command command = commandEntry->command;
-        command(*this, commandEntry.get()); // commands are implicitly 'LockedInterruptible'
-
-        commandEntry->connection.clear();
+        // Commands are run with the lock held, but may release and re-acquire the lock from within.
+        command();
     } while (!mCommandQueue.empty());
     return true;
 }
 
-void InputDispatcher::postCommandLocked(std::unique_ptr<CommandEntry> commandEntry) {
-    mCommandQueue.push_back(std::move(commandEntry));
+void InputDispatcher::postCommandLocked(Command&& command) {
+    mCommandQueue.push_back(command);
 }
 
 void InputDispatcher::drainInboundQueueLocked() {
@@ -1231,10 +1258,11 @@ bool InputDispatcher::dispatchConfigurationChangedLocked(nsecs_t currentTime,
     resetKeyRepeatLocked();
 
     // Enqueue a command to run outside the lock to tell the policy that the configuration changed.
-    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
-            &InputDispatcher::doNotifyConfigurationChangedLockedInterruptible);
-    commandEntry->eventTime = entry.eventTime;
-    postCommandLocked(std::move(commandEntry));
+    auto command = [this, eventTime = entry.eventTime]() REQUIRES(mLock) {
+        scoped_unlock unlock(mLock);
+        mPolicy->notifyConfigurationChanged(eventTime);
+    };
+    postCommandLocked(std::move(command));
     return true;
 }
 
@@ -1417,13 +1445,13 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<Key
     // Give the policy a chance to intercept the key.
     if (entry->interceptKeyResult == KeyEntry::INTERCEPT_KEY_RESULT_UNKNOWN) {
         if (entry->policyFlags & POLICY_FLAG_PASS_TO_USER) {
-            std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
-                    &InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible);
             sp<IBinder> focusedWindowToken =
                     mFocusResolver.getFocusedWindowToken(getTargetDisplayId(*entry));
-            commandEntry->connectionToken = focusedWindowToken;
-            commandEntry->keyEntry = entry;
-            postCommandLocked(std::move(commandEntry));
+
+            auto command = [this, focusedWindowToken, entry]() REQUIRES(mLock) {
+                doInterceptKeyBeforeDispatchingCommand(focusedWindowToken, *entry);
+            };
+            postCommandLocked(std::move(command));
             return false; // wait for the command to run
         } else {
             entry->interceptKeyResult = KeyEntry::INTERCEPT_KEY_RESULT_CONTINUE;
@@ -1475,19 +1503,8 @@ void InputDispatcher::logOutboundKeyDetails(const char* prefix, const KeyEntry& 
 #endif
 }
 
-void InputDispatcher::doNotifySensorLockedInterruptible(CommandEntry* commandEntry) {
-    mLock.unlock();
-
-    const std::shared_ptr<SensorEntry>& entry = commandEntry->sensorEntry;
-    if (entry->accuracyChanged) {
-        mPolicy->notifySensorAccuracy(entry->deviceId, entry->sensorType, entry->accuracy);
-    }
-    mPolicy->notifySensorEvent(entry->deviceId, entry->sensorType, entry->accuracy,
-                               entry->hwTimestamp, entry->values);
-    mLock.lock();
-}
-
-void InputDispatcher::dispatchSensorLocked(nsecs_t currentTime, std::shared_ptr<SensorEntry> entry,
+void InputDispatcher::dispatchSensorLocked(nsecs_t currentTime,
+                                           const std::shared_ptr<SensorEntry>& entry,
                                            DropReason* dropReason, nsecs_t* nextWakeupTime) {
 #if DEBUG_OUTBOUND_EVENT_DETAILS
     ALOGD("notifySensorEvent eventTime=%" PRId64 ", hwTimestamp=%" PRId64 ", deviceId=%d, "
@@ -1495,10 +1512,16 @@ void InputDispatcher::dispatchSensorLocked(nsecs_t currentTime, std::shared_ptr<
           entry->eventTime, entry->hwTimestamp, entry->deviceId, entry->source,
           NamedEnum::string(entry->sensorType).c_str());
 #endif
-    std::unique_ptr<CommandEntry> commandEntry =
-            std::make_unique<CommandEntry>(&InputDispatcher::doNotifySensorLockedInterruptible);
-    commandEntry->sensorEntry = entry;
-    postCommandLocked(std::move(commandEntry));
+    auto command = [this, entry]() REQUIRES(mLock) {
+        scoped_unlock unlock(mLock);
+
+        if (entry->accuracyChanged) {
+            mPolicy->notifySensorAccuracy(entry->deviceId, entry->sensorType, entry->accuracy);
+        }
+        mPolicy->notifySensorEvent(entry->deviceId, entry->sensorType, entry->accuracy,
+                                   entry->hwTimestamp, entry->values);
+    };
+    postCommandLocked(std::move(command));
 }
 
 bool InputDispatcher::flushSensor(int deviceId, InputDeviceSensorType sensorType) {
@@ -2015,7 +2038,7 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
                         ALOGD("%s", log.c_str());
                     }
                 }
-                onUntrustedTouchLocked(occlusionInfo.obscuringPackage);
+                sendUntrustedTouchCommandLocked(occlusionInfo.obscuringPackage);
                 if (mBlockUntrustedTouchesMode == BlockUntrustedTouchesMode::BLOCK) {
                     ALOGW("Dropping untrusted touch event due to %s/%d",
                           occlusionInfo.obscuringPackage.c_str(), occlusionInfo.obscuringUid);
@@ -2341,9 +2364,9 @@ void InputDispatcher::finishDragAndDrop(int32_t displayId, float x, float y) {
                                       false /*addOutsideTargets*/, true /*ignoreDragWindow*/);
     if (dropWindow) {
         vec2 local = dropWindow->getInfo()->transform.transform(x, y);
-        notifyDropWindowLocked(dropWindow->getToken(), local.x, local.y);
+        sendDropWindowCommandLocked(dropWindow->getToken(), local.x, local.y);
     } else {
-        notifyDropWindowLocked(nullptr, 0, 0);
+        sendDropWindowCommandLocked(nullptr, 0, 0);
     }
     mDragState.reset();
 }
@@ -2389,7 +2412,7 @@ void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
     } else if (maskedAction == AMOTION_EVENT_ACTION_UP) {
         finishDragAndDrop(entry.displayId, x, y);
     } else if (maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
-        notifyDropWindowLocked(nullptr, 0, 0);
+        sendDropWindowCommandLocked(nullptr, 0, 0);
         mDragState.reset();
     }
 }
@@ -2717,12 +2740,12 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
         }
     }
 
-    std::unique_ptr<CommandEntry> commandEntry =
-            std::make_unique<CommandEntry>(&InputDispatcher::doPokeUserActivityLockedInterruptible);
-    commandEntry->eventTime = eventEntry.eventTime;
-    commandEntry->userActivityEventType = eventType;
-    commandEntry->displayId = displayId;
-    postCommandLocked(std::move(commandEntry));
+    auto command = [this, eventTime = eventEntry.eventTime, eventType, displayId]()
+                           REQUIRES(mLock) {
+                               scoped_unlock unlock(mLock);
+                               mPolicy->pokeUserActivity(eventTime, eventType, displayId);
+                           };
+    postCommandLocked(std::move(command));
 }
 
 void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
@@ -3037,10 +3060,11 @@ void InputDispatcher::dispatchPointerDownOutsideFocus(uint32_t source, int32_t a
         return;
     }
 
-    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
-            &InputDispatcher::doOnPointerDownOutsideFocusLockedInterruptible);
-    commandEntry->newToken = token;
-    postCommandLocked(std::move(commandEntry));
+    auto command = [this, token]() REQUIRES(mLock) {
+        scoped_unlock unlock(mLock);
+        mPolicy->onPointerDownOutsideFocus(token);
+    };
+    postCommandLocked(std::move(command));
 }
 
 void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
@@ -3272,7 +3296,10 @@ void InputDispatcher::finishDispatchCycleLocked(nsecs_t currentTime,
     }
 
     // Notify other system components and prepare to start the next dispatch cycle.
-    onDispatchCycleFinishedLocked(currentTime, connection, seq, handled, consumeTime);
+    auto command = [this, currentTime, connection, seq, handled, consumeTime]() REQUIRES(mLock) {
+        doDispatchCycleFinishedCommand(currentTime, connection, seq, handled, consumeTime);
+    };
+    postCommandLocked(std::move(command));
 }
 
 void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
@@ -3296,7 +3323,15 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
 
         if (notify) {
             // Notify other system components.
-            onDispatchCycleBrokenLocked(currentTime, connection);
+            ALOGE("channel '%s' ~ Channel is unrecoverably broken and will be disposed!",
+                  connection->getInputChannelName().c_str());
+
+            auto command = [this, connection]() REQUIRES(mLock) {
+                if (connection->status == Connection::STATUS_ZOMBIE) return;
+                scoped_unlock unlock(mLock);
+                mPolicy->notifyInputChannelBroken(connection->inputChannel->getConnectionToken());
+            };
+            postCommandLocked(std::move(command));
         }
     }
 }
@@ -3363,7 +3398,7 @@ int InputDispatcher::handleReceiveCallback(int events, sp<IBinder> connectionTok
             gotOne = true;
         }
         if (gotOne) {
-            runCommandsLockedInterruptible();
+            runCommandsLockedInterruptable();
             if (status == WOULD_BLOCK) {
                 return 1;
             }
@@ -4660,7 +4695,7 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
 
             // Find new focused window and validate
             sp<IBinder> newFocusedWindowToken = mFocusResolver.getFocusedWindowToken(displayId);
-            notifyFocusChangedLocked(oldFocusedWindowToken, newFocusedWindowToken);
+            sendFocusChangedCommandLocked(oldFocusedWindowToken, newFocusedWindowToken);
 
             if (newFocusedWindowToken == nullptr) {
                 ALOGW("Focused display #%" PRId32 " does not have a focused window.", displayId);
@@ -5092,6 +5127,12 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += INDENT "ReplacedKeys: <empty>\n";
     }
 
+    if (!mCommandQueue.empty()) {
+        dump += StringPrintf(INDENT "CommandQueue: size=%zu\n", mCommandQueue.size());
+    } else {
+        dump += INDENT "CommandQueue: <empty>\n";
+    }
+
     if (!mConnectionsByToken.empty()) {
         dump += INDENT "Connections:\n";
         for (const auto& [token, connection] : mConnectionsByToken) {
@@ -5441,46 +5482,92 @@ void InputDispatcher::removeConnectionLocked(const sp<Connection>& connection) {
     mConnectionsByToken.erase(connection->inputChannel->getConnectionToken());
 }
 
-void InputDispatcher::onDispatchCycleFinishedLocked(nsecs_t currentTime,
-                                                    const sp<Connection>& connection, uint32_t seq,
-                                                    bool handled, nsecs_t consumeTime) {
-    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
-            &InputDispatcher::doDispatchCycleFinishedLockedInterruptible);
-    commandEntry->connection = connection;
-    commandEntry->eventTime = currentTime;
-    commandEntry->seq = seq;
-    commandEntry->handled = handled;
-    commandEntry->consumeTime = consumeTime;
-    postCommandLocked(std::move(commandEntry));
+void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
+                                                     const sp<Connection>& connection, uint32_t seq,
+                                                     bool handled, nsecs_t consumeTime) {
+    // Handle post-event policy actions.
+    std::deque<DispatchEntry*>::iterator dispatchEntryIt = connection->findWaitQueueEntry(seq);
+    if (dispatchEntryIt == connection->waitQueue.end()) {
+        return;
+    }
+    DispatchEntry* dispatchEntry = *dispatchEntryIt;
+    const nsecs_t eventDuration = finishTime - dispatchEntry->deliveryTime;
+    if (eventDuration > SLOW_EVENT_PROCESSING_WARNING_TIMEOUT) {
+        ALOGI("%s spent %" PRId64 "ms processing %s", connection->getWindowName().c_str(),
+              ns2ms(eventDuration), dispatchEntry->eventEntry->getDescription().c_str());
+    }
+    if (shouldReportFinishedEvent(*dispatchEntry, *connection)) {
+        mLatencyTracker.trackFinishedEvent(dispatchEntry->eventEntry->id,
+                                           connection->inputChannel->getConnectionToken(),
+                                           dispatchEntry->deliveryTime, consumeTime, finishTime);
+    }
+
+    bool restartEvent;
+    if (dispatchEntry->eventEntry->type == EventEntry::Type::KEY) {
+        KeyEntry& keyEntry = static_cast<KeyEntry&>(*(dispatchEntry->eventEntry));
+        restartEvent =
+                afterKeyEventLockedInterruptable(connection, dispatchEntry, keyEntry, handled);
+    } else if (dispatchEntry->eventEntry->type == EventEntry::Type::MOTION) {
+        MotionEntry& motionEntry = static_cast<MotionEntry&>(*(dispatchEntry->eventEntry));
+        restartEvent = afterMotionEventLockedInterruptable(connection, dispatchEntry, motionEntry,
+                                                           handled);
+    } else {
+        restartEvent = false;
+    }
+
+    // Dequeue the event and start the next cycle.
+    // Because the lock might have been released, it is possible that the
+    // contents of the wait queue to have been drained, so we need to double-check
+    // a few things.
+    dispatchEntryIt = connection->findWaitQueueEntry(seq);
+    if (dispatchEntryIt != connection->waitQueue.end()) {
+        dispatchEntry = *dispatchEntryIt;
+        connection->waitQueue.erase(dispatchEntryIt);
+        const sp<IBinder>& connectionToken = connection->inputChannel->getConnectionToken();
+        mAnrTracker.erase(dispatchEntry->timeoutTime, connectionToken);
+        if (!connection->responsive) {
+            connection->responsive = isConnectionResponsive(*connection);
+            if (connection->responsive) {
+                // The connection was unresponsive, and now it's responsive.
+                processConnectionResponsiveLocked(*connection);
+            }
+        }
+        traceWaitQueueLength(*connection);
+        if (restartEvent && connection->status == Connection::STATUS_NORMAL) {
+            connection->outboundQueue.push_front(dispatchEntry);
+            traceOutboundQueueLength(*connection);
+        } else {
+            releaseDispatchEntry(dispatchEntry);
+        }
+    }
+
+    // Start the next dispatch cycle for this connection.
+    startDispatchCycleLocked(now(), connection);
 }
 
-void InputDispatcher::onDispatchCycleBrokenLocked(nsecs_t currentTime,
-                                                  const sp<Connection>& connection) {
-    ALOGE("channel '%s' ~ Channel is unrecoverably broken and will be disposed!",
-          connection->getInputChannelName().c_str());
-
-    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
-            &InputDispatcher::doNotifyInputChannelBrokenLockedInterruptible);
-    commandEntry->connection = connection;
-    postCommandLocked(std::move(commandEntry));
+void InputDispatcher::sendFocusChangedCommandLocked(const sp<IBinder>& oldToken,
+                                                    const sp<IBinder>& newToken) {
+    auto command = [this, oldToken, newToken]() REQUIRES(mLock) {
+        scoped_unlock unlock(mLock);
+        mPolicy->notifyFocusChanged(oldToken, newToken);
+    };
+    postCommandLocked(std::move(command));
 }
 
-void InputDispatcher::notifyFocusChangedLocked(const sp<IBinder>& oldToken,
-                                               const sp<IBinder>& newToken) {
-    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
-            &InputDispatcher::doNotifyFocusChangedLockedInterruptible);
-    commandEntry->oldToken = oldToken;
-    commandEntry->newToken = newToken;
-    postCommandLocked(std::move(commandEntry));
+void InputDispatcher::sendDropWindowCommandLocked(const sp<IBinder>& token, float x, float y) {
+    auto command = [this, token, x, y]() REQUIRES(mLock) {
+        scoped_unlock unlock(mLock);
+        mPolicy->notifyDropWindow(token, x, y);
+    };
+    postCommandLocked(std::move(command));
 }
 
-void InputDispatcher::notifyDropWindowLocked(const sp<IBinder>& token, float x, float y) {
-    std::unique_ptr<CommandEntry> commandEntry =
-            std::make_unique<CommandEntry>(&InputDispatcher::doNotifyDropWindowLockedInterruptible);
-    commandEntry->newToken = token;
-    commandEntry->x = x;
-    commandEntry->y = y;
-    postCommandLocked(std::move(commandEntry));
+void InputDispatcher::sendUntrustedTouchCommandLocked(const std::string& obscuringPackage) {
+    auto command = [this, obscuringPackage]() REQUIRES(mLock) {
+        scoped_unlock unlock(mLock);
+        mPolicy->notifyUntrustedTouch(obscuringPackage);
+    };
+    postCommandLocked(std::move(command));
 }
 
 void InputDispatcher::onAnrLocked(const sp<Connection>& connection) {
@@ -5523,17 +5610,11 @@ void InputDispatcher::onAnrLocked(std::shared_ptr<InputApplicationHandle> applic
             StringPrintf("%s does not have a focused window", application->getName().c_str());
     updateLastAnrStateLocked(*application, reason);
 
-    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
-            &InputDispatcher::doNotifyNoFocusedWindowAnrLockedInterruptible);
-    commandEntry->inputApplicationHandle = std::move(application);
-    postCommandLocked(std::move(commandEntry));
-}
-
-void InputDispatcher::onUntrustedTouchLocked(const std::string& obscuringPackage) {
-    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
-            &InputDispatcher::doNotifyUntrustedTouchLockedInterruptible);
-    commandEntry->obscuringPackage = obscuringPackage;
-    postCommandLocked(std::move(commandEntry));
+    auto command = [this, application = std::move(application)]() REQUIRES(mLock) {
+        scoped_unlock unlock(mLock);
+        mPolicy->notifyNoFocusedWindowAnr(application);
+    };
+    postCommandLocked(std::move(command));
 }
 
 void InputDispatcher::updateLastAnrStateLocked(const sp<WindowInfoHandle>& window,
@@ -5564,109 +5645,24 @@ void InputDispatcher::updateLastAnrStateLocked(const std::string& windowLabel,
     dumpDispatchStateLocked(mLastAnrState);
 }
 
-void InputDispatcher::doNotifyConfigurationChangedLockedInterruptible(CommandEntry* commandEntry) {
-    mLock.unlock();
-
-    mPolicy->notifyConfigurationChanged(commandEntry->eventTime);
-
-    mLock.lock();
-}
-
-void InputDispatcher::doNotifyInputChannelBrokenLockedInterruptible(CommandEntry* commandEntry) {
-    sp<Connection> connection = commandEntry->connection;
-
-    if (connection->status != Connection::STATUS_ZOMBIE) {
-        mLock.unlock();
-
-        mPolicy->notifyInputChannelBroken(connection->inputChannel->getConnectionToken());
-
-        mLock.lock();
-    }
-}
-
-void InputDispatcher::doNotifyFocusChangedLockedInterruptible(CommandEntry* commandEntry) {
-    sp<IBinder> oldToken = commandEntry->oldToken;
-    sp<IBinder> newToken = commandEntry->newToken;
-    mLock.unlock();
-    mPolicy->notifyFocusChanged(oldToken, newToken);
-    mLock.lock();
-}
-
-void InputDispatcher::doNotifyDropWindowLockedInterruptible(CommandEntry* commandEntry) {
-    sp<IBinder> newToken = commandEntry->newToken;
-    mLock.unlock();
-    mPolicy->notifyDropWindow(newToken, commandEntry->x, commandEntry->y);
-    mLock.lock();
-}
-
-void InputDispatcher::doNotifyNoFocusedWindowAnrLockedInterruptible(CommandEntry* commandEntry) {
-    mLock.unlock();
-
-    mPolicy->notifyNoFocusedWindowAnr(commandEntry->inputApplicationHandle);
-
-    mLock.lock();
-}
-
-void InputDispatcher::doNotifyWindowUnresponsiveLockedInterruptible(CommandEntry* commandEntry) {
-    mLock.unlock();
-
-    mPolicy->notifyWindowUnresponsive(commandEntry->connectionToken, commandEntry->reason);
-
-    mLock.lock();
-}
-
-void InputDispatcher::doNotifyMonitorUnresponsiveLockedInterruptible(CommandEntry* commandEntry) {
-    mLock.unlock();
-
-    mPolicy->notifyMonitorUnresponsive(commandEntry->pid, commandEntry->reason);
-
-    mLock.lock();
-}
-
-void InputDispatcher::doNotifyWindowResponsiveLockedInterruptible(CommandEntry* commandEntry) {
-    mLock.unlock();
-
-    mPolicy->notifyWindowResponsive(commandEntry->connectionToken);
-
-    mLock.lock();
-}
-
-void InputDispatcher::doNotifyMonitorResponsiveLockedInterruptible(CommandEntry* commandEntry) {
-    mLock.unlock();
-
-    mPolicy->notifyMonitorResponsive(commandEntry->pid);
-
-    mLock.lock();
-}
-
-void InputDispatcher::doNotifyUntrustedTouchLockedInterruptible(CommandEntry* commandEntry) {
-    mLock.unlock();
-
-    mPolicy->notifyUntrustedTouch(commandEntry->obscuringPackage);
-
-    mLock.lock();
-}
-
-void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
-        CommandEntry* commandEntry) {
-    KeyEntry& entry = *(commandEntry->keyEntry);
-    KeyEvent event = createKeyEvent(entry);
-
-    mLock.unlock();
-
-    android::base::Timer t;
-    const sp<IBinder>& token = commandEntry->connectionToken;
-    nsecs_t delay = mPolicy->interceptKeyBeforeDispatching(token, &event, entry.policyFlags);
-    if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
-        ALOGW("Excessive delay in interceptKeyBeforeDispatching; took %s ms",
-              std::to_string(t.duration().count()).c_str());
-    }
-
-    mLock.lock();
+void InputDispatcher::doInterceptKeyBeforeDispatchingCommand(const sp<IBinder>& focusedWindowToken,
+                                                             KeyEntry& entry) {
+    const KeyEvent event = createKeyEvent(entry);
+    nsecs_t delay = 0;
+    { // release lock
+        scoped_unlock unlock(mLock);
+        android::base::Timer t;
+        delay = mPolicy->interceptKeyBeforeDispatching(focusedWindowToken, &event,
+                                                       entry.policyFlags);
+        if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
+            ALOGW("Excessive delay in interceptKeyBeforeDispatching; took %s ms",
+                  std::to_string(t.duration().count()).c_str());
+        }
+    } // acquire lock
 
     if (delay < 0) {
         entry.interceptKeyResult = KeyEntry::INTERCEPT_KEY_RESULT_SKIP;
-    } else if (!delay) {
+    } else if (delay == 0) {
         entry.interceptKeyResult = KeyEntry::INTERCEPT_KEY_RESULT_CONTINUE;
     } else {
         entry.interceptKeyResult = KeyEntry::INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER;
@@ -5674,122 +5670,37 @@ void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
     }
 }
 
-void InputDispatcher::doOnPointerDownOutsideFocusLockedInterruptible(CommandEntry* commandEntry) {
-    mLock.unlock();
-    mPolicy->onPointerDownOutsideFocus(commandEntry->newToken);
-    mLock.lock();
-}
-
-/**
- * Connection is responsive if it has no events in the waitQueue that are older than the
- * current time.
- */
-static bool isConnectionResponsive(const Connection& connection) {
-    const nsecs_t currentTime = now();
-    for (const DispatchEntry* entry : connection.waitQueue) {
-        if (entry->timeoutTime < currentTime) {
-            return false;
-        }
-    }
-    return true;
-}
-
-void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* commandEntry) {
-    sp<Connection> connection = commandEntry->connection;
-    const nsecs_t finishTime = commandEntry->eventTime;
-    uint32_t seq = commandEntry->seq;
-    const bool handled = commandEntry->handled;
-
-    // Handle post-event policy actions.
-    std::deque<DispatchEntry*>::iterator dispatchEntryIt = connection->findWaitQueueEntry(seq);
-    if (dispatchEntryIt == connection->waitQueue.end()) {
-        return;
-    }
-    DispatchEntry* dispatchEntry = *dispatchEntryIt;
-    const nsecs_t eventDuration = finishTime - dispatchEntry->deliveryTime;
-    if (eventDuration > SLOW_EVENT_PROCESSING_WARNING_TIMEOUT) {
-        ALOGI("%s spent %" PRId64 "ms processing %s", connection->getWindowName().c_str(),
-              ns2ms(eventDuration), dispatchEntry->eventEntry->getDescription().c_str());
-    }
-    if (shouldReportFinishedEvent(*dispatchEntry, *connection)) {
-        mLatencyTracker.trackFinishedEvent(dispatchEntry->eventEntry->id,
-                                           connection->inputChannel->getConnectionToken(),
-                                           dispatchEntry->deliveryTime, commandEntry->consumeTime,
-                                           finishTime);
-    }
-
-    bool restartEvent;
-    if (dispatchEntry->eventEntry->type == EventEntry::Type::KEY) {
-        KeyEntry& keyEntry = static_cast<KeyEntry&>(*(dispatchEntry->eventEntry));
-        restartEvent =
-                afterKeyEventLockedInterruptible(connection, dispatchEntry, keyEntry, handled);
-    } else if (dispatchEntry->eventEntry->type == EventEntry::Type::MOTION) {
-        MotionEntry& motionEntry = static_cast<MotionEntry&>(*(dispatchEntry->eventEntry));
-        restartEvent = afterMotionEventLockedInterruptible(connection, dispatchEntry, motionEntry,
-                                                           handled);
-    } else {
-        restartEvent = false;
-    }
-
-    // Dequeue the event and start the next cycle.
-    // Because the lock might have been released, it is possible that the
-    // contents of the wait queue to have been drained, so we need to double-check
-    // a few things.
-    dispatchEntryIt = connection->findWaitQueueEntry(seq);
-    if (dispatchEntryIt != connection->waitQueue.end()) {
-        dispatchEntry = *dispatchEntryIt;
-        connection->waitQueue.erase(dispatchEntryIt);
-        const sp<IBinder>& connectionToken = connection->inputChannel->getConnectionToken();
-        mAnrTracker.erase(dispatchEntry->timeoutTime, connectionToken);
-        if (!connection->responsive) {
-            connection->responsive = isConnectionResponsive(*connection);
-            if (connection->responsive) {
-                // The connection was unresponsive, and now it's responsive.
-                processConnectionResponsiveLocked(*connection);
-            }
-        }
-        traceWaitQueueLength(*connection);
-        if (restartEvent && connection->status == Connection::STATUS_NORMAL) {
-            connection->outboundQueue.push_front(dispatchEntry);
-            traceOutboundQueueLength(*connection);
-        } else {
-            releaseDispatchEntry(dispatchEntry);
-        }
-    }
-
-    // Start the next dispatch cycle for this connection.
-    startDispatchCycleLocked(now(), connection);
-}
-
 void InputDispatcher::sendMonitorUnresponsiveCommandLocked(int32_t pid, std::string reason) {
-    std::unique_ptr<CommandEntry> monitorUnresponsiveCommand = std::make_unique<CommandEntry>(
-            &InputDispatcher::doNotifyMonitorUnresponsiveLockedInterruptible);
-    monitorUnresponsiveCommand->pid = pid;
-    monitorUnresponsiveCommand->reason = std::move(reason);
-    postCommandLocked(std::move(monitorUnresponsiveCommand));
+    auto command = [this, pid, reason = std::move(reason)]() REQUIRES(mLock) {
+        scoped_unlock unlock(mLock);
+        mPolicy->notifyMonitorUnresponsive(pid, reason);
+    };
+    postCommandLocked(std::move(command));
 }
 
-void InputDispatcher::sendWindowUnresponsiveCommandLocked(sp<IBinder> connectionToken,
+void InputDispatcher::sendWindowUnresponsiveCommandLocked(const sp<IBinder>& token,
                                                           std::string reason) {
-    std::unique_ptr<CommandEntry> windowUnresponsiveCommand = std::make_unique<CommandEntry>(
-            &InputDispatcher::doNotifyWindowUnresponsiveLockedInterruptible);
-    windowUnresponsiveCommand->connectionToken = std::move(connectionToken);
-    windowUnresponsiveCommand->reason = std::move(reason);
-    postCommandLocked(std::move(windowUnresponsiveCommand));
+    auto command = [this, token, reason = std::move(reason)]() REQUIRES(mLock) {
+        scoped_unlock unlock(mLock);
+        mPolicy->notifyWindowUnresponsive(token, reason);
+    };
+    postCommandLocked(std::move(command));
 }
 
 void InputDispatcher::sendMonitorResponsiveCommandLocked(int32_t pid) {
-    std::unique_ptr<CommandEntry> monitorResponsiveCommand = std::make_unique<CommandEntry>(
-            &InputDispatcher::doNotifyMonitorResponsiveLockedInterruptible);
-    monitorResponsiveCommand->pid = pid;
-    postCommandLocked(std::move(monitorResponsiveCommand));
+    auto command = [this, pid]() REQUIRES(mLock) {
+        scoped_unlock unlock(mLock);
+        mPolicy->notifyMonitorResponsive(pid);
+    };
+    postCommandLocked(std::move(command));
 }
 
-void InputDispatcher::sendWindowResponsiveCommandLocked(sp<IBinder> connectionToken) {
-    std::unique_ptr<CommandEntry> windowResponsiveCommand = std::make_unique<CommandEntry>(
-            &InputDispatcher::doNotifyWindowResponsiveLockedInterruptible);
-    windowResponsiveCommand->connectionToken = std::move(connectionToken);
-    postCommandLocked(std::move(windowResponsiveCommand));
+void InputDispatcher::sendWindowResponsiveCommandLocked(const sp<IBinder>& connectionToken) {
+    auto command = [this, connectionToken]() REQUIRES(mLock) {
+        scoped_unlock unlock(mLock);
+        mPolicy->notifyWindowResponsive(connectionToken);
+    };
+    postCommandLocked(std::move(command));
 }
 
 /**
@@ -5837,7 +5748,7 @@ void InputDispatcher::processConnectionResponsiveLocked(const Connection& connec
     sendWindowResponsiveCommandLocked(connectionToken);
 }
 
-bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& connection,
+bool InputDispatcher::afterKeyEventLockedInterruptable(const sp<Connection>& connection,
                                                        DispatchEntry* dispatchEntry,
                                                        KeyEntry& keyEntry, bool handled) {
     if (keyEntry.flags & AKEY_EVENT_FLAG_FALLBACK) {
@@ -6013,19 +5924,10 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
     return false;
 }
 
-bool InputDispatcher::afterMotionEventLockedInterruptible(const sp<Connection>& connection,
+bool InputDispatcher::afterMotionEventLockedInterruptable(const sp<Connection>& connection,
                                                           DispatchEntry* dispatchEntry,
                                                           MotionEntry& motionEntry, bool handled) {
     return false;
-}
-
-void InputDispatcher::doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) {
-    mLock.unlock();
-
-    mPolicy->pokeUserActivity(commandEntry->eventTime, commandEntry->userActivityEventType,
-                              commandEntry->displayId);
-
-    mLock.lock();
 }
 
 void InputDispatcher::traceInboundQueueLengthLocked() {
@@ -6139,7 +6041,7 @@ void InputDispatcher::onFocusChangedLocked(const FocusResolver::FocusChanges& ch
     disablePointerCaptureForcedLocked();
 
     if (mFocusedDisplayId == changes.displayId) {
-        notifyFocusChangedLocked(changes.oldFocus, changes.newFocus);
+        sendFocusChangedCommandLocked(changes.oldFocus, changes.newFocus);
     }
 }
 
@@ -6173,19 +6075,11 @@ void InputDispatcher::disablePointerCaptureForcedLocked() {
 }
 
 void InputDispatcher::setPointerCaptureLocked(bool enabled) {
-    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
-            &InputDispatcher::doSetPointerCaptureLockedInterruptible);
-    commandEntry->enabled = enabled;
-    postCommandLocked(std::move(commandEntry));
-}
-
-void InputDispatcher::doSetPointerCaptureLockedInterruptible(
-        android::inputdispatcher::CommandEntry* commandEntry) {
-    mLock.unlock();
-
-    mPolicy->setPointerCapture(commandEntry->enabled);
-
-    mLock.lock();
+    auto command = [this, enabled]() REQUIRES(mLock) {
+        scoped_unlock unlock(mLock);
+        mPolicy->setPointerCapture(enabled);
+    };
+    postCommandLocked(std::move(command));
 }
 
 void InputDispatcher::displayRemoved(int32_t displayId) {
