@@ -3134,7 +3134,7 @@ void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
                                                                       hal::PowerMode::OFF);
 
     mVsyncConfiguration = getFactory().createVsyncConfiguration(currRefreshRate);
-    mVsyncModulator.emplace(mVsyncConfiguration->getCurrentConfigs());
+    mVsyncModulator = sp<VsyncModulator>::make(mVsyncConfiguration->getCurrentConfigs());
 
     // start the EventThread
     mScheduler = getFactory().createScheduler(display->holdRefreshRateConfigs(), *this);
@@ -3357,7 +3357,7 @@ void SurfaceFlinger::invalidateHwcGeometry() {
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
                                         const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
                                         const sp<IBinder>& parentHandle,
-                                        const sp<Layer>& parentLayer, bool addToCurrentState,
+                                        const sp<Layer>& parentLayer, bool addToRoot,
                                         uint32_t* outTransformHint) {
     if (mNumLayers >= ISurfaceComposer::MAX_LAYERS) {
         ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
@@ -3369,7 +3369,7 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
     if (gbc != nullptr) {
         initialProducer = IInterface::asBinder(gbc);
     }
-    setLayerCreatedState(handle, lbc, parentHandle, parentLayer, initialProducer);
+    setLayerCreatedState(handle, lbc, parentHandle, parentLayer, initialProducer, addToRoot);
 
     // Create a transaction includes the initial parent and producer.
     Vector<ComposerState> states;
@@ -3412,9 +3412,10 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags) {
     return setTransactionFlags(flags, TransactionSchedule::Late);
 }
 
-uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags, TransactionSchedule schedule) {
+uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags, TransactionSchedule schedule,
+                                             const sp<IBinder>& token) {
     uint32_t old = mTransactionFlags.fetch_or(flags);
-    modulateVsync(&VsyncModulator::setTransactionSchedule, schedule);
+    modulateVsync(&VsyncModulator::setTransactionSchedule, schedule, token);
     if ((old & flags) == 0) signalTransaction();
     return old;
 }
@@ -3634,7 +3635,7 @@ void SurfaceFlinger::queueTransaction(TransactionState& state) {
         return TransactionSchedule::Late;
     }(state.flags);
 
-    setTransactionFlags(eTransactionFlushNeeded, schedule);
+    setTransactionFlags(eTransactionFlushNeeded, schedule, state.applyToken);
 }
 
 void SurfaceFlinger::waitForSynchronousTransaction(
@@ -3898,7 +3899,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     sp<Layer> layer = nullptr;
     if (s.surface) {
         if (what & layer_state_t::eLayerCreated) {
-            layer = handleLayerCreatedLocked(s.surface, privileged);
+            layer = handleLayerCreatedLocked(s.surface);
             if (layer) {
                 // put the created layer into mLayersByLocalBinderToken.
                 mLayersByLocalBinderToken.emplace(s.surface->localBinder(), layer);
@@ -4308,9 +4309,9 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
         return result;
     }
 
-    bool addToCurrentState = callingThreadHasUnscopedSurfaceFlingerAccess();
-    result = addClientLayer(client, *handle, *gbp, layer, parentHandle, parentLayer,
-                            addToCurrentState, outTransformHint);
+    bool addToRoot = callingThreadHasUnscopedSurfaceFlingerAccess();
+    result = addClientLayer(client, *handle, *gbp, layer, parentHandle, parentLayer, addToRoot,
+                            outTransformHint);
     if (result != NO_ERROR) {
         return result;
     }
@@ -4537,8 +4538,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     if (currentMode == hal::PowerMode::OFF) {
         const auto activeDisplay = getDisplayDeviceLocked(mActiveDisplayToken);
         if (display->isInternal() && (!activeDisplay || !activeDisplay->isPoweredOn())) {
-            mActiveDisplayToken = display->getDisplayToken();
-            onActiveDisplayChangedLocked(getDisplayDeviceLocked(mActiveDisplayToken));
+            onActiveDisplayChangedLocked(display);
         }
         // Keep uclamp in a separate syscall and set it before changing to RT due to b/190237315.
         // We can merge the syscall later.
@@ -6832,10 +6832,10 @@ void SurfaceFlinger::TransactionState::traverseStatesWithBuffers(
 
 void SurfaceFlinger::setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
                                           const wp<IBinder>& parent, const wp<Layer> parentLayer,
-                                          const wp<IBinder>& producer) {
+                                          const wp<IBinder>& producer, bool addToRoot) {
     Mutex::Autolock lock(mCreatedLayersLock);
     mCreatedLayers[handle->localBinder()] =
-            std::make_unique<LayerCreatedState>(layer, parent, parentLayer, producer);
+            std::make_unique<LayerCreatedState>(layer, parent, parentLayer, producer, addToRoot);
 }
 
 auto SurfaceFlinger::getLayerCreatedState(const sp<IBinder>& handle) {
@@ -6860,7 +6860,7 @@ auto SurfaceFlinger::getLayerCreatedState(const sp<IBinder>& handle) {
     return state;
 }
 
-sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle, bool privileged) {
+sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
     const auto& state = getLayerCreatedState(handle);
     if (!state) {
         return nullptr;
@@ -6873,7 +6873,7 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle, bo
     }
 
     sp<Layer> parent;
-    bool allowAddRoot = privileged;
+    bool allowAddRoot = state->addToRoot;
     if (state->initialParent != nullptr) {
         parent = fromHandleLocked(state->initialParent.promote()).promote();
         if (parent == nullptr) {
@@ -6935,10 +6935,17 @@ void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<DisplayDevice>& activeD
 void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay) {
     ATRACE_CALL();
 
+    if (const auto display = getDisplayDeviceLocked(mActiveDisplayToken)) {
+        display->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
+    }
+
     if (!activeDisplay) {
         ALOGE("%s: activeDisplay is null", __func__);
         return;
     }
+    mActiveDisplayToken = activeDisplay->getDisplayToken();
+
+    activeDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
     updateInternalDisplayVsyncLocked(activeDisplay);
     mScheduler->setModeChangePending(false);
     mScheduler->setRefreshRateConfigs(activeDisplay->holdRefreshRateConfigs());

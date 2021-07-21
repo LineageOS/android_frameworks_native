@@ -126,7 +126,6 @@ static const TracingCategory k_categories[] = {
     { "aidl",       "AIDL calls",               ATRACE_TAG_AIDL, { } },
     { "nnapi",      "NNAPI",                    ATRACE_TAG_NNAPI, { } },
     { "rro",        "Runtime Resource Overlay", ATRACE_TAG_RRO, { } },
-    { "sysprop",    "System Property",          ATRACE_TAG_SYSPROP, { } },
     { k_coreServiceCategory, "Core services", 0, { } },
     { k_pdxServiceCategory, "PDX services", 0, { } },
     { "sched",      "CPU Scheduling",   0, {

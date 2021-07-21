@@ -19,8 +19,10 @@
 #include <chrono>
 #include <mutex>
 #include <optional>
+#include <unordered_set>
 
 #include <android-base/thread_annotations.h>
+#include <binder/IBinder.h>
 #include <utils/Timers.h>
 
 namespace android::scheduler {
@@ -35,7 +37,7 @@ enum class TransactionSchedule {
 };
 
 // Modulates VSYNC phase depending on transaction schedule and refresh rate changes.
-class VsyncModulator {
+class VsyncModulator : public IBinder::DeathRecipient {
 public:
     // Number of frames to keep early offsets after an early transaction or GPU composition.
     // This acts as a low-pass filter in case subsequent transactions are delayed, or if the
@@ -91,7 +93,8 @@ public:
     [[nodiscard]] VsyncConfig setVsyncConfigSet(const VsyncConfigSet&) EXCLUDES(mMutex);
 
     // Changes offsets in response to transaction flags or commit.
-    [[nodiscard]] VsyncConfigOpt setTransactionSchedule(TransactionSchedule);
+    [[nodiscard]] VsyncConfigOpt setTransactionSchedule(TransactionSchedule,
+                                                        const sp<IBinder>& = {}) EXCLUDES(mMutex);
     [[nodiscard]] VsyncConfigOpt onTransactionCommit();
 
     // Called when we send a refresh rate change to hardware composer, so that
@@ -103,6 +106,10 @@ public:
     [[nodiscard]] VsyncConfigOpt onRefreshRateChangeCompleted();
 
     [[nodiscard]] VsyncConfigOpt onDisplayRefresh(bool usedGpuComposition);
+
+protected:
+    // Called from unit tests as well
+    void binderDied(const wp<IBinder>&) override EXCLUDES(mMutex);
 
 private:
     const VsyncConfig& getNextVsyncConfig() const REQUIRES(mMutex);
@@ -116,8 +123,14 @@ private:
 
     using Schedule = TransactionSchedule;
     std::atomic<Schedule> mTransactionSchedule = Schedule::Late;
-    std::atomic<bool> mEarlyWakeup = false;
 
+    struct WpHash {
+        size_t operator()(const wp<IBinder>& p) const {
+            return std::hash<IBinder*>()(p.unsafe_get());
+        }
+    };
+
+    std::unordered_set<wp<IBinder>, WpHash> mEarlyWakeupRequests GUARDED_BY(mMutex);
     std::atomic<bool> mRefreshRateChangePending = false;
 
     std::atomic<int> mEarlyTransactionFrames = 0;
