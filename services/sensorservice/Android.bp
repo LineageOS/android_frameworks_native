@@ -17,6 +17,7 @@ cc_library_shared {
         "Fusion.cpp",
         "GravitySensor.cpp",
         "HidlSensorHalWrapper.cpp",
+        "LimitedAxesImuSensor.cpp",
         "LinearAccelerationSensor.cpp",
         "OrientationSensor.cpp",
         "RecentEventLogger.cpp",
