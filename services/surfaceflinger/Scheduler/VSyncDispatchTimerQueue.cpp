@@ -84,10 +84,13 @@ ScheduleResult VSyncDispatchTimerQueueEntry::schedule(VSyncDispatch::ScheduleTim
                                                       VSyncTracker& tracker, nsecs_t now) {
     auto nextVsyncTime = tracker.nextAnticipatedVSyncTimeFrom(
             std::max(timing.earliestVsync, now + timing.workDuration + timing.readyDuration));
+    auto nextWakeupTime = nextVsyncTime - timing.workDuration - timing.readyDuration;
 
     bool const wouldSkipAVsyncTarget =
             mArmedInfo && (nextVsyncTime > (mArmedInfo->mActualVsyncTime + mMinVsyncDistance));
-    if (wouldSkipAVsyncTarget) {
+    bool const wouldSkipAWakeup =
+            mArmedInfo && ((nextWakeupTime > (mArmedInfo->mActualWakeupTime + mMinVsyncDistance)));
+    if (wouldSkipAVsyncTarget && wouldSkipAWakeup) {
         return getExpectedCallbackTime(nextVsyncTime, timing);
     }
 
@@ -97,9 +100,9 @@ ScheduleResult VSyncDispatchTimerQueueEntry::schedule(VSyncDispatch::ScheduleTim
     if (alreadyDispatchedForVsync) {
         nextVsyncTime =
                 tracker.nextAnticipatedVSyncTimeFrom(*mLastDispatchTime + mMinVsyncDistance);
+        nextWakeupTime = nextVsyncTime - timing.workDuration - timing.readyDuration;
     }
 
-    auto const nextWakeupTime = nextVsyncTime - timing.workDuration - timing.readyDuration;
     auto const nextReadyTime = nextVsyncTime - timing.readyDuration;
     mScheduleTiming = timing;
     mArmedInfo = {nextWakeupTime, nextVsyncTime, nextReadyTime};
