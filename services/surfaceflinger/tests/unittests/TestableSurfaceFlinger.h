@@ -227,7 +227,8 @@ public:
         mRefreshRateConfigs = std::make_shared<scheduler::RefreshRateConfigs>(modes, currMode);
         const auto currFps = mRefreshRateConfigs->getCurrentRefreshRate().getFps();
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(currFps);
-        mFlinger->mVsyncModulator.emplace(mFlinger->mVsyncConfiguration->getCurrentConfigs());
+        mFlinger->mVsyncModulator = sp<scheduler::VsyncModulator>::make(
+                mFlinger->mVsyncConfiguration->getCurrentConfigs());
         mFlinger->mRefreshRateStats =
                 std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mTimeStats, currFps,
                                                               /*powerMode=*/hal::PowerMode::OFF);

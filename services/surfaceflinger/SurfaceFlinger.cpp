@@ -3134,7 +3134,7 @@ void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
                                                                       hal::PowerMode::OFF);
 
     mVsyncConfiguration = getFactory().createVsyncConfiguration(currRefreshRate);
-    mVsyncModulator.emplace(mVsyncConfiguration->getCurrentConfigs());
+    mVsyncModulator = sp<VsyncModulator>::make(mVsyncConfiguration->getCurrentConfigs());
 
     // start the EventThread
     mScheduler = getFactory().createScheduler(display->holdRefreshRateConfigs(), *this);
@@ -3412,9 +3412,10 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags) {
     return setTransactionFlags(flags, TransactionSchedule::Late);
 }
 
-uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags, TransactionSchedule schedule) {
+uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags, TransactionSchedule schedule,
+                                             const sp<IBinder>& token) {
     uint32_t old = mTransactionFlags.fetch_or(flags);
-    modulateVsync(&VsyncModulator::setTransactionSchedule, schedule);
+    modulateVsync(&VsyncModulator::setTransactionSchedule, schedule, token);
     if ((old & flags) == 0) signalTransaction();
     return old;
 }
@@ -3634,7 +3635,7 @@ void SurfaceFlinger::queueTransaction(TransactionState& state) {
         return TransactionSchedule::Late;
     }(state.flags);
 
-    setTransactionFlags(eTransactionFlushNeeded, schedule);
+    setTransactionFlags(eTransactionFlushNeeded, schedule, state.applyToken);
 }
 
 void SurfaceFlinger::waitForSynchronousTransaction(
@@ -4537,8 +4538,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     if (currentMode == hal::PowerMode::OFF) {
         const auto activeDisplay = getDisplayDeviceLocked(mActiveDisplayToken);
         if (display->isInternal() && (!activeDisplay || !activeDisplay->isPoweredOn())) {
-            mActiveDisplayToken = display->getDisplayToken();
-            onActiveDisplayChangedLocked(getDisplayDeviceLocked(mActiveDisplayToken));
+            onActiveDisplayChangedLocked(display);
         }
         // Keep uclamp in a separate syscall and set it before changing to RT due to b/190237315.
         // We can merge the syscall later.
@@ -6957,10 +6957,17 @@ void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<DisplayDevice>& activeD
 void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay) {
     ATRACE_CALL();
 
+    if (const auto display = getDisplayDeviceLocked(mActiveDisplayToken)) {
+        display->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
+    }
+
     if (!activeDisplay) {
         ALOGE("%s: activeDisplay is null", __func__);
         return;
     }
+    mActiveDisplayToken = activeDisplay->getDisplayToken();
+
+    activeDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
     updateInternalDisplayVsyncLocked(activeDisplay);
     mScheduler->setModeChangePending(false);
     mScheduler->setRefreshRateConfigs(activeDisplay->holdRefreshRateConfigs());

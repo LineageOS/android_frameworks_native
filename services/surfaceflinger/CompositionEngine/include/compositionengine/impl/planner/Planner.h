@@ -64,6 +64,8 @@ public:
     void renderCachedSets(const OutputCompositionState& outputState,
                           std::optional<std::chrono::steady_clock::time_point> renderDeadline);
 
+    void setTexturePoolEnabled(bool enabled) { mFlattener.setTexturePoolEnabled(enabled); }
+
     void dump(const Vector<String16>& args, std::string&);
 
 private:

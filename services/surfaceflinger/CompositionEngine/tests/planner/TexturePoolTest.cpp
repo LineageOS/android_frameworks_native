@@ -42,6 +42,7 @@ struct TexturePoolTest : public testing::Test {
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
         ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
+        mTexturePool.setEnabled(true);
         mTexturePool.setDisplaySize(kDisplaySize);
     }
 
@@ -128,6 +129,45 @@ TEST_F(TexturePoolTest, reallocatesWhenDisplaySizeChanges) {
               static_cast<int32_t>(texture->get()->getBuffer()->getWidth()));
     EXPECT_EQ(kDisplaySizeTwo.getHeight(),
               static_cast<int32_t>(texture->get()->getBuffer()->getHeight()));
+}
+
+TEST_F(TexturePoolTest, freesBuffersWhenDisabled) {
+    EXPECT_EQ(mTexturePool.getPoolSize(), mTexturePool.getMinPoolSize());
+
+    std::deque<std::shared_ptr<TexturePool::AutoTexture>> textures;
+    for (size_t i = 0; i < mTexturePool.getMinPoolSize() - 1; i++) {
+        textures.emplace_back(mTexturePool.borrowTexture());
+    }
+
+    EXPECT_EQ(mTexturePool.getPoolSize(), 1u);
+    mTexturePool.setEnabled(false);
+    EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
+
+    textures.clear();
+    EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
+}
+
+TEST_F(TexturePoolTest, doesNotHoldBuffersWhenDisabled) {
+    EXPECT_EQ(mTexturePool.getPoolSize(), mTexturePool.getMinPoolSize());
+    mTexturePool.setEnabled(false);
+    EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
+
+    std::deque<std::shared_ptr<TexturePool::AutoTexture>> textures;
+    for (size_t i = 0; i < mTexturePool.getMinPoolSize() - 1; i++) {
+        textures.emplace_back(mTexturePool.borrowTexture());
+    }
+
+    EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
+    textures.clear();
+    EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
+}
+
+TEST_F(TexturePoolTest, reallocatesWhenReEnabled) {
+    EXPECT_EQ(mTexturePool.getPoolSize(), mTexturePool.getMinPoolSize());
+    mTexturePool.setEnabled(false);
+    EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
+    mTexturePool.setEnabled(true);
+    EXPECT_EQ(mTexturePool.getPoolSize(), mTexturePool.getMinPoolSize());
 }
 
 } // namespace
