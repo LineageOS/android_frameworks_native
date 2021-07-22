@@ -102,6 +102,10 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Timeline, eventId, 0);
   CHECK_OFFSET(InputMessage::Body::Timeline, empty, 4);
   CHECK_OFFSET(InputMessage::Body::Timeline, graphicsTimeline, 8);
+
+  CHECK_OFFSET(InputMessage::Body::TouchMode, eventId, 0);
+  CHECK_OFFSET(InputMessage::Body::TouchMode, isInTouchMode, 4);
+  CHECK_OFFSET(InputMessage::Body::TouchMode, empty, 5);
 }
 
 void TestHeaderSize() {
@@ -123,6 +127,7 @@ void TestBodySize() {
     static_assert(sizeof(InputMessage::Body::Focus) == 8);
     static_assert(sizeof(InputMessage::Body::Capture) == 8);
     static_assert(sizeof(InputMessage::Body::Drag) == 16);
+    static_assert(sizeof(InputMessage::Body::TouchMode) == 8);
     // Timeline
     static_assert(GraphicsTimeline::SIZE == 2);
     static_assert(sizeof(InputMessage::Body::Timeline) == 24);
