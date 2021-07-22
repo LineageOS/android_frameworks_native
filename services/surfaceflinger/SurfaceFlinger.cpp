@@ -798,6 +798,8 @@ void SurfaceFlinger::init() {
                                     ? renderengine::RenderEngine::ContextPriority::REALTIME
                                     : renderengine::RenderEngine::ContextPriority::MEDIUM)
                     .build()));
+    mMaxRenderTargetSize =
+            std::min(getRenderEngine().getMaxTextureSize(), getRenderEngine().getMaxViewportDims());
 
     // Set SF main policy after initializing RenderEngine which has its own policy.
     if (!SetTaskProfiles(0, {"SFMainPolicy"})) {
@@ -883,14 +885,6 @@ void SurfaceFlinger::startBootAnim() {
     if (mStartPropertySetThread->join() != NO_ERROR) {
         ALOGE("Join StartPropertySetThread failed!");
     }
-}
-
-size_t SurfaceFlinger::getMaxTextureSize() const {
-    return getRenderEngine().getMaxTextureSize();
-}
-
-size_t SurfaceFlinger::getMaxViewportDims() const {
-    return getRenderEngine().getMaxViewportDims();
 }
 
 // ----------------------------------------------------------------------------
@@ -4179,17 +4173,30 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     bool bufferChanged = what & layer_state_t::eBufferChanged;
     bool cacheIdChanged = what & layer_state_t::eCachedBufferChanged;
+    bool bufferSizeExceedsLimit = false;
     std::shared_ptr<renderengine::ExternalTexture> buffer;
     if (bufferChanged && cacheIdChanged && s.buffer != nullptr) {
-        ClientCache::getInstance().add(s.cachedBuffer, s.buffer);
-        buffer = ClientCache::getInstance().get(s.cachedBuffer);
+        bufferSizeExceedsLimit =
+                exceedsMaxRenderTargetSize(s.buffer->getWidth(), s.buffer->getHeight());
+        if (!bufferSizeExceedsLimit) {
+            ClientCache::getInstance().add(s.cachedBuffer, s.buffer);
+            buffer = ClientCache::getInstance().get(s.cachedBuffer);
+        }
     } else if (cacheIdChanged) {
         buffer = ClientCache::getInstance().get(s.cachedBuffer);
     } else if (bufferChanged && s.buffer != nullptr) {
-        buffer = std::make_shared<
-                renderengine::ExternalTexture>(s.buffer, getRenderEngine(),
-                                               renderengine::ExternalTexture::Usage::READABLE);
+        bufferSizeExceedsLimit =
+                exceedsMaxRenderTargetSize(s.buffer->getWidth(), s.buffer->getHeight());
+        if (!bufferSizeExceedsLimit) {
+            buffer = std::make_shared<
+                    renderengine::ExternalTexture>(s.buffer, getRenderEngine(),
+                                                   renderengine::ExternalTexture::Usage::READABLE);
+        }
     }
+    ALOGE_IF(bufferSizeExceedsLimit,
+             "Attempted to create an ExternalTexture for layer %s that exceeds render target size "
+             "limit.",
+             layer->getDebugName());
     if (buffer) {
         const bool frameNumberChanged = what & layer_state_t::eFrameNumberChanged;
         const uint64_t frameNumber = frameNumberChanged
@@ -6190,6 +6197,13 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              bool allowProtected, bool grayscale,
                                              const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
+
+    if (exceedsMaxRenderTargetSize(bufferSize.getWidth(), bufferSize.getHeight())) {
+        ALOGE("Attempted to capture screen with size (%" PRId32 ", %" PRId32
+              ") that exceeds render target size limit.",
+              bufferSize.getWidth(), bufferSize.getHeight());
+        return BAD_VALUE;
+    }
 
     // Loop over all visible layers to see whether there's any protected layer. A protected layer is
     // typically a layer with DRM contents, or have the GRALLOC_USAGE_PROTECTED set on the buffer.
