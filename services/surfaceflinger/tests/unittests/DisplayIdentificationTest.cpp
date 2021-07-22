@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
+#include "DisplayHardware/Hash.h"
 
 namespace android {
 namespace {
@@ -128,7 +129,7 @@ DisplayIdentificationData asDisplayIdentificationData(const unsigned char (&byte
 }
 
 uint32_t hash(const char* str) {
-    return static_cast<uint32_t>(std::hash<std::string_view>()(str));
+    return static_cast<uint32_t>(cityHash64Len0To16(str));
 }
 
 } // namespace
@@ -303,9 +304,9 @@ TEST(DisplayIdentificationTest, parseDisplayIdentificationData) {
     ASSERT_TRUE(tertiaryInfo);
 
     // Display IDs should be unique.
-    EXPECT_NE(primaryInfo->id, secondaryInfo->id);
-    EXPECT_NE(primaryInfo->id, tertiaryInfo->id);
-    EXPECT_NE(secondaryInfo->id, tertiaryInfo->id);
+    EXPECT_EQ(21571479025788672, primaryInfo->id.value);
+    EXPECT_EQ(9834267132873217, secondaryInfo->id.value);
+    EXPECT_EQ(21441883803501570, tertiaryInfo->id.value);
 }
 
 TEST(DisplayIdentificationTest, deviceProductInfo) {
