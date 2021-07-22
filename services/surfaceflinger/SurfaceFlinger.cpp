@@ -598,19 +598,11 @@ void SurfaceFlinger::enableHalVirtualDisplays(bool enable) {
     }
 }
 
-VirtualDisplayId SurfaceFlinger::acquireVirtualDisplay(ui::Size resolution, ui::PixelFormat format,
-                                                       ui::LayerStack layerStack) {
+VirtualDisplayId SurfaceFlinger::acquireVirtualDisplay(ui::Size resolution,
+                                                       ui::PixelFormat format) {
     if (auto& generator = mVirtualDisplayIdGenerators.hal) {
         if (const auto id = generator->generateId()) {
-            std::optional<PhysicalDisplayId> mirror;
-
-            if (const auto display = findDisplay([layerStack](const auto& display) {
-                    return !display.isVirtual() && display.getLayerStack() == layerStack;
-                })) {
-                mirror = display->getPhysicalId();
-            }
-
-            if (getHwComposer().allocateVirtualDisplay(*id, resolution, &format, mirror)) {
+            if (getHwComposer().allocateVirtualDisplay(*id, resolution, &format)) {
                 return *id;
             }
 
@@ -2745,7 +2737,7 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
         builder.setId(physical->id);
         builder.setConnectionType(physical->type);
     } else {
-        builder.setId(acquireVirtualDisplay(resolution, pixelFormat, state.layerStack));
+        builder.setId(acquireVirtualDisplay(resolution, pixelFormat));
     }
 
     builder.setPixels(resolution);
