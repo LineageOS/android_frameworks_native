@@ -169,6 +169,9 @@ enum {
 
     /** Drag event */
     AINPUT_EVENT_TYPE_DRAG = 5,
+
+    /** TouchMode event */
+    AINPUT_EVENT_TYPE_TOUCH_MODE = 6,
 };
 
 /**

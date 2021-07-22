@@ -886,6 +886,25 @@ protected:
     float mX, mY;
 };
 
+/*
+ * Touch mode events.
+ */
+class TouchModeEvent : public InputEvent {
+public:
+    virtual ~TouchModeEvent() {}
+
+    virtual int32_t getType() const override { return AINPUT_EVENT_TYPE_TOUCH_MODE; }
+
+    inline bool isInTouchMode() const { return mIsInTouchMode; }
+
+    void initialize(int32_t id, bool isInTouchMode);
+
+    void initialize(const TouchModeEvent& from);
+
+protected:
+    bool mIsInTouchMode;
+};
+
 /**
  * Base class for verified events.
  * Do not create a VerifiedInputEvent explicitly.
@@ -950,6 +969,7 @@ public:
     virtual FocusEvent* createFocusEvent() = 0;
     virtual CaptureEvent* createCaptureEvent() = 0;
     virtual DragEvent* createDragEvent() = 0;
+    virtual TouchModeEvent* createTouchModeEvent() = 0;
 };
 
 /*
@@ -966,6 +986,7 @@ public:
     virtual FocusEvent* createFocusEvent() override { return &mFocusEvent; }
     virtual CaptureEvent* createCaptureEvent() override { return &mCaptureEvent; }
     virtual DragEvent* createDragEvent() override { return &mDragEvent; }
+    virtual TouchModeEvent* createTouchModeEvent() override { return &mTouchModeEvent; }
 
 private:
     KeyEvent mKeyEvent;
@@ -973,6 +994,7 @@ private:
     FocusEvent mFocusEvent;
     CaptureEvent mCaptureEvent;
     DragEvent mDragEvent;
+    TouchModeEvent mTouchModeEvent;
 };
 
 /*
@@ -988,6 +1010,7 @@ public:
     virtual FocusEvent* createFocusEvent() override;
     virtual CaptureEvent* createCaptureEvent() override;
     virtual DragEvent* createDragEvent() override;
+    virtual TouchModeEvent* createTouchModeEvent() override;
 
     void recycle(InputEvent* event);
 
@@ -999,6 +1022,7 @@ private:
     std::queue<std::unique_ptr<FocusEvent>> mFocusEventPool;
     std::queue<std::unique_ptr<CaptureEvent>> mCaptureEventPool;
     std::queue<std::unique_ptr<DragEvent>> mDragEventPool;
+    std::queue<std::unique_ptr<TouchModeEvent>> mTouchModeEventPool;
 };
 
 } // namespace android

@@ -3124,9 +3124,11 @@ void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
 
 void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
     if (mScheduler) {
-        // In practice it's not allowed to hotplug in/out the primary display once it's been
-        // connected during startup, but some tests do it, so just warn and return.
-        ALOGW("Can't re-init scheduler");
+        // If the scheduler is already initialized, this means that we received
+        // a hotplug(connected) on the primary display. In that case we should
+        // update the scheduler with the most recent display information.
+        ALOGW("Scheduler already initialized, updating instead");
+        mScheduler->setRefreshRateConfigs(display->holdRefreshRateConfigs());
         return;
     }
     const auto currRefreshRate = display->getActiveMode()->getFps();
