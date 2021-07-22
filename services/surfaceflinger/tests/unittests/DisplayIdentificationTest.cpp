@@ -25,6 +25,7 @@
 #include <gtest/gtest.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
+#include "DisplayHardware/Hash.h"
 
 using ::testing::ElementsAre;
 
@@ -134,7 +135,7 @@ DisplayIdentificationData asDisplayIdentificationData(const unsigned char (&byte
 }
 
 uint32_t hash(const char* str) {
-    return static_cast<uint32_t>(std::hash<std::string_view>()(str));
+    return static_cast<uint32_t>(cityHash64Len0To16(str));
 }
 
 } // namespace
@@ -309,9 +310,9 @@ TEST(DisplayIdentificationTest, parseDisplayIdentificationData) {
     ASSERT_TRUE(tertiaryInfo);
 
     // Display IDs should be unique.
-    EXPECT_NE(primaryInfo->id, secondaryInfo->id);
-    EXPECT_NE(primaryInfo->id, tertiaryInfo->id);
-    EXPECT_NE(secondaryInfo->id, tertiaryInfo->id);
+    EXPECT_EQ(4633257497453176576, primaryInfo->id.value);
+    EXPECT_EQ(4621520285560261121, secondaryInfo->id.value);
+    EXPECT_EQ(4633127902230889474, tertiaryInfo->id.value);
 }
 
 TEST(DisplayIdentificationTest, deviceProductInfo) {

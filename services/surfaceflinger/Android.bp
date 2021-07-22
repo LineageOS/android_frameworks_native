@@ -146,6 +146,7 @@ filegroup {
         "DisplayHardware/ComposerHal.cpp",
         "DisplayHardware/DisplayIdentification.cpp",
         "DisplayHardware/FramebufferSurface.cpp",
+        "DisplayHardware/Hash.cpp",
         "DisplayHardware/HWC2.cpp",
         "DisplayHardware/HWComposer.cpp",
         "DisplayHardware/PowerAdvisor.cpp",
