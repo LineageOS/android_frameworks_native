@@ -200,7 +200,7 @@ class DumpsysTest : public Test {
         CaptureStdout();
         CaptureStderr();
         dump_.setServiceArgs(args, supportsProto, priorityFlags);
-        status_t status = dump_.startDumpThread(Dumpsys::Type::DUMP, serviceName, args);
+        status_t status = dump_.startDumpThread(Dumpsys::TYPE_DUMP, serviceName, args);
         EXPECT_THAT(status, Eq(0));
         status = dump_.writeDump(STDOUT_FILENO, serviceName, std::chrono::milliseconds(500), false,
                                  elapsedDuration, bytesWritten);
@@ -625,6 +625,28 @@ TEST_F(DumpsysTest, ListServiceWithThread) {
     // returns an empty string without root enabled
     const std::string format("(^$|Threads in use: [0-9]/[0-9]+\n)");
     AssertOutputFormat(format);
+}
+
+// Tests 'dumpsys --thread --stability'
+TEST_F(DumpsysTest, ListAllServicesWithMultipleOptions) {
+    ExpectListServices({"Locksmith", "Valet"});
+    ExpectCheckService("Locksmith");
+    ExpectCheckService("Valet");
+
+    CallMain({"--pid", "--stability"});
+    AssertRunningServices({"Locksmith", "Valet"});
+
+    AssertOutputContains(std::to_string(getpid()));
+    AssertOutputContains("stability");
+}
+
+// Tests 'dumpsys --pid --stability service_name'
+TEST_F(DumpsysTest, ListServiceWithMultipleOptions) {
+    ExpectCheckService("Locksmith");
+    CallMain({"--pid", "--stability", "Locksmith"});
+
+    AssertOutputContains(std::to_string(getpid()));
+    AssertOutputContains("stability");
 }
 
 TEST_F(DumpsysTest, GetBytesWritten) {

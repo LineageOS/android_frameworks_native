@@ -62,13 +62,14 @@ static void usage() {
             "usage: dumpsys\n"
             "         To dump all services.\n"
             "or:\n"
-            "       dumpsys [-t TIMEOUT] [--priority LEVEL] [--pid] [--thread] [--help | -l | "
-            "--skip SERVICES "
+            "       dumpsys [-t TIMEOUT] [--priority LEVEL] [--dump] [--pid] [--thread] [--help | "
+            "-l | --skip SERVICES "
             "| SERVICE [ARGS]]\n"
             "         --help: shows this help\n"
             "         -l: only list services, do not dump them\n"
             "         -t TIMEOUT_SEC: TIMEOUT to use in seconds instead of default 10 seconds\n"
             "         -T TIMEOUT_MS: TIMEOUT to use in milliseconds instead of default 10 seconds\n"
+            "         --dump: ask the service to dump itself (this is the default)\n"
             "         --pid: dump PID instead of usual dump\n"
             "         --proto: filter services that support dumping data in proto format. Dumps\n"
             "               will be in proto format.\n"
@@ -127,10 +128,11 @@ int Dumpsys::main(int argc, char* const argv[]) {
     bool showListOnly = false;
     bool skipServices = false;
     bool asProto = false;
-    Type type = Type::DUMP;
+    int dumpTypeFlags = 0;
     int timeoutArgMs = 10000;
     int priorityFlags = IServiceManager::DUMP_FLAG_PRIORITY_ALL;
     static struct option longOptions[] = {{"help", no_argument, 0, 0},
+                                          {"dump", no_argument, 0, 0},
                                           {"pid", no_argument, 0, 0},
                                           {"priority", required_argument, 0, 0},
                                           {"proto", no_argument, 0, 0},
@@ -168,12 +170,14 @@ int Dumpsys::main(int argc, char* const argv[]) {
                     usage();
                     return -1;
                 }
+            } else if (!strcmp(longOptions[optionIndex].name, "dump")) {
+                dumpTypeFlags |= TYPE_DUMP;
             } else if (!strcmp(longOptions[optionIndex].name, "pid")) {
-                type = Type::PID;
+                dumpTypeFlags |= TYPE_PID;
             } else if (!strcmp(longOptions[optionIndex].name, "stability")) {
-                type = Type::STABILITY;
+                dumpTypeFlags |= TYPE_STABILITY;
             } else if (!strcmp(longOptions[optionIndex].name, "thread")) {
-                type = Type::THREAD;
+                dumpTypeFlags |= TYPE_THREAD;
             }
             break;
 
@@ -209,6 +213,10 @@ int Dumpsys::main(int argc, char* const argv[]) {
             usage();
             return -1;
         }
+    }
+
+    if (dumpTypeFlags == 0) {
+        dumpTypeFlags = TYPE_DUMP;
     }
 
     for (int i = optind; i < argc; i++) {
@@ -263,7 +271,7 @@ int Dumpsys::main(int argc, char* const argv[]) {
         const String16& serviceName = services[i];
         if (IsSkipped(skippedServices, serviceName)) continue;
 
-        if (startDumpThread(type, serviceName, args) == OK) {
+        if (startDumpThread(dumpTypeFlags, serviceName, args) == OK) {
             bool addSeparator = (N > 1);
             if (addSeparator) {
                 writeDumpHeader(STDOUT_FILENO, serviceName, priorityFlags);
@@ -330,18 +338,21 @@ void Dumpsys::setServiceArgs(Vector<String16>& args, bool asProto, int priorityF
     }
 }
 
-static status_t dumpPidToFd(const sp<IBinder>& service, const unique_fd& fd) {
+static status_t dumpPidToFd(const sp<IBinder>& service, const unique_fd& fd, bool exclusive) {
      pid_t pid;
      status_t status = service->getDebugPid(&pid);
      if (status != OK) {
          return status;
+     }
+     if (!exclusive) {
+        WriteStringToFd("Service host process PID: ", fd.get());
      }
      WriteStringToFd(std::to_string(pid) + "\n", fd.get());
      return OK;
 }
 
 static status_t dumpStabilityToFd(const sp<IBinder>& service, const unique_fd& fd) {
-     WriteStringToFd(internal::Stability::debugToString(service) + "\n", fd);
+     WriteStringToFd("Stability: " + internal::Stability::debugToString(service) + "\n", fd);
      return OK;
 }
 
@@ -362,7 +373,14 @@ static status_t dumpThreadsToFd(const sp<IBinder>& service, const unique_fd& fd)
     return OK;
 }
 
-status_t Dumpsys::startDumpThread(Type type, const String16& serviceName,
+static void reportDumpError(const String16& serviceName, status_t error, const char* context) {
+    if (error == OK) return;
+
+    std::cerr << "Error with service '" << serviceName << "' while " << context << ": "
+              << statusToString(error) << std::endl;
+}
+
+status_t Dumpsys::startDumpThread(int dumpTypeFlags, const String16& serviceName,
                                   const Vector<String16>& args) {
     sp<IBinder> service = sm_->checkService(serviceName);
     if (service == nullptr) {
@@ -383,29 +401,23 @@ status_t Dumpsys::startDumpThread(Type type, const String16& serviceName,
 
     // dump blocks until completion, so spawn a thread..
     activeThread_ = std::thread([=, remote_end{std::move(remote_end)}]() mutable {
-        status_t err = 0;
-
-        switch (type) {
-        case Type::DUMP:
-            err = service->dump(remote_end.get(), args);
-            break;
-        case Type::PID:
-            err = dumpPidToFd(service, remote_end);
-            break;
-        case Type::STABILITY:
-            err = dumpStabilityToFd(service, remote_end);
-            break;
-        case Type::THREAD:
-            err = dumpThreadsToFd(service, remote_end);
-            break;
-        default:
-            std::cerr << "Unknown dump type" << static_cast<int>(type) << std::endl;
-            return;
+        if (dumpTypeFlags & TYPE_PID) {
+            status_t err = dumpPidToFd(service, remote_end, dumpTypeFlags == TYPE_PID);
+            reportDumpError(serviceName, err, "dumping PID");
+        }
+        if (dumpTypeFlags & TYPE_STABILITY) {
+            status_t err = dumpStabilityToFd(service, remote_end);
+            reportDumpError(serviceName, err, "dumping stability");
+        }
+        if (dumpTypeFlags & TYPE_THREAD) {
+            status_t err = dumpThreadsToFd(service, remote_end);
+            reportDumpError(serviceName, err, "dumping thread info");
         }
 
-        if (err != OK) {
-            std::cerr << "Error dumping service info status_t: " << statusToString(err) << " "
-                 << serviceName << std::endl;
+        // other types always act as a header, this is usually longer
+        if (dumpTypeFlags & TYPE_DUMP) {
+            status_t err = service->dump(remote_end.get(), args);
+            reportDumpError(serviceName, err, "dumping");
         }
     });
     return OK;
