@@ -149,6 +149,7 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
                             getLayerIdFromWeakRef(layer->mDrawingState.zOrderRelativeOf),
                             layer->mDrawingState.z);
     addShadowRadiusLocked(transaction, layerId, layer->mDrawingState.shadowRadius);
+    addTrustedOverlayLocked(transaction, layerId, layer->mDrawingState.isTrustedOverlay);
 }
 
 void SurfaceInterceptor::addInitialDisplayStateLocked(Increment* increment,
@@ -397,6 +398,13 @@ void SurfaceInterceptor::addShadowRadiusLocked(Transaction* transaction, int32_t
     overrideChange->set_radius(shadowRadius);
 }
 
+void SurfaceInterceptor::addTrustedOverlayLocked(Transaction* transaction, int32_t layerId,
+                                                 bool isTrustedOverlay) {
+    SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
+    TrustedOverlayChange* overrideChange(change->mutable_trusted_overlay());
+    overrideChange->set_is_trusted_overlay(isTrustedOverlay);
+}
+
 void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
         const layer_state_t& state)
 {
@@ -459,6 +467,9 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
     }
     if (state.what & layer_state_t::eShadowRadiusChanged) {
         addShadowRadiusLocked(transaction, layerId, state.shadowRadius);
+    }
+    if (state.what & layer_state_t::eTrustedOverlayChanged) {
+        addTrustedOverlayLocked(transaction, layerId, state.isTrustedOverlay);
     }
     if (state.what & layer_state_t::eStretchChanged) {
         ALOGW("SurfaceInterceptor not implemented for eStretchChanged");
