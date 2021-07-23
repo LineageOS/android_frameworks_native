@@ -927,8 +927,9 @@ private:
 
     void readPersistentProperties();
 
-    size_t getMaxTextureSize() const;
-    size_t getMaxViewportDims() const;
+    bool exceedsMaxRenderTargetSize(uint32_t width, uint32_t height) const {
+        return width > mMaxRenderTargetSize || height > mMaxRenderTargetSize;
+    }
 
     int getMaxAcquiredBufferCountForCurrentRefreshRate(uid_t uid) const;
 
@@ -1384,6 +1385,9 @@ private:
 
     SurfaceFlingerBE mBE;
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
+    // mMaxRenderTargetSize is only set once in init() so it doesn't need to be protected by
+    // any mutex.
+    size_t mMaxRenderTargetSize{1};
 
     const std::string mHwcServiceName;
 
