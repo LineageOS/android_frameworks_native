@@ -113,11 +113,7 @@ public:
 
     // Attempts to allocate a virtual display on the HWC. The maximum number of virtual displays
     // supported by the HWC can be queried in advance, but allocation may fail for other reasons.
-    // For virtualized compositors, the PhysicalDisplayId is a hint that this virtual display is
-    // a mirror of a physical display, and that the screen should be captured by the host rather
-    // than guest compositor.
-    virtual bool allocateVirtualDisplay(HalVirtualDisplayId, ui::Size, ui::PixelFormat*,
-                                        std::optional<PhysicalDisplayId> mirror) = 0;
+    virtual bool allocateVirtualDisplay(HalVirtualDisplayId, ui::Size, ui::PixelFormat*) = 0;
 
     virtual void allocatePhysicalDisplay(hal::HWDisplayId, PhysicalDisplayId) = 0;
 
@@ -265,8 +261,7 @@ public:
     size_t getMaxVirtualDisplayCount() const override;
     size_t getMaxVirtualDisplayDimension() const override;
 
-    bool allocateVirtualDisplay(HalVirtualDisplayId, ui::Size, ui::PixelFormat*,
-                                std::optional<PhysicalDisplayId>) override;
+    bool allocateVirtualDisplay(HalVirtualDisplayId, ui::Size, ui::PixelFormat*) override;
 
     // Called from SurfaceFlinger, when the state for a new physical display needs to be recreated.
     void allocatePhysicalDisplay(hal::HWDisplayId, PhysicalDisplayId) override;

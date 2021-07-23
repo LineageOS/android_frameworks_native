@@ -615,8 +615,8 @@ struct HwcVirtualDisplayVariant
     }
 
     static void setupHwcVirtualDisplayCreationCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mComposer, createVirtualDisplay(Base::WIDTH, Base::HEIGHT, _, _, _))
-                .WillOnce(DoAll(SetArgPointee<4>(Self::HWC_DISPLAY_ID), Return(Error::NONE)));
+        EXPECT_CALL(*test->mComposer, createVirtualDisplay(Base::WIDTH, Base::HEIGHT, _, _))
+                .WillOnce(DoAll(SetArgPointee<3>(Self::HWC_DISPLAY_ID), Return(Error::NONE)));
         EXPECT_CALL(*test->mComposer, setClientTargetSlotCount(_)).WillOnce(Return(Error::NONE));
     }
 };
