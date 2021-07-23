@@ -537,6 +537,9 @@ public:
         // in shared buffer mode.
         Transaction& setAutoRefresh(const sp<SurfaceControl>& sc, bool autoRefresh);
 
+        // Sets that this surface control and its children are trusted overlays for input
+        Transaction& setTrustedOverlay(const sp<SurfaceControl>& sc, bool isTrustedOverlay);
+
         // Queues up transactions using this token in SurfaceFlinger.  By default, all transactions
         // from a client are placed on the same queue. This can be used to prevent multiple
         // transactions from blocking each other.

@@ -64,6 +64,7 @@ layer_state_t::layer_state_t()
         fixedTransformHint(ui::Transform::ROT_INVALID),
         frameNumber(0),
         autoRefresh(false),
+        isTrustedOverlay(false),
         bufferCrop(Rect::INVALID_RECT),
         destinationFrame(Rect::INVALID_RECT),
         releaseBufferListener(nullptr) {
@@ -170,6 +171,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.write, stretchEffect);
     SAFE_PARCEL(output.write, bufferCrop);
     SAFE_PARCEL(output.write, destinationFrame);
+    SAFE_PARCEL(output.writeBool, isTrustedOverlay);
 
     return NO_ERROR;
 }
@@ -300,6 +302,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, stretchEffect);
     SAFE_PARCEL(input.read, bufferCrop);
     SAFE_PARCEL(input.read, destinationFrame);
+    SAFE_PARCEL(input.readBool, &isTrustedOverlay);
 
     return NO_ERROR;
 }
@@ -531,6 +534,10 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eAutoRefreshChanged) {
         what |= eAutoRefreshChanged;
         autoRefresh = other.autoRefresh;
+    }
+    if (other.what & eTrustedOverlayChanged) {
+        what |= eTrustedOverlayChanged;
+        isTrustedOverlay = other.isTrustedOverlay;
     }
     if (other.what & eReleaseBufferListenerChanged) {
         if (releaseBufferListener) {
