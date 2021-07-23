@@ -358,6 +358,15 @@ protected:
     // display.
     virtual FloatRect getLayerClipBoundsForDisplay(const DisplayDevice&) const;
 
+    virtual void processDisplayAdded(const wp<IBinder>& displayToken, const DisplayDeviceState&)
+            REQUIRES(mStateLock);
+
+    // Returns true if any display matches a `bool(const DisplayDevice&)` predicate.
+    template <typename Predicate>
+    bool hasDisplay(Predicate p) const REQUIRES(mStateLock) {
+        return static_cast<bool>(findDisplay(p));
+    }
+
 private:
     friend class BufferLayer;
     friend class BufferQueueLayer;
@@ -1045,8 +1054,6 @@ private:
             const sp<compositionengine::DisplaySurface>& displaySurface,
             const sp<IGraphicBufferProducer>& producer) REQUIRES(mStateLock);
     void processDisplayChangesLocked() REQUIRES(mStateLock);
-    void processDisplayAdded(const wp<IBinder>& displayToken, const DisplayDeviceState&)
-            REQUIRES(mStateLock);
     void processDisplayRemoved(const wp<IBinder>& displayToken) REQUIRES(mStateLock);
     void processDisplayChanged(const wp<IBinder>& displayToken,
                                const DisplayDeviceState& currentState,
@@ -1124,8 +1131,7 @@ private:
     void enableHalVirtualDisplays(bool);
 
     // Virtual display lifecycle for ID generation and HAL allocation.
-    VirtualDisplayId acquireVirtualDisplay(ui::Size, ui::PixelFormat, ui::LayerStack)
-            REQUIRES(mStateLock);
+    VirtualDisplayId acquireVirtualDisplay(ui::Size, ui::PixelFormat) REQUIRES(mStateLock);
     void releaseVirtualDisplay(VirtualDisplayId);
 
     void onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay) REQUIRES(mStateLock);
