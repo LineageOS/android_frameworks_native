@@ -52,6 +52,7 @@ message SurfaceChange {
         BackgroundBlurRadiusChange  background_blur_radius  = 20;
         ShadowRadiusChange          shadow_radius           = 21;
         BlurRegionsChange           blur_regions            = 22;
+        TrustedOverlayChange        trusted_overlay         = 23;
     }
 }
 
@@ -195,6 +196,10 @@ message RelativeParentChange {
 
 message ShadowRadiusChange {
     required float radius = 1;
+}
+
+message TrustedOverlayChange {
+    required float is_trusted_overlay = 1;
 }
 
 message BlurRegionsChange {
