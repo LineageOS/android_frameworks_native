@@ -116,6 +116,7 @@ struct layer_state_t {
         eBlurRegionsChanged = 0x800'00000000,
         eAutoRefreshChanged = 0x1000'00000000,
         eStretchChanged = 0x2000'00000000,
+        eTrustedOverlayChanged = 0x4000'00000000,
     };
 
     layer_state_t();
@@ -220,6 +221,10 @@ struct layer_state_t {
     // can and not wait for a frame to become available. This is only relevant
     // in shared buffer mode.
     bool autoRefresh;
+
+    // An inherited state that indicates that this surface control and its children
+    // should be trusted for input occlusion detection purposes
+    bool isTrustedOverlay;
 
     // Stretch effect to be applied to this layer
     StretchEffect stretchEffect;

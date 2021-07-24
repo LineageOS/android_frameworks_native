@@ -212,7 +212,7 @@ uint32_t Composer::getMaxVirtualDisplayCount()
 }
 
 Error Composer::createVirtualDisplay(uint32_t width, uint32_t height, PixelFormat* format,
-                                     std::optional<Display>, Display* outDisplay) {
+                                     Display* outDisplay) {
     const uint32_t bufferSlotCount = 1;
     Error error = kDefaultError;
     if (mClient_2_2) {
