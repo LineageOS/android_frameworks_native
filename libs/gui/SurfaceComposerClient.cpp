@@ -1656,6 +1656,19 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAutoR
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setTrustedOverlay(
+        const sp<SurfaceControl>& sc, bool isTrustedOverlay) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eTrustedOverlayChanged;
+    s->isTrustedOverlay = isTrustedOverlay;
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setApplyToken(
         const sp<IBinder>& applyToken) {
     mApplyToken = applyToken;

@@ -128,6 +128,8 @@ message LayerProto {
 
   // Regions of a layer, where blur should be applied.
   repeated BlurRegion blur_regions = 54;
+
+  bool is_trusted_overlay = 55;
 }
 
 message PositionProto {

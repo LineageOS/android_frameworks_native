@@ -193,6 +193,7 @@ public:
     bool reparentUpdateFound(const SurfaceChange& change, bool found);
     bool relativeParentUpdateFound(const SurfaceChange& change, bool found);
     bool shadowRadiusUpdateFound(const SurfaceChange& change, bool found);
+    bool trustedOverlayUpdateFound(const SurfaceChange& change, bool found);
     bool surfaceUpdateFound(const Trace& trace, SurfaceChange::SurfaceChangeCase changeCase);
 
     // Find all of the updates in the single trace
@@ -228,6 +229,7 @@ public:
     void reparentUpdate(Transaction&);
     void relativeParentUpdate(Transaction&);
     void shadowRadiusUpdate(Transaction&);
+    void trustedOverlayUpdate(Transaction&);
     void surfaceCreation(Transaction&);
     void displayCreation(Transaction&);
     void displayDeletion(Transaction&);
@@ -405,6 +407,10 @@ void SurfaceInterceptorTest::shadowRadiusUpdate(Transaction& t) {
     t.setShadowRadius(mBGSurfaceControl, SHADOW_RADIUS_UPDATE);
 }
 
+void SurfaceInterceptorTest::trustedOverlayUpdate(Transaction& t) {
+    t.setTrustedOverlay(mBGSurfaceControl, true);
+}
+
 void SurfaceInterceptorTest::displayCreation(Transaction&) {
     sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, false);
     SurfaceComposerClient::destroyDisplay(testDisplay);
@@ -433,6 +439,7 @@ void SurfaceInterceptorTest::runAllUpdates() {
     runInTransaction(&SurfaceInterceptorTest::reparentUpdate);
     runInTransaction(&SurfaceInterceptorTest::relativeParentUpdate);
     runInTransaction(&SurfaceInterceptorTest::shadowRadiusUpdate);
+    runInTransaction(&SurfaceInterceptorTest::trustedOverlayUpdate);
 }
 
 void SurfaceInterceptorTest::surfaceCreation(Transaction&) {
@@ -644,6 +651,17 @@ bool SurfaceInterceptorTest::shadowRadiusUpdateFound(const SurfaceChange& change
     return foundShadowRadius;
 }
 
+bool SurfaceInterceptorTest::trustedOverlayUpdateFound(const SurfaceChange& change,
+                                                       bool foundTrustedOverlay) {
+    bool hasTrustedOverlay(change.trusted_overlay().is_trusted_overlay());
+    if (hasTrustedOverlay && !foundTrustedOverlay) {
+        foundTrustedOverlay = true;
+    } else if (hasTrustedOverlay && foundTrustedOverlay) {
+        []() { FAIL(); }();
+    }
+    return foundTrustedOverlay;
+}
+
 bool SurfaceInterceptorTest::surfaceUpdateFound(const Trace& trace,
         SurfaceChange::SurfaceChangeCase changeCase) {
     bool foundUpdate = false;
@@ -703,6 +721,9 @@ bool SurfaceInterceptorTest::surfaceUpdateFound(const Trace& trace,
                             break;
                         case SurfaceChange::SurfaceChangeCase::kShadowRadius:
                             foundUpdate = shadowRadiusUpdateFound(change, foundUpdate);
+                            break;
+                        case SurfaceChange::SurfaceChangeCase::kTrustedOverlay:
+                            foundUpdate = trustedOverlayUpdateFound(change, foundUpdate);
                             break;
                         case SurfaceChange::SurfaceChangeCase::SURFACECHANGE_NOT_SET:
                             break;
@@ -895,6 +916,11 @@ TEST_F(SurfaceInterceptorTest, InterceptRelativeParentUpdateWorks) {
 TEST_F(SurfaceInterceptorTest, InterceptShadowRadiusUpdateWorks) {
     captureTest(&SurfaceInterceptorTest::shadowRadiusUpdate,
                 SurfaceChange::SurfaceChangeCase::kShadowRadius);
+}
+
+TEST_F(SurfaceInterceptorTest, InterceptTrustedOverlayUpdateWorks) {
+    captureTest(&SurfaceInterceptorTest::trustedOverlayUpdate,
+                SurfaceChange::SurfaceChangeCase::kTrustedOverlay);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptAllUpdatesWorks) {
