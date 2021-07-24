@@ -656,12 +656,22 @@ TEST_F(CachedSetTest, addHolePunch) {
                                 base::unique_fd&&, base::unique_fd*) -> size_t {
         // If the highlight layer is enabled, it will increase the size by 1.
         // We're interested in the third layer either way.
-        EXPECT_GE(layers.size(), 3u);
-        const auto* holePunchSettings = layers[2];
-        EXPECT_EQ(nullptr, holePunchSettings->source.buffer.buffer);
-        EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchSettings->source.solidColor);
-        EXPECT_TRUE(holePunchSettings->disableBlending);
-        EXPECT_EQ(0.0f, holePunchSettings->alpha);
+        EXPECT_GE(layers.size(), 4u);
+        {
+            const auto* holePunchSettings = layers[3];
+            EXPECT_EQ(nullptr, holePunchSettings->source.buffer.buffer);
+            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchSettings->source.solidColor);
+            EXPECT_TRUE(holePunchSettings->disableBlending);
+            EXPECT_EQ(0.0f, holePunchSettings->alpha);
+        }
+
+        {
+            const auto* holePunchBackgroundSettings = layers[0];
+            EXPECT_EQ(nullptr, holePunchBackgroundSettings->source.buffer.buffer);
+            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchBackgroundSettings->source.solidColor);
+            EXPECT_FALSE(holePunchBackgroundSettings->disableBlending);
+            EXPECT_EQ(1.0f, holePunchBackgroundSettings->alpha);
+        }
 
         return NO_ERROR;
     };
@@ -706,12 +716,23 @@ TEST_F(CachedSetTest, addHolePunch_noBuffer) {
                                 base::unique_fd&&, base::unique_fd*) -> size_t {
         // If the highlight layer is enabled, it will increase the size by 1.
         // We're interested in the third layer either way.
-        EXPECT_GE(layers.size(), 3u);
-        const auto* holePunchSettings = layers[2];
-        EXPECT_EQ(nullptr, holePunchSettings->source.buffer.buffer);
-        EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchSettings->source.solidColor);
-        EXPECT_TRUE(holePunchSettings->disableBlending);
-        EXPECT_EQ(0.0f, holePunchSettings->alpha);
+        EXPECT_GE(layers.size(), 4u);
+
+        {
+            const auto* holePunchSettings = layers[3];
+            EXPECT_EQ(nullptr, holePunchSettings->source.buffer.buffer);
+            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchSettings->source.solidColor);
+            EXPECT_TRUE(holePunchSettings->disableBlending);
+            EXPECT_EQ(0.0f, holePunchSettings->alpha);
+        }
+
+        {
+            const auto* holePunchBackgroundSettings = layers[0];
+            EXPECT_EQ(nullptr, holePunchBackgroundSettings->source.buffer.buffer);
+            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchBackgroundSettings->source.solidColor);
+            EXPECT_FALSE(holePunchBackgroundSettings->disableBlending);
+            EXPECT_EQ(1.0f, holePunchBackgroundSettings->alpha);
+        }
 
         return NO_ERROR;
     };
