@@ -275,6 +275,9 @@ public:
         // Stretch effect to apply to this layer
         StretchEffect stretchEffect;
 
+        // Whether or not this layer is a trusted overlay for input
+        bool isTrustedOverlay;
+
         Rect bufferCrop;
         Rect destinationFrame;
     };
@@ -393,6 +396,7 @@ public:
     virtual bool setBackgroundBlurRadius(int backgroundBlurRadius);
     virtual bool setBlurRegions(const std::vector<BlurRegion>& effectRegions);
     virtual bool setTransparentRegionHint(const Region& transparent);
+    virtual bool setTrustedOverlay(bool);
     virtual bool setFlags(uint32_t flags, uint32_t mask);
     virtual bool setLayerStack(uint32_t layerStack);
     virtual uint32_t getLayerStack() const;
@@ -1050,6 +1054,7 @@ private:
 
     void updateTreeHasFrameRateVote();
     void setZOrderRelativeOf(const wp<Layer>& relativeOf);
+    bool isTrustedOverlay() const;
 
     // Find the root of the cloned hierarchy, this means the first non cloned parent.
     // This will return null if first non cloned parent is not found.

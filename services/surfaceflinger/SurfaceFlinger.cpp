@@ -4156,6 +4156,15 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     if (what & layer_state_t::eAutoRefreshChanged) {
         layer->setAutoRefresh(s.autoRefresh);
     }
+    if (what & layer_state_t::eTrustedOverlayChanged) {
+        if (privileged) {
+            if (layer->setTrustedOverlay(s.isTrustedOverlay)) {
+                flags |= eTraversalNeeded;
+            }
+        } else {
+            ALOGE("Attempt to set trusted overlay without permission ACCESS_SURFACE_FLINGER");
+        }
+    }
     if (what & layer_state_t::eStretchChanged) {
         if (layer->setStretchEffect(s.stretchEffect)) {
             flags |= eTraversalNeeded;
