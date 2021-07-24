@@ -357,6 +357,15 @@ protected:
     // display.
     virtual FloatRect getLayerClipBoundsForDisplay(const DisplayDevice&) const;
 
+    virtual void processDisplayAdded(const wp<IBinder>& displayToken, const DisplayDeviceState&)
+            REQUIRES(mStateLock);
+
+    // Returns true if any display matches a `bool(const DisplayDevice&)` predicate.
+    template <typename Predicate>
+    bool hasDisplay(Predicate p) const REQUIRES(mStateLock) {
+        return static_cast<bool>(findDisplay(p));
+    }
+
 private:
     friend class BufferLayer;
     friend class BufferQueueLayer;
@@ -924,8 +933,9 @@ private:
 
     void readPersistentProperties();
 
-    size_t getMaxTextureSize() const;
-    size_t getMaxViewportDims() const;
+    bool exceedsMaxRenderTargetSize(uint32_t width, uint32_t height) const {
+        return width > mMaxRenderTargetSize || height > mMaxRenderTargetSize;
+    }
 
     int getMaxAcquiredBufferCountForCurrentRefreshRate(uid_t uid) const;
 
@@ -1041,8 +1051,6 @@ private:
             const sp<compositionengine::DisplaySurface>& displaySurface,
             const sp<IGraphicBufferProducer>& producer) REQUIRES(mStateLock);
     void processDisplayChangesLocked() REQUIRES(mStateLock);
-    void processDisplayAdded(const wp<IBinder>& displayToken, const DisplayDeviceState&)
-            REQUIRES(mStateLock);
     void processDisplayRemoved(const wp<IBinder>& displayToken) REQUIRES(mStateLock);
     void processDisplayChanged(const wp<IBinder>& displayToken,
                                const DisplayDeviceState& currentState,
@@ -1120,8 +1128,7 @@ private:
     void enableHalVirtualDisplays(bool);
 
     // Virtual display lifecycle for ID generation and HAL allocation.
-    VirtualDisplayId acquireVirtualDisplay(ui::Size, ui::PixelFormat, ui::LayerStack)
-            REQUIRES(mStateLock);
+    VirtualDisplayId acquireVirtualDisplay(ui::Size, ui::PixelFormat) REQUIRES(mStateLock);
     void releaseVirtualDisplay(VirtualDisplayId);
 
     void onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay) REQUIRES(mStateLock);
@@ -1379,6 +1386,9 @@ private:
 
     SurfaceFlingerBE mBE;
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
+    // mMaxRenderTargetSize is only set once in init() so it doesn't need to be protected by
+    // any mutex.
+    size_t mMaxRenderTargetSize{1};
 
     const std::string mHwcServiceName;
 
