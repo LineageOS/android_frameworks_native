@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The Android Open Source Project
+ * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "BlurFilter.h"
+#include "KawaseBlurFilter.h"
 #include <SkCanvas.h>
 #include <SkData.h>
 #include <SkPaint.h>
@@ -32,7 +32,7 @@ namespace android {
 namespace renderengine {
 namespace skia {
 
-BlurFilter::BlurFilter() {
+KawaseBlurFilter::KawaseBlurFilter(): BlurFilter() {
     SkString blurString(R"(
         uniform shader child;
         uniform float2 in_blurOffset;
@@ -76,8 +76,9 @@ BlurFilter::BlurFilter() {
     mMixEffect = std::move(mixEffect);
 }
 
-sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t blurRadius,
-                                    const sk_sp<SkImage> input, const SkRect& blurRect) const {
+sk_sp<SkImage> KawaseBlurFilter::generate(GrRecordingContext* context, const uint32_t blurRadius,
+                                          const sk_sp<SkImage> input, const SkRect& blurRect)
+    const {
     // Kawase is an approximation of Gaussian, but it behaves differently from it.
     // A radius transformation is required for approximating them, and also to introduce
     // non-integer steps, necessary to smoothly interpolate large radii.
@@ -139,7 +140,7 @@ static SkMatrix getShaderTransform(const SkCanvas* canvas, const SkRect& blurRec
     return matrix;
 }
 
-void BlurFilter::drawBlurRegion(SkCanvas* canvas, const SkRRect& effectRegion,
+void KawaseBlurFilter::drawBlurRegion(SkCanvas* canvas, const SkRRect& effectRegion,
                                 const uint32_t blurRadius, const float blurAlpha,
                                 const SkRect& blurRect, sk_sp<SkImage> blurredImage,
                                 sk_sp<SkImage> input) {
