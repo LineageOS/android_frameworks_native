@@ -94,6 +94,12 @@ cc_library_static {
     include_dirs: [
         "frameworks/native/include",
     ],
+
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
 }
 
 filegroup {
