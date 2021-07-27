@@ -1869,6 +1869,40 @@ TEST_P(RenderEngineTest, testRoundedCornersParentCrop) {
     expectBufferColor(Point(0, (DEFAULT_DISPLAY_HEIGHT / 2) - 1), 0, 255, 0, 255);
 }
 
+TEST_P(RenderEngineTest, testRoundedCornersParentCropSmallBounds) {
+    initializeRenderEngine();
+
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = fullscreenRect();
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+
+    std::vector<const renderengine::LayerSettings*> layers;
+
+    renderengine::LayerSettings redLayer;
+    redLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+    redLayer.geometry.boundaries = FloatRect(0, 0, DEFAULT_DISPLAY_WIDTH, 32);
+    redLayer.geometry.roundedCornersRadius = 64;
+    redLayer.geometry.roundedCornersCrop = FloatRect(0, 0, DEFAULT_DISPLAY_WIDTH, 128);
+    // Red background.
+    redLayer.source.solidColor = half3(1.0f, 0.0f, 0.0f);
+    redLayer.alpha = 1.0f;
+
+    layers.push_back(&redLayer);
+    invokeDraw(settings, layers);
+
+    // Due to roundedCornersRadius, the top corners are untouched.
+    expectBufferColor(Point(0, 0), 0, 0, 0, 0);
+    expectBufferColor(Point(DEFAULT_DISPLAY_WIDTH - 1, 0), 0, 0, 0, 0);
+
+    // ensure that the entire height of the red layer was clipped by the rounded corners crop.
+    expectBufferColor(Point(0, 31), 0, 0, 0, 0);
+    expectBufferColor(Point(DEFAULT_DISPLAY_WIDTH - 1, 31), 0, 0, 0, 0);
+
+    // the bottom middle should be red
+    expectBufferColor(Point(DEFAULT_DISPLAY_WIDTH / 2, 31), 255, 0, 0, 255);
+}
+
 TEST_P(RenderEngineTest, testClear) {
     initializeRenderEngine();
 
