@@ -904,6 +904,16 @@ public:
 
     status_t getMaxAcquiredBufferCount(int* /*buffers*/) const override { return NO_ERROR; }
 
+    status_t addWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& /*windowInfosListener*/) const override {
+        return NO_ERROR;
+    }
+
+    status_t removeWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& /*windowInfosListener*/) const override {
+        return NO_ERROR;
+    }
+
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 
