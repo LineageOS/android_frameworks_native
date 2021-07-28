@@ -227,10 +227,6 @@ enum {
     // Disables automatic key repeating behavior.
     POLICY_FLAG_DISABLE_KEY_REPEAT = 0x08000000,
 
-    // Indicates whether an injected event is an unmodified copy of what was originally
-    // a real input event.
-    POLICY_FLAGS_INJECTED_IS_UNCHANGED = 0x10000000,
-
     /* These flags are set by the input reader policy as it intercepts each event. */
 
     // Indicates that the device was in an interactive state when the
@@ -696,8 +692,6 @@ public:
                     const PointerCoords* pointerCoords);
 
     void copyFrom(const MotionEvent* other, bool keepHistory);
-
-    bool equals(const MotionEvent* other) const;
 
     void addSample(
             nsecs_t eventTime,
