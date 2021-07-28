@@ -17,7 +17,6 @@
 #define LOG_TAG "Input"
 //#define LOG_NDEBUG 0
 
-#include <cmath>
 #include <cutils/compiler.h>
 #include <limits.h>
 #include <string.h>
@@ -384,47 +383,6 @@ void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
         mSamplePointerCoords.appendArray(other->mSamplePointerCoords.array()
                 + (historySize * pointerCount), pointerCount);
     }
-}
-
-bool MotionEvent::equals(const MotionEvent* other) const {
-    /*
-     * All fields are checked for precise equality except for mDownTime
-     * which is not checked because:
-     * 1) magnify accessibility service uses MotionEvent.setDownTime()
-     * 2) fw/b InputManagerService converts from ns to ms so precision is
-     *    different after inputflinger -> system server -> inputflinger
-     *    round trip.
-     */
-    return mId == other->mId
-           && mDeviceId == other->mDeviceId
-           && mSource == other->mSource
-           && mDisplayId == other->mDisplayId
-           && mAction == other->mAction
-           && mActionButton == other->mActionButton
-           && mFlags == other->mFlags
-           && mEdgeFlags == other->mEdgeFlags
-           && mMetaState == other->mMetaState
-           && mButtonState == other->mButtonState
-           && mClassification == other->mClassification
-           && mXScale == other->mXScale
-           && mYScale == other->mYScale
-           && mXOffset == other->mXOffset
-           && mYOffset == other->mYOffset
-           && mXPrecision == other->mXPrecision
-           && mYPrecision == other->mYPrecision
-           && ((std::isnan(mRawXCursorPosition) && std::isnan(other->mRawXCursorPosition))
-               || mRawXCursorPosition == other->mRawXCursorPosition)
-           && ((std::isnan(mRawYCursorPosition) && std::isnan(other->mRawYCursorPosition))
-               || mRawYCursorPosition == other->mRawYCursorPosition)
-           && mPointerProperties.size() == other->mPointerProperties.size()
-           && std::equal(mPointerProperties.begin(), mPointerProperties.end(),
-                         other->mPointerProperties.begin())
-           && mSampleEventTimes.size() == other->mSampleEventTimes.size()
-           && std::equal(mSampleEventTimes.begin(), mSampleEventTimes.end(),
-                         other->mSampleEventTimes.begin())
-           && mSamplePointerCoords.size() == other->mSamplePointerCoords.size()
-           && std::equal(mSamplePointerCoords.begin(), mSamplePointerCoords.end(),
-                         other->mSamplePointerCoords.begin());
 }
 
 void MotionEvent::addSample(
