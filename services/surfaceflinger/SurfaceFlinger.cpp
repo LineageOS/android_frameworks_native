@@ -133,6 +133,7 @@
 #include "SurfaceInterceptor.h"
 #include "TimeStats/TimeStats.h"
 #include "TunnelModeEnabledReporter.h"
+#include "WindowInfosListenerInvoker.h"
 #include "android-base/parseint.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
@@ -167,6 +168,7 @@ using namespace android::sysprop;
 
 using android::hardware::power::Boost;
 using base::StringAppendF;
+using gui::IWindowInfosListener;
 using gui::WindowInfo;
 using ui::ColorMode;
 using ui::Dataspace;
@@ -355,7 +357,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mTunnelModeEnabledReporter(new TunnelModeEnabledReporter()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
         mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)),
-        mPowerAdvisor(*this) {
+        mPowerAdvisor(*this),
+        mWindowInfosListenerInvoker(new WindowInfosListenerInvoker()) {
     ALOGI("Using HWComposer service: %s", mHwcServiceName.c_str());
 
     mSetInputWindowsListener = new SetInputWindowsListener([&]() { setInputWindowsFinished(); });
@@ -5337,6 +5340,14 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             }
             return PERMISSION_DENIED;
         }
+        case ADD_WINDOW_INFOS_LISTENER:
+        case REMOVE_WINDOW_INFOS_LISTENER: {
+            const int uid = IPCThreadState::self()->getCallingUid();
+            if (uid == AID_SYSTEM || uid == AID_GRAPHICS) {
+                return OK;
+            }
+            return PERMISSION_DENIED;
+        }
     }
 
     // These codes are used for the IBinder protocol to either interrogate the recipient
@@ -6989,6 +7000,18 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activ
     mScheduler->setModeChangePending(false);
     mScheduler->setRefreshRateConfigs(activeDisplay->holdRefreshRateConfigs());
     onActiveDisplaySizeChanged(activeDisplay);
+}
+
+status_t SurfaceFlinger::addWindowInfosListener(
+        const sp<IWindowInfosListener>& windowInfosListener) const {
+    mWindowInfosListenerInvoker->addWindowInfosListener(windowInfosListener);
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::removeWindowInfosListener(
+        const sp<IWindowInfosListener>& windowInfosListener) const {
+    mWindowInfosListenerInvoker->removeWindowInfosListener(windowInfosListener);
+    return NO_ERROR;
 }
 
 } // namespace android
