@@ -17,6 +17,7 @@
 #include <array>
 #include <math.h>
 
+#include <android-base/properties.h>
 #include <attestation/HmacKeyManager.h>
 #include <binder/Parcel.h>
 #include <gtest/gtest.h>
@@ -226,13 +227,34 @@ protected:
     static constexpr float X_OFFSET = 1;
     static constexpr float Y_OFFSET = 1.1;
 
+    static const std::optional<bool> INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE;
+
     int32_t mId;
     ui::Transform mTransform;
+
+    void SetUp() override;
+    void TearDown() override;
 
     void initializeEventWithHistory(MotionEvent* event);
     void assertEqualsEventWithHistory(const MotionEvent* event);
 };
 
+const std::optional<bool> MotionEventTest::INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE =
+        !base::GetProperty("persist.debug.per_window_input_rotation", "").empty()
+        ? std::optional(base::GetBoolProperty("persist.debug.per_window_input_rotation", false))
+        : std::nullopt;
+
+void MotionEventTest::SetUp() {
+    // Ensure per_window_input_rotation is enabled.
+    base::SetProperty("persist.debug.per_window_input_rotation", "true");
+}
+
+void MotionEventTest::TearDown() {
+    const auto val = INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE.has_value()
+            ? (*INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE ? "true" : "false")
+            : "";
+    base::SetProperty("persist.debug.per_window_input_rotation", val);
+}
 
 void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
     mId = InputEvent::nextId();
