@@ -95,6 +95,7 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
             .alpha = 1,
     };
 
+    base::unique_fd drawFence;
     auto layers = std::vector<const LayerSettings*>{&layer, &caster};
     // When sourceDataspace matches dest, the general shadow fragment shader doesn't
     // have color correction added.
@@ -111,7 +112,7 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
             for (bool translucent : {false, true}){
                 layer.shadow.casterIsTranslucent = translucent;
                 renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                        base::unique_fd(), nullptr);
+                                        base::unique_fd(), &drawFence);
             }
         }
     }
@@ -138,6 +139,7 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
                                           }},
     };
 
+    base::unique_fd drawFence;
     auto layers = std::vector<const LayerSettings*>{&layer};
     for (auto dataspace : {kDestDataSpace, kOtherDataSpace}) {
         layer.sourceDataspace = dataspace;
@@ -151,7 +153,7 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
                 for (auto alpha : {half(.2f), half(1.0f)}) {
                     layer.alpha = alpha;
                     renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                             base::unique_fd(), nullptr);
+                                             base::unique_fd(), &drawFence);
                 }
             }
         }
@@ -174,13 +176,14 @@ static void drawSolidLayers(SkiaRenderEngine* renderengine, const DisplaySetting
             .alpha = 0.5,
     };
 
+    base::unique_fd drawFence;
     auto layers = std::vector<const LayerSettings*>{&layer};
     for (auto transform : {mat4(), kScaleAndTranslate}) {
         layer.geometry.positionTransform = transform;
         for (float roundedCornersRadius : {0.0f, 50.f}) {
             layer.geometry.roundedCornersRadius = roundedCornersRadius;
             renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                     base::unique_fd(), nullptr);
+                                     base::unique_fd(), &drawFence);
         }
     }
 }
@@ -199,12 +202,13 @@ static void drawBlurLayers(SkiaRenderEngine* renderengine, const DisplaySettings
             .skipContentDraw = true,
     };
 
+    base::unique_fd drawFence;
     auto layers = std::vector<const LayerSettings*>{&layer};
     // Different blur code is invoked for radii less and greater than 30 pixels
     for (int radius : {9, 60}) {
         layer.backgroundBlurRadius = radius;
         renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                 base::unique_fd(), nullptr);
+                                 base::unique_fd(), &drawFence);
     }
 }
 
@@ -240,6 +244,7 @@ static void drawClippedLayers(SkiaRenderEngine* renderengine, const DisplaySetti
                     },
     };
 
+    base::unique_fd drawFence;
     auto layers = std::vector<const LayerSettings*>{&layer};
     for (auto pixelSource : {bufferSource, bufferOpaque, colorSource}) {
         layer.source = pixelSource;
@@ -251,7 +256,7 @@ static void drawClippedLayers(SkiaRenderEngine* renderengine, const DisplaySetti
                 for (float alpha : {0.5f, 1.f}) {
                     layer.alpha = alpha,
                     renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                             base::unique_fd(), nullptr);
+                                             base::unique_fd(), &drawFence);
                 }
             }
         }
@@ -287,9 +292,10 @@ static void drawPIPImageLayer(SkiaRenderEngine* renderengine, const DisplaySetti
 
     };
 
+    base::unique_fd drawFence;
     auto layers = std::vector<const LayerSettings*>{&layer};
     renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                             base::unique_fd(), nullptr);
+                             base::unique_fd(), &drawFence);
 }
 
 static void drawHolePunchLayer(SkiaRenderEngine* renderengine, const DisplaySettings& display,
@@ -316,9 +322,10 @@ static void drawHolePunchLayer(SkiaRenderEngine* renderengine, const DisplaySett
 
     };
 
+    base::unique_fd drawFence;
     auto layers = std::vector<const LayerSettings*>{&layer};
     renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                            base::unique_fd(), nullptr);
+                            base::unique_fd(), &drawFence);
 }
 
 //
@@ -420,6 +427,14 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
         }
 
         drawPIPImageLayer(renderengine, display, dstTexture, externalTexture);
+
+        // draw one final layer synchronously to force GL submit
+        LayerSettings layer{
+                .source = PixelSource{.solidColor = half3(0.f, 0.f, 0.f)},
+        };
+        auto layers = std::vector<const LayerSettings*>{&layer};
+        renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
+                             base::unique_fd(), nullptr); // null drawFence makes it synchronous
 
         const nsecs_t timeAfter = systemTime();
         const float compileTimeMs = static_cast<float>(timeAfter - timeBefore) / 1.0E6;
