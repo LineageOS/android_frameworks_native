@@ -16,7 +16,6 @@
 
 #include <CursorInputMapper.h>
 #include <InputDevice.h>
-#include <InputFlingerProperties.sysprop.h>
 #include <InputMapper.h>
 #include <InputReader.h>
 #include <InputReaderBase.h>
@@ -2695,7 +2694,6 @@ protected:
     static const int32_t DEVICE_CONTROLLER_NUMBER;
     static const Flags<InputDeviceClass> DEVICE_CLASSES;
     static const int32_t EVENTHUB_ID;
-    static const std::optional<bool> INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE;
 
     std::shared_ptr<FakeEventHub> mFakeEventHub;
     sp<FakeInputReaderPolicy> mFakePolicy;
@@ -2713,18 +2711,12 @@ protected:
     }
 
     void SetUp() override {
-        // Ensure per_window_input_rotation is enabled.
-        sysprop::InputFlingerProperties::per_window_input_rotation(true);
-
         SetUp(DEVICE_CLASSES);
     }
 
     void TearDown() override {
         mFakeListener.reset();
         mFakePolicy.clear();
-
-        sysprop::InputFlingerProperties::per_window_input_rotation(
-                INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE);
     }
 
     void addConfigurationProperty(const char* key, const char* value) {
@@ -2836,8 +2828,6 @@ const int32_t InputMapperTest::DEVICE_CONTROLLER_NUMBER = 0;
 const Flags<InputDeviceClass> InputMapperTest::DEVICE_CLASSES =
         Flags<InputDeviceClass>(0); // not needed for current tests
 const int32_t InputMapperTest::EVENTHUB_ID = 1;
-const std::optional<bool> InputMapperTest::INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE =
-        sysprop::InputFlingerProperties::per_window_input_rotation();
 
 // --- SwitchInputMapperTest ---
 

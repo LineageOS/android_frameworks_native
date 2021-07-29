@@ -3041,32 +3041,24 @@ void SurfaceFlinger::updateInputFlinger() {
     mInputWindowCommands.clear();
 }
 
-bool enablePerWindowInputRotation() {
-    static bool value =
-            android::base::GetBoolProperty("persist.debug.per_window_input_rotation", true);
-    return value;
-}
-
 void SurfaceFlinger::notifyWindowInfos() {
     std::vector<WindowInfo> windowInfos;
     std::vector<DisplayInfo> displayInfos;
     std::unordered_map<uint32_t /*layerStackId*/, const ui::Transform> displayTransforms;
 
-    if (enablePerWindowInputRotation()) {
-        for (const auto& [_, display] : ON_MAIN_THREAD(mDisplays)) {
-            if (!display->receivesInput()) {
-                continue;
-            }
-            const uint32_t layerStackId = display->getLayerStack().id;
-            const auto& [info, transform] = display->getInputInfo();
-            const auto& [it, emplaced] = displayTransforms.try_emplace(layerStackId, transform);
-            if (!emplaced) {
-                ALOGE("Multiple displays claim to accept input for the same layer stack: %u",
-                      layerStackId);
-                continue;
-            }
-            displayInfos.emplace_back(info);
+    for (const auto& [_, display] : ON_MAIN_THREAD(mDisplays)) {
+        if (!display->receivesInput()) {
+            continue;
         }
+        const uint32_t layerStackId = display->getLayerStack().id;
+        const auto& [info, transform] = display->getInputInfo();
+        const auto& [it, emplaced] = displayTransforms.try_emplace(layerStackId, transform);
+        if (!emplaced) {
+            ALOGE("Multiple displays claim to accept input for the same layer stack: %u",
+                  layerStackId);
+            continue;
+        }
+        displayInfos.emplace_back(info);
     }
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
@@ -3075,7 +3067,7 @@ void SurfaceFlinger::notifyWindowInfos() {
         const DisplayDevice* display = ON_MAIN_THREAD(getDisplayWithInputByLayer(layer)).get();
         ui::Transform displayTransform = ui::Transform();
 
-        if (enablePerWindowInputRotation() && display != nullptr) {
+        if (display != nullptr) {
             // When calculating the screen bounds we ignore the transparent region since it may
             // result in an unwanted offset.
             const auto it = displayTransforms.find(display->getLayerStack().id);

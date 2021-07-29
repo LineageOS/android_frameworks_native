@@ -193,28 +193,18 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         const bool isOrientedDevice =
                 (mParameters.orientationAware && mParameters.hasAssociatedDisplay);
 
-        if (isPerWindowInputRotationEnabled()) {
-            // When per-window input rotation is enabled, InputReader works in the un-rotated
-            // coordinate space, so we don't need to do anything if the device is already
-            // orientation-aware. If the device is not orientation-aware, then we need to apply the
-            // inverse rotation of the display so that when the display rotation is applied later
-            // as a part of the per-window transform, we get the expected screen coordinates.
-            if (!isOrientedDevice) {
-                std::optional<DisplayViewport> internalViewport =
-                        config->getDisplayViewportByType(ViewportType::INTERNAL);
-                if (internalViewport) {
-                    mOrientation = getInverseRotation(internalViewport->orientation);
-                    mDisplayWidth = internalViewport->deviceWidth;
-                    mDisplayHeight = internalViewport->deviceHeight;
-                }
-            }
-        } else {
-            if (isOrientedDevice) {
-                std::optional<DisplayViewport> internalViewport =
-                        config->getDisplayViewportByType(ViewportType::INTERNAL);
-                if (internalViewport) {
-                    mOrientation = internalViewport->orientation;
-                }
+        // InputReader works in the un-rotated display coordinate space, so we don't need to do
+        // anything if the device is already orientation-aware. If the device is not
+        // orientation-aware, then we need to apply the inverse rotation of the display so that
+        // when the display rotation is applied later as a part of the per-window transform, we
+        // get the expected screen coordinates.
+        if (!isOrientedDevice) {
+            std::optional<DisplayViewport> internalViewport =
+                    config->getDisplayViewportByType(ViewportType::INTERNAL);
+            if (internalViewport) {
+                mOrientation = getInverseRotation(internalViewport->orientation);
+                mDisplayWidth = internalViewport->deviceWidth;
+                mDisplayHeight = internalViewport->deviceHeight;
             }
         }
 
@@ -347,12 +337,11 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
             if (moved) {
                 float dx = deltaX;
                 float dy = deltaY;
-                if (isPerWindowInputRotationEnabled()) {
-                    // Rotate the delta from InputReader's un-rotated coordinate space to
-                    // PointerController's rotated coordinate space that is oriented with the
-                    // viewport.
-                    rotateDelta(getInverseRotation(mOrientation), &dx, &dy);
-                }
+                // Rotate the delta from InputReader's un-rotated coordinate space to
+                // PointerController's rotated coordinate space that is oriented with the
+                // viewport.
+                rotateDelta(getInverseRotation(mOrientation), &dx, &dy);
+
                 mPointerController->move(dx, dy);
             }
 
@@ -364,12 +353,11 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
         }
 
         mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
-        if (isPerWindowInputRotationEnabled()) {
-            // Rotate the cursor position that is in PointerController's rotated coordinate space
-            // to InputReader's un-rotated coordinate space.
-            rotatePoint(mOrientation, xCursorPosition /*byRef*/, yCursorPosition /*byRef*/,
-                        mDisplayWidth, mDisplayHeight);
-        }
+        // Rotate the cursor position that is in PointerController's rotated coordinate space
+        // to InputReader's un-rotated coordinate space.
+        rotatePoint(mOrientation, xCursorPosition /*byRef*/, yCursorPosition /*byRef*/,
+                    mDisplayWidth, mDisplayHeight);
+
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
