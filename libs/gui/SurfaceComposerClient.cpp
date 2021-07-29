@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <android/gui/IWindowInfosListener.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include <utils/SortedVector.h>
@@ -54,6 +55,7 @@ namespace android {
 using gui::FocusRequest;
 using gui::WindowInfo;
 using gui::WindowInfoHandle;
+using gui::WindowInfosListener;
 using ui::ColorMode;
 // ---------------------------------------------------------------------------
 
@@ -95,6 +97,7 @@ bool ComposerService::connectLocked() {
     if (instance.mComposerService == nullptr) {
         if (ComposerService::getInstance().connectLocked()) {
             ALOGD("ComposerService reconnected");
+            WindowInfosListenerReporter::getInstance()->reconnect(instance.mComposerService);
         }
     }
     return instance.mComposerService;
@@ -1652,6 +1655,19 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAutoR
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setTrustedOverlay(
+        const sp<SurfaceControl>& sc, bool isTrustedOverlay) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eTrustedOverlayChanged;
+    s->isTrustedOverlay = isTrustedOverlay;
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setApplyToken(
         const sp<IBinder>& applyToken) {
     mApplyToken = applyToken;
@@ -1768,15 +1784,10 @@ void SurfaceComposerClient::Transaction::setDisplaySize(const sp<IBinder>& token
 
 // ---------------------------------------------------------------------------
 
-SurfaceComposerClient::SurfaceComposerClient()
-    : mStatus(NO_INIT)
-{
-}
+SurfaceComposerClient::SurfaceComposerClient() : mStatus(NO_INIT) {}
 
 SurfaceComposerClient::SurfaceComposerClient(const sp<ISurfaceComposerClient>& client)
-    : mStatus(NO_ERROR), mClient(client)
-{
-}
+      : mStatus(NO_ERROR), mClient(client) {}
 
 void SurfaceComposerClient::onFirstRef() {
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
@@ -2140,6 +2151,18 @@ status_t SurfaceComposerClient::setGlobalShadowSettings(const half4& ambientColo
 
 int SurfaceComposerClient::getGPUContextPriority() {
     return ComposerService::getComposerService()->getGPUContextPriority();
+}
+
+status_t SurfaceComposerClient::addWindowInfosListener(
+        const sp<WindowInfosListener>& windowInfosListener) {
+    return WindowInfosListenerReporter::getInstance()
+            ->addWindowInfosListener(windowInfosListener, ComposerService::getComposerService());
+}
+
+status_t SurfaceComposerClient::removeWindowInfosListener(
+        const sp<WindowInfosListener>& windowInfosListener) {
+    return WindowInfosListenerReporter::getInstance()
+            ->removeWindowInfosListener(windowInfosListener, ComposerService::getComposerService());
 }
 
 // ----------------------------------------------------------------------------

@@ -44,6 +44,7 @@
 
 namespace android {
 
+using gui::IWindowInfosListener;
 using ui::ColorMode;
 
 class BpSurfaceComposer : public BpInterface<ISurfaceComposer>
@@ -1227,6 +1228,22 @@ public:
 
         return reply.readInt32(buffers);
     }
+
+    status_t addWindowInfosListener(
+            const sp<IWindowInfosListener>& windowInfosListener) const override {
+        Parcel data, reply;
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(windowInfosListener));
+        return remote()->transact(BnSurfaceComposer::ADD_WINDOW_INFOS_LISTENER, data, &reply);
+    }
+
+    status_t removeWindowInfosListener(
+            const sp<IWindowInfosListener>& windowInfosListener) const override {
+        Parcel data, reply;
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(windowInfosListener));
+        return remote()->transact(BnSurfaceComposer::REMOVE_WINDOW_INFOS_LISTENER, data, &reply);
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -2106,6 +2123,20 @@ status_t BnSurfaceComposer::onTransact(
                         reinterpret_cast<const uint8_t*>(pulledData.data()));
             SAFE_PARCEL(reply->writeBool, success);
             return err;
+        }
+        case ADD_WINDOW_INFOS_LISTENER: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IWindowInfosListener> listener;
+            SAFE_PARCEL(data.readStrongBinder, &listener);
+
+            return addWindowInfosListener(listener);
+        }
+        case REMOVE_WINDOW_INFOS_LISTENER: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IWindowInfosListener> listener;
+            SAFE_PARCEL(data.readStrongBinder, &listener);
+
+            return removeWindowInfosListener(listener);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);
