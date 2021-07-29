@@ -937,8 +937,6 @@ public:
         mInfo.displayId = displayId;
     }
 
-    virtual bool updateInfo() { return true; }
-
     void setFocusable(bool focusable) { mInfo.focusable = focusable; }
 
     void setVisible(bool visible) { mInfo.visible = visible; }
