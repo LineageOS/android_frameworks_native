@@ -89,6 +89,7 @@ namespace android {
 
 class Client;
 class EventThread;
+class FlagManager;
 class FpsReporter;
 class TunnelModeEnabledReporter;
 class HdrLayerInfoReporter;
@@ -1516,6 +1517,8 @@ private:
     wp<IBinder> mActiveDisplayToken GUARDED_BY(mStateLock);
 
     const sp<WindowInfosListenerInvoker> mWindowInfosListenerInvoker;
+
+    std::unique_ptr<FlagManager> mFlagManager;
 };
 
 } // namespace android
