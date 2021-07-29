@@ -1264,11 +1264,19 @@ private:
     State mDrawingState{LayerVector::StateSet::Drawing};
     bool mVisibleRegionsDirty = false;
 
+    // VisibleRegions dirty is already cleared by postComp, but we need to track it to prevent
+    // extra work in the HDR layer info listener.
+    bool mVisibleRegionsWereDirtyThisFrame = false;
+    // Used to ensure we omit a callback when HDR layer info listener is newly added but the
+    // scene hasn't changed
+    bool mAddingHDRLayerInfoListener = false;
+
     // Set during transaction application stage to track if the input info or children
     // for a layer has changed.
     // TODO: Also move visibleRegions over to a boolean system.
     bool mInputInfoChanged = false;
     bool mSomeChildrenChanged;
+    bool mSomeDataspaceChanged = false;
     bool mForceTransactionDisplayChange = false;
 
     bool mGeometryInvalid = false;
