@@ -242,18 +242,6 @@ public:
     }
 
     /**
-     * Requests that the state of this object be updated to reflect
-     * the most current available information about the application.
-     * As this class is created as RefBase object, no pure virtual function is allowed.
-     *
-     * This method should only be called from within the input dispatcher's
-     * critical section.
-     *
-     * Returns true on success, or false if the handle is no longer valid.
-     */
-    virtual bool updateInfo() { return false; }
-
-    /**
      * Updates from another input window handle.
      */
     void updateFrom(const sp<WindowInfoHandle> handle);
