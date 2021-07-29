@@ -185,10 +185,11 @@ public:
                      const sp<InputDispatcher>& dispatcher, const std::string name)
           : FakeInputReceiver(dispatcher, name), mFrame(Rect(0, 0, WIDTH, HEIGHT)) {
         inputApplicationHandle->updateInfo();
+        updateInfo();
         mInfo.applicationInfo = *inputApplicationHandle->getInfo();
     }
 
-    virtual bool updateInfo() override {
+    void updateInfo() {
         mInfo.token = mClientChannel->getConnectionToken();
         mInfo.name = "FakeWindowHandle";
         mInfo.type = WindowInfo::Type::APPLICATION;
@@ -207,8 +208,6 @@ public:
         mInfo.ownerPid = INJECTOR_PID;
         mInfo.ownerUid = INJECTOR_UID;
         mInfo.displayId = ADISPLAY_ID_DEFAULT;
-
-        return true;
     }
 
 protected:
