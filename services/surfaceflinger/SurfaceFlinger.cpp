@@ -2482,7 +2482,6 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags) {
     handleTransactionLocked(transactionFlags);
 
     mDebugInTransaction = 0;
-    invalidateHwcGeometry();
     // here the transaction has been committed
 }
 
