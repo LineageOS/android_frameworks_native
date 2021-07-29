@@ -102,6 +102,7 @@ class RegionSamplingThread;
 class RenderArea;
 class TimeStats;
 class FrameTracer;
+class WindowInfosListenerInvoker;
 
 using gui::ScreenCaptureResults;
 
@@ -722,6 +723,11 @@ private:
     int getGPUContextPriority() override;
 
     status_t getMaxAcquiredBufferCount(int* buffers) const override;
+
+    status_t addWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& windowInfosListener) const override;
+    status_t removeWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& windowInfosListener) const override;
 
     // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
@@ -1500,6 +1506,8 @@ private:
     }
 
     wp<IBinder> mActiveDisplayToken GUARDED_BY(mStateLock);
+
+    const sp<WindowInfosListenerInvoker> mWindowInfosListenerInvoker;
 };
 
 } // namespace android

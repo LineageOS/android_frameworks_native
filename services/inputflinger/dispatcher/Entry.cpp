@@ -319,17 +319,4 @@ uint32_t DispatchEntry::nextSeq() {
     return seq;
 }
 
-// --- CommandEntry ---
-
-CommandEntry::CommandEntry(Command command)
-      : command(command),
-        eventTime(0),
-        keyEntry(nullptr),
-        userActivityEventType(0),
-        seq(0),
-        handled(false),
-        enabled(false) {}
-
-CommandEntry::~CommandEntry() {}
-
 } // namespace android::inputdispatcher

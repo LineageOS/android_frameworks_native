@@ -245,55 +245,6 @@ private:
 VerifiedKeyEvent verifiedKeyEventFromKeyEntry(const KeyEntry& entry);
 VerifiedMotionEvent verifiedMotionEventFromMotionEntry(const MotionEntry& entry);
 
-class InputDispatcher;
-// A command entry captures state and behavior for an action to be performed in the
-// dispatch loop after the initial processing has taken place.  It is essentially
-// a kind of continuation used to postpone sensitive policy interactions to a point
-// in the dispatch loop where it is safe to release the lock (generally after finishing
-// the critical parts of the dispatch cycle).
-//
-// The special thing about commands is that they can voluntarily release and reacquire
-// the dispatcher lock at will.  Initially when the command starts running, the
-// dispatcher lock is held.  However, if the command needs to call into the policy to
-// do some work, it can release the lock, do the work, then reacquire the lock again
-// before returning.
-//
-// This mechanism is a bit clunky but it helps to preserve the invariant that the dispatch
-// never calls into the policy while holding its lock.
-//
-// Commands are implicitly 'LockedInterruptible'.
-struct CommandEntry;
-typedef std::function<void(InputDispatcher&, CommandEntry*)> Command;
-
-class Connection;
-struct CommandEntry {
-    explicit CommandEntry(Command command);
-    ~CommandEntry();
-
-    Command command;
-
-    // parameters for the command (usage varies by command)
-    sp<Connection> connection;
-    nsecs_t eventTime;
-    std::shared_ptr<KeyEntry> keyEntry;
-    std::shared_ptr<SensorEntry> sensorEntry;
-    std::shared_ptr<InputApplicationHandle> inputApplicationHandle;
-    std::string reason;
-    int32_t userActivityEventType;
-    uint32_t seq;
-    bool handled;
-    sp<IBinder> connectionToken;
-    sp<IBinder> oldToken;
-    sp<IBinder> newToken;
-    std::string obscuringPackage;
-    bool enabled;
-    int32_t pid;
-    nsecs_t consumeTime; // time when the event was consumed by InputConsumer
-    int32_t displayId;
-    float x;
-    float y;
-};
-
 } // namespace android::inputdispatcher
 
 #endif // _UI_INPUT_INPUTDISPATCHER_ENTRY_H
