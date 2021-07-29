@@ -23,6 +23,7 @@
 #include <limits.h>
 #include <string.h>
 
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <input/Input.h>
 #include <input/InputDevice.h>
@@ -40,6 +41,15 @@ using android::base::StringPrintf;
 namespace android {
 
 namespace {
+
+// When per-window-input-rotation is enabled, InputFlinger works in the un-rotated display
+// coordinates and SurfaceFlinger includes the display rotation in the input window transforms.
+bool isPerWindowInputRotationEnabled() {
+    static const bool PER_WINDOW_INPUT_ROTATION =
+            base::GetBoolProperty("persist.debug.per_window_input_rotation", false);
+
+    return PER_WINDOW_INPUT_ROTATION;
+}
 
 float transformAngle(const ui::Transform& transform, float angleRadians) {
     // Construct and transform a vector oriented at the specified clockwise angle from vertical.
@@ -505,6 +515,8 @@ const PointerCoords* MotionEvent::getHistoricalRawPointerCoords(
 float MotionEvent::getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
                                              size_t historicalIndex) const {
     const PointerCoords* coords = getHistoricalRawPointerCoords(pointerIndex, historicalIndex);
+
+    if (!isPerWindowInputRotationEnabled()) return coords->getAxisValue(axis);
 
     if (axis == AMOTION_EVENT_AXIS_X || axis == AMOTION_EVENT_AXIS_Y) {
         // For compatibility, convert raw coordinates into "oriented screen space". Once app
