@@ -168,7 +168,26 @@ private:
     std::shared_ptr<EventEntry> mPendingEvent GUARDED_BY(mLock);
     std::deque<std::shared_ptr<EventEntry>> mInboundQueue GUARDED_BY(mLock);
     std::deque<std::shared_ptr<EventEntry>> mRecentQueue GUARDED_BY(mLock);
-    std::deque<std::unique_ptr<CommandEntry>> mCommandQueue GUARDED_BY(mLock);
+
+    // A command entry captures state and behavior for an action to be performed in the
+    // dispatch loop after the initial processing has taken place.  It is essentially
+    // a kind of continuation used to postpone sensitive policy interactions to a point
+    // in the dispatch loop where it is safe to release the lock (generally after finishing
+    // the critical parts of the dispatch cycle).
+    //
+    // The special thing about commands is that they can voluntarily release and reacquire
+    // the dispatcher lock at will.  Initially when the command starts running, the
+    // dispatcher lock is held.  However, if the command needs to call into the policy to
+    // do some work, it can release the lock, do the work, then reacquire the lock again
+    // before returning.
+    //
+    // This mechanism is a bit clunky but it helps to preserve the invariant that the dispatch
+    // never calls into the policy while holding its lock.
+    //
+    // Commands are called with the lock held, but they can release and re-acquire the lock from
+    // within.
+    using Command = std::function<void()>;
+    std::deque<Command> mCommandQueue GUARDED_BY(mLock);
 
     DropReason mLastDropReason GUARDED_BY(mLock);
 
@@ -292,8 +311,8 @@ private:
 
     // Deferred command processing.
     bool haveCommandsLocked() const REQUIRES(mLock);
-    bool runCommandsLockedInterruptible() REQUIRES(mLock);
-    void postCommandLocked(std::unique_ptr<CommandEntry> commandEntry) REQUIRES(mLock);
+    bool runCommandsLockedInterruptable() REQUIRES(mLock);
+    void postCommandLocked(Command&& command) REQUIRES(mLock);
 
     nsecs_t processAnrsLocked() REQUIRES(mLock);
     std::chrono::nanoseconds getDispatchingTimeoutLocked(const sp<IBinder>& token) REQUIRES(mLock);
@@ -401,7 +420,7 @@ private:
             DropReason& dropReason) REQUIRES(mLock);
     void dispatchEventLocked(nsecs_t currentTime, std::shared_ptr<EventEntry> entry,
                              const std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
-    void dispatchSensorLocked(nsecs_t currentTime, std::shared_ptr<SensorEntry> entry,
+    void dispatchSensorLocked(nsecs_t currentTime, const std::shared_ptr<SensorEntry>& entry,
                               DropReason* dropReason, nsecs_t* nextWakeupTime) REQUIRES(mLock);
     void dispatchDragLocked(nsecs_t currentTime, std::shared_ptr<DragEntry> entry) REQUIRES(mLock);
     void logOutboundKeyDetails(const char* prefix, const KeyEntry& entry);
@@ -448,24 +467,11 @@ private:
      */
     void processConnectionResponsiveLocked(const Connection& connection) REQUIRES(mLock);
 
-    /**
-     * Post `doNotifyMonitorUnresponsiveLockedInterruptible` command.
-     */
     void sendMonitorUnresponsiveCommandLocked(int32_t pid, std::string reason) REQUIRES(mLock);
-    /**
-     * Post `doNotifyWindowUnresponsiveLockedInterruptible` command.
-     */
-    void sendWindowUnresponsiveCommandLocked(sp<IBinder> connectionToken, std::string reason)
+    void sendWindowUnresponsiveCommandLocked(const sp<IBinder>& connectionToken, std::string reason)
             REQUIRES(mLock);
-    /**
-     * Post `doNotifyMonitorResponsiveLockedInterruptible` command.
-     */
     void sendMonitorResponsiveCommandLocked(int32_t pid) REQUIRES(mLock);
-    /**
-     * Post `doNotifyWindowResponsiveLockedInterruptible` command.
-     */
-    void sendWindowResponsiveCommandLocked(sp<IBinder> connectionToken) REQUIRES(mLock);
-
+    void sendWindowResponsiveCommandLocked(const sp<IBinder>& connectionToken) REQUIRES(mLock);
 
     // Optimization: AnrTracker is used to quickly find which connection is due for a timeout next.
     // AnrTracker must be kept in-sync with all responsive connection.waitQueues.
@@ -599,53 +605,30 @@ private:
             REQUIRES(mLock);
 
     // Interesting events that we might like to log or tell the framework about.
-    void onDispatchCycleFinishedLocked(nsecs_t currentTime, const sp<Connection>& connection,
-                                       uint32_t seq, bool handled, nsecs_t consumeTime)
+    void doDispatchCycleFinishedCommand(nsecs_t finishTime, const sp<Connection>& connection,
+                                        uint32_t seq, bool handled, nsecs_t consumeTime)
             REQUIRES(mLock);
-    void onDispatchCycleBrokenLocked(nsecs_t currentTime, const sp<Connection>& connection)
-            REQUIRES(mLock);
+    void doInterceptKeyBeforeDispatchingCommand(const sp<IBinder>& focusedWindowToken,
+                                                KeyEntry& entry) REQUIRES(mLock);
     void onFocusChangedLocked(const FocusResolver::FocusChanges& changes) REQUIRES(mLock);
-    void notifyFocusChangedLocked(const sp<IBinder>& oldFocus, const sp<IBinder>& newFocus)
+    void sendFocusChangedCommandLocked(const sp<IBinder>& oldToken, const sp<IBinder>& newToken)
             REQUIRES(mLock);
-    void notifyDropWindowLocked(const sp<IBinder>& token, float x, float y) REQUIRES(mLock);
+    void sendDropWindowCommandLocked(const sp<IBinder>& token, float x, float y) REQUIRES(mLock);
+    void sendUntrustedTouchCommandLocked(const std::string& obscuringPackage) REQUIRES(mLock);
     void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
     void onAnrLocked(std::shared_ptr<InputApplicationHandle> application) REQUIRES(mLock);
-    void onUntrustedTouchLocked(const std::string& obscuringPackage) REQUIRES(mLock);
     void updateLastAnrStateLocked(const sp<android::gui::WindowInfoHandle>& window,
                                   const std::string& reason) REQUIRES(mLock);
     void updateLastAnrStateLocked(const InputApplicationHandle& application,
                                   const std::string& reason) REQUIRES(mLock);
     void updateLastAnrStateLocked(const std::string& windowLabel, const std::string& reason)
             REQUIRES(mLock);
-
-    // Outbound policy interactions.
-    void doNotifyConfigurationChangedLockedInterruptible(CommandEntry* commandEntry)
-            REQUIRES(mLock);
-    void doNotifyInputChannelBrokenLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void doNotifyFocusChangedLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void doNotifyDropWindowLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-
-    // ANR-related callbacks - start
-    void doNotifyNoFocusedWindowAnrLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void doNotifyWindowUnresponsiveLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void doNotifyMonitorUnresponsiveLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void doNotifyWindowResponsiveLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void doNotifyMonitorResponsiveLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    // ANR-related callbacks - end
-    void doNotifySensorLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void doNotifyUntrustedTouchLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void doInterceptKeyBeforeDispatchingLockedInterruptible(CommandEntry* commandEntry)
-            REQUIRES(mLock);
-    void doDispatchCycleFinishedLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void doSetPointerCaptureLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    bool afterKeyEventLockedInterruptible(const sp<Connection>& connection,
+    bool afterKeyEventLockedInterruptable(const sp<Connection>& connection,
                                           DispatchEntry* dispatchEntry, KeyEntry& keyEntry,
                                           bool handled) REQUIRES(mLock);
-    bool afterMotionEventLockedInterruptible(const sp<Connection>& connection,
+    bool afterMotionEventLockedInterruptable(const sp<Connection>& connection,
                                              DispatchEntry* dispatchEntry, MotionEntry& motionEntry,
                                              bool handled) REQUIRES(mLock);
-    void doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void doOnPointerDownOutsideFocusLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
 
     // Statistics gathering.
     LatencyAggregator mLatencyAggregator GUARDED_BY(mLock);
