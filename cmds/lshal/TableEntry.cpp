@@ -18,6 +18,7 @@
 
 #include <map>
 
+#include <android-base/hex.h>
 #include <android-base/strings.h>
 #include <hidl-hash/Hash.h>
 #include <vintf/parse_string.h>
@@ -104,7 +105,8 @@ std::string TableEntry::getField(TableColumnType type) const {
 }
 
 std::string TableEntry::isReleased() const {
-    static const std::string unreleased = Hash::hexString(Hash::kEmptyHash);
+    static const std::string unreleased = android::base::HexString(Hash::kEmptyHash.data(),
+                                                                   Hash::kEmptyHash.size());
 
     if (hash.empty()) {
         return "?";
