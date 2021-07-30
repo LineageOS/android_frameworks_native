@@ -890,7 +890,11 @@ void BufferStateLayer::gatherBufferInfo() {
     mBufferInfo.mFenceTime = std::make_shared<FenceTime>(s.acquireFence);
     mBufferInfo.mFence = s.acquireFence;
     mBufferInfo.mTransform = s.bufferTransform;
+    auto lastDataspace = mBufferInfo.mDataspace;
     mBufferInfo.mDataspace = translateDataspace(s.dataspace);
+    if (lastDataspace != mBufferInfo.mDataspace) {
+        mFlinger->mSomeDataspaceChanged = true;
+    }
     mBufferInfo.mCrop = computeBufferCrop(s);
     mBufferInfo.mScaleMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
     mBufferInfo.mSurfaceDamage = s.surfaceDamageRegion;
