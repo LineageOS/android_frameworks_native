@@ -55,6 +55,7 @@ static constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 #include <binder/Binder.h>
 #include <binder/IServiceManager.h>
 #include <com/android/internal/compat/IPlatformCompatNative.h>
+#include <gui/SurfaceComposerClient.h>
 #include <input/InputDevice.h>
 #include <log/log.h>
 #include <log/log_event_list.h>
@@ -557,6 +558,10 @@ InputDispatcher::~InputDispatcher() {
         sp<Connection> connection = mConnectionsByToken.begin()->second;
         removeInputChannel(connection->inputChannel->getConnectionToken());
     }
+}
+
+void InputDispatcher::onFirstRef() {
+    SurfaceComposerClient::getDefault()->addWindowInfosListener(this);
 }
 
 status_t InputDispatcher::start() {
@@ -4436,11 +4441,6 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
 
     std::vector<sp<WindowInfoHandle>> newHandles;
     for (const sp<WindowInfoHandle>& handle : windowInfoHandles) {
-        if (!handle->updateInfo()) {
-            // handle no longer valid
-            continue;
-        }
-
         const WindowInfo* info = handle->getInfo();
         if ((getInputChannelLocked(handle->getToken()) == nullptr &&
              info->portalToDisplayId == ADISPLAY_ID_NONE)) {
@@ -6238,6 +6238,18 @@ void InputDispatcher::displayRemoved(int32_t displayId) {
 
     // Wake up poll loop since it may need to make new input dispatching choices.
     mLooper->wake();
+}
+
+void InputDispatcher::onWindowInfosChanged(const std::vector<gui::WindowInfo>& windowInfos) {
+    // The listener sends the windows as a flattened array. Separate the windows by display for
+    // more convenient parsing.
+    std::unordered_map<int32_t, std::vector<sp<WindowInfoHandle>>> handlesPerDisplay;
+
+    for (const auto& info : windowInfos) {
+        handlesPerDisplay.emplace(info.displayId, std::vector<sp<WindowInfoHandle>>());
+        handlesPerDisplay[info.displayId].push_back(new WindowInfoHandle(info));
+    }
+    setInputWindows(handlesPerDisplay);
 }
 
 } // namespace android::inputdispatcher
