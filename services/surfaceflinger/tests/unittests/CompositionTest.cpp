@@ -202,8 +202,7 @@ void CompositionTest::displayRefreshCompositionDirtyGeometry() {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.onMessageReceived(MessageQueue::INVALIDATE);
-    mFlinger.onMessageReceived(MessageQueue::REFRESH);
+    mFlinger.commitAndComposite();
 
     LayerCase::cleanup(this);
 }
@@ -215,8 +214,7 @@ void CompositionTest::displayRefreshCompositionDirtyFrame() {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.onMessageReceived(MessageQueue::INVALIDATE);
-    mFlinger.onMessageReceived(MessageQueue::REFRESH);
+    mFlinger.commitAndComposite();
 
     LayerCase::cleanup(this);
 }
@@ -537,7 +535,7 @@ struct BaseLayerProperties {
         ASSERT_EQ(NO_ERROR, err);
         Mock::VerifyAndClear(test->mRenderEngine);
 
-        EXPECT_CALL(*test->mMessageQueue, invalidate()).Times(1);
+        EXPECT_CALL(*test->mMessageQueue, scheduleCommit()).Times(1);
         enqueueBuffer(test, layer);
         Mock::VerifyAndClearExpectations(test->mMessageQueue);
 
@@ -883,7 +881,7 @@ struct BaseLayerVariant {
         test->mFlinger.mutableDrawingState().layersSortedByZ.clear();
 
         // Layer should be unregistered with scheduler.
-        test->mFlinger.onMessageReceived(MessageQueue::INVALIDATE);
+        test->mFlinger.commit();
         EXPECT_EQ(0, test->mFlinger.scheduler()->layerHistorySize());
     }
 };

@@ -486,7 +486,7 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
     // try again later
     if (!fenceHasSignaled()) {
         ATRACE_NAME("!fenceHasSignaled()");
-        mFlinger->signalLayerUpdate();
+        mFlinger->onLayerUpdate();
         return false;
     }
 
