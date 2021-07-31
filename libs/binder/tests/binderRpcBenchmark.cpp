@@ -18,21 +18,31 @@
 #include <android-base/logging.h>
 #include <benchmark/benchmark.h>
 #include <binder/Binder.h>
+#include <binder/IPCThreadState.h>
+#include <binder/IServiceManager.h>
+#include <binder/ProcessState.h>
 #include <binder/RpcServer.h>
 #include <binder/RpcSession.h>
 
 #include <thread>
 
+#include <signal.h>
+#include <sys/prctl.h>
 #include <sys/types.h>
 #include <unistd.h>
 
 using android::BBinder;
+using android::defaultServiceManager;
 using android::IBinder;
 using android::interface_cast;
+using android::IPCThreadState;
+using android::IServiceManager;
 using android::OK;
+using android::ProcessState;
 using android::RpcServer;
 using android::RpcSession;
 using android::sp;
+using android::String16;
 using android::binder::Status;
 
 class MyBinderRpcBenchmark : public BnBinderRpcBenchmark {
@@ -46,28 +56,51 @@ class MyBinderRpcBenchmark : public BnBinderRpcBenchmark {
     }
 };
 
-static sp<RpcSession> gSession = RpcSession::make();
+enum Transport {
+    KERNEL,
+    RPC,
+};
 
-void BM_getRootObject(benchmark::State& state) {
-    while (state.KeepRunning()) {
-        CHECK(gSession->getRootObject() != nullptr);
+static void EachTransport(benchmark::internal::Benchmark* b) {
+#ifdef __BIONIC__
+    b->Args({Transport::KERNEL});
+#endif
+    b->Args({Transport::RPC});
+}
+
+static sp<RpcSession> gSession = RpcSession::make();
+#ifdef __BIONIC__
+static const String16 kKernelBinderInstance = String16(u"binderRpcBenchmark-control");
+static sp<IBinder> gKernelBinder;
+#endif
+
+static sp<IBinder> getBinderForOptions(benchmark::State& state) {
+    Transport transport = static_cast<Transport>(state.range(0));
+    switch (transport) {
+#ifdef __BIONIC__
+        case KERNEL:
+            return gKernelBinder;
+#endif
+        case RPC:
+            return gSession->getRootObject();
+        default:
+            LOG(FATAL) << "Unknown transport value: " << transport;
+            return nullptr;
     }
 }
-BENCHMARK(BM_getRootObject);
 
 void BM_pingTransaction(benchmark::State& state) {
-    sp<IBinder> binder = gSession->getRootObject();
-    CHECK(binder != nullptr);
+    sp<IBinder> binder = getBinderForOptions(state);
 
     while (state.KeepRunning()) {
         CHECK_EQ(OK, binder->pingBinder());
     }
 }
-BENCHMARK(BM_pingTransaction);
+BENCHMARK(BM_pingTransaction)->Apply(EachTransport);
 
 void BM_repeatString(benchmark::State& state) {
-    sp<IBinder> binder = gSession->getRootObject();
-    CHECK(binder != nullptr);
+    sp<IBinder> binder = getBinderForOptions(state);
+
     sp<IBinderRpcBenchmark> iface = interface_cast<IBinderRpcBenchmark>(binder);
     CHECK(iface != nullptr);
 
@@ -92,7 +125,7 @@ void BM_repeatString(benchmark::State& state) {
         CHECK(ret.isOk()) << ret;
     }
 }
-BENCHMARK(BM_repeatString);
+BENCHMARK(BM_repeatString)->Apply(EachTransport);
 
 void BM_repeatBinder(benchmark::State& state) {
     sp<IBinder> binder = gSession->getRootObject();
@@ -109,7 +142,7 @@ void BM_repeatBinder(benchmark::State& state) {
         CHECK(ret.isOk()) << ret;
     }
 }
-BENCHMARK(BM_repeatBinder);
+BENCHMARK(BM_repeatBinder)->Apply(EachTransport);
 
 int main(int argc, char** argv) {
     ::benchmark::Initialize(&argc, argv);
@@ -118,13 +151,36 @@ int main(int argc, char** argv) {
     std::string addr = std::string(getenv("TMPDIR") ?: "/tmp") + "/binderRpcBenchmark";
     (void)unlink(addr.c_str());
 
-    std::thread([addr]() {
+    std::cerr << "Tests suffixes:" << std::endl;
+    std::cerr << "\t\\" << Transport::KERNEL << " is KERNEL" << std::endl;
+    std::cerr << "\t\\" << Transport::RPC << " is RPC" << std::endl;
+
+    if (0 == fork()) {
+        prctl(PR_SET_PDEATHSIG, SIGHUP); // racey, okay
         sp<RpcServer> server = RpcServer::make();
         server->setRootObject(sp<MyBinderRpcBenchmark>::make());
         server->iUnderstandThisCodeIsExperimentalAndIWillNotUseItInProduction();
         CHECK(server->setupUnixDomainServer(addr.c_str()));
         server->join();
-    }).detach();
+        exit(1);
+    }
+
+#ifdef __BIONIC__
+    if (0 == fork()) {
+        prctl(PR_SET_PDEATHSIG, SIGHUP); // racey, okay
+        CHECK_EQ(OK,
+                 defaultServiceManager()->addService(kKernelBinderInstance,
+                                                     sp<MyBinderRpcBenchmark>::make()));
+        IPCThreadState::self()->joinThreadPool();
+        exit(1);
+    }
+
+    ProcessState::self()->setThreadPoolMaxThreadCount(1);
+    ProcessState::self()->startThreadPool();
+
+    gKernelBinder = defaultServiceManager()->waitForService(kKernelBinderInstance);
+    CHECK_NE(nullptr, gKernelBinder.get());
+#endif
 
     for (size_t tries = 0; tries < 5; tries++) {
         usleep(10000);

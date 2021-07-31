@@ -96,6 +96,7 @@ cc_library_shared {
         "libinputflinger_base",
         "libinputreporter",
         "libinputreader",
+        "libgui",
     ],
     static_libs: [
         "libinputdispatcher",
