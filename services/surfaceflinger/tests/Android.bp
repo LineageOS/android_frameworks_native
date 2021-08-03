@@ -51,6 +51,7 @@ cc_test {
         "Stress_test.cpp",
         "SurfaceInterceptor_test.cpp",
         "VirtualDisplay_test.cpp",
+        "WindowInfosListener_test.cpp",
     ],
     data: ["SurfaceFlinger_test.filter"],
     static_libs: [
