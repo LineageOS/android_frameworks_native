@@ -197,11 +197,10 @@ uint64_t BufferQueueLayer::getFrameNumber(nsecs_t expectedPresentTime) const {
 
 bool BufferQueueLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     // We need to update the sideband stream if the layer has both a buffer and a sideband stream.
-    const bool updateSidebandStream = hasFrameUpdate() && mSidebandStream.get();
+    editCompositionState()->sidebandStreamHasFrame = hasFrameUpdate() && mSidebandStream.get();
 
     bool sidebandStreamChanged = true;
-    if (mSidebandStreamChanged.compare_exchange_strong(sidebandStreamChanged, false) ||
-        updateSidebandStream) {
+    if (mSidebandStreamChanged.compare_exchange_strong(sidebandStreamChanged, false)) {
         // mSidebandStreamChanged was changed to false
         mSidebandStream = mConsumer->getSidebandStream();
         auto* layerCompositionState = editCompositionState();
