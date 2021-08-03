@@ -870,6 +870,24 @@ private:
         return false;
     }
 
+    bool hasKeyCode(int32_t deviceId, int32_t keyCode) const override {
+        Device* device = getDevice(deviceId);
+        if (!device) {
+            return false;
+        }
+        for (size_t i = 0; i < device->keysByScanCode.size(); i++) {
+            if (keyCode == device->keysByScanCode.valueAt(i).keyCode) {
+                return true;
+            }
+        }
+        for (size_t j = 0; j < device->keysByUsageCode.size(); j++) {
+            if (keyCode == device->keysByUsageCode.valueAt(j).keyCode) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     bool hasLed(int32_t deviceId, int32_t led) const override {
         Device* device = getDevice(deviceId);
         return device && device->leds.indexOfKey(led) >= 0;
@@ -3727,6 +3745,25 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleAfterReattach) {
     ASSERT_TRUE(mFakeEventHub->getLedState(SECOND_EVENTHUB_ID, LED_SCROLLL));
     ASSERT_EQ(AMETA_CAPS_LOCK_ON | AMETA_NUM_LOCK_ON | AMETA_SCROLL_LOCK_ON,
               mapper2.getMetaState());
+}
+
+TEST_F(KeyboardInputMapperTest, Process_toggleCapsLockState) {
+    mFakeEventHub->addKey(EVENTHUB_ID, KEY_CAPSLOCK, 0, AKEYCODE_CAPS_LOCK, 0);
+    mFakeEventHub->addKey(EVENTHUB_ID, KEY_NUMLOCK, 0, AKEYCODE_NUM_LOCK, 0);
+    mFakeEventHub->addKey(EVENTHUB_ID, KEY_SCROLLLOCK, 0, AKEYCODE_SCROLL_LOCK, 0);
+
+    // Suppose we have two mappers. (DPAD + KEYBOARD)
+    addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_DPAD,
+                                               AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC);
+    KeyboardInputMapper& mapper =
+            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+                                                       AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    // Initialize metastate to AMETA_NUM_LOCK_ON.
+    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
+    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
+
+    mReader->toggleCapsLockState(DEVICE_ID);
+    ASSERT_EQ(AMETA_CAPS_LOCK_ON, mapper.getMetaState());
 }
 
 // --- KeyboardInputMapperTest_ExternalDevice ---

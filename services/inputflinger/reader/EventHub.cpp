@@ -1209,6 +1209,15 @@ bool EventHub::hasScanCode(int32_t deviceId, int32_t scanCode) const {
     return false;
 }
 
+bool EventHub::hasKeyCode(int32_t deviceId, int32_t keyCode) const {
+    std::scoped_lock _l(mLock);
+    Device* device = getDeviceLocked(deviceId);
+    if (device != nullptr) {
+        return device->hasKeycodeLocked(keyCode);
+    }
+    return false;
+}
+
 bool EventHub::hasLed(int32_t deviceId, int32_t led) const {
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
