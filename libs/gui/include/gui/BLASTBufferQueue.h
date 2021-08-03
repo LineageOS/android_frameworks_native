@@ -96,7 +96,8 @@ public:
     void setTransactionCompleteCallback(uint64_t frameNumber,
                                         std::function<void(int64_t)>&& transactionCompleteCallback);
 
-    void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format);
+    void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format,
+                SurfaceComposerClient::Transaction* outTransaction = nullptr);
     void flushShadowQueue() {}
 
     status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
