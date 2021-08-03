@@ -77,7 +77,7 @@ public:
 private:
     class Runner;
     static constexpr auto DEFAULT_BUFFER_SIZE = 5_MB;
-    static constexpr auto DEFAULT_FILE_NAME = "/data/misc/wmtrace/layers_trace.pb";
+    static constexpr auto DEFAULT_FILE_NAME = "/data/misc/wmtrace/layers_trace.winscope";
 
     SurfaceFlinger& mFlinger;
     mutable std::mutex mTraceLock;

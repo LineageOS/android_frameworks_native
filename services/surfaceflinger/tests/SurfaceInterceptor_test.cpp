@@ -61,7 +61,7 @@ constexpr auto UNIQUE_TEST_FG_SURFACE_NAME = "FG Interceptor Test Surface#0";
 constexpr auto LAYER_NAME = "Layer Create and Delete Test";
 constexpr auto UNIQUE_LAYER_NAME = "Layer Create and Delete Test#0";
 
-constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/transaction_trace.pb";
+constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/transaction_trace.winscope";
 
 // Fill an RGBA_8888 formatted surface with a single color.
 static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc, uint8_t r, uint8_t g, uint8_t b) {
