@@ -26,7 +26,6 @@
 
 #include <InputDispatcherInterface.h>
 #include <InputDispatcherPolicyInterface.h>
-#include <android/os/ISetInputWindowsListener.h>
 #include <input/Input.h>
 #include <input/InputTransport.h>
 
@@ -38,7 +37,6 @@
 #include <utils/Vector.h>
 
 using android::os::BnInputFlinger;
-using android::os::ISetInputWindowsListener;
 
 namespace android {
 class InputChannel;
@@ -104,10 +102,6 @@ public:
     sp<InputDispatcherInterface> getDispatcher() override;
 
     status_t dump(int fd, const Vector<String16>& args) override;
-    binder::Status setInputWindows(
-            const std::vector<gui::WindowInfo>& handles,
-            const sp<ISetInputWindowsListener>& setInputWindowsListener) override;
-
     binder::Status createInputChannel(const std::string& name, InputChannel* outChannel) override;
     binder::Status removeInputChannel(const sp<IBinder>& connectionToken) override;
     binder::Status setFocusedWindow(const gui::FocusRequest&) override;
