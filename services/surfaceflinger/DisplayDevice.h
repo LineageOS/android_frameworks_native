@@ -273,7 +273,7 @@ private:
 
     std::atomic<nsecs_t> mLastHwVsync = 0;
 
-    // TODO(b/74619554): Remove special cases for primary display.
+    // TODO(b/182939859): Remove special cases for primary display.
     const bool mIsPrimary;
 
     uint32_t mFlags = 0;
