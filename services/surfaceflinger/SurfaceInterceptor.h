@@ -48,7 +48,7 @@ using SurfaceChange = surfaceflinger::SurfaceChange;
 using Increment = surfaceflinger::Increment;
 using DisplayChange = surfaceflinger::DisplayChange;
 
-constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/transaction_trace.pb";
+constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/transaction_trace.winscope";
 
 class SurfaceInterceptor : public IBinder::DeathRecipient {
 public:
