@@ -166,9 +166,10 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     mTransformHint = mSurfaceControl->getTransformHint();
     mBufferItemConsumer->setTransformHint(mTransformHint);
     SurfaceComposerClient::Transaction()
-          .setFlags(surface, layer_state_t::eEnableBackpressure,
-                    layer_state_t::eEnableBackpressure)
-          .apply();
+            .setFlags(surface, layer_state_t::eEnableBackpressure,
+                      layer_state_t::eEnableBackpressure)
+            .setApplyToken(mApplyToken)
+            .apply();
     mNumAcquired = 0;
     mNumFrameAvailable = 0;
     BQA_LOGV("BLASTBufferQueue created width=%d height=%d format=%d mTransformHint=%d", width,
@@ -190,7 +191,7 @@ BLASTBufferQueue::~BLASTBufferQueue() {
 }
 
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height,
-                              int32_t format) {
+                              int32_t format, SurfaceComposerClient::Transaction* outTransaction) {
     std::unique_lock _lock{mMutex};
     if (mFormat != format) {
         mFormat = format;
@@ -227,15 +228,18 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
             // We only need to update the scale if we've received at least one buffer. The reason
             // for this is the scale is calculated based on the requested size and buffer size.
             // If there's no buffer, the scale will always be 1.
+            SurfaceComposerClient::Transaction* destFrameTransaction =
+                    (outTransaction) ? outTransaction : &t;
             if (mSurfaceControl != nullptr && mLastBufferInfo.hasBuffer) {
-                t.setDestinationFrame(mSurfaceControl,
-                                      Rect(0, 0, newSize.getWidth(), newSize.getHeight()));
+                destFrameTransaction->setDestinationFrame(mSurfaceControl,
+                                                          Rect(0, 0, newSize.getWidth(),
+                                                               newSize.getHeight()));
             }
             applyTransaction = true;
         }
     }
     if (applyTransaction) {
-        t.apply();
+        t.setApplyToken(mApplyToken).apply();
     }
 }
 
@@ -453,6 +457,9 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     incStrong((void*)transactionCallbackThunk);
 
     Rect crop = computeCrop(bufferItem);
+    const bool updateDestinationFrame =
+            bufferItem.mScalingMode == NATIVE_WINDOW_SCALING_MODE_FREEZE ||
+            !mLastBufferInfo.hasBuffer;
     mLastBufferInfo.update(true /* hasBuffer */, bufferItem.mGraphicBuffer->getWidth(),
                            bufferItem.mGraphicBuffer->getHeight(), bufferItem.mTransform,
                            bufferItem.mScalingMode, crop);
@@ -470,7 +477,9 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
     mSurfaceControlsWithPendingCallback.push(mSurfaceControl);
 
-    t->setDestinationFrame(mSurfaceControl, Rect(0, 0, mSize.getWidth(), mSize.getHeight()));
+    if (updateDestinationFrame) {
+        t->setDestinationFrame(mSurfaceControl, Rect(0, 0, mSize.getWidth(), mSize.getHeight()));
+    }
     t->setBufferCrop(mSurfaceControl, crop);
     t->setTransform(mSurfaceControl, bufferItem.mTransform);
     t->setTransformToDisplayInverse(mSurfaceControl, bufferItem.mTransformToDisplayInverse);
