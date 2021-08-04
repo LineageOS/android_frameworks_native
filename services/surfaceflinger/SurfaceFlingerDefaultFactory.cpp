@@ -38,7 +38,6 @@
 #include "SurfaceInterceptor.h"
 
 #include "DisplayHardware/ComposerHal.h"
-#include "Scheduler/MessageQueue.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VsyncConfiguration.h"
 #include "Scheduler/VsyncController.h"
@@ -49,10 +48,6 @@ DefaultFactory::~DefaultFactory() = default;
 
 std::unique_ptr<HWComposer> DefaultFactory::createHWComposer(const std::string& serviceName) {
     return std::make_unique<android::impl::HWComposer>(serviceName);
-}
-
-std::unique_ptr<MessageQueue> DefaultFactory::createMessageQueue(ICompositor& compositor) {
-    return std::make_unique<android::impl::MessageQueue>(compositor);
 }
 
 std::unique_ptr<scheduler::VsyncConfiguration> DefaultFactory::createVsyncConfiguration(

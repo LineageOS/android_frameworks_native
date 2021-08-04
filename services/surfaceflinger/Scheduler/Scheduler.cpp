@@ -117,8 +117,8 @@ private:
     }
 };
 
-Scheduler::Scheduler(ISchedulerCallback& callback, Options options)
-      : mOptions(options), mSchedulerCallback(callback) {}
+Scheduler::Scheduler(ICompositor& compositor, ISchedulerCallback& callback, Options options)
+      : impl::MessageQueue(compositor), mOptions(options), mSchedulerCallback(callback) {}
 
 void Scheduler::startTimers() {
     using namespace sysprop;
@@ -146,6 +146,12 @@ Scheduler::~Scheduler() {
     mDisplayPowerTimer.reset();
     mTouchTimer.reset();
     mRefreshRateConfigs.reset();
+}
+
+void Scheduler::run() {
+    while (true) {
+        waitMessage();
+    }
 }
 
 void Scheduler::createVsyncSchedule(bool supportKernelTimer) {

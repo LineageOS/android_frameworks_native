@@ -18,6 +18,7 @@
 
 #include <atomic>
 #include <functional>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -32,6 +33,7 @@
 
 #include "EventThread.h"
 #include "LayerHistory.h"
+#include "MessageQueue.h"
 #include "OneShotTimer.h"
 #include "RefreshRateConfigs.h"
 #include "SchedulerUtils.h"
@@ -70,21 +72,41 @@ protected:
     ~ISchedulerCallback() = default;
 };
 
-class Scheduler {
+class Scheduler : impl::MessageQueue {
+    using Impl = impl::MessageQueue;
+
 public:
     using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
     using ModeEvent = scheduler::RefreshRateConfigEvent;
 
     struct Options {
         // Whether to use content detection at all.
-        bool useContentDetection = false;
+        bool useContentDetection;
     };
 
-    Scheduler(ISchedulerCallback&, Options);
+    Scheduler(ICompositor&, ISchedulerCallback&, Options);
     ~Scheduler();
 
     void createVsyncSchedule(bool supportKernelIdleTimer);
     void startTimers();
+    void run();
+
+    using Impl::initVsync;
+    using Impl::setInjector;
+
+    using Impl::getScheduledFrameTime;
+    using Impl::setDuration;
+
+    using Impl::scheduleCommit;
+    using Impl::scheduleComposite;
+
+    // Schedule an asynchronous or synchronous task on the main thread.
+    template <typename F, typename T = std::invoke_result_t<F>>
+    [[nodiscard]] std::future<T> schedule(F&& f) {
+        auto [task, future] = makeTask(std::move(f));
+        postMessage(std::move(task));
+        return std::move(future);
+    }
 
     using ConnectionHandle = scheduler::ConnectionHandle;
     ConnectionHandle createConnection(const char* connectionName, frametimeline::TokenManager*,
