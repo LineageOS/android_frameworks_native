@@ -331,13 +331,6 @@ protected:
     // We're reference counted, never destroy SurfaceFlinger directly
     virtual ~SurfaceFlinger();
 
-    virtual uint32_t setClientStateLocked(
-            const FrameTimelineInfo& info, const ComposerState& composerState,
-            int64_t desiredPresentTime, bool isAutoTimestamp, int64_t postTime,
-            uint32_t permissions,
-            std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks)
-            REQUIRES(mStateLock);
-
     virtual void processDisplayAdded(const wp<IBinder>& displayToken, const DisplayDeviceState&)
             REQUIRES(mStateLock);
 
@@ -732,6 +725,12 @@ private:
     void flushTransactionQueues();
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
+
+    uint32_t setClientStateLocked(const FrameTimelineInfo&, const ComposerState&,
+                                  int64_t desiredPresentTime, bool isAutoTimestamp,
+                                  int64_t postTime, uint32_t permissions,
+                                  std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>&)
+            REQUIRES(mStateLock);
 
     uint32_t getTransactionFlags() const;
 
