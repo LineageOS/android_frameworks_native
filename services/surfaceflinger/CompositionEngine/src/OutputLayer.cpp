@@ -79,7 +79,7 @@ Rect OutputLayer::calculateInitialCrop() const {
     FloatRect activeCropFloat =
             reduce(layerState.geomLayerBounds, layerState.transparentRegionHint);
 
-    const Rect& viewport = getOutput().getState().layerStackSpace.content;
+    const Rect& viewport = getOutput().getState().layerStackSpace.getContent();
     const ui::Transform& layerTransform = layerState.geomLayerTransform;
     const ui::Transform& inverseLayerTransform = layerState.geomInverseLayerTransform;
     // Transform to screen space.
@@ -136,7 +136,7 @@ FloatRect OutputLayer::calculateOutputSourceCrop() const {
          * buffer
          */
         uint32_t invTransformOrient =
-                ui::Transform::toRotationFlags(outputState.displaySpace.orientation);
+                ui::Transform::toRotationFlags(outputState.displaySpace.getOrientation());
         // calculate the inverse transform
         if (invTransformOrient & HAL_TRANSFORM_ROT_90) {
             invTransformOrient ^= HAL_TRANSFORM_FLIP_V | HAL_TRANSFORM_FLIP_H;
@@ -192,7 +192,7 @@ Rect OutputLayer::calculateOutputDisplayFrame() const {
     Rect activeCrop = layerState.geomCrop;
     if (!activeCrop.isEmpty() && bufferSize.isValid()) {
         activeCrop = layerTransform.transform(activeCrop);
-        if (!activeCrop.intersect(outputState.layerStackSpace.content, &activeCrop)) {
+        if (!activeCrop.intersect(outputState.layerStackSpace.getContent(), &activeCrop)) {
             activeCrop.clear();
         }
         activeCrop = inverseLayerTransform.transform(activeCrop, true);
@@ -228,7 +228,7 @@ Rect OutputLayer::calculateOutputDisplayFrame() const {
         geomLayerBounds.bottom += outset;
     }
     Rect frame{layerTransform.transform(reduce(geomLayerBounds, activeTransparentRegion))};
-    if (!frame.intersect(outputState.layerStackSpace.content, &frame)) {
+    if (!frame.intersect(outputState.layerStackSpace.getContent(), &frame)) {
         frame.clear();
     }
     const ui::Transform displayTransform{outputState.transform};
@@ -628,7 +628,7 @@ void OutputLayer::writeCursorPositionToHWC() const {
     const auto& outputState = getOutput().getState();
 
     Rect frame = layerFEState->cursorFrame;
-    frame.intersect(outputState.layerStackSpace.content, &frame);
+    frame.intersect(outputState.layerStackSpace.getContent(), &frame);
     Rect position = outputState.transform.transform(frame);
 
     if (auto error = hwcLayer->setCursorPosition(position.left, position.top);

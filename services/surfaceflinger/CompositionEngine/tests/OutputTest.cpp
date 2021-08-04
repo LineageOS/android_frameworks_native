@@ -143,7 +143,8 @@ struct OutputTest : public testing::Test {
                 std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
         mOutput->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
 
-        mOutput->editState().displaySpace.bounds = kDefaultDisplaySize;
+        mOutput->editState().displaySpace.setBounds(
+                ui::Size(kDefaultDisplaySize.getWidth(), kDefaultDisplaySize.getHeight()));
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
     }
 
@@ -289,8 +290,10 @@ TEST_F(OutputTest, setLayerCachingEnabled_disablesCachingAndResetsOverrideInfo) 
 
 TEST_F(OutputTest, setProjectionWorks) {
     const Rect displayRect{0, 0, 1000, 2000};
-    mOutput->editState().displaySpace.bounds = displayRect;
-    mOutput->editState().framebufferSpace.bounds = displayRect;
+    mOutput->editState().displaySpace.setBounds(
+            ui::Size(displayRect.getWidth(), displayRect.getHeight()));
+    mOutput->editState().framebufferSpace.setBounds(
+            ui::Size(displayRect.getWidth(), displayRect.getHeight()));
 
     const ui::Rotation orientation = ui::ROTATION_90;
     const Rect frame{50, 60, 100, 100};
@@ -298,28 +301,29 @@ TEST_F(OutputTest, setProjectionWorks) {
 
     mOutput->setProjection(orientation, viewport, frame);
 
-    EXPECT_EQ(orientation, mOutput->getState().displaySpace.orientation);
-    EXPECT_EQ(frame, mOutput->getState().orientedDisplaySpace.content);
-    EXPECT_EQ(viewport, mOutput->getState().layerStackSpace.content);
+    EXPECT_EQ(orientation, mOutput->getState().displaySpace.getOrientation());
+    EXPECT_EQ(frame, mOutput->getState().orientedDisplaySpace.getContent());
+    EXPECT_EQ(viewport, mOutput->getState().layerStackSpace.getContent());
 
     const auto state = mOutput->getState();
-    EXPECT_EQ(ui::ROTATION_0, state.layerStackSpace.orientation);
-    EXPECT_EQ(viewport, state.layerStackSpace.content);
-    EXPECT_EQ(viewport, state.layerStackSpace.bounds);
+    EXPECT_EQ(ui::ROTATION_0, state.layerStackSpace.getOrientation());
+    EXPECT_EQ(viewport, state.layerStackSpace.getContent());
+    EXPECT_EQ(Rect(0, 0, 20, 20), state.layerStackSpace.getBoundsAsRect());
 
-    EXPECT_EQ(ui::ROTATION_0, state.orientedDisplaySpace.orientation);
-    EXPECT_EQ(frame, state.orientedDisplaySpace.content);
-    EXPECT_EQ(Rect(0, 0, 2000, 1000), state.orientedDisplaySpace.bounds);
+    EXPECT_EQ(ui::ROTATION_0, state.orientedDisplaySpace.getOrientation());
+    EXPECT_EQ(frame, state.orientedDisplaySpace.getContent());
+    EXPECT_EQ(Rect(0, 0, 2000, 1000), state.orientedDisplaySpace.getBoundsAsRect());
 
-    EXPECT_EQ(displayRect, state.displaySpace.bounds);
-    EXPECT_EQ(Rect(900, 50, 940, 100), state.displaySpace.content);
-    EXPECT_EQ(orientation, state.displaySpace.orientation);
+    EXPECT_EQ(displayRect, state.displaySpace.getBoundsAsRect());
+    EXPECT_EQ(Rect(900, 50, 940, 100), state.displaySpace.getContent());
+    EXPECT_EQ(orientation, state.displaySpace.getOrientation());
 
-    EXPECT_EQ(displayRect, state.framebufferSpace.bounds);
-    EXPECT_EQ(Rect(900, 50, 940, 100), state.framebufferSpace.content);
-    EXPECT_EQ(orientation, state.framebufferSpace.orientation);
+    EXPECT_EQ(displayRect, state.framebufferSpace.getBoundsAsRect());
+    EXPECT_EQ(Rect(900, 50, 940, 100), state.framebufferSpace.getContent());
+    EXPECT_EQ(orientation, state.framebufferSpace.getOrientation());
 
-    EXPECT_EQ(state.displaySpace.content, state.transform.transform(state.layerStackSpace.content));
+    EXPECT_EQ(state.displaySpace.getContent(),
+              state.transform.transform(state.layerStackSpace.getContent()));
 
     EXPECT_EQ(ui::Transform::ROT_90, mOutput->getTransformHint());
 }
@@ -327,8 +331,10 @@ TEST_F(OutputTest, setProjectionWorks) {
 TEST_F(OutputTest, setProjectionWithSmallFramebufferWorks) {
     const Rect displayRect{0, 0, 1000, 2000};
     const Rect framebufferRect{0, 0, 500, 1000};
-    mOutput->editState().displaySpace.bounds = displayRect;
-    mOutput->editState().framebufferSpace.bounds = framebufferRect;
+    mOutput->editState().displaySpace.setBounds(
+            ui::Size(displayRect.getWidth(), displayRect.getHeight()));
+    mOutput->editState().framebufferSpace.setBounds(
+            ui::Size(framebufferRect.getWidth(), framebufferRect.getHeight()));
 
     const ui::Rotation orientation = ui::ROTATION_90;
     const Rect frame{50, 60, 100, 100};
@@ -336,28 +342,29 @@ TEST_F(OutputTest, setProjectionWithSmallFramebufferWorks) {
 
     mOutput->setProjection(orientation, viewport, frame);
 
-    EXPECT_EQ(orientation, mOutput->getState().displaySpace.orientation);
-    EXPECT_EQ(frame, mOutput->getState().orientedDisplaySpace.content);
-    EXPECT_EQ(viewport, mOutput->getState().layerStackSpace.content);
+    EXPECT_EQ(orientation, mOutput->getState().displaySpace.getOrientation());
+    EXPECT_EQ(frame, mOutput->getState().orientedDisplaySpace.getContent());
+    EXPECT_EQ(viewport, mOutput->getState().layerStackSpace.getContent());
 
     const auto state = mOutput->getState();
-    EXPECT_EQ(ui::ROTATION_0, state.layerStackSpace.orientation);
-    EXPECT_EQ(viewport, state.layerStackSpace.content);
-    EXPECT_EQ(viewport, state.layerStackSpace.bounds);
+    EXPECT_EQ(ui::ROTATION_0, state.layerStackSpace.getOrientation());
+    EXPECT_EQ(viewport, state.layerStackSpace.getContent());
+    EXPECT_EQ(Rect(0, 0, 20, 20), state.layerStackSpace.getBoundsAsRect());
 
-    EXPECT_EQ(ui::ROTATION_0, state.orientedDisplaySpace.orientation);
-    EXPECT_EQ(frame, state.orientedDisplaySpace.content);
-    EXPECT_EQ(Rect(0, 0, 2000, 1000), state.orientedDisplaySpace.bounds);
+    EXPECT_EQ(ui::ROTATION_0, state.orientedDisplaySpace.getOrientation());
+    EXPECT_EQ(frame, state.orientedDisplaySpace.getContent());
+    EXPECT_EQ(Rect(0, 0, 2000, 1000), state.orientedDisplaySpace.getBoundsAsRect());
 
-    EXPECT_EQ(displayRect, state.displaySpace.bounds);
-    EXPECT_EQ(Rect(900, 50, 940, 100), state.displaySpace.content);
-    EXPECT_EQ(orientation, state.displaySpace.orientation);
+    EXPECT_EQ(displayRect, state.displaySpace.getBoundsAsRect());
+    EXPECT_EQ(Rect(900, 50, 940, 100), state.displaySpace.getContent());
+    EXPECT_EQ(orientation, state.displaySpace.getOrientation());
 
-    EXPECT_EQ(framebufferRect, state.framebufferSpace.bounds);
-    EXPECT_EQ(Rect(450, 25, 470, 50), state.framebufferSpace.content);
-    EXPECT_EQ(orientation, state.framebufferSpace.orientation);
+    EXPECT_EQ(framebufferRect, state.framebufferSpace.getBoundsAsRect());
+    EXPECT_EQ(Rect(450, 25, 470, 50), state.framebufferSpace.getContent());
+    EXPECT_EQ(orientation, state.framebufferSpace.getOrientation());
 
-    EXPECT_EQ(state.displaySpace.content, state.transform.transform(state.layerStackSpace.content));
+    EXPECT_EQ(state.displaySpace.getContent(),
+              state.transform.transform(state.layerStackSpace.getContent()));
 }
 
 /*
@@ -365,16 +372,16 @@ TEST_F(OutputTest, setProjectionWithSmallFramebufferWorks) {
  */
 
 TEST_F(OutputTest, setDisplaySpaceSizeUpdatesOutputStateAndDirtiesEntireOutput) {
-    mOutput->editState().layerStackSpace.content = Rect(0, 0, 2000, 1000);
-    mOutput->editState().layerStackSpace.bounds = Rect(0, 0, 2000, 1000);
-    mOutput->editState().orientedDisplaySpace.content = Rect(0, 0, 1800, 900);
-    mOutput->editState().orientedDisplaySpace.bounds = Rect(0, 0, 2000, 1000);
-    mOutput->editState().framebufferSpace.content = Rect(0, 0, 900, 1800);
-    mOutput->editState().framebufferSpace.bounds = Rect(0, 0, 1000, 2000);
-    mOutput->editState().framebufferSpace.orientation = ui::ROTATION_90;
-    mOutput->editState().displaySpace.content = Rect(0, 0, 900, 1800);
-    mOutput->editState().displaySpace.bounds = Rect(0, 0, 1000, 2000);
-    mOutput->editState().displaySpace.orientation = ui::ROTATION_90;
+    mOutput->editState().layerStackSpace.setContent(Rect(0, 0, 2000, 1000));
+    mOutput->editState().layerStackSpace.setBounds(ui::Size(2000, 1000));
+    mOutput->editState().orientedDisplaySpace.setContent(Rect(0, 0, 1800, 900));
+    mOutput->editState().orientedDisplaySpace.setBounds(ui::Size(2000, 1000));
+    mOutput->editState().framebufferSpace.setContent(Rect(0, 0, 900, 1800));
+    mOutput->editState().framebufferSpace.setBounds(ui::Size(1000, 2000));
+    mOutput->editState().framebufferSpace.setOrientation(ui::ROTATION_90);
+    mOutput->editState().displaySpace.setContent(Rect(0, 0, 900, 1800));
+    mOutput->editState().displaySpace.setBounds(ui::Size(1000, 2000));
+    mOutput->editState().displaySpace.setOrientation(ui::ROTATION_90);
 
     const ui::Size newDisplaySize{500, 1000};
 
@@ -385,20 +392,21 @@ TEST_F(OutputTest, setDisplaySpaceSizeUpdatesOutputStateAndDirtiesEntireOutput) 
     const auto state = mOutput->getState();
 
     const Rect displayRect(newDisplaySize);
-    EXPECT_EQ(ui::ROTATION_0, state.layerStackSpace.orientation);
-    EXPECT_EQ(Rect(0, 0, 2000, 1000), state.layerStackSpace.content);
-    EXPECT_EQ(Rect(0, 0, 2000, 1000), state.layerStackSpace.bounds);
+    EXPECT_EQ(ui::ROTATION_0, state.layerStackSpace.getOrientation());
+    EXPECT_EQ(Rect(0, 0, 2000, 1000), state.layerStackSpace.getContent());
+    EXPECT_EQ(Rect(0, 0, 2000, 1000), state.layerStackSpace.getBoundsAsRect());
 
-    EXPECT_EQ(ui::ROTATION_0, state.orientedDisplaySpace.orientation);
-    EXPECT_EQ(Rect(0, 0, 1000, 500), state.orientedDisplaySpace.bounds);
+    EXPECT_EQ(ui::ROTATION_0, state.orientedDisplaySpace.getOrientation());
+    EXPECT_EQ(Rect(0, 0, 1000, 500), state.orientedDisplaySpace.getBoundsAsRect());
 
-    EXPECT_EQ(displayRect, state.displaySpace.bounds);
-    EXPECT_EQ(ui::ROTATION_90, state.displaySpace.orientation);
+    EXPECT_EQ(displayRect, state.displaySpace.getBoundsAsRect());
+    EXPECT_EQ(ui::ROTATION_90, state.displaySpace.getOrientation());
 
-    EXPECT_EQ(displayRect, state.framebufferSpace.bounds);
-    EXPECT_EQ(ui::ROTATION_90, state.framebufferSpace.orientation);
+    EXPECT_EQ(displayRect, state.framebufferSpace.getBoundsAsRect());
+    EXPECT_EQ(ui::ROTATION_90, state.framebufferSpace.getOrientation());
 
-    EXPECT_EQ(state.displaySpace.content, state.transform.transform(state.layerStackSpace.content));
+    EXPECT_EQ(state.displaySpace.getContent(),
+              state.transform.transform(state.layerStackSpace.getContent()));
 
     EXPECT_THAT(state.dirtyRegion, RegionEq(Region(displayRect)));
 }
@@ -562,7 +570,7 @@ TEST_F(OutputTest, setRenderSurfaceResetsBounds) {
 
     mOutput->setRenderSurface(std::unique_ptr<RenderSurface>(renderSurface));
 
-    EXPECT_EQ(Rect(newDisplaySize), mOutput->getState().framebufferSpace.bounds);
+    EXPECT_EQ(Rect(newDisplaySize), mOutput->getState().framebufferSpace.getBoundsAsRect());
 }
 
 /*
@@ -571,7 +579,7 @@ TEST_F(OutputTest, setRenderSurfaceResetsBounds) {
 
 TEST_F(OutputTest, getDirtyRegion) {
     const Rect viewport{100, 200};
-    mOutput->editState().layerStackSpace.content = viewport;
+    mOutput->editState().layerStackSpace.setContent(viewport);
     mOutput->editState().dirtyRegion.set(50, 300);
 
     // The dirty region should be clipped to the display bounds.
@@ -1055,7 +1063,8 @@ struct OutputRebuildLayerStacksTest : public testing::Test {
     OutputRebuildLayerStacksTest() {
         mOutput.mState.isEnabled = true;
         mOutput.mState.transform = kIdentityTransform;
-        mOutput.mState.displaySpace.bounds = kOutputBounds;
+        mOutput.mState.displaySpace.setBounds(
+                ui::Size(kOutputBounds.getWidth(), kOutputBounds.getHeight()));
 
         mRefreshArgs.updatingOutputGeometryThisFrame = true;
 
@@ -1258,8 +1267,8 @@ struct OutputEnsureOutputLayerIfVisibleTest : public testing::Test {
         EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
                 .WillRepeatedly(Return(&mLayer.outputLayer));
 
-        mOutput.mState.displaySpace.bounds = Rect(0, 0, 200, 300);
-        mOutput.mState.layerStackSpace.content = Rect(0, 0, 200, 300);
+        mOutput.mState.displaySpace.setBounds(ui::Size(200, 300));
+        mOutput.mState.layerStackSpace.setContent(Rect(0, 0, 200, 300));
         mOutput.mState.transform = ui::Transform(TR_IDENT, 200, 300);
 
         mLayer.layerFEState.isVisible = true;
@@ -1339,7 +1348,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesEarlyOutIfLayerHasEmptyVisible
 }
 
 TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesNotSoEarlyOutifDrawRegionEmpty) {
-    mOutput.mState.displaySpace.bounds = Rect(0, 0, 0, 0);
+    mOutput.mState.displaySpace.setBounds(ui::Size(0, 0));
 
     ensureOutputLayerIfVisible();
 }
@@ -1536,7 +1545,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest,
     mLayer.layerFEState.contentDirty = true;
     mLayer.layerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
 
-    mOutput.mState.layerStackSpace.content = Rect(0, 0, 300, 200);
+    mOutput.mState.layerStackSpace.setContent(Rect(0, 0, 300, 200));
     mOutput.mState.transform = ui::Transform(TR_ROT_90, 200, 300);
 
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
@@ -1562,7 +1571,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest,
     mLayer.layerFEState.contentDirty = true;
     mLayer.layerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
 
-    mOutput.mState.layerStackSpace.content = Rect(0, 0, 300, 200);
+    mOutput.mState.layerStackSpace.setContent(Rect(0, 0, 300, 200));
     mOutput.mState.transform = ui::Transform(TR_ROT_90, 200, 300);
 
     EXPECT_CALL(mOutput, ensureOutputLayer(Eq(0u), Eq(mLayer.layerFE)))
@@ -2977,11 +2986,11 @@ struct OutputComposeSurfacesTest : public testing::Test {
         mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
         mOutput.cacheClientCompositionRequests(MAX_CLIENT_COMPOSITION_CACHE_SIZE);
 
-        mOutput.mState.orientedDisplaySpace.content = kDefaultOutputFrame;
-        mOutput.mState.layerStackSpace.content = kDefaultOutputViewport;
-        mOutput.mState.framebufferSpace.content = kDefaultOutputDestinationClip;
-        mOutput.mState.displaySpace.content = kDefaultOutputDestinationClip;
-        mOutput.mState.displaySpace.orientation = kDefaultOutputOrientation;
+        mOutput.mState.orientedDisplaySpace.setContent(kDefaultOutputFrame);
+        mOutput.mState.layerStackSpace.setContent(kDefaultOutputViewport);
+        mOutput.mState.framebufferSpace.setContent(kDefaultOutputDestinationClip);
+        mOutput.mState.displaySpace.setContent(kDefaultOutputDestinationClip);
+        mOutput.mState.displaySpace.setOrientation(kDefaultOutputOrientation);
         mOutput.mState.transform = ui::Transform{kDefaultOutputOrientationFlags};
         mOutput.mState.dataspace = kDefaultOutputDataspace;
         mOutput.mState.colorTransformMatrix = kDefaultColorTransformMat;
@@ -3703,12 +3712,12 @@ struct GenerateClientCompositionRequestsTest : public testing::Test {
 struct GenerateClientCompositionRequestsTest_ThreeLayers
       : public GenerateClientCompositionRequestsTest {
     GenerateClientCompositionRequestsTest_ThreeLayers() {
-        mOutput.mState.orientedDisplaySpace.content = kDisplayFrame;
-        mOutput.mState.layerStackSpace.content = kDisplayViewport;
-        mOutput.mState.displaySpace.content = kDisplayDestinationClip;
+        mOutput.mState.orientedDisplaySpace.setContent(kDisplayFrame);
+        mOutput.mState.layerStackSpace.setContent(kDisplayViewport);
+        mOutput.mState.displaySpace.setContent(kDisplayDestinationClip);
         mOutput.mState.transform =
                 ui::Transform{ui::Transform::toRotationFlags(kDisplayOrientation)};
-        mOutput.mState.displaySpace.orientation = kDisplayOrientation;
+        mOutput.mState.displaySpace.setOrientation(kDisplayOrientation);
         mOutput.mState.needsFiltering = false;
         mOutput.mState.isSecure = false;
 
@@ -4275,11 +4284,11 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
     const ui::Rotation kPortraitOrientation = ui::ROTATION_90;
     constexpr ui::Dataspace kOutputDataspace = ui::Dataspace::DISPLAY_P3;
 
-    mOutput.mState.orientedDisplaySpace.content = kPortraitFrame;
-    mOutput.mState.layerStackSpace.content = kPortraitViewport;
-    mOutput.mState.displaySpace.content = kPortraitDestinationClip;
+    mOutput.mState.orientedDisplaySpace.setContent(kPortraitFrame);
+    mOutput.mState.layerStackSpace.setContent(kPortraitViewport);
+    mOutput.mState.displaySpace.setContent(kPortraitDestinationClip);
     mOutput.mState.transform = ui::Transform{ui::Transform::toRotationFlags(kPortraitOrientation)};
-    mOutput.mState.displaySpace.orientation = kPortraitOrientation;
+    mOutput.mState.displaySpace.setOrientation(kPortraitOrientation);
     mOutput.mState.needsFiltering = false;
     mOutput.mState.isSecure = true;
 

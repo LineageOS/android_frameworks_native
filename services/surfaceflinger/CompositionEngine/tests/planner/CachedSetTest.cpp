@@ -123,7 +123,7 @@ void CachedSetTest::SetUp() {
         // set up minimium params needed for rendering
         mOutputState.dataspace = ui::Dataspace::SRGB;
         mOutputState.framebufferSpace = ProjectionSpace(ui::Size(10, 20), Rect(10, 5));
-        mOutputState.framebufferSpace.orientation = ui::ROTATION_90;
+        mOutputState.framebufferSpace.setOrientation(ui::ROTATION_90);
         mOutputState.layerStackSpace = ProjectionSpace(ui::Size(20, 10), Rect(5, 10));
     }
 }
@@ -349,9 +349,9 @@ TEST_F(CachedSetTest, renderUnsecureOutput) {
                 const std::vector<const renderengine::LayerSettings*>& layers,
                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
                 base::unique_fd &&) -> std::future<renderengine::RenderEngineResult> {
-        EXPECT_EQ(mOutputState.framebufferSpace.content, displaySettings.physicalDisplay);
-        EXPECT_EQ(mOutputState.layerStackSpace.content, displaySettings.clip);
-        EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.orientation),
+        EXPECT_EQ(mOutputState.framebufferSpace.getContent(), displaySettings.physicalDisplay);
+        EXPECT_EQ(mOutputState.layerStackSpace.getContent(), displaySettings.clip);
+        EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.getOrientation()),
                   displaySettings.orientation);
         EXPECT_EQ(0.5f, layers[0]->alpha);
         EXPECT_EQ(0.75f, layers[1]->alpha);
@@ -401,9 +401,9 @@ TEST_F(CachedSetTest, renderSecureOutput) {
                 const std::vector<const renderengine::LayerSettings*>& layers,
                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
                 base::unique_fd &&) -> std::future<renderengine::RenderEngineResult> {
-        EXPECT_EQ(mOutputState.framebufferSpace.content, displaySettings.physicalDisplay);
-        EXPECT_EQ(mOutputState.layerStackSpace.content, displaySettings.clip);
-        EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.orientation),
+        EXPECT_EQ(mOutputState.framebufferSpace.getContent(), displaySettings.physicalDisplay);
+        EXPECT_EQ(mOutputState.layerStackSpace.getContent(), displaySettings.clip);
+        EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.getOrientation()),
                   displaySettings.orientation);
         EXPECT_EQ(0.5f, layers[0]->alpha);
         EXPECT_EQ(0.75f, layers[1]->alpha);
@@ -456,9 +456,9 @@ TEST_F(CachedSetTest, rendersWithOffsetFramebufferContent) {
                 const std::vector<const renderengine::LayerSettings*>& layers,
                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
                 base::unique_fd &&) -> std::future<renderengine::RenderEngineResult> {
-        EXPECT_EQ(mOutputState.framebufferSpace.content, displaySettings.physicalDisplay);
-        EXPECT_EQ(mOutputState.layerStackSpace.content, displaySettings.clip);
-        EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.orientation),
+        EXPECT_EQ(mOutputState.framebufferSpace.getContent(), displaySettings.physicalDisplay);
+        EXPECT_EQ(mOutputState.layerStackSpace.getContent(), displaySettings.clip);
+        EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.getOrientation()),
                   displaySettings.orientation);
         EXPECT_EQ(0.5f, layers[0]->alpha);
         EXPECT_EQ(0.75f, layers[1]->alpha);

@@ -159,13 +159,13 @@ void CachedSet::updateAge(std::chrono::steady_clock::time_point now) {
 void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& texturePool,
                        const OutputCompositionState& outputState) {
     ATRACE_CALL();
-    const Rect& viewport = outputState.layerStackSpace.content;
+    const Rect& viewport = outputState.layerStackSpace.getContent();
     const ui::Dataspace& outputDataspace = outputState.dataspace;
     const ui::Transform::RotationFlags orientation =
-            ui::Transform::toRotationFlags(outputState.framebufferSpace.orientation);
+            ui::Transform::toRotationFlags(outputState.framebufferSpace.getOrientation());
 
     renderengine::DisplaySettings displaySettings{
-            .physicalDisplay = outputState.framebufferSpace.content,
+            .physicalDisplay = outputState.framebufferSpace.getContent(),
             .clip = viewport,
             .outputDataspace = outputDataspace,
             .orientation = orientation,
@@ -282,7 +282,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
         mOutputSpace = outputState.framebufferSpace;
         mTexture = texture;
         mTexture->setReadyFence(mDrawFence);
-        mOutputSpace.orientation = outputState.framebufferSpace.orientation;
+        mOutputSpace.setOrientation(outputState.framebufferSpace.getOrientation());
         mOutputDataspace = outputDataspace;
         mOrientation = orientation;
         mSkipCount = 0;

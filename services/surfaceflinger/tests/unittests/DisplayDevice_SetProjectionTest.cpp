@@ -84,10 +84,10 @@ public:
         EXPECT_EQ(ui::Transform(TRANSFORM_FLAGS_ROT_0, mHardwareDisplaySize.width,
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
-        EXPECT_EQ(ui::ROTATION_0, compositionState.displaySpace.orientation);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.content);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.orientedDisplaySpace.content);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.layerStackSpace.content);
+        EXPECT_EQ(ui::ROTATION_0, compositionState.displaySpace.getOrientation());
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.getContent());
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.orientedDisplaySpace.getContent());
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.layerStackSpace.getContent());
         EXPECT_EQ(false, compositionState.needsFiltering);
     }
 
@@ -96,13 +96,14 @@ public:
         EXPECT_EQ(ui::Transform(TRANSFORM_FLAGS_ROT_90, mHardwareDisplaySize.width,
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
-        EXPECT_EQ(ui::ROTATION_90, compositionState.displaySpace.orientation);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.content);
+        EXPECT_EQ(ui::ROTATION_90, compositionState.displaySpace.getOrientation());
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.getContent());
         // For 90, the orientedDisplaySpaceRect and layerStackSpaceRect have the hardware display
         // size width and height swapped
         EXPECT_EQ(Rect(swapWH(mHardwareDisplaySize)),
-                  compositionState.orientedDisplaySpace.content);
-        EXPECT_EQ(Rect(swapWH(mHardwareDisplaySize)), compositionState.layerStackSpace.content);
+                  compositionState.orientedDisplaySpace.getContent());
+        EXPECT_EQ(Rect(swapWH(mHardwareDisplaySize)),
+                  compositionState.layerStackSpace.getContent());
         EXPECT_EQ(false, compositionState.needsFiltering);
     }
 
@@ -111,9 +112,9 @@ public:
         EXPECT_EQ(ui::Transform(TRANSFORM_FLAGS_ROT_180, mHardwareDisplaySize.width,
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
-        EXPECT_EQ(ui::ROTATION_180, compositionState.displaySpace.orientation);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.orientedDisplaySpace.content);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.layerStackSpace.content);
+        EXPECT_EQ(ui::ROTATION_180, compositionState.displaySpace.getOrientation());
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.orientedDisplaySpace.getContent());
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.layerStackSpace.getContent());
         EXPECT_EQ(false, compositionState.needsFiltering);
     }
 
@@ -122,13 +123,14 @@ public:
         EXPECT_EQ(ui::Transform(TRANSFORM_FLAGS_ROT_270, mHardwareDisplaySize.width,
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
-        EXPECT_EQ(ui::ROTATION_270, compositionState.displaySpace.orientation);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.content);
+        EXPECT_EQ(ui::ROTATION_270, compositionState.displaySpace.getOrientation());
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.getContent());
         // For 270, the orientedDisplaySpaceRect and layerStackSpaceRect have the hardware display
         // size width and height swapped
         EXPECT_EQ(Rect(swapWH(mHardwareDisplaySize)),
-                  compositionState.orientedDisplaySpace.content);
-        EXPECT_EQ(Rect(swapWH(mHardwareDisplaySize)), compositionState.layerStackSpace.content);
+                  compositionState.orientedDisplaySpace.getContent());
+        EXPECT_EQ(Rect(swapWH(mHardwareDisplaySize)),
+                  compositionState.layerStackSpace.getContent());
         EXPECT_EQ(false, compositionState.needsFiltering);
     }
 
