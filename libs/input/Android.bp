@@ -83,7 +83,6 @@ cc_library {
                 "android/os/IInputFlinger.aidl",
                 "android/os/InputEventInjectionResult.aidl",
                 "android/os/InputEventInjectionSync.aidl",
-                "android/os/ISetInputWindowsListener.aidl",
             ],
 
             export_shared_lib_headers: ["libbinder"],
@@ -119,7 +118,6 @@ cc_library {
                 "InputTransport.cpp",
                 "android/os/IInputConstants.aidl",
                 "android/os/IInputFlinger.aidl",
-                "android/os/ISetInputWindowsListener.aidl",
             ],
             static_libs: [
                 "libhostgraphics",

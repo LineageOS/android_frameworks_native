@@ -17,14 +17,11 @@
 import android.InputChannel;
 import android.gui.FocusRequest;
 import android.gui.WindowInfo;
-import android.os.ISetInputWindowsListener;
 
 /** @hide */
 interface IInputFlingerQuery
 {
     /* Test interfaces */
-    void getInputWindows(out WindowInfo[] inputHandles);
     void getInputChannels(out InputChannel[] channels);
-    void getLastFocusRequest(out FocusRequest request);
     void resetInputManager();
 }

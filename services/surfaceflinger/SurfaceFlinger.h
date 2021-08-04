@@ -93,7 +93,6 @@ class FpsReporter;
 class TunnelModeEnabledReporter;
 class HdrLayerInfoReporter;
 class HWComposer;
-struct SetInputWindowsListener;
 class IGraphicBufferProducer;
 class Layer;
 class MessageBase;
@@ -333,7 +332,7 @@ public:
     // If set, disables reusing client composition buffers. This can be set by
     // debug.sf.disable_client_composition_cache
     bool mDisableClientCompositionCache = false;
-    void setInputWindowsFinished();
+    void windowInfosReported();
 
     // Disables expensive rendering for all displays
     // This is scheduled on the main thread
@@ -819,7 +818,7 @@ private:
     void handleTransactionLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
 
     void updateInputFlinger();
-    void updateInputWindowInfo();
+    void notifyWindowInfos();
     void commitInputWindowCommands() REQUIRES(mStateLock);
     void updateCursorAsync();
 
@@ -1442,8 +1441,6 @@ private:
     sp<os::IInputFlinger> mInputFlinger;
     // Should only be accessed by the main thread.
     InputWindowCommands mInputWindowCommands;
-
-    sp<SetInputWindowsListener> mSetInputWindowsListener;
 
     Hwc2::impl::PowerAdvisor mPowerAdvisor;
 
