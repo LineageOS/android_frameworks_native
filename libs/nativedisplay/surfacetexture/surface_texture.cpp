@@ -193,16 +193,16 @@ void ASurfaceTexture_releaseConsumerOwnership(ASurfaceTexture* texture) {
 }
 
 AHardwareBuffer* ASurfaceTexture_dequeueBuffer(ASurfaceTexture* st, int* outSlotid,
-                                               android_dataspace* outDataspace,
-                                               float* outTransformMatrix, bool* outNewContent,
+                                               android_dataspace* outDataspace, bool* outNewContent,
                                                ASurfaceTexture_createReleaseFence createFence,
-                                               ASurfaceTexture_fenceWait fenceWait, void* handle) {
+                                               ASurfaceTexture_fenceWait fenceWait, void* handle,
+                                               ARect* cropRect, uint32_t* transform) {
     sp<GraphicBuffer> buffer;
     *outNewContent = false;
     bool queueEmpty;
     do {
-        buffer = st->consumer->dequeueBuffer(outSlotid, outDataspace, outTransformMatrix,
-                                             &queueEmpty, createFence, fenceWait, handle);
+        buffer = st->consumer->dequeueBuffer(outSlotid, outDataspace, &queueEmpty, createFence,
+                                             fenceWait, handle, cropRect, transform);
         if (!queueEmpty) {
             *outNewContent = true;
         }
