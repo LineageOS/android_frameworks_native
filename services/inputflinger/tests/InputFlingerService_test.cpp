@@ -18,9 +18,7 @@
 #include <IInputFlingerQuery.h>
 
 #include <android/os/BnInputFlinger.h>
-#include <android/os/BnSetInputWindowsListener.h>
 #include <android/os/IInputFlinger.h>
-#include <android/os/ISetInputWindowsListener.h>
 
 #include <binder/Binder.h>
 #include <binder/IPCThreadState.h>
@@ -28,7 +26,6 @@
 #include <binder/Parcel.h>
 #include <binder/ProcessState.h>
 
-#include <gui/WindowInfo.h>
 #include <input/Input.h>
 #include <input/InputTransport.h>
 
@@ -45,57 +42,17 @@
 #define TAG "InputFlingerServiceTest"
 
 using android::gui::FocusRequest;
-using android::gui::WindowInfo;
-using android::gui::WindowInfoHandle;
 using android::os::BnInputFlinger;
-using android::os::BnSetInputWindowsListener;
 using android::os::IInputFlinger;
-using android::os::ISetInputWindowsListener;
 
 using std::chrono_literals::operator""ms;
 using std::chrono_literals::operator""s;
 
 namespace android {
 
-static const sp<IBinder> TestInfoToken = new BBinder();
-static const sp<IBinder> FocusedTestInfoToken = new BBinder();
-static constexpr int32_t TestInfoId = 1;
-static const std::string TestInfoName = "InputFlingerServiceTestInputWindowInfo";
-static constexpr Flags<WindowInfo::Flag> TestInfoFlags = WindowInfo::Flag::NOT_FOCUSABLE;
-static constexpr WindowInfo::Type TestInfoType = WindowInfo::Type::INPUT_METHOD;
-static constexpr std::chrono::duration TestInfoDispatchingTimeout = 2532ms;
-static constexpr int32_t TestInfoFrameLeft = 93;
-static constexpr int32_t TestInfoFrameTop = 34;
-static constexpr int32_t TestInfoFrameRight = 16;
-static constexpr int32_t TestInfoFrameBottom = 19;
-static constexpr int32_t TestInfoSurfaceInset = 17;
-static constexpr float TestInfoGlobalScaleFactor = 0.3;
-static constexpr float TestInfoWindowXScale = 0.4;
-static constexpr float TestInfoWindowYScale = 0.5;
-static const Rect TestInfoTouchableRegionRect = {100 /* left */, 150 /* top */, 400 /* right */,
-                                                 450 /* bottom */};
-static const Region TestInfoTouchableRegion(TestInfoTouchableRegionRect);
-static constexpr bool TestInfoVisible = false;
-static constexpr bool TestInfoTrustedOverlay = true;
-static constexpr bool TestInfoFocusable = false;
-static constexpr bool TestInfoHasWallpaper = false;
-static constexpr bool TestInfoPaused = false;
-static constexpr int32_t TestInfoOwnerPid = 19;
-static constexpr int32_t TestInfoOwnerUid = 24;
-static constexpr WindowInfo::Feature TestInfoInputFeatures = WindowInfo::Feature::NO_INPUT_CHANNEL;
-static constexpr int32_t TestInfoDisplayId = 34;
-static constexpr int32_t TestInfoPortalToDisplayId = 2;
-static constexpr bool TestInfoReplaceTouchableRegionWithCrop = true;
-static const sp<IBinder> TestInfoTouchableRegionCropHandle = new BBinder();
-
-static const std::string TestAppInfoName = "InputFlingerServiceTestInputApplicationInfo";
-static const sp<IBinder> TestAppInfoToken = new BBinder();
-static constexpr std::chrono::duration TestAppInfoDispatchingTimeout = 12345678ms;
-
 static const String16 kTestServiceName = String16("InputFlingerService");
 static const String16 kQueryServiceName = String16("InputFlingerQueryService");
 
-struct SetInputWindowsListener;
 // --- InputFlingerServiceTest ---
 class InputFlingerServiceTest : public testing::Test {
 public:
@@ -104,32 +61,15 @@ public:
 
 protected:
     void InitializeInputFlinger();
-    void setInputWindowsByInfos(const std::vector<WindowInfo>& infos);
-    void setFocusedWindow(const sp<IBinder> token, const sp<IBinder> focusedToken,
-                          nsecs_t timestampNanos);
-
-    void setInputWindowsFinished();
-    void verifyInputWindowInfo(const WindowInfo& info) const;
-    WindowInfo& getInfo() const { return const_cast<WindowInfo&>(mInfo); }
 
     sp<IInputFlinger> mService;
     sp<IInputFlingerQuery> mQuery;
 
 private:
-    sp<SetInputWindowsListener> mSetInputWindowsListener;
     std::unique_ptr<InputChannel> mServerChannel, mClientChannel;
-    WindowInfo mInfo;
     std::mutex mLock;
-    std::condition_variable mSetInputWindowsFinishedCondition;
 };
 
-struct SetInputWindowsListener : BnSetInputWindowsListener {
-    explicit SetInputWindowsListener(std::function<void()> cbFunc) : mCbFunc(cbFunc) {}
-
-    binder::Status onSetInputWindowsFinished() override;
-
-    std::function<void()> mCbFunc;
-};
 
 class TestInputManager : public BnInputFlinger {
 protected:
@@ -138,15 +78,9 @@ protected:
 public:
     TestInputManager(){};
 
-    binder::Status getInputWindows(std::vector<WindowInfo>* inputHandles);
     binder::Status getInputChannels(std::vector<::android::InputChannel>* channels);
-    binder::Status getLastFocusRequest(FocusRequest*);
 
     status_t dump(int fd, const Vector<String16>& args) override;
-
-    binder::Status setInputWindows(
-            const std::vector<WindowInfo>& handles,
-            const sp<ISetInputWindowsListener>& setInputWindowsListener) override;
 
     binder::Status createInputChannel(const std::string& name, InputChannel* outChannel) override;
     binder::Status removeInputChannel(const sp<IBinder>& connectionToken) override;
@@ -156,59 +90,25 @@ public:
 
 private:
     mutable Mutex mLock;
-    std::unordered_map<int32_t, std::vector<sp<WindowInfoHandle>>> mHandlesPerDisplay;
     std::vector<std::shared_ptr<InputChannel>> mInputChannels;
-    FocusRequest mFocusRequest;
 };
 
 class TestInputQuery : public BnInputFlingerQuery {
 public:
     TestInputQuery(sp<android::TestInputManager> manager) : mManager(manager){};
-    binder::Status getInputWindows(std::vector<WindowInfo>* inputHandles) override;
     binder::Status getInputChannels(std::vector<::android::InputChannel>* channels) override;
-    binder::Status getLastFocusRequest(FocusRequest*) override;
     binder::Status resetInputManager() override;
 
 private:
     sp<android::TestInputManager> mManager;
 };
 
-binder::Status TestInputQuery::getInputWindows(std::vector<WindowInfo>* inputHandles) {
-    return mManager->getInputWindows(inputHandles);
-}
-
 binder::Status TestInputQuery::getInputChannels(std::vector<::android::InputChannel>* channels) {
     return mManager->getInputChannels(channels);
 }
 
-binder::Status TestInputQuery::getLastFocusRequest(FocusRequest* request) {
-    return mManager->getLastFocusRequest(request);
-}
-
 binder::Status TestInputQuery::resetInputManager() {
     mManager->reset();
-    return binder::Status::ok();
-}
-
-binder::Status SetInputWindowsListener::onSetInputWindowsFinished() {
-    if (mCbFunc != nullptr) {
-        mCbFunc();
-    }
-    return binder::Status::ok();
-}
-
-binder::Status TestInputManager::setInputWindows(
-        const std::vector<WindowInfo>& infos,
-        const sp<ISetInputWindowsListener>& setInputWindowsListener) {
-    AutoMutex _l(mLock);
-
-    for (const auto& info : infos) {
-        mHandlesPerDisplay.emplace(info.displayId, std::vector<sp<WindowInfoHandle>>());
-        mHandlesPerDisplay[info.displayId].push_back(new WindowInfoHandle(info));
-    }
-    if (setInputWindowsListener) {
-        setInputWindowsListener->onSetInputWindowsFinished();
-    }
     return binder::Status::ok();
 }
 
@@ -249,15 +149,6 @@ status_t TestInputManager::dump(int fd, const Vector<String16>& args) {
     return NO_ERROR;
 }
 
-binder::Status TestInputManager::getInputWindows(std::vector<WindowInfo>* inputInfos) {
-    for (auto& [displayId, inputHandles] : mHandlesPerDisplay) {
-        for (auto& inputHandle : inputHandles) {
-            inputInfos->push_back(*inputHandle->getInfo());
-        }
-    }
-    return binder::Status::ok();
-}
-
 binder::Status TestInputManager::getInputChannels(std::vector<::android::InputChannel>* channels) {
     channels->clear();
     for (std::shared_ptr<InputChannel>& channel : mInputChannels) {
@@ -266,73 +157,21 @@ binder::Status TestInputManager::getInputChannels(std::vector<::android::InputCh
     return binder::Status::ok();
 }
 
-binder::Status TestInputManager::getLastFocusRequest(FocusRequest* request) {
-    *request = mFocusRequest;
-    return binder::Status::ok();
-}
-
 binder::Status TestInputManager::setFocusedWindow(const FocusRequest& request) {
-    mFocusRequest = request;
     return binder::Status::ok();
 }
 
 void TestInputManager::reset() {
-    mHandlesPerDisplay.clear();
     mInputChannels.clear();
-    mFocusRequest = FocusRequest();
 }
 
 void InputFlingerServiceTest::SetUp() {
-    mSetInputWindowsListener = new SetInputWindowsListener([&]() {
-        std::unique_lock<std::mutex> lock(mLock);
-        mSetInputWindowsFinishedCondition.notify_all();
-    });
     InputChannel::openInputChannelPair("testchannels", mServerChannel, mClientChannel);
-
-    mInfo.token = TestInfoToken;
-    mInfo.id = TestInfoId;
-    mInfo.name = TestInfoName;
-    mInfo.flags = TestInfoFlags;
-    mInfo.type = TestInfoType;
-    mInfo.dispatchingTimeout = TestInfoDispatchingTimeout;
-    mInfo.frameLeft = TestInfoFrameLeft;
-    mInfo.frameTop = TestInfoFrameTop;
-    mInfo.frameRight = TestInfoFrameRight;
-    mInfo.frameBottom = TestInfoFrameBottom;
-    mInfo.surfaceInset = TestInfoSurfaceInset;
-    mInfo.globalScaleFactor = TestInfoGlobalScaleFactor;
-    mInfo.transform.set({TestInfoWindowXScale, 0, TestInfoFrameLeft, 0, TestInfoWindowYScale,
-                         TestInfoFrameTop, 0, 0, 1});
-    mInfo.touchableRegion = TestInfoTouchableRegion;
-    mInfo.visible = TestInfoVisible;
-    mInfo.trustedOverlay = TestInfoTrustedOverlay;
-    mInfo.focusable = TestInfoFocusable;
-
-    mInfo.hasWallpaper = TestInfoHasWallpaper;
-    mInfo.paused = TestInfoPaused;
-    mInfo.ownerPid = TestInfoOwnerPid;
-    mInfo.ownerUid = TestInfoOwnerUid;
-    mInfo.inputFeatures = TestInfoInputFeatures;
-    mInfo.displayId = TestInfoDisplayId;
-    mInfo.portalToDisplayId = TestInfoPortalToDisplayId;
-    mInfo.replaceTouchableRegionWithCrop = TestInfoReplaceTouchableRegionWithCrop;
-    mInfo.touchableRegionCropHandle = TestInfoTouchableRegionCropHandle;
-
-    mInfo.applicationInfo.name = TestAppInfoName;
-    mInfo.applicationInfo.token = TestAppInfoToken;
-    mInfo.applicationInfo.dispatchingTimeoutMillis =
-            std::chrono::duration_cast<std::chrono::milliseconds>(TestAppInfoDispatchingTimeout)
-                    .count();
-
     InitializeInputFlinger();
 }
 
 void InputFlingerServiceTest::TearDown() {
     mQuery->resetInputManager();
-}
-
-void InputFlingerServiceTest::verifyInputWindowInfo(const WindowInfo& info) const {
-    EXPECT_EQ(mInfo, info);
 }
 
 void InputFlingerServiceTest::InitializeInputFlinger() {
@@ -343,40 +182,6 @@ void InputFlingerServiceTest::InitializeInputFlinger() {
     input = defaultServiceManager()->waitForService(kQueryServiceName);
     ASSERT_TRUE(input != nullptr);
     mQuery = interface_cast<IInputFlingerQuery>(input);
-}
-
-void InputFlingerServiceTest::setInputWindowsByInfos(const std::vector<WindowInfo>& infos) {
-    std::unique_lock<std::mutex> lock(mLock);
-    mService->setInputWindows(infos, mSetInputWindowsListener);
-    // Verify listener call
-    EXPECT_NE(mSetInputWindowsFinishedCondition.wait_for(lock, 1s), std::cv_status::timeout);
-}
-
-void InputFlingerServiceTest::setFocusedWindow(const sp<IBinder> token,
-                                               const sp<IBinder> focusedToken,
-                                               nsecs_t timestampNanos) {
-    FocusRequest request;
-    request.token = TestInfoToken;
-    request.focusedToken = focusedToken;
-    request.timestamp = timestampNanos;
-    mService->setFocusedWindow(request);
-    // call set input windows and wait for the callback to drain the queue.
-    setInputWindowsByInfos(std::vector<WindowInfo>());
-}
-
-/**
- *  Test InputFlinger service interface SetInputWindows
- */
-TEST_F(InputFlingerServiceTest, InputWindow_SetInputWindows) {
-    std::vector<WindowInfo> infos = {getInfo()};
-    setInputWindowsByInfos(infos);
-
-    // Verify input windows from service
-    std::vector<WindowInfo> windowInfos;
-    mQuery->getInputWindows(&windowInfos);
-    for (const WindowInfo& windowInfo : windowInfos) {
-        verifyInputWindowInfo(windowInfo);
-    }
 }
 
 /**
@@ -397,7 +202,7 @@ TEST_F(InputFlingerServiceTest, CreateInputChannelReturnsUnblockedFd) {
     EXPECT_EQ(result & O_NONBLOCK, O_NONBLOCK);
 }
 
-TEST_F(InputFlingerServiceTest, InputWindow_CreateInputChannel) {
+TEST_F(InputFlingerServiceTest, CreateInputChannel) {
     InputChannel channel;
     ASSERT_TRUE(mService->createInputChannel("testchannels", &channel).isOk());
 
@@ -409,30 +214,6 @@ TEST_F(InputFlingerServiceTest, InputWindow_CreateInputChannel) {
     mService->removeInputChannel(channel.getConnectionToken());
     mQuery->getInputChannels(&channels);
     EXPECT_EQ(channels.size(), 0UL);
-}
-
-TEST_F(InputFlingerServiceTest, InputWindow_setFocusedWindow) {
-    nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
-    setFocusedWindow(TestInfoToken, nullptr /* focusedToken */, now);
-
-    FocusRequest request;
-    mQuery->getLastFocusRequest(&request);
-
-    EXPECT_EQ(request.token, TestInfoToken);
-    EXPECT_EQ(request.focusedToken, nullptr);
-    EXPECT_EQ(request.timestamp, now);
-}
-
-TEST_F(InputFlingerServiceTest, InputWindow_setFocusedWindowWithFocusedToken) {
-    nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
-    setFocusedWindow(TestInfoToken, FocusedTestInfoToken, now);
-
-    FocusRequest request;
-    mQuery->getLastFocusRequest(&request);
-
-    EXPECT_EQ(request.token, TestInfoToken);
-    EXPECT_EQ(request.focusedToken, FocusedTestInfoToken);
-    EXPECT_EQ(request.timestamp, now);
 }
 
 } // namespace android

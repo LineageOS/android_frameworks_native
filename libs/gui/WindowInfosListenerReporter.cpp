@@ -19,6 +19,7 @@
 
 namespace android {
 
+using gui::IWindowInfosReportedListener;
 using gui::WindowInfo;
 using gui::WindowInfosListener;
 
@@ -64,7 +65,8 @@ status_t WindowInfosListenerReporter::removeWindowInfosListener(
 }
 
 binder::Status WindowInfosListenerReporter::onWindowInfosChanged(
-        const std::vector<WindowInfo>& windowInfos) {
+        const std::vector<WindowInfo>& windowInfos,
+        const sp<IWindowInfosReportedListener>& windowInfosReportedListener) {
     std::unordered_set<sp<WindowInfosListener>, ISurfaceComposer::SpHash<WindowInfosListener>>
             windowInfosListeners;
 
@@ -77,6 +79,10 @@ binder::Status WindowInfosListenerReporter::onWindowInfosChanged(
 
     for (auto listener : windowInfosListeners) {
         listener->onWindowInfosChanged(windowInfos);
+    }
+
+    if (windowInfosReportedListener) {
+        windowInfosReportedListener->onWindowInfosReported();
     }
 
     return binder::Status::ok();

@@ -17,6 +17,7 @@
 #pragma once
 
 #include <android/gui/BnWindowInfosListener.h>
+#include <android/gui/IWindowInfosReportedListener.h>
 #include <binder/IBinder.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/WindowInfosListener.h>
@@ -29,8 +30,8 @@ class ISurfaceComposer;
 class WindowInfosListenerReporter : public gui::BnWindowInfosListener {
 public:
     static sp<WindowInfosListenerReporter> getInstance();
-
-    binder::Status onWindowInfosChanged(const std::vector<gui::WindowInfo>& windowInfos) override;
+    binder::Status onWindowInfosChanged(const std::vector<gui::WindowInfo>& windowInfos,
+                                        const sp<gui::IWindowInfosReportedListener>&) override;
 
     status_t addWindowInfosListener(const sp<gui::WindowInfosListener>& windowInfosListener,
                                     const sp<ISurfaceComposer>&);

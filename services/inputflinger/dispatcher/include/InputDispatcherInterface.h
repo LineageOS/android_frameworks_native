@@ -21,7 +21,6 @@
 #include <android-base/result.h>
 #include <android/gui/FocusRequest.h>
 #include <android/os/BlockUntrustedTouchesMode.h>
-#include <android/os/ISetInputWindowsListener.h>
 #include <android/os/InputEventInjectionResult.h>
 #include <android/os/InputEventInjectionSync.h>
 #include <gui/InputApplication.h>
