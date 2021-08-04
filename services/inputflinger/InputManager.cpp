@@ -114,24 +114,6 @@ sp<InputDispatcherInterface> InputManager::getDispatcher() {
     return mDispatcher;
 }
 
-binder::Status InputManager::setInputWindows(
-        const std::vector<WindowInfo>& infos,
-        const sp<ISetInputWindowsListener>& setInputWindowsListener) {
-    std::unordered_map<int32_t, std::vector<sp<WindowInfoHandle>>> handlesPerDisplay;
-
-    std::vector<sp<WindowInfoHandle>> handles;
-    for (const auto& info : infos) {
-        handlesPerDisplay.emplace(info.displayId, std::vector<sp<WindowInfoHandle>>());
-        handlesPerDisplay[info.displayId].push_back(new WindowInfoHandle(info));
-    }
-    mDispatcher->setInputWindows(handlesPerDisplay);
-
-    if (setInputWindowsListener) {
-        setInputWindowsListener->onSetInputWindowsFinished();
-    }
-    return binder::Status::ok();
-}
-
 // Used by tests only.
 binder::Status InputManager::createInputChannel(const std::string& name, InputChannel* outChannel) {
     IPCThreadState* ipc = IPCThreadState::self();

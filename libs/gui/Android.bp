@@ -68,6 +68,7 @@ cc_library_static {
         "android/gui/FocusRequest.aidl",
         "android/gui/InputApplicationInfo.aidl",
         "android/gui/IWindowInfosListener.aidl",
+        "android/gui/IWindowInfosReportedListener.aidl",
         "android/gui/WindowInfo.aidl",
         "WindowInfo.cpp",
     ],

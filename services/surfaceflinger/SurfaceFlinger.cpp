@@ -31,7 +31,6 @@
 #include <android/hardware/configstore/1.1/types.h>
 #include <android/hardware/power/Boost.h>
 #include <android/native_window.h>
-#include <android/os/BnSetInputWindowsListener.h>
 #include <android/os/IInputFlinger.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
@@ -277,21 +276,6 @@ enum Permission {
 
 }  // namespace anonymous
 
-struct SetInputWindowsListener : os::BnSetInputWindowsListener {
-    explicit SetInputWindowsListener(std::function<void()> listenerCb) : mListenerCb(listenerCb) {}
-
-    binder::Status onSetInputWindowsFinished() override;
-
-    std::function<void()> mListenerCb;
-};
-
-binder::Status SetInputWindowsListener::onSetInputWindowsFinished() {
-    if (mListenerCb != nullptr) {
-        mListenerCb();
-    }
-    return binder::Status::ok();
-}
-
 // ---------------------------------------------------------------------------
 
 const String16 sHardwareTest("android.permission.HARDWARE_TEST");
@@ -358,10 +342,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
         mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)),
         mPowerAdvisor(*this),
-        mWindowInfosListenerInvoker(new WindowInfosListenerInvoker()) {
+        mWindowInfosListenerInvoker(new WindowInfosListenerInvoker(this)) {
     ALOGI("Using HWComposer service: %s", mHwcServiceName.c_str());
-
-    mSetInputWindowsListener = new SetInputWindowsListener([&]() { setInputWindowsFinished(); });
 }
 
 SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipInitialization) {
@@ -636,17 +618,14 @@ void SurfaceFlinger::releaseVirtualDisplay(VirtualDisplayId displayId) {
 }
 
 std::vector<PhysicalDisplayId> SurfaceFlinger::getPhysicalDisplayIdsLocked() const {
-    const auto internalDisplayId = getInternalDisplayIdLocked();
-    if (!internalDisplayId) {
-        return {};
-    }
-
     std::vector<PhysicalDisplayId> displayIds;
     displayIds.reserve(mPhysicalDisplayTokens.size());
-    displayIds.push_back(*internalDisplayId);
+
+    const auto internalDisplayId = getInternalDisplayIdLocked();
+    displayIds.push_back(internalDisplayId);
 
     for (const auto& [id, token] : mPhysicalDisplayTokens) {
-        if (id != *internalDisplayId) {
+        if (id != internalDisplayId) {
             displayIds.push_back(id);
         }
     }
@@ -813,10 +792,10 @@ void SurfaceFlinger::init() {
     // Process any initial hotplug and resulting display changes.
     processDisplayHotplugEventsLocked();
     const auto display = getDefaultDisplayDeviceLocked();
-    LOG_ALWAYS_FATAL_IF(!display, "Missing internal display after registering composer callback.");
+    LOG_ALWAYS_FATAL_IF(!display, "Missing primary display after registering composer callback.");
     const auto displayId = display->getPhysicalId();
     LOG_ALWAYS_FATAL_IF(!getHwComposer().isConnected(displayId),
-                        "Internal display is disconnected.");
+                        "Primary display is disconnected.");
 
     // initialize our drawing state
     mDrawingState = mCurrentState;
@@ -985,6 +964,11 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
         return NAME_NOT_FOUND;
     }
 
+    const auto displayId = PhysicalDisplayId::tryCast(display->getId());
+    if (!displayId) {
+        return INVALID_OPERATION;
+    }
+
     info->activeDisplayModeId = static_cast<int32_t>(display->getActiveMode()->getId().value());
 
     const auto& supportedModes = display->getSupportedModes();
@@ -1044,18 +1028,18 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
     }
 
     info->activeColorMode = display->getCompositionDisplay()->getState().colorMode;
-    const auto displayId = display->getPhysicalId();
-    info->supportedColorModes = getDisplayColorModes(displayId);
-
+    info->supportedColorModes = getDisplayColorModes(*display);
     info->hdrCapabilities = display->getHdrCapabilities();
+
     info->autoLowLatencyModeSupported =
-            getHwComposer().hasDisplayCapability(displayId,
+            getHwComposer().hasDisplayCapability(*displayId,
                                                  hal::DisplayCapability::AUTO_LOW_LATENCY_MODE);
     std::vector<hal::ContentType> types;
-    getHwComposer().getSupportedContentTypes(displayId, &types);
+    getHwComposer().getSupportedContentTypes(*displayId, &types);
     info->gameContentTypeSupported = std::any_of(types.begin(), types.end(), [](auto type) {
         return type == hal::ContentType::GAME;
     });
+
     return NO_ERROR;
 }
 
@@ -1279,15 +1263,15 @@ void SurfaceFlinger::disableExpensiveRendering() {
     }).wait();
 }
 
-std::vector<ColorMode> SurfaceFlinger::getDisplayColorModes(PhysicalDisplayId displayId) {
-    auto modes = getHwComposer().getColorModes(displayId);
-    bool isInternalDisplay = displayId == getInternalDisplayIdLocked();
+std::vector<ColorMode> SurfaceFlinger::getDisplayColorModes(const DisplayDevice& display) {
+    auto modes = getHwComposer().getColorModes(display.getPhysicalId());
 
-    // If it's built-in display and the configuration claims it's not wide color capable,
+    // If the display is internal and the configuration claims it's not wide color capable,
     // filter out all wide color modes. The typical reason why this happens is that the
     // hardware is not good enough to support GPU composition of wide color, and thus the
     // OEMs choose to disable this capability.
-    if (isInternalDisplay && !hasWideColorDisplay) {
+    if (display.getConnectionType() == ui::DisplayConnectionType::Internal &&
+        !hasWideColorDisplay) {
         const auto newEnd = std::remove_if(modes.begin(), modes.end(), isWideColorMode);
         modes.erase(newEnd, modes.end());
     }
@@ -1311,35 +1295,40 @@ status_t SurfaceFlinger::getDisplayNativePrimaries(const sp<IBinder>& displayTok
 }
 
 status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, ColorMode mode) {
-    schedule([=]() MAIN_THREAD {
-        const auto displayId = getPhysicalDisplayIdLocked(displayToken);
-        if (!displayId) {
-            ALOGE("Invalid display token %p", displayToken.get());
-            return;
-        }
-        const auto modes = getDisplayColorModes(*displayId);
-        bool exists = std::find(std::begin(modes), std::end(modes), mode) != std::end(modes);
-        if (mode < ColorMode::NATIVE || !exists) {
-            ALOGE("Attempt to set invalid active color mode %s (%d) for display token %p",
-                  decodeColorMode(mode).c_str(), mode, displayToken.get());
-            return;
-        }
+    if (!displayToken) {
+        return BAD_VALUE;
+    }
+
+    auto future = schedule([=]() MAIN_THREAD -> status_t {
         const auto display = getDisplayDeviceLocked(displayToken);
         if (!display) {
             ALOGE("Attempt to set active color mode %s (%d) for invalid display token %p",
                   decodeColorMode(mode).c_str(), mode, displayToken.get());
-        } else if (display->isVirtual()) {
+            return NAME_NOT_FOUND;
+        }
+
+        if (display->isVirtual()) {
             ALOGW("Attempt to set active color mode %s (%d) for virtual display",
                   decodeColorMode(mode).c_str(), mode);
-        } else {
-            display->getCompositionDisplay()->setColorProfile(
-                    compositionengine::Output::ColorProfile{mode, Dataspace::UNKNOWN,
-                                                            RenderIntent::COLORIMETRIC,
-                                                            Dataspace::UNKNOWN});
+            return INVALID_OPERATION;
         }
-    }).wait();
 
-    return NO_ERROR;
+        const auto modes = getDisplayColorModes(*display);
+        const bool exists = std::find(modes.begin(), modes.end(), mode) != modes.end();
+
+        if (mode < ColorMode::NATIVE || !exists) {
+            ALOGE("Attempt to set invalid active color mode %s (%d) for display token %p",
+                  decodeColorMode(mode).c_str(), mode, displayToken.get());
+            return BAD_VALUE;
+        }
+
+        display->getCompositionDisplay()->setColorProfile(
+                {mode, Dataspace::UNKNOWN, RenderIntent::COLORIMETRIC, Dataspace::UNKNOWN});
+
+        return NO_ERROR;
+    });
+
+    return future.get();
 }
 
 void SurfaceFlinger::setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on) {
@@ -1755,8 +1744,8 @@ void SurfaceFlinger::changeRefreshRateLocked(const RefreshRate& refreshRate,
 
 void SurfaceFlinger::onComposerHalHotplug(hal::HWDisplayId hwcDisplayId,
                                           hal::Connection connection) {
-    ALOGI("%s(%" PRIu64 ", %s)", __func__, hwcDisplayId,
-          connection == hal::Connection::CONNECTED ? "connected" : "disconnected");
+    const bool connected = connection == hal::Connection::CONNECTED;
+    ALOGI("%s HAL display %" PRIu64, connected ? "Connecting" : "Disconnecting", hwcDisplayId);
 
     // Only lock if we're not on the main thread. This function is normally
     // called on a hwbinder thread, but for the primary display it's called on
@@ -1948,13 +1937,9 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
     }
 
     if (mRefreshRateOverlaySpinner) {
-        if (Mutex::Autolock lock(mStateLock);
-            const auto display = getDefaultDisplayDeviceLocked()) {
-            if (display) {
-                display->onInvalidate();
-            } else {
-                ALOGW("%s: default display is null", __func__);
-            }
+        Mutex::Autolock lock(mStateLock);
+        if (const auto display = getDefaultDisplayDeviceLocked()) {
+            display->onInvalidate();
         }
     }
 
@@ -2858,7 +2843,7 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             setPowerModeInternal(display, hal::PowerMode::ON);
 
             // TODO(b/175678251) Call a listener instead.
-            if (currentState.physical->hwcDisplayId == getHwComposer().getInternalHwcDisplayId()) {
+            if (currentState.physical->hwcDisplayId == getHwComposer().getPrimaryHwcDisplayId()) {
                 updateInternalDisplayVsyncLocked(display);
             }
         }
@@ -3058,11 +3043,11 @@ void SurfaceFlinger::updateInputFlinger() {
 
     if (mVisibleRegionsDirty || mInputInfoChanged) {
         mInputInfoChanged = false;
-        updateInputWindowInfo();
+        notifyWindowInfos();
     } else if (mInputWindowCommands.syncInputWindows) {
         // If the caller requested to sync input windows, but there are no
         // changes to input windows, notify immediately.
-        setInputWindowsFinished();
+        windowInfosReported();
     }
 
     for (const auto& focusRequest : mInputWindowCommands.focusRequests) {
@@ -3077,8 +3062,8 @@ bool enablePerWindowInputRotation() {
     return value;
 }
 
-void SurfaceFlinger::updateInputWindowInfo() {
-    std::vector<WindowInfo> inputInfos;
+void SurfaceFlinger::notifyWindowInfos() {
+    std::vector<WindowInfo> windowInfos;
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (!layer->needsInputInfo()) return;
@@ -3087,12 +3072,10 @@ void SurfaceFlinger::updateInputWindowInfo() {
                 : nullptr;
         // When calculating the screen bounds we ignore the transparent region since it may
         // result in an unwanted offset.
-        inputInfos.push_back(layer->fillInputInfo(display));
+        windowInfos.push_back(layer->fillInputInfo(display));
     });
-
-    mInputFlinger->setInputWindows(inputInfos,
-                               mInputWindowCommands.syncInputWindows ? mSetInputWindowsListener
-                                                                     : nullptr);
+    mWindowInfosListenerInvoker->windowInfosChanged(windowInfos,
+                                                    mInputWindowCommands.syncInputWindows);
 }
 
 void SurfaceFlinger::updateCursorAsync() {
@@ -5711,12 +5694,10 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             // Inject a hotplug connected event for the primary display. This will deallocate and
             // reallocate the display state including framebuffers.
             case 1037: {
-                std::optional<hal::HWDisplayId> hwcId;
-                {
-                    Mutex::Autolock lock(mStateLock);
-                    hwcId = getHwComposer().getInternalHwcDisplayId();
-                }
-                onComposerHalHotplug(*hwcId, hal::Connection::CONNECTED);
+                const hal::HWDisplayId hwcId =
+                        (Mutex::Autolock(mStateLock), getHwComposer().getPrimaryHwcDisplayId());
+
+                onComposerHalHotplug(hwcId, hal::Connection::CONNECTED);
                 return NO_ERROR;
             }
             // Modify the max number of display frames stored within FrameTimeline
@@ -6410,7 +6391,7 @@ status_t SurfaceFlinger::renderScreenImplLocked(
     return NO_ERROR;
 }
 
-void SurfaceFlinger::setInputWindowsFinished() {
+void SurfaceFlinger::windowInfosReported() {
     Mutex::Autolock _l(mStateLock);
     signalSynchronousTransactions(CountDownLatch::eSyncInputWindows);
 }
@@ -6798,33 +6779,29 @@ int SurfaceFlinger::calculateMaxAcquiredBufferCount(Fps refreshRate,
 }
 
 status_t SurfaceFlinger::getMaxAcquiredBufferCount(int* buffers) const {
-    const auto maxSupportedRefreshRate = [&] {
-        const auto display = getDefaultDisplayDevice();
-        if (display) {
-            return display->refreshRateConfigs().getSupportedRefreshRateRange().max;
+    Fps maxRefreshRate(60.f);
+
+    if (!getHwComposer().isHeadless()) {
+        if (const auto display = getDefaultDisplayDevice()) {
+            maxRefreshRate = display->refreshRateConfigs().getSupportedRefreshRateRange().max;
         }
-        ALOGW("%s: default display is null", __func__);
-        return Fps(60);
-    }();
-    *buffers = getMaxAcquiredBufferCountForRefreshRate(maxSupportedRefreshRate);
+    }
+
+    *buffers = getMaxAcquiredBufferCountForRefreshRate(maxRefreshRate);
     return NO_ERROR;
 }
 
 int SurfaceFlinger::getMaxAcquiredBufferCountForCurrentRefreshRate(uid_t uid) const {
-    const auto refreshRate = [&] {
-        const auto frameRateOverride = mScheduler->getFrameRateOverride(uid);
-        if (frameRateOverride.has_value()) {
-            return frameRateOverride.value();
-        }
+    Fps refreshRate(60.f);
 
-        const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
-        if (display) {
-            return display->refreshRateConfigs().getCurrentRefreshRate().getFps();
+    if (const auto frameRateOverride = mScheduler->getFrameRateOverride(uid)) {
+        refreshRate = *frameRateOverride;
+    } else if (!getHwComposer().isHeadless()) {
+        if (const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked())) {
+            refreshRate = display->refreshRateConfigs().getCurrentRefreshRate().getFps();
         }
+    }
 
-        ALOGW("%s: default display is null", __func__);
-        return Fps(60);
-    }();
     return getMaxAcquiredBufferCountForRefreshRate(refreshRate);
 }
 
