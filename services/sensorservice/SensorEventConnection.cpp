@@ -867,7 +867,7 @@ int SensorService::SensorEventConnection::handleEvent(int fd, int events, void* 
             } else if (numBytesRead == sizeof(uint32_t)) {
                 uint32_t numAcks = 0;
                 memcpy(&numAcks, buf, numBytesRead);
-                // Sanity check to ensure  there are no read errors in recv, numAcks is always
+                // Check to ensure  there are no read errors in recv, numAcks is always
                 // within the range and not zero. If any of the above don't hold reset
                 // mWakeLockRefCount to zero.
                 if (numAcks > 0 && numAcks < mWakeLockRefCount) {
