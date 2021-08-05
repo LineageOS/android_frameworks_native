@@ -703,12 +703,6 @@ public:
     virtual uint32_t doTransaction(uint32_t transactionFlags);
 
     /*
-     * Called before updating the drawing state buffer. Used by BufferStateLayer to release any
-     * unlatched buffers in the drawing state.
-     */
-    virtual void bufferMayChange(const sp<GraphicBuffer>& /* newBuffer */){};
-
-    /*
      * Remove relative z for the layer if its relative parent is not part of the
      * provided layer tree.
      */
