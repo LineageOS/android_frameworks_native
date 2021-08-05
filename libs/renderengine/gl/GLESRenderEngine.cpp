@@ -1078,15 +1078,16 @@ EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer
     return image;
 }
 
-status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
-                                      const std::vector<const LayerSettings*>& layers,
-                                      const std::shared_ptr<ExternalTexture>& buffer,
-                                      const bool useFramebufferCache, base::unique_fd&& bufferFence,
-                                      base::unique_fd* drawFence) {
+void GLESRenderEngine::drawLayersInternal(
+        const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+        const DisplaySettings& display, const std::vector<const LayerSettings*>& layers,
+        const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
+        base::unique_fd&& bufferFence) {
     ATRACE_CALL();
     if (layers.empty()) {
         ALOGV("Drawing empty layer stack");
-        return NO_ERROR;
+        resultPromise->set_value({NO_ERROR, base::unique_fd()});
+        return;
     }
 
     if (bufferFence.get() >= 0) {
@@ -1100,7 +1101,8 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
 
     if (buffer == nullptr) {
         ALOGE("No output buffer provided. Aborting GPU composition.");
-        return BAD_VALUE;
+        resultPromise->set_value({BAD_VALUE, base::unique_fd()});
+        return;
     }
 
     validateOutputBufferUsage(buffer->getBuffer());
@@ -1128,7 +1130,8 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
                   buffer->getBuffer()->handle);
             checkErrors();
-            return fbo->getStatus();
+            resultPromise->set_value({fbo->getStatus(), base::unique_fd()});
+            return;
         }
         setViewportAndProjection(display.physicalDisplay, display.clip);
     } else {
@@ -1139,7 +1142,8 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             ALOGE("Failed to prepare blur filter! Aborting GPU composition for buffer (%p).",
                   buffer->getBuffer()->handle);
             checkErrors();
-            return status;
+            resultPromise->set_value({status, base::unique_fd()});
+            return;
         }
     }
 
@@ -1172,7 +1176,8 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                 ALOGE("Failed to render blur effect! Aborting GPU composition for buffer (%p).",
                       buffer->getBuffer()->handle);
                 checkErrors("Can't render first blur pass");
-                return status;
+                resultPromise->set_value({status, base::unique_fd()});
+                return;
             }
 
             if (blurLayers.size() == 0) {
@@ -1194,7 +1199,8 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                 ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
                       buffer->getBuffer()->handle);
                 checkErrors("Can't bind native framebuffer");
-                return status;
+                resultPromise->set_value({status, base::unique_fd()});
+                return;
             }
 
             status = mBlurFilter->render(blurLayersSize > 1);
@@ -1202,7 +1208,8 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                 ALOGE("Failed to render blur effect! Aborting GPU composition for buffer (%p).",
                       buffer->getBuffer()->handle);
                 checkErrors("Can't render blur filter");
-                return status;
+                resultPromise->set_value({status, base::unique_fd()});
+                return;
             }
         }
 
@@ -1289,30 +1296,31 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         }
     }
 
-    if (drawFence != nullptr) {
-        *drawFence = flush();
-    }
+    base::unique_fd drawFence = flush();
+
     // If flush failed or we don't support native fences, we need to force the
     // gl command stream to be executed.
-    if (drawFence == nullptr || drawFence->get() < 0) {
+    if (drawFence.get() < 0) {
         bool success = finish();
         if (!success) {
             ALOGE("Failed to flush RenderEngine commands");
             checkErrors();
             // Chances are, something illegal happened (either the caller passed
             // us bad parameters, or we messed up our shader generation).
-            return INVALID_OPERATION;
+            resultPromise->set_value({INVALID_OPERATION, std::move(drawFence)});
+            return;
         }
         mLastDrawFence = nullptr;
     } else {
         // The caller takes ownership of drawFence, so we need to duplicate the
         // fd here.
-        mLastDrawFence = new Fence(dup(drawFence->get()));
+        mLastDrawFence = new Fence(dup(drawFence.get()));
     }
     mPriorResourcesCleaned = false;
 
     checkErrors();
-    return NO_ERROR;
+    resultPromise->set_value({NO_ERROR, std::move(drawFence)});
+    return;
 }
 
 void GLESRenderEngine::setViewportAndProjection(Rect viewport, Rect clip) {
