@@ -192,6 +192,18 @@ void KeyEntry::recycle() {
     interceptKeyWakeupTime = 0;
 }
 
+// --- TouchModeEntry ---
+
+TouchModeEntry::TouchModeEntry(int32_t id, nsecs_t eventTime, bool inTouchMode)
+      : EventEntry(id, Type::TOUCH_MODE_CHANGED, eventTime, POLICY_FLAG_PASS_TO_USER),
+        inTouchMode(inTouchMode) {}
+
+TouchModeEntry::~TouchModeEntry() {}
+
+std::string TouchModeEntry::getDescription() const {
+    return StringPrintf("TouchModeEvent(inTouchMode=%s)", inTouchMode ? "true" : "false");
+}
+
 // --- MotionEntry ---
 
 MotionEntry::MotionEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,

@@ -39,6 +39,7 @@ struct EventEntry {
         SENSOR,
         POINTER_CAPTURE_CHANGED,
         DRAG,
+        TOUCH_MODE_CHANGED,
     };
 
     int32_t id;
@@ -185,7 +186,7 @@ struct MotionEntry : EventEntry {
                 float xOffset, float yOffset);
     std::string getDescription() const override;
 
-    virtual ~MotionEntry();
+    ~MotionEntry() override;
 };
 
 struct SensorEntry : EventEntry {
@@ -205,6 +206,15 @@ struct SensorEntry : EventEntry {
     std::string getDescription() const override;
 
     ~SensorEntry() override;
+};
+
+struct TouchModeEntry : EventEntry {
+    bool inTouchMode;
+
+    TouchModeEntry(int32_t id, nsecs_t eventTime, bool inTouchMode);
+    std::string getDescription() const override;
+
+    ~TouchModeEntry() override;
 };
 
 // Tracks the progress of dispatching a particular event to a particular connection.

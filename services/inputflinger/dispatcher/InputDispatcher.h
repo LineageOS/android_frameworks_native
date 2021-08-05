@@ -361,6 +361,12 @@ private:
     bool hasResponsiveConnectionLocked(android::gui::WindowInfoHandle& windowHandle) const
             REQUIRES(mLock);
 
+    // Gets all the input targets (with their respective input channels) from the window handles
+    // passed as argument.
+    std::vector<InputTarget> getInputTargetsFromWindowHandlesLocked(
+            const std::vector<sp<android::gui::WindowInfoHandle>>& windowHandles) const
+            REQUIRES(mLock);
+
     /*
      * Validate and update InputWindowHandles for a given display.
      */
@@ -421,6 +427,9 @@ private:
     void dispatchPointerCaptureChangedLocked(
             nsecs_t currentTime, const std::shared_ptr<PointerCaptureChangedEntry>& entry,
             DropReason& dropReason) REQUIRES(mLock);
+    void dispatchTouchModeChangeLocked(nsecs_t currentTime,
+                                       const std::shared_ptr<TouchModeEntry>& entry)
+            REQUIRES(mLock);
     void dispatchEventLocked(nsecs_t currentTime, std::shared_ptr<EventEntry> entry,
                              const std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
     void dispatchSensorLocked(nsecs_t currentTime, const std::shared_ptr<SensorEntry>& entry,

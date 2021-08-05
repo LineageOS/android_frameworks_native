@@ -202,6 +202,7 @@ public:
      * InputDispatcher is the source of truth of Pointer Capture.
      */
     virtual void requestPointerCapture(const sp<IBinder>& windowToken, bool enabled) = 0;
+
     /* Flush input device motion sensor.
      *
      * Returns true on success.
