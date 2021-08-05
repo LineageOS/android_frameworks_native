@@ -120,6 +120,7 @@ cc_library {
         "RpcSession.cpp",
         "RpcServer.cpp",
         "RpcState.cpp",
+        "RpcTransportRaw.cpp",
         "Static.cpp",
         "Stability.cpp",
         "Status.cpp",
@@ -144,9 +145,6 @@ cc_library {
             enabled: false,
         },
         host: {
-            static_libs: [
-                "libbase",
-            ],
             srcs: [
                 "ServiceManagerHost.cpp",
                 "UtilsHost.cpp",
@@ -185,6 +183,10 @@ cc_library {
         "liblog",
         "libcutils",
         "libutils",
+    ],
+
+    static_libs: [
+        "libbase",
     ],
 
     header_libs: [

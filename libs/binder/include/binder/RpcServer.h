@@ -19,6 +19,7 @@
 #include <binder/IBinder.h>
 #include <binder/RpcAddress.h>
 #include <binder/RpcSession.h>
+#include <binder/RpcTransport.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
@@ -47,7 +48,8 @@ class RpcSocketAddress;
  */
 class RpcServer final : public virtual RefBase, private RpcSession::EventListener {
 public:
-    static sp<RpcServer> make();
+    static sp<RpcServer> make(
+            std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory = nullptr);
 
     /**
      * This represents a session for responses, e.g.:
@@ -72,8 +74,14 @@ public:
      * Set |port| to 0 to pick an ephemeral port; see discussion of
      * /proc/sys/net/ipv4/ip_local_port_range in ip(7). In this case, |assignedPort|
      * will be set to the picked port number, if it is not null.
+     *
+     * Set the IPv4 address for the socket to be listening on.
+     * "127.0.0.1" allows for local connections from the same device.
+     * "0.0.0.0" allows for connections on any IP address that the device may
+     * have
      */
-    [[nodiscard]] bool setupInetServer(unsigned int port, unsigned int* assignedPort);
+    [[nodiscard]] bool setupInetServer(const char* address, unsigned int port,
+                                       unsigned int* assignedPort);
 
     /**
      * If setup*Server has been successful, return true. Otherwise return false.
@@ -161,7 +169,7 @@ public:
 
 private:
     friend sp<RpcServer>;
-    RpcServer();
+    explicit RpcServer(std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory);
 
     void onSessionAllIncomingThreadsEnded(const sp<RpcSession>& session) override;
     void onSessionIncomingThreadEnded() override;
@@ -169,6 +177,7 @@ private:
     static void establishConnection(sp<RpcServer>&& server, base::unique_fd clientFd);
     bool setupSocketServer(const RpcSocketAddress& address);
 
+    const std::unique_ptr<RpcTransportCtxFactory> mRpcTransportCtxFactory;
     bool mAgreedExperimental = false;
     size_t mMaxThreads = 1;
     std::optional<uint32_t> mProtocolVersion;
@@ -183,6 +192,7 @@ private:
     std::map<RpcAddress, sp<RpcSession>> mSessions;
     std::unique_ptr<RpcSession::FdTrigger> mShutdownTrigger;
     std::condition_variable mShutdownCv;
+    std::unique_ptr<RpcTransportCtx> mCtx;
 };
 
 } // namespace android

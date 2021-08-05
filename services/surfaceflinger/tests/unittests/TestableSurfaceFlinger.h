@@ -439,8 +439,7 @@ public:
 
     auto& mutableHwcDisplayData() { return getHwComposer().mDisplayData; }
     auto& mutableHwcPhysicalDisplayIdMap() { return getHwComposer().mPhysicalDisplayIdMap; }
-    auto& mutableInternalHwcDisplayId() { return getHwComposer().mInternalHwcDisplayId; }
-    auto& mutableExternalHwcDisplayId() { return getHwComposer().mExternalHwcDisplayId; }
+    auto& mutablePrimaryHwcDisplayId() { return getHwComposer().mPrimaryHwcDisplayId; }
     auto& mutableUseFrameRateApi() { return mFlinger->useFrameRateApi; }
 
     auto fromHandle(const sp<IBinder>& handle) {
@@ -600,13 +599,12 @@ public:
                 LOG_ALWAYS_FATAL_IF(!physicalId);
                 flinger->mutableHwcPhysicalDisplayIdMap().emplace(mHwcDisplayId, *physicalId);
                 if (mIsPrimary) {
-                    flinger->mutableInternalHwcDisplayId() = mHwcDisplayId;
+                    flinger->mutablePrimaryHwcDisplayId() = mHwcDisplayId;
                 } else {
-                    // If there is an external HWC display there should always be an internal ID
+                    // If there is an external HWC display, there should always be a primary ID
                     // as well. Set it to some arbitrary value.
-                    auto& internalId = flinger->mutableInternalHwcDisplayId();
-                    if (!internalId) internalId = mHwcDisplayId - 1;
-                    flinger->mutableExternalHwcDisplayId() = mHwcDisplayId;
+                    auto& primaryId = flinger->mutablePrimaryHwcDisplayId();
+                    if (!primaryId) primaryId = mHwcDisplayId - 1;
                 }
             }
         }

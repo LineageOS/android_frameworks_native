@@ -33,9 +33,7 @@ namespace android {
 // projection are part of the input window's transform. This means InputReader should work in the
 // un-rotated coordinate space.
 static bool isPerWindowInputRotationEnabled() {
-    static const bool PER_WINDOW_INPUT_ROTATION =
-            sysprop::InputFlingerProperties::per_window_input_rotation().value_or(false);
-    return PER_WINDOW_INPUT_ROTATION;
+    return sysprop::InputFlingerProperties::per_window_input_rotation().value_or(true);
 }
 
 static int32_t getInverseRotation(int32_t orientation) {
