@@ -50,6 +50,10 @@ constexpr std::optional<std::string_view> enum_value_name() {
 
     // Example (cont'd): V = android::test::TestEnums::ONE
     view = view.substr(valStart);
+    // Check invalid enum values with cast, like V = (android::test::TestEnums)8.
+    if (view.find('(') != std::string::npos) {
+        return std::nullopt;
+    }
     size_t nameStart = view.rfind("::");
     if (nameStart == std::string::npos) {
         return std::nullopt;
