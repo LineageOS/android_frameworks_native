@@ -357,10 +357,12 @@ private:
 
     // Keeps track of the focused window per display and determines focus changes.
     FocusResolver mFocusResolver GUARDED_BY(mLock);
-    // Whether the focused window on the focused display has requested Pointer Capture.
-    // The state of this variable should always be in sync with the state of Pointer Capture in the
-    // policy, which is updated through setPointerCaptureLocked(enabled).
-    bool mFocusedWindowRequestedPointerCapture GUARDED_BY(mLock);
+
+    // The enabled state of this request is true iff the focused window on the focused display has
+    // requested Pointer Capture. This request also contains the sequence number associated with the
+    // current request. The state of this variable should always be in sync with the state of
+    // Pointer Capture in the policy, and is only updated through setPointerCaptureLocked(request).
+    PointerCaptureRequest mCurrentPointerCaptureRequest GUARDED_BY(mLock);
 
     // The window token that has Pointer Capture.
     // This should be in sync with PointerCaptureChangedEvents dispatched to the input channel.
@@ -370,7 +372,7 @@ private:
     void disablePointerCaptureForcedLocked() REQUIRES(mLock);
 
     // Set the Pointer Capture state in the Policy.
-    void setPointerCaptureLocked(bool enabled) REQUIRES(mLock);
+    void setPointerCaptureLocked(bool enable) REQUIRES(mLock);
 
     // Dispatcher state at time of last ANR.
     std::string mLastAnrState GUARDED_BY(mLock);
