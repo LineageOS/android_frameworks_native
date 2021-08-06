@@ -487,5 +487,40 @@ TEST_P(SetFrameRateTest, SetOnParentActivatesTree) {
     EXPECT_TRUE(FRAME_RATE_VOTE1.rate.equalsWithMargin(layerHistorySummary[1].desiredRefreshRate));
 }
 
+TEST_P(SetFrameRateTest, addChildForParentWithTreeVote) {
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+
+    const auto& layerFactory = GetParam();
+
+    const auto parent = mLayers.emplace_back(layerFactory->createLayer(mFlinger));
+    const auto child1 = mLayers.emplace_back(layerFactory->createLayer(mFlinger));
+    const auto child2 = mLayers.emplace_back(layerFactory->createLayer(mFlinger));
+    const auto childOfChild1 = mLayers.emplace_back(layerFactory->createLayer(mFlinger));
+
+    addChild(parent, child1);
+    addChild(child1, childOfChild1);
+
+    childOfChild1->setFrameRate(FRAME_RATE_VOTE1);
+    commitTransaction();
+    EXPECT_EQ(FRAME_RATE_TREE, parent->getFrameRateForLayerTree());
+    EXPECT_EQ(FRAME_RATE_TREE, child1->getFrameRateForLayerTree());
+    EXPECT_EQ(FRAME_RATE_VOTE1, childOfChild1->getFrameRateForLayerTree());
+    EXPECT_EQ(FRAME_RATE_NO_VOTE, child2->getFrameRateForLayerTree());
+
+    addChild(parent, child2);
+    commitTransaction();
+    EXPECT_EQ(FRAME_RATE_TREE, parent->getFrameRateForLayerTree());
+    EXPECT_EQ(FRAME_RATE_TREE, child1->getFrameRateForLayerTree());
+    EXPECT_EQ(FRAME_RATE_VOTE1, childOfChild1->getFrameRateForLayerTree());
+    EXPECT_EQ(FRAME_RATE_NO_VOTE, child2->getFrameRateForLayerTree());
+
+    childOfChild1->setFrameRate(FRAME_RATE_NO_VOTE);
+    commitTransaction();
+    EXPECT_EQ(FRAME_RATE_NO_VOTE, parent->getFrameRateForLayerTree());
+    EXPECT_EQ(FRAME_RATE_NO_VOTE, child1->getFrameRateForLayerTree());
+    EXPECT_EQ(FRAME_RATE_NO_VOTE, childOfChild1->getFrameRateForLayerTree());
+    EXPECT_EQ(FRAME_RATE_NO_VOTE, child2->getFrameRateForLayerTree());
+}
+
 } // namespace
 } // namespace android
