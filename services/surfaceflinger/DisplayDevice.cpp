@@ -116,11 +116,11 @@ void DisplayDevice::disconnect() {
 }
 
 int DisplayDevice::getWidth() const {
-    return mCompositionDisplay->getState().displaySpace.bounds.getWidth();
+    return mCompositionDisplay->getState().displaySpace.getBounds().width;
 }
 
 int DisplayDevice::getHeight() const {
-    return mCompositionDisplay->getState().displaySpace.bounds.getHeight();
+    return mCompositionDisplay->getState().displaySpace.getBounds().height;
 }
 
 void DisplayDevice::setDisplayName(const std::string& displayName) {
@@ -262,13 +262,15 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect layerStackSpace
     if (!orientedDisplaySpaceRect.isValid()) {
         // The destination frame can be invalid if it has never been set,
         // in that case we assume the whole display size.
-        orientedDisplaySpaceRect = getCompositionDisplay()->getState().displaySpace.bounds;
+        orientedDisplaySpaceRect =
+                getCompositionDisplay()->getState().displaySpace.getBoundsAsRect();
     }
 
     if (layerStackSpaceRect.isEmpty()) {
         // The layerStackSpaceRect can be invalid if it has never been set, in that case
         // we assume the whole framebuffer size.
-        layerStackSpaceRect = getCompositionDisplay()->getState().framebufferSpace.bounds;
+        layerStackSpaceRect =
+                getCompositionDisplay()->getState().framebufferSpace.getBoundsAsRect();
         if (orientation == ui::ROTATION_90 || orientation == ui::ROTATION_270) {
             std::swap(layerStackSpaceRect.right, layerStackSpaceRect.bottom);
         }
@@ -336,8 +338,8 @@ bool DisplayDevice::isSecure() const {
     return mCompositionDisplay->isSecure();
 }
 
-const Rect& DisplayDevice::getBounds() const {
-    return mCompositionDisplay->getState().displaySpace.bounds;
+const Rect DisplayDevice::getBounds() const {
+    return mCompositionDisplay->getState().displaySpace.getBoundsAsRect();
 }
 
 const Region& DisplayDevice::getUndefinedRegion() const {
@@ -361,11 +363,11 @@ const ui::Transform& DisplayDevice::getTransform() const {
 }
 
 const Rect& DisplayDevice::getLayerStackSpaceRect() const {
-    return mCompositionDisplay->getState().layerStackSpace.content;
+    return mCompositionDisplay->getState().layerStackSpace.getContent();
 }
 
 const Rect& DisplayDevice::getOrientedDisplaySpaceRect() const {
-    return mCompositionDisplay->getState().orientedDisplaySpace.content;
+    return mCompositionDisplay->getState().orientedDisplaySpace.getContent();
 }
 
 bool DisplayDevice::hasWideColorGamut() const {
