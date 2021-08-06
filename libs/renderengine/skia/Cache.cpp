@@ -388,7 +388,10 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
             drawBlurLayers(renderengine, display, dstTexture);
         }
 
-        // should be the same as AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
+        // The majority of skia shaders needed by RenderEngine are related to sampling images.
+        // These need to be generated with various source textures.
+        // Make a list of applicable sources.
+        // GRALLOC_USAGE_HW_TEXTURE should be the same as AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE.
         const int64_t usageExternal = GRALLOC_USAGE_HW_TEXTURE;
         sp<GraphicBuffer> externalBuffer =
                 new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888,
@@ -396,24 +399,24 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
         const auto externalTexture =
                 std::make_shared<ExternalTexture>(externalBuffer, *renderengine,
                                                   ExternalTexture::Usage::READABLE);
+        std::vector<const std::shared_ptr<ExternalTexture>> textures =
+            {srcTexture, externalTexture};
 
-        // Another external texture with a different pixel format triggers useIsOpaqueWorkaround
+        // Another external texture with a different pixel format triggers useIsOpaqueWorkaround.
+        // It doesn't have to be f16, but it can't be the usual 8888.
         sp<GraphicBuffer> f16ExternalBuffer =
                 new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_FP16,
                                   1, usageExternal, "primeShaderCache_external_f16");
-        const auto f16ExternalTexture =
+        // The F16 texture may not be usable on all devices, so check first that it was created.
+        status_t error = f16ExternalBuffer->initCheck();
+        if (!error) {
+            const auto f16ExternalTexture =
                 std::make_shared<ExternalTexture>(f16ExternalBuffer, *renderengine,
                                                   ExternalTexture::Usage::READABLE);
+            textures.push_back(f16ExternalTexture);
+        }
 
-        // The majority of shaders are related to sampling images.
-        // These need to be generated with various source textures
-        // The F16 texture may not be usable on all devices, so check first that it was created with
-        // the requested usage bit.
-        auto textures = {srcTexture, externalTexture};
-        auto texturesWithF16 = {srcTexture, externalTexture, f16ExternalTexture};
-        bool canUsef16 = f16ExternalBuffer->getUsage() & GRALLOC_USAGE_HW_TEXTURE;
-
-        for (auto texture : canUsef16 ? texturesWithF16 : textures) {
+        for (auto texture : textures) {
             drawImageLayers(renderengine, display, dstTexture, texture);
             // Draw layers for b/185569240.
             drawClippedLayers(renderengine, display, dstTexture, texture);
