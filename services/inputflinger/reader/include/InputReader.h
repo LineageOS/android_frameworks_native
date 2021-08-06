@@ -230,6 +230,8 @@ private:
     uint32_t mConfigurationChangesToRefresh GUARDED_BY(mLock);
     void refreshConfigurationLocked(uint32_t changes) REQUIRES(mLock);
 
+    PointerCaptureRequest mCurrentPointerCaptureRequest GUARDED_BY(mLock);
+
     // state queries
     typedef int32_t (InputDevice::*GetStateFunc)(uint32_t sourceMask, int32_t code);
     int32_t getStateLocked(int32_t deviceId, uint32_t sourceMask, int32_t code,

@@ -211,11 +211,12 @@ struct NotifyDeviceResetArgs : public NotifyArgs {
 
 /* Describes a change in the state of Pointer Capture. */
 struct NotifyPointerCaptureChangedArgs : public NotifyArgs {
-    bool enabled;
+    // The sequence number of the Pointer Capture request, if enabled.
+    PointerCaptureRequest request;
 
     inline NotifyPointerCaptureChangedArgs() {}
 
-    NotifyPointerCaptureChangedArgs(int32_t id, nsecs_t eventTime, bool enabled);
+    NotifyPointerCaptureChangedArgs(int32_t id, nsecs_t eventTime, const PointerCaptureRequest&);
 
     NotifyPointerCaptureChangedArgs(const NotifyPointerCaptureChangedArgs& other);
 
