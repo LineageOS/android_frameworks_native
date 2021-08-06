@@ -97,7 +97,6 @@ public:
 
     // See mPendingBufferTransactions
     void decrementPendingBufferCount();
-    void bufferMayChange(const sp<GraphicBuffer>& newBuffer) override;
     std::atomic<int32_t>* getPendingBufferCounter() override { return &mPendingBufferTransactions; }
     std::string getPendingBufferCounterName() override { return mBlastTransactionName; }
 
