@@ -666,7 +666,6 @@ void HWComposer::disconnectDisplay(HalDisplayId displayId) {
     RETURN_IF_INVALID_DISPLAY(displayId);
     auto& displayData = mDisplayData[displayId];
     const auto hwcDisplayId = displayData.hwcDisplay->getId();
-    LOG_ALWAYS_FATAL_IF(hwcDisplayId == mPrimaryHwcDisplayId);
 
     mPhysicalDisplayIdMap.erase(hwcDisplayId);
     mDisplayData.erase(displayId);
