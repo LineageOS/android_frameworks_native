@@ -1328,7 +1328,9 @@ status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, Col
         return NO_ERROR;
     });
 
-    return future.get();
+    // TODO(b/195698395): Propagate error.
+    future.wait();
+    return NO_ERROR;
 }
 
 void SurfaceFlinger::setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on) {
