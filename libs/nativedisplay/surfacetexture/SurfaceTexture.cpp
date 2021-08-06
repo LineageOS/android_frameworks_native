@@ -464,11 +464,10 @@ void SurfaceTexture::dumpLocked(String8& result, const char* prefix) const {
 }
 
 sp<GraphicBuffer> SurfaceTexture::dequeueBuffer(int* outSlotid, android_dataspace* outDataspace,
-                                                bool* outQueueEmpty,
+                                                float* outTransformMatrix, bool* outQueueEmpty,
                                                 SurfaceTexture_createReleaseFence createFence,
                                                 SurfaceTexture_fenceWait fenceWait,
-                                                void* fencePassThroughHandle, ARect* cropRect,
-                                                uint32_t* transform) {
+                                                void* fencePassThroughHandle) {
     Mutex::Autolock _l(mMutex);
     sp<GraphicBuffer> buffer;
 
@@ -484,8 +483,7 @@ sp<GraphicBuffer> SurfaceTexture::dequeueBuffer(int* outSlotid, android_dataspac
 
     buffer = mImageConsumer.dequeueBuffer(outSlotid, outDataspace, outQueueEmpty, *this,
                                           createFence, fenceWait, fencePassThroughHandle);
-    *transform = mCurrentTransform;
-    *cropRect = mCurrentCrop;
+    memcpy(outTransformMatrix, mCurrentTransformMatrix, sizeof(mCurrentTransformMatrix));
     return buffer;
 }
 
