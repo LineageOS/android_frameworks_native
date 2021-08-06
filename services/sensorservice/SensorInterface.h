@@ -119,7 +119,6 @@ public:
     void didEnableAllSensors() override;
 private:
     SensorService& mSensorService;
-    bool mActive;
 };
 
 // ---------------------------------------------------------------------------

@@ -915,7 +915,7 @@ bool SensorDevice::isSensorActive(int handle) const {
     if (activationIndex < 0) {
         return false;
     }
-    return mActivationCount.valueAt(activationIndex).numActiveClients() > 0;
+    return mActivationCount.valueAt(activationIndex).isActive;
 }
 
 void SensorDevice::onMicSensorAccessChanged(void* ident, int handle, nsecs_t samplingPeriodNs) {
