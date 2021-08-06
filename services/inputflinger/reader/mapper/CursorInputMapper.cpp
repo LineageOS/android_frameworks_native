@@ -154,9 +154,9 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         mHWheelScale = 1.0f;
     }
 
-    if ((!changes && config->pointerCapture) ||
+    if ((!changes && config->pointerCaptureRequest.enable) ||
         (changes & InputReaderConfiguration::CHANGE_POINTER_CAPTURE)) {
-        if (config->pointerCapture) {
+        if (config->pointerCaptureRequest.enable) {
             if (mParameters.mode == Parameters::MODE_POINTER) {
                 mParameters.mode = Parameters::MODE_POINTER_RELATIVE;
                 mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
