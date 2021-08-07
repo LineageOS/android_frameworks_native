@@ -83,11 +83,11 @@ typedef int (*ASurfaceTexture_fenceWait)(int fence, void* fencePassThroughHandle
  * AHardwareBuffer_release.
  */
 AHardwareBuffer* ASurfaceTexture_dequeueBuffer(ASurfaceTexture* st, int* outSlotid,
-                                               android_dataspace* outDataspace, bool* outNewContent,
+                                               android_dataspace* outDataspace,
+                                               float* outTransformMatrix, bool* outNewContent,
                                                ASurfaceTexture_createReleaseFence createFence,
                                                ASurfaceTexture_fenceWait fenceWait,
-                                               void* fencePassThroughHandle, ARect* cropRect,
-                                               uint32_t* transform);
+                                               void* fencePassThroughHandle);
 
 } // namespace android
 
