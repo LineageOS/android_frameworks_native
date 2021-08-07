@@ -703,12 +703,6 @@ public:
     virtual uint32_t doTransaction(uint32_t transactionFlags);
 
     /*
-     * Called before updating the drawing state buffer. Used by BufferStateLayer to release any
-     * unlatched buffers in the drawing state.
-     */
-    virtual void bufferMayChange(const sp<GraphicBuffer>& /* newBuffer */){};
-
-    /*
      * Remove relative z for the layer if its relative parent is not part of the
      * provided layer tree.
      */
@@ -1053,6 +1047,8 @@ private:
                                           const std::vector<Layer*>& layersInTree);
 
     void updateTreeHasFrameRateVote();
+    bool propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool* transactionNeeded);
+    bool setFrameRateForLayerTree(FrameRate);
     void setZOrderRelativeOf(const wp<Layer>& relativeOf);
     bool isTrustedOverlay() const;
 
@@ -1070,8 +1066,6 @@ private:
 
     // Fills in the frame and transform info for the gui::WindowInfo
     void fillInputFrameInfo(gui::WindowInfo& info, const ui::Transform& toPhysicalDisplay);
-
-    bool updateFrameRateForLayerTree(bool treeHasFrameRateVote);
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling, which is
