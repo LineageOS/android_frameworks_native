@@ -168,7 +168,7 @@ void SensorDevice::initializeSensorList() {
                         }
                     }
 
-                    // Sanity check and clamp power if it is 0 (or close)
+                    // Check and clamp power if it is 0 (or close)
                     constexpr float MIN_POWER_MA = 0.001; // 1 microAmp
                     if (sensor.power < MIN_POWER_MA) {
                         ALOGI("%s's reported power %f invalid, clamped to %f",
