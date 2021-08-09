@@ -24,7 +24,7 @@ package {
 cc_defaults {
     name: "idlcli-defaults",
     shared_libs: [
-        "android.hardware.vibrator-V1-ndk_platform",
+        "android.hardware.vibrator-V1-ndk",
         "android.hardware.vibrator@1.0",
         "android.hardware.vibrator@1.1",
         "android.hardware.vibrator@1.2",
