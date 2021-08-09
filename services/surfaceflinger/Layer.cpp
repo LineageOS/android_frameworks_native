@@ -2299,10 +2299,7 @@ WindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
 
     WindowInfo info = mDrawingState.inputInfo;
     info.id = sequence;
-
-    if (info.displayId == ADISPLAY_ID_NONE) {
-        info.displayId = getLayerStack();
-    }
+    info.displayId = getLayerStack();
 
     // Transform that goes from "logical(rotated)" display to physical/unrotated display.
     // This is for when inputflinger operates in physical display-space.
