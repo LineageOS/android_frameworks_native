@@ -231,9 +231,12 @@ public:
 
     virtual Hwc2::Composer* getComposer() const = 0;
 
-    // Returns the first display connected at boot. It cannot be disconnected, which implies an
-    // internal connection type. Its connection via HWComposer::onHotplug, which in practice is
-    // immediately after HWComposer construction, must occur before any call to this function.
+    // Returns the first display connected at boot. Its connection via HWComposer::onHotplug,
+    // which in practice is immediately after HWComposer construction, must occur before any
+    // call to this function.
+    // The primary display can be temporarily disconnected from the perspective
+    // of this class. Callers must not call getPrimaryHwcDisplayId() or getPrimaryDisplayId()
+    // if isHeadless().
     //
     // TODO(b/182939859): Remove special cases for primary display.
     virtual hal::HWDisplayId getPrimaryHwcDisplayId() const = 0;
