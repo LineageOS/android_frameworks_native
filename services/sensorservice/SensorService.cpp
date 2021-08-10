@@ -1197,7 +1197,7 @@ int32_t SensorService::getIdFromUuid(const Sensor::uuid_t &uuid) const {
     // We have a dynamic sensor.
 
     if (!sHmacGlobalKeyIsValid) {
-        // Rather than risk exposing UUIDs, we cripple dynamic sensors.
+        // Rather than risk exposing UUIDs, we slow down dynamic sensors.
         ALOGW("HMAC key failure; dynamic sensor getId() will be wrong.");
         return 0;
     }
@@ -1223,7 +1223,7 @@ int32_t SensorService::getIdFromUuid(const Sensor::uuid_t &uuid) const {
              sHmacGlobalKey, sizeof(sHmacGlobalKey),
              uuidAndApp, sizeof(uuidAndApp),
              hash, &hashLen) == nullptr) {
-        // Rather than risk exposing UUIDs, we cripple dynamic sensors.
+        // Rather than risk exposing UUIDs, we slow down dynamic sensors.
         ALOGW("HMAC failure; dynamic sensor getId() will be wrong.");
         return 0;
     }
