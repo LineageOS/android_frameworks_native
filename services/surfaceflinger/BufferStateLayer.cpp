@@ -158,7 +158,8 @@ void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
     // transaction doesn't need a previous release fence.
     sp<CallbackHandle> ch;
     for (auto& handle : mDrawingState.callbackHandles) {
-        if (handle->releasePreviousBuffer) {
+        if (handle->releasePreviousBuffer &&
+            mDrawingState.releaseBufferEndpoint == handle->listener) {
             ch = handle;
             break;
         }
@@ -199,14 +200,9 @@ void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
                 mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(mOwnerUid);
     }
 
-    // If there are multiple transactions in this frame, set the previous id on the earliest
-    // transacton. We don't need to pass in the released buffer id to multiple transactions.
-    // The buffer id does not have to correspond to any particular transaction as long as the
-    // listening end point is the same but the client expects the first transaction callback that
-    // replaces the presented buffer to contain the release fence. This follows the same logic.
-    // see BufferStateLayer::onLayerDisplayed.
     for (auto& handle : mDrawingState.callbackHandles) {
-        if (handle->releasePreviousBuffer) {
+        if (handle->releasePreviousBuffer &&
+            mDrawingState.releaseBufferEndpoint == handle->listener) {
             handle->previousReleaseCallbackId = mPreviousReleaseCallbackId;
             break;
         }
@@ -420,7 +416,8 @@ bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTex
                                  nsecs_t desiredPresentTime, bool isAutoTimestamp,
                                  const client_cache_t& clientCacheId, uint64_t frameNumber,
                                  std::optional<nsecs_t> dequeueTime, const FrameTimelineInfo& info,
-                                 const sp<ITransactionCompletedListener>& releaseBufferListener) {
+                                 const sp<ITransactionCompletedListener>& releaseBufferListener,
+                                 const sp<IBinder>& releaseBufferEndpoint) {
     ATRACE_CALL();
 
     if (mDrawingState.buffer) {
@@ -485,6 +482,7 @@ bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTex
 
     mDrawingState.width = mDrawingState.buffer->getBuffer()->getWidth();
     mDrawingState.height = mDrawingState.buffer->getBuffer()->getHeight();
+    mDrawingState.releaseBufferEndpoint = releaseBufferEndpoint;
 
     return true;
 }
