@@ -627,6 +627,29 @@ TEST_F(DumpsysTest, ListServiceWithThread) {
     AssertOutputFormat(format);
 }
 
+// Tests 'dumpsys --clients'
+TEST_F(DumpsysTest, ListAllServicesWithClients) {
+    ExpectListServices({"Locksmith", "Valet"});
+    ExpectCheckService("Locksmith");
+    ExpectCheckService("Valet");
+
+    CallMain({"--clients"});
+
+    AssertRunningServices({"Locksmith", "Valet"});
+
+    const std::string format("(.|\n)*((Client PIDs are not available for local binders.)(.|\n)*){2}");
+    AssertOutputFormat(format);
+}
+
+// Tests 'dumpsys --clients service_name'
+TEST_F(DumpsysTest, ListServiceWithClients) {
+    ExpectCheckService("Locksmith");
+
+    CallMain({"--clients", "Locksmith"});
+
+    const std::string format("Client PIDs are not available for local binders.\n");
+    AssertOutputFormat(format);
+}
 // Tests 'dumpsys --thread --stability'
 TEST_F(DumpsysTest, ListAllServicesWithMultipleOptions) {
     ExpectListServices({"Locksmith", "Valet"});

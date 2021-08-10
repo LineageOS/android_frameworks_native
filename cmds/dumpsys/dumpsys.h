@@ -52,10 +52,11 @@ class Dumpsys {
     static void setServiceArgs(Vector<String16>& args, bool asProto, int priorityFlags);
 
     enum Type {
-        TYPE_DUMP = 0x1,      // dump using `dump` function
-        TYPE_PID = 0x2,       // dump pid of server only
-        TYPE_STABILITY = 0x4, // dump stability information of server
-        TYPE_THREAD = 0x8,    // dump thread usage of server only
+        TYPE_DUMP = 0x1,       // dump using `dump` function
+        TYPE_PID = 0x2,        // dump pid of server only
+        TYPE_STABILITY = 0x4,  // dump stability information of server
+        TYPE_THREAD = 0x8,     // dump thread usage of server only
+        TYPE_CLIENTS = 0x10,   // dump pid of clients
     };
 
     /**
