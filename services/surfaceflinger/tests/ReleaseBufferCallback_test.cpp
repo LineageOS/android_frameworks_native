@@ -99,10 +99,10 @@ public:
     }
 
     static void waitForReleaseBufferCallback(ReleaseBufferCallbackHelper& releaseCallback,
-                                             const ReleaseCallbackId& expectedCallbackId) {
+                                             const ReleaseCallbackId& expectedReleaseBufferId) {
         ReleaseCallbackId actualReleaseBufferId;
         releaseCallback.getCallbackData(&actualReleaseBufferId);
-        EXPECT_EQ(expectedCallbackId, actualReleaseBufferId);
+        EXPECT_EQ(expectedReleaseBufferId, actualReleaseBufferId);
         releaseCallback.verifyNoCallbacks();
     }
     static ReleaseBufferCallbackHelper* getReleaseBufferCallbackHelper() {
@@ -330,6 +330,62 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_FrameDropping) {
                         ExpectedResult::Buffer::NOT_ACQUIRED,
                         ExpectedResult::PreviousBuffer::RELEASED);
     ASSERT_NO_FATAL_FAILURE(waitForCallback(transactionCallback, expected));
+    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBufferCallbackId));
+}
+
+TEST_F(ReleaseBufferCallbackTest, DISABLED_Merge_Different_Processes) {
+    sp<TransactionCompletedListener> firstCompletedListener = new TransactionCompletedListener();
+    sp<TransactionCompletedListener> secondCompletedListener = new TransactionCompletedListener();
+
+    CallbackHelper callback1, callback2;
+
+    TransactionCompletedListener::setInstance(firstCompletedListener);
+
+    sp<SurfaceControl> layer = createBufferStateLayer();
+    ReleaseBufferCallbackHelper* releaseCallback = getReleaseBufferCallbackHelper();
+
+    sp<GraphicBuffer> firstBuffer = getBuffer();
+    ReleaseCallbackId firstBufferCallbackId(firstBuffer->getId(), generateFrameNumber());
+
+    // Send initial buffer for the layer
+    submitBuffer(layer, firstBuffer, Fence::NO_FENCE, callback1, firstBufferCallbackId,
+                 *releaseCallback);
+
+    ExpectedResult expected;
+    expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
+                        ExpectedResult::Buffer::NOT_ACQUIRED);
+    ASSERT_NO_FATAL_FAILURE(waitForCallback(callback1, expected));
+
+    // Sent a second buffer to allow the first buffer to get released.
+    sp<GraphicBuffer> secondBuffer = getBuffer();
+    ReleaseCallbackId secondBufferCallbackId(secondBuffer->getId(), generateFrameNumber());
+
+    Transaction transaction1;
+    transaction1.setFrameNumber(layer, secondBufferCallbackId.framenumber);
+    transaction1.setBuffer(layer, secondBuffer, secondBufferCallbackId,
+                           releaseCallback->getCallback());
+    transaction1.setAcquireFence(layer, Fence::NO_FENCE);
+    transaction1.addTransactionCompletedCallback(callback1.function, callback1.getContext());
+
+    // Set a different TransactionCompletedListener to mimic a second process
+    TransactionCompletedListener::setInstance(secondCompletedListener);
+
+    // Make sure the second "process" has a callback set up.
+    Transaction transaction2;
+    transaction2.addTransactionCompletedCallback(callback2.function, callback2.getContext());
+
+    // This merging order, merge transaction1 first then transaction2, seems to ensure the listener
+    // for transaction2 is ordered first. This makes sure the wrong process is added first to the
+    // layer's vector of listeners. With the bug, only the secondCompletedListener will get the
+    // release callback id, since it's ordered first. Then firstCompletedListener would fail to get
+    // the release callback id and not invoke the release callback.
+    Transaction().merge(std::move(transaction1)).merge(std::move(transaction2)).apply();
+
+    expected = ExpectedResult();
+    expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
+                        ExpectedResult::Buffer::NOT_ACQUIRED,
+                        ExpectedResult::PreviousBuffer::RELEASED);
+    ASSERT_NO_FATAL_FAILURE(waitForCallback(callback1, expected));
     ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBufferCallbackId));
 }
 
