@@ -119,7 +119,7 @@ public:
                                    FrameTracer::FrameEvent::QUEUE, /*duration*/ 0));
         layer->setBuffer(buffer, fence, postTime, /*desiredPresentTime*/ 30, false, mClientCache,
                          frameNumber, dequeueTime, FrameTimelineInfo{},
-                         nullptr /* releaseBufferCallback */);
+                         nullptr /* releaseBufferCallback */, nullptr /* releaseBufferEndpoint*/);
 
         commitTransaction(layer.get());
         bool computeVisisbleRegions;

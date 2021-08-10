@@ -242,6 +242,11 @@ struct layer_state_t {
     // is used to remove the old callback from the client process map if it is
     // overwritten by another setBuffer call.
     ReleaseCallbackId releaseCallbackId;
+
+    // Stores which endpoint the release information should be sent to. We don't want to send the
+    // releaseCallbackId and release fence to all listeners so we store which listener the setBuffer
+    // was called with.
+    sp<IBinder> releaseBufferEndpoint;
 };
 
 struct ComposerState {

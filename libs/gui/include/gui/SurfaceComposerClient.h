@@ -655,8 +655,10 @@ public:
 };
 
 class TransactionCompletedListener : public BnTransactionCompletedListener {
+public:
     TransactionCompletedListener();
 
+protected:
     int64_t getNextIdLocked() REQUIRES(mMutex);
 
     std::mutex mMutex;
@@ -734,8 +736,12 @@ public:
     void onReleaseBuffer(ReleaseCallbackId, sp<Fence> releaseFence, uint32_t transformHint,
                          uint32_t currentMaxAcquiredBufferCount) override;
 
+    // For Testing Only
+    static void setInstance(const sp<TransactionCompletedListener>&);
+
 private:
     ReleaseBufferCallback popReleaseBufferCallbackLocked(const ReleaseCallbackId&);
+    static sp<TransactionCompletedListener> sInstance;
 };
 
 } // namespace android
