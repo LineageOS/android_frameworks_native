@@ -130,6 +130,9 @@ message LayerProto {
   repeated BlurRegion blur_regions = 54;
 
   bool is_trusted_overlay = 55;
+
+  // Corner radius explicitly set on layer rather than inherited
+  float requested_corner_radius = 56;
 }
 
 message PositionProto {
