@@ -169,7 +169,7 @@ void SetFrameRateTest::setupScheduler() {
 namespace {
 
 TEST_P(SetFrameRateTest, SetAndGet) {
-    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -180,7 +180,7 @@ TEST_P(SetFrameRateTest, SetAndGet) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetParent) {
-    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -205,7 +205,7 @@ TEST_P(SetFrameRateTest, SetAndGetParent) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetParentAllVote) {
-    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -244,7 +244,7 @@ TEST_P(SetFrameRateTest, SetAndGetParentAllVote) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetChild) {
-    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -269,7 +269,7 @@ TEST_P(SetFrameRateTest, SetAndGetChild) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetChildAllVote) {
-    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -308,7 +308,7 @@ TEST_P(SetFrameRateTest, SetAndGetChildAllVote) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetChildAddAfterVote) {
-    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -338,7 +338,7 @@ TEST_P(SetFrameRateTest, SetAndGetChildAddAfterVote) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetChildRemoveAfterVote) {
-    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -369,7 +369,7 @@ TEST_P(SetFrameRateTest, SetAndGetChildRemoveAfterVote) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetParentNotInTree) {
-    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -464,7 +464,7 @@ TEST_P(SetFrameRateTest, SetOnParentActivatesTree) {
 }
 
 TEST_P(SetFrameRateTest, addChildForParentWithTreeVote) {
-    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     const auto& layerFactory = GetParam();
 

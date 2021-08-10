@@ -536,7 +536,7 @@ struct BaseLayerProperties {
         ASSERT_EQ(NO_ERROR, err);
         Mock::VerifyAndClear(test->mRenderEngine);
 
-        EXPECT_CALL(*test->mFlinger.scheduler(), scheduleCommit()).Times(1);
+        EXPECT_CALL(*test->mFlinger.scheduler(), scheduleFrame()).Times(1);
         enqueueBuffer(test, layer);
         Mock::VerifyAndClearExpectations(test->mFlinger.scheduler());
 

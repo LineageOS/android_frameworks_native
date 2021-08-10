@@ -52,7 +52,7 @@ public:
         });
     }
 
-    MOCK_METHOD(void, scheduleCommit, (), (override));
+    MOCK_METHOD(void, scheduleFrame, (), (override));
     MOCK_METHOD(void, postMessage, (sp<MessageHandler>&&), (override));
 
     // Used to inject mock event thread.

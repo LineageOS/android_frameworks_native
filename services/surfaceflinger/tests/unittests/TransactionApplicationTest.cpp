@@ -143,7 +143,7 @@ public:
 
     void NotPlacedOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-        EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
+        EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
         TransactionInfo transaction;
         setupSingle(transaction, flags, syncInputWindows,
                     /*desiredPresentTime*/ systemTime(), /*isAutoTimestamp*/ true,
@@ -173,7 +173,7 @@ public:
 
     void PlaceOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-        EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
+        EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
         // first check will see desired present time has not passed,
         // but afterwards it will look like the desired present time has passed
@@ -204,9 +204,9 @@ public:
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
         nsecs_t time = systemTime();
         if (!syncInputWindows) {
-            EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(2);
+            EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(2);
         } else {
-            EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
+            EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
         }
         // transaction that should go on the pending thread
         TransactionInfo transactionA;
@@ -451,7 +451,7 @@ public:
 
 TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
     ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     TransactionInfo transactionA; // transaction to go on pending queue
     setupSingle(transactionA, /*flags*/ 0, /*syncInputWindows*/ false,

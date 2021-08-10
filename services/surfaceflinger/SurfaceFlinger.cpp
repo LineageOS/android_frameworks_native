@@ -1702,7 +1702,7 @@ void SurfaceFlinger::scheduleCommit(FrameHint hint) {
         mScheduler->resetIdleTimer();
     }
     mPowerAdvisor.notifyDisplayUpdateImminent();
-    mScheduler->scheduleCommit();
+    mScheduler->scheduleFrame();
 }
 
 void SurfaceFlinger::scheduleComposite(FrameHint hint) {
@@ -1928,7 +1928,7 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     // fired yet just wait for the next commit.
     if (mSetActiveModePending) {
         if (framePending) {
-            mScheduler->scheduleCommit();
+            mScheduler->scheduleFrame();
             return false;
         }
 
@@ -5324,6 +5324,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 scheduleRepaint();
                 return NO_ERROR;
             case 1004: // Force composite ahead of next VSYNC.
+            case 1006:
                 scheduleComposite(FrameHint::kActive);
                 return NO_ERROR;
             case 1005: { // Force commit ahead of next VSYNC.
@@ -5332,9 +5333,6 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                                     eTraversalNeeded);
                 return NO_ERROR;
             }
-            case 1006: // Force composite immediately.
-                mScheduler->scheduleComposite();
-                return NO_ERROR;
             case 1007: // Unused.
                 return NAME_NOT_FOUND;
             case 1008: // Toggle forced GPU composition.
@@ -5752,7 +5750,7 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
         const bool timerExpired = mKernelIdleTimerEnabled && expired;
 
         if (display->onKernelTimerChanged(desiredModeId, timerExpired)) {
-            mScheduler->scheduleCommit();
+            mScheduler->scheduleFrame();
         }
     }));
 }
