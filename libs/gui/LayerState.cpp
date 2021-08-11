@@ -174,6 +174,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.write, destinationFrame);
     SAFE_PARCEL(output.writeBool, isTrustedOverlay);
 
+    SAFE_PARCEL(output.writeStrongBinder, releaseBufferEndpoint);
     return NO_ERROR;
 }
 
@@ -303,6 +304,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, destinationFrame);
     SAFE_PARCEL(input.readBool, &isTrustedOverlay);
 
+    SAFE_PARCEL(input.readNullableStrongBinder, &releaseBufferEndpoint);
     return NO_ERROR;
 }
 
