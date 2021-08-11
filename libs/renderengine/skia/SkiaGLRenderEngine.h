@@ -99,7 +99,10 @@ private:
     inline GrDirectContext* getActiveGrContext() const;
 
     base::unique_fd flush();
-    bool waitFence(base::unique_fd fenceFd);
+    // waitFence attempts to wait in the GPU, and if unable to waits on the CPU instead.
+    void waitFence(base::borrowed_fd fenceFd);
+    bool waitGpuFence(base::borrowed_fd fenceFd);
+
     void initCanvas(SkCanvas* canvas, const DisplaySettings& display);
     void drawShadow(SkCanvas* canvas, const SkRRect& casterRRect,
                     const ShadowSettings& shadowSettings);
