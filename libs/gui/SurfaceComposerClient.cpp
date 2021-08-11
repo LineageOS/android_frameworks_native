@@ -147,8 +147,16 @@ int64_t TransactionCompletedListener::getNextIdLocked() {
     return mCallbackIdCounter++;
 }
 
+sp<TransactionCompletedListener> TransactionCompletedListener::sInstance = nullptr;
+
+void TransactionCompletedListener::setInstance(const sp<TransactionCompletedListener>& listener) {
+    sInstance = listener;
+}
+
 sp<TransactionCompletedListener> TransactionCompletedListener::getInstance() {
-    static sp<TransactionCompletedListener> sInstance = new TransactionCompletedListener;
+    if (sInstance == nullptr) {
+        sInstance = new TransactionCompletedListener;
+    }
     return sInstance;
 }
 
@@ -1274,6 +1282,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
     removeReleaseBufferCallback(s);
     s->what |= layer_state_t::eBufferChanged;
     s->buffer = buffer;
+    s->releaseBufferEndpoint = IInterface::asBinder(TransactionCompletedListener::getIInstance());
     if (mIsAutoTimestamp) {
         mDesiredPresentTime = systemTime();
     }

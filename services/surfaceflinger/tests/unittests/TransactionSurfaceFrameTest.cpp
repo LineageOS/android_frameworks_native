@@ -119,7 +119,8 @@ public:
                                                                  1, 0),
                                                mRenderEngine, false);
         layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
+                         nullptr /* releaseBufferEndpoint */);
         acquireFence->signalForTest(12);
 
         commitTransaction(layer.get());
@@ -147,7 +148,8 @@ public:
                                                                  1, 0),
                                                mRenderEngine, false);
         layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
+                         nullptr /* releaseBufferEndpoint */);
         EXPECT_EQ(0u, layer->mDrawingState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
         const auto droppedSurfaceFrame = layer->mDrawingState.bufferSurfaceFrameTX;
@@ -160,7 +162,8 @@ public:
                                                mRenderEngine, false);
         nsecs_t start = systemTime();
         layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
+                         nullptr /* releaseBufferEndpoint */);
         nsecs_t end = systemTime();
         acquireFence2->signalForTest(12);
 
@@ -200,7 +203,8 @@ public:
                                                                  1, 0),
                                                mRenderEngine, false);
         layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
+                         nullptr /* releaseBufferEndpoint */);
         acquireFence->signalForTest(12);
 
         EXPECT_EQ(0u, layer->mDrawingState.bufferlessSurfaceFramesTX.size());
@@ -228,7 +232,8 @@ public:
                                                                  1, 0),
                                                mRenderEngine, false);
         layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
+                         nullptr /* releaseBufferEndpoint */);
         EXPECT_EQ(0u, layer->mDrawingState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
 
@@ -260,7 +265,8 @@ public:
                                                                  1, 0),
                                                mRenderEngine, false);
         layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 3, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
+                         {/*vsyncId*/ 3, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
+                         nullptr /* releaseBufferEndpoint */);
         EXPECT_EQ(2u, layer->mDrawingState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
         const auto bufferSurfaceFrameTX = layer->mDrawingState.bufferSurfaceFrameTX;
@@ -298,7 +304,8 @@ public:
                                                                  1, 0),
                                                mRenderEngine, false);
         layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
+                         nullptr /* releaseBufferEndpoint */);
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
         const auto droppedSurfaceFrame = layer->mDrawingState.bufferSurfaceFrameTX;
 
@@ -309,7 +316,8 @@ public:
                                                                  1, 0),
                                                mRenderEngine, false);
         layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
+                         nullptr /* releaseBufferEndpoint */);
         acquireFence2->signalForTest(12);
 
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
@@ -339,7 +347,8 @@ public:
                                                                  1, 0),
                                                mRenderEngine, false);
         layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
+                         nullptr /* releaseBufferEndpoint */);
         EXPECT_EQ(0u, layer->mDrawingState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
         const auto droppedSurfaceFrame1 = layer->mDrawingState.bufferSurfaceFrameTX;
@@ -353,7 +362,7 @@ public:
         auto dropStartTime1 = systemTime();
         layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
                          {/*vsyncId*/ FrameTimelineInfo::INVALID_VSYNC_ID, /*inputEventId*/ 0},
-                         nullptr /* releaseBufferCallback */);
+                         nullptr /* releaseBufferCallback */, nullptr /* releaseBufferEndpoint */);
         auto dropEndTime1 = systemTime();
         EXPECT_EQ(0u, layer->mDrawingState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
@@ -367,7 +376,8 @@ public:
                                                mRenderEngine, false);
         auto dropStartTime2 = systemTime();
         layer->setBuffer(buffer3, fence3, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 2, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
+                         {/*vsyncId*/ 2, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
+                         nullptr /* releaseBufferEndpoint */);
         auto dropEndTime2 = systemTime();
         acquireFence3->signalForTest(12);
 
@@ -411,7 +421,8 @@ public:
                                                    mRenderEngine, false);
             layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
                              {/*vsyncId*/ 1, /*inputEventId*/ 0},
-                             nullptr /* releaseBufferCallback */);
+                             nullptr /* releaseBufferCallback */,
+                             nullptr /* releaseBufferEndpoint */);
             layer->setFrameTimelineVsyncForBufferlessTransaction({/*vsyncId*/ 2,
                                                                   /*inputEventId*/ 0},
                                                                  10);

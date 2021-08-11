@@ -280,6 +280,8 @@ public:
 
         Rect bufferCrop;
         Rect destinationFrame;
+
+        sp<IBinder> releaseBufferEndpoint;
     };
 
     /*
@@ -417,7 +419,8 @@ public:
                            const client_cache_t& /*clientCacheId*/, uint64_t /* frameNumber */,
                            std::optional<nsecs_t> /* dequeueTime */,
                            const FrameTimelineInfo& /*info*/,
-                           const sp<ITransactionCompletedListener>& /* releaseBufferListener */) {
+                           const sp<ITransactionCompletedListener>& /* releaseBufferListener */,
+                           const sp<IBinder>& /* releaseBufferEndpoint */) {
         return false;
     };
     virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
