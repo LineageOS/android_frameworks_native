@@ -942,7 +942,7 @@ private:
         return width > mMaxRenderTargetSize || height > mMaxRenderTargetSize;
     }
 
-    int getMaxAcquiredBufferCountForCurrentRefreshRate(uid_t uid) const;
+    uint32_t getMaxAcquiredBufferCountForCurrentRefreshRate(uid_t uid) const;
 
     /*
      * Display and layer stack management

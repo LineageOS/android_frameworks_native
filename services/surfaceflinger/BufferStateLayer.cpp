@@ -14,11 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-#pragma clang diagnostic ignored "-Wextra"
-
 //#define LOG_NDEBUG 0
 #undef LOG_TAG
 #define LOG_TAG "BufferStateLayer"
@@ -596,7 +591,7 @@ bool BufferStateLayer::setTransparentRegionHint(const Region& transparent) {
     return true;
 }
 
-Rect BufferStateLayer::getBufferSize(const State& s) const {
+Rect BufferStateLayer::getBufferSize(const State& /*s*/) const {
     // for buffer state layers we use the display frame size as the buffer size.
 
     if (mBufferInfo.mBuffer == nullptr) {
@@ -618,7 +613,7 @@ Rect BufferStateLayer::getBufferSize(const State& s) const {
         }
     }
 
-    return Rect(0, 0, bufWidth, bufHeight);
+    return Rect(0, 0, static_cast<int32_t>(bufWidth), static_cast<int32_t>(bufHeight));
 }
 
 FloatRect BufferStateLayer::computeSourceBounds(const FloatRect& parentBounds) const {
@@ -817,7 +812,7 @@ void BufferStateLayer::HwcSlotGenerator::bufferErased(const client_cache_t& clie
     eraseBufferLocked(clientCacheId);
 }
 
-uint32_t BufferStateLayer::HwcSlotGenerator::getHwcCacheSlot(const client_cache_t& clientCacheId) {
+int BufferStateLayer::HwcSlotGenerator::getHwcCacheSlot(const client_cache_t& clientCacheId) {
     std::lock_guard<std::mutex> lock(mMutex);
     auto itr = mCachedBuffers.find(clientCacheId);
     if (itr == mCachedBuffers.end()) {
@@ -828,7 +823,7 @@ uint32_t BufferStateLayer::HwcSlotGenerator::getHwcCacheSlot(const client_cache_
     return hwcCacheSlot;
 }
 
-uint32_t BufferStateLayer::HwcSlotGenerator::addCachedBuffer(const client_cache_t& clientCacheId)
+int BufferStateLayer::HwcSlotGenerator::addCachedBuffer(const client_cache_t& clientCacheId)
         REQUIRES(mMutex) {
     if (!clientCacheId.isValid()) {
         ALOGE("invalid process, returning invalid slot");
@@ -837,17 +832,17 @@ uint32_t BufferStateLayer::HwcSlotGenerator::addCachedBuffer(const client_cache_
 
     ClientCache::getInstance().registerErasedRecipient(clientCacheId, wp<ErasedRecipient>(this));
 
-    uint32_t hwcCacheSlot = getFreeHwcCacheSlot();
+    int hwcCacheSlot = getFreeHwcCacheSlot();
     mCachedBuffers[clientCacheId] = {hwcCacheSlot, mCounter++};
     return hwcCacheSlot;
 }
 
-uint32_t BufferStateLayer::HwcSlotGenerator::getFreeHwcCacheSlot() REQUIRES(mMutex) {
+int BufferStateLayer::HwcSlotGenerator::getFreeHwcCacheSlot() REQUIRES(mMutex) {
     if (mFreeHwcCacheSlots.empty()) {
         evictLeastRecentlyUsed();
     }
 
-    uint32_t hwcCacheSlot = mFreeHwcCacheSlots.top();
+    int hwcCacheSlot = mFreeHwcCacheSlots.top();
     mFreeHwcCacheSlots.pop();
     return hwcCacheSlot;
 }
@@ -934,8 +929,8 @@ bool BufferStateLayer::bufferNeedsFiltering() const {
         return false;
     }
 
-    uint32_t bufferWidth = s.buffer->getBuffer()->width;
-    uint32_t bufferHeight = s.buffer->getBuffer()->height;
+    int32_t bufferWidth = s.buffer->getBuffer()->width;
+    int32_t bufferHeight = s.buffer->getBuffer()->height;
 
     // Undo any transformations on the buffer and return the result.
     if (s.bufferTransform & ui::Transform::ROT_90) {
@@ -994,6 +989,3 @@ Rect BufferStateLayer::getInputBounds() const {
 }
 
 } // namespace android
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
