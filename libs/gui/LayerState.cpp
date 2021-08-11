@@ -463,6 +463,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eBufferChanged) {
         what |= eBufferChanged;
         buffer = other.buffer;
+        releaseBufferEndpoint = other.releaseBufferEndpoint;
     }
     if (other.what & eAcquireFenceChanged) {
         what |= eAcquireFenceChanged;
