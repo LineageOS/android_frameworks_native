@@ -178,19 +178,19 @@ private:
     class HwcSlotGenerator : public ClientCache::ErasedRecipient {
     public:
         HwcSlotGenerator() {
-            for (uint32_t i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
+            for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
                 mFreeHwcCacheSlots.push(i);
             }
         }
 
         void bufferErased(const client_cache_t& clientCacheId);
 
-        uint32_t getHwcCacheSlot(const client_cache_t& clientCacheId);
+        int getHwcCacheSlot(const client_cache_t& clientCacheId);
 
     private:
         friend class SlotGenerationTest;
-        uint32_t addCachedBuffer(const client_cache_t& clientCacheId) REQUIRES(mMutex);
-        uint32_t getFreeHwcCacheSlot() REQUIRES(mMutex);
+        int addCachedBuffer(const client_cache_t& clientCacheId) REQUIRES(mMutex);
+        int getFreeHwcCacheSlot() REQUIRES(mMutex);
         void evictLeastRecentlyUsed() REQUIRES(mMutex);
         void eraseBufferLocked(const client_cache_t& clientCacheId) REQUIRES(mMutex);
 
@@ -202,11 +202,10 @@ private:
 
         std::mutex mMutex;
 
-        std::unordered_map<client_cache_t,
-                           std::pair<uint32_t /*HwcCacheSlot*/, uint32_t /*counter*/>,
+        std::unordered_map<client_cache_t, std::pair<int /*HwcCacheSlot*/, uint64_t /*counter*/>,
                            CachedBufferHash>
                 mCachedBuffers GUARDED_BY(mMutex);
-        std::stack<uint32_t /*HwcCacheSlot*/> mFreeHwcCacheSlots GUARDED_BY(mMutex);
+        std::stack<int /*HwcCacheSlot*/> mFreeHwcCacheSlots GUARDED_BY(mMutex);
 
         // The cache increments this counter value when a slot is updated or used.
         // Used to track the least recently-used buffer
