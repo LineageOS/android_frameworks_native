@@ -350,13 +350,6 @@ protected:
             REQUIRES(mStateLock);
     virtual void commitTransactionLocked();
 
-    // Used internally by computeLayerBounds() to gets the clip rectangle to use for the
-    // root layers on a particular display in layer-coordinate space. The
-    // layers (and effectively their children) will be clipped against this
-    // rectangle. The base behavior is to clip to the visible region of the
-    // display.
-    virtual FloatRect getLayerClipBoundsForDisplay(const DisplayDevice&) const;
-
     virtual void processDisplayAdded(const wp<IBinder>& displayToken, const DisplayDeviceState&)
             REQUIRES(mStateLock);
 
