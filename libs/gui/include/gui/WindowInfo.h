@@ -132,6 +132,10 @@ struct WindowInfo : public Parcelable {
     // This value should NOT be used to uniquely identify the window. There may be different
     // input windows that have the same token.
     sp<IBinder> token;
+
+    // The token that identifies which client window this WindowInfo was created for.
+    sp<IBinder> windowToken;
+
     // This uniquely identifies the input window.
     int32_t id = -1;
     std::string name;
