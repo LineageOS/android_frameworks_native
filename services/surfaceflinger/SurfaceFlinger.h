@@ -165,7 +165,7 @@ class SurfaceFlinger : public BnSurfaceComposer,
                        private IBinder::DeathRecipient,
                        private HWC2::ComposerCallback,
                        private ICompositor,
-                       private ISchedulerCallback {
+                       private scheduler::ISchedulerCallback {
 public:
     struct SkipInitializationTag {};
 
@@ -356,7 +356,6 @@ private:
     friend class TransactionApplicationTest;
     friend class TunnelModeEnabledReporterTest;
 
-    using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
     using VsyncModulator = scheduler::VsyncModulator;
     using TransactionSchedule = scheduler::TransactionSchedule;
     using TraverseLayersFunction = std::function<void(const LayerVector::Visitor&)>;
@@ -643,7 +642,7 @@ private:
     // Toggles hardware VSYNC by calling into HWC.
     void setVsyncEnabled(bool) override;
     // Initiates a refresh rate change to be applied on commit.
-    void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ModeEvent) override;
+    void changeRefreshRate(const RefreshRate&, DisplayModeEvent) override;
     // Called when kernel idle timer has expired. Used to update the refresh rate overlay.
     void kernelTimerChanged(bool expired) override;
     // Called when the frame rate override list changed to trigger an event.
@@ -1261,7 +1260,7 @@ private:
     /*
      * Scheduler
      */
-    std::unique_ptr<Scheduler> mScheduler;
+    std::unique_ptr<scheduler::Scheduler> mScheduler;
     scheduler::ConnectionHandle mAppConnectionHandle;
     scheduler::ConnectionHandle mSfConnectionHandle;
 

@@ -169,12 +169,12 @@ public:
 
 } // namespace surfaceflinger::test
 
-class TestableSurfaceFlinger final : private ISchedulerCallback {
+class TestableSurfaceFlinger final : private scheduler::ISchedulerCallback {
 public:
     using HotplugEvent = SurfaceFlinger::HotplugEvent;
 
     SurfaceFlinger* flinger() { return mFlinger.get(); }
-    TestableScheduler* scheduler() { return mScheduler; }
+    scheduler::TestableScheduler* scheduler() { return mScheduler; }
 
     // Extend this as needed for accessing SurfaceFlinger private (and public)
     // functions.
@@ -197,7 +197,8 @@ public:
                         std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread,
-                        ISchedulerCallback* callback = nullptr, bool hasMultipleModes = false) {
+                        scheduler::ISchedulerCallback* callback = nullptr,
+                        bool hasMultipleModes = false) {
         DisplayModes modes{DisplayMode::Builder(0)
                                    .setId(DisplayModeId(0))
                                    .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
@@ -224,17 +225,18 @@ public:
                 std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mTimeStats, currFps,
                                                               /*powerMode=*/hal::PowerMode::OFF);
 
-        mScheduler = new TestableScheduler(std::move(vsyncController), std::move(vsyncTracker),
-                                           mRefreshRateConfigs, *(callback ?: this));
+        mScheduler = new scheduler::TestableScheduler(std::move(vsyncController),
+                                                      std::move(vsyncTracker), mRefreshRateConfigs,
+                                                      *(callback ?: this));
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
         resetScheduler(mScheduler);
     }
 
-    void resetScheduler(Scheduler* scheduler) { mFlinger->mScheduler.reset(scheduler); }
+    void resetScheduler(scheduler::Scheduler* scheduler) { mFlinger->mScheduler.reset(scheduler); }
 
-    TestableScheduler& mutableScheduler() const { return *mScheduler; }
+    scheduler::TestableScheduler& mutableScheduler() const { return *mScheduler; }
 
     using CreateBufferQueueFunction = surfaceflinger::test::Factory::CreateBufferQueueFunction;
     void setCreateBufferQueueFunction(CreateBufferQueueFunction f) {
@@ -759,13 +761,13 @@ public:
 private:
     void scheduleComposite(FrameHint) override {}
     void setVsyncEnabled(bool) override {}
-    void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ModeEvent) override {}
+    void changeRefreshRate(const RefreshRate&, DisplayModeEvent) override {}
     void kernelTimerChanged(bool) override {}
     void triggerOnFrameRateOverridesChanged() {}
 
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(mFactory, SurfaceFlinger::SkipInitialization);
-    TestableScheduler* mScheduler = nullptr;
+    scheduler::TestableScheduler* mScheduler = nullptr;
     std::shared_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
 };
 

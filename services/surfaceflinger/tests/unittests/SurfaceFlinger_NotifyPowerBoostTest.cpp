@@ -17,6 +17,9 @@
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
+#include <chrono>
+#include <thread>
+
 #include "DisplayTransactionTestHelpers.h"
 
 #include <android/hardware/power/Boost.h>
@@ -27,6 +30,8 @@ namespace {
 using android::hardware::power::Boost;
 
 TEST_F(DisplayTransactionTest, notifyPowerBoostNotifiesTouchEvent) {
+    using namespace std::chrono_literals;
+
     mFlinger.scheduler()->replaceTouchTimer(100);
     std::this_thread::sleep_for(10ms);                  // wait for callback to be triggered
     EXPECT_TRUE(mFlinger.scheduler()->isTouchActive()); // Starting timer activates touch

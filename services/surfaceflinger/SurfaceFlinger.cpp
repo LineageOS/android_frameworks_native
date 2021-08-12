@@ -1200,7 +1200,7 @@ void SurfaceFlinger::updateInternalStateWithChangedMode() {
     mRefreshRateStats->setRefreshRate(refreshRate);
     updatePhaseConfiguration(refreshRate);
 
-    if (upcomingModeInfo.event != Scheduler::ModeEvent::None) {
+    if (upcomingModeInfo.event != DisplayModeEvent::None) {
         mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, upcomingModeInfo.mode);
     }
 }
@@ -3099,7 +3099,7 @@ void SurfaceFlinger::updateCursorAsync() {
     mCompositionEngine->updateCursorAsync(refreshArgs);
 }
 
-void SurfaceFlinger::changeRefreshRate(const RefreshRate& refreshRate, Scheduler::ModeEvent event) {
+void SurfaceFlinger::changeRefreshRate(const RefreshRate& refreshRate, DisplayModeEvent event) {
     // If this is called from the main thread mStateLock must be locked before
     // Currently the only way to call this function from the main thread is from
     // Scheduler::chooseRefreshRateForContent
@@ -3147,17 +3147,32 @@ void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
     mVsyncConfiguration = getFactory().createVsyncConfiguration(currRefreshRate);
     mVsyncModulator = sp<VsyncModulator>::make(mVsyncConfiguration->getCurrentConfigs());
 
-    const Scheduler::Options options = {
-            .useContentDetection = sysprop::use_content_detection_for_refresh_rate(false)};
+    using Feature = scheduler::Feature;
+    scheduler::FeatureFlags features;
 
-    mScheduler = std::make_unique<Scheduler>(static_cast<ICompositor&>(*this),
-                                             static_cast<ISchedulerCallback&>(*this), options);
-    {
-        auto configs = display->holdRefreshRateConfigs();
-        mScheduler->createVsyncSchedule(configs->supportsKernelIdleTimer());
-        mScheduler->setRefreshRateConfigs(std::move(configs));
+    if (sysprop::use_content_detection_for_refresh_rate(false)) {
+        features |= Feature::kContentDetection;
+    }
+    if (base::GetBoolProperty("debug.sf.show_predicted_vsync"s, false)) {
+        features |= Feature::kTracePredictedVsync;
+    }
+    if (!base::GetBoolProperty("debug.sf.vsync_reactor_ignore_present_fences"s, false) &&
+        !getHwComposer().hasCapability(hal::Capability::PRESENT_FENCE_IS_NOT_RELIABLE)) {
+        features |= Feature::kPresentFences;
     }
 
+    mScheduler = std::make_unique<scheduler::Scheduler>(static_cast<ICompositor&>(*this),
+                                                        static_cast<ISchedulerCallback&>(*this),
+                                                        features);
+    {
+        auto configs = display->holdRefreshRateConfigs();
+        if (configs->supportsKernelIdleTimer()) {
+            features |= Feature::kKernelIdleTimer;
+        }
+
+        mScheduler->createVsyncSchedule(features);
+        mScheduler->setRefreshRateConfigs(std::move(configs));
+    }
     setVsyncEnabled(false);
     mScheduler->startTimers();
 
@@ -3190,11 +3205,6 @@ void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
     // classes from EventThread, and there should be no run-time binder cost
     // anyway since there are no connected apps at this point.
     mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, display->getActiveMode());
-    static auto ignorePresentFences =
-            base::GetBoolProperty("debug.sf.vsync_reactor_ignore_present_fences"s, false);
-    mScheduler->setIgnorePresentFences(
-            ignorePresentFences ||
-            getHwComposer().hasCapability(hal::Capability::PRESENT_FENCE_IS_NOT_RELIABLE));
 }
 
 void SurfaceFlinger::updatePhaseConfiguration(const Fps& refreshRate) {
@@ -3818,10 +3828,11 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
         clientStateFlags |= setClientStateLocked(frameTimelineInfo, state, desiredPresentTime,
                                                  isAutoTimestamp, postTime, permissions);
         if ((flags & eAnimation) && state.state.surface) {
-            if (const auto layer = fromHandle(state.state.surface).promote(); layer) {
+            if (const auto layer = fromHandle(state.state.surface).promote()) {
+                using LayerUpdateType = scheduler::LayerHistory::LayerUpdateType;
                 mScheduler->recordLayerHistory(layer.get(),
                                                isAutoTimestamp ? 0 : desiredPresentTime,
-                                               LayerHistory::LayerUpdateType::AnimationTX);
+                                               LayerUpdateType::AnimationTX);
             }
         }
     }
@@ -6478,7 +6489,7 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
     if (display->refreshRateConfigs().isModeAllowed(preferredDisplayMode->getId())) {
         ALOGV("switching to Scheduler preferred display mode %d",
               preferredDisplayMode->getId().value());
-        setDesiredActiveMode({preferredDisplayMode, Scheduler::ModeEvent::Changed});
+        setDesiredActiveMode({preferredDisplayMode, DisplayModeEvent::Changed});
     } else {
         LOG_ALWAYS_FATAL("Desired display mode not allowed: %d",
                          preferredDisplayMode->getId().value());

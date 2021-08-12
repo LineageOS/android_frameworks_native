@@ -17,6 +17,8 @@
 #undef LOG_TAG
 #define LOG_TAG "FpsReporterTest"
 
+#include <chrono>
+
 #include <android/gui/BnFpsListener.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -35,6 +37,8 @@
 #include "mock/MockVsyncController.h"
 
 namespace android {
+
+using namespace std::chrono_literals;
 
 using testing::_;
 using testing::DoAll;
