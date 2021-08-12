@@ -46,6 +46,7 @@ TEST(WindowInfo, Parcelling) {
     sp<IBinder> touchableRegionCropHandle = new BBinder();
     WindowInfo i;
     i.token = new BBinder();
+    i.windowToken = new BBinder();
     i.id = 1;
     i.name = "Foobar";
     i.flags = WindowInfo::Flag::SLIPPERY;
@@ -85,6 +86,7 @@ TEST(WindowInfo, Parcelling) {
     WindowInfo i2;
     i2.readFromParcel(&p);
     ASSERT_EQ(i.token, i2.token);
+    ASSERT_EQ(i.windowToken, i2.windowToken);
     ASSERT_EQ(i.id, i2.id);
     ASSERT_EQ(i.name, i2.name);
     ASSERT_EQ(i.flags, i2.flags);
