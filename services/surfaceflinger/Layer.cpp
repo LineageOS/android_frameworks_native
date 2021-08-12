@@ -177,6 +177,9 @@ Layer::~Layer() {
     if (mDrawingState.sidebandStream != nullptr) {
         mFlinger->mTunnelModeEnabledReporter->decrementTunnelModeCount();
     }
+    if (mHadClonedChild) {
+        mFlinger->mNumClones--;
+    }
 }
 
 LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, sp<Client> client, std::string name,
@@ -254,6 +257,7 @@ void Layer::addToCurrentState() {
     if (mRemovedFromDrawingState) {
         mRemovedFromDrawingState = false;
         mFlinger->mScheduler->registerLayer(this);
+        mFlinger->removeFromOffscreenLayers(this);
     }
 
     for (const auto& child : mCurrentChildren) {
@@ -576,8 +580,8 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
     layerSettings.geometry.positionTransform = getTransform().asMatrix4();
 
     // skip drawing content if the targetSettings indicate the content will be occluded
-    layerSettings.skipContentDraw =
-            layerSettings.skipContentDraw || !targetSettings.realContentIsVisible;
+    const bool drawContent = targetSettings.realContentIsVisible || targetSettings.clearContent;
+    layerSettings.skipContentDraw = !drawContent;
 
     if (hasColorTransform()) {
         layerSettings.colorTransform = getColorTransform();
@@ -847,6 +851,23 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relati
     return true;
 }
 
+bool Layer::setTrustedOverlay(bool isTrustedOverlay) {
+    if (mDrawingState.isTrustedOverlay == isTrustedOverlay) return false;
+    mDrawingState.isTrustedOverlay = isTrustedOverlay;
+    mDrawingState.modified = true;
+    mFlinger->mInputInfoChanged = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool Layer::isTrustedOverlay() const {
+    if (getDrawingState().isTrustedOverlay) {
+        return true;
+    }
+    const auto& p = mDrawingParent.promote();
+    return (p != nullptr) && p->isTrustedOverlay();
+}
+
 bool Layer::setSize(uint32_t w, uint32_t h) {
     if (mDrawingState.requested_legacy.w == w && mDrawingState.requested_legacy.h == h)
         return false;
@@ -954,7 +975,6 @@ bool Layer::setTransparentRegionHint(const Region& transparent) {
 }
 
 bool Layer::setBlurRegions(const std::vector<BlurRegion>& blurRegions) {
-    mDrawingState.sequence++;
     mDrawingState.blurRegions = blurRegions;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -1097,46 +1117,59 @@ StretchEffect Layer::getStretchEffect() const {
     return StretchEffect{};
 }
 
+bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool* transactionNeeded) {
+    // The frame rate for layer tree is this layer's frame rate if present, or the parent frame rate
+    const auto frameRate = [&] {
+        if (mDrawingState.frameRate.rate.isValid() ||
+            mDrawingState.frameRate.type == FrameRateCompatibility::NoVote) {
+            return mDrawingState.frameRate;
+        }
+
+        return parentFrameRate;
+    }();
+
+    *transactionNeeded |= setFrameRateForLayerTree(frameRate);
+
+    // The frame rate is propagated to the children
+    bool childrenHaveFrameRate = false;
+    for (const sp<Layer>& child : mCurrentChildren) {
+        childrenHaveFrameRate |=
+                child->propagateFrameRateForLayerTree(frameRate, transactionNeeded);
+    }
+
+    // If we don't have a valid frame rate, but the children do, we set this
+    // layer as NoVote to allow the children to control the refresh rate
+    if (!frameRate.rate.isValid() && frameRate.type != FrameRateCompatibility::NoVote &&
+        childrenHaveFrameRate) {
+        *transactionNeeded |=
+                setFrameRateForLayerTree(FrameRate(Fps(0.0f), FrameRateCompatibility::NoVote));
+    }
+
+    // We return whether this layer ot its children has a vote. We ignore ExactOrMultiple votes for
+    // the same reason we are allowing touch boost for those layers. See
+    // RefreshRateConfigs::getBestRefreshRate for more details.
+    const auto layerVotedWithDefaultCompatibility =
+            frameRate.rate.isValid() && frameRate.type == FrameRateCompatibility::Default;
+    const auto layerVotedWithNoVote = frameRate.type == FrameRateCompatibility::NoVote;
+    const auto layerVotedWithExactCompatibility =
+            frameRate.rate.isValid() && frameRate.type == FrameRateCompatibility::Exact;
+    return layerVotedWithDefaultCompatibility || layerVotedWithNoVote ||
+            layerVotedWithExactCompatibility || childrenHaveFrameRate;
+}
+
 void Layer::updateTreeHasFrameRateVote() {
-    const auto traverseTree = [&](const LayerVector::Visitor& visitor) {
-        auto parent = getParent();
-        while (parent) {
-            visitor(parent.get());
-            parent = parent->getParent();
+    const auto root = [&]() -> sp<Layer> {
+        sp<Layer> layer = this;
+        while (auto parent = layer->getParent()) {
+            layer = parent;
         }
+        return layer;
+    }();
 
-        traverse(LayerVector::StateSet::Current, visitor);
-    };
-
-    // update parents and children about the vote
-    // First traverse the tree and count how many layers has votes.
-    int layersWithVote = 0;
-    traverseTree([&layersWithVote](Layer* layer) {
-        const auto layerVotedWithDefaultCompatibility =
-                layer->mDrawingState.frameRate.rate.isValid() &&
-                layer->mDrawingState.frameRate.type == FrameRateCompatibility::Default;
-        const auto layerVotedWithNoVote =
-                layer->mDrawingState.frameRate.type == FrameRateCompatibility::NoVote;
-        const auto layerVotedWithExactCompatibility =
-                layer->mDrawingState.frameRate.type == FrameRateCompatibility::Exact;
-
-        // We do not count layers that are ExactOrMultiple for the same reason
-        // we are allowing touch boost for those layers. See
-        // RefreshRateConfigs::getBestRefreshRate for more details.
-        if (layerVotedWithDefaultCompatibility || layerVotedWithNoVote ||
-            layerVotedWithExactCompatibility) {
-            layersWithVote++;
-        }
-    });
-
-    // Now we can update the tree frame rate vote for each layer in the tree
-    const bool treeHasFrameRateVote = layersWithVote > 0;
     bool transactionNeeded = false;
+    root->propagateFrameRateForLayerTree({}, &transactionNeeded);
 
-    traverseTree([treeHasFrameRateVote, &transactionNeeded](Layer* layer) {
-        transactionNeeded = layer->updateFrameRateForLayerTree(treeHasFrameRateVote);
-    });
-
+    // TODO(b/195668952): we probably don't need eTraversalNeeded here
     if (transactionNeeded) {
         mFlinger->setTransactionFlags(eTraversalNeeded);
     }
@@ -1263,42 +1296,23 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
     return surfaceFrame;
 }
 
-bool Layer::updateFrameRateForLayerTree(bool treeHasFrameRateVote) {
-    const auto updateDrawingState = [&](FrameRate frameRate) {
-        if (mDrawingState.frameRateForLayerTree == frameRate) {
-            return false;
-        }
-
-        mDrawingState.frameRateForLayerTree = frameRate;
-        mDrawingState.sequence++;
-        mDrawingState.modified = true;
-        setTransactionFlags(eTransactionNeeded);
-
-        mFlinger->mScheduler->recordLayerHistory(this, systemTime(),
-                                                 LayerHistory::LayerUpdateType::SetFrameRate);
-
-        return true;
-    };
-
-    const auto frameRate = mDrawingState.frameRate;
-    if (frameRate.rate.isValid() || frameRate.type == FrameRateCompatibility::NoVote) {
-        return updateDrawingState(frameRate);
+bool Layer::setFrameRateForLayerTree(FrameRate frameRate) {
+    if (mDrawingState.frameRateForLayerTree == frameRate) {
+        return false;
     }
 
-    // This layer doesn't have a frame rate. Check if its ancestors have a vote
-    for (sp<Layer> parent = getParent(); parent; parent = parent->getParent()) {
-        if (parent->mDrawingState.frameRate.rate.isValid()) {
-            return updateDrawingState(parent->mDrawingState.frameRate);
-        }
-    }
+    mDrawingState.frameRateForLayerTree = frameRate;
 
-    // This layer and its ancestors don't have a frame rate. If one of successors
-    // has a vote, return a NoVote for successors to set the vote
-    if (treeHasFrameRateVote) {
-        return updateDrawingState(FrameRate(Fps(0.0f), FrameRateCompatibility::NoVote));
-    }
+    // TODO(b/195668952): we probably don't need to dirty visible regions here
+    // or even store frameRateForLayerTree in mDrawingState
+    mDrawingState.sequence++;
+    mDrawingState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
 
-    return updateDrawingState(frameRate);
+    mFlinger->mScheduler->recordLayerHistory(this, systemTime(),
+                                             LayerHistory::LayerUpdateType::SetFrameRate);
+
+    return true;
 }
 
 Layer::FrameRate Layer::getFrameRateForLayerTree() const {
@@ -2038,6 +2052,7 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
 
         layerInfo->set_corner_radius(getRoundedCornerState().radius);
         layerInfo->set_background_blur_radius(getBackgroundBlurRadius());
+        layerInfo->set_is_trusted_overlay(isTrustedOverlay());
         LayerProtoHelper::writeToProto(transform, layerInfo->mutable_transform());
         LayerProtoHelper::writePositionToProto(transform.tx(), transform.ty(),
                                                [&]() { return layerInfo->mutable_position(); });
@@ -2324,6 +2339,11 @@ InputWindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
                 toPhysicalDisplay.transform(Rect{cropLayer->mScreenBounds}));
     }
 
+    // Inherit the trusted state from the parent hierarchy, but don't clobber the trusted state
+    // if it was set by WM for a known system overlay
+    info.trustedOverlay = info.trustedOverlay || isTrustedOverlay();
+
+
     // If the layer is a clone, we need to crop the input region to cloned root to prevent
     // touches from going outside the cloned area.
     if (isClone()) {
@@ -2533,6 +2553,12 @@ bool Layer::getPrimaryDisplayOnly() const {
 
     sp<Layer> parent = mDrawingParent.promote();
     return parent == nullptr ? false : parent->getPrimaryDisplayOnly();
+}
+
+void Layer::setClonedChild(const sp<Layer>& clonedChild) {
+    mClonedChild = clonedChild;
+    mHadClonedChild = true;
+    mFlinger->mNumClones++;
 }
 
 // ---------------------------------------------------------------------------

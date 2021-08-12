@@ -320,7 +320,8 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGL
     options.fReducedShaderVariations = true;
     options.fPersistentCache = &mSkSLCacheMonitor;
     mGrContext = GrDirectContext::MakeGL(glInterface, options);
-    if (useProtectedContext(true)) {
+    if (supportsProtectedContent()) {
+        useProtectedContext(true);
         mProtectedGrContext = GrDirectContext::MakeGL(glInterface, options);
         useProtectedContext(false);
     }
@@ -373,12 +374,10 @@ GrDirectContext* SkiaGLRenderEngine::getActiveGrContext() const {
     return mInProtectedContext ? mProtectedGrContext.get() : mGrContext.get();
 }
 
-bool SkiaGLRenderEngine::useProtectedContext(bool useProtectedContext) {
-    if (useProtectedContext == mInProtectedContext) {
-        return true;
-    }
-    if (useProtectedContext && !supportsProtectedContent()) {
-        return false;
+void SkiaGLRenderEngine::useProtectedContext(bool useProtectedContext) {
+    if (useProtectedContext == mInProtectedContext ||
+        (useProtectedContext && !supportsProtectedContent())) {
+        return;
     }
 
     // release any scratch resources before switching into a new mode
@@ -389,9 +388,8 @@ bool SkiaGLRenderEngine::useProtectedContext(bool useProtectedContext) {
     const EGLSurface surface =
             useProtectedContext ? mProtectedPlaceholderSurface : mPlaceholderSurface;
     const EGLContext context = useProtectedContext ? mProtectedEGLContext : mEGLContext;
-    const bool success = eglMakeCurrent(mEGLDisplay, surface, surface, context) == EGL_TRUE;
 
-    if (success) {
+    if (eglMakeCurrent(mEGLDisplay, surface, surface, context) == EGL_TRUE) {
         mInProtectedContext = useProtectedContext;
         // given that we are sharing the same thread between two GrContexts we need to
         // make sure that the thread state is reset when switching between the two.
@@ -399,7 +397,6 @@ bool SkiaGLRenderEngine::useProtectedContext(bool useProtectedContext) {
             getActiveGrContext()->resetContext();
         }
     }
-    return success;
 }
 
 base::unique_fd SkiaGLRenderEngine::flush() {
@@ -618,9 +615,9 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
 
     if (requiresLinearEffect) {
         const ui::Dataspace inputDataspace =
-                mUseColorManagement ? layer->sourceDataspace : ui::Dataspace::UNKNOWN;
+                mUseColorManagement ? layer->sourceDataspace : ui::Dataspace::V0_SRGB_LINEAR;
         const ui::Dataspace outputDataspace =
-                mUseColorManagement ? display.outputDataspace : ui::Dataspace::UNKNOWN;
+                mUseColorManagement ? display.outputDataspace : ui::Dataspace::V0_SRGB_LINEAR;
 
         LinearEffect effect = LinearEffect{.inputDataspace = inputDataspace,
                                            .outputDataspace = outputDataspace,
@@ -762,7 +759,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     }
 
     const ui::Dataspace dstDataspace =
-            mUseColorManagement ? display.outputDataspace : ui::Dataspace::UNKNOWN;
+            mUseColorManagement ? display.outputDataspace : ui::Dataspace::V0_SRGB_LINEAR;
     sk_sp<SkSurface> dstSurface = surfaceTextureRef->getOrCreateSurface(dstDataspace, grContext);
 
     SkCanvas* dstCanvas = mCapture->tryCapture(dstSurface.get());
@@ -1413,10 +1410,12 @@ void SkiaGLRenderEngine::onPrimaryDisplaySizeChanged(ui::Size size) {
     getActiveGrContext()->setResourceCacheLimit(maxResourceBytes);
 
     // if it is possible to switch contexts then we will resize the other context
-    if (useProtectedContext(!mInProtectedContext)) {
+    const bool originalProtectedState = mInProtectedContext;
+    useProtectedContext(!mInProtectedContext);
+    if (mInProtectedContext != originalProtectedState) {
         getActiveGrContext()->setResourceCacheLimit(maxResourceBytes);
         // reset back to the initial context that was active when this method was called
-        useProtectedContext(!mInProtectedContext);
+        useProtectedContext(originalProtectedState);
     }
 }
 

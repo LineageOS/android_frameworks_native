@@ -89,14 +89,15 @@ public:
 
     void transactionCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
             const std::vector<SurfaceControlStats>& stats);
-    void releaseBufferCallback(uint64_t graphicBufferId, const sp<Fence>& releaseFence,
+    void releaseBufferCallback(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
                                uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount);
     void setNextTransaction(SurfaceComposerClient::Transaction *t);
     void mergeWithNextTransaction(SurfaceComposerClient::Transaction* t, uint64_t frameNumber);
     void setTransactionCompleteCallback(uint64_t frameNumber,
                                         std::function<void(int64_t)>&& transactionCompleteCallback);
 
-    void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format);
+    void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format,
+                SurfaceComposerClient::Transaction* outTransaction = nullptr);
     void flushShadowQueue() {}
 
     status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
@@ -125,7 +126,11 @@ private:
     static PixelFormat convertBufferFormat(PixelFormat& format);
 
     std::string mName;
-    std::string mPendingBufferTrace;
+    // Represents the queued buffer count from buffer queue,
+    // pre-BLAST. This is mNumFrameAvailable (buffers that queued to blast) +
+    // mNumAcquired (buffers that queued to SF)  mPendingRelease.size() (buffers that are held by
+    // blast). This counter is read by android studio profiler.
+    std::string mQueuedBufferTrace;
     sp<SurfaceControl> mSurfaceControl;
 
     std::mutex mMutex;
@@ -140,13 +145,14 @@ private:
 
     // Keep a reference to the submitted buffers so we can release when surfaceflinger drops the
     // buffer or the buffer has been presented and a new buffer is ready to be presented.
-    std::unordered_map<uint64_t /* bufferId */, BufferItem> mSubmitted GUARDED_BY(mMutex);
+    std::unordered_map<ReleaseCallbackId, BufferItem, ReleaseBufferCallbackIdHash> mSubmitted
+            GUARDED_BY(mMutex);
 
     // Keep a queue of the released buffers instead of immediately releasing
     // the buffers back to the buffer queue. This would be controlled by SF
     // setting the max acquired buffer count.
     struct ReleasedBuffer {
-        uint64_t bufferId;
+        ReleaseCallbackId callbackId;
         sp<Fence> releaseFence;
     };
     std::deque<ReleasedBuffer> mPendingRelease GUARDED_BY(mMutex);

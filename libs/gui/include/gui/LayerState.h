@@ -118,6 +118,7 @@ struct layer_state_t {
         eBlurRegionsChanged = 0x800'00000000,
         eAutoRefreshChanged = 0x1000'00000000,
         eStretchChanged = 0x2000'00000000,
+        eTrustedOverlayChanged = 0x4000'00000000,
     };
 
     layer_state_t();
@@ -126,6 +127,7 @@ struct layer_state_t {
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);
     bool hasBufferChanges() const;
+    bool hasValidBuffer() const;
 
     struct matrix22_t {
         float dsdx{0};
@@ -224,6 +226,10 @@ struct layer_state_t {
     // in shared buffer mode.
     bool autoRefresh;
 
+    // An inherited state that indicates that this surface control and its children
+    // should be trusted for input occlusion detection purposes
+    bool isTrustedOverlay;
+
     // Stretch effect to be applied to this layer
     StretchEffect stretchEffect;
 
@@ -234,6 +240,12 @@ struct layer_state_t {
     // layers only. The callback includes a release fence as well as the graphic
     // buffer id to identify the buffer.
     sp<ITransactionCompletedListener> releaseBufferListener;
+
+    // Keeps track of the release callback id associated with the listener. This
+    // is not sent to the server since the id can be reconstructed there. This
+    // is used to remove the old callback from the client process map if it is
+    // overwritten by another setBuffer call.
+    ReleaseCallbackId releaseCallbackId;
 };
 
 struct ComposerState {

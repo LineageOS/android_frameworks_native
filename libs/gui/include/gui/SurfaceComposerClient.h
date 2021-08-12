@@ -82,7 +82,7 @@ using TransactionCompletedCallback =
         std::function<void(nsecs_t /*latchTime*/, const sp<Fence>& /*presentFence*/,
                            const std::vector<SurfaceControlStats>& /*stats*/)>;
 using ReleaseBufferCallback =
-        std::function<void(uint64_t /* graphicsBufferId */, const sp<Fence>& /*releaseFence*/,
+        std::function<void(const ReleaseCallbackId&, const sp<Fence>& /*releaseFence*/,
                            uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount)>;
 
 using SurfaceStatsCallback =
@@ -397,8 +397,9 @@ public:
 
         void cacheBuffers();
         void registerSurfaceControlForCallback(const sp<SurfaceControl>& sc);
-        void setReleaseBufferCallback(layer_state_t* state, ReleaseBufferCallback callback);
-        void removeReleaseBufferCallback(layer_state_t* state);
+        void setReleaseBufferCallback(layer_state_t*, const ReleaseCallbackId&,
+                                      ReleaseBufferCallback);
+        void removeReleaseBufferCallback(layer_state_t*);
 
     public:
         Transaction();
@@ -470,6 +471,7 @@ public:
         Transaction& setTransformToDisplayInverse(const sp<SurfaceControl>& sc,
                                                   bool transformToDisplayInverse);
         Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
+                               const ReleaseCallbackId& id = ReleaseCallbackId::INVALID_ID,
                                ReleaseBufferCallback callback = nullptr);
         Transaction& setCachedBuffer(const sp<SurfaceControl>& sc, int32_t bufferId);
         Transaction& setAcquireFence(const sp<SurfaceControl>& sc, const sp<Fence>& fence);
@@ -534,6 +536,9 @@ public:
         // can and not wait for a frame to become available. This is only relevant
         // in shared buffer mode.
         Transaction& setAutoRefresh(const sp<SurfaceControl>& sc, bool autoRefresh);
+
+        // Sets that this surface control and its children are trusted overlays for input
+        Transaction& setTrustedOverlay(const sp<SurfaceControl>& sc, bool isTrustedOverlay);
 
         // Queues up transactions using this token in SurfaceFlinger.  By default, all transactions
         // from a client are placed on the same queue. This can be used to prevent multiple
@@ -653,9 +658,6 @@ class TransactionCompletedListener : public BnTransactionCompletedListener {
     std::mutex mMutex;
 
     // This lock needs to be recursive so we can unregister a callback from within that callback.
-    std::recursive_mutex mJankListenerMutex;
-
-    // This lock needs to be recursive so we can unregister a callback from within that callback.
     std::recursive_mutex mSurfaceStatsListenerMutex;
 
     bool mListening GUARDED_BY(mMutex) = false;
@@ -680,11 +682,8 @@ class TransactionCompletedListener : public BnTransactionCompletedListener {
 
     std::unordered_map<CallbackId, CallbackTranslation, CallbackIdHash> mCallbacks
             GUARDED_BY(mMutex);
-
-    // This is protected by mJankListenerMutex, but GUARDED_BY isn't supported for
-    // std::recursive_mutex
-    std::multimap<sp<IBinder>, sp<JankDataListener>> mJankListeners;
-    std::unordered_map<uint64_t /* graphicsBufferId */, ReleaseBufferCallback>
+    std::multimap<sp<IBinder>, sp<JankDataListener>> mJankListeners GUARDED_BY(mMutex);
+    std::unordered_map<ReleaseCallbackId, ReleaseBufferCallback, ReleaseBufferCallbackIdHash>
             mReleaseBufferCallbacks GUARDED_BY(mMutex);
 
     // This is protected by mSurfaceStatsListenerMutex, but GUARDED_BY isn't supported for
@@ -723,16 +722,16 @@ public:
                 SurfaceStatsCallback listener);
     void removeSurfaceStatsListener(void* context, void* cookie);
 
-    void setReleaseBufferCallback(uint64_t /* graphicsBufferId */, ReleaseBufferCallback);
-    void removeReleaseBufferCallback(uint64_t /* graphicsBufferId */);
+    void setReleaseBufferCallback(const ReleaseCallbackId&, ReleaseBufferCallback);
+    void removeReleaseBufferCallback(const ReleaseCallbackId&);
 
     // BnTransactionCompletedListener overrides
     void onTransactionCompleted(ListenerStats stats) override;
-    void onReleaseBuffer(uint64_t /* graphicsBufferId */, sp<Fence> releaseFence,
-                         uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount) override;
+    void onReleaseBuffer(ReleaseCallbackId, sp<Fence> releaseFence, uint32_t transformHint,
+                         uint32_t currentMaxAcquiredBufferCount) override;
 
 private:
-    ReleaseBufferCallback popReleaseBufferCallbackLocked(uint64_t /* graphicsBufferId */);
+    ReleaseBufferCallback popReleaseBufferCallbackLocked(const ReleaseCallbackId&);
 };
 
 } // namespace android

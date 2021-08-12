@@ -182,12 +182,12 @@ CallbackId TransactionCompletedListener::addCallbackFunction(
 
 void TransactionCompletedListener::addJankListener(const sp<JankDataListener>& listener,
                                                    sp<SurfaceControl> surfaceControl) {
-    std::scoped_lock<std::recursive_mutex> lock(mJankListenerMutex);
+    std::lock_guard<std::mutex> lock(mMutex);
     mJankListeners.insert({surfaceControl->getHandle(), listener});
 }
 
 void TransactionCompletedListener::removeJankListener(const sp<JankDataListener>& listener) {
-    std::scoped_lock<std::recursive_mutex> lock(mJankListenerMutex);
+    std::lock_guard<std::mutex> lock(mMutex);
     for (auto it = mJankListeners.begin(); it != mJankListeners.end();) {
         if (it->second == listener) {
             it = mJankListeners.erase(it);
@@ -197,15 +197,16 @@ void TransactionCompletedListener::removeJankListener(const sp<JankDataListener>
     }
 }
 
-void TransactionCompletedListener::setReleaseBufferCallback(uint64_t graphicBufferId,
+void TransactionCompletedListener::setReleaseBufferCallback(const ReleaseCallbackId& callbackId,
                                                             ReleaseBufferCallback listener) {
     std::scoped_lock<std::mutex> lock(mMutex);
-    mReleaseBufferCallbacks[graphicBufferId] = listener;
+    mReleaseBufferCallbacks[callbackId] = listener;
 }
 
-void TransactionCompletedListener::removeReleaseBufferCallback(uint64_t graphicBufferId) {
+void TransactionCompletedListener::removeReleaseBufferCallback(
+        const ReleaseCallbackId& callbackId) {
     std::scoped_lock<std::mutex> lock(mMutex);
-    mReleaseBufferCallbacks.erase(graphicBufferId);
+    mReleaseBufferCallbacks.erase(callbackId);
 }
 
 void TransactionCompletedListener::addSurfaceStatsListener(void* context, void* cookie,
@@ -242,6 +243,7 @@ void TransactionCompletedListener::addSurfaceControlToCallbacks(
 
 void TransactionCompletedListener::onTransactionCompleted(ListenerStats listenerStats) {
     std::unordered_map<CallbackId, CallbackTranslation, CallbackIdHash> callbacksMap;
+    std::multimap<sp<IBinder>, sp<JankDataListener>> jankListenersMap;
     {
         std::lock_guard<std::mutex> lock(mMutex);
 
@@ -257,6 +259,7 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
          * sp<SurfaceControl> that could possibly exist for the callbacks.
          */
         callbacksMap = mCallbacks;
+        jankListenersMap = mJankListeners;
         for (const auto& transactionStats : listenerStats.transactionStats) {
             for (auto& callbackId : transactionStats.callbackIds) {
                 mCallbacks.erase(callbackId);
@@ -317,14 +320,15 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                 // and call them. This is a performance optimization when we have a transaction
                 // callback and a release buffer callback happening at the same time to avoid an
                 // additional ipc call from the server.
-                if (surfaceStats.previousBufferId) {
+                if (surfaceStats.previousReleaseCallbackId != ReleaseCallbackId::INVALID_ID) {
                     ReleaseBufferCallback callback;
                     {
                         std::scoped_lock<std::mutex> lock(mMutex);
-                        callback = popReleaseBufferCallbackLocked(surfaceStats.previousBufferId);
+                        callback = popReleaseBufferCallbackLocked(
+                                surfaceStats.previousReleaseCallbackId);
                     }
                     if (callback) {
-                        callback(surfaceStats.previousBufferId,
+                        callback(surfaceStats.previousReleaseCallbackId,
                                  surfaceStats.previousReleaseFence
                                          ? surfaceStats.previousReleaseFence
                                          : Fence::NO_FENCE,
@@ -352,12 +356,7 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
             }
 
             if (surfaceStats.jankData.empty()) continue;
-
-            // Acquire jank listener lock such that we guarantee that after calling unregister,
-            // there won't be any further callback.
-            std::scoped_lock<std::recursive_mutex> lock(mJankListenerMutex);
-            auto copy = mJankListeners;
-            auto jankRange = copy.equal_range(surfaceStats.surfaceControl);
+            auto jankRange = jankListenersMap.equal_range(surfaceStats.surfaceControl);
             for (auto it = jankRange.first; it != jankRange.second; it++) {
                 it->second->onJankDataAvailable(surfaceStats.jankData);
             }
@@ -365,25 +364,26 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
     }
 }
 
-void TransactionCompletedListener::onReleaseBuffer(uint64_t graphicBufferId, sp<Fence> releaseFence,
-                                                   uint32_t transformHint,
+void TransactionCompletedListener::onReleaseBuffer(ReleaseCallbackId callbackId,
+                                                   sp<Fence> releaseFence, uint32_t transformHint,
                                                    uint32_t currentMaxAcquiredBufferCount) {
     ReleaseBufferCallback callback;
     {
         std::scoped_lock<std::mutex> lock(mMutex);
-        callback = popReleaseBufferCallbackLocked(graphicBufferId);
+        callback = popReleaseBufferCallbackLocked(callbackId);
     }
     if (!callback) {
-        ALOGE("Could not call release buffer callback, buffer not found %" PRIu64, graphicBufferId);
+        ALOGE("Could not call release buffer callback, buffer not found %s",
+              callbackId.to_string().c_str());
         return;
     }
-    callback(graphicBufferId, releaseFence, transformHint, currentMaxAcquiredBufferCount);
+    callback(callbackId, releaseFence, transformHint, currentMaxAcquiredBufferCount);
 }
 
 ReleaseBufferCallback TransactionCompletedListener::popReleaseBufferCallbackLocked(
-        uint64_t graphicBufferId) {
+        const ReleaseCallbackId& callbackId) {
     ReleaseBufferCallback callback;
-    auto itr = mReleaseBufferCallbacks.find(graphicBufferId);
+    auto itr = mReleaseBufferCallbacks.find(callbackId);
     if (itr == mReleaseBufferCallbacks.end()) {
         return nullptr;
     }
@@ -1261,7 +1261,7 @@ SurfaceComposerClient::Transaction::setTransformToDisplayInverse(const sp<Surfac
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffer(
-        const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
+        const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer, const ReleaseCallbackId& id,
         ReleaseBufferCallback callback) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
@@ -1274,7 +1274,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
     if (mIsAutoTimestamp) {
         mDesiredPresentTime = systemTime();
     }
-    setReleaseBufferCallback(s, callback);
+    setReleaseBufferCallback(s, id, callback);
 
     registerSurfaceControlForCallback(sc);
 
@@ -1289,10 +1289,13 @@ void SurfaceComposerClient::Transaction::removeReleaseBufferCallback(layer_state
 
     s->what &= ~static_cast<uint64_t>(layer_state_t::eReleaseBufferListenerChanged);
     s->releaseBufferListener = nullptr;
-    TransactionCompletedListener::getInstance()->removeReleaseBufferCallback(s->buffer->getId());
+    auto listener = TransactionCompletedListener::getInstance();
+    listener->removeReleaseBufferCallback(s->releaseCallbackId);
+    s->releaseCallbackId = ReleaseCallbackId::INVALID_ID;
 }
 
 void SurfaceComposerClient::Transaction::setReleaseBufferCallback(layer_state_t* s,
+                                                                  const ReleaseCallbackId& id,
                                                                   ReleaseBufferCallback callback) {
     if (!callback) {
         return;
@@ -1306,8 +1309,9 @@ void SurfaceComposerClient::Transaction::setReleaseBufferCallback(layer_state_t*
 
     s->what |= layer_state_t::eReleaseBufferListenerChanged;
     s->releaseBufferListener = TransactionCompletedListener::getIInstance();
+    s->releaseCallbackId = id;
     auto listener = TransactionCompletedListener::getInstance();
-    listener->setReleaseBufferCallback(s->buffer->getId(), callback);
+    listener->setReleaseBufferCallback(id, callback);
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAcquireFence(
@@ -1649,6 +1653,19 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAutoR
 
     s->what |= layer_state_t::eAutoRefreshChanged;
     s->autoRefresh = autoRefresh;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setTrustedOverlay(
+        const sp<SurfaceControl>& sc, bool isTrustedOverlay) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eTrustedOverlayChanged;
+    s->isTrustedOverlay = isTrustedOverlay;
     return *this;
 }
 

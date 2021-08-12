@@ -176,6 +176,7 @@ void add_mountinfo();
 #define LINKERCONFIG_DIR "/linkerconfig"
 #define PACKAGE_DEX_USE_LIST "/data/system/package-dex-usage.list"
 #define SYSTEM_TRACE_SNAPSHOT "/data/misc/perfetto-traces/bugreport/systrace.pftrace"
+#define CGROUPFS_DIR "/sys/fs/cgroup"
 
 // TODO(narayan): Since this information has to be kept in sync
 // with tombstoned, we should just put it in a common header.
@@ -1240,8 +1241,15 @@ static Dumpstate::RunStatus RunDumpsysTextByPriority(const std::string& title, i
         if (status == OK) {
             dumpsys.writeDumpHeader(STDOUT_FILENO, service, priority);
             std::chrono::duration<double> elapsed_seconds;
-            status = dumpsys.writeDump(STDOUT_FILENO, service, service_timeout,
-                                       /* as_proto = */ false, elapsed_seconds, bytes_written);
+            if (priority == IServiceManager::DUMP_FLAG_PRIORITY_HIGH &&
+                service == String16("meminfo")) {
+                // Use a longer timeout for meminfo, since 30s is not always enough.
+                status = dumpsys.writeDump(STDOUT_FILENO, service, 60s,
+                                           /* as_proto = */ false, elapsed_seconds, bytes_written);
+            } else {
+                status = dumpsys.writeDump(STDOUT_FILENO, service, service_timeout,
+                                           /* as_proto = */ false, elapsed_seconds, bytes_written);
+            }
             dumpsys.writeDumpFooter(STDOUT_FILENO, service, elapsed_seconds);
             bool dump_complete = (status == OK);
             dumpsys.stopDumpThread(dump_complete);
@@ -1784,6 +1792,9 @@ static Dumpstate::RunStatus dumpstate() {
 
     // Add linker configuration directory
     ds.AddDir(LINKERCONFIG_DIR, true);
+
+    /* Dump cgroupfs */
+    ds.AddDir(CGROUPFS_DIR, true);
 
     if (ds.dump_pool_) {
         WAIT_TASK_WITH_CONSENT_CHECK(DUMP_INCIDENT_REPORT_TASK, ds.dump_pool_);

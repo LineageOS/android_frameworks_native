@@ -230,7 +230,8 @@ public:
                 std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mTimeStats, currFps,
                                                               /*powerMode=*/hal::PowerMode::OFF);
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(currFps);
-        mFlinger->mVsyncModulator.emplace(mFlinger->mVsyncConfiguration->getCurrentConfigs());
+        mFlinger->mVsyncModulator = sp<scheduler::VsyncModulator>::make(
+                mFlinger->mVsyncConfiguration->getCurrentConfigs());
 
         mScheduler = new TestableScheduler(std::move(vsyncController), std::move(vsyncTracker),
                                            *mFlinger->mRefreshRateConfigs, *(callback ?: this));

@@ -43,7 +43,7 @@
 #include <log/log.h>               // TODO: Move everything to base/logging.
 #include <openssl/sha.h>
 #include <private/android_filesystem_config.h>
-#include <processgroup/sched_policy.h>
+#include <processgroup/processgroup.h>
 #include <selinux/android.h>
 #include <server_configurable_flags/get_flags.h>
 #include <system/thread_defs.h>
@@ -282,8 +282,8 @@ static bool ShouldUseSwapFileForDexopt() {
 
 static void SetDex2OatScheduling(bool set_to_bg) {
     if (set_to_bg) {
-        if (set_sched_policy(0, SP_BACKGROUND) < 0) {
-            PLOG(ERROR) << "set_sched_policy failed";
+        if (!SetTaskProfiles(0, {"Dex2OatBootComplete"})) {
+            LOG(ERROR) << "Failed to set dex2oat task profile";
             exit(DexoptReturnCodes::kSetSchedPolicy);
         }
         if (setpriority(PRIO_PROCESS, 0, ANDROID_PRIORITY_BACKGROUND) < 0) {
@@ -1231,6 +1231,14 @@ class RunDexoptAnalyzer : public ExecVHelper {
             }
         }
 
+        // On-device signing related. odsign sets the system property odsign.verification.success if
+        // AOT artifacts have the expected signatures.
+        const bool trust_art_apex_data_files =
+                ::android::base::GetBoolProperty("odsign.verification.success", false);
+        if (!trust_art_apex_data_files) {
+            AddRuntimeArg("-Xdeny-art-apex-data-files");
+        }
+
         PrepareArgs(dexoptanalyzer_bin);
     }
 
@@ -1363,10 +1371,12 @@ static SecondaryDexAccess check_secondary_dex_access(const std::string& dex_path
         return kSecondaryDexAccessReadOk;
     } else {
         if (errno == ENOENT) {
-            LOG(INFO) << "Secondary dex does not exist: " <<  dex_path;
+            async_safe_format_log(ANDROID_LOG_INFO, LOG_TAG,
+                    "Secondary dex does not exist: %s", dex_path.c_str());
             return kSecondaryDexAccessDoesNotExist;
         } else {
-            PLOG(ERROR) << "Could not access secondary dex " << dex_path;
+            async_safe_format_log(ANDROID_LOG_ERROR, LOG_TAG,
+                    "Could not access secondary dex: %s (%d)", dex_path.c_str(), errno);
             return errno == EACCES
                 ? kSecondaryDexAccessPermissionError
                 : kSecondaryDexAccessIOError;

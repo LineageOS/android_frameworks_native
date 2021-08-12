@@ -70,6 +70,7 @@ Surface::Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controll
         mGenerationNumber(0),
         mSharedBufferMode(false),
         mAutoRefresh(false),
+        mAutoPrerotation(false),
         mSharedBufferSlot(BufferItem::INVALID_BUFFER_SLOT),
         mSharedBufferHasBeenQueued(false),
         mQueriedSupportedTimestamps(false),

@@ -3487,7 +3487,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifDisplayIsNotSecure) 
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
     EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(true));
-    EXPECT_CALL(mRenderEngine, useProtectedContext(false)).WillOnce(Return(true));
+    EXPECT_CALL(mRenderEngine, useProtectedContext(false));
 
     mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
 }

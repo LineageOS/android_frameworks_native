@@ -270,6 +270,8 @@ public:
     // being treated as native display brightness
     static bool enableSdrDimming;
 
+    static bool enableLatchUnsignaled;
+
     // must be called before clients can connect
     void init() ANDROID_API;
 
@@ -311,7 +313,11 @@ public:
     void onLayerFirstRef(Layer*);
     void onLayerDestroyed(Layer*);
 
+    void removeHierarchyFromOffscreenLayers(Layer* layer);
     void removeFromOffscreenLayers(Layer* layer);
+
+    // TODO: Remove atomic if move dtor to main thread CL lands
+    std::atomic<uint32_t> mNumClones;
 
     TransactionCallbackInvoker& getTransactionCallbackInvoker() {
         return mTransactionCallbackInvoker;
@@ -328,6 +334,10 @@ public:
     // debug.sf.disable_client_composition_cache
     bool mDisableClientCompositionCache = false;
     void setInputWindowsFinished();
+
+    // Disables expensive rendering for all displays
+    // This is scheduled on the main thread
+    void disableExpensiveRendering();
 
 protected:
     // We're reference counted, never destroy SurfaceFlinger directly
@@ -841,7 +851,7 @@ private:
     // but there is no need to try and wake up immediately to do it. Rather we rely on
     // onFrameAvailable or another layer update to wake us up.
     void setTraversalNeeded();
-    uint32_t setTransactionFlags(uint32_t flags, TransactionSchedule);
+    uint32_t setTransactionFlags(uint32_t flags, TransactionSchedule, const sp<IBinder>& = {});
     void commitTransaction() REQUIRES(mStateLock);
     void commitOffscreenLayers();
     bool transactionIsReadyToBeApplied(
@@ -895,7 +905,7 @@ private:
     status_t addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
                             const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
                             const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer,
-                            bool addToCurrentState, uint32_t* outTransformHint);
+                            bool addToRoot, uint32_t* outTransformHint);
 
     // Traverse through all the layers and compute and cache its bounds.
     void computeLayerBounds();
@@ -1230,11 +1240,19 @@ private:
     State mDrawingState{LayerVector::StateSet::Drawing};
     bool mVisibleRegionsDirty = false;
 
+    // VisibleRegions dirty is already cleared by postComp, but we need to track it to prevent
+    // extra work in the HDR layer info listener.
+    bool mVisibleRegionsWereDirtyThisFrame = false;
+    // Used to ensure we omit a callback when HDR layer info listener is newly added but the
+    // scene hasn't changed
+    bool mAddingHDRLayerInfoListener = false;
+
     // Set during transaction application stage to track if the input info or children
     // for a layer has changed.
     // TODO: Also move visibleRegions over to a boolean system.
     bool mInputInfoChanged = false;
     bool mSomeChildrenChanged;
+    bool mSomeDataspaceChanged = false;
     bool mForceTransactionDisplayChange = false;
 
     bool mGeometryInvalid = false;
@@ -1379,7 +1397,7 @@ private:
     std::unique_ptr<scheduler::VsyncConfiguration> mVsyncConfiguration;
 
     // Optional to defer construction until PhaseConfiguration is created.
-    std::optional<scheduler::VsyncModulator> mVsyncModulator;
+    sp<VsyncModulator> mVsyncModulator;
 
     std::unique_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
@@ -1444,11 +1462,12 @@ private:
     mutable Mutex mCreatedLayersLock;
     struct LayerCreatedState {
         LayerCreatedState(const wp<Layer>& layer, const wp<IBinder>& parent,
-                          const wp<Layer> parentLayer, const wp<IBinder>& producer)
+                          const wp<Layer> parentLayer, const wp<IBinder>& producer, bool addToRoot)
               : layer(layer),
                 initialParent(parent),
                 initialParentLayer(parentLayer),
-                initialProducer(producer) {}
+                initialProducer(producer),
+                addToRoot(addToRoot) {}
         wp<Layer> layer;
         // Indicates the initial parent of the created layer, only used for creating layer in
         // SurfaceFlinger. If nullptr, it may add the created layer into the current root layers.
@@ -1457,6 +1476,10 @@ private:
         // Indicates the initial graphic buffer producer of the created layer, only used for
         // creating layer in SurfaceFlinger.
         wp<IBinder> initialProducer;
+        // Indicates whether the layer getting created should be added at root if there's no parent
+        // and has permission ACCESS_SURFACE_FLINGER. If set to false and no parent, the layer will
+        // be added offscreen.
+        bool addToRoot;
     };
 
     // A temporay pool that store the created layers and will be added to current state in main
@@ -1464,10 +1487,9 @@ private:
     std::unordered_map<BBinder*, std::unique_ptr<LayerCreatedState>> mCreatedLayers;
     void setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
                               const wp<IBinder>& parent, const wp<Layer> parentLayer,
-                              const wp<IBinder>& producer);
+                              const wp<IBinder>& producer, bool addToRoot);
     auto getLayerCreatedState(const sp<IBinder>& handle);
-    sp<Layer> handleLayerCreatedLocked(const sp<IBinder>& handle, bool privileged)
-            REQUIRES(mStateLock);
+    sp<Layer> handleLayerCreatedLocked(const sp<IBinder>& handle) REQUIRES(mStateLock);
 
     std::atomic<ui::Transform::RotationFlags> mDefaultDisplayTransformHint;
 

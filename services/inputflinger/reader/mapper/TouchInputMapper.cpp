@@ -1471,6 +1471,13 @@ void TouchInputMapper::sync(nsecs_t when, nsecs_t readTime) {
           next.rawPointerData.canceledIdBits.value);
 #endif
 
+    if (!next.rawPointerData.touchingIdBits.isEmpty() &&
+        !next.rawPointerData.hoveringIdBits.isEmpty() &&
+        last.rawPointerData.hoveringIdBits != next.rawPointerData.hoveringIdBits) {
+        ALOGI("Multi-touch contains some hovering ids 0x%08x",
+              next.rawPointerData.hoveringIdBits.value);
+    }
+
     processRawTouches(false /*timeout*/);
 }
 

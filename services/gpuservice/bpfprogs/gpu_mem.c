@@ -72,4 +72,4 @@ DEFINE_BPF_PROG("tracepoint/gpu_mem/gpu_mem_total", AID_ROOT, AID_GRAPHICS, tp_g
     return 0;
 }
 
-char _license[] SEC("license") = "Apache 2.0";
+LICENSE("Apache 2.0");

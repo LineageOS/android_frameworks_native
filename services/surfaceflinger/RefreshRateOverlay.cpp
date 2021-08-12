@@ -197,6 +197,7 @@ bool RefreshRateOverlay::createLayer() {
     Mutex::Autolock _l(mFlinger.mStateLock);
     mLayer = mClient->getLayerUser(mIBinder);
     mLayer->setFrameRate(Layer::FrameRate(Fps(0.0f), Layer::FrameRateCompatibility::NoVote));
+    mLayer->setIsAtRoot(true);
 
     // setting Layer's Z requires resorting layersSortedByZ
     ssize_t idx = mFlinger.mDrawingState.layersSortedByZ.indexOf(mLayer);

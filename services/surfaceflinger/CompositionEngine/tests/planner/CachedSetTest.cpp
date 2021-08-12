@@ -51,6 +51,15 @@ MATCHER_P(ClientCompositionTargetSettingsBlurSettingsEq, expectedBlurSetting, ""
 
     return expectedBlurSetting == arg.blurSetting;
 }
+
+MATCHER_P(ClientCompositionTargetSettingsSecureEq, expectedSecureSetting, "") {
+    *result_listener << "ClientCompositionTargetSettings' SecureSettings aren't equal \n";
+    *result_listener << "expected " << expectedSecureSetting << "\n";
+    *result_listener << "actual " << arg.isSecure << "\n";
+
+    return expectedSecureSetting == arg.isSecure;
+}
+
 static const ui::Size kOutputSize = ui::Size(1, 1);
 
 class CachedSetTest : public testing::Test {
@@ -315,7 +324,7 @@ TEST_F(CachedSetTest, updateAge_BufferUpdate) {
     EXPECT_EQ(0u, cachedSet.getAge());
 }
 
-TEST_F(CachedSetTest, render) {
+TEST_F(CachedSetTest, renderUnsecureOutput) {
     // Skip the 0th layer to ensure that the bounding box of the layers is offset from (0, 0)
     CachedSet::Layer& layer1 = *mTestLayers[1]->cachedSetLayer.get();
     sp<mock::LayerFE> layerFE1 = mTestLayers[1]->layerFE;
@@ -348,14 +357,71 @@ TEST_F(CachedSetTest, render) {
         return NO_ERROR;
     };
 
-    EXPECT_CALL(*layerFE1, prepareClientCompositionList(_)).WillOnce(Return(clientCompList1));
-    EXPECT_CALL(*layerFE2, prepareClientCompositionList(_)).WillOnce(Return(clientCompList2));
+    EXPECT_CALL(*layerFE1,
+                prepareClientCompositionList(ClientCompositionTargetSettingsSecureEq(false)))
+            .WillOnce(Return(clientCompList1));
+    EXPECT_CALL(*layerFE2,
+                prepareClientCompositionList(ClientCompositionTargetSettingsSecureEq(false)))
+            .WillOnce(Return(clientCompList2));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
+    mOutputState.isSecure = false;
     cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
     expectReadyBuffer(cachedSet);
 
     EXPECT_EQ(mOutputState.framebufferSpace, cachedSet.getOutputSpace());
-    EXPECT_EQ(mOutputState.framebufferSpace.content, cachedSet.getTextureBounds());
+    EXPECT_EQ(Rect(kOutputSize.width, kOutputSize.height), cachedSet.getTextureBounds());
+
+    // Now check that appending a new cached set properly cleans up RenderEngine resources.
+    CachedSet::Layer& layer3 = *mTestLayers[2]->cachedSetLayer.get();
+    cachedSet.append(CachedSet(layer3));
+}
+
+TEST_F(CachedSetTest, renderSecureOutput) {
+    // Skip the 0th layer to ensure that the bounding box of the layers is offset from (0, 0)
+    CachedSet::Layer& layer1 = *mTestLayers[1]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE1 = mTestLayers[1]->layerFE;
+    CachedSet::Layer& layer2 = *mTestLayers[2]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE2 = mTestLayers[2]->layerFE;
+
+    CachedSet cachedSet(layer1);
+    cachedSet.append(CachedSet(layer2));
+
+    std::vector<compositionengine::LayerFE::LayerSettings> clientCompList1;
+    clientCompList1.push_back({});
+    clientCompList1[0].alpha = 0.5f;
+
+    std::vector<compositionengine::LayerFE::LayerSettings> clientCompList2;
+    clientCompList2.push_back({});
+    clientCompList2[0].alpha = 0.75f;
+
+    const auto drawLayers = [&](const renderengine::DisplaySettings& displaySettings,
+                                const std::vector<const renderengine::LayerSettings*>& layers,
+                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                base::unique_fd&&, base::unique_fd*) -> size_t {
+        EXPECT_EQ(mOutputState.framebufferSpace.content, displaySettings.physicalDisplay);
+        EXPECT_EQ(mOutputState.layerStackSpace.content, displaySettings.clip);
+        EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.orientation),
+                  displaySettings.orientation);
+        EXPECT_EQ(0.5f, layers[0]->alpha);
+        EXPECT_EQ(0.75f, layers[1]->alpha);
+        EXPECT_EQ(ui::Dataspace::SRGB, displaySettings.outputDataspace);
+
+        return NO_ERROR;
+    };
+
+    EXPECT_CALL(*layerFE1,
+                prepareClientCompositionList(ClientCompositionTargetSettingsSecureEq(true)))
+            .WillOnce(Return(clientCompList1));
+    EXPECT_CALL(*layerFE2,
+                prepareClientCompositionList(ClientCompositionTargetSettingsSecureEq(true)))
+            .WillOnce(Return(clientCompList2));
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
+    mOutputState.isSecure = true;
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
+    expectReadyBuffer(cachedSet);
+
+    EXPECT_EQ(mOutputState.framebufferSpace, cachedSet.getOutputSpace());
+    EXPECT_EQ(Rect(kOutputSize.width, kOutputSize.height), cachedSet.getTextureBounds());
 
     // Now check that appending a new cached set properly cleans up RenderEngine resources.
     CachedSet::Layer& layer3 = *mTestLayers[2]->cachedSetLayer.get();
@@ -445,6 +511,20 @@ TEST_F(CachedSetTest, holePunch_requiresSingleLayer) {
 
 TEST_F(CachedSetTest, holePunch_requiresNonHdr) {
     mTestLayers[0]->outputLayerCompositionState.dataspace = ui::Dataspace::BT2020_PQ;
+    mTestLayers[0]->layerState->update(&mTestLayers[0]->outputLayer);
+
+    CachedSet::Layer& layer = *mTestLayers[0]->cachedSetLayer.get();
+    mTestLayers[0]->layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    sp<mock::LayerFE> layerFE = mTestLayers[0]->layerFE;
+
+    CachedSet cachedSet(layer);
+    EXPECT_CALL(*layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
+
+    EXPECT_FALSE(cachedSet.requiresHolePunch());
+}
+
+TEST_F(CachedSetTest, holePunch_requiresNonBT601_625) {
+    mTestLayers[0]->outputLayerCompositionState.dataspace = ui::Dataspace::STANDARD_BT601_625;
     mTestLayers[0]->layerState->update(&mTestLayers[0]->outputLayer);
 
     CachedSet::Layer& layer = *mTestLayers[0]->cachedSetLayer.get();
@@ -576,12 +656,22 @@ TEST_F(CachedSetTest, addHolePunch) {
                                 base::unique_fd&&, base::unique_fd*) -> size_t {
         // If the highlight layer is enabled, it will increase the size by 1.
         // We're interested in the third layer either way.
-        EXPECT_GE(layers.size(), 3u);
-        const auto* holePunchSettings = layers[2];
-        EXPECT_EQ(nullptr, holePunchSettings->source.buffer.buffer);
-        EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchSettings->source.solidColor);
-        EXPECT_TRUE(holePunchSettings->disableBlending);
-        EXPECT_EQ(0.0f, holePunchSettings->alpha);
+        EXPECT_GE(layers.size(), 4u);
+        {
+            const auto* holePunchSettings = layers[3];
+            EXPECT_EQ(nullptr, holePunchSettings->source.buffer.buffer);
+            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchSettings->source.solidColor);
+            EXPECT_TRUE(holePunchSettings->disableBlending);
+            EXPECT_EQ(0.0f, holePunchSettings->alpha);
+        }
+
+        {
+            const auto* holePunchBackgroundSettings = layers[0];
+            EXPECT_EQ(nullptr, holePunchBackgroundSettings->source.buffer.buffer);
+            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchBackgroundSettings->source.solidColor);
+            EXPECT_FALSE(holePunchBackgroundSettings->disableBlending);
+            EXPECT_EQ(1.0f, holePunchBackgroundSettings->alpha);
+        }
 
         return NO_ERROR;
     };
@@ -626,12 +716,23 @@ TEST_F(CachedSetTest, addHolePunch_noBuffer) {
                                 base::unique_fd&&, base::unique_fd*) -> size_t {
         // If the highlight layer is enabled, it will increase the size by 1.
         // We're interested in the third layer either way.
-        EXPECT_GE(layers.size(), 3u);
-        const auto* holePunchSettings = layers[2];
-        EXPECT_EQ(nullptr, holePunchSettings->source.buffer.buffer);
-        EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchSettings->source.solidColor);
-        EXPECT_TRUE(holePunchSettings->disableBlending);
-        EXPECT_EQ(0.0f, holePunchSettings->alpha);
+        EXPECT_GE(layers.size(), 4u);
+
+        {
+            const auto* holePunchSettings = layers[3];
+            EXPECT_EQ(nullptr, holePunchSettings->source.buffer.buffer);
+            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchSettings->source.solidColor);
+            EXPECT_TRUE(holePunchSettings->disableBlending);
+            EXPECT_EQ(0.0f, holePunchSettings->alpha);
+        }
+
+        {
+            const auto* holePunchBackgroundSettings = layers[0];
+            EXPECT_EQ(nullptr, holePunchBackgroundSettings->source.buffer.buffer);
+            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchBackgroundSettings->source.solidColor);
+            EXPECT_FALSE(holePunchBackgroundSettings->disableBlending);
+            EXPECT_EQ(1.0f, holePunchBackgroundSettings->alpha);
+        }
 
         return NO_ERROR;
     };

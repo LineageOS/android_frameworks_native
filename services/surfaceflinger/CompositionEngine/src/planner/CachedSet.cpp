@@ -175,7 +175,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
     LayerFE::ClientCompositionTargetSettings targetSettings{
             .clip = Region(viewport),
             .needsFiltering = false,
-            .isSecure = true,
+            .isSecure = outputState.isSecure,
             .supportsProtectedContent = false,
             .clearRegion = clearRegion,
             .viewport = viewport,
@@ -218,6 +218,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
     }
 
     renderengine::LayerSettings holePunchSettings;
+    renderengine::LayerSettings holePunchBackgroundSettings;
     if (mHolePunchLayer) {
         auto clientCompositionList =
                 mHolePunchLayer->getOutputLayer()->getLayerFE().prepareClientCompositionList(
@@ -232,6 +233,15 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
         holePunchSettings.alpha = 0.0f;
         holePunchSettings.name = std::string("hole punch layer");
         layerSettingsPointers.push_back(&holePunchSettings);
+
+        // Add a solid background as the first layer in case there is no opaque
+        // buffer behind the punch hole
+        holePunchBackgroundSettings.alpha = 1.0f;
+        holePunchBackgroundSettings.name = std::string("holePunchBackground");
+        holePunchBackgroundSettings.geometry.boundaries = holePunchSettings.geometry.boundaries;
+        holePunchBackgroundSettings.geometry.positionTransform =
+                holePunchSettings.geometry.positionTransform;
+        layerSettingsPointers.insert(layerSettingsPointers.begin(), &holePunchBackgroundSettings);
     }
 
     if (sDebugHighlighLayers) {
@@ -295,9 +305,7 @@ bool CachedSet::requiresHolePunch() const {
         return false;
     }
 
-    // Do not use a hole punch with an HDR layer; this should be done in client
-    // composition to properly mix HDR with SDR.
-    if (hasHdrLayers()) {
+    if (hasUnsupportedDataspace()) {
         return false;
     }
 
@@ -352,9 +360,22 @@ compositionengine::OutputLayer* CachedSet::getBlurLayer() const {
     return mBlurLayer ? mBlurLayer->getOutputLayer() : nullptr;
 }
 
-bool CachedSet::hasHdrLayers() const {
-    return std::any_of(mLayers.cbegin(), mLayers.cend(),
-                       [](const Layer& layer) { return layer.getState()->isHdr(); });
+bool CachedSet::hasUnsupportedDataspace() const {
+    return std::any_of(mLayers.cbegin(), mLayers.cend(), [](const Layer& layer) {
+        auto dataspace = layer.getState()->getDataspace();
+        const auto transfer = static_cast<ui::Dataspace>(dataspace & ui::Dataspace::TRANSFER_MASK);
+        if (transfer == ui::Dataspace::TRANSFER_ST2084 || transfer == ui::Dataspace::TRANSFER_HLG) {
+            // Skip HDR.
+            return true;
+        }
+
+        if ((dataspace & HAL_DATASPACE_STANDARD_MASK) == HAL_DATASPACE_STANDARD_BT601_625) {
+            // RenderEngine does not match some DPUs, so skip
+            // to avoid flickering/color differences.
+            return true;
+        }
+        return false;
+    });
 }
 
 bool CachedSet::hasProtectedLayers() const {
@@ -378,10 +399,14 @@ void CachedSet::dump(std::string& result) const {
     if (mLayers.size() == 1) {
         base::StringAppendF(&result, "    Layer [%s]\n", mLayers[0].getName().c_str());
         base::StringAppendF(&result, "    Buffer %p", mLayers[0].getBuffer().get());
+        base::StringAppendF(&result, "    Protected [%s]",
+                            mLayers[0].getState()->isProtected() ? "true" : "false");
     } else {
         result.append("    Cached set of:");
         for (const Layer& layer : mLayers) {
             base::StringAppendF(&result, "\n      Layer [%s]", layer.getName().c_str());
+            base::StringAppendF(&result, "\n      Protected [%s]",
+                                layer.getState()->isProtected() ? "true" : "false");
         }
     }
 
