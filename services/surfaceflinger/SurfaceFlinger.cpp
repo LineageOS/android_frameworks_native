@@ -6793,7 +6793,7 @@ status_t SurfaceFlinger::getMaxAcquiredBufferCount(int* buffers) const {
     return NO_ERROR;
 }
 
-int SurfaceFlinger::getMaxAcquiredBufferCountForCurrentRefreshRate(uid_t uid) const {
+uint32_t SurfaceFlinger::getMaxAcquiredBufferCountForCurrentRefreshRate(uid_t uid) const {
     Fps refreshRate(60.f);
 
     if (const auto frameRateOverride = mScheduler->getFrameRateOverride(uid)) {
