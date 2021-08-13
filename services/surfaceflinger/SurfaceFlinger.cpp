@@ -3611,7 +3611,7 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
 
         sp<Layer> layer = nullptr;
         if (s.surface) {
-            layer = fromHandleLocked(s.surface).promote();
+            layer = fromHandle(s.surface).promote();
         } else if (s.hasBufferChanges()) {
             ALOGW("Transaction with buffer, but no Layer?");
             continue;
@@ -3778,7 +3778,7 @@ void SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
                 setClientStateLocked(frameTimelineInfo, state, desiredPresentTime, isAutoTimestamp,
                                      postTime, permissions, listenerCallbacksWithSurfaces);
         if ((flags & eAnimation) && state.state.surface) {
-            if (const auto layer = fromHandleLocked(state.state.surface).promote(); layer) {
+            if (const auto layer = fromHandle(state.state.surface).promote(); layer) {
                 mScheduler->recordLayerHistory(layer.get(),
                                                isAutoTimestamp ? 0 : desiredPresentTime,
                                                LayerHistory::LayerUpdateType::AnimationTX);
@@ -3933,13 +3933,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         if (what & layer_state_t::eLayerCreated) {
             layer = handleLayerCreatedLocked(s.surface);
             if (layer) {
-                // put the created layer into mLayersByLocalBinderToken.
-                mLayersByLocalBinderToken.emplace(s.surface->localBinder(), layer);
                 flags |= eTransactionNeeded | eTraversalNeeded;
                 mLayersAdded = true;
             }
         } else {
-            layer = fromHandleLocked(s.surface).promote();
+            layer = fromHandle(s.surface).promote();
         }
     } else {
         // The client may provide us a null handle. Treat it as if the layer was removed.
@@ -4267,7 +4265,7 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
 
     {
         Mutex::Autolock _l(mStateLock);
-        mirrorFrom = fromHandleLocked(mirrorFromHandle).promote();
+        mirrorFrom = fromHandle(mirrorFromHandle).promote();
         if (!mirrorFrom) {
             return NAME_NOT_FOUND;
         }
@@ -4465,7 +4463,7 @@ void SurfaceFlinger::markLayerPendingRemovalLocked(const sp<Layer>& layer) {
     setTransactionFlags(eTransactionNeeded);
 }
 
-void SurfaceFlinger::onHandleDestroyed(sp<Layer>& layer) {
+void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer) {
     Mutex::Autolock lock(mStateLock);
     // If a layer has a parent, we allow it to out-live it's handle
     // with the idea that the parent holds a reference and will eventually
@@ -4476,17 +4474,7 @@ void SurfaceFlinger::onHandleDestroyed(sp<Layer>& layer) {
         mCurrentState.layersSortedByZ.remove(layer);
     }
     markLayerPendingRemovalLocked(layer);
-
-    auto it = mLayersByLocalBinderToken.begin();
-    while (it != mLayersByLocalBinderToken.end()) {
-        if (it->second == layer) {
-            mBufferCountTracker.remove(it->first->localBinder());
-            it = mLayersByLocalBinderToken.erase(it);
-        } else {
-            it++;
-        }
-    }
-
+    mBufferCountTracker.remove(handle);
     layer.clear();
 }
 
@@ -6089,7 +6077,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     {
         Mutex::Autolock lock(mStateLock);
 
-        parent = fromHandleLocked(args.layerHandle).promote();
+        parent = fromHandle(args.layerHandle).promote();
         if (parent == nullptr || parent->isRemovedFromCurrentState()) {
             ALOGE("captureLayers called with an invalid or removed parent");
             return NAME_NOT_FOUND;
@@ -6120,7 +6108,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         reqSize = ui::Size(crop.width() * args.frameScaleX, crop.height() * args.frameScaleY);
 
         for (const auto& handle : args.excludeHandles) {
-            sp<Layer> excludeLayer = fromHandleLocked(handle).promote();
+            sp<Layer> excludeLayer = fromHandle(handle).promote();
             if (excludeLayer != nullptr) {
                 excludeLayers.emplace(excludeLayer);
             } else {
@@ -6616,24 +6604,8 @@ status_t SurfaceFlinger::getDesiredDisplayModeSpecs(const sp<IBinder>& displayTo
     }
 }
 
-wp<Layer> SurfaceFlinger::fromHandle(const sp<IBinder>& handle) {
-    Mutex::Autolock _l(mStateLock);
-    return fromHandleLocked(handle);
-}
-
-wp<Layer> SurfaceFlinger::fromHandleLocked(const sp<IBinder>& handle) const {
-    BBinder* b = nullptr;
-    if (handle) {
-        b = handle->localBinder();
-    }
-    if (b == nullptr) {
-        return nullptr;
-    }
-    auto it = mLayersByLocalBinderToken.find(b);
-    if (it != mLayersByLocalBinderToken.end()) {
-        return it->second;
-    }
-    return nullptr;
+wp<Layer> SurfaceFlinger::fromHandle(const sp<IBinder>& handle) const {
+    return Layer::fromHandle(handle);
 }
 
 void SurfaceFlinger::onLayerFirstRef(Layer* layer) {
@@ -6938,7 +6910,7 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
     sp<Layer> parent;
     bool allowAddRoot = state->addToRoot;
     if (state->initialParent != nullptr) {
-        parent = fromHandleLocked(state->initialParent.promote()).promote();
+        parent = fromHandle(state->initialParent.promote()).promote();
         if (parent == nullptr) {
             ALOGE("Invalid parent %p", state->initialParent.unsafe_get());
             allowAddRoot = false;

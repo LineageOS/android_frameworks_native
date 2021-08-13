@@ -289,16 +289,17 @@ public:
     class LayerCleaner {
         sp<SurfaceFlinger> mFlinger;
         sp<Layer> mLayer;
+        BBinder* mHandle;
 
     protected:
         ~LayerCleaner() {
             // destroy client resources
-            mFlinger->onHandleDestroyed(mLayer);
+            mFlinger->onHandleDestroyed(mHandle, mLayer);
         }
 
     public:
-        LayerCleaner(const sp<SurfaceFlinger>& flinger, const sp<Layer>& layer)
-              : mFlinger(flinger), mLayer(layer) {}
+        LayerCleaner(const sp<SurfaceFlinger>& flinger, const sp<Layer>& layer, BBinder* handle)
+              : mFlinger(flinger), mLayer(layer), mHandle(handle) {}
     };
 
     /*
@@ -312,10 +313,14 @@ public:
     class Handle : public BBinder, public LayerCleaner {
     public:
         Handle(const sp<SurfaceFlinger>& flinger, const sp<Layer>& layer)
-              : LayerCleaner(flinger, layer), owner(layer) {}
+              : LayerCleaner(flinger, layer, this), owner(layer) {}
+        const String16& getInterfaceDescriptor() const override { return kDescriptor; }
 
+        static const String16 kDescriptor;
         wp<Layer> owner;
     };
+
+    static wp<Layer> fromHandle(const sp<IBinder>& handle);
 
     explicit Layer(const LayerCreationArgs& args);
     virtual ~Layer();
