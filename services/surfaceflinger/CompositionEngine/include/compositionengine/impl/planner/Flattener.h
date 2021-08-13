@@ -38,35 +38,56 @@ class Predictor;
 
 class Flattener {
 public:
-    struct CachedSetRenderSchedulingTunables {
-        // This default assumes that rendering a cached set takes about 3ms. That time is then cut
-        // in half - the next frame using the cached set would have the same workload, meaning that
-        // composition cost is the same. This is best illustrated with the following example:
-        //
-        // Suppose we're at a 120hz cadence so SurfaceFlinger is budgeted 8.3ms per-frame. If
-        // renderCachedSets costs 3ms, then two consecutive frames have timings:
-        //
-        // First frame: Start at 0ms, end at 6.8ms.
-        // renderCachedSets: Start at 6.8ms, end at 9.8ms.
-        // Second frame: Start at 9.8ms, end at 16.6ms.
-        //
-        // Now the second frame won't render a cached set afterwards, but the first frame didn't
-        // really steal time from the second frame.
-        static const constexpr std::chrono::nanoseconds kDefaultCachedSetRenderDuration = 1500us;
+    // Collection of tunables which are backed by sysprops
+    struct Tunables {
+        // Tunables that are specific to scheduling when a cached set should be rendered
+        struct RenderScheduling {
+            // This default assumes that rendering a cached set takes about 3ms. That time is then
+            // cut in half - the next frame using the cached set would have the same workload,
+            // meaning that composition cost is the same. This is best illustrated with the
+            // following example:
+            //
+            // Suppose we're at a 120hz cadence so SurfaceFlinger is budgeted 8.3ms per-frame. If
+            // renderCachedSets costs 3ms, then two consecutive frames have timings:
+            //
+            // First frame: Start at 0ms, end at 6.8ms.
+            // renderCachedSets: Start at 6.8ms, end at 9.8ms.
+            // Second frame: Start at 9.8ms, end at 16.6ms.
+            //
+            // Now the second frame won't render a cached set afterwards, but the first frame didn't
+            // really steal time from the second frame.
+            static const constexpr std::chrono::nanoseconds kDefaultCachedSetRenderDuration =
+                    1500us;
 
-        static const constexpr size_t kDefaultMaxDeferRenderAttempts = 240;
+            static const constexpr size_t kDefaultMaxDeferRenderAttempts = 240;
 
-        // Duration allocated for rendering a cached set. If we don't have enough time for rendering
-        // a cached set, then rendering is deferred to another frame.
-        const std::chrono::nanoseconds cachedSetRenderDuration;
-        // Maximum of times that we defer rendering a cached set. If we defer rendering a cached set
-        // too many times, then render it anyways so that future frames would benefit from the
-        // flattened cached set.
-        const size_t maxDeferRenderAttempts;
+            // Duration allocated for rendering a cached set. If we don't have enough time for
+            // rendering a cached set, then rendering is deferred to another frame.
+            const std::chrono::nanoseconds cachedSetRenderDuration;
+            // Maximum of times that we defer rendering a cached set. If we defer rendering a cached
+            // set too many times, then render it anyways so that future frames would benefit from
+            // the flattened cached set.
+            const size_t maxDeferRenderAttempts;
+        };
+
+        static const constexpr std::chrono::milliseconds kDefaultActiveLayerTimeout = 150ms;
+
+        static const constexpr bool kDefaultEnableHolePunch = true;
+
+        // Threshold for determing whether a layer is active. A layer whose properties, including
+        // the buffer, have not changed in at least this time is considered inactive and is
+        // therefore a candidate for flattening.
+        const std::chrono::milliseconds mActiveLayerTimeout;
+
+        // Toggles for scheduling when it's safe to render a cached set.
+        // See: RenderScheduling
+        const std::optional<RenderScheduling> mRenderScheduling;
+
+        // True if the hole punching feature should be enabled.
+        const bool mEnableHolePunch;
     };
-    Flattener(renderengine::RenderEngine& renderEngine, bool enableHolePunch = false,
-              std::optional<CachedSetRenderSchedulingTunables> cachedSetRenderSchedulingTunables =
-                      std::nullopt);
+
+    Flattener(renderengine::RenderEngine& renderEngine, const Tunables& tunables);
 
     void setDisplaySize(ui::Size size) {
         mDisplaySize = size;
@@ -177,8 +198,7 @@ private:
     void buildCachedSets(std::chrono::steady_clock::time_point now);
 
     renderengine::RenderEngine& mRenderEngine;
-    const bool mEnableHolePunch;
-    const std::optional<CachedSetRenderSchedulingTunables> mCachedSetRenderSchedulingTunables;
+    const Tunables mTunables;
 
     TexturePool mTexturePool;
 
@@ -202,9 +222,6 @@ private:
     size_t mCachedSetCreationCount = 0;
     size_t mCachedSetCreationCost = 0;
     std::unordered_map<size_t, size_t> mInvalidatedCachedSetAges;
-    std::chrono::nanoseconds mActiveLayerTimeout = kActiveLayerTimeout;
-
-    static constexpr auto kActiveLayerTimeout = std::chrono::nanoseconds(150ms);
 };
 
 } // namespace compositionengine::impl::planner
