@@ -1174,6 +1174,8 @@ private:
     LayersProto dumpDrawingStateProto(uint32_t traceFlags) const;
     void dumpOffscreenLayersProto(LayersProto& layersProto,
                                   uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
+    void dumpDisplayProto(LayersTraceProto& layersTraceProto) const;
+
     // Dumps state from HW Composer
     void dumpHwc(std::string& result) const;
     LayersProto dumpProtoFromMainThread(uint32_t traceFlags = SurfaceTracing::TRACE_ALL)
