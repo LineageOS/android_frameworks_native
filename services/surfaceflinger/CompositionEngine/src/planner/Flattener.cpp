@@ -60,19 +60,8 @@ bool isSameStack(const std::vector<const LayerState*>& incomingLayers,
 
 } // namespace
 
-Flattener::Flattener(
-        renderengine::RenderEngine& renderEngine, bool enableHolePunch,
-        std::optional<CachedSetRenderSchedulingTunables> cachedSetRenderSchedulingTunables)
-      : mRenderEngine(renderEngine),
-        mEnableHolePunch(enableHolePunch),
-        mCachedSetRenderSchedulingTunables(cachedSetRenderSchedulingTunables),
-        mTexturePool(mRenderEngine) {
-    const int timeoutInMs =
-            base::GetIntProperty(std::string("debug.sf.layer_caching_active_layer_timeout_ms"), 0);
-    if (timeoutInMs != 0) {
-        mActiveLayerTimeout = std::chrono::milliseconds(timeoutInMs);
-    }
-}
+Flattener::Flattener(renderengine::RenderEngine& renderEngine, const Tunables& tunables)
+      : mRenderEngine(renderEngine), mTunables(tunables), mTexturePool(mRenderEngine) {}
 
 NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& layers,
                                        NonBufferHash hash, time_point now) {
@@ -128,14 +117,14 @@ void Flattener::renderCachedSets(
     // If we have a render deadline, and the flattener is configured to skip rendering if we don't
     // have enough time, then we skip rendering the cached set if we think that we'll steal too much
     // time from the next frame.
-    if (renderDeadline && mCachedSetRenderSchedulingTunables) {
+    if (renderDeadline && mTunables.mRenderScheduling) {
         if (const auto estimatedRenderFinish =
-                    now + mCachedSetRenderSchedulingTunables->cachedSetRenderDuration;
+                    now + mTunables.mRenderScheduling->cachedSetRenderDuration;
             estimatedRenderFinish > *renderDeadline) {
             mNewCachedSet->incrementSkipCount();
 
             if (mNewCachedSet->getSkipCount() <=
-                mCachedSetRenderSchedulingTunables->maxDeferRenderAttempts) {
+                mTunables.mRenderScheduling->maxDeferRenderAttempts) {
                 ATRACE_FORMAT("DeadlinePassed: exceeded deadline by: %d us",
                               std::chrono::duration_cast<std::chrono::microseconds>(
                                       estimatedRenderFinish - *renderDeadline)
@@ -420,8 +409,10 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
     bool runHasFirstLayer = false;
 
     for (auto currentSet = mLayers.cbegin(); currentSet != mLayers.cend(); ++currentSet) {
-        const bool layerIsInactive = now - currentSet->getLastUpdate() > mActiveLayerTimeout;
+        const bool layerIsInactive =
+                now - currentSet->getLastUpdate() > mTunables.mActiveLayerTimeout;
         const bool layerHasBlur = currentSet->hasBlurBehind();
+
         if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur) &&
             !currentSet->hasUnsupportedDataspace()) {
             if (isPartOfRun) {
@@ -522,7 +513,7 @@ void Flattener::buildCachedSets(time_point now) {
         mNewCachedSet->addBackgroundBlurLayer(*bestRun->getBlurringLayer());
     }
 
-    if (mEnableHolePunch && bestRun->getHolePunchCandidate() &&
+    if (mTunables.mEnableHolePunch && bestRun->getHolePunchCandidate() &&
         bestRun->getHolePunchCandidate()->requiresHolePunch()) {
         // Add the pip layer to mNewCachedSet, but in a special way - it should
         // replace the buffer with a clear round rect.
