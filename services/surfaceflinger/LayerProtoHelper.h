@@ -37,7 +37,12 @@ public:
                              std::function<FloatRectProto*()> getFloatRectProto);
     static void writeToProto(const Region& region, std::function<RegionProto*()> getRegionProto);
     static void writeToProto(const half4 color, std::function<ColorProto*()> getColorProto);
-    static void writeToProto(const ui::Transform& transform, TransformProto* transformProto);
+    // This writeToProto for transform is incorrect, but due to backwards compatibility, we can't
+    // update Layers to use it. Use writeTransformToProto for any new transform proto data.
+    static void writeToProtoDeprecated(const ui::Transform& transform,
+                                       TransformProto* transformProto);
+    static void writeTransformToProto(const ui::Transform& transform,
+                                      TransformProto* transformProto);
     static void writeToProto(const sp<GraphicBuffer>& buffer,
                              std::function<ActiveBufferProto*()> getActiveBufferProto);
     static void writeToProto(const gui::WindowInfo& inputInfo,

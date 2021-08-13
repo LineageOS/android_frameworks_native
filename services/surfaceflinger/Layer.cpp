@@ -2020,8 +2020,8 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
         if (buffer != nullptr) {
             LayerProtoHelper::writeToProto(buffer,
                                            [&]() { return layerInfo->mutable_active_buffer(); });
-            LayerProtoHelper::writeToProto(ui::Transform(getBufferTransform()),
-                                           layerInfo->mutable_buffer_transform());
+            LayerProtoHelper::writeToProtoDeprecated(ui::Transform(getBufferTransform()),
+                                                     layerInfo->mutable_buffer_transform());
         }
         layerInfo->set_invalidate(contentDirty);
         layerInfo->set_is_protected(isProtected());
@@ -2035,7 +2035,7 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
         layerInfo->set_corner_radius(getRoundedCornerState().radius);
         layerInfo->set_background_blur_radius(getBackgroundBlurRadius());
         layerInfo->set_is_trusted_overlay(isTrustedOverlay());
-        LayerProtoHelper::writeToProto(transform, layerInfo->mutable_transform());
+        LayerProtoHelper::writeToProtoDeprecated(transform, layerInfo->mutable_transform());
         LayerProtoHelper::writePositionToProto(transform.tx(), transform.ty(),
                                                [&]() { return layerInfo->mutable_position(); });
         LayerProtoHelper::writeToProto(mBounds, [&]() { return layerInfo->mutable_bounds(); });
@@ -2110,8 +2110,8 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
                                        [&]() { return layerInfo->mutable_requested_color(); });
         layerInfo->set_flags(state.flags);
 
-        LayerProtoHelper::writeToProto(requestedTransform,
-                                       layerInfo->mutable_requested_transform());
+        LayerProtoHelper::writeToProtoDeprecated(requestedTransform,
+                                                 layerInfo->mutable_requested_transform());
 
         auto parent = useDrawing ? mDrawingParent.promote() : mCurrentParent.promote();
         if (parent != nullptr) {
