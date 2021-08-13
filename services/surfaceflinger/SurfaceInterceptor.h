@@ -133,10 +133,10 @@ private:
     void addInitialDisplayStateLocked(Increment* increment, const DisplayDeviceState& display);
 
     status_t writeProtoFileLocked();
-    const sp<const Layer> getLayer(const wp<const IBinder>& weakHandle) const;
+    const sp<const Layer> getLayer(const wp<IBinder>& weakHandle) const;
     int32_t getLayerId(const sp<const Layer>& layer) const;
     int32_t getLayerIdFromWeakRef(const wp<const Layer>& layer) const;
-    int32_t getLayerIdFromHandle(const sp<const IBinder>& weakHandle) const;
+    int32_t getLayerIdFromHandle(const sp<IBinder>& weakHandle) const;
 
     Increment* createTraceIncrementLocked();
     void addSurfaceCreationLocked(Increment* increment, const sp<const Layer>& layer);
