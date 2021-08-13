@@ -16,21 +16,18 @@
 
 #pragma once
 
+#include <ui/LayerStack.h>
 #include <ui/Rotation.h>
 #include <ui/Size.h>
 
-#include <cstdint>
 #include <type_traits>
 
 namespace android::ui {
 
-using LayerStack = uint32_t;
-constexpr LayerStack NO_LAYER_STACK = static_cast<LayerStack>(-1);
-
 // Transactional state of physical or virtual display. Note that libgui defines
 // android::DisplayState as a superset of android::ui::DisplayState.
 struct DisplayState {
-    LayerStack layerStack = NO_LAYER_STACK;
+    LayerStack layerStack;
     Rotation orientation = ROTATION_0;
     Size layerStackSpaceRect;
 };

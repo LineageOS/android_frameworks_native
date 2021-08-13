@@ -52,7 +52,7 @@ protected:
         mColorLayer = 0;
     }
 
-    void createDisplay(const ui::Size& layerStackSize, uint32_t layerStack) {
+    void createDisplay(const ui::Size& layerStackSize, ui::LayerStack layerStack) {
         mVirtualDisplay =
                 SurfaceComposerClient::createDisplay(String8("VirtualDisplay"), false /*secure*/);
         asTransaction([&](Transaction& t) {
@@ -63,7 +63,7 @@ protected:
         });
     }
 
-    void createColorLayer(uint32_t layerStack) {
+    void createColorLayer(ui::LayerStack layerStack) {
         mColorLayer =
                 createSurface(mClient, "ColorLayer", 0 /* buffer width */, 0 /* buffer height */,
                               PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eFXSurfaceEffect);
@@ -90,8 +90,9 @@ protected:
 };
 
 TEST_F(MultiDisplayLayerBoundsTest, RenderLayerInVirtualDisplay) {
-    createDisplay(mMainDisplayState.layerStackSpaceRect, 1 /* layerStack */);
-    createColorLayer(1 /* layerStack */);
+    constexpr ui::LayerStack kLayerStack{1u};
+    createDisplay(mMainDisplayState.layerStackSpaceRect, kLayerStack);
+    createColorLayer(kLayerStack);
 
     asTransaction([&](Transaction& t) { t.setPosition(mColorLayer, 10, 10); });
 
@@ -113,8 +114,8 @@ TEST_F(MultiDisplayLayerBoundsTest, RenderLayerInMirroredVirtualDisplay) {
 
     // Assumption here is that the new mirrored display has the same layer stack rect as the
     // primary display that it is mirroring.
-    createDisplay(mMainDisplayState.layerStackSpaceRect, 0 /* layerStack */);
-    createColorLayer(0 /* layerStack */);
+    createDisplay(mMainDisplayState.layerStackSpaceRect, ui::DEFAULT_LAYER_STACK);
+    createColorLayer(ui::DEFAULT_LAYER_STACK);
 
     asTransaction([&](Transaction& t) { t.setPosition(mColorLayer, 10, 10); });
 

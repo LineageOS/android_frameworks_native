@@ -18,6 +18,7 @@
 
 #include <math/vec4.h>
 #include <renderengine/RenderEngine.h>
+#include <ui/LayerStack.h>
 #include <ui/Rect.h>
 #include <ui/Size.h>
 #include <utils/StrongPointer.h>
@@ -41,7 +42,7 @@ class RefreshRateOverlay {
 public:
     RefreshRateOverlay(SurfaceFlinger&, uint32_t lowFps, uint32_t highFps, bool showSpinner);
 
-    void setLayerStack(uint32_t stack);
+    void setLayerStack(ui::LayerStack);
     void setViewport(ui::Size);
     void changeRefreshRate(const Fps&);
     void onInvalidate();

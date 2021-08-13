@@ -227,11 +227,8 @@ ui::Transform::RotationFlags Output::getTransformHint() const {
     return static_cast<ui::Transform::RotationFlags>(getState().transform.getOrientation());
 }
 
-void Output::setLayerStackFilter(uint32_t layerStackId, bool isInternal) {
-    auto& outputState = editState();
-    outputState.layerStackId = layerStackId;
-    outputState.layerStackInternal = isInternal;
-
+void Output::setLayerFilter(ui::LayerFilter filter) {
+    editState().layerFilter = filter;
     dirtyEntireOutput();
 }
 
@@ -380,17 +377,13 @@ Region Output::getDirtyRegion(bool repaintEverything) const {
     return dirty;
 }
 
-bool Output::belongsInOutput(std::optional<uint32_t> layerStackId, bool internalOnly) const {
-    // The layerStackId's must match, and also the layer must not be internal
-    // only when not on an internal output.
-    const auto& outputState = getState();
-    return layerStackId && (*layerStackId == outputState.layerStackId) &&
-            (!internalOnly || outputState.layerStackInternal);
+bool Output::includesLayer(ui::LayerFilter filter) const {
+    return getState().layerFilter.includes(filter);
 }
 
-bool Output::belongsInOutput(const sp<compositionengine::LayerFE>& layerFE) const {
+bool Output::includesLayer(const sp<LayerFE>& layerFE) const {
     const auto* layerFEState = layerFE->getCompositionState();
-    return layerFEState && belongsInOutput(layerFEState->layerStackId, layerFEState->internalOnly);
+    return layerFEState && includesLayer(layerFEState->outputFilter);
 }
 
 std::unique_ptr<compositionengine::OutputLayer> Output::createOutputLayer(
@@ -496,8 +489,8 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
         layerFE->prepareCompositionState(compositionengine::LayerFE::StateSubset::BasicGeometry);
     }
 
-    // Only consider the layers on the given layer stack
-    if (!belongsInOutput(layerFE)) {
+    // Only consider the layers on this output
+    if (!includesLayer(layerFE)) {
         return;
     }
 
@@ -1122,7 +1115,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     // bounds its framebuffer cache but Skia RenderEngine has no current policy. The best fix is
     // probably to encapsulate the output buffer into a structure that dispatches resource cleanup
     // over to RenderEngine, in which case this flag can be removed from the drawLayers interface.
-    const bool useFramebufferCache = outputState.layerStackInternal;
+    const bool useFramebufferCache = outputState.layerFilter.toInternalDisplay;
     status_t status =
             renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, tex,
                                     useFramebufferCache, std::move(fd), &readyFence);

@@ -23,6 +23,7 @@
 #include <compositionengine/impl/planner/Planner.h>
 #include <renderengine/DisplaySettings.h>
 #include <renderengine/LayerSettings.h>
+
 #include <memory>
 #include <utility>
 #include <vector>
@@ -45,7 +46,7 @@ public:
     void setProjection(ui::Rotation orientation, const Rect& layerStackSpaceRect,
                        const Rect& orientedDisplaySpaceRect) override;
     void setDisplaySize(const ui::Size&) override;
-    void setLayerStackFilter(uint32_t layerStackId, bool isInternal) override;
+    void setLayerFilter(ui::LayerFilter) override;
     ui::Transform::RotationFlags getTransformHint() const override;
 
     void setColorTransform(const compositionengine::CompositionRefreshArgs&) override;
@@ -65,8 +66,9 @@ public:
     void setRenderSurface(std::unique_ptr<compositionengine::RenderSurface>) override;
 
     Region getDirtyRegion(bool repaintEverything) const override;
-    bool belongsInOutput(std::optional<uint32_t>, bool) const override;
-    bool belongsInOutput(const sp<LayerFE>&) const override;
+
+    bool includesLayer(ui::LayerFilter) const override;
+    bool includesLayer(const sp<LayerFE>&) const override;
 
     compositionengine::OutputLayer* getOutputLayerForLayer(const sp<LayerFE>&) const override;
 

@@ -283,7 +283,7 @@ void SurfaceInterceptorTest::setupBackgroundSurface() {
     ASSERT_TRUE(mFGSurfaceControl->isValid());
 
     Transaction t;
-    t.setDisplayLayerStack(display, 0);
+    t.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
     ASSERT_EQ(NO_ERROR,
               t.setLayer(mBGSurfaceControl, INT_MAX - 3)
                       .show(mBGSurfaceControl)
@@ -380,7 +380,7 @@ void SurfaceInterceptorTest::transparentRegionHintUpdate(Transaction& t) {
 }
 
 void SurfaceInterceptorTest::layerStackUpdate(Transaction& t) {
-    t.setLayerStack(mBGSurfaceControl, STACK_UPDATE);
+    t.setLayerStack(mBGSurfaceControl, ui::LayerStack::fromValue(STACK_UPDATE));
 }
 
 void SurfaceInterceptorTest::hiddenFlagUpdate(Transaction& t) {

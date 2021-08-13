@@ -232,7 +232,7 @@ ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
 }
 
 void DisplayDevice::setLayerStack(ui::LayerStack stack) {
-    mCompositionDisplay->setLayerStackFilter(stack, isInternal());
+    mCompositionDisplay->setLayerFilter({stack, isInternal()});
     if (mRefreshRateOverlay) {
         mRefreshRateOverlay->setLayerStack(stack);
     }
@@ -349,7 +349,7 @@ bool DisplayDevice::needsFiltering() const {
 }
 
 ui::LayerStack DisplayDevice::getLayerStack() const {
-    return mCompositionDisplay->getState().layerStackId;
+    return mCompositionDisplay->getState().layerFilter.layerStack;
 }
 
 ui::Transform::RotationFlags DisplayDevice::getTransformHint() const {

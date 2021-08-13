@@ -53,7 +53,7 @@ protected:
         TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
 
         asTransaction([&](Transaction& t) {
-            t.setDisplayLayerStack(display, 0);
+            t.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
 
             t.setLayer(mBGSurfaceControl, INT32_MAX - 2).show(mBGSurfaceControl);
 
@@ -563,7 +563,7 @@ TEST_F(ScreenCaptureTest, CaptureSecureLayer) {
     Transaction()
             .show(redLayer)
             .show(secureLayer)
-            .setLayerStack(redLayer, 0)
+            .setLayerStack(redLayer, ui::DEFAULT_LAYER_STACK)
             .setLayer(redLayer, INT32_MAX)
             .apply();
 
@@ -655,7 +655,7 @@ TEST_F(ScreenCaptureTest, CaptureDisplayPrimaryDisplayOnly) {
     Transaction()
             .show(layer)
             .hide(mFGSurfaceControl)
-            .setLayerStack(layer, 0)
+            .setLayerStack(layer, ui::DEFAULT_LAYER_STACK)
             .setLayer(layer, INT32_MAX)
             .setColor(layer, {layerColor.r / 255, layerColor.g / 255, layerColor.b / 255})
             .setCrop(layer, bounds)
@@ -702,7 +702,7 @@ TEST_F(ScreenCaptureTest, CaptureDisplayChildPrimaryDisplayOnly) {
             .show(layer)
             .show(childLayer)
             .hide(mFGSurfaceControl)
-            .setLayerStack(layer, 0)
+            .setLayerStack(layer, ui::DEFAULT_LAYER_STACK)
             .setLayer(layer, INT32_MAX)
             .setColor(layer, {layerColor.r / 255, layerColor.g / 255, layerColor.b / 255})
             .setColor(childLayer, {childColor.r / 255, childColor.g / 255, childColor.b / 255})
