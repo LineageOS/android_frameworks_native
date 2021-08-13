@@ -114,7 +114,8 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         applicationInfo.writeToParcel(parcel) ?:
         parcel->write(touchableRegion) ?:
         parcel->writeBool(replaceTouchableRegionWithCrop) ?:
-        parcel->writeStrongBinder(touchableRegionCropHandle.promote());
+        parcel->writeStrongBinder(touchableRegionCropHandle.promote()) ?:
+        parcel->writeStrongBinder(windowToken);
     // clang-format on
     return status;
 }
@@ -188,7 +189,8 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
     touchableRegionCropHandle = parcel->readStrongBinder();
     transform.set({dsdx, dtdx, tx, dtdy, dsdy, ty, 0, 0, 1});
 
-    return OK;
+    status = parcel->readNullableStrongBinder(&windowToken);
+    return status;
 }
 
 // --- WindowInfoHandle ---

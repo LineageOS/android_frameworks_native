@@ -16,6 +16,7 @@
 
 #include "../dispatcher/InputDispatcher.h"
 
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/thread_annotations.h>
 #include <binder/Binder.h>
@@ -678,7 +679,11 @@ TEST_F(InputDispatcherTest, NotifySwitch_CallsPolicy) {
 
 // --- InputDispatcherTest SetInputWindowTest ---
 static constexpr std::chrono::duration INJECT_EVENT_TIMEOUT = 500ms;
-static constexpr std::chrono::nanoseconds DISPATCHING_TIMEOUT = 5s;
+// Default input dispatching timeout if there is no focused application or paused window
+// from which to determine an appropriate dispatching timeout.
+static const std::chrono::duration DISPATCHING_TIMEOUT = std::chrono::milliseconds(
+        android::os::IInputConstants::UNMULTIPLIED_DEFAULT_DISPATCHING_TIMEOUT_MILLIS *
+        android::base::HwTimeoutMultiplier());
 
 class FakeApplicationHandle : public InputApplicationHandle {
 public:
