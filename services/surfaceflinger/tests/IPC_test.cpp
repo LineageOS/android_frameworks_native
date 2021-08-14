@@ -159,7 +159,7 @@ public:
                                                  {0, 0, static_cast<int32_t>(width),
                                                   static_cast<int32_t>(height)},
                                                  Color::RED);
-        transaction->setLayerStack(mSurfaceControl, 0)
+        transaction->setLayerStack(mSurfaceControl, ui::DEFAULT_LAYER_STACK)
                 .setLayer(mSurfaceControl, std::numeric_limits<int32_t>::max())
                 .setBuffer(mSurfaceControl, gb)
                 .setAcquireFence(mSurfaceControl, fence)
@@ -232,7 +232,7 @@ public:
         mDisplayHeight = mode.resolution.getHeight();
 
         Transaction setupTransaction;
-        setupTransaction.setDisplayLayerStack(mPrimaryDisplay, 0);
+        setupTransaction.setDisplayLayerStack(mPrimaryDisplay, ui::DEFAULT_LAYER_STACK);
         setupTransaction.apply();
     }
 
@@ -310,7 +310,7 @@ TEST_F(IPCTest, MergeBasic) {
                                              Color::RED);
 
     Transaction transaction;
-    transaction.setLayerStack(sc, 0)
+    transaction.setLayerStack(sc, ui::DEFAULT_LAYER_STACK)
             .setLayer(sc, std::numeric_limits<int32_t>::max() - 1)
             .setBuffer(sc, gb)
             .setAcquireFence(sc, fence)

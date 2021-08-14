@@ -82,7 +82,7 @@ constexpr int DEFAULT_DISPLAY_WIDTH = 1920;
 constexpr int DEFAULT_DISPLAY_HEIGHT = 1024;
 
 constexpr int DEFAULT_TEXTURE_ID = 6000;
-constexpr int DEFAULT_LAYER_STACK = 7000;
+constexpr ui::LayerStack LAYER_STACK{7000u};
 
 constexpr int DEFAULT_DISPLAY_MAX_LUMINANCE = 500;
 
@@ -287,10 +287,8 @@ struct BaseDisplayVariant {
 
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder()
                                      .setId(DEFAULT_DISPLAY_ID)
-                                     .setConnectionType(ui::DisplayConnectionType::Internal)
                                      .setPixels({DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT})
                                      .setIsSecure(Derived::IS_SECURE)
-                                     .setLayerStackId(DEFAULT_LAYER_STACK)
                                      .setPowerAdvisor(&test->mPowerAdvisor)
                                      .setName(std::string("Injected display for ") +
                                               test_info->test_case_name() + "." + test_info->name())
@@ -309,7 +307,7 @@ struct BaseDisplayVariant {
                                  .setPowerMode(Derived::INIT_POWER_MODE)
                                  .inject();
         Mock::VerifyAndClear(test->mNativeWindow);
-        test->mDisplay->setLayerStack(DEFAULT_LAYER_STACK);
+        test->mDisplay->setLayerStack(LAYER_STACK);
     }
 
     template <typename Case>
@@ -834,7 +832,7 @@ struct BaseLayerVariant {
     template <typename L>
     static void initLayerDrawingStateAndComputeBounds(CompositionTest* test, sp<L> layer) {
         auto& layerDrawingState = test->mFlinger.mutableLayerDrawingState(layer);
-        layerDrawingState.layerStack = DEFAULT_LAYER_STACK;
+        layerDrawingState.layerStack = LAYER_STACK;
         layerDrawingState.width = 100;
         layerDrawingState.height = 100;
         layerDrawingState.color = half4(LayerProperties::COLOR[0], LayerProperties::COLOR[1],

@@ -51,12 +51,9 @@ Display::~Display() = default;
 
 void Display::setConfiguration(const compositionengine::DisplayCreationArgs& args) {
     mId = args.id;
-    mIsVirtual = !args.connectionType;
     mPowerAdvisor = args.powerAdvisor;
     editState().isSecure = args.isSecure;
     editState().displaySpace.bounds = Rect(args.pixels);
-    setLayerStackFilter(args.layerStackId,
-                        args.connectionType == ui::DisplayConnectionType::Internal);
     setName(args.name);
 }
 
@@ -73,7 +70,7 @@ bool Display::isSecure() const {
 }
 
 bool Display::isVirtual() const {
-    return mIsVirtual;
+    return VirtualDisplayId::tryCast(mId).has_value();
 }
 
 std::optional<DisplayId> Display::getDisplayId() const {
@@ -117,8 +114,8 @@ void Display::setColorProfile(const ColorProfile& colorProfile) {
         return;
     }
 
-    if (mIsVirtual) {
-        ALOGW("%s: Invalid operation on virtual display", __FUNCTION__);
+    if (isVirtual()) {
+        ALOGW("%s: Invalid operation on virtual display", __func__);
         return;
     }
 
@@ -136,7 +133,7 @@ void Display::dump(std::string& out) const {
     StringAppendF(&out, "   Composition Display State: [\"%s\"]", getName().c_str());
 
     out.append("\n   ");
-    dumpVal(out, "isVirtual", mIsVirtual);
+    dumpVal(out, "isVirtual", isVirtual());
     dumpVal(out, "DisplayId", to_string(mId));
     out.append("\n");
 

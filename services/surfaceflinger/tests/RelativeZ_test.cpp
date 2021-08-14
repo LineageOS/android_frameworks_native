@@ -43,7 +43,7 @@ protected:
         mForegroundLayer = createColorLayer("Foreground layer", Color::GREEN);
 
         asTransaction([&](Transaction& t) {
-            t.setDisplayLayerStack(display, 0);
+            t.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
             t.setLayer(mBackgroundLayer, INT32_MAX - 2).show(mBackgroundLayer);
             t.setLayer(mForegroundLayer, INT32_MAX - 1).show(mForegroundLayer);
         });

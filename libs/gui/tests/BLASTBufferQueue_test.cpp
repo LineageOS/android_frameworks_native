@@ -128,7 +128,7 @@ protected:
         mDisplayToken = mClient->getInternalDisplayToken();
         ASSERT_NE(nullptr, mDisplayToken.get());
         Transaction t;
-        t.setDisplayLayerStack(mDisplayToken, 0);
+        t.setDisplayLayerStack(mDisplayToken, ui::DEFAULT_LAYER_STACK);
         t.apply();
         t.clear();
 
@@ -142,7 +142,7 @@ protected:
                                                  mDisplayHeight, PIXEL_FORMAT_RGBA_8888,
                                                  ISurfaceComposerClient::eFXSurfaceBufferState,
                                                  /*parent*/ nullptr);
-        t.setLayerStack(mSurfaceControl, 0)
+        t.setLayerStack(mSurfaceControl, ui::DEFAULT_LAYER_STACK)
                 .setLayer(mSurfaceControl, std::numeric_limits<int32_t>::max())
                 .show(mSurfaceControl)
                 .setDataspace(mSurfaceControl, ui::Dataspace::V0_SRGB)
@@ -490,7 +490,7 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
                                      ISurfaceComposerClient::eFXSurfaceEffect);
     ASSERT_NE(nullptr, bg.get());
     Transaction t;
-    t.setLayerStack(bg, 0)
+    t.setLayerStack(bg, ui::DEFAULT_LAYER_STACK)
             .setCrop(bg, Rect(0, 0, mDisplayWidth, mDisplayHeight))
             .setColor(bg, half3{0, 0, 0})
             .setLayer(bg, 0)
@@ -545,7 +545,7 @@ TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToBufferSize) {
                                      ISurfaceComposerClient::eFXSurfaceEffect);
     ASSERT_NE(nullptr, bg.get());
     Transaction t;
-    t.setLayerStack(bg, 0)
+    t.setLayerStack(bg, ui::DEFAULT_LAYER_STACK)
             .setCrop(bg, Rect(0, 0, mDisplayWidth, mDisplayHeight))
             .setColor(bg, half3{0, 0, 0})
             .setLayer(bg, 0)
@@ -612,7 +612,7 @@ TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToWindowSize) {
                                      ISurfaceComposerClient::eFXSurfaceEffect);
     ASSERT_NE(nullptr, bg.get());
     Transaction t;
-    t.setLayerStack(bg, 0)
+    t.setLayerStack(bg, ui::DEFAULT_LAYER_STACK)
             .setCrop(bg, Rect(0, 0, mDisplayWidth, mDisplayHeight))
             .setColor(bg, half3{0, 0, 0})
             .setLayer(bg, 0)
@@ -733,7 +733,7 @@ TEST_F(BLASTBufferQueueTest, OutOfOrderTransactionTest) {
                                    ISurfaceComposerClient::eFXSurfaceBufferState);
     ASSERT_NE(nullptr, bgSurface.get());
     Transaction t;
-    t.setLayerStack(bgSurface, 0)
+    t.setLayerStack(bgSurface, ui::DEFAULT_LAYER_STACK)
             .show(bgSurface)
             .setDataspace(bgSurface, ui::Dataspace::V0_SRGB)
             .setLayer(bgSurface, std::numeric_limits<int32_t>::max() - 1)
