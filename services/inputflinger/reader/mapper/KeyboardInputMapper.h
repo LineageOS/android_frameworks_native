@@ -42,6 +42,7 @@ public:
     virtual int32_t getMetaState() override;
     virtual void updateMetaState(int32_t keyCode) override;
     virtual std::optional<int32_t> getAssociatedDisplayId() override;
+    virtual void updateLedState(bool reset);
 
 private:
     // The current viewport.
@@ -85,7 +86,7 @@ private:
     bool isKeyboardOrGamepadKey(int32_t scanCode);
     bool isMediaKey(int32_t keyCode);
 
-    void processKey(nsecs_t when, bool down, int32_t scanCode, int32_t usageCode);
+    void processKey(nsecs_t when, nsecs_t readTime, bool down, int32_t scanCode, int32_t usageCode);
 
     bool updateMetaStateIfNeeded(int32_t keyCode, bool down);
 
@@ -93,7 +94,6 @@ private:
 
     void resetLedState();
     void initializeLedState(LedState& ledState, int32_t led);
-    void updateLedState(bool reset);
     void updateLedStateForModifier(LedState& ledState, int32_t led, int32_t modifier, bool reset);
     std::optional<DisplayViewport> findViewport(nsecs_t when,
                                                 const InputReaderConfiguration* config);

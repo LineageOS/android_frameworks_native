@@ -57,19 +57,16 @@ std::vector<compositionengine::LayerFE::LayerSettings> EffectLayer::prepareClien
         return {};
     }
 
-    std::optional<compositionengine::LayerFE::LayerSettings> shadowSettings =
-            prepareShadowClientComposition(*layerSettings, targetSettings.viewport,
-                                           targetSettings.dataspace);
-    if (shadowSettings) {
-        results.push_back(*shadowSettings);
-    }
+    // set the shadow for the layer if needed
+    prepareShadowClientComposition(*layerSettings, targetSettings.viewport);
 
     // If fill bounds are occluded or the fill color is invalid skip the fill settings.
     if (targetSettings.realContentIsVisible && fillsColor()) {
         // Set color for color fill settings.
         layerSettings->source.solidColor = getColor().rgb;
         results.push_back(*layerSettings);
-    } else if (hasBlur()) {
+    } else if (hasBlur() || drawShadows()) {
+        layerSettings->skipContentDraw = true;
         results.push_back(*layerSettings);
     }
 
@@ -77,32 +74,32 @@ std::vector<compositionengine::LayerFE::LayerSettings> EffectLayer::prepareClien
 }
 
 bool EffectLayer::isVisible() const {
-    return !isHiddenByPolicy() && getAlpha() > 0.0_hf && hasSomethingToDraw();
+    return !isHiddenByPolicy() && (getAlpha() > 0.0_hf || hasBlur()) && hasSomethingToDraw();
 }
 
 bool EffectLayer::setColor(const half3& color) {
-    if (mCurrentState.color.r == color.r && mCurrentState.color.g == color.g &&
-        mCurrentState.color.b == color.b) {
+    if (mDrawingState.color.r == color.r && mDrawingState.color.g == color.g &&
+        mDrawingState.color.b == color.b) {
         return false;
     }
 
-    mCurrentState.sequence++;
-    mCurrentState.color.r = color.r;
-    mCurrentState.color.g = color.g;
-    mCurrentState.color.b = color.b;
-    mCurrentState.modified = true;
+    mDrawingState.sequence++;
+    mDrawingState.color.r = color.r;
+    mDrawingState.color.g = color.g;
+    mDrawingState.color.b = color.b;
+    mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
 
 bool EffectLayer::setDataspace(ui::Dataspace dataspace) {
-    if (mCurrentState.dataspace == dataspace) {
+    if (mDrawingState.dataspace == dataspace) {
         return false;
     }
 
-    mCurrentState.sequence++;
-    mCurrentState.dataspace = dataspace;
-    mCurrentState.modified = true;
+    mDrawingState.sequence++;
+    mDrawingState.dataspace = dataspace;
+    mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
@@ -130,7 +127,7 @@ const compositionengine::LayerFECompositionState* EffectLayer::getCompositionSta
 bool EffectLayer::isOpaque(const Layer::State& s) const {
     // Consider the layer to be opaque if its opaque flag is set or its effective
     // alpha (considering the alpha of its parents as well) is 1.0;
-    return (s.flags & layer_state_t::eLayerOpaque) != 0 || getAlpha() == 1.0_hf;
+    return (s.flags & layer_state_t::eLayerOpaque) != 0 || (fillsColor() && getAlpha() == 1.0_hf);
 }
 
 ui::Dataspace EffectLayer::getDataSpace() const {
@@ -151,7 +148,7 @@ bool EffectLayer::fillsColor() const {
 }
 
 bool EffectLayer::hasBlur() const {
-    return getBackgroundBlurRadius() > 0;
+    return getBackgroundBlurRadius() > 0 || getDrawingState().blurRegions.size() > 0;
 }
 
 } // namespace android

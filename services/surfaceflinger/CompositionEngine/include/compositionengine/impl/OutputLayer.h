@@ -16,9 +16,11 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
+#include <compositionengine/LayerFE.h>
 #include <compositionengine/OutputLayer.h>
 #include <ui/FloatRect.h>
 #include <ui/Rect.h>
@@ -41,7 +43,8 @@ public:
 
     void updateCompositionState(bool includeGeometry, bool forceClientComposition,
                                 ui::Transform::RotationFlags) override;
-    void writeStateToHWC(bool) override;
+    void writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t z, bool zIsOverridden,
+                         bool isPeekingThrough) override;
     void writeCursorPositionToHWC() const override;
 
     HWC2::Layer* getHwcLayer() const override;
@@ -51,9 +54,9 @@ public:
     void prepareForDeviceLayerRequests() override;
     void applyDeviceLayerRequest(Hwc2::IComposerClient::LayerRequest request) override;
     bool needsFiltering() const override;
+    std::vector<LayerFE::LayerSettings> getOverrideCompositionList() const override;
 
     void dump(std::string&) const override;
-
     virtual FloatRect calculateOutputSourceCrop() const;
     virtual Rect calculateOutputDisplayFrame() const;
     virtual uint32_t calculateOutputRelativeBufferTransform(
@@ -65,16 +68,21 @@ protected:
 
 private:
     Rect calculateInitialCrop() const;
-    void writeOutputDependentGeometryStateToHWC(HWC2::Layer*, Hwc2::IComposerClient::Composition);
-    void writeOutputIndependentGeometryStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
+    void writeOutputDependentGeometryStateToHWC(HWC2::Layer*, Hwc2::IComposerClient::Composition,
+                                                uint32_t z);
+    void writeOutputIndependentGeometryStateToHWC(HWC2::Layer*, const LayerFECompositionState&,
+                                                  bool skipLayer);
     void writeOutputDependentPerFrameStateToHWC(HWC2::Layer*);
-    void writeOutputIndependentPerFrameStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
+    void writeOutputIndependentPerFrameStateToHWC(HWC2::Layer*, const LayerFECompositionState&,
+                                                  bool skipLayer);
     void writeSolidColorStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
     void writeSidebandStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
-    void writeBufferStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
-    void writeCompositionTypeToHWC(HWC2::Layer*, Hwc2::IComposerClient::Composition);
+    void writeBufferStateToHWC(HWC2::Layer*, const LayerFECompositionState&, bool skipLayer);
+    void writeCompositionTypeToHWC(HWC2::Layer*, Hwc2::IComposerClient::Composition,
+                                   bool isPeekingThrough, bool skipLayer);
     void detectDisallowedCompositionTypeChange(Hwc2::IComposerClient::Composition from,
                                                Hwc2::IComposerClient::Composition to) const;
+    bool isClientCompositionForced(bool isPeekingThrough) const;
 };
 
 // This template factory function standardizes the implementation details of the

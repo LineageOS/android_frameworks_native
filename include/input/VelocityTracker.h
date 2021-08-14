@@ -18,8 +18,8 @@
 #define _LIBINPUT_VELOCITY_TRACKER_H
 
 #include <input/Input.h>
-#include <utils/Timers.h>
 #include <utils/BitSet.h>
+#include <utils/Timers.h>
 
 namespace android {
 
@@ -30,6 +30,22 @@ class VelocityTrackerStrategy;
  */
 class VelocityTracker {
 public:
+    enum class Strategy : int32_t {
+        DEFAULT = -1,
+        MIN = 0,
+        IMPULSE = 0,
+        LSQ1 = 1,
+        LSQ2 = 2,
+        LSQ3 = 3,
+        WLSQ2_DELTA = 4,
+        WLSQ2_CENTRAL = 5,
+        WLSQ2_RECENT = 6,
+        INT1 = 7,
+        INT2 = 8,
+        LEGACY = 9,
+        MAX = LEGACY,
+    };
+
     struct Position {
         float x, y;
     };
@@ -62,8 +78,8 @@ public:
     };
 
     // Creates a velocity tracker using the specified strategy.
-    // If strategy is NULL, uses the default strategy for the platform.
-    VelocityTracker(const char* strategy = nullptr);
+    // If strategy is not provided, uses the default strategy for the platform.
+    VelocityTracker(const Strategy strategy = Strategy::DEFAULT);
 
     ~VelocityTracker();
 
@@ -80,7 +96,7 @@ public:
     // are included in the movement.
     // The positions array contains position information for each pointer in order by
     // increasing id.  Its size should be equal to the number of one bits in idBits.
-    void addMovement(nsecs_t eventTime, BitSet32 idBits, const Position* positions);
+    void addMovement(nsecs_t eventTime, BitSet32 idBits, const std::vector<Position>& positions);
 
     // Adds movement information for all pointers in a MotionEvent, including historical samples.
     void addMovement(const MotionEvent* event);
@@ -102,16 +118,21 @@ public:
     inline BitSet32 getCurrentPointerIdBits() const { return mCurrentPointerIdBits; }
 
 private:
-    static const char* DEFAULT_STRATEGY;
+    // The default velocity tracker strategy.
+    // Although other strategies are available for testing and comparison purposes,
+    // this is the strategy that applications will actually use.  Be very careful
+    // when adjusting the default strategy because it can dramatically affect
+    // (often in a bad way) the user experience.
+    static const Strategy DEFAULT_STRATEGY = Strategy::LSQ2;
 
     nsecs_t mLastEventTime;
     BitSet32 mCurrentPointerIdBits;
     int32_t mActivePointerId;
-    VelocityTrackerStrategy* mStrategy;
+    std::unique_ptr<VelocityTrackerStrategy> mStrategy;
 
-    bool configureStrategy(const char* strategy);
+    bool configureStrategy(const Strategy strategy);
 
-    static VelocityTrackerStrategy* createStrategy(const char* strategy);
+    static std::unique_ptr<VelocityTrackerStrategy> createStrategy(const Strategy strategy);
 };
 
 
@@ -128,7 +149,7 @@ public:
     virtual void clear() = 0;
     virtual void clearPointers(BitSet32 idBits) = 0;
     virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
-            const VelocityTracker::Position* positions) = 0;
+                             const std::vector<VelocityTracker::Position>& positions) = 0;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const = 0;
 };
 
@@ -159,8 +180,8 @@ public:
 
     virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
-    virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
-            const VelocityTracker::Position* positions);
+    void addMovement(nsecs_t eventTime, BitSet32 idBits,
+                     const std::vector<VelocityTracker::Position>& positions) override;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
 
 private:
@@ -202,8 +223,8 @@ public:
 
     virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
-    virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
-            const VelocityTracker::Position* positions);
+    void addMovement(nsecs_t eventTime, BitSet32 idBits,
+                     const std::vector<VelocityTracker::Position>& positions) override;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
 
 private:
@@ -236,8 +257,8 @@ public:
 
     virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
-    virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
-            const VelocityTracker::Position* positions);
+    void addMovement(nsecs_t eventTime, BitSet32 idBits,
+                     const std::vector<VelocityTracker::Position>& positions) override;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
 
 private:
@@ -271,8 +292,8 @@ public:
 
     virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
-    virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
-            const VelocityTracker::Position* positions);
+    void addMovement(nsecs_t eventTime, BitSet32 idBits,
+                     const std::vector<VelocityTracker::Position>& positions) override;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
 
 private:

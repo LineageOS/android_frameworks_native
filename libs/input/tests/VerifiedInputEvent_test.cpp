@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <attestation/HmacKeyManager.h>
 #include <gtest/gtest.h>
 #include <input/Input.h>
 
@@ -39,13 +40,16 @@ static MotionEvent getMotionEventWithFlags(int32_t flags) {
         pointerCoords[i].clear();
     }
 
+    ui::Transform transform;
+    transform.set({2, 0, 4, 0, 3, 5, 0, 0, 1});
     event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_DEFAULT,
                      INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0 /*actionButton*/, flags,
                      AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
-                     MotionClassification::NONE, 2 /*xScale*/, 3 /*yScale*/, 4 /*xOffset*/,
-                     5 /*yOffset*/, 0.1 /*xPrecision*/, 0.2 /*yPrecision*/, 280 /*xCursorPosition*/,
-                     540 /*yCursorPosition*/, 100 /*downTime*/, 200 /*eventTime*/, pointerCount,
-                     pointerProperties, pointerCoords);
+                     MotionClassification::NONE, transform, 0.1 /*xPrecision*/, 0.2 /*yPrecision*/,
+                     280 /*xCursorPosition*/, 540 /*yCursorPosition*/,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
+                     100 /*downTime*/, 200 /*eventTime*/, pointerCount, pointerProperties,
+                     pointerCoords);
     return event;
 }
 

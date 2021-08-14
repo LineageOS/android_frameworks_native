@@ -35,6 +35,7 @@ cc_test {
         "liblog",
         "libnativewindow",
         "libsync",
+        "libui",
         "libutils",
         "android.hardware.graphics.common@1.0",
     ],

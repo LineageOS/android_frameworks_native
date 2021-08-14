@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <math/HashCombine.h>
 #include <ostream>
 
 namespace android {
@@ -48,6 +49,8 @@ public:
     float top = 0.0f;
     float right = 0.0f;
     float bottom = 0.0f;
+
+    constexpr bool isEmpty() const { return !(left < right && top < bottom); }
 };
 
 inline bool operator==(const FloatRect& a, const FloatRect& b) {
@@ -60,3 +63,13 @@ static inline void PrintTo(const FloatRect& rect, ::std::ostream* os) {
 }
 
 }  // namespace android
+
+namespace std {
+
+template <>
+struct hash<android::FloatRect> {
+    size_t operator()(const android::FloatRect& rect) const {
+        return android::hashCombine(rect.left, rect.top, rect.right, rect.bottom);
+    }
+};
+} // namespace std

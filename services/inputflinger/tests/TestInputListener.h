@@ -54,6 +54,10 @@ public:
 
     void assertNotifySwitchWasCalled(NotifySwitchArgs* outEventArgs = nullptr);
 
+    void assertNotifyCaptureWasCalled(NotifyPointerCaptureChangedArgs* outEventArgs = nullptr);
+    void assertNotifySensorWasCalled(NotifySensorArgs* outEventArgs = nullptr);
+    void assertNotifyVibratorStateWasCalled(NotifyVibratorStateArgs* outEventArgs = nullptr);
+
 private:
     template <class NotifyArgsType>
     void assertCalled(NotifyArgsType* outEventArgs, std::string message);
@@ -74,16 +78,25 @@ private:
 
     virtual void notifySwitch(const NotifySwitchArgs* args) override;
 
+    virtual void notifySensor(const NotifySensorArgs* args) override;
+
+    virtual void notifyVibratorState(const NotifyVibratorStateArgs* args) override;
+
+    virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
+
     std::mutex mLock;
     std::condition_variable mCondition;
     const std::chrono::milliseconds mEventHappenedTimeout;
     const std::chrono::milliseconds mEventDidNotHappenTimeout;
 
-    std::tuple<std::vector<NotifyConfigurationChangedArgs>, //
-               std::vector<NotifyDeviceResetArgs>,          //
-               std::vector<NotifyKeyArgs>,                  //
-               std::vector<NotifyMotionArgs>,               //
-               std::vector<NotifySwitchArgs>>               //
+    std::tuple<std::vector<NotifyConfigurationChangedArgs>,  //
+               std::vector<NotifyDeviceResetArgs>,           //
+               std::vector<NotifyKeyArgs>,                   //
+               std::vector<NotifyMotionArgs>,                //
+               std::vector<NotifySwitchArgs>,                //
+               std::vector<NotifySensorArgs>,                //
+               std::vector<NotifyVibratorStateArgs>,         //
+               std::vector<NotifyPointerCaptureChangedArgs>> //
             mQueues GUARDED_BY(mLock);
 };
 

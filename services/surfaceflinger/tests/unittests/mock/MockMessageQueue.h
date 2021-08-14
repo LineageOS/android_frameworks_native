@@ -18,6 +18,7 @@
 
 #include <gmock/gmock.h>
 
+#include "FrameTimeline.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/MessageQueue.h"
 
@@ -29,11 +30,16 @@ public:
     ~MessageQueue() override;
 
     MOCK_METHOD1(init, void(const sp<SurfaceFlinger>&));
-    MOCK_METHOD1(setEventConnection, void(const sp<EventThreadConnection>& connection));
+    MOCK_METHOD1(setInjector, void(sp<EventThreadConnection>));
     MOCK_METHOD0(waitMessage, void());
     MOCK_METHOD1(postMessage, void(sp<MessageHandler>&&));
     MOCK_METHOD0(invalidate, void());
     MOCK_METHOD0(refresh, void());
+    MOCK_METHOD3(initVsync,
+                 void(scheduler::VSyncDispatch&, frametimeline::TokenManager&,
+                      std::chrono::nanoseconds));
+    MOCK_METHOD1(setDuration, void(std::chrono::nanoseconds workDuration));
+    MOCK_METHOD0(nextExpectedInvalidate, std::optional<std::chrono::steady_clock::time_point>());
 };
 
 } // namespace android::mock

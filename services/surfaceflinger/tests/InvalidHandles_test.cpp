@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <binder/Binder.h>
 
 #include <gtest/gtest.h>
@@ -22,6 +26,7 @@
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
 #include <ui/Rect.h>
+#include "utils/ScreenshotUtils.h"
 
 namespace android {
 namespace {
@@ -47,21 +52,27 @@ protected:
     }
 };
 
-TEST_F(InvalidHandleTest, createSurfaceInvalidHandle) {
-    auto notSc = makeNotSurfaceControl();
-    ASSERT_EQ(nullptr,
-              mScc->createSurface(String8("lolcats"), 19, 47, PIXEL_FORMAT_RGBA_8888, 0,
-                                  notSc.get())
-                      .get());
+TEST_F(InvalidHandleTest, createSurfaceInvalidParentHandle) {
+    // The createSurface is scheduled now, we could still get a created surface from createSurface.
+    // Should verify if it actually added into current state by checking the screenshot.
+    auto notSc = mScc->createSurface(String8("lolcats"), 19, 47, PIXEL_FORMAT_RGBA_8888, 0,
+                                     mNotSc->getHandle());
+    LayerCaptureArgs args;
+    args.layerHandle = notSc->getHandle();
+    ScreenCaptureResults captureResults;
+    ASSERT_EQ(NAME_NOT_FOUND, ScreenCapture::captureLayers(args, captureResults));
 }
 
 TEST_F(InvalidHandleTest, captureLayersInvalidHandle) {
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-    sp<GraphicBuffer> outBuffer;
+    LayerCaptureArgs args;
+    args.layerHandle = mNotSc->getHandle();
 
-    ASSERT_EQ(NAME_NOT_FOUND,
-              sf->captureLayers(mNotSc->getHandle(), &outBuffer, Rect::EMPTY_RECT, 1.0f));
+    ScreenCaptureResults captureResults;
+    ASSERT_EQ(NAME_NOT_FOUND, ScreenCapture::captureLayers(args, captureResults));
 }
 
 } // namespace
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

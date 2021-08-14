@@ -17,105 +17,117 @@
 #ifndef _UI_INPUT_WINDOW_H
 #define _UI_INPUT_WINDOW_H
 
+#include <android/os/TouchOcclusionMode.h>
+#include <binder/Parcel.h>
+#include <binder/Parcelable.h>
+#include <input/Flags.h>
 #include <input/Input.h>
 #include <input/InputTransport.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
+#include <ui/Transform.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
 #include "InputApplication.h"
 
+using android::os::TouchOcclusionMode;
+
 namespace android {
-class Parcel;
 
 /*
  * Describes the properties of a window that can receive input.
  */
-struct InputWindowInfo {
+struct InputWindowInfo : public Parcelable {
     InputWindowInfo() = default;
-    InputWindowInfo(const Parcel& from);
 
     // Window flags from WindowManager.LayoutParams
-    enum {
-        FLAG_ALLOW_LOCK_WHILE_SCREEN_ON     = 0x00000001,
-        FLAG_DIM_BEHIND        = 0x00000002,
-        FLAG_BLUR_BEHIND        = 0x00000004,
-        FLAG_NOT_FOCUSABLE      = 0x00000008,
-        FLAG_NOT_TOUCHABLE      = 0x00000010,
-        FLAG_NOT_TOUCH_MODAL    = 0x00000020,
-        FLAG_TOUCHABLE_WHEN_WAKING = 0x00000040,
-        FLAG_KEEP_SCREEN_ON     = 0x00000080,
-        FLAG_LAYOUT_IN_SCREEN   = 0x00000100,
-        FLAG_LAYOUT_NO_LIMITS   = 0x00000200,
-        FLAG_FULLSCREEN      = 0x00000400,
-        FLAG_FORCE_NOT_FULLSCREEN   = 0x00000800,
-        FLAG_DITHER             = 0x00001000,
-        FLAG_SECURE             = 0x00002000,
-        FLAG_SCALED             = 0x00004000,
-        FLAG_IGNORE_CHEEK_PRESSES    = 0x00008000,
-        FLAG_LAYOUT_INSET_DECOR = 0x00010000,
-        FLAG_ALT_FOCUSABLE_IM = 0x00020000,
-        FLAG_WATCH_OUTSIDE_TOUCH = 0x00040000,
-        FLAG_SHOW_WHEN_LOCKED = 0x00080000,
-        FLAG_SHOW_WALLPAPER = 0x00100000,
-        FLAG_TURN_SCREEN_ON = 0x00200000,
-        FLAG_DISMISS_KEYGUARD = 0x00400000,
-        FLAG_SPLIT_TOUCH = 0x00800000,
-        FLAG_SLIPPERY = 0x20000000,
-    };
+    enum class Flag : uint32_t {
+        ALLOW_LOCK_WHILE_SCREEN_ON = 0x00000001,
+        DIM_BEHIND = 0x00000002,
+        BLUR_BEHIND = 0x00000004,
+        NOT_FOCUSABLE = 0x00000008,
+        NOT_TOUCHABLE = 0x00000010,
+        NOT_TOUCH_MODAL = 0x00000020,
+        TOUCHABLE_WHEN_WAKING = 0x00000040,
+        KEEP_SCREEN_ON = 0x00000080,
+        LAYOUT_IN_SCREEN = 0x00000100,
+        LAYOUT_NO_LIMITS = 0x00000200,
+        FULLSCREEN = 0x00000400,
+        FORCE_NOT_FULLSCREEN = 0x00000800,
+        DITHER = 0x00001000,
+        SECURE = 0x00002000,
+        SCALED = 0x00004000,
+        IGNORE_CHEEK_PRESSES = 0x00008000,
+        LAYOUT_INSET_DECOR = 0x00010000,
+        ALT_FOCUSABLE_IM = 0x00020000,
+        WATCH_OUTSIDE_TOUCH = 0x00040000,
+        SHOW_WHEN_LOCKED = 0x00080000,
+        SHOW_WALLPAPER = 0x00100000,
+        TURN_SCREEN_ON = 0x00200000,
+        DISMISS_KEYGUARD = 0x00400000,
+        SPLIT_TOUCH = 0x00800000,
+        HARDWARE_ACCELERATED = 0x01000000,
+        LAYOUT_IN_OVERSCAN = 0x02000000,
+        TRANSLUCENT_STATUS = 0x04000000,
+        TRANSLUCENT_NAVIGATION = 0x08000000,
+        LOCAL_FOCUS_MODE = 0x10000000,
+        SLIPPERY = 0x20000000,
+        LAYOUT_ATTACHED_IN_DECOR = 0x40000000,
+        DRAWS_SYSTEM_BAR_BACKGROUNDS = 0x80000000,
+    }; // Window types from WindowManager.LayoutParams
 
-    // Window types from WindowManager.LayoutParams
-    enum {
+    enum class Type : int32_t {
+        UNKNOWN = 0,
         FIRST_APPLICATION_WINDOW = 1,
-        TYPE_BASE_APPLICATION = 1,
-        TYPE_APPLICATION = 2,
-        TYPE_APPLICATION_STARTING = 3,
+        BASE_APPLICATION = 1,
+        APPLICATION = 2,
+        APPLICATION_STARTING = 3,
         LAST_APPLICATION_WINDOW = 99,
         FIRST_SUB_WINDOW = 1000,
-        TYPE_APPLICATION_PANEL = FIRST_SUB_WINDOW,
-        TYPE_APPLICATION_MEDIA = FIRST_SUB_WINDOW + 1,
-        TYPE_APPLICATION_SUB_PANEL = FIRST_SUB_WINDOW + 2,
-        TYPE_APPLICATION_ATTACHED_DIALOG = FIRST_SUB_WINDOW + 3,
-        TYPE_APPLICATION_MEDIA_OVERLAY = FIRST_SUB_WINDOW + 4,
+        APPLICATION_PANEL = FIRST_SUB_WINDOW,
+        APPLICATION_MEDIA = FIRST_SUB_WINDOW + 1,
+        APPLICATION_SUB_PANEL = FIRST_SUB_WINDOW + 2,
+        APPLICATION_ATTACHED_DIALOG = FIRST_SUB_WINDOW + 3,
+        APPLICATION_MEDIA_OVERLAY = FIRST_SUB_WINDOW + 4,
         LAST_SUB_WINDOW = 1999,
         FIRST_SYSTEM_WINDOW = 2000,
-        TYPE_STATUS_BAR = FIRST_SYSTEM_WINDOW,
-        TYPE_SEARCH_BAR = FIRST_SYSTEM_WINDOW + 1,
-        TYPE_PHONE = FIRST_SYSTEM_WINDOW + 2,
-        TYPE_SYSTEM_ALERT = FIRST_SYSTEM_WINDOW + 3,
-        TYPE_KEYGUARD = FIRST_SYSTEM_WINDOW + 4,
-        TYPE_TOAST = FIRST_SYSTEM_WINDOW + 5,
-        TYPE_SYSTEM_OVERLAY = FIRST_SYSTEM_WINDOW + 6,
-        TYPE_PRIORITY_PHONE = FIRST_SYSTEM_WINDOW + 7,
-        TYPE_SYSTEM_DIALOG = FIRST_SYSTEM_WINDOW + 8,
-        TYPE_KEYGUARD_DIALOG = FIRST_SYSTEM_WINDOW + 9,
-        TYPE_SYSTEM_ERROR = FIRST_SYSTEM_WINDOW + 10,
-        TYPE_INPUT_METHOD = FIRST_SYSTEM_WINDOW + 11,
-        TYPE_INPUT_METHOD_DIALOG = FIRST_SYSTEM_WINDOW + 12,
-        TYPE_WALLPAPER = FIRST_SYSTEM_WINDOW + 13,
-        TYPE_STATUS_BAR_PANEL = FIRST_SYSTEM_WINDOW + 14,
-        TYPE_SECURE_SYSTEM_OVERLAY = FIRST_SYSTEM_WINDOW + 15,
-        TYPE_DRAG = FIRST_SYSTEM_WINDOW + 16,
-        TYPE_STATUS_BAR_SUB_PANEL = FIRST_SYSTEM_WINDOW + 17,
-        TYPE_POINTER = FIRST_SYSTEM_WINDOW + 18,
-        TYPE_NAVIGATION_BAR = FIRST_SYSTEM_WINDOW + 19,
-        TYPE_VOLUME_OVERLAY = FIRST_SYSTEM_WINDOW + 20,
-        TYPE_BOOT_PROGRESS = FIRST_SYSTEM_WINDOW + 21,
-        TYPE_INPUT_CONSUMER = FIRST_SYSTEM_WINDOW + 22,
-        TYPE_NAVIGATION_BAR_PANEL = FIRST_SYSTEM_WINDOW + 24,
-        TYPE_MAGNIFICATION_OVERLAY = FIRST_SYSTEM_WINDOW + 27,
-        TYPE_ACCESSIBILITY_OVERLAY = FIRST_SYSTEM_WINDOW + 32,
-        TYPE_DOCK_DIVIDER = FIRST_SYSTEM_WINDOW + 34,
-        TYPE_NOTIFICATION_SHADE = FIRST_SYSTEM_WINDOW + 40,
-        TYPE_TRUSTED_APPLICATION_OVERLAY = FIRST_SYSTEM_WINDOW + 42,
+        STATUS_BAR = FIRST_SYSTEM_WINDOW,
+        SEARCH_BAR = FIRST_SYSTEM_WINDOW + 1,
+        PHONE = FIRST_SYSTEM_WINDOW + 2,
+        SYSTEM_ALERT = FIRST_SYSTEM_WINDOW + 3,
+        KEYGUARD = FIRST_SYSTEM_WINDOW + 4,
+        TOAST = FIRST_SYSTEM_WINDOW + 5,
+        SYSTEM_OVERLAY = FIRST_SYSTEM_WINDOW + 6,
+        PRIORITY_PHONE = FIRST_SYSTEM_WINDOW + 7,
+        SYSTEM_DIALOG = FIRST_SYSTEM_WINDOW + 8,
+        KEYGUARD_DIALOG = FIRST_SYSTEM_WINDOW + 9,
+        SYSTEM_ERROR = FIRST_SYSTEM_WINDOW + 10,
+        INPUT_METHOD = FIRST_SYSTEM_WINDOW + 11,
+        INPUT_METHOD_DIALOG = FIRST_SYSTEM_WINDOW + 12,
+        WALLPAPER = FIRST_SYSTEM_WINDOW + 13,
+        STATUS_BAR_PANEL = FIRST_SYSTEM_WINDOW + 14,
+        SECURE_SYSTEM_OVERLAY = FIRST_SYSTEM_WINDOW + 15,
+        DRAG = FIRST_SYSTEM_WINDOW + 16,
+        STATUS_BAR_SUB_PANEL = FIRST_SYSTEM_WINDOW + 17,
+        POINTER = FIRST_SYSTEM_WINDOW + 18,
+        NAVIGATION_BAR = FIRST_SYSTEM_WINDOW + 19,
+        VOLUME_OVERLAY = FIRST_SYSTEM_WINDOW + 20,
+        BOOT_PROGRESS = FIRST_SYSTEM_WINDOW + 21,
+        INPUT_CONSUMER = FIRST_SYSTEM_WINDOW + 22,
+        NAVIGATION_BAR_PANEL = FIRST_SYSTEM_WINDOW + 24,
+        MAGNIFICATION_OVERLAY = FIRST_SYSTEM_WINDOW + 27,
+        ACCESSIBILITY_OVERLAY = FIRST_SYSTEM_WINDOW + 32,
+        DOCK_DIVIDER = FIRST_SYSTEM_WINDOW + 34,
+        ACCESSIBILITY_MAGNIFICATION_OVERLAY = FIRST_SYSTEM_WINDOW + 39,
+        NOTIFICATION_SHADE = FIRST_SYSTEM_WINDOW + 40,
         LAST_SYSTEM_WINDOW = 2999,
     };
 
-    enum {
-        INPUT_FEATURE_DISABLE_TOUCH_PAD_GESTURES = 0x00000001,
-        INPUT_FEATURE_NO_INPUT_CHANNEL = 0x00000002,
-        INPUT_FEATURE_DISABLE_USER_ACTIVITY = 0x00000004,
+    enum class Feature {
+        DISABLE_TOUCH_PAD_GESTURES = 0x00000001,
+        NO_INPUT_CHANNEL = 0x00000002,
+        DISABLE_USER_ACTIVITY = 0x00000004,
     };
 
     /* These values are filled in by the WM and passed through SurfaceFlinger
@@ -127,9 +139,9 @@ struct InputWindowInfo {
     // This uniquely identifies the input window.
     int32_t id = -1;
     std::string name;
-    int32_t layoutParamsFlags = 0;
-    int32_t layoutParamsType = 0;
-    nsecs_t dispatchingTimeout = -1;
+    Flags<Flag> flags;
+    Type type = Type::UNKNOWN;
+    std::chrono::nanoseconds dispatchingTimeout = std::chrono::seconds(5);
 
     /* These values are filled in by SurfaceFlinger. */
     int32_t frameLeft = -1;
@@ -149,9 +161,16 @@ struct InputWindowInfo {
     // in scaling of the TOUCH_MAJOR/TOUCH_MINOR axis.
     float globalScaleFactor = 1.0f;
 
-    // Scaling factors applied to individual windows.
-    float windowXScale = 1.0f;
-    float windowYScale = 1.0f;
+    // The opacity of this window, from 0.0 to 1.0 (inclusive).
+    // An alpha of 1.0 means fully opaque and 0.0 means fully transparent.
+    float alpha;
+
+    // Transform applied to individual windows.
+    ui::Transform transform;
+
+    // Display size in its natural rotation. Used to rotate raw coordinates for compatibility.
+    int32_t displayWidth = AMOTION_EVENT_INVALID_DISPLAY_SIZE;
+    int32_t displayHeight = AMOTION_EVENT_INVALID_DISPLAY_SIZE;
 
     /*
      * This is filled in by the WM relative to the frame and then translated
@@ -159,13 +178,20 @@ struct InputWindowInfo {
      */
     Region touchableRegion;
     bool visible = false;
-    bool canReceiveKeys = false;
-    bool hasFocus = false;
+    bool focusable = false;
     bool hasWallpaper = false;
     bool paused = false;
+    /* This flag is set when the window is of a trusted type that is allowed to silently
+     * overlay other windows for the purpose of implementing the secure views feature.
+     * Trusted overlays, such as IME windows, can partly obscure other windows without causing
+     * motion events to be delivered to them with AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED.
+     */
+    bool trustedOverlay = false;
+    TouchOcclusionMode touchOcclusionMode = TouchOcclusionMode::BLOCK_UNTRUSTED;
     int32_t ownerPid = -1;
     int32_t ownerUid = -1;
-    int32_t inputFeatures = 0;
+    std::string packageName;
+    Flags<Feature> inputFeatures;
     int32_t displayId = ADISPLAY_ID_NONE;
     int32_t portalToDisplayId = ADISPLAY_ID_NONE;
     InputApplicationInfo applicationInfo;
@@ -175,23 +201,19 @@ struct InputWindowInfo {
     void addTouchableRegion(const Rect& region);
 
     bool touchableRegionContainsPoint(int32_t x, int32_t y) const;
-    bool frameContainsPoint(int32_t x, int32_t y) const;
 
-    /* Returns true if the window is of a trusted type that is allowed to silently
-     * overlay other windows for the purpose of implementing the secure views feature.
-     * Trusted overlays, such as IME windows, can partly obscure other windows without causing
-     * motion events to be delivered to them with AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED.
-     */
-    bool isTrustedOverlay() const;
+    bool frameContainsPoint(int32_t x, int32_t y) const;
 
     bool supportsSplitTouch() const;
 
     bool overlaps(const InputWindowInfo* other) const;
 
-    status_t write(Parcel& output) const;
-    static InputWindowInfo read(const Parcel& from);
-};
+    bool operator==(const InputWindowInfo& inputChannel) const;
 
+    status_t writeToParcel(android::Parcel* parcel) const override;
+
+    status_t readFromParcel(const android::Parcel* parcel) override;
+};
 
 /*
  * Handle for a window that can receive input.
@@ -201,26 +223,19 @@ struct InputWindowInfo {
  */
 class InputWindowHandle : public RefBase {
 public:
+    explicit InputWindowHandle();
+    InputWindowHandle(const InputWindowHandle& other);
+    InputWindowHandle(const InputWindowInfo& other);
 
-    inline const InputWindowInfo* getInfo() const {
-        return &mInfo;
-    }
+    inline const InputWindowInfo* getInfo() const { return &mInfo; }
 
     sp<IBinder> getToken() const;
 
     int32_t getId() const { return mInfo.id; }
 
-    sp<IBinder> getApplicationToken() {
-        return mInfo.applicationInfo.token;
-    }
+    sp<IBinder> getApplicationToken() { return mInfo.applicationInfo.token; }
 
-    inline std::string getName() const {
-        return !mInfo.name.empty() ? mInfo.name : "<invalid>";
-    }
-
-    inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {
-        return mInfo.token ? mInfo.dispatchingTimeout : defaultValue;
-    }
+    inline std::string getName() const { return !mInfo.name.empty() ? mInfo.name : "<invalid>"; }
 
     inline std::chrono::nanoseconds getDispatchingTimeout(
             std::chrono::nanoseconds defaultValue) const {
@@ -230,13 +245,14 @@ public:
     /**
      * Requests that the state of this object be updated to reflect
      * the most current available information about the application.
+     * As this class is created as RefBase object, no pure virtual function is allowed.
      *
      * This method should only be called from within the input dispatcher's
      * critical section.
      *
      * Returns true on success, or false if the handle is no longer valid.
      */
-    virtual bool updateInfo() = 0;
+    virtual bool updateInfo() { return false; }
 
     /**
      * Updates from another input window handle.
@@ -249,13 +265,15 @@ public:
      */
     void releaseChannel();
 
+    // Not override since this class is not derrived from Parcelable.
+    status_t readFromParcel(const android::Parcel* parcel);
+    status_t writeToParcel(android::Parcel* parcel) const;
+
 protected:
-    explicit InputWindowHandle();
     virtual ~InputWindowHandle();
 
     InputWindowInfo mInfo;
 };
-
 } // namespace android
 
 #endif // _UI_INPUT_WINDOW_H

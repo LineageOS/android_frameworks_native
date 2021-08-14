@@ -167,5 +167,17 @@ TEST_F(RegionTest, EqualsToSelf) {
     ASSERT_TRUE(touchableRegion.contains(50, 50));
 }
 
+TEST_F(RegionTest, RegionHash) {
+    Region region1;
+    region1.addRectUnchecked(10, 20, 30, 40);
+    region1.addRectUnchecked(40, 30, 20, 10);
+
+    Region region2;
+    region2.addRectUnchecked(11, 20, 30, 40);
+    region2.addRectUnchecked(40, 31, 20, 10);
+
+    EXPECT_NE(std::hash<Region>{}(region1), std::hash<Region>{}(region2));
+}
+
 }; // namespace android
 

@@ -47,7 +47,7 @@ public:
     std::optional<nsecs_t> lastExecutedVsyncTarget() const;
 
     // This moves the state from disarmed->armed and will calculate the wakeupTime.
-    ScheduleResult schedule(nsecs_t workDuration, nsecs_t earliestVsync, VSyncTracker& tracker,
+    ScheduleResult schedule(VSyncDispatch::ScheduleTiming timing, VSyncTracker& tracker,
                             nsecs_t now);
     // This will update armed entries with the latest vsync information. Entry remains armed.
     void update(VSyncTracker& tracker, nsecs_t now);
@@ -55,6 +55,8 @@ public:
     // This will return empty if not armed, or the next calculated wakeup time if armed.
     // It will not update the wakeupTime.
     std::optional<nsecs_t> wakeupTime() const;
+
+    std::optional<nsecs_t> readyTime() const;
 
     std::optional<nsecs_t> targetVsync() const;
 
@@ -67,14 +69,14 @@ public:
 
     // Adds a pending upload of the earliestVSync and workDuration that will be applied on the next
     // call to update()
-    void addPendingWorkloadUpdate(nsecs_t workDuration, nsecs_t earliestVsync);
+    void addPendingWorkloadUpdate(VSyncDispatch::ScheduleTiming);
 
     // Checks if there is a pending update to the workload, returning true if so.
     bool hasPendingWorkloadUpdate() const;
     // End: functions that are not threadsafe.
 
     // Invoke the callback with the two given timestamps, moving the state from running->disarmed.
-    void callback(nsecs_t vsyncTimestamp, nsecs_t wakeupTimestamp);
+    void callback(nsecs_t vsyncTimestamp, nsecs_t wakeupTimestamp, nsecs_t deadlineTimestamp);
     // Block calling thread while the callback is executing.
     void ensureNotRunning();
 
@@ -84,22 +86,18 @@ private:
     std::string const mName;
     VSyncDispatch::Callback const mCallback;
 
-    nsecs_t mWorkDuration;
-    nsecs_t mEarliestVsync;
+    VSyncDispatch::ScheduleTiming mScheduleTiming;
     nsecs_t const mMinVsyncDistance;
 
     struct ArmingInfo {
         nsecs_t mActualWakeupTime;
         nsecs_t mActualVsyncTime;
+        nsecs_t mActualReadyTime;
     };
     std::optional<ArmingInfo> mArmedInfo;
     std::optional<nsecs_t> mLastDispatchTime;
 
-    struct WorkloadUpdateInfo {
-        nsecs_t duration;
-        nsecs_t earliestVsync;
-    };
-    std::optional<WorkloadUpdateInfo> mWorkloadUpdateInfo;
+    std::optional<VSyncDispatch::ScheduleTiming> mWorkloadUpdateInfo;
 
     mutable std::mutex mRunningMutex;
     std::condition_variable mCv;
@@ -125,7 +123,7 @@ public:
 
     CallbackToken registerCallback(Callback const& callbackFn, std::string callbackName) final;
     void unregisterCallback(CallbackToken token) final;
-    ScheduleResult schedule(CallbackToken token, nsecs_t workDuration, nsecs_t earliestVsync) final;
+    ScheduleResult schedule(CallbackToken token, ScheduleTiming scheduleTiming) final;
     CancelResult cancel(CallbackToken token) final;
     void dump(std::string& result) const final;
 

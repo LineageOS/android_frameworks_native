@@ -38,6 +38,7 @@ GLFramebuffer::GLFramebuffer(GLESRenderEngine& engine)
 }
 
 GLFramebuffer::~GLFramebuffer() {
+    setNativeWindowBuffer(nullptr, false, false);
     glDeleteFramebuffers(1, &mFramebufferName);
     glDeleteTextures(1, &mTextureName);
 }

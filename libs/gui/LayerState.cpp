@@ -16,195 +16,294 @@
 
 #define LOG_TAG "LayerState"
 
+#include <apex/window.h>
 #include <inttypes.h>
 
-#include <utils/Errors.h>
+#include <android/native_window.h>
 #include <binder/Parcel.h>
-#include <gui/ISurfaceComposerClient.h>
 #include <gui/IGraphicBufferProducer.h>
+#include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
+#include <private/gui/ParcelUtils.h>
+#include <utils/Errors.h>
 
 #include <cmath>
 
 namespace android {
 
+layer_state_t::layer_state_t()
+      : what(0),
+        x(0),
+        y(0),
+        z(0),
+        w(0),
+        h(0),
+        layerStack(0),
+        alpha(0),
+        flags(0),
+        mask(0),
+        reserved(0),
+        cornerRadius(0.0f),
+        backgroundBlurRadius(0),
+        transform(0),
+        transformToDisplayInverse(false),
+        crop(Rect::INVALID_RECT),
+        orientedDisplaySpaceRect(Rect::INVALID_RECT),
+        dataspace(ui::Dataspace::UNKNOWN),
+        surfaceDamageRegion(),
+        api(-1),
+        colorTransform(mat4()),
+        bgColorAlpha(0),
+        bgColorDataspace(ui::Dataspace::UNKNOWN),
+        colorSpaceAgnostic(false),
+        shadowRadius(0.0f),
+        frameRateSelectionPriority(-1),
+        frameRate(0.0f),
+        frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
+        changeFrameRateStrategy(ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS),
+        fixedTransformHint(ui::Transform::ROT_INVALID),
+        frameNumber(0),
+        autoRefresh(false),
+        isTrustedOverlay(false),
+        bufferCrop(Rect::INVALID_RECT),
+        destinationFrame(Rect::INVALID_RECT),
+        releaseBufferListener(nullptr) {
+    matrix.dsdx = matrix.dtdy = 1.0f;
+    matrix.dsdy = matrix.dtdx = 0.0f;
+    hdrMetadata.validTypes = 0;
+}
+
 status_t layer_state_t::write(Parcel& output) const
 {
-    output.writeStrongBinder(surface);
-    output.writeUint64(what);
-    output.writeFloat(x);
-    output.writeFloat(y);
-    output.writeInt32(z);
-    output.writeUint32(w);
-    output.writeUint32(h);
-    output.writeUint32(layerStack);
-    output.writeFloat(alpha);
-    output.writeUint32(flags);
-    output.writeUint32(mask);
-    *reinterpret_cast<layer_state_t::matrix22_t *>(
-            output.writeInplace(sizeof(layer_state_t::matrix22_t))) = matrix;
-    output.write(crop_legacy);
-    output.writeStrongBinder(barrierHandle_legacy);
-    output.writeStrongBinder(reparentHandle);
-    output.writeUint64(frameNumber_legacy);
-    output.writeInt32(overrideScalingMode);
-    output.writeStrongBinder(IInterface::asBinder(barrierGbp_legacy));
-    output.writeStrongBinder(relativeLayerHandle);
-    output.writeStrongBinder(parentHandleForChild);
-    output.writeFloat(color.r);
-    output.writeFloat(color.g);
-    output.writeFloat(color.b);
+    SAFE_PARCEL(output.writeStrongBinder, surface);
+    SAFE_PARCEL(output.writeInt32, layerId);
+    SAFE_PARCEL(output.writeUint64, what);
+    SAFE_PARCEL(output.writeFloat, x);
+    SAFE_PARCEL(output.writeFloat, y);
+    SAFE_PARCEL(output.writeInt32, z);
+    SAFE_PARCEL(output.writeUint32, w);
+    SAFE_PARCEL(output.writeUint32, h);
+    SAFE_PARCEL(output.writeUint32, layerStack);
+    SAFE_PARCEL(output.writeFloat, alpha);
+    SAFE_PARCEL(output.writeUint32, flags);
+    SAFE_PARCEL(output.writeUint32, mask);
+    SAFE_PARCEL(matrix.write, output);
+    SAFE_PARCEL(output.write, crop);
+    SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, reparentSurfaceControl);
+    SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, relativeLayerSurfaceControl);
+    SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, parentSurfaceControlForChild);
+    SAFE_PARCEL(output.writeFloat, color.r);
+    SAFE_PARCEL(output.writeFloat, color.g);
+    SAFE_PARCEL(output.writeFloat, color.b);
 #ifndef NO_INPUT
-    inputInfo.write(output);
+    SAFE_PARCEL(inputHandle->writeToParcel, &output);
 #endif
-    output.write(transparentRegion);
-    output.writeUint32(transform);
-    output.writeBool(transformToDisplayInverse);
-    output.write(crop);
-    output.write(frame);
+    SAFE_PARCEL(output.write, transparentRegion);
+    SAFE_PARCEL(output.writeUint32, transform);
+    SAFE_PARCEL(output.writeBool, transformToDisplayInverse);
+    SAFE_PARCEL(output.write, orientedDisplaySpaceRect);
+
     if (buffer) {
-        output.writeBool(true);
-        output.write(*buffer);
+        SAFE_PARCEL(output.writeBool, true);
+        SAFE_PARCEL(output.write, *buffer);
     } else {
-        output.writeBool(false);
+        SAFE_PARCEL(output.writeBool, false);
     }
+
     if (acquireFence) {
-        output.writeBool(true);
-        output.write(*acquireFence);
+        SAFE_PARCEL(output.writeBool, true);
+        SAFE_PARCEL(output.write, *acquireFence);
     } else {
-        output.writeBool(false);
+        SAFE_PARCEL(output.writeBool, false);
     }
-    output.writeUint32(static_cast<uint32_t>(dataspace));
-    output.write(hdrMetadata);
-    output.write(surfaceDamageRegion);
-    output.writeInt32(api);
+
+    SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dataspace));
+    SAFE_PARCEL(output.write, hdrMetadata);
+    SAFE_PARCEL(output.write, surfaceDamageRegion);
+    SAFE_PARCEL(output.writeInt32, api);
+
     if (sidebandStream) {
-        output.writeBool(true);
-        output.writeNativeHandle(sidebandStream->handle());
+        SAFE_PARCEL(output.writeBool, true);
+        SAFE_PARCEL(output.writeNativeHandle, sidebandStream->handle());
     } else {
-        output.writeBool(false);
+        SAFE_PARCEL(output.writeBool, false);
     }
 
-    memcpy(output.writeInplace(16 * sizeof(float)),
-           colorTransform.asArray(), 16 * sizeof(float));
-    output.writeFloat(cornerRadius);
-    output.writeUint32(backgroundBlurRadius);
-    output.writeStrongBinder(cachedBuffer.token.promote());
-    output.writeUint64(cachedBuffer.id);
-    output.writeParcelable(metadata);
-
-    output.writeFloat(bgColorAlpha);
-    output.writeUint32(static_cast<uint32_t>(bgColorDataspace));
-    output.writeBool(colorSpaceAgnostic);
-
-    auto err = output.writeVectorSize(listeners);
-    if (err) {
-        return err;
-    }
+    SAFE_PARCEL(output.write, colorTransform.asArray(), 16 * sizeof(float));
+    SAFE_PARCEL(output.writeFloat, cornerRadius);
+    SAFE_PARCEL(output.writeUint32, backgroundBlurRadius);
+    SAFE_PARCEL(output.writeStrongBinder, cachedBuffer.token.promote());
+    SAFE_PARCEL(output.writeUint64, cachedBuffer.id);
+    SAFE_PARCEL(output.writeParcelable, metadata);
+    SAFE_PARCEL(output.writeFloat, bgColorAlpha);
+    SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(bgColorDataspace));
+    SAFE_PARCEL(output.writeBool, colorSpaceAgnostic);
+    SAFE_PARCEL(output.writeVectorSize, listeners);
 
     for (auto listener : listeners) {
-        err = output.writeStrongBinder(listener.transactionCompletedListener);
-        if (err) {
-            return err;
-        }
-        err = output.writeInt64Vector(listener.callbackIds);
-        if (err) {
-            return err;
-        }
+        SAFE_PARCEL(output.writeStrongBinder, listener.transactionCompletedListener);
+        SAFE_PARCEL(output.writeParcelableVector, listener.callbackIds);
     }
-    output.writeFloat(shadowRadius);
-    output.writeInt32(frameRateSelectionPriority);
-    output.writeFloat(frameRate);
-    output.writeByte(frameRateCompatibility);
-    output.writeUint32(fixedTransformHint);
+    SAFE_PARCEL(output.writeFloat, shadowRadius);
+    SAFE_PARCEL(output.writeInt32, frameRateSelectionPriority);
+    SAFE_PARCEL(output.writeFloat, frameRate);
+    SAFE_PARCEL(output.writeByte, frameRateCompatibility);
+    SAFE_PARCEL(output.writeByte, changeFrameRateStrategy);
+    SAFE_PARCEL(output.writeUint32, fixedTransformHint);
+    SAFE_PARCEL(output.writeUint64, frameNumber);
+    SAFE_PARCEL(output.writeBool, autoRefresh);
+    SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(releaseBufferListener));
+
+    SAFE_PARCEL(output.writeUint32, blurRegions.size());
+    for (auto region : blurRegions) {
+        SAFE_PARCEL(output.writeUint32, region.blurRadius);
+        SAFE_PARCEL(output.writeFloat, region.cornerRadiusTL);
+        SAFE_PARCEL(output.writeFloat, region.cornerRadiusTR);
+        SAFE_PARCEL(output.writeFloat, region.cornerRadiusBL);
+        SAFE_PARCEL(output.writeFloat, region.cornerRadiusBR);
+        SAFE_PARCEL(output.writeFloat, region.alpha);
+        SAFE_PARCEL(output.writeInt32, region.left);
+        SAFE_PARCEL(output.writeInt32, region.top);
+        SAFE_PARCEL(output.writeInt32, region.right);
+        SAFE_PARCEL(output.writeInt32, region.bottom);
+    }
+
+    SAFE_PARCEL(output.write, stretchEffect);
+    SAFE_PARCEL(output.write, bufferCrop);
+    SAFE_PARCEL(output.write, destinationFrame);
+    SAFE_PARCEL(output.writeBool, isTrustedOverlay);
+
     return NO_ERROR;
 }
 
 status_t layer_state_t::read(const Parcel& input)
 {
-    surface = input.readStrongBinder();
-    what = input.readUint64();
-    x = input.readFloat();
-    y = input.readFloat();
-    z = input.readInt32();
-    w = input.readUint32();
-    h = input.readUint32();
-    layerStack = input.readUint32();
-    alpha = input.readFloat();
-    flags = static_cast<uint8_t>(input.readUint32());
-    mask = static_cast<uint8_t>(input.readUint32());
-    const void* matrix_data = input.readInplace(sizeof(layer_state_t::matrix22_t));
-    if (matrix_data) {
-        matrix = *reinterpret_cast<layer_state_t::matrix22_t const *>(matrix_data);
-    } else {
-        return BAD_VALUE;
-    }
-    input.read(crop_legacy);
-    barrierHandle_legacy = input.readStrongBinder();
-    reparentHandle = input.readStrongBinder();
-    frameNumber_legacy = input.readUint64();
-    overrideScalingMode = input.readInt32();
-    barrierGbp_legacy = interface_cast<IGraphicBufferProducer>(input.readStrongBinder());
-    relativeLayerHandle = input.readStrongBinder();
-    parentHandleForChild = input.readStrongBinder();
-    color.r = input.readFloat();
-    color.g = input.readFloat();
-    color.b = input.readFloat();
+    SAFE_PARCEL(input.readNullableStrongBinder, &surface);
+    SAFE_PARCEL(input.readInt32, &layerId);
+    SAFE_PARCEL(input.readUint64, &what);
+    SAFE_PARCEL(input.readFloat, &x);
+    SAFE_PARCEL(input.readFloat, &y);
+    SAFE_PARCEL(input.readInt32, &z);
+    SAFE_PARCEL(input.readUint32, &w);
+    SAFE_PARCEL(input.readUint32, &h);
+    SAFE_PARCEL(input.readUint32, &layerStack);
+    SAFE_PARCEL(input.readFloat, &alpha);
 
+    SAFE_PARCEL(input.readUint32, &flags);
+
+    SAFE_PARCEL(input.readUint32, &mask);
+
+    SAFE_PARCEL(matrix.read, input);
+    SAFE_PARCEL(input.read, crop);
+    SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &reparentSurfaceControl);
+
+    SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &relativeLayerSurfaceControl);
+    SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &parentSurfaceControlForChild);
+
+    float tmpFloat = 0;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    color.r = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    color.g = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    color.b = tmpFloat;
 #ifndef NO_INPUT
-    inputInfo = InputWindowInfo::read(input);
+    SAFE_PARCEL(inputHandle->readFromParcel, &input);
 #endif
 
-    input.read(transparentRegion);
-    transform = input.readUint32();
-    transformToDisplayInverse = input.readBool();
-    input.read(crop);
-    input.read(frame);
-    buffer = new GraphicBuffer();
-    if (input.readBool()) {
-        input.read(*buffer);
+    SAFE_PARCEL(input.read, transparentRegion);
+    SAFE_PARCEL(input.readUint32, &transform);
+    SAFE_PARCEL(input.readBool, &transformToDisplayInverse);
+    SAFE_PARCEL(input.read, orientedDisplaySpaceRect);
+
+    bool tmpBool = false;
+    SAFE_PARCEL(input.readBool, &tmpBool);
+    if (tmpBool) {
+        buffer = new GraphicBuffer();
+        SAFE_PARCEL(input.read, *buffer);
     }
-    acquireFence = new Fence();
-    if (input.readBool()) {
-        input.read(*acquireFence);
+
+    SAFE_PARCEL(input.readBool, &tmpBool);
+    if (tmpBool) {
+        acquireFence = new Fence();
+        SAFE_PARCEL(input.read, *acquireFence);
     }
-    dataspace = static_cast<ui::Dataspace>(input.readUint32());
-    input.read(hdrMetadata);
-    input.read(surfaceDamageRegion);
-    api = input.readInt32();
-    if (input.readBool()) {
+
+    uint32_t tmpUint32 = 0;
+    SAFE_PARCEL(input.readUint32, &tmpUint32);
+    dataspace = static_cast<ui::Dataspace>(tmpUint32);
+
+    SAFE_PARCEL(input.read, hdrMetadata);
+    SAFE_PARCEL(input.read, surfaceDamageRegion);
+    SAFE_PARCEL(input.readInt32, &api);
+    SAFE_PARCEL(input.readBool, &tmpBool);
+    if (tmpBool) {
         sidebandStream = NativeHandle::create(input.readNativeHandle(), true);
     }
 
-    const void* color_transform_data = input.readInplace(16 * sizeof(float));
-    if (color_transform_data) {
-        colorTransform = mat4(static_cast<const float*>(color_transform_data));
-    } else {
-        return BAD_VALUE;
-    }
-    cornerRadius = input.readFloat();
-    backgroundBlurRadius = input.readUint32();
-    cachedBuffer.token = input.readStrongBinder();
-    cachedBuffer.id = input.readUint64();
-    input.readParcelable(&metadata);
+    SAFE_PARCEL(input.read, &colorTransform, 16 * sizeof(float));
+    SAFE_PARCEL(input.readFloat, &cornerRadius);
+    SAFE_PARCEL(input.readUint32, &backgroundBlurRadius);
+    sp<IBinder> tmpBinder;
+    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
+    cachedBuffer.token = tmpBinder;
+    SAFE_PARCEL(input.readUint64, &cachedBuffer.id);
+    SAFE_PARCEL(input.readParcelable, &metadata);
 
-    bgColorAlpha = input.readFloat();
-    bgColorDataspace = static_cast<ui::Dataspace>(input.readUint32());
-    colorSpaceAgnostic = input.readBool();
+    SAFE_PARCEL(input.readFloat, &bgColorAlpha);
+    SAFE_PARCEL(input.readUint32, &tmpUint32);
+    bgColorDataspace = static_cast<ui::Dataspace>(tmpUint32);
+    SAFE_PARCEL(input.readBool, &colorSpaceAgnostic);
 
-    int32_t numListeners = input.readInt32();
+    int32_t numListeners = 0;
+    SAFE_PARCEL_READ_SIZE(input.readInt32, &numListeners, input.dataSize());
     listeners.clear();
     for (int i = 0; i < numListeners; i++) {
-        auto listener = input.readStrongBinder();
+        sp<IBinder> listener;
         std::vector<CallbackId> callbackIds;
-        input.readInt64Vector(&callbackIds);
+        SAFE_PARCEL(input.readNullableStrongBinder, &listener);
+        SAFE_PARCEL(input.readParcelableVector, &callbackIds);
         listeners.emplace_back(listener, callbackIds);
     }
-    shadowRadius = input.readFloat();
-    frameRateSelectionPriority = input.readInt32();
-    frameRate = input.readFloat();
-    frameRateCompatibility = input.readByte();
-    fixedTransformHint = static_cast<ui::Transform::RotationFlags>(input.readUint32());
+    SAFE_PARCEL(input.readFloat, &shadowRadius);
+    SAFE_PARCEL(input.readInt32, &frameRateSelectionPriority);
+    SAFE_PARCEL(input.readFloat, &frameRate);
+    SAFE_PARCEL(input.readByte, &frameRateCompatibility);
+    SAFE_PARCEL(input.readByte, &changeFrameRateStrategy);
+    SAFE_PARCEL(input.readUint32, &tmpUint32);
+    fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
+    SAFE_PARCEL(input.readUint64, &frameNumber);
+    SAFE_PARCEL(input.readBool, &autoRefresh);
+
+    tmpBinder = nullptr;
+    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
+    if (tmpBinder) {
+        releaseBufferListener = checked_interface_cast<ITransactionCompletedListener>(tmpBinder);
+    }
+
+    uint32_t numRegions = 0;
+    SAFE_PARCEL(input.readUint32, &numRegions);
+    blurRegions.clear();
+    for (uint32_t i = 0; i < numRegions; i++) {
+        BlurRegion region;
+        SAFE_PARCEL(input.readUint32, &region.blurRadius);
+        SAFE_PARCEL(input.readFloat, &region.cornerRadiusTL);
+        SAFE_PARCEL(input.readFloat, &region.cornerRadiusTR);
+        SAFE_PARCEL(input.readFloat, &region.cornerRadiusBL);
+        SAFE_PARCEL(input.readFloat, &region.cornerRadiusBR);
+        SAFE_PARCEL(input.readFloat, &region.alpha);
+        SAFE_PARCEL(input.readInt32, &region.left);
+        SAFE_PARCEL(input.readInt32, &region.top);
+        SAFE_PARCEL(input.readInt32, &region.right);
+        SAFE_PARCEL(input.readInt32, &region.bottom);
+        blurRegions.push_back(region);
+    }
+
+    SAFE_PARCEL(input.read, stretchEffect);
+    SAFE_PARCEL(input.read, bufferCrop);
+    SAFE_PARCEL(input.read, destinationFrame);
+    SAFE_PARCEL(input.readBool, &isTrustedOverlay);
+
     return NO_ERROR;
 }
 
@@ -216,39 +315,43 @@ status_t ComposerState::read(const Parcel& input) {
     return state.read(input);
 }
 
-
-DisplayState::DisplayState() :
-    what(0),
-    layerStack(0),
-    viewport(Rect::EMPTY_RECT),
-    frame(Rect::EMPTY_RECT),
-    width(0),
-    height(0) {
-}
+DisplayState::DisplayState()
+      : what(0),
+        layerStack(0),
+        layerStackSpaceRect(Rect::EMPTY_RECT),
+        orientedDisplaySpaceRect(Rect::EMPTY_RECT),
+        width(0),
+        height(0) {}
 
 status_t DisplayState::write(Parcel& output) const {
-    output.writeStrongBinder(token);
-    output.writeStrongBinder(IInterface::asBinder(surface));
-    output.writeUint32(what);
-    output.writeUint32(layerStack);
-    output.writeUint32(toRotationInt(orientation));
-    output.write(viewport);
-    output.write(frame);
-    output.writeUint32(width);
-    output.writeUint32(height);
+    SAFE_PARCEL(output.writeStrongBinder, token);
+    SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(surface));
+    SAFE_PARCEL(output.writeUint32, what);
+    SAFE_PARCEL(output.writeUint32, layerStack);
+    SAFE_PARCEL(output.writeUint32, toRotationInt(orientation));
+    SAFE_PARCEL(output.write, layerStackSpaceRect);
+    SAFE_PARCEL(output.write, orientedDisplaySpaceRect);
+    SAFE_PARCEL(output.writeUint32, width);
+    SAFE_PARCEL(output.writeUint32, height);
     return NO_ERROR;
 }
 
 status_t DisplayState::read(const Parcel& input) {
-    token = input.readStrongBinder();
-    surface = interface_cast<IGraphicBufferProducer>(input.readStrongBinder());
-    what = input.readUint32();
-    layerStack = input.readUint32();
-    orientation = ui::toRotation(input.readUint32());
-    input.read(viewport);
-    input.read(frame);
-    width = input.readUint32();
-    height = input.readUint32();
+    SAFE_PARCEL(input.readStrongBinder, &token);
+    sp<IBinder> tmpBinder;
+    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
+    surface = interface_cast<IGraphicBufferProducer>(tmpBinder);
+
+    SAFE_PARCEL(input.readUint32, &what);
+    SAFE_PARCEL(input.readUint32, &layerStack);
+    uint32_t tmpUint = 0;
+    SAFE_PARCEL(input.readUint32, &tmpUint);
+    orientation = ui::toRotation(tmpUint);
+
+    SAFE_PARCEL(input.read, layerStackSpaceRect);
+    SAFE_PARCEL(input.read, orientedDisplaySpaceRect);
+    SAFE_PARCEL(input.readUint32, &width);
+    SAFE_PARCEL(input.readUint32, &height);
     return NO_ERROR;
 }
 
@@ -264,8 +367,8 @@ void DisplayState::merge(const DisplayState& other) {
     if (other.what & eDisplayProjectionChanged) {
         what |= eDisplayProjectionChanged;
         orientation = other.orientation;
-        viewport = other.viewport;
-        frame = other.frame;
+        layerStackSpaceRect = other.layerStackSpaceRect;
+        orientedDisplaySpaceRect = other.orientedDisplaySpaceRect;
     }
     if (other.what & eDisplaySizeChanged) {
         what |= eDisplaySizeChanged;
@@ -312,10 +415,6 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eLayerStackChanged;
         layerStack = other.layerStack;
     }
-    if (other.what & eCropChanged_legacy) {
-        what |= eCropChanged_legacy;
-        crop_legacy = other.crop_legacy;
-    }
     if (other.what & eCornerRadiusChanged) {
         what |= eCornerRadiusChanged;
         cornerRadius = other.cornerRadius;
@@ -324,32 +423,19 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eBackgroundBlurRadiusChanged;
         backgroundBlurRadius = other.backgroundBlurRadius;
     }
-    if (other.what & eDeferTransaction_legacy) {
-        what |= eDeferTransaction_legacy;
-        barrierHandle_legacy = other.barrierHandle_legacy;
-        barrierGbp_legacy = other.barrierGbp_legacy;
-        frameNumber_legacy = other.frameNumber_legacy;
-    }
-    if (other.what & eOverrideScalingModeChanged) {
-        what |= eOverrideScalingModeChanged;
-        overrideScalingMode = other.overrideScalingMode;
-    }
-    if (other.what & eReparentChildren) {
-        what |= eReparentChildren;
-        reparentHandle = other.reparentHandle;
-    }
-    if (other.what & eDetachChildren) {
-        what |= eDetachChildren;
+    if (other.what & eBlurRegionsChanged) {
+        what |= eBlurRegionsChanged;
+        blurRegions = other.blurRegions;
     }
     if (other.what & eRelativeLayerChanged) {
         what |= eRelativeLayerChanged;
         what &= ~eLayerChanged;
         z = other.z;
-        relativeLayerHandle = other.relativeLayerHandle;
+        relativeLayerSurfaceControl = other.relativeLayerSurfaceControl;
     }
     if (other.what & eReparent) {
         what |= eReparent;
-        parentHandleForChild = other.parentHandleForChild;
+        parentSurfaceControlForChild = other.parentSurfaceControlForChild;
     }
     if (other.what & eDestroySurface) {
         what |= eDestroySurface;
@@ -365,10 +451,6 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eCropChanged) {
         what |= eCropChanged;
         crop = other.crop;
-    }
-    if (other.what & eFrameChanged) {
-        what |= eFrameChanged;
-        frame = other.frame;
     }
     if (other.what & eBufferChanged) {
         what |= eBufferChanged;
@@ -409,7 +491,7 @@ void layer_state_t::merge(const layer_state_t& other) {
 #ifndef NO_INPUT
     if (other.what & eInputInfoChanged) {
         what |= eInputInfoChanged;
-        inputInfo = other.inputInfo;
+        inputHandle = new InputWindowHandle(*other.inputHandle);
     }
 #endif
 
@@ -439,10 +521,42 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eFrameRateChanged;
         frameRate = other.frameRate;
         frameRateCompatibility = other.frameRateCompatibility;
+        changeFrameRateStrategy = other.changeFrameRateStrategy;
     }
     if (other.what & eFixedTransformHintChanged) {
         what |= eFixedTransformHintChanged;
         fixedTransformHint = other.fixedTransformHint;
+    }
+    if (other.what & eFrameNumberChanged) {
+        what |= eFrameNumberChanged;
+        frameNumber = other.frameNumber;
+    }
+    if (other.what & eAutoRefreshChanged) {
+        what |= eAutoRefreshChanged;
+        autoRefresh = other.autoRefresh;
+    }
+    if (other.what & eTrustedOverlayChanged) {
+        what |= eTrustedOverlayChanged;
+        isTrustedOverlay = other.isTrustedOverlay;
+    }
+    if (other.what & eReleaseBufferListenerChanged) {
+        if (releaseBufferListener) {
+            ALOGW("Overriding releaseBufferListener");
+        }
+        what |= eReleaseBufferListenerChanged;
+        releaseBufferListener = other.releaseBufferListener;
+    }
+    if (other.what & eStretchChanged) {
+        what |= eStretchChanged;
+        stretchEffect = other.stretchEffect;
+    }
+    if (other.what & eBufferCropChanged) {
+        what |= eBufferCropChanged;
+        bufferCrop = other.bufferCrop;
+    }
+    if (other.what & eDestinationFrameChanged) {
+        what |= eDestinationFrameChanged;
+        destinationFrame = other.destinationFrame;
     }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "
@@ -451,25 +565,77 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
 }
 
+bool layer_state_t::hasBufferChanges() const {
+    return (what & layer_state_t::eBufferChanged) || (what & layer_state_t::eCachedBufferChanged);
+}
+
+bool layer_state_t::hasValidBuffer() const {
+    return buffer || cachedBuffer.isValid();
+}
+
+status_t layer_state_t::matrix22_t::write(Parcel& output) const {
+    SAFE_PARCEL(output.writeFloat, dsdx);
+    SAFE_PARCEL(output.writeFloat, dtdx);
+    SAFE_PARCEL(output.writeFloat, dtdy);
+    SAFE_PARCEL(output.writeFloat, dsdy);
+    return NO_ERROR;
+}
+
+status_t layer_state_t::matrix22_t::read(const Parcel& input) {
+    SAFE_PARCEL(input.readFloat, &dsdx);
+    SAFE_PARCEL(input.readFloat, &dtdx);
+    SAFE_PARCEL(input.readFloat, &dtdy);
+    SAFE_PARCEL(input.readFloat, &dsdy);
+    return NO_ERROR;
+}
+
 // ------------------------------- InputWindowCommands ----------------------------------------
 
-void InputWindowCommands::merge(const InputWindowCommands& other) {
+bool InputWindowCommands::merge(const InputWindowCommands& other) {
+    bool changes = false;
+#ifndef NO_INPUT
+    changes |= !other.focusRequests.empty();
+    focusRequests.insert(focusRequests.end(), std::make_move_iterator(other.focusRequests.begin()),
+                         std::make_move_iterator(other.focusRequests.end()));
+#endif
+    changes |= other.syncInputWindows && !syncInputWindows;
     syncInputWindows |= other.syncInputWindows;
+    return changes;
+}
+
+bool InputWindowCommands::empty() const {
+    bool empty = true;
+#ifndef NO_INPUT
+    empty = focusRequests.empty() && !syncInputWindows;
+#endif
+    return empty;
 }
 
 void InputWindowCommands::clear() {
+#ifndef NO_INPUT
+    focusRequests.clear();
+#endif
     syncInputWindows = false;
 }
 
-void InputWindowCommands::write(Parcel& output) const {
-    output.writeBool(syncInputWindows);
+status_t InputWindowCommands::write(Parcel& output) const {
+#ifndef NO_INPUT
+    SAFE_PARCEL(output.writeParcelableVector, focusRequests);
+#endif
+    SAFE_PARCEL(output.writeBool, syncInputWindows);
+    return NO_ERROR;
 }
 
-void InputWindowCommands::read(const Parcel& input) {
-    syncInputWindows = input.readBool();
+status_t InputWindowCommands::read(const Parcel& input) {
+#ifndef NO_INPUT
+    SAFE_PARCEL(input.readParcelableVector, &focusRequests);
+#endif
+    SAFE_PARCEL(input.readBool, &syncInputWindows);
+    return NO_ERROR;
 }
 
-bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* inFunctionName) {
+bool ValidateFrameRate(float frameRate, int8_t compatibility, int8_t changeFrameRateStrategy,
+                       const char* inFunctionName, bool privileged) {
     const char* functionName = inFunctionName != nullptr ? inFunctionName : "call";
     int floatClassification = std::fpclassify(frameRate);
     if (frameRate < 0 || floatClassification == FP_INFINITE || floatClassification == FP_NAN) {
@@ -478,12 +644,101 @@ bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* inFunc
     }
 
     if (compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT &&
-        compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE) {
-        ALOGE("%s failed - invalid compatibility value %d", functionName, compatibility);
+        compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE &&
+        (!privileged || compatibility != ANATIVEWINDOW_FRAME_RATE_EXACT)) {
+        ALOGE("%s failed - invalid compatibility value %d privileged: %s", functionName,
+              compatibility, privileged ? "yes" : "no");
         return false;
     }
 
+    if (changeFrameRateStrategy != ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS &&
+        changeFrameRateStrategy != ANATIVEWINDOW_CHANGE_FRAME_RATE_ALWAYS) {
+        ALOGE("%s failed - invalid change frame rate strategy value %d", functionName,
+              changeFrameRateStrategy);
+    }
+
     return true;
+}
+
+// ----------------------------------------------------------------------------
+
+status_t CaptureArgs::write(Parcel& output) const {
+    SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(pixelFormat));
+    SAFE_PARCEL(output.write, sourceCrop);
+    SAFE_PARCEL(output.writeFloat, frameScaleX);
+    SAFE_PARCEL(output.writeFloat, frameScaleY);
+    SAFE_PARCEL(output.writeBool, captureSecureLayers);
+    SAFE_PARCEL(output.writeInt32, uid);
+    SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(dataspace));
+    SAFE_PARCEL(output.writeBool, allowProtected);
+    SAFE_PARCEL(output.writeBool, grayscale);
+    return NO_ERROR;
+}
+
+status_t CaptureArgs::read(const Parcel& input) {
+    int32_t value = 0;
+    SAFE_PARCEL(input.readInt32, &value);
+    pixelFormat = static_cast<ui::PixelFormat>(value);
+    SAFE_PARCEL(input.read, sourceCrop);
+    SAFE_PARCEL(input.readFloat, &frameScaleX);
+    SAFE_PARCEL(input.readFloat, &frameScaleY);
+    SAFE_PARCEL(input.readBool, &captureSecureLayers);
+    SAFE_PARCEL(input.readInt32, &uid);
+    SAFE_PARCEL(input.readInt32, &value);
+    dataspace = static_cast<ui::Dataspace>(value);
+    SAFE_PARCEL(input.readBool, &allowProtected);
+    SAFE_PARCEL(input.readBool, &grayscale);
+    return NO_ERROR;
+}
+
+status_t DisplayCaptureArgs::write(Parcel& output) const {
+    SAFE_PARCEL(CaptureArgs::write, output);
+
+    SAFE_PARCEL(output.writeStrongBinder, displayToken);
+    SAFE_PARCEL(output.writeUint32, width);
+    SAFE_PARCEL(output.writeUint32, height);
+    SAFE_PARCEL(output.writeBool, useIdentityTransform);
+    return NO_ERROR;
+}
+
+status_t DisplayCaptureArgs::read(const Parcel& input) {
+    SAFE_PARCEL(CaptureArgs::read, input);
+
+    SAFE_PARCEL(input.readStrongBinder, &displayToken);
+    SAFE_PARCEL(input.readUint32, &width);
+    SAFE_PARCEL(input.readUint32, &height);
+    SAFE_PARCEL(input.readBool, &useIdentityTransform);
+    return NO_ERROR;
+}
+
+status_t LayerCaptureArgs::write(Parcel& output) const {
+    SAFE_PARCEL(CaptureArgs::write, output);
+
+    SAFE_PARCEL(output.writeStrongBinder, layerHandle);
+    SAFE_PARCEL(output.writeInt32, excludeHandles.size());
+    for (auto el : excludeHandles) {
+        SAFE_PARCEL(output.writeStrongBinder, el);
+    }
+    SAFE_PARCEL(output.writeBool, childrenOnly);
+    return NO_ERROR;
+}
+
+status_t LayerCaptureArgs::read(const Parcel& input) {
+    SAFE_PARCEL(CaptureArgs::read, input);
+
+    SAFE_PARCEL(input.readStrongBinder, &layerHandle);
+
+    int32_t numExcludeHandles = 0;
+    SAFE_PARCEL_READ_SIZE(input.readInt32, &numExcludeHandles, input.dataSize());
+    excludeHandles.reserve(numExcludeHandles);
+    for (int i = 0; i < numExcludeHandles; i++) {
+        sp<IBinder> binder;
+        SAFE_PARCEL(input.readStrongBinder, &binder);
+        excludeHandles.emplace(binder);
+    }
+
+    SAFE_PARCEL(input.readBool, &childrenOnly);
+    return NO_ERROR;
 }
 
 }; // namespace android

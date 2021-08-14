@@ -23,7 +23,7 @@ cc_test {
 
     srcs: [
         "BLASTBufferQueue_test.cpp",
-	"BufferItemConsumer_test.cpp",
+        "BufferItemConsumer_test.cpp",
         "BufferQueue_test.cpp",
         "CpuConsumer_test.cpp",
         "EndToEndNativeInputTest.cpp",
@@ -63,6 +63,30 @@ cc_test {
         "libutils",
         "libnativewindow"
     ],
+
+    header_libs: ["libsurfaceflinger_headers"],
+}
+
+// Build the tests that need to run with both 32bit and 64bit.
+cc_test {
+    name: "libgui_multilib_test",
+    test_suites: ["device-tests"],
+
+    clang: true,
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+
+    srcs: [
+        "DisplayEventStructLayout_test.cpp",
+    ],
+
+    shared_libs: [
+        "libgui",
+    ],
+
+    compile_multilib: "both",
 
     header_libs: ["libsurfaceflinger_headers"],
 }

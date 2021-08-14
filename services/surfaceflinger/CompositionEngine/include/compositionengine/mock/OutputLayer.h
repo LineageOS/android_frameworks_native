@@ -22,6 +22,7 @@
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <gmock/gmock.h>
+#include <cstdint>
 
 namespace android::compositionengine::mock {
 
@@ -39,7 +40,7 @@ public:
     MOCK_METHOD0(editState, impl::OutputLayerCompositionState&());
 
     MOCK_METHOD3(updateCompositionState, void(bool, bool, ui::Transform::RotationFlags));
-    MOCK_METHOD1(writeStateToHWC, void(bool));
+    MOCK_METHOD5(writeStateToHWC, void(bool, bool, uint32_t, bool, bool));
     MOCK_CONST_METHOD0(writeCursorPositionToHWC, void());
 
     MOCK_CONST_METHOD0(getHwcLayer, HWC2::Layer*());
@@ -49,6 +50,7 @@ public:
     MOCK_METHOD0(prepareForDeviceLayerRequests, void());
     MOCK_METHOD1(applyDeviceLayerRequest, void(Hwc2::IComposerClient::LayerRequest request));
     MOCK_CONST_METHOD0(needsFiltering, bool());
+    MOCK_CONST_METHOD0(getOverrideCompositionList, std::vector<LayerFE::LayerSettings>());
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
 };

@@ -19,35 +19,24 @@
 
 #include <string>
 
+#include <android/InputApplicationInfo.h>
+
 #include <binder/IBinder.h>
 #include <binder/Parcel.h>
+#include <binder/Parcelable.h>
 
 #include <input/Input.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
 namespace android {
-
-/*
- * Describes the properties of an application that can receive input.
- */
-struct InputApplicationInfo {
-    sp<IBinder> token;
-    std::string name;
-    nsecs_t dispatchingTimeout;
-
-    status_t write(Parcel& output) const;
-    static InputApplicationInfo read(const Parcel& from);
-};
-
-
 /*
  * Handle for an application that can receive input.
  *
  * Used by the native input dispatcher as a handle for the window manager objects
  * that describe an application.
  */
-class InputApplicationHandle : public RefBase {
+class InputApplicationHandle {
 public:
     inline const InputApplicationInfo* getInfo() const {
         return &mInfo;
@@ -57,18 +46,21 @@ public:
         return !mInfo.name.empty() ? mInfo.name : "<invalid>";
     }
 
-    inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {
-        return mInfo.token ? mInfo.dispatchingTimeout : defaultValue;
-    }
-
     inline std::chrono::nanoseconds getDispatchingTimeout(
             std::chrono::nanoseconds defaultValue) const {
-        return mInfo.token ? std::chrono::nanoseconds(mInfo.dispatchingTimeout) : defaultValue;
+        return mInfo.token ? std::chrono::milliseconds(mInfo.dispatchingTimeoutMillis)
+                           : defaultValue;
     }
 
     inline sp<IBinder> getApplicationToken() const {
         return mInfo.token;
     }
+
+    bool operator==(const InputApplicationHandle& other) const {
+        return getName() == other.getName() && getApplicationToken() == other.getApplicationToken();
+    }
+
+    bool operator!=(const InputApplicationHandle& other) const { return !(*this == other); }
 
     /**
      * Requests that the state of this object be updated to reflect
@@ -80,9 +72,10 @@ public:
      * Returns true on success, or false if the handle is no longer valid.
      */
     virtual bool updateInfo() = 0;
+
 protected:
-    InputApplicationHandle();
-    virtual ~InputApplicationHandle();
+    InputApplicationHandle() = default;
+    virtual ~InputApplicationHandle() = default;
 
     InputApplicationInfo mInfo;
 };

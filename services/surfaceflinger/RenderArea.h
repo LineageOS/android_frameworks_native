@@ -23,15 +23,15 @@ public:
 
     static float getCaptureFillValue(CaptureFill captureFill);
 
-    RenderArea(uint32_t reqWidth, uint32_t reqHeight, CaptureFill captureFill,
-               ui::Dataspace reqDataSpace, const Rect& displayViewport,
+    RenderArea(ui::Size reqSize, CaptureFill captureFill, ui::Dataspace reqDataSpace,
+               const Rect& layerStackRect, bool allowSecureLayers = false,
                RotationFlags rotation = ui::Transform::ROT_0)
-          : mReqWidth(reqWidth),
-            mReqHeight(reqHeight),
+          : mAllowSecureLayers(allowSecureLayers),
+            mReqSize(reqSize),
             mReqDataSpace(reqDataSpace),
             mCaptureFill(captureFill),
             mRotationFlags(rotation),
-            mDisplayViewport(displayViewport) {}
+            mLayerStackSpaceRect(layerStackRect) {}
 
     virtual ~RenderArea() = default;
 
@@ -70,8 +70,8 @@ public:
     RotationFlags getRotationFlags() const { return mRotationFlags; }
 
     // Returns the size of the physical render area.
-    int getReqWidth() const { return static_cast<int>(mReqWidth); }
-    int getReqHeight() const { return static_cast<int>(mReqHeight); }
+    int getReqWidth() const { return mReqSize.width; }
+    int getReqHeight() const { return mReqSize.height; }
 
     // Returns the composition data space of the render area.
     ui::Dataspace getReqDataSpace() const { return mReqDataSpace; }
@@ -83,15 +83,17 @@ public:
     virtual sp<const DisplayDevice> getDisplayDevice() const = 0;
 
     // Returns the source display viewport.
-    const Rect& getDisplayViewport() const { return mDisplayViewport; }
+    const Rect& getLayerStackSpaceRect() const { return mLayerStackSpaceRect; }
+
+protected:
+    const bool mAllowSecureLayers;
 
 private:
-    const uint32_t mReqWidth;
-    const uint32_t mReqHeight;
+    const ui::Size mReqSize;
     const ui::Dataspace mReqDataSpace;
     const CaptureFill mCaptureFill;
     const RotationFlags mRotationFlags;
-    const Rect mDisplayViewport;
+    const Rect mLayerStackSpaceRect;
 };
 
 } // namespace android

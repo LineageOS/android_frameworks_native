@@ -52,6 +52,8 @@ TEST_F(VirtualDisplayTest, VirtualDisplayDestroyedSurfaceReuse) {
     virtualDisplay.clear();
     // Sync here to ensure the display was completely destroyed in SF
     t.apply(true);
+    // add another sync since we are deferring the display destruction
+    t.apply(true);
 
     sp<Surface> surface = new Surface(mProducer);
     sp<ANativeWindow> window(surface);

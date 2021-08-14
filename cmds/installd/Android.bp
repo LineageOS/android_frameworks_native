@@ -200,8 +200,7 @@ cc_binary {
 filegroup {
     name: "installd_aidl",
     srcs: [
-        "binder/android/os/IInstalld.aidl",
-        "binder/android/os/storage/CrateMetadata.aidl",
+        "binder/**/*.aidl",
     ],
     path: "binder",
 }

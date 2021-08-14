@@ -20,18 +20,18 @@
 
 #undef LOG_TAG
 #define LOG_TAG "HwcComposer"
-
-#include <log/log.h>
-
-#include <algorithm>
-#include <cinttypes>
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "ComposerHal.h"
 
 #include <composer-command-buffer/2.2/ComposerCommandBuffer.h>
-#include <gui/BufferQueue.h>
 #include <hidl/HidlTransportSupport.h>
 #include <hidl/HidlTransportUtils.h>
+#include <log/log.h>
+#include <utils/Trace.h>
+
+#include <algorithm>
+#include <cinttypes>
 
 namespace android {
 
@@ -211,9 +211,8 @@ uint32_t Composer::getMaxVirtualDisplayCount()
     return unwrapRet(ret, 0);
 }
 
-Error Composer::createVirtualDisplay(uint32_t width, uint32_t height,
-            PixelFormat* format, Display* outDisplay)
-{
+Error Composer::createVirtualDisplay(uint32_t width, uint32_t height, PixelFormat* format,
+                                     std::optional<Display>, Display* outDisplay) {
     const uint32_t bufferSlotCount = 1;
     Error error = kDefaultError;
     if (mClient_2_2) {
@@ -265,15 +264,15 @@ Error Composer::acceptDisplayChanges(Display display)
 Error Composer::createLayer(Display display, Layer* outLayer)
 {
     Error error = kDefaultError;
-    mClient->createLayer(display, BufferQueue::NUM_BUFFER_SLOTS,
-            [&](const auto& tmpError, const auto& tmpLayer) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
+    mClient->createLayer(display, kMaxLayerBufferCount,
+                         [&](const auto& tmpError, const auto& tmpLayer) {
+                             error = tmpError;
+                             if (error != Error::NONE) {
+                                 return;
+                             }
 
-                *outLayer = tmpLayer;
-            });
+                             *outLayer = tmpLayer;
+                         });
 
     return error;
 }
@@ -492,6 +491,7 @@ Error Composer::getReleaseFences(Display display,
 
 Error Composer::presentDisplay(Display display, int* outPresentFence)
 {
+    ATRACE_NAME("HwcPresentDisplay");
     mWriter.selectDisplay(display);
     mWriter.presentDisplay();
 
@@ -586,6 +586,7 @@ Error Composer::setClientTargetSlotCount(Display display)
 Error Composer::validateDisplay(Display display, uint32_t* outNumTypes,
         uint32_t* outNumRequests)
 {
+    ATRACE_NAME("HwcValidateDisplay");
     mWriter.selectDisplay(display);
     mWriter.validateDisplay();
 
@@ -601,13 +602,14 @@ Error Composer::validateDisplay(Display display, uint32_t* outNumTypes,
 
 Error Composer::presentOrValidateDisplay(Display display, uint32_t* outNumTypes,
                                uint32_t* outNumRequests, int* outPresentFence, uint32_t* state) {
-   mWriter.selectDisplay(display);
-   mWriter.presentOrvalidateDisplay();
+    ATRACE_NAME("HwcPresentOrValidateDisplay");
+    mWriter.selectDisplay(display);
+    mWriter.presentOrvalidateDisplay();
 
-   Error error = execute();
-   if (error != Error::NONE) {
-       return error;
-   }
+    Error error = execute();
+    if (error != Error::NONE) {
+        return error;
+    }
 
    mReader.takePresentOrValidateStage(display, state);
 

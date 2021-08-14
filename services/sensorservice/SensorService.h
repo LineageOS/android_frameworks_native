@@ -61,6 +61,15 @@
 
 #define SENSOR_REGISTRATIONS_BUF_SIZE 200
 
+// Apps that targets S+ and do not have HIGH_SAMPLING_RATE_SENSORS permission will be capped
+// at 200 Hz. The cap also applies to all requests when the mic toggle is flipped to on, regardless
+// of their target SDKs and permission.
+// Capped sampling periods for apps that have non-direct sensor connections.
+#define SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS (5 * 1000 * 1000)
+// Capped sampling rate level for apps that have direct sensor connections.
+// The enum SENSOR_DIRECT_RATE_NORMAL corresponds to a rate value of at most 110 Hz.
+#define SENSOR_SERVICE_CAPPED_SAMPLING_RATE_LEVEL SENSOR_DIRECT_RATE_NORMAL
+
 namespace android {
 // ---------------------------------------------------------------------------
 class SensorInterface;
@@ -80,8 +89,22 @@ public:
       UID_STATE_IDLE,
     };
 
+    class ProximityActiveListener : public virtual RefBase {
+    public:
+        // Note that the callback is invoked from an async thread and can interact with the
+        // SensorService directly.
+        virtual void onProximityActive(bool isActive) = 0;
+    };
+
+    static char const* getServiceName() ANDROID_API { return "sensorservice"; }
+    SensorService() ANDROID_API;
+
     void cleanupConnection(SensorEventConnection* connection);
     void cleanupConnection(SensorDirectConnection* c);
+
+    // Call with mLock held.
+    void onProximityActiveLocked(bool isActive);
+    void notifyProximityStateLocked(const std::vector<sp<ProximityActiveListener>>& listeners);
 
     status_t enable(const sp<SensorEventConnection>& connection, int handle,
                     nsecs_t samplingPeriodNs,  nsecs_t maxBatchReportLatencyNs, int reservedFlags,
@@ -95,6 +118,11 @@ public:
     status_t flushSensor(const sp<SensorEventConnection>& connection,
                          const String16& opPackageName);
 
+    status_t addProximityActiveListener(const sp<ProximityActiveListener>& callback) ANDROID_API;
+    status_t removeProximityActiveListener(const sp<ProximityActiveListener>& callback) ANDROID_API;
+
+    // Returns true if a sensor should be throttled according to our rate-throttling rules.
+    static bool isSensorInCappedSet(int sensorType);
 
     virtual status_t shellCommand(int in, int out, int err, Vector<String16>& args);
 
@@ -212,9 +240,12 @@ private:
     // connections will be allowed again.
     class SensorPrivacyPolicy : public hardware::BnSensorPrivacyListener {
         public:
-            explicit SensorPrivacyPolicy(wp<SensorService> service) : mService(service) {}
+            explicit SensorPrivacyPolicy(wp<SensorService> service)
+                    : mService(service), mIsIndividualMic(false), mUserId(0) {}
             void registerSelf();
             void unregisterSelf();
+
+            status_t registerSelfForIndividual(int userId);
 
             bool isSensorPrivacyEnabled();
 
@@ -222,7 +253,26 @@ private:
 
         private:
             wp<SensorService> mService;
+            Mutex mSensorPrivacyLock;
             std::atomic_bool mSensorPrivacyEnabled;
+            bool mIsIndividualMic;
+            userid_t mUserId;
+    };
+
+    // A class automatically clearing and restoring binder caller identity inside
+    // a code block (scoped variable).
+    // Declare one systematically before calling SensorPrivacyManager methods so that they are
+    // executed with the same level of privilege as the SensorService process.
+    class AutoCallerClear {
+        public:
+            AutoCallerClear() :
+                mToken(IPCThreadState::self()->clearCallingIdentity()) {}
+            ~AutoCallerClear() {
+                IPCThreadState::self()->restoreCallingIdentity(mToken);
+            }
+
+        private:
+            const int64_t mToken;
     };
 
     enum Mode {
@@ -272,8 +322,6 @@ private:
     };
 
     static const char* WAKE_LOCK_NAME;
-    static char const* getServiceName() ANDROID_API { return "sensorservice"; }
-    SensorService() ANDROID_API;
     virtual ~SensorService();
 
     virtual void onFirstRef();
@@ -286,15 +334,17 @@ private:
     virtual Vector<Sensor> getDynamicSensorList(const String16& opPackageName);
     virtual sp<ISensorEventConnection> createSensorEventConnection(
             const String8& packageName,
-            int requestedMode, const String16& opPackageName);
+            int requestedMode, const String16& opPackageName, const String16& attributionTag);
     virtual int isDataInjectionEnabled();
     virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
             uint32_t size, int32_t type, int32_t format, const native_handle *resource);
     virtual int setOperationParameter(
             int32_t handle, int32_t type, const Vector<float> &floats, const Vector<int32_t> &ints);
     virtual status_t dump(int fd, const Vector<String16>& args);
+
     status_t dumpProtoLocked(int fd, ConnectionSafeAutolock* connLock) const;
     String8 getSensorName(int handle) const;
+    String8 getSensorStringType(int handle) const;
     bool isVirtualSensor(int handle) const;
     sp<SensorInterface> getSensorInterfaceFromHandle(int handle) const;
     bool isWakeUpSensor(int type) const;
@@ -345,6 +395,13 @@ private:
     // whitelisted). mLock must be held to invoke this method.
     bool isOperationRestrictedLocked(const String16& opPackageName);
 
+    status_t adjustSamplingPeriodBasedOnMicAndPermission(nsecs_t* requestedPeriodNs,
+                                                    const String16& opPackageName);
+    status_t adjustRateLevelBasedOnMicAndPermission(int* requestedRateLevel,
+                                              const String16& opPackageName);
+    bool isRateCappedBasedOnPermission(const String16& opPackageName);
+    bool isPackageDebuggable(const String16& opPackageName);
+
     // Reset the state of SensorService to NORMAL mode.
     status_t resetToNormalMode();
     status_t resetToNormalModeLocked();
@@ -384,8 +441,16 @@ private:
     void enableAllSensors();
     void enableAllSensorsLocked(ConnectionSafeAutolock* connLock);
 
+    // Caps active direct connections (when the mic toggle is flipped to on)
+    void capRates(userid_t userId);
+    // Removes the capped rate on active direct connections (when the mic toggle is flipped to off)
+    void uncapRates(userid_t userId);
+
     static uint8_t sHmacGlobalKey[128];
     static bool sHmacGlobalKeyIsValid;
+
+    static std::atomic_uint64_t curProxCallbackSeq;
+    static std::atomic_uint64_t completedCallbackSeq;
 
     SensorServiceUtil::SensorList mSensors;
     status_t mInitCheck;
@@ -425,6 +490,15 @@ private:
     static std::map<String16, int> sPackageTargetVersion;
     static Mutex sPackageTargetVersionLock;
     static String16 sSensorInterfaceDescriptorPrefix;
+
+    // Map from user to SensorPrivacyPolicy
+    std::map<userid_t, sp<SensorPrivacyPolicy>> mMicSensorPrivacyPolicies;
+    // Checks if the mic sensor privacy is enabled for the uid
+    bool isMicSensorPrivacyEnabledForUid(uid_t uid);
+
+    // Counts how many proximity sensors are currently active.
+    int mProximityActiveCount;
+    std::vector<sp<ProximityActiveListener>> mProximityActiveListeners;
 };
 
 } // namespace android

@@ -41,13 +41,13 @@ static NotifyMotionArgs generateBasicMotionArgs() {
     coords.setAxisValue(AMOTION_EVENT_AXIS_X, 1);
     coords.setAxisValue(AMOTION_EVENT_AXIS_Y, 1);
     static constexpr nsecs_t downTime = 2;
-    NotifyMotionArgs motionArgs(1 /*sequenceNum*/, downTime /*eventTime*/, 3 /*deviceId*/,
-                                AINPUT_SOURCE_ANY, ADISPLAY_ID_DEFAULT, 4 /*policyFlags*/,
-                                AMOTION_EVENT_ACTION_DOWN, 0 /*actionButton*/, 0 /*flags*/,
-                                AMETA_NONE, 0 /*buttonState*/, MotionClassification::NONE,
-                                AMOTION_EVENT_EDGE_FLAG_NONE, 1 /*pointerCount*/, &properties,
-                                &coords, 0 /*xPrecision*/, 0 /*yPrecision*/,
-                                AMOTION_EVENT_INVALID_CURSOR_POSITION,
+    NotifyMotionArgs motionArgs(1 /*sequenceNum*/, downTime /*eventTime*/, 2 /*readTime*/,
+                                3 /*deviceId*/, AINPUT_SOURCE_ANY, ADISPLAY_ID_DEFAULT,
+                                4 /*policyFlags*/, AMOTION_EVENT_ACTION_DOWN, 0 /*actionButton*/,
+                                0 /*flags*/, AMETA_NONE, 0 /*buttonState*/,
+                                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
+                                1 /*pointerCount*/, &properties, &coords, 0 /*xPrecision*/,
+                                0 /*yPrecision*/, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                 AMOTION_EVENT_INVALID_CURSOR_POSITION, downTime,
                                 {} /*videoFrames*/);
     return motionArgs;
@@ -85,9 +85,10 @@ TEST_F(InputClassifierTest, SendToNextStage_NotifyConfigurationChangedArgs) {
 
 TEST_F(InputClassifierTest, SendToNextStage_NotifyKeyArgs) {
     // Create a basic key event and send to classifier
-    NotifyKeyArgs args(1/*sequenceNum*/, 2/*eventTime*/, 3/*deviceId*/, AINPUT_SOURCE_KEYBOARD,
-            ADISPLAY_ID_DEFAULT, 0/*policyFlags*/, AKEY_EVENT_ACTION_DOWN, 4/*flags*/,
-            AKEYCODE_HOME, 5/*scanCode*/, AMETA_NONE, 6/*downTime*/);
+    NotifyKeyArgs args(1 /*sequenceNum*/, 2 /*eventTime*/, 21 /*readTime*/, 3 /*deviceId*/,
+                       AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_DEFAULT, 0 /*policyFlags*/,
+                       AKEY_EVENT_ACTION_DOWN, 4 /*flags*/, AKEYCODE_HOME, 5 /*scanCode*/,
+                       AMETA_NONE, 6 /*downTime*/);
 
     mClassifier->notifyKey(&args);
     NotifyKeyArgs outArgs;

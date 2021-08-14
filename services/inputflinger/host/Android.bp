@@ -32,6 +32,7 @@ cc_library_shared {
 
     header_libs: ["jni_headers"],
     shared_libs: [
+        "libbase",
         "libbinder",
         "libcrypto",
         "libcutils",
@@ -66,11 +67,14 @@ cc_binary {
     cflags: ["-Wall", "-Werror"],
 
     shared_libs: [
+        "libbase",
         "libbinder",
         "libinputflingerhost",
-        "libutils"
+        "libutils",
+        "libinput"
     ],
     static_libs: [
         "libarect",
+        "libui-types",
     ],
 }

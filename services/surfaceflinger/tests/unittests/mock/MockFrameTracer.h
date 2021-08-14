@@ -20,8 +20,7 @@
 
 #include "FrameTracer/FrameTracer.h"
 
-namespace android {
-namespace mock {
+namespace android::mock {
 
 class FrameTracer : public android::FrameTracer {
 public:
@@ -39,5 +38,4 @@ public:
     MOCK_METHOD0(miniDump, std::string());
 };
 
-} // namespace mock
-} // namespace android
+} // namespace android::mock
