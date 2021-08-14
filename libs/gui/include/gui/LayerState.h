@@ -35,6 +35,7 @@
 #include <math/vec3.h>
 #include <ui/BlurRegion.h>
 #include <ui/GraphicTypes.h>
+#include <ui/LayerStack.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/Rotation.h>
@@ -143,7 +144,7 @@ struct layer_state_t {
     int32_t z;
     uint32_t w;
     uint32_t h;
-    uint32_t layerStack;
+    ui::LayerStack layerStack = ui::DEFAULT_LAYER_STACK;
     float alpha;
     uint32_t flags;
     uint32_t mask;
@@ -267,11 +268,12 @@ struct DisplayState {
     DisplayState();
     void merge(const DisplayState& other);
 
-    uint32_t what;
+    uint32_t what = 0;
+    uint32_t flags = 0;
     sp<IBinder> token;
     sp<IGraphicBufferProducer> surface;
-    uint32_t layerStack;
-    uint32_t flags;
+
+    ui::LayerStack layerStack = ui::DEFAULT_LAYER_STACK;
 
     // These states define how layers are projected onto the physical display.
     //
@@ -285,10 +287,11 @@ struct DisplayState {
     // will be additionally rotated by 90 degrees around the origin clockwise and translated by (W,
     // 0).
     ui::Rotation orientation = ui::ROTATION_0;
-    Rect layerStackSpaceRect;
-    Rect orientedDisplaySpaceRect;
+    Rect layerStackSpaceRect = Rect::EMPTY_RECT;
+    Rect orientedDisplaySpaceRect = Rect::EMPTY_RECT;
 
-    uint32_t width, height;
+    uint32_t width = 0;
+    uint32_t height = 0;
 
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);

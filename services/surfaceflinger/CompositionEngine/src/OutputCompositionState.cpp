@@ -28,9 +28,7 @@ void OutputCompositionState::dump(std::string& out) const {
     dumpVal(out, "usesDeviceComposition", usesDeviceComposition);
     dumpVal(out, "flipClientTarget", flipClientTarget);
     dumpVal(out, "reusedClientComposition", reusedClientComposition);
-
-    dumpVal(out, "layerStack", layerStackId);
-    dumpVal(out, "layerStackInternal", layerStackInternal);
+    dumpVal(out, "layerFilter", layerFilter);
 
     out.append("\n   ");
 

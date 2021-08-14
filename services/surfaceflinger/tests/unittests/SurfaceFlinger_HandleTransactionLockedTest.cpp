@@ -534,8 +534,8 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayRemoval) {
 TEST_F(HandleTransactionLockedTest, processesDisplayLayerStackChanges) {
     using Case = NonHwcVirtualDisplayCase;
 
-    constexpr uint32_t oldLayerStack = 0u;
-    constexpr uint32_t newLayerStack = 123u;
+    constexpr ui::LayerStack oldLayerStack = ui::DEFAULT_LAYER_STACK;
+    constexpr ui::LayerStack newLayerStack{123u};
 
     // --------------------------------------------------------------------
     // Preconditions

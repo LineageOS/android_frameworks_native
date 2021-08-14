@@ -139,20 +139,18 @@ sp<DisplayDevice> DisplayTransactionTest::injectDefaultInternalDisplay(
     EXPECT_CALL(*mNativeWindow, perform(NATIVE_WINDOW_SET_USAGE64));
     EXPECT_CALL(*mNativeWindow, perform(NATIVE_WINDOW_API_DISCONNECT)).Times(AnyNumber());
 
-    constexpr auto kConnectionType = ui::DisplayConnectionType::Internal;
-    constexpr bool kIsPrimary = true;
-
     auto compositionDisplay =
             compositionengine::impl::createDisplay(mFlinger.getCompositionEngine(),
                                                    compositionengine::DisplayCreationArgsBuilder()
                                                            .setId(DEFAULT_DISPLAY_ID)
-                                                           .setConnectionType(kConnectionType)
                                                            .setPixels({DEFAULT_DISPLAY_WIDTH,
                                                                        DEFAULT_DISPLAY_HEIGHT})
                                                            .setPowerAdvisor(&mPowerAdvisor)
                                                            .build());
 
-    auto injector = FakeDisplayDeviceInjector(mFlinger, compositionDisplay, kConnectionType,
+    constexpr bool kIsPrimary = true;
+    auto injector = FakeDisplayDeviceInjector(mFlinger, compositionDisplay,
+                                              ui::DisplayConnectionType::Internal,
                                               DEFAULT_DISPLAY_HWC_DISPLAY_ID, kIsPrimary);
 
     injector.setNativeWindow(mNativeWindow);

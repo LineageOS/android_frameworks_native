@@ -61,7 +61,6 @@ constexpr HalVirtualDisplayId HAL_VIRTUAL_DISPLAY_ID{456u};
 constexpr GpuVirtualDisplayId GPU_VIRTUAL_DISPLAY_ID{789u};
 
 constexpr ui::Size DEFAULT_RESOLUTION{1920, 1080};
-constexpr uint32_t DEFAULT_LAYER_STACK = 42;
 
 struct Layer {
     Layer() {
@@ -161,13 +160,11 @@ struct DisplayTestCommon : public testing::Test {
         EXPECT_CALL(mRenderEngine, isProtected()).WillRepeatedly(Return(false));
     }
 
-    DisplayCreationArgs getDisplayCreationArgsForPhysicalHWCDisplay() {
+    DisplayCreationArgs getDisplayCreationArgsForPhysicalDisplay() {
         return DisplayCreationArgsBuilder()
                 .setId(DEFAULT_DISPLAY_ID)
-                .setConnectionType(ui::DisplayConnectionType::Internal)
                 .setPixels(DEFAULT_RESOLUTION)
                 .setIsSecure(true)
-                .setLayerStackId(DEFAULT_LAYER_STACK)
                 .setPowerAdvisor(&mPowerAdvisor)
                 .build();
     }
@@ -177,7 +174,6 @@ struct DisplayTestCommon : public testing::Test {
                 .setId(GPU_VIRTUAL_DISPLAY_ID)
                 .setPixels(DEFAULT_RESOLUTION)
                 .setIsSecure(false)
-                .setLayerStackId(DEFAULT_LAYER_STACK)
                 .setPowerAdvisor(&mPowerAdvisor)
                 .build();
     }
@@ -193,14 +189,13 @@ struct PartialMockDisplayTestCommon : public DisplayTestCommon {
     using Display = DisplayTestCommon::PartialMockDisplay;
     std::shared_ptr<Display> mDisplay =
             createPartialMockDisplay<Display>(mCompositionEngine,
-                                              getDisplayCreationArgsForPhysicalHWCDisplay());
+                                              getDisplayCreationArgsForPhysicalDisplay());
 };
 
 struct FullDisplayImplTestCommon : public DisplayTestCommon {
     using Display = DisplayTestCommon::FullImplDisplay;
     std::shared_ptr<Display> mDisplay =
-            createDisplay<Display>(mCompositionEngine,
-                                   getDisplayCreationArgsForPhysicalHWCDisplay());
+            createDisplay<Display>(mCompositionEngine, getDisplayCreationArgsForPhysicalDisplay());
 };
 
 struct DisplayWithLayersTestCommon : public FullDisplayImplTestCommon {
@@ -218,8 +213,7 @@ struct DisplayWithLayersTestCommon : public FullDisplayImplTestCommon {
     LayerNoHWC2Layer mLayer3;
     StrictMock<HWC2::mock::Layer> hwc2LayerUnknown;
     std::shared_ptr<Display> mDisplay =
-            createDisplay<Display>(mCompositionEngine,
-                                   getDisplayCreationArgsForPhysicalHWCDisplay());
+            createDisplay<Display>(mCompositionEngine, getDisplayCreationArgsForPhysicalDisplay());
 };
 
 /*
@@ -232,7 +226,7 @@ struct DisplayCreationTest : public DisplayTestCommon {
 
 TEST_F(DisplayCreationTest, createPhysicalInternalDisplay) {
     auto display =
-            impl::createDisplay(mCompositionEngine, getDisplayCreationArgsForPhysicalHWCDisplay());
+            impl::createDisplay(mCompositionEngine, getDisplayCreationArgsForPhysicalDisplay());
     EXPECT_TRUE(display->isSecure());
     EXPECT_FALSE(display->isVirtual());
     EXPECT_EQ(DEFAULT_DISPLAY_ID, display->getId());
@@ -252,13 +246,11 @@ TEST_F(DisplayCreationTest, createGpuVirtualDisplay) {
 
 using DisplaySetConfigurationTest = PartialMockDisplayTestCommon;
 
-TEST_F(DisplaySetConfigurationTest, configuresInternalSecurePhysicalDisplay) {
+TEST_F(DisplaySetConfigurationTest, configuresPhysicalDisplay) {
     mDisplay->setConfiguration(DisplayCreationArgsBuilder()
                                        .setId(DEFAULT_DISPLAY_ID)
-                                       .setConnectionType(ui::DisplayConnectionType::Internal)
                                        .setPixels(DEFAULT_RESOLUTION)
                                        .setIsSecure(true)
-                                       .setLayerStackId(DEFAULT_LAYER_STACK)
                                        .setPowerAdvisor(&mPowerAdvisor)
                                        .setName(getDisplayNameFromCurrentTest())
                                        .build());
@@ -266,28 +258,11 @@ TEST_F(DisplaySetConfigurationTest, configuresInternalSecurePhysicalDisplay) {
     EXPECT_EQ(DEFAULT_DISPLAY_ID, mDisplay->getId());
     EXPECT_TRUE(mDisplay->isSecure());
     EXPECT_FALSE(mDisplay->isVirtual());
-    EXPECT_EQ(DEFAULT_LAYER_STACK, mDisplay->getState().layerStackId);
-    EXPECT_TRUE(mDisplay->getState().layerStackInternal);
     EXPECT_FALSE(mDisplay->isValid());
-}
 
-TEST_F(DisplaySetConfigurationTest, configuresExternalInsecurePhysicalDisplay) {
-    mDisplay->setConfiguration(DisplayCreationArgsBuilder()
-                                       .setId(DEFAULT_DISPLAY_ID)
-                                       .setConnectionType(ui::DisplayConnectionType::External)
-                                       .setPixels(DEFAULT_RESOLUTION)
-                                       .setIsSecure(false)
-                                       .setLayerStackId(DEFAULT_LAYER_STACK)
-                                       .setPowerAdvisor(&mPowerAdvisor)
-                                       .setName(getDisplayNameFromCurrentTest())
-                                       .build());
-
-    EXPECT_EQ(DEFAULT_DISPLAY_ID, mDisplay->getId());
-    EXPECT_FALSE(mDisplay->isSecure());
-    EXPECT_FALSE(mDisplay->isVirtual());
-    EXPECT_EQ(DEFAULT_LAYER_STACK, mDisplay->getState().layerStackId);
-    EXPECT_FALSE(mDisplay->getState().layerStackInternal);
-    EXPECT_FALSE(mDisplay->isValid());
+    const auto& filter = mDisplay->getState().layerFilter;
+    EXPECT_EQ(ui::INVALID_LAYER_STACK, filter.layerStack);
+    EXPECT_FALSE(filter.toInternalDisplay);
 }
 
 TEST_F(DisplaySetConfigurationTest, configuresHalVirtualDisplay) {
@@ -295,7 +270,6 @@ TEST_F(DisplaySetConfigurationTest, configuresHalVirtualDisplay) {
                                        .setId(HAL_VIRTUAL_DISPLAY_ID)
                                        .setPixels(DEFAULT_RESOLUTION)
                                        .setIsSecure(false)
-                                       .setLayerStackId(DEFAULT_LAYER_STACK)
                                        .setPowerAdvisor(&mPowerAdvisor)
                                        .setName(getDisplayNameFromCurrentTest())
                                        .build());
@@ -303,9 +277,11 @@ TEST_F(DisplaySetConfigurationTest, configuresHalVirtualDisplay) {
     EXPECT_EQ(HAL_VIRTUAL_DISPLAY_ID, mDisplay->getId());
     EXPECT_FALSE(mDisplay->isSecure());
     EXPECT_TRUE(mDisplay->isVirtual());
-    EXPECT_EQ(DEFAULT_LAYER_STACK, mDisplay->getState().layerStackId);
-    EXPECT_FALSE(mDisplay->getState().layerStackInternal);
     EXPECT_FALSE(mDisplay->isValid());
+
+    const auto& filter = mDisplay->getState().layerFilter;
+    EXPECT_EQ(ui::INVALID_LAYER_STACK, filter.layerStack);
+    EXPECT_FALSE(filter.toInternalDisplay);
 }
 
 TEST_F(DisplaySetConfigurationTest, configuresGpuVirtualDisplay) {
@@ -313,7 +289,6 @@ TEST_F(DisplaySetConfigurationTest, configuresGpuVirtualDisplay) {
                                        .setId(GPU_VIRTUAL_DISPLAY_ID)
                                        .setPixels(DEFAULT_RESOLUTION)
                                        .setIsSecure(false)
-                                       .setLayerStackId(DEFAULT_LAYER_STACK)
                                        .setPowerAdvisor(&mPowerAdvisor)
                                        .setName(getDisplayNameFromCurrentTest())
                                        .build());
@@ -321,9 +296,11 @@ TEST_F(DisplaySetConfigurationTest, configuresGpuVirtualDisplay) {
     EXPECT_EQ(GPU_VIRTUAL_DISPLAY_ID, mDisplay->getId());
     EXPECT_FALSE(mDisplay->isSecure());
     EXPECT_TRUE(mDisplay->isVirtual());
-    EXPECT_EQ(DEFAULT_LAYER_STACK, mDisplay->getState().layerStackId);
-    EXPECT_FALSE(mDisplay->getState().layerStackInternal);
     EXPECT_FALSE(mDisplay->isValid());
+
+    const auto& filter = mDisplay->getState().layerFilter;
+    EXPECT_EQ(ui::INVALID_LAYER_STACK, filter.layerStack);
+    EXPECT_FALSE(filter.toInternalDisplay);
 }
 
 /*
@@ -998,10 +975,8 @@ struct DisplayFunctionalTest : public testing::Test {
             Display>(mCompositionEngine,
                      DisplayCreationArgsBuilder()
                              .setId(DEFAULT_DISPLAY_ID)
-                             .setConnectionType(ui::DisplayConnectionType::Internal)
                              .setPixels(DEFAULT_RESOLUTION)
                              .setIsSecure(true)
-                             .setLayerStackId(DEFAULT_LAYER_STACK)
                              .setPowerAdvisor(&mPowerAdvisor)
                              .build());
 

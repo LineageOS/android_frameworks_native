@@ -86,9 +86,7 @@ public:
 
     bool isVirtual() const { return !mConnectionType; }
     bool isPrimary() const { return mIsPrimary; }
-    bool isInternal() const {
-        return !isVirtual() && mConnectionType == ui::DisplayConnectionType::Internal;
-    }
+    bool isInternal() const { return mConnectionType == ui::DisplayConnectionType::Internal; }
 
     // isSecure indicates whether this display can be trusted to display
     // secure surfaces.
@@ -311,7 +309,7 @@ struct DisplayDeviceState {
     int32_t sequenceId = sNextSequenceId++;
     std::optional<Physical> physical;
     sp<IGraphicBufferProducer> surface;
-    ui::LayerStack layerStack = ui::NO_LAYER_STACK;
+    ui::LayerStack layerStack;
     uint32_t flags = 0;
     Rect layerStackSpaceRect;
     Rect orientedDisplaySpaceRect;

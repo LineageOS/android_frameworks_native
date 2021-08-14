@@ -403,17 +403,18 @@ TEST_F(OutputTest, setDisplaySpaceSizeUpdatesOutputStateAndDirtiesEntireOutput) 
 }
 
 /*
- * Output::setLayerStackFilter()
+ * Output::setLayerFilter()
  */
 
-TEST_F(OutputTest, setLayerStackFilterSetsFilterAndDirtiesEntireOutput) {
-    const uint32_t layerStack = 123u;
-    mOutput->setLayerStackFilter(layerStack, true);
+TEST_F(OutputTest, setLayerFilterSetsFilterAndDirtiesEntireOutput) {
+    constexpr ui::LayerFilter kFilter{ui::LayerStack{123u}, true};
+    mOutput->setLayerFilter(kFilter);
 
-    EXPECT_TRUE(mOutput->getState().layerStackInternal);
-    EXPECT_EQ(layerStack, mOutput->getState().layerStackId);
+    const auto& state = mOutput->getState();
+    EXPECT_EQ(kFilter.layerStack, state.layerFilter.layerStack);
+    EXPECT_TRUE(state.layerFilter.toInternalDisplay);
 
-    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
+    EXPECT_THAT(state.dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
 /*
@@ -593,100 +594,90 @@ TEST_F(OutputTest, getDirtyRegionWithRepaintEverythingFalse) {
 }
 
 /*
- * Output::belongsInOutput()
+ * Output::includesLayer()
  */
 
-TEST_F(OutputTest, belongsInOutputFiltersAsExpected) {
-    const uint32_t layerStack1 = 123u;
-    const uint32_t layerStack2 = 456u;
+TEST_F(OutputTest, layerFiltering) {
+    const ui::LayerStack layerStack1{123u};
+    const ui::LayerStack layerStack2{456u};
 
-    // If the output accepts layerStack1 and internal-only layers....
-    mOutput->setLayerStackFilter(layerStack1, true);
+    // If the output is associated to layerStack1 and to an internal display...
+    mOutput->setLayerFilter({layerStack1, true});
 
-    // A layer with no layerStack does not belong to it, internal-only or not.
-    EXPECT_FALSE(mOutput->belongsInOutput(std::nullopt, false));
-    EXPECT_FALSE(mOutput->belongsInOutput(std::nullopt, true));
+    // It excludes layers with no layer stack, internal-only or not.
+    EXPECT_FALSE(mOutput->includesLayer({ui::INVALID_LAYER_STACK, false}));
+    EXPECT_FALSE(mOutput->includesLayer({ui::INVALID_LAYER_STACK, true}));
 
-    // Any layer with layerStack1 belongs to it, internal-only or not.
-    EXPECT_TRUE(mOutput->belongsInOutput(layerStack1, false));
-    EXPECT_TRUE(mOutput->belongsInOutput(layerStack1, true));
-    EXPECT_FALSE(mOutput->belongsInOutput(layerStack2, true));
-    EXPECT_FALSE(mOutput->belongsInOutput(layerStack2, false));
+    // It includes layers on layerStack1, internal-only or not.
+    EXPECT_TRUE(mOutput->includesLayer({layerStack1, false}));
+    EXPECT_TRUE(mOutput->includesLayer({layerStack1, true}));
+    EXPECT_FALSE(mOutput->includesLayer({layerStack2, true}));
+    EXPECT_FALSE(mOutput->includesLayer({layerStack2, false}));
 
-    // If the output accepts layerStack21 but not internal-only layers...
-    mOutput->setLayerStackFilter(layerStack1, false);
+    // If the output is associated to layerStack1 but not to an internal display...
+    mOutput->setLayerFilter({layerStack1, false});
 
-    // Only non-internal layers with layerStack1 belong to it.
-    EXPECT_TRUE(mOutput->belongsInOutput(layerStack1, false));
-    EXPECT_FALSE(mOutput->belongsInOutput(layerStack1, true));
-    EXPECT_FALSE(mOutput->belongsInOutput(layerStack2, true));
-    EXPECT_FALSE(mOutput->belongsInOutput(layerStack2, false));
+    // It includes layers on layerStack1, unless they are internal-only.
+    EXPECT_TRUE(mOutput->includesLayer({layerStack1, false}));
+    EXPECT_FALSE(mOutput->includesLayer({layerStack1, true}));
+    EXPECT_FALSE(mOutput->includesLayer({layerStack2, true}));
+    EXPECT_FALSE(mOutput->includesLayer({layerStack2, false}));
 }
 
-TEST_F(OutputTest, belongsInOutputHandlesLayerWithNoCompositionState) {
+TEST_F(OutputTest, layerFilteringWithoutCompositionState) {
     NonInjectedLayer layer;
     sp<LayerFE> layerFE(layer.layerFE);
 
-    // If the layer has no composition state, it does not belong to any output.
+    // Layers without composition state are excluded.
     EXPECT_CALL(*layer.layerFE, getCompositionState).WillOnce(Return(nullptr));
-    EXPECT_FALSE(mOutput->belongsInOutput(layerFE));
+    EXPECT_FALSE(mOutput->includesLayer(layerFE));
 }
 
-TEST_F(OutputTest, belongsInOutputFiltersLayersAsExpected) {
+TEST_F(OutputTest, layerFilteringWithCompositionState) {
     NonInjectedLayer layer;
     sp<LayerFE> layerFE(layer.layerFE);
 
-    const uint32_t layerStack1 = 123u;
-    const uint32_t layerStack2 = 456u;
+    const ui::LayerStack layerStack1{123u};
+    const ui::LayerStack layerStack2{456u};
 
-    // If the output accepts layerStack1 and internal-only layers....
-    mOutput->setLayerStackFilter(layerStack1, true);
+    // If the output is associated to layerStack1 and to an internal display...
+    mOutput->setLayerFilter({layerStack1, true});
 
-    // A layer with no layerStack does not belong to it, internal-only or not.
-    layer.layerFEState.layerStackId = std::nullopt;
-    layer.layerFEState.internalOnly = false;
-    EXPECT_FALSE(mOutput->belongsInOutput(layerFE));
+    // It excludes layers with no layer stack, internal-only or not.
+    layer.layerFEState.outputFilter = {ui::INVALID_LAYER_STACK, false};
+    EXPECT_FALSE(mOutput->includesLayer(layerFE));
 
-    layer.layerFEState.layerStackId = std::nullopt;
-    layer.layerFEState.internalOnly = true;
-    EXPECT_FALSE(mOutput->belongsInOutput(layerFE));
+    layer.layerFEState.outputFilter = {ui::INVALID_LAYER_STACK, true};
+    EXPECT_FALSE(mOutput->includesLayer(layerFE));
 
-    // Any layer with layerStack1 belongs to it, internal-only or not.
-    layer.layerFEState.layerStackId = layerStack1;
-    layer.layerFEState.internalOnly = false;
-    EXPECT_TRUE(mOutput->belongsInOutput(layerFE));
+    // It includes layers on layerStack1, internal-only or not.
+    layer.layerFEState.outputFilter = {layerStack1, false};
+    EXPECT_TRUE(mOutput->includesLayer(layerFE));
 
-    layer.layerFEState.layerStackId = layerStack1;
-    layer.layerFEState.internalOnly = true;
-    EXPECT_TRUE(mOutput->belongsInOutput(layerFE));
+    layer.layerFEState.outputFilter = {layerStack1, true};
+    EXPECT_TRUE(mOutput->includesLayer(layerFE));
 
-    layer.layerFEState.layerStackId = layerStack2;
-    layer.layerFEState.internalOnly = true;
-    EXPECT_FALSE(mOutput->belongsInOutput(layerFE));
+    layer.layerFEState.outputFilter = {layerStack2, true};
+    EXPECT_FALSE(mOutput->includesLayer(layerFE));
 
-    layer.layerFEState.layerStackId = layerStack2;
-    layer.layerFEState.internalOnly = false;
-    EXPECT_FALSE(mOutput->belongsInOutput(layerFE));
+    layer.layerFEState.outputFilter = {layerStack2, false};
+    EXPECT_FALSE(mOutput->includesLayer(layerFE));
 
-    // If the output accepts layerStack1 but not internal-only layers...
-    mOutput->setLayerStackFilter(layerStack1, false);
+    // If the output is associated to layerStack1 but not to an internal display...
+    mOutput->setLayerFilter({layerStack1, false});
 
-    // Only non-internal layers with layerStack1 belong to it.
-    layer.layerFEState.layerStackId = layerStack1;
-    layer.layerFEState.internalOnly = false;
-    EXPECT_TRUE(mOutput->belongsInOutput(layerFE));
+    // It includes layers on layerStack1, unless they are internal-only.
+    layer.layerFEState.outputFilter = {layerStack1, false};
+    EXPECT_TRUE(mOutput->includesLayer(layerFE));
 
-    layer.layerFEState.layerStackId = layerStack1;
-    layer.layerFEState.internalOnly = true;
-    EXPECT_FALSE(mOutput->belongsInOutput(layerFE));
+    layer.layerFEState.outputFilter = {layerStack1, true};
+    EXPECT_FALSE(mOutput->includesLayer(layerFE));
 
-    layer.layerFEState.layerStackId = layerStack2;
-    layer.layerFEState.internalOnly = true;
-    EXPECT_FALSE(mOutput->belongsInOutput(layerFE));
+    layer.layerFEState.outputFilter = {layerStack2, true};
+    EXPECT_FALSE(mOutput->includesLayer(layerFE));
 
-    layer.layerFEState.layerStackId = layerStack2;
-    layer.layerFEState.internalOnly = false;
-    EXPECT_FALSE(mOutput->belongsInOutput(layerFE));
+    layer.layerFEState.outputFilter = {layerStack2, false};
+    EXPECT_FALSE(mOutput->includesLayer(layerFE));
 }
 
 /*
@@ -1268,14 +1259,15 @@ struct OutputEnsureOutputLayerIfVisibleTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
         // Sets up the helper functions called by the function under test to use
         // mock implementations.
-        MOCK_CONST_METHOD1(belongsInOutput, bool(const sp<compositionengine::LayerFE>&));
+        MOCK_METHOD(bool, includesLayer, (const sp<compositionengine::LayerFE>&),
+                    (const, override));
         MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex, OutputLayer*(size_t));
         MOCK_METHOD2(ensureOutputLayer,
                      compositionengine::OutputLayer*(std::optional<size_t>, const sp<LayerFE>&));
     };
 
     OutputEnsureOutputLayerIfVisibleTest() {
-        EXPECT_CALL(mOutput, belongsInOutput(sp<LayerFE>(mLayer.layerFE)))
+        EXPECT_CALL(mOutput, includesLayer(sp<LayerFE>(mLayer.layerFE)))
                 .WillRepeatedly(Return(true));
         EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(1u));
         EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
@@ -1326,8 +1318,8 @@ const Region OutputEnsureOutputLayerIfVisibleTest::kLowerHalfBoundsNoRotation =
 const Region OutputEnsureOutputLayerIfVisibleTest::kFullBounds90Rotation =
         Region(Rect(0, 0, 200, 100));
 
-TEST_F(OutputEnsureOutputLayerIfVisibleTest, performsGeomLatchBeforeCheckingIfLayerBelongs) {
-    EXPECT_CALL(mOutput, belongsInOutput(sp<LayerFE>(mLayer.layerFE))).WillOnce(Return(false));
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, performsGeomLatchBeforeCheckingIfLayerIncluded) {
+    EXPECT_CALL(mOutput, includesLayer(sp<LayerFE>(mLayer.layerFE))).WillOnce(Return(false));
     EXPECT_CALL(*mLayer.layerFE,
                 prepareCompositionState(compositionengine::LayerFE::StateSubset::BasicGeometry));
 
@@ -1337,8 +1329,8 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, performsGeomLatchBeforeCheckingIfLa
 }
 
 TEST_F(OutputEnsureOutputLayerIfVisibleTest,
-       skipsLatchIfAlreadyLatchedBeforeCheckingIfLayerBelongs) {
-    EXPECT_CALL(mOutput, belongsInOutput(sp<LayerFE>(mLayer.layerFE))).WillOnce(Return(false));
+       skipsLatchIfAlreadyLatchedBeforeCheckingIfLayerIncluded) {
+    EXPECT_CALL(mOutput, includesLayer(sp<LayerFE>(mLayer.layerFE))).WillOnce(Return(false));
 
     ensureOutputLayerIfVisible();
 }
@@ -3188,8 +3180,7 @@ TEST_F(OutputComposeSurfacesTest,
 
     r1.geometry.boundaries = FloatRect{1, 2, 3, 4};
     r2.geometry.boundaries = FloatRect{5, 6, 7, 8};
-    const constexpr uint32_t kInternalLayerStack = 1234;
-    mOutput.setLayerStackFilter(kInternalLayerStack, true);
+    mOutput.setLayerFilter({ui::LayerStack{1234u}, true});
 
     EXPECT_CALL(mOutput, getSkipColorTransform()).WillRepeatedly(Return(false));
     EXPECT_CALL(*mDisplayColorProfile, hasWideColorGamut()).WillRepeatedly(Return(true));

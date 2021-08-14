@@ -266,7 +266,7 @@ protected:
     sp<IBinder> mDisplay;
     uint32_t mDisplayWidth;
     uint32_t mDisplayHeight;
-    uint32_t mDisplayLayerStack;
+    ui::LayerStack mDisplayLayerStack = ui::DEFAULT_LAYER_STACK;
     Rect mDisplayRect = Rect::INVALID_RECT;
 
     // leave room for ~256 layers
@@ -293,8 +293,6 @@ private:
         // latch the new buffer on next vsync.  Let's heuristically wait for 3
         // vsyncs.
         mBufferPostDelay = static_cast<int32_t>(1e6 / mode.refreshRate) * 3;
-
-        mDisplayLayerStack = 0;
 
         mBlackBgSurface =
                 createSurface(mClient, "BaseSurface", 0 /* buffer width */, 0 /* buffer height */,

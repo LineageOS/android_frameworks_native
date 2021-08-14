@@ -84,7 +84,7 @@ TEST_F(WindowInfosListenerTest, WindowInfoAddedAndRemoved) {
                                    ISurfaceComposerClient::eFXSurfaceBufferState);
 
     Transaction()
-            .setLayerStack(surfaceControl, 0)
+            .setLayerStack(surfaceControl, ui::DEFAULT_LAYER_STACK)
             .show(surfaceControl)
             .setLayer(surfaceControl, INT32_MAX - 1)
             .setInputWindowInfo(surfaceControl, windowInfo)
@@ -112,7 +112,7 @@ TEST_F(WindowInfosListenerTest, WindowInfoChanged) {
                                    ISurfaceComposerClient::eFXSurfaceBufferState);
 
     Transaction()
-            .setLayerStack(surfaceControl, 0)
+            .setLayerStack(surfaceControl, ui::DEFAULT_LAYER_STACK)
             .show(surfaceControl)
             .setLayer(surfaceControl, INT32_MAX - 1)
             .setInputWindowInfo(surfaceControl, windowInfo)
