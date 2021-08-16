@@ -140,6 +140,8 @@ float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& laye
         return 0;
     }
 
+    constexpr float kScoreForFractionalPairs = .8f;
+
     // Slightly prefer seamless switches.
     constexpr float kSeamedSwitchPenalty = 0.95f;
     const float seamlessness = isSeamlessSwitch ? 1.0f : kSeamedSwitchPenalty;
@@ -156,19 +158,29 @@ float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& laye
     const auto layerPeriod = layer.desiredRefreshRate.getPeriodNsecs();
     if (layer.vote == LayerVoteType::ExplicitDefault) {
         // Find the actual rate the layer will render, assuming
-        // that layerPeriod is the minimal time to render a frame
+        // that layerPeriod is the minimal period to render a frame.
+        // For example if layerPeriod is 20ms and displayPeriod is 16ms,
+        // then the actualLayerPeriod will be 32ms, because it is the
+        // smallest multiple of the display period which is >= layerPeriod.
         auto actualLayerPeriod = displayPeriod;
         int multiplier = 1;
         while (layerPeriod > actualLayerPeriod + MARGIN_FOR_PERIOD_CALCULATION) {
             multiplier++;
             actualLayerPeriod = displayPeriod * multiplier;
         }
+
+        // Because of the threshold we used above it's possible that score is slightly
+        // above 1.
         return std::min(1.0f,
                         static_cast<float>(layerPeriod) / static_cast<float>(actualLayerPeriod));
     }
 
     if (layer.vote == LayerVoteType::ExplicitExactOrMultiple ||
         layer.vote == LayerVoteType::Heuristic) {
+        if (isFractionalPairOrMultiple(refreshRate.getFps(), layer.desiredRefreshRate)) {
+            return kScoreForFractionalPairs * seamlessness;
+        }
+
         // Calculate how many display vsyncs we need to present a single frame for this
         // layer
         const auto [displayFramesQuotient, displayFramesRemainder] =
@@ -421,7 +433,7 @@ RefreshRate RefreshRateConfigs::getBestRefreshRateLocked(
 
             const auto layerScore =
                     calculateLayerScoreLocked(layer, *scores[i].refreshRate, isSeamlessSwitch);
-            ALOGV("%s gives %s score of %.2f", formatLayerInfo(layer, weight).c_str(),
+            ALOGV("%s gives %s score of %.4f", formatLayerInfo(layer, weight).c_str(),
                   scores[i].refreshRate->getName().c_str(), layerScore);
             scores[i].score += weight * layerScore;
         }
@@ -582,7 +594,7 @@ RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverr
 
 template <typename Iter>
 const RefreshRate* RefreshRateConfigs::getBestRefreshRate(Iter begin, Iter end) const {
-    constexpr auto EPSILON = 0.001f;
+    constexpr auto kEpsilon = 0.0001f;
     const RefreshRate* bestRefreshRate = begin->refreshRate;
     float max = begin->score;
     for (auto i = begin; i != end; ++i) {
@@ -591,7 +603,7 @@ const RefreshRate* RefreshRateConfigs::getBestRefreshRate(Iter begin, Iter end) 
 
         ATRACE_INT(refreshRate->getName().c_str(), round<int>(score * 100));
 
-        if (score > max * (1 + EPSILON)) {
+        if (score > max * (1 + kEpsilon)) {
             max = score;
             bestRefreshRate = refreshRate;
         }
@@ -922,6 +934,17 @@ int RefreshRateConfigs::getFrameRateDivider(Fps displayFrameRate, Fps layerFrame
     }
 
     return static_cast<int>(numPeriodsRounded);
+}
+
+bool RefreshRateConfigs::isFractionalPairOrMultiple(Fps smaller, Fps bigger) {
+    if (smaller.getValue() > bigger.getValue()) {
+        return isFractionalPairOrMultiple(bigger, smaller);
+    }
+
+    const auto multiplier = std::round(bigger.getValue() / smaller.getValue());
+    constexpr float kCoef = 1000.f / 1001.f;
+    return bigger.equalsWithMargin(Fps(smaller.getValue() * multiplier / kCoef)) ||
+            bigger.equalsWithMargin(Fps(smaller.getValue() * multiplier * kCoef));
 }
 
 void RefreshRateConfigs::dump(std::string& result) const {
