@@ -2031,6 +2031,7 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
         layerInfo->set_curr_frame(mCurrentFrameNumber);
         layerInfo->set_effective_scaling_mode(getEffectiveScalingMode());
 
+        layerInfo->set_requested_corner_radius(getDrawingState().cornerRadius);
         layerInfo->set_corner_radius(getRoundedCornerState().radius);
         layerInfo->set_background_blur_radius(getBackgroundBlurRadius());
         layerInfo->set_is_trusted_overlay(isTrustedOverlay());
