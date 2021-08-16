@@ -2164,7 +2164,7 @@ Rect Layer::getInputBounds() const {
     return getCroppedBufferSize(getDrawingState());
 }
 
-void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& toPhysicalDisplay) {
+void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& toNonRotatedDisplay) {
     // Transform layer size to screen space and inset it by surface insets.
     // If this is a portal window, set the touchableRegion to the layerBounds.
     Rect layerBounds = info.portalToDisplayId == ADISPLAY_ID_NONE
@@ -2185,12 +2185,12 @@ void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& toPhysical
     }
 
     ui::Transform layerToDisplay = getInputTransform();
-    // Transform that takes window coordinates to unrotated display coordinates
-    ui::Transform t = toPhysicalDisplay * layerToDisplay;
+    // Transform that takes window coordinates to non-rotated display coordinates
+    ui::Transform t = toNonRotatedDisplay * layerToDisplay;
     int32_t xSurfaceInset = info.surfaceInset;
     int32_t ySurfaceInset = info.surfaceInset;
-    // Bring screenBounds into unrotated space
-    Rect screenBounds = toPhysicalDisplay.transform(Rect{mScreenBounds});
+    // Bring screenBounds into non-rotated space
+    Rect screenBounds = toNonRotatedDisplay.transform(Rect{mScreenBounds});
 
     const float xScale = t.getScaleX();
     const float yScale = t.getScaleY();
@@ -2283,19 +2283,33 @@ WindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     info.id = sequence;
     info.displayId = getLayerStack();
 
-    // Transform that goes from "logical(rotated)" display to physical/unrotated display.
-    // This is for when inputflinger operates in physical display-space.
-    ui::Transform toPhysicalDisplay;
+    // Transform that goes from "logical(rotated)" display to the non-rotated display.
+    ui::Transform toNonRotatedDisplay;
     if (display) {
-        toPhysicalDisplay = display->getTransform();
-        // getOrientation() without masking can contain more-significant bits (eg. ROT_INVALID).
-        static constexpr uint32_t ALL_ROTATIONS_MASK =
-                ui::Transform::ROT_90 | ui::Transform::ROT_180 | ui::Transform::ROT_270;
-        info.displayOrientation = toPhysicalDisplay.getOrientation() & ALL_ROTATIONS_MASK;
-        info.displayWidth = display->getWidth();
-        info.displayHeight = display->getHeight();
+        // The physical orientation is set when the orientation of the display panel is different
+        // than the default orientation of the device. We do not need to expose the physical
+        // orientation of the panel outside of SurfaceFlinger.
+        const ui::Rotation inversePhysicalOrientation =
+                ui::ROTATION_0 - display->getPhysicalOrientation();
+        auto width = display->getWidth();
+        auto height = display->getHeight();
+        if (inversePhysicalOrientation == ui::ROTATION_90 ||
+            inversePhysicalOrientation == ui::ROTATION_270) {
+            std::swap(width, height);
+        }
+        const auto rotationFlags = ui::Transform::toRotationFlags(inversePhysicalOrientation);
+        const ui::Transform undoPhysicalOrientation(rotationFlags, width, height);
+        toNonRotatedDisplay = undoPhysicalOrientation * display->getTransform();
+
+        // Send the inverse of the display orientation so that input can transform points back to
+        // the rotated display space.
+        const ui::Rotation inverseOrientation = ui::ROTATION_0 - display->getOrientation();
+        info.displayOrientation = ui::Transform::toRotationFlags(inverseOrientation);
+
+        info.displayWidth = width;
+        info.displayHeight = height;
     }
-    fillInputFrameInfo(info, toPhysicalDisplay);
+    fillInputFrameInfo(info, toNonRotatedDisplay);
 
     // For compatibility reasons we let layers which can receive input
     // receive input before they have actually submitted a buffer. Because
@@ -2312,14 +2326,14 @@ WindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     auto cropLayer = mDrawingState.touchableRegionCrop.promote();
     if (info.replaceTouchableRegionWithCrop) {
         if (cropLayer == nullptr) {
-            info.touchableRegion = Region(toPhysicalDisplay.transform(Rect{mScreenBounds}));
+            info.touchableRegion = Region(toNonRotatedDisplay.transform(Rect{mScreenBounds}));
         } else {
             info.touchableRegion =
-                    Region(toPhysicalDisplay.transform(Rect{cropLayer->mScreenBounds}));
+                    Region(toNonRotatedDisplay.transform(Rect{cropLayer->mScreenBounds}));
         }
     } else if (cropLayer != nullptr) {
         info.touchableRegion = info.touchableRegion.intersect(
-                toPhysicalDisplay.transform(Rect{cropLayer->mScreenBounds}));
+                toNonRotatedDisplay.transform(Rect{cropLayer->mScreenBounds}));
     }
 
     // Inherit the trusted state from the parent hierarchy, but don't clobber the trusted state
@@ -2332,7 +2346,7 @@ WindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     if (isClone()) {
         sp<Layer> clonedRoot = getClonedRoot();
         if (clonedRoot != nullptr) {
-            Rect rect = toPhysicalDisplay.transform(Rect{clonedRoot->mScreenBounds});
+            Rect rect = toNonRotatedDisplay.transform(Rect{clonedRoot->mScreenBounds});
             info.touchableRegion = info.touchableRegion.intersect(rect);
         }
     }
