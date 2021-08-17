@@ -23,11 +23,12 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wextra"
 
 #include <renderengine/LayerSettings.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
+#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
@@ -77,12 +78,32 @@ public:
     virtual void prepareCompositionState(StateSubset) = 0;
 
     struct ClientCompositionTargetSettings {
+        enum class BlurSetting {
+            Disabled,
+            BackgroundBlurOnly,
+            BlurRegionsOnly,
+            Enabled,
+        };
+
+        friend std::string toString(BlurSetting blurSetting) {
+            switch (blurSetting) {
+                case BlurSetting::Enabled:
+                    return "Enabled";
+                case BlurSetting::BlurRegionsOnly:
+                    return "BlurRegionsOnly";
+                case BlurSetting::BackgroundBlurOnly:
+                    return "BackgroundBlurOnly";
+                case BlurSetting::Disabled:
+                    return "Disabled";
+            }
+        }
+
+        friend std::ostream& operator<<(std::ostream& os, const BlurSetting& setting) {
+            return os << toString(setting);
+        }
+
         // The clip region, or visible region that is being rendered to
         const Region& clip;
-
-        // If true, the layer should use an identity transform for its position
-        // transform. Used only by the captureScreen API call.
-        const bool useIdentityTransform;
 
         // If set to true, the layer should enable filtering when rendering.
         const bool needsFiltering;
@@ -112,6 +133,9 @@ public:
         // If set to true, change the layer settings to render a clear output.
         // This may be requested by the HWC
         const bool clearContent;
+
+        // Configure layer settings for using blurs
+        BlurSetting blurSetting;
     };
 
     // A superset of LayerSettings required by RenderEngine to compose a layer
@@ -135,6 +159,12 @@ public:
 
     // Gets some kind of identifier for the layer for debug purposes.
     virtual const char* getDebugName() const = 0;
+
+    // Gets the sequence number: a serial number that uniquely identifies a Layer
+    virtual int32_t getSequence() const = 0;
+
+    // Whether the layer should be rendered with rounded corners.
+    virtual bool hasRoundedCorners() const = 0;
 };
 
 // TODO(b/121291683): Specialize std::hash<> for sp<T> so these and others can
@@ -148,7 +178,6 @@ using LayerFESet = std::unordered_set<sp<LayerFE>, LayerFESpHash>;
 static inline bool operator==(const LayerFE::ClientCompositionTargetSettings& lhs,
                               const LayerFE::ClientCompositionTargetSettings& rhs) {
     return lhs.clip.hasSameRects(rhs.clip) &&
-            lhs.useIdentityTransform == rhs.useIdentityTransform &&
             lhs.needsFiltering == rhs.needsFiltering && lhs.isSecure == rhs.isSecure &&
             lhs.supportsProtectedContent == rhs.supportsProtectedContent &&
             lhs.clearRegion.hasSameRects(rhs.clearRegion) && lhs.viewport == rhs.viewport &&
@@ -170,7 +199,6 @@ static inline void PrintTo(const LayerFE::ClientCompositionTargetSettings& setti
     *os << "ClientCompositionTargetSettings{";
     *os << "\n    .clip = \n";
     PrintTo(settings.clip, os);
-    *os << "\n    .useIdentityTransform = " << settings.useIdentityTransform;
     *os << "\n    .needsFiltering = " << settings.needsFiltering;
     *os << "\n    .isSecure = " << settings.isSecure;
     *os << "\n    .supportsProtectedContent = " << settings.supportsProtectedContent;
@@ -182,6 +210,7 @@ static inline void PrintTo(const LayerFE::ClientCompositionTargetSettings& setti
     PrintTo(settings.dataspace, os);
     *os << "\n    .realContentIsVisible = " << settings.realContentIsVisible;
     *os << "\n    .clearContent = " << settings.clearContent;
+    *os << "\n    .blurSetting = " << settings.blurSetting;
     *os << "\n}";
 }
 

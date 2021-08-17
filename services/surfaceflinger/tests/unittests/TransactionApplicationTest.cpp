@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
 
 #undef LOG_TAG
 #define LOG_TAG "CompositionTest"
@@ -31,10 +28,9 @@
 
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
-#include "mock/MockDispSync.h"
-#include "mock/MockEventControlThread.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockMessageQueue.h"
+#include "mock/MockVsyncController.h"
 
 namespace android {
 
@@ -66,22 +62,20 @@ public:
 
         EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
         EXPECT_CALL(*eventThread, createEventConnection(_, _))
-                .WillOnce(Return(
-                        new EventThreadConnection(eventThread.get(), ResyncCallback(),
-                                                  ISurfaceComposer::eConfigChangedSuppress)));
+                .WillOnce(Return(new EventThreadConnection(eventThread.get(), /*callingUid=*/0,
+                                                           ResyncCallback())));
 
         EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
         EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-                .WillOnce(Return(
-                        new EventThreadConnection(sfEventThread.get(), ResyncCallback(),
-                                                  ISurfaceComposer::eConfigChangedSuppress)));
+                .WillOnce(Return(new EventThreadConnection(sfEventThread.get(), /*callingUid=*/0,
+                                                           ResyncCallback())));
 
-        EXPECT_CALL(*mPrimaryDispSync, computeNextRefresh(0, _)).WillRepeatedly(Return(0));
-        EXPECT_CALL(*mPrimaryDispSync, getPeriod())
-                .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
+        EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
+        EXPECT_CALL(*mVSyncTracker, currentPeriod())
+                .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
 
-        mFlinger.setupScheduler(std::unique_ptr<mock::DispSync>(mPrimaryDispSync),
-                                std::make_unique<mock::EventControlThread>(),
+        mFlinger.setupScheduler(std::unique_ptr<mock::VsyncController>(mVsyncController),
+                                std::unique_ptr<mock::VSyncTracker>(mVSyncTracker),
                                 std::move(eventThread), std::move(sfEventThread));
     }
 
@@ -89,10 +83,10 @@ public:
     TestableSurfaceFlinger mFlinger;
 
     std::unique_ptr<mock::EventThread> mEventThread = std::make_unique<mock::EventThread>();
-    mock::EventControlThread* mEventControlThread = new mock::EventControlThread();
 
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
-    mock::DispSync* mPrimaryDispSync = new mock::DispSync();
+    mock::VsyncController* mVsyncController = new mock::VsyncController();
+    mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker();
 
     struct TransactionInfo {
         Vector<ComposerState> states;
@@ -100,43 +94,51 @@ public:
         uint32_t flags = 0;
         sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
         InputWindowCommands inputWindowCommands;
-        int64_t desiredPresentTime = -1;
+        int64_t desiredPresentTime = 0;
+        bool isAutoTimestamp = true;
+        FrameTimelineInfo frameTimelineInfo;
         client_cache_t uncacheBuffer;
+        uint64_t id = static_cast<uint64_t>(-1);
+        static_assert(0xffffffffffffffff == static_cast<uint64_t>(-1));
     };
 
     void checkEqual(TransactionInfo info, SurfaceFlinger::TransactionState state) {
-        EXPECT_EQ(0, info.states.size());
-        EXPECT_EQ(0, state.states.size());
+        EXPECT_EQ(0u, info.states.size());
+        EXPECT_EQ(0u, state.states.size());
 
-        EXPECT_EQ(0, info.displays.size());
-        EXPECT_EQ(0, state.displays.size());
+        EXPECT_EQ(0u, info.displays.size());
+        EXPECT_EQ(0u, state.displays.size());
         EXPECT_EQ(info.flags, state.flags);
         EXPECT_EQ(info.desiredPresentTime, state.desiredPresentTime);
     }
 
     void setupSingle(TransactionInfo& transaction, uint32_t flags, bool syncInputWindows,
-                     int64_t desiredPresentTime) {
+                     int64_t desiredPresentTime, bool isAutoTimestamp,
+                     const FrameTimelineInfo& frameTimelineInfo) {
         mTransactionNumber++;
         transaction.flags |= flags; // ISurfaceComposer::eSynchronous;
         transaction.inputWindowCommands.syncInputWindows = syncInputWindows;
         transaction.desiredPresentTime = desiredPresentTime;
+        transaction.isAutoTimestamp = isAutoTimestamp;
+        transaction.frameTimelineInfo = frameTimelineInfo;
     }
 
     void NotPlacedOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
-        ASSERT_EQ(0, mFlinger.getTransactionQueue().size());
+        ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
         // called in SurfaceFlinger::signalTransaction
         EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
-        EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_)).WillOnce(Return(systemTime()));
         TransactionInfo transaction;
         setupSingle(transaction, flags, syncInputWindows,
-                    /*desiredPresentTime*/ -1);
+                    /*desiredPresentTime*/ systemTime(), /*isAutoTimestamp*/ true,
+                    FrameTimelineInfo{});
         nsecs_t applicationTime = systemTime();
-        mFlinger.setTransactionState(transaction.states, transaction.displays, transaction.flags,
+        mFlinger.setTransactionState(transaction.frameTimelineInfo, transaction.states,
+                                     transaction.displays, transaction.flags,
                                      transaction.applyToken, transaction.inputWindowCommands,
-                                     transaction.desiredPresentTime, transaction.uncacheBuffer,
-                                     mHasListenerCallbacks, mCallbacks);
+                                     transaction.desiredPresentTime, transaction.isAutoTimestamp,
+                                     transaction.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
+                                     transaction.id);
 
-        // This transaction should not have been placed on the transaction queue.
         // If transaction is synchronous or syncs input windows, SF
         // applyTransactionState should time out (5s) wating for SF to commit
         // the transaction or to receive a signal that syncInputWindows has
@@ -147,93 +149,102 @@ public:
         } else {
             EXPECT_LE(returnedTime, applicationTime + s2ns(5));
         }
+        // Each transaction should have been placed on the transaction queue
         auto transactionQueue = mFlinger.getTransactionQueue();
-        EXPECT_EQ(0, transactionQueue.size());
+        EXPECT_EQ(1u, transactionQueue.size());
     }
 
     void PlaceOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
-        ASSERT_EQ(0, mFlinger.getTransactionQueue().size());
+        ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
         // called in SurfaceFlinger::signalTransaction
         EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
 
         // first check will see desired present time has not passed,
         // but afterwards it will look like the desired present time has passed
         nsecs_t time = systemTime();
-        EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_))
-                .WillOnce(Return(time + nsecs_t(5 * 1e8)));
         TransactionInfo transaction;
         setupSingle(transaction, flags, syncInputWindows,
-                    /*desiredPresentTime*/ time + s2ns(1));
+                    /*desiredPresentTime*/ time + s2ns(1), false, FrameTimelineInfo{});
         nsecs_t applicationSentTime = systemTime();
-        mFlinger.setTransactionState(transaction.states, transaction.displays, transaction.flags,
+        mFlinger.setTransactionState(transaction.frameTimelineInfo, transaction.states,
+                                     transaction.displays, transaction.flags,
                                      transaction.applyToken, transaction.inputWindowCommands,
-                                     transaction.desiredPresentTime, transaction.uncacheBuffer,
-                                     mHasListenerCallbacks, mCallbacks);
+                                     transaction.desiredPresentTime, transaction.isAutoTimestamp,
+                                     transaction.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
+                                     transaction.id);
 
         nsecs_t returnedTime = systemTime();
-        EXPECT_LE(returnedTime, applicationSentTime + s2ns(5));
+        if ((flags & ISurfaceComposer::eSynchronous) || syncInputWindows) {
+            EXPECT_GE(systemTime(), applicationSentTime + s2ns(5));
+        } else {
+            EXPECT_LE(returnedTime, applicationSentTime + s2ns(5));
+        }
         // This transaction should have been placed on the transaction queue
         auto transactionQueue = mFlinger.getTransactionQueue();
-        EXPECT_EQ(1, transactionQueue.size());
+        EXPECT_EQ(1u, transactionQueue.size());
     }
 
     void BlockedByPriorTransaction(uint32_t flags, bool syncInputWindows) {
-        ASSERT_EQ(0, mFlinger.getTransactionQueue().size());
+        ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
         // called in SurfaceFlinger::signalTransaction
         nsecs_t time = systemTime();
-        EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
-        EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_))
-                .WillOnce(Return(time + nsecs_t(5 * 1e8)));
+        if (!syncInputWindows) {
+            EXPECT_CALL(*mMessageQueue, invalidate()).Times(2);
+        } else {
+            EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+        }
         // transaction that should go on the pending thread
         TransactionInfo transactionA;
         setupSingle(transactionA, /*flags*/ 0, /*syncInputWindows*/ false,
-                    /*desiredPresentTime*/ time + s2ns(1));
+                    /*desiredPresentTime*/ time + s2ns(1), false, FrameTimelineInfo{});
 
         // transaction that would not have gone on the pending thread if not
         // blocked
         TransactionInfo transactionB;
         setupSingle(transactionB, flags, syncInputWindows,
-                    /*desiredPresentTime*/ -1);
+                    /*desiredPresentTime*/ systemTime(), /*isAutoTimestamp*/ true,
+                    FrameTimelineInfo{});
 
         nsecs_t applicationSentTime = systemTime();
-        mFlinger.setTransactionState(transactionA.states, transactionA.displays, transactionA.flags,
+        mFlinger.setTransactionState(transactionA.frameTimelineInfo, transactionA.states,
+                                     transactionA.displays, transactionA.flags,
                                      transactionA.applyToken, transactionA.inputWindowCommands,
-                                     transactionA.desiredPresentTime, transactionA.uncacheBuffer,
-                                     mHasListenerCallbacks, mCallbacks);
+                                     transactionA.desiredPresentTime, transactionA.isAutoTimestamp,
+                                     transactionA.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
+                                     transactionA.id);
 
         // This thread should not have been blocked by the above transaction
         // (5s is the timeout period that applyTransactionState waits for SF to
         // commit the transaction)
         EXPECT_LE(systemTime(), applicationSentTime + s2ns(5));
+        // transaction that would goes to pending transaciton queue.
+        mFlinger.flushTransactionQueues();
 
         applicationSentTime = systemTime();
-        mFlinger.setTransactionState(transactionB.states, transactionB.displays, transactionB.flags,
+        mFlinger.setTransactionState(transactionB.frameTimelineInfo, transactionB.states,
+                                     transactionB.displays, transactionB.flags,
                                      transactionB.applyToken, transactionB.inputWindowCommands,
-                                     transactionB.desiredPresentTime, transactionB.uncacheBuffer,
-                                     mHasListenerCallbacks, mCallbacks);
+                                     transactionB.desiredPresentTime, transactionB.isAutoTimestamp,
+                                     transactionB.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
+                                     transactionB.id);
 
         // this thread should have been blocked by the above transaction
         // if this is an animation, this thread should be blocked for 5s
         // in setTransactionState waiting for transactionA to flush.  Otherwise,
         // the transaction should be placed on the pending queue
-        if (flags & ISurfaceComposer::eAnimation) {
+        if (flags & (ISurfaceComposer::eAnimation | ISurfaceComposer::eSynchronous) ||
+            syncInputWindows) {
             EXPECT_GE(systemTime(), applicationSentTime + s2ns(5));
         } else {
             EXPECT_LE(systemTime(), applicationSentTime + s2ns(5));
         }
 
-        // check that there is one binder on the pending queue.
-        auto transactionQueue = mFlinger.getTransactionQueue();
-        EXPECT_EQ(1, transactionQueue.size());
+        // transaction that would goes to pending transaciton queue.
+        mFlinger.flushTransactionQueues();
 
-        auto& [applyToken, transactionStates] = *(transactionQueue.begin());
-        EXPECT_EQ(2, transactionStates.size());
-
-        auto& transactionStateA = transactionStates.front();
-        transactionStates.pop();
-        checkEqual(transactionA, transactionStateA);
-        auto& transactionStateB = transactionStates.front();
-        checkEqual(transactionB, transactionStateB);
+        // check that the transaction was applied.
+        auto transactionQueue = mFlinger.getPendingTransactionQueue();
+        EXPECT_EQ(0u, transactionQueue.size());
     }
 
     bool mHasListenerCallbacks = false;
@@ -242,29 +253,23 @@ public:
 };
 
 TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
-    ASSERT_EQ(0, mFlinger.getTransactionQueue().size());
+    ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
     // called in SurfaceFlinger::signalTransaction
     EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
 
-    // nsecs_t time = systemTime();
-    EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_))
-            .WillOnce(Return(nsecs_t(5 * 1e8)))
-            .WillOnce(Return(s2ns(2)));
     TransactionInfo transactionA; // transaction to go on pending queue
     setupSingle(transactionA, /*flags*/ 0, /*syncInputWindows*/ false,
-                /*desiredPresentTime*/ s2ns(1));
-    mFlinger.setTransactionState(transactionA.states, transactionA.displays, transactionA.flags,
-                                 transactionA.applyToken, transactionA.inputWindowCommands,
-                                 transactionA.desiredPresentTime, transactionA.uncacheBuffer,
-                                 mHasListenerCallbacks, mCallbacks);
+                /*desiredPresentTime*/ s2ns(1), false, FrameTimelineInfo{});
+    mFlinger.setTransactionState(transactionA.frameTimelineInfo, transactionA.states,
+                                 transactionA.displays, transactionA.flags, transactionA.applyToken,
+                                 transactionA.inputWindowCommands, transactionA.desiredPresentTime,
+                                 transactionA.isAutoTimestamp, transactionA.uncacheBuffer,
+                                 mHasListenerCallbacks, mCallbacks, transactionA.id);
 
     auto& transactionQueue = mFlinger.getTransactionQueue();
-    ASSERT_EQ(1, transactionQueue.size());
+    ASSERT_EQ(1u, transactionQueue.size());
 
-    auto& [applyToken, transactionStates] = *(transactionQueue.begin());
-    ASSERT_EQ(1, transactionStates.size());
-
-    auto& transactionState = transactionStates.front();
+    auto& transactionState = transactionQueue.front();
     checkEqual(transactionA, transactionState);
 
     // because flushing uses the cached expected present time, we send an empty
@@ -272,15 +277,16 @@ TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
     // different process) to re-query and reset the cached expected present time
     TransactionInfo empty;
     empty.applyToken = sp<IBinder>();
-    mFlinger.setTransactionState(empty.states, empty.displays, empty.flags, empty.applyToken,
-                                 empty.inputWindowCommands, empty.desiredPresentTime,
-                                 empty.uncacheBuffer, mHasListenerCallbacks, mCallbacks);
+    mFlinger.setTransactionState(empty.frameTimelineInfo, empty.states, empty.displays, empty.flags,
+                                 empty.applyToken, empty.inputWindowCommands,
+                                 empty.desiredPresentTime, empty.isAutoTimestamp,
+                                 empty.uncacheBuffer, mHasListenerCallbacks, mCallbacks, empty.id);
 
     // flush transaction queue should flush as desiredPresentTime has
     // passed
     mFlinger.flushTransactionQueues();
 
-    EXPECT_EQ(0, transactionQueue.size());
+    EXPECT_EQ(0u, transactionQueue.size());
 }
 
 TEST_F(TransactionApplicationTest, NotPlacedOnTransactionQueue_Synchronous) {
@@ -325,6 +331,3 @@ TEST_F(TransactionApplicationTest, FromHandle) {
     EXPECT_EQ(nullptr, ret.promote().get());
 }
 } // namespace android
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"

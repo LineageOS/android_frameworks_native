@@ -1184,23 +1184,18 @@ const LayerChain::ActiveLayer* LayerChain::GetActiveLayers(
 // ----------------------------------------------------------------------------
 
 bool EnsureInitialized() {
-    static std::once_flag once_flag;
-    static bool initialized;
+    static bool initialized = false;
+    static pid_t init_attempted_for_pid = 0;
+    static std::mutex init_lock;
 
-    std::call_once(once_flag, []() {
-        if (driver::OpenHAL()) {
-            initialized = true;
-        }
-    });
+    std::lock_guard<std::mutex> lock(init_lock);
+    if (init_attempted_for_pid == getpid())
+        return initialized;
 
-    {
-        static pid_t pid = getpid() + 1;
-        static std::mutex layer_lock;
-        std::lock_guard<std::mutex> lock(layer_lock);
-        if (pid != getpid()) {
-            pid = getpid();
-            DiscoverLayers();
-        }
+    init_attempted_for_pid = getpid();
+    if (driver::OpenHAL()) {
+        DiscoverLayers();
+        initialized = true;
     }
 
     return initialized;
@@ -1266,7 +1261,7 @@ VkResult EnumerateInstanceLayerProperties(uint32_t* pPropertyCount,
     ATRACE_CALL();
 
     if (!EnsureInitialized())
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     uint32_t count = GetLayerCount();
 
@@ -1290,7 +1285,7 @@ VkResult EnumerateInstanceExtensionProperties(
     ATRACE_CALL();
 
     if (!EnsureInitialized())
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     if (pLayerName) {
         const Layer* layer = FindLayer(pLayerName);
@@ -1465,6 +1460,11 @@ VkResult EnumerateDeviceExtensionProperties(
 
 VkResult EnumerateInstanceVersion(uint32_t* pApiVersion) {
     ATRACE_CALL();
+
+    // Load the driver here if not done yet. This api will be used in Zygote
+    // for Vulkan driver pre-loading because of the minimum overhead.
+    if (!EnsureInitialized())
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     *pApiVersion = VK_API_VERSION_1_1;
     return VK_SUCCESS;

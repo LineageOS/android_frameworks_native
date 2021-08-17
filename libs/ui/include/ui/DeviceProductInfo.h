@@ -19,7 +19,12 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <type_traits>
 #include <variant>
+#include <vector>
+
+#include <utils/Flattenable.h>
 
 namespace android {
 
@@ -29,13 +34,7 @@ using PnpId = std::array<char, 4>;
 // Product-specific information about the display or the directly connected device on the
 // display chain. For example, if the display is transitively connected, this field may contain
 // product information about the intermediate device.
-struct DeviceProductInfo {
-    static constexpr size_t TEXT_BUFFER_SIZE = 20;
-    static constexpr size_t RELATIVE_ADDRESS_SIZE = 4;
-
-    using RelativeAddress = std::array<uint8_t, RELATIVE_ADDRESS_SIZE>;
-    static constexpr RelativeAddress NO_RELATIVE_ADDRESS = {0xff, 0xff, 0xff, 0xff};
-
+struct DeviceProductInfo : LightFlattenable<DeviceProductInfo> {
     struct ModelYear {
         uint32_t year;
     };
@@ -48,21 +47,29 @@ struct DeviceProductInfo {
     };
 
     // Display name.
-    std::array<char, TEXT_BUFFER_SIZE> name;
+    std::string name;
 
     // Manufacturer Plug and Play ID.
     PnpId manufacturerPnpId;
 
     // Manufacturer product ID.
-    std::array<char, TEXT_BUFFER_SIZE> productId;
+    std::string productId;
 
     using ManufactureOrModelDate = std::variant<ModelYear, ManufactureYear, ManufactureWeekAndYear>;
+    static_assert(std::is_trivially_copyable_v<ManufactureOrModelDate>);
     ManufactureOrModelDate manufactureOrModelDate;
 
-    // Relative address in the display network. Unavailable address is indicated
-    // by all elements equal to 255.
+    // Relative address in the display network. Empty vector indicates that the
+    // address is unavailable.
     // For example, for HDMI connected device this will be the physical address.
-    RelativeAddress relativeAddress;
+    std::vector<uint8_t> relativeAddress;
+
+    bool isFixedSize() const { return false; }
+    size_t getFlattenedSize() const;
+    status_t flatten(void* buffer, size_t size) const;
+    status_t unflatten(void const* buffer, size_t size);
+
+    void dump(std::string& result) const;
 };
 
 } // namespace android

@@ -17,6 +17,8 @@
 #include <array>
 #include <math.h>
 
+#include <android-base/properties.h>
+#include <attestation/HmacKeyManager.h>
 #include <binder/Parcel.h>
 #include <gtest/gtest.h>
 #include <input/Input.h>
@@ -224,15 +226,38 @@ protected:
     static constexpr float X_OFFSET = 1;
     static constexpr float Y_OFFSET = 1.1;
 
+    static const std::optional<bool> INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE;
+
     int32_t mId;
+    ui::Transform mTransform;
+
+    void SetUp() override;
+    void TearDown() override;
 
     void initializeEventWithHistory(MotionEvent* event);
     void assertEqualsEventWithHistory(const MotionEvent* event);
 };
 
+const std::optional<bool> MotionEventTest::INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE =
+        !base::GetProperty("persist.debug.per_window_input_rotation", "").empty()
+        ? std::optional(base::GetBoolProperty("persist.debug.per_window_input_rotation", false))
+        : std::nullopt;
+
+void MotionEventTest::SetUp() {
+    // Ensure per_window_input_rotation is enabled.
+    base::SetProperty("persist.debug.per_window_input_rotation", "true");
+}
+
+void MotionEventTest::TearDown() {
+    const auto val = INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE.has_value()
+            ? (*INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE ? "true" : "false")
+            : "";
+    base::SetProperty("persist.debug.per_window_input_rotation", val);
+}
 
 void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
     mId = InputEvent::nextId();
+    mTransform.set({X_SCALE, 0, X_OFFSET, 0, Y_SCALE, Y_OFFSET, 0, 0, 1});
 
     PointerProperties pointerProperties[2];
     pointerProperties[0].clear();
@@ -266,8 +291,9 @@ void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
     event->initialize(mId, 2, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID, HMAC,
                       AMOTION_EVENT_ACTION_MOVE, 0, AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED,
                       AMOTION_EVENT_EDGE_FLAG_TOP, AMETA_ALT_ON, AMOTION_EVENT_BUTTON_PRIMARY,
-                      MotionClassification::NONE, X_SCALE, Y_SCALE, X_OFFSET, Y_OFFSET, 2.0f, 2.1f,
+                      MotionClassification::NONE, mTransform, 2.0f, 2.1f,
                       AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                      AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
                       ARBITRARY_DOWN_TIME, ARBITRARY_EVENT_TIME, 2, pointerProperties,
                       pointerCoords);
 
@@ -326,8 +352,7 @@ void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
     ASSERT_EQ(AMETA_ALT_ON, event->getMetaState());
     ASSERT_EQ(AMOTION_EVENT_BUTTON_PRIMARY, event->getButtonState());
     ASSERT_EQ(MotionClassification::NONE, event->getClassification());
-    EXPECT_EQ(X_SCALE, event->getXScale());
-    EXPECT_EQ(Y_SCALE, event->getYScale());
+    EXPECT_EQ(mTransform, event->getTransform());
     ASSERT_EQ(X_OFFSET, event->getXOffset());
     ASSERT_EQ(Y_OFFSET, event->getYOffset());
     ASSERT_EQ(2.0f, event->getXPrecision());
@@ -545,7 +570,7 @@ TEST_F(MotionEventTest, Parcel) {
     ASSERT_NO_FATAL_FAILURE(assertEqualsEventWithHistory(&outEvent));
 }
 
-static void setRotationMatrix(float matrix[9], float angle) {
+static void setRotationMatrix(std::array<float, 9>& matrix, float angle) {
     float sin = sinf(angle);
     float cos = cosf(angle);
     matrix[0] = cos;
@@ -584,13 +609,15 @@ TEST_F(MotionEventTest, Transform) {
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, angle);
     }
     MotionEvent event;
+    ui::Transform identityTransform;
     event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_UNKNOWN, DISPLAY_ID,
                      INVALID_HMAC, AMOTION_EVENT_ACTION_MOVE, 0 /*actionButton*/, 0 /*flags*/,
                      AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
-                     MotionClassification::NONE, 1 /*xScale*/, 1 /*yScale*/, 0 /*xOffset*/,
-                     0 /*yOffset*/, 0 /*xPrecision*/, 0 /*yPrecision*/,
-                     3 + RADIUS /*xCursorPosition*/, 2 /*yCursorPosition*/, 0 /*downTime*/,
-                     0 /*eventTime*/, pointerCount, pointerProperties, pointerCoords);
+                     MotionClassification::NONE, identityTransform, 0 /*xPrecision*/,
+                     0 /*yPrecision*/, 3 + RADIUS /*xCursorPosition*/, 2 /*yCursorPosition*/,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
+                     0 /*downTime*/, 0 /*eventTime*/, pointerCount, pointerProperties,
+                     pointerCoords);
     float originalRawX = 0 + 3;
     float originalRawY = -RADIUS + 2;
 
@@ -606,7 +633,7 @@ TEST_F(MotionEventTest, Transform) {
     ASSERT_NEAR(originalRawY, event.getRawY(0), 0.001);
 
     // Apply a rotation about the origin by ROTATION degrees clockwise.
-    float matrix[9];
+    std::array<float, 9> matrix;
     setRotationMatrix(matrix, ROTATION * PI_180);
     event.transform(matrix);
 
@@ -631,6 +658,97 @@ TEST_F(MotionEventTest, Transform) {
     ASSERT_NEAR(originalRawY, event.getRawY(0), 0.001);
 }
 
+MotionEvent createTouchDownEvent(int x, int y, ui::Transform transform) {
+    std::vector<PointerProperties> pointerProperties;
+    pointerProperties.push_back(PointerProperties{/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER});
+    std::vector<PointerCoords> pointerCoords;
+    pointerCoords.emplace_back().clear();
+    pointerCoords.back().setAxisValue(AMOTION_EVENT_AXIS_X, x);
+    pointerCoords.back().setAxisValue(AMOTION_EVENT_AXIS_Y, y);
+    nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    MotionEvent event;
+    event.initialize(InputEvent::nextId(), /* deviceId */ 1, AINPUT_SOURCE_TOUCHSCREEN,
+                     /* displayId */ 0, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN,
+                     /* actionButton */ 0, /* flags */ 0, /* edgeFlags */ 0, AMETA_NONE,
+                     /* buttonState */ 0, MotionClassification::NONE, transform,
+                     /* xPrecision */ 0, /* yPrecision */ 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, /* displayWidth */ 400,
+                     /* displayHeight */ 800, eventTime, eventTime, pointerCoords.size(),
+                     pointerProperties.data(), pointerCoords.data());
+    return event;
+}
+
+TEST_F(MotionEventTest, ApplyTransform) {
+    // Create a rotate-90 transform with an offset (like a window which isn't fullscreen).
+    ui::Transform identity;
+    ui::Transform xform(ui::Transform::ROT_90, 800, 400);
+    xform.set(xform.tx() + 20, xform.ty() + 40);
+    MotionEvent event = createTouchDownEvent(60, 100, xform);
+    ASSERT_EQ(700, event.getRawX(0));
+    ASSERT_EQ(60, event.getRawY(0));
+    ASSERT_NE(event.getRawX(0), event.getX(0));
+    ASSERT_NE(event.getRawY(0), event.getY(0));
+
+    MotionEvent changedEvent = createTouchDownEvent(60, 100, identity);
+    const std::array<float, 9> rowMajor{xform[0][0], xform[1][0], xform[2][0],
+                                        xform[0][1], xform[1][1], xform[2][1],
+                                        xform[0][2], xform[1][2], xform[2][2]};
+    changedEvent.applyTransform(rowMajor);
+
+    // transformContent effectively rotates the raw coordinates, so those should now include
+    // both rotation AND offset
+    ASSERT_EQ(720, changedEvent.getRawX(0));
+    ASSERT_EQ(100, changedEvent.getRawY(0));
+
+    // The transformed output should be the same then
+    ASSERT_NEAR(event.getX(0), changedEvent.getX(0), 0.001);
+    ASSERT_NEAR(event.getY(0), changedEvent.getY(0), 0.001);
+}
+
+TEST_F(MotionEventTest, RawCompatTransform) {
+    {
+        // Make sure raw is raw regardless of transform translation.
+        ui::Transform xform;
+        xform.set(20, 40);
+        MotionEvent event = createTouchDownEvent(60, 100, xform);
+        ASSERT_EQ(60, event.getRawX(0));
+        ASSERT_EQ(100, event.getRawY(0));
+        ASSERT_NE(event.getRawX(0), event.getX(0));
+        ASSERT_NE(event.getRawY(0), event.getY(0));
+    }
+
+    // Next check that getRaw contains rotation (for compatibility) but otherwise is still
+    // "Screen-space". The following tests check all 3 rotations.
+    {
+        // Create a rotate-90 transform with an offset (like a window which isn't fullscreen).
+        ui::Transform xform(ui::Transform::ROT_90, 800, 400);
+        xform.set(xform.tx() + 20, xform.ty() + 40);
+        MotionEvent event = createTouchDownEvent(60, 100, xform);
+        ASSERT_EQ(700, event.getRawX(0));
+        ASSERT_EQ(60, event.getRawY(0));
+        ASSERT_NE(event.getRawX(0), event.getX(0));
+        ASSERT_NE(event.getRawY(0), event.getY(0));
+    }
+
+    {
+        // Same as above, but check rotate-180.
+        ui::Transform xform(ui::Transform::ROT_180, 400, 800);
+        xform.set(xform.tx() + 20, xform.ty() + 40);
+        MotionEvent event = createTouchDownEvent(60, 100, xform);
+        ASSERT_EQ(340, event.getRawX(0));
+        ASSERT_EQ(700, event.getRawY(0));
+    }
+
+    {
+        // Same as above, but check rotate-270.
+        ui::Transform xform(ui::Transform::ROT_270, 800, 400);
+        xform.set(xform.tx() + 20, xform.ty() + 40);
+        MotionEvent event = createTouchDownEvent(60, 100, xform);
+        ASSERT_EQ(100, event.getRawX(0));
+        ASSERT_EQ(340, event.getRawY(0));
+    }
+}
+
 TEST_F(MotionEventTest, Initialize_SetsClassification) {
     std::array<MotionClassification, 3> classifications = {
             MotionClassification::NONE,
@@ -648,12 +766,14 @@ TEST_F(MotionEventTest, Initialize_SetsClassification) {
         pointerCoords[i].clear();
     }
 
+    ui::Transform identityTransform;
     for (MotionClassification classification : classifications) {
         event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN,
                          DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
-                         AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0, classification, 1 /*xScale*/,
-                         1 /*yScale*/, 0, 0, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                         AMOTION_EVENT_INVALID_CURSOR_POSITION, 0 /*downTime*/, 0 /*eventTime*/,
+                         AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0, classification,
+                         identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
+                         AMOTION_EVENT_INVALID_DISPLAY_SIZE, 0 /*downTime*/, 0 /*eventTime*/,
                          pointerCount, pointerProperties, pointerCoords);
         ASSERT_EQ(classification, event.getClassification());
     }
@@ -670,11 +790,14 @@ TEST_F(MotionEventTest, Initialize_SetsCursorPosition) {
         pointerCoords[i].clear();
     }
 
+    ui::Transform identityTransform;
     event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_MOUSE, DISPLAY_ID,
                      INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0, AMOTION_EVENT_EDGE_FLAG_NONE,
-                     AMETA_NONE, 0, MotionClassification::NONE, 1 /*xScale*/, 1 /*yScale*/, 0, 0, 0,
-                     0, 280 /*xCursorPosition*/, 540 /*yCursorPosition*/, 0 /*downTime*/,
-                     0 /*eventTime*/, pointerCount, pointerProperties, pointerCoords);
+                     AMETA_NONE, 0, MotionClassification::NONE, identityTransform, 0, 0,
+                     280 /*xCursorPosition*/, 540 /*yCursorPosition*/,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
+                     0 /*downTime*/, 0 /*eventTime*/, pointerCount, pointerProperties,
+                     pointerCoords);
     event.offsetLocation(20, 60);
     ASSERT_EQ(280, event.getRawXCursorPosition());
     ASSERT_EQ(540, event.getRawYCursorPosition());

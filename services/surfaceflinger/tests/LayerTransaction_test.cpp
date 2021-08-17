@@ -18,50 +18,12 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
-#include <private/android_filesystem_config.h>
 #include <thread>
 #include "LayerTransactionTest.h"
 
 namespace android {
 
 using android::hardware::graphics::common::V1_1::BufferUsage;
-
-TEST_F(LayerTransactionTest, SetFlagsSecureEUidSystem) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    sp<ISurfaceComposer> composer = ComposerService::getComposerService();
-    sp<GraphicBuffer> outBuffer;
-    Transaction()
-            .setFlags(layer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
-            .apply(true);
-    ASSERT_EQ(PERMISSION_DENIED,
-              composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, false));
-
-    UIDFaker f(AID_SYSTEM);
-
-    // By default the system can capture screenshots with secure layers but they
-    // will be blacked out
-    ASSERT_EQ(NO_ERROR, composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, false));
-
-    {
-        SCOPED_TRACE("as system");
-        auto shot = screenshot();
-        shot->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
-    }
-
-    // Here we pass captureSecureLayers = true and since we are AID_SYSTEM we should be able
-    // to receive them...we are expected to take care with the results.
-    bool outCapturedSecureLayers;
-    ASSERT_EQ(NO_ERROR,
-              composer->captureScreen(mDisplay, &outBuffer, outCapturedSecureLayers,
-                                      ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888, Rect(), 0,
-                                      0, false, ui::ROTATION_0, true));
-    ASSERT_EQ(true, outCapturedSecureLayers);
-    ScreenCapture sc(outBuffer);
-    sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
-}
 
 TEST_F(LayerTransactionTest, SetTransformToDisplayInverse_BufferState) {
     sp<SurfaceControl> layer;
@@ -88,7 +50,7 @@ TEST_F(LayerTransactionTest, ReparentToSelf) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-    Transaction().reparent(layer, layer->getHandle()).apply();
+    Transaction().reparent(layer, layer).apply();
 
     {
         // We expect the transaction to be silently dropped, but for SurfaceFlinger

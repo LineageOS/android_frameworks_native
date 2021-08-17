@@ -41,6 +41,7 @@ public:
     bool hasContextPriority() const { return mHasContextPriority; }
     bool hasSurfacelessContext() const { return mHasSurfacelessContext; }
     bool hasProtectedTexture() const { return mHasProtectedTexture; }
+    bool hasRealtimePriority() const { return mHasRealtimePriority; }
 
     void initWithGLStrings(GLubyte const* vendor, GLubyte const* renderer, GLubyte const* version,
                            GLubyte const* extensions);
@@ -67,6 +68,7 @@ private:
     bool mHasContextPriority = false;
     bool mHasSurfacelessContext = false;
     bool mHasProtectedTexture = false;
+    bool mHasRealtimePriority = false;
 
     String8 mVendor;
     String8 mRenderer;

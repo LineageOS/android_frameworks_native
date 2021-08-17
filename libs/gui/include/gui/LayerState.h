@@ -17,6 +17,7 @@
 #ifndef ANDROID_SF_LAYER_STATE_H
 #define ANDROID_SF_LAYER_STATE_H
 
+
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -26,15 +27,20 @@
 #include <math/mat4.h>
 
 #ifndef NO_INPUT
+#include <android/FocusRequest.h>
 #include <input/InputWindow.h>
 #endif
 
+#include <gui/ISurfaceComposer.h>
 #include <gui/LayerMetadata.h>
+#include <gui/SurfaceControl.h>
 #include <math/vec3.h>
+#include <ui/BlurRegion.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/Rotation.h>
+#include <ui/StretchEffect.h>
 #include <ui/Transform.h>
 #include <utils/Errors.h>
 
@@ -57,9 +63,14 @@ struct client_cache_t {
  */
 struct layer_state_t {
     enum {
-        eLayerHidden = 0x01, // SURFACE_HIDDEN in SurfaceControl.java
-        eLayerOpaque = 0x02, // SURFACE_OPAQUE
-        eLayerSecure = 0x80, // SECURE
+        eLayerHidden = 0x01,         // SURFACE_HIDDEN in SurfaceControl.java
+        eLayerOpaque = 0x02,         // SURFACE_OPAQUE
+        eLayerSkipScreenshot = 0x40, // SKIP_SCREENSHOT
+        eLayerSecure = 0x80,         // SECURE
+        // Queue up BufferStateLayer buffers instead of dropping the oldest buffer when this flag is
+        // set. This blocks the client until all the buffers have been presented. If the buffers
+        // have presentation timestamps, then we may drop buffers.
+        eEnableBackpressure = 0x100, // ENABLE_BACKPRESSURE
     };
 
     enum {
@@ -71,12 +82,10 @@ struct layer_state_t {
         eTransparentRegionChanged = 0x00000020,
         eFlagsChanged = 0x00000040,
         eLayerStackChanged = 0x00000080,
-        eCropChanged_legacy = 0x00000100,
-        eDeferTransaction_legacy = 0x00000200,
-        eOverrideScalingModeChanged = 0x00000400,
+        eReleaseBufferListenerChanged = 0x00000400,
         eShadowRadiusChanged = 0x00000800,
-        eReparentChildren = 0x00001000,
-        eDetachChildren = 0x00002000,
+        eLayerCreated = 0x00001000,
+        eBufferCropChanged = 0x00002000,
         eRelativeLayerChanged = 0x00004000,
         eReparent = 0x00008000,
         eColorChanged = 0x00010000,
@@ -95,7 +104,7 @@ struct layer_state_t {
         eHasListenerCallbacksChanged = 0x20000000,
         eInputInfoChanged = 0x40000000,
         eCornerRadiusChanged = 0x80000000,
-        eFrameChanged = 0x1'00000000,
+        eDestinationFrameChanged = 0x1'00000000,
         eCachedBufferChanged = 0x2'00000000,
         eBackgroundColorChanged = 0x4'00000000,
         eMetadataChanged = 0x8'00000000,
@@ -105,57 +114,31 @@ struct layer_state_t {
         eBackgroundBlurRadiusChanged = 0x80'00000000,
         eProducerDisconnect = 0x100'00000000,
         eFixedTransformHintChanged = 0x200'00000000,
+        eFrameNumberChanged = 0x400'00000000,
+        eBlurRegionsChanged = 0x800'00000000,
+        eAutoRefreshChanged = 0x1000'00000000,
+        eStretchChanged = 0x2000'00000000,
+        eTrustedOverlayChanged = 0x4000'00000000,
     };
 
-    layer_state_t()
-          : what(0),
-            x(0),
-            y(0),
-            z(0),
-            w(0),
-            h(0),
-            layerStack(0),
-            alpha(0),
-            flags(0),
-            mask(0),
-            reserved(0),
-            crop_legacy(Rect::INVALID_RECT),
-            cornerRadius(0.0f),
-            backgroundBlurRadius(0),
-            frameNumber_legacy(0),
-            overrideScalingMode(-1),
-            transform(0),
-            transformToDisplayInverse(false),
-            crop(Rect::INVALID_RECT),
-            frame(Rect::INVALID_RECT),
-            dataspace(ui::Dataspace::UNKNOWN),
-            surfaceDamageRegion(),
-            api(-1),
-            colorTransform(mat4()),
-            bgColorAlpha(0),
-            bgColorDataspace(ui::Dataspace::UNKNOWN),
-            colorSpaceAgnostic(false),
-            shadowRadius(0.0f),
-            frameRateSelectionPriority(-1),
-            frameRate(0.0f),
-            frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
-            fixedTransformHint(ui::Transform::ROT_INVALID) {
-        matrix.dsdx = matrix.dtdy = 1.0f;
-        matrix.dsdy = matrix.dtdx = 0.0f;
-        hdrMetadata.validTypes = 0;
-    }
+    layer_state_t();
 
     void merge(const layer_state_t& other);
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);
+    bool hasBufferChanges() const;
+    bool hasValidBuffer() const;
 
     struct matrix22_t {
         float dsdx{0};
         float dtdx{0};
         float dtdy{0};
         float dsdy{0};
+        status_t write(Parcel& output) const;
+        status_t read(const Parcel& input);
     };
     sp<IBinder> surface;
+    int32_t layerId;
     uint64_t what;
     float x;
     float y;
@@ -164,23 +147,17 @@ struct layer_state_t {
     uint32_t h;
     uint32_t layerStack;
     float alpha;
-    uint8_t flags;
-    uint8_t mask;
+    uint32_t flags;
+    uint32_t mask;
     uint8_t reserved;
     matrix22_t matrix;
-    Rect crop_legacy;
     float cornerRadius;
     uint32_t backgroundBlurRadius;
-    sp<IBinder> barrierHandle_legacy;
-    sp<IBinder> reparentHandle;
-    uint64_t frameNumber_legacy;
-    int32_t overrideScalingMode;
+    sp<SurfaceControl> reparentSurfaceControl;
 
-    sp<IGraphicBufferProducer> barrierGbp_legacy;
+    sp<SurfaceControl> relativeLayerSurfaceControl;
 
-    sp<IBinder> relativeLayerHandle;
-
-    sp<IBinder> parentHandleForChild;
+    sp<SurfaceControl> parentSurfaceControlForChild;
 
     half3 color;
 
@@ -190,7 +167,7 @@ struct layer_state_t {
     uint32_t transform;
     bool transformToDisplayInverse;
     Rect crop;
-    Rect frame;
+    Rect orientedDisplaySpaceRect;
     sp<GraphicBuffer> buffer;
     sp<Fence> acquireFence;
     ui::Dataspace dataspace;
@@ -199,9 +176,10 @@ struct layer_state_t {
     int32_t api;
     sp<NativeHandle> sidebandStream;
     mat4 colorTransform;
+    std::vector<BlurRegion> blurRegions;
 
 #ifndef NO_INPUT
-    InputWindowInfo inputInfo;
+    sp<InputWindowHandle> inputHandle = new InputWindowHandle();
 #endif
 
     client_cache_t cachedBuffer;
@@ -228,6 +206,7 @@ struct layer_state_t {
     // Layer frame rate and compatibility. See ANativeWindow_setFrameRate().
     float frameRate;
     int8_t frameRateCompatibility;
+    int8_t changeFrameRateStrategy;
 
     // Set by window manager indicating the layer and all its children are
     // in a different orientation than the display. The hint suggests that
@@ -237,6 +216,36 @@ struct layer_state_t {
     // a buffer of a different size. -1 means the transform hint is not set,
     // otherwise the value will be a valid ui::Rotation.
     ui::Transform::RotationFlags fixedTransformHint;
+
+    // Used by BlastBufferQueue to forward the framenumber generated by the
+    // graphics producer.
+    uint64_t frameNumber;
+
+    // Indicates that the consumer should acquire the next frame as soon as it
+    // can and not wait for a frame to become available. This is only relevant
+    // in shared buffer mode.
+    bool autoRefresh;
+
+    // An inherited state that indicates that this surface control and its children
+    // should be trusted for input occlusion detection purposes
+    bool isTrustedOverlay;
+
+    // Stretch effect to be applied to this layer
+    StretchEffect stretchEffect;
+
+    Rect bufferCrop;
+    Rect destinationFrame;
+
+    // Listens to when the buffer is safe to be released. This is used for blast
+    // layers only. The callback includes a release fence as well as the graphic
+    // buffer id to identify the buffer.
+    sp<ITransactionCompletedListener> releaseBufferListener;
+
+    // Keeps track of the release callback id associated with the listener. This
+    // is not sent to the server since the id can be reconstructed there. This
+    // is used to remove the old callback from the client process map if it is
+    // overwritten by another setBuffer call.
+    ReleaseCallbackId releaseCallbackId;
 };
 
 struct ComposerState {
@@ -263,18 +272,18 @@ struct DisplayState {
 
     // These states define how layers are projected onto the physical display.
     //
-    // Layers are first clipped to `viewport'.  They are then translated and
-    // scaled from `viewport' to `frame'.  Finally, they are rotated according
-    // to `orientation', `width', and `height'.
+    // Layers are first clipped to `layerStackSpaceRect'.  They are then translated and
+    // scaled from `layerStackSpaceRect' to `orientedDisplaySpaceRect'.  Finally, they are rotated
+    // according to `orientation', `width', and `height'.
     //
-    // For example, assume viewport is Rect(0, 0, 200, 100), frame is Rect(20,
-    // 10, 420, 210), and the size of the display is WxH.  When orientation is
-    // 0, layers will be scaled by a factor of 2 and translated by (20, 10).
-    // When orientation is 1, layers will be additionally rotated by 90
-    // degrees around the origin clockwise and translated by (W, 0).
+    // For example, assume layerStackSpaceRect is Rect(0, 0, 200, 100), orientedDisplaySpaceRect is
+    // Rect(20, 10, 420, 210), and the size of the display is WxH.  When orientation is 0, layers
+    // will be scaled by a factor of 2 and translated by (20, 10). When orientation is 1, layers
+    // will be additionally rotated by 90 degrees around the origin clockwise and translated by (W,
+    // 0).
     ui::Rotation orientation = ui::ROTATION_0;
-    Rect viewport;
-    Rect frame;
+    Rect layerStackSpaceRect;
+    Rect orientedDisplaySpaceRect;
 
     uint32_t width, height;
 
@@ -283,12 +292,17 @@ struct DisplayState {
 };
 
 struct InputWindowCommands {
+#ifndef NO_INPUT
+    std::vector<FocusRequest> focusRequests;
+#endif
     bool syncInputWindows{false};
 
-    void merge(const InputWindowCommands& other);
+    // Merges the passed in commands and returns true if there were any changes.
+    bool merge(const InputWindowCommands& other);
+    bool empty() const;
     void clear();
-    void write(Parcel& output) const;
-    void read(const Parcel& input);
+    status_t write(Parcel& output) const;
+    status_t read(const Parcel& input);
 };
 
 static inline int compare_type(const ComposerState& lhs, const ComposerState& rhs) {
@@ -301,11 +315,65 @@ static inline int compare_type(const DisplayState& lhs, const DisplayState& rhs)
     return compare_type(lhs.token, rhs.token);
 }
 
-// Returns true if the frameRate and compatibility are valid values, false
-// othwerise. If either of the params are invalid, an error log is printed, and
-// functionName is added to the log to indicate which function call failed.
-// functionName can be null.
-bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* functionName);
+// Returns true if the frameRate is valid.
+//
+// @param frameRate the frame rate in Hz
+// @param compatibility a ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_*
+// @param changeFrameRateStrategy a ANATIVEWINDOW_CHANGE_FRAME_RATE_*
+// @param functionName calling function or nullptr. Used for logging
+// @param privileged whether caller has unscoped surfaceflinger access
+bool ValidateFrameRate(float frameRate, int8_t compatibility, int8_t changeFrameRateStrategy,
+                       const char* functionName, bool privileged = false);
+
+struct CaptureArgs {
+    const static int32_t UNSET_UID = -1;
+    virtual ~CaptureArgs() = default;
+
+    ui::PixelFormat pixelFormat{ui::PixelFormat::RGBA_8888};
+    Rect sourceCrop;
+    float frameScaleX{1};
+    float frameScaleY{1};
+    bool captureSecureLayers{false};
+    int32_t uid{UNSET_UID};
+    // Force capture to be in a color space. If the value is ui::Dataspace::UNKNOWN, the captured
+    // result will be in the display's colorspace.
+    // The display may use non-RGB dataspace (ex. displayP3) that could cause pixel data could be
+    // different from SRGB (byte per color), and failed when checking colors in tests.
+    // NOTE: In normal cases, we want the screen to be captured in display's colorspace.
+    ui::Dataspace dataspace = ui::Dataspace::UNKNOWN;
+
+    // The receiver of the capture can handle protected buffer. A protected buffer has
+    // GRALLOC_USAGE_PROTECTED usage bit and must not be accessed unprotected behaviour.
+    // Any read/write access from unprotected context will result in undefined behaviour.
+    // Protected contents are typically DRM contents. This has no direct implication to the
+    // secure property of the surface, which is specified by the application explicitly to avoid
+    // the contents being accessed/captured by screenshot or unsecure display.
+    bool allowProtected = false;
+
+    bool grayscale = false;
+
+    virtual status_t write(Parcel& output) const;
+    virtual status_t read(const Parcel& input);
+};
+
+struct DisplayCaptureArgs : CaptureArgs {
+    sp<IBinder> displayToken;
+    uint32_t width{0};
+    uint32_t height{0};
+    bool useIdentityTransform{false};
+
+    status_t write(Parcel& output) const override;
+    status_t read(const Parcel& input) override;
+};
+
+struct LayerCaptureArgs : CaptureArgs {
+    sp<IBinder> layerHandle;
+    std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> excludeHandles;
+    bool childrenOnly{false};
+
+    status_t write(Parcel& output) const override;
+    status_t read(const Parcel& input) override;
+};
 
 }; // namespace android
 

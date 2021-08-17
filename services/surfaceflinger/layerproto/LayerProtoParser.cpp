@@ -105,6 +105,7 @@ LayerProtoParser::Layer LayerProtoParser::generateLayer(const LayerProto& layerP
     layer.queuedFrames = layerProto.queued_frames();
     layer.refreshPending = layerProto.refresh_pending();
     layer.isProtected = layerProto.is_protected();
+    layer.isTrustedOverlay = layerProto.is_trusted_overlay();
     layer.cornerRadius = layerProto.corner_radius();
     layer.backgroundBlurRadius = layerProto.background_blur_radius();
     for (const auto& entry : layerProto.metadata()) {
@@ -115,6 +116,7 @@ LayerProtoParser::Layer LayerProtoParser::generateLayer(const LayerProto& layerP
     }
     layer.cornerRadiusCrop = generateFloatRect(layerProto.corner_radius_crop());
     layer.shadowRadius = layerProto.shadow_radius();
+    layer.ownerUid = layerProto.owner_uid();
     return layer;
 }
 
@@ -276,7 +278,7 @@ std::string LayerProtoParser::Region::to_string(const char* what) const {
 
 std::string LayerProtoParser::Layer::to_string() const {
     std::string result;
-    StringAppendF(&result, "+ %s (%s)\n", type.c_str(), name.c_str());
+    StringAppendF(&result, "+ %s (%s) uid=%d\n", type.c_str(), name.c_str(), ownerUid);
     result.append(transparentRegion.to_string("TransparentRegion").c_str());
     result.append(visibleRegion.to_string("VisibleRegion").c_str());
     result.append(damageRegion.to_string("SurfaceDamageRegion").c_str());
@@ -288,6 +290,7 @@ std::string LayerProtoParser::Layer::to_string() const {
     StringAppendF(&result, "crop=%s, ", crop.to_string().c_str());
     StringAppendF(&result, "cornerRadius=%f, ", cornerRadius);
     StringAppendF(&result, "isProtected=%1d, ", isProtected);
+    StringAppendF(&result, "isTrustedOverlay=%1d, ", isTrustedOverlay);
     StringAppendF(&result, "isOpaque=%1d, invalidate=%1d, ", isOpaque, invalidate);
     StringAppendF(&result, "dataspace=%s, ", dataspace.c_str());
     StringAppendF(&result, "defaultPixelFormat=%s, ", pixelFormat.c_str());

@@ -397,6 +397,16 @@ int AHardwareBuffer_isSupported(const AHardwareBuffer_Desc* desc) {
     return 0;
 }
 
+int AHardwareBuffer_getId(const AHardwareBuffer* buffer, uint64_t* outId) {
+    if (!buffer || !outId) return BAD_VALUE;
+
+    const GraphicBuffer* gb = AHardwareBuffer_to_GraphicBuffer(buffer);
+    if (!gb) return BAD_VALUE;
+
+    *outId = gb->getId();
+
+    return OK;
+}
 
 // ----------------------------------------------------------------------------
 // VNDK functions

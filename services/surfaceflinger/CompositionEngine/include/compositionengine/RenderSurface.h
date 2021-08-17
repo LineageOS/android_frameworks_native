@@ -16,14 +16,15 @@
 
 #pragma once
 
-#include <cstdint>
-#include <vector>
-
+#include <renderengine/ExternalTexture.h>
 #include <ui/Fence.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Size.h>
 #include <utils/Errors.h>
 #include <utils/StrongPointer.h>
+
+#include <cstdint>
+#include <vector>
 
 namespace android {
 
@@ -80,7 +81,8 @@ public:
     virtual void prepareFrame(bool usesClientComposition, bool usesDeviceComposition) = 0;
 
     // Allocates a buffer as scratch space for GPU composition
-    virtual sp<GraphicBuffer> dequeueBuffer(base::unique_fd* bufferFence) = 0;
+    virtual std::shared_ptr<renderengine::ExternalTexture> dequeueBuffer(
+            base::unique_fd* bufferFence) = 0;
 
     // Queues the drawn buffer for consumption by HWC. readyFence is the fence
     // which will fire when the buffer is ready for consumption.

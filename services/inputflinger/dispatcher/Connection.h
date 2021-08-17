@@ -42,7 +42,7 @@ public:
     };
 
     Status status;
-    sp<InputChannel> inputChannel; // never null
+    std::shared_ptr<InputChannel> inputChannel; // never null
     bool monitor;
     InputPublisher inputPublisher;
     InputState inputState;
@@ -59,7 +59,8 @@ public:
     // yet received a "finished" response from the application.
     std::deque<DispatchEntry*> waitQueue;
 
-    Connection(const sp<InputChannel>& inputChannel, bool monitor, const IdGenerator& idGenerator);
+    Connection(const std::shared_ptr<InputChannel>& inputChannel, bool monitor,
+               const IdGenerator& idGenerator);
 
     inline const std::string getInputChannelName() const { return inputChannel->getName(); }
 

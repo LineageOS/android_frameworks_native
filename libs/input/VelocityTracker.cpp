@@ -104,107 +104,73 @@ static std::string matrixToString(const float* a, uint32_t m, uint32_t n, bool r
 
 // --- VelocityTracker ---
 
-// The default velocity tracker strategy.
-// Although other strategies are available for testing and comparison purposes,
-// this is the strategy that applications will actually use.  Be very careful
-// when adjusting the default strategy because it can dramatically affect
-// (often in a bad way) the user experience.
-const char* VelocityTracker::DEFAULT_STRATEGY = "lsq2";
-
-VelocityTracker::VelocityTracker(const char* strategy) :
-        mLastEventTime(0), mCurrentPointerIdBits(0), mActivePointerId(-1) {
-    char value[PROPERTY_VALUE_MAX];
-
-    // Allow the default strategy to be overridden using a system property for debugging.
-    if (!strategy) {
-        int length = property_get("persist.input.velocitytracker.strategy", value, nullptr);
-        if (length > 0) {
-            strategy = value;
-        } else {
-            strategy = DEFAULT_STRATEGY;
-        }
-    }
-
+VelocityTracker::VelocityTracker(const Strategy strategy)
+      : mLastEventTime(0), mCurrentPointerIdBits(0), mActivePointerId(-1) {
     // Configure the strategy.
     if (!configureStrategy(strategy)) {
-        ALOGD("Unrecognized velocity tracker strategy name '%s'.", strategy);
-        if (!configureStrategy(DEFAULT_STRATEGY)) {
-            LOG_ALWAYS_FATAL("Could not create the default velocity tracker strategy '%s'!",
-                    strategy);
+        ALOGE("Unrecognized velocity tracker strategy %" PRId32 ".", strategy);
+        if (!configureStrategy(VelocityTracker::DEFAULT_STRATEGY)) {
+            LOG_ALWAYS_FATAL("Could not create the default velocity tracker strategy '%" PRId32
+                             "'!",
+                             strategy);
         }
     }
 }
 
 VelocityTracker::~VelocityTracker() {
-    delete mStrategy;
 }
 
-bool VelocityTracker::configureStrategy(const char* strategy) {
-    mStrategy = createStrategy(strategy);
+bool VelocityTracker::configureStrategy(Strategy strategy) {
+    if (strategy == VelocityTracker::Strategy::DEFAULT) {
+        mStrategy = createStrategy(VelocityTracker::DEFAULT_STRATEGY);
+    } else {
+        mStrategy = createStrategy(strategy);
+    }
     return mStrategy != nullptr;
 }
 
-VelocityTrackerStrategy* VelocityTracker::createStrategy(const char* strategy) {
-    if (!strcmp("impulse", strategy)) {
-        // Physical model of pushing an object.  Quality: VERY GOOD.
-        // Works with duplicate coordinates, unclean finger liftoff.
-        return new ImpulseVelocityTrackerStrategy();
-    }
-    if (!strcmp("lsq1", strategy)) {
-        // 1st order least squares.  Quality: POOR.
-        // Frequently underfits the touch data especially when the finger accelerates
-        // or changes direction.  Often underestimates velocity.  The direction
-        // is overly influenced by historical touch points.
-        return new LeastSquaresVelocityTrackerStrategy(1);
-    }
-    if (!strcmp("lsq2", strategy)) {
-        // 2nd order least squares.  Quality: VERY GOOD.
-        // Pretty much ideal, but can be confused by certain kinds of touch data,
-        // particularly if the panel has a tendency to generate delayed,
-        // duplicate or jittery touch coordinates when the finger is released.
-        return new LeastSquaresVelocityTrackerStrategy(2);
-    }
-    if (!strcmp("lsq3", strategy)) {
-        // 3rd order least squares.  Quality: UNUSABLE.
-        // Frequently overfits the touch data yielding wildly divergent estimates
-        // of the velocity when the finger is released.
-        return new LeastSquaresVelocityTrackerStrategy(3);
-    }
-    if (!strcmp("wlsq2-delta", strategy)) {
-        // 2nd order weighted least squares, delta weighting.  Quality: EXPERIMENTAL
-        return new LeastSquaresVelocityTrackerStrategy(2,
-                LeastSquaresVelocityTrackerStrategy::WEIGHTING_DELTA);
-    }
-    if (!strcmp("wlsq2-central", strategy)) {
-        // 2nd order weighted least squares, central weighting.  Quality: EXPERIMENTAL
-        return new LeastSquaresVelocityTrackerStrategy(2,
-                LeastSquaresVelocityTrackerStrategy::WEIGHTING_CENTRAL);
-    }
-    if (!strcmp("wlsq2-recent", strategy)) {
-        // 2nd order weighted least squares, recent weighting.  Quality: EXPERIMENTAL
-        return new LeastSquaresVelocityTrackerStrategy(2,
-                LeastSquaresVelocityTrackerStrategy::WEIGHTING_RECENT);
-    }
-    if (!strcmp("int1", strategy)) {
-        // 1st order integrating filter.  Quality: GOOD.
-        // Not as good as 'lsq2' because it cannot estimate acceleration but it is
-        // more tolerant of errors.  Like 'lsq1', this strategy tends to underestimate
-        // the velocity of a fling but this strategy tends to respond to changes in
-        // direction more quickly and accurately.
-        return new IntegratingVelocityTrackerStrategy(1);
-    }
-    if (!strcmp("int2", strategy)) {
-        // 2nd order integrating filter.  Quality: EXPERIMENTAL.
-        // For comparison purposes only.  Unlike 'int1' this strategy can compensate
-        // for acceleration but it typically overestimates the effect.
-        return new IntegratingVelocityTrackerStrategy(2);
-    }
-    if (!strcmp("legacy", strategy)) {
-        // Legacy velocity tracker algorithm.  Quality: POOR.
-        // For comparison purposes only.  This algorithm is strongly influenced by
-        // old data points, consistently underestimates velocity and takes a very long
-        // time to adjust to changes in direction.
-        return new LegacyVelocityTrackerStrategy();
+std::unique_ptr<VelocityTrackerStrategy> VelocityTracker::createStrategy(
+        VelocityTracker::Strategy strategy) {
+    switch (strategy) {
+        case VelocityTracker::Strategy::IMPULSE:
+            return std::make_unique<ImpulseVelocityTrackerStrategy>();
+
+        case VelocityTracker::Strategy::LSQ1:
+            return std::make_unique<LeastSquaresVelocityTrackerStrategy>(1);
+
+        case VelocityTracker::Strategy::LSQ2:
+            return std::make_unique<LeastSquaresVelocityTrackerStrategy>(2);
+
+        case VelocityTracker::Strategy::LSQ3:
+            return std::make_unique<LeastSquaresVelocityTrackerStrategy>(3);
+
+        case VelocityTracker::Strategy::WLSQ2_DELTA:
+            return std::make_unique<
+                    LeastSquaresVelocityTrackerStrategy>(2,
+                                                         LeastSquaresVelocityTrackerStrategy::
+                                                                 WEIGHTING_DELTA);
+        case VelocityTracker::Strategy::WLSQ2_CENTRAL:
+            return std::make_unique<
+                    LeastSquaresVelocityTrackerStrategy>(2,
+                                                         LeastSquaresVelocityTrackerStrategy::
+                                                                 WEIGHTING_CENTRAL);
+        case VelocityTracker::Strategy::WLSQ2_RECENT:
+            return std::make_unique<
+                    LeastSquaresVelocityTrackerStrategy>(2,
+                                                         LeastSquaresVelocityTrackerStrategy::
+                                                                 WEIGHTING_RECENT);
+
+        case VelocityTracker::Strategy::INT1:
+            return std::make_unique<IntegratingVelocityTrackerStrategy>(1);
+
+        case VelocityTracker::Strategy::INT2:
+            return std::make_unique<IntegratingVelocityTrackerStrategy>(2);
+
+        case VelocityTracker::Strategy::LEGACY:
+            return std::make_unique<LegacyVelocityTrackerStrategy>();
+
+        default:
+            break;
     }
     return nullptr;
 }
@@ -227,7 +193,11 @@ void VelocityTracker::clearPointers(BitSet32 idBits) {
     mStrategy->clearPointers(idBits);
 }
 
-void VelocityTracker::addMovement(nsecs_t eventTime, BitSet32 idBits, const Position* positions) {
+void VelocityTracker::addMovement(nsecs_t eventTime, BitSet32 idBits,
+                                  const std::vector<VelocityTracker::Position>& positions) {
+    LOG_ALWAYS_FATAL_IF(idBits.count() != positions.size(),
+                        "Mismatching number of pointers, idBits=%" PRIu32 ", positions=%zu",
+                        idBits.count(), positions.size());
     while (idBits.count() > MAX_POINTERS) {
         idBits.clearLastMarkedBit();
     }
@@ -319,12 +289,12 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
         pointerIndex[i] = idBits.getIndexOfBit(event->getPointerId(i));
     }
 
-    nsecs_t eventTime;
-    Position positions[pointerCount];
+    std::vector<Position> positions;
+    positions.resize(pointerCount);
 
     size_t historySize = event->getHistorySize();
-    for (size_t h = 0; h < historySize; h++) {
-        eventTime = event->getHistoricalEventTime(h);
+    for (size_t h = 0; h <= historySize; h++) {
+        nsecs_t eventTime = event->getHistoricalEventTime(h);
         for (size_t i = 0; i < pointerCount; i++) {
             uint32_t index = pointerIndex[i];
             positions[index].x = event->getHistoricalX(i, h);
@@ -332,14 +302,6 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
         }
         addMovement(eventTime, idBits, positions);
     }
-
-    eventTime = event->getEventTime();
-    for (size_t i = 0; i < pointerCount; i++) {
-        uint32_t index = pointerIndex[i];
-        positions[index].x = event->getX(i);
-        positions[index].y = event->getY(i);
-    }
-    addMovement(eventTime, idBits, positions);
 }
 
 bool VelocityTracker::getVelocity(uint32_t id, float* outVx, float* outVy) const {
@@ -380,8 +342,9 @@ void LeastSquaresVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
     mMovements[mIndex].idBits = remainingIdBits;
 }
 
-void LeastSquaresVelocityTrackerStrategy::addMovement(nsecs_t eventTime, BitSet32 idBits,
-        const VelocityTracker::Position* positions) {
+void LeastSquaresVelocityTrackerStrategy::addMovement(
+        nsecs_t eventTime, BitSet32 idBits,
+        const std::vector<VelocityTracker::Position>& positions) {
     if (mMovements[mIndex].eventTime != eventTime) {
         // When ACTION_POINTER_DOWN happens, we will first receive ACTION_MOVE with the coordinates
         // of the existing pointers, and then ACTION_POINTER_DOWN with the coordinates that include
@@ -453,13 +416,15 @@ void LeastSquaresVelocityTrackerStrategy::addMovement(nsecs_t eventTime, BitSet3
  * http://en.wikipedia.org/wiki/Numerical_methods_for_linear_least_squares
  * http://en.wikipedia.org/wiki/Gram-Schmidt
  */
-static bool solveLeastSquares(const float* x, const float* y,
-        const float* w, uint32_t m, uint32_t n, float* outB, float* outDet) {
+static bool solveLeastSquares(const std::vector<float>& x, const std::vector<float>& y,
+                              const std::vector<float>& w, uint32_t n, float* outB, float* outDet) {
+    const size_t m = x.size();
 #if DEBUG_STRATEGY
     ALOGD("solveLeastSquares: m=%d, n=%d, x=%s, y=%s, w=%s", int(m), int(n),
             vectorToString(x, m).c_str(), vectorToString(y, m).c_str(),
             vectorToString(w, m).c_str());
 #endif
+    LOG_ALWAYS_FATAL_IF(m != y.size() || m != w.size(), "Mismatched vector sizes");
 
     // Expand the X vector to a matrix A, pre-multiplied by the weights.
     float a[n][m]; // column-major order
@@ -576,7 +541,9 @@ static bool solveLeastSquares(const float* x, const float* y,
  * the default implementation
  */
 static std::optional<std::array<float, 3>> solveUnweightedLeastSquaresDeg2(
-        const float* x, const float* y, size_t count) {
+        const std::vector<float>& x, const std::vector<float>& y) {
+    const size_t count = x.size();
+    LOG_ALWAYS_FATAL_IF(count != y.size(), "Mismatching array sizes");
     // Solving y = a*x^2 + b*x + c
     float sxi = 0, sxiyi = 0, syi = 0, sxi2 = 0, sxi3 = 0, sxi2yi = 0, sxi4 = 0;
 
@@ -628,11 +595,11 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
     outEstimator->clear();
 
     // Iterate over movement samples in reverse time order and collect samples.
-    float x[HISTORY_SIZE];
-    float y[HISTORY_SIZE];
-    float w[HISTORY_SIZE];
-    float time[HISTORY_SIZE];
-    uint32_t m = 0;
+    std::vector<float> x;
+    std::vector<float> y;
+    std::vector<float> w;
+    std::vector<float> time;
+
     uint32_t index = mIndex;
     const Movement& newestMovement = mMovements[mIndex];
     do {
@@ -647,13 +614,14 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
         }
 
         const VelocityTracker::Position& position = movement.getPosition(id);
-        x[m] = position.x;
-        y[m] = position.y;
-        w[m] = chooseWeight(index);
-        time[m] = -age * 0.000000001f;
+        x.push_back(position.x);
+        y.push_back(position.y);
+        w.push_back(chooseWeight(index));
+        time.push_back(-age * 0.000000001f);
         index = (index == 0 ? HISTORY_SIZE : index) - 1;
-    } while (++m < HISTORY_SIZE);
+    } while (x.size() < HISTORY_SIZE);
 
+    const size_t m = x.size();
     if (m == 0) {
         return false; // no data
     }
@@ -666,8 +634,8 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
 
     if (degree == 2 && mWeighting == WEIGHTING_NONE) {
         // Optimize unweighted, quadratic polynomial fit
-        std::optional<std::array<float, 3>> xCoeff = solveUnweightedLeastSquaresDeg2(time, x, m);
-        std::optional<std::array<float, 3>> yCoeff = solveUnweightedLeastSquaresDeg2(time, y, m);
+        std::optional<std::array<float, 3>> xCoeff = solveUnweightedLeastSquaresDeg2(time, x);
+        std::optional<std::array<float, 3>> yCoeff = solveUnweightedLeastSquaresDeg2(time, y);
         if (xCoeff && yCoeff) {
             outEstimator->time = newestMovement.eventTime;
             outEstimator->degree = 2;
@@ -682,8 +650,8 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
         // General case for an Nth degree polynomial fit
         float xdet, ydet;
         uint32_t n = degree + 1;
-        if (solveLeastSquares(time, x, w, m, n, outEstimator->xCoeff, &xdet)
-                && solveLeastSquares(time, y, w, m, n, outEstimator->yCoeff, &ydet)) {
+        if (solveLeastSquares(time, x, w, n, outEstimator->xCoeff, &xdet) &&
+            solveLeastSquares(time, y, w, n, outEstimator->yCoeff, &ydet)) {
             outEstimator->time = newestMovement.eventTime;
             outEstimator->degree = degree;
             outEstimator->confidence = xdet * ydet;
@@ -792,8 +760,9 @@ void IntegratingVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
     mPointerIdBits.value &= ~idBits.value;
 }
 
-void IntegratingVelocityTrackerStrategy::addMovement(nsecs_t eventTime, BitSet32 idBits,
-        const VelocityTracker::Position* positions) {
+void IntegratingVelocityTrackerStrategy::addMovement(
+        nsecs_t eventTime, BitSet32 idBits,
+        const std::vector<VelocityTracker::Position>& positions) {
     uint32_t index = 0;
     for (BitSet32 iterIdBits(idBits); !iterIdBits.isEmpty();) {
         uint32_t id = iterIdBits.clearFirstMarkedBit();
@@ -910,8 +879,9 @@ void LegacyVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
     mMovements[mIndex].idBits = remainingIdBits;
 }
 
-void LegacyVelocityTrackerStrategy::addMovement(nsecs_t eventTime, BitSet32 idBits,
-        const VelocityTracker::Position* positions) {
+void LegacyVelocityTrackerStrategy::addMovement(
+        nsecs_t eventTime, BitSet32 idBits,
+        const std::vector<VelocityTracker::Position>& positions) {
     if (++mIndex == HISTORY_SIZE) {
         mIndex = 0;
     }
@@ -1024,8 +994,9 @@ void ImpulseVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
     mMovements[mIndex].idBits = remainingIdBits;
 }
 
-void ImpulseVelocityTrackerStrategy::addMovement(nsecs_t eventTime, BitSet32 idBits,
-        const VelocityTracker::Position* positions) {
+void ImpulseVelocityTrackerStrategy::addMovement(
+        nsecs_t eventTime, BitSet32 idBits,
+        const std::vector<VelocityTracker::Position>& positions) {
     if (mMovements[mIndex].eventTime != eventTime) {
         // When ACTION_POINTER_DOWN happens, we will first receive ACTION_MOVE with the coordinates
         // of the existing pointers, and then ACTION_POINTER_DOWN with the coordinates that include

@@ -24,8 +24,12 @@
  */
 
 #include <android/input.h>
+#ifdef __linux__
+#include <android/os/IInputConstants.h>
+#endif
 #include <math.h>
 #include <stdint.h>
+#include <ui/Transform.h>
 #include <utils/BitSet.h>
 #include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
@@ -39,6 +43,13 @@
  * Additional private constants not defined in ndk/ui/input.h.
  */
 enum {
+#ifdef __linux__
+    /* This event was generated or modified by accessibility service. */
+    AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT =
+            android::os::IInputConstants::INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT, // 0x800,
+#else
+    AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT = 0x800,
+#endif
     /* Signifies that the key is being predispatched */
     AKEY_EVENT_FLAG_PREDISPATCH = 0x20000000,
 
@@ -69,6 +80,24 @@ enum {
      */
     AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE = 0x8,
 
+    /**
+     * This flag indicates that the event will not cause a focus change if it is directed to an
+     * unfocused window, even if it an ACTION_DOWN. This is typically used with pointer
+     * gestures to allow the user to direct gestures to an unfocused window without bringing it
+     * into focus.
+     */
+    AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE = 0x40,
+
+#ifdef __linux__
+    /**
+     * This event was generated or modified by accessibility service.
+     */
+    AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT =
+            android::os::IInputConstants::INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT, // 0x800,
+#else
+    AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT = 0x800,
+#endif
+
     /* Motion event is inconsistent with previously sent motion events. */
     AMOTION_EVENT_FLAG_TAINTED = 0x80000000,
 };
@@ -77,14 +106,15 @@ enum {
  * Allowed VerifiedKeyEvent flags. All other flags from KeyEvent do not get verified.
  * These values must be kept in sync with VerifiedKeyEvent.java
  */
-constexpr int32_t VERIFIED_KEY_EVENT_FLAGS = AKEY_EVENT_FLAG_CANCELED;
+constexpr int32_t VERIFIED_KEY_EVENT_FLAGS =
+        AKEY_EVENT_FLAG_CANCELED | AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT;
 
 /**
  * Allowed VerifiedMotionEventFlags. All other flags from MotionEvent do not get verified.
  * These values must be kept in sync with VerifiedMotionEvent.java
  */
-constexpr int32_t VERIFIED_MOTION_EVENT_FLAGS =
-        AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED | AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
+constexpr int32_t VERIFIED_MOTION_EVENT_FLAGS = AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED |
+        AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED | AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT;
 
 /**
  * This flag indicates that the point up event has been canceled.
@@ -140,14 +170,6 @@ enum {
 #define MAX_CONTROLLER_LEDS 4
 
 /*
- * SystemUiVisibility constants from View.
- */
-enum {
-    ASYSTEM_UI_VISIBILITY_STATUS_BAR_VISIBLE = 0,
-    ASYSTEM_UI_VISIBILITY_STATUS_BAR_HIDDEN = 0x00000001,
-};
-
-/*
  * Maximum number of pointers supported per motion event.
  * Smallest number of pointers is 1.
  * (We want at least 10 but some touch controllers obstensibly configured for 10 pointers
@@ -184,7 +206,7 @@ struct AInputDevice {
 
 namespace android {
 
-#ifdef __ANDROID__
+#ifdef __linux__
 class Parcel;
 #endif
 
@@ -218,6 +240,13 @@ enum {
     POLICY_FLAG_GESTURE = 0x00000008,
 
     POLICY_FLAG_RAW_MASK = 0x0000ffff,
+
+#ifdef __linux__
+    POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY =
+            android::os::IInputConstants::POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY,
+#else
+    POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY = 0x20000,
+#endif
 
     /* These flags are set by the input dispatcher. */
 
@@ -273,6 +302,20 @@ enum class MotionClassification : uint8_t {
 const char* motionClassificationToString(MotionClassification classification);
 
 /**
+ * Portion of FrameMetrics timeline of interest to input code.
+ */
+enum GraphicsTimeline : size_t {
+    /** Time when the app sent the buffer to SurfaceFlinger. */
+    GPU_COMPLETED_TIME = 0,
+
+    /** Time when the frame was presented on the display */
+    PRESENT_TIME = 1,
+
+    /** Total size of the 'GraphicsTimeline' array. Must always be last. */
+    SIZE = 2
+};
+
+/**
  * Generator of unique numbers used to identify input events.
  *
  * Layout of ID:
@@ -287,9 +330,9 @@ private:
 public:
     // Used to divide integer space to ensure no conflict among these sources./
     enum class Source : int32_t {
-        INPUT_READER = 0x0 << SOURCE_SHIFT,
-        INPUT_DISPATCHER = 0x1 << SOURCE_SHIFT,
-        OTHER = 0x3 << SOURCE_SHIFT, // E.g. app injected events
+        INPUT_READER = static_cast<int32_t>(0x0u << SOURCE_SHIFT),
+        INPUT_DISPATCHER = static_cast<int32_t>(0x1u << SOURCE_SHIFT),
+        OTHER = static_cast<int32_t>(0x3u << SOURCE_SHIFT), // E.g. app injected events
     };
     IdGenerator(Source source);
 
@@ -301,7 +344,7 @@ public:
 private:
     const Source mSource;
 
-    static constexpr int32_t SOURCE_MASK = 0x3 << SOURCE_SHIFT;
+    static constexpr int32_t SOURCE_MASK = static_cast<int32_t>(0x3u << SOURCE_SHIFT);
 };
 
 /**
@@ -312,9 +355,10 @@ private:
 constexpr float AMOTION_EVENT_INVALID_CURSOR_POSITION = std::numeric_limits<float>::quiet_NaN();
 
 /**
- * Invalid value of HMAC - SHA256. Any events with this HMAC value will be marked as not verified.
+ * Invalid value for display size. Used when display size isn't available for an event or doesn't
+ * matter. This is just a constant 0 so that it has no effect if unused.
  */
-constexpr std::array<uint8_t, 32> INVALID_HMAC = {0};
+constexpr int32_t AMOTION_EVENT_INVALID_DISPLAY_SIZE = 0;
 
 /*
  * Pointer coordinate data.
@@ -348,6 +392,8 @@ struct PointerCoords {
     void scale(float globalScale, float windowXScale, float windowYScale);
     void applyOffset(float xOffset, float yOffset);
 
+    void transform(const ui::Transform& transform);
+
     inline float getX() const {
         return getAxisValue(AMOTION_EVENT_AXIS_X);
     }
@@ -356,7 +402,9 @@ struct PointerCoords {
         return getAxisValue(AMOTION_EVENT_AXIS_Y);
     }
 
-#ifdef __ANDROID__
+    vec2 getXYValue() const { return vec2(getX(), getY()); }
+
+#ifdef __linux__
     status_t readFromParcel(Parcel* parcel);
     status_t writeToParcel(Parcel* parcel) const;
 #endif
@@ -524,13 +572,11 @@ public:
 
     inline void setActionButton(int32_t button) { mActionButton = button; }
 
-    inline float getXScale() const { return mXScale; }
+    inline float getXOffset() const { return mTransform.tx(); }
 
-    inline float getYScale() const { return mYScale; }
+    inline float getYOffset() const { return mTransform.ty(); }
 
-    inline float getXOffset() const { return mXOffset; }
-
-    inline float getYOffset() const { return mYOffset; }
+    inline ui::Transform getTransform() const { return mTransform; }
 
     inline float getXPrecision() const { return mXPrecision; }
 
@@ -545,6 +591,8 @@ public:
     float getYCursorPosition() const;
 
     void setCursorPosition(float x, float y);
+
+    int2 getDisplaySize() const { return {mDisplayWidth, mDisplayHeight}; }
 
     static inline bool isValidCursorPosition(float x, float y) { return !isnan(x) && !isnan(y); }
 
@@ -568,8 +616,17 @@ public:
 
     inline nsecs_t getEventTime() const { return mSampleEventTimes[getHistorySize()]; }
 
+    /**
+     * The actual raw pointer coords: whatever comes from the input device without any external
+     * transforms applied.
+     */
     const PointerCoords* getRawPointerCoords(size_t pointerIndex) const;
 
+    /**
+     * This is the raw axis value. However, for X/Y axes, this currently applies a "compat-raw"
+     * transform because many apps (incorrectly) assumed that raw == oriented-screen-space.
+     * "compat raw" is raw coordinates with screen rotation applied.
+     */
     float getRawAxisValue(int32_t axis, size_t pointerIndex) const;
 
     inline float getRawX(size_t pointerIndex) const {
@@ -582,10 +639,18 @@ public:
 
     float getAxisValue(int32_t axis, size_t pointerIndex) const;
 
+    /**
+     * Get the X coordinate of the latest sample in this MotionEvent for pointer 'pointerIndex'.
+     * Identical to calling getHistoricalX(pointerIndex, getHistorySize()).
+     */
     inline float getX(size_t pointerIndex) const {
         return getAxisValue(AMOTION_EVENT_AXIS_X, pointerIndex);
     }
 
+    /**
+     * Get the Y coordinate of the latest sample in this MotionEvent for pointer 'pointerIndex'.
+     * Identical to calling getHistoricalX(pointerIndex, getHistorySize()).
+     */
     inline float getY(size_t pointerIndex) const {
         return getAxisValue(AMOTION_EVENT_AXIS_Y, pointerIndex);
     }
@@ -624,9 +689,18 @@ public:
         return mSampleEventTimes[historicalIndex];
     }
 
+    /**
+     * The actual raw pointer coords: whatever comes from the input device without any external
+     * transforms applied.
+     */
     const PointerCoords* getHistoricalRawPointerCoords(
             size_t pointerIndex, size_t historicalIndex) const;
 
+    /**
+     * This is the raw axis value. However, for X/Y axes, this currently applies a "compat-raw"
+     * transform because many apps (incorrectly) assumed that raw == oriented-screen-space.
+     * "compat raw" is raw coordinates with screen rotation applied.
+     */
     float getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
             size_t historicalIndex) const;
 
@@ -692,11 +766,11 @@ public:
     void initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
                     std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
                     int32_t flags, int32_t edgeFlags, int32_t metaState, int32_t buttonState,
-                    MotionClassification classification, float xScale, float yScale, float xOffset,
-                    float yOffset, float xPrecision, float yPrecision, float rawXCursorPosition,
-                    float rawYCursorPosition, nsecs_t downTime, nsecs_t eventTime,
-                    size_t pointerCount, const PointerProperties* pointerProperties,
-                    const PointerCoords* pointerCoords);
+                    MotionClassification classification, const ui::Transform& transform,
+                    float xPrecision, float yPrecision, float rawXCursorPosition,
+                    float rawYCursorPosition, int32_t displayWidth, int32_t displayHeight,
+                    nsecs_t downTime, nsecs_t eventTime, size_t pointerCount,
+                    const PointerProperties* pointerProperties, const PointerCoords* pointerCoords);
 
     void copyFrom(const MotionEvent* other, bool keepHistory);
 
@@ -708,11 +782,15 @@ public:
 
     void scale(float globalScaleFactor);
 
-    // Apply 3x3 perspective matrix transformation.
+    // Set 3x3 perspective matrix transformation.
     // Matrix is in row-major form and compatible with SkMatrix.
-    void transform(const float matrix[9]);
+    void transform(const std::array<float, 9>& matrix);
 
-#ifdef __ANDROID__
+    // Apply 3x3 perspective matrix transformation only to content (do not modify mTransform).
+    // Matrix is in row-major form and compatible with SkMatrix.
+    void applyTransform(const std::array<float, 9>& matrix);
+
+#ifdef __linux__
     status_t readFromParcel(Parcel* parcel);
     status_t writeToParcel(Parcel* parcel) const;
 #endif
@@ -726,7 +804,7 @@ public:
     inline const PointerProperties* getPointerProperties() const {
         return mPointerProperties.array();
     }
-    inline const nsecs_t* getSampleEventTimes() const { return mSampleEventTimes.array(); }
+    inline const nsecs_t* getSampleEventTimes() const { return mSampleEventTimes.data(); }
     inline const PointerCoords* getSamplePointerCoords() const {
             return mSamplePointerCoords.array();
     }
@@ -734,7 +812,7 @@ public:
     static const char* getLabel(int32_t axis);
     static int32_t getAxisFromLabel(const char* label);
 
-    static const char* actionToString(int32_t action);
+    static std::string actionToString(int32_t action);
 
 protected:
     int32_t mAction;
@@ -744,17 +822,16 @@ protected:
     int32_t mMetaState;
     int32_t mButtonState;
     MotionClassification mClassification;
-    float mXScale;
-    float mYScale;
-    float mXOffset;
-    float mYOffset;
+    ui::Transform mTransform;
     float mXPrecision;
     float mYPrecision;
     float mRawXCursorPosition;
     float mRawYCursorPosition;
+    int32_t mDisplayWidth;
+    int32_t mDisplayHeight;
     nsecs_t mDownTime;
     Vector<PointerProperties> mPointerProperties;
-    Vector<nsecs_t> mSampleEventTimes;
+    std::vector<nsecs_t> mSampleEventTimes;
     Vector<PointerCoords> mSamplePointerCoords;
 };
 
@@ -778,6 +855,49 @@ public:
 protected:
     bool mHasFocus;
     bool mInTouchMode;
+};
+
+/*
+ * Capture events.
+ */
+class CaptureEvent : public InputEvent {
+public:
+    virtual ~CaptureEvent() {}
+
+    virtual int32_t getType() const override { return AINPUT_EVENT_TYPE_CAPTURE; }
+
+    inline bool getPointerCaptureEnabled() const { return mPointerCaptureEnabled; }
+
+    void initialize(int32_t id, bool pointerCaptureEnabled);
+
+    void initialize(const CaptureEvent& from);
+
+protected:
+    bool mPointerCaptureEnabled;
+};
+
+/*
+ * Drag events.
+ */
+class DragEvent : public InputEvent {
+public:
+    virtual ~DragEvent() {}
+
+    virtual int32_t getType() const override { return AINPUT_EVENT_TYPE_DRAG; }
+
+    inline bool isExiting() const { return mIsExiting; }
+
+    inline float getX() const { return mX; }
+
+    inline float getY() const { return mY; }
+
+    void initialize(int32_t id, float x, float y, bool isExiting);
+
+    void initialize(const DragEvent& from);
+
+protected:
+    bool mIsExiting;
+    float mX, mY;
 };
 
 /**
@@ -842,6 +962,8 @@ public:
     virtual KeyEvent* createKeyEvent() = 0;
     virtual MotionEvent* createMotionEvent() = 0;
     virtual FocusEvent* createFocusEvent() = 0;
+    virtual CaptureEvent* createCaptureEvent() = 0;
+    virtual DragEvent* createDragEvent() = 0;
 };
 
 /*
@@ -856,11 +978,15 @@ public:
     virtual KeyEvent* createKeyEvent() override { return &mKeyEvent; }
     virtual MotionEvent* createMotionEvent() override { return &mMotionEvent; }
     virtual FocusEvent* createFocusEvent() override { return &mFocusEvent; }
+    virtual CaptureEvent* createCaptureEvent() override { return &mCaptureEvent; }
+    virtual DragEvent* createDragEvent() override { return &mDragEvent; }
 
 private:
     KeyEvent mKeyEvent;
     MotionEvent mMotionEvent;
     FocusEvent mFocusEvent;
+    CaptureEvent mCaptureEvent;
+    DragEvent mDragEvent;
 };
 
 /*
@@ -874,6 +1000,8 @@ public:
     virtual KeyEvent* createKeyEvent() override;
     virtual MotionEvent* createMotionEvent() override;
     virtual FocusEvent* createFocusEvent() override;
+    virtual CaptureEvent* createCaptureEvent() override;
+    virtual DragEvent* createDragEvent() override;
 
     void recycle(InputEvent* event);
 
@@ -883,6 +1011,8 @@ private:
     std::queue<std::unique_ptr<KeyEvent>> mKeyEventPool;
     std::queue<std::unique_ptr<MotionEvent>> mMotionEventPool;
     std::queue<std::unique_ptr<FocusEvent>> mFocusEventPool;
+    std::queue<std::unique_ptr<CaptureEvent>> mCaptureEventPool;
+    std::queue<std::unique_ptr<DragEvent>> mDragEventPool;
 };
 
 } // namespace android

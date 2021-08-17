@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+// clang-format off
 #include "../Macros.h"
+// clang-format on
 
 #include "KeyboardInputMapper.h"
 
@@ -130,15 +132,13 @@ void KeyboardInputMapper::dump(std::string& dump) {
 
 std::optional<DisplayViewport> KeyboardInputMapper::findViewport(
         nsecs_t when, const InputReaderConfiguration* config) {
-    const std::optional<uint8_t> displayPort = getDeviceContext().getAssociatedDisplayPort();
-    if (displayPort) {
-        // Find the viewport that contains the same port
+    if (getDeviceContext().getAssociatedViewport()) {
         return getDeviceContext().getAssociatedViewport();
     }
 
     // No associated display defined, try to find default display if orientationAware.
     if (mParameters.orientationAware) {
-        return config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
+        return config->getDisplayViewportByType(ViewportType::INTERNAL);
     }
 
     return std::nullopt;
@@ -214,7 +214,8 @@ void KeyboardInputMapper::process(const RawEvent* rawEvent) {
             mCurrentHidUsage = 0;
 
             if (isKeyboardOrGamepadKey(scanCode)) {
-                processKey(rawEvent->when, rawEvent->value != 0, scanCode, usageCode);
+                processKey(rawEvent->when, rawEvent->readTime, rawEvent->value != 0, scanCode,
+                           usageCode);
             }
             break;
         }
@@ -267,7 +268,8 @@ bool KeyboardInputMapper::isMediaKey(int32_t keyCode) {
     return false;
 }
 
-void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode, int32_t usageCode) {
+void KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down, int32_t scanCode,
+                                     int32_t usageCode) {
     int32_t keyCode;
     int32_t keyMetaState;
     uint32_t policyFlags;
@@ -297,7 +299,7 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode, 
                 return;
             }
             if (policyFlags & POLICY_FLAG_GESTURE) {
-                getDeviceContext().cancelTouch(when);
+                getDeviceContext().cancelTouch(when, readTime);
             }
 
             KeyDown keyDown;
@@ -348,8 +350,9 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode, 
         policyFlags |= POLICY_FLAG_DISABLE_KEY_REPEAT;
     }
 
-    NotifyKeyArgs args(getContext()->getNextId(), when, getDeviceId(), mSource, getDisplayId(),
-                       policyFlags, down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
+    NotifyKeyArgs args(getContext()->getNextId(), when, readTime, getDeviceId(), mSource,
+                       getDisplayId(), policyFlags,
+                       down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
                        AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState, downTime);
     getListener()->notifyKey(&args);
 }
@@ -388,11 +391,14 @@ void KeyboardInputMapper::updateMetaState(int32_t keyCode) {
 bool KeyboardInputMapper::updateMetaStateIfNeeded(int32_t keyCode, bool down) {
     int32_t oldMetaState = mMetaState;
     int32_t newMetaState = android::updateMetaState(keyCode, down, oldMetaState);
-    bool metaStateChanged = oldMetaState != newMetaState;
+    int32_t metaStateChanged = oldMetaState ^ newMetaState;
     if (metaStateChanged) {
         mMetaState = newMetaState;
-        updateLedState(false);
-
+        constexpr int32_t allLedMetaState =
+                AMETA_CAPS_LOCK_ON | AMETA_NUM_LOCK_ON | AMETA_SCROLL_LOCK_ON;
+        if ((metaStateChanged & allLedMetaState) != 0) {
+            getContext()->updateLedMetaState(newMetaState & allLedMetaState);
+        }
         getContext()->updateGlobalMetaState();
     }
 
@@ -413,6 +419,26 @@ void KeyboardInputMapper::initializeLedState(LedState& ledState, int32_t led) {
 }
 
 void KeyboardInputMapper::updateLedState(bool reset) {
+    mMetaState |= getContext()->getLedMetaState();
+
+    constexpr int32_t META_NUM = 3;
+    const std::array<int32_t, META_NUM> keyCodes = {AKEYCODE_CAPS_LOCK, AKEYCODE_NUM_LOCK,
+                                                    AKEYCODE_SCROLL_LOCK};
+    const std::array<int32_t, META_NUM> metaCodes = {AMETA_CAPS_LOCK_ON, AMETA_NUM_LOCK_ON,
+                                                     AMETA_SCROLL_LOCK_ON};
+    std::array<uint8_t, META_NUM> flags = {0, 0, 0};
+    bool hasKeyLayout =
+            getDeviceContext().markSupportedKeyCodes(META_NUM, keyCodes.data(), flags.data());
+    // If the device doesn't have the physical meta key it shouldn't generate the corresponding
+    // meta state.
+    if (hasKeyLayout) {
+        for (int i = 0; i < META_NUM; i++) {
+            if (!flags[i]) {
+                mMetaState &= ~metaCodes[i];
+            }
+        }
+    }
+
     updateLedStateForModifier(mCapsLockLedState, ALED_CAPS_LOCK, AMETA_CAPS_LOCK_ON, reset);
     updateLedStateForModifier(mNumLockLedState, ALED_NUM_LOCK, AMETA_NUM_LOCK_ON, reset);
     updateLedStateForModifier(mScrollLockLedState, ALED_SCROLL_LOCK, AMETA_SCROLL_LOCK_ON, reset);

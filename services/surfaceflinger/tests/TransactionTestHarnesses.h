@@ -40,9 +40,9 @@ public:
                 ui::DisplayState displayState;
                 SurfaceComposerClient::getDisplayState(displayToken, &displayState);
 
-                DisplayConfig displayConfig;
-                SurfaceComposerClient::getActiveDisplayConfig(displayToken, &displayConfig);
-                const ui::Size& resolution = displayConfig.resolution;
+                ui::DisplayMode displayMode;
+                SurfaceComposerClient::getActiveDisplayMode(displayToken, &displayMode);
+                const ui::Size& resolution = displayMode.resolution;
 
                 sp<IBinder> vDisplay;
                 sp<IGraphicBufferProducer> producer;
@@ -57,6 +57,8 @@ public:
                                                       // Sample usage bits from screenrecord
                                                       GRALLOC_USAGE_HW_VIDEO_ENCODER |
                                                               GRALLOC_USAGE_SW_READ_OFTEN);
+                sp<BufferListener> listener = new BufferListener(this);
+                itemConsumer->setFrameAvailableListener(listener);
 
                 vDisplay = SurfaceComposerClient::createDisplay(String8("VirtualDisplay"),
                                                                 false /*secure*/);
@@ -65,9 +67,16 @@ public:
                 t.setDisplaySurface(vDisplay, producer);
                 t.setDisplayLayerStack(vDisplay, 0);
                 t.setDisplayProjection(vDisplay, displayState.orientation,
-                                       Rect(displayState.viewport), Rect(resolution));
+                                       Rect(displayState.layerStackSpaceRect), Rect(resolution));
                 t.apply();
                 SurfaceComposerClient::Transaction().apply(true);
+
+                std::unique_lock lock(mMutex);
+                mAvailable = false;
+                // Wait for frame buffer ready.
+                mCondition.wait_for(lock, std::chrono::seconds(2),
+                                    [this]() NO_THREAD_SAFETY_ANALYSIS { return mAvailable; });
+
                 BufferItem item;
                 itemConsumer->acquireBuffer(&item, 0, true);
                 auto sc = std::make_unique<ScreenCapture>(item.mGraphicBuffer);
@@ -80,6 +89,23 @@ public:
 protected:
     LayerTransactionTest* mDelegate;
     RenderPath mRenderPath;
+    std::mutex mMutex;
+    std::condition_variable mCondition;
+    bool mAvailable = false;
+
+    void onFrameAvailable() {
+        std::unique_lock lock(mMutex);
+        mAvailable = true;
+        mCondition.notify_all();
+    }
+
+    class BufferListener : public ConsumerBase::FrameAvailableListener {
+    public:
+        BufferListener(LayerRenderPathTestHarness* owner) : mOwner(owner) {}
+        LayerRenderPathTestHarness* mOwner;
+
+        void onFrameAvailable(const BufferItem& /*item*/) { mOwner->onFrameAvailable(); }
+    };
 };
 
 class LayerTypeTransactionHarness : public LayerTransactionTest {
@@ -98,14 +124,14 @@ public:
                                                  outTransformHint, format);
     }
 
-    void fillLayerColor(const sp<SurfaceControl>& layer, const Color& color, int32_t bufferWidth,
-                        int32_t bufferHeight) {
+    void fillLayerColor(const sp<SurfaceControl>& layer, const Color& color, uint32_t bufferWidth,
+                        uint32_t bufferHeight) {
         ASSERT_NO_FATAL_FAILURE(LayerTransactionTest::fillLayerColor(mLayerType, layer, color,
                                                                      bufferWidth, bufferHeight));
     }
 
-    void fillLayerQuadrant(const sp<SurfaceControl>& layer, int32_t bufferWidth,
-                           int32_t bufferHeight, const Color& topLeft, const Color& topRight,
+    void fillLayerQuadrant(const sp<SurfaceControl>& layer, uint32_t bufferWidth,
+                           uint32_t bufferHeight, const Color& topLeft, const Color& topRight,
                            const Color& bottomLeft, const Color& bottomRight) {
         ASSERT_NO_FATAL_FAILURE(LayerTransactionTest::fillLayerQuadrant(mLayerType, layer,
                                                                         bufferWidth, bufferHeight,

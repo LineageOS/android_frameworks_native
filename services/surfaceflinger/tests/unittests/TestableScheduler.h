@@ -16,52 +16,36 @@
 
 #pragma once
 
+#include <Scheduler/Scheduler.h>
 #include <gmock/gmock.h>
 #include <gui/ISurfaceComposer.h>
 
-#include "Scheduler/DispSync.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/LayerHistory.h"
 #include "Scheduler/Scheduler.h"
+#include "Scheduler/VSyncTracker.h"
+#include "Scheduler/VsyncController.h"
+#include "mock/MockVSyncTracker.h"
+#include "mock/MockVsyncController.h"
 
 namespace android {
 
-class TestableScheduler : public Scheduler, private ISchedulerCallback {
+class TestableScheduler : public Scheduler {
 public:
-    TestableScheduler(const scheduler::RefreshRateConfigs& configs, bool useContentDetectionV2)
-          : Scheduler([](bool) {}, configs, *this, useContentDetectionV2, true) {
-        if (mUseContentDetectionV2) {
-            mLayerHistory = std::make_unique<scheduler::impl::LayerHistoryV2>(configs);
-        } else {
-            mLayerHistory = std::make_unique<scheduler::impl::LayerHistory>();
-        }
-    }
+    TestableScheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback)
+          : TestableScheduler(std::make_unique<mock::VsyncController>(),
+                              std::make_unique<mock::VSyncTracker>(), configs, callback) {}
 
-    TestableScheduler(std::unique_ptr<DispSync> primaryDispSync,
-                      std::unique_ptr<EventControlThread> eventControlThread,
-                      const scheduler::RefreshRateConfigs& configs, bool useContentDetectionV2)
-          : Scheduler(std::move(primaryDispSync), std::move(eventControlThread), configs, *this,
-                      useContentDetectionV2, true) {
-        if (mUseContentDetectionV2) {
-            mLayerHistory = std::make_unique<scheduler::impl::LayerHistoryV2>(configs);
-        } else {
-            mLayerHistory = std::make_unique<scheduler::impl::LayerHistory>();
-        }
-    }
+    TestableScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
+                      std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
+                      const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback)
+          : Scheduler({std::move(vsyncController), std::move(vsyncTracker), nullptr}, configs,
+                      callback, createLayerHistory(configs),
+                      {.supportKernelTimer = false, .useContentDetection = true}) {}
 
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
         return Scheduler::createConnection(std::move(eventThread));
-    }
-
-    size_t layerHistorySize() const NO_THREAD_SAFETY_ANALYSIS {
-        if (mUseContentDetectionV2) {
-            return static_cast<scheduler::impl::LayerHistoryV2*>(mLayerHistory.get())
-                    ->mLayerInfos.size();
-        } else {
-            return static_cast<scheduler::impl::LayerHistory*>(mLayerHistory.get())
-                    ->mLayerInfos.size();
-        }
     }
 
     /* ------------------------------------------------------------------------
@@ -69,14 +53,51 @@ public:
      * post-conditions.
      */
     auto& mutablePrimaryHWVsyncEnabled() { return mPrimaryHWVsyncEnabled; }
-    auto& mutableEventControlThread() { return mEventControlThread; }
-    auto& mutablePrimaryDispSync() { return mPrimaryDispSync; }
     auto& mutableHWVsyncAvailable() { return mHWVsyncAvailable; }
-    auto mutableLayerHistory() {
-        return static_cast<scheduler::impl::LayerHistory*>(mLayerHistory.get());
+
+    bool hasLayerHistory() const { return static_cast<bool>(mLayerHistory); }
+
+    auto* mutableLayerHistory() { return mLayerHistory.get(); }
+
+    size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {
+        if (!mLayerHistory) return 0;
+        return mutableLayerHistory()->mLayerInfos.size();
     }
-    auto mutableLayerHistoryV2() {
-        return static_cast<scheduler::impl::LayerHistoryV2*>(mLayerHistory.get());
+
+    size_t getNumActiveLayers() NO_THREAD_SAFETY_ANALYSIS {
+        if (!mLayerHistory) return 0;
+        return mutableLayerHistory()->mActiveLayersEnd;
+    }
+
+    void replaceTouchTimer(int64_t millis) {
+        if (mTouchTimer) {
+            mTouchTimer.reset();
+        }
+        mTouchTimer.emplace(
+                "Testable Touch timer", std::chrono::milliseconds(millis),
+                [this] { touchTimerCallback(TimerState::Reset); },
+                [this] { touchTimerCallback(TimerState::Expired); });
+        mTouchTimer->start();
+    }
+
+    bool isTouchActive() {
+        std::lock_guard<std::mutex> lock(mFeatureStateLock);
+        return mFeatures.touch == Scheduler::TouchState::Active;
+    }
+
+    void dispatchCachedReportedMode() {
+        std::lock_guard<std::mutex> lock(mFeatureStateLock);
+        return Scheduler::dispatchCachedReportedMode();
+    }
+
+    void clearOptionalFieldsInFeatures() {
+        std::lock_guard<std::mutex> lock(mFeatureStateLock);
+        mFeatures.cachedModeChangedParams.reset();
+    }
+
+    void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
+                                        DisplayModeId modeId, nsecs_t vsyncPeriod) {
+        return Scheduler::onNonPrimaryDisplayModeChanged(handle, displayId, modeId, vsyncPeriod);
     }
 
     ~TestableScheduler() {
@@ -84,15 +105,9 @@ public:
         // not report a leaked object, since the Scheduler instance may
         // still be referenced by something despite our best efforts to destroy
         // it after each test is done.
-        mutableEventControlThread().reset();
-        mutablePrimaryDispSync().reset();
+        mVsyncSchedule.controller.reset();
         mConnections.clear();
     }
-
-private:
-    void changeRefreshRate(const RefreshRate&, ConfigEvent) override {}
-    void repaintEverythingForHWC() override {}
-    void kernelTimerChanged(bool /*expired*/) override {}
 };
 
 } // namespace android

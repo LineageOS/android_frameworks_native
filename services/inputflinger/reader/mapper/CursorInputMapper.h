@@ -105,6 +105,8 @@ private:
     VelocityControl mWheelYVelocityControl;
 
     int32_t mOrientation;
+    int32_t mDisplayWidth;
+    int32_t mDisplayHeight;
 
     std::shared_ptr<PointerControllerInterface> mPointerController;
 
@@ -114,7 +116,7 @@ private:
     void configureParameters();
     void dumpParameters(std::string& dump);
 
-    void sync(nsecs_t when);
+    void sync(nsecs_t when, nsecs_t readTime);
 };
 
 } // namespace android

@@ -16,11 +16,17 @@
 
 #pragma once
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wextra"
+
+#include <cutils/properties.h>
 #include <gtest/gtest.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
-#include <ui/DisplayConfig.h>
+#include <ui/DisplayMode.h>
 
 #include "BufferGenerator.h"
 #include "utils/ScreenshotUtils.h"
@@ -40,6 +46,8 @@ protected:
 
         sp<ISurfaceComposer> sf(ComposerService::getComposerService());
         ASSERT_NO_FATAL_FAILURE(sf->getColorManagement(&mColorManagementUsed));
+
+        mCaptureArgs.displayToken = mDisplay;
     }
 
     virtual void TearDown() {
@@ -73,8 +81,9 @@ protected:
                                              PixelFormat format, uint32_t flags,
                                              SurfaceControl* parent = nullptr,
                                              uint32_t* outTransformHint = nullptr) {
-        auto layer = client->createSurface(String8(name), width, height, format, flags, parent,
-                                           LayerMetadata(), outTransformHint);
+        sp<IBinder> parentHandle = (parent) ? parent->getHandle() : nullptr;
+        auto layer = client->createSurface(String8(name), width, height, format, flags,
+                                           parentHandle, LayerMetadata(), outTransformHint);
         EXPECT_NE(nullptr, layer.get()) << "failed to create SurfaceControl";
         return layer;
     }
@@ -116,7 +125,7 @@ protected:
     }
 
     virtual void fillBufferQueueLayerColor(const sp<SurfaceControl>& layer, const Color& color,
-                                           int32_t bufferWidth, int32_t bufferHeight) {
+                                           uint32_t bufferWidth, uint32_t bufferHeight) {
         ANativeWindow_Buffer buffer;
         ASSERT_NO_FATAL_FAILURE(buffer = getBufferQueueLayerBuffer(layer));
         TransactionUtils::fillANativeWindowBufferColor(buffer,
@@ -130,7 +139,7 @@ protected:
         sp<GraphicBuffer> buffer =
                 new GraphicBuffer(bufferWidth, bufferHeight, PIXEL_FORMAT_RGBA_8888, 1,
                                   BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
-                                          BufferUsage::COMPOSER_OVERLAY,
+                                          BufferUsage::COMPOSER_OVERLAY | BufferUsage::GPU_TEXTURE,
                                   "test");
         TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, bufferWidth, bufferHeight),
                                                  color);
@@ -138,7 +147,7 @@ protected:
     }
 
     void fillLayerColor(uint32_t mLayerType, const sp<SurfaceControl>& layer, const Color& color,
-                        int32_t bufferWidth, int32_t bufferHeight) {
+                        uint32_t bufferWidth, uint32_t bufferHeight) {
         switch (mLayerType) {
             case ISurfaceComposerClient::eFXSurfaceBufferQueue:
                 fillBufferQueueLayerColor(layer, color, bufferWidth, bufferHeight);
@@ -199,7 +208,7 @@ protected:
         sp<GraphicBuffer> buffer =
                 new GraphicBuffer(bufferWidth, bufferHeight, PIXEL_FORMAT_RGBA_8888, 1,
                                   BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
-                                          BufferUsage::COMPOSER_OVERLAY,
+                                          BufferUsage::COMPOSER_OVERLAY | BufferUsage::GPU_TEXTURE,
                                   "test");
 
         ASSERT_TRUE(bufferWidth % 2 == 0 && bufferHeight % 2 == 0);
@@ -235,7 +244,24 @@ protected:
         return bufferGenerator.get(outBuffer, outFence);
     }
 
+    static ui::Size getBufferSize() {
+        static BufferGenerator bufferGenerator;
+        return bufferGenerator.getSize();
+    }
+
     sp<SurfaceComposerClient> mClient;
+
+    bool deviceSupportsBlurs() {
+        char value[PROPERTY_VALUE_MAX];
+        property_get("ro.surface_flinger.supports_background_blur", value, "0");
+        return atoi(value);
+    }
+
+    bool deviceUsesSkiaRenderEngine() {
+        char value[PROPERTY_VALUE_MAX];
+        property_get("debug.renderengine.backend", value, "default");
+        return strstr(value, "skia") != nullptr;
+    }
 
     sp<IBinder> mDisplay;
     uint32_t mDisplayWidth;
@@ -249,21 +275,24 @@ protected:
     sp<SurfaceControl> mBlackBgSurface;
     bool mColorManagementUsed;
 
+    DisplayCaptureArgs mCaptureArgs;
+    ScreenCaptureResults mCaptureResults;
+
 private:
     void SetUpDisplay() {
         mDisplay = mClient->getInternalDisplayToken();
         ASSERT_FALSE(mDisplay == nullptr) << "failed to get display";
 
-        DisplayConfig config;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(mDisplay, &config));
-        mDisplayRect = Rect(config.resolution);
+        ui::DisplayMode mode;
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(mDisplay, &mode));
+        mDisplayRect = Rect(mode.resolution);
         mDisplayWidth = mDisplayRect.getWidth();
         mDisplayHeight = mDisplayRect.getHeight();
 
         // After a new buffer is queued, SurfaceFlinger is notified and will
         // latch the new buffer on next vsync.  Let's heuristically wait for 3
         // vsyncs.
-        mBufferPostDelay = static_cast<int32_t>(1e6 / config.refreshRate) * 3;
+        mBufferPostDelay = static_cast<int32_t>(1e6 / mode.refreshRate) * 3;
 
         mDisplayLayerStack = 0;
 
@@ -274,7 +303,7 @@ private:
         // set layer stack (b/68888219)
         Transaction t;
         t.setDisplayLayerStack(mDisplay, mDisplayLayerStack);
-        t.setCrop_legacy(mBlackBgSurface, Rect(0, 0, mDisplayWidth, mDisplayHeight));
+        t.setCrop(mBlackBgSurface, Rect(0, 0, mDisplayWidth, mDisplayHeight));
         t.setLayerStack(mBlackBgSurface, mDisplayLayerStack);
         t.setColor(mBlackBgSurface, half3{0, 0, 0});
         t.setLayer(mBlackBgSurface, mLayerZBase);
@@ -294,3 +323,6 @@ private:
 };
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"

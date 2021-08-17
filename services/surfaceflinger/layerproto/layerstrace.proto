@@ -42,7 +42,7 @@ message LayersTraceFileProto {
 /* one window manager trace entry. */
 message LayersTraceProto {
     /* required: elapsed realtime in nanos since boot of when this entry was logged */
-    optional fixed64 elapsed_realtime_nanos = 1;
+    optional sfixed64 elapsed_realtime_nanos = 1;
 
     /* where the trace originated */
     optional string where = 2;
@@ -56,5 +56,5 @@ message LayersTraceProto {
     optional bool excludes_composition_state = 5;
 
     /* Number of missed entries since the last entry was recorded. */
-    optional int32 missed_entries = 6;
+    optional uint32 missed_entries = 6;
 }

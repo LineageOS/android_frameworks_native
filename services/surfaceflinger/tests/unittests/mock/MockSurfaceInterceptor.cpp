@@ -20,15 +20,13 @@
 
 #include "mock/MockSurfaceInterceptor.h"
 
-namespace android {
-namespace mock {
+namespace android::mock {
 
 // Explicit default instantiation is recommended.
 SurfaceInterceptor::SurfaceInterceptor() = default;
 SurfaceInterceptor::~SurfaceInterceptor() = default;
 
-} // namespace mock
-} // namespace android
+} // namespace android::mock
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"

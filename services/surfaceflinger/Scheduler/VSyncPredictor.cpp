@@ -16,7 +16,7 @@
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wextra"
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 //#define LOG_NDEBUG 0
@@ -30,6 +30,10 @@
 #include <algorithm>
 #include <chrono>
 #include <sstream>
+#include "RefreshRateConfigs.h"
+
+#undef LOG_TAG
+#define LOG_TAG "VSyncPredictor"
 
 namespace android::scheduler {
 using base::StringAppendF;
@@ -54,7 +58,7 @@ inline void VSyncPredictor::traceInt64If(const char* name, int64_t value) const 
     }
 }
 
-inline size_t VSyncPredictor::next(int i) const {
+inline size_t VSyncPredictor::next(size_t i) const {
     return (i + 1) % mTimestamps.size();
 }
 
@@ -65,16 +69,30 @@ bool VSyncPredictor::validate(nsecs_t timestamp) const {
 
     auto const aValidTimestamp = mTimestamps[mLastTimestampIndex];
     auto const percent = (timestamp - aValidTimestamp) % mIdealPeriod * kMaxPercent / mIdealPeriod;
-    return percent < kOutlierTolerancePercent || percent > (kMaxPercent - kOutlierTolerancePercent);
+    if (percent >= kOutlierTolerancePercent &&
+        percent <= (kMaxPercent - kOutlierTolerancePercent)) {
+        return false;
+    }
+
+    const auto iter = std::min_element(mTimestamps.begin(), mTimestamps.end(),
+                                       [timestamp](nsecs_t a, nsecs_t b) {
+                                           return std::abs(timestamp - a) < std::abs(timestamp - b);
+                                       });
+    const auto distancePercent = std::abs(*iter - timestamp) * kMaxPercent / mIdealPeriod;
+    if (distancePercent < kOutlierTolerancePercent) {
+        // duplicate timestamp
+        return false;
+    }
+    return true;
 }
 
 nsecs_t VSyncPredictor::currentPeriod() const {
-    std::lock_guard<std::mutex> lk(mMutex);
-    return std::get<0>(mRateMap.find(mIdealPeriod)->second);
+    std::lock_guard lock(mMutex);
+    return mRateMap.find(mIdealPeriod)->second.slope;
 }
 
 bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
 
     if (!validate(timestamp)) {
         // VSR could elect to ignore the incongruent timestamp or resetModel(). If ts is ignored,
@@ -82,6 +100,9 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
         // in the learning phase we should just clear all timestamps and start
         // over.
         if (mTimestamps.size() < kMinimumSamplesForPrediction) {
+            // Add the timestamp to mTimestamps before clearing it so we could
+            // update mKnownTimestamp based on the new timestamp.
+            mTimestamps.push_back(timestamp);
             clearTimestamps();
         } else if (!mTimestamps.empty()) {
             mKnownTimestamp =
@@ -126,7 +147,7 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     // normalizing to the oldest timestamp cuts down on error in calculating the intercept.
     auto const oldest_ts = *std::min_element(mTimestamps.begin(), mTimestamps.end());
     auto it = mRateMap.find(mIdealPeriod);
-    auto const currentPeriod = std::get<0>(it->second);
+    auto const currentPeriod = it->second.slope;
     // TODO (b/144707443): its important that there's some precision in the mean of the ordinals
     //                     for the intercept calculation, so scale the ordinals by 1000 to continue
     //                     fixed point calculation. Explore expanding
@@ -142,14 +163,14 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
 
     auto meanTS = scheduler::calculate_mean(vsyncTS);
     auto meanOrdinal = scheduler::calculate_mean(ordinals);
-    for (auto i = 0; i < vsyncTS.size(); i++) {
+    for (size_t i = 0; i < vsyncTS.size(); i++) {
         vsyncTS[i] -= meanTS;
         ordinals[i] -= meanOrdinal;
     }
 
     auto top = 0ll;
     auto bottom = 0ll;
-    for (auto i = 0; i < vsyncTS.size(); i++) {
+    for (size_t i = 0; i < vsyncTS.size(); i++) {
         top += vsyncTS[i] * ordinals[i];
         bottom += ordinals[i] * ordinals[i];
     }
@@ -180,10 +201,8 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     return true;
 }
 
-nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
-    std::lock_guard<std::mutex> lk(mMutex);
-
-    auto const [slope, intercept] = getVSyncPredictionModel(lk);
+nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) const {
+    auto const [slope, intercept] = getVSyncPredictionModelLocked();
 
     if (mTimestamps.empty()) {
         traceInt64If("VSP-mode", 1);
@@ -218,20 +237,81 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
     return prediction;
 }
 
-std::tuple<nsecs_t, nsecs_t> VSyncPredictor::getVSyncPredictionModel() const {
-    std::lock_guard<std::mutex> lk(mMutex);
-    return VSyncPredictor::getVSyncPredictionModel(lk);
+nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
+    std::lock_guard lock(mMutex);
+    return nextAnticipatedVSyncTimeFromLocked(timePoint);
 }
 
-std::tuple<nsecs_t, nsecs_t> VSyncPredictor::getVSyncPredictionModel(
-        std::lock_guard<std::mutex> const&) const {
+/*
+ * Returns whether a given vsync timestamp is in phase with a frame rate.
+ * If the frame rate is not a divider of the refresh rate, it is always considered in phase.
+ * For example, if the vsync timestamps are (16.6,33.3,50.0,66.6):
+ * isVSyncInPhase(16.6, 30) = true
+ * isVSyncInPhase(33.3, 30) = false
+ * isVSyncInPhase(50.0, 30) = true
+ */
+bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const {
+    struct VsyncError {
+        nsecs_t vsyncTimestamp;
+        float error;
+
+        bool operator<(const VsyncError& other) const { return error < other.error; }
+    };
+
+    std::lock_guard lock(mMutex);
+    const auto divider =
+            RefreshRateConfigs::getFrameRateDivider(Fps::fromPeriodNsecs(mIdealPeriod), frameRate);
+    if (divider <= 1 || timePoint == 0) {
+        return true;
+    }
+
+    const nsecs_t period = mRateMap[mIdealPeriod].slope;
+    const nsecs_t justBeforeTimePoint = timePoint - period / 2;
+    const nsecs_t dividedPeriod = mIdealPeriod / divider;
+
+    // If this is the first time we have asked about this divider with the
+    // current vsync period, it is considered in phase and we store the closest
+    // vsync timestamp
+    const auto knownTimestampIter = mRateDividerKnownTimestampMap.find(dividedPeriod);
+    if (knownTimestampIter == mRateDividerKnownTimestampMap.end()) {
+        const auto vsync = nextAnticipatedVSyncTimeFromLocked(justBeforeTimePoint);
+        mRateDividerKnownTimestampMap[dividedPeriod] = vsync;
+        return true;
+    }
+
+    // Find the next N vsync timestamp where N is the divider.
+    // One of these vsyncs will be in phase. We return the one which is
+    // the most aligned with the last known in phase vsync
+    std::vector<VsyncError> vsyncs(static_cast<size_t>(divider));
+    const nsecs_t knownVsync = knownTimestampIter->second;
+    nsecs_t point = justBeforeTimePoint;
+    for (size_t i = 0; i < divider; i++) {
+        const nsecs_t vsync = nextAnticipatedVSyncTimeFromLocked(point);
+        const auto numPeriods = static_cast<float>(vsync - knownVsync) / (period * divider);
+        const auto error = std::abs(std::round(numPeriods) - numPeriods);
+        vsyncs[i] = {vsync, error};
+        point = vsync + 1;
+    }
+
+    const auto minVsyncError = std::min_element(vsyncs.begin(), vsyncs.end());
+    mRateDividerKnownTimestampMap[dividedPeriod] = minVsyncError->vsyncTimestamp;
+    return std::abs(minVsyncError->vsyncTimestamp - timePoint) < period / 2;
+}
+
+VSyncPredictor::Model VSyncPredictor::getVSyncPredictionModel() const {
+    std::lock_guard lock(mMutex);
+    const auto model = VSyncPredictor::getVSyncPredictionModelLocked();
+    return {model.slope, model.intercept};
+}
+
+VSyncPredictor::Model VSyncPredictor::getVSyncPredictionModelLocked() const {
     return mRateMap.find(mIdealPeriod)->second;
 }
 
 void VSyncPredictor::setPeriod(nsecs_t period) {
     ATRACE_CALL();
 
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
     static constexpr size_t kSizeLimit = 30;
     if (CC_UNLIKELY(mRateMap.size() == kSizeLimit)) {
         mRateMap.erase(mRateMap.begin());
@@ -260,29 +340,29 @@ void VSyncPredictor::clearTimestamps() {
 }
 
 bool VSyncPredictor::needsMoreSamples() const {
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
     return mTimestamps.size() < kMinimumSamplesForPrediction;
 }
 
 void VSyncPredictor::resetModel() {
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
     mRateMap[mIdealPeriod] = {mIdealPeriod, 0};
     clearTimestamps();
 }
 
 void VSyncPredictor::dump(std::string& result) const {
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
     StringAppendF(&result, "\tmIdealPeriod=%.2f\n", mIdealPeriod / 1e6f);
     StringAppendF(&result, "\tRefresh Rate Map:\n");
     for (const auto& [idealPeriod, periodInterceptTuple] : mRateMap) {
         StringAppendF(&result,
                       "\t\tFor ideal period %.2fms: period = %.2fms, intercept = %" PRId64 "\n",
-                      idealPeriod / 1e6f, std::get<0>(periodInterceptTuple) / 1e6f,
-                      std::get<1>(periodInterceptTuple));
+                      idealPeriod / 1e6f, periodInterceptTuple.slope / 1e6f,
+                      periodInterceptTuple.intercept);
     }
 }
 
 } // namespace android::scheduler
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
+#pragma clang diagnostic pop // ignored "-Wextra"

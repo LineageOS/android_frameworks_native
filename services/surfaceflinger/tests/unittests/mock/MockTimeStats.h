@@ -20,15 +20,14 @@
 
 #include "TimeStats/TimeStats.h"
 
-namespace android {
-namespace mock {
+namespace android::mock {
 
 class TimeStats : public android::TimeStats {
 public:
     TimeStats();
     ~TimeStats() override;
 
-    MOCK_METHOD0(onBootFinished, void());
+    MOCK_METHOD2(onPullAtom, bool(const int, std::string*));
     MOCK_METHOD3(parseArgs, void(bool, const Vector<String16>&, std::string&));
     MOCK_METHOD0(isEnabled, bool());
     MOCK_METHOD0(miniDump, std::string());
@@ -42,15 +41,20 @@ public:
     MOCK_METHOD2(recordFrameDuration, void(nsecs_t, nsecs_t));
     MOCK_METHOD2(recordRenderEngineDuration, void(nsecs_t, nsecs_t));
     MOCK_METHOD2(recordRenderEngineDuration, void(nsecs_t, const std::shared_ptr<FenceTime>&));
-    MOCK_METHOD4(setPostTime, void(int32_t, uint64_t, const std::string&, nsecs_t));
+    MOCK_METHOD6(setPostTime, void(int32_t, uint64_t, const std::string&, uid_t, nsecs_t, int32_t));
     MOCK_METHOD2(incrementLatchSkipped, void(int32_t layerId, LatchSkipReason reason));
     MOCK_METHOD1(incrementBadDesiredPresent, void(int32_t layerId));
     MOCK_METHOD3(setLatchTime, void(int32_t, uint64_t, nsecs_t));
     MOCK_METHOD3(setDesiredTime, void(int32_t, uint64_t, nsecs_t));
     MOCK_METHOD3(setAcquireTime, void(int32_t, uint64_t, nsecs_t));
     MOCK_METHOD3(setAcquireFence, void(int32_t, uint64_t, const std::shared_ptr<FenceTime>&));
-    MOCK_METHOD3(setPresentTime, void(int32_t, uint64_t, nsecs_t));
-    MOCK_METHOD3(setPresentFence, void(int32_t, uint64_t, const std::shared_ptr<FenceTime>&));
+    MOCK_METHOD7(setPresentTime,
+                 void(int32_t, uint64_t, nsecs_t, Fps, std::optional<Fps>, SetFrameRateVote,
+                      int32_t));
+    MOCK_METHOD7(setPresentFence,
+                 void(int32_t, uint64_t, const std::shared_ptr<FenceTime>&, Fps, std::optional<Fps>,
+                      SetFrameRateVote, int32_t));
+    MOCK_METHOD1(incrementJankyFrames, void(const JankyFramesInfo&));
     MOCK_METHOD1(onDestroy, void(int32_t));
     MOCK_METHOD2(removeTimeRecord, void(int32_t, uint64_t));
     MOCK_METHOD1(setPowerMode,
@@ -59,5 +63,4 @@ public:
     MOCK_METHOD1(setPresentFenceGlobal, void(const std::shared_ptr<FenceTime>&));
 };
 
-} // namespace mock
-} // namespace android
+} // namespace android::mock
