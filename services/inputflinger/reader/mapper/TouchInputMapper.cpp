@@ -896,6 +896,13 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mTiltXScale = M_PI / 180;
             mTiltYScale = M_PI / 180;
 
+            if (mRawPointerAxes.tiltX.resolution) {
+                mTiltXScale = 1.0 / mRawPointerAxes.tiltX.resolution;
+            }
+            if (mRawPointerAxes.tiltY.resolution) {
+                mTiltYScale = 1.0 / mRawPointerAxes.tiltY.resolution;
+            }
+
             mOrientedRanges.haveTilt = true;
 
             mOrientedRanges.tilt.axis = AMOTION_EVENT_AXIS_TILT;
