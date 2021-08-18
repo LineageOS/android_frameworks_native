@@ -54,8 +54,8 @@ bool WindowInfo::operator==(const WindowInfo& info) const {
             info.frameLeft == frameLeft && info.frameTop == frameTop &&
             info.frameRight == frameRight && info.frameBottom == frameBottom &&
             info.surfaceInset == surfaceInset && info.globalScaleFactor == globalScaleFactor &&
-            info.transform == transform && info.displayWidth == displayWidth &&
-            info.displayHeight == displayHeight &&
+            info.transform == transform && info.displayOrientation == displayOrientation &&
+            info.displayWidth == displayWidth && info.displayHeight == displayHeight &&
             info.touchableRegion.hasSameRects(touchableRegion) && info.visible == visible &&
             info.trustedOverlay == trustedOverlay && info.focusable == focusable &&
             info.touchOcclusionMode == touchOcclusionMode && info.hasWallpaper == hasWallpaper &&
@@ -97,6 +97,7 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeFloat(transform.dtdy()) ?:
         parcel->writeFloat(transform.dsdy()) ?:
         parcel->writeFloat(transform.ty()) ?:
+        parcel->writeUint32(displayOrientation) ?:
         parcel->writeInt32(displayWidth) ?:
         parcel->writeInt32(displayHeight) ?:
         parcel->writeBool(visible) ?:
@@ -154,6 +155,7 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
         parcel->readFloat(&dtdy) ?:
         parcel->readFloat(&dsdy) ?:
         parcel->readFloat(&ty) ?:
+        parcel->readUint32(&displayOrientation) ?:
         parcel->readInt32(&displayWidth) ?:
         parcel->readInt32(&displayHeight) ?:
         parcel->readBool(&visible) ?:
