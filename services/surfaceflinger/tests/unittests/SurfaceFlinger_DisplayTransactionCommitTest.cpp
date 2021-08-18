@@ -22,8 +22,7 @@
 namespace android {
 namespace {
 
-class HandleTransactionLockedTest : public DisplayTransactionTest {
-public:
+struct DisplayTransactionCommitTest : DisplayTransactionTest {
     template <typename Case>
     void setupCommonPreconditions();
 
@@ -55,7 +54,7 @@ public:
 };
 
 template <typename Case>
-void HandleTransactionLockedTest::setupCommonPreconditions() {
+void DisplayTransactionCommitTest::setupCommonPreconditions() {
     // Wide color displays support is configured appropriately
     Case::WideColorSupport::injectConfigChange(this);
 
@@ -68,7 +67,7 @@ void HandleTransactionLockedTest::setupCommonPreconditions() {
 }
 
 template <typename Case, bool connected>
-void HandleTransactionLockedTest::expectHotplugReceived(mock::EventThread* eventThread) {
+void DisplayTransactionCommitTest::expectHotplugReceived(mock::EventThread* eventThread) {
     const auto convert = [](auto physicalDisplayId) {
         return std::make_optional(DisplayId{physicalDisplayId});
     };
@@ -79,7 +78,7 @@ void HandleTransactionLockedTest::expectHotplugReceived(mock::EventThread* event
 }
 
 template <typename Case>
-void HandleTransactionLockedTest::setupCommonCallExpectationsForConnectProcessing() {
+void DisplayTransactionCommitTest::setupCommonCallExpectationsForConnectProcessing() {
     Case::Display::setupHwcHotplugCallExpectations(this);
 
     Case::Display::setupFramebufferConsumerBufferQueueCallExpectations(this);
@@ -97,7 +96,7 @@ void HandleTransactionLockedTest::setupCommonCallExpectationsForConnectProcessin
 }
 
 template <typename Case>
-void HandleTransactionLockedTest::setupCommonCallExpectationsForDisconnectProcessing() {
+void DisplayTransactionCommitTest::setupCommonCallExpectationsForDisconnectProcessing() {
     EXPECT_CALL(*mSurfaceInterceptor, saveDisplayDeletion(_)).Times(1);
 
     expectHotplugReceived<Case, false>(mEventThread);
@@ -105,7 +104,7 @@ void HandleTransactionLockedTest::setupCommonCallExpectationsForDisconnectProces
 }
 
 template <typename Case>
-void HandleTransactionLockedTest::verifyDisplayIsConnected(const sp<IBinder>& displayToken) {
+void DisplayTransactionCommitTest::verifyDisplayIsConnected(const sp<IBinder>& displayToken) {
     // The display device should have been set up in the list of displays.
     ASSERT_TRUE(hasDisplayDevice(displayToken));
     const auto& device = getDisplayDevice(displayToken);
@@ -137,7 +136,7 @@ void HandleTransactionLockedTest::verifyDisplayIsConnected(const sp<IBinder>& di
 }
 
 template <typename Case>
-void HandleTransactionLockedTest::verifyPhysicalDisplayIsConnected() {
+void DisplayTransactionCommitTest::verifyPhysicalDisplayIsConnected() {
     // HWComposer should have an entry for the display
     EXPECT_TRUE(hasPhysicalHwcDisplay(Case::Display::HWC_DISPLAY_ID));
 
@@ -150,14 +149,14 @@ void HandleTransactionLockedTest::verifyPhysicalDisplayIsConnected() {
     verifyDisplayIsConnected<Case>(displayToken);
 }
 
-void HandleTransactionLockedTest::verifyDisplayIsNotConnected(const sp<IBinder>& displayToken) {
+void DisplayTransactionCommitTest::verifyDisplayIsNotConnected(const sp<IBinder>& displayToken) {
     EXPECT_FALSE(hasDisplayDevice(displayToken));
     EXPECT_FALSE(hasCurrentDisplayState(displayToken));
     EXPECT_FALSE(hasDrawingDisplayState(displayToken));
 }
 
 template <typename Case>
-void HandleTransactionLockedTest::processesHotplugConnectCommon() {
+void DisplayTransactionCommitTest::processesHotplugConnectCommon() {
     // --------------------------------------------------------------------
     // Preconditions
 
@@ -174,7 +173,7 @@ void HandleTransactionLockedTest::processesHotplugConnectCommon() {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -191,7 +190,7 @@ void HandleTransactionLockedTest::processesHotplugConnectCommon() {
 }
 
 template <typename Case>
-void HandleTransactionLockedTest::ignoresHotplugConnectCommon() {
+void DisplayTransactionCommitTest::ignoresHotplugConnectCommon() {
     // --------------------------------------------------------------------
     // Preconditions
 
@@ -203,7 +202,7 @@ void HandleTransactionLockedTest::ignoresHotplugConnectCommon() {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -213,7 +212,7 @@ void HandleTransactionLockedTest::ignoresHotplugConnectCommon() {
 }
 
 template <typename Case>
-void HandleTransactionLockedTest::processesHotplugDisconnectCommon() {
+void DisplayTransactionCommitTest::processesHotplugDisconnectCommon() {
     // --------------------------------------------------------------------
     // Preconditions
 
@@ -238,7 +237,7 @@ void HandleTransactionLockedTest::processesHotplugDisconnectCommon() {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -255,18 +254,18 @@ void HandleTransactionLockedTest::processesHotplugDisconnectCommon() {
     verifyDisplayIsNotConnected(existing.token());
 }
 
-TEST_F(HandleTransactionLockedTest, processesHotplugConnectPrimaryDisplay) {
+TEST_F(DisplayTransactionCommitTest, processesHotplugConnectPrimaryDisplay) {
     processesHotplugConnectCommon<SimplePrimaryDisplayCase>();
 }
 
-TEST_F(HandleTransactionLockedTest, processesHotplugConnectExternalDisplay) {
+TEST_F(DisplayTransactionCommitTest, processesHotplugConnectExternalDisplay) {
     // Inject a primary display.
     PrimaryDisplayVariant::injectHwcDisplay(this);
 
     processesHotplugConnectCommon<SimpleExternalDisplayCase>();
 }
 
-TEST_F(HandleTransactionLockedTest, ignoresHotplugConnectIfPrimaryAndExternalAlreadyConnected) {
+TEST_F(DisplayTransactionCommitTest, ignoresHotplugConnectIfPrimaryAndExternalAlreadyConnected) {
     // Inject both a primary and external display.
     PrimaryDisplayVariant::injectHwcDisplay(this);
     ExternalDisplayVariant::injectHwcDisplay(this);
@@ -281,16 +280,16 @@ TEST_F(HandleTransactionLockedTest, ignoresHotplugConnectIfPrimaryAndExternalAlr
     ignoresHotplugConnectCommon<SimpleTertiaryDisplayCase>();
 }
 
-TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectPrimaryDisplay) {
+TEST_F(DisplayTransactionCommitTest, processesHotplugDisconnectPrimaryDisplay) {
     EXPECT_EXIT(processesHotplugDisconnectCommon<SimplePrimaryDisplayCase>(),
                 testing::KilledBySignal(SIGABRT), "Primary display cannot be disconnected.");
 }
 
-TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectExternalDisplay) {
+TEST_F(DisplayTransactionCommitTest, processesHotplugDisconnectExternalDisplay) {
     processesHotplugDisconnectCommon<SimpleExternalDisplayCase>();
 }
 
-TEST_F(HandleTransactionLockedTest, processesHotplugConnectThenDisconnectPrimary) {
+TEST_F(DisplayTransactionCommitTest, processesHotplugConnectThenDisconnectPrimary) {
     EXPECT_EXIT(
             [this] {
                 using Case = SimplePrimaryDisplayCase;
@@ -320,7 +319,7 @@ TEST_F(HandleTransactionLockedTest, processesHotplugConnectThenDisconnectPrimary
                 // --------------------------------------------------------------------
                 // Invocation
 
-                mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+                mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 
                 // --------------------------------------------------------------------
                 // Postconditions
@@ -336,7 +335,7 @@ TEST_F(HandleTransactionLockedTest, processesHotplugConnectThenDisconnectPrimary
             testing::KilledBySignal(SIGABRT), "Primary display cannot be disconnected.");
 }
 
-TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectThenConnectPrimary) {
+TEST_F(DisplayTransactionCommitTest, processesHotplugDisconnectThenConnectPrimary) {
     EXPECT_EXIT(
             [this] {
                 using Case = SimplePrimaryDisplayCase;
@@ -365,7 +364,7 @@ TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectThenConnectPrimary
                 // --------------------------------------------------------------------
                 // Invocation
 
-                mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+                mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 
                 // --------------------------------------------------------------------
                 // Postconditions
@@ -393,7 +392,7 @@ TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectThenConnectPrimary
             testing::KilledBySignal(SIGABRT), "Primary display cannot be disconnected.");
 }
 
-TEST_F(HandleTransactionLockedTest, processesVirtualDisplayAdded) {
+TEST_F(DisplayTransactionCommitTest, processesVirtualDisplayAdded) {
     using Case = HwcVirtualDisplayCase;
 
     // --------------------------------------------------------------------
@@ -444,7 +443,7 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayAdded) {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -464,7 +463,7 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayAdded) {
     mFlinger.mutableDrawingState().displays.removeItem(displayToken);
 }
 
-TEST_F(HandleTransactionLockedTest, processesVirtualDisplayAddedWithNoSurface) {
+TEST_F(DisplayTransactionCommitTest, processesVirtualDisplayAddedWithNoSurface) {
     using Case = HwcVirtualDisplayCase;
 
     // --------------------------------------------------------------------
@@ -490,7 +489,7 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayAddedWithNoSurface) {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -504,7 +503,7 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayAddedWithNoSurface) {
     EXPECT_EQ(static_cast<bool>(Case::Display::VIRTUAL), draw.isVirtual());
 }
 
-TEST_F(HandleTransactionLockedTest, processesVirtualDisplayRemoval) {
+TEST_F(DisplayTransactionCommitTest, processesVirtualDisplayRemoval) {
     using Case = HwcVirtualDisplayCase;
 
     // --------------------------------------------------------------------
@@ -522,7 +521,7 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayRemoval) {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -531,7 +530,7 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayRemoval) {
     verifyDisplayIsNotConnected(existing.token());
 }
 
-TEST_F(HandleTransactionLockedTest, processesDisplayLayerStackChanges) {
+TEST_F(DisplayTransactionCommitTest, processesDisplayLayerStackChanges) {
     using Case = NonHwcVirtualDisplayCase;
 
     constexpr ui::LayerStack oldLayerStack = ui::DEFAULT_LAYER_STACK;
@@ -551,7 +550,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayLayerStackChanges) {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -559,7 +558,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayLayerStackChanges) {
     EXPECT_EQ(newLayerStack, display.mutableDisplayDevice()->getLayerStack());
 }
 
-TEST_F(HandleTransactionLockedTest, processesDisplayTransformChanges) {
+TEST_F(DisplayTransactionCommitTest, processesDisplayTransformChanges) {
     using Case = NonHwcVirtualDisplayCase;
 
     constexpr ui::Rotation oldTransform = ui::ROTATION_0;
@@ -579,7 +578,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayTransformChanges) {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -587,7 +586,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayTransformChanges) {
     EXPECT_EQ(newTransform, display.mutableDisplayDevice()->getOrientation());
 }
 
-TEST_F(HandleTransactionLockedTest, processesDisplayLayerStackRectChanges) {
+TEST_F(DisplayTransactionCommitTest, processesDisplayLayerStackRectChanges) {
     using Case = NonHwcVirtualDisplayCase;
 
     const Rect oldLayerStackRect(0, 0, 0, 0);
@@ -607,7 +606,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayLayerStackRectChanges) {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -615,7 +614,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayLayerStackRectChanges) {
     EXPECT_EQ(newLayerStackRect, display.mutableDisplayDevice()->getLayerStackSpaceRect());
 }
 
-TEST_F(HandleTransactionLockedTest, processesDisplayRectChanges) {
+TEST_F(DisplayTransactionCommitTest, processesDisplayRectChanges) {
     using Case = NonHwcVirtualDisplayCase;
 
     const Rect oldDisplayRect(0, 0);
@@ -635,7 +634,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayRectChanges) {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -643,7 +642,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayRectChanges) {
     EXPECT_EQ(newDisplayRect, display.mutableDisplayDevice()->getOrientedDisplaySpaceRect());
 }
 
-TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
+TEST_F(DisplayTransactionCommitTest, processesDisplayWidthChanges) {
     using Case = NonHwcVirtualDisplayCase;
 
     constexpr int oldWidth = 0;
@@ -685,10 +684,10 @@ TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 }
 
-TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
+TEST_F(DisplayTransactionCommitTest, processesDisplayHeightChanges) {
     using Case = NonHwcVirtualDisplayCase;
 
     constexpr int oldWidth = 0;
@@ -730,10 +729,10 @@ TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 }
 
-TEST_F(HandleTransactionLockedTest, processesDisplaySizeDisplayRectAndLayerStackRectChanges) {
+TEST_F(DisplayTransactionCommitTest, processesDisplaySizeDisplayRectAndLayerStackRectChanges) {
     using Case = NonHwcVirtualDisplayCase;
 
     constexpr uint32_t kOldWidth = 567;
@@ -780,7 +779,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplaySizeDisplayRectAndLayerStack
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
 
     EXPECT_EQ(display.mutableDisplayDevice()->getBounds(), kNewSize);
     EXPECT_EQ(display.mutableDisplayDevice()->getWidth(), kNewWidth);
