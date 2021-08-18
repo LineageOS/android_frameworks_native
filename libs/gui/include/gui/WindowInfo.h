@@ -168,7 +168,7 @@ struct WindowInfo : public Parcelable {
     // Transform applied to individual windows.
     ui::Transform transform;
 
-    // Display orientation. Used for compatibility raw coordinates.
+    // Display orientation as ui::Transform::RotationFlags. Used for compatibility raw coordinates.
     uint32_t displayOrientation = ui::Transform::ROT_0;
 
     // Display size in its natural rotation. Used to rotate raw coordinates for compatibility.
