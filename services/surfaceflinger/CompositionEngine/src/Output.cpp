@@ -368,13 +368,9 @@ void Output::setRenderSurfaceForTest(std::unique_ptr<compositionengine::RenderSu
     mRenderSurface = std::move(surface);
 }
 
-Region Output::getDirtyRegion(bool repaintEverything) const {
+Region Output::getDirtyRegion() const {
     const auto& outputState = getState();
-    Region dirty(outputState.layerStackSpace.content);
-    if (!repaintEverything) {
-        dirty.andSelf(outputState.dirtyRegion);
-    }
-    return dirty;
+    return outputState.dirtyRegion.intersect(outputState.layerStackSpace.content);
 }
 
 bool Output::includesLayer(ui::LayerFilter filter) const {
@@ -901,7 +897,7 @@ compositionengine::Output::ColorProfile Output::pickColorProfile(
 
 void Output::beginFrame() {
     auto& outputState = editState();
-    const bool dirty = !getDirtyRegion(false).isEmpty();
+    const bool dirty = !getDirtyRegion().isEmpty();
     const bool empty = getOutputLayerCount() == 0;
     const bool wasEmpty = !outputState.lastCompositionHadVisibleLayers;
 
@@ -953,14 +949,9 @@ void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&
     }
 
     if (getState().isEnabled) {
-        // transform the dirty region into this screen's coordinate space
-        const Region dirtyRegion = getDirtyRegion(refreshArgs.repaintEverything);
-        if (!dirtyRegion.isEmpty()) {
-            base::unique_fd readyFence;
-            // redraw the whole screen
+        if (const auto dirtyRegion = getDirtyRegion(); !dirtyRegion.isEmpty()) {
             static_cast<void>(composeSurfaces(dirtyRegion, refreshArgs));
-
-            mRenderSurface->queueBuffer(std::move(readyFence));
+            mRenderSurface->queueBuffer(base::unique_fd());
         }
     }
 

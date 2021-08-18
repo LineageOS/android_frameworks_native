@@ -65,7 +65,7 @@ public:
     MOCK_CONST_METHOD0(getState, const OutputCompositionState&());
     MOCK_METHOD0(editState, OutputCompositionState&());
 
-    MOCK_CONST_METHOD1(getDirtyRegion, Region(bool));
+    MOCK_METHOD(Region, getDirtyRegion, (), (const));
 
     MOCK_CONST_METHOD1(getOutputLayerForLayer,
                        compositionengine::OutputLayer*(const sp<compositionengine::LayerFE>&));

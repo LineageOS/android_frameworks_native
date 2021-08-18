@@ -47,9 +47,6 @@ struct CompositionRefreshArgs {
     // All the layers that have queued updates.
     Layers layersWithQueuedFrames;
 
-    // If true, forces the entire display to be considered dirty and repainted
-    bool repaintEverything{false};
-
     // Controls how the color mode is chosen for an output
     OutputColorSetting outputColorSetting{OutputColorSetting::kEnhanced};
 

@@ -157,7 +157,7 @@ public:
         // pain)
         // mFlinger.mutableVisibleRegionsDirty() = true;
 
-        mFlinger.mutableGeometryInvalid() = true;
+        mFlinger.mutableGeometryDirty() = true;
     }
 
     template <typename Case>

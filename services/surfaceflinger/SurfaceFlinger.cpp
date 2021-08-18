@@ -415,10 +415,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     property_get("ro.build.type", value, "user");
     mIsUserBuild = strcmp(value, "user") == 0;
 
-    property_get("debug.sf.showupdates", value, "0");
-    mDebugRegion = atoi(value);
-
-    ALOGI_IF(mDebugRegion, "showupdates enabled");
+    mDebugFlashDelay = base::GetUintProperty("debug.sf.showupdates"s, 0u);
 
     // DDMS debugging deprecated (b/120782499)
     property_get("debug.sf.ddms", value, "0");
@@ -1066,8 +1063,8 @@ void SurfaceFlinger::setDesiredActiveMode(const ActiveModeInfo& info) {
     }
 
     if (display->setDesiredActiveMode(info)) {
-        // This will trigger HWC refresh without resetting the idle timer.
-        repaintEverythingForHWC();
+        scheduleRefresh(FrameHint::kNone);
+
         // Start receiving vsync samples now, so that we can detect a period
         // switch.
         mScheduler->resyncToHardwareVsync(true, info.mode->getVsyncPeriod());
@@ -1649,7 +1646,7 @@ status_t SurfaceFlinger::notifyPowerBoost(int32_t boostId) {
     Boost powerBoost = static_cast<Boost>(boostId);
 
     if (powerBoost == Boost::INTERACTION) {
-        mScheduler->notifyTouchEvent();
+        mScheduler->onTouchHint();
     }
 
     return NO_ERROR;
@@ -1666,16 +1663,26 @@ sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
     return mScheduler->createDisplayEventConnection(handle, eventRegistration);
 }
 
-void SurfaceFlinger::signalTransaction() {
-    mScheduler->resetIdleTimer();
+void SurfaceFlinger::scheduleInvalidate(FrameHint hint) {
+    if (hint == FrameHint::kActive) {
+        mScheduler->resetIdleTimer();
+    }
     mPowerAdvisor.notifyDisplayUpdateImminent();
     mEventQueue->invalidate();
 }
 
+void SurfaceFlinger::scheduleRefresh(FrameHint hint) {
+    mForceRefresh = true;
+    scheduleInvalidate(hint);
+}
+
+void SurfaceFlinger::scheduleRepaint() {
+    mGeometryDirty = true;
+    scheduleRefresh(FrameHint::kActive);
+}
+
 void SurfaceFlinger::signalLayerUpdate() {
-    mScheduler->resetIdleTimer();
-    mPowerAdvisor.notifyDisplayUpdateImminent();
-    mEventQueue->invalidate();
+    scheduleInvalidate(FrameHint::kActive);
 }
 
 void SurfaceFlinger::signalRefresh() {
@@ -1778,7 +1785,7 @@ void SurfaceFlinger::onComposerHalSeamlessPossible(hal::HWDisplayId) {
 
 void SurfaceFlinger::onComposerHalRefresh(hal::HWDisplayId) {
     Mutex::Autolock lock(mStateLock);
-    repaintEverythingForHWC();
+    scheduleRefresh(FrameHint::kNone);
 }
 
 void SurfaceFlinger::setVsyncEnabled(bool enabled) {
@@ -1945,7 +1952,7 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
         }
     }
 
-    bool refreshNeeded;
+    bool refreshNeeded = mForceRefresh.exchange(false);
     {
         mTracePostComposition = mTracing.flagIsSet(SurfaceTracing::TRACE_COMPOSITION) ||
                 mTracing.flagIsSet(SurfaceTracing::TRACE_SYNC) ||
@@ -1955,8 +1962,9 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
 
         mFrameTimeline->setSfWakeUp(vsyncId, frameStart, Fps::fromPeriodNsecs(stats.vsyncPeriod));
 
-        refreshNeeded = handleMessageTransaction();
+        refreshNeeded |= handleMessageTransaction();
         refreshNeeded |= handleMessageInvalidate();
+
         if (tracePreComposition) {
             if (mVisibleRegionsDirty) {
                 mTracing.notifyLocked("visibleRegionsDirty");
@@ -1978,7 +1986,6 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
     updateCursorAsync();
     updateInputFlinger();
 
-    refreshNeeded |= mRepaintEverything;
     if (refreshNeeded && CC_LIKELY(mBootStage != BootStage::BOOTLOADER)) {
         // Signal a refresh if a transaction modified the window state,
         // a new buffer was latched, or if HWC has requested a full
@@ -2042,7 +2049,6 @@ void SurfaceFlinger::onMessageRefresh() {
             refreshArgs.layersWithQueuedFrames.push_back(layerFE);
     }
 
-    refreshArgs.repaintEverything = mRepaintEverything.exchange(false);
     refreshArgs.outputColorSetting = useColorManagement
             ? mDisplayColorSetting
             : compositionengine::OutputColorSetting::kUnmanaged;
@@ -2050,7 +2056,7 @@ void SurfaceFlinger::onMessageRefresh() {
     refreshArgs.forceOutputColorMode = mForceColorMode;
 
     refreshArgs.updatingOutputGeometryThisFrame = mVisibleRegionsDirty;
-    refreshArgs.updatingGeometryThisFrame = mGeometryInvalid || mVisibleRegionsDirty;
+    refreshArgs.updatingGeometryThisFrame = mGeometryDirty.exchange(false) || mVisibleRegionsDirty;
     refreshArgs.blursAreExpensive = mBlursAreExpensive;
     refreshArgs.internalDisplayRotationFlags = DisplayDevice::getPrimaryDisplayRotationFlags();
 
@@ -2059,11 +2065,11 @@ void SurfaceFlinger::onMessageRefresh() {
         mDrawingState.colorMatrixChanged = false;
     }
 
-    refreshArgs.devOptForceClientComposition = mDebugDisableHWC || mDebugRegion;
+    refreshArgs.devOptForceClientComposition = mDebugDisableHWC;
 
-    if (mDebugRegion != 0) {
-        refreshArgs.devOptFlashDirtyRegionsDelay =
-                std::chrono::milliseconds(mDebugRegion > 1 ? mDebugRegion : 0);
+    if (mDebugFlashDelay != 0) {
+        refreshArgs.devOptForceClientComposition = true;
+        refreshArgs.devOptFlashDirtyRegionsDelay = std::chrono::milliseconds(mDebugFlashDelay);
     }
 
     const auto prevVsyncTime = mScheduler->getPreviousVsyncFrom(mExpectedPresentTime);
@@ -2071,8 +2077,6 @@ void SurfaceFlinger::onMessageRefresh() {
     refreshArgs.earliestPresentTime = prevVsyncTime - hwcMinWorkDuration;
     refreshArgs.previousPresentFence = mPreviousPresentFences[0].fenceTime;
     refreshArgs.nextInvalidateTime = mEventQueue->nextExpectedInvalidate();
-
-    mGeometryInvalid = false;
 
     // Store the present time just before calling to the composition engine so we could notify
     // the scheduler.
@@ -3324,10 +3328,6 @@ bool SurfaceFlinger::handlePageFlip() {
     return !mLayersWithQueuedFrames.empty() && newDataLatched;
 }
 
-void SurfaceFlinger::invalidateHwcGeometry() {
-    mGeometryInvalid = true;
-}
-
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
                                         const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
                                         const sp<IBinder>& parentHandle,
@@ -3390,7 +3390,7 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags, TransactionSchedule
                                              const sp<IBinder>& token) {
     uint32_t old = mTransactionFlags.fetch_or(flags);
     modulateVsync(&VsyncModulator::setTransactionSchedule, schedule, token);
-    if ((old & flags) == 0) signalTransaction();
+    if ((old & flags) == 0) scheduleInvalidate(FrameHint::kActive);
     return old;
 }
 
@@ -4540,7 +4540,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
 
         mVisibleRegionsDirty = true;
         mHasPoweredOff = true;
-        repaintEverything();
+        scheduleRefresh(FrameHint::kActive);
     } else if (mode == hal::PowerMode::OFF) {
         // Turn off the display
         if (SurfaceFlinger::setSchedFifo(false) != NO_ERROR) {
@@ -5132,7 +5132,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     colorizer.bold(result);
     result.append("h/w composer state:\n");
     colorizer.reset(result);
-    bool hwcDisabled = mDebugDisableHWC || mDebugRegion;
+    const bool hwcDisabled = mDebugDisableHWC || mDebugFlashDelay;
     StringAppendF(&result, "  h/w composer %s\n", hwcDisabled ? "disabled" : "enabled");
     getHwComposer().dump(result);
 
@@ -5341,9 +5341,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
 
 status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
                                     uint32_t flags) {
-    status_t credentialCheck = CheckTransactCodeCredentials(code);
-    if (credentialCheck != OK) {
-        return credentialCheck;
+    if (const status_t error = CheckTransactCodeCredentials(code); error != OK) {
+        return error;
     }
 
     status_t err = BnSurfaceComposer::onTransact(code, data, reply, flags);
@@ -5360,47 +5359,43 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
         }
         int n;
         switch (code) {
-            case 1000: // SHOW_CPU, NOT SUPPORTED ANYMORE
-            case 1001: // SHOW_FPS, NOT SUPPORTED ANYMORE
+            case 1000: // Unused.
+            case 1001:
+                return NAME_NOT_FOUND;
+            case 1002: // Toggle flashing on surface damage.
+                if (const int delay = data.readInt32(); delay > 0) {
+                    mDebugFlashDelay = delay;
+                } else {
+                    mDebugFlashDelay = mDebugFlashDelay ? 0 : 1;
+                }
+                scheduleRepaint();
                 return NO_ERROR;
-            case 1002:  // SHOW_UPDATES
-                n = data.readInt32();
-                mDebugRegion = n ? n : (mDebugRegion ? 0 : 1);
-                invalidateHwcGeometry();
-                repaintEverything();
+            case 1004: // Force refresh ahead of next VSYNC.
+                scheduleRefresh(FrameHint::kActive);
                 return NO_ERROR;
-            case 1004:{ // repaint everything
-                repaintEverything();
+            case 1005: { // Force commit ahead of next VSYNC.
+                Mutex::Autolock lock(mStateLock);
+                setTransactionFlags(eTransactionNeeded | eDisplayTransactionNeeded |
+                                    eTraversalNeeded);
                 return NO_ERROR;
             }
-            case 1005:{ // force transaction
-                Mutex::Autolock _l(mStateLock);
-                setTransactionFlags(
-                        eTransactionNeeded|
-                        eDisplayTransactionNeeded|
-                        eTraversalNeeded);
-                return NO_ERROR;
-            }
-            case 1006:{ // send empty update
+            case 1006: // Force refresh immediately.
                 signalRefresh();
                 return NO_ERROR;
-            }
-            case 1008:  // toggle use of hw composer
-                n = data.readInt32();
-                mDebugDisableHWC = n != 0;
-                invalidateHwcGeometry();
-                repaintEverything();
+            case 1007: // Unused.
+                return NAME_NOT_FOUND;
+            case 1008: // Toggle forced GPU composition.
+                mDebugDisableHWC = data.readInt32() != 0;
+                scheduleRepaint();
                 return NO_ERROR;
-            case 1009:  // toggle use of transform hint
-                n = data.readInt32();
-                mDebugDisableTransformHint = n != 0;
-                invalidateHwcGeometry();
-                repaintEverything();
+            case 1009: // Toggle use of transform hint.
+                mDebugDisableTransformHint = data.readInt32() != 0;
+                scheduleRepaint();
                 return NO_ERROR;
-            case 1010:  // interrogate.
+            case 1010: // Interrogate.
                 reply->writeInt32(0);
                 reply->writeInt32(0);
-                reply->writeInt32(mDebugRegion);
+                reply->writeInt32(mDebugFlashDelay);
                 reply->writeInt32(0);
                 reply->writeInt32(mDebugDisableHWC);
                 return NO_ERROR;
@@ -5455,12 +5450,15 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                     mClientColorMatrix = mat4();
                 }
 
+                // TODO(b/193487656): Restore once HWASan bug is fixed.
+#if 0
                 // Check that supplied matrix's last row is {0,0,0,1} so we can avoid
                 // the division by w in the fragment shader
                 float4 lastRow(transpose(mClientColorMatrix)[3]);
                 if (any(greaterThan(abs(lastRow - float4{0, 0, 0, 1}), float4{1e-4f}))) {
                     ALOGE("The color transform's last row must be (0, 0, 0, 1)");
                 }
+#endif
 
                 updateColorMatrixLocked();
                 return NO_ERROR;
@@ -5514,8 +5512,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 if (data.readInt32(&colorMode) == NO_ERROR) {
                     mForceColorMode = static_cast<ColorMode>(colorMode);
                 }
-                invalidateHwcGeometry();
-                repaintEverything();
+                scheduleRepaint();
                 return NO_ERROR;
             }
             // Deprecate, use 1030 to check whether the device is color managed.
@@ -5745,24 +5742,12 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 if (error != OK) {
                     return error;
                 }
-                invalidateHwcGeometry();
-                repaintEverything();
+                scheduleRepaint();
                 return NO_ERROR;
             }
         }
     }
     return err;
-}
-
-void SurfaceFlinger::repaintEverything() {
-    mRepaintEverything = true;
-    signalTransaction();
-}
-
-void SurfaceFlinger::repaintEverythingForHWC() {
-    mRepaintEverything = true;
-    mPowerAdvisor.notifyDisplayUpdateImminent();
-    mEventQueue->invalidate();
 }
 
 void SurfaceFlinger::kernelTimerChanged(bool expired) {
