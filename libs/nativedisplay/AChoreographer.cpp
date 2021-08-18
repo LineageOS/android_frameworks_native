@@ -192,6 +192,7 @@ Choreographer::~Choreographer() {
     // Only poke DisplayManagerGlobal to unregister if we previously registered
     // callbacks.
     if (gChoreographers.ptrs.empty() && gChoreographers.registeredToDisplayManager) {
+        gChoreographers.registeredToDisplayManager = false;
         JNIEnv* env = getJniEnv();
         if (env == nullptr) {
             ALOGW("JNI environment is unavailable, skipping choreographer cleanup");
