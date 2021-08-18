@@ -5049,12 +5049,13 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          windowInfo->inputFeatures.string().c_str());
                     dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%" PRId64
                                          "ms, trustedOverlay=%s, hasToken=%s, "
-                                         "touchOcclusionMode=%s\n",
+                                         "touchOcclusionMode=%s, displayOrientation=%d\n",
                                          windowInfo->ownerPid, windowInfo->ownerUid,
                                          millis(windowInfo->dispatchingTimeout),
                                          toString(windowInfo->trustedOverlay),
                                          toString(windowInfo->token != nullptr),
-                                         toString(windowInfo->touchOcclusionMode).c_str());
+                                         toString(windowInfo->touchOcclusionMode).c_str(),
+                                         windowInfo->displayOrientation);
                     windowInfo->transform.dump(dump, "transform", INDENT4);
                 }
             } else {
