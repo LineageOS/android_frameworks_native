@@ -65,7 +65,7 @@ public:
     compositionengine::RenderSurface* getRenderSurface() const override;
     void setRenderSurface(std::unique_ptr<compositionengine::RenderSurface>) override;
 
-    Region getDirtyRegion(bool repaintEverything) const override;
+    Region getDirtyRegion() const override;
 
     bool includesLayer(ui::LayerFilter) const override;
     bool includesLayer(const sp<LayerFE>&) const override;

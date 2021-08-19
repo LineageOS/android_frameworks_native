@@ -725,14 +725,14 @@ void Layer::commitTransaction(State&) {
     mDrawingState.bufferlessSurfaceFramesTX.clear();
 }
 
-uint32_t Layer::getTransactionFlags(uint32_t flags) {
-    auto ret = mTransactionFlags & flags;
-    mTransactionFlags &= ~flags;
-    return ret;
+uint32_t Layer::clearTransactionFlags(uint32_t mask) {
+    const auto flags = mTransactionFlags & mask;
+    mTransactionFlags &= ~mask;
+    return flags;
 }
 
-uint32_t Layer::setTransactionFlags(uint32_t flags) {
-    return mTransactionFlags |= flags;
+void Layer::setTransactionFlags(uint32_t mask) {
+    mTransactionFlags |= mask;
 }
 
 bool Layer::setPosition(float x, float y) {
@@ -2181,11 +2181,11 @@ void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& displayTra
     }
 
     const ui::Transform layerTransform = getInputTransform();
-    // Transform that takes window coordinates to unrotated display coordinates
+    // Transform that takes window coordinates to non-rotated display coordinates
     ui::Transform t = displayTransform * layerTransform;
     int32_t xSurfaceInset = info.surfaceInset;
     int32_t ySurfaceInset = info.surfaceInset;
-    // Bring screenBounds into unrotated space
+    // Bring screenBounds into non-unrotated space
     Rect screenBounds = displayTransform.transform(Rect{mScreenBounds});
 
     const float xScale = t.getScaleX();
@@ -2279,17 +2279,34 @@ WindowInfo Layer::fillInputInfo(const DisplayDevice* display) {
     info.id = sequence;
     info.displayId = getLayerStack().id;
 
-    // Transform that maps from LayerStack space to display space, e.g. rotated to unrotated.
+    // Transform that maps from LayerStack space to display space, e.g. rotated to non-rotated.
     // Used when InputFlinger operates in display space.
     ui::Transform displayTransform;
     if (display) {
-        displayTransform = display->getTransform();
-        // getOrientation() without masking can contain more-significant bits (eg. ROT_INVALID).
-        constexpr uint32_t kAllRotationsMask =
-                ui::Transform::ROT_90 | ui::Transform::ROT_180 | ui::Transform::ROT_270;
-        info.displayOrientation = displayTransform.getOrientation() & kAllRotationsMask;
-        info.displayWidth = display->getWidth();
-        info.displayHeight = display->getHeight();
+        // The physical orientation is set when the orientation of the display panel is different
+        // than the default orientation of the device. Other services like InputFlinger do not know
+        // about this, so we do not need to expose the physical orientation of the panel outside of
+        // SurfaceFlinger.
+        const ui::Rotation inversePhysicalOrientation =
+                ui::ROTATION_0 - display->getPhysicalOrientation();
+        auto width = display->getWidth();
+        auto height = display->getHeight();
+        if (inversePhysicalOrientation == ui::ROTATION_90 ||
+            inversePhysicalOrientation == ui::ROTATION_270) {
+            std::swap(width, height);
+        }
+        const ui::Transform undoPhysicalOrientation(ui::Transform::toRotationFlags(
+                                                            inversePhysicalOrientation),
+                                                    width, height);
+        displayTransform = undoPhysicalOrientation * display->getTransform();
+
+        // Send the inverse of the display orientation so that input can transform points back to
+        // the rotated display space.
+        const ui::Rotation inverseOrientation = ui::ROTATION_0 - display->getOrientation();
+        info.displayOrientation = ui::Transform::toRotationFlags(inverseOrientation);
+
+        info.displayWidth = width;
+        info.displayHeight = height;
     }
     fillInputFrameInfo(info, displayTransform);
 

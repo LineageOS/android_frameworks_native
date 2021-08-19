@@ -285,8 +285,12 @@ public:
     template <typename F, typename T = std::invoke_result_t<F>>
     [[nodiscard]] std::future<T> schedule(F&&);
 
-    // force full composition on all displays
-    void repaintEverything();
+    // Schedule commit of transactions on the main thread ahead of the next VSYNC.
+    void scheduleInvalidate(FrameHint);
+    // As above, but also force refresh regardless if transactions were committed.
+    void scheduleRefresh(FrameHint) override;
+    // As above, but also force dirty geometry to repaint.
+    void scheduleRepaint();
 
     surfaceflinger::Factory& getFactory() { return mFactory; }
 
@@ -348,7 +352,6 @@ protected:
             uint32_t permissions,
             std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks)
             REQUIRES(mStateLock);
-    virtual void commitTransactionLocked();
 
     // Used internally by computeLayerBounds() to gets the clip rectangle to use for the
     // root layers on a particular display in layer-coordinate space. The
@@ -751,8 +754,6 @@ private:
     void setVsyncEnabled(bool) override;
     // Initiates a refresh rate change to be applied on invalidate.
     void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ModeEvent) override;
-    // Forces full composition on all displays without resetting the scheduler idle timer.
-    void repaintEverythingForHWC() override;
     // Called when kernel idle timer has expired. Used to update the refresh rate overlay.
     void kernelTimerChanged(bool expired) override;
     // Called when the frame rate override list changed to trigger an event.
@@ -770,8 +771,6 @@ private:
     /*
      * Message handling
      */
-    // Can only be called from the main thread or with mStateLock held
-    void signalTransaction();
     // Can only be called from the main thread or with mStateLock held
     void signalLayerUpdate();
     void signalRefresh();
@@ -804,8 +803,12 @@ private:
     // incoming transactions
     void onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncTime);
 
-    // Returns whether the transaction actually modified any state
-    bool handleMessageTransaction();
+    // Returns whether transactions were committed.
+    bool flushAndCommitTransactions() EXCLUDES(mStateLock);
+
+    void commitTransactions() EXCLUDES(mStateLock);
+    void commitTransactionsLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
+    void doCommitTransactions() REQUIRES(mStateLock);
 
     // Handle the REFRESH message queue event, sending the current frame down to RenderEngine and
     // the Composer HAL for presentation
@@ -813,9 +816,6 @@ private:
 
     // Returns whether a new buffer has been latched (see handlePageFlip())
     bool handleMessageInvalidate();
-
-    void handleTransaction(uint32_t transactionFlags);
-    void handleTransactionLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
 
     void updateInputFlinger();
     void notifyWindowInfos();
@@ -848,18 +848,23 @@ private:
     void flushTransactionQueues();
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
-    uint32_t getTransactionFlags(uint32_t flags);
-    uint32_t peekTransactionFlags();
-    // Can only be called from the main thread or with mStateLock held
-    uint32_t setTransactionFlags(uint32_t flags);
+
+    uint32_t getTransactionFlags() const;
+
+    // Sets the masked bits, and returns the old flags.
+    uint32_t setTransactionFlags(uint32_t mask);
+
+    // Clears and returns the masked bits.
+    uint32_t clearTransactionFlags(uint32_t mask);
+
     // Indicate SF should call doTraversal on layers, but don't trigger a wakeup! We use this cases
     // where there are still pending transactions but we know they won't be ready until a frame
     // arrives from a different layer. So we need to ensure we performTransaction from invalidate
     // but there is no need to try and wake up immediately to do it. Rather we rely on
     // onFrameAvailable or another layer update to wake us up.
     void setTraversalNeeded();
-    uint32_t setTransactionFlags(uint32_t flags, TransactionSchedule, const sp<IBinder>& = {});
-    void commitTransaction() REQUIRES(mStateLock);
+    uint32_t setTransactionFlags(uint32_t mask, TransactionSchedule,
+                                 const sp<IBinder>& applyToken = {});
     void commitOffscreenLayers();
     bool transactionIsReadyToBeApplied(
             const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
@@ -1033,8 +1038,6 @@ private:
     /*
      * Compositing
      */
-    void invalidateHwcGeometry();
-
     void postComposition();
     void getCompositorTiming(CompositorTiming* compositorTiming);
     void updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
@@ -1251,7 +1254,8 @@ private:
     bool mLayersRemoved = false;
     bool mLayersAdded = false;
 
-    std::atomic<bool> mRepaintEverything = false;
+    std::atomic_bool mForceRefresh = false;
+    std::atomic_bool mGeometryDirty = false;
 
     // constant members (no synchronization needed for access)
     const nsecs_t mBootTime = systemTime();
@@ -1278,7 +1282,6 @@ private:
     bool mSomeDataspaceChanged = false;
     bool mForceTransactionDisplayChange = false;
 
-    bool mGeometryInvalid = false;
     bool mAnimCompositionPending = false;
 
     // Tracks layers that have pending frames which are candidates for being
@@ -1313,13 +1316,13 @@ private:
         std::optional<DisplayIdGenerator<HalVirtualDisplayId>> hal;
     } mVirtualDisplayIdGenerators;
 
-    // don't use a lock for these, we don't care
-    int mDebugRegion = 0;
-    bool mDebugDisableHWC = false;
-    bool mDebugDisableTransformHint = false;
+    std::atomic_uint mDebugFlashDelay = 0;
+    std::atomic_bool mDebugDisableHWC = false;
+    std::atomic_bool mDebugDisableTransformHint = false;
+    std::atomic<nsecs_t> mDebugInTransaction = 0;
+    std::atomic_bool mForceFullDamage = false;
+
     bool mLayerCachingEnabled = false;
-    volatile nsecs_t mDebugInTransaction = 0;
-    bool mForceFullDamage = false;
     bool mPropagateBackpressureClientComposition = false;
     sp<SurfaceInterceptor> mInterceptor;
 

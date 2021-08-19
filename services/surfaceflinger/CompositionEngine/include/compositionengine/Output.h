@@ -221,8 +221,7 @@ public:
     virtual OutputCompositionState& editState() = 0;
 
     // Gets the dirty region in layer stack space.
-    // If repaintEverything is true, this will be the full display bounds.
-    virtual Region getDirtyRegion(bool repaintEverything) const = 0;
+    virtual Region getDirtyRegion() const = 0;
 
     // Returns whether the output includes a layer, based on their respective filters.
     // See Output::setLayerFilter.
