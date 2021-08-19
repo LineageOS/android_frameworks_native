@@ -166,6 +166,8 @@ struct LayerFECompositionState {
 
     // The handle to use for a sideband stream for this layer
     sp<NativeHandle> sidebandStream;
+    // If true, this sideband layer has a frame update
+    bool sidebandStreamHasFrame{false};
 
     // The color for this layer
     half4 color;
