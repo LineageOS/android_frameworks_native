@@ -39,6 +39,9 @@ namespace compositionengine::impl::planner {
 // heuristically determining the composition strategy of the current layer stack,
 // and flattens inactive layers into an override buffer so it can be used
 // as a more efficient representation of parts of the layer stack.
+// Implicitly, layer caching must also be enabled for the Planner to have any effect
+// E.g., setprop debug.sf.enable_layer_caching 1, or
+// adb shell service call SurfaceFlinger 1040 i32 1 [i64 <display ID>]
 class Planner {
 public:
     Planner(renderengine::RenderEngine& renderengine);
