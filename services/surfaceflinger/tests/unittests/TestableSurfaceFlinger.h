@@ -316,9 +316,9 @@ public:
                                                        dispSurface, producer);
     }
 
-    auto handleTransactionLocked(uint32_t transactionFlags) {
-        Mutex::Autolock _l(mFlinger->mStateLock);
-        return mFlinger->handleTransactionLocked(transactionFlags);
+    auto commitTransactionsLocked(uint32_t transactionFlags) {
+        Mutex::Autolock lock(mFlinger->mStateLock);
+        return mFlinger->commitTransactionsLocked(transactionFlags);
     }
 
     void onComposerHalHotplug(hal::HWDisplayId hwcDisplayId, hal::Connection connection) {
@@ -326,7 +326,7 @@ public:
     }
 
     auto setDisplayStateLocked(const DisplayState& s) {
-        Mutex::Autolock _l(mFlinger->mStateLock);
+        Mutex::Autolock lock(mFlinger->mStateLock);
         return mFlinger->setDisplayStateLocked(s);
     }
 
@@ -426,7 +426,7 @@ public:
     auto& mutableDisplays() { return mFlinger->mDisplays; }
     auto& mutableDrawingState() { return mFlinger->mDrawingState; }
     auto& mutableEventQueue() { return mFlinger->mEventQueue; }
-    auto& mutableGeometryInvalid() { return mFlinger->mGeometryInvalid; }
+    auto& mutableGeometryDirty() { return mFlinger->mGeometryDirty; }
     auto& mutableInterceptor() { return mFlinger->mInterceptor; }
     auto& mutableMainThreadId() { return mFlinger->mMainThreadId; }
     auto& mutablePendingHotplugEvents() { return mFlinger->mPendingHotplugEvents; }
@@ -762,9 +762,9 @@ public:
     };
 
 private:
+    void scheduleRefresh(FrameHint) override {}
     void setVsyncEnabled(bool) override {}
     void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ModeEvent) override {}
-    void repaintEverythingForHWC() override {}
     void kernelTimerChanged(bool) override {}
     void triggerOnFrameRateOverridesChanged() {}
 

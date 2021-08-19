@@ -669,7 +669,7 @@ void Scheduler::resetIdleTimer() {
     }
 }
 
-void Scheduler::notifyTouchEvent() {
+void Scheduler::onTouchHint() {
     if (mTouchTimer) {
         mTouchTimer->reset();
 
@@ -878,7 +878,7 @@ DisplayModePtr Scheduler::getPreferredDisplayMode() {
 
 void Scheduler::onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline) {
     if (timeline.refreshRequired) {
-        mSchedulerCallback.repaintEverythingForHWC();
+        mSchedulerCallback.scheduleRefresh(FrameHint::kNone);
     }
 
     std::lock_guard<std::mutex> lock(mVsyncTimelineLock);
@@ -891,21 +891,21 @@ void Scheduler::onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimel
 }
 
 void Scheduler::onDisplayRefreshed(nsecs_t timestamp) {
-    bool callRepaint = false;
-    {
+    const bool refresh = [=] {
         std::lock_guard<std::mutex> lock(mVsyncTimelineLock);
         if (mLastVsyncPeriodChangeTimeline && mLastVsyncPeriodChangeTimeline->refreshRequired) {
-            if (mLastVsyncPeriodChangeTimeline->refreshTimeNanos < timestamp) {
-                mLastVsyncPeriodChangeTimeline->refreshRequired = false;
-            } else {
-                // We need to send another refresh as refreshTimeNanos is still in the future
-                callRepaint = true;
+            if (timestamp < mLastVsyncPeriodChangeTimeline->refreshTimeNanos) {
+                // We need to schedule another refresh as refreshTimeNanos is still in the future.
+                return true;
             }
-        }
-    }
 
-    if (callRepaint) {
-        mSchedulerCallback.repaintEverythingForHWC();
+            mLastVsyncPeriodChangeTimeline->refreshRequired = false;
+        }
+        return false;
+    }();
+
+    if (refresh) {
+        mSchedulerCallback.scheduleRefresh(FrameHint::kNone);
     }
 }
 

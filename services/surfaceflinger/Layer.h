@@ -640,8 +640,12 @@ public:
     bool isLegacyDataSpace() const;
 
     uint32_t getTransactionFlags() const { return mTransactionFlags; }
-    uint32_t getTransactionFlags(uint32_t flags);
-    uint32_t setTransactionFlags(uint32_t flags);
+
+    // Sets the masked bits.
+    void setTransactionFlags(uint32_t mask);
+
+    // Clears and returns the masked bits.
+    uint32_t clearTransactionFlags(uint32_t mask);
 
     FloatRect getBounds(const Region& activeTransparentRegion) const;
     FloatRect getBounds() const;

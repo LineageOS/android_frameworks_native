@@ -56,10 +56,13 @@ class TokenManager;
 } // namespace frametimeline
 
 struct ISchedulerCallback {
+    // Indicates frame activity, i.e. whether commit and/or composite is taking place.
+    enum class FrameHint { kNone, kActive };
+
+    virtual void scheduleRefresh(FrameHint) = 0;
     virtual void setVsyncEnabled(bool) = 0;
     virtual void changeRefreshRate(const scheduler::RefreshRateConfigs::RefreshRate&,
                                    scheduler::RefreshRateConfigEvent) = 0;
-    virtual void repaintEverythingForHWC() = 0;
     virtual void kernelTimerChanged(bool expired) = 0;
     virtual void triggerOnFrameRateOverridesChanged() = 0;
 
@@ -136,8 +139,8 @@ public:
     bool isIdleTimerEnabled() const { return mIdleTimer.has_value(); }
     void resetIdleTimer();
 
-    // Function that resets the touch timer.
-    void notifyTouchEvent();
+    // Indicates that touch interaction is taking place.
+    void onTouchHint();
 
     void setDisplayPowerState(bool normal);
 
@@ -193,6 +196,8 @@ public:
 
 private:
     friend class TestableScheduler;
+
+    using FrameHint = ISchedulerCallback::FrameHint;
 
     // In order to make sure that the features don't override themselves, we need a state machine
     // to keep track which feature requested the config change.
