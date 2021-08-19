@@ -98,8 +98,8 @@ private:
                              std::chrono::steady_clock::time_point now);
 
     // A Run is a sequence of CachedSets, which is a candidate for flattening into a single
-    // CachedSet. Because it is wasteful to flatten 1 CachedSet, a Run must contain more than 1
-    // CachedSet
+    // CachedSet. Because it is wasteful to flatten 1 CachedSet, a run must contain more than
+    // 1 CachedSet or be used for a hole punch.
     class Run {
     public:
         // A builder for a Run, to aid in construction
@@ -133,7 +133,13 @@ private:
 
             // Builds a Run instance, if a valid Run may be built.
             std::optional<Run> validateAndBuild() {
-                if (mLengths.size() <= 1) {
+                if (mLengths.size() == 0) {
+                    return std::nullopt;
+                }
+                // Runs of length 1 which are hole punch candidates are allowed if the candidate is
+                // going to be used.
+                if (mLengths.size() == 1 &&
+                    (!mHolePunchCandidate || !(mHolePunchCandidate->requiresHolePunch()))) {
                     return std::nullopt;
                 }
 
