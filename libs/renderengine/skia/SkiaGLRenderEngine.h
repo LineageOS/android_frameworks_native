@@ -54,11 +54,6 @@ public:
     ~SkiaGLRenderEngine() override EXCLUDES(mRenderingMutex);
 
     std::future<void> primeCache() override;
-    status_t drawLayers(const DisplaySettings& display,
-                        const std::vector<const LayerSettings*>& layers,
-                        const std::shared_ptr<ExternalTexture>& buffer,
-                        const bool useFramebufferCache, base::unique_fd&& bufferFence,
-                        base::unique_fd* drawFence) override;
     void cleanupPostRender() override;
     void cleanFramebufferCache() override{};
     int getContextPriority() override;
@@ -77,6 +72,11 @@ protected:
     void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable) override;
     void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
     bool canSkipPostRenderCleanup() const override;
+    void drawLayersInternal(const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+                            const DisplaySettings& display,
+                            const std::vector<const LayerSettings*>& layers,
+                            const std::shared_ptr<ExternalTexture>& buffer,
+                            const bool useFramebufferCache, base::unique_fd&& bufferFence) override;
 
 private:
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);

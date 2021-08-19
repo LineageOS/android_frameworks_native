@@ -419,9 +419,10 @@ public:
 
     void invokeDraw(renderengine::DisplaySettings settings,
                     std::vector<const renderengine::LayerSettings*> layers) {
-        base::unique_fd fence;
-        status_t status =
-                mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd(), &fence);
+        std::future<renderengine::RenderEngineResult> result =
+                mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd());
+        ASSERT_TRUE(result.valid());
+        auto [status, fence] = result.get();
 
         int fd = fence.release();
         if (fd >= 0) {
@@ -1312,9 +1313,11 @@ TEST_P(RenderEngineTest, drawLayers_nullOutputBuffer) {
     layer.geometry.boundaries = fullscreenRect().toFloatRect();
     BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
     layers.push_back(&layer);
-    base::unique_fd fence;
-    status_t status = mRE->drawLayers(settings, layers, nullptr, true, base::unique_fd(), &fence);
+    std::future<renderengine::RenderEngineResult> result =
+            mRE->drawLayers(settings, layers, nullptr, true, base::unique_fd());
 
+    ASSERT_TRUE(result.valid());
+    auto [status, _] = result.get();
     ASSERT_EQ(BAD_VALUE, status);
 }
 
@@ -1333,7 +1336,10 @@ TEST_P(RenderEngineTest, drawLayers_nullOutputFence) {
     layer.alpha = 1.0;
     layers.push_back(&layer);
 
-    status_t status = mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd(), nullptr);
+    std::future<renderengine::RenderEngineResult> result =
+            mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd());
+    ASSERT_TRUE(result.valid());
+    auto [status, _] = result.get();
     ASSERT_EQ(NO_ERROR, status);
     expectBufferColor(fullscreenRect(), 255, 0, 0, 255);
 }
@@ -1360,7 +1366,10 @@ TEST_P(RenderEngineTest, drawLayers_doesNotCacheFramebuffer) {
     layer.alpha = 1.0;
     layers.push_back(&layer);
 
-    status_t status = mRE->drawLayers(settings, layers, mBuffer, false, base::unique_fd(), nullptr);
+    std::future<renderengine::RenderEngineResult> result =
+            mRE->drawLayers(settings, layers, mBuffer, false, base::unique_fd());
+    ASSERT_TRUE(result.valid());
+    auto [status, _] = result.get();
     ASSERT_EQ(NO_ERROR, status);
     ASSERT_FALSE(mGLESRE->isFramebufferImageCachedForTesting(mBuffer->getBuffer()->getId()));
     expectBufferColor(fullscreenRect(), 255, 0, 0, 255);
@@ -1760,10 +1769,17 @@ TEST_P(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
     layer.alpha = 1.0;
     layers.push_back(&layer);
 
-    base::unique_fd fenceOne;
-    mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd(), &fenceOne);
-    base::unique_fd fenceTwo;
-    mRE->drawLayers(settings, layers, mBuffer, true, std::move(fenceOne), &fenceTwo);
+    std::future<renderengine::RenderEngineResult> resultOne =
+            mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd());
+    ASSERT_TRUE(resultOne.valid());
+    auto [statusOne, fenceOne] = resultOne.get();
+    ASSERT_EQ(NO_ERROR, statusOne);
+
+    std::future<renderengine::RenderEngineResult> resultTwo =
+            mRE->drawLayers(settings, layers, mBuffer, true, std::move(fenceOne));
+    ASSERT_TRUE(resultTwo.valid());
+    auto [statusTwo, fenceTwo] = resultTwo.get();
+    ASSERT_EQ(NO_ERROR, statusTwo);
 
     const int fd = fenceTwo.get();
     if (fd >= 0) {
