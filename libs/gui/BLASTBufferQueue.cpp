@@ -837,4 +837,9 @@ uint32_t BLASTBufferQueue::getLastTransformHint() const {
     }
 }
 
+uint64_t BLASTBufferQueue::getLastAcquiredFrameNum() {
+    std::unique_lock _lock{mMutex};
+    return mLastAcquiredFrameNumber;
+}
+
 } // namespace android
