@@ -63,11 +63,6 @@ public:
     bool isProtected() const override { return mInProtectedContext; }
     bool supportsProtectedContent() const override;
     void useProtectedContext(bool useProtectedContext) override;
-    status_t drawLayers(const DisplaySettings& display,
-                        const std::vector<const LayerSettings*>& layers,
-                        const std::shared_ptr<ExternalTexture>& buffer,
-                        const bool useFramebufferCache, base::unique_fd&& bufferFence,
-                        base::unique_fd* drawFence) override;
     void cleanupPostRender() override;
     int getContextPriority() override;
     bool supportsBackgroundBlur() override { return mBlurFilter != nullptr; }
@@ -107,6 +102,11 @@ protected:
             EXCLUDES(mRenderingMutex);
     void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) EXCLUDES(mRenderingMutex);
     bool canSkipPostRenderCleanup() const override;
+    void drawLayersInternal(const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+                            const DisplaySettings& display,
+                            const std::vector<const LayerSettings*>& layers,
+                            const std::shared_ptr<ExternalTexture>& buffer,
+                            const bool useFramebufferCache, base::unique_fd&& bufferFence) override;
 
 private:
     friend class BindNativeBufferAsFramebuffer;

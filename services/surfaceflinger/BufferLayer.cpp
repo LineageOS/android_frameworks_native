@@ -287,7 +287,7 @@ void BufferLayer::preparePerFrameCompositionState() {
 
     // Sideband layers
     auto* compositionState = editCompositionState();
-    if (compositionState->sidebandStream.get()) {
+    if (compositionState->sidebandStream.get() && !compositionState->sidebandStreamHasFrame) {
         compositionState->compositionType = Hwc2::IComposerClient::Composition::SIDEBAND;
         return;
     } else {
@@ -303,6 +303,7 @@ void BufferLayer::preparePerFrameCompositionState() {
             ? 0
             : mBufferInfo.mBufferSlot;
     compositionState->acquireFence = mBufferInfo.mFence;
+    compositionState->sidebandStreamHasFrame = false;
 }
 
 bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {

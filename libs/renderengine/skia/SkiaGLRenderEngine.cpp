@@ -713,17 +713,18 @@ static SkRRect getBlurRRect(const BlurRegion& region) {
     return roundedRect;
 }
 
-status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
-                                        const std::vector<const LayerSettings*>& layers,
-                                        const std::shared_ptr<ExternalTexture>& buffer,
-                                        const bool /*useFramebufferCache*/,
-                                        base::unique_fd&& bufferFence, base::unique_fd* drawFence) {
+void SkiaGLRenderEngine::drawLayersInternal(
+        const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+        const DisplaySettings& display, const std::vector<const LayerSettings*>& layers,
+        const std::shared_ptr<ExternalTexture>& buffer, const bool /*useFramebufferCache*/,
+        base::unique_fd&& bufferFence) {
     ATRACE_NAME("SkiaGL::drawLayers");
 
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     if (layers.empty()) {
         ALOGV("Drawing empty layer stack");
-        return NO_ERROR;
+        resultPromise->set_value({NO_ERROR, base::unique_fd()});
+        return;
     }
 
     if (bufferFence.get() >= 0) {
@@ -736,7 +737,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     }
     if (buffer == nullptr) {
         ALOGE("No output buffer provided. Aborting GPU composition.");
-        return BAD_VALUE;
+        resultPromise->set_value({BAD_VALUE, base::unique_fd()});
+        return;
     }
 
     validateOutputBufferUsage(buffer->getBuffer());
@@ -765,7 +767,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     SkCanvas* dstCanvas = mCapture->tryCapture(dstSurface.get());
     if (dstCanvas == nullptr) {
         ALOGE("Cannot acquire canvas from Skia.");
-        return BAD_VALUE;
+        resultPromise->set_value({BAD_VALUE, base::unique_fd()});
+        return;
     }
 
     // setup color filter if necessary
@@ -1094,13 +1097,11 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         activeSurface->flush();
     }
 
-    if (drawFence != nullptr) {
-        *drawFence = flush();
-    }
+    base::unique_fd drawFence = flush();
 
     // If flush failed or we don't support native fences, we need to force the
     // gl command stream to be executed.
-    bool requireSync = drawFence == nullptr || drawFence->get() < 0;
+    bool requireSync = drawFence.get() < 0;
     if (requireSync) {
         ATRACE_BEGIN("Submit(sync=true)");
     } else {
@@ -1112,11 +1113,13 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         ALOGE("Failed to flush RenderEngine commands");
         // Chances are, something illegal happened (either the caller passed
         // us bad parameters, or we messed up our shader generation).
-        return INVALID_OPERATION;
+        resultPromise->set_value({INVALID_OPERATION, std::move(drawFence)});
+        return;
     }
 
     // checkErrors();
-    return NO_ERROR;
+    resultPromise->set_value({NO_ERROR, std::move(drawFence)});
+    return;
 }
 
 inline SkRect SkiaGLRenderEngine::getSkRect(const FloatRect& rect) {

@@ -1030,10 +1030,9 @@ std::optional<base::unique_fd> Output::composeSurfaces(
         }
     }
 
-    base::unique_fd readyFence;
     if (!hasClientComposition) {
         setExpensiveRenderingExpected(false);
-        return readyFence;
+        return base::unique_fd();
     }
 
     ALOGV("hasClientComposition");
@@ -1073,7 +1072,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(
                                                    clientCompositionLayers)) {
             outputCompositionState.reusedClientComposition = true;
             setExpensiveRenderingExpected(false);
-            return readyFence;
+            return base::unique_fd();
         }
         mClientCompositionRequestCache->add(tex->getBuffer()->getId(), clientCompositionDisplay,
                                             clientCompositionLayers);
@@ -1107,9 +1106,11 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     // probably to encapsulate the output buffer into a structure that dispatches resource cleanup
     // over to RenderEngine, in which case this flag can be removed from the drawLayers interface.
     const bool useFramebufferCache = outputState.layerFilter.toInternalDisplay;
-    status_t status =
-            renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, tex,
-                                    useFramebufferCache, std::move(fd), &readyFence);
+    auto [status, drawFence] =
+            renderEngine
+                    .drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, tex,
+                                useFramebufferCache, std::move(fd))
+                    .get();
 
     if (status != NO_ERROR && mClientCompositionRequestCache) {
         // If rendering was not successful, remove the request from the cache.
@@ -1117,15 +1118,15 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     }
 
     auto& timeStats = getCompositionEngine().getTimeStats();
-    if (readyFence.get() < 0) {
+    if (drawFence.get() < 0) {
         timeStats.recordRenderEngineDuration(renderEngineStart, systemTime());
     } else {
         timeStats.recordRenderEngineDuration(renderEngineStart,
                                              std::make_shared<FenceTime>(
-                                                     new Fence(dup(readyFence.get()))));
+                                                     new Fence(dup(drawFence.get()))));
     }
 
-    return readyFence;
+    return std::move(drawFence);
 }
 
 std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
