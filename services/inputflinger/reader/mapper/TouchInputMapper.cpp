@@ -470,6 +470,23 @@ void TouchInputMapper::configureParameters() {
     getDeviceContext().getConfiguration().tryGetProperty(String8("touch.orientationAware"),
                                                          mParameters.orientationAware);
 
+    mParameters.orientation = Parameters::Orientation::ORIENTATION_0;
+    String8 orientationString;
+    if (getDeviceContext().getConfiguration().tryGetProperty(String8("touch.orientation"),
+                                                             orientationString)) {
+        if (mParameters.deviceType != Parameters::DeviceType::TOUCH_SCREEN) {
+            ALOGW("The configuration 'touch.orientation' is only supported for touchscreens.");
+        } else if (orientationString == "ORIENTATION_90") {
+            mParameters.orientation = Parameters::Orientation::ORIENTATION_90;
+        } else if (orientationString == "ORIENTATION_180") {
+            mParameters.orientation = Parameters::Orientation::ORIENTATION_180;
+        } else if (orientationString == "ORIENTATION_270") {
+            mParameters.orientation = Parameters::Orientation::ORIENTATION_270;
+        } else if (orientationString != "ORIENTATION_0") {
+            ALOGW("Invalid value for touch.orientation: '%s'", orientationString.string());
+        }
+    }
+
     mParameters.hasAssociatedDisplay = false;
     mParameters.associatedDisplayIsExternal = false;
     if (mParameters.orientationAware ||
@@ -508,6 +525,7 @@ void TouchInputMapper::dumpParameters(std::string& dump) {
                          toString(mParameters.associatedDisplayIsExternal),
                          mParameters.uniqueDisplayId.c_str());
     dump += StringPrintf(INDENT4 "OrientationAware: %s\n", toString(mParameters.orientationAware));
+    dump += INDENT4 "Orientation: " + NamedEnum::string(mParameters.orientation) + "\n";
 }
 
 void TouchInputMapper::configureRawPointerAxes() {
@@ -669,7 +687,13 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             int32_t naturalPhysicalWidth, naturalPhysicalHeight;
             int32_t naturalPhysicalLeft, naturalPhysicalTop;
             int32_t naturalDeviceWidth, naturalDeviceHeight;
-            switch (mViewport.orientation) {
+
+            // Apply the inverse of the input device orientation so that the surface is configured
+            // in the same orientation as the device. The input device orientation will be
+            // re-applied to mSurfaceOrientation.
+            const int32_t naturalSurfaceOrientation =
+                    (mViewport.orientation - static_cast<int32_t>(mParameters.orientation) + 4) % 4;
+            switch (naturalSurfaceOrientation) {
                 case DISPLAY_ORIENTATION_90:
                     naturalLogicalWidth = mViewport.logicalBottom - mViewport.logicalTop;
                     naturalLogicalHeight = mViewport.logicalRight - mViewport.logicalLeft;
@@ -752,6 +776,10 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
                 mSurfaceOrientation = mParameters.orientationAware ? mViewport.orientation
                                                                    : DISPLAY_ORIENTATION_0;
             }
+
+            // Apply the input device orientation for the device.
+            mSurfaceOrientation =
+                    (mSurfaceOrientation + static_cast<int32_t>(mParameters.orientation)) % 4;
         } else {
             mPhysicalWidth = rawWidth;
             mPhysicalHeight = rawHeight;
