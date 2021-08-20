@@ -96,7 +96,7 @@ void RenderEngine::validateOutputBufferUsage(const sp<GraphicBuffer>& buffer) {
 }
 
 std::future<RenderEngineResult> RenderEngine::drawLayers(
-        const DisplaySettings& display, const std::vector<const LayerSettings*>& layers,
+        const DisplaySettings& display, const std::vector<LayerSettings>& layers,
         const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
         base::unique_fd&& bufferFence) {
     const auto resultPromise = std::make_shared<std::promise<RenderEngineResult>>();
