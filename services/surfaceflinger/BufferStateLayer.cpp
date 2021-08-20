@@ -697,9 +697,9 @@ void BufferStateLayer::setAutoRefresh(bool autoRefresh) {
 
 bool BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     // We need to update the sideband stream if the layer has both a buffer and a sideband stream.
-    const bool updateSidebandStream = hasFrameUpdate() && mSidebandStream.get();
+    editCompositionState()->sidebandStreamHasFrame = hasFrameUpdate() && mSidebandStream.get();
 
-    if (mSidebandStreamChanged.exchange(false) || updateSidebandStream) {
+    if (mSidebandStreamChanged.exchange(false)) {
         const State& s(getDrawingState());
         // mSidebandStreamChanged was true
         mSidebandStream = s.sidebandStream;

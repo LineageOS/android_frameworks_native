@@ -272,12 +272,12 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
         bufferFence.reset(texture->getReadyFence()->dup());
     }
 
-    base::unique_fd drawFence;
-    status_t result =
-            renderEngine.drawLayers(displaySettings, layerSettingsPointers, texture->get(), false,
-                                    std::move(bufferFence), &drawFence);
+    auto [status, drawFence] = renderEngine
+                                       .drawLayers(displaySettings, layerSettingsPointers,
+                                                   texture->get(), false, std::move(bufferFence))
+                                       .get();
 
-    if (result == NO_ERROR) {
+    if (status == NO_ERROR) {
         mDrawFence = new Fence(drawFence.release());
         mOutputSpace = outputState.framebufferSpace;
         mTexture = texture;

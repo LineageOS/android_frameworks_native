@@ -304,27 +304,33 @@ bool RenderEngineThreaded::canSkipPostRenderCleanup() const {
     return mRenderEngine->canSkipPostRenderCleanup();
 }
 
-status_t RenderEngineThreaded::drawLayers(const DisplaySettings& display,
-                                          const std::vector<const LayerSettings*>& layers,
-                                          const std::shared_ptr<ExternalTexture>& buffer,
-                                          const bool useFramebufferCache,
-                                          base::unique_fd&& bufferFence,
-                                          base::unique_fd* drawFence) {
+void RenderEngineThreaded::drawLayersInternal(
+        const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+        const DisplaySettings& display, const std::vector<const LayerSettings*>& layers,
+        const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
+        base::unique_fd&& bufferFence) {
+    resultPromise->set_value({NO_ERROR, base::unique_fd()});
+    return;
+}
+
+std::future<RenderEngineResult> RenderEngineThreaded::drawLayers(
+        const DisplaySettings& display, const std::vector<const LayerSettings*>& layers,
+        const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
+        base::unique_fd&& bufferFence) {
     ATRACE_CALL();
-    std::promise<status_t> resultPromise;
-    std::future<status_t> resultFuture = resultPromise.get_future();
+    const auto resultPromise = std::make_shared<std::promise<RenderEngineResult>>();
+    std::future<RenderEngineResult> resultFuture = resultPromise->get_future();
     {
         std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise, &display, &layers, &buffer, useFramebufferCache,
-                             &bufferFence, &drawFence](renderengine::RenderEngine& instance) {
+        mFunctionCalls.push([resultPromise, &display, &layers, &buffer, useFramebufferCache,
+                             &bufferFence](renderengine::RenderEngine& instance) {
             ATRACE_NAME("REThreaded::drawLayers");
-            status_t status = instance.drawLayers(display, layers, buffer, useFramebufferCache,
-                                                  std::move(bufferFence), drawFence);
-            resultPromise.set_value(status);
+            instance.drawLayersInternal(std::move(resultPromise), display, layers, buffer,
+                                        useFramebufferCache, std::move(bufferFence));
         });
     }
     mCondition.notify_one();
-    return resultFuture.get();
+    return resultFuture;
 }
 
 void RenderEngineThreaded::cleanFramebufferCache() {

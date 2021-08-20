@@ -6328,12 +6328,14 @@ status_t SurfaceFlinger::renderScreenImplLocked(
     // Use an empty fence for the buffer fence, since we just created the buffer so
     // there is no need for synchronization with the GPU.
     base::unique_fd bufferFence;
-    base::unique_fd drawFence;
     getRenderEngine().useProtectedContext(useProtected);
 
     const constexpr bool kUseFramebufferCache = false;
-    getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, buffer,
-                                 kUseFramebufferCache, std::move(bufferFence), &drawFence);
+    auto [status, drawFence] =
+            getRenderEngine()
+                    .drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, buffer,
+                                kUseFramebufferCache, std::move(bufferFence))
+                    .get();
 
     if (drawFence >= 0) {
         sp<Fence> releaseFence = new Fence(dup(drawFence));
@@ -6346,7 +6348,7 @@ status_t SurfaceFlinger::renderScreenImplLocked(
     // Always switch back to unprotected context.
     getRenderEngine().useProtectedContext(false);
 
-    return NO_ERROR;
+    return status;
 }
 
 void SurfaceFlinger::windowInfosReported() {
