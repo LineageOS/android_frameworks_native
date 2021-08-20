@@ -53,8 +53,10 @@ void VelocityControl::move(nsecs_t eventTime, float* deltaX, float* deltaY) {
     if ((deltaX && *deltaX) || (deltaY && *deltaY)) {
         if (eventTime >= mLastMovementTime + STOP_TIME) {
 #if DEBUG_ACCELERATION
-            ALOGD("VelocityControl: stopped, last movement was %0.3fms ago",
-                    (eventTime - mLastMovementTime) * 0.000001f);
+	    if (mLastMovementTime != LLONG_MIN) {
+	        ALOGD("VelocityControl: stopped, last movement was %0.3fms ago",
+                       (eventTime - mLastMovementTime) * 0.000001f);
+	    }
 #endif
             reset();
         }
