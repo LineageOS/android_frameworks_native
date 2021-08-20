@@ -4659,6 +4659,8 @@ protected:
     void prepareLocationCalibration();
     int32_t toRawX(float displayX);
     int32_t toRawY(float displayY);
+    int32_t toRotatedRawX(float displayX);
+    int32_t toRotatedRawY(float displayY);
     float toCookedX(float rawX, float rawY);
     float toCookedY(float rawX, float rawY);
     float toDisplayX(int32_t rawX);
@@ -4739,6 +4741,14 @@ int32_t TouchInputMapperTest::toRawX(float displayX) {
 
 int32_t TouchInputMapperTest::toRawY(float displayY) {
     return int32_t(displayY * (RAW_Y_MAX - RAW_Y_MIN + 1) / DISPLAY_HEIGHT + RAW_Y_MIN);
+}
+
+int32_t TouchInputMapperTest::toRotatedRawX(float displayX) {
+    return int32_t(displayX * (RAW_X_MAX - RAW_X_MIN + 1) / DISPLAY_HEIGHT + RAW_X_MIN);
+}
+
+int32_t TouchInputMapperTest::toRotatedRawY(float displayY) {
+    return int32_t(displayY * (RAW_Y_MAX - RAW_Y_MIN + 1) / DISPLAY_WIDTH + RAW_Y_MIN);
 }
 
 float TouchInputMapperTest::toCookedX(float rawX, float rawY) {
@@ -5485,6 +5495,172 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenNotOrientationAware_RotatesMotion
     processUp(mapper);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+}
+
+TEST_F(SingleTouchInputMapperTest, Process_WhenOrientation0_RotatesMotions) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareButtons();
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.orientationAware", "1");
+    addConfigurationProperty("touch.orientation", "ORIENTATION_0");
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    auto& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    NotifyMotionArgs args;
+
+    // Orientation 0.
+    processDown(mapper, toRawX(50), toRawY(75));
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+}
+
+TEST_F(SingleTouchInputMapperTest, Process_WhenOrientation90_RotatesMotions) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareButtons();
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.orientationAware", "1");
+    addConfigurationProperty("touch.orientation", "ORIENTATION_90");
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    auto& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    NotifyMotionArgs args;
+
+    // Orientation 90.
+    processDown(mapper, RAW_X_MAX - toRotatedRawX(75) + RAW_X_MIN, toRotatedRawY(50));
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+}
+
+TEST_F(SingleTouchInputMapperTest, Process_WhenOrientation180_RotatesMotions) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareButtons();
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.orientationAware", "1");
+    addConfigurationProperty("touch.orientation", "ORIENTATION_180");
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    auto& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    NotifyMotionArgs args;
+
+    // Orientation 180.
+    processDown(mapper, RAW_X_MAX - toRawX(50) + RAW_X_MIN, RAW_Y_MAX - toRawY(75) + RAW_Y_MIN);
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+}
+
+TEST_F(SingleTouchInputMapperTest, Process_WhenOrientation270_RotatesMotions) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareButtons();
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.orientationAware", "1");
+    addConfigurationProperty("touch.orientation", "ORIENTATION_270");
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    auto& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    NotifyMotionArgs args;
+
+    // Orientation 270.
+    processDown(mapper, toRotatedRawX(75), RAW_Y_MAX - toRotatedRawY(50) + RAW_Y_MIN);
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+}
+
+TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationSpecified_RotatesMotionWithDisplay) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareButtons();
+    prepareAxes(POSITION);
+    // Since InputReader works in the un-rotated coordinate space, only devices that are not
+    // orientation-aware are affected by display rotation.
+    addConfigurationProperty("touch.orientationAware", "0");
+    addConfigurationProperty("touch.orientation", "ORIENTATION_90");
+    auto& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    NotifyMotionArgs args;
+
+    // Orientation 90, Rotation 0.
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    processDown(mapper, RAW_X_MAX - toRotatedRawX(75) + RAW_X_MIN, toRotatedRawY(50));
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+
+    // Orientation 90, Rotation 90.
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_90);
+    processDown(mapper, toRotatedRawX(50), toRotatedRawY(75));
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+
+    // Orientation 90, Rotation 180.
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_180);
+    processDown(mapper, toRotatedRawX(75), RAW_Y_MAX - toRotatedRawY(50) + RAW_Y_MIN);
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+
+    // Orientation 90, Rotation 270.
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_270);
+    processDown(mapper, RAW_X_MAX - toRotatedRawX(50) + RAW_X_MIN,
+                RAW_Y_MAX - toRotatedRawY(75) + RAW_Y_MIN);
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
 }
 
 TEST_F(SingleTouchInputMapperTest, Process_AllAxes_DefaultCalibration) {
