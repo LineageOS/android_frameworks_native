@@ -1115,7 +1115,7 @@ VkResult CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
         if (result != VK_SUCCESS)
             return result;
 
-        icd_api_version ^= VK_VERSION_PATCH(icd_api_version);
+        icd_api_version ^= VK_API_VERSION_PATCH(icd_api_version);
     }
 
     CreateInfoWrapper wrapper(*pCreateInfo, icd_api_version, data_allocator);
@@ -1199,7 +1199,7 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
 
     CreateInfoWrapper wrapper(
         physicalDevice, *pCreateInfo,
-        properties.apiVersion ^ VK_VERSION_PATCH(properties.apiVersion),
+        properties.apiVersion ^ VK_API_VERSION_PATCH(properties.apiVersion),
         data_allocator);
     VkResult result = wrapper.Validate();
     if (result != VK_SUCCESS)

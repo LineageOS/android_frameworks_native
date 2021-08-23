@@ -33,14 +33,6 @@
 #undef max
 #endif
 
-#ifndef VK_API_VERSION_1_0
-#define VK_API_VERSION_1_0 VK_MAKE_VERSION(1, 0, 0)
-#endif
-
-#ifndef VK_API_VERSION_1_1
-#define VK_API_VERSION_1_1 VK_MAKE_VERSION(1, 1, 0)
-#endif
-
 /*
  * Annotation to tell clang that we intend to fall through from one case to
  * another in a switch. Sourced from android-base/macros.h.
