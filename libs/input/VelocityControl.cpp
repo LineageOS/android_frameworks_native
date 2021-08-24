@@ -18,7 +18,7 @@
 //#define LOG_NDEBUG 0
 
 // Log debug messages about acceleration.
-#define DEBUG_ACCELERATION 0
+static constexpr bool DEBUG_ACCELERATION = false;
 
 #include <math.h>
 #include <limits.h>
@@ -52,12 +52,10 @@ void VelocityControl::reset() {
 void VelocityControl::move(nsecs_t eventTime, float* deltaX, float* deltaY) {
     if ((deltaX && *deltaX) || (deltaY && *deltaY)) {
         if (eventTime >= mLastMovementTime + STOP_TIME) {
-#if DEBUG_ACCELERATION
-	    if (mLastMovementTime != LLONG_MIN) {
-	        ALOGD("VelocityControl: stopped, last movement was %0.3fms ago",
-                       (eventTime - mLastMovementTime) * 0.000001f);
-	    }
-#endif
+            if (DEBUG_ACCELERATION && mLastMovementTime != LLONG_MIN) {
+                ALOGD("VelocityControl: stopped, last movement was %0.3fms ago",
+                           (eventTime - mLastMovementTime) * 0.000001f);
+            }
             reset();
         }
 
@@ -85,19 +83,20 @@ void VelocityControl::move(nsecs_t eventTime, float* deltaX, float* deltaY) {
                         * (mParameters.acceleration - 1);
             }
 
-#if DEBUG_ACCELERATION
-            ALOGD("VelocityControl(%0.3f, %0.3f, %0.3f, %0.3f): "
-                    "vx=%0.3f, vy=%0.3f, speed=%0.3f, accel=%0.3f",
-                    mParameters.scale, mParameters.lowThreshold, mParameters.highThreshold,
-                    mParameters.acceleration,
-                    vx, vy, speed, scale / mParameters.scale);
-#endif
+            if (DEBUG_ACCELERATION) {
+                ALOGD("VelocityControl(%0.3f, %0.3f, %0.3f, %0.3f): "
+                        "vx=%0.3f, vy=%0.3f, speed=%0.3f, accel=%0.3f",
+                        mParameters.scale, mParameters.lowThreshold, mParameters.highThreshold,
+                        mParameters.acceleration,
+                        vx, vy, speed, scale / mParameters.scale);
+            }
+
         } else {
-#if DEBUG_ACCELERATION
-            ALOGD("VelocityControl(%0.3f, %0.3f, %0.3f, %0.3f): unknown velocity",
-                    mParameters.scale, mParameters.lowThreshold, mParameters.highThreshold,
-                    mParameters.acceleration);
-#endif
+            if (DEBUG_ACCELERATION) {
+                ALOGD("VelocityControl(%0.3f, %0.3f, %0.3f, %0.3f): unknown velocity",
+                        mParameters.scale, mParameters.lowThreshold, mParameters.highThreshold,
+                        mParameters.acceleration);
+            }
         }
 
         if (deltaX) {
