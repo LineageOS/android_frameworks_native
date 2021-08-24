@@ -1091,8 +1091,8 @@ static inline int ANativeWindow_getLastQueuedBuffer2(ANativeWindow* window,
  *
  * \return the next frame id.
  */
-static inline int64_t ANativeWindow_getNextFrameId(ANativeWindow* window) {
-    int64_t value;
+static inline uint64_t ANativeWindow_getNextFrameId(ANativeWindow* window) {
+    uint64_t value;
     window->perform(window, NATIVE_WINDOW_GET_NEXT_FRAME_ID, &value);
     return value;
 }
