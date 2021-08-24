@@ -911,7 +911,10 @@ RefreshRateConfigs::KernelIdleTimerAction RefreshRateConfigs::getIdleTimerAction
 int RefreshRateConfigs::getFrameRateDivider(Fps displayFrameRate, Fps layerFrameRate) {
     // This calculation needs to be in sync with the java code
     // in DisplayManagerService.getDisplayInfoForFrameRateOverride
-    constexpr float kThreshold = 0.1f;
+
+    // The threshold must be smaller than 0.001 in order to differentiate
+    // between the fractional pairs (e.g. 59.94 and 60).
+    constexpr float kThreshold = 0.0009f;
     const auto numPeriods = displayFrameRate.getValue() / layerFrameRate.getValue();
     const auto numPeriodsRounded = std::round(numPeriods);
     if (std::abs(numPeriods - numPeriodsRounded) > kThreshold) {
