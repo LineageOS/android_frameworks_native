@@ -205,7 +205,7 @@ class FakeInputReaderPolicy : public InputReaderPolicyInterface {
     std::condition_variable mDevicesChangedCondition;
 
     InputReaderConfiguration mConfig;
-    std::unordered_map<int32_t, std::shared_ptr<FakePointerController>> mPointerControllers;
+    std::shared_ptr<FakePointerController> mPointerController;
     std::vector<InputDeviceInfo> mInputDevices GUARDED_BY(mLock);
     bool mInputDevicesChanged GUARDED_BY(mLock){false};
     std::vector<DisplayViewport> mViewports;
@@ -291,8 +291,8 @@ public:
 
     void removeDisabledDevice(int32_t deviceId) { mConfig.disabledDevices.erase(deviceId); }
 
-    void setPointerController(int32_t deviceId, std::shared_ptr<FakePointerController> controller) {
-        mPointerControllers.insert_or_assign(deviceId, std::move(controller));
+    void setPointerController(std::shared_ptr<FakePointerController> controller) {
+        mPointerController = std::move(controller);
     }
 
     const InputReaderConfiguration* getReaderConfiguration() const {
@@ -357,8 +357,9 @@ private:
         *outConfig = mConfig;
     }
 
-    std::shared_ptr<PointerControllerInterface> obtainPointerController(int32_t deviceId) override {
-        return mPointerControllers[deviceId];
+    std::shared_ptr<PointerControllerInterface> obtainPointerController(
+            int32_t /*deviceId*/) override {
+        return mPointerController;
     }
 
     void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) override {
@@ -2132,8 +2133,12 @@ protected:
     sp<FakeInputReaderPolicy> mFakePolicy;
     sp<InputReaderInterface> mReader;
 
+    std::shared_ptr<FakePointerController> mFakePointerController;
+
     void SetUp() override {
         mFakePolicy = new FakeInputReaderPolicy();
+        mFakePointerController = std::make_shared<FakePointerController>();
+        mFakePolicy->setPointerController(mFakePointerController);
         mTestListener = new TestInputListener(2000ms /*eventHappenedTimeout*/,
                                               30ms /*eventDidNotHappenTimeout*/);
 
@@ -3825,7 +3830,7 @@ protected:
         InputMapperTest::SetUp();
 
         mFakePointerController = std::make_shared<FakePointerController>();
-        mFakePolicy->setPointerController(mDevice->getId(), mFakePointerController);
+        mFakePolicy->setPointerController(mFakePointerController);
     }
 
     void testMotionRotation(CursorInputMapper& mapper, int32_t originalX, int32_t originalY,
@@ -7614,7 +7619,7 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShouldHandleDisplayId) {
     fakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
     fakePointerController->setPosition(100, 200);
     fakePointerController->setButtonState(0);
-    mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
+    mFakePolicy->setPointerController(fakePointerController);
 
     mFakePolicy->setDefaultPointerDisplayId(SECONDARY_DISPLAY_ID);
     prepareSecondaryDisplay(ViewportType::EXTERNAL);
@@ -7767,8 +7772,7 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
     // Setup PointerController.
     std::shared_ptr<FakePointerController> fakePointerController =
             std::make_shared<FakePointerController>();
-    mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
-    mFakePolicy->setPointerController(SECOND_DEVICE_ID, fakePointerController);
+    mFakePolicy->setPointerController(fakePointerController);
 
     // Setup policy for associated displays and show touches.
     const uint8_t hdmi1 = 0;
@@ -8590,7 +8594,7 @@ TEST_F(MultiTouchInputMapperTest, Process_TouchpadCapture) {
     mFakeEventHub->addKey(EVENTHUB_ID, BTN_LEFT, 0, AKEYCODE_UNKNOWN, 0);
     mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOUCH, 0, AKEYCODE_UNKNOWN, 0);
     mFakePolicy->setPointerCapture(true);
-    mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
+    mFakePolicy->setPointerController(fakePointerController);
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
 
     // captured touchpad should be a touchpad source
@@ -8740,7 +8744,7 @@ TEST_F(MultiTouchInputMapperTest, Process_UnCapturedTouchpadPointer) {
     prepareAxes(POSITION | ID | SLOT);
     mFakeEventHub->addKey(EVENTHUB_ID, BTN_LEFT, 0, AKEYCODE_UNKNOWN, 0);
     mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOUCH, 0, AKEYCODE_UNKNOWN, 0);
-    mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
+    mFakePolicy->setPointerController(fakePointerController);
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
     // run uncaptured pointer tests - pushes out generic events
     // FINGER 0 DOWN
@@ -8780,7 +8784,7 @@ TEST_F(MultiTouchInputMapperTest, WhenCapturedAndNotCaptured_GetSources) {
     prepareDisplay(DISPLAY_ORIENTATION_0);
     prepareAxes(POSITION | ID | SLOT);
     mFakeEventHub->addKey(EVENTHUB_ID, BTN_LEFT, 0, AKEYCODE_UNKNOWN, 0);
-    mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
+    mFakePolicy->setPointerController(fakePointerController);
     mFakePolicy->setPointerCapture(false);
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
 
