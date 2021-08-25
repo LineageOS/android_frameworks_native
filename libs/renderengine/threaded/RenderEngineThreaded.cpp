@@ -292,7 +292,7 @@ void RenderEngineThreaded::cleanupPostRender() {
     {
         std::lock_guard lock(mThreadMutex);
         mFunctionCalls.push([=](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::unmapExternalTextureBuffer");
+            ATRACE_NAME("REThreaded::cleanupPostRender");
             instance.cleanupPostRender();
         });
     }
