@@ -47,7 +47,7 @@ namespace {
 // coordinates and SurfaceFlinger includes the display rotation in the input window transforms.
 bool isPerWindowInputRotationEnabled() {
     static const bool PER_WINDOW_INPUT_ROTATION =
-            base::GetBoolProperty("persist.debug.per_window_input_rotation", false);
+            base::GetBoolProperty("persist.debug.per_window_input_rotation", true);
 
     return PER_WINDOW_INPUT_ROTATION;
 }
