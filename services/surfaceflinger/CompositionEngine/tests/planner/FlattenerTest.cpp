@@ -47,23 +47,24 @@ namespace {
 
 class TestableFlattener : public Flattener {
 public:
-    TestableFlattener(renderengine::RenderEngine& renderEngine, bool enableHolePunch,
-                      std::optional<Flattener::CachedSetRenderSchedulingTunables>
-                              cachedSetRenderSchedulingTunables = std::nullopt)
-          : Flattener(renderEngine, enableHolePunch, cachedSetRenderSchedulingTunables) {}
+    TestableFlattener(renderengine::RenderEngine& renderEngine, const Tunables& tunables)
+          : Flattener(renderEngine, tunables) {}
     const std::optional<CachedSet>& getNewCachedSetForTesting() const { return mNewCachedSet; }
 };
 
 class FlattenerTest : public testing::Test {
 public:
-    FlattenerTest() : FlattenerTest(std::nullopt) {}
+    FlattenerTest()
+          : FlattenerTest(Flattener::Tunables{
+                    .mActiveLayerTimeout = 100ms,
+                    .mRenderScheduling = std::nullopt,
+                    .mEnableHolePunch = true,
+            }) {}
     void SetUp() override;
 
 protected:
-    FlattenerTest(std::optional<Flattener::CachedSetRenderSchedulingTunables>
-                          cachedSetRenderSchedulingTunables)
-          : mFlattener(std::make_unique<TestableFlattener>(mRenderEngine, true,
-                                                           cachedSetRenderSchedulingTunables)) {}
+    FlattenerTest(const Flattener::Tunables& tunables)
+          : mFlattener(std::make_unique<TestableFlattener>(mRenderEngine, tunables)) {}
     void initializeOverrideBuffer(const std::vector<const LayerState*>& layers);
     void initializeFlattener(const std::vector<const LayerState*>& layers);
     void expectAllLayersFlattened(const std::vector<const LayerState*>& layers);
@@ -899,11 +900,13 @@ class FlattenerRenderSchedulingTest : public FlattenerTest {
 public:
     FlattenerRenderSchedulingTest()
           : FlattenerTest(
-                    Flattener::CachedSetRenderSchedulingTunables{.cachedSetRenderDuration =
+                    Flattener::Tunables{.mActiveLayerTimeout = 100ms,
+                                        .mRenderScheduling = Flattener::Tunables::
+                                                RenderScheduling{.cachedSetRenderDuration =
                                                                          kCachedSetRenderDuration,
                                                                  .maxDeferRenderAttempts =
-                                                                         kMaxDeferRenderAttempts}) {
-    }
+                                                                         kMaxDeferRenderAttempts},
+                                        .mEnableHolePunch = true}) {}
 };
 
 TEST_F(FlattenerRenderSchedulingTest, flattenLayers_renderCachedSets_defersUpToMaxAttempts) {
