@@ -84,7 +84,9 @@ int32_t InputMapper::getMetaState() {
     return 0;
 }
 
-void InputMapper::updateMetaState(int32_t keyCode) {}
+bool InputMapper::updateMetaState(int32_t keyCode) {
+    return false;
+}
 
 void InputMapper::updateExternalStylusState(const StylusState& state) {}
 
