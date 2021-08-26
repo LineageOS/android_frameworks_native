@@ -346,18 +346,15 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarge
             // Use identity transform for joystick and position-based (touchpad) events because they
             // don't depend on the window transform.
             return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, identityTransform,
-                                                   1.0f /*globalScaleFactor*/,
-                                                   inputTarget.displayOrientation,
-                                                   inputTarget.displaySize);
+                                                   identityTransform, 1.0f /*globalScaleFactor*/);
         }
     }
 
     if (inputTarget.useDefaultPointerTransform()) {
         const ui::Transform& transform = inputTarget.getDefaultPointerTransform();
         return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, transform,
-                                               inputTarget.globalScaleFactor,
-                                               inputTarget.displayOrientation,
-                                               inputTarget.displaySize);
+                                               inputTarget.displayTransform,
+                                               inputTarget.globalScaleFactor);
     }
 
     ALOG_ASSERT(eventEntry->type == EventEntry::Type::MOTION);
@@ -408,9 +405,8 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarge
 
     std::unique_ptr<DispatchEntry> dispatchEntry =
             std::make_unique<DispatchEntry>(std::move(combinedMotionEntry), inputTargetFlags,
-                                            firstPointerTransform, inputTarget.globalScaleFactor,
-                                            inputTarget.displayOrientation,
-                                            inputTarget.displaySize);
+                                            firstPointerTransform, inputTarget.displayTransform,
+                                            inputTarget.globalScaleFactor);
     return dispatchEntry;
 }
 
@@ -2347,7 +2343,7 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
 
     for (const TouchedMonitor& touchedMonitor : tempTouchState.gestureMonitors) {
         addMonitoringTargetLocked(touchedMonitor.monitor, touchedMonitor.xOffset,
-                                  touchedMonitor.yOffset, inputTargets);
+                                  touchedMonitor.yOffset, displayId, inputTargets);
     }
 
     // Drop the outside or hover touch windows since we will not care about them
@@ -2526,9 +2522,7 @@ void InputDispatcher::addWindowTargetLocked(const sp<WindowInfoHandle>& windowHa
         inputTarget.globalScaleFactor = windowInfo->globalScaleFactor;
         const auto& displayInfoIt = mDisplayInfos.find(windowInfo->displayId);
         if (displayInfoIt != mDisplayInfos.end()) {
-            const auto& displayInfo = displayInfoIt->second;
-            inputTarget.displayOrientation = displayInfo.transform.getOrientation();
-            inputTarget.displaySize = int2(displayInfo.logicalWidth, displayInfo.logicalHeight);
+            inputTarget.displayTransform = displayInfoIt->second.transform;
         } else {
             ALOGI_IF(isPerWindowInputRotationEnabled(),
                      "DisplayInfo not found for window on display: %d", windowInfo->displayId);
@@ -2552,19 +2546,38 @@ void InputDispatcher::addGlobalMonitoringTargetsLocked(std::vector<InputTarget>&
     if (it != mGlobalMonitorsByDisplay.end()) {
         const std::vector<Monitor>& monitors = it->second;
         for (const Monitor& monitor : monitors) {
-            addMonitoringTargetLocked(monitor, xOffset, yOffset, inputTargets);
+            addMonitoringTargetLocked(monitor, xOffset, yOffset, displayId, inputTargets);
         }
     }
 }
 
 void InputDispatcher::addMonitoringTargetLocked(const Monitor& monitor, float xOffset,
-                                                float yOffset,
+                                                float yOffset, int32_t displayId,
                                                 std::vector<InputTarget>& inputTargets) {
     InputTarget target;
     target.inputChannel = monitor.inputChannel;
     target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
-    ui::Transform t;
-    t.set(xOffset, yOffset);
+    ui::Transform t = ui::Transform(xOffset, yOffset);
+    if (const auto& it = mDisplayInfos.find(displayId); it != mDisplayInfos.end()) {
+        // Input monitors always get un-rotated display coordinates. We undo the display
+        // rotation that is present in the display transform so that display rotation is not
+        // applied to these input targets.
+        const auto& displayInfo = it->second;
+        int32_t width = displayInfo.logicalWidth;
+        int32_t height = displayInfo.logicalHeight;
+        const auto orientation = displayInfo.transform.getOrientation();
+        uint32_t inverseOrientation = orientation;
+        if (orientation == ui::Transform::ROT_90) {
+            inverseOrientation = ui::Transform::ROT_270;
+            std::swap(width, height);
+        } else if (orientation == ui::Transform::ROT_270) {
+            inverseOrientation = ui::Transform::ROT_90;
+            std::swap(width, height);
+        }
+        target.displayTransform =
+                ui::Transform(inverseOrientation, width, height) * displayInfo.transform;
+        t = t * target.displayTransform;
+    }
     target.setDefaultPointerTransform(t);
     inputTargets.push_back(target);
 }
@@ -3250,9 +3263,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                      motionEntry.xPrecision, motionEntry.yPrecision,
                                                      motionEntry.xCursorPosition,
                                                      motionEntry.yCursorPosition,
-                                                     dispatchEntry->displayOrientation,
-                                                     dispatchEntry->displaySize.x,
-                                                     dispatchEntry->displaySize.y,
+                                                     dispatchEntry->rawTransform,
                                                      motionEntry.downTime, motionEntry.eventTime,
                                                      motionEntry.pointerCount,
                                                      motionEntry.pointerProperties, usingCoords);
@@ -3981,14 +3992,14 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
             mLock.unlock();
 
             MotionEvent event;
-            ui::Transform transform;
+            ui::Transform identityTransform;
             event.initialize(args->id, args->deviceId, args->source, args->displayId, INVALID_HMAC,
                              args->action, args->actionButton, args->flags, args->edgeFlags,
-                             args->metaState, args->buttonState, args->classification, transform,
-                             args->xPrecision, args->yPrecision, args->xCursorPosition,
-                             args->yCursorPosition, ui::Transform::ROT_0, INVALID_DISPLAY_SIZE,
-                             INVALID_DISPLAY_SIZE, args->downTime, args->eventTime,
-                             args->pointerCount, args->pointerProperties, args->pointerCoords);
+                             args->metaState, args->buttonState, args->classification,
+                             identityTransform, args->xPrecision, args->yPrecision,
+                             args->xCursorPosition, args->yCursorPosition, identityTransform,
+                             args->downTime, args->eventTime, args->pointerCount,
+                             args->pointerProperties, args->pointerCoords);
 
             policyFlags |= POLICY_FLAG_FILTERED;
             if (!mPolicy->filterInputEvent(&event, policyFlags)) {
