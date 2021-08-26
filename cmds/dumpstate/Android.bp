@@ -100,6 +100,7 @@ cc_defaults {
         "liblog",
         "libutils",
         "libbinderdebug",
+        "packagemanager_aidl-cpp",
     ],
     srcs: [
         "DumpstateService.cpp",
@@ -172,7 +173,6 @@ cc_test {
     test_config: "dumpstate_smoke_test.xml",
     test_suites: ["device-tests"],
 }
-
 
 // =======================#
 // dumpstate_test_fixture #
