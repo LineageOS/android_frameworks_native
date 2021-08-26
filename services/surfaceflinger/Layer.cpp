@@ -2131,7 +2131,7 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
     if (traceFlags & SurfaceTracing::TRACE_INPUT) {
         WindowInfo info;
         if (useDrawing) {
-            info = fillInputInfo(nullptr);
+            info = fillInputInfo(ui::Transform());
         } else {
             info = state.inputInfo;
         }
@@ -2265,7 +2265,7 @@ void Layer::fillTouchOcclusionMode(WindowInfo& info) {
     }
 }
 
-WindowInfo Layer::fillInputInfo(const DisplayDevice* display) {
+WindowInfo Layer::fillInputInfo(const ui::Transform& displayTransform) {
     if (!hasInputInfo()) {
         mDrawingState.inputInfo.name = getName();
         mDrawingState.inputInfo.ownerUid = mOwnerUid;
@@ -2279,35 +2279,6 @@ WindowInfo Layer::fillInputInfo(const DisplayDevice* display) {
     info.id = sequence;
     info.displayId = getLayerStack().id;
 
-    // Transform that maps from LayerStack space to display space, e.g. rotated to non-rotated.
-    // Used when InputFlinger operates in display space.
-    ui::Transform displayTransform;
-    if (display) {
-        // The physical orientation is set when the orientation of the display panel is different
-        // than the default orientation of the device. Other services like InputFlinger do not know
-        // about this, so we do not need to expose the physical orientation of the panel outside of
-        // SurfaceFlinger.
-        const ui::Rotation inversePhysicalOrientation =
-                ui::ROTATION_0 - display->getPhysicalOrientation();
-        auto width = display->getWidth();
-        auto height = display->getHeight();
-        if (inversePhysicalOrientation == ui::ROTATION_90 ||
-            inversePhysicalOrientation == ui::ROTATION_270) {
-            std::swap(width, height);
-        }
-        const ui::Transform undoPhysicalOrientation(ui::Transform::toRotationFlags(
-                                                            inversePhysicalOrientation),
-                                                    width, height);
-        displayTransform = undoPhysicalOrientation * display->getTransform();
-
-        // Send the inverse of the display orientation so that input can transform points back to
-        // the rotated display space.
-        const ui::Rotation inverseOrientation = ui::ROTATION_0 - display->getOrientation();
-        info.displayOrientation = ui::Transform::toRotationFlags(inverseOrientation);
-
-        info.displayWidth = width;
-        info.displayHeight = height;
-    }
     fillInputFrameInfo(info, displayTransform);
 
     // For compatibility reasons we let layers which can receive input

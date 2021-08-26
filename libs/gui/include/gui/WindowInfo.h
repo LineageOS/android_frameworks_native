@@ -168,13 +168,6 @@ struct WindowInfo : public Parcelable {
     // Transform applied to individual windows.
     ui::Transform transform;
 
-    // Display orientation as ui::Transform::RotationFlags. Used for compatibility raw coordinates.
-    uint32_t displayOrientation = ui::Transform::ROT_0;
-
-    // Display size in its natural rotation. Used to rotate raw coordinates for compatibility.
-    int32_t displayWidth = 0;
-    int32_t displayHeight = 0;
-
     /*
      * This is filled in by the WM relative to the frame and then translated
      * to absolute coordinates by SurfaceFlinger once the frame is computed.

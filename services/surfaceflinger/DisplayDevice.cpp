@@ -139,6 +139,34 @@ uint32_t DisplayDevice::getPageFlipCount() const {
     return mCompositionDisplay->getRenderSurface()->getPageFlipCount();
 }
 
+std::pair<gui::DisplayInfo, ui::Transform> DisplayDevice::getInputInfo() const {
+    gui::DisplayInfo info;
+    info.displayId = getLayerStack().id;
+
+    // The physical orientation is set when the orientation of the display panel is
+    // different than the default orientation of the device. Other services like
+    // InputFlinger do not know about this, so we do not need to expose the physical
+    // orientation of the panel outside of SurfaceFlinger.
+    const ui::Rotation inversePhysicalOrientation = ui::ROTATION_0 - mPhysicalOrientation;
+    auto width = getWidth();
+    auto height = getHeight();
+    if (inversePhysicalOrientation == ui::ROTATION_90 ||
+        inversePhysicalOrientation == ui::ROTATION_270) {
+        std::swap(width, height);
+    }
+    const ui::Transform undoPhysicalOrientation(ui::Transform::toRotationFlags(
+                                                        inversePhysicalOrientation),
+                                                width, height);
+    const auto& displayTransform = undoPhysicalOrientation * getTransform();
+    // Send the inverse display transform to input so it can convert display coordinates to
+    // logical display.
+    info.transform = displayTransform.inverse();
+
+    info.logicalWidth = getLayerStackSpaceRect().width();
+    info.logicalHeight = getLayerStackSpaceRect().height();
+    return {info, displayTransform};
+}
+
 // ----------------------------------------------------------------------------
 void DisplayDevice::setPowerMode(hal::PowerMode mode) {
     mPowerMode = mode;

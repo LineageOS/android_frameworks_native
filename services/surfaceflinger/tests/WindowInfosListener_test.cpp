@@ -22,6 +22,7 @@
 
 namespace android {
 using Transaction = SurfaceComposerClient::Transaction;
+using gui::DisplayInfo;
 using gui::WindowInfo;
 
 class WindowInfosListenerTest : public ::testing::Test {
@@ -40,7 +41,8 @@ protected:
 
     struct SyncWindowInfosListener : public gui::WindowInfosListener {
     public:
-        void onWindowInfosChanged(const std::vector<WindowInfo>& windowInfos) override {
+        void onWindowInfosChanged(const std::vector<WindowInfo>& windowInfos,
+                                  const std::vector<DisplayInfo>&) override {
             windowInfosPromise.set_value(windowInfos);
         }
 

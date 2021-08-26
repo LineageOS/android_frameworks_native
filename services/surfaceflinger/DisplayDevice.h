@@ -167,6 +167,10 @@ public:
         return mDeviceProductInfo;
     }
 
+    // Get the DisplayInfo that will be sent to InputFlinger, and the display transform that should
+    // be applied to all the input windows on the display.
+    std::pair<gui::DisplayInfo, ui::Transform> getInputInfo() const;
+
     /* ------------------------------------------------------------------------
      * Display power mode management.
      */
