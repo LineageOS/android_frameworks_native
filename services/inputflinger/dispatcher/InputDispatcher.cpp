@@ -98,7 +98,7 @@ namespace android::inputdispatcher {
 // coordinates and SurfaceFlinger includes the display rotation in the input window transforms.
 static bool isPerWindowInputRotationEnabled() {
     static const bool PER_WINDOW_INPUT_ROTATION =
-            sysprop::InputFlingerProperties::per_window_input_rotation().value_or(true);
+            sysprop::InputFlingerProperties::per_window_input_rotation().value_or(false);
 
     return PER_WINDOW_INPUT_ROTATION;
 }
