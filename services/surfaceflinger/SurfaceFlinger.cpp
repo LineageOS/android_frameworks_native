@@ -109,6 +109,7 @@
 #include "DisplayRenderArea.h"
 #include "EffectLayer.h"
 #include "Effects/Daltonizer.h"
+#include "FlagManager.h"
 #include "FpsReporter.h"
 #include "FrameTimeline/FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
@@ -672,6 +673,7 @@ void SurfaceFlinger::bootFinished() {
     const nsecs_t duration = now - mBootTime;
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
 
+    mFlagManager = std::make_unique<android::FlagManager>();
     mFrameTracer->initialize();
     mFrameTimeline->onBootFinished();
 
@@ -5128,6 +5130,11 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
      */
     const GraphicBufferAllocator& alloc(GraphicBufferAllocator::get());
     alloc.dump(result);
+
+    /*
+     * Dump flag/property manager state
+     */
+    mFlagManager->dump(result);
 
     result.append(mTimeStats->miniDump());
     result.append("\n");
