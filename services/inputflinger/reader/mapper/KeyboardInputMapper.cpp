@@ -384,8 +384,13 @@ int32_t KeyboardInputMapper::getMetaState() {
     return mMetaState;
 }
 
-void KeyboardInputMapper::updateMetaState(int32_t keyCode) {
+bool KeyboardInputMapper::updateMetaState(int32_t keyCode) {
+    if (!android::isMetaKey(keyCode) || !getDeviceContext().hasKeyCode(keyCode)) {
+        return false;
+    }
+
     updateMetaStateIfNeeded(keyCode, false);
+    return true;
 }
 
 bool KeyboardInputMapper::updateMetaStateIfNeeded(int32_t keyCode, bool down) {

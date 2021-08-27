@@ -555,6 +555,7 @@ void InputReader::toggleCapsLockState(int32_t deviceId) {
     }
 
     if (device->isIgnored()) {
+        ALOGW("Ignoring toggleCapsLock for ignored deviceId %" PRId32 ".", deviceId);
         return;
     }
 

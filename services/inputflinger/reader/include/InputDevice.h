@@ -323,6 +323,7 @@ public:
     inline bool hasScanCode(int32_t scanCode) const {
         return mEventHub->hasScanCode(mId, scanCode);
     }
+    inline bool hasKeyCode(int32_t keyCode) const { return mEventHub->hasKeyCode(mId, keyCode); }
     inline bool hasLed(int32_t led) const { return mEventHub->hasLed(mId, led); }
     inline void setLedState(int32_t led, bool on) { return mEventHub->setLedState(mId, led, on); }
     inline void getVirtualKeyDefinitions(std::vector<VirtualKeyDefinition>& outVirtualKeys) const {
