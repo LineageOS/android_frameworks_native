@@ -1500,7 +1500,7 @@ private:
     auto getLayerCreatedState(const sp<IBinder>& handle);
     sp<Layer> handleLayerCreatedLocked(const sp<IBinder>& handle) REQUIRES(mStateLock);
 
-    std::atomic<ui::Transform::RotationFlags> mDefaultDisplayTransformHint;
+    std::atomic<ui::Transform::RotationFlags> mActiveDisplayTransformHint;
 
     void scheduleRegionSamplingThread();
     void notifyRegionSamplingThread();
