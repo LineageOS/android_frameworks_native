@@ -40,7 +40,7 @@ public:
                                        const int32_t* keyCodes, uint8_t* outFlags) override;
 
     virtual int32_t getMetaState() override;
-    virtual void updateMetaState(int32_t keyCode) override;
+    virtual bool updateMetaState(int32_t keyCode) override;
     virtual std::optional<int32_t> getAssociatedDisplayId() override;
     virtual void updateLedState(bool reset);
 
