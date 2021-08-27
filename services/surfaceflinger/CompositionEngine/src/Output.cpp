@@ -789,6 +789,9 @@ compositionengine::OutputLayer* Output::findLayerRequestingBackgroundComposition
         if (compState->sidebandStream != nullptr) {
             return nullptr;
         }
+        if (compState->isOpaque) {
+            continue;
+        }
         if (compState->backgroundBlurRadius > 0 || compState->blurRegions.size() > 0) {
             layerRequestingBgComposition = layer;
         }
