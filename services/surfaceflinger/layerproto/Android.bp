@@ -13,8 +13,7 @@ cc_library {
 
     srcs: [
         "LayerProtoParser.cpp",
-        "layers.proto",
-        "layerstrace.proto",
+        "*.proto",
     ],
 
     shared_libs: [
