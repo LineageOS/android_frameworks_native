@@ -109,11 +109,13 @@
 #include "DisplayRenderArea.h"
 #include "EffectLayer.h"
 #include "Effects/Daltonizer.h"
+#include "FlagManager.h"
 #include "FpsReporter.h"
 #include "FrameTimeline/FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
 #include "HdrLayerInfoReporter.h"
 #include "Layer.h"
+#include "LayerProtoHelper.h"
 #include "LayerRenderArea.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
@@ -672,6 +674,7 @@ void SurfaceFlinger::bootFinished() {
     const nsecs_t duration = now - mBootTime;
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
 
+    mFlagManager = std::make_unique<android::FlagManager>();
     mFrameTracer->initialize();
     mFrameTimeline->onBootFinished();
 
@@ -3039,7 +3042,7 @@ void SurfaceFlinger::updateInputFlinger() {
 
 bool enablePerWindowInputRotation() {
     static bool value =
-            android::base::GetBoolProperty("persist.debug.per_window_input_rotation", true);
+            android::base::GetBoolProperty("persist.debug.per_window_input_rotation", false);
     return value;
 }
 
@@ -4636,9 +4639,14 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
         }
 
         if (dumpLayers) {
-            const LayersProto layersProto = dumpProtoFromMainThread();
+            LayersTraceFileProto traceFileProto = SurfaceTracing::createLayersTraceFileProto();
+            LayersTraceProto* layersTrace = traceFileProto.add_entry();
+            LayersProto layersProto = dumpProtoFromMainThread();
+            layersTrace->mutable_layers()->Swap(&layersProto);
+            dumpDisplayProto(*layersTrace);
+
             if (asProto) {
-                result.append(layersProto.SerializeAsString());
+                result.append(traceFileProto.SerializeAsString());
             } else {
                 // Dump info that we need to access from the main thread
                 const auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
@@ -4910,6 +4918,22 @@ LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
     return layersProto;
 }
 
+void SurfaceFlinger::dumpDisplayProto(LayersTraceProto& layersTraceProto) const {
+    for (const auto& [_, display] : ON_MAIN_THREAD(mDisplays)) {
+        DisplayProto* displayProto = layersTraceProto.add_displays();
+        displayProto->set_id(display->getId().value);
+        displayProto->set_name(display->getDisplayName());
+        displayProto->set_layer_stack(display->getLayerStack().id);
+        LayerProtoHelper::writeSizeToProto(display->getWidth(), display->getHeight(),
+                                           [&]() { return displayProto->mutable_size(); });
+        LayerProtoHelper::writeToProto(display->getLayerStackSpaceRect(), [&]() {
+            return displayProto->mutable_layer_stack_space_rect();
+        });
+        LayerProtoHelper::writeTransformToProto(display->getTransform(),
+                                                displayProto->mutable_transform());
+    }
+}
+
 void SurfaceFlinger::dumpHwc(std::string& result) const {
     getHwComposer().dump(result);
 }
@@ -5128,6 +5152,11 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
      */
     const GraphicBufferAllocator& alloc(GraphicBufferAllocator::get());
     alloc.dump(result);
+
+    /*
+     * Dump flag/property manager state
+     */
+    mFlagManager->dump(result);
 
     result.append(mTimeStats->miniDump());
     result.append("\n");

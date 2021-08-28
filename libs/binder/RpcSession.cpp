@@ -49,8 +49,7 @@ namespace android {
 
 using base::unique_fd;
 
-RpcSession::RpcSession(std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory)
-      : mRpcTransportCtxFactory(std::move(rpcTransportCtxFactory)) {
+RpcSession::RpcSession(std::unique_ptr<RpcTransportCtx> ctx) : mCtx(std::move(ctx)) {
     LOG_RPC_DETAIL("RpcSession created %p", this);
 
     mState = std::make_unique<RpcState>();
@@ -63,11 +62,26 @@ RpcSession::~RpcSession() {
                         "Should not be able to destroy a session with servers in use.");
 }
 
-sp<RpcSession> RpcSession::make(std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory) {
+sp<RpcSession> RpcSession::make() {
     // Default is without TLS.
-    if (rpcTransportCtxFactory == nullptr)
-        rpcTransportCtxFactory = RpcTransportCtxFactoryRaw::make();
-    return sp<RpcSession>::make(std::move(rpcTransportCtxFactory));
+    return make(RpcTransportCtxFactoryRaw::make(), std::nullopt, std::nullopt);
+}
+
+sp<RpcSession> RpcSession::make(std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory,
+                                std::optional<CertificateFormat> serverCertificateFormat,
+                                std::optional<std::string> serverCertificate) {
+    auto ctx = rpcTransportCtxFactory->newClientCtx();
+    if (ctx == nullptr) return nullptr;
+    LOG_ALWAYS_FATAL_IF(serverCertificateFormat.has_value() != serverCertificate.has_value());
+    if (serverCertificateFormat.has_value() && serverCertificate.has_value()) {
+        status_t status =
+                ctx->addTrustedPeerCertificate(*serverCertificateFormat, *serverCertificate);
+        if (status != OK) {
+            ALOGE("Cannot add trusted server certificate: %s", statusToString(status).c_str());
+            return nullptr;
+        }
+    }
+    return sp<RpcSession>::make(std::move(ctx));
 }
 
 void RpcSession::setMaxThreads(size_t threads) {
@@ -155,12 +169,7 @@ status_t RpcSession::addNullDebuggingClient() {
         return -savedErrno;
     }
 
-    auto ctx = mRpcTransportCtxFactory->newClientCtx();
-    if (ctx == nullptr) {
-        ALOGE("Unable to create RpcTransportCtx for null debugging client");
-        return NO_MEMORY;
-    }
-    auto server = ctx->newTransport(std::move(serverFd), mShutdownTrigger.get());
+    auto server = mCtx->newTransport(std::move(serverFd), mShutdownTrigger.get());
     if (server == nullptr) {
         ALOGE("Unable to set up RpcTransport");
         return UNKNOWN_ERROR;
@@ -484,37 +493,39 @@ status_t RpcSession::setupOneSocketConnection(const RpcSocketAddress& addr,
         }
 
         if (0 != TEMP_FAILURE_RETRY(connect(serverFd.get(), addr.addr(), addr.addrSize()))) {
-            if (errno == ECONNRESET) {
+            int connErrno = errno;
+            if (connErrno == EAGAIN || connErrno == EINPROGRESS) {
+                // For non-blocking sockets, connect() may return EAGAIN (for unix domain socket) or
+                // EINPROGRESS (for others). Call poll() and getsockopt() to get the error.
+                status_t pollStatus = mShutdownTrigger->triggerablePoll(serverFd, POLLOUT);
+                if (pollStatus != OK) {
+                    ALOGE("Could not POLLOUT after connect() on non-blocking socket: %s",
+                          statusToString(pollStatus).c_str());
+                    return pollStatus;
+                }
+                // Set connErrno to the errno that connect() would have set if the fd were blocking.
+                socklen_t connErrnoLen = sizeof(connErrno);
+                int ret =
+                        getsockopt(serverFd.get(), SOL_SOCKET, SO_ERROR, &connErrno, &connErrnoLen);
+                if (ret == -1) {
+                    int savedErrno = errno;
+                    ALOGE("Could not getsockopt() after connect() on non-blocking socket: %s. "
+                          "(Original error from connect() is: %s)",
+                          strerror(savedErrno), strerror(connErrno));
+                    return -savedErrno;
+                }
+                // Retrieved the real connErrno as if connect() was called with a blocking socket
+                // fd. Continue checking connErrno.
+            }
+            if (connErrno == ECONNRESET) {
                 ALOGW("Connection reset on %s", addr.toString().c_str());
                 continue;
             }
-            if (errno != EAGAIN && errno != EINPROGRESS) {
-                int savedErrno = errno;
+            // connErrno could be zero if getsockopt determines so. Hence zero-check again.
+            if (connErrno != 0) {
                 ALOGE("Could not connect socket at %s: %s", addr.toString().c_str(),
-                      strerror(savedErrno));
-                return -savedErrno;
-            }
-            // For non-blocking sockets, connect() may return EAGAIN (for unix domain socket) or
-            // EINPROGRESS (for others). Call poll() and getsockopt() to get the error.
-            status_t pollStatus = mShutdownTrigger->triggerablePoll(serverFd, POLLOUT);
-            if (pollStatus != OK) {
-                ALOGE("Could not POLLOUT after connect() on non-blocking socket: %s",
-                      statusToString(pollStatus).c_str());
-                return pollStatus;
-            }
-            int soError;
-            socklen_t soErrorLen = sizeof(soError);
-            int ret = getsockopt(serverFd.get(), SOL_SOCKET, SO_ERROR, &soError, &soErrorLen);
-            if (ret == -1) {
-                int savedErrno = errno;
-                ALOGE("Could not getsockopt() after connect() on non-blocking socket: %s",
-                      strerror(savedErrno));
-                return -savedErrno;
-            }
-            if (soError != 0) {
-                ALOGE("After connect(), getsockopt() returns error for socket at %s: %s",
-                      addr.toString().c_str(), strerror(soError));
-                return -soError;
+                      strerror(connErrno));
+                return -connErrno;
             }
         }
         LOG_RPC_DETAIL("Socket at %s client with fd %d", addr.toString().c_str(), serverFd.get());
@@ -529,15 +540,9 @@ status_t RpcSession::setupOneSocketConnection(const RpcSocketAddress& addr,
 status_t RpcSession::initAndAddConnection(unique_fd fd, const RpcAddress& sessionId,
                                           bool incoming) {
     LOG_ALWAYS_FATAL_IF(mShutdownTrigger == nullptr);
-    auto ctx = mRpcTransportCtxFactory->newClientCtx();
-    if (ctx == nullptr) {
-        ALOGE("Unable to create client RpcTransportCtx with %s sockets",
-              mRpcTransportCtxFactory->toCString());
-        return NO_MEMORY;
-    }
-    auto server = ctx->newTransport(std::move(fd), mShutdownTrigger.get());
+    auto server = mCtx->newTransport(std::move(fd), mShutdownTrigger.get());
     if (server == nullptr) {
-        ALOGE("Unable to set up RpcTransport in %s context", mRpcTransportCtxFactory->toCString());
+        ALOGE("%s: Unable to set up RpcTransport", __PRETTY_FUNCTION__);
         return UNKNOWN_ERROR;
     }
 
@@ -690,6 +695,10 @@ bool RpcSession::removeIncomingConnection(const sp<RpcConnection>& connection) {
         return true;
     }
     return false;
+}
+
+std::string RpcSession::getCertificate(CertificateFormat format) {
+    return mCtx->getCertificate(format);
 }
 
 status_t RpcSession::ExclusiveConnection::find(const sp<RpcSession>& session, ConnectionUse use,

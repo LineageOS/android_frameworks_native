@@ -31,6 +31,7 @@
 #include <binder/RpcSession.h>
 #include <binder/RpcTransport.h>
 #include <binder/RpcTransportRaw.h>
+#include <binder/RpcTransportTls.h>
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -54,16 +55,18 @@ static_assert(RPC_WIRE_PROTOCOL_VERSION + 1 == RPC_WIRE_PROTOCOL_VERSION_NEXT ||
               RPC_WIRE_PROTOCOL_VERSION == RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL);
 const char* kLocalInetAddress = "127.0.0.1";
 
-enum class RpcSecurity { RAW };
+enum class RpcSecurity { RAW, TLS };
 
 static inline std::vector<RpcSecurity> RpcSecurityValues() {
-    return {RpcSecurity::RAW};
+    return {RpcSecurity::RAW, RpcSecurity::TLS};
 }
 
 static inline std::unique_ptr<RpcTransportCtxFactory> newFactory(RpcSecurity rpcSecurity) {
     switch (rpcSecurity) {
         case RpcSecurity::RAW:
             return RpcTransportCtxFactoryRaw::make();
+        case RpcSecurity::TLS:
+            return RpcTransportCtxFactoryTls::make();
         default:
             LOG_ALWAYS_FATAL("Unknown RpcSecurity %d", rpcSecurity);
     }
@@ -519,7 +522,8 @@ public:
         status_t status;
 
         for (size_t i = 0; i < options.numSessions; i++) {
-            sp<RpcSession> session = RpcSession::make(newFactory(rpcSecurity));
+            sp<RpcSession> session =
+                    RpcSession::make(newFactory(rpcSecurity), std::nullopt, std::nullopt);
             session->setMaxThreads(options.numIncomingConnections);
 
             switch (socketType) {
@@ -1204,7 +1208,8 @@ static bool testSupportVsockLoopback() {
     }
     server->start();
 
-    sp<RpcSession> session = RpcSession::make(RpcTransportCtxFactoryRaw::make());
+    sp<RpcSession> session =
+            RpcSession::make(RpcTransportCtxFactoryRaw::make(), std::nullopt, std::nullopt);
     status_t status = session->setupVsockClient(VMADDR_CID_LOCAL, vsockPort);
     while (!server->shutdown()) usleep(10000);
     ALOGE("Detected vsock loopback supported: %s", statusToString(status).c_str());

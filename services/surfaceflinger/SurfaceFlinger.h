@@ -89,6 +89,7 @@ namespace android {
 
 class Client;
 class EventThread;
+class FlagManager;
 class FpsReporter;
 class TunnelModeEnabledReporter;
 class HdrLayerInfoReporter;
@@ -1174,6 +1175,8 @@ private:
     LayersProto dumpDrawingStateProto(uint32_t traceFlags) const;
     void dumpOffscreenLayersProto(LayersProto& layersProto,
                                   uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
+    void dumpDisplayProto(LayersTraceProto& layersTraceProto) const;
+
     // Dumps state from HW Composer
     void dumpHwc(std::string& result) const;
     LayersProto dumpProtoFromMainThread(uint32_t traceFlags = SurfaceTracing::TRACE_ALL)
@@ -1519,6 +1522,8 @@ private:
     wp<IBinder> mActiveDisplayToken GUARDED_BY(mStateLock);
 
     const sp<WindowInfosListenerInvoker> mWindowInfosListenerInvoker;
+
+    std::unique_ptr<FlagManager> mFlagManager;
 };
 
 } // namespace android
