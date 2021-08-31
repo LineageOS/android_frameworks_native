@@ -153,13 +153,14 @@ status_t BufferQueueProducer::setMaxDequeuedBufferCount(
             return BAD_VALUE;
         }
 
-        int bufferCount = mCore->getMinUndequeuedBufferCountLocked();
-        bufferCount += maxDequeuedBuffers;
+        int minUndequedBufferCount = mCore->getMinUndequeuedBufferCountLocked();
+        int bufferCount = minUndequedBufferCount + maxDequeuedBuffers;
 
         if (bufferCount > BufferQueueDefs::NUM_BUFFER_SLOTS) {
             BQ_LOGE("setMaxDequeuedBufferCount: bufferCount %d too large "
                     "(max %d)", bufferCount, BufferQueueDefs::NUM_BUFFER_SLOTS);
-            return BAD_VALUE;
+            bufferCount = BufferQueueDefs::NUM_BUFFER_SLOTS;
+            maxDequeuedBuffers = bufferCount - minUndequedBufferCount;
         }
 
         const int minBufferSlots = mCore->getMinMaxBufferCountLocked();
