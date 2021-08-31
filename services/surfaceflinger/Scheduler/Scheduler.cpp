@@ -395,6 +395,14 @@ void Scheduler::dispatchCachedReportedMode() {
         return;
     }
 
+    // If the mode is not the current mode, this means that a
+    // mode change is in progress. In that case we shouldn't dispatch an event
+    // as it will be dispatched when the current mode changes.
+    if (std::scoped_lock lock(mRefreshRateConfigsLock);
+        mRefreshRateConfigs->getCurrentRefreshRate().getMode() != mFeatures.mode) {
+        return;
+    }
+
     // If there is no change from cached mode, there is no need to dispatch an event
     if (mFeatures.mode == mFeatures.cachedModeChangedParams->mode) {
         return;
