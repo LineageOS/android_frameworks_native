@@ -5679,6 +5679,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                     return nullptr;
                 }();
 
+                mDebugDisplayModeSetByBackdoor = false;
                 const status_t result = setActiveMode(display, modeId);
                 mDebugDisplayModeSetByBackdoor = result == NO_ERROR;
                 return result;
