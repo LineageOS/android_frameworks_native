@@ -118,12 +118,12 @@ void BLASTBufferItemConsumer::getConnectionEvents(uint64_t frameNumber, bool* ne
 }
 
 void BLASTBufferItemConsumer::setBlastBufferQueue(BLASTBufferQueue* blastbufferqueue) {
-    Mutex::Autolock lock(mMutex);
+    std::scoped_lock lock(mBufferQueueMutex);
     mBLASTBufferQueue = blastbufferqueue;
 }
 
 void BLASTBufferItemConsumer::onSidebandStreamChanged() {
-    Mutex::Autolock lock(mMutex);
+    std::scoped_lock lock(mBufferQueueMutex);
     if (mBLASTBufferQueue != nullptr) {
         sp<NativeHandle> stream = getSidebandStream();
         mBLASTBufferQueue->setSidebandStream(stream);
