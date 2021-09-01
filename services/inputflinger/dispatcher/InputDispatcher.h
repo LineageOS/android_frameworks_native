@@ -653,6 +653,10 @@ private:
     void doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doOnPointerDownOutsideFocusLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
 
+    // Find touched state and touched window by token.
+    std::pair<TouchState*, TouchedWindow*> findTouchStateAndWindowLocked(const sp<IBinder>& token)
+            REQUIRES(mLock);
+
     // Statistics gathering.
     LatencyAggregator mLatencyAggregator GUARDED_BY(mLock);
     LatencyTracker mLatencyTracker GUARDED_BY(mLock);
