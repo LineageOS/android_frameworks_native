@@ -2422,23 +2422,28 @@ void SurfaceFlinger::postComposition() {
     }
 }
 
-FloatRect SurfaceFlinger::getLayerClipBoundsForDisplay(const DisplayDevice& displayDevice) const {
-    return displayDevice.getLayerStackSpaceRect().toFloatRect();
-}
-
 void SurfaceFlinger::computeLayerBounds() {
+    // Find the largest width and height among all the displays.
+    int32_t maxDisplayWidth = 0;
+    int32_t maxDisplayHeight = 0;
     for (const auto& pair : ON_MAIN_THREAD(mDisplays)) {
         const auto& displayDevice = pair.second;
-        const auto display = displayDevice->getCompositionDisplay();
-        for (const auto& layer : mDrawingState.layersSortedByZ) {
-            // Only consider the layers on this display.
-            if (!display->includesLayer(layer->getOutputFilter())) {
-                continue;
-            }
-
-            layer->computeBounds(getLayerClipBoundsForDisplay(*displayDevice), ui::Transform(),
-                                 0.f /* shadowRadius */);
+        int32_t width = displayDevice->getWidth();
+        int32_t height = displayDevice->getHeight();
+        if (width > maxDisplayWidth) {
+            maxDisplayWidth = width;
         }
+        if (height > maxDisplayHeight) {
+            maxDisplayHeight = height;
+        }
+    }
+
+    // Ignore display bounds for now since they will be computed later. Use a large Rect bound
+    // to ensure it's bigger than an actual display will be.
+    FloatRect maxBounds(-maxDisplayWidth * 10, -maxDisplayHeight * 10, maxDisplayWidth * 10,
+                        maxDisplayHeight * 10);
+    for (const auto& layer : mDrawingState.layersSortedByZ) {
+        layer->computeBounds(maxBounds, ui::Transform(), 0.f /* shadowRadius */);
     }
 }
 
@@ -5674,6 +5679,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                     return nullptr;
                 }();
 
+                mDebugDisplayModeSetByBackdoor = false;
                 const status_t result = setActiveMode(display, modeId);
                 mDebugDisplayModeSetByBackdoor = result == NO_ERROR;
                 return result;
