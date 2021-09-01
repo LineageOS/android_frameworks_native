@@ -114,7 +114,10 @@ public:
             const std::optional<std::string>& seInfo, bool downgrade,
             int32_t targetSdkVersion, const std::optional<std::string>& profileName,
             const std::optional<std::string>& dexMetadataPath,
-            const std::optional<std::string>& compilationReason);
+            const std::optional<std::string>& compilationReason,
+            bool* aidl_return);
+
+    binder::Status controlDexOptBlocking(bool block);
 
     binder::Status compileLayouts(const std::string& apkPath, const std::string& packageName,
                                   const std::string& outDexFile, int uid, bool* _aidl_return);
