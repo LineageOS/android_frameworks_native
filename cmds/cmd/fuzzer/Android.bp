@@ -30,12 +30,12 @@ cc_fuzz {
     ],
     static_libs: [
         "libcmd",
-        "libutils",
         "liblog",
         "libselinux",
     ],
     shared_libs: [
         "libbinder",
+        "libutils",
     ],
     fuzz_config: {
         cc: [
