@@ -287,16 +287,16 @@ void NotifyDeviceResetArgs::notify(const sp<InputListenerInterface>& listener) c
 
 // --- NotifyPointerCaptureChangedArgs ---
 
-NotifyPointerCaptureChangedArgs::NotifyPointerCaptureChangedArgs(int32_t id, nsecs_t eventTime,
-                                                                 bool enabled)
-      : NotifyArgs(id, eventTime), enabled(enabled) {}
+NotifyPointerCaptureChangedArgs::NotifyPointerCaptureChangedArgs(
+        int32_t id, nsecs_t eventTime, const PointerCaptureRequest& request)
+      : NotifyArgs(id, eventTime), request(request) {}
 
 NotifyPointerCaptureChangedArgs::NotifyPointerCaptureChangedArgs(
         const NotifyPointerCaptureChangedArgs& other)
-      : NotifyArgs(other.id, other.eventTime), enabled(other.enabled) {}
+      : NotifyArgs(other.id, other.eventTime), request(other.request) {}
 
 bool NotifyPointerCaptureChangedArgs::operator==(const NotifyPointerCaptureChangedArgs& rhs) const {
-    return id == rhs.id && eventTime == rhs.eventTime && enabled == rhs.enabled;
+    return id == rhs.id && eventTime == rhs.eventTime && request == rhs.request;
 }
 
 void NotifyPointerCaptureChangedArgs::notify(const sp<InputListenerInterface>& listener) const {
