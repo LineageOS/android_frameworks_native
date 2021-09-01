@@ -75,13 +75,13 @@ public:
     virtual status_t stop() = 0;
 
     /* Gets the input reader. */
-    virtual sp<InputReaderInterface> getReader() = 0;
+    virtual InputReaderInterface& getReader() = 0;
 
     /* Gets the input classifier */
-    virtual sp<InputClassifierInterface> getClassifier() = 0;
+    virtual InputClassifierInterface& getClassifier() = 0;
 
     /* Gets the input dispatcher. */
-    virtual sp<InputDispatcherInterface> getDispatcher() = 0;
+    virtual InputDispatcherInterface& getDispatcher() = 0;
 };
 
 class InputManager : public InputManagerInterface, public BnInputFlinger {
@@ -96,9 +96,9 @@ public:
     status_t start() override;
     status_t stop() override;
 
-    sp<InputReaderInterface> getReader() override;
-    sp<InputClassifierInterface> getClassifier() override;
-    sp<InputDispatcherInterface> getDispatcher() override;
+    InputReaderInterface& getReader() override;
+    InputClassifierInterface& getClassifier() override;
+    InputDispatcherInterface& getDispatcher() override;
 
     status_t dump(int fd, const Vector<String16>& args) override;
     binder::Status createInputChannel(const std::string& name, InputChannel* outChannel) override;
@@ -106,11 +106,11 @@ public:
     binder::Status setFocusedWindow(const gui::FocusRequest&) override;
 
 private:
-    sp<InputReaderInterface> mReader;
+    std::unique_ptr<InputReaderInterface> mReader;
 
-    sp<InputClassifierInterface> mClassifier;
+    std::unique_ptr<InputClassifierInterface> mClassifier;
 
-    sp<InputDispatcherInterface> mDispatcher;
+    std::unique_ptr<InputDispatcherInterface> mDispatcher;
 };
 
 } // namespace android

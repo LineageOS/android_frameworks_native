@@ -455,11 +455,11 @@ private:
 class InputDispatcherTest : public testing::Test {
 protected:
     sp<FakeInputDispatcherPolicy> mFakePolicy;
-    sp<InputDispatcher> mDispatcher;
+    std::unique_ptr<InputDispatcher> mDispatcher;
 
     void SetUp() override {
         mFakePolicy = new FakeInputDispatcherPolicy();
-        mDispatcher = new InputDispatcher(mFakePolicy);
+        mDispatcher = std::make_unique<InputDispatcher>(mFakePolicy);
         mDispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
         // Start InputDispatcher thread
         ASSERT_EQ(OK, mDispatcher->start());
@@ -468,7 +468,7 @@ protected:
     void TearDown() override {
         ASSERT_EQ(OK, mDispatcher->stop());
         mFakePolicy.clear();
-        mDispatcher.clear();
+        mDispatcher.reset();
     }
 
     /**
@@ -915,7 +915,7 @@ public:
     static const int32_t HEIGHT = 800;
 
     FakeWindowHandle(const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
-                     const sp<InputDispatcher>& dispatcher, const std::string name,
+                     const std::unique_ptr<InputDispatcher>& dispatcher, const std::string name,
                      int32_t displayId, std::optional<sp<IBinder>> token = std::nullopt)
           : mName(name) {
         if (token == std::nullopt) {
@@ -953,7 +953,7 @@ public:
 
     sp<FakeWindowHandle> clone(
             const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
-            const sp<InputDispatcher>& dispatcher, int32_t displayId) {
+            const std::unique_ptr<InputDispatcher>& dispatcher, int32_t displayId) {
         sp<FakeWindowHandle> handle =
                 new FakeWindowHandle(inputApplicationHandle, dispatcher, mInfo.name + "(Mirror)",
                                      displayId, mInfo.token);
@@ -1154,7 +1154,7 @@ private:
 std::atomic<int32_t> FakeWindowHandle::sId{1};
 
 static InputEventInjectionResult injectKey(
-        const sp<InputDispatcher>& dispatcher, int32_t action, int32_t repeatCount,
+        const std::unique_ptr<InputDispatcher>& dispatcher, int32_t action, int32_t repeatCount,
         int32_t displayId = ADISPLAY_ID_NONE,
         InputEventInjectionSync syncMode = InputEventInjectionSync::WAIT_FOR_RESULT,
         std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
@@ -1176,7 +1176,7 @@ static InputEventInjectionResult injectKey(
                                         injectionTimeout, policyFlags);
 }
 
-static InputEventInjectionResult injectKeyDown(const sp<InputDispatcher>& dispatcher,
+static InputEventInjectionResult injectKeyDown(const std::unique_ptr<InputDispatcher>& dispatcher,
                                                int32_t displayId = ADISPLAY_ID_NONE) {
     return injectKey(dispatcher, AKEY_EVENT_ACTION_DOWN, /* repeatCount */ 0, displayId);
 }
@@ -1184,14 +1184,14 @@ static InputEventInjectionResult injectKeyDown(const sp<InputDispatcher>& dispat
 // Inject a down event that has key repeat disabled. This allows InputDispatcher to idle without
 // sending a subsequent key up. When key repeat is enabled, the dispatcher cannot idle because it
 // has to be woken up to process the repeating key.
-static InputEventInjectionResult injectKeyDownNoRepeat(const sp<InputDispatcher>& dispatcher,
-                                                       int32_t displayId = ADISPLAY_ID_NONE) {
+static InputEventInjectionResult injectKeyDownNoRepeat(
+        const std::unique_ptr<InputDispatcher>& dispatcher, int32_t displayId = ADISPLAY_ID_NONE) {
     return injectKey(dispatcher, AKEY_EVENT_ACTION_DOWN, /* repeatCount */ 0, displayId,
                      InputEventInjectionSync::WAIT_FOR_RESULT, INJECT_EVENT_TIMEOUT,
                      /* allowKeyRepeat */ false);
 }
 
-static InputEventInjectionResult injectKeyUp(const sp<InputDispatcher>& dispatcher,
+static InputEventInjectionResult injectKeyUp(const std::unique_ptr<InputDispatcher>& dispatcher,
                                              int32_t displayId = ADISPLAY_ID_NONE) {
     return injectKey(dispatcher, AKEY_EVENT_ACTION_UP, /* repeatCount */ 0, displayId);
 }
@@ -1314,7 +1314,7 @@ private:
 };
 
 static InputEventInjectionResult injectMotionEvent(
-        const sp<InputDispatcher>& dispatcher, const MotionEvent& event,
+        const std::unique_ptr<InputDispatcher>& dispatcher, const MotionEvent& event,
         std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
         InputEventInjectionSync injectionMode = InputEventInjectionSync::WAIT_FOR_RESULT) {
     return dispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID, injectionMode,
@@ -1323,8 +1323,8 @@ static InputEventInjectionResult injectMotionEvent(
 }
 
 static InputEventInjectionResult injectMotionEvent(
-        const sp<InputDispatcher>& dispatcher, int32_t action, int32_t source, int32_t displayId,
-        const PointF& position,
+        const std::unique_ptr<InputDispatcher>& dispatcher, int32_t action, int32_t source,
+        int32_t displayId, const PointF& position,
         const PointF& cursorPosition = {AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                         AMOTION_EVENT_INVALID_CURSOR_POSITION},
         std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
@@ -1344,13 +1344,13 @@ static InputEventInjectionResult injectMotionEvent(
     return injectMotionEvent(dispatcher, event, injectionTimeout, injectionMode);
 }
 
-static InputEventInjectionResult injectMotionDown(const sp<InputDispatcher>& dispatcher,
-                                                  int32_t source, int32_t displayId,
-                                                  const PointF& location = {100, 200}) {
+static InputEventInjectionResult injectMotionDown(
+        const std::unique_ptr<InputDispatcher>& dispatcher, int32_t source, int32_t displayId,
+        const PointF& location = {100, 200}) {
     return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_DOWN, source, displayId, location);
 }
 
-static InputEventInjectionResult injectMotionUp(const sp<InputDispatcher>& dispatcher,
+static InputEventInjectionResult injectMotionUp(const std::unique_ptr<InputDispatcher>& dispatcher,
                                                 int32_t source, int32_t displayId,
                                                 const PointF& location = {100, 200}) {
     return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_UP, source, displayId, location);
@@ -1945,8 +1945,8 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsMotionStream) {
                          0 /*expectedFlags*/);
 }
 
-using TransferFunction =
-        std::function<bool(sp<InputDispatcher> dispatcher, sp<IBinder>, sp<IBinder>)>;
+using TransferFunction = std::function<bool(const std::unique_ptr<InputDispatcher>& dispatcher,
+                                            sp<IBinder>, sp<IBinder>)>;
 
 class TransferTouchFixture : public InputDispatcherTest,
                              public ::testing::WithParamInterface<TransferFunction> {};
@@ -2059,12 +2059,12 @@ TEST_P(TransferTouchFixture, TransferTouch_TwoPointersNonSplitTouch) {
 // for the case where there are multiple pointers split across several windows.
 INSTANTIATE_TEST_SUITE_P(TransferFunctionTests, TransferTouchFixture,
                          ::testing::Values(
-                                 [&](sp<InputDispatcher> dispatcher, sp<IBinder> /*ignored*/,
-                                     sp<IBinder> destChannelToken) {
+                                 [&](const std::unique_ptr<InputDispatcher>& dispatcher,
+                                     sp<IBinder> /*ignored*/, sp<IBinder> destChannelToken) {
                                      return dispatcher->transferTouch(destChannelToken);
                                  },
-                                 [&](sp<InputDispatcher> dispatcher, sp<IBinder> from,
-                                     sp<IBinder> to) {
+                                 [&](const std::unique_ptr<InputDispatcher>& dispatcher,
+                                     sp<IBinder> from, sp<IBinder> to) {
                                      return dispatcher->transferTouchFocus(from, to,
                                                                            false /*isDragAndDrop*/);
                                  }));
@@ -2473,7 +2473,7 @@ TEST_F(InputDispatcherTest, SendTimeline_DoesNotCrashDispatcher) {
 
 class FakeMonitorReceiver {
 public:
-    FakeMonitorReceiver(const sp<InputDispatcher>& dispatcher, const std::string name,
+    FakeMonitorReceiver(const std::unique_ptr<InputDispatcher>& dispatcher, const std::string name,
                         int32_t displayId, bool isGestureMonitor = false) {
         base::Result<std::unique_ptr<InputChannel>> channel =
                 dispatcher->createInputMonitor(displayId, isGestureMonitor, name, MONITOR_PID);
@@ -3179,7 +3179,7 @@ protected:
     virtual void SetUp() override {
         mFakePolicy = new FakeInputDispatcherPolicy();
         mFakePolicy->setKeyRepeatConfiguration(KEY_REPEAT_TIMEOUT, KEY_REPEAT_DELAY);
-        mDispatcher = new InputDispatcher(mFakePolicy);
+        mDispatcher = std::make_unique<InputDispatcher>(mFakePolicy);
         mDispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
         ASSERT_EQ(OK, mDispatcher->start());
 

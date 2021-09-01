@@ -20,7 +20,6 @@
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
 #include <utils/BitSet.h>
-#include <utils/RefBase.h>
 
 namespace android {
 

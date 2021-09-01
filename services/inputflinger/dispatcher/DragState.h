@@ -18,7 +18,7 @@
 #define _UI_INPUT_INPUTDISPATCHER_DRAGSTATE_H
 
 #include <gui/WindowInfo.h>
-#include <utils/RefBase.h>
+#include <utils/StrongPointer.h>
 #include <string>
 
 namespace android {

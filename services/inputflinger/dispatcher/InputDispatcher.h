@@ -47,7 +47,6 @@
 #include <unistd.h>
 #include <utils/BitSet.h>
 #include <utils/Looper.h>
-#include <utils/RefBase.h>
 #include <utils/Timers.h>
 #include <utils/threads.h>
 #include <condition_variable>
@@ -81,12 +80,10 @@ class Connection;
  *
  *     A 'LockedInterruptible' method may called a 'Locked' method, but NOT vice-versa.
  */
-class InputDispatcher : public android::InputDispatcherInterface, public gui::WindowInfosListener {
-protected:
-    ~InputDispatcher() override;
-
+class InputDispatcher : public android::InputDispatcherInterface {
 public:
     explicit InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy);
+    ~InputDispatcher() override;
 
     void dump(std::string& dump) override;
     void monitor() override;
@@ -143,8 +140,9 @@ public:
 
     void displayRemoved(int32_t displayId) override;
 
-    void onWindowInfosChanged(const std::vector<gui::WindowInfo>&,
-                              const std::vector<gui::DisplayInfo>&) override;
+    // Public because it's also used by tests to simulate the WindowInfosListener callback
+    void onWindowInfosChanged(const std::vector<android::gui::WindowInfo>& windowInfos,
+                              const std::vector<android::gui::DisplayInfo>& displayInfos);
 
 private:
     enum class DropReason {
@@ -338,6 +336,18 @@ private:
     bool mInTouchMode GUARDED_BY(mLock);
     float mMaximumObscuringOpacityForTouch GUARDED_BY(mLock);
     android::os::BlockUntrustedTouchesMode mBlockUntrustedTouchesMode GUARDED_BY(mLock);
+
+    class DispatcherWindowListener : public gui::WindowInfosListener {
+    public:
+        explicit DispatcherWindowListener(InputDispatcher& dispatcher) : mDispatcher(dispatcher){};
+        void onWindowInfosChanged(
+                const std::vector<android::gui::WindowInfo>& windowInfos,
+                const std::vector<android::gui::DisplayInfo>& displayInfos) override;
+
+    private:
+        InputDispatcher& mDispatcher;
+    };
+    sp<gui::WindowInfosListener> mWindowInfoListener;
 
     std::unordered_map<int32_t /*displayId*/, std::vector<sp<android::gui::WindowInfoHandle>>>
             mWindowHandlesByDisplay GUARDED_BY(mLock);
@@ -663,8 +673,6 @@ private:
 
     sp<InputReporterInterface> mReporter;
     sp<com::android::internal::compat::IPlatformCompatNative> mCompatService;
-
-    void onFirstRef() override;
 };
 
 } // namespace android::inputdispatcher

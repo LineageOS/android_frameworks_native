@@ -58,8 +58,8 @@ InputManager::InputManager(
         const sp<InputReaderPolicyInterface>& readerPolicy,
         const sp<InputDispatcherPolicyInterface>& dispatcherPolicy) {
     mDispatcher = createInputDispatcher(dispatcherPolicy);
-    mClassifier = new InputClassifier(mDispatcher);
-    mReader = createInputReader(readerPolicy, mClassifier);
+    mClassifier = std::make_unique<InputClassifier>(*mDispatcher);
+    mReader = createInputReader(readerPolicy, *mClassifier);
 }
 
 InputManager::~InputManager() {
@@ -102,16 +102,16 @@ status_t InputManager::stop() {
     return status;
 }
 
-sp<InputReaderInterface> InputManager::getReader() {
-    return mReader;
+InputReaderInterface& InputManager::getReader() {
+    return *mReader;
 }
 
-sp<InputClassifierInterface> InputManager::getClassifier() {
-    return mClassifier;
+InputClassifierInterface& InputManager::getClassifier() {
+    return *mClassifier;
 }
 
-sp<InputDispatcherInterface> InputManager::getDispatcher() {
-    return mDispatcher;
+InputDispatcherInterface& InputManager::getDispatcher() {
+    return *mDispatcher;
 }
 
 // Used by tests only.
