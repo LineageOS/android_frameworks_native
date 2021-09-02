@@ -26,6 +26,7 @@
 #include <gui/ITransactionCompletedListener.h>
 #include <math/mat4.h>
 
+#include <android/gui/DropInputMode.h>
 #include <android/gui/FocusRequest.h>
 
 #include <gui/ISurfaceComposer.h>
@@ -117,6 +118,7 @@ struct layer_state_t {
         eAutoRefreshChanged = 0x1000'00000000,
         eStretchChanged = 0x2000'00000000,
         eTrustedOverlayChanged = 0x4000'00000000,
+        eDropInputModeChanged = 0x8000'00000000,
     };
 
     layer_state_t();
@@ -247,6 +249,9 @@ struct layer_state_t {
     // releaseCallbackId and release fence to all listeners so we store which listener the setBuffer
     // was called with.
     sp<IBinder> releaseBufferEndpoint;
+
+    // Force inputflinger to drop all input events for the layer and its children.
+    gui::DropInputMode dropInputMode;
 };
 
 struct ComposerState {
