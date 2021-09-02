@@ -55,6 +55,7 @@ cc_library_headers {
 filegroup {
     name: "guiconstants_aidl",
     srcs: [
+        "android/**/DropInputMode.aidl",
         "android/**/TouchOcclusionMode.aidl",
     ],
 }

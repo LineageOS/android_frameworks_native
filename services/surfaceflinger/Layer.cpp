@@ -134,6 +134,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mDrawingState.frameTimelineInfo = {};
     mDrawingState.postTime = -1;
     mDrawingState.destinationFrame.makeInvalid();
+    mDrawingState.dropInputMode = gui::DropInputMode::NONE;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
@@ -2559,6 +2560,14 @@ wp<Layer> Layer::fromHandle(const sp<IBinder>& handleBinder) {
     // We can safely cast this binder since its local and we verified its interface descriptor.
     sp<Handle> handle = static_cast<Handle*>(handleBinder.get());
     return handle->owner;
+}
+
+bool Layer::setDropInputMode(gui::DropInputMode mode) {
+    if (mDrawingState.dropInputMode == mode) {
+        return false;
+    }
+    mDrawingState.dropInputMode = mode;
+    return true;
 }
 
 // ---------------------------------------------------------------------------
