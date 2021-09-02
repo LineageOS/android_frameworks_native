@@ -279,29 +279,30 @@ struct InputReaderConfiguration {
     // True to show the location of touches on the touch screen as spots.
     bool showTouches;
 
-    // True if pointer capture is enabled.
-    bool pointerCapture;
+    // The latest request to enable or disable Pointer Capture.
+    PointerCaptureRequest pointerCaptureRequest;
 
     // The set of currently disabled input devices.
     std::set<int32_t> disabledDevices;
 
-    InputReaderConfiguration() :
-            virtualKeyQuietTime(0),
+    InputReaderConfiguration()
+          : virtualKeyQuietTime(0),
             pointerVelocityControlParameters(1.0f, 500.0f, 3000.0f, 3.0f),
             wheelVelocityControlParameters(1.0f, 15.0f, 50.0f, 4.0f),
             pointerGesturesEnabled(true),
-            pointerGestureQuietInterval(100 * 1000000LL), // 100 ms
-            pointerGestureDragMinSwitchSpeed(50), // 50 pixels per second
-            pointerGestureTapInterval(150 * 1000000LL), // 150 ms
-            pointerGestureTapDragInterval(150 * 1000000LL), // 150 ms
-            pointerGestureTapSlop(10.0f), // 10 pixels
+            pointerGestureQuietInterval(100 * 1000000LL),            // 100 ms
+            pointerGestureDragMinSwitchSpeed(50),                    // 50 pixels per second
+            pointerGestureTapInterval(150 * 1000000LL),              // 150 ms
+            pointerGestureTapDragInterval(150 * 1000000LL),          // 150 ms
+            pointerGestureTapSlop(10.0f),                            // 10 pixels
             pointerGestureMultitouchSettleInterval(100 * 1000000LL), // 100 ms
-            pointerGestureMultitouchMinDistance(15), // 15 pixels
-            pointerGestureSwipeTransitionAngleCosine(0.2588f), // cosine of 75 degrees
+            pointerGestureMultitouchMinDistance(15),                 // 15 pixels
+            pointerGestureSwipeTransitionAngleCosine(0.2588f),       // cosine of 75 degrees
             pointerGestureSwipeMaxWidthRatio(0.25f),
             pointerGestureMovementSpeedRatio(0.8f),
             pointerGestureZoomSpeedRatio(0.3f),
-            showTouches(false), pointerCapture(false) { }
+            showTouches(false),
+            pointerCaptureRequest() {}
 
     static std::string changesToString(uint32_t changes);
 

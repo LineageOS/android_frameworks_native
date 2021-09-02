@@ -67,6 +67,9 @@ std::string InputReaderConfiguration::changesToString(uint32_t changes) {
     if (changes & CHANGE_EXTERNAL_STYLUS_PRESENCE) {
         result += "EXTERNAL_STYLUS_PRESENCE | ";
     }
+    if (changes & CHANGE_POINTER_CAPTURE) {
+        result += "POINTER_CAPTURE | ";
+    }
     if (changes & CHANGE_ENABLED_STATE) {
         result += "ENABLED_STATE | ";
     }
