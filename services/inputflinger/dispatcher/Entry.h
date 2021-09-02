@@ -104,9 +104,9 @@ struct FocusEntry : EventEntry {
 };
 
 struct PointerCaptureChangedEntry : EventEntry {
-    bool pointerCaptureEnabled;
+    const PointerCaptureRequest pointerCaptureRequest;
 
-    PointerCaptureChangedEntry(int32_t id, nsecs_t eventTime, bool hasPointerCapture);
+    PointerCaptureChangedEntry(int32_t id, nsecs_t eventTime, const PointerCaptureRequest&);
     std::string getDescription() const override;
 
     ~PointerCaptureChangedEntry() override;
