@@ -94,6 +94,7 @@ public:
                                uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount);
     void setNextTransaction(SurfaceComposerClient::Transaction *t);
     void mergeWithNextTransaction(SurfaceComposerClient::Transaction* t, uint64_t frameNumber);
+    void applyPendingTransactions(uint64_t frameNumber);
     void setTransactionCompleteCallback(uint64_t frameNumber,
                                         std::function<void(int64_t)>&& transactionCompleteCallback);
 
@@ -126,6 +127,8 @@ private:
     bool rejectBuffer(const BufferItem& item) REQUIRES(mMutex);
     bool maxBuffersAcquired(bool includeExtraAcquire) const REQUIRES(mMutex);
     static PixelFormat convertBufferFormat(PixelFormat& format);
+    void mergePendingTransactions(SurfaceComposerClient::Transaction* t, uint64_t frameNumber)
+            REQUIRES(mMutex);
 
     std::string mName;
     // Represents the queued buffer count from buffer queue,
