@@ -2622,4 +2622,14 @@ status_t Surface::setFrameTimelineInfo(const FrameTimelineInfo& frameTimelineInf
     return composerService()->setFrameTimelineInfo(mGraphicBufferProducer, frameTimelineInfo);
 }
 
+sp<IBinder> Surface::getSurfaceControlHandle() const {
+    Mutex::Autolock lock(mMutex);
+    return mSurfaceControlHandle;
+}
+
+void Surface::destroy() {
+    Mutex::Autolock lock(mMutex);
+    mSurfaceControlHandle = nullptr;
+}
+
 }; // namespace android
