@@ -75,7 +75,7 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle, int
     windows.push_back(touchedWindow);
 }
 
-void TouchState::addGestureMonitors(const std::vector<TouchedMonitor>& newMonitors) {
+void TouchState::addGestureMonitors(const std::vector<Monitor>& newMonitors) {
     const size_t newSize = gestureMonitors.size() + newMonitors.size();
     gestureMonitors.reserve(newSize);
     gestureMonitors.insert(std::end(gestureMonitors), std::begin(newMonitors),
