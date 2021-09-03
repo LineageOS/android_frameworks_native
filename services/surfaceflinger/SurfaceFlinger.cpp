@@ -2859,8 +2859,8 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             (currentState.orientedDisplaySpaceRect != drawingState.orientedDisplaySpaceRect)) {
             display->setProjection(currentState.orientation, currentState.layerStackSpaceRect,
                                    currentState.orientedDisplaySpaceRect);
-            if (display->isPrimary()) {
-                mDefaultDisplayTransformHint = display->getTransformHint();
+            if (isDisplayActiveLocked(display)) {
+                mActiveDisplayTransformHint = display->getTransformHint();
             }
         }
         if (currentState.width != drawingState.width ||
@@ -3364,9 +3364,9 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
     composerState.state.surface = handle;
     states.add(composerState);
 
-    lbc->updateTransformHint(mDefaultDisplayTransformHint);
+    lbc->updateTransformHint(mActiveDisplayTransformHint);
     if (outTransformHint) {
-        *outTransformHint = mDefaultDisplayTransformHint;
+        *outTransformHint = mActiveDisplayTransformHint;
     }
     // attach this layer to the client
     client->attachLayer(handle, lbc);
@@ -4477,7 +4477,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     const nsecs_t vsyncPeriod =
             display->refreshRateConfigs().getCurrentRefreshRate().getVsyncPeriod();
     mAnimFrameTracker.setDisplayRefreshPeriod(vsyncPeriod);
-    mDefaultDisplayTransformHint = display->getTransformHint();
+    mActiveDisplayTransformHint = display->getTransformHint();
     // Use phase of 0 since phase is not known.
     // Use latency of 0, which will snap to the ideal latency.
     DisplayStatInfo stats{0 /* vsyncTime */, vsyncPeriod};
@@ -6912,7 +6912,7 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
         parent->addChild(layer);
     }
 
-    layer->updateTransformHint(mDefaultDisplayTransformHint);
+    layer->updateTransformHint(mActiveDisplayTransformHint);
 
     if (state->initialProducer != nullptr) {
         mGraphicBufferProducerList.insert(state->initialProducer);
@@ -6959,12 +6959,12 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activ
         return;
     }
     mActiveDisplayToken = activeDisplay->getDisplayToken();
-
     activeDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
     updateInternalDisplayVsyncLocked(activeDisplay);
     mScheduler->setModeChangePending(false);
     mScheduler->setRefreshRateConfigs(activeDisplay->holdRefreshRateConfigs());
     onActiveDisplaySizeChanged(activeDisplay);
+    mActiveDisplayTransformHint = activeDisplay->getTransformHint();
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(
