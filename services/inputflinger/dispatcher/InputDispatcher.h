@@ -542,6 +542,10 @@ private:
     std::string getApplicationWindowLabel(const InputApplicationHandle* applicationHandle,
                                           const sp<android::gui::WindowInfoHandle>& windowHandle);
 
+    bool shouldDropInput(const EventEntry& entry,
+                         const sp<android::gui::WindowInfoHandle>& windowHandle) const
+            REQUIRES(mLock);
+
     // Manage the dispatch cycle for a single connection.
     // These methods are deliberately not Interruptible because doing all of the work
     // with the mutex held makes it easier to ensure that connection invariants are maintained.
