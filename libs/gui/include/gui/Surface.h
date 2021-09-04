@@ -99,7 +99,7 @@ public:
      */
     sp<IGraphicBufferProducer> getIGraphicBufferProducer() const;
 
-    sp<IBinder> getSurfaceControlHandle() const { return mSurfaceControlHandle; }
+    sp<IBinder> getSurfaceControlHandle() const;
 
     /* convenience function to check that the given surface is non NULL as
      * well as its IGraphicBufferProducer */
@@ -333,6 +333,7 @@ public:
     virtual int connect(
             int api, bool reportBufferRemoval,
             const sp<SurfaceListener>& sListener);
+    virtual void destroy();
 
     // When client connects to Surface with reportBufferRemoval set to true, any buffers removed
     // from this Surface will be collected and returned here. Once this method returns, these
