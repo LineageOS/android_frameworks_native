@@ -73,6 +73,7 @@ public:
     };
     void setTraceFlags(uint32_t flags) { mConfig.flags = flags; }
     bool flagIsSet(uint32_t flags) { return (mConfig.flags & flags) == flags; }
+    static LayersTraceFileProto createLayersTraceFileProto();
 
 private:
     class Runner;
