@@ -114,6 +114,7 @@
 #include "FrameTracer/FrameTracer.h"
 #include "HdrLayerInfoReporter.h"
 #include "Layer.h"
+#include "LayerProtoHelper.h"
 #include "LayerRenderArea.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
@@ -2859,8 +2860,8 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             (currentState.orientedDisplaySpaceRect != drawingState.orientedDisplaySpaceRect)) {
             display->setProjection(currentState.orientation, currentState.layerStackSpaceRect,
                                    currentState.orientedDisplaySpaceRect);
-            if (display->isPrimary()) {
-                mDefaultDisplayTransformHint = display->getTransformHint();
+            if (isDisplayActiveLocked(display)) {
+                mActiveDisplayTransformHint = display->getTransformHint();
             }
         }
         if (currentState.width != drawingState.width ||
@@ -3364,9 +3365,9 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
     composerState.state.surface = handle;
     states.add(composerState);
 
-    lbc->updateTransformHint(mDefaultDisplayTransformHint);
+    lbc->updateTransformHint(mActiveDisplayTransformHint);
     if (outTransformHint) {
-        *outTransformHint = mDefaultDisplayTransformHint;
+        *outTransformHint = mActiveDisplayTransformHint;
     }
     // attach this layer to the client
     client->attachLayer(handle, lbc);
@@ -4477,7 +4478,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     const nsecs_t vsyncPeriod =
             display->refreshRateConfigs().getCurrentRefreshRate().getVsyncPeriod();
     mAnimFrameTracker.setDisplayRefreshPeriod(vsyncPeriod);
-    mDefaultDisplayTransformHint = display->getTransformHint();
+    mActiveDisplayTransformHint = display->getTransformHint();
     // Use phase of 0 since phase is not known.
     // Use latency of 0, which will snap to the ideal latency.
     DisplayStatInfo stats{0 /* vsyncTime */, vsyncPeriod};
@@ -4660,9 +4661,14 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
         }
 
         if (dumpLayers) {
-            const LayersProto layersProto = dumpProtoFromMainThread();
+            LayersTraceFileProto traceFileProto = SurfaceTracing::createLayersTraceFileProto();
+            LayersTraceProto* layersTrace = traceFileProto.add_entry();
+            LayersProto layersProto = dumpProtoFromMainThread();
+            layersTrace->mutable_layers()->Swap(&layersProto);
+            dumpDisplayProto(*layersTrace);
+
             if (asProto) {
-                result.append(layersProto.SerializeAsString());
+                result.append(traceFileProto.SerializeAsString());
             } else {
                 // Dump info that we need to access from the main thread
                 const auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
@@ -4932,6 +4938,22 @@ LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
     }
 
     return layersProto;
+}
+
+void SurfaceFlinger::dumpDisplayProto(LayersTraceProto& layersTraceProto) const {
+    for (const auto& [_, display] : ON_MAIN_THREAD(mDisplays)) {
+        DisplayProto* displayProto = layersTraceProto.add_displays();
+        displayProto->set_id(display->getId().value);
+        displayProto->set_name(display->getDisplayName());
+        displayProto->set_layer_stack(display->getLayerStack());
+        LayerProtoHelper::writeSizeToProto(display->getWidth(), display->getHeight(),
+                                           [&]() { return displayProto->mutable_size(); });
+        LayerProtoHelper::writeToProto(display->getLayerStackSpaceRect(), [&]() {
+            return displayProto->mutable_layer_stack_space_rect();
+        });
+        LayerProtoHelper::writeTransformToProto(display->getTransform(),
+                                                displayProto->mutable_transform());
+    }
 }
 
 void SurfaceFlinger::dumpHwc(std::string& result) const {
@@ -6912,7 +6934,7 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
         parent->addChild(layer);
     }
 
-    layer->updateTransformHint(mDefaultDisplayTransformHint);
+    layer->updateTransformHint(mActiveDisplayTransformHint);
 
     if (state->initialProducer != nullptr) {
         mGraphicBufferProducerList.insert(state->initialProducer);
@@ -6959,12 +6981,12 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activ
         return;
     }
     mActiveDisplayToken = activeDisplay->getDisplayToken();
-
     activeDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
     updateInternalDisplayVsyncLocked(activeDisplay);
     mScheduler->setModeChangePending(false);
     mScheduler->setRefreshRateConfigs(activeDisplay->holdRefreshRateConfigs());
     onActiveDisplaySizeChanged(activeDisplay);
+    mActiveDisplayTransformHint = activeDisplay->getTransformHint();
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(
