@@ -71,6 +71,83 @@ TEST_F(MultiStateCounterTest, stateChange) {
     EXPECT_DOUBLE_EQ(4.0, testCounter.getCount(2));
 }
 
+TEST_F(MultiStateCounterTest, setEnabled) {
+    DoubleMultiStateCounter testCounter(3, 0);
+    testCounter.updateValue(0, 0);
+    testCounter.setState(1, 0);
+    testCounter.setEnabled(false, 1000);
+    testCounter.setState(2, 2000);
+    testCounter.updateValue(6.0, 3000);
+
+    // In state 1: accumulated 1000 before disabled, that's 6.0 * 1000/3000 = 2.0
+    // In state 2: 0, since it is still disabled
+    EXPECT_DOUBLE_EQ(0, testCounter.getCount(0));
+    EXPECT_DOUBLE_EQ(2.0, testCounter.getCount(1));
+    EXPECT_DOUBLE_EQ(0, testCounter.getCount(2));
+
+    // Should have no effect since the counter is disabled
+    testCounter.setState(0, 3500);
+
+    // Should have no effect since the counter is disabled
+    testCounter.updateValue(10.0, 4000);
+
+    EXPECT_DOUBLE_EQ(0, testCounter.getCount(0));
+    EXPECT_DOUBLE_EQ(2.0, testCounter.getCount(1));
+    EXPECT_DOUBLE_EQ(0, testCounter.getCount(2));
+
+    testCounter.setState(2, 4500);
+
+    // Enable the counter to partially accumulate deltas for the current state, 2
+    testCounter.setEnabled(true, 5000);
+    testCounter.setEnabled(false, 6000);
+    testCounter.setEnabled(true, 7000);
+    testCounter.updateValue(20.0, 8000);
+
+    // The delta is 10.0 over 5000-3000=2000.
+    // Counter has been enabled in state 2 for (6000-5000)+(8000-7000) = 2000,
+    // so its share is (20.0-10.0) * 2000/(8000-4000) = 5.0
+    EXPECT_DOUBLE_EQ(0, testCounter.getCount(0));
+    EXPECT_DOUBLE_EQ(2.0, testCounter.getCount(1));
+    EXPECT_DOUBLE_EQ(5.0, testCounter.getCount(2));
+
+    testCounter.reset();
+    testCounter.setState(0, 0);
+    testCounter.updateValue(0, 0);
+    testCounter.setState(1, 2000);
+    testCounter.setEnabled(false, 3000);
+    testCounter.updateValue(200, 5000);
+
+    // 200 over 5000 = 40 per second
+    // Counter was in state 0 from 0 to 2000, so 2 sec, so the count should be 40 * 2 = 80
+    // It stayed in state 1 from 2000 to 3000, at which point the counter was disabled,
+    // so the count for state 1 should be 40 * 1 = 40.
+    // The remaining 2 seconds from 3000 to 5000 don't count because the counter was disabled.
+    EXPECT_DOUBLE_EQ(80.0, testCounter.getCount(0));
+    EXPECT_DOUBLE_EQ(40.0, testCounter.getCount(1));
+    EXPECT_DOUBLE_EQ(0, testCounter.getCount(2));
+}
+
+TEST_F(MultiStateCounterTest, reset) {
+    DoubleMultiStateCounter testCounter(3, 0);
+    testCounter.updateValue(0, 0);
+    testCounter.setState(1, 0);
+    testCounter.updateValue(2.72, 3000);
+
+    testCounter.reset();
+
+    EXPECT_DOUBLE_EQ(0, testCounter.getCount(0));
+    EXPECT_DOUBLE_EQ(0, testCounter.getCount(1));
+    EXPECT_DOUBLE_EQ(0, testCounter.getCount(2));
+
+    // Assert that we can still continue accumulating after a reset
+    testCounter.updateValue(0, 4000);
+    testCounter.updateValue(3.14, 5000);
+
+    EXPECT_DOUBLE_EQ(0, testCounter.getCount(0));
+    EXPECT_DOUBLE_EQ(3.14, testCounter.getCount(1));
+    EXPECT_DOUBLE_EQ(0, testCounter.getCount(2));
+}
+
 TEST_F(MultiStateCounterTest, timeAdjustment_setState) {
     DoubleMultiStateCounter testCounter(3, 0);
     testCounter.updateValue(0, 0);
