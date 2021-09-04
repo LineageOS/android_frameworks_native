@@ -98,8 +98,8 @@ void LayerProtoHelper::writeToProto(const half4 color, std::function<ColorProto*
     }
 }
 
-void LayerProtoHelper::writeToProto(const ui::Transform& transform,
-                                    TransformProto* transformProto) {
+void LayerProtoHelper::writeToProtoDeprecated(const ui::Transform& transform,
+                                              TransformProto* transformProto) {
     const uint32_t type = transform.getType() | (transform.getOrientation() << 8);
     transformProto->set_type(type);
 
@@ -111,6 +111,22 @@ void LayerProtoHelper::writeToProto(const ui::Transform& transform,
         transformProto->set_dtdx(transform[0][1]);
         transformProto->set_dsdy(transform[1][0]);
         transformProto->set_dtdy(transform[1][1]);
+    }
+}
+
+void LayerProtoHelper::writeTransformToProto(const ui::Transform& transform,
+                                             TransformProto* transformProto) {
+    const uint32_t type = transform.getType() | (transform.getOrientation() << 8);
+    transformProto->set_type(type);
+
+    // Rotations that are 90/180/270 have their own type so the transform matrix can be
+    // reconstructed later. All other rotation have the type UNKNOWN so we need to save the
+    // transform values in that case.
+    if (type & (ui::Transform::SCALE | ui::Transform::UNKNOWN)) {
+        transformProto->set_dsdx(transform.dsdx());
+        transformProto->set_dtdx(transform.dtdx());
+        transformProto->set_dtdy(transform.dtdy());
+        transformProto->set_dsdy(transform.dsdy());
     }
 }
 
@@ -154,7 +170,7 @@ void LayerProtoHelper::writeToProto(
     proto->set_has_wallpaper(inputInfo.hasWallpaper);
 
     proto->set_global_scale_factor(inputInfo.globalScaleFactor);
-    LayerProtoHelper::writeToProto(inputInfo.transform, proto->mutable_transform());
+    LayerProtoHelper::writeToProtoDeprecated(inputInfo.transform, proto->mutable_transform());
     proto->set_replace_touchable_region_with_crop(inputInfo.replaceTouchableRegionWithCrop);
     auto cropLayer = touchableRegionBounds.promote();
     if (cropLayer != nullptr) {

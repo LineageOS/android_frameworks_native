@@ -18,6 +18,7 @@ syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 import "frameworks/native/services/surfaceflinger/layerproto/layers.proto";
+import "frameworks/native/services/surfaceflinger/layerproto/display.proto";
 
 package android.surfaceflinger;
 
@@ -57,4 +58,6 @@ message LayersTraceProto {
 
     /* Number of missed entries since the last entry was recorded. */
     optional uint32 missed_entries = 6;
+
+    repeated DisplayProto displays = 7;
 }
