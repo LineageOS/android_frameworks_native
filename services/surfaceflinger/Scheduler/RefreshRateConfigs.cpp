@@ -685,19 +685,16 @@ RefreshRateConfigs::RefreshRateConfigs(const DisplayModes& modes, DisplayModeId 
 }
 
 void RefreshRateConfigs::initializeIdleTimer() {
-    const int setIdleTimerMs = base::GetIntProperty("debug.sf.set_idle_timer_ms", 0);
-
-    if (const auto millis = setIdleTimerMs ? setIdleTimerMs : sysprop::set_idle_timer_ms(0);
-        millis > 0) {
+    if (mConfig.idleTimerTimeoutMs > 0) {
         const auto getCallback = [this]() -> std::optional<IdleTimerCallbacks::Callbacks> {
             std::scoped_lock lock(mIdleTimerCallbacksMutex);
             if (!mIdleTimerCallbacks.has_value()) return {};
-            return mConfig.supportKernelTimer ? mIdleTimerCallbacks->kernel
-                                              : mIdleTimerCallbacks->platform;
+            return mConfig.supportKernelIdleTimer ? mIdleTimerCallbacks->kernel
+                                                  : mIdleTimerCallbacks->platform;
         };
 
         mIdleTimer.emplace(
-                "IdleTimer", std::chrono::milliseconds(millis),
+                "IdleTimer", std::chrono::milliseconds(mConfig.idleTimerTimeoutMs),
                 [getCallback] {
                     if (const auto callback = getCallback()) callback->onReset();
                 },
@@ -970,7 +967,8 @@ void RefreshRateConfigs::dump(std::string& result) const {
 
     base::StringAppendF(&result, "Supports Frame Rate Override: %s\n",
                         mSupportsFrameRateOverride ? "yes" : "no");
-    base::StringAppendF(&result, "Idle timer: %s\n",
+    base::StringAppendF(&result, "Idle timer: (%s) %s\n",
+                        mConfig.supportKernelIdleTimer ? "kernel" : "platform",
                         mIdleTimer ? mIdleTimer->dump().c_str() : "off");
     result.append("\n");
 }

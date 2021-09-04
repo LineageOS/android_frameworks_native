@@ -275,6 +275,40 @@ enum Permission {
     ROTATE_SURFACE_FLINGER = 0x2,
 };
 
+struct IdleTimerConfig {
+    int32_t timeoutMs;
+    bool supportKernelIdleTimer;
+};
+
+IdleTimerConfig getIdleTimerConfiguration(DisplayId displayId) {
+    // TODO(adyabr): use ro.surface_flinger.* namespace
+
+    const auto displayIdleTimerMsKey = [displayId] {
+        std::stringstream ss;
+        ss << "debug.sf.set_idle_timer_ms_" << displayId.value;
+        return ss.str();
+    }();
+
+    const auto displaySupportKernelIdleTimerKey = [displayId] {
+        std::stringstream ss;
+        ss << "debug.sf.support_kernel_idle_timer_" << displayId.value;
+        return ss.str();
+    }();
+
+    const int32_t displayIdleTimerMs = base::GetIntProperty(displayIdleTimerMsKey, 0);
+    const auto displaySupportKernelIdleTimer =
+            base::GetBoolProperty(displaySupportKernelIdleTimerKey, false);
+
+    if (displayIdleTimerMs > 0) {
+        return {displayIdleTimerMs, displaySupportKernelIdleTimer};
+    }
+
+    const int32_t setIdleTimerMs = base::GetIntProperty("debug.sf.set_idle_timer_ms", 0);
+    const int32_t millis = setIdleTimerMs ? setIdleTimerMs : sysprop::set_idle_timer_ms(0);
+
+    return {millis, sysprop::support_kernel_idle_timer(false)};
+}
+
 }  // namespace anonymous
 
 // ---------------------------------------------------------------------------
@@ -2643,11 +2677,14 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         creationArgs.connectionType = physical->type;
         creationArgs.supportedModes = physical->supportedModes;
         creationArgs.activeModeId = physical->activeMode->getId();
+        const auto [idleTimerTimeoutMs, supportKernelIdleTimer] =
+                getIdleTimerConfiguration(compositionDisplay->getId());
         scheduler::RefreshRateConfigs::Config config =
                 {.enableFrameRateOverride = android::sysprop::enable_frame_rate_override(false),
                  .frameRateMultipleThreshold =
                          base::GetIntProperty("debug.sf.frame_rate_multiple_threshold", 0),
-                 .supportKernelTimer = sysprop::support_kernel_idle_timer(false)};
+                 .idleTimerTimeoutMs = idleTimerTimeoutMs,
+                 .supportKernelIdleTimer = supportKernelIdleTimer};
         creationArgs.refreshRateConfigs =
                 std::make_shared<scheduler::RefreshRateConfigs>(creationArgs.supportedModes,
                                                                 creationArgs.activeModeId, config);

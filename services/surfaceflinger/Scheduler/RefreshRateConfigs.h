@@ -307,14 +307,18 @@ public:
         // no threshold is set.
         int frameRateMultipleThreshold = 0;
 
+        // The Idle Timer timeout. 0 timeout means no idle timer.
+        int32_t idleTimerTimeoutMs = 0;
+
         // Whether to use idle timer callbacks that support the kernel timer.
-        bool supportKernelTimer = false;
+        bool supportKernelIdleTimer = false;
     };
 
-    RefreshRateConfigs(const DisplayModes& modes, DisplayModeId currentModeId,
+    RefreshRateConfigs(const DisplayModes&, DisplayModeId,
                        Config config = {.enableFrameRateOverride = false,
                                         .frameRateMultipleThreshold = 0,
-                                        .supportKernelTimer = false});
+                                        .idleTimerTimeoutMs = 0,
+                                        .supportKernelIdleTimer = false});
 
     // Returns whether switching modes (refresh rate or resolution) is possible.
     // TODO(b/158780872): Consider HAL support, and skip frame rate detection if the modes only
@@ -350,7 +354,7 @@ public:
                                                  Fps displayFrameRate, bool touch) const
             EXCLUDES(mLock);
 
-    bool supportsKernelIdleTimer() const { return mConfig.supportKernelTimer; }
+    bool supportsKernelIdleTimer() const { return mConfig.supportKernelIdleTimer; }
 
     void setIdleTimerCallbacks(std::function<void()> platformTimerReset,
                                std::function<void()> platformTimerExpired,
@@ -368,7 +372,7 @@ public:
         if (!mIdleTimer) {
             return;
         }
-        if (kernelOnly && !mConfig.supportKernelTimer) {
+        if (kernelOnly && !mConfig.supportKernelIdleTimer) {
             return;
         }
         mIdleTimer->reset();
