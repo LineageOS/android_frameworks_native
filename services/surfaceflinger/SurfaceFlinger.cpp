@@ -2646,7 +2646,8 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         scheduler::RefreshRateConfigs::Config config =
                 {.enableFrameRateOverride = android::sysprop::enable_frame_rate_override(false),
                  .frameRateMultipleThreshold =
-                         base::GetIntProperty("debug.sf.frame_rate_multiple_threshold", 0)};
+                         base::GetIntProperty("debug.sf.frame_rate_multiple_threshold", 0),
+                 .supportKernelTimer = sysprop::support_kernel_idle_timer(false)};
         creationArgs.refreshRateConfigs =
                 std::make_shared<scheduler::RefreshRateConfigs>(creationArgs.supportedModes,
                                                                 creationArgs.activeModeId, config);
