@@ -49,8 +49,9 @@ std::string DoubleMultiStateCounter::valueToString(const double& v) const {
 class MultiStateCounterTest : public testing::Test {};
 
 TEST_F(MultiStateCounterTest, constructor) {
-    DoubleMultiStateCounter testCounter(3, 1, 0, 1000);
-    testCounter.setState(1, 2000);
+    DoubleMultiStateCounter testCounter(3, 0);
+    testCounter.updateValue(0, 0);
+    testCounter.setState(1, 0);
     testCounter.updateValue(3.14, 3000);
 
     EXPECT_DOUBLE_EQ(0, testCounter.getCount(0));
@@ -59,7 +60,9 @@ TEST_F(MultiStateCounterTest, constructor) {
 }
 
 TEST_F(MultiStateCounterTest, stateChange) {
-    DoubleMultiStateCounter testCounter(3, 1, 0, 0);
+    DoubleMultiStateCounter testCounter(3, 0);
+    testCounter.updateValue(0, 0);
+    testCounter.setState(1, 0);
     testCounter.setState(2, 1000);
     testCounter.updateValue(6.0, 3000);
 
@@ -69,7 +72,9 @@ TEST_F(MultiStateCounterTest, stateChange) {
 }
 
 TEST_F(MultiStateCounterTest, timeAdjustment_setState) {
-    DoubleMultiStateCounter testCounter(3, 1, 0, 0);
+    DoubleMultiStateCounter testCounter(3, 0);
+    testCounter.updateValue(0, 0);
+    testCounter.setState(1, 0);
     testCounter.setState(2, 2000);
 
     // Time moves back
@@ -88,7 +93,9 @@ TEST_F(MultiStateCounterTest, timeAdjustment_setState) {
 }
 
 TEST_F(MultiStateCounterTest, timeAdjustment_updateValue) {
-    DoubleMultiStateCounter testCounter(1, 0, 0, 0);
+    DoubleMultiStateCounter testCounter(1, 0);
+    testCounter.updateValue(0, 0);
+    testCounter.setState(0, 0);
     testCounter.updateValue(6.0, 2000);
 
     // Time moves back. The negative delta from 2000 to 1000 is ignored
@@ -99,6 +106,24 @@ TEST_F(MultiStateCounterTest, timeAdjustment_updateValue) {
     //  6.0          // For the period 0-2000
     //  +(11.0-8.0)  // For the period 1000-3000
     EXPECT_DOUBLE_EQ(9.0, testCounter.getCount(0));
+}
+
+TEST_F(MultiStateCounterTest, toString) {
+    DoubleMultiStateCounter testCounter(2, 0);
+
+    EXPECT_STREQ("[0: 0.000000, 1: 0.000000] currentState: none", testCounter.toString().c_str());
+
+    testCounter.updateValue(0, 0);
+    testCounter.setState(1, 0);
+    testCounter.setState(1, 2000);
+    EXPECT_STREQ("[0: 0.000000, 1: 0.000000 timeInStateSinceUpdate: 2000]"
+                 " updated: 0 currentState: 1 stateChanged: 2000",
+                 testCounter.toString().c_str());
+
+    testCounter.updateValue(3.14, 3000);
+
+    EXPECT_STREQ("[0: 0.000000, 1: 3.140000] updated: 3000 currentState: 1",
+                 testCounter.toString().c_str());
 }
 
 } // namespace battery
