@@ -280,6 +280,7 @@ private:
     bool hasInjectionPermission(int32_t injectorPid, int32_t injectorUid);
     void setInjectionResult(EventEntry& entry,
                             android::os::InputEventInjectionResult injectionResult);
+    void transformMotionEntryForInjectionLocked(MotionEntry&) const REQUIRES(mLock);
 
     std::condition_variable mInjectionSyncFinished;
     void incrementPendingForegroundDispatches(EventEntry& entry);

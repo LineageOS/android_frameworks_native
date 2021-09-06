@@ -92,13 +92,29 @@ public:
     FakeInputDispatcherPolicy() {}
 
     void assertFilterInputEventWasCalled(const NotifyKeyArgs& args) {
-        assertFilterInputEventWasCalled(AINPUT_EVENT_TYPE_KEY, args.eventTime, args.action,
-                                        args.displayId);
+        assertFilterInputEventWasCalledInternal([&args](const InputEvent& event) {
+            ASSERT_EQ(event.getType(), AINPUT_EVENT_TYPE_KEY);
+            EXPECT_EQ(event.getDisplayId(), args.displayId);
+
+            const auto& keyEvent = static_cast<const KeyEvent&>(event);
+            EXPECT_EQ(keyEvent.getEventTime(), args.eventTime);
+            EXPECT_EQ(keyEvent.getAction(), args.action);
+        });
     }
 
-    void assertFilterInputEventWasCalled(const NotifyMotionArgs& args) {
-        assertFilterInputEventWasCalled(AINPUT_EVENT_TYPE_MOTION, args.eventTime, args.action,
-                                        args.displayId);
+    void assertFilterInputEventWasCalled(const NotifyMotionArgs& args, vec2 point) {
+        assertFilterInputEventWasCalledInternal([&](const InputEvent& event) {
+            ASSERT_EQ(event.getType(), AINPUT_EVENT_TYPE_MOTION);
+            EXPECT_EQ(event.getDisplayId(), args.displayId);
+
+            const auto& motionEvent = static_cast<const MotionEvent&>(event);
+            EXPECT_EQ(motionEvent.getEventTime(), args.eventTime);
+            EXPECT_EQ(motionEvent.getAction(), args.action);
+            EXPECT_EQ(motionEvent.getX(0), point.x);
+            EXPECT_EQ(motionEvent.getY(0), point.y);
+            EXPECT_EQ(motionEvent.getRawX(0), point.x);
+            EXPECT_EQ(motionEvent.getRawY(0), point.y);
+        });
     }
 
     void assertFilterInputEventWasNotCalled() {
@@ -425,26 +441,11 @@ private:
         mDropTargetWindowToken = token;
     }
 
-    void assertFilterInputEventWasCalled(int type, nsecs_t eventTime, int32_t action,
-                                         int32_t displayId) {
+    void assertFilterInputEventWasCalledInternal(
+            const std::function<void(const InputEvent&)>& verify) {
         std::scoped_lock lock(mLock);
         ASSERT_NE(nullptr, mFilteredEvent) << "Expected filterInputEvent() to have been called.";
-        ASSERT_EQ(mFilteredEvent->getType(), type);
-
-        if (type == AINPUT_EVENT_TYPE_KEY) {
-            const KeyEvent& keyEvent = static_cast<const KeyEvent&>(*mFilteredEvent);
-            EXPECT_EQ(keyEvent.getEventTime(), eventTime);
-            EXPECT_EQ(keyEvent.getAction(), action);
-            EXPECT_EQ(keyEvent.getDisplayId(), displayId);
-        } else if (type == AINPUT_EVENT_TYPE_MOTION) {
-            const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*mFilteredEvent);
-            EXPECT_EQ(motionEvent.getEventTime(), eventTime);
-            EXPECT_EQ(motionEvent.getAction(), action);
-            EXPECT_EQ(motionEvent.getDisplayId(), displayId);
-        } else {
-            FAIL() << "Unknown type: " << type;
-        }
-
+        verify(*mFilteredEvent);
         mFilteredEvent = nullptr;
     }
 };
@@ -3481,7 +3482,8 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, CanFocusWindowOnUnfocusedDisplay) 
 
 class InputFilterTest : public InputDispatcherTest {
 protected:
-    void testNotifyMotion(int32_t displayId, bool expectToBeFiltered) {
+    void testNotifyMotion(int32_t displayId, bool expectToBeFiltered,
+                          const ui::Transform& transform = ui::Transform()) {
         NotifyMotionArgs motionArgs;
 
         motionArgs =
@@ -3492,7 +3494,8 @@ protected:
         mDispatcher->notifyMotion(&motionArgs);
         ASSERT_TRUE(mDispatcher->waitForIdle());
         if (expectToBeFiltered) {
-            mFakePolicy->assertFilterInputEventWasCalled(motionArgs);
+            const auto xy = transform.transform(motionArgs.pointerCoords->getXYValue());
+            mFakePolicy->assertFilterInputEventWasCalled(motionArgs, xy);
         } else {
             mFakePolicy->assertFilterInputEventWasNotCalled();
         }
@@ -3548,6 +3551,30 @@ TEST_F(InputFilterTest, KeyEvent_InputFilter) {
     mDispatcher->setInputFilterEnabled(false);
     // Send a key event, and check if it isn't filtered.
     testNotifyKey(/*expectToBeFiltered*/ false);
+}
+
+// Ensure that MotionEvents sent to the InputFilter through InputListener are converted to the
+// logical display coordinate space.
+TEST_F(InputFilterTest, MotionEvent_UsesLogicalDisplayCoordinates_notifyMotion) {
+    ui::Transform firstDisplayTransform;
+    firstDisplayTransform.set({1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 0, 0, 1});
+    ui::Transform secondDisplayTransform;
+    secondDisplayTransform.set({-6.6, -5.5, -4.4, -3.3, -2.2, -1.1, 0, 0, 1});
+
+    std::vector<gui::DisplayInfo> displayInfos(2);
+    displayInfos[0].displayId = ADISPLAY_ID_DEFAULT;
+    displayInfos[0].transform = firstDisplayTransform;
+    displayInfos[1].displayId = SECOND_DISPLAY_ID;
+    displayInfos[1].transform = secondDisplayTransform;
+
+    mDispatcher->onWindowInfosChanged({}, displayInfos);
+
+    // Enable InputFilter
+    mDispatcher->setInputFilterEnabled(true);
+
+    // Ensure the correct transforms are used for the displays.
+    testNotifyMotion(ADISPLAY_ID_DEFAULT, /*expectToBeFiltered*/ true, firstDisplayTransform);
+    testNotifyMotion(SECOND_DISPLAY_ID, /*expectToBeFiltered*/ true, secondDisplayTransform);
 }
 
 class InputFilterInjectionPolicyTest : public InputDispatcherTest {
