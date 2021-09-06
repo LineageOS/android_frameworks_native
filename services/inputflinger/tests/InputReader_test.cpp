@@ -250,14 +250,35 @@ public:
         return mConfig.getDisplayViewportByPort(displayPort);
     }
 
+    void addDisplayViewport(DisplayViewport viewport) {
+        mViewports.push_back(std::move(viewport));
+        mConfig.setDisplayViewports(mViewports);
+    }
+
     void addDisplayViewport(int32_t displayId, int32_t width, int32_t height, int32_t orientation,
                             bool isActive, const std::string& uniqueId,
-                            std::optional<uint8_t> physicalPort, ViewportType viewportType) {
-        const DisplayViewport viewport =
-                createDisplayViewport(displayId, width, height, orientation, isActive, uniqueId,
-                                      physicalPort, viewportType);
-        mViewports.push_back(viewport);
-        mConfig.setDisplayViewports(mViewports);
+                            std::optional<uint8_t> physicalPort, ViewportType type) {
+        const bool isRotated =
+                (orientation == DISPLAY_ORIENTATION_90 || orientation == DISPLAY_ORIENTATION_270);
+        DisplayViewport v;
+        v.displayId = displayId;
+        v.orientation = orientation;
+        v.logicalLeft = 0;
+        v.logicalTop = 0;
+        v.logicalRight = isRotated ? height : width;
+        v.logicalBottom = isRotated ? width : height;
+        v.physicalLeft = 0;
+        v.physicalTop = 0;
+        v.physicalRight = isRotated ? height : width;
+        v.physicalBottom = isRotated ? width : height;
+        v.deviceWidth = isRotated ? height : width;
+        v.deviceHeight = isRotated ? width : height;
+        v.isActive = isActive;
+        v.uniqueId = uniqueId;
+        v.physicalPort = physicalPort;
+        v.type = type;
+
+        addDisplayViewport(v);
     }
 
     bool updateViewport(const DisplayViewport& viewport) {
@@ -329,32 +350,6 @@ public:
 
 private:
     uint32_t mNextPointerCaptureSequenceNumber = 0;
-
-    DisplayViewport createDisplayViewport(int32_t displayId, int32_t width, int32_t height,
-                                          int32_t orientation, bool isActive,
-                                          const std::string& uniqueId,
-                                          std::optional<uint8_t> physicalPort, ViewportType type) {
-        bool isRotated = (orientation == DISPLAY_ORIENTATION_90
-                || orientation == DISPLAY_ORIENTATION_270);
-        DisplayViewport v;
-        v.displayId = displayId;
-        v.orientation = orientation;
-        v.logicalLeft = 0;
-        v.logicalTop = 0;
-        v.logicalRight = isRotated ? height : width;
-        v.logicalBottom = isRotated ? width : height;
-        v.physicalLeft = 0;
-        v.physicalTop = 0;
-        v.physicalRight = isRotated ? height : width;
-        v.physicalBottom = isRotated ? width : height;
-        v.deviceWidth = isRotated ? height : width;
-        v.deviceHeight = isRotated ? width : height;
-        v.isActive = isActive;
-        v.uniqueId = uniqueId;
-        v.physicalPort = physicalPort;
-        v.type = type;
-        return v;
-    }
 
     void getReaderConfiguration(InputReaderConfiguration* outConfig) override {
         *outConfig = mConfig;
@@ -6296,6 +6291,172 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenAbsPressureIsPresent_HoversIfItsV
             toDisplayX(150), toDisplayY(250), 0, 0, 0, 0, 0, 0, 0, 0));
 }
 
+// --- TouchDisplayProjectionTest ---
+
+class TouchDisplayProjectionTest : public SingleTouchInputMapperTest {
+public:
+    // The values inside DisplayViewport are expected to be pre-rotated. This updates the current
+    // DisplayViewport to pre-rotate the values. The viewport's physical display will be set to the
+    // rotated equivalent of the given un-rotated physical display bounds.
+    void configurePhysicalDisplay(int32_t orientation, Rect naturalPhysicalDisplay) {
+        uint32_t inverseRotationFlags;
+        auto width = DISPLAY_WIDTH;
+        auto height = DISPLAY_HEIGHT;
+        switch (orientation) {
+            case DISPLAY_ORIENTATION_90:
+                inverseRotationFlags = ui::Transform::ROT_270;
+                std::swap(width, height);
+                break;
+            case DISPLAY_ORIENTATION_180:
+                inverseRotationFlags = ui::Transform::ROT_180;
+                break;
+            case DISPLAY_ORIENTATION_270:
+                inverseRotationFlags = ui::Transform::ROT_90;
+                std::swap(width, height);
+                break;
+            case DISPLAY_ORIENTATION_0:
+                inverseRotationFlags = ui::Transform::ROT_0;
+                break;
+            default:
+                FAIL() << "Invalid orientation: " << orientation;
+        }
+
+        const ui::Transform rotation(inverseRotationFlags, width, height);
+        const Rect rotatedPhysicalDisplay = rotation.transform(naturalPhysicalDisplay);
+
+        std::optional<DisplayViewport> internalViewport =
+                *mFakePolicy->getDisplayViewportByType(ViewportType::INTERNAL);
+        DisplayViewport& v = *internalViewport;
+        v.displayId = DISPLAY_ID;
+        v.orientation = orientation;
+
+        v.logicalLeft = 0;
+        v.logicalTop = 0;
+        v.logicalRight = 100;
+        v.logicalBottom = 100;
+
+        v.physicalLeft = rotatedPhysicalDisplay.left;
+        v.physicalTop = rotatedPhysicalDisplay.top;
+        v.physicalRight = rotatedPhysicalDisplay.right;
+        v.physicalBottom = rotatedPhysicalDisplay.bottom;
+
+        v.deviceWidth = width;
+        v.deviceHeight = height;
+
+        v.isActive = true;
+        v.uniqueId = UNIQUE_ID;
+        v.type = ViewportType::INTERNAL;
+        mFakePolicy->updateViewport(v);
+        configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    }
+
+    void assertReceivedMove(const Point& point) {
+        NotifyMotionArgs motionArgs;
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+        ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+        ASSERT_EQ(size_t(1), motionArgs.pointerCount);
+        ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0], point.x, point.y,
+                                                    1, 0, 0, 0, 0, 0, 0, 0));
+    }
+};
+
+TEST_F(TouchDisplayProjectionTest, IgnoresTouchesOutsidePhysicalDisplay) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+
+    prepareButtons();
+    prepareAxes(POSITION);
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    NotifyMotionArgs motionArgs;
+
+    // Configure the DisplayViewport such that the logical display maps to a subsection of
+    // the display panel called the physical display. Here, the physical display is bounded by the
+    // points (10, 20) and (70, 160) inside the display space, which is of the size 400 x 800.
+    static const Rect kPhysicalDisplay{10, 20, 70, 160};
+    static const std::array<Point, 6> kPointsOutsidePhysicalDisplay{
+            {{-10, -10}, {0, 0}, {5, 100}, {50, 15}, {75, 100}, {50, 165}}};
+
+    for (auto orientation : {DISPLAY_ORIENTATION_0, DISPLAY_ORIENTATION_90, DISPLAY_ORIENTATION_180,
+                             DISPLAY_ORIENTATION_270}) {
+        configurePhysicalDisplay(orientation, kPhysicalDisplay);
+
+        // Touches outside the physical display should be ignored, and should not generate any
+        // events. Ensure touches at the following points that lie outside of the physical display
+        // area do not generate any events.
+        for (const auto& point : kPointsOutsidePhysicalDisplay) {
+            processDown(mapper, toRawX(point.x), toRawY(point.y));
+            processSync(mapper);
+            processUp(mapper);
+            processSync(mapper);
+            ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled())
+                    << "Unexpected event generated for touch outside physical display at point: "
+                    << point.x << ", " << point.y;
+        }
+    }
+}
+
+TEST_F(TouchDisplayProjectionTest, EmitsTouchDownAfterEnteringPhysicalDisplay) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+
+    prepareButtons();
+    prepareAxes(POSITION);
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    NotifyMotionArgs motionArgs;
+
+    // Configure the DisplayViewport such that the logical display maps to a subsection of
+    // the display panel called the physical display. Here, the physical display is bounded by the
+    // points (10, 20) and (70, 160) inside the display space, which is of the size 400 x 800.
+    static const Rect kPhysicalDisplay{10, 20, 70, 160};
+
+    for (auto orientation : {DISPLAY_ORIENTATION_0, DISPLAY_ORIENTATION_90, DISPLAY_ORIENTATION_180,
+                             DISPLAY_ORIENTATION_270}) {
+        configurePhysicalDisplay(orientation, kPhysicalDisplay);
+
+        // Touches that start outside the physical display should be ignored until it enters the
+        // physical display bounds, at which point it should generate a down event. Start a touch at
+        // the point (5, 100), which is outside the physical display bounds.
+        static const Point kOutsidePoint{5, 100};
+        processDown(mapper, toRawX(kOutsidePoint.x), toRawY(kOutsidePoint.y));
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+        // Move the touch into the physical display area. This should generate a pointer down.
+        processMove(mapper, toRawX(11), toRawY(21));
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+        ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+        ASSERT_EQ(size_t(1), motionArgs.pointerCount);
+        ASSERT_NO_FATAL_FAILURE(
+                assertPointerCoords(motionArgs.pointerCoords[0], 11, 21, 1, 0, 0, 0, 0, 0, 0, 0));
+
+        // Move the touch inside the physical display area. This should generate a pointer move.
+        processMove(mapper, toRawX(69), toRawY(159));
+        processSync(mapper);
+        assertReceivedMove({69, 159});
+
+        // Move outside the physical display area. Since the pointer is already down, this should
+        // now continue generating events.
+        processMove(mapper, toRawX(kOutsidePoint.x), toRawY(kOutsidePoint.y));
+        processSync(mapper);
+        assertReceivedMove(kOutsidePoint);
+
+        // Release. This should generate a pointer up.
+        processUp(mapper);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+        ASSERT_EQ(AMOTION_EVENT_ACTION_UP, motionArgs.action);
+        ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0], kOutsidePoint.x,
+                                                    kOutsidePoint.y, 1, 0, 0, 0, 0, 0, 0, 0));
+
+        // Ensure no more events were generated.
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasNotCalled());
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    }
+}
+
 // --- MultiTouchInputMapperTest ---
 
 class MultiTouchInputMapperTest : public TouchInputMapperTest {
@@ -8627,173 +8788,6 @@ TEST_F(MultiTouchInputMapperTest_ExternalDevice, Viewports_Fallback) {
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(SECONDARY_DISPLAY_ID, motionArgs.displayId);
-}
-
-/**
- * Test touch should not work if outside of surface.
- */
-class MultiTouchInputMapperTest_SurfaceRange : public MultiTouchInputMapperTest {
-protected:
-    void halfDisplayToCenterHorizontal(int32_t orientation) {
-        std::optional<DisplayViewport> internalViewport =
-                mFakePolicy->getDisplayViewportByType(ViewportType::INTERNAL);
-
-        // Half display to (width/4, 0, width * 3/4, height) to make display has offset.
-        internalViewport->orientation = orientation;
-        if (orientation == DISPLAY_ORIENTATION_90 || orientation == DISPLAY_ORIENTATION_270) {
-            internalViewport->logicalLeft = 0;
-            internalViewport->logicalTop = 0;
-            internalViewport->logicalRight = DISPLAY_HEIGHT;
-            internalViewport->logicalBottom = DISPLAY_WIDTH / 2;
-
-            internalViewport->physicalLeft = 0;
-            internalViewport->physicalTop = DISPLAY_WIDTH / 4;
-            internalViewport->physicalRight = DISPLAY_HEIGHT;
-            internalViewport->physicalBottom = DISPLAY_WIDTH * 3 / 4;
-
-            internalViewport->deviceWidth = DISPLAY_HEIGHT;
-            internalViewport->deviceHeight = DISPLAY_WIDTH;
-        } else {
-            internalViewport->logicalLeft = 0;
-            internalViewport->logicalTop = 0;
-            internalViewport->logicalRight = DISPLAY_WIDTH / 2;
-            internalViewport->logicalBottom = DISPLAY_HEIGHT;
-
-            internalViewport->physicalLeft = DISPLAY_WIDTH / 4;
-            internalViewport->physicalTop = 0;
-            internalViewport->physicalRight = DISPLAY_WIDTH * 3 / 4;
-            internalViewport->physicalBottom = DISPLAY_HEIGHT;
-
-            internalViewport->deviceWidth = DISPLAY_WIDTH;
-            internalViewport->deviceHeight = DISPLAY_HEIGHT;
-        }
-
-        mFakePolicy->updateViewport(internalViewport.value());
-        configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
-    }
-
-    void processPositionAndVerify(MultiTouchInputMapper& mapper, int32_t xOutside, int32_t yOutside,
-                                  int32_t xInside, int32_t yInside, int32_t xExpected,
-                                  int32_t yExpected) {
-        // touch on outside area should not work.
-        processPosition(mapper, toRawX(xOutside), toRawY(yOutside));
-        processSync(mapper);
-        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
-
-        // touch on inside area should receive the event.
-        NotifyMotionArgs args;
-        processPosition(mapper, toRawX(xInside), toRawY(yInside));
-        processSync(mapper);
-        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
-        ASSERT_NEAR(xExpected, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
-        ASSERT_NEAR(yExpected, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
-
-        // Reset.
-        mapper.reset(ARBITRARY_TIME);
-    }
-};
-
-TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange) {
-    addConfigurationProperty("touch.deviceType", "touchScreen");
-    prepareDisplay(DISPLAY_ORIENTATION_0);
-    prepareAxes(POSITION);
-    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
-
-    // Touch on center of normal display should work.
-    const int32_t x = DISPLAY_WIDTH / 4;
-    const int32_t y = DISPLAY_HEIGHT / 2;
-    processPosition(mapper, toRawX(x), toRawY(y));
-    processSync(mapper);
-    NotifyMotionArgs args;
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
-    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0], x, y, 1.0f, 0.0f, 0.0f, 0.0f,
-                                                0.0f, 0.0f, 0.0f, 0.0f));
-    // Reset.
-    mapper.reset(ARBITRARY_TIME);
-
-    // Let physical display be different to device, and make surface and physical could be 1:1 in
-    // all four orientations.
-    for (int orientation : {DISPLAY_ORIENTATION_0, DISPLAY_ORIENTATION_90, DISPLAY_ORIENTATION_180,
-                            DISPLAY_ORIENTATION_270}) {
-        halfDisplayToCenterHorizontal(orientation);
-
-        const int32_t xExpected = (x + 1) - (DISPLAY_WIDTH / 4);
-        const int32_t yExpected = y;
-        processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
-    }
-}
-
-TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_90_NotOrientationAware) {
-    addConfigurationProperty("touch.deviceType", "touchScreen");
-    prepareDisplay(DISPLAY_ORIENTATION_0);
-    prepareAxes(POSITION);
-    // Since InputReader works in the un-rotated coordinate space, only devices that are not
-    // orientation-aware are affected by display rotation.
-    addConfigurationProperty("touch.orientationAware", "0");
-    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
-
-    // Half display to (width/4, 0, width * 3/4, height) and rotate 90-degrees.
-    halfDisplayToCenterHorizontal(DISPLAY_ORIENTATION_90);
-
-    const int32_t x = DISPLAY_WIDTH / 4;
-    const int32_t y = DISPLAY_HEIGHT / 2;
-
-    // expect x/y = swap x/y then reverse x.
-    constexpr int32_t xExpected = DISPLAY_HEIGHT - y;
-    constexpr int32_t yExpected = (x + 1) - DISPLAY_WIDTH / 4;
-    processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
-}
-
-TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_270_NotOrientationAware) {
-    addConfigurationProperty("touch.deviceType", "touchScreen");
-    prepareDisplay(DISPLAY_ORIENTATION_0);
-    prepareAxes(POSITION);
-    // Since InputReader works in the un-rotated coordinate space, only devices that are not
-    // orientation-aware are affected by display rotation.
-    addConfigurationProperty("touch.orientationAware", "0");
-    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
-
-    // Half display to (width/4, 0, width * 3/4, height) and rotate 270-degrees.
-    halfDisplayToCenterHorizontal(DISPLAY_ORIENTATION_270);
-
-    const int32_t x = DISPLAY_WIDTH / 4;
-    const int32_t y = DISPLAY_HEIGHT / 2;
-
-    // expect x/y = swap x/y then reverse y.
-    const int32_t xExpected = y;
-    const int32_t yExpected = (DISPLAY_WIDTH * 3 / 4) - (x + 1);
-    processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
-}
-
-TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_Corner_NotOrientationAware) {
-    addConfigurationProperty("touch.deviceType", "touchScreen");
-    prepareDisplay(DISPLAY_ORIENTATION_0);
-    prepareAxes(POSITION);
-    // Since InputReader works in the un-rotated coordinate space, only devices that are not
-    // orientation-aware are affected by display rotation.
-    addConfigurationProperty("touch.orientationAware", "0");
-    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
-
-    const int32_t x = 0;
-    const int32_t y = 0;
-
-    const int32_t xExpected = x;
-    const int32_t yExpected = y;
-    processPositionAndVerify(mapper, x - 1, y, x, y, xExpected, yExpected);
-
-    clearViewports();
-    prepareDisplay(DISPLAY_ORIENTATION_90);
-    // expect x/y = swap x/y then reverse x.
-    const int32_t xExpected90 = DISPLAY_HEIGHT - 1;
-    const int32_t yExpected90 = x;
-    processPositionAndVerify(mapper, x - 1, y, x, y, xExpected90, yExpected90);
-
-    clearViewports();
-    prepareDisplay(DISPLAY_ORIENTATION_270);
-    // expect x/y = swap x/y then reverse y.
-    const int32_t xExpected270 = y;
-    const int32_t yExpected270 = DISPLAY_WIDTH - 1;
-    processPositionAndVerify(mapper, x - 1, y, x, y, xExpected270, yExpected270);
 }
 
 TEST_F(MultiTouchInputMapperTest, Process_TouchpadCapture) {
