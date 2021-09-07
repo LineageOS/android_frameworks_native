@@ -74,6 +74,11 @@ struct VkJsonExtShaderFloat16Int8Features {
   VkPhysicalDeviceShaderFloat16Int8FeaturesKHR shader_float16_int8_features_khr;
 };
 
+struct VkJsonCore12 {
+  VkPhysicalDeviceVulkan12Properties properties;
+  VkPhysicalDeviceVulkan12Features features;
+};
+
 struct VkJsonDevice {
   VkJsonDevice() {
     memset(&properties, 0, sizeof(VkPhysicalDeviceProperties));
@@ -98,6 +103,7 @@ struct VkJsonDevice {
            sizeof(VkPhysicalDeviceSamplerYcbcrConversionFeatures));
     memset(&shader_draw_parameter_features, 0,
            sizeof(VkPhysicalDeviceShaderDrawParameterFeatures));
+    memset(&core12, 0, sizeof(VkJsonCore12));
   }
   VkPhysicalDeviceProperties properties;
   VkPhysicalDeviceFeatures features;
@@ -125,6 +131,7 @@ struct VkJsonDevice {
       external_fence_properties;
   std::map<VkExternalSemaphoreHandleTypeFlagBits, VkExternalSemaphoreProperties>
       external_semaphore_properties;
+  VkJsonCore12 core12;
 };
 
 struct VkJsonDeviceGroup {

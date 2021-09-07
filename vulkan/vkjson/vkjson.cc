@@ -387,6 +387,19 @@ struct EnumTraits<VkDriverIdKHR> {
   }
 };
 
+template <>
+struct EnumTraits<VkShaderFloatControlsIndependence> {
+  static bool exist(uint32_t e) {
+    switch (e) {
+      case VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_32_BIT_ONLY:
+      case VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_ALL:
+      case VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_NONE:
+        return true;
+    }
+    return false;
+  }
+};
+
 // VkSparseImageFormatProperties
 
 template <typename Visitor>
@@ -407,6 +420,7 @@ inline bool Iterate(Visitor* visitor, VkImageFormatProperties* properties) {
     visitor->Visit("maxResourceSize", &properties->maxResourceSize);
 }
 
+// clang-format off
 template <typename Visitor>
 inline bool Iterate(Visitor* visitor, VkPhysicalDeviceLimits* limits) {
   return
@@ -603,6 +617,123 @@ inline bool Iterate(Visitor* visitor, VkPhysicalDeviceFeatures* features) {
     visitor->Visit("variableMultisampleRate", &features->variableMultisampleRate) &&
     visitor->Visit("inheritedQueries", &features->inheritedQueries);
 }
+
+template <typename Visitor>
+inline bool Iterate(Visitor* visitor, VkJsonCore12* core) {
+  return
+    visitor->Visit("features", &core->features) &&
+    visitor->Visit("properties", &core->properties);
+}
+
+template <typename Visitor>
+inline bool Iterate(Visitor* visitor, VkPhysicalDeviceVulkan12Properties* properties) {
+  return
+    visitor->Visit("driverID", &properties->driverID) &&
+    visitor->Visit("driverName", &properties->driverName) &&
+    visitor->Visit("driverInfo", &properties->driverInfo) &&
+    visitor->Visit("conformanceVersion", &properties->conformanceVersion) &&
+    visitor->Visit("denormBehaviorIndependence", &properties->denormBehaviorIndependence) &&
+    visitor->Visit("roundingModeIndependence", &properties->roundingModeIndependence) &&
+    visitor->Visit("shaderSignedZeroInfNanPreserveFloat16", &properties->shaderSignedZeroInfNanPreserveFloat16) &&
+    visitor->Visit("shaderSignedZeroInfNanPreserveFloat32", &properties->shaderSignedZeroInfNanPreserveFloat32) &&
+    visitor->Visit("shaderSignedZeroInfNanPreserveFloat64", &properties->shaderSignedZeroInfNanPreserveFloat64) &&
+    visitor->Visit("shaderDenormPreserveFloat16", &properties->shaderDenormPreserveFloat16) &&
+    visitor->Visit("shaderDenormPreserveFloat32", &properties->shaderDenormPreserveFloat32) &&
+    visitor->Visit("shaderDenormPreserveFloat64", &properties->shaderDenormPreserveFloat64) &&
+    visitor->Visit("shaderDenormFlushToZeroFloat16", &properties->shaderDenormFlushToZeroFloat16) &&
+    visitor->Visit("shaderDenormFlushToZeroFloat32", &properties->shaderDenormFlushToZeroFloat32) &&
+    visitor->Visit("shaderDenormFlushToZeroFloat64", &properties->shaderDenormFlushToZeroFloat64) &&
+    visitor->Visit("shaderRoundingModeRTEFloat16", &properties->shaderRoundingModeRTEFloat16) &&
+    visitor->Visit("shaderRoundingModeRTEFloat32", &properties->shaderRoundingModeRTEFloat32) &&
+    visitor->Visit("shaderRoundingModeRTEFloat64", &properties->shaderRoundingModeRTEFloat64) &&
+    visitor->Visit("shaderRoundingModeRTZFloat16", &properties->shaderRoundingModeRTZFloat16) &&
+    visitor->Visit("shaderRoundingModeRTZFloat32", &properties->shaderRoundingModeRTZFloat32) &&
+    visitor->Visit("shaderRoundingModeRTZFloat64", &properties->shaderRoundingModeRTZFloat64) &&
+    visitor->Visit("maxUpdateAfterBindDescriptorsInAllPools", &properties->maxUpdateAfterBindDescriptorsInAllPools) &&
+    visitor->Visit("shaderUniformBufferArrayNonUniformIndexingNative", &properties->shaderUniformBufferArrayNonUniformIndexingNative) &&
+    visitor->Visit("shaderSampledImageArrayNonUniformIndexingNative", &properties->shaderSampledImageArrayNonUniformIndexingNative) &&
+    visitor->Visit("shaderStorageBufferArrayNonUniformIndexingNative", &properties->shaderStorageBufferArrayNonUniformIndexingNative) &&
+    visitor->Visit("shaderStorageImageArrayNonUniformIndexingNative", &properties->shaderStorageImageArrayNonUniformIndexingNative) &&
+    visitor->Visit("shaderInputAttachmentArrayNonUniformIndexingNative", &properties->shaderInputAttachmentArrayNonUniformIndexingNative) &&
+    visitor->Visit("robustBufferAccessUpdateAfterBind", &properties->robustBufferAccessUpdateAfterBind) &&
+    visitor->Visit("quadDivergentImplicitLod", &properties->quadDivergentImplicitLod) &&
+    visitor->Visit("maxPerStageDescriptorUpdateAfterBindSamplers", &properties->maxPerStageDescriptorUpdateAfterBindSamplers) &&
+    visitor->Visit("maxPerStageDescriptorUpdateAfterBindUniformBuffers", &properties->maxPerStageDescriptorUpdateAfterBindUniformBuffers) &&
+    visitor->Visit("maxPerStageDescriptorUpdateAfterBindStorageBuffers", &properties->maxPerStageDescriptorUpdateAfterBindStorageBuffers) &&
+    visitor->Visit("maxPerStageDescriptorUpdateAfterBindSampledImages", &properties->maxPerStageDescriptorUpdateAfterBindSampledImages) &&
+    visitor->Visit("maxPerStageDescriptorUpdateAfterBindStorageImages", &properties->maxPerStageDescriptorUpdateAfterBindStorageImages) &&
+    visitor->Visit("maxPerStageDescriptorUpdateAfterBindInputAttachments", &properties->maxPerStageDescriptorUpdateAfterBindInputAttachments) &&
+    visitor->Visit("maxPerStageUpdateAfterBindResources", &properties->maxPerStageUpdateAfterBindResources) &&
+    visitor->Visit("maxDescriptorSetUpdateAfterBindSamplers", &properties->maxDescriptorSetUpdateAfterBindSamplers) &&
+    visitor->Visit("maxDescriptorSetUpdateAfterBindUniformBuffers", &properties->maxDescriptorSetUpdateAfterBindUniformBuffers) &&
+    visitor->Visit("maxDescriptorSetUpdateAfterBindUniformBuffersDynamic", &properties->maxDescriptorSetUpdateAfterBindUniformBuffersDynamic) &&
+    visitor->Visit("maxDescriptorSetUpdateAfterBindStorageBuffers", &properties->maxDescriptorSetUpdateAfterBindStorageBuffers) &&
+    visitor->Visit("maxDescriptorSetUpdateAfterBindStorageBuffersDynamic", &properties->maxDescriptorSetUpdateAfterBindStorageBuffersDynamic) &&
+    visitor->Visit("maxDescriptorSetUpdateAfterBindSampledImages", &properties->maxDescriptorSetUpdateAfterBindSampledImages) &&
+    visitor->Visit("maxDescriptorSetUpdateAfterBindStorageImages", &properties->maxDescriptorSetUpdateAfterBindStorageImages) &&
+    visitor->Visit("maxDescriptorSetUpdateAfterBindInputAttachments", &properties->maxDescriptorSetUpdateAfterBindInputAttachments) &&
+    visitor->Visit("supportedDepthResolveModes", &properties->supportedDepthResolveModes) &&
+    visitor->Visit("supportedStencilResolveModes", &properties->supportedStencilResolveModes) &&
+    visitor->Visit("independentResolveNone", &properties->independentResolveNone) &&
+    visitor->Visit("independentResolve", &properties->independentResolve) &&
+    visitor->Visit("filterMinmaxSingleComponentFormats", &properties->filterMinmaxSingleComponentFormats) &&
+    visitor->Visit("filterMinmaxImageComponentMapping", &properties->filterMinmaxImageComponentMapping) &&
+    visitor->Visit("maxTimelineSemaphoreValueDifference", &properties->maxTimelineSemaphoreValueDifference) &&
+    visitor->Visit("framebufferIntegerColorSampleCounts", &properties->framebufferIntegerColorSampleCounts);
+}
+
+template <typename Visitor>
+inline bool Iterate(Visitor* visitor, VkPhysicalDeviceVulkan12Features* features) {
+  return
+    visitor->Visit("samplerMirrorClampToEdge", &features->samplerMirrorClampToEdge) &&
+    visitor->Visit("drawIndirectCount", &features->drawIndirectCount) &&
+    visitor->Visit("storageBuffer8BitAccess", &features->storageBuffer8BitAccess) &&
+    visitor->Visit("uniformAndStorageBuffer8BitAccess", &features->uniformAndStorageBuffer8BitAccess) &&
+    visitor->Visit("storagePushConstant8", &features->storagePushConstant8) &&
+    visitor->Visit("shaderBufferInt64Atomics", &features->shaderBufferInt64Atomics) &&
+    visitor->Visit("shaderSharedInt64Atomics", &features->shaderSharedInt64Atomics) &&
+    visitor->Visit("shaderFloat16", &features->shaderFloat16) &&
+    visitor->Visit("shaderInt8", &features->shaderInt8) &&
+    visitor->Visit("descriptorIndexing", &features->descriptorIndexing) &&
+    visitor->Visit("shaderInputAttachmentArrayDynamicIndexing", &features->shaderInputAttachmentArrayDynamicIndexing) &&
+    visitor->Visit("shaderUniformTexelBufferArrayDynamicIndexing", &features->shaderUniformTexelBufferArrayDynamicIndexing) &&
+    visitor->Visit("shaderStorageTexelBufferArrayDynamicIndexing", &features->shaderStorageTexelBufferArrayDynamicIndexing) &&
+    visitor->Visit("shaderUniformBufferArrayNonUniformIndexing", &features->shaderUniformBufferArrayNonUniformIndexing) &&
+    visitor->Visit("shaderSampledImageArrayNonUniformIndexing", &features->shaderSampledImageArrayNonUniformIndexing) &&
+    visitor->Visit("shaderStorageBufferArrayNonUniformIndexing", &features->shaderStorageBufferArrayNonUniformIndexing) &&
+    visitor->Visit("shaderStorageImageArrayNonUniformIndexing", &features->shaderStorageImageArrayNonUniformIndexing) &&
+    visitor->Visit("shaderInputAttachmentArrayNonUniformIndexing", &features->shaderInputAttachmentArrayNonUniformIndexing) &&
+    visitor->Visit("shaderUniformTexelBufferArrayNonUniformIndexing", &features->shaderUniformTexelBufferArrayNonUniformIndexing) &&
+    visitor->Visit("shaderStorageTexelBufferArrayNonUniformIndexing", &features->shaderStorageTexelBufferArrayNonUniformIndexing) &&
+    visitor->Visit("descriptorBindingUniformBufferUpdateAfterBind", &features->descriptorBindingUniformBufferUpdateAfterBind) &&
+    visitor->Visit("descriptorBindingSampledImageUpdateAfterBind", &features->descriptorBindingSampledImageUpdateAfterBind) &&
+    visitor->Visit("descriptorBindingStorageImageUpdateAfterBind", &features->descriptorBindingStorageImageUpdateAfterBind) &&
+    visitor->Visit("descriptorBindingStorageBufferUpdateAfterBind", &features->descriptorBindingStorageBufferUpdateAfterBind) &&
+    visitor->Visit("descriptorBindingUniformTexelBufferUpdateAfterBind", &features->descriptorBindingUniformTexelBufferUpdateAfterBind) &&
+    visitor->Visit("descriptorBindingStorageTexelBufferUpdateAfterBind", &features->descriptorBindingStorageTexelBufferUpdateAfterBind) &&
+    visitor->Visit("descriptorBindingUpdateUnusedWhilePending", &features->descriptorBindingUpdateUnusedWhilePending) &&
+    visitor->Visit("descriptorBindingPartiallyBound", &features->descriptorBindingPartiallyBound) &&
+    visitor->Visit("descriptorBindingVariableDescriptorCount", &features->descriptorBindingVariableDescriptorCount) &&
+    visitor->Visit("runtimeDescriptorArray", &features->runtimeDescriptorArray) &&
+    visitor->Visit("samplerFilterMinmax", &features->samplerFilterMinmax) &&
+    visitor->Visit("scalarBlockLayout", &features->scalarBlockLayout) &&
+    visitor->Visit("imagelessFramebuffer", &features->imagelessFramebuffer) &&
+    visitor->Visit("uniformBufferStandardLayout", &features->uniformBufferStandardLayout) &&
+    visitor->Visit("shaderSubgroupExtendedTypes", &features->shaderSubgroupExtendedTypes) &&
+    visitor->Visit("separateDepthStencilLayouts", &features->separateDepthStencilLayouts) &&
+    visitor->Visit("hostQueryReset", &features->hostQueryReset) &&
+    visitor->Visit("timelineSemaphore", &features->timelineSemaphore) &&
+    visitor->Visit("bufferDeviceAddress", &features->bufferDeviceAddress) &&
+    visitor->Visit("bufferDeviceAddressCaptureReplay", &features->bufferDeviceAddressCaptureReplay) &&
+    visitor->Visit("bufferDeviceAddressMultiDevice", &features->bufferDeviceAddressMultiDevice) &&
+    visitor->Visit("vulkanMemoryModel", &features->vulkanMemoryModel) &&
+    visitor->Visit("vulkanMemoryModelDeviceScope", &features->vulkanMemoryModelDeviceScope) &&
+    visitor->Visit("vulkanMemoryModelAvailabilityVisibilityChains", &features->vulkanMemoryModelAvailabilityVisibilityChains) &&
+    visitor->Visit("shaderOutputViewportIndex", &features->shaderOutputViewportIndex) &&
+    visitor->Visit("shaderOutputLayer", &features->shaderOutputLayer) &&
+    visitor->Visit("shaderOutputLayer", &features->shaderOutputLayer);
+}
+// clang-format on
 
 template <typename Visitor>
 inline bool Iterate(Visitor* visitor,
@@ -843,6 +974,7 @@ inline bool Iterate(Visitor* visitor, VkJsonDevice* device) {
   switch (device->properties.apiVersion ^
           VK_API_VERSION_PATCH(device->properties.apiVersion)) {
     case VK_API_VERSION_1_2:
+      ret &= visitor->Visit("core12", &device->core12);
       FALLTHROUGH_INTENDED;
     case VK_API_VERSION_1_1:
       ret &=
@@ -899,6 +1031,7 @@ inline bool Iterate(Visitor* visitor, VkJsonInstance* instance) {
   bool ret = true;
   switch (instance->api_version ^ VK_API_VERSION_PATCH(instance->api_version)) {
     case VK_API_VERSION_1_2:
+      ret &= visitor->Visit("apiVersion", &instance->api_version);
       FALLTHROUGH_INTENDED;
     case VK_API_VERSION_1_1:
       ret &= visitor->Visit("deviceGroups", &instance->device_groups);
