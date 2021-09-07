@@ -184,7 +184,7 @@ static const SkString stretchShader = SkString(R"(
         );
         coord.x = (outU - uScrollX) * viewportWidth;
         coord.y = (outV - uScrollY) * viewportHeight;
-        return sample(uContentTexture, coord);
+        return uContentTexture.eval(coord);
     })");
 
 const float INTERPOLATION_STRENGTH_VALUE = 0.7f;
