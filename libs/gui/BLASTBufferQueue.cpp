@@ -508,21 +508,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
         }
     }
 
-    auto mergeTransaction =
-            [&t, currentFrameNumber = bufferItem.mFrameNumber](
-                    std::tuple<uint64_t, SurfaceComposerClient::Transaction> pendingTransaction) {
-                auto& [targetFrameNumber, transaction] = pendingTransaction;
-                if (currentFrameNumber < targetFrameNumber) {
-                    return false;
-                }
-                t->merge(std::move(transaction));
-                return true;
-            };
-
-    mPendingTransactions.erase(std::remove_if(mPendingTransactions.begin(),
-                                              mPendingTransactions.end(), mergeTransaction),
-                               mPendingTransactions.end());
-
+    mergePendingTransactions(t, bufferItem.mFrameNumber);
     if (applyTransaction) {
         t->setApplyToken(mApplyToken).apply();
     }
@@ -724,6 +710,32 @@ void BLASTBufferQueue::mergeWithNextTransaction(SurfaceComposerClient::Transacti
         // Clear the transaction so it can't be applied elsewhere.
         t->clear();
     }
+}
+
+void BLASTBufferQueue::applyPendingTransactions(uint64_t frameNumber) {
+    std::lock_guard _lock{mMutex};
+
+    SurfaceComposerClient::Transaction t;
+    mergePendingTransactions(&t, frameNumber);
+    t.setApplyToken(mApplyToken).apply();
+}
+
+void BLASTBufferQueue::mergePendingTransactions(SurfaceComposerClient::Transaction* t,
+                                                uint64_t frameNumber) {
+    auto mergeTransaction =
+            [&t, currentFrameNumber = frameNumber](
+                    std::tuple<uint64_t, SurfaceComposerClient::Transaction> pendingTransaction) {
+                auto& [targetFrameNumber, transaction] = pendingTransaction;
+                if (currentFrameNumber < targetFrameNumber) {
+                    return false;
+                }
+                t->merge(std::move(transaction));
+                return true;
+            };
+
+    mPendingTransactions.erase(std::remove_if(mPendingTransactions.begin(),
+                                              mPendingTransactions.end(), mergeTransaction),
+                               mPendingTransactions.end());
 }
 
 // Maintains a single worker thread per process that services a list of runnables.
