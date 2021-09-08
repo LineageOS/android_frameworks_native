@@ -99,7 +99,6 @@ public:
 
     void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format,
                 SurfaceComposerClient::Transaction* outTransaction = nullptr);
-    void flushShadowQueue() {}
 
     status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
     status_t setFrameTimelineInfo(const FrameTimelineInfo& info);
