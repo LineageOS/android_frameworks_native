@@ -107,6 +107,7 @@ public:
     void setSidebandStream(const sp<NativeHandle>& stream);
 
     uint32_t getLastTransformHint() const;
+    uint64_t getLastAcquiredFrameNum();
 
     virtual ~BLASTBufferQueue();
 
