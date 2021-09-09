@@ -4654,7 +4654,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 result.append(traceFileProto.SerializeAsString());
             } else {
                 // Dump info that we need to access from the main thread
-                const auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
+                const auto layerTree = LayerProtoParser::generateLayerTree(layersTrace->layers());
                 result.append(LayerProtoParser::layerTreeToString(layerTree));
                 result.append("\n");
                 dumpOffscreenLayers(result);
