@@ -39,15 +39,15 @@ BlurFilter::BlurFilter() {
         uniform float2 in_maxSizeXY;
 
         half4 main(float2 xy) {
-            half4 c = sample(input, xy);
-            c += sample(input, float2( clamp( in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
-                                       clamp(in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
-            c += sample(input, float2( clamp( in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
-                                       clamp(-in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
-            c += sample(input, float2( clamp( -in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
-                                       clamp(in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
-            c += sample(input, float2( clamp( -in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
-                                       clamp(-in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
+            half4 c = input.eval(xy);
+            c += input.eval(float2(clamp( in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
+                                   clamp( in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
+            c += input.eval(float2(clamp( in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
+                                   clamp(-in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
+            c += input.eval(float2(clamp(-in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
+                                   clamp( in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
+            c += input.eval(float2(clamp(-in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
+                                   clamp(-in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
 
             return half4(c.rgb * 0.2, 1.0);
         }
@@ -65,7 +65,7 @@ BlurFilter::BlurFilter() {
         uniform float mixFactor;
 
         half4 main(float2 xy) {
-            return half4(mix(sample(originalInput, xy), sample(blurredInput, xy), mixFactor));
+            return half4(mix(originalInput.eval(xy), blurredInput.eval(xy), mixFactor));
         }
     )");
 
