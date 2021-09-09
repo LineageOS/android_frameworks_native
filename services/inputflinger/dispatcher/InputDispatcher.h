@@ -86,6 +86,8 @@ protected:
     ~InputDispatcher() override;
 
 public:
+    static constexpr bool kDefaultInTouchMode = true;
+
     explicit InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy);
 
     void dump(std::string& dump) override;
