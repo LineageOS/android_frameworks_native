@@ -1089,10 +1089,13 @@ static inline int ANativeWindow_getLastQueuedBuffer2(ANativeWindow* window,
 /**
  * Retrieves an identifier for the next frame to be queued by this window.
  *
- * \return the next frame id.
+ * Frame ids start at 1 and are incremented on each new frame until the underlying surface changes,
+ * in which case the frame id is reset to 1.
+ *
+ * \return the next frame id (0 being uninitialized).
  */
-static inline int64_t ANativeWindow_getNextFrameId(ANativeWindow* window) {
-    int64_t value;
+static inline uint64_t ANativeWindow_getNextFrameId(ANativeWindow* window) {
+    uint64_t value;
     window->perform(window, NATIVE_WINDOW_GET_NEXT_FRAME_ID, &value);
     return value;
 }

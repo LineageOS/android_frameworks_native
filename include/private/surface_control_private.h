@@ -29,8 +29,8 @@ typedef struct ASurfaceControlStats ASurfaceControlStats;
 /**
  * Callback to be notified when surface stats for a specific surface control are available.
  */
-typedef void (*ASurfaceControl_SurfaceStatsListener)(void* context,
-        ASurfaceControl* control, ASurfaceControlStats* stats);
+typedef void (*ASurfaceControl_SurfaceStatsListener)(void* context, int32_t id,
+        ASurfaceControlStats* stats);
 
 /**
  * Registers a callback to be invoked when surface stats from a specific surface are available.
@@ -42,7 +42,7 @@ typedef void (*ASurfaceControl_SurfaceStatsListener)(void* context,
  *
  * \param func The callback to be invoked when surface stats are available.
  */
-void ASurfaceControl_registerSurfaceStatsListener(ASurfaceControl* control, void* context,
+void ASurfaceControl_registerSurfaceStatsListener(ASurfaceControl* control, int32_t id, void* context,
         ASurfaceControl_SurfaceStatsListener func);
 
 /**

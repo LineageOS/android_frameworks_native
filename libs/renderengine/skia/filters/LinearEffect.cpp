@@ -391,7 +391,7 @@ static void generateEffectiveOOTF(bool undoPremultipliedAlpha, SkString& shader)
     shader.append(R"(
         uniform shader input;
         half4 main(float2 xy) {
-            float4 c = float4(sample(input, xy));
+            float4 c = float4(input.eval(xy));
     )");
     if (undoPremultipliedAlpha) {
         shader.append(R"(
