@@ -194,7 +194,7 @@ CallbackId TransactionCompletedListener::addCallbackFunction(
 void TransactionCompletedListener::addJankListener(const sp<JankDataListener>& listener,
                                                    sp<SurfaceControl> surfaceControl) {
     std::lock_guard<std::mutex> lock(mMutex);
-    mJankListeners.insert({surfaceControl->getHandle(), listener});
+    mJankListeners.insert({surfaceControl->getLayerId(), listener});
 }
 
 void TransactionCompletedListener::removeJankListener(const sp<JankDataListener>& listener) {
@@ -223,8 +223,8 @@ void TransactionCompletedListener::removeReleaseBufferCallback(
 void TransactionCompletedListener::addSurfaceStatsListener(void* context, void* cookie,
         sp<SurfaceControl> surfaceControl, SurfaceStatsCallback listener) {
     std::scoped_lock<std::recursive_mutex> lock(mSurfaceStatsListenerMutex);
-    mSurfaceStatsListeners.insert({surfaceControl->getHandle(),
-            SurfaceStatsCallbackEntry(context, cookie, listener)});
+    mSurfaceStatsListeners.insert(
+            {surfaceControl->getLayerId(), SurfaceStatsCallbackEntry(context, cookie, listener)});
 }
 
 void TransactionCompletedListener::removeSurfaceStatsListener(void* context, void* cookie) {
@@ -254,7 +254,7 @@ void TransactionCompletedListener::addSurfaceControlToCallbacks(
 
 void TransactionCompletedListener::onTransactionCompleted(ListenerStats listenerStats) {
     std::unordered_map<CallbackId, CallbackTranslation, CallbackIdHash> callbacksMap;
-    std::multimap<sp<IBinder>, sp<JankDataListener>> jankListenersMap;
+    std::multimap<int32_t, sp<JankDataListener>> jankListenersMap;
     {
         std::lock_guard<std::mutex> lock(mMutex);
 
@@ -352,13 +352,26 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
             callbackFunction(transactionStats.latchTime, transactionStats.presentFence,
                              surfaceControlStats);
         }
+
         for (const auto& surfaceStats : transactionStats.surfaceStats) {
+            // The callbackMap contains the SurfaceControl object, which we need to look up the
+            // layerId. Since we don't know which callback contains the SurfaceControl, iterate
+            // through all until the SC is found.
+            int32_t layerId = -1;
+            for (auto callbackId : transactionStats.callbackIds) {
+                sp<SurfaceControl> sc =
+                        callbacksMap[callbackId].surfaceControls[surfaceStats.surfaceControl];
+                if (sc != nullptr) {
+                    layerId = sc->getLayerId();
+                    break;
+                }
+            }
+
             {
                 // Acquire surface stats listener lock such that we guarantee that after calling
                 // unregister, there won't be any further callback.
                 std::scoped_lock<std::recursive_mutex> lock(mSurfaceStatsListenerMutex);
-                auto listenerRange = mSurfaceStatsListeners.equal_range(
-                        surfaceStats.surfaceControl);
+                auto listenerRange = mSurfaceStatsListeners.equal_range(layerId);
                 for (auto it = listenerRange.first; it != listenerRange.second; it++) {
                     auto entry = it->second;
                     entry.callback(entry.context, transactionStats.latchTime,
@@ -367,7 +380,7 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
             }
 
             if (surfaceStats.jankData.empty()) continue;
-            auto jankRange = jankListenersMap.equal_range(surfaceStats.surfaceControl);
+            auto jankRange = jankListenersMap.equal_range(layerId);
             for (auto it = jankRange.first; it != jankRange.second; it++) {
                 it->second->onJankDataAvailable(surfaceStats.jankData);
             }
