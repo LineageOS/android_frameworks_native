@@ -30,10 +30,10 @@ static constexpr bool DEBUG_TRANSPORT_ACTIONS = false;
 #include <android-base/stringprintf.h>
 #include <binder/Parcel.h>
 #include <cutils/properties.h>
+#include <ftl/enum.h>
 #include <log/log.h>
 #include <utils/Trace.h>
 
-#include <ftl/NamedEnum.h>
 #include <input/InputTransport.h>
 
 using android::base::StringPrintf;
@@ -714,7 +714,7 @@ android::base::Result<InputPublisher::ConsumerResponse> InputPublisher::receiveC
     }
 
     ALOGE("channel '%s' publisher ~ Received unexpected %s message from consumer",
-          mChannel->getName().c_str(), NamedEnum::string(msg.header.type).c_str());
+          mChannel->getName().c_str(), ftl::enum_string(msg.header.type).c_str());
     return android::base::Error(UNKNOWN_ERROR);
 }
 
@@ -856,7 +856,7 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory, bool consum
             case InputMessage::Type::TIMELINE: {
                 LOG_ALWAYS_FATAL("Consumed a %s message, which should never be seen by "
                                  "InputConsumer!",
-                                 NamedEnum::string(mMsg.header.type).c_str());
+                                 ftl::enum_string(mMsg.header.type).c_str());
                 break;
             }
 
@@ -1449,14 +1449,14 @@ std::string InputConsumer::dump() const {
     out = out + "mChannel = " + mChannel->getName() + "\n";
     out = out + "mMsgDeferred: " + toString(mMsgDeferred) + "\n";
     if (mMsgDeferred) {
-        out = out + "mMsg : " + NamedEnum::string(mMsg.header.type) + "\n";
+        out = out + "mMsg : " + ftl::enum_string(mMsg.header.type) + "\n";
     }
     out += "Batches:\n";
     for (const Batch& batch : mBatches) {
         out += "    Batch:\n";
         for (const InputMessage& msg : batch.samples) {
             out += android::base::StringPrintf("        Message %" PRIu32 ": %s ", msg.header.seq,
-                                               NamedEnum::string(msg.header.type).c_str());
+                                               ftl::enum_string(msg.header.type).c_str());
             switch (msg.header.type) {
                 case InputMessage::Type::KEY: {
                     out += android::base::StringPrintf("action=%s keycode=%" PRId32,

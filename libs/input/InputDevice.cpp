@@ -21,7 +21,7 @@
 #include <ctype.h>
 
 #include <android-base/stringprintf.h>
-#include <ftl/NamedEnum.h>
+#include <ftl/enum.h>
 #include <input/InputDevice.h>
 #include <input/InputEventLabels.h>
 
@@ -228,7 +228,7 @@ void InputDeviceInfo::addMotionRange(const MotionRange& range) {
 void InputDeviceInfo::addSensorInfo(const InputDeviceSensorInfo& info) {
     if (mSensors.find(info.type) != mSensors.end()) {
         ALOGW("Sensor type %s already exists, will be replaced by new sensor added.",
-              NamedEnum::string(info.type).c_str());
+              ftl::enum_string(info.type).c_str());
     }
     mSensors.insert_or_assign(info.type, info);
 }

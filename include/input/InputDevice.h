@@ -84,6 +84,9 @@ enum class InputDeviceSensorType : int32_t {
     GAME_ROTATION_VECTOR = ASENSOR_TYPE_GAME_ROTATION_VECTOR,
     GYROSCOPE_UNCALIBRATED = ASENSOR_TYPE_GYROSCOPE_UNCALIBRATED,
     SIGNIFICANT_MOTION = ASENSOR_TYPE_SIGNIFICANT_MOTION,
+
+    ftl_first = ACCELEROMETER,
+    ftl_last = SIGNIFICANT_MOTION
 };
 
 enum class InputDeviceSensorAccuracy : int32_t {
@@ -105,6 +108,8 @@ enum class InputDeviceLightType : int32_t {
     PLAYER_ID = 1,
     RGB = 2,
     MULTI_COLOR = 3,
+
+    ftl_last = MULTI_COLOR
 };
 
 struct InputDeviceSensorInfo {

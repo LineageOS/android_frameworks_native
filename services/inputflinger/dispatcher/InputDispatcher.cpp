@@ -27,6 +27,7 @@
 #include <binder/Binder.h>
 #include <binder/IServiceManager.h>
 #include <com/android/internal/compat/IPlatformCompatNative.h>
+#include <ftl/enum.h>
 #include <gui/SurfaceComposerClient.h>
 #include <input/InputDevice.h>
 #include <log/log.h>
@@ -1151,7 +1152,7 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
         case EventEntry::Type::TOUCH_MODE_CHANGED:
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET: {
-            LOG_ALWAYS_FATAL("Should not drop %s events", NamedEnum::string(entry.type).c_str());
+            LOG_ALWAYS_FATAL("Should not drop %s events", ftl::enum_string(entry.type).c_str());
             break;
         }
     }
@@ -1573,7 +1574,7 @@ void InputDispatcher::dispatchSensorLocked(nsecs_t currentTime,
         ALOGD("notifySensorEvent eventTime=%" PRId64 ", hwTimestamp=%" PRId64 ", deviceId=%d, "
               "source=0x%x, sensorType=%s",
               entry->eventTime, entry->hwTimestamp, entry->deviceId, entry->source,
-              NamedEnum::string(entry->sensorType).c_str());
+              ftl::enum_string(entry->sensorType).c_str());
     }
     auto command = [this, entry]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
@@ -1590,7 +1591,7 @@ void InputDispatcher::dispatchSensorLocked(nsecs_t currentTime,
 bool InputDispatcher::flushSensor(int deviceId, InputDeviceSensorType sensorType) {
     if (DEBUG_OUTBOUND_EVENT_DETAILS) {
         ALOGD("flushSensor deviceId=%d, sensorType=%s", deviceId,
-              NamedEnum::string(sensorType).c_str());
+              ftl::enum_string(sensorType).c_str());
     }
     { // acquire lock
         std::scoped_lock _l(mLock);
@@ -1811,7 +1812,7 @@ int32_t InputDispatcher::getTargetDisplayId(const EventEntry& entry) {
         case EventEntry::Type::DEVICE_RESET:
         case EventEntry::Type::SENSOR:
         case EventEntry::Type::DRAG: {
-            ALOGE("%s events do not have a target display", NamedEnum::string(entry.type).c_str());
+            ALOGE("%s events do not have a target display", ftl::enum_string(entry.type).c_str());
             return ADISPLAY_ID_NONE;
         }
     }
@@ -1863,7 +1864,7 @@ InputEventInjectionResult InputDispatcher::findFocusedWindowTargetsLocked(
     if (focusedWindowHandle == nullptr && focusedApplicationHandle == nullptr) {
         ALOGI("Dropping %s event because there is no focused window or focused application in "
               "display %" PRId32 ".",
-              NamedEnum::string(entry.type).c_str(), displayId);
+              ftl::enum_string(entry.type).c_str(), displayId);
         return InputEventInjectionResult::FAILED;
     }
 
@@ -1888,7 +1889,7 @@ InputEventInjectionResult InputDispatcher::findFocusedWindowTargetsLocked(
         } else if (currentTime > *mNoFocusedWindowTimeoutTime) {
             // Already raised ANR. Drop the event
             ALOGE("Dropping %s event because there is no focused window",
-                  NamedEnum::string(entry.type).c_str());
+                  ftl::enum_string(entry.type).c_str());
             return InputEventInjectionResult::FAILED;
         } else {
             // Still waiting for the focused window
@@ -2676,8 +2677,7 @@ std::string InputDispatcher::dumpWindowForTouchOcclusion(const WindowInfo* info,
                         "frame=[%" PRId32 ",%" PRId32 "][%" PRId32 ",%" PRId32
                         "], touchableRegion=%s, window={%s}, flags={%s}, inputFeatures={%s}, "
                         "hasToken=%s, applicationInfo.name=%s, applicationInfo.token=%s\n",
-                        (isTouchedWindow) ? "[TOUCHED] " : "",
-                        NamedEnum::string(info->type, "%" PRId32).c_str(),
+                        isTouchedWindow ? "[TOUCHED] " : "", ftl::enum_string(info->type).c_str(),
                         info->packageName.c_str(), info->ownerUid, info->id,
                         toString(info->touchOcclusionMode).c_str(), info->alpha, info->frameLeft,
                         info->frameTop, info->frameRight, info->frameBottom,
@@ -2804,7 +2804,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
         case EventEntry::Type::POINTER_CAPTURE_CHANGED:
         case EventEntry::Type::DRAG: {
             LOG_ALWAYS_FATAL("%s events are not user activity",
-                             NamedEnum::string(eventEntry.type).c_str());
+                             ftl::enum_string(eventEntry.type).c_str());
             break;
         }
     }
@@ -2849,7 +2849,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
     if (inputTarget.flags & InputTarget::FLAG_SPLIT) {
         LOG_ALWAYS_FATAL_IF(eventEntry->type != EventEntry::Type::MOTION,
                             "Entry type %s should not have FLAG_SPLIT",
-                            NamedEnum::string(eventEntry->type).c_str());
+                            ftl::enum_string(eventEntry->type).c_str());
 
         const MotionEntry& originalMotionEntry = static_cast<const MotionEntry&>(*eventEntry);
         if (inputTarget.pointerIds.count() != originalMotionEntry.pointerCount) {
@@ -3037,7 +3037,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET: {
             LOG_ALWAYS_FATAL("%s events should not go to apps",
-                             NamedEnum::string(newEntry.type).c_str());
+                             ftl::enum_string(newEntry.type).c_str());
             break;
         }
     }
@@ -3276,7 +3276,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
             case EventEntry::Type::DEVICE_RESET:
             case EventEntry::Type::SENSOR: {
                 LOG_ALWAYS_FATAL("Should never start dispatch cycles for %s events",
-                                 NamedEnum::string(eventEntry.type).c_str());
+                                 ftl::enum_string(eventEntry.type).c_str());
                 return;
             }
         }
@@ -3592,14 +3592,14 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
             case EventEntry::Type::POINTER_CAPTURE_CHANGED:
             case EventEntry::Type::DRAG: {
                 LOG_ALWAYS_FATAL("Canceling %s events is not supported",
-                                 NamedEnum::string(cancelationEventEntry->type).c_str());
+                                 ftl::enum_string(cancelationEventEntry->type).c_str());
                 break;
             }
             case EventEntry::Type::CONFIGURATION_CHANGED:
             case EventEntry::Type::DEVICE_RESET:
             case EventEntry::Type::SENSOR: {
                 LOG_ALWAYS_FATAL("%s event should not be found inside Connections's queue",
-                                 NamedEnum::string(cancelationEventEntry->type).c_str());
+                                 ftl::enum_string(cancelationEventEntry->type).c_str());
                 break;
             }
         }
@@ -3659,7 +3659,7 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
             case EventEntry::Type::SENSOR:
             case EventEntry::Type::DRAG: {
                 LOG_ALWAYS_FATAL("%s event should not be found inside Connections's queue",
-                                 NamedEnum::string(downEventEntry->type).c_str());
+                                 ftl::enum_string(downEventEntry->type).c_str());
                 break;
             }
         }
@@ -4007,7 +4007,7 @@ void InputDispatcher::notifySensor(const NotifySensorArgs* args) {
         ALOGD("notifySensor - id=%" PRIx32 " eventTime=%" PRId64 ", deviceId=%d, source=0x%x, "
               " sensorType=%s",
               args->id, args->eventTime, args->deviceId, args->source,
-              NamedEnum::string(args->sensorType).c_str());
+              ftl::enum_string(args->sensorType).c_str());
     }
 
     bool needWake;
@@ -5115,7 +5115,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          toString(windowInfo->hasWallpaper),
                                          toString(windowInfo->visible), windowInfo->alpha,
                                          windowInfo->flags.string().c_str(),
-                                         NamedEnum::string(windowInfo->type).c_str(),
+                                         ftl::enum_string(windowInfo->type).c_str(),
                                          windowInfo->frameLeft, windowInfo->frameTop,
                                          windowInfo->frameRight, windowInfo->frameBottom,
                                          windowInfo->globalScaleFactor,

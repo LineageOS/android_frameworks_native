@@ -16,10 +16,8 @@
 
 #define LOG_TAG "KeyLayoutMap"
 
-#include <stdlib.h>
-
 #include <android/keycodes.h>
-#include <ftl/NamedEnum.h>
+#include <ftl/enum.h>
 #include <input/InputEventLabels.h>
 #include <input/KeyLayoutMap.h>
 #include <input/Keyboard.h>
@@ -27,6 +25,10 @@
 #include <utils/Log.h>
 #include <utils/Timers.h>
 #include <utils/Tokenizer.h>
+
+#include <cstdlib>
+#include <string_view>
+#include <unordered_map>
 
 // Enables debug output for the parser.
 #define DEBUG_PARSER 0
@@ -39,36 +41,38 @@
 
 
 namespace android {
+namespace {
 
-static const char* WHITESPACE = " \t\r";
+constexpr const char* WHITESPACE = " \t\r";
 
-#define SENSOR_ENTRY(type) NamedEnum::string(type), type
-static const std::unordered_map<std::string, InputDeviceSensorType> SENSOR_LIST =
-        {{SENSOR_ENTRY(InputDeviceSensorType::ACCELEROMETER)},
-         {SENSOR_ENTRY(InputDeviceSensorType::MAGNETIC_FIELD)},
-         {SENSOR_ENTRY(InputDeviceSensorType::ORIENTATION)},
-         {SENSOR_ENTRY(InputDeviceSensorType::GYROSCOPE)},
-         {SENSOR_ENTRY(InputDeviceSensorType::LIGHT)},
-         {SENSOR_ENTRY(InputDeviceSensorType::PRESSURE)},
-         {SENSOR_ENTRY(InputDeviceSensorType::TEMPERATURE)},
-         {SENSOR_ENTRY(InputDeviceSensorType::PROXIMITY)},
-         {SENSOR_ENTRY(InputDeviceSensorType::GRAVITY)},
-         {SENSOR_ENTRY(InputDeviceSensorType::LINEAR_ACCELERATION)},
-         {SENSOR_ENTRY(InputDeviceSensorType::ROTATION_VECTOR)},
-         {SENSOR_ENTRY(InputDeviceSensorType::RELATIVE_HUMIDITY)},
-         {SENSOR_ENTRY(InputDeviceSensorType::AMBIENT_TEMPERATURE)},
-         {SENSOR_ENTRY(InputDeviceSensorType::MAGNETIC_FIELD_UNCALIBRATED)},
-         {SENSOR_ENTRY(InputDeviceSensorType::GAME_ROTATION_VECTOR)},
-         {SENSOR_ENTRY(InputDeviceSensorType::GYROSCOPE_UNCALIBRATED)},
-         {SENSOR_ENTRY(InputDeviceSensorType::SIGNIFICANT_MOTION)}};
-
-// --- KeyLayoutMap ---
-
-KeyLayoutMap::KeyLayoutMap() {
+template <InputDeviceSensorType S>
+constexpr auto sensorPair() {
+    return std::make_pair(ftl::enum_name<S>(), S);
 }
 
-KeyLayoutMap::~KeyLayoutMap() {
-}
+static const std::unordered_map<std::string_view, InputDeviceSensorType> SENSOR_LIST =
+        {sensorPair<InputDeviceSensorType::ACCELEROMETER>(),
+         sensorPair<InputDeviceSensorType::MAGNETIC_FIELD>(),
+         sensorPair<InputDeviceSensorType::ORIENTATION>(),
+         sensorPair<InputDeviceSensorType::GYROSCOPE>(),
+         sensorPair<InputDeviceSensorType::LIGHT>(),
+         sensorPair<InputDeviceSensorType::PRESSURE>(),
+         sensorPair<InputDeviceSensorType::TEMPERATURE>(),
+         sensorPair<InputDeviceSensorType::PROXIMITY>(),
+         sensorPair<InputDeviceSensorType::GRAVITY>(),
+         sensorPair<InputDeviceSensorType::LINEAR_ACCELERATION>(),
+         sensorPair<InputDeviceSensorType::ROTATION_VECTOR>(),
+         sensorPair<InputDeviceSensorType::RELATIVE_HUMIDITY>(),
+         sensorPair<InputDeviceSensorType::AMBIENT_TEMPERATURE>(),
+         sensorPair<InputDeviceSensorType::MAGNETIC_FIELD_UNCALIBRATED>(),
+         sensorPair<InputDeviceSensorType::GAME_ROTATION_VECTOR>(),
+         sensorPair<InputDeviceSensorType::GYROSCOPE_UNCALIBRATED>(),
+         sensorPair<InputDeviceSensorType::SIGNIFICANT_MOTION>()};
+
+} // namespace
+
+KeyLayoutMap::KeyLayoutMap() = default;
+KeyLayoutMap::~KeyLayoutMap() = default;
 
 base::Result<std::shared_ptr<KeyLayoutMap>> KeyLayoutMap::loadContents(const std::string& filename,
                                                                        const char* contents) {
@@ -160,8 +164,8 @@ base::Result<std::pair<InputDeviceSensorType, int32_t>> KeyLayoutMap::mapSensor(
     const Sensor& sensor = it->second;
 
 #if DEBUG_MAPPING
-    ALOGD("mapSensor: absCode=%d, sensorType=0x%0x, sensorDataIndex=0x%x.", absCode,
-          NamedEnum::string(sensor.sensorType), sensor.sensorDataIndex);
+    ALOGD("mapSensor: absCode=%d, sensorType=%s, sensorDataIndex=0x%x.", absCode,
+          ftl::enum_string(sensor.sensorType).c_str(), sensor.sensorDataIndex);
 #endif
     return std::make_pair(sensor.sensorType, sensor.sensorDataIndex);
 }
@@ -513,7 +517,7 @@ status_t KeyLayoutMap::Parser::parseLed() {
 }
 
 static std::optional<InputDeviceSensorType> getSensorType(const char* token) {
-    auto it = SENSOR_LIST.find(std::string(token));
+    auto it = SENSOR_LIST.find(token);
     if (it == SENSOR_LIST.end()) {
         return std::nullopt;
     }
@@ -581,8 +585,8 @@ status_t KeyLayoutMap::Parser::parseSensor() {
     int32_t sensorDataIndex = indexOpt.value();
 
 #if DEBUG_PARSER
-    ALOGD("Parsed sensor: abs code=%d, sensorType=%d, sensorDataIndex=%d.", code,
-          NamedEnum::string(sensorType).c_str(), sensorDataIndex);
+    ALOGD("Parsed sensor: abs code=%d, sensorType=%s, sensorDataIndex=%d.", code,
+          ftl::enum_string(sensorType).c_str(), sensorDataIndex);
 #endif
 
     Sensor sensor;
@@ -591,4 +595,5 @@ status_t KeyLayoutMap::Parser::parseSensor() {
     map.emplace(code, sensor);
     return NO_ERROR;
 }
-};
+
+} // namespace android

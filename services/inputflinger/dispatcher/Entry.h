@@ -40,6 +40,8 @@ struct EventEntry {
         POINTER_CAPTURE_CHANGED,
         DRAG,
         TOUCH_MODE_CHANGED,
+
+        ftl_last = TOUCH_MODE_CHANGED
     };
 
     int32_t id;
