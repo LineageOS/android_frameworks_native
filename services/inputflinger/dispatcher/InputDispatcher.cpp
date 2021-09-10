@@ -825,6 +825,14 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
             break;
         }
 
+        case EventEntry::Type::TOUCH_MODE_CHANGED: {
+            const auto typedEntry = std::static_pointer_cast<TouchModeEntry>(mPendingEvent);
+            dispatchTouchModeChangeLocked(currentTime, typedEntry);
+            done = true;
+            dropReason = DropReason::NOT_DROPPED; // touch mode events are never dropped
+            break;
+        }
+
         case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
             const auto typedEntry =
                     std::static_pointer_cast<PointerCaptureChangedEntry>(mPendingEvent);
@@ -1005,6 +1013,7 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
             LOG_ALWAYS_FATAL("Focus events should be inserted using enqueueFocusEventLocked");
             break;
         }
+        case EventEntry::Type::TOUCH_MODE_CHANGED:
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET:
         case EventEntry::Type::SENSOR:
@@ -1139,6 +1148,7 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
             break;
         }
         case EventEntry::Type::FOCUS:
+        case EventEntry::Type::TOUCH_MODE_CHANGED:
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET: {
             LOG_ALWAYS_FATAL("Should not drop %s events", NamedEnum::string(entry.type).c_str());
@@ -1395,6 +1405,43 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
     dispatchEventLocked(currentTime, entry, {target});
 
     dropReason = DropReason::NOT_DROPPED;
+}
+
+void InputDispatcher::dispatchTouchModeChangeLocked(nsecs_t currentTime,
+                                                    const std::shared_ptr<TouchModeEntry>& entry) {
+    const std::vector<sp<WindowInfoHandle>>& windowHandles =
+            getWindowHandlesLocked(mFocusedDisplayId);
+    if (windowHandles.empty()) {
+        return;
+    }
+    const std::vector<InputTarget> inputTargets =
+            getInputTargetsFromWindowHandlesLocked(windowHandles);
+    if (inputTargets.empty()) {
+        return;
+    }
+    entry->dispatchInProgress = true;
+    dispatchEventLocked(currentTime, entry, inputTargets);
+}
+
+std::vector<InputTarget> InputDispatcher::getInputTargetsFromWindowHandlesLocked(
+        const std::vector<sp<WindowInfoHandle>>& windowHandles) const {
+    std::vector<InputTarget> inputTargets;
+    for (const sp<WindowInfoHandle>& handle : windowHandles) {
+        // TODO(b/193718270): Due to performance concerns, consider notifying visible windows only.
+        const sp<IBinder>& token = handle->getToken();
+        if (token == nullptr) {
+            continue;
+        }
+        std::shared_ptr<InputChannel> channel = getInputChannelLocked(token);
+        if (channel == nullptr) {
+            continue; // Window has gone away
+        }
+        InputTarget target;
+        target.inputChannel = channel;
+        target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
+        inputTargets.push_back(target);
+    }
+    return inputTargets;
 }
 
 bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<KeyEntry> entry,
@@ -1759,6 +1806,7 @@ int32_t InputDispatcher::getTargetDisplayId(const EventEntry& entry) {
         }
         case EventEntry::Type::POINTER_CAPTURE_CHANGED:
         case EventEntry::Type::FOCUS:
+        case EventEntry::Type::TOUCH_MODE_CHANGED:
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET:
         case EventEntry::Type::SENSOR:
@@ -2745,6 +2793,10 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
             eventType = USER_ACTIVITY_EVENT_BUTTON;
             break;
         }
+        case EventEntry::Type::TOUCH_MODE_CHANGED: {
+            break;
+        }
+
         case EventEntry::Type::FOCUS:
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET:
@@ -2973,6 +3025,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
             break;
         }
         case EventEntry::Type::FOCUS:
+        case EventEntry::Type::TOUCH_MODE_CHANGED:
         case EventEntry::Type::POINTER_CAPTURE_CHANGED:
         case EventEntry::Type::DRAG: {
             break;
@@ -3188,6 +3241,16 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                                       focusEntry.id,
                                                                       focusEntry.hasFocus,
                                                                       mInTouchMode);
+                break;
+            }
+
+            case EventEntry::Type::TOUCH_MODE_CHANGED: {
+                const TouchModeEntry& touchModeEntry =
+                        static_cast<const TouchModeEntry&>(eventEntry);
+                status = connection->inputPublisher
+                                 .publishTouchModeEvent(dispatchEntry->seq, touchModeEntry.id,
+                                                        touchModeEntry.inTouchMode);
+
                 break;
             }
 
@@ -3525,6 +3588,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
                 break;
             }
             case EventEntry::Type::FOCUS:
+            case EventEntry::Type::TOUCH_MODE_CHANGED:
             case EventEntry::Type::POINTER_CAPTURE_CHANGED:
             case EventEntry::Type::DRAG: {
                 LOG_ALWAYS_FATAL("Canceling %s events is not supported",
@@ -3588,6 +3652,7 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
 
             case EventEntry::Type::KEY:
             case EventEntry::Type::FOCUS:
+            case EventEntry::Type::TOUCH_MODE_CHANGED:
             case EventEntry::Type::CONFIGURATION_CHANGED:
             case EventEntry::Type::DEVICE_RESET:
             case EventEntry::Type::POINTER_CAPTURE_CHANGED:
@@ -4787,6 +4852,7 @@ void InputDispatcher::setInputFilterEnabled(bool enabled) {
 void InputDispatcher::setInTouchMode(bool inTouchMode) {
     std::scoped_lock lock(mLock);
     mInTouchMode = inTouchMode;
+    // TODO(b/193718270): Fire TouchModeEvent here.
 }
 
 void InputDispatcher::setMaximumObscuringOpacityForTouch(float opacity) {
