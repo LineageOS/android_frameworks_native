@@ -2430,6 +2430,7 @@ WindowInfo Layer::fillInputInfo(const ui::Transform& displayTransform, bool disp
     // If the layer is a clone, we need to crop the input region to cloned root to prevent
     // touches from going outside the cloned area.
     if (isClone()) {
+        info.isClone = true;
         if (const sp<Layer> clonedRoot = getClonedRoot()) {
             const Rect rect = displayTransform.transform(Rect{clonedRoot->mScreenBounds});
             info.touchableRegion = info.touchableRegion.intersect(rect);
