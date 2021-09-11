@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,78 +14,21 @@
  * limitations under the License.
  */
 
-#include <android-base/stringprintf.h>
+#pragma once
 
-#include <array>
+#include <ftl/enum.h>
+#include <ftl/string.h>
+
 #include <cstdint>
-#include <optional>
+#include <iterator>
 #include <string>
 #include <type_traits>
 
-#include <ftl/NamedEnum.h>
 #include "utils/BitSet.h"
 
-#pragma once
+// TODO(b/185536303): Align with FTL style and namespace.
 
 namespace android {
-
-namespace details {
-
-template <typename F>
-inline constexpr auto flag_count = sizeof(F) * __CHAR_BIT__;
-
-template <typename F, typename T, T... I>
-constexpr auto generate_flag_values(std::integer_sequence<T, I...> seq) {
-    constexpr size_t count = seq.size();
-
-    std::array<F, count> values{};
-    for (size_t i = 0, v = 0; v < count; ++i) {
-        values[v++] = static_cast<F>(T{1} << i);
-    }
-
-    return values;
-}
-
-template <typename F>
-inline constexpr auto flag_values = generate_flag_values<F>(
-        std::make_integer_sequence<std::underlying_type_t<F>, flag_count<F>>{});
-
-template <typename F, std::size_t... I>
-constexpr auto generate_flag_names(std::index_sequence<I...>) noexcept {
-    return std::array<std::optional<std::string_view>, sizeof...(I)>{
-            {enum_value_name<F, flag_values<F>[I]>()...}};
-}
-
-template <typename F>
-inline constexpr auto flag_names =
-        generate_flag_names<F>(std::make_index_sequence<flag_count<F>>{});
-
-// A trait for determining whether a type is specifically an enum class or not.
-template <typename T, bool = std::is_enum_v<T>>
-struct is_enum_class : std::false_type {};
-
-// By definition, an enum class is an enum that is not implicitly convertible to its underlying
-// type.
-template <typename T>
-struct is_enum_class<T, true>
-      : std::bool_constant<!std::is_convertible_v<T, std::underlying_type_t<T>>> {};
-
-template <typename T>
-inline constexpr bool is_enum_class_v = is_enum_class<T>::value;
-} // namespace details
-
-template <auto V>
-constexpr auto flag_name() {
-    using F = decltype(V);
-    return details::enum_value_name<F, V>();
-}
-
-template <typename F>
-constexpr std::optional<std::string_view> flag_name(F flag) {
-    using U = std::underlying_type_t<F>;
-    auto idx = static_cast<size_t>(__builtin_ctzl(static_cast<U>(flag)));
-    return details::flag_names<F>[idx];
-}
 
 /* A class for handling flags defined by an enum or enum class in a type-safe way. */
 template <typename F>
@@ -94,7 +37,7 @@ class Flags {
     // further to avoid this restriction but in general we want to encourage the use of enums
     // anyways.
     static_assert(std::is_enum_v<F>, "Flags type must be an enum");
-    using U = typename std::underlying_type_t<F>;
+    using U = std::underlying_type_t<F>;
 
 public:
     constexpr Flags(F f) : mFlags(static_cast<U>(f)) {}
@@ -106,11 +49,10 @@ public:
     // should force them to be explicitly constructed from their underlying types to make full use
     // of the type checker.
     template <typename T = U>
-    constexpr Flags(T t, typename std::enable_if_t<!details::is_enum_class_v<F>, T>* = nullptr)
-          : mFlags(t) {}
+    constexpr Flags(T t, std::enable_if_t<!ftl::is_scoped_enum_v<F>, T>* = nullptr) : mFlags(t) {}
+
     template <typename T = U>
-    explicit constexpr Flags(T t,
-                             typename std::enable_if_t<details::is_enum_class_v<F>, T>* = nullptr)
+    explicit constexpr Flags(T t, std::enable_if_t<ftl::is_scoped_enum_v<F>, T>* = nullptr)
           : mFlags(t) {}
 
     class Iterator {
@@ -229,16 +171,16 @@ public:
         bool first = true;
         U unstringified = 0;
         for (const F f : *this) {
-            std::optional<std::string_view> flagString = flag_name(f);
-            if (flagString) {
-                appendFlag(result, flagString.value(), first);
+            if (const auto flagName = ftl::flag_name(f)) {
+                appendFlag(result, flagName.value(), first);
             } else {
                 unstringified |= static_cast<U>(f);
             }
         }
 
         if (unstringified != 0) {
-            appendFlag(result, base::StringPrintf("0x%08x", unstringified), first);
+            constexpr auto radix = sizeof(U) == 1 ? ftl::Radix::kBin : ftl::Radix::kHex;
+            appendFlag(result, ftl::to_string(unstringified, radix), first);
         }
 
         if (first) {
@@ -265,15 +207,14 @@ private:
 // as flags. In order to use these, add them via a `using namespace` declaration.
 namespace flag_operators {
 
-template <typename F, typename = std::enable_if_t<details::is_enum_class_v<F>>>
+template <typename F, typename = std::enable_if_t<ftl::is_scoped_enum_v<F>>>
 inline Flags<F> operator~(F f) {
-    using U = typename std::underlying_type_t<F>;
-    return static_cast<F>(~static_cast<U>(f));
+    return static_cast<F>(~ftl::enum_cast(f));
 }
-template <typename F, typename = std::enable_if_t<details::is_enum_class_v<F>>>
+
+template <typename F, typename = std::enable_if_t<ftl::is_scoped_enum_v<F>>>
 Flags<F> operator|(F lhs, F rhs) {
-    using U = typename std::underlying_type_t<F>;
-    return static_cast<F>(static_cast<U>(lhs) | static_cast<U>(rhs));
+    return static_cast<F>(ftl::enum_cast(lhs) | ftl::enum_cast(rhs));
 }
 
 } // namespace flag_operators

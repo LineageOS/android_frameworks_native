@@ -23,7 +23,7 @@ namespace android::test {
 
 using namespace android::flag_operators;
 
-enum class TestFlags { ONE = 0x1, TWO = 0x2, THREE = 0x4 };
+enum class TestFlags : uint8_t { ONE = 0x1, TWO = 0x2, THREE = 0x4 };
 
 TEST(Flags, Test) {
     Flags<TestFlags> flags = TestFlags::ONE;
@@ -165,7 +165,7 @@ TEST(Flags, String_KnownValues) {
 
 TEST(Flags, String_UnknownValues) {
     auto flags = Flags<TestFlags>(0b1011);
-    ASSERT_EQ(flags.string(), "ONE | TWO | 0x00000008");
+    ASSERT_EQ(flags.string(), "ONE | TWO | 0b1000");
 }
 
 TEST(FlagsIterator, IteratesOverAllFlags) {
@@ -208,20 +208,6 @@ TEST(FlagsIterator, PreFixIncrement) {
     auto iter = flags.begin();
     ASSERT_EQ(*++iter, TestFlags::TWO);
     ASSERT_EQ(++iter, flags.end());
-}
-
-TEST(FlagNames, RuntimeFlagName) {
-    TestFlags f = TestFlags::ONE;
-    ASSERT_EQ(flag_name(f), "ONE");
-}
-
-TEST(FlagNames, RuntimeUnknownFlagName) {
-    TestFlags f = static_cast<TestFlags>(0x8);
-    ASSERT_EQ(flag_name(f), std::nullopt);
-}
-
-TEST(FlagNames, CompileTimeFlagName) {
-    static_assert(flag_name<TestFlags::TWO>() == "TWO");
 }
 
 } // namespace android::test

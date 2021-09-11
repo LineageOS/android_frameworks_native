@@ -146,6 +146,8 @@ enum class InputDeviceClass : uint32_t {
 enum class SysfsClass : uint32_t {
     POWER_SUPPLY = 0,
     LEDS = 1,
+
+    ftl_last = LEDS
 };
 
 enum class LightColor : uint32_t {

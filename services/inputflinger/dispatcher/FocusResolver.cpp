@@ -27,7 +27,7 @@ static constexpr bool DEBUG_FOCUS = false;
 
 #include <android-base/stringprintf.h>
 #include <binder/Binder.h>
-#include <ftl/NamedEnum.h>
+#include <ftl/enum.h>
 #include <gui/WindowInfo.h>
 #include <log/log.h>
 
@@ -65,7 +65,7 @@ std::optional<FocusResolver::FocusChanges> FocusResolver::setInputWindows(
         if (result == Focusability::OK) {
             return std::nullopt;
         }
-        removeFocusReason = NamedEnum::string(result);
+        removeFocusReason = ftl::enum_string(result);
     }
 
     // We don't have a focused window or the currently focused window is no longer focusable. Check
@@ -79,7 +79,7 @@ std::optional<FocusResolver::FocusChanges> FocusResolver::setInputWindows(
         if (result == Focusability::OK) {
             return updateFocusedWindow(displayId,
                                        "Window became focusable. Previous reason: " +
-                                               NamedEnum::string(previousResult),
+                                               ftl::enum_string(previousResult),
                                        requestedFocus, request->windowName);
         }
     }
@@ -116,7 +116,7 @@ std::optional<FocusResolver::FocusChanges> FocusResolver::setFocusedWindow(
                                        request.token, request.windowName);
         }
         ALOGW("setFocusedWindow %s on display %" PRId32 " ignored, reason: %s",
-              request.windowName.c_str(), displayId, NamedEnum::string(result).c_str());
+              request.windowName.c_str(), displayId, ftl::enum_string(result).c_str());
         return std::nullopt;
     }
 
@@ -134,7 +134,7 @@ std::optional<FocusResolver::FocusChanges> FocusResolver::setFocusedWindow(
     // The requested window is not currently focusable. Wait for the window to become focusable
     // but remove focus from the current window so that input events can go into a pending queue
     // and be sent to the window when it becomes focused.
-    return updateFocusedWindow(displayId, "Waiting for window because " + NamedEnum::string(result),
+    return updateFocusedWindow(displayId, "Waiting for window because " + ftl::enum_string(result),
                                nullptr);
 }
 
@@ -212,7 +212,7 @@ std::string FocusResolver::dump() const {
     for (const auto& [displayId, request] : mFocusRequestByDisplay) {
         auto it = mLastFocusResultByDisplay.find(displayId);
         std::string result =
-                it != mLastFocusResultByDisplay.end() ? NamedEnum::string(it->second) : "";
+                it != mLastFocusResultByDisplay.end() ? ftl::enum_string(it->second) : "";
         dump += base::StringPrintf(INDENT2 "displayId=%" PRId32 ", name='%s' result='%s'\n",
                                    displayId, request.windowName.c_str(), result.c_str());
     }

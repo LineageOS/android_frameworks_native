@@ -40,6 +40,7 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <cutils/properties.h>
+#include <ftl/enum.h>
 #include <input/KeyCharacterMap.h>
 #include <input/KeyLayoutMap.h>
 #include <input/VirtualKeyMap.h>
@@ -263,7 +264,7 @@ static std::vector<std::filesystem::path> allFilesInPath(const std::filesystem::
  */
 static std::vector<std::filesystem::path> findSysfsNodes(const std::filesystem::path& sysfsRoot,
                                                          SysfsClass clazz) {
-    std::string nodeStr = NamedEnum::string(clazz);
+    std::string nodeStr = ftl::enum_string(clazz);
     std::for_each(nodeStr.begin(), nodeStr.end(),
                   [](char& c) { c = std::tolower(static_cast<unsigned char>(c)); });
     std::vector<std::filesystem::path> nodes;
