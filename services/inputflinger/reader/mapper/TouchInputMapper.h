@@ -185,6 +185,8 @@ protected:
         UNSCALED,   // unscaled mapping (touchpad)
         NAVIGATION, // unscaled mapping with assist gesture (touch navigation)
         POINTER,    // pointer mapping (pointer)
+
+        ftl_last = POINTER
     };
     DeviceMode mDeviceMode;
 
@@ -198,6 +200,8 @@ protected:
             TOUCH_PAD,
             TOUCH_NAVIGATION,
             POINTER,
+
+            ftl_last = POINTER
         };
 
         DeviceType deviceType;
@@ -210,6 +214,8 @@ protected:
             ORIENTATION_90 = DISPLAY_ORIENTATION_90,
             ORIENTATION_180 = DISPLAY_ORIENTATION_180,
             ORIENTATION_270 = DISPLAY_ORIENTATION_270,
+
+            ftl_last = ORIENTATION_270
         };
         Orientation orientation;
 
@@ -219,6 +225,8 @@ protected:
         enum class GestureMode {
             SINGLE_TOUCH,
             MULTI_TOUCH,
+
+            ftl_last = MULTI_TOUCH
         };
         GestureMode gestureMode;
 

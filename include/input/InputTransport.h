@@ -73,6 +73,8 @@ struct InputMessage {
         DRAG,
         TIMELINE,
         TOUCH_MODE,
+
+        ftl_last = TOUCH_MODE
     };
 
     struct Header {
