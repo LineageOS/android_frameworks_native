@@ -688,13 +688,13 @@ protected:
 
     std::unordered_map<CallbackId, CallbackTranslation, CallbackIdHash> mCallbacks
             GUARDED_BY(mMutex);
-    std::multimap<sp<IBinder>, sp<JankDataListener>> mJankListeners GUARDED_BY(mMutex);
+    std::multimap<int32_t, sp<JankDataListener>> mJankListeners GUARDED_BY(mMutex);
     std::unordered_map<ReleaseCallbackId, ReleaseBufferCallback, ReleaseBufferCallbackIdHash>
             mReleaseBufferCallbacks GUARDED_BY(mMutex);
 
     // This is protected by mSurfaceStatsListenerMutex, but GUARDED_BY isn't supported for
     // std::recursive_mutex
-    std::multimap<sp<IBinder>, SurfaceStatsCallbackEntry> mSurfaceStatsListeners;
+    std::multimap<int32_t, SurfaceStatsCallbackEntry> mSurfaceStatsListeners;
 
 public:
     static sp<TransactionCompletedListener> getInstance();
