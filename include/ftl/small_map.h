@@ -237,6 +237,12 @@ class SmallMap final {
   //
   bool erase(const key_type& key) { return erase(key, begin()); }
 
+  // Removes all mappings.
+  //
+  // All iterators are invalidated.
+  //
+  void clear() { map_.clear(); }
+
  private:
   iterator find(const key_type& key, iterator first) {
     return std::find_if(first, end(), [&key](const auto& pair) { return pair.first == key; });

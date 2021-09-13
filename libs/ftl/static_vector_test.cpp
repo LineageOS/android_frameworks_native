@@ -396,4 +396,19 @@ TEST(StaticVector, Destroy) {
   EXPECT_EQ(0, dead);
 }
 
+TEST(StaticVector, Clear) {
+  int live = 0;
+  int dead = 0;
+
+  StaticVector<DestroyCounts, 5> counts;
+  counts.emplace_back(live, dead);
+  counts.emplace_back(live, dead);
+
+  counts.clear();
+
+  EXPECT_TRUE(counts.empty());
+  EXPECT_EQ(2, live);
+  EXPECT_EQ(0, dead);
+}
+
 }  // namespace android::test

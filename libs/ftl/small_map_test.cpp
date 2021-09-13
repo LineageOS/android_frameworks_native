@@ -345,4 +345,21 @@ TEST(SmallMap, Erase) {
   }
 }
 
+TEST(SmallMap, Clear) {
+  SmallMap map = ftl::init::map(1, '1')(2, '2')(3, '3');
+
+  map.clear();
+
+  EXPECT_TRUE(map.empty());
+  EXPECT_FALSE(map.dynamic());
+
+  map = ftl::init::map(1, '1')(2, '2')(3, '3');
+  map.try_emplace(4, '4');
+
+  map.clear();
+
+  EXPECT_TRUE(map.empty());
+  EXPECT_TRUE(map.dynamic());
+}
+
 }  // namespace android::test
