@@ -156,8 +156,8 @@ public:
     // Return true if intent is supported by the display.
     bool hasRenderIntent(ui::RenderIntent intent) const;
 
-    const Rect& getBounds() const;
-    const Rect& bounds() const { return getBounds(); }
+    const Rect getBounds() const;
+    const Rect bounds() const { return getBounds(); }
 
     void setDisplayName(const std::string& displayName);
     const std::string& getDisplayName() const { return mDisplayName; }
