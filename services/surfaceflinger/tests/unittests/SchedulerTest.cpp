@@ -54,13 +54,13 @@ protected:
     const DisplayModePtr mode60 = DisplayMode::Builder(0)
                                           .setId(DisplayModeId(0))
                                           .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
-                                          .setVsyncPeriod(Fps(60.f).getPeriodNsecs())
+                                          .setVsyncPeriod((60_Hz).getPeriodNsecs())
                                           .setGroup(0)
                                           .build();
     const DisplayModePtr mode120 = DisplayMode::Builder(1)
                                            .setId(DisplayModeId(1))
                                            .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
-                                           .setVsyncPeriod(Fps(120.f).getPeriodNsecs())
+                                           .setVsyncPeriod((120_Hz).getPeriodNsecs())
                                            .setGroup(0)
                                            .build();
 
@@ -217,17 +217,17 @@ TEST_F(SchedulerTest, onNonPrimaryDisplayModeChanged_invalidParameters) {
 }
 
 TEST_F(SchedulerTest, calculateMaxAcquiredBufferCount) {
-    EXPECT_EQ(1, mFlinger.calculateMaxAcquiredBufferCount(Fps(60), 30ms));
-    EXPECT_EQ(2, mFlinger.calculateMaxAcquiredBufferCount(Fps(90), 30ms));
-    EXPECT_EQ(3, mFlinger.calculateMaxAcquiredBufferCount(Fps(120), 30ms));
+    EXPECT_EQ(1, mFlinger.calculateMaxAcquiredBufferCount(60_Hz, 30ms));
+    EXPECT_EQ(2, mFlinger.calculateMaxAcquiredBufferCount(90_Hz, 30ms));
+    EXPECT_EQ(3, mFlinger.calculateMaxAcquiredBufferCount(120_Hz, 30ms));
 
-    EXPECT_EQ(2, mFlinger.calculateMaxAcquiredBufferCount(Fps(60), 40ms));
+    EXPECT_EQ(2, mFlinger.calculateMaxAcquiredBufferCount(60_Hz, 40ms));
 
-    EXPECT_EQ(1, mFlinger.calculateMaxAcquiredBufferCount(Fps(60), 10ms));
+    EXPECT_EQ(1, mFlinger.calculateMaxAcquiredBufferCount(60_Hz, 10ms));
 }
 
 MATCHER(Is120Hz, "") {
-    return arg.getFps().equalsWithMargin(Fps(120.f));
+    return isApproxEqual(arg.getFps(), 120_Hz);
 }
 
 TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
