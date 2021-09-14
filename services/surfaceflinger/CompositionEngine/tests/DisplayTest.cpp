@@ -876,7 +876,7 @@ TEST_F(DisplayFinishFrameTest, doesNotSkipCompositionIfNotDirtyOnHwcDisplay) {
 
     mDisplay->editState().isEnabled = true;
     mDisplay->editState().usesClientComposition = false;
-    mDisplay->editState().layerStackSpace.content = Rect(0, 0, 1, 1);
+    mDisplay->editState().layerStackSpace.setContent(Rect(0, 0, 1, 1));
     mDisplay->editState().dirtyRegion = Region::INVALID_REGION;
 
     mDisplay->finishFrame({});
@@ -894,7 +894,7 @@ TEST_F(DisplayFinishFrameTest, skipsCompositionIfNotDirty) {
 
     gpuDisplay->editState().isEnabled = true;
     gpuDisplay->editState().usesClientComposition = false;
-    gpuDisplay->editState().layerStackSpace.content = Rect(0, 0, 1, 1);
+    gpuDisplay->editState().layerStackSpace.setContent(Rect(0, 0, 1, 1));
     gpuDisplay->editState().dirtyRegion = Region::INVALID_REGION;
 
     gpuDisplay->finishFrame({});
@@ -912,9 +912,8 @@ TEST_F(DisplayFinishFrameTest, performsCompositionIfDirty) {
 
     gpuDisplay->editState().isEnabled = true;
     gpuDisplay->editState().usesClientComposition = false;
-    gpuDisplay->editState().layerStackSpace.content = Rect(0, 0, 1, 1);
+    gpuDisplay->editState().layerStackSpace.setContent(Rect(0, 0, 1, 1));
     gpuDisplay->editState().dirtyRegion = Region(Rect(0, 0, 1, 1));
-
     gpuDisplay->finishFrame({});
 }
 
