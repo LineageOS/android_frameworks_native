@@ -26,6 +26,10 @@
 
 namespace android {
 
+namespace mock {
+class MockFence;
+}
+
 class String8;
 
 // ===========================================================================
@@ -109,7 +113,7 @@ public:
     // fence transitioned to the signaled state.  If the fence is not signaled
     // then SIGNAL_TIME_PENDING is returned.  If the fence is invalid or if an
     // error occurs then SIGNAL_TIME_INVALID is returned.
-    nsecs_t getSignalTime() const;
+    virtual nsecs_t getSignalTime() const;
 
     enum class Status {
         Invalid,     // Fence is invalid
@@ -144,7 +148,10 @@ public:
 private:
     // Only allow instantiation using ref counting.
     friend class LightRefBase<Fence>;
-    ~Fence() = default;
+    virtual ~Fence() = default;
+
+    // Allow mocking for unit testing
+    friend class mock::MockFence;
 
     base::unique_fd mFenceFd;
 };
