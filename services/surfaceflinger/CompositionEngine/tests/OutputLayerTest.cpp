@@ -158,7 +158,7 @@ struct OutputLayerSourceCropTest : public OutputLayerTest {
         mLayerFEState.geomBufferSize = Rect{0, 0, 1920, 1080};
         mLayerFEState.geomBufferTransform = TR_IDENT;
 
-        mOutputState.layerStackSpace.content = Rect{0, 0, 1920, 1080};
+        mOutputState.layerStackSpace.setContent(Rect{0, 0, 1920, 1080});
     }
 
     FloatRect calculateOutputSourceCrop() {
@@ -229,7 +229,7 @@ TEST_F(OutputLayerSourceCropTest, calculateOutputSourceCropWorksWithATransformed
 
         mLayerFEState.geomBufferUsesDisplayInverseTransform = entry.bufferInvDisplay;
         mLayerFEState.geomBufferTransform = entry.buffer;
-        mOutputState.displaySpace.orientation = toRotation(entry.display);
+        mOutputState.displaySpace.setOrientation(toRotation(entry.display));
 
         EXPECT_THAT(calculateOutputSourceCrop(), entry.expected) << "entry " << i;
     }
@@ -243,7 +243,7 @@ TEST_F(OutputLayerSourceCropTest, geomContentCropAffectsCrop) {
 }
 
 TEST_F(OutputLayerSourceCropTest, viewportAffectsCrop) {
-    mOutputState.layerStackSpace.content = Rect{0, 0, 960, 540};
+    mOutputState.layerStackSpace.setContent(Rect{0, 0, 960, 540});
 
     const FloatRect expected{0.f, 0.f, 960.f, 540.f};
     EXPECT_THAT(calculateOutputSourceCrop(), expected);
@@ -265,7 +265,7 @@ struct OutputLayerDisplayFrameTest : public OutputLayerTest {
         mLayerFEState.geomCrop = Rect{0, 0, 1920, 1080};
         mLayerFEState.geomLayerBounds = FloatRect{0.f, 0.f, 1920.f, 1080.f};
 
-        mOutputState.layerStackSpace.content = Rect{0, 0, 1920, 1080};
+        mOutputState.layerStackSpace.setContent(Rect{0, 0, 1920, 1080});
         mOutputState.transform = ui::Transform{TR_IDENT};
     }
 
@@ -313,7 +313,7 @@ TEST_F(OutputLayerDisplayFrameTest, geomLayerBoundsAffectsFrame) {
 }
 
 TEST_F(OutputLayerDisplayFrameTest, viewportAffectsFrame) {
-    mOutputState.layerStackSpace.content = Rect{0, 0, 960, 540};
+    mOutputState.layerStackSpace.setContent(Rect{0, 0, 960, 540});
     const Rect expected{0, 0, 960, 540};
     EXPECT_THAT(calculateOutputDisplayFrame(), expected);
 }
@@ -399,7 +399,7 @@ TEST_F(OutputLayerTest, calculateOutputRelativeBufferTransformTestsNeeded) {
 
         mLayerFEState.geomLayerTransform.set(entry.layer, 1920, 1080);
         mLayerFEState.geomBufferTransform = entry.buffer;
-        mOutputState.displaySpace.orientation = toRotation(entry.display);
+        mOutputState.displaySpace.setOrientation(toRotation(entry.display));
         mOutputState.transform = ui::Transform{entry.display};
 
         const auto actual = mOutputLayer.calculateOutputRelativeBufferTransform(entry.display);
@@ -511,7 +511,7 @@ TEST_F(OutputLayerTest,
 
         mLayerFEState.geomLayerTransform.set(entry.layer, 1920, 1080);
         mLayerFEState.geomBufferTransform = entry.buffer;
-        mOutputState.displaySpace.orientation = toRotation(entry.display);
+        mOutputState.displaySpace.setOrientation(toRotation(entry.display));
         mOutputState.transform = ui::Transform{entry.display};
 
         const auto actual = mOutputLayer.calculateOutputRelativeBufferTransform(entry.internal);
@@ -942,7 +942,7 @@ TEST_F(OutputLayerTest, displayInstallOrientationBufferTransformSetTo90) {
     // This test simulates a scenario where displayInstallOrientation is set to
     // ROT_90. This only has an effect on the transform; orientation stays 0 (see
     // DisplayDevice::setProjection).
-    mOutputState.displaySpace.orientation = ui::ROTATION_0;
+    mOutputState.displaySpace.setOrientation(ui::ROTATION_0);
     mOutputState.transform = ui::Transform{TR_ROT_90};
     // Buffers are pre-rotated based on the transform hint (ROT_90); their
     // geomBufferTransform is set to the inverse transform.
@@ -1237,7 +1237,7 @@ struct OutputLayerWriteCursorPositionToHWCTest : public OutputLayerTest {
 
         mLayerFEState.cursorFrame = kDefaultCursorFrame;
 
-        mOutputState.layerStackSpace.content = kDefaultDisplayViewport;
+        mOutputState.layerStackSpace.setContent(kDefaultDisplayViewport);
         mOutputState.transform = ui::Transform{kDefaultTransform};
     }
 
