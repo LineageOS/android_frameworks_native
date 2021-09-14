@@ -23,6 +23,7 @@
 
 #include "InputClassifier.h"
 #include "InputReaderBase.h"
+#include "include/UnwantedInteractionBlockerInterface.h"
 
 #include <InputDispatcherInterface.h>
 #include <InputDispatcherPolicyInterface.h>
@@ -46,11 +47,16 @@ class InputDispatcherThread;
  * The input manager has three components.
  *
  * 1. The InputReader class starts a thread that reads and preprocesses raw input events, applies
- *    policy, and posts messages to a queue managed by the InputClassifier.
- * 2. The InputClassifier class starts a thread to communicate with the device-specific
- *    classifiers. It then waits on the queue of events from InputReader, applies a classification
- *    to them, and queues them for the InputDispatcher.
- * 3. The InputDispatcher class starts a thread that waits for new events on the
+ *    policy, and posts messages to a queue managed by the UnwantedInteractionBlocker.
+ * 2. The UnwantedInteractionBlocker is responsible for removing unwanted interactions. For example,
+ *    this could be a palm on the screen. This stage would alter the event stream to remove either
+ *    partially (some of the pointers) or fully (all touches) the unwanted interaction. The events
+ *    are processed on the InputReader thread, without any additional queue. The events are then
+ *    posted to the queue managed by the InputClassifier.
+ * 3. The InputClassifier class starts a thread to communicate with the device-specific
+ *    classifiers. It then waits on the queue of events from UnwantedInteractionBlocker, applies
+ *    a classification to them, and queues them for the InputDispatcher.
+ * 4. The InputDispatcher class starts a thread that waits for new events on the
  *    previous queue and asynchronously dispatches them to applications.
  *
  * By design, none of these classes share any internal state.  Moreover, all communication is
@@ -76,6 +82,9 @@ public:
     /* Gets the input reader. */
     virtual InputReaderInterface& getReader() = 0;
 
+    /* Gets the unwanted interaction blocker. */
+    virtual UnwantedInteractionBlockerInterface& getUnwantedInteractionBlocker() = 0;
+
     /* Gets the input classifier */
     virtual InputClassifierInterface& getClassifier() = 0;
 
@@ -96,6 +105,7 @@ public:
     status_t stop() override;
 
     InputReaderInterface& getReader() override;
+    UnwantedInteractionBlockerInterface& getUnwantedInteractionBlocker() override;
     InputClassifierInterface& getClassifier() override;
     InputDispatcherInterface& getDispatcher() override;
 
@@ -106,6 +116,8 @@ public:
 
 private:
     std::unique_ptr<InputReaderInterface> mReader;
+
+    std::unique_ptr<UnwantedInteractionBlockerInterface> mUnwantedInteractionBlocker;
 
     std::unique_ptr<InputClassifierInterface> mClassifier;
 

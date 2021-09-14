@@ -142,6 +142,8 @@ struct NotifyMotionArgs : public NotifyArgs {
     bool operator==(const NotifyMotionArgs& rhs) const;
 
     void notify(InputListenerInterface& listener) const override;
+
+    std::string dump() const;
 };
 
 /* Describes a sensor event. */
