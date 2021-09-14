@@ -1236,22 +1236,29 @@ static Dumpstate::RunStatus RunDumpsysTextByPriority(const std::string& title, i
         std::string path(title);
         path.append(" - ").append(String8(service).c_str());
         size_t bytes_written = 0;
-        status_t status = dumpsys.startDumpThread(Dumpsys::TYPE_DUMP, service, args);
-        if (status == OK) {
-            dumpsys.writeDumpHeader(STDOUT_FILENO, service, priority);
-            std::chrono::duration<double> elapsed_seconds;
-            if (priority == IServiceManager::DUMP_FLAG_PRIORITY_HIGH &&
-                service == String16("meminfo")) {
-                // Use a longer timeout for meminfo, since 30s is not always enough.
-                status = dumpsys.writeDump(STDOUT_FILENO, service, 60s,
-                                           /* as_proto = */ false, elapsed_seconds, bytes_written);
-            } else {
-                status = dumpsys.writeDump(STDOUT_FILENO, service, service_timeout,
-                                           /* as_proto = */ false, elapsed_seconds, bytes_written);
+        if (PropertiesHelper::IsDryRun()) {
+             dumpsys.writeDumpHeader(STDOUT_FILENO, service, priority);
+             dumpsys.writeDumpFooter(STDOUT_FILENO, service, std::chrono::milliseconds(1));
+        } else {
+            status_t status = dumpsys.startDumpThread(Dumpsys::TYPE_DUMP, service, args);
+            if (status == OK) {
+                dumpsys.writeDumpHeader(STDOUT_FILENO, service, priority);
+                std::chrono::duration<double> elapsed_seconds;
+                if (priority == IServiceManager::DUMP_FLAG_PRIORITY_HIGH &&
+                    service == String16("meminfo")) {
+                    // Use a longer timeout for meminfo, since 30s is not always enough.
+                    status = dumpsys.writeDump(STDOUT_FILENO, service, 60s,
+                                               /* as_proto = */ false, elapsed_seconds,
+                                                bytes_written);
+                } else {
+                    status = dumpsys.writeDump(STDOUT_FILENO, service, service_timeout,
+                                               /* as_proto = */ false, elapsed_seconds,
+                                                bytes_written);
+                }
+                dumpsys.writeDumpFooter(STDOUT_FILENO, service, elapsed_seconds);
+                bool dump_complete = (status == OK);
+                dumpsys.stopDumpThread(dump_complete);
             }
-            dumpsys.writeDumpFooter(STDOUT_FILENO, service, elapsed_seconds);
-            bool dump_complete = (status == OK);
-            dumpsys.stopDumpThread(dump_complete);
         }
 
         auto elapsed_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1831,8 +1838,10 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     }
 
     /* Run some operations that require root. */
-    ds.tombstone_data_ = GetDumpFds(TOMBSTONE_DIR, TOMBSTONE_FILE_PREFIX, !ds.IsZipping());
-    ds.anr_data_ = GetDumpFds(ANR_DIR, ANR_FILE_PREFIX, !ds.IsZipping());
+    if (!PropertiesHelper::IsDryRun()) {
+        ds.tombstone_data_ = GetDumpFds(TOMBSTONE_DIR, TOMBSTONE_FILE_PREFIX, !ds.IsZipping());
+        ds.anr_data_ = GetDumpFds(ANR_DIR, ANR_FILE_PREFIX, !ds.IsZipping());
+    }
 
     ds.AddDir(RECOVERY_DIR, true);
     ds.AddDir(RECOVERY_DATA_DIR, true);
