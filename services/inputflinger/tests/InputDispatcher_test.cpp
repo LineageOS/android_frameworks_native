@@ -46,7 +46,8 @@ static const nsecs_t ARBITRARY_TIME = 1234;
 static const int32_t DEVICE_ID = 1;
 
 // An arbitrary display id.
-static const int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
+static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
+static constexpr int32_t SECOND_DISPLAY_ID = 1;
 
 // An arbitrary injector pid / uid pair that has permission to inject events.
 static const int32_t INJECTOR_PID = 999;
@@ -242,19 +243,22 @@ public:
         mConfig.keyRepeatDelay = delay;
     }
 
-    void waitForSetPointerCapture(bool enabled) {
+    PointerCaptureRequest assertSetPointerCaptureCalled(bool enabled) {
         std::unique_lock lock(mLock);
         base::ScopedLockAssertion assumeLocked(mLock);
 
         if (!mPointerCaptureChangedCondition.wait_for(lock, 100ms,
                                                       [this, enabled]() REQUIRES(mLock) {
-                                                          return mPointerCaptureEnabled &&
-                                                                  *mPointerCaptureEnabled ==
+                                                          return mPointerCaptureRequest->enable ==
                                                                   enabled;
                                                       })) {
-            FAIL() << "Timed out waiting for setPointerCapture(" << enabled << ") to be called.";
+            ADD_FAILURE() << "Timed out waiting for setPointerCapture(" << enabled
+                          << ") to be called.";
+            return {};
         }
-        mPointerCaptureEnabled.reset();
+        auto request = *mPointerCaptureRequest;
+        mPointerCaptureRequest.reset();
+        return request;
     }
 
     void assertSetPointerCaptureNotCalled() {
@@ -262,11 +266,11 @@ public:
         base::ScopedLockAssertion assumeLocked(mLock);
 
         if (mPointerCaptureChangedCondition.wait_for(lock, 100ms) != std::cv_status::timeout) {
-            FAIL() << "Expected setPointerCapture(enabled) to not be called, but was called. "
+            FAIL() << "Expected setPointerCapture(request) to not be called, but was called. "
                       "enabled = "
-                   << *mPointerCaptureEnabled;
+                   << std::to_string(mPointerCaptureRequest->enable);
         }
-        mPointerCaptureEnabled.reset();
+        mPointerCaptureRequest.reset();
     }
 
     void assertDropTargetEquals(const sp<IBinder>& targetToken) {
@@ -284,7 +288,8 @@ private:
     std::optional<NotifySwitchArgs> mLastNotifySwitch GUARDED_BY(mLock);
 
     std::condition_variable mPointerCaptureChangedCondition;
-    std::optional<bool> mPointerCaptureEnabled GUARDED_BY(mLock);
+
+    std::optional<PointerCaptureRequest> mPointerCaptureRequest GUARDED_BY(mLock);
 
     // ANR handling
     std::queue<std::shared_ptr<InputApplicationHandle>> mAnrApplications GUARDED_BY(mLock);
@@ -401,9 +406,9 @@ private:
         mOnPointerDownToken = newToken;
     }
 
-    void setPointerCapture(bool enabled) override {
+    void setPointerCapture(const PointerCaptureRequest& request) override {
         std::scoped_lock lock(mLock);
-        mPointerCaptureEnabled = {enabled};
+        mPointerCaptureRequest = {request};
         mPointerCaptureChangedCondition.notify_all();
     }
 
@@ -937,6 +942,15 @@ public:
         mInfo.displayId = displayId;
     }
 
+    sp<FakeWindowHandle> clone(
+            const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
+            const sp<InputDispatcher>& dispatcher, int32_t displayId) {
+        sp<FakeWindowHandle> handle =
+                new FakeWindowHandle(inputApplicationHandle, dispatcher, mInfo.name + "(Mirror)",
+                                     displayId, mInfo.token);
+        return handle;
+    }
+
     void setFocusable(bool focusable) { mInfo.focusable = focusable; }
 
     void setVisible(bool visible) { mInfo.visible = visible; }
@@ -1380,8 +1394,9 @@ static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source, int32
     return generateMotionArgs(action, source, displayId, {PointF{100, 200}});
 }
 
-static NotifyPointerCaptureChangedArgs generatePointerCaptureChangedArgs(bool enabled) {
-    return NotifyPointerCaptureChangedArgs(/* id */ 0, systemTime(SYSTEM_TIME_MONOTONIC), enabled);
+static NotifyPointerCaptureChangedArgs generatePointerCaptureChangedArgs(
+        const PointerCaptureRequest& request) {
+    return NotifyPointerCaptureChangedArgs(/* id */ 0, systemTime(SYSTEM_TIME_MONOTONIC), request);
 }
 
 TEST_F(InputDispatcherTest, SetInputWindow_SingleWindowTouch) {
@@ -1994,6 +2009,134 @@ TEST_F(InputDispatcherTest, TransferTouch_TwoPointersSplitTouch) {
     // The first window gets nothing and the second gets up
     firstWindow->consumeMotionUp();
     secondWindow->assertNoEvents();
+}
+
+// This case will create two windows and one mirrored window on the default display and mirror
+// two windows on the second display. It will test if 'transferTouchFocus' works fine if we put
+// the windows info of second display before default display.
+TEST_F(InputDispatcherTest, TransferTouchFocus_CloneSurface) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> firstWindowInPrimary =
+            new FakeWindowHandle(application, mDispatcher, "D_1_W1", ADISPLAY_ID_DEFAULT);
+    firstWindowInPrimary->setFrame(Rect(0, 0, 100, 100));
+    firstWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+    sp<FakeWindowHandle> secondWindowInPrimary =
+            new FakeWindowHandle(application, mDispatcher, "D_1_W2", ADISPLAY_ID_DEFAULT);
+    secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
+    secondWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    sp<FakeWindowHandle> mirrorWindowInPrimary =
+            firstWindowInPrimary->clone(application, mDispatcher, ADISPLAY_ID_DEFAULT);
+    mirrorWindowInPrimary->setFrame(Rect(0, 100, 100, 200));
+    mirrorWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    sp<FakeWindowHandle> firstWindowInSecondary =
+            firstWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
+    firstWindowInSecondary->setFrame(Rect(0, 0, 100, 100));
+    firstWindowInSecondary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    sp<FakeWindowHandle> secondWindowInSecondary =
+            secondWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
+    secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
+    secondWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    // Update window info, let it find window handle of second display first.
+    mDispatcher->setInputWindows(
+            {{SECOND_DISPLAY_ID, {firstWindowInSecondary, secondWindowInSecondary}},
+             {ADISPLAY_ID_DEFAULT,
+              {mirrorWindowInPrimary, firstWindowInPrimary, secondWindowInPrimary}}});
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {50, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    // Window should receive motion event.
+    firstWindowInPrimary->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+
+    // Transfer touch focus
+    ASSERT_TRUE(mDispatcher->transferTouchFocus(firstWindowInPrimary->getToken(),
+                                                secondWindowInPrimary->getToken()));
+    // The first window gets cancel.
+    firstWindowInPrimary->consumeMotionCancel();
+    secondWindowInPrimary->consumeMotionDown();
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
+                                ADISPLAY_ID_DEFAULT, {150, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    firstWindowInPrimary->assertNoEvents();
+    secondWindowInPrimary->consumeMotionMove();
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                             {150, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    firstWindowInPrimary->assertNoEvents();
+    secondWindowInPrimary->consumeMotionUp();
+}
+
+// Same as TransferTouchFocus_CloneSurface, but this touch on the secondary display and use
+// 'transferTouch' api.
+TEST_F(InputDispatcherTest, TransferTouch_CloneSurface) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> firstWindowInPrimary =
+            new FakeWindowHandle(application, mDispatcher, "D_1_W1", ADISPLAY_ID_DEFAULT);
+    firstWindowInPrimary->setFrame(Rect(0, 0, 100, 100));
+    firstWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+    sp<FakeWindowHandle> secondWindowInPrimary =
+            new FakeWindowHandle(application, mDispatcher, "D_1_W2", ADISPLAY_ID_DEFAULT);
+    secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
+    secondWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    sp<FakeWindowHandle> mirrorWindowInPrimary =
+            firstWindowInPrimary->clone(application, mDispatcher, ADISPLAY_ID_DEFAULT);
+    mirrorWindowInPrimary->setFrame(Rect(0, 100, 100, 200));
+    mirrorWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    sp<FakeWindowHandle> firstWindowInSecondary =
+            firstWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
+    firstWindowInSecondary->setFrame(Rect(0, 0, 100, 100));
+    firstWindowInSecondary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    sp<FakeWindowHandle> secondWindowInSecondary =
+            secondWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
+    secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
+    secondWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    // Update window info, let it find window handle of second display first.
+    mDispatcher->setInputWindows(
+            {{SECOND_DISPLAY_ID, {firstWindowInSecondary, secondWindowInSecondary}},
+             {ADISPLAY_ID_DEFAULT,
+              {mirrorWindowInPrimary, firstWindowInPrimary, secondWindowInPrimary}}});
+
+    // Touch on second display.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, SECOND_DISPLAY_ID, {50, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    // Window should receive motion event.
+    firstWindowInPrimary->consumeMotionDown(SECOND_DISPLAY_ID);
+
+    // Transfer touch focus
+    ASSERT_TRUE(mDispatcher->transferTouch(secondWindowInSecondary->getToken()));
+
+    // The first window gets cancel.
+    firstWindowInPrimary->consumeMotionCancel(SECOND_DISPLAY_ID);
+    secondWindowInPrimary->consumeMotionDown(SECOND_DISPLAY_ID);
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
+                                SECOND_DISPLAY_ID, {150, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    firstWindowInPrimary->assertNoEvents();
+    secondWindowInPrimary->consumeMotionMove(SECOND_DISPLAY_ID);
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, SECOND_DISPLAY_ID, {150, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    firstWindowInPrimary->assertNoEvents();
+    secondWindowInPrimary->consumeMotionUp(SECOND_DISPLAY_ID);
 }
 
 TEST_F(InputDispatcherTest, FocusedWindow_ReceivesFocusEventAndKeyEvent) {
@@ -2906,7 +3049,6 @@ TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_RepeatKeyEventsUseUniqueEvent
 /* Test InputDispatcher for MultiDisplay */
 class InputDispatcherFocusOnTwoDisplaysTest : public InputDispatcherTest {
 public:
-    static constexpr int32_t SECOND_DISPLAY_ID = 1;
     virtual void SetUp() override {
         InputDispatcherTest::SetUp();
 
@@ -3069,8 +3211,6 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, CanFocusWindowOnUnfocusedDisplay) 
 
 class InputFilterTest : public InputDispatcherTest {
 protected:
-    static constexpr int32_t SECOND_DISPLAY_ID = 1;
-
     void testNotifyMotion(int32_t displayId, bool expectToBeFiltered) {
         NotifyMotionArgs motionArgs;
 
@@ -4581,16 +4721,18 @@ protected:
         mWindow->consumeFocusEvent(true);
     }
 
-    void notifyPointerCaptureChanged(bool enabled) {
-        const NotifyPointerCaptureChangedArgs args = generatePointerCaptureChangedArgs(enabled);
+    void notifyPointerCaptureChanged(const PointerCaptureRequest& request) {
+        const NotifyPointerCaptureChangedArgs args = generatePointerCaptureChangedArgs(request);
         mDispatcher->notifyPointerCaptureChanged(&args);
     }
 
-    void requestAndVerifyPointerCapture(const sp<FakeWindowHandle>& window, bool enabled) {
+    PointerCaptureRequest requestAndVerifyPointerCapture(const sp<FakeWindowHandle>& window,
+                                                         bool enabled) {
         mDispatcher->requestPointerCapture(window->getToken(), enabled);
-        mFakePolicy->waitForSetPointerCapture(enabled);
-        notifyPointerCaptureChanged(enabled);
+        auto request = mFakePolicy->assertSetPointerCaptureCalled(enabled);
+        notifyPointerCaptureChanged(request);
         window->consumeCaptureEvent(enabled);
+        return request;
     }
 };
 
@@ -4612,7 +4754,7 @@ TEST_F(InputDispatcherPointerCaptureTests, EnablePointerCaptureWhenFocused) {
 }
 
 TEST_F(InputDispatcherPointerCaptureTests, DisablesPointerCaptureAfterWindowLosesFocus) {
-    requestAndVerifyPointerCapture(mWindow, true);
+    auto request = requestAndVerifyPointerCapture(mWindow, true);
 
     setFocusedWindow(mSecondWindow);
 
@@ -4620,26 +4762,26 @@ TEST_F(InputDispatcherPointerCaptureTests, DisablesPointerCaptureAfterWindowLose
     mWindow->consumeCaptureEvent(false);
     mWindow->consumeFocusEvent(false);
     mSecondWindow->consumeFocusEvent(true);
-    mFakePolicy->waitForSetPointerCapture(false);
+    mFakePolicy->assertSetPointerCaptureCalled(false);
 
     // Ensure that additional state changes from InputReader are not sent to the window.
-    notifyPointerCaptureChanged(false);
-    notifyPointerCaptureChanged(true);
-    notifyPointerCaptureChanged(false);
+    notifyPointerCaptureChanged({});
+    notifyPointerCaptureChanged(request);
+    notifyPointerCaptureChanged({});
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
     mFakePolicy->assertSetPointerCaptureNotCalled();
 }
 
 TEST_F(InputDispatcherPointerCaptureTests, UnexpectedStateChangeDisablesPointerCapture) {
-    requestAndVerifyPointerCapture(mWindow, true);
+    auto request = requestAndVerifyPointerCapture(mWindow, true);
 
     // InputReader unexpectedly disables and enables pointer capture.
-    notifyPointerCaptureChanged(false);
-    notifyPointerCaptureChanged(true);
+    notifyPointerCaptureChanged({});
+    notifyPointerCaptureChanged(request);
 
     // Ensure that Pointer Capture is disabled.
-    mFakePolicy->waitForSetPointerCapture(false);
+    mFakePolicy->assertSetPointerCaptureCalled(false);
     mWindow->consumeCaptureEvent(false);
     mWindow->assertNoEvents();
 }
@@ -4649,22 +4791,41 @@ TEST_F(InputDispatcherPointerCaptureTests, OutOfOrderRequests) {
 
     // The first window loses focus.
     setFocusedWindow(mSecondWindow);
-    mFakePolicy->waitForSetPointerCapture(false);
+    mFakePolicy->assertSetPointerCaptureCalled(false);
     mWindow->consumeCaptureEvent(false);
 
     // Request Pointer Capture from the second window before the notification from InputReader
     // arrives.
     mDispatcher->requestPointerCapture(mSecondWindow->getToken(), true);
-    mFakePolicy->waitForSetPointerCapture(true);
+    auto request = mFakePolicy->assertSetPointerCaptureCalled(true);
 
     // InputReader notifies Pointer Capture was disabled (because of the focus change).
-    notifyPointerCaptureChanged(false);
+    notifyPointerCaptureChanged({});
 
     // InputReader notifies Pointer Capture was enabled (because of mSecondWindow's request).
-    notifyPointerCaptureChanged(true);
+    notifyPointerCaptureChanged(request);
 
     mSecondWindow->consumeFocusEvent(true);
     mSecondWindow->consumeCaptureEvent(true);
+}
+
+TEST_F(InputDispatcherPointerCaptureTests, EnableRequestFollowsSequenceNumbers) {
+    // App repeatedly enables and disables capture.
+    mDispatcher->requestPointerCapture(mWindow->getToken(), true);
+    auto firstRequest = mFakePolicy->assertSetPointerCaptureCalled(true);
+    mDispatcher->requestPointerCapture(mWindow->getToken(), false);
+    mFakePolicy->assertSetPointerCaptureCalled(false);
+    mDispatcher->requestPointerCapture(mWindow->getToken(), true);
+    auto secondRequest = mFakePolicy->assertSetPointerCaptureCalled(true);
+
+    // InputReader notifies that PointerCapture has been enabled for the first request. Since the
+    // first request is now stale, this should do nothing.
+    notifyPointerCaptureChanged(firstRequest);
+    mWindow->assertNoEvents();
+
+    // InputReader notifies that the second request was enabled.
+    notifyPointerCaptureChanged(secondRequest);
+    mWindow->consumeCaptureEvent(true);
 }
 
 class InputDispatcherUntrustedTouchesTest : public InputDispatcherTest {
