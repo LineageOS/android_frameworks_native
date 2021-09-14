@@ -2291,6 +2291,74 @@ void Layer::fillTouchOcclusionMode(WindowInfo& info) {
     }
 }
 
+gui::DropInputMode Layer::getDropInputMode() const {
+    gui::DropInputMode mode = mDrawingState.dropInputMode;
+    if (mode == gui::DropInputMode::ALL) {
+        return mode;
+    }
+    sp<Layer> parent = mDrawingParent.promote();
+    if (parent) {
+        gui::DropInputMode parentMode = parent->getDropInputMode();
+        if (parentMode != gui::DropInputMode::NONE) {
+            return parentMode;
+        }
+    }
+    return mode;
+}
+
+void Layer::handleDropInputMode(gui::WindowInfo& info) const {
+    if (mDrawingState.inputInfo.inputFeatures.test(WindowInfo::Feature::NO_INPUT_CHANNEL)) {
+        return;
+    }
+
+    // Check if we need to drop input unconditionally
+    gui::DropInputMode dropInputMode = getDropInputMode();
+    if (dropInputMode == gui::DropInputMode::ALL) {
+        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT;
+        ALOGV("Dropping input for %s as requested by policy.", getDebugName());
+        return;
+    }
+
+    // Check if we need to check if the window is obscured by parent
+    if (dropInputMode != gui::DropInputMode::OBSCURED) {
+        return;
+    }
+
+    // Check if the parent has set an alpha on the layer
+    sp<Layer> parent = mDrawingParent.promote();
+    if (parent && parent->getAlpha() != 1.0_hf) {
+        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT;
+        ALOGV("Dropping input for %s as requested by policy because alpha=%f", getDebugName(),
+              static_cast<float>(getAlpha()));
+    }
+
+    // Check if the parent has cropped the buffer
+    Rect bufferSize = getCroppedBufferSize(getDrawingState());
+    if (!bufferSize.isValid()) {
+        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT_IF_OBSCURED;
+        return;
+    }
+
+    // Screenbounds are the layer bounds cropped by parents, transformed to screenspace.
+    // To check if the layer has been cropped, we take the buffer bounds, apply the local
+    // layer crop and apply the same set of transforms to move to screenspace. If the bounds
+    // match then the layer has not been cropped by its parents.
+    Rect bufferInScreenSpace(getTransform().transform(bufferSize));
+    bool croppedByParent = bufferInScreenSpace != Rect{mScreenBounds};
+
+    if (croppedByParent) {
+        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT;
+        ALOGV("Dropping input for %s as requested by policy because buffer is cropped by parent",
+              getDebugName());
+    } else {
+        // If the layer is not obscured by its parents (by setting an alpha or crop), then only drop
+        // input if the window is obscured. This check should be done in surfaceflinger but the
+        // logic currently resides in inputflinger. So pass the if_obscured check to input to only
+        // drop input events if the window is obscured.
+        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT_IF_OBSCURED;
+    }
+}
+
 WindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     if (!hasInputInfo()) {
         mDrawingState.inputInfo.name = getName();
@@ -2344,6 +2412,7 @@ WindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     info.visible = hasInputInfo() ? canReceiveInput() : isVisible();
     info.alpha = getAlpha();
     fillTouchOcclusionMode(info);
+    handleDropInputMode(info);
 
     auto cropLayer = mDrawingState.touchableRegionCrop.promote();
     if (info.replaceTouchableRegionWithCrop) {
