@@ -330,18 +330,28 @@ RefreshRate RefreshRateConfigs::getBestRefreshRateLocked(
     const bool hasExplicitVoteLayers = explicitDefaultVoteLayers > 0 ||
             explicitExactOrMultipleVoteLayers > 0 || explicitExact > 0;
 
+    const Policy* policy = getCurrentPolicyLocked();
+    const auto& defaultMode = mRefreshRates.at(policy->defaultMode);
+    // If the default mode group is different from the group of current mode,
+    // this means a layer requesting a seamed mode switch just disappeared and
+    // we should switch back to the default group.
+    // However if a seamed layer is still present we anchor around the group
+    // of the current mode, in order to prevent unnecessary seamed mode switches
+    // (e.g. when pausing a video playback).
+    const auto anchorGroup = seamedFocusedLayers > 0 ? mCurrentRefreshRate->getModeGroup()
+                                                     : defaultMode->getModeGroup();
+
     // Consider the touch event if there are no Explicit* layers. Otherwise wait until after we've
     // selected a refresh rate to see if we should apply touch boost.
     if (globalSignals.touch && !hasExplicitVoteLayers) {
         ALOGV("TouchBoost - choose %s", getMaxRefreshRateByPolicyLocked().getName().c_str());
         setTouchConsidered();
-        return getMaxRefreshRateByPolicyLocked();
+        return getMaxRefreshRateByPolicyLocked(anchorGroup);
     }
 
     // If the primary range consists of a single refresh rate then we can only
     // move out the of range if layers explicitly request a different refresh
     // rate.
-    const Policy* policy = getCurrentPolicyLocked();
     const bool primaryRangeIsSingleRate =
             policy->primaryRange.min.equalsWithMargin(policy->primaryRange.max);
 
@@ -353,7 +363,9 @@ RefreshRate RefreshRateConfigs::getBestRefreshRateLocked(
     }
 
     if (layers.empty() || noVoteLayers == layers.size()) {
-        return getMaxRefreshRateByPolicyLocked();
+        const auto& refreshRate = getMaxRefreshRateByPolicyLocked(anchorGroup);
+        ALOGV("no layers with votes - choose %s", refreshRate.getName().c_str());
+        return refreshRate;
     }
 
     // Only if all layers want Min we should return Min
@@ -369,8 +381,6 @@ RefreshRate RefreshRateConfigs::getBestRefreshRateLocked(
     for (const auto refreshRate : mAppRequestRefreshRates) {
         scores.emplace_back(RefreshRateScore{refreshRate, 0.0f});
     }
-
-    const auto& defaultMode = mRefreshRates.at(policy->defaultMode);
 
     for (const auto& layer : layers) {
         ALOGV("Calculating score for %s (%s, weight %.2f, desired %.2f) ", layer.name.c_str(),
@@ -409,10 +419,7 @@ RefreshRate RefreshRateConfigs::getBestRefreshRateLocked(
             // mode group otherwise. In second case, if the current mode group is different
             // from the default, this means a layer with seamlessness=SeamedAndSeamless has just
             // disappeared.
-            const bool isInPolicyForDefault = seamedFocusedLayers > 0
-                    ? scores[i].refreshRate->getModeGroup() == mCurrentRefreshRate->getModeGroup()
-                    : scores[i].refreshRate->getModeGroup() == defaultMode->getModeGroup();
-
+            const bool isInPolicyForDefault = scores[i].refreshRate->getModeGroup() == anchorGroup;
             if (layer.seamlessness == Seamlessness::Default && !isInPolicyForDefault) {
                 ALOGV("%s ignores %s. Current mode = %s", formatLayerInfo(layer, weight).c_str(),
                       scores[i].refreshRate->toString().c_str(),
@@ -451,9 +458,9 @@ RefreshRate RefreshRateConfigs::getBestRefreshRateLocked(
         // range instead of picking a random score from the app range.
         if (std::all_of(scores.begin(), scores.end(),
                         [](RefreshRateScore score) { return score.score == 0; })) {
-            ALOGV("layers not scored - choose %s",
-                  getMaxRefreshRateByPolicyLocked().getName().c_str());
-            return getMaxRefreshRateByPolicyLocked();
+            const auto& refreshRate = getMaxRefreshRateByPolicyLocked(anchorGroup);
+            ALOGV("layers not scored - choose %s", refreshRate.getName().c_str());
+            return refreshRate;
         } else {
             return *bestRefreshRate;
         }
@@ -463,7 +470,7 @@ RefreshRate RefreshRateConfigs::getBestRefreshRateLocked(
     // interactive (as opposed to ExplicitExactOrMultiple) and therefore if those posted an explicit
     // vote we should not change it if we get a touch event. Only apply touch boost if it will
     // actually increase the refresh rate over the normal selection.
-    const RefreshRate& touchRefreshRate = getMaxRefreshRateByPolicyLocked();
+    const RefreshRate& touchRefreshRate = getMaxRefreshRateByPolicyLocked(anchorGroup);
 
     const bool touchBoostForExplicitExact = [&] {
         if (mSupportsFrameRateOverride) {
@@ -646,10 +653,10 @@ RefreshRate RefreshRateConfigs::getMaxRefreshRateByPolicy() const {
     return getMaxRefreshRateByPolicyLocked();
 }
 
-const RefreshRate& RefreshRateConfigs::getMaxRefreshRateByPolicyLocked() const {
+const RefreshRate& RefreshRateConfigs::getMaxRefreshRateByPolicyLocked(int anchorGroup) const {
     for (auto it = mPrimaryRefreshRates.rbegin(); it != mPrimaryRefreshRates.rend(); it++) {
         const auto& refreshRate = (**it);
-        if (mCurrentRefreshRate->getModeGroup() == refreshRate.getModeGroup()) {
+        if (anchorGroup == refreshRate.getModeGroup()) {
             return refreshRate;
         }
     }

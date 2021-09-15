@@ -388,7 +388,11 @@ private:
 
     // Returns the highest refresh rate according to the current policy. May change at runtime. Only
     // uses the primary range, not the app request range.
-    const RefreshRate& getMaxRefreshRateByPolicyLocked() const REQUIRES(mLock);
+    const RefreshRate& getMaxRefreshRateByPolicyLocked() const REQUIRES(mLock) {
+        return getMaxRefreshRateByPolicyLocked(mCurrentRefreshRate->getModeGroup());
+    }
+
+    const RefreshRate& getMaxRefreshRateByPolicyLocked(int anchorGroup) const REQUIRES(mLock);
 
     // Returns the current refresh rate, if allowed. Otherwise the default that is allowed by
     // the policy.
