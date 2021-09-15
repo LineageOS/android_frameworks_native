@@ -644,6 +644,10 @@ private:
                                              DispatchEntry* dispatchEntry, MotionEntry& motionEntry,
                                              bool handled) REQUIRES(mLock);
 
+    // Find touched state and touched window by token.
+    std::pair<TouchState*, TouchedWindow*> findTouchStateAndWindowLocked(const sp<IBinder>& token)
+            REQUIRES(mLock);
+
     // Statistics gathering.
     LatencyAggregator mLatencyAggregator GUARDED_BY(mLock);
     LatencyTracker mLatencyTracker GUARDED_BY(mLock);

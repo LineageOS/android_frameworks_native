@@ -47,7 +47,8 @@ static const nsecs_t ARBITRARY_TIME = 1234;
 static const int32_t DEVICE_ID = 1;
 
 // An arbitrary display id.
-static const int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
+static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
+static constexpr int32_t SECOND_DISPLAY_ID = 1;
 
 // An arbitrary injector pid / uid pair that has permission to inject events.
 static const int32_t INJECTOR_PID = 999;
@@ -944,6 +945,15 @@ public:
         mInfo.ownerPid = INJECTOR_PID;
         mInfo.ownerUid = INJECTOR_UID;
         mInfo.displayId = displayId;
+    }
+
+    sp<FakeWindowHandle> clone(
+            const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
+            const sp<InputDispatcher>& dispatcher, int32_t displayId) {
+        sp<FakeWindowHandle> handle =
+                new FakeWindowHandle(inputApplicationHandle, dispatcher, mInfo.name + "(Mirror)",
+                                     displayId, mInfo.token);
+        return handle;
     }
 
     void setFocusable(bool focusable) { mInfo.focusable = focusable; }
@@ -2006,6 +2016,134 @@ TEST_F(InputDispatcherTest, TransferTouch_TwoPointersSplitTouch) {
     secondWindow->assertNoEvents();
 }
 
+// This case will create two windows and one mirrored window on the default display and mirror
+// two windows on the second display. It will test if 'transferTouchFocus' works fine if we put
+// the windows info of second display before default display.
+TEST_F(InputDispatcherTest, TransferTouchFocus_CloneSurface) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> firstWindowInPrimary =
+            new FakeWindowHandle(application, mDispatcher, "D_1_W1", ADISPLAY_ID_DEFAULT);
+    firstWindowInPrimary->setFrame(Rect(0, 0, 100, 100));
+    firstWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+    sp<FakeWindowHandle> secondWindowInPrimary =
+            new FakeWindowHandle(application, mDispatcher, "D_1_W2", ADISPLAY_ID_DEFAULT);
+    secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
+    secondWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    sp<FakeWindowHandle> mirrorWindowInPrimary =
+            firstWindowInPrimary->clone(application, mDispatcher, ADISPLAY_ID_DEFAULT);
+    mirrorWindowInPrimary->setFrame(Rect(0, 100, 100, 200));
+    mirrorWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    sp<FakeWindowHandle> firstWindowInSecondary =
+            firstWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
+    firstWindowInSecondary->setFrame(Rect(0, 0, 100, 100));
+    firstWindowInSecondary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    sp<FakeWindowHandle> secondWindowInSecondary =
+            secondWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
+    secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
+    secondWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    // Update window info, let it find window handle of second display first.
+    mDispatcher->setInputWindows(
+            {{SECOND_DISPLAY_ID, {firstWindowInSecondary, secondWindowInSecondary}},
+             {ADISPLAY_ID_DEFAULT,
+              {mirrorWindowInPrimary, firstWindowInPrimary, secondWindowInPrimary}}});
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {50, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    // Window should receive motion event.
+    firstWindowInPrimary->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+
+    // Transfer touch focus
+    ASSERT_TRUE(mDispatcher->transferTouchFocus(firstWindowInPrimary->getToken(),
+                                                secondWindowInPrimary->getToken()));
+    // The first window gets cancel.
+    firstWindowInPrimary->consumeMotionCancel();
+    secondWindowInPrimary->consumeMotionDown();
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
+                                ADISPLAY_ID_DEFAULT, {150, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    firstWindowInPrimary->assertNoEvents();
+    secondWindowInPrimary->consumeMotionMove();
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                             {150, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    firstWindowInPrimary->assertNoEvents();
+    secondWindowInPrimary->consumeMotionUp();
+}
+
+// Same as TransferTouchFocus_CloneSurface, but this touch on the secondary display and use
+// 'transferTouch' api.
+TEST_F(InputDispatcherTest, TransferTouch_CloneSurface) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> firstWindowInPrimary =
+            new FakeWindowHandle(application, mDispatcher, "D_1_W1", ADISPLAY_ID_DEFAULT);
+    firstWindowInPrimary->setFrame(Rect(0, 0, 100, 100));
+    firstWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+    sp<FakeWindowHandle> secondWindowInPrimary =
+            new FakeWindowHandle(application, mDispatcher, "D_1_W2", ADISPLAY_ID_DEFAULT);
+    secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
+    secondWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    sp<FakeWindowHandle> mirrorWindowInPrimary =
+            firstWindowInPrimary->clone(application, mDispatcher, ADISPLAY_ID_DEFAULT);
+    mirrorWindowInPrimary->setFrame(Rect(0, 100, 100, 200));
+    mirrorWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    sp<FakeWindowHandle> firstWindowInSecondary =
+            firstWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
+    firstWindowInSecondary->setFrame(Rect(0, 0, 100, 100));
+    firstWindowInSecondary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    sp<FakeWindowHandle> secondWindowInSecondary =
+            secondWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
+    secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
+    secondWindowInPrimary->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+
+    // Update window info, let it find window handle of second display first.
+    mDispatcher->setInputWindows(
+            {{SECOND_DISPLAY_ID, {firstWindowInSecondary, secondWindowInSecondary}},
+             {ADISPLAY_ID_DEFAULT,
+              {mirrorWindowInPrimary, firstWindowInPrimary, secondWindowInPrimary}}});
+
+    // Touch on second display.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, SECOND_DISPLAY_ID, {50, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    // Window should receive motion event.
+    firstWindowInPrimary->consumeMotionDown(SECOND_DISPLAY_ID);
+
+    // Transfer touch focus
+    ASSERT_TRUE(mDispatcher->transferTouch(secondWindowInSecondary->getToken()));
+
+    // The first window gets cancel.
+    firstWindowInPrimary->consumeMotionCancel(SECOND_DISPLAY_ID);
+    secondWindowInPrimary->consumeMotionDown(SECOND_DISPLAY_ID);
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
+                                SECOND_DISPLAY_ID, {150, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    firstWindowInPrimary->assertNoEvents();
+    secondWindowInPrimary->consumeMotionMove(SECOND_DISPLAY_ID);
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, SECOND_DISPLAY_ID, {150, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    firstWindowInPrimary->assertNoEvents();
+    secondWindowInPrimary->consumeMotionUp(SECOND_DISPLAY_ID);
+}
+
 TEST_F(InputDispatcherTest, FocusedWindow_ReceivesFocusEventAndKeyEvent) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
@@ -2926,7 +3064,6 @@ TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_RepeatKeyEventsUseUniqueEvent
 /* Test InputDispatcher for MultiDisplay */
 class InputDispatcherFocusOnTwoDisplaysTest : public InputDispatcherTest {
 public:
-    static constexpr int32_t SECOND_DISPLAY_ID = 1;
     virtual void SetUp() override {
         InputDispatcherTest::SetUp();
 
@@ -3089,8 +3226,6 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, CanFocusWindowOnUnfocusedDisplay) 
 
 class InputFilterTest : public InputDispatcherTest {
 protected:
-    static constexpr int32_t SECOND_DISPLAY_ID = 1;
-
     void testNotifyMotion(int32_t displayId, bool expectToBeFiltered) {
         NotifyMotionArgs motionArgs;
 
