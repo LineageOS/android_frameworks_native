@@ -51,14 +51,17 @@ class MultiStateCounter {
     State* states;
 
 public:
-    MultiStateCounter(uint16_t stateCount, state_t initialState, const T& emptyValue,
-                      time_t timestamp);
+    MultiStateCounter(uint16_t stateCount, const T& emptyValue);
 
     virtual ~MultiStateCounter();
 
     void setState(state_t state, time_t timestamp);
 
+    void setValue(state_t state, const T& value);
+
     void updateValue(const T& value, time_t timestamp);
+
+    uint16_t getStateCount();
 
     const T& getCount(state_t state);
 
@@ -86,14 +89,13 @@ private:
 // Since MultiStateCounter is a template, the implementation must be inlined.
 
 template <class T>
-MultiStateCounter<T>::MultiStateCounter(uint16_t stateCount, state_t initialState,
-                                        const T& emptyValue, time_t timestamp)
+MultiStateCounter<T>::MultiStateCounter(uint16_t stateCount, const T& emptyValue)
       : stateCount(stateCount),
-        currentState(initialState),
-        lastStateChangeTimestamp(timestamp),
+        currentState(0),
+        lastStateChangeTimestamp(-1),
         emptyValue(emptyValue),
         lastValue(emptyValue),
-        lastUpdateTimestamp(timestamp),
+        lastUpdateTimestamp(-1),
         deltaValue(emptyValue) {
     states = new State[stateCount];
     for (int i = 0; i < stateCount; i++) {
@@ -109,21 +111,28 @@ MultiStateCounter<T>::~MultiStateCounter() {
 
 template <class T>
 void MultiStateCounter<T>::setState(state_t state, time_t timestamp) {
-    if (timestamp >= lastStateChangeTimestamp) {
-        states[currentState].timeInStateSinceUpdate += timestamp - lastStateChangeTimestamp;
-    } else {
-        ALOGE("setState is called with an earlier timestamp: %lu, previous timestamp: %lu\n",
-              (unsigned long)timestamp, (unsigned long)lastStateChangeTimestamp);
-        // The accumulated durations have become unreliable. For example, if the timestamp
-        // sequence was 1000, 2000, 1000, 3000, if we accumulated the positive deltas,
-        // we would get 4000, which is greater than (last - first). This could lead to
-        // counts exceeding 100%.
-        for (int i = 0; i < stateCount; i++) {
-            states[i].timeInStateSinceUpdate = 0;
+    if (lastStateChangeTimestamp >= 0) {
+        if (timestamp >= lastStateChangeTimestamp) {
+            states[currentState].timeInStateSinceUpdate += timestamp - lastStateChangeTimestamp;
+        } else {
+            ALOGE("setState is called with an earlier timestamp: %lu, previous timestamp: %lu\n",
+                  (unsigned long)timestamp, (unsigned long)lastStateChangeTimestamp);
+            // The accumulated durations have become unreliable. For example, if the timestamp
+            // sequence was 1000, 2000, 1000, 3000, if we accumulated the positive deltas,
+            // we would get 4000, which is greater than (last - first). This could lead to
+            // counts exceeding 100%.
+            for (int i = 0; i < stateCount; i++) {
+                states[i].timeInStateSinceUpdate = 0;
+            }
         }
     }
     currentState = state;
     lastStateChangeTimestamp = timestamp;
+}
+
+template <class T>
+void MultiStateCounter<T>::setValue(state_t state, const T& value) {
+    states[state].counter = value;
 }
 
 template <class T>
@@ -132,28 +141,36 @@ void MultiStateCounter<T>::updateValue(const T& value, time_t timestamp) {
     // counter for the current state.
     setState(currentState, timestamp);
 
-    if (timestamp > lastUpdateTimestamp) {
-        if (delta(lastValue, value, &deltaValue)) {
-            time_t timeSinceUpdate = timestamp - lastUpdateTimestamp;
-            for (int i = 0; i < stateCount; i++) {
-                time_t timeInState = states[i].timeInStateSinceUpdate;
-                if (timeInState) {
-                    add(&states[i].counter, deltaValue, timeInState, timeSinceUpdate);
-                    states[i].timeInStateSinceUpdate = 0;
+    if (lastUpdateTimestamp >= 0) {
+        if (timestamp > lastUpdateTimestamp) {
+            if (delta(lastValue, value, &deltaValue)) {
+                time_t timeSinceUpdate = timestamp - lastUpdateTimestamp;
+                for (int i = 0; i < stateCount; i++) {
+                    time_t timeInState = states[i].timeInStateSinceUpdate;
+                    if (timeInState) {
+                        add(&states[i].counter, deltaValue, timeInState, timeSinceUpdate);
+                        states[i].timeInStateSinceUpdate = 0;
+                    }
                 }
+            } else {
+                std::stringstream str;
+                str << "updateValue is called with a value " << valueToString(value)
+                    << ", which is lower than the previous value " << valueToString(lastValue)
+                    << "\n";
+                ALOGE("%s", str.str().c_str());
             }
-        } else {
-            std::stringstream str;
-            str << "updateValue is called with a value " << valueToString(value)
-                << ", which is lower than the previous value " << valueToString(lastValue) << "\n";
-            ALOGE("%s", str.str().c_str());
+        } else if (timestamp < lastUpdateTimestamp) {
+            ALOGE("updateValue is called with an earlier timestamp: %lu, previous timestamp: %lu\n",
+                  (unsigned long)timestamp, (unsigned long)lastUpdateTimestamp);
         }
-    } else if (timestamp < lastUpdateTimestamp) {
-        ALOGE("updateValue is called with an earlier timestamp: %lu, previous timestamp: %lu\n",
-              (unsigned long)timestamp, (unsigned long)lastUpdateTimestamp);
     }
     lastValue = value;
     lastUpdateTimestamp = timestamp;
+}
+
+template <class T>
+uint16_t MultiStateCounter<T>::getStateCount() {
+    return stateCount;
 }
 
 template <class T>
@@ -164,17 +181,29 @@ const T& MultiStateCounter<T>::getCount(state_t state) {
 template <class T>
 std::string MultiStateCounter<T>::toString() {
     std::stringstream str;
-    str << "currentState: " << currentState
-        << " lastStateChangeTimestamp: " << lastStateChangeTimestamp
-        << " lastUpdateTimestamp: " << lastUpdateTimestamp << " states: [";
+    str << "[";
     for (int i = 0; i < stateCount; i++) {
         if (i != 0) {
             str << ", ";
         }
-        str << i << ": time: " << states[i].timeInStateSinceUpdate
-            << " counter: " << valueToString(states[i].counter);
+        str << i << ": " << valueToString(states[i].counter);
+        if (states[i].timeInStateSinceUpdate > 0) {
+            str << " timeInStateSinceUpdate: " << states[i].timeInStateSinceUpdate;
+        }
     }
     str << "]";
+    if (lastUpdateTimestamp >= 0) {
+        str << " updated: " << lastUpdateTimestamp;
+    }
+    if (lastStateChangeTimestamp >= 0) {
+        str << " currentState: " << currentState;
+        if (lastStateChangeTimestamp > lastUpdateTimestamp) {
+            str << " stateChanged: " << lastStateChangeTimestamp;
+        }
+    } else {
+        str << " currentState: none";
+    }
+
     return str.str();
 }
 

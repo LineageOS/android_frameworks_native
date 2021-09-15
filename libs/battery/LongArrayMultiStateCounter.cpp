@@ -62,7 +62,7 @@ void LongArrayMultiStateCounter::add(std::vector<uint64_t>* value1,
 template <>
 std::string LongArrayMultiStateCounter::valueToString(const std::vector<uint64_t>& v) const {
     std::stringstream s;
-    s << "{ ";
+    s << "{";
     bool first = true;
     for (uint64_t n : v) {
         if (!first) {
