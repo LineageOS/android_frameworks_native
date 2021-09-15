@@ -85,9 +85,7 @@ public:
                              sp<Fence> fence, CallbackHelper& callback, const ReleaseCallbackId& id,
                              ReleaseBufferCallbackHelper& releaseCallback) {
         Transaction t;
-        t.setFrameNumber(layer, id.framenumber);
-        t.setBuffer(layer, buffer, id, releaseCallback.getCallback());
-        t.setAcquireFence(layer, fence);
+        t.setBuffer(layer, buffer, fence, id.framenumber, id, releaseCallback.getCallback());
         t.addTransactionCompletedCallback(callback.function, callback.getContext());
         t.apply();
     }
@@ -302,8 +300,8 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_FrameDropping) {
     nsecs_t time = systemTime() + std::chrono::nanoseconds(100ms).count();
 
     Transaction t;
-    t.setBuffer(layer, firstBuffer, firstBufferCallbackId, releaseCallback->getCallback());
-    t.setAcquireFence(layer, Fence::NO_FENCE);
+    t.setBuffer(layer, firstBuffer, std::nullopt, std::nullopt, firstBufferCallbackId,
+                releaseCallback->getCallback());
     t.addTransactionCompletedCallback(transactionCallback.function,
                                       transactionCallback.getContext());
     t.setDesiredPresentTime(time);
@@ -318,8 +316,8 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_FrameDropping) {
     // Dropping frames in transaction queue emits a callback
     sp<GraphicBuffer> secondBuffer = getBuffer();
     ReleaseCallbackId secondBufferCallbackId(secondBuffer->getId(), generateFrameNumber());
-    t.setBuffer(layer, secondBuffer, secondBufferCallbackId, releaseCallback->getCallback());
-    t.setAcquireFence(layer, Fence::NO_FENCE);
+    t.setBuffer(layer, secondBuffer, std::nullopt, std::nullopt, secondBufferCallbackId,
+                releaseCallback->getCallback());
     t.addTransactionCompletedCallback(transactionCallback.function,
                                       transactionCallback.getContext());
     t.setDesiredPresentTime(time);
@@ -361,10 +359,8 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_Merge_Different_Processes) {
     ReleaseCallbackId secondBufferCallbackId(secondBuffer->getId(), generateFrameNumber());
 
     Transaction transaction1;
-    transaction1.setFrameNumber(layer, secondBufferCallbackId.framenumber);
-    transaction1.setBuffer(layer, secondBuffer, secondBufferCallbackId,
-                           releaseCallback->getCallback());
-    transaction1.setAcquireFence(layer, Fence::NO_FENCE);
+    transaction1.setBuffer(layer, secondBuffer, std::nullopt, secondBufferCallbackId.framenumber,
+                           secondBufferCallbackId, releaseCallback->getCallback());
     transaction1.addTransactionCompletedCallback(callback1.function, callback1.getContext());
 
     // Set a different TransactionCompletedListener to mimic a second process

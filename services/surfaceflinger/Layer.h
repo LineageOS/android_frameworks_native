@@ -416,17 +416,11 @@ public:
     // Used only to set BufferStateLayer state
     virtual bool setTransform(uint32_t /*transform*/) { return false; };
     virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
-    virtual bool setBuffer(const std::shared_ptr<renderengine::ExternalTexture>& /*buffer*/,
-                           const sp<Fence>& /*acquireFence*/, nsecs_t /*postTime*/,
-                           nsecs_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
-                           const client_cache_t& /*clientCacheId*/, uint64_t /* frameNumber */,
-                           std::optional<nsecs_t> /* dequeueTime */,
-                           const FrameTimelineInfo& /*info*/,
-                           const sp<ITransactionCompletedListener>& /* releaseBufferListener */,
-                           const sp<IBinder>& /* releaseBufferEndpoint */) {
+    virtual bool setBuffer(const BufferData&, nsecs_t /*postTime*/, nsecs_t /*desiredPresentTime*/,
+                           bool /*isAutoTimestamp*/, std::optional<nsecs_t> /* dequeueTime */,
+                           const FrameTimelineInfo& /*info*/) {
         return false;
     };
-    virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
     virtual bool setDataspace(ui::Dataspace /*dataspace*/) { return false; };
     virtual bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/) { return false; };
     virtual bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/) { return false; };
@@ -526,8 +520,6 @@ public:
     virtual bool isHdrY410() const { return false; }
 
     virtual bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const { return false; }
-
-    virtual uint64_t getHeadFrameNumber(nsecs_t /* expectedPresentTime */) const { return 0; }
 
     /*
      * called after composition.

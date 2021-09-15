@@ -3570,9 +3570,10 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
 
     for (const ComposerState& state : states) {
         const layer_state_t& s = state.state;
-        const bool acquireFenceChanged = (s.what & layer_state_t::eAcquireFenceChanged);
-        if (acquireFenceChanged && s.acquireFence && !enableLatchUnsignaled &&
-            s.acquireFence->getStatus() == Fence::Status::Unsignaled) {
+        const bool acquireFenceChanged =
+                s.bufferData.flags.test(BufferData::BufferDataChange::fenceChanged);
+        if (acquireFenceChanged && s.bufferData.acquireFence && !enableLatchUnsignaled &&
+            s.bufferData.acquireFence->getStatus() == Fence::Status::Unsignaled) {
             ATRACE_NAME("fence unsignaled");
             return false;
         }
@@ -4069,9 +4070,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     if (what & layer_state_t::eCropChanged) {
         if (layer->setCrop(s.crop)) flags |= eTraversalNeeded;
     }
-    if (what & layer_state_t::eAcquireFenceChanged) {
-        if (layer->setAcquireFence(s.acquireFence)) flags |= eTraversalNeeded;
-    }
     if (what & layer_state_t::eDataspaceChanged) {
         if (layer->setDataspace(s.dataspace)) flags |= eTraversalNeeded;
     }
@@ -4198,43 +4196,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             callbackHandles.emplace_back(new CallbackHandle(listener, callbackIds, s.surface));
         }
     }
-    bool bufferChanged = what & layer_state_t::eBufferChanged;
-    bool cacheIdChanged = what & layer_state_t::eCachedBufferChanged;
-    bool bufferSizeExceedsLimit = false;
-    std::shared_ptr<renderengine::ExternalTexture> buffer;
-    if (bufferChanged && cacheIdChanged && s.buffer != nullptr) {
-        bufferSizeExceedsLimit =
-                exceedsMaxRenderTargetSize(s.buffer->getWidth(), s.buffer->getHeight());
-        if (!bufferSizeExceedsLimit) {
-            ClientCache::getInstance().add(s.cachedBuffer, s.buffer);
-            buffer = ClientCache::getInstance().get(s.cachedBuffer);
-        }
-    } else if (cacheIdChanged) {
-        buffer = ClientCache::getInstance().get(s.cachedBuffer);
-    } else if (bufferChanged && s.buffer != nullptr) {
-        bufferSizeExceedsLimit =
-                exceedsMaxRenderTargetSize(s.buffer->getWidth(), s.buffer->getHeight());
-        if (!bufferSizeExceedsLimit) {
-            buffer = std::make_shared<
-                    renderengine::ExternalTexture>(s.buffer, getRenderEngine(),
-                                                   renderengine::ExternalTexture::Usage::READABLE);
-        }
-    }
-    ALOGE_IF(bufferSizeExceedsLimit,
-             "Attempted to create an ExternalTexture for layer %s that exceeds render target size "
-             "limit.",
-             layer->getDebugName());
-    if (buffer) {
-        const bool frameNumberChanged = what & layer_state_t::eFrameNumberChanged;
-        const uint64_t frameNumber = frameNumberChanged
-                ? s.frameNumber
-                : layer->getHeadFrameNumber(-1 /* expectedPresentTime */) + 1;
 
-        if (layer->setBuffer(buffer, s.acquireFence, postTime, desiredPresentTime, isAutoTimestamp,
-                             s.cachedBuffer, frameNumber, dequeueBufferTimestamp, frameTimelineInfo,
-                             s.releaseBufferListener, s.releaseBufferEndpoint)) {
-            flags |= eTraversalNeeded;
-        }
+    if (what & layer_state_t::eBufferChanged &&
+        layer->setBuffer(s.bufferData, postTime, desiredPresentTime, isAutoTimestamp,
+                         dequeueBufferTimestamp, frameTimelineInfo)) {
+        flags |= eTraversalNeeded;
     } else if (frameTimelineInfo.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
         layer->setFrameTimelineVsyncForBufferlessTransaction(frameTimelineInfo, postTime);
     }

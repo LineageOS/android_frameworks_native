@@ -66,8 +66,7 @@ public:
                     return err;
                 }
 
-                transaction.setBuffer(layer, buffer);
-                transaction.setAcquireFence(layer, fence);
+                transaction.setBuffer(layer, buffer, fence);
             }
 
             if (setBackgroundColor) {

@@ -468,12 +468,12 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
             std::bind(releaseBufferCallbackThunk, wp<BLASTBufferQueue>(this) /* callbackContext */,
                       std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
                       std::placeholders::_4);
-    t->setBuffer(mSurfaceControl, buffer, releaseCallbackId, releaseBufferCallback);
+    sp<Fence> fence = bufferItem.mFence ? new Fence(bufferItem.mFence->dup()) : Fence::NO_FENCE;
+    t->setBuffer(mSurfaceControl, buffer, fence, bufferItem.mFrameNumber, releaseCallbackId,
+                 releaseBufferCallback);
     t->setDataspace(mSurfaceControl, static_cast<ui::Dataspace>(bufferItem.mDataSpace));
     t->setHdrMetadata(mSurfaceControl, bufferItem.mHdrMetadata);
     t->setSurfaceDamageRegion(mSurfaceControl, bufferItem.mSurfaceDamage);
-    t->setAcquireFence(mSurfaceControl,
-                       bufferItem.mFence ? new Fence(bufferItem.mFence->dup()) : Fence::NO_FENCE);
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
     mSurfaceControlsWithPendingCallback.push(mSurfaceControl);
 
@@ -486,7 +486,6 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     if (!bufferItem.mIsAutoTimestamp) {
         t->setDesiredPresentTime(bufferItem.mTimestamp);
     }
-    t->setFrameNumber(mSurfaceControl, bufferItem.mFrameNumber);
 
     if (!mNextFrameTimelineInfoQueue.empty()) {
         t->setFrameTimelineInfo(mNextFrameTimelineInfoQueue.front());

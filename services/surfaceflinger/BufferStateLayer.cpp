@@ -406,14 +406,54 @@ bool BufferStateLayer::addFrameEvent(const sp<Fence>& acquireFence, nsecs_t post
     return true;
 }
 
-bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTexture>& buffer,
-                                 const sp<Fence>& acquireFence, nsecs_t postTime,
+std::shared_ptr<renderengine::ExternalTexture> BufferStateLayer::getBufferFromBufferData(
+        const BufferData& bufferData) {
+    bool cacheIdChanged = bufferData.flags.test(BufferData::BufferDataChange::cachedBufferChanged);
+    bool bufferSizeExceedsLimit = false;
+    std::shared_ptr<renderengine::ExternalTexture> buffer = nullptr;
+    if (cacheIdChanged && bufferData.buffer != nullptr) {
+        bufferSizeExceedsLimit =
+                mFlinger->exceedsMaxRenderTargetSize(bufferData.buffer->getWidth(),
+                                                     bufferData.buffer->getHeight());
+        if (!bufferSizeExceedsLimit) {
+            ClientCache::getInstance().add(bufferData.cachedBuffer, bufferData.buffer);
+            buffer = ClientCache::getInstance().get(bufferData.cachedBuffer);
+        }
+    } else if (cacheIdChanged) {
+        buffer = ClientCache::getInstance().get(bufferData.cachedBuffer);
+    } else if (bufferData.buffer != nullptr) {
+        bufferSizeExceedsLimit =
+                mFlinger->exceedsMaxRenderTargetSize(bufferData.buffer->getWidth(),
+                                                     bufferData.buffer->getHeight());
+        if (!bufferSizeExceedsLimit) {
+            buffer = std::make_shared<
+                    renderengine::ExternalTexture>(bufferData.buffer, mFlinger->getRenderEngine(),
+                                                   renderengine::ExternalTexture::Usage::READABLE);
+        }
+    }
+    ALOGE_IF(bufferSizeExceedsLimit,
+             "Attempted to create an ExternalTexture for layer %s that exceeds render target size "
+             "limit.",
+             getDebugName());
+    return buffer;
+}
+
+bool BufferStateLayer::setBuffer(const BufferData& bufferData, nsecs_t postTime,
                                  nsecs_t desiredPresentTime, bool isAutoTimestamp,
-                                 const client_cache_t& clientCacheId, uint64_t frameNumber,
-                                 std::optional<nsecs_t> dequeueTime, const FrameTimelineInfo& info,
-                                 const sp<ITransactionCompletedListener>& releaseBufferListener,
-                                 const sp<IBinder>& releaseBufferEndpoint) {
+                                 std::optional<nsecs_t> dequeueTime,
+                                 const FrameTimelineInfo& info) {
     ATRACE_CALL();
+
+    const std::shared_ptr<renderengine::ExternalTexture>& buffer =
+            getBufferFromBufferData(bufferData);
+    if (!buffer) {
+        return false;
+    }
+
+    const bool frameNumberChanged =
+            bufferData.flags.test(BufferData::BufferDataChange::frameNumberChanged);
+    const uint64_t frameNumber =
+            frameNumberChanged ? bufferData.frameNumber : mDrawingState.frameNumber + 1;
 
     if (mDrawingState.buffer) {
         mReleasePreviousBuffer = true;
@@ -438,9 +478,17 @@ bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTex
     }
 
     mDrawingState.frameNumber = frameNumber;
-    mDrawingState.releaseBufferListener = releaseBufferListener;
+    mDrawingState.releaseBufferListener = bufferData.releaseBufferListener;
     mDrawingState.buffer = buffer;
-    mDrawingState.clientCacheId = clientCacheId;
+    mDrawingState.clientCacheId = bufferData.cachedBuffer;
+
+    mDrawingState.acquireFence = bufferData.flags.test(BufferData::BufferDataChange::fenceChanged)
+            ? bufferData.acquireFence
+            : Fence::NO_FENCE;
+    mDrawingState.acquireFenceTime = std::make_unique<FenceTime>(mDrawingState.acquireFence);
+    // The acquire fences of BufferStateLayers have already signaled before they are set
+    mCallbackHandleAcquireTime = mDrawingState.acquireFenceTime->getSignalTime();
+
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
 
@@ -462,7 +510,7 @@ bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTex
     mFlinger->mScheduler->recordLayerHistory(this, presentTime,
                                              LayerHistory::LayerUpdateType::Buffer);
 
-    addFrameEvent(acquireFence, postTime, isAutoTimestamp ? 0 : desiredPresentTime);
+    addFrameEvent(mDrawingState.acquireFence, postTime, isAutoTimestamp ? 0 : desiredPresentTime);
 
     setFrameTimelineVsyncForBufferTransaction(info, postTime);
 
@@ -477,20 +525,7 @@ bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTex
 
     mDrawingState.width = mDrawingState.buffer->getBuffer()->getWidth();
     mDrawingState.height = mDrawingState.buffer->getBuffer()->getHeight();
-    mDrawingState.releaseBufferEndpoint = releaseBufferEndpoint;
-
-    return true;
-}
-
-bool BufferStateLayer::setAcquireFence(const sp<Fence>& fence) {
-    mDrawingState.acquireFence = fence;
-    mDrawingState.acquireFenceTime = std::make_unique<FenceTime>(fence);
-
-    // The acquire fences of BufferStateLayers have already signaled before they are set
-    mCallbackHandleAcquireTime = mDrawingState.acquireFenceTime->getSignalTime();
-
-    mDrawingState.modified = true;
-    setTransactionFlags(eTransactionNeeded);
+    mDrawingState.releaseBufferEndpoint = bufferData.releaseBufferEndpoint;
     return true;
 }
 
@@ -657,36 +692,6 @@ bool BufferStateLayer::onPreComposition(nsecs_t refreshStartTime) {
         handle->refreshStartTime = refreshStartTime;
     }
     return BufferLayer::onPreComposition(refreshStartTime);
-}
-
-uint64_t BufferStateLayer::getFrameNumber(nsecs_t /*expectedPresentTime*/) const {
-    return mDrawingState.frameNumber;
-}
-
-/**
- * This is the frameNumber used for deferred transaction signalling. We need to use this because
- * of cases where we defer a transaction for a surface to itself. In the BLAST world this
- * may not make a huge amount of sense (Why not just merge the Buffer transaction with the
- * deferred transaction?) but this is an important legacy use case, for example moving
- * a window at the same time it draws makes use of this kind of technique. So anyway
- * imagine we have something like this:
- *
- * Transaction { // containing
- *     Buffer -> frameNumber = 2
- *     DeferTransactionUntil -> frameNumber = 2
- *     Random other stuff
- *  }
- * Now imagine mFrameNumber returned mDrawingState.frameNumber (or mCurrentFrameNumber).
- * Prior to doTransaction SurfaceFlinger will call notifyAvailableFrames, but because we
- * haven't swapped mDrawingState to mDrawingState yet we will think the sync point
- * is not ready. So we will return false from applyPendingState and not swap
- * current state to drawing state. But because we don't swap current state
- * to drawing state the number will never update and we will be stuck. This way
- * we can see we need to return the frame number for the buffer we are about
- * to apply.
- */
-uint64_t BufferStateLayer::getHeadFrameNumber(nsecs_t /* expectedPresentTime */) const {
-    return mDrawingState.frameNumber;
 }
 
 void BufferStateLayer::setAutoRefresh(bool autoRefresh) {
