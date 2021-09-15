@@ -4870,6 +4870,18 @@ void InputDispatcher::setBlockUntrustedTouchesMode(BlockUntrustedTouchesMode mod
     mBlockUntrustedTouchesMode = mode;
 }
 
+std::pair<TouchState*, TouchedWindow*> InputDispatcher::findTouchStateAndWindowLocked(
+        const sp<IBinder>& token) {
+    for (auto& [displayId, state] : mTouchStatesByDisplay) {
+        for (TouchedWindow& w : state.windows) {
+            if (w.windowHandle->getToken() == token) {
+                return std::make_pair(&state, &w);
+            }
+        }
+    }
+    return std::make_pair(nullptr, nullptr);
+}
+
 bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
                                          bool isDragDrop) {
     if (fromToken == toToken) {
@@ -4882,58 +4894,43 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
     { // acquire lock
         std::scoped_lock _l(mLock);
 
-        sp<WindowInfoHandle> fromWindowHandle = getWindowHandleLocked(fromToken);
-        sp<WindowInfoHandle> toWindowHandle = getWindowHandleLocked(toToken);
-        if (fromWindowHandle == nullptr || toWindowHandle == nullptr) {
-            ALOGW("Cannot transfer focus because from or to window not found.");
+        // Find the target touch state and touched window by fromToken.
+        auto [state, touchedWindow] = findTouchStateAndWindowLocked(fromToken);
+        if (state == nullptr || touchedWindow == nullptr) {
+            ALOGD("Focus transfer failed because from window is not being touched.");
             return false;
         }
+
+        const int32_t displayId = state->displayId;
+        sp<WindowInfoHandle> toWindowHandle = getWindowHandleLocked(toToken, displayId);
+        if (toWindowHandle == nullptr) {
+            ALOGW("Cannot transfer focus because to window not found.");
+            return false;
+        }
+
         if (DEBUG_FOCUS) {
             ALOGD("transferTouchFocus: fromWindowHandle=%s, toWindowHandle=%s",
-                  fromWindowHandle->getName().c_str(), toWindowHandle->getName().c_str());
-        }
-        if (fromWindowHandle->getInfo()->displayId != toWindowHandle->getInfo()->displayId) {
-            if (DEBUG_FOCUS) {
-                ALOGD("Cannot transfer focus because windows are on different displays.");
-            }
-            return false;
+                  touchedWindow->windowHandle->getName().c_str(),
+                  toWindowHandle->getName().c_str());
         }
 
-        bool found = false;
-        for (std::pair<const int32_t, TouchState>& pair : mTouchStatesByDisplay) {
-            TouchState& state = pair.second;
-            for (size_t i = 0; i < state.windows.size(); i++) {
-                const TouchedWindow& touchedWindow = state.windows[i];
-                if (touchedWindow.windowHandle == fromWindowHandle) {
-                    int32_t oldTargetFlags = touchedWindow.targetFlags;
-                    BitSet32 pointerIds = touchedWindow.pointerIds;
+        // Erase old window.
+        int32_t oldTargetFlags = touchedWindow->targetFlags;
+        BitSet32 pointerIds = touchedWindow->pointerIds;
+        state->removeWindowByToken(fromToken);
 
-                    state.windows.erase(state.windows.begin() + i);
+        // Add new window.
+        int32_t newTargetFlags = oldTargetFlags &
+                (InputTarget::FLAG_FOREGROUND | InputTarget::FLAG_SPLIT |
+                 InputTarget::FLAG_DISPATCH_AS_IS);
+        state->addOrUpdateWindow(toWindowHandle, newTargetFlags, pointerIds);
 
-                    int32_t newTargetFlags = oldTargetFlags &
-                            (InputTarget::FLAG_FOREGROUND | InputTarget::FLAG_SPLIT |
-                             InputTarget::FLAG_DISPATCH_AS_IS);
-                    state.addOrUpdateWindow(toWindowHandle, newTargetFlags, pointerIds);
-
-                    // Store the dragging window.
-                    if (isDragDrop) {
-                        mDragState = std::make_unique<DragState>(toWindowHandle);
-                    }
-
-                    found = true;
-                    goto Found;
-                }
-            }
-        }
-    Found:
-
-        if (!found) {
-            if (DEBUG_FOCUS) {
-                ALOGD("Focus transfer failed because from window did not have focus.");
-            }
-            return false;
+        // Store the dragging window.
+        if (isDragDrop) {
+            mDragState = std::make_unique<DragState>(toWindowHandle);
         }
 
+        // Synthesize cancel for old window and down for new window.
         sp<Connection> fromConnection = getConnectionLocked(fromToken);
         sp<Connection> toConnection = getConnectionLocked(toToken);
         if (fromConnection != nullptr && toConnection != nullptr) {
@@ -4961,27 +4958,20 @@ bool InputDispatcher::transferTouch(const sp<IBinder>& destChannelToken) {
     { // acquire lock
         std::scoped_lock _l(mLock);
 
-        sp<WindowInfoHandle> toWindowHandle = getWindowHandleLocked(destChannelToken);
+        auto it = std::find_if(mTouchStatesByDisplay.begin(), mTouchStatesByDisplay.end(),
+                               [](const auto& pair) { return pair.second.windows.size() == 1; });
+        if (it == mTouchStatesByDisplay.end()) {
+            ALOGW("Cannot transfer touch state because there is no exact window being touched");
+            return false;
+        }
+        const int32_t displayId = it->first;
+        sp<WindowInfoHandle> toWindowHandle = getWindowHandleLocked(destChannelToken, displayId);
         if (toWindowHandle == nullptr) {
             ALOGW("Could not find window associated with token=%p", destChannelToken.get());
             return false;
         }
 
-        const int32_t displayId = toWindowHandle->getInfo()->displayId;
-
-        auto touchStateIt = mTouchStatesByDisplay.find(displayId);
-        if (touchStateIt == mTouchStatesByDisplay.end()) {
-            ALOGD("Could not transfer touch because the display %" PRId32 " is not being touched",
-                  displayId);
-            return false;
-        }
-
-        TouchState& state = touchStateIt->second;
-        if (state.windows.size() != 1) {
-            ALOGW("Cannot transfer touch state because there are %zu windows being touched",
-                  state.windows.size());
-            return false;
-        }
+        TouchState& state = it->second;
         const TouchedWindow& touchedWindow = state.windows[0];
         fromToken = touchedWindow.windowHandle->getToken();
     } // release lock

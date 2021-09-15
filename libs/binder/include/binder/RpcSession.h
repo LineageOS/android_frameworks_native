@@ -53,7 +53,7 @@ public:
     // Create an RpcSession with default configuration (raw sockets).
     static sp<RpcSession> make();
 
-    // Create an RpcSession with the given configuration. |serverCertificateFormat| and
+    // Create an RpcSession with the given configuration. |serverRpcCertificateFormat| and
     // |serverCertificate| must have values or be nullopt simultaneously. If they have values, set
     // server certificate.
     static sp<RpcSession> make(std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory);
@@ -131,7 +131,7 @@ public:
     /**
      * See RpcTransportCtx::getCertificate
      */
-    std::string getCertificate(CertificateFormat);
+    std::vector<uint8_t> getCertificate(RpcCertificateFormat);
 
     /**
      * Shuts down the service.
@@ -151,7 +151,13 @@ public:
 
     [[nodiscard]] status_t transact(const sp<IBinder>& binder, uint32_t code, const Parcel& data,
                                     Parcel* reply, uint32_t flags);
-    [[nodiscard]] status_t sendDecStrong(uint64_t address);
+
+    /**
+     * Generally, you should not call this, unless you are testing error
+     * conditions, as this is called automatically by BpBinders when they are
+     * deleted (this is also why a raw pointer is used here)
+     */
+    [[nodiscard]] status_t sendDecStrong(const BpBinder* binder);
 
     ~RpcSession();
 
@@ -170,6 +176,8 @@ private:
     friend RpcState;
     explicit RpcSession(std::unique_ptr<RpcTransportCtx> ctx);
 
+    [[nodiscard]] status_t sendDecStrong(uint64_t address);
+
     class EventListener : public virtual RefBase {
     public:
         virtual void onSessionAllIncomingThreadsEnded(const sp<RpcSession>& session) = 0;
@@ -180,12 +188,12 @@ private:
     public:
         void onSessionAllIncomingThreadsEnded(const sp<RpcSession>& session) override;
         void onSessionIncomingThreadEnded() override;
-        void waitForShutdown(std::unique_lock<std::mutex>& lock);
+        void waitForShutdown(std::unique_lock<std::mutex>& lock, const sp<RpcSession>& session);
 
     private:
         std::condition_variable mCv;
-        volatile bool mShutdown = false;
     };
+    friend WaitForShutdownListener;
 
     struct RpcConnection : public RefBase {
         std::unique_ptr<RpcTransport> rpcTransport;
