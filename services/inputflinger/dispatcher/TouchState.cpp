@@ -134,4 +134,14 @@ bool TouchState::isSlippery() const {
     return haveSlipperyForegroundWindow;
 }
 
+sp<WindowInfoHandle> TouchState::getWallpaperWindow() const {
+    for (size_t i = 0; i < windows.size(); i++) {
+        const TouchedWindow& window = windows[i];
+        if (window.windowHandle->getInfo()->type == WindowInfo::Type::WALLPAPER) {
+            return window.windowHandle;
+        }
+    }
+    return nullptr;
+}
+
 } // namespace android::inputdispatcher

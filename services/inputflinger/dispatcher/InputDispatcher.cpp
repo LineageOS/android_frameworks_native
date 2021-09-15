@@ -1706,13 +1706,13 @@ void InputDispatcher::logOutboundMotionDetails(const char* prefix, const MotionE
     if (DEBUG_OUTBOUND_EVENT_DETAILS) {
         ALOGD("%seventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32
               ", policyFlags=0x%x, "
-              "action=0x%x, actionButton=0x%x, flags=0x%x, "
+              "action=%s, actionButton=0x%x, flags=0x%x, "
               "metaState=0x%x, buttonState=0x%x,"
               "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64,
               prefix, entry.eventTime, entry.deviceId, entry.source, entry.displayId,
-              entry.policyFlags, entry.action, entry.actionButton, entry.flags, entry.metaState,
-              entry.buttonState, entry.edgeFlags, entry.xPrecision, entry.yPrecision,
-              entry.downTime);
+              entry.policyFlags, MotionEvent::actionToString(entry.action).c_str(),
+              entry.actionButton, entry.flags, entry.metaState, entry.buttonState, entry.edgeFlags,
+              entry.xPrecision, entry.yPrecision, entry.downTime);
 
         for (uint32_t i = 0; i < entry.pointerCount; i++) {
             ALOGD("  Pointer %d: id=%d, toolType=%d, "
@@ -4642,6 +4642,18 @@ void InputDispatcher::setInputWindowsLocked(
                     CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
                                                "touched window was removed");
                     synthesizeCancelationEventsForInputChannelLocked(touchedInputChannel, options);
+                    // Since we are about to drop the touch, cancel the events for the wallpaper as
+                    // well.
+                    if (touchedWindow.targetFlags & InputTarget::FLAG_FOREGROUND &&
+                        touchedWindow.windowHandle->getInfo()->hasWallpaper) {
+                        sp<WindowInfoHandle> wallpaper = state.getWallpaperWindow();
+                        if (wallpaper != nullptr) {
+                            sp<Connection> wallpaperConnection =
+                                    getConnectionLocked(wallpaper->getToken());
+                            synthesizeCancelationEventsForConnectionLocked(wallpaperConnection,
+                                                                           options);
+                        }
+                    }
                 }
                 state.windows.erase(state.windows.begin() + i);
             } else {
