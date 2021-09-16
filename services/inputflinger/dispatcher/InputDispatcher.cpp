@@ -1868,6 +1868,11 @@ InputEventInjectionResult InputDispatcher::findFocusedWindowTargetsLocked(
         return InputEventInjectionResult::FAILED;
     }
 
+    // Drop key events if requested by input feature
+    if (focusedWindowHandle != nullptr && shouldDropInput(entry, focusedWindowHandle)) {
+        return InputEventInjectionResult::FAILED;
+    }
+
     // Compatibility behavior: raise ANR if there is a focused application, but no focused window.
     // Only start counting when we have a focused event to dispatch. The ANR is canceled if we
     // start interacting with another application via touch (app switch). This code can be removed
@@ -2113,6 +2118,11 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             }
         }
 
+        // Drop touch events if requested by input feature
+        if (newTouchedWindowHandle != nullptr && shouldDropInput(entry, newTouchedWindowHandle)) {
+            newTouchedWindowHandle = nullptr;
+        }
+
         // Also don't send the new touch event to unresponsive gesture monitors
         newGestureMonitors = selectResponsiveMonitorsLocked(newGestureMonitors);
 
@@ -2178,6 +2188,13 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             sp<WindowInfoHandle> oldTouchedWindowHandle =
                     tempTouchState.getFirstForegroundWindowHandle();
             newTouchedWindowHandle = findTouchedWindowAtLocked(displayId, x, y, &tempTouchState);
+
+            // Drop touch events if requested by input feature
+            if (newTouchedWindowHandle != nullptr &&
+                shouldDropInput(entry, newTouchedWindowHandle)) {
+                newTouchedWindowHandle = nullptr;
+            }
+
             if (oldTouchedWindowHandle != newTouchedWindowHandle &&
                 oldTouchedWindowHandle != nullptr && newTouchedWindowHandle != nullptr) {
                 if (DEBUG_FOCUS) {
@@ -6190,6 +6207,21 @@ void InputDispatcher::onWindowInfosChanged(const std::vector<gui::WindowInfo>& w
         handlesPerDisplay[info.displayId].push_back(new WindowInfoHandle(info));
     }
     setInputWindows(handlesPerDisplay);
+}
+
+bool InputDispatcher::shouldDropInput(
+        const EventEntry& entry, const sp<android::gui::WindowInfoHandle>& windowHandle) const {
+    if (windowHandle->getInfo()->inputFeatures.test(WindowInfo::Feature::DROP_INPUT) ||
+        (windowHandle->getInfo()->inputFeatures.test(WindowInfo::Feature::DROP_INPUT_IF_OBSCURED) &&
+         isWindowObscuredLocked(windowHandle))) {
+        ALOGW("Dropping %s event targeting %s as requested by input feature %s on display "
+              "%" PRId32 ".",
+              ftl::enum_string(entry.type).c_str(), windowHandle->getName().c_str(),
+              windowHandle->getInfo()->inputFeatures.string().c_str(),
+              windowHandle->getInfo()->displayId);
+        return true;
+    }
+    return false;
 }
 
 } // namespace android::inputdispatcher
