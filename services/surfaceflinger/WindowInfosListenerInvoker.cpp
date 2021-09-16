@@ -21,6 +21,7 @@
 
 namespace android {
 
+using gui::DisplayInfo;
 using gui::IWindowInfosListener;
 using gui::WindowInfo;
 
@@ -67,6 +68,7 @@ void WindowInfosListenerInvoker::binderDied(const wp<IBinder>& who) {
 }
 
 void WindowInfosListenerInvoker::windowInfosChanged(const std::vector<WindowInfo>& windowInfos,
+                                                    const std::vector<DisplayInfo>& displayInfos,
                                                     bool shouldSync) {
     std::unordered_set<sp<IWindowInfosListener>, ISurfaceComposer::SpHash<IWindowInfosListener>>
             windowInfosListeners;
@@ -81,7 +83,7 @@ void WindowInfosListenerInvoker::windowInfosChanged(const std::vector<WindowInfo
     mCallbacksPending = windowInfosListeners.size();
 
     for (const auto& listener : windowInfosListeners) {
-        listener->onWindowInfosChanged(windowInfos,
+        listener->onWindowInfosChanged(windowInfos, displayInfos,
                                        shouldSync ? mWindowInfosReportedListener : nullptr);
     }
 }

@@ -55,6 +55,7 @@
 using android::base::HwTimeoutMultiplier;
 using android::base::Result;
 using android::base::StringPrintf;
+using android::gui::DisplayInfo;
 using android::gui::FocusRequest;
 using android::gui::TouchOcclusionMode;
 using android::gui::WindowInfo;
@@ -1706,13 +1707,13 @@ void InputDispatcher::logOutboundMotionDetails(const char* prefix, const MotionE
     if (DEBUG_OUTBOUND_EVENT_DETAILS) {
         ALOGD("%seventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32
               ", policyFlags=0x%x, "
-              "action=0x%x, actionButton=0x%x, flags=0x%x, "
+              "action=%s, actionButton=0x%x, flags=0x%x, "
               "metaState=0x%x, buttonState=0x%x,"
               "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64,
               prefix, entry.eventTime, entry.deviceId, entry.source, entry.displayId,
-              entry.policyFlags, entry.action, entry.actionButton, entry.flags, entry.metaState,
-              entry.buttonState, entry.edgeFlags, entry.xPrecision, entry.yPrecision,
-              entry.downTime);
+              entry.policyFlags, MotionEvent::actionToString(entry.action).c_str(),
+              entry.actionButton, entry.flags, entry.metaState, entry.buttonState, entry.edgeFlags,
+              entry.xPrecision, entry.yPrecision, entry.downTime);
 
         for (uint32_t i = 0; i < entry.pointerCount; i++) {
             ALOGD("  Pointer %d: id=%d, toolType=%d, "
@@ -1865,6 +1866,11 @@ InputEventInjectionResult InputDispatcher::findFocusedWindowTargetsLocked(
         ALOGI("Dropping %s event because there is no focused window or focused application in "
               "display %" PRId32 ".",
               ftl::enum_string(entry.type).c_str(), displayId);
+        return InputEventInjectionResult::FAILED;
+    }
+
+    // Drop key events if requested by input feature
+    if (focusedWindowHandle != nullptr && shouldDropInput(entry, focusedWindowHandle)) {
         return InputEventInjectionResult::FAILED;
     }
 
@@ -2113,6 +2119,11 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             }
         }
 
+        // Drop touch events if requested by input feature
+        if (newTouchedWindowHandle != nullptr && shouldDropInput(entry, newTouchedWindowHandle)) {
+            newTouchedWindowHandle = nullptr;
+        }
+
         // Also don't send the new touch event to unresponsive gesture monitors
         newGestureMonitors = selectResponsiveMonitorsLocked(newGestureMonitors);
 
@@ -2178,6 +2189,13 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             sp<WindowInfoHandle> oldTouchedWindowHandle =
                     tempTouchState.getFirstForegroundWindowHandle();
             newTouchedWindowHandle = findTouchedWindowAtLocked(displayId, x, y, &tempTouchState);
+
+            // Drop touch events if requested by input feature
+            if (newTouchedWindowHandle != nullptr &&
+                shouldDropInput(entry, newTouchedWindowHandle)) {
+                newTouchedWindowHandle = nullptr;
+            }
+
             if (oldTouchedWindowHandle != newTouchedWindowHandle &&
                 oldTouchedWindowHandle != nullptr && newTouchedWindowHandle != nullptr) {
                 if (DEBUG_FOCUS) {
@@ -2506,9 +2524,15 @@ void InputDispatcher::addWindowTargetLocked(const sp<WindowInfoHandle>& windowHa
         inputTarget.inputChannel = inputChannel;
         inputTarget.flags = targetFlags;
         inputTarget.globalScaleFactor = windowInfo->globalScaleFactor;
-        inputTarget.displayOrientation = windowInfo->displayOrientation;
-        inputTarget.displaySize =
-                int2(windowHandle->getInfo()->displayWidth, windowHandle->getInfo()->displayHeight);
+        const auto& displayInfoIt = mDisplayInfos.find(windowInfo->displayId);
+        if (displayInfoIt != mDisplayInfos.end()) {
+            const auto& displayInfo = displayInfoIt->second;
+            inputTarget.displayOrientation = displayInfo.transform.getOrientation();
+            inputTarget.displaySize = int2(displayInfo.logicalWidth, displayInfo.logicalHeight);
+        } else {
+            ALOGI_IF(isPerWindowInputRotationEnabled(),
+                     "DisplayInfo not found for window on display: %d", windowInfo->displayId);
+        }
         inputTargets.push_back(inputTarget);
         it = inputTargets.end() - 1;
     }
@@ -4562,6 +4586,7 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
 
 void InputDispatcher::setInputWindows(
         const std::unordered_map<int32_t, std::vector<sp<WindowInfoHandle>>>& handlesPerDisplay) {
+    // TODO(b/198444055): Remove setInputWindows from InputDispatcher.
     { // acquire lock
         std::scoped_lock _l(mLock);
         for (const auto& [displayId, handles] : handlesPerDisplay) {
@@ -4642,6 +4667,18 @@ void InputDispatcher::setInputWindowsLocked(
                     CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
                                                "touched window was removed");
                     synthesizeCancelationEventsForInputChannelLocked(touchedInputChannel, options);
+                    // Since we are about to drop the touch, cancel the events for the wallpaper as
+                    // well.
+                    if (touchedWindow.targetFlags & InputTarget::FLAG_FOREGROUND &&
+                        touchedWindow.windowHandle->getInfo()->hasWallpaper) {
+                        sp<WindowInfoHandle> wallpaper = state.getWallpaperWindow();
+                        if (wallpaper != nullptr) {
+                            sp<Connection> wallpaperConnection =
+                                    getConnectionLocked(wallpaper->getToken());
+                            synthesizeCancelationEventsForConnectionLocked(wallpaperConnection,
+                                                                           options);
+                        }
+                    }
                 }
                 state.windows.erase(state.windows.begin() + i);
             } else {
@@ -5082,9 +5119,17 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     }
 
     if (!mWindowHandlesByDisplay.empty()) {
-        for (auto& it : mWindowHandlesByDisplay) {
-            const std::vector<sp<WindowInfoHandle>> windowHandles = it.second;
-            dump += StringPrintf(INDENT "Display: %" PRId32 "\n", it.first);
+        for (const auto& [displayId, windowHandles] : mWindowHandlesByDisplay) {
+            dump += StringPrintf(INDENT "Display: %" PRId32 "\n", displayId);
+            if (const auto& it = mDisplayInfos.find(displayId); it != mDisplayInfos.end()) {
+                const auto& displayInfo = it->second;
+                dump += StringPrintf(INDENT2 "logicalSize=%dx%d\n", displayInfo.logicalWidth,
+                                     displayInfo.logicalHeight);
+                displayInfo.transform.dump(dump, "transform", INDENT4);
+            } else {
+                dump += INDENT2 "No DisplayInfo found!\n";
+            }
+
             if (!windowHandles.empty()) {
                 dump += INDENT2 "Windows:\n";
                 for (size_t i = 0; i < windowHandles.size(); i++) {
@@ -5116,13 +5161,12 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          windowInfo->inputFeatures.string().c_str());
                     dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%" PRId64
                                          "ms, trustedOverlay=%s, hasToken=%s, "
-                                         "touchOcclusionMode=%s, displayOrientation=%d\n",
+                                         "touchOcclusionMode=%s\n",
                                          windowInfo->ownerPid, windowInfo->ownerUid,
                                          millis(windowInfo->dispatchingTimeout),
                                          toString(windowInfo->trustedOverlay),
                                          toString(windowInfo->token != nullptr),
-                                         toString(windowInfo->touchOcclusionMode).c_str(),
-                                         windowInfo->displayOrientation);
+                                         toString(windowInfo->touchOcclusionMode).c_str());
                     windowInfo->transform.dump(dump, "transform", INDENT4);
                 }
             } else {
@@ -6168,16 +6212,44 @@ void InputDispatcher::displayRemoved(int32_t displayId) {
     mLooper->wake();
 }
 
-void InputDispatcher::onWindowInfosChanged(const std::vector<gui::WindowInfo>& windowInfos) {
+void InputDispatcher::onWindowInfosChanged(const std::vector<WindowInfo>& windowInfos,
+                                           const std::vector<DisplayInfo>& displayInfos) {
     // The listener sends the windows as a flattened array. Separate the windows by display for
     // more convenient parsing.
     std::unordered_map<int32_t, std::vector<sp<WindowInfoHandle>>> handlesPerDisplay;
-
     for (const auto& info : windowInfos) {
         handlesPerDisplay.emplace(info.displayId, std::vector<sp<WindowInfoHandle>>());
         handlesPerDisplay[info.displayId].push_back(new WindowInfoHandle(info));
     }
-    setInputWindows(handlesPerDisplay);
+
+    { // acquire lock
+        std::scoped_lock _l(mLock);
+        mDisplayInfos.clear();
+        for (const auto& displayInfo : displayInfos) {
+            mDisplayInfos.emplace(displayInfo.displayId, displayInfo);
+        }
+
+        for (const auto& [displayId, handles] : handlesPerDisplay) {
+            setInputWindowsLocked(handles, displayId);
+        }
+    }
+    // Wake up poll loop since it may need to make new input dispatching choices.
+    mLooper->wake();
+}
+
+bool InputDispatcher::shouldDropInput(
+        const EventEntry& entry, const sp<android::gui::WindowInfoHandle>& windowHandle) const {
+    if (windowHandle->getInfo()->inputFeatures.test(WindowInfo::Feature::DROP_INPUT) ||
+        (windowHandle->getInfo()->inputFeatures.test(WindowInfo::Feature::DROP_INPUT_IF_OBSCURED) &&
+         isWindowObscuredLocked(windowHandle))) {
+        ALOGW("Dropping %s event targeting %s as requested by input feature %s on display "
+              "%" PRId32 ".",
+              ftl::enum_string(entry.type).c_str(), windowHandle->getName().c_str(),
+              windowHandle->getInfo()->inputFeatures.string().c_str(),
+              windowHandle->getInfo()->displayId);
+        return true;
+    }
+    return false;
 }
 
 } // namespace android::inputdispatcher

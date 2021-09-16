@@ -132,9 +132,11 @@ struct WindowInfo : public Parcelable {
     };
 
     enum class Feature : uint32_t {
-        DISABLE_TOUCH_PAD_GESTURES = 0x00000001,
-        NO_INPUT_CHANNEL = 0x00000002,
-        DISABLE_USER_ACTIVITY = 0x00000004,
+        DISABLE_TOUCH_PAD_GESTURES = 1u << 0,
+        NO_INPUT_CHANNEL = 1u << 1,
+        DISABLE_USER_ACTIVITY = 1u << 2,
+        DROP_INPUT = 1u << 3,
+        DROP_INPUT_IF_OBSCURED = 1u << 4,
     };
 
     /* These values are filled in by the WM and passed through SurfaceFlinger
@@ -178,13 +180,6 @@ struct WindowInfo : public Parcelable {
 
     // Transform applied to individual windows.
     ui::Transform transform;
-
-    // Display orientation as ui::Transform::RotationFlags. Used for compatibility raw coordinates.
-    uint32_t displayOrientation = ui::Transform::ROT_0;
-
-    // Display size in its natural rotation. Used to rotate raw coordinates for compatibility.
-    int32_t displayWidth = 0;
-    int32_t displayHeight = 0;
 
     /*
      * This is filled in by the WM relative to the frame and then translated

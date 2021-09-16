@@ -143,7 +143,8 @@ public:
 
     void displayRemoved(int32_t displayId) override;
 
-    void onWindowInfosChanged(const std::vector<gui::WindowInfo>& windowInfos) override;
+    void onWindowInfosChanged(const std::vector<gui::WindowInfo>&,
+                              const std::vector<gui::DisplayInfo>&) override;
 
 private:
     enum class DropReason {
@@ -337,8 +338,10 @@ private:
     float mMaximumObscuringOpacityForTouch GUARDED_BY(mLock);
     android::os::BlockUntrustedTouchesMode mBlockUntrustedTouchesMode GUARDED_BY(mLock);
 
-    std::unordered_map<int32_t, std::vector<sp<android::gui::WindowInfoHandle>>>
+    std::unordered_map<int32_t /*displayId*/, std::vector<sp<android::gui::WindowInfoHandle>>>
             mWindowHandlesByDisplay GUARDED_BY(mLock);
+    std::unordered_map<int32_t /*displayId*/, android::gui::DisplayInfo> mDisplayInfos
+            GUARDED_BY(mLock);
     void setInputWindowsLocked(
             const std::vector<sp<android::gui::WindowInfoHandle>>& inputWindowHandles,
             int32_t displayId) REQUIRES(mLock);
@@ -553,6 +556,10 @@ private:
                                             bool isTouchWindow) const;
     std::string getApplicationWindowLabel(const InputApplicationHandle* applicationHandle,
                                           const sp<android::gui::WindowInfoHandle>& windowHandle);
+
+    bool shouldDropInput(const EventEntry& entry,
+                         const sp<android::gui::WindowInfoHandle>& windowHandle) const
+            REQUIRES(mLock);
 
     // Manage the dispatch cycle for a single connection.
     // These methods are deliberately not Interruptible because doing all of the work

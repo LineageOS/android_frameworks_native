@@ -51,6 +51,7 @@ struct TouchState {
     void filterNonMonitors();
     sp<android::gui::WindowInfoHandle> getFirstForegroundWindowHandle() const;
     bool isSlippery() const;
+    sp<android::gui::WindowInfoHandle> getWallpaperWindow() const;
 };
 
 } // namespace inputdispatcher

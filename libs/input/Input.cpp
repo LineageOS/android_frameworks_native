@@ -834,9 +834,9 @@ std::string MotionEvent::actionToString(int32_t action) {
         case AMOTION_EVENT_ACTION_OUTSIDE:
             return "OUTSIDE";
         case AMOTION_EVENT_ACTION_POINTER_DOWN:
-            return "POINTER_DOWN";
+            return StringPrintf("POINTER_DOWN(%" PRId32 ")", MotionEvent::getActionIndex(action));
         case AMOTION_EVENT_ACTION_POINTER_UP:
-            return "POINTER_UP";
+            return StringPrintf("POINTER_UP(%" PRId32 ")", MotionEvent::getActionIndex(action));
         case AMOTION_EVENT_ACTION_HOVER_MOVE:
             return "HOVER_MOVE";
         case AMOTION_EVENT_ACTION_SCROLL:
