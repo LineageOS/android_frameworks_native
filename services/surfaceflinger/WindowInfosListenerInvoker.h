@@ -33,7 +33,8 @@ public:
     void addWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener);
     void removeWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener);
 
-    void windowInfosChanged(const std::vector<gui::WindowInfo>& windowInfos, bool shouldSync);
+    void windowInfosChanged(const std::vector<gui::WindowInfo>&,
+                            const std::vector<gui::DisplayInfo>&, bool shouldSync);
 
 protected:
     void binderDied(const wp<IBinder>& who) override;

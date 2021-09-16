@@ -169,6 +169,7 @@ using namespace android::sysprop;
 
 using android::hardware::power::Boost;
 using base::StringAppendF;
+using gui::DisplayInfo;
 using gui::IWindowInfosListener;
 using gui::WindowInfo;
 using ui::ColorMode;
@@ -3059,6 +3060,16 @@ bool enablePerWindowInputRotation() {
 
 void SurfaceFlinger::notifyWindowInfos() {
     std::vector<WindowInfo> windowInfos;
+    std::vector<DisplayInfo> displayInfos;
+    std::unordered_map<const DisplayDevice*, const ui::Transform> displayTransforms;
+
+    if (enablePerWindowInputRotation()) {
+        for (const auto& [_, display] : ON_MAIN_THREAD(mDisplays)) {
+            const auto& [info, transform] = display->getInputInfo();
+            displayInfos.emplace_back(info);
+            displayTransforms.emplace(display.get(), transform);
+        }
+    }
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (!layer->needsInputInfo()) return;
@@ -3070,9 +3081,11 @@ void SurfaceFlinger::notifyWindowInfos() {
 
         // When calculating the screen bounds we ignore the transparent region since it may
         // result in an unwanted offset.
-        windowInfos.push_back(layer->fillInputInfo(display));
+        const auto it = displayTransforms.find(display);
+        windowInfos.push_back(
+                layer->fillInputInfo(it != displayTransforms.end() ? it->second : ui::Transform()));
     });
-    mWindowInfosListenerInvoker->windowInfosChanged(windowInfos,
+    mWindowInfosListenerInvoker->windowInfosChanged(windowInfos, displayInfos,
                                                     mInputWindowCommands.syncInputWindows);
 }
 

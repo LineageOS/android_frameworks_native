@@ -851,7 +851,7 @@ public:
     bool getPremultipledAlpha() const;
     void setInputInfo(const gui::WindowInfo& info);
 
-    gui::WindowInfo fillInputInfo(const DisplayDevice*);
+    gui::WindowInfo fillInputInfo(const ui::Transform& displayTransform);
 
     /**
      * Returns whether this layer has an explicitly set input-info.
