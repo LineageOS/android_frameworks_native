@@ -121,9 +121,11 @@ struct WindowInfo : public Parcelable {
     };
 
     enum class Feature {
-        DISABLE_TOUCH_PAD_GESTURES = 0x00000001,
-        NO_INPUT_CHANNEL = 0x00000002,
-        DISABLE_USER_ACTIVITY = 0x00000004,
+        DISABLE_TOUCH_PAD_GESTURES = 1u << 0,
+        NO_INPUT_CHANNEL = 1u << 1,
+        DISABLE_USER_ACTIVITY = 1u << 2,
+        DROP_INPUT = 1u << 3,
+        DROP_INPUT_IF_OBSCURED = 1u << 4,
     };
 
     /* These values are filled in by the WM and passed through SurfaceFlinger
