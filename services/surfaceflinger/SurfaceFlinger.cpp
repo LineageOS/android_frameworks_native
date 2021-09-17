@@ -5149,7 +5149,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
             continue;
         }
 
-        StringAppendF(&result, "Display %s HWC layers:\n", to_string(*displayId).c_str());
+        StringAppendF(&result, "Display %s (%s) HWC layers:\n", to_string(*displayId).c_str(),
+                      (isDisplayActiveLocked(display) ? "active" : "inactive"));
         Layer::miniDumpHeader(result);
 
         const DisplayDevice& ref = *display;
