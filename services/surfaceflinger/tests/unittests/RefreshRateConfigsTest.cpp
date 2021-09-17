@@ -349,9 +349,18 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_noLayers) {
     EXPECT_EQ(mExpected90Config,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
 
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {Fps(60), Fps(60)}}),
-              0);
+    ASSERT_EQ(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {Fps(60), Fps(60)}}),
+              NO_ERROR);
     EXPECT_EQ(mExpected60Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+
+    // We select max even when this will cause a non-seamless switch.
+    refreshRateConfigs = std::make_unique<RefreshRateConfigs>(m60_90DeviceWithDifferentGroups,
+                                                              /*currentConfigId=*/HWC_CONFIG_ID_60);
+    ASSERT_EQ(refreshRateConfigs->setDisplayManagerPolicy(
+                      {HWC_CONFIG_ID_90, /*allowGroupSwitching*/ true, {Fps(0), Fps(90)}}),
+              NO_ERROR);
+    EXPECT_EQ(mExpected90DifferentGroupConfig,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
 }
 

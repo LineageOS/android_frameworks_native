@@ -42,6 +42,7 @@ class MultiStateCounter {
     T lastValue;
     time_t lastUpdateTimestamp;
     T deltaValue;
+    bool isEnabled;
 
     struct State {
         time_t timeInStateSinceUpdate;
@@ -55,11 +56,15 @@ public:
 
     virtual ~MultiStateCounter();
 
+    void setEnabled(bool enabled, time_t timestamp);
+
     void setState(state_t state, time_t timestamp);
 
     void setValue(state_t state, const T& value);
 
     void updateValue(const T& value, time_t timestamp);
+
+    void reset();
 
     uint16_t getStateCount();
 
@@ -96,7 +101,8 @@ MultiStateCounter<T>::MultiStateCounter(uint16_t stateCount, const T& emptyValue
         emptyValue(emptyValue),
         lastValue(emptyValue),
         lastUpdateTimestamp(-1),
-        deltaValue(emptyValue) {
+        deltaValue(emptyValue),
+        isEnabled(true) {
     states = new State[stateCount];
     for (int i = 0; i < stateCount; i++) {
         states[i].timeInStateSinceUpdate = 0;
@@ -110,8 +116,27 @@ MultiStateCounter<T>::~MultiStateCounter() {
 };
 
 template <class T>
-void MultiStateCounter<T>::setState(state_t state, time_t timestamp) {
+void MultiStateCounter<T>::setEnabled(bool enabled, time_t timestamp) {
+    if (enabled == isEnabled) {
+        return;
+    }
+
+    if (!enabled) {
+        // Confirm the current state for the side-effect of updating the time-in-state
+        // counter for the current state.
+        setState(currentState, timestamp);
+    }
+
+    isEnabled = enabled;
+
     if (lastStateChangeTimestamp >= 0) {
+        lastStateChangeTimestamp = timestamp;
+    }
+}
+
+template <class T>
+void MultiStateCounter<T>::setState(state_t state, time_t timestamp) {
+    if (isEnabled && lastStateChangeTimestamp >= 0) {
         if (timestamp >= lastStateChangeTimestamp) {
             states[currentState].timeInStateSinceUpdate += timestamp - lastStateChangeTimestamp;
         } else {
@@ -137,35 +162,49 @@ void MultiStateCounter<T>::setValue(state_t state, const T& value) {
 
 template <class T>
 void MultiStateCounter<T>::updateValue(const T& value, time_t timestamp) {
-    // Confirm the current state for the side-effect of updating the time-in-state
-    // counter for the current state.
-    setState(currentState, timestamp);
+    // If the counter is disabled, we ignore the update, except when the counter got disabled after
+    // the previous update, in which case we still need to pick up the residual delta.
+    if (isEnabled || lastUpdateTimestamp < lastStateChangeTimestamp) {
+        // Confirm the current state for the side-effect of updating the time-in-state
+        // counter for the current state.
+        setState(currentState, timestamp);
 
-    if (lastUpdateTimestamp >= 0) {
-        if (timestamp > lastUpdateTimestamp) {
-            if (delta(lastValue, value, &deltaValue)) {
-                time_t timeSinceUpdate = timestamp - lastUpdateTimestamp;
-                for (int i = 0; i < stateCount; i++) {
-                    time_t timeInState = states[i].timeInStateSinceUpdate;
-                    if (timeInState) {
-                        add(&states[i].counter, deltaValue, timeInState, timeSinceUpdate);
-                        states[i].timeInStateSinceUpdate = 0;
+        if (lastUpdateTimestamp >= 0) {
+            if (timestamp > lastUpdateTimestamp) {
+                if (delta(lastValue, value, &deltaValue)) {
+                    time_t timeSinceUpdate = timestamp - lastUpdateTimestamp;
+                    for (int i = 0; i < stateCount; i++) {
+                        time_t timeInState = states[i].timeInStateSinceUpdate;
+                        if (timeInState) {
+                            add(&states[i].counter, deltaValue, timeInState, timeSinceUpdate);
+                            states[i].timeInStateSinceUpdate = 0;
+                        }
                     }
+                } else {
+                    std::stringstream str;
+                    str << "updateValue is called with a value " << valueToString(value)
+                        << ", which is lower than the previous value " << valueToString(lastValue)
+                        << "\n";
+                    ALOGE("%s", str.str().c_str());
                 }
-            } else {
-                std::stringstream str;
-                str << "updateValue is called with a value " << valueToString(value)
-                    << ", which is lower than the previous value " << valueToString(lastValue)
-                    << "\n";
-                ALOGE("%s", str.str().c_str());
+            } else if (timestamp < lastUpdateTimestamp) {
+                ALOGE("updateValue is called with an earlier timestamp: %lu, previous: %lu\n",
+                      (unsigned long)timestamp, (unsigned long)lastUpdateTimestamp);
             }
-        } else if (timestamp < lastUpdateTimestamp) {
-            ALOGE("updateValue is called with an earlier timestamp: %lu, previous timestamp: %lu\n",
-                  (unsigned long)timestamp, (unsigned long)lastUpdateTimestamp);
         }
     }
     lastValue = value;
     lastUpdateTimestamp = timestamp;
+}
+
+template <class T>
+void MultiStateCounter<T>::reset() {
+    lastStateChangeTimestamp = -1;
+    lastUpdateTimestamp = -1;
+    for (int i = 0; i < stateCount; i++) {
+        states[i].timeInStateSinceUpdate = 0;
+        states[i].counter = emptyValue;
+    }
 }
 
 template <class T>

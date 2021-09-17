@@ -21,7 +21,6 @@
 #include <binder/IBinder.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/WindowInfosListener.h>
-#include <utils/Mutex.h>
 #include <unordered_set>
 
 namespace android {
@@ -30,7 +29,8 @@ class ISurfaceComposer;
 class WindowInfosListenerReporter : public gui::BnWindowInfosListener {
 public:
     static sp<WindowInfosListenerReporter> getInstance();
-    binder::Status onWindowInfosChanged(const std::vector<gui::WindowInfo>& windowInfos,
+    binder::Status onWindowInfosChanged(const std::vector<gui::WindowInfo>&,
+                                        const std::vector<gui::DisplayInfo>&,
                                         const sp<gui::IWindowInfosReportedListener>&) override;
 
     status_t addWindowInfosListener(const sp<gui::WindowInfosListener>& windowInfosListener,
