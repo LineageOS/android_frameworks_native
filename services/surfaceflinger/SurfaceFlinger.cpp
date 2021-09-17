@@ -1710,7 +1710,15 @@ nsecs_t SurfaceFlinger::getVsyncPeriodFromHWC() const {
 
 void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t timestamp,
                                         std::optional<hal::VsyncPeriodNanos> vsyncPeriod) {
-    ATRACE_CALL();
+    const std::string tracePeriod = [vsyncPeriod]() {
+        if (ATRACE_ENABLED() && vsyncPeriod) {
+            std::stringstream ss;
+            ss << "(" << *vsyncPeriod << ")";
+            return ss.str();
+        }
+        return std::string();
+    }();
+    ATRACE_FORMAT("onComposerHalVsync%s", tracePeriod.c_str());
 
     Mutex::Autolock lock(mStateLock);
     const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId);
