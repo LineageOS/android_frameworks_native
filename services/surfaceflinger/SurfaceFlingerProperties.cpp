@@ -34,6 +34,8 @@ using android::hardware::graphics::common::V1_2::Dataspace;
 using android::hardware::graphics::common::V1_2::PixelFormat;
 using android::ui::DisplayPrimaries;
 
+// Keep logic in sync with WindowManagerService functions that query SurfaceFlinger properties.
+// Consider exposing properties via ISurfaceComposer instead.
 int64_t vsync_event_phase_offset_ns(int64_t defaultValue) {
     auto temp = SurfaceFlingerProperties::vsync_event_phase_offset_ns();
     if (temp.has_value()) {
