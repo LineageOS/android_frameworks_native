@@ -95,13 +95,13 @@ void MultiTouchMotionAccumulator::process(const RawEvent* rawEvent) {
         }
 
         if (mCurrentSlot < 0 || size_t(mCurrentSlot) >= mSlotCount) {
-#if DEBUG_POINTERS
-            if (newSlot) {
-                ALOGW("MultiTouch device emitted invalid slot index %d but it "
-                      "should be between 0 and %zd; ignoring this slot.",
-                      mCurrentSlot, mSlotCount - 1);
+            if (DEBUG_POINTERS) {
+                if (newSlot) {
+                    ALOGW("MultiTouch device emitted invalid slot index %d but it "
+                          "should be between 0 and %zd; ignoring this slot.",
+                          mCurrentSlot, mSlotCount - 1);
+                }
             }
-#endif
         } else {
             Slot* slot = &mSlots[mCurrentSlot];
             // If mUsingSlotsProtocol is true, it means the raw pointer has axis info of
@@ -273,19 +273,19 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
             if (id) {
                 outState->rawPointerData.canceledIdBits.markBit(id.value());
             }
-#if DEBUG_POINTERS
-            ALOGI("Stop processing slot %zu for it received a palm event from device %s", inIndex,
-                  getDeviceName().c_str());
-#endif
+            if (DEBUG_POINTERS) {
+                ALOGI("Stop processing slot %zu for it received a palm event from device %s",
+                      inIndex, getDeviceName().c_str());
+            }
             continue;
         }
 
         if (outCount >= MAX_POINTERS) {
-#if DEBUG_POINTERS
-            ALOGD("MultiTouch device %s emitted more than maximum of %d pointers; "
-                  "ignoring the rest.",
-                  getDeviceName().c_str(), MAX_POINTERS);
-#endif
+            if (DEBUG_POINTERS) {
+                ALOGD("MultiTouch device %s emitted more than maximum of %d pointers; "
+                      "ignoring the rest.",
+                      getDeviceName().c_str(), MAX_POINTERS);
+            }
             break; // too many fingers!
         }
 

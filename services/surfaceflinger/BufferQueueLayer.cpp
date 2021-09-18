@@ -17,7 +17,6 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
-#pragma clang diagnostic ignored "-Wextra"
 
 #undef LOG_TAG
 #define LOG_TAG "BufferQueueLayer"
@@ -171,7 +170,7 @@ uint64_t BufferQueueLayer::getFrameNumber(nsecs_t expectedPresentTime) const {
         expectedPresentTime = 0;
     }
 
-    for (int i = 1; i < mQueueItems.size(); i++) {
+    for (size_t i = 1; i < mQueueItems.size(); i++) {
         const bool fenceSignaled =
                 mQueueItems[i].item.mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
         if (!fenceSignaled) {
@@ -243,7 +242,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     uint64_t lastSignaledFrameNumber = mLastFrameNumberReceived;
     {
         Mutex::Autolock lock(mQueueItemLock);
-        for (int i = 0; i < mQueueItems.size(); i++) {
+        for (size_t i = 0; i < mQueueItems.size(); i++) {
             bool fenceSignaled =
                     mQueueItems[i].item.mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
             if (!fenceSignaled) {
@@ -629,4 +628,4 @@ void BufferQueueLayer::ContentsChangedListener::abandon() {
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
+#pragma clang diagnostic pop // ignored "-Wconversion"
