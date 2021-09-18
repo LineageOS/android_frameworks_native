@@ -1010,7 +1010,7 @@ private:
 
     sp<DisplayDevice> getDisplayWithInputByLayer(Layer* layer) const REQUIRES(mStateLock);
 
-    bool isDisplayActiveLocked(const sp<const DisplayDevice>& display) REQUIRES(mStateLock) {
+    bool isDisplayActiveLocked(const sp<const DisplayDevice>& display) const REQUIRES(mStateLock) {
         return display->getDisplayToken() == mActiveDisplayToken;
     }
 

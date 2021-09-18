@@ -5456,4 +5456,134 @@ TEST_F(InputDispatcherDragTests, DragAndDrop_InvalidWindow) {
     mSecondWindow->assertNoEvents();
 }
 
+class InputDispatcherDropInputFeatureTest : public InputDispatcherTest {};
+
+TEST_F(InputDispatcherDropInputFeatureTest, WindowDropsInput) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
+    window->setInputFeatures(WindowInfo::Feature::DROP_INPUT);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+    window->setFocusable(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
+    window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
+
+    // With the flag set, window should not get any input
+    NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyKey(&keyArgs);
+    window->assertNoEvents();
+
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+    window->assertNoEvents();
+
+    // With the flag cleared, the window should get input
+    window->setInputFeatures({});
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyKey(&keyArgs);
+    window->consumeKeyUp(ADISPLAY_ID_DEFAULT);
+
+    motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                    ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    window->assertNoEvents();
+}
+
+TEST_F(InputDispatcherDropInputFeatureTest, ObscuredWindowDropsInput) {
+    std::shared_ptr<FakeApplicationHandle> obscuringApplication =
+            std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> obscuringWindow =
+            new FakeWindowHandle(obscuringApplication, mDispatcher, "obscuringWindow",
+                                 ADISPLAY_ID_DEFAULT);
+    obscuringWindow->setFrame(Rect(0, 0, 50, 50));
+    obscuringWindow->setOwnerInfo(111, 111);
+    obscuringWindow->setFlags(WindowInfo::Flag::NOT_TOUCHABLE);
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
+    window->setInputFeatures(WindowInfo::Feature::DROP_INPUT_IF_OBSCURED);
+    window->setOwnerInfo(222, 222);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+    window->setFocusable(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {obscuringWindow, window}}});
+    setFocusedWindow(window);
+    window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
+
+    // With the flag set, window should not get any input
+    NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyKey(&keyArgs);
+    window->assertNoEvents();
+
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+    window->assertNoEvents();
+
+    // With the flag cleared, the window should get input
+    window->setInputFeatures({});
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {obscuringWindow, window}}});
+
+    keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyKey(&keyArgs);
+    window->consumeKeyUp(ADISPLAY_ID_DEFAULT);
+
+    motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                    ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED);
+    window->assertNoEvents();
+}
+
+TEST_F(InputDispatcherDropInputFeatureTest, UnobscuredWindowGetsInput) {
+    std::shared_ptr<FakeApplicationHandle> obscuringApplication =
+            std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> obscuringWindow =
+            new FakeWindowHandle(obscuringApplication, mDispatcher, "obscuringWindow",
+                                 ADISPLAY_ID_DEFAULT);
+    obscuringWindow->setFrame(Rect(0, 0, 50, 50));
+    obscuringWindow->setOwnerInfo(111, 111);
+    obscuringWindow->setFlags(WindowInfo::Flag::NOT_TOUCHABLE);
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
+    window->setInputFeatures(WindowInfo::Feature::DROP_INPUT_IF_OBSCURED);
+    window->setOwnerInfo(222, 222);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+    window->setFocusable(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {obscuringWindow, window}}});
+    setFocusedWindow(window);
+    window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
+
+    // With the flag set, window should not get any input
+    NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyKey(&keyArgs);
+    window->assertNoEvents();
+
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+    window->assertNoEvents();
+
+    // When the window is no longer obscured because it went on top, it should get input
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window, obscuringWindow}}});
+
+    keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyKey(&keyArgs);
+    window->consumeKeyUp(ADISPLAY_ID_DEFAULT);
+
+    motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                    ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    window->assertNoEvents();
+}
+
 } // namespace android::inputdispatcher
