@@ -1710,7 +1710,15 @@ nsecs_t SurfaceFlinger::getVsyncPeriodFromHWC() const {
 
 void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t timestamp,
                                         std::optional<hal::VsyncPeriodNanos> vsyncPeriod) {
-    ATRACE_CALL();
+    const std::string tracePeriod = [vsyncPeriod]() {
+        if (ATRACE_ENABLED() && vsyncPeriod) {
+            std::stringstream ss;
+            ss << "(" << *vsyncPeriod << ")";
+            return ss.str();
+        }
+        return std::string();
+    }();
+    ATRACE_FORMAT("onComposerHalVsync%s", tracePeriod.c_str());
 
     Mutex::Autolock lock(mStateLock);
     const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId);
@@ -5146,7 +5154,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
             continue;
         }
 
-        StringAppendF(&result, "Display %s HWC layers:\n", to_string(*displayId).c_str());
+        StringAppendF(&result, "Display %s (%s) HWC layers:\n", to_string(*displayId).c_str(),
+                      (isDisplayActiveLocked(display) ? "active" : "inactive"));
         Layer::miniDumpHeader(result);
 
         const DisplayDevice& ref = *display;
