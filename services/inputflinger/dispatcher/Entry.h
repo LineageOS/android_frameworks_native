@@ -226,9 +226,8 @@ struct DispatchEntry {
     std::shared_ptr<EventEntry> eventEntry; // the event to dispatch
     int32_t targetFlags;
     ui::Transform transform;
+    ui::Transform rawTransform;
     float globalScaleFactor;
-    uint32_t displayOrientation;
-    int2 displaySize;
     // Both deliveryTime and timeoutTime are only populated when the entry is sent to the app,
     // and will be undefined before that.
     nsecs_t deliveryTime; // time when the event was actually delivered
@@ -241,8 +240,8 @@ struct DispatchEntry {
     int32_t resolvedFlags;
 
     DispatchEntry(std::shared_ptr<EventEntry> eventEntry, int32_t targetFlags,
-                  ui::Transform transform, float globalScaleFactor, uint32_t displayOrientation,
-                  int2 displaySize);
+                  const ui::Transform& transform, const ui::Transform& rawTransform,
+                  float globalScaleFactor);
 
     inline bool hasForegroundTarget() const { return targetFlags & InputTarget::FLAG_FOREGROUND; }
 

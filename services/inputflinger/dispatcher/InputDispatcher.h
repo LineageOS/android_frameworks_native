@@ -525,7 +525,8 @@ private:
                                int32_t targetFlags, BitSet32 pointerIds,
                                std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
     void addMonitoringTargetLocked(const Monitor& monitor, float xOffset, float yOffset,
-                                   std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
+                                   int32_t displayId, std::vector<InputTarget>& inputTargets)
+            REQUIRES(mLock);
     void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId,
                                           float xOffset = 0, float yOffset = 0) REQUIRES(mLock);
     void pokeUserActivityLocked(const EventEntry& eventEntry) REQUIRES(mLock);

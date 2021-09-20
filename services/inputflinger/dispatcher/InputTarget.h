@@ -101,11 +101,8 @@ struct InputTarget {
     // (ignored for KeyEvents)
     float globalScaleFactor = 1.0f;
 
-    // Current display orientation
-    uint32_t displayOrientation = ui::Transform::ROT_0;
-
-    // Display-size in its natural rotation. Used for compatibility transform of raw coordinates.
-    int2 displaySize = {INVALID_DISPLAY_SIZE, INVALID_DISPLAY_SIZE};
+    // Current display transform. Used for compatibility for raw coordinates.
+    ui::Transform displayTransform;
 
     // The subset of pointer ids to include in motion events dispatched to this input target
     // if FLAG_SPLIT is set.
