@@ -69,7 +69,8 @@ layer_state_t::layer_state_t()
         isTrustedOverlay(false),
         bufferCrop(Rect::INVALID_RECT),
         destinationFrame(Rect::INVALID_RECT),
-        releaseBufferListener(nullptr) {
+        releaseBufferListener(nullptr),
+        dropInputMode(gui::DropInputMode::NONE) {
     matrix.dsdx = matrix.dtdy = 1.0f;
     matrix.dsdy = matrix.dtdx = 0.0f;
     hdrMetadata.validTypes = 0;
@@ -174,6 +175,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeBool, isTrustedOverlay);
 
     SAFE_PARCEL(output.writeStrongBinder, releaseBufferEndpoint);
+    SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dropInputMode));
     return NO_ERROR;
 }
 
@@ -304,6 +306,10 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readBool, &isTrustedOverlay);
 
     SAFE_PARCEL(input.readNullableStrongBinder, &releaseBufferEndpoint);
+
+    uint32_t mode;
+    SAFE_PARCEL(input.readUint32, &mode);
+    dropInputMode = static_cast<gui::DropInputMode>(mode);
     return NO_ERROR;
 }
 
@@ -557,6 +563,10 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eProducerDisconnect) {
         what |= eProducerDisconnect;
+    }
+    if (other.what & eDropInputModeChanged) {
+        what |= eDropInputModeChanged;
+        dropInputMode = other.dropInputMode;
     }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "

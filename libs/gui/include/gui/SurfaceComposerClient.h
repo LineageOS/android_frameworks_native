@@ -562,6 +562,7 @@ public:
         Transaction& setBufferCrop(const sp<SurfaceControl>& sc, const Rect& bufferCrop);
         Transaction& setDestinationFrame(const sp<SurfaceControl>& sc,
                                          const Rect& destinationFrame);
+        Transaction& setDropInputMode(const sp<SurfaceControl>& sc, gui::DropInputMode mode);
 
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
