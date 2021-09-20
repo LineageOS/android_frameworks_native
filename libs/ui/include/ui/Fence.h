@@ -124,7 +124,7 @@ public:
     // getStatus() returns whether the fence has signaled yet. Prefer this to
     // getSignalTime() or wait() if all you care about is whether the fence has
     // signaled.
-    inline Status getStatus() {
+    virtual inline Status getStatus() {
         // The sync_wait call underlying wait() has been measured to be
         // significantly faster than the sync_fence_info call underlying
         // getSignalTime(), which might otherwise appear to be the more obvious
