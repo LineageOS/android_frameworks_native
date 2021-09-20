@@ -516,19 +516,16 @@ private:
     android::os::InputEventInjectionResult findTouchedWindowTargetsLocked(
             nsecs_t currentTime, const MotionEntry& entry, std::vector<InputTarget>& inputTargets,
             nsecs_t* nextWakeupTime, bool* outConflictingPointerActions) REQUIRES(mLock);
-    std::vector<TouchedMonitor> findTouchedGestureMonitorsLocked(int32_t displayId) const
-            REQUIRES(mLock);
-    std::vector<TouchedMonitor> selectResponsiveMonitorsLocked(
-            const std::vector<TouchedMonitor>& gestureMonitors) const REQUIRES(mLock);
+    std::vector<Monitor> selectResponsiveMonitorsLocked(
+            const std::vector<Monitor>& gestureMonitors) const REQUIRES(mLock);
 
     void addWindowTargetLocked(const sp<android::gui::WindowInfoHandle>& windowHandle,
                                int32_t targetFlags, BitSet32 pointerIds,
                                std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
-    void addMonitoringTargetLocked(const Monitor& monitor, float xOffset, float yOffset,
-                                   int32_t displayId, std::vector<InputTarget>& inputTargets)
+    void addMonitoringTargetLocked(const Monitor& monitor, int32_t displayId,
+                                   std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
+    void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId)
             REQUIRES(mLock);
-    void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId,
-                                          float xOffset = 0, float yOffset = 0) REQUIRES(mLock);
     void pokeUserActivityLocked(const EventEntry& eventEntry) REQUIRES(mLock);
     bool checkInjectionPermission(const sp<android::gui::WindowInfoHandle>& windowHandle,
                                   const InjectionState* injectionState);

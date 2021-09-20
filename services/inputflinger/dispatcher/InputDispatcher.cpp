@@ -410,18 +410,6 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarge
     return dispatchEntry;
 }
 
-void addGestureMonitors(const std::vector<Monitor>& monitors,
-                        std::vector<TouchedMonitor>& outTouchedMonitors, float xOffset = 0,
-                        float yOffset = 0) {
-    if (monitors.empty()) {
-        return;
-    }
-    outTouchedMonitors.reserve(monitors.size() + outTouchedMonitors.size());
-    for (const Monitor& monitor : monitors) {
-        outTouchedMonitors.emplace_back(monitor, xOffset, yOffset);
-    }
-}
-
 status_t openInputChannelPair(const std::string& name, std::shared_ptr<InputChannel>& serverChannel,
                               std::unique_ptr<InputChannel>& clientChannel) {
     std::unique_ptr<InputChannel> uniqueServerChannel;
@@ -943,10 +931,9 @@ bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEnt
         }
 
         // Alternatively, maybe there's a gesture monitor that could handle this event
-        std::vector<TouchedMonitor> gestureMonitors = findTouchedGestureMonitorsLocked(displayId);
-        for (TouchedMonitor& gestureMonitor : gestureMonitors) {
+        for (const auto& monitor : getValueByKey(mGestureMonitorsByDisplay, displayId)) {
             sp<Connection> connection =
-                    getConnectionLocked(gestureMonitor.monitor.inputChannel->getConnectionToken());
+                    getConnectionLocked(monitor.inputChannel->getConnectionToken());
             if (connection != nullptr && connection->responsive) {
                 // This monitor could take more input. Drop all events preceding this
                 // event, so that gesture monitor could get a chance to receive the stream
@@ -1071,15 +1058,6 @@ sp<WindowInfoHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t displayI
         }
     }
     return nullptr;
-}
-
-std::vector<TouchedMonitor> InputDispatcher::findTouchedGestureMonitorsLocked(
-        int32_t displayId) const {
-    std::vector<TouchedMonitor> touchedMonitors;
-
-    std::vector<Monitor> monitors = getValueByKey(mGestureMonitorsByDisplay, displayId);
-    addGestureMonitors(monitors, touchedMonitors);
-    return touchedMonitors;
 }
 
 void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason dropReason) {
@@ -1943,16 +1921,16 @@ InputEventInjectionResult InputDispatcher::findFocusedWindowTargetsLocked(
  * Given a list of monitors, remove the ones we cannot find a connection for, and the ones
  * that are currently unresponsive.
  */
-std::vector<TouchedMonitor> InputDispatcher::selectResponsiveMonitorsLocked(
-        const std::vector<TouchedMonitor>& monitors) const {
-    std::vector<TouchedMonitor> responsiveMonitors;
+std::vector<Monitor> InputDispatcher::selectResponsiveMonitorsLocked(
+        const std::vector<Monitor>& monitors) const {
+    std::vector<Monitor> responsiveMonitors;
     std::copy_if(monitors.begin(), monitors.end(), std::back_inserter(responsiveMonitors),
-                 [this](const TouchedMonitor& monitor) REQUIRES(mLock) {
-                     sp<Connection> connection = getConnectionLocked(
-                             monitor.monitor.inputChannel->getConnectionToken());
+                 [this](const Monitor& monitor) REQUIRES(mLock) {
+                     sp<Connection> connection =
+                             getConnectionLocked(monitor.inputChannel->getConnectionToken());
                      if (connection == nullptr) {
                          ALOGE("Could not find connection for monitor %s",
-                               monitor.monitor.inputChannel->getName().c_str());
+                               monitor.inputChannel->getName().c_str());
                          return false;
                      }
                      if (!connection->responsive) {
@@ -2053,13 +2031,9 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             x = int32_t(entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_X));
             y = int32_t(entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_Y));
         }
-        bool isDown = maskedAction == AMOTION_EVENT_ACTION_DOWN;
+        const bool isDown = maskedAction == AMOTION_EVENT_ACTION_DOWN;
         newTouchedWindowHandle = findTouchedWindowAtLocked(displayId, x, y, &tempTouchState,
                                                            isDown /*addOutsideTargets*/);
-
-        std::vector<TouchedMonitor> newGestureMonitors = isDown
-                ? findTouchedGestureMonitorsLocked(displayId)
-                : std::vector<TouchedMonitor>{};
 
         // Figure out whether splitting will be allowed for this window.
         if (newTouchedWindowHandle != nullptr &&
@@ -2120,8 +2094,10 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             newTouchedWindowHandle = nullptr;
         }
 
-        // Also don't send the new touch event to unresponsive gesture monitors
-        newGestureMonitors = selectResponsiveMonitorsLocked(newGestureMonitors);
+        const std::vector<Monitor> newGestureMonitors = isDown
+                ? selectResponsiveMonitorsLocked(
+                          getValueByKey(mGestureMonitorsByDisplay, displayId))
+                : std::vector<Monitor>{};
 
         if (newTouchedWindowHandle == nullptr && newGestureMonitors.empty()) {
             ALOGI("Dropping event because there is no touchable window or gesture monitor at "
@@ -2341,9 +2317,8 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
                               touchedWindow.pointerIds, inputTargets);
     }
 
-    for (const TouchedMonitor& touchedMonitor : tempTouchState.gestureMonitors) {
-        addMonitoringTargetLocked(touchedMonitor.monitor, touchedMonitor.xOffset,
-                                  touchedMonitor.yOffset, displayId, inputTargets);
+    for (const auto& monitor : tempTouchState.gestureMonitors) {
+        addMonitoringTargetLocked(monitor, displayId, inputTargets);
     }
 
     // Drop the outside or hover touch windows since we will not care about them
@@ -2538,26 +2513,24 @@ void InputDispatcher::addWindowTargetLocked(const sp<WindowInfoHandle>& windowHa
 }
 
 void InputDispatcher::addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets,
-                                                       int32_t displayId, float xOffset,
-                                                       float yOffset) {
+                                                       int32_t displayId) {
     std::unordered_map<int32_t, std::vector<Monitor>>::const_iterator it =
             mGlobalMonitorsByDisplay.find(displayId);
 
     if (it != mGlobalMonitorsByDisplay.end()) {
         const std::vector<Monitor>& monitors = it->second;
         for (const Monitor& monitor : monitors) {
-            addMonitoringTargetLocked(monitor, xOffset, yOffset, displayId, inputTargets);
+            addMonitoringTargetLocked(monitor, displayId, inputTargets);
         }
     }
 }
 
-void InputDispatcher::addMonitoringTargetLocked(const Monitor& monitor, float xOffset,
-                                                float yOffset, int32_t displayId,
+void InputDispatcher::addMonitoringTargetLocked(const Monitor& monitor, int32_t displayId,
                                                 std::vector<InputTarget>& inputTargets) {
     InputTarget target;
     target.inputChannel = monitor.inputChannel;
     target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
-    ui::Transform t = ui::Transform(xOffset, yOffset);
+    ui::Transform t;
     if (const auto& it = mDisplayInfos.find(displayId); it != mDisplayInfos.end()) {
         // Input monitors always get un-rotated display coordinates. We undo the display
         // rotation that is present in the display transform so that display rotation is not
@@ -5490,9 +5463,9 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
         TouchState& state = stateIt->second;
         std::shared_ptr<InputChannel> requestingChannel;
         std::optional<int32_t> foundDeviceId;
-        for (const TouchedMonitor& touchedMonitor : state.gestureMonitors) {
-            if (touchedMonitor.monitor.inputChannel->getConnectionToken() == token) {
-                requestingChannel = touchedMonitor.monitor.inputChannel;
+        for (const auto& monitor : state.gestureMonitors) {
+            if (monitor.inputChannel->getConnectionToken() == token) {
+                requestingChannel = monitor.inputChannel;
                 foundDeviceId = state.deviceId;
             }
         }

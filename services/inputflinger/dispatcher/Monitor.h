@@ -29,15 +29,6 @@ struct Monitor {
     explicit Monitor(const std::shared_ptr<InputChannel>& inputChannel, int32_t pid);
 };
 
-// For tracking the offsets we need to apply when adding gesture monitor targets.
-struct TouchedMonitor {
-    Monitor monitor;
-    float xOffset = 0.f;
-    float yOffset = 0.f;
-
-    explicit TouchedMonitor(const Monitor& monitor, float xOffset, float yOffset);
-};
-
 } // namespace android::inputdispatcher
 
 #endif // _UI_INPUT_INPUTDISPATCHER_MONITOR_H
