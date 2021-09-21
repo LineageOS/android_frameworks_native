@@ -465,6 +465,95 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusChildBufferRotation
     }
 }
 
+TEST_P(LayerTypeAndRenderTypeTransactionTest, ChildCornerRadiusTakesPrecedence) {
+    sp<SurfaceControl> parent;
+    sp<SurfaceControl> child;
+    const uint32_t size = 64;
+    const uint32_t parentSize = size * 3;
+    const uint32_t testLength = 4;
+    const float cornerRadius = 20.0f;
+    ASSERT_NO_FATAL_FAILURE(parent = createLayer("parent", parentSize, parentSize));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(parent, Color::RED, parentSize, parentSize));
+    ASSERT_NO_FATAL_FAILURE(child = createLayer("child", size, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(child, Color::GREEN, size, size));
+
+    Transaction()
+            .setCornerRadius(parent, cornerRadius)
+            .setCornerRadius(child, cornerRadius)
+            .reparent(child, parent)
+            .setPosition(child, size, size)
+            .apply();
+
+    {
+        const uint32_t top = size - 1;
+        const uint32_t left = size - 1;
+        const uint32_t bottom = size * 2 - 1;
+        const uint32_t right = size * 2 - 1;
+        auto shot = getScreenCapture();
+        // Edges are transparent
+        // TL
+        shot->expectColor(Rect(left, top, testLength, testLength), Color::RED);
+        // TR
+        shot->expectColor(Rect(right - testLength, top, right, testLength), Color::RED);
+        // BL
+        shot->expectColor(Rect(left, bottom - testLength, testLength, bottom - testLength),
+                          Color::RED);
+        // BR
+        shot->expectColor(Rect(right - testLength, bottom - testLength, right, bottom), Color::RED);
+        // Solid center
+        shot->expectColor(Rect(parentSize / 2 - testLength / 2, parentSize / 2 - testLength / 2,
+                               parentSize / 2 + testLength / 2, parentSize / 2 + testLength / 2),
+                          Color::GREEN);
+    }
+}
+
+// Test if ParentCornerRadiusTakesPrecedence if the parent corner radius crop is fully contained by
+// the child corner radius crop.
+TEST_P(LayerTypeAndRenderTypeTransactionTest, ParentCornerRadiusTakesPrecedence) {
+    sp<SurfaceControl> parent;
+    sp<SurfaceControl> child;
+    const uint32_t size = 64;
+    const uint32_t parentSize = size * 3;
+    const Rect parentCrop(size + 1, size + 1, size * 2 - 1, size * 2 - 1);
+    const uint32_t testLength = 4;
+    const float cornerRadius = 20.0f;
+    ASSERT_NO_FATAL_FAILURE(parent = createLayer("parent", parentSize, parentSize));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(parent, Color::RED, parentSize, parentSize));
+    ASSERT_NO_FATAL_FAILURE(child = createLayer("child", size, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(child, Color::GREEN, size, size));
+
+    Transaction()
+            .setCornerRadius(parent, cornerRadius)
+            .setCrop(parent, parentCrop)
+            .setCornerRadius(child, cornerRadius)
+            .reparent(child, parent)
+            .setPosition(child, size, size)
+            .apply();
+
+    {
+        const uint32_t top = size - 1;
+        const uint32_t left = size - 1;
+        const uint32_t bottom = size * 2 - 1;
+        const uint32_t right = size * 2 - 1;
+        auto shot = getScreenCapture();
+        // Edges are transparent
+        // TL
+        shot->expectColor(Rect(left, top, testLength, testLength), Color::BLACK);
+        // TR
+        shot->expectColor(Rect(right - testLength, top, right, testLength), Color::BLACK);
+        // BL
+        shot->expectColor(Rect(left, bottom - testLength, testLength, bottom - testLength),
+                          Color::BLACK);
+        // BR
+        shot->expectColor(Rect(right - testLength, bottom - testLength, right, bottom),
+                          Color::BLACK);
+        // Solid center
+        shot->expectColor(Rect(parentSize / 2 - testLength / 2, parentSize / 2 - testLength / 2,
+                               parentSize / 2 + testLength / 2, parentSize / 2 + testLength / 2),
+                          Color::GREEN);
+    }
+}
+
 TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBackgroundBlurRadiusSimple) {
     if (!deviceSupportsBlurs()) GTEST_SKIP();
     if (!deviceUsesSkiaRenderEngine()) GTEST_SKIP();

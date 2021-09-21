@@ -611,10 +611,8 @@ public:
     virtual bool getTransformToDisplayInverse() const { return false; }
 
     // Returns how rounded corners should be drawn for this layer.
-    // This will traverse the hierarchy until it reaches its root, finding topmost rounded
-    // corner definition and converting it into current layer's coordinates.
-    // As of now, only 1 corner radius per display list is supported. Subsequent ones will be
-    // ignored.
+    // A layer can override its parent's rounded corner settings if the parent's rounded
+    // corner crop does not intersect with its own rounded corner crop.
     virtual RoundedCornerState getRoundedCornerState() const;
 
     bool hasRoundedCorners() const override { return getRoundedCornerState().radius > .0f; }
