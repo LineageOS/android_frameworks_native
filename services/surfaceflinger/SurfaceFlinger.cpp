@@ -2158,10 +2158,11 @@ void SurfaceFlinger::onMessageRefresh() {
 
 bool SurfaceFlinger::handleMessageInvalidate() {
     ATRACE_CALL();
+        // Send on commit callbacks
+    mTransactionCallbackInvoker.sendCallbacks();
+
     bool refreshNeeded = handlePageFlip();
 
-    // Send on commit callbacks
-    mTransactionCallbackInvoker.sendCallbacks();
 
     if (mVisibleRegionsDirty) {
         computeLayerBounds();
@@ -2352,6 +2353,7 @@ void SurfaceFlinger::postComposition() {
 
     mTransactionCallbackInvoker.addPresentFence(mPreviousPresentFences[0].fence);
     mTransactionCallbackInvoker.sendCallbacks();
+    mTransactionCallbackInvoker.clearCompletedTransactions();
 
     if (display && display->isInternal() && display->getPowerMode() == hal::PowerMode::ON &&
         mPreviousPresentFences[0].fenceTime->isValid()) {
@@ -3735,8 +3737,7 @@ void SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     // that listeners with SurfaceControls will start registration during setClientStateLocked
     // below.
     for (const auto& listener : listenerCallbacks) {
-        mTransactionCallbackInvoker.startRegistration(listener);
-        mTransactionCallbackInvoker.endRegistration(listener);
+        mTransactionCallbackInvoker.addEmptyTransaction(listener);
     }
 
     std::unordered_set<ListenerCallbacks, ListenerCallbacksHash> listenerCallbacksWithSurfaces;
@@ -3752,10 +3753,6 @@ void SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
                                                LayerHistory::LayerUpdateType::AnimationTX);
             }
         }
-    }
-
-    for (const auto& listenerCallback : listenerCallbacksWithSurfaces) {
-        mTransactionCallbackInvoker.endRegistration(listenerCallback);
     }
 
     // If the state doesn't require a traversal and there are callbacks, send them now
@@ -3887,14 +3884,12 @@ uint32_t SurfaceFlinger::setClientStateLocked(
 
         ListenerCallbacks onCommitCallbacks = listener.filter(CallbackId::Type::ON_COMMIT);
         if (!onCommitCallbacks.callbackIds.empty()) {
-            mTransactionCallbackInvoker.startRegistration(onCommitCallbacks);
             filteredListeners.push_back(onCommitCallbacks);
             outListenerCallbacks.insert(onCommitCallbacks);
         }
 
         ListenerCallbacks onCompleteCallbacks = listener.filter(CallbackId::Type::ON_COMPLETE);
         if (!onCompleteCallbacks.callbackIds.empty()) {
-            mTransactionCallbackInvoker.startRegistration(onCompleteCallbacks);
             filteredListeners.push_back(onCompleteCallbacks);
             outListenerCallbacks.insert(onCompleteCallbacks);
         }
