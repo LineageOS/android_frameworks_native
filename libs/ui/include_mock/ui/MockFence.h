@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_MONITOR_H
-#define _UI_INPUT_INPUTDISPATCHER_MONITOR_H
+#pragma once
 
-#include <input/InputTransport.h>
+#include <gmock/gmock.h>
+#include <ui/Fence.h>
 
-namespace android::inputdispatcher {
+namespace android::mock {
 
-struct Monitor {
-    std::shared_ptr<InputChannel> inputChannel; // never null
+class MockFence : public android::Fence {
+public:
+    MockFence() = default;
+    virtual ~MockFence() = default;
 
-    int32_t pid;
-
-    explicit Monitor(const std::shared_ptr<InputChannel>& inputChannel, int32_t pid);
+    MOCK_METHOD(nsecs_t, getSignalTime, (), (const, override));
 };
 
-} // namespace android::inputdispatcher
-
-#endif // _UI_INPUT_INPUTDISPATCHER_MONITOR_H
+}; // namespace android::mock

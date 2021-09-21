@@ -236,8 +236,8 @@ static MotionEvent generateMotionEvent() {
                      /* edgeFlags */ 0, AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
                      identityTransform, /* xPrecision */ 0,
                      /* yPrecision */ 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ui::Transform::ROT_0,
-                     INVALID_DISPLAY_SIZE, INVALID_DISPLAY_SIZE, currentTime, currentTime,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, currentTime,
+                     currentTime,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     return event;
 }

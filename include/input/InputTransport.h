@@ -114,7 +114,7 @@ struct InputMessage {
 
         struct Motion {
             int32_t eventId;
-            uint32_t empty1;
+            uint32_t pointerCount;
             nsecs_t eventTime __attribute__((aligned(8)));
             int32_t deviceId;
             int32_t source;
@@ -129,20 +129,22 @@ struct InputMessage {
             uint8_t empty2[3];                   // 3 bytes to fill gap created by classification
             int32_t edgeFlags;
             nsecs_t downTime __attribute__((aligned(8)));
-            float dsdx;
-            float dtdx;
-            float dtdy;
-            float dsdy;
-            float tx;
-            float ty;
+            float dsdx; // Begin window transform
+            float dtdx; //
+            float dtdy; //
+            float dsdy; //
+            float tx;   //
+            float ty;   // End window transform
             float xPrecision;
             float yPrecision;
             float xCursorPosition;
             float yCursorPosition;
-            uint32_t displayOrientation;
-            int32_t displayWidth;
-            int32_t displayHeight;
-            uint32_t pointerCount;
+            float dsdxRaw; // Begin raw transform
+            float dtdxRaw; //
+            float dtdyRaw; //
+            float dsdyRaw; //
+            float txRaw;   //
+            float tyRaw;   // End raw transform
             /**
              * The "pointers" field must be the last field of the struct InputMessage.
              * When we send the struct InputMessage across the socket, we are not
@@ -367,9 +369,8 @@ public:
                                 int32_t metaState, int32_t buttonState,
                                 MotionClassification classification, const ui::Transform& transform,
                                 float xPrecision, float yPrecision, float xCursorPosition,
-                                float yCursorPosition, uint32_t displayOrientation,
-                                int32_t displayWidth, int32_t displayHeight, nsecs_t downTime,
-                                nsecs_t eventTime, uint32_t pointerCount,
+                                float yCursorPosition, const ui::Transform& rawTransform,
+                                nsecs_t downTime, nsecs_t eventTime, uint32_t pointerCount,
                                 const PointerProperties* pointerProperties,
                                 const PointerCoords* pointerCoords);
 
