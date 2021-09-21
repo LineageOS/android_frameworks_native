@@ -134,6 +134,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mDrawingState.frameTimelineInfo = {};
     mDrawingState.postTime = -1;
     mDrawingState.destinationFrame.makeInvalid();
+    mDrawingState.dropInputMode = gui::DropInputMode::NONE;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
@@ -1915,27 +1916,48 @@ const std::vector<BlurRegion> Layer::getBlurRegions() const {
 }
 
 Layer::RoundedCornerState Layer::getRoundedCornerState() const {
-    const auto& p = mDrawingParent.promote();
-    if (p != nullptr) {
-        RoundedCornerState parentState = p->getRoundedCornerState();
-        if (parentState.radius > 0) {
+    // Get parent settings
+    RoundedCornerState parentSettings;
+    const auto& parent = mDrawingParent.promote();
+    if (parent != nullptr) {
+        parentSettings = parent->getRoundedCornerState();
+        if (parentSettings.radius > 0) {
             ui::Transform t = getActiveTransform(getDrawingState());
             t = t.inverse();
-            parentState.cropRect = t.transform(parentState.cropRect);
+            parentSettings.cropRect = t.transform(parentSettings.cropRect);
             // The rounded corners shader only accepts 1 corner radius for performance reasons,
             // but a transform matrix can define horizontal and vertical scales.
             // Let's take the average between both of them and pass into the shader, practically we
             // never do this type of transformation on windows anyway.
             auto scaleX = sqrtf(t[0][0] * t[0][0] + t[0][1] * t[0][1]);
             auto scaleY = sqrtf(t[1][0] * t[1][0] + t[1][1] * t[1][1]);
-            parentState.radius *= (scaleX + scaleY) / 2.0f;
-            return parentState;
+            parentSettings.radius *= (scaleX + scaleY) / 2.0f;
         }
     }
+
+    // Get layer settings
+    Rect layerCropRect = getCroppedBufferSize(getDrawingState());
     const float radius = getDrawingState().cornerRadius;
-    return radius > 0 && getCroppedBufferSize(getDrawingState()).isValid()
-            ? RoundedCornerState(getCroppedBufferSize(getDrawingState()).toFloatRect(), radius)
-            : RoundedCornerState();
+    RoundedCornerState layerSettings(layerCropRect.toFloatRect(), radius);
+
+    if (layerSettings.radius > 0 && parentSettings.radius > 0) {
+        // If the parent and the layer have rounded corner settings, use the parent settings if the
+        // parent crop is entirely inside the layer crop.
+        // This has limitations and cause rendering artifacts. See b/200300845 for correct fix.
+        if (parentSettings.cropRect.left > layerCropRect.left &&
+            parentSettings.cropRect.top > layerCropRect.top &&
+            parentSettings.cropRect.right < layerCropRect.right &&
+            parentSettings.cropRect.bottom < layerCropRect.bottom) {
+            return parentSettings;
+        } else {
+            return layerSettings;
+        }
+    } else if (layerSettings.radius > 0) {
+        return layerSettings;
+    } else if (parentSettings.radius > 0) {
+        return parentSettings;
+    }
+    return {};
 }
 
 void Layer::prepareShadowClientComposition(LayerFE::LayerSettings& caster,
@@ -2573,6 +2595,14 @@ wp<Layer> Layer::fromHandle(const sp<IBinder>& handleBinder) {
     // We can safely cast this binder since its local and we verified its interface descriptor.
     sp<Handle> handle = static_cast<Handle*>(handleBinder.get());
     return handle->owner;
+}
+
+bool Layer::setDropInputMode(gui::DropInputMode mode) {
+    if (mDrawingState.dropInputMode == mode) {
+        return false;
+    }
+    mDrawingState.dropInputMode = mode;
+    return true;
 }
 
 // ---------------------------------------------------------------------------

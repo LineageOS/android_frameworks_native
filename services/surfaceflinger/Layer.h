@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <android/gui/DropInputMode.h>
 #include <compositionengine/LayerFE.h>
 #include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposerClient.h>
@@ -282,6 +283,8 @@ public:
         Rect destinationFrame;
 
         sp<IBinder> releaseBufferEndpoint;
+
+        gui::DropInputMode dropInputMode;
     };
 
     /*
@@ -447,6 +450,8 @@ public:
     virtual bool setFrameRateSelectionPriority(int32_t priority);
     virtual bool setFixedTransformHint(ui::Transform::RotationFlags fixedTransformHint);
     virtual void setAutoRefresh(bool /* autoRefresh */) {}
+    bool setDropInputMode(gui::DropInputMode);
+
     //  If the variable is not set on the layer, it traverses up the tree to inherit the frame
     //  rate priority from its parent.
     virtual int32_t getFrameRateSelectionPriority() const;
@@ -606,10 +611,8 @@ public:
     virtual bool getTransformToDisplayInverse() const { return false; }
 
     // Returns how rounded corners should be drawn for this layer.
-    // This will traverse the hierarchy until it reaches its root, finding topmost rounded
-    // corner definition and converting it into current layer's coordinates.
-    // As of now, only 1 corner radius per display list is supported. Subsequent ones will be
-    // ignored.
+    // A layer can override its parent's rounded corner settings if the parent's rounded
+    // corner crop does not intersect with its own rounded corner crop.
     virtual RoundedCornerState getRoundedCornerState() const;
 
     bool hasRoundedCorners() const override { return getRoundedCornerState().radius > .0f; }
