@@ -115,3 +115,12 @@ cc_test {
     srcs: ["Size_test.cpp"],
     cflags: ["-Wall", "-Werror"],
 }
+
+cc_test {
+    name: "MockFence_test",
+    shared_libs: ["libui"],
+    static_libs: ["libgmock"],
+    srcs: ["MockFence_test.cpp"],
+    cflags: ["-Wall", "-Werror"],
+}
+

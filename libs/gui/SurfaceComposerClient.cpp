@@ -1739,6 +1739,21 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDesti
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDropInputMode(
+        const sp<SurfaceControl>& sc, gui::DropInputMode mode) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eDropInputModeChanged;
+    s->dropInputMode = mode;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 // ---------------------------------------------------------------------------
 
 DisplayState& SurfaceComposerClient::Transaction::getDisplayState(const sp<IBinder>& token) {

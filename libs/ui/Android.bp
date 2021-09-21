@@ -86,6 +86,7 @@ cc_library_static {
 
     export_include_dirs: [
         "include",
+        "include_mock",
         "include_private",
         "include_types",
     ],
