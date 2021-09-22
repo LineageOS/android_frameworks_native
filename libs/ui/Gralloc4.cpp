@@ -939,7 +939,7 @@ status_t Gralloc4Mapper::bufferDumpHelper(const BufferDump& bufferDump, std::ost
              << "KiB, w/h:" << width << "x" << height << ", usage: 0x" << std::hex << usage
              << std::dec << ", req fmt:" << static_cast<int32_t>(pixelFormatRequested)
              << ", fourcc/mod:" << pixelFormatFourCC << "/" << pixelFormatModifier
-             << ", dataspace: 0x" << std::hex << static_cast<uint32_t>(dataspace)
+             << ", dataspace: 0x" << std::hex << static_cast<uint32_t>(dataspace) << std::dec
              << ", compressed: ";
 
     if (less) {
