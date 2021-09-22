@@ -48,8 +48,9 @@
 
 #include "../FdTrigger.h"
 #include "../RpcSocketAddress.h" // for testing preconnected clients
-#include "../RpcState.h"   // for debugging
-#include "../vm_sockets.h" // for VMADDR_*
+#include "../RpcState.h"         // for debugging
+#include "../vm_sockets.h"       // for VMADDR_*
+#include "RpcAuthTesting.h"
 #include "RpcCertificateVerifierSimple.h"
 
 using namespace std::chrono_literals;
@@ -71,7 +72,8 @@ static inline std::vector<RpcSecurity> RpcSecurityValues() {
 }
 
 static inline std::unique_ptr<RpcTransportCtxFactory> newFactory(
-        RpcSecurity rpcSecurity, std::shared_ptr<RpcCertificateVerifier> verifier = nullptr) {
+        RpcSecurity rpcSecurity, std::shared_ptr<RpcCertificateVerifier> verifier = nullptr,
+        std::unique_ptr<RpcAuth> auth = nullptr) {
     switch (rpcSecurity) {
         case RpcSecurity::RAW:
             return RpcTransportCtxFactoryRaw::make();
@@ -79,7 +81,10 @@ static inline std::unique_ptr<RpcTransportCtxFactory> newFactory(
             if (verifier == nullptr) {
                 verifier = std::make_shared<RpcCertificateVerifierSimple>();
             }
-            return RpcTransportCtxFactoryTls::make(std::move(verifier));
+            if (auth == nullptr) {
+                auth = std::make_unique<RpcAuthSelfSigned>();
+            }
+            return RpcTransportCtxFactoryTls::make(std::move(verifier), std::move(auth));
         }
         default:
             LOG_ALWAYS_FATAL("Unknown RpcSecurity %d", rpcSecurity);
@@ -1036,6 +1041,14 @@ TEST_P(BinderRpc, ThreadingStressTest) {
     for (auto& t : threads) t.join();
 }
 
+static void saturateThreadPool(size_t threadCount, const sp<IBinderRpcTest>& iface) {
+    std::vector<std::thread> threads;
+    for (size_t i = 0; i < threadCount; i++) {
+        threads.push_back(std::thread([&] { EXPECT_OK(iface->sleepMs(500)); }));
+    }
+    for (auto& t : threads) t.join();
+}
+
 TEST_P(BinderRpc, OnewayStressTest) {
     constexpr size_t kNumClientThreads = 10;
     constexpr size_t kNumServerThreads = 10;
@@ -1049,13 +1062,12 @@ TEST_P(BinderRpc, OnewayStressTest) {
             for (size_t j = 0; j < kNumCalls; j++) {
                 EXPECT_OK(proc.rootIface->sendString("a"));
             }
-
-            // check threads are not stuck
-            EXPECT_OK(proc.rootIface->sleepMs(250));
         }));
     }
 
     for (auto& t : threads) t.join();
+
+    saturateThreadPool(kNumServerThreads, proc.rootIface);
 }
 
 TEST_P(BinderRpc, OnewayCallDoesNotWait) {
@@ -1098,13 +1110,7 @@ TEST_P(BinderRpc, OnewayCallQueueing) {
 
     EXPECT_GT(epochMsAfter, epochMsBefore + kSleepMs * kNumSleeps);
 
-    // pending oneway transactions hold ref, make sure we read data on all
-    // sockets
-    std::vector<std::thread> threads;
-    for (size_t i = 0; i < 1 + kNumExtraServerThreads; i++) {
-        threads.push_back(std::thread([&] { EXPECT_OK(proc.rootIface->sleepMs(250)); }));
-    }
-    for (auto& t : threads) t.join();
+    saturateThreadPool(1 + kNumExtraServerThreads, proc.rootIface);
 }
 
 TEST_P(BinderRpc, OnewayCallExhaustion) {
