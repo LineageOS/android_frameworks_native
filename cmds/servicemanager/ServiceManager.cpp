@@ -121,6 +121,35 @@ static std::optional<std::string> getVintfUpdatableApex(const std::string& name)
     return updatableViaApex;
 }
 
+static std::optional<ConnectionInfo> getVintfConnectionInfo(const std::string& name) {
+    AidlName aname;
+    if (!AidlName::fill(name, &aname)) return std::nullopt;
+
+    std::optional<std::string> ip;
+    std::optional<uint64_t> port;
+    forEachManifest([&](const ManifestWithDescription& mwd) {
+        mwd.manifest->forEachInstance([&](const auto& manifestInstance) {
+            if (manifestInstance.format() != vintf::HalFormat::AIDL) return true;
+            if (manifestInstance.package() != aname.package) return true;
+            if (manifestInstance.interface() != aname.iface) return true;
+            if (manifestInstance.instance() != aname.instance) return true;
+            ip = manifestInstance.ip();
+            port = manifestInstance.port();
+            return false; // break (libvintf uses opposite convention)
+        });
+        return false; // continue
+    });
+
+    if (ip.has_value() && port.has_value()) {
+        ConnectionInfo info;
+        info.ipAddress = *ip;
+        info.port = *port;
+        return std::make_optional<ConnectionInfo>(info);
+    } else {
+        return std::nullopt;
+    }
+}
+
 static std::vector<std::string> getVintfInstances(const std::string& interface) {
     size_t lastDot = interface.rfind('.');
     if (lastDot == std::string::npos) {
@@ -433,6 +462,22 @@ Status ServiceManager::updatableViaApex(const std::string& name,
 
 #ifndef VENDORSERVICEMANAGER
     *outReturn = getVintfUpdatableApex(name);
+#endif
+    return Status::ok();
+}
+
+Status ServiceManager::getConnectionInfo(const std::string& name,
+                                         std::optional<ConnectionInfo>* outReturn) {
+    auto ctx = mAccess->getCallingContext();
+
+    if (!mAccess->canFind(ctx, name)) {
+        return Status::fromExceptionCode(Status::EX_SECURITY);
+    }
+
+    *outReturn = std::nullopt;
+
+#ifndef VENDORSERVICEMANAGER
+    *outReturn = getVintfConnectionInfo(name);
 #endif
     return Status::ok();
 }

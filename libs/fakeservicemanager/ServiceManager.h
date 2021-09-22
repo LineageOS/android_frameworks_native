@@ -51,6 +51,8 @@ public:
 
     std::optional<String16> updatableViaApex(const String16& name) override;
 
+    std::optional<IServiceManager::ConnectionInfo> getConnectionInfo(const String16& name) override;
+
 private:
     std::map<String16, sp<IBinder>> mNameToService;
 };
