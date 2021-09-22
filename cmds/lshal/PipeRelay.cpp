@@ -82,6 +82,7 @@ void PipeRelay::thread(unique_fd rfd, unique_fd rfdTrigger, std::ostream* out,
                 continue;
             }
             out->write(buffer, n);
+            continue;
         }
         if (pfd[0].revents & POLLHUP) {
             break;
