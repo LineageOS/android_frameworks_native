@@ -82,10 +82,13 @@ bool ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& bu
             return false;
         }
 
-        status_t err = token->linkToDeath(mDeathRecipient);
-        if (err != NO_ERROR) {
-            ALOGE("failed to cache buffer: could not link to death");
-            return false;
+        // Only call linkToDeath if not a local binder
+        if (token->localBinder() == nullptr) {
+            status_t err = token->linkToDeath(mDeathRecipient);
+            if (err != NO_ERROR) {
+                ALOGE("failed to cache buffer: could not link to death");
+                return false;
+            }
         }
         auto [itr, success] =
                 mBuffers.emplace(processToken,

@@ -37,6 +37,7 @@ class IBinder;
 class IGraphicBufferProducer;
 class Layer;
 class SurfaceFlinger;
+class SurfaceControl;
 
 class RefreshRateOverlay {
 public:
@@ -70,18 +71,16 @@ private:
     };
 
     bool createLayer();
-    const std::vector<std::shared_ptr<renderengine::ExternalTexture>>& getOrCreateBuffers(
-            uint32_t fps);
+
+    const std::vector<sp<GraphicBuffer>>& getOrCreateBuffers(uint32_t fps);
 
     SurfaceFlinger& mFlinger;
     const sp<Client> mClient;
-    sp<Layer> mLayer;
     sp<IBinder> mIBinder;
     sp<IGraphicBufferProducer> mGbp;
 
-    std::unordered_map<
-            ui::Transform::RotationFlags,
-            std::unordered_map<int, std::vector<std::shared_ptr<renderengine::ExternalTexture>>>>
+    std::unordered_map<ui::Transform::RotationFlags,
+                       std::unordered_map<int, std::vector<sp<GraphicBuffer>>>>
             mBufferCache;
     std::optional<int> mCurrentFps;
     int mFrame = 0;
@@ -94,6 +93,8 @@ private:
     // Interpolate the colors between these values.
     const uint32_t mLowFps;
     const uint32_t mHighFps;
+
+    sp<SurfaceControl> mSurfaceControl;
 };
 
 } // namespace android

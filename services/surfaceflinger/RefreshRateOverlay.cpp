@@ -30,6 +30,8 @@
 #include <SkRect.h>
 #include <SkSurface.h>
 #include <gui/IProducerListener.h>
+#include <gui/SurfaceComposerClient.h>
+#include <gui/SurfaceControl.h>
 
 #undef LOG_TAG
 #define LOG_TAG "RefreshRateOverlay"
@@ -190,35 +192,30 @@ RefreshRateOverlay::RefreshRateOverlay(SurfaceFlinger& flinger, uint32_t lowFps,
 }
 
 bool RefreshRateOverlay::createLayer() {
-    int32_t layerId;
-    const status_t ret =
-            mFlinger.createLayer(String8("RefreshRateOverlay"), mClient,
-                                 SevenSegmentDrawer::getWidth(), SevenSegmentDrawer::getHeight(),
-                                 PIXEL_FORMAT_RGBA_8888,
-                                 ISurfaceComposerClient::eFXSurfaceBufferState, LayerMetadata(),
-                                 &mIBinder, &mGbp, nullptr, &layerId);
-    if (ret) {
+    mSurfaceControl =
+            SurfaceComposerClient::getDefault()
+                    ->createSurface(String8("RefreshRateOverlay"), SevenSegmentDrawer::getWidth(),
+                                    SevenSegmentDrawer::getHeight(), PIXEL_FORMAT_RGBA_8888,
+                                    ISurfaceComposerClient::eFXSurfaceBufferState);
+
+    if (!mSurfaceControl) {
         ALOGE("failed to create buffer state layer");
         return false;
     }
 
-    mLayer = mClient->getLayerUser(mIBinder);
-    mLayer->setFrameRate(Layer::FrameRate(Fps(0.0f), Layer::FrameRateCompatibility::NoVote));
-    mLayer->setIsAtRoot(true);
-
-    // setting Layer's Z requires resorting layersSortedByZ
-    ssize_t idx = mFlinger.mDrawingState.layersSortedByZ.indexOf(mLayer);
-    if (mLayer->setLayer(INT32_MAX - 2) && idx >= 0) {
-        mFlinger.mDrawingState.layersSortedByZ.removeAt(idx);
-        mFlinger.mDrawingState.layersSortedByZ.add(mLayer);
-    }
+    SurfaceComposerClient::Transaction t;
+    t.setFrameRate(mSurfaceControl, 0.0f,
+                   static_cast<int8_t>(Layer::FrameRateCompatibility::NoVote),
+                   static_cast<int8_t>(scheduler::Seamlessness::OnlySeamless));
+    t.setLayer(mSurfaceControl, INT32_MAX - 2);
+    t.apply();
 
     return true;
 }
 
-const std::vector<std::shared_ptr<renderengine::ExternalTexture>>&
-RefreshRateOverlay::getOrCreateBuffers(uint32_t fps) {
-    ui::Transform::RotationFlags transformHint = mLayer->getTransformHint();
+const std::vector<sp<GraphicBuffer>>& RefreshRateOverlay::getOrCreateBuffers(uint32_t fps) {
+    ui::Transform::RotationFlags transformHint =
+            static_cast<ui::Transform::RotationFlags>(mSurfaceControl->getTransformHint());
     // Tell SurfaceFlinger about the pre-rotation on the buffer.
     const auto transform = [&] {
         switch (transformHint) {
@@ -230,7 +227,10 @@ RefreshRateOverlay::getOrCreateBuffers(uint32_t fps) {
                 return ui::Transform::ROT_0;
         }
     }();
-    mLayer->setTransform(transform);
+
+    SurfaceComposerClient::Transaction t;
+    t.setTransform(mSurfaceControl, transform);
+    t.apply();
 
     if (mBufferCache.find(transformHint) == mBufferCache.end() ||
         mBufferCache.at(transformHint).find(fps) == mBufferCache.at(transformHint).end()) {
@@ -249,16 +249,7 @@ RefreshRateOverlay::getOrCreateBuffers(uint32_t fps) {
         colorBase.fA = ALPHA;
         SkColor color = colorBase.toSkColor();
         auto buffers = SevenSegmentDrawer::draw(fps, color, transformHint, mShowSpinner);
-        std::vector<std::shared_ptr<renderengine::ExternalTexture>> textures;
-        std::transform(buffers.begin(), buffers.end(), std::back_inserter(textures),
-                       [&](const auto& buffer) -> std::shared_ptr<renderengine::ExternalTexture> {
-                           return std::make_shared<
-                                   renderengine::ExternalTexture>(buffer,
-                                                                  mFlinger.getRenderEngine(),
-                                                                  renderengine::ExternalTexture::
-                                                                          Usage::READABLE);
-                       });
-        mBufferCache[transformHint].emplace(fps, textures);
+        mBufferCache[transformHint].emplace(fps, buffers);
     }
 
     return mBufferCache[transformHint][fps];
@@ -271,30 +262,26 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
     Rect frame((3 * width) >> 4, height >> 5);
     frame.offsetBy(width >> 5, height >> 4);
 
-    layer_state_t::matrix22_t matrix;
-    matrix.dsdx = frame.getWidth() / static_cast<float>(SevenSegmentDrawer::getWidth());
-    matrix.dtdx = 0;
-    matrix.dtdy = 0;
-    matrix.dsdy = frame.getHeight() / static_cast<float>(SevenSegmentDrawer::getHeight());
-    mLayer->setMatrix(matrix, true);
-    mLayer->setPosition(frame.left, frame.top);
-    mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
+    SurfaceComposerClient::Transaction t;
+    t.setMatrix(mSurfaceControl,
+                frame.getWidth() / static_cast<float>(SevenSegmentDrawer::getWidth()), 0, 0,
+                frame.getHeight() / static_cast<float>(SevenSegmentDrawer::getHeight()));
+    t.setPosition(mSurfaceControl, frame.left, frame.top);
+    t.apply();
 }
 
 void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
-    mLayer->setLayerStack(stack);
-    mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
+    SurfaceComposerClient::Transaction t;
+    t.setLayerStack(mSurfaceControl, stack);
+    t.apply();
 }
 
 void RefreshRateOverlay::changeRefreshRate(const Fps& fps) {
     mCurrentFps = fps.getIntValue();
     auto buffer = getOrCreateBuffers(*mCurrentFps)[mFrame];
-    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, true, {},
-                      mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */),
-                      std::nullopt /* dequeueTime */, FrameTimelineInfo{},
-                      nullptr /* releaseBufferListener */, nullptr /* releaseBufferEndpoint */);
-
-    mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
+    SurfaceComposerClient::Transaction t;
+    t.setBuffer(mSurfaceControl, buffer);
+    t.apply();
 }
 
 void RefreshRateOverlay::onInvalidate() {
@@ -303,12 +290,9 @@ void RefreshRateOverlay::onInvalidate() {
     const auto& buffers = getOrCreateBuffers(*mCurrentFps);
     mFrame = (mFrame + 1) % buffers.size();
     auto buffer = buffers[mFrame];
-    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, true, {},
-                      mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */),
-                      std::nullopt /* dequeueTime */, FrameTimelineInfo{},
-                      nullptr /* releaseBufferListener */, nullptr /* releaseBufferEndpoint */);
-
-    mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
+    SurfaceComposerClient::Transaction t;
+    t.setBuffer(mSurfaceControl, buffer);
+    t.apply();
 }
 
 } // namespace android
