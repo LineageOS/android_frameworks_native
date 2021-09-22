@@ -14,21 +14,28 @@
  * limitations under the License.
  */
 
-// Utilities for serializing and deserializing X509 certificates.
+// Formats for serializing TLS private keys.
 
 #pragma once
 
-#include <vector>
-
-#include <openssl/ssl.h>
-
-#include <binder/RpcCertificateFormat.h>
+#include <string>
 
 namespace android {
 
-bssl::UniquePtr<X509> deserializeCertificate(const std::vector<uint8_t>& cert,
-                                             RpcCertificateFormat format);
+enum class RpcKeyFormat {
+    PEM,
+    DER,
+};
 
-std::vector<uint8_t> serializeCertificate(X509* x509, RpcCertificateFormat format);
+static inline std::string PrintToString(RpcKeyFormat format) {
+    switch (format) {
+        case RpcKeyFormat::PEM:
+            return "PEM";
+        case RpcKeyFormat::DER:
+            return "DER";
+        default:
+            return "<unknown>";
+    }
+}
 
 } // namespace android
