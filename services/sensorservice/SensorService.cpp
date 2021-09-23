@@ -2190,10 +2190,10 @@ bool SensorService::isSensorInCappedSet(int sensorType) {
 status_t SensorService::adjustSamplingPeriodBasedOnMicAndPermission(nsecs_t* requestedPeriodNs,
         const String16& opPackageName) {
     uid_t uid = IPCThreadState::self()->getCallingUid();
-    bool shouldCapBasedOnPermission = isRateCappedBasedOnPermission(opPackageName);
     if (*requestedPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) {
         return OK;
     }
+    bool shouldCapBasedOnPermission = isRateCappedBasedOnPermission(opPackageName);
     if (shouldCapBasedOnPermission) {
         *requestedPeriodNs = SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS;
         if (isPackageDebuggable(opPackageName)) {
@@ -2211,11 +2211,10 @@ status_t SensorService::adjustSamplingPeriodBasedOnMicAndPermission(nsecs_t* req
 status_t SensorService::adjustRateLevelBasedOnMicAndPermission(int* requestedRateLevel,
         const String16& opPackageName) {
     uid_t uid = IPCThreadState::self()->getCallingUid();
-    bool shouldCapBasedOnPermission = isRateCappedBasedOnPermission(opPackageName);
-
     if (*requestedRateLevel <= SENSOR_SERVICE_CAPPED_SAMPLING_RATE_LEVEL) {
         return OK;
     }
+    bool shouldCapBasedOnPermission = isRateCappedBasedOnPermission(opPackageName);
     if (shouldCapBasedOnPermission) {
         *requestedRateLevel = SENSOR_SERVICE_CAPPED_SAMPLING_RATE_LEVEL;
         if (isPackageDebuggable(opPackageName)) {
