@@ -24,6 +24,7 @@
 
 #include <memory>
 
+#include <android/keycodes.h>
 #include <android/native_window.h>
 
 #include <binder/Binder.h>
@@ -120,8 +121,8 @@ public:
         return std::make_unique<InputSurface>(surfaceControl, width, height);
     }
 
-    InputEvent* consumeEvent() {
-        waitForEventAvailable();
+    InputEvent *consumeEvent(int timeoutMs = 3000) {
+        waitForEventAvailable(timeoutMs);
 
         InputEvent *ev;
         uint32_t seqId;
@@ -178,6 +179,24 @@ public:
         EXPECT_EQ(flags, mev->getFlags() & flags);
     }
 
+    void expectKey(uint32_t keycode) {
+        InputEvent *ev = consumeEvent();
+        ASSERT_NE(ev, nullptr);
+        ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, ev->getType());
+        KeyEvent *keyEvent = static_cast<KeyEvent *>(ev);
+        EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, keyEvent->getAction());
+        EXPECT_EQ(keycode, keyEvent->getKeyCode());
+        EXPECT_EQ(0, keyEvent->getFlags() & VERIFIED_KEY_EVENT_FLAGS);
+
+        ev = consumeEvent();
+        ASSERT_NE(ev, nullptr);
+        ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, ev->getType());
+        keyEvent = static_cast<KeyEvent *>(ev);
+        EXPECT_EQ(AMOTION_EVENT_ACTION_UP, keyEvent->getAction());
+        EXPECT_EQ(keycode, keyEvent->getKeyCode());
+        EXPECT_EQ(0, keyEvent->getFlags() & VERIFIED_KEY_EVENT_FLAGS);
+    }
+
     virtual ~InputSurface() {
         mInputFlinger->removeInputChannel(mClientChannel->getConnectionToken());
     }
@@ -215,12 +234,12 @@ public:
     }
 
 private:
-    void waitForEventAvailable() {
+    void waitForEventAvailable(int timeoutMs) {
         struct pollfd fd;
 
         fd.fd = mClientChannel->getFd();
         fd.events = POLLIN;
-        poll(&fd, 1, 3000);
+        poll(&fd, 1, timeoutMs);
     }
 
     void populateInputInfo(int width, int height) {
@@ -360,6 +379,14 @@ void injectTap(int x, int y) {
     asprintf(&buf2, "%d", y);
     if (fork() == 0) {
         execlp("input", "input", "tap", buf1, buf2, NULL);
+    }
+}
+
+void injectKey(uint32_t keycode) {
+    char *buf1;
+    asprintf(&buf1, "%d", keycode);
+    if (fork() == 0) {
+        execlp("input", "input", "keyevent", buf1, NULL);
     }
 }
 
@@ -614,6 +641,9 @@ TEST_F(InputSurfacesTest, can_be_focused) {
     surface->requestFocus();
 
     surface->assertFocusChange(true);
+
+    injectKey(AKEYCODE_V);
+    surface->expectKey(AKEYCODE_V);
 }
 
 TEST_F(InputSurfacesTest, rotate_surface) {
@@ -781,4 +811,139 @@ TEST_F(InputSurfacesTest, touch_not_obscured_with_zero_sized_blast) {
     surface->expectTap(1, 1);
 }
 
+TEST_F(InputSurfacesTest, strict_unobscured_input_unobscured_window) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->doTransaction(
+            [&](auto &t, auto &sc) { t.setDropInputMode(sc, gui::DropInputMode::OBSCURED); });
+    surface->showAt(100, 100);
+
+    injectTap(101, 101);
+
+    EXPECT_NE(surface->consumeEvent(), nullptr);
+    EXPECT_NE(surface->consumeEvent(), nullptr);
+
+    surface->requestFocus();
+    surface->assertFocusChange(true);
+    injectKey(AKEYCODE_V);
+    surface->expectKey(AKEYCODE_V);
+}
+
+TEST_F(InputSurfacesTest, strict_unobscured_input_scaled_without_crop_window) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->doTransaction([&](auto &t, auto &sc) {
+        t.setDropInputMode(sc, gui::DropInputMode::OBSCURED);
+        t.setMatrix(sc, 2.0, 0, 0, 2.0);
+    });
+    surface->showAt(100, 100);
+
+    injectTap(101, 101);
+
+    EXPECT_NE(surface->consumeEvent(), nullptr);
+    EXPECT_NE(surface->consumeEvent(), nullptr);
+
+    surface->requestFocus();
+    surface->assertFocusChange(true);
+    injectKey(AKEYCODE_V);
+    surface->expectKey(AKEYCODE_V);
+}
+
+TEST_F(InputSurfacesTest, strict_unobscured_input_obscured_window) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->mInputInfo.ownerUid = 11111;
+    surface->doTransaction(
+            [&](auto &t, auto &sc) { t.setDropInputMode(sc, gui::DropInputMode::OBSCURED); });
+    surface->showAt(100, 100);
+    std::unique_ptr<InputSurface> obscuringSurface = makeSurface(100, 100);
+    obscuringSurface->mInputInfo.flags = WindowInfo::Flag::NOT_TOUCHABLE;
+    obscuringSurface->mInputInfo.ownerUid = 22222;
+    obscuringSurface->showAt(100, 100);
+    injectTap(101, 101);
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
+
+    surface->requestFocus();
+    surface->assertFocusChange(true);
+    injectKey(AKEYCODE_V);
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
+}
+
+TEST_F(InputSurfacesTest, strict_unobscured_input_partially_obscured_window) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->mInputInfo.ownerUid = 11111;
+    surface->doTransaction(
+            [&](auto &t, auto &sc) { t.setDropInputMode(sc, gui::DropInputMode::OBSCURED); });
+    surface->showAt(100, 100);
+    std::unique_ptr<InputSurface> obscuringSurface = makeSurface(100, 100);
+    obscuringSurface->mInputInfo.flags = WindowInfo::Flag::NOT_TOUCHABLE;
+    obscuringSurface->mInputInfo.ownerUid = 22222;
+    obscuringSurface->showAt(190, 190);
+
+    injectTap(101, 101);
+
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
+
+    surface->requestFocus();
+    surface->assertFocusChange(true);
+    injectKey(AKEYCODE_V);
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
+}
+
+TEST_F(InputSurfacesTest, strict_unobscured_input_alpha_window) {
+    std::unique_ptr<InputSurface> parentSurface = makeSurface(300, 300);
+    parentSurface->showAt(0, 0, Rect(0, 0, 300, 300));
+
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(100, 100);
+    surface->doTransaction([&](auto &t, auto &sc) {
+        t.setDropInputMode(sc, gui::DropInputMode::OBSCURED);
+        t.reparent(sc, parentSurface->mSurfaceControl);
+        t.setAlpha(parentSurface->mSurfaceControl, 0.9f);
+    });
+
+    injectTap(101, 101);
+
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
+
+    surface->requestFocus();
+    surface->assertFocusChange(true);
+    injectKey(AKEYCODE_V);
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
+}
+
+TEST_F(InputSurfacesTest, strict_unobscured_input_cropped_window) {
+    std::unique_ptr<InputSurface> parentSurface = makeSurface(300, 300);
+    parentSurface->showAt(0, 0, Rect(0, 0, 300, 300));
+
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->doTransaction([&](auto &t, auto &sc) {
+        t.setDropInputMode(sc, gui::DropInputMode::OBSCURED);
+        t.reparent(sc, parentSurface->mSurfaceControl);
+        t.setCrop(parentSurface->mSurfaceControl, Rect(10, 10, 100, 100));
+    });
+    surface->showAt(100, 100);
+
+    injectTap(111, 111);
+
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
+
+    surface->requestFocus();
+    surface->assertFocusChange(true);
+    injectKey(AKEYCODE_V);
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
+}
+
+TEST_F(InputSurfacesTest, drop_input_policy) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->doTransaction(
+            [&](auto &t, auto &sc) { t.setDropInputMode(sc, gui::DropInputMode::ALL); });
+    surface->showAt(100, 100);
+
+    injectTap(101, 101);
+
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
+
+    surface->requestFocus();
+    surface->assertFocusChange(true);
+    injectKey(AKEYCODE_V);
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
+}
 } // namespace android::test

@@ -749,16 +749,17 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mPhysicalLeft = naturalPhysicalLeft;
             mPhysicalTop = naturalPhysicalTop;
 
-            const int32_t oldSurfaceWidth = mRawSurfaceWidth;
-            const int32_t oldSurfaceHeight = mRawSurfaceHeight;
-            mRawSurfaceWidth = naturalLogicalWidth * naturalDeviceWidth / naturalPhysicalWidth;
-            mRawSurfaceHeight = naturalLogicalHeight * naturalDeviceHeight / naturalPhysicalHeight;
-            mSurfaceLeft = naturalPhysicalLeft * naturalLogicalWidth / naturalPhysicalWidth;
-            mSurfaceTop = naturalPhysicalTop * naturalLogicalHeight / naturalPhysicalHeight;
-            mSurfaceRight = mSurfaceLeft + naturalLogicalWidth;
-            mSurfaceBottom = mSurfaceTop + naturalLogicalHeight;
-
             if (isPerWindowInputRotationEnabled()) {
+                // When per-window input rotation is enabled, InputReader works in the display
+                // space, so the surface bounds are the bounds of the display device.
+                const int32_t oldSurfaceWidth = mRawSurfaceWidth;
+                const int32_t oldSurfaceHeight = mRawSurfaceHeight;
+                mRawSurfaceWidth = naturalDeviceWidth;
+                mRawSurfaceHeight = naturalDeviceHeight;
+                mSurfaceLeft = 0;
+                mSurfaceTop = 0;
+                mSurfaceRight = mRawSurfaceWidth;
+                mSurfaceBottom = mRawSurfaceHeight;
                 // When per-window input rotation is enabled, InputReader works in the un-rotated
                 // coordinate space, so we don't need to do anything if the device is already
                 // orientation-aware. If the device is not orientation-aware, then we need to apply
@@ -774,6 +775,14 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
                         mRawSurfaceWidth == oldSurfaceWidth &&
                         mRawSurfaceHeight == oldSurfaceHeight && viewportOrientationChanged;
             } else {
+                mRawSurfaceWidth = naturalLogicalWidth * naturalDeviceWidth / naturalPhysicalWidth;
+                mRawSurfaceHeight =
+                        naturalLogicalHeight * naturalDeviceHeight / naturalPhysicalHeight;
+                mSurfaceLeft = naturalPhysicalLeft * naturalLogicalWidth / naturalPhysicalWidth;
+                mSurfaceTop = naturalPhysicalTop * naturalLogicalHeight / naturalPhysicalHeight;
+                mSurfaceRight = mSurfaceLeft + naturalLogicalWidth;
+                mSurfaceBottom = mSurfaceTop + naturalLogicalHeight;
+
                 mSurfaceOrientation = mParameters.orientationAware ? mViewport.orientation
                                                                    : DISPLAY_ORIENTATION_0;
             }
@@ -3772,6 +3781,12 @@ bool TouchInputMapper::isPointInsideSurface(int32_t x, int32_t y) {
     const float xScaled = (x - mRawPointerAxes.x.minValue) * mXScale;
     const float yScaled = (y - mRawPointerAxes.y.minValue) * mYScale;
 
+    if (isPerWindowInputRotationEnabled()) {
+        return x >= mRawPointerAxes.x.minValue && x <= mRawPointerAxes.x.maxValue &&
+                xScaled >= mPhysicalLeft && xScaled <= (mPhysicalLeft + mPhysicalWidth) &&
+                y >= mRawPointerAxes.y.minValue && y <= mRawPointerAxes.y.maxValue &&
+                yScaled >= mPhysicalTop && yScaled <= (mPhysicalTop + mPhysicalHeight);
+    }
     return x >= mRawPointerAxes.x.minValue && x <= mRawPointerAxes.x.maxValue &&
             xScaled >= mSurfaceLeft && xScaled <= mSurfaceRight &&
             y >= mRawPointerAxes.y.minValue && y <= mRawPointerAxes.y.maxValue &&

@@ -31,6 +31,8 @@ public:
 
     int64_t demo_flag() const;
 
+    bool use_adpf_cpu_hint() const;
+
 private:
     friend class FlagManagerTest;
 

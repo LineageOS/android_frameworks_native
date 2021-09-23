@@ -435,6 +435,7 @@ private:
 
     // The surface origin specifies how the surface coordinates should be translated
     // to align with the logical display coordinate space.
+    // TODO(b/188939842): Remove surface coordinates when Per-Window Input Rotation is enabled.
     int32_t mSurfaceLeft;
     int32_t mSurfaceTop;
     int32_t mSurfaceRight;
