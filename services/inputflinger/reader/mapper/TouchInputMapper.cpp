@@ -603,7 +603,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
 
     // Determine device mode.
     if (mParameters.deviceType == Parameters::DeviceType::POINTER &&
-        mConfig.pointerGesturesEnabled && !mConfig.pointerCapture) {
+        mConfig.pointerGesturesEnabled && !mConfig.pointerCaptureRequest.enable) {
         mSource = AINPUT_SOURCE_MOUSE;
         mDeviceMode = DeviceMode::POINTER;
         if (hasStylus()) {
@@ -776,11 +776,12 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     // preserve the cursor position.
     if (mDeviceMode == DeviceMode::POINTER ||
         (mDeviceMode == DeviceMode::DIRECT && mConfig.showTouches) ||
-        (mParameters.deviceType == Parameters::DeviceType::POINTER && mConfig.pointerCapture)) {
+        (mParameters.deviceType == Parameters::DeviceType::POINTER &&
+         mConfig.pointerCaptureRequest.enable)) {
         if (mPointerController == nullptr) {
             mPointerController = getContext()->getPointerController(getDeviceId());
         }
-        if (mConfig.pointerCapture) {
+        if (mConfig.pointerCaptureRequest.enable) {
             mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
         }
     } else {

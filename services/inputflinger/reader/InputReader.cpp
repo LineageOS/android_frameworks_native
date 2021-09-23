@@ -367,9 +367,15 @@ void InputReader::refreshConfigurationLocked(uint32_t changes) {
     }
 
     if (changes & InputReaderConfiguration::CHANGE_POINTER_CAPTURE) {
-        const NotifyPointerCaptureChangedArgs args(mContext.getNextId(), now,
-                                                   mConfig.pointerCapture);
-        mQueuedListener->notifyPointerCaptureChanged(&args);
+        if (mCurrentPointerCaptureRequest == mConfig.pointerCaptureRequest) {
+            ALOGV("Skipping notifying pointer capture changes: "
+                  "There was no change in the pointer capture state.");
+        } else {
+            mCurrentPointerCaptureRequest = mConfig.pointerCaptureRequest;
+            const NotifyPointerCaptureChangedArgs args(mContext.getNextId(), now,
+                                                       mCurrentPointerCaptureRequest);
+            mQueuedListener->notifyPointerCaptureChanged(&args);
+        }
     }
 }
 
