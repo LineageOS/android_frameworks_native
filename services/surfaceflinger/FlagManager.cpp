@@ -33,6 +33,7 @@ FlagManager::~FlagManager() = default;
 void FlagManager::dump(std::string& result) const {
     base::StringAppendF(&result, "FlagManager values: \n");
     base::StringAppendF(&result, "demo_flag: %" PRId64 "\n", demo_flag());
+    base::StringAppendF(&result, "use_adpf_cpu_hint: %s\n", use_adpf_cpu_hint() ? "true" : "false");
 }
 
 namespace {
@@ -90,4 +91,10 @@ int64_t FlagManager::demo_flag() const {
     std::optional<int64_t> sysPropVal = std::nullopt;
     return getValue("DemoFeature__demo_flag", sysPropVal, kDemoFlag);
 }
+
+bool FlagManager::use_adpf_cpu_hint() const {
+    std::optional<bool> sysPropVal = std::nullopt;
+    return getValue("AdpfFeature__adpf_cpu_hint", sysPropVal, false);
+}
+
 } // namespace android

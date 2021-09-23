@@ -14,33 +14,28 @@
  * limitations under the License.
  */
 
+// Formats for serializing TLS private keys.
+
 #pragma once
 
-#include <cstdint>
-#include <optional>
 #include <string>
 
 namespace android {
-// Manages flags for SurfaceFlinger, including default values, system properties, and Mendel
-// experiment configuration values.
-class FlagManager {
-public:
-    FlagManager() = default;
-    virtual ~FlagManager();
-    void dump(std::string& result) const;
 
-    int64_t demo_flag() const;
-
-    bool use_adpf_cpu_hint() const;
-
-private:
-    friend class FlagManagerTest;
-
-    // Wrapper for mocking in test.
-    virtual std::string getServerConfigurableFlag(const std::string& experimentFlagName) const;
-
-    template <typename T>
-    T getValue(const std::string& experimentFlagName, std::optional<T> systemPropertyOpt,
-               T defaultValue) const;
+enum class RpcKeyFormat {
+    PEM,
+    DER,
 };
+
+static inline std::string PrintToString(RpcKeyFormat format) {
+    switch (format) {
+        case RpcKeyFormat::PEM:
+            return "PEM";
+        case RpcKeyFormat::DER:
+            return "DER";
+        default:
+            return "<unknown>";
+    }
+}
+
 } // namespace android
