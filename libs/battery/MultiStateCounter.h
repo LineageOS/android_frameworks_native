@@ -62,7 +62,13 @@ public:
 
     void setValue(state_t state, const T& value);
 
-    void updateValue(const T& value, time_t timestamp);
+    /**
+     * Updates the value for the current state and returns the delta from the previously
+     * set value.
+     */
+    const T& updateValue(const T& value, time_t timestamp);
+
+    void addValue(const T& value);
 
     void reset();
 
@@ -161,7 +167,7 @@ void MultiStateCounter<T>::setValue(state_t state, const T& value) {
 }
 
 template <class T>
-void MultiStateCounter<T>::updateValue(const T& value, time_t timestamp) {
+const T& MultiStateCounter<T>::updateValue(const T& value, time_t timestamp) {
     // If the counter is disabled, we ignore the update, except when the counter got disabled after
     // the previous update, in which case we still need to pick up the residual delta.
     if (isEnabled || lastUpdateTimestamp < lastStateChangeTimestamp) {
@@ -195,6 +201,16 @@ void MultiStateCounter<T>::updateValue(const T& value, time_t timestamp) {
     }
     lastValue = value;
     lastUpdateTimestamp = timestamp;
+    return deltaValue;
+}
+
+template <class T>
+void MultiStateCounter<T>::addValue(const T& value) {
+    if (!isEnabled) {
+        return;
+    }
+
+    add(&states[currentState].counter, value, 1 /* numerator */, 1 /* denominator */);
 }
 
 template <class T>
@@ -242,7 +258,9 @@ std::string MultiStateCounter<T>::toString() {
     } else {
         str << " currentState: none";
     }
-
+    if (!isEnabled) {
+        str << " disabled";
+    }
     return str.str();
 }
 
