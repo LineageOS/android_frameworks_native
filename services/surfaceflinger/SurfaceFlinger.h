@@ -611,6 +611,8 @@ private:
         Mutex::Autolock lock(mStateLock);
         return getPhysicalDisplayIdsLocked();
     }
+    status_t getPrimaryPhysicalDisplayId(PhysicalDisplayId*) const override EXCLUDES(mStateLock);
+
     sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const override;
     status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
                                  const Vector<ComposerState>& state,
