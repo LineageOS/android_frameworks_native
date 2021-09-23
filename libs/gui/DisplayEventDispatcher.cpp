@@ -153,6 +153,7 @@ bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
                     outVsyncEventData->id = ev.vsync.vsyncId;
                     outVsyncEventData->deadlineTimestamp = ev.vsync.deadlineTimestamp;
                     outVsyncEventData->frameInterval = ev.vsync.frameInterval;
+                    outVsyncEventData->expectedPresentTime = ev.vsync.expectedVSyncTimestamp;
                     break;
                 case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
                     dispatchHotplug(ev.header.timestamp, ev.header.displayId, ev.hotplug.connected);
