@@ -119,15 +119,15 @@ std::string FocusEntry::getDescription() const {
 // PointerCaptureChanged notifications always go to apps, so set the flag POLICY_FLAG_PASS_TO_USER
 // for all entries.
 PointerCaptureChangedEntry::PointerCaptureChangedEntry(int32_t id, nsecs_t eventTime,
-                                                       bool hasPointerCapture)
+                                                       const PointerCaptureRequest& request)
       : EventEntry(id, Type::POINTER_CAPTURE_CHANGED, eventTime, POLICY_FLAG_PASS_TO_USER),
-        pointerCaptureEnabled(hasPointerCapture) {}
+        pointerCaptureRequest(request) {}
 
 PointerCaptureChangedEntry::~PointerCaptureChangedEntry() {}
 
 std::string PointerCaptureChangedEntry::getDescription() const {
     return StringPrintf("PointerCaptureChangedEvent(pointerCaptureEnabled=%s)",
-                        pointerCaptureEnabled ? "true" : "false");
+                        pointerCaptureRequest.enable ? "true" : "false");
 }
 
 // --- DragEntry ---
@@ -324,8 +324,7 @@ CommandEntry::CommandEntry(Command command)
         keyEntry(nullptr),
         userActivityEventType(0),
         seq(0),
-        handled(false),
-        enabled(false) {}
+        handled(false) {}
 
 CommandEntry::~CommandEntry() {}
 
