@@ -283,8 +283,21 @@ Error Display::getConnectionType(ui::DisplayConnectionType* outType) const {
     return Error::NONE;
 }
 
+bool Display::hasCapability(hal::DisplayCapability capability) const {
+    std::scoped_lock lock(mDisplayCapabilitiesMutex);
+    if (mDisplayCapabilities) {
+        return mDisplayCapabilities->count(capability) > 0;
+    }
+
+    ALOGW("Can't query capability %d."
+          " Display Capabilities were not queried from HWC yet",
+          static_cast<int>(capability));
+
+    return false;
+}
+
 Error Display::supportsDoze(bool* outSupport) const {
-    *outSupport = mDisplayCapabilities.count(DisplayCapability::DOZE) > 0;
+    *outSupport = hasCapability(DisplayCapability::DOZE);
     return Error::NONE;
 }
 
@@ -447,17 +460,21 @@ Error Display::setPowerMode(PowerMode mode)
             auto error =
                     static_cast<Error>(mComposer.getDisplayCapabilities(mId, &tmpCapabilities));
             if (error == Error::NONE) {
+                std::scoped_lock lock(mDisplayCapabilitiesMutex);
+                mDisplayCapabilities.emplace();
                 for (auto capability : tmpCapabilities) {
-                    mDisplayCapabilities.emplace(static_cast<DisplayCapability>(capability));
+                    mDisplayCapabilities->emplace(static_cast<DisplayCapability>(capability));
                 }
             } else if (error == Error::UNSUPPORTED) {
+                std::scoped_lock lock(mDisplayCapabilitiesMutex);
+                mDisplayCapabilities.emplace();
                 if (mCapabilities.count(Capability::SKIP_CLIENT_COLOR_TRANSFORM)) {
-                    mDisplayCapabilities.emplace(DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM);
+                    mDisplayCapabilities->emplace(DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM);
                 }
                 bool dozeSupport = false;
                 error = static_cast<Error>(mComposer.getDozeSupport(mId, &dozeSupport));
                 if (error == Error::NONE && dozeSupport) {
-                    mDisplayCapabilities.emplace(DisplayCapability::DOZE);
+                    mDisplayCapabilities->emplace(DisplayCapability::DOZE);
                 }
             }
         });
