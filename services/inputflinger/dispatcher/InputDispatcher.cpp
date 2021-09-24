@@ -915,7 +915,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
  */
 bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) {
     const bool isPointerDownEvent = motionEntry.action == AMOTION_EVENT_ACTION_DOWN &&
-            (motionEntry.source & AINPUT_SOURCE_CLASS_POINTER);
+            isFromSource(motionEntry.source, AINPUT_SOURCE_CLASS_POINTER);
 
     // Optimize case where the current application is unresponsive and the user
     // decides to touch a window in a different application.
@@ -1609,7 +1609,7 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, std::shared_ptr<
         return true;
     }
 
-    bool isPointerEvent = entry->source & AINPUT_SOURCE_CLASS_POINTER;
+    const bool isPointerEvent = isFromSource(entry->source, AINPUT_SOURCE_CLASS_POINTER);
 
     // Identify targets.
     std::vector<InputTarget> inputTargets;
@@ -1995,7 +1995,7 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
                           maskedAction == AMOTION_EVENT_ACTION_HOVER_EXIT);
     bool newGesture = (maskedAction == AMOTION_EVENT_ACTION_DOWN ||
                        maskedAction == AMOTION_EVENT_ACTION_SCROLL || isHoverAction);
-    const bool isFromMouse = entry.source == AINPUT_SOURCE_MOUSE;
+    const bool isFromMouse = isFromSource(entry.source, AINPUT_SOURCE_MOUSE);
     bool wrongDevice = false;
     if (newGesture) {
         bool down = maskedAction == AMOTION_EVENT_ACTION_DOWN;
@@ -4192,12 +4192,17 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
 
         case AINPUT_EVENT_TYPE_MOTION: {
             const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
-            int32_t action = motionEvent.getAction();
-            size_t pointerCount = motionEvent.getPointerCount();
+            const int32_t action = motionEvent.getAction();
+            const bool isPointerEvent =
+                    isFromSource(event->getSource(), AINPUT_SOURCE_CLASS_POINTER);
+            // If a pointer event has no displayId specified, inject it to the default display.
+            const uint32_t displayId = isPointerEvent && (event->getDisplayId() == ADISPLAY_ID_NONE)
+                    ? ADISPLAY_ID_DEFAULT
+                    : event->getDisplayId();
+            const size_t pointerCount = motionEvent.getPointerCount();
             const PointerProperties* pointerProperties = motionEvent.getPointerProperties();
-            int32_t actionButton = motionEvent.getActionButton();
+            const int32_t actionButton = motionEvent.getActionButton();
             int32_t flags = motionEvent.getFlags();
-            int32_t displayId = motionEvent.getDisplayId();
             if (!validateMotionEvent(action, actionButton, pointerCount, pointerProperties)) {
                 return InputEventInjectionResult::FAILED;
             }
@@ -4222,8 +4227,8 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
             std::unique_ptr<MotionEntry> injectedEntry =
                     std::make_unique<MotionEntry>(motionEvent.getId(), *sampleEventTimes,
                                                   resolvedDeviceId, motionEvent.getSource(),
-                                                  motionEvent.getDisplayId(), policyFlags, action,
-                                                  actionButton, flags, motionEvent.getMetaState(),
+                                                  displayId, policyFlags, action, actionButton,
+                                                  flags, motionEvent.getMetaState(),
                                                   motionEvent.getButtonState(),
                                                   motionEvent.getClassification(),
                                                   motionEvent.getEdgeFlags(),
@@ -4243,9 +4248,8 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
                 std::unique_ptr<MotionEntry> nextInjectedEntry =
                         std::make_unique<MotionEntry>(motionEvent.getId(), *sampleEventTimes,
                                                       resolvedDeviceId, motionEvent.getSource(),
-                                                      motionEvent.getDisplayId(), policyFlags,
-                                                      action, actionButton, flags,
-                                                      motionEvent.getMetaState(),
+                                                      displayId, policyFlags, action, actionButton,
+                                                      flags, motionEvent.getMetaState(),
                                                       motionEvent.getButtonState(),
                                                       motionEvent.getClassification(),
                                                       motionEvent.getEdgeFlags(),
