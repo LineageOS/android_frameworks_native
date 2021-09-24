@@ -233,7 +233,7 @@ struct HwcDisplayIdGetter<PhysicalDisplayIdType<PhysicalDisplay>> {
 //     2) HalVirtualDisplayIdType<...> for hard-coded ID of virtual display backed by HWC.
 //     3) GpuVirtualDisplayIdType for virtual display without HWC backing.
 template <typename DisplayIdType, int width, int height, Critical critical, Async async,
-          Secure secure, Primary primary, int grallocUsage>
+          Secure secure, Primary primary, int grallocUsage, int displayFlags>
 struct DisplayVariant {
     using DISPLAY_ID = DisplayIdGetter<DisplayIdType>;
     using CONNECTION_TYPE = DisplayConnectionTypeGetter<DisplayIdType>;
@@ -260,6 +260,8 @@ struct DisplayVariant {
 
     // Whether the display is primary
     static constexpr Primary PRIMARY = primary;
+
+    static constexpr int DISPLAY_FLAGS = displayFlags;
 
     static auto makeFakeExistingDisplayInjector(DisplayTransactionTest* test) {
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder();
@@ -469,16 +471,19 @@ struct HwcDisplayVariant {
 constexpr uint32_t GRALLOC_USAGE_PHYSICAL_DISPLAY =
         GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_FB;
 
+constexpr int PHYSICAL_DISPLAY_FLAGS = 0x1;
+
 template <typename PhysicalDisplay, int width, int height, Critical critical>
 struct PhysicalDisplayVariant
       : DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height, critical,
                        Async::FALSE, Secure::TRUE, PhysicalDisplay::PRIMARY,
-                       GRALLOC_USAGE_PHYSICAL_DISPLAY>,
-        HwcDisplayVariant<PhysicalDisplay::HWC_DISPLAY_ID, DisplayType::PHYSICAL,
-                          DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height,
-                                         critical, Async::FALSE, Secure::TRUE,
-                                         PhysicalDisplay::PRIMARY, GRALLOC_USAGE_PHYSICAL_DISPLAY>,
-                          PhysicalDisplay> {};
+                       GRALLOC_USAGE_PHYSICAL_DISPLAY, PHYSICAL_DISPLAY_FLAGS>,
+        HwcDisplayVariant<
+                PhysicalDisplay::HWC_DISPLAY_ID, DisplayType::PHYSICAL,
+                DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height, critical,
+                               Async::FALSE, Secure::TRUE, PhysicalDisplay::PRIMARY,
+                               GRALLOC_USAGE_PHYSICAL_DISPLAY, PHYSICAL_DISPLAY_FLAGS>,
+                PhysicalDisplay> {};
 
 template <bool hasIdentificationData>
 struct PrimaryDisplay {
@@ -520,13 +525,16 @@ using TertiaryDisplayVariant = PhysicalDisplayVariant<TertiaryDisplay, 1600, 120
 // A virtual display not supported by the HWC.
 constexpr uint32_t GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY = 0;
 
+constexpr int VIRTUAL_DISPLAY_FLAGS = 0x0;
+
 template <int width, int height, Secure secure>
 struct NonHwcVirtualDisplayVariant
       : DisplayVariant<GpuVirtualDisplayIdType, width, height, Critical::FALSE, Async::TRUE, secure,
-                       Primary::FALSE, GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY> {
-    using Base =
-            DisplayVariant<GpuVirtualDisplayIdType, width, height, Critical::FALSE, Async::TRUE,
-                           secure, Primary::FALSE, GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY>;
+                       Primary::FALSE, GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY,
+                       VIRTUAL_DISPLAY_FLAGS> {
+    using Base = DisplayVariant<GpuVirtualDisplayIdType, width, height, Critical::FALSE,
+                                Async::TRUE, secure, Primary::FALSE,
+                                GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY, VIRTUAL_DISPLAY_FLAGS>;
 
     static void injectHwcDisplay(DisplayTransactionTest*) {}
 
@@ -569,13 +577,16 @@ constexpr uint32_t GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY = GRALLOC_USAGE_HW_COMPOSER
 template <int width, int height, Secure secure>
 struct HwcVirtualDisplayVariant
       : DisplayVariant<HalVirtualDisplayIdType<42>, width, height, Critical::FALSE, Async::TRUE,
-                       secure, Primary::FALSE, GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY>,
-        HwcDisplayVariant<HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID, DisplayType::VIRTUAL,
-                          DisplayVariant<HalVirtualDisplayIdType<42>, width, height,
-                                         Critical::FALSE, Async::TRUE, secure, Primary::FALSE,
-                                         GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY>> {
+                       secure, Primary::FALSE, GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY,
+                       VIRTUAL_DISPLAY_FLAGS>,
+        HwcDisplayVariant<
+                HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID, DisplayType::VIRTUAL,
+                DisplayVariant<HalVirtualDisplayIdType<42>, width, height, Critical::FALSE,
+                               Async::TRUE, secure, Primary::FALSE,
+                               GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY, VIRTUAL_DISPLAY_FLAGS>> {
     using Base = DisplayVariant<HalVirtualDisplayIdType<42>, width, height, Critical::FALSE,
-                                Async::TRUE, secure, Primary::FALSE, GRALLOC_USAGE_HW_COMPOSER>;
+                                Async::TRUE, secure, Primary::FALSE, GRALLOC_USAGE_HW_COMPOSER,
+                                VIRTUAL_DISPLAY_FLAGS>;
     using Self = HwcVirtualDisplayVariant<width, height, secure>;
 
     static std::shared_ptr<compositionengine::Display> injectCompositionDisplay(
