@@ -44,7 +44,6 @@ SensorService::SensorEventConnection::SensorEventConnection(
       mCacheSize(0), mMaxCacheSize(0), mTimeOfLastEventDrop(0), mEventsDropped(0),
       mPackageName(packageName), mOpPackageName(opPackageName), mAttributionTag(attributionTag),
       mTargetSdk(kTargetSdkUnknown), mDestroyed(false) {
-    mIsRateCappedBasedOnPermission = mService->isRateCappedBasedOnPermission(mOpPackageName);
     mUserId = multiuser_get_user_id(mUid);
     mChannel = new BitTube(mService->mSocketBufferSize);
 #if DEBUG_CONNECTIONS
@@ -706,8 +705,8 @@ status_t SensorService::SensorEventConnection::enableDisable(
         err = mService->enable(this, handle, samplingPeriodNs, maxBatchReportLatencyNs,
                                reservedFlags, mOpPackageName);
         if (err == OK && isSensorCapped) {
-            if (!mIsRateCappedBasedOnPermission ||
-                        requestedSamplingPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) {
+            if ((requestedSamplingPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) ||
+                !isRateCappedBasedOnPermission()) {
                 mMicSamplingPeriodBackup[handle] = requestedSamplingPeriodNs;
             } else {
                 mMicSamplingPeriodBackup[handle] = SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS;
@@ -745,8 +744,8 @@ status_t SensorService::SensorEventConnection::setEventRate(int handle, nsecs_t 
     }
     status_t ret = mService->setEventRate(this, handle, samplingPeriodNs, mOpPackageName);
     if (ret == OK && isSensorCapped) {
-        if (!mIsRateCappedBasedOnPermission ||
-                    requestedSamplingPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) {
+        if ((requestedSamplingPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) ||
+            !isRateCappedBasedOnPermission()) {
             mMicSamplingPeriodBackup[handle] = requestedSamplingPeriodNs;
         } else {
             mMicSamplingPeriodBackup[handle] = SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS;
