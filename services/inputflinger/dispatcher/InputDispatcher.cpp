@@ -3360,16 +3360,18 @@ std::array<uint8_t, 32> InputDispatcher::sign(const VerifiedInputEvent& event) c
 
 const std::array<uint8_t, 32> InputDispatcher::getSignature(
         const MotionEntry& motionEntry, const DispatchEntry& dispatchEntry) const {
-    int32_t actionMasked = dispatchEntry.resolvedAction & AMOTION_EVENT_ACTION_MASK;
-    if ((actionMasked == AMOTION_EVENT_ACTION_UP) || (actionMasked == AMOTION_EVENT_ACTION_DOWN)) {
+    const int32_t actionMasked = dispatchEntry.resolvedAction & AMOTION_EVENT_ACTION_MASK;
+    if (actionMasked != AMOTION_EVENT_ACTION_UP && actionMasked != AMOTION_EVENT_ACTION_DOWN) {
         // Only sign events up and down events as the purely move events
         // are tied to their up/down counterparts so signing would be redundant.
-        VerifiedMotionEvent verifiedEvent = verifiedMotionEventFromMotionEntry(motionEntry);
-        verifiedEvent.actionMasked = actionMasked;
-        verifiedEvent.flags = dispatchEntry.resolvedFlags & VERIFIED_MOTION_EVENT_FLAGS;
-        return sign(verifiedEvent);
+        return INVALID_HMAC;
     }
-    return INVALID_HMAC;
+
+    VerifiedMotionEvent verifiedEvent =
+            verifiedMotionEventFromMotionEntry(motionEntry, dispatchEntry.rawTransform);
+    verifiedEvent.actionMasked = actionMasked;
+    verifiedEvent.flags = dispatchEntry.resolvedFlags & VERIFIED_MOTION_EVENT_FLAGS;
+    return sign(verifiedEvent);
 }
 
 const std::array<uint8_t, 32> InputDispatcher::getSignature(

@@ -801,6 +801,8 @@ public:
 
     static std::string actionToString(int32_t action);
 
+    static vec2 calculateTransformedXY(uint32_t source, const ui::Transform&, const vec2& xy);
+
 protected:
     int32_t mAction;
     int32_t mActionButton;
