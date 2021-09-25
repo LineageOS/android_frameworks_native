@@ -183,7 +183,7 @@ bool HWComposer::hasCapability(hal::Capability capability) const {
 bool HWComposer::hasDisplayCapability(HalDisplayId displayId,
                                       hal::DisplayCapability capability) const {
     RETURN_IF_INVALID_DISPLAY(displayId, false);
-    return mDisplayData.at(displayId).hwcDisplay->getCapabilities().count(capability) > 0;
+    return mDisplayData.at(displayId).hwcDisplay->hasCapability(capability);
 }
 
 std::optional<DisplayIdentificationInfo> HWComposer::onHotplug(hal::HWDisplayId hwcDisplayId,

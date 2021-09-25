@@ -220,7 +220,7 @@ public:
         t.apply(true);
     }
 
-    void requestFocus() {
+    void requestFocus(int displayId = ADISPLAY_ID_DEFAULT) {
         SurfaceComposerClient::Transaction t;
         FocusRequest request;
         request.token = mInputInfo.token;
@@ -228,7 +228,7 @@ public:
         request.focusedToken = nullptr;
         request.focusedWindowName = "";
         request.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
-        request.displayId = 0;
+        request.displayId = displayId;
         t.setFocusedWindow(request);
         t.apply(true);
     }
@@ -254,11 +254,6 @@ private:
         mInputInfo.paused = false;
 
         mInputInfo.touchableRegion.orSelf(Rect(0, 0, width, height));
-
-        // TODO: Fill in from SF?
-        mInputInfo.ownerPid = 11111;
-        mInputInfo.ownerUid = 11111;
-        mInputInfo.displayId = 0;
 
         InputApplicationInfo aInfo;
         aInfo.token = new BBinder();
@@ -373,21 +368,31 @@ public:
     int32_t mBufferPostDelay;
 };
 
-void injectTap(int x, int y) {
-    char *buf1, *buf2;
+void injectTapOnDisplay(int x, int y, int displayId) {
+    char *buf1, *buf2, *bufDisplayId;
     asprintf(&buf1, "%d", x);
     asprintf(&buf2, "%d", y);
+    asprintf(&bufDisplayId, "%d", displayId);
     if (fork() == 0) {
-        execlp("input", "input", "tap", buf1, buf2, NULL);
+        execlp("input", "input", "-d", bufDisplayId, "tap", buf1, buf2, NULL);
+    }
+}
+
+void injectTap(int x, int y) {
+    injectTapOnDisplay(x, y, ADISPLAY_ID_DEFAULT);
+}
+
+void injectKeyOnDisplay(uint32_t keycode, int displayId) {
+    char *buf1, *bufDisplayId;
+    asprintf(&buf1, "%d", keycode);
+    asprintf(&bufDisplayId, "%d", displayId);
+    if (fork() == 0) {
+        execlp("input", "input", "-d", bufDisplayId, "keyevent", buf1, NULL);
     }
 }
 
 void injectKey(uint32_t keycode) {
-    char *buf1;
-    asprintf(&buf1, "%d", keycode);
-    if (fork() == 0) {
-        execlp("input", "input", "keyevent", buf1, NULL);
-    }
+    injectKeyOnDisplay(keycode, ADISPLAY_ID_NONE);
 }
 
 TEST_F(InputSurfacesTest, can_receive_input) {
@@ -946,4 +951,74 @@ TEST_F(InputSurfacesTest, drop_input_policy) {
     injectKey(AKEYCODE_V);
     EXPECT_EQ(surface->consumeEvent(100), nullptr);
 }
+
+class MultiDisplayTests : public InputSurfacesTest {
+public:
+    MultiDisplayTests() : InputSurfacesTest() { ProcessState::self()->startThreadPool(); }
+    void TearDown() {
+        if (mVirtualDisplay) {
+            SurfaceComposerClient::destroyDisplay(mVirtualDisplay);
+        }
+        InputSurfacesTest::TearDown();
+    }
+
+    void createDisplay(int32_t width, int32_t height, bool isSecure, ui::LayerStack layerStack) {
+        sp<IGraphicBufferConsumer> consumer;
+        BufferQueue::createBufferQueue(&mProducer, &consumer);
+        consumer->setConsumerName(String8("Virtual disp consumer"));
+        consumer->setDefaultBufferSize(width, height);
+
+        mVirtualDisplay = SurfaceComposerClient::createDisplay(String8("VirtualDisplay"), isSecure);
+        SurfaceComposerClient::Transaction t;
+        t.setDisplaySurface(mVirtualDisplay, mProducer);
+        t.setDisplayFlags(mVirtualDisplay, 0x01 /* DisplayDevice::eReceivesInput */);
+        t.setDisplayLayerStack(mVirtualDisplay, layerStack);
+        t.apply(true);
+    }
+
+    sp<IBinder> mVirtualDisplay;
+    sp<IGraphicBufferProducer> mProducer;
+};
+
+TEST_F(MultiDisplayTests, drop_input_for_secure_layer_on_nonsecure_display) {
+    ui::LayerStack layerStack = ui::LayerStack::fromValue(42);
+    createDisplay(1000, 1000, false /*isSecure*/, layerStack);
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->doTransaction([&](auto &t, auto &sc) {
+        t.setFlags(sc, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure);
+        t.setLayerStack(sc, layerStack);
+    });
+    surface->showAt(100, 100);
+
+    injectTap(101, 101);
+
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
+
+    surface->requestFocus(layerStack.id);
+    surface->assertFocusChange(true);
+    injectKeyOnDisplay(AKEYCODE_V, layerStack.id);
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
+}
+
+TEST_F(MultiDisplayTests, dont_drop_input_for_secure_layer_on_secure_display) {
+    ui::LayerStack layerStack = ui::LayerStack::fromValue(42);
+    createDisplay(1000, 1000, true /*isSecure*/, layerStack);
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->doTransaction([&](auto &t, auto &sc) {
+        t.setFlags(sc, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure);
+        t.setLayerStack(sc, layerStack);
+    });
+    surface->showAt(100, 100);
+
+    injectTapOnDisplay(101, 101, layerStack.id);
+    EXPECT_NE(surface->consumeEvent(), nullptr);
+    EXPECT_NE(surface->consumeEvent(), nullptr);
+
+    surface->requestFocus(layerStack.id);
+    surface->assertFocusChange(true);
+    injectKeyOnDisplay(AKEYCODE_V, layerStack.id);
+
+    surface->expectKey(AKEYCODE_V);
+}
+
 } // namespace android::test

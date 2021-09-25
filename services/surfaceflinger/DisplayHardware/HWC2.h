@@ -17,6 +17,7 @@
 #pragma once
 
 #include <android-base/expected.h>
+#include <android-base/thread_annotations.h>
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
 #include <ui/HdrCapabilities.h>
@@ -79,7 +80,7 @@ public:
     virtual hal::HWDisplayId getId() const = 0;
     virtual bool isConnected() const = 0;
     virtual void setConnected(bool connected) = 0; // For use by Device only
-    virtual const std::unordered_set<hal::DisplayCapability>& getCapabilities() const = 0;
+    virtual bool hasCapability(hal::DisplayCapability) const = 0;
     virtual bool isVsyncPeriodSwitchSupported() const = 0;
     virtual void onLayerDestroyed(hal::HWLayerId layerId) = 0;
 
@@ -175,7 +176,7 @@ public:
             hal::DisplayRequest* outDisplayRequests,
             std::unordered_map<HWC2::Layer*, hal::LayerRequest>* outLayerRequests) override;
     hal::Error getConnectionType(ui::DisplayConnectionType*) const override;
-    hal::Error supportsDoze(bool* outSupport) const override;
+    hal::Error supportsDoze(bool* outSupport) const override EXCLUDES(mDisplayCapabilitiesMutex);
     hal::Error getHdrCapabilities(android::HdrCapabilities* outCapabilities) const override;
     hal::Error getDisplayedContentSamplingAttributes(hal::PixelFormat* outFormat,
                                                      hal::Dataspace* outDataspace,
@@ -214,9 +215,7 @@ public:
     hal::HWDisplayId getId() const override { return mId; }
     bool isConnected() const override { return mIsConnected; }
     void setConnected(bool connected) override; // For use by Device only
-    const std::unordered_set<hal::DisplayCapability>& getCapabilities() const override {
-        return mDisplayCapabilities;
-    };
+    bool hasCapability(hal::DisplayCapability) const override EXCLUDES(mDisplayCapabilitiesMutex);
     bool isVsyncPeriodSwitchSupported() const override;
     void onLayerDestroyed(hal::HWLayerId layerId) override;
 
@@ -243,8 +242,10 @@ private:
     using Layers = std::unordered_map<hal::HWLayerId, std::weak_ptr<HWC2::impl::Layer>>;
     Layers mLayers;
 
+    mutable std::mutex mDisplayCapabilitiesMutex;
     std::once_flag mDisplayCapabilityQueryFlag;
-    std::unordered_set<hal::DisplayCapability> mDisplayCapabilities;
+    std::optional<std::unordered_set<hal::DisplayCapability>> mDisplayCapabilities
+            GUARDED_BY(mDisplayCapabilitiesMutex);
 };
 
 } // namespace impl
