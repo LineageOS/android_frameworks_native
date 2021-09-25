@@ -2154,7 +2154,7 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
     if (traceFlags & SurfaceTracing::TRACE_INPUT) {
         WindowInfo info;
         if (useDrawing) {
-            info = fillInputInfo(ui::Transform());
+            info = fillInputInfo(ui::Transform(), /* displayIsSecure */ true);
         } else {
             info = state.inputInfo;
         }
@@ -2356,7 +2356,7 @@ void Layer::handleDropInputMode(gui::WindowInfo& info) const {
     }
 }
 
-WindowInfo Layer::fillInputInfo(const ui::Transform& displayTransform) {
+WindowInfo Layer::fillInputInfo(const ui::Transform& displayTransform, bool displayIsSecure) {
     if (!hasInputInfo()) {
         mDrawingState.inputInfo.name = getName();
         mDrawingState.inputInfo.ownerUid = mOwnerUid;
@@ -2384,6 +2384,12 @@ WindowInfo Layer::fillInputInfo(const ui::Transform& displayTransform) {
     info.alpha = getAlpha();
     fillTouchOcclusionMode(info);
     handleDropInputMode(info);
+
+    // If the window will be blacked out on a display because the display does not have the secure
+    // flag and the layer has the secure flag set, then drop input.
+    if (!displayIsSecure && isSecure()) {
+        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT;
+    }
 
     auto cropLayer = mDrawingState.touchableRegionCrop.promote();
     if (info.replaceTouchableRegionWithCrop) {

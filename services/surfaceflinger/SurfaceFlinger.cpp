@@ -2730,6 +2730,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     display->setProjection(state.orientation, state.layerStackSpaceRect,
                            state.orientedDisplaySpaceRect);
     display->setDisplayName(state.displayName);
+    display->setFlags(state.flags);
 
     return display;
 }
@@ -3088,16 +3089,19 @@ void SurfaceFlinger::notifyWindowInfos() {
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (!layer->needsInputInfo()) return;
 
-        const DisplayDevice* display = nullptr;
-        if (enablePerWindowInputRotation()) {
-            display = ON_MAIN_THREAD(getDisplayWithInputByLayer(layer)).get();
-        }
+        const DisplayDevice* display = ON_MAIN_THREAD(getDisplayWithInputByLayer(layer)).get();
+        ui::Transform displayTransform = ui::Transform();
 
-        // When calculating the screen bounds we ignore the transparent region since it may
-        // result in an unwanted offset.
-        const auto it = displayTransforms.find(display);
-        windowInfos.push_back(
-                layer->fillInputInfo(it != displayTransforms.end() ? it->second : ui::Transform()));
+        if (enablePerWindowInputRotation()) {
+            // When calculating the screen bounds we ignore the transparent region since it may
+            // result in an unwanted offset.
+            const auto it = displayTransforms.find(display);
+            if (it != displayTransforms.end()) {
+                displayTransform = it->second;
+            }
+        }
+        const bool displayIsSecure = !display || display->isSecure();
+        windowInfos.push_back(layer->fillInputInfo(displayTransform, displayIsSecure));
     });
     mWindowInfosListenerInvoker->windowInfosChanged(windowInfos, displayInfos,
                                                     mInputWindowCommands.syncInputWindows);
