@@ -503,9 +503,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     useFrameRateApi = use_frame_rate_api(true);
 
-    mKernelIdleTimerEnabled = mSupportKernelIdleTimer = sysprop::support_kernel_idle_timer(false);
-    base::SetProperty(KERNEL_IDLE_TIMER_PROP, mKernelIdleTimerEnabled ? "true" : "false");
-
     mRefreshRateOverlaySpinner = property_get_bool("sf.debug.show_refresh_rate_overlay_spinner", 0);
 
     // Debug property overrides ro. property
@@ -5913,13 +5910,15 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
 void SurfaceFlinger::toggleKernelIdleTimer() {
     using KernelIdleTimerAction = scheduler::RefreshRateConfigs::KernelIdleTimerAction;
 
-    // If the support for kernel idle timer is disabled in SF code, don't do anything.
-    if (!mSupportKernelIdleTimer) {
-        return;
-    }
     const auto display = getDefaultDisplayDeviceLocked();
     if (!display) {
         ALOGW("%s: default display is null", __func__);
+        return;
+    }
+
+    // If the support for kernel idle timer is disabled for the active display,
+    // don't do anything.
+    if (!display->refreshRateConfigs().supportsKernelIdleTimer()) {
         return;
     }
 
