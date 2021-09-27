@@ -91,8 +91,8 @@ public:
     }
 
     // Mocks the behavior of applying a transaction from WMShell
-    void setGameModeMetadata(sp<Layer> layer, int gameMode) {
-        mLayerMetadata.setInt32(METADATA_GAME_MODE, gameMode);
+    void setGameModeMetadata(sp<Layer> layer, GameMode gameMode) {
+        mLayerMetadata.setInt32(METADATA_GAME_MODE, static_cast<int32_t>(gameMode));
         layer->setMetadata(mLayerMetadata);
         layer->setGameModeForTree(gameMode);
     }
@@ -109,51 +109,52 @@ TEST_F(GameModeTest, SetGameModeSetsForAllCurrentChildren) {
     sp<BufferStateLayer> childLayer2 = createBufferStateLayer();
     rootLayer->addChild(childLayer1);
     rootLayer->addChild(childLayer2);
-    rootLayer->setGameModeForTree(/*gameMode*/ 2);
+    rootLayer->setGameModeForTree(GameMode::Performance);
 
-    EXPECT_EQ(rootLayer->getGameMode(), 2);
-    EXPECT_EQ(childLayer1->getGameMode(), 2);
-    EXPECT_EQ(childLayer2->getGameMode(), 2);
+    EXPECT_EQ(rootLayer->getGameMode(), GameMode::Performance);
+    EXPECT_EQ(childLayer1->getGameMode(), GameMode::Performance);
+    EXPECT_EQ(childLayer2->getGameMode(), GameMode::Performance);
 }
 
 TEST_F(GameModeTest, AddChildAppliesGameModeFromParent) {
     sp<BufferStateLayer> rootLayer = createBufferStateLayer();
     sp<BufferStateLayer> childLayer = createBufferStateLayer();
-    rootLayer->setGameModeForTree(/*gameMode*/ 2);
+    rootLayer->setGameModeForTree(GameMode::Performance);
     rootLayer->addChild(childLayer);
 
-    EXPECT_EQ(rootLayer->getGameMode(), 2);
-    EXPECT_EQ(childLayer->getGameMode(), 2);
+    EXPECT_EQ(rootLayer->getGameMode(), GameMode::Performance);
+    EXPECT_EQ(childLayer->getGameMode(), GameMode::Performance);
 }
 
 TEST_F(GameModeTest, RemoveChildResetsGameMode) {
     sp<BufferStateLayer> rootLayer = createBufferStateLayer();
     sp<BufferStateLayer> childLayer = createBufferStateLayer();
-    rootLayer->setGameModeForTree(/*gameMode*/ 2);
+    rootLayer->setGameModeForTree(GameMode::Performance);
     rootLayer->addChild(childLayer);
 
-    EXPECT_EQ(rootLayer->getGameMode(), 2);
-    EXPECT_EQ(childLayer->getGameMode(), 2);
+    EXPECT_EQ(rootLayer->getGameMode(), GameMode::Performance);
+    EXPECT_EQ(childLayer->getGameMode(), GameMode::Performance);
 
     rootLayer->removeChild(childLayer);
-    EXPECT_EQ(childLayer->getGameMode(), 0);
+    EXPECT_EQ(childLayer->getGameMode(), GameMode::Unsupported);
 }
 
 TEST_F(GameModeTest, ReparentingDoesNotOverrideMetadata) {
     sp<BufferStateLayer> rootLayer = createBufferStateLayer();
     sp<BufferStateLayer> childLayer1 = createBufferStateLayer();
     sp<BufferStateLayer> childLayer2 = createBufferStateLayer();
-    rootLayer->setGameModeForTree(/*gameMode*/ 1);
+    rootLayer->setGameModeForTree(GameMode::Standard);
     rootLayer->addChild(childLayer1);
 
-    setGameModeMetadata(childLayer2, /*gameMode*/ 2);
+    setGameModeMetadata(childLayer2, GameMode::Performance);
     rootLayer->addChild(childLayer2);
 
-    EXPECT_EQ(rootLayer->getGameMode(), 1);
-    EXPECT_EQ(childLayer1->getGameMode(), 1);
-    EXPECT_EQ(childLayer2->getGameMode(), 2);
+    EXPECT_EQ(rootLayer->getGameMode(), GameMode::Standard);
+    EXPECT_EQ(childLayer1->getGameMode(), GameMode::Standard);
+    EXPECT_EQ(childLayer2->getGameMode(), GameMode::Performance);
 
     rootLayer->removeChild(childLayer2);
-    EXPECT_EQ(childLayer2->getGameMode(), 2);
+    EXPECT_EQ(childLayer2->getGameMode(), GameMode::Performance);
 }
+
 } // namespace android

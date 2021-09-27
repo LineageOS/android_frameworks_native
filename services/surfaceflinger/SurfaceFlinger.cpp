@@ -4158,13 +4158,14 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     std::optional<nsecs_t> dequeueBufferTimestamp;
     if (what & layer_state_t::eMetadataChanged) {
         dequeueBufferTimestamp = s.metadata.getInt64(METADATA_DEQUEUE_TIME);
-        auto gameMode = s.metadata.getInt32(METADATA_GAME_MODE, -1);
-        if (gameMode != -1) {
+
+        if (const int32_t gameMode = s.metadata.getInt32(METADATA_GAME_MODE, -1); gameMode != -1) {
             // The transaction will be received on the Task layer and needs to be applied to all
             // child layers. Child layers that are added at a later point will obtain the game mode
             // info through addChild().
-            layer->setGameModeForTree(gameMode);
+            layer->setGameModeForTree(static_cast<GameMode>(gameMode));
         }
+
         if (layer->setMetadata(s.metadata)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eColorSpaceAgnosticChanged) {

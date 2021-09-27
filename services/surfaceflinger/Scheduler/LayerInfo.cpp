@@ -28,6 +28,7 @@
 
 #include <cutils/compiler.h>
 #include <cutils/trace.h>
+#include <ftl/enum.h>
 
 #undef LOG_TAG
 #define LOG_TAG "LayerInfo"
@@ -257,10 +258,10 @@ LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateConfigs& ref
     return {LayerHistory::LayerVoteType::Max, Fps()};
 }
 
-const char* LayerInfo::getTraceTag(android::scheduler::LayerHistory::LayerVoteType type) const {
+const char* LayerInfo::getTraceTag(LayerHistory::LayerVoteType type) const {
     if (mTraceTags.count(type) == 0) {
-        const auto tag = "LFPS " + mName + " " + RefreshRateConfigs::layerVoteTypeString(type);
-        mTraceTags.emplace(type, tag);
+        auto tag = "LFPS " + mName + " " + ftl::enum_string(type);
+        mTraceTags.emplace(type, std::move(tag));
     }
 
     return mTraceTags.at(type).c_str();

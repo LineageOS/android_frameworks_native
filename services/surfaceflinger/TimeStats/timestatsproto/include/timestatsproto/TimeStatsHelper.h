@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <gui/LayerMetadata.h>
 #include <timestatsproto/TimeStatsProtoHeader.h>
 #include <utils/Timers.h>
 
@@ -63,6 +64,8 @@ public:
             Undefined = 0,
             Default = 1,
             ExactOrMultiple = 2,
+
+            ftl_last = ExactOrMultiple
         } frameRateCompatibility = FrameRateCompatibility::Undefined;
 
         // Needs to be in sync with atoms.proto
@@ -70,23 +73,11 @@ public:
             Undefined = 0,
             ShouldBeSeamless = 1,
             NotRequired = 2,
+
+            ftl_last = NotRequired
         } seamlessness = Seamlessness::Undefined;
 
-        static std::string toString(FrameRateCompatibility);
-        static std::string toString(Seamlessness);
         std::string toString() const;
-    };
-
-    /**
-     * GameMode of the layer. GameModes are set by SysUI through WMShell.
-     * Actual game mode definitions are managed by GameManager.java
-     * The values defined here should always be in sync with the ones in GameManager.
-     */
-    enum GameMode {
-        GameModeUnsupported = 0,
-        GameModeStandard = 1,
-        GameModePerformance = 2,
-        GameModeBattery = 3,
     };
 
     class TimeStatsLayer {
@@ -96,7 +87,7 @@ public:
         std::string packageName;
         int32_t displayRefreshRateBucket = 0;
         int32_t renderRateBucket = 0;
-        int32_t gameMode = 0;
+        GameMode gameMode = GameMode::Unsupported;
         int32_t totalFrames = 0;
         int32_t droppedFrames = 0;
         int32_t lateAcquireFrames = 0;
@@ -106,7 +97,6 @@ public:
         std::unordered_map<std::string, Histogram> deltas;
 
         std::string toString() const;
-        std::string toString(int32_t gameMode) const;
         SFTimeStatsLayerProto toProto() const;
     };
 
@@ -137,13 +127,14 @@ public:
     struct LayerStatsKey {
         uid_t uid = 0;
         std::string layerName;
-        int32_t gameMode = 0;
+        GameMode gameMode = GameMode::Unsupported;
 
         struct Hasher {
             size_t operator()(const LayerStatsKey& key) const {
                 size_t uidHash = std::hash<uid_t>{}(key.uid);
                 size_t layerNameHash = std::hash<std::string>{}(key.layerName);
-                size_t gameModeHash = std::hash<int32_t>{}(key.gameMode);
+                using T = std::underlying_type_t<GameMode>;
+                size_t gameModeHash = std::hash<T>{}(static_cast<T>(key.gameMode));
                 return HashCombine(uidHash, HashCombine(layerNameHash, gameModeHash));
             }
         };
