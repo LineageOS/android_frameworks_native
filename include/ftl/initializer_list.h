@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <functional>
 #include <tuple>
 #include <utility>
 
@@ -65,18 +66,18 @@ struct InitializerList<T, std::index_sequence<Sizes...>, Types...> {
   std::tuple<Types...> tuple;
 };
 
-template <typename K, typename V>
+template <typename K, typename V, typename KeyEqual = std::equal_to<K>>
 struct KeyValue {};
 
 // Shorthand for key-value pairs that assigns the first argument to the key, and the rest to the
 // value. The specialization is on KeyValue rather than std::pair, so that ftl::init::list works
 // with the latter.
-template <typename K, typename V, std::size_t... Sizes, typename... Types>
-struct InitializerList<KeyValue<K, V>, std::index_sequence<Sizes...>, Types...> {
+template <typename K, typename V, typename E, std::size_t... Sizes, typename... Types>
+struct InitializerList<KeyValue<K, V, E>, std::index_sequence<Sizes...>, Types...> {
   // Accumulate the three arguments to std::pair's piecewise constructor.
   template <typename... Args>
   [[nodiscard]] constexpr auto operator()(K&& k, Args&&... args) && -> InitializerList<
-      KeyValue<K, V>, std::index_sequence<Sizes..., 3>, Types..., std::piecewise_construct_t,
+      KeyValue<K, V, E>, std::index_sequence<Sizes..., 3>, Types..., std::piecewise_construct_t,
       std::tuple<K&&>, std::tuple<Args&&...>> {
     return {std::tuple_cat(
         std::move(tuple),
@@ -94,9 +95,9 @@ template <typename T, typename... Args>
   return InitializerList<T>{}(std::forward<Args>(args)...);
 }
 
-template <typename K, typename V, typename... Args>
+template <typename K, typename V, typename E = std::equal_to<K>, typename... Args>
 [[nodiscard]] constexpr auto map(Args&&... args) {
-  return list<KeyValue<K, V>>(std::forward<Args>(args)...);
+  return list<KeyValue<K, V, E>>(std::forward<Args>(args)...);
 }
 
 template <typename K, typename V>
