@@ -260,7 +260,7 @@ namespace null_driver {
 
 VKAPI_ATTR
 VkResult EnumerateInstanceVersion(uint32_t* pApiVersion) {
-    *pApiVersion = VK_API_VERSION_1_2;
+    *pApiVersion = VK_API_VERSION_1_3;
     return VK_SUCCESS;
 }
 
