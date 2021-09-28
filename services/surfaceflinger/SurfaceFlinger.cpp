@@ -7052,6 +7052,10 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activ
     mScheduler->setRefreshRateConfigs(activeDisplay->holdRefreshRateConfigs());
     onActiveDisplaySizeChanged(activeDisplay);
     mActiveDisplayTransformHint = activeDisplay->getTransformHint();
+
+    // Update the kernel timer for the current active display, since the policy
+    // for this display might have changed when it was not the active display.
+    toggleKernelIdleTimer();
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(
