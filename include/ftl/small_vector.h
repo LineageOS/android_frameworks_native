@@ -151,8 +151,6 @@ class SmallVector final : ArrayTraits<T>, ArrayComparators<SmallVector> {
   DISPATCH(reference, back, noexcept)
   DISPATCH(const_reference, back, const)
 
-#undef DISPATCH
-
   reference operator[](size_type i) {
     return dynamic() ? std::get<Dynamic>(vector_)[i] : std::get<Static>(vector_)[i];
   }
@@ -214,13 +212,15 @@ class SmallVector final : ArrayTraits<T>, ArrayComparators<SmallVector> {
   //
   // The last() and end() iterators are invalidated.
   //
-  void pop_back() {
-    if (dynamic()) {
-      std::get<Dynamic>(vector_).pop_back();
-    } else {
-      std::get<Static>(vector_).pop_back();
-    }
-  }
+  DISPATCH(void, pop_back, noexcept)
+
+  // Removes all elements.
+  //
+  // All iterators are invalidated.
+  //
+  DISPATCH(void, clear, noexcept)
+
+#undef DISPATCH
 
   // Erases an element, but does not preserve order. Rather than shifting subsequent elements,
   // this moves the last element to the slot of the erased element.
@@ -345,6 +345,7 @@ class SmallVector<T, 0> final : ArrayTraits<T>,
     return true;
   }
 
+  using Impl::clear;
   using Impl::pop_back;
 
   void unstable_erase(iterator it) {

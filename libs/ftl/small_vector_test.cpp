@@ -460,4 +460,34 @@ TEST(SmallVector, Destroy) {
   EXPECT_EQ(0, dead);
 }
 
+TEST(SmallVector, Clear) {
+  int live = 0;
+  int dead = 0;
+
+  SmallVector<DestroyCounts, 2> counts;
+  counts.emplace_back(live, dead);
+  counts.emplace_back(live, dead);
+
+  counts.clear();
+
+  EXPECT_TRUE(counts.empty());
+  EXPECT_FALSE(counts.dynamic());
+
+  EXPECT_EQ(2, live);
+  EXPECT_EQ(0, dead);
+
+  live = 0;
+  counts.emplace_back(live, dead);
+  counts.emplace_back(live, dead);
+  counts.emplace_back(live, dead);
+
+  counts.clear();
+
+  EXPECT_TRUE(counts.empty());
+  EXPECT_TRUE(counts.dynamic());
+
+  EXPECT_EQ(3, live);
+  EXPECT_EQ(2, dead);
+}
+
 }  // namespace android::test
