@@ -132,6 +132,20 @@ status_t BufferStateLayer::addReleaseFence(const sp<CallbackHandle>& ch,
 // Interface implementation for Layer
 // -----------------------------------------------------------------------
 void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
+
+    // If a layer has been displayed again we may need to clear
+    // the mLastClientComposition fence that we use for early release in setBuffer
+    // (as we now have a new fence which won't pass through the client composition path in some cases
+    //  e.g. screenshot). We expect one call to onLayerDisplayed after receiving the GL comp fence
+    // from a single composition cycle, and want to clear on the second call
+    // (which we track with mLastClientCompositionDisplayed)
+   if (mLastClientCompositionDisplayed) {
+        mLastClientCompositionFence = nullptr;
+        mLastClientCompositionDisplayed = false;
+    } else if (mLastClientCompositionFence) {
+        mLastClientCompositionDisplayed = true;
+    }
+
     if (!releaseFence->isValid()) {
         return;
     }
@@ -474,6 +488,13 @@ bool BufferStateLayer::setBuffer(const BufferData& bufferData, nsecs_t postTime,
               addSurfaceFrameDroppedForBuffer(mDrawingState.bufferSurfaceFrameTX);
               mDrawingState.bufferSurfaceFrameTX.reset();
             }
+        } else if (mLastClientCompositionFence != nullptr) {
+            callReleaseBufferCallback(mDrawingState.releaseBufferListener,
+                                      mDrawingState.buffer->getBuffer(), mDrawingState.frameNumber,
+                                      mLastClientCompositionFence, mTransformHint,
+                                      mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(
+                                          mOwnerUid));
+            mLastClientCompositionFence = nullptr;
         }
     }
 
