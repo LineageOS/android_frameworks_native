@@ -52,11 +52,12 @@ TEST_F(MultiStateCounterTest, constructor) {
     DoubleMultiStateCounter testCounter(3, 0);
     testCounter.updateValue(0, 0);
     testCounter.setState(1, 0);
-    testCounter.updateValue(3.14, 3000);
+    double delta = testCounter.updateValue(3.14, 3000);
 
     EXPECT_DOUBLE_EQ(0, testCounter.getCount(0));
     EXPECT_DOUBLE_EQ(3.14, testCounter.getCount(1));
     EXPECT_DOUBLE_EQ(0, testCounter.getCount(2));
+    EXPECT_DOUBLE_EQ(3.14, delta);
 }
 
 TEST_F(MultiStateCounterTest, stateChange) {
@@ -177,12 +178,31 @@ TEST_F(MultiStateCounterTest, timeAdjustment_updateValue) {
 
     // Time moves back. The negative delta from 2000 to 1000 is ignored
     testCounter.updateValue(8.0, 1000);
-    testCounter.updateValue(11.0, 3000);
+    double delta = testCounter.updateValue(11.0, 3000);
 
     // The total accumulated count is:
     //  6.0          // For the period 0-2000
     //  +(11.0-8.0)  // For the period 1000-3000
     EXPECT_DOUBLE_EQ(9.0, testCounter.getCount(0));
+
+    //  11.0-8.0
+    EXPECT_DOUBLE_EQ(3.0, delta);
+}
+
+TEST_F(MultiStateCounterTest, addValue) {
+    DoubleMultiStateCounter testCounter(1, 0);
+    testCounter.updateValue(0, 0);
+    testCounter.setState(0, 0);
+    testCounter.updateValue(6.0, 2000);
+
+    testCounter.addValue(8.0);
+
+    EXPECT_DOUBLE_EQ(14.0, testCounter.getCount(0));
+
+    testCounter.setEnabled(false, 3000);
+    testCounter.addValue(888.0);
+
+    EXPECT_DOUBLE_EQ(14.0, testCounter.getCount(0));
 }
 
 TEST_F(MultiStateCounterTest, toString) {
