@@ -438,7 +438,7 @@ void BufferLayerConsumer::onDisconnect() {
 }
 
 void BufferLayerConsumer::onSidebandStreamChanged() {
-    FrameAvailableListener* unsafeFrameAvailableListener = nullptr;
+    [[maybe_unused]] FrameAvailableListener* unsafeFrameAvailableListener = nullptr;
     {
         Mutex::Autolock lock(mFrameAvailableMutex);
         unsafeFrameAvailableListener = mFrameAvailableListener.unsafe_get();
