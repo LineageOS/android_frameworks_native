@@ -33,6 +33,9 @@ struct VsyncEventData {
 
     // The current frame interval in ns when this frame was scheduled.
     int64_t frameInterval = 0;
+
+    // The anticipated Vsync present time.
+    int64_t expectedPresentTime = 0;
 };
 
 class DisplayEventDispatcher : public LooperCallback {
