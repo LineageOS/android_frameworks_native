@@ -969,6 +969,13 @@ void PooledInputEventFactory::recycle(InputEvent* event) {
             return;
         }
         break;
+    case AINPUT_EVENT_TYPE_TOUCH_MODE:
+        if (mTouchModeEventPool.size() < mMaxPoolSize) {
+            mTouchModeEventPool.push(
+                    std::unique_ptr<TouchModeEvent>(static_cast<TouchModeEvent*>(event)));
+            return;
+        }
+        break;
     }
     delete event;
 }
