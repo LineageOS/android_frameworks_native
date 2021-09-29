@@ -34,7 +34,6 @@ struct WideColorP3ColorimetricSupportedVariant {
     static constexpr bool WIDE_COLOR_SUPPORTED = true;
 
     static void injectConfigChange(DisplayTransactionTest* test) {
-        test->mFlinger.mutableUseColorManagement() = true;
         test->mFlinger.mutableHasWideColorDisplay() = true;
         test->mFlinger.mutableDisplayColorSetting() = DisplayColorSetting::kUnmanaged;
     }
