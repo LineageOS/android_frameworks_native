@@ -189,8 +189,7 @@ class StaticVector final : ArrayTraits<T>,
   }
 
   StaticVector& operator=(StaticVector&& other) {
-    std::destroy(begin(), end());
-    size_ = 0;
+    clear();
     swap<true>(other);
     return *this;
   }
@@ -279,6 +278,15 @@ class StaticVector final : ArrayTraits<T>,
   // The last() and end() iterators are invalidated.
   //
   void pop_back() { unstable_erase(last()); }
+
+  // Removes all elements.
+  //
+  // All iterators are invalidated.
+  //
+  void clear() {
+    std::destroy(begin(), end());
+    size_ = 0;
+  }
 
   // Erases an element, but does not preserve order. Rather than shifting subsequent elements,
   // this moves the last element to the slot of the erased element.

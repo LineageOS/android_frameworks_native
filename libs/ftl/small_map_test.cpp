@@ -345,4 +345,41 @@ TEST(SmallMap, Erase) {
   }
 }
 
+TEST(SmallMap, Clear) {
+  SmallMap map = ftl::init::map(1, '1')(2, '2')(3, '3');
+
+  map.clear();
+
+  EXPECT_TRUE(map.empty());
+  EXPECT_FALSE(map.dynamic());
+
+  map = ftl::init::map(1, '1')(2, '2')(3, '3');
+  map.try_emplace(4, '4');
+
+  map.clear();
+
+  EXPECT_TRUE(map.empty());
+  EXPECT_TRUE(map.dynamic());
+}
+
+TEST(SmallMap, KeyEqual) {
+  struct KeyEqual {
+    bool operator()(int lhs, int rhs) const { return lhs % 10 == rhs % 10; }
+  };
+
+  SmallMap<int, char, 1, KeyEqual> map;
+
+  EXPECT_TRUE(map.try_emplace(3, '3').second);
+  EXPECT_FALSE(map.try_emplace(13, '3').second);
+
+  EXPECT_TRUE(map.try_emplace(22, '2').second);
+  EXPECT_TRUE(map.contains(42));
+
+  EXPECT_TRUE(map.try_emplace(111, '1').second);
+  EXPECT_EQ(map.get(321), '1');
+
+  map.erase(123);
+  EXPECT_EQ(map, SmallMap(ftl::init::map<int, char, KeyEqual>(1, '1')(2, '2')));
+}
+
 }  // namespace android::test
