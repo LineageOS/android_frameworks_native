@@ -3096,7 +3096,7 @@ void SurfaceFlinger::updateInputFlinger() {
 
 bool enablePerWindowInputRotation() {
     static bool value =
-            android::base::GetBoolProperty("persist.debug.per_window_input_rotation", false);
+            android::base::GetBoolProperty("persist.debug.per_window_input_rotation", true);
     return value;
 }
 
