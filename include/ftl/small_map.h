@@ -61,7 +61,7 @@ namespace android::ftl {
 //
 //   assert(map == SmallMap(ftl::init::map(-1, "xyz")(0, "nil")(42, "???")(123, "abc")));
 //
-template <typename K, typename V, std::size_t N>
+template <typename K, typename V, std::size_t N, typename KeyEqual = std::equal_to<K>>
 class SmallMap final {
   using Map = SmallVector<std::pair<const K, V>, N>;
 
@@ -153,7 +153,7 @@ class SmallMap final {
   auto get(const key_type& key, F f) const
       -> std::conditional_t<std::is_void_v<R>, bool, std::optional<R>> {
     for (auto& [k, v] : *this) {
-      if (k == key) {
+      if (KeyEqual{}(k, key)) {
         if constexpr (std::is_void_v<R>) {
           f(v);
           return true;
@@ -237,9 +237,16 @@ class SmallMap final {
   //
   bool erase(const key_type& key) { return erase(key, begin()); }
 
+  // Removes all mappings.
+  //
+  // All iterators are invalidated.
+  //
+  void clear() { map_.clear(); }
+
  private:
   iterator find(const key_type& key, iterator first) {
-    return std::find_if(first, end(), [&key](const auto& pair) { return pair.first == key; });
+    return std::find_if(first, end(),
+                        [&key](const auto& pair) { return KeyEqual{}(pair.first, key); });
   }
 
   bool erase(const key_type& key, iterator first) {
@@ -261,13 +268,13 @@ class SmallMap final {
 };
 
 // Deduction guide for in-place constructor.
-template <typename K, typename V, std::size_t... Sizes, typename... Types>
-SmallMap(InitializerList<KeyValue<K, V>, std::index_sequence<Sizes...>, Types...>&&)
-    -> SmallMap<K, V, sizeof...(Sizes)>;
+template <typename K, typename V, typename E, std::size_t... Sizes, typename... Types>
+SmallMap(InitializerList<KeyValue<K, V, E>, std::index_sequence<Sizes...>, Types...>&&)
+    -> SmallMap<K, V, sizeof...(Sizes), E>;
 
 // Returns whether the key-value pairs of two maps are equal.
-template <typename K, typename V, std::size_t N, typename Q, typename W, std::size_t M>
-bool operator==(const SmallMap<K, V, N>& lhs, const SmallMap<Q, W, M>& rhs) {
+template <typename K, typename V, std::size_t N, typename Q, typename W, std::size_t M, typename E>
+bool operator==(const SmallMap<K, V, N, E>& lhs, const SmallMap<Q, W, M, E>& rhs) {
   if (lhs.size() != rhs.size()) return false;
 
   for (const auto& [k, v] : lhs) {
@@ -281,8 +288,8 @@ bool operator==(const SmallMap<K, V, N>& lhs, const SmallMap<Q, W, M>& rhs) {
 }
 
 // TODO: Remove in C++20.
-template <typename K, typename V, std::size_t N, typename Q, typename W, std::size_t M>
-inline bool operator!=(const SmallMap<K, V, N>& lhs, const SmallMap<Q, W, M>& rhs) {
+template <typename K, typename V, std::size_t N, typename Q, typename W, std::size_t M, typename E>
+inline bool operator!=(const SmallMap<K, V, N, E>& lhs, const SmallMap<Q, W, M, E>& rhs) {
   return !(lhs == rhs);
 }
 
