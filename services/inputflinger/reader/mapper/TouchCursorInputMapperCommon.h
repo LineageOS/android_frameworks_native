@@ -110,7 +110,7 @@ static void synthesizeButtonKey(InputReaderContext* context, int32_t action, nse
          !(currentButtonState & buttonState))) {
         NotifyKeyArgs args(context->getNextId(), when, readTime, deviceId, source, displayId,
                            policyFlags, action, 0, keyCode, 0, context->getGlobalMetaState(), when);
-        context->getListener()->notifyKey(&args);
+        context->getListener().notifyKey(&args);
     }
 }
 

@@ -1186,7 +1186,7 @@ class InstrumentedInputReader : public InputReader {
 public:
     InstrumentedInputReader(std::shared_ptr<EventHubInterface> eventHub,
                             const sp<InputReaderPolicyInterface>& policy,
-                            const sp<InputListenerInterface>& listener)
+                            InputListenerInterface& listener)
           : InputReader(eventHub, policy, listener), mFakeContext(this) {}
 
     virtual ~InstrumentedInputReader() {}
@@ -1499,7 +1499,7 @@ TEST_F(InputReaderPolicyTest, Viewports_GetByPort) {
 
 class InputReaderTest : public testing::Test {
 protected:
-    sp<TestInputListener> mFakeListener;
+    std::unique_ptr<TestInputListener> mFakeListener;
     sp<FakeInputReaderPolicy> mFakePolicy;
     std::shared_ptr<FakeEventHub> mFakeEventHub;
     std::unique_ptr<InstrumentedInputReader> mReader;
@@ -1507,14 +1507,14 @@ protected:
     void SetUp() override {
         mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = new FakeInputReaderPolicy();
-        mFakeListener = new TestInputListener();
+        mFakeListener = std::make_unique<TestInputListener>();
 
         mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
-                                                            mFakeListener);
+                                                            *mFakeListener);
     }
 
     void TearDown() override {
-        mFakeListener.clear();
+        mFakeListener.reset();
         mFakePolicy.clear();
     }
 
@@ -2145,9 +2145,9 @@ TEST_F(InputReaderTest, LightGetColor) {
 // the tests to fail.
 class InputReaderIntegrationTest : public testing::Test {
 protected:
-    sp<TestInputListener> mTestListener;
+    std::unique_ptr<TestInputListener> mTestListener;
     sp<FakeInputReaderPolicy> mFakePolicy;
-    sp<InputReaderInterface> mReader;
+    std::unique_ptr<InputReaderInterface> mReader;
 
     std::shared_ptr<FakePointerController> mFakePointerController;
 
@@ -2155,10 +2155,11 @@ protected:
         mFakePolicy = new FakeInputReaderPolicy();
         mFakePointerController = std::make_shared<FakePointerController>();
         mFakePolicy->setPointerController(mFakePointerController);
-        mTestListener = new TestInputListener(2000ms /*eventHappenedTimeout*/,
-                                              30ms /*eventDidNotHappenTimeout*/);
+        mTestListener = std::make_unique<TestInputListener>(2000ms /*eventHappenedTimeout*/,
+                                                            30ms /*eventDidNotHappenTimeout*/);
 
-        mReader = new InputReader(std::make_shared<EventHub>(), mFakePolicy, mTestListener);
+        mReader = std::make_unique<InputReader>(std::make_shared<EventHub>(), mFakePolicy,
+                                                *mTestListener);
         ASSERT_EQ(mReader->start(), OK);
 
         // Since this test is run on a real device, all the input devices connected
@@ -2170,7 +2171,8 @@ protected:
 
     void TearDown() override {
         ASSERT_EQ(mReader->stop(), OK);
-        mTestListener.clear();
+        mReader.reset();
+        mTestListener.reset();
         mFakePolicy.clear();
     }
 };
@@ -2424,16 +2426,16 @@ protected:
 
     std::shared_ptr<FakeEventHub> mFakeEventHub;
     sp<FakeInputReaderPolicy> mFakePolicy;
-    sp<TestInputListener> mFakeListener;
+    std::unique_ptr<TestInputListener> mFakeListener;
     std::unique_ptr<InstrumentedInputReader> mReader;
     std::shared_ptr<InputDevice> mDevice;
 
     void SetUp() override {
         mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = new FakeInputReaderPolicy();
-        mFakeListener = new TestInputListener();
+        mFakeListener = std::make_unique<TestInputListener>();
         mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
-                                                            mFakeListener);
+                                                            *mFakeListener);
         InputDeviceIdentifier identifier;
         identifier.name = DEVICE_NAME;
         identifier.location = DEVICE_LOCATION;
@@ -2445,7 +2447,7 @@ protected:
     }
 
     void TearDown() override {
-        mFakeListener.clear();
+        mFakeListener.reset();
         mFakePolicy.clear();
     }
 };
@@ -2697,16 +2699,16 @@ protected:
 
     std::shared_ptr<FakeEventHub> mFakeEventHub;
     sp<FakeInputReaderPolicy> mFakePolicy;
-    sp<TestInputListener> mFakeListener;
+    std::unique_ptr<TestInputListener> mFakeListener;
     std::unique_ptr<InstrumentedInputReader> mReader;
     std::shared_ptr<InputDevice> mDevice;
 
     virtual void SetUp(Flags<InputDeviceClass> classes) {
         mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = new FakeInputReaderPolicy();
-        mFakeListener = new TestInputListener();
+        mFakeListener = std::make_unique<TestInputListener>();
         mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
-                                                            mFakeListener);
+                                                            *mFakeListener);
         mDevice = newDevice(DEVICE_ID, DEVICE_NAME, DEVICE_LOCATION, EVENTHUB_ID, classes);
     }
 
@@ -2718,7 +2720,7 @@ protected:
     }
 
     void TearDown() override {
-        mFakeListener.clear();
+        mFakeListener.reset();
         mFakePolicy.clear();
 
         sysprop::InputFlingerProperties::per_window_input_rotation(
@@ -9021,23 +9023,23 @@ protected:
 
     std::shared_ptr<FakeEventHub> mFakeEventHub;
     sp<FakeInputReaderPolicy> mFakePolicy;
-    sp<TestInputListener> mFakeListener;
+    std::unique_ptr<TestInputListener> mFakeListener;
     std::unique_ptr<InstrumentedInputReader> mReader;
     std::shared_ptr<InputDevice> mDevice;
 
     virtual void SetUp(Flags<InputDeviceClass> classes) {
         mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = new FakeInputReaderPolicy();
-        mFakeListener = new TestInputListener();
+        mFakeListener = std::make_unique<TestInputListener>();
         mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
-                                                            mFakeListener);
+                                                            *mFakeListener);
         mDevice = newDevice(DEVICE_ID, DEVICE_NAME, DEVICE_LOCATION, EVENTHUB_ID, classes);
     }
 
     void SetUp() override { SetUp(DEVICE_CLASSES); }
 
     void TearDown() override {
-        mFakeListener.clear();
+        mFakeListener.reset();
         mFakePolicy.clear();
     }
 

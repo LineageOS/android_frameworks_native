@@ -20,6 +20,7 @@
 #include "InputState.h"
 
 #include <input/InputTransport.h>
+#include <utils/RefBase.h>
 #include <deque>
 
 namespace android::inputdispatcher {

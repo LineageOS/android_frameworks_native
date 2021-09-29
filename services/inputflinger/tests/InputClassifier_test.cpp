@@ -56,18 +56,10 @@ static NotifyMotionArgs generateBasicMotionArgs() {
 
 class InputClassifierTest : public testing::Test {
 protected:
-    sp<InputClassifierInterface> mClassifier;
-    sp<TestInputListener> mTestListener;
+    TestInputListener mTestListener;
+    std::unique_ptr<InputClassifierInterface> mClassifier;
 
-    virtual void SetUp() override {
-        mTestListener = new TestInputListener();
-        mClassifier = new InputClassifier(mTestListener);
-    }
-
-    virtual void TearDown() override {
-        mClassifier.clear();
-        mTestListener.clear();
-    }
+    void SetUp() override { mClassifier = std::make_unique<InputClassifier>(mTestListener); }
 };
 
 /**
@@ -80,7 +72,7 @@ TEST_F(InputClassifierTest, SendToNextStage_NotifyConfigurationChangedArgs) {
 
     mClassifier->notifyConfigurationChanged(&args);
     NotifyConfigurationChangedArgs outArgs;
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled(&outArgs));
+    ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyConfigurationChangedWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);
 }
 
@@ -93,7 +85,7 @@ TEST_F(InputClassifierTest, SendToNextStage_NotifyKeyArgs) {
 
     mClassifier->notifyKey(&args);
     NotifyKeyArgs outArgs;
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(&outArgs));
+    ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyKeyWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);
 }
 
@@ -106,7 +98,7 @@ TEST_F(InputClassifierTest, SendToNextStage_NotifyMotionArgs) {
     NotifyMotionArgs motionArgs = generateBasicMotionArgs();
     mClassifier->notifyMotion(&motionArgs);
     NotifyMotionArgs args;
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(motionArgs, args);
 }
 
@@ -120,7 +112,7 @@ TEST_F(InputClassifierTest, SendToNextStage_NotifySwitchArgs) {
 
     mClassifier->notifySwitch(&args);
     NotifySwitchArgs outArgs;
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifySwitchWasCalled(&outArgs));
+    ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifySwitchWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);
 }
 
@@ -133,7 +125,7 @@ TEST_F(InputClassifierTest, SendToNextStage_NotifyDeviceResetArgs) {
 
     mClassifier->notifyDeviceReset(&args);
     NotifyDeviceResetArgs outArgs;
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyDeviceResetWasCalled(&outArgs));
+    ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyDeviceResetWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);
 }
 

@@ -562,6 +562,9 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
     mLooper = new Looper(false);
     mReporter = createInputReporter();
 
+    mWindowInfoListener = new DispatcherWindowListener(*this);
+    SurfaceComposerClient::getDefault()->addWindowInfosListener(mWindowInfoListener);
+
     mKeyRepeatState.lastKeyEntry = nullptr;
 
     policy->getDispatcherConfiguration(&mConfig);
@@ -580,10 +583,6 @@ InputDispatcher::~InputDispatcher() {
         removeInputChannelLocked(connection->inputChannel->getConnectionToken(),
                                  false /* notify */);
     }
-}
-
-void InputDispatcher::onFirstRef() {
-    SurfaceComposerClient::getDefault()->addWindowInfosListener(this);
 }
 
 status_t InputDispatcher::start() {
@@ -6282,6 +6281,12 @@ bool InputDispatcher::shouldDropInput(
         return true;
     }
     return false;
+}
+
+void InputDispatcher::DispatcherWindowListener::onWindowInfosChanged(
+        const std::vector<gui::WindowInfo>& windowInfos,
+        const std::vector<DisplayInfo>& displayInfos) {
+    mDispatcher.onWindowInfosChanged(windowInfos, displayInfos);
 }
 
 } // namespace android::inputdispatcher

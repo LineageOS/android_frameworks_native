@@ -21,7 +21,6 @@
 #include <input/InputTransport.h>
 #include <ui/Transform.h>
 #include <utils/BitSet.h>
-#include <utils/RefBase.h>
 
 namespace android::inputdispatcher {
 
