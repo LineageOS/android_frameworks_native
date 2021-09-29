@@ -396,6 +396,11 @@ Transform Transform::inverse() const {
         result.mMatrix[1][0] = -b*idet;
         result.mMatrix[1][1] =  a*idet;
         result.mType = mType;
+        if (getOrientation() & ROT_90) {
+            // Recalculate the type if there is a 90-degree rotation component, since the inverse
+            // of ROT_90 is ROT_270 and vice versa.
+            result.mType |= UNKNOWN_TYPE;
+        }
 
         vec2 T(-x, -y);
         T = result.transform(T);
