@@ -672,6 +672,83 @@ TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToWindowSize) {
                                                /*border*/ 0, /*outsideRegion*/ true));
 }
 
+// b/196339769 verify we can can update the requested size while the in FREEZE scaling mode and
+// scale the buffer properly when the mode changes to SCALE_TO_WINDOW
+TEST_F(BLASTBufferQueueTest, ScalingModeChanges) {
+    uint8_t r = 255;
+    uint8_t g = 0;
+    uint8_t b = 0;
+
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight / 4);
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
+    {
+        int slot;
+        sp<Fence> fence;
+        sp<GraphicBuffer> buf;
+        auto ret = igbProducer->dequeueBuffer(&slot, &fence, mDisplayWidth, mDisplayHeight / 4,
+                                              PIXEL_FORMAT_RGBA_8888, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                              nullptr, nullptr);
+        ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, ret);
+        ASSERT_EQ(OK, igbProducer->requestBuffer(slot, &buf));
+
+        uint32_t* bufData;
+        buf->lock(static_cast<uint32_t>(GraphicBuffer::USAGE_SW_WRITE_OFTEN),
+                  reinterpret_cast<void**>(&bufData));
+        fillBuffer(bufData, Rect(buf->getWidth(), buf->getHeight()), buf->getStride(), r, g, b);
+        buf->unlock();
+
+        IGraphicBufferProducer::QueueBufferOutput qbOutput;
+        IGraphicBufferProducer::QueueBufferInput input(systemTime(), true /* autotimestamp */,
+                                                       HAL_DATASPACE_UNKNOWN, {},
+                                                       NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
+                                                       Fence::NO_FENCE);
+        igbProducer->queueBuffer(slot, input, &qbOutput);
+        adapter.waitForCallbacks();
+    }
+    // capture screen and verify that it is red
+    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+
+    ASSERT_NO_FATAL_FAILURE(
+            checkScreenCapture(r, g, b,
+                               {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight / 4}));
+
+    // update the size to half the display and dequeue a buffer quarter of the display.
+    adapter.update(mSurfaceControl, mDisplayWidth, mDisplayHeight / 2);
+
+    {
+        int slot;
+        sp<Fence> fence;
+        sp<GraphicBuffer> buf;
+        auto ret = igbProducer->dequeueBuffer(&slot, &fence, mDisplayWidth, mDisplayHeight / 8,
+                                              PIXEL_FORMAT_RGBA_8888, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                              nullptr, nullptr);
+        ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, ret);
+        ASSERT_EQ(OK, igbProducer->requestBuffer(slot, &buf));
+
+        uint32_t* bufData;
+        buf->lock(static_cast<uint32_t>(GraphicBuffer::USAGE_SW_WRITE_OFTEN),
+                  reinterpret_cast<void**>(&bufData));
+        g = 255;
+        fillBuffer(bufData, Rect(buf->getWidth(), buf->getHeight()), buf->getStride(), r, g, b);
+        buf->unlock();
+
+        IGraphicBufferProducer::QueueBufferOutput qbOutput;
+        IGraphicBufferProducer::QueueBufferInput input(systemTime(), true /* autotimestamp */,
+                                                       HAL_DATASPACE_UNKNOWN, {},
+                                                       NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW,
+                                                       0, Fence::NO_FENCE);
+        igbProducer->queueBuffer(slot, input, &qbOutput);
+        adapter.waitForCallbacks();
+    }
+    // capture screen and verify that it is red
+    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    // verify we still scale the buffer to the new size (half the screen height)
+    ASSERT_NO_FATAL_FAILURE(
+            checkScreenCapture(r, g, b,
+                               {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight / 2}));
+}
+
 class TestProducerListener : public BnProducerListener {
 public:
     sp<IGraphicBufferProducer> mIgbp;
