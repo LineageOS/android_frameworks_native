@@ -51,12 +51,11 @@ namespace android {
  * The implementation must guarantee thread safety for this interface. However, since the input
  * listener is NOT thread safe, all calls to the listener must happen from the same thread.
  */
-class InputReaderInterface : public virtual RefBase {
-protected:
+class InputReaderInterface {
+public:
     InputReaderInterface() { }
     virtual ~InputReaderInterface() { }
 
-public:
     /* Dumps the state of the input reader.
      *
      * This method may be called on any thread (usually by the input manager). */

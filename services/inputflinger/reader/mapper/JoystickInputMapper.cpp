@@ -344,7 +344,7 @@ void JoystickInputMapper::sync(nsecs_t when, nsecs_t readTime, bool force) {
                           &pointerProperties, &pointerCoords, 0, 0,
                           AMOTION_EVENT_INVALID_CURSOR_POSITION,
                           AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {});
-    getListener()->notifyMotion(&args);
+    getListener().notifyMotion(&args);
 }
 
 void JoystickInputMapper::setPointerCoordsAxisValue(PointerCoords* pointerCoords, int32_t axis,

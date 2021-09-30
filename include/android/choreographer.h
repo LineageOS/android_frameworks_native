@@ -39,6 +39,12 @@ struct AChoreographer;
  */
 typedef struct AChoreographer AChoreographer;
 
+struct AChoreographerFrameCallbackData;
+/**
+ * Opaque type that provides access to an AChoreographerFrameCallbackData object.
+ */
+typedef struct AChoreographerFrameCallbackData AChoreographerFrameCallbackData;
+
 /**
  * Prototype of the function that is called when a new frame is being rendered.
  * It's passed the time that the frame is being rendered as nanoseconds in the
@@ -58,6 +64,14 @@ typedef void (*AChoreographer_frameCallback)(long frameTimeNanos, void* data);
  * whenever events need to be synchronized (e.g. animations).
  */
 typedef void (*AChoreographer_frameCallback64)(int64_t frameTimeNanos, void* data);
+
+/**
+ * Prototype of the function that is called when a new frame is being rendered.
+ * It's passed the frame data that should not outlive the callback, as well as the data pointer
+ * provided by the application that registered a callback.
+ */
+typedef void (*AChoreographer_extendedFrameCallback)(
+        const AChoreographerFrameCallbackData* callbackData, void* data);
 
 /**
  * Prototype of the function that is called when the display refresh rate
@@ -111,6 +125,14 @@ void AChoreographer_postFrameCallbackDelayed64(AChoreographer* choreographer,
                                                uint32_t delayMillis) __INTRODUCED_IN(29);
 
 /**
+ * Posts a callback to run on the next frame. The data pointer provided will
+ * be passed to the callback function when it's called.
+ */
+void AChoreographer_postExtendedFrameCallback(AChoreographer* choreographer,
+                                        AChoreographer_extendedFrameCallback callback, void* data)
+        __INTRODUCED_IN(33);
+
+/**
  * Registers a callback to be run when the display refresh rate changes. The
  * data pointer provided will be passed to the callback function when it's
  * called. The same callback may be registered multiple times, provided that a
@@ -159,6 +181,42 @@ void AChoreographer_registerRefreshRateCallback(AChoreographer* choreographer,
 void AChoreographer_unregisterRefreshRateCallback(AChoreographer* choreographer,
                                                   AChoreographer_refreshRateCallback, void* data)
         __INTRODUCED_IN(30);
+
+/**
+ * The time in nanoseconds when the frame started being rendered.
+ */
+int64_t AChoreographerFrameCallbackData_getFrameTimeNanos(
+        const AChoreographerFrameCallbackData* data) __INTRODUCED_IN(33);
+
+/**
+ * The number of possible frame timelines.
+ */
+size_t AChoreographerFrameCallbackData_getFrameTimelinesLength(
+        const AChoreographerFrameCallbackData* data) __INTRODUCED_IN(33);
+
+/**
+ * Get index of the platform-preferred FrameTimeline.
+ */
+size_t AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex(
+        const AChoreographerFrameCallbackData* data) __INTRODUCED_IN(33);
+
+/**
+ * The vsync ID token used to map Choreographer data.
+ */
+int64_t AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
+        const AChoreographerFrameCallbackData* data, size_t index) __INTRODUCED_IN(33);
+
+/**
+ * The time in nanoseconds which the frame at given index is expected to be presented.
+ */
+int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTime(
+        const AChoreographerFrameCallbackData* data, size_t index) __INTRODUCED_IN(33);
+
+/**
+ * The time in nanoseconds which the frame at given index needs to be ready by.
+ */
+int64_t AChoreographerFrameCallbackData_getFrameTimelineDeadline(
+        const AChoreographerFrameCallbackData* data, size_t index) __INTRODUCED_IN(33);
 
 __END_DECLS
 

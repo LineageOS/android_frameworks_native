@@ -168,6 +168,8 @@ void MultiStateCounter<T>::setValue(state_t state, const T& value) {
 
 template <class T>
 const T& MultiStateCounter<T>::updateValue(const T& value, time_t timestamp) {
+    T* returnValue = &emptyValue;
+
     // If the counter is disabled, we ignore the update, except when the counter got disabled after
     // the previous update, in which case we still need to pick up the residual delta.
     if (isEnabled || lastUpdateTimestamp < lastStateChangeTimestamp) {
@@ -178,6 +180,7 @@ const T& MultiStateCounter<T>::updateValue(const T& value, time_t timestamp) {
         if (lastUpdateTimestamp >= 0) {
             if (timestamp > lastUpdateTimestamp) {
                 if (delta(lastValue, value, &deltaValue)) {
+                    returnValue = &deltaValue;
                     time_t timeSinceUpdate = timestamp - lastUpdateTimestamp;
                     for (int i = 0; i < stateCount; i++) {
                         time_t timeInState = states[i].timeInStateSinceUpdate;
@@ -201,7 +204,7 @@ const T& MultiStateCounter<T>::updateValue(const T& value, time_t timestamp) {
     }
     lastValue = value;
     lastUpdateTimestamp = timestamp;
-    return deltaValue;
+    return *returnValue;
 }
 
 template <class T>

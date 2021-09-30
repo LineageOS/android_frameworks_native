@@ -38,7 +38,6 @@ DisplayTransactionTest::DisplayTransactionTest() {
 
     // Default to no wide color display support configured
     mFlinger.mutableHasWideColorDisplay() = false;
-    mFlinger.mutableUseColorManagement() = false;
     mFlinger.mutableDisplayColorSetting() = DisplayColorSetting::kUnmanaged;
 
     mFlinger.setCreateBufferQueueFunction([](auto, auto, auto) {

@@ -42,10 +42,11 @@ namespace android {
 
 InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
                          const sp<InputReaderPolicyInterface>& policy,
-                         const sp<InputListenerInterface>& listener)
+                         InputListenerInterface& listener)
       : mContext(this),
         mEventHub(eventHub),
         mPolicy(policy),
+        mQueuedListener(listener),
         mGlobalMetaState(0),
         mLedMetaState(AMETA_NUM_LOCK_ON),
         mGeneration(1),
@@ -53,14 +54,8 @@ InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
         mDisableVirtualKeysTimeout(LLONG_MIN),
         mNextTimeout(LLONG_MAX),
         mConfigurationChangesToRefresh(0) {
-    mQueuedListener = new QueuedInputListener(listener);
-
-    { // acquire lock
-        std::scoped_lock _l(mLock);
-
-        refreshConfigurationLocked(0);
-        updateGlobalMetaStateLocked();
-    } // release lock
+    refreshConfigurationLocked(0);
+    updateGlobalMetaStateLocked();
 }
 
 InputReader::~InputReader() {}
@@ -144,7 +139,7 @@ void InputReader::loopOnce() {
     // resulting in a deadlock.  This situation is actually quite plausible because the
     // listener is actually the input dispatcher, which calls into the window manager,
     // which occasionally calls into the input reader.
-    mQueuedListener->flush();
+    mQueuedListener.flush();
 }
 
 void InputReader::processEventsLocked(const RawEvent* rawEvents, size_t count) {
@@ -340,7 +335,7 @@ void InputReader::handleConfigurationChangedLocked(nsecs_t when) {
 
     // Enqueue configuration changed.
     NotifyConfigurationChangedArgs args(mContext.getNextId(), when);
-    mQueuedListener->notifyConfigurationChanged(&args);
+    mQueuedListener.notifyConfigurationChanged(&args);
 }
 
 void InputReader::refreshConfigurationLocked(uint32_t changes) {
@@ -374,7 +369,7 @@ void InputReader::refreshConfigurationLocked(uint32_t changes) {
             mCurrentPointerCaptureRequest = mConfig.pointerCaptureRequest;
             const NotifyPointerCaptureChangedArgs args(mContext.getNextId(), now,
                                                        mCurrentPointerCaptureRequest);
-            mQueuedListener->notifyPointerCaptureChanged(&args);
+            mQueuedListener.notifyPointerCaptureChanged(&args);
         }
     }
 }
@@ -952,8 +947,8 @@ InputReaderPolicyInterface* InputReader::ContextImpl::getPolicy() {
     return mReader->mPolicy.get();
 }
 
-InputListenerInterface* InputReader::ContextImpl::getListener() {
-    return mReader->mQueuedListener.get();
+InputListenerInterface& InputReader::ContextImpl::getListener() {
+    return mReader->mQueuedListener;
 }
 
 EventHubInterface* InputReader::ContextImpl::getEventHub() {

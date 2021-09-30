@@ -345,7 +345,7 @@ void InputClassifier::HalDeathRecipient::serviceDied(
 
 // --- InputClassifier ---
 
-InputClassifier::InputClassifier(const sp<InputListenerInterface>& listener)
+InputClassifier::InputClassifier(InputListenerInterface& listener)
       : mListener(listener), mHalDeathRecipient(new HalDeathRecipient(*this)) {}
 
 void InputClassifier::setMotionClassifierEnabled(bool enabled) {
@@ -369,12 +369,12 @@ void InputClassifier::setMotionClassifierEnabled(bool enabled) {
 
 void InputClassifier::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
     // pass through
-    mListener->notifyConfigurationChanged(args);
+    mListener.notifyConfigurationChanged(args);
 }
 
 void InputClassifier::notifyKey(const NotifyKeyArgs* args) {
     // pass through
-    mListener->notifyKey(args);
+    mListener.notifyKey(args);
 }
 
 void InputClassifier::notifyMotion(const NotifyMotionArgs* args) {
@@ -382,28 +382,28 @@ void InputClassifier::notifyMotion(const NotifyMotionArgs* args) {
     // MotionClassifier is only used for touch events, for now
     const bool sendToMotionClassifier = mMotionClassifier && isTouchEvent(*args);
     if (!sendToMotionClassifier) {
-        mListener->notifyMotion(args);
+        mListener.notifyMotion(args);
         return;
     }
 
     NotifyMotionArgs newArgs(*args);
     newArgs.classification = mMotionClassifier->classify(newArgs);
-    mListener->notifyMotion(&newArgs);
+    mListener.notifyMotion(&newArgs);
 }
 
 void InputClassifier::notifySensor(const NotifySensorArgs* args) {
     // pass through
-    mListener->notifySensor(args);
+    mListener.notifySensor(args);
 }
 
 void InputClassifier::notifyVibratorState(const NotifyVibratorStateArgs* args) {
     // pass through
-    mListener->notifyVibratorState(args);
+    mListener.notifyVibratorState(args);
 }
 
 void InputClassifier::notifySwitch(const NotifySwitchArgs* args) {
     // pass through
-    mListener->notifySwitch(args);
+    mListener.notifySwitch(args);
 }
 
 void InputClassifier::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
@@ -412,12 +412,12 @@ void InputClassifier::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
         mMotionClassifier->reset(*args);
     }
     // continue to next stage
-    mListener->notifyDeviceReset(args);
+    mListener.notifyDeviceReset(args);
 }
 
 void InputClassifier::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
     // pass through
-    mListener->notifyPointerCaptureChanged(args);
+    mListener.notifyPointerCaptureChanged(args);
 }
 
 void InputClassifier::setMotionClassifier(

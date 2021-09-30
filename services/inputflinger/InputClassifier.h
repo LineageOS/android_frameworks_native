@@ -18,7 +18,6 @@
 #define _UI_INPUT_CLASSIFIER_H
 
 #include <android-base/thread_annotations.h>
-#include <utils/RefBase.h>
 #include <thread>
 #include <unordered_map>
 
@@ -88,7 +87,7 @@ public:
  * Base interface for an InputListener stage.
  * Provides classification to events.
  */
-class InputClassifierInterface : public virtual RefBase, public InputListenerInterface {
+class InputClassifierInterface : public InputListenerInterface {
 public:
     virtual void setMotionClassifierEnabled(bool enabled) = 0;
     /**
@@ -96,7 +95,7 @@ public:
      * This method may be called on any thread (usually by the input manager).
      */
     virtual void dump(std::string& dump) = 0;
-protected:
+
     InputClassifierInterface() { }
     virtual ~InputClassifierInterface() { }
 };
@@ -223,7 +222,7 @@ private:
  */
 class InputClassifier : public InputClassifierInterface {
 public:
-    explicit InputClassifier(const sp<InputListenerInterface>& listener);
+    explicit InputClassifier(InputListenerInterface& listener);
 
     virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
     virtual void notifyKey(const NotifyKeyArgs* args) override;
@@ -245,7 +244,7 @@ private:
     // Protect access to mMotionClassifier, since it may become null via a hidl callback
     std::mutex mLock;
     // The next stage to pass input events to
-    sp<InputListenerInterface> mListener;
+    InputListenerInterface& mListener;
 
     std::unique_ptr<MotionClassifierInterface> mMotionClassifier GUARDED_BY(mLock);
     std::thread mInitializeMotionClassifierThread;

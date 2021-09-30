@@ -411,7 +411,7 @@ void SensorInputMapper::sync(nsecs_t when, bool force) {
                                           sensor.sensorInfo.accuracy /* accuracyChanged */,
                                   timestamp /* hwTimestamp */, values);
 
-            getListener()->notifySensor(&args);
+            getListener().notifySensor(&args);
             sensor.lastSampleTimeNs = timestamp;
             sensor.accuracy = sensor.sensorInfo.accuracy;
         }
