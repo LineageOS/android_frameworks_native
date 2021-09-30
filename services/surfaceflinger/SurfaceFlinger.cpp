@@ -275,6 +275,40 @@ enum Permission {
     ROTATE_SURFACE_FLINGER = 0x2,
 };
 
+struct IdleTimerConfig {
+    int32_t timeoutMs;
+    bool supportKernelIdleTimer;
+};
+
+IdleTimerConfig getIdleTimerConfiguration(DisplayId displayId) {
+    // TODO(adyabr): use ro.surface_flinger.* namespace
+
+    const auto displayIdleTimerMsKey = [displayId] {
+        std::stringstream ss;
+        ss << "debug.sf.set_idle_timer_ms_" << displayId.value;
+        return ss.str();
+    }();
+
+    const auto displaySupportKernelIdleTimerKey = [displayId] {
+        std::stringstream ss;
+        ss << "debug.sf.support_kernel_idle_timer_" << displayId.value;
+        return ss.str();
+    }();
+
+    const int32_t displayIdleTimerMs = base::GetIntProperty(displayIdleTimerMsKey, 0);
+    const auto displaySupportKernelIdleTimer =
+            base::GetBoolProperty(displaySupportKernelIdleTimerKey, false);
+
+    if (displayIdleTimerMs > 0) {
+        return {displayIdleTimerMs, displaySupportKernelIdleTimer};
+    }
+
+    const int32_t setIdleTimerMs = base::GetIntProperty("debug.sf.set_idle_timer_ms", 0);
+    const int32_t millis = setIdleTimerMs ? setIdleTimerMs : sysprop::set_idle_timer_ms(0);
+
+    return {millis, sysprop::support_kernel_idle_timer(false)};
+}
+
 }  // namespace anonymous
 
 // ---------------------------------------------------------------------------
@@ -468,9 +502,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     }
 
     useFrameRateApi = use_frame_rate_api(true);
-
-    mKernelIdleTimerEnabled = mSupportKernelIdleTimer = sysprop::support_kernel_idle_timer(false);
-    base::SetProperty(KERNEL_IDLE_TIMER_PROP, mKernelIdleTimerEnabled ? "true" : "false");
 
     mRefreshRateOverlaySpinner = property_get_bool("sf.debug.show_refresh_rate_overlay_spinner", 0);
 
@@ -2643,10 +2674,14 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         creationArgs.connectionType = physical->type;
         creationArgs.supportedModes = physical->supportedModes;
         creationArgs.activeModeId = physical->activeMode->getId();
+        const auto [idleTimerTimeoutMs, supportKernelIdleTimer] =
+                getIdleTimerConfiguration(compositionDisplay->getId());
         scheduler::RefreshRateConfigs::Config config =
                 {.enableFrameRateOverride = android::sysprop::enable_frame_rate_override(false),
                  .frameRateMultipleThreshold =
-                         base::GetIntProperty("debug.sf.frame_rate_multiple_threshold", 0)};
+                         base::GetIntProperty("debug.sf.frame_rate_multiple_threshold", 0),
+                 .idleTimerTimeoutMs = idleTimerTimeoutMs,
+                 .supportKernelIdleTimer = supportKernelIdleTimer};
         creationArgs.refreshRateConfigs =
                 std::make_shared<scheduler::RefreshRateConfigs>(creationArgs.supportedModes,
                                                                 creationArgs.activeModeId, config);
@@ -5875,13 +5910,15 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
 void SurfaceFlinger::toggleKernelIdleTimer() {
     using KernelIdleTimerAction = scheduler::RefreshRateConfigs::KernelIdleTimerAction;
 
-    // If the support for kernel idle timer is disabled in SF code, don't do anything.
-    if (!mSupportKernelIdleTimer) {
-        return;
-    }
     const auto display = getDefaultDisplayDeviceLocked();
     if (!display) {
         ALOGW("%s: default display is null", __func__);
+        return;
+    }
+
+    // If the support for kernel idle timer is disabled for the active display,
+    // don't do anything.
+    if (!display->refreshRateConfigs().supportsKernelIdleTimer()) {
         return;
     }
 
@@ -7015,6 +7052,10 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activ
     mScheduler->setRefreshRateConfigs(activeDisplay->holdRefreshRateConfigs());
     onActiveDisplaySizeChanged(activeDisplay);
     mActiveDisplayTransformHint = activeDisplay->getTransformHint();
+
+    // Update the kernel timer for the current active display, since the policy
+    // for this display might have changed when it was not the active display.
+    toggleKernelIdleTimer();
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(

@@ -44,7 +44,7 @@ public:
                       ISchedulerCallback& callback)
           : Scheduler({std::move(vsyncController), std::move(vsyncTracker), nullptr},
                       refreshRateConfigs, callback, createLayerHistory(),
-                      {.supportKernelTimer = false, .useContentDetection = true}) {}
+                      {.useContentDetection = true}) {}
 
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
