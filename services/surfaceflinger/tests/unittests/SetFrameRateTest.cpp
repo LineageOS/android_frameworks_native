@@ -24,7 +24,6 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
-#include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
 #include "EffectLayer.h"
 #include "Layer.h"
@@ -63,17 +62,6 @@ protected:
     static constexpr uint32_t WIDTH = 100;
     static constexpr uint32_t HEIGHT = 100;
     static constexpr uint32_t LAYER_FLAGS = 0;
-};
-
-class BufferQueueLayerFactory : public LayerFactory {
-public:
-    std::string name() override { return "BufferQueueLayer"; }
-    sp<Layer> createLayer(TestableSurfaceFlinger& flinger) override {
-        sp<Client> client;
-        LayerCreationArgs args(flinger.flinger(), client, "buffer-queue-layer", WIDTH, HEIGHT,
-                               LAYER_FLAGS, LayerMetadata());
-        return new BufferQueueLayer(args);
-    }
 };
 
 class BufferStateLayerFactory : public LayerFactory {
@@ -417,8 +405,7 @@ TEST_P(SetFrameRateTest, SetAndGetParentNotInTree) {
 }
 
 INSTANTIATE_TEST_SUITE_P(PerLayerType, SetFrameRateTest,
-                         testing::Values(std::make_shared<BufferQueueLayerFactory>(),
-                                         std::make_shared<BufferStateLayerFactory>(),
+                         testing::Values(std::make_shared<BufferStateLayerFactory>(),
                                          std::make_shared<EffectLayerFactory>()),
                          PrintToStringParamName);
 
