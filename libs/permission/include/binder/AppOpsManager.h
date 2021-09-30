@@ -147,7 +147,8 @@ public:
         OP_ACTIVITY_RECOGNITION_SOURCE = 113,
         OP_BLUETOOTH_ADVERTISE = 114,
         OP_RECORD_INCOMING_PHONE_AUDIO = 115,
-        _NUM_OP = 116
+        OP_NEARBY_WIFI_DEVICES = 116,
+        _NUM_OP = 117
     };
 
     AppOpsManager();
