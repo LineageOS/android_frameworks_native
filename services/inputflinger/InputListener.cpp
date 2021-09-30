@@ -44,8 +44,8 @@ bool NotifyConfigurationChangedArgs::operator==(const NotifyConfigurationChanged
     return id == rhs.id && eventTime == rhs.eventTime;
 }
 
-void NotifyConfigurationChangedArgs::notify(const sp<InputListenerInterface>& listener) const {
-    listener->notifyConfigurationChanged(this);
+void NotifyConfigurationChangedArgs::notify(InputListenerInterface& listener) const {
+    listener.notifyConfigurationChanged(this);
 }
 
 // --- NotifyKeyArgs ---
@@ -89,8 +89,8 @@ bool NotifyKeyArgs::operator==(const NotifyKeyArgs& rhs) const {
             downTime == rhs.downTime;
 }
 
-void NotifyKeyArgs::notify(const sp<InputListenerInterface>& listener) const {
-    listener->notifyKey(this);
+void NotifyKeyArgs::notify(InputListenerInterface& listener) const {
+    listener.notifyKey(this);
 }
 
 // --- NotifyMotionArgs ---
@@ -188,8 +188,8 @@ bool NotifyMotionArgs::operator==(const NotifyMotionArgs& rhs) const {
     return true;
 }
 
-void NotifyMotionArgs::notify(const sp<InputListenerInterface>& listener) const {
-    listener->notifyMotion(this);
+void NotifyMotionArgs::notify(InputListenerInterface& listener) const {
+    listener.notifyMotion(this);
 }
 
 // --- NotifySwitchArgs ---
@@ -212,8 +212,8 @@ bool NotifySwitchArgs::operator==(const NotifySwitchArgs rhs) const {
             switchValues == rhs.switchValues && switchMask == rhs.switchMask;
 }
 
-void NotifySwitchArgs::notify(const sp<InputListenerInterface>& listener) const {
-    listener->notifySwitch(this);
+void NotifySwitchArgs::notify(InputListenerInterface& listener) const {
+    listener.notifySwitch(this);
 }
 
 // --- NotifySensorArgs ---
@@ -247,8 +247,8 @@ bool NotifySensorArgs::operator==(const NotifySensorArgs rhs) const {
             hwTimestamp == rhs.hwTimestamp && values == rhs.values;
 }
 
-void NotifySensorArgs::notify(const sp<InputListenerInterface>& listener) const {
-    listener->notifySensor(this);
+void NotifySensorArgs::notify(InputListenerInterface& listener) const {
+    listener.notifySensor(this);
 }
 
 // --- NotifyVibratorStateArgs ---
@@ -265,8 +265,8 @@ bool NotifyVibratorStateArgs::operator==(const NotifyVibratorStateArgs rhs) cons
             isOn == rhs.isOn;
 }
 
-void NotifyVibratorStateArgs::notify(const sp<InputListenerInterface>& listener) const {
-    listener->notifyVibratorState(this);
+void NotifyVibratorStateArgs::notify(InputListenerInterface& listener) const {
+    listener.notifyVibratorState(this);
 }
 
 // --- NotifyDeviceResetArgs ---
@@ -281,8 +281,8 @@ bool NotifyDeviceResetArgs::operator==(const NotifyDeviceResetArgs& rhs) const {
     return id == rhs.id && eventTime == rhs.eventTime && deviceId == rhs.deviceId;
 }
 
-void NotifyDeviceResetArgs::notify(const sp<InputListenerInterface>& listener) const {
-    listener->notifyDeviceReset(this);
+void NotifyDeviceResetArgs::notify(InputListenerInterface& listener) const {
+    listener.notifyDeviceReset(this);
 }
 
 // --- NotifyPointerCaptureChangedArgs ---
@@ -299,8 +299,8 @@ bool NotifyPointerCaptureChangedArgs::operator==(const NotifyPointerCaptureChang
     return id == rhs.id && eventTime == rhs.eventTime && request == rhs.request;
 }
 
-void NotifyPointerCaptureChangedArgs::notify(const sp<InputListenerInterface>& listener) const {
-    listener->notifyPointerCaptureChanged(this);
+void NotifyPointerCaptureChangedArgs::notify(InputListenerInterface& listener) const {
+    listener.notifyPointerCaptureChanged(this);
 }
 
 // --- QueuedInputListener ---
@@ -312,9 +312,8 @@ static inline void traceEvent(const char* functionName, int32_t id) {
     }
 }
 
-QueuedInputListener::QueuedInputListener(const sp<InputListenerInterface>& innerListener) :
-        mInnerListener(innerListener) {
-}
+QueuedInputListener::QueuedInputListener(InputListenerInterface& innerListener)
+      : mInnerListener(innerListener) {}
 
 QueuedInputListener::~QueuedInputListener() {
     size_t count = mArgsQueue.size();

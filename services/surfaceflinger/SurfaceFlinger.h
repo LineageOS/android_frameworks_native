@@ -244,7 +244,7 @@ public:
     static ui::Rotation internalDisplayOrientation;
 
     // Indicate if device wants color management on its display.
-    static bool useColorManagement;
+    static const constexpr bool useColorManagement = true;
 
     static bool useContextPriority;
 

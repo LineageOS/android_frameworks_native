@@ -399,7 +399,7 @@ void TouchInputMapper::configure(nsecs_t when, const InputReaderConfiguration* c
         // Send reset, unless this is the first time the device has been configured,
         // in which case the reader will call reset itself after all mappers are ready.
         NotifyDeviceResetArgs args(getContext()->getNextId(), when, getDeviceId());
-        getListener()->notifyDeviceReset(&args);
+        getListener().notifyDeviceReset(&args);
     }
 }
 
@@ -1929,7 +1929,7 @@ void TouchInputMapper::dispatchVirtualKey(nsecs_t when, nsecs_t readTime, uint32
     NotifyKeyArgs args(getContext()->getNextId(), when, readTime, getDeviceId(),
                        AINPUT_SOURCE_KEYBOARD, mViewport.displayId, policyFlags, keyEventAction,
                        keyEventFlags, keyCode, scanCode, metaState, downTime);
-    getListener()->notifyKey(&args);
+    getListener().notifyKey(&args);
 }
 
 void TouchInputMapper::abortTouches(nsecs_t when, nsecs_t readTime, uint32_t policyFlags) {
@@ -2621,7 +2621,7 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, nsecs_t readTime, u
                               metaState, buttonState, MotionClassification::NONE,
                               AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties, &pointerCoords,
                               0, 0, x, y, mPointerGesture.downTime, /* videoFrames */ {});
-        getListener()->notifyMotion(&args);
+        getListener().notifyMotion(&args);
     }
 
     // Update state.
@@ -3536,7 +3536,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsecs_t readTime, uin
                               &mPointerSimple.lastCoords, mOrientedXPrecision, mOrientedYPrecision,
                               xCursorPosition, yCursorPosition, mPointerSimple.downTime,
                               /* videoFrames */ {});
-        getListener()->notifyMotion(&args);
+        getListener().notifyMotion(&args);
     }
 
     if (mPointerSimple.hovering && !hovering) {
@@ -3550,7 +3550,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsecs_t readTime, uin
                               &mPointerSimple.lastCoords, mOrientedXPrecision, mOrientedYPrecision,
                               xCursorPosition, yCursorPosition, mPointerSimple.downTime,
                               /* videoFrames */ {});
-        getListener()->notifyMotion(&args);
+        getListener().notifyMotion(&args);
     }
 
     if (down) {
@@ -3566,7 +3566,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsecs_t readTime, uin
                                   &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
                                   mOrientedXPrecision, mOrientedYPrecision, xCursorPosition,
                                   yCursorPosition, mPointerSimple.downTime, /* videoFrames */ {});
-            getListener()->notifyMotion(&args);
+            getListener().notifyMotion(&args);
         }
 
         // Send move.
@@ -3577,7 +3577,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsecs_t readTime, uin
                               &mPointerSimple.currentCoords, mOrientedXPrecision,
                               mOrientedYPrecision, xCursorPosition, yCursorPosition,
                               mPointerSimple.downTime, /* videoFrames */ {});
-        getListener()->notifyMotion(&args);
+        getListener().notifyMotion(&args);
     }
 
     if (hovering) {
@@ -3592,7 +3592,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsecs_t readTime, uin
                                   &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
                                   mOrientedXPrecision, mOrientedYPrecision, xCursorPosition,
                                   yCursorPosition, mPointerSimple.downTime, /* videoFrames */ {});
-            getListener()->notifyMotion(&args);
+            getListener().notifyMotion(&args);
         }
 
         // Send hover move.
@@ -3603,7 +3603,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsecs_t readTime, uin
                               &mPointerSimple.currentCoords, mOrientedXPrecision,
                               mOrientedYPrecision, xCursorPosition, yCursorPosition,
                               mPointerSimple.downTime, /* videoFrames */ {});
-        getListener()->notifyMotion(&args);
+        getListener().notifyMotion(&args);
     }
 
     if (mCurrentRawState.rawVScroll || mCurrentRawState.rawHScroll) {
@@ -3625,7 +3625,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsecs_t readTime, uin
                               &pointerCoords, mOrientedXPrecision, mOrientedYPrecision,
                               xCursorPosition, yCursorPosition, mPointerSimple.downTime,
                               /* videoFrames */ {});
-        getListener()->notifyMotion(&args);
+        getListener().notifyMotion(&args);
     }
 
     // Save state.
@@ -3703,7 +3703,7 @@ void TouchInputMapper::dispatchMotion(nsecs_t when, nsecs_t readTime, uint32_t p
                           MotionClassification::NONE, edgeFlags, pointerCount, pointerProperties,
                           pointerCoords, xPrecision, yPrecision, xCursorPosition, yCursorPosition,
                           downTime, std::move(frames));
-    getListener()->notifyMotion(&args);
+    getListener().notifyMotion(&args);
 }
 
 bool TouchInputMapper::updateMovedPointers(const PointerProperties* inProperties,

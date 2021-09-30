@@ -354,7 +354,7 @@ void KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down, 
                        getDisplayId(), policyFlags,
                        down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
                        AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState, downTime);
-    getListener()->notifyKey(&args);
+    getListener().notifyKey(&args);
 }
 
 ssize_t KeyboardInputMapper::findKeyDown(int32_t scanCode) {

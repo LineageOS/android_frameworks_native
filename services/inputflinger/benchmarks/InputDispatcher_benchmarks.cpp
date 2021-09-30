@@ -21,6 +21,7 @@
 #include <gui/constants.h>
 #include "../dispatcher/InputDispatcher.h"
 
+using android::base::Result;
 using android::gui::WindowInfo;
 using android::gui::WindowInfoHandle;
 using android::os::IInputConstants;
@@ -162,15 +163,15 @@ public:
     }
 
 protected:
-    explicit FakeInputReceiver(const sp<InputDispatcher>& dispatcher, const std::string name)
-          : mDispatcher(dispatcher) {
-        mClientChannel = *mDispatcher->createInputChannel(name);
+    explicit FakeInputReceiver(InputDispatcher& dispatcher, const std::string name) {
+        Result<std::unique_ptr<InputChannel>> channelResult = dispatcher.createInputChannel(name);
+        LOG_ALWAYS_FATAL_IF(!channelResult.ok());
+        mClientChannel = std::move(*channelResult);
         mConsumer = std::make_unique<InputConsumer>(mClientChannel);
     }
 
     virtual ~FakeInputReceiver() {}
 
-    sp<InputDispatcher> mDispatcher;
     std::shared_ptr<InputChannel> mClientChannel;
     std::unique_ptr<InputConsumer> mConsumer;
     PreallocatedInputEventFactory mEventFactory;
@@ -182,7 +183,7 @@ public:
     static const int32_t HEIGHT = 200;
 
     FakeWindowHandle(const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
-                     const sp<InputDispatcher>& dispatcher, const std::string name)
+                     InputDispatcher& dispatcher, const std::string name)
           : FakeInputReceiver(dispatcher, name), mFrame(Rect(0, 0, WIDTH, HEIGHT)) {
         inputApplicationHandle->updateInfo();
         updateInfo();
@@ -272,13 +273,13 @@ static NotifyMotionArgs generateMotionArgs() {
 static void benchmarkNotifyMotion(benchmark::State& state) {
     // Create dispatcher
     sp<FakeInputDispatcherPolicy> fakePolicy = new FakeInputDispatcherPolicy();
-    sp<InputDispatcher> dispatcher = new InputDispatcher(fakePolicy);
+    std::unique_ptr<InputDispatcher> dispatcher = std::make_unique<InputDispatcher>(fakePolicy);
     dispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
     dispatcher->start();
 
     // Create a window that will receive motion events
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> window = new FakeWindowHandle(application, dispatcher, "Fake Window");
+    sp<FakeWindowHandle> window = new FakeWindowHandle(application, *dispatcher, "Fake Window");
 
     dispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
@@ -306,13 +307,13 @@ static void benchmarkNotifyMotion(benchmark::State& state) {
 static void benchmarkInjectMotion(benchmark::State& state) {
     // Create dispatcher
     sp<FakeInputDispatcherPolicy> fakePolicy = new FakeInputDispatcherPolicy();
-    sp<InputDispatcher> dispatcher = new InputDispatcher(fakePolicy);
+    std::unique_ptr<InputDispatcher> dispatcher = std::make_unique<InputDispatcher>(fakePolicy);
     dispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
     dispatcher->start();
 
     // Create a window that will receive motion events
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> window = new FakeWindowHandle(application, dispatcher, "Fake Window");
+    sp<FakeWindowHandle> window = new FakeWindowHandle(application, *dispatcher, "Fake Window");
 
     dispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 

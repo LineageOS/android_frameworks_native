@@ -63,11 +63,26 @@ void AChoreographer_routePostFrameCallback64(AChoreographer* choreographer,
 void AChoreographer_routePostFrameCallbackDelayed64(AChoreographer* choreographer,
                                                     AChoreographer_frameCallback64 callback,
                                                     void* data, uint32_t delayMillis);
+void AChoreographer_routePostExtendedFrameCallback(AChoreographer* choreographer,
+                                                   AChoreographer_extendedFrameCallback callback,
+                                                   void* data);
 void AChoreographer_routeRegisterRefreshRateCallback(AChoreographer* choreographer,
                                                      AChoreographer_refreshRateCallback callback,
                                                      void* data);
 void AChoreographer_routeUnregisterRefreshRateCallback(AChoreographer* choreographer,
                                                        AChoreographer_refreshRateCallback callback,
                                                        void* data);
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimeNanos(
+        const AChoreographerFrameCallbackData* data);
+size_t AChoreographerFrameCallbackData_routeGetFrameTimelinesLength(
+        const AChoreographerFrameCallbackData* data);
+size_t AChoreographerFrameCallbackData_routeGetPreferredFrameTimelineIndex(
+        const AChoreographerFrameCallbackData* data);
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId(
+        const AChoreographerFrameCallbackData* data, size_t index);
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTime(
+        const AChoreographerFrameCallbackData* data, size_t index);
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineDeadline(
+        const AChoreographerFrameCallbackData* data, size_t index);
 
 } // namespace android
