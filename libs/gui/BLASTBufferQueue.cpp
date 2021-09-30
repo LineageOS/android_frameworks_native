@@ -456,10 +456,10 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     // Ensure BLASTBufferQueue stays alive until we receive the transaction complete callback.
     incStrong((void*)transactionCallbackThunk);
 
+    const bool sizeHasChanged = mRequestedSize != mSize;
+    mSize = mRequestedSize;
+    const bool updateDestinationFrame = sizeHasChanged || !mLastBufferInfo.hasBuffer;
     Rect crop = computeCrop(bufferItem);
-    const bool updateDestinationFrame =
-            bufferItem.mScalingMode == NATIVE_WINDOW_SCALING_MODE_FREEZE ||
-            !mLastBufferInfo.hasBuffer;
     mLastBufferInfo.update(true /* hasBuffer */, bufferItem.mGraphicBuffer->getWidth(),
                            bufferItem.mGraphicBuffer->getHeight(), bufferItem.mTransform,
                            bufferItem.mScalingMode, crop);
@@ -586,7 +586,6 @@ void BLASTBufferQueue::setNextTransaction(SurfaceComposerClient::Transaction* t)
 
 bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
     if (item.mScalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE) {
-        mSize = mRequestedSize;
         // Only reject buffers if scaling mode is freeze.
         return false;
     }
@@ -600,7 +599,6 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
     }
     ui::Size bufferSize(bufWidth, bufHeight);
     if (mRequestedSize != mSize && mRequestedSize == bufferSize) {
-        mSize = mRequestedSize;
         return false;
     }
 
