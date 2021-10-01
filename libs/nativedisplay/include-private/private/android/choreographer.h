@@ -29,19 +29,6 @@ void AChoreographer_initJVM(JNIEnv* env);
 // for consumption by callbacks.
 void AChoreographer_signalRefreshRateCallbacks(int64_t vsyncPeriod);
 
-// Returns the vsync id of the last frame callback. Client are expected to call
-// this function from their frame callback function to get the vsyncId and pass
-// it together with a buffer or transaction to the Surface Composer. Calling
-// this function from anywhere else will return an undefined value.
-int64_t AChoreographer_getVsyncId(const AChoreographer* choreographer);
-
-// Returns the deadline timestamp (in CLOCK_MONOTONIC) of the last frame callback.
-// Client are expected to call this function from their frame callback function
-// to get the deadline and use it to know whether a frame is likely to miss
-// presentation. Calling this function from anywhere else will return an undefined
-// value.
-int64_t AChoreographer_getFrameDeadline(const AChoreographer* choreographer);
-
 // Returns the current interval in ns between frames.
 // Client are expected to call this function from their frame callback function.
 // Calling this function from anywhere else will return an undefined value.
