@@ -738,11 +738,23 @@ private:
         std::unique_lock<std::mutex> lock(mMutex);
         while (!mDone) {
             while (!mRunnables.empty()) {
-                std::function<void()> runnable = mRunnables.front();
-                mRunnables.pop_front();
-                runnable();
+                std::deque<std::function<void()>> runnables = std::move(mRunnables);
+                mRunnables.clear();
+                lock.unlock();
+                // Run outside the lock since the runnable might trigger another
+                // post to the async worker.
+                execute(runnables);
+                lock.lock();
             }
             mCv.wait(lock);
+        }
+    }
+
+    void execute(std::deque<std::function<void()>>& runnables) {
+        while (!runnables.empty()) {
+            std::function<void()> runnable = runnables.front();
+            runnables.pop_front();
+            runnable();
         }
     }
 
