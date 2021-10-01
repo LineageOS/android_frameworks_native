@@ -120,27 +120,14 @@ private:
 Scheduler::Scheduler(const std::shared_ptr<scheduler::RefreshRateConfigs>& configs,
                      ISchedulerCallback& callback)
       : Scheduler(configs, callback,
-                  {.supportKernelTimer = sysprop::support_kernel_idle_timer(false),
-                   .useContentDetection = sysprop::use_content_detection_for_refresh_rate(false)}) {
+                  {.useContentDetection = sysprop::use_content_detection_for_refresh_rate(false)}) {
 }
 
 Scheduler::Scheduler(const std::shared_ptr<scheduler::RefreshRateConfigs>& configs,
                      ISchedulerCallback& callback, Options options)
-      : Scheduler(createVsyncSchedule(options.supportKernelTimer), configs, callback,
+      : Scheduler(createVsyncSchedule(configs->supportsKernelIdleTimer()), configs, callback,
                   createLayerHistory(), options) {
     using namespace sysprop;
-
-    const int setIdleTimerMs = base::GetIntProperty("debug.sf.set_idle_timer_ms"s, 0);
-
-    if (const auto millis = setIdleTimerMs ? setIdleTimerMs : set_idle_timer_ms(0); millis > 0) {
-        const auto callback = mOptions.supportKernelTimer ? &Scheduler::kernelIdleTimerCallback
-                                                          : &Scheduler::idleTimerCallback;
-        mIdleTimer.emplace(
-                "IdleTimer", std::chrono::milliseconds(millis),
-                [this, callback] { std::invoke(callback, this, TimerState::Reset); },
-                [this, callback] { std::invoke(callback, this, TimerState::Expired); });
-        mIdleTimer->start();
-    }
 
     if (const int64_t millis = set_touch_timer_ms(0); millis > 0) {
         // Touch events are coming to SF every 100ms, so the timer needs to be higher than that
@@ -168,11 +155,11 @@ Scheduler::Scheduler(VsyncSchedule schedule,
         mVsyncSchedule(std::move(schedule)),
         mLayerHistory(std::move(layerHistory)),
         mSchedulerCallback(schedulerCallback),
-        mRefreshRateConfigs(configs),
         mPredictedVsyncTracer(
                 base::GetBoolProperty("debug.sf.show_predicted_vsync", false)
                         ? std::make_unique<PredictedVsyncTracer>(*mVsyncSchedule.dispatch)
                         : nullptr) {
+    setRefreshRateConfigs(configs);
     mSchedulerCallback.setVsyncEnabled(false);
 }
 
@@ -180,7 +167,7 @@ Scheduler::~Scheduler() {
     // Ensure the OneShotTimer threads are joined before we start destroying state.
     mDisplayPowerTimer.reset();
     mTouchTimer.reset();
-    mIdleTimer.reset();
+    mRefreshRateConfigs.reset();
 }
 
 Scheduler::VsyncSchedule Scheduler::createVsyncSchedule(bool supportKernelTimer) {
@@ -672,18 +659,16 @@ void Scheduler::chooseRefreshRateForContent() {
 }
 
 void Scheduler::resetIdleTimer() {
-    if (mIdleTimer) {
-        mIdleTimer->reset();
-    }
+    std::scoped_lock lock(mRefreshRateConfigsLock);
+    mRefreshRateConfigs->resetIdleTimer(/*kernelOnly*/ false);
 }
 
 void Scheduler::notifyTouchEvent() {
     if (mTouchTimer) {
         mTouchTimer->reset();
 
-        if (mOptions.supportKernelTimer && mIdleTimer) {
-            mIdleTimer->reset();
-        }
+        std::scoped_lock lock(mRefreshRateConfigsLock);
+        mRefreshRateConfigs->resetIdleTimer(/*kernelOnly*/ true);
     }
 }
 
@@ -755,7 +740,6 @@ void Scheduler::displayPowerTimerCallback(TimerState state) {
 void Scheduler::dump(std::string& result) const {
     using base::StringAppendF;
 
-    StringAppendF(&result, "+  Idle timer: %s\n", mIdleTimer ? mIdleTimer->dump().c_str() : "off");
     StringAppendF(&result, "+  Touch timer: %s\n",
                   mTouchTimer ? mTouchTimer->dump().c_str() : "off");
     StringAppendF(&result, "+  Content detection: %s %s\n\n",
@@ -867,7 +851,7 @@ DisplayModePtr Scheduler::calculateRefreshRateModeId(
     }
 
     const bool touchActive = mTouchTimer && mFeatures.touch == TouchState::Active;
-    const bool idle = mIdleTimer && mFeatures.idleTimer == TimerState::Expired;
+    const bool idle = mFeatures.idleTimer == TimerState::Expired;
 
     return refreshRateConfigs
             ->getBestRefreshRate(mFeatures.contentRequirements,

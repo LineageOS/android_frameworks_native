@@ -27,6 +27,7 @@
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
 #include "Fps.h"
+#include "Scheduler/OneShotTimer.h"
 #include "Scheduler/SchedulerUtils.h"
 #include "Scheduler/Seamlessness.h"
 #include "Scheduler/StrongTyping.h"
@@ -305,11 +306,19 @@ public:
         // or heuristic, such that refresh rates higher than this value will not be voted for. 0 if
         // no threshold is set.
         int frameRateMultipleThreshold = 0;
+
+        // The Idle Timer timeout. 0 timeout means no idle timer.
+        int32_t idleTimerTimeoutMs = 0;
+
+        // Whether to use idle timer callbacks that support the kernel timer.
+        bool supportKernelIdleTimer = false;
     };
 
-    RefreshRateConfigs(const DisplayModes& modes, DisplayModeId currentModeId,
+    RefreshRateConfigs(const DisplayModes&, DisplayModeId,
                        Config config = {.enableFrameRateOverride = false,
-                                        .frameRateMultipleThreshold = 0});
+                                        .frameRateMultipleThreshold = 0,
+                                        .idleTimerTimeoutMs = 0,
+                                        .supportKernelIdleTimer = false});
 
     // Returns whether switching modes (refresh rate or resolution) is possible.
     // TODO(b/158780872): Consider HAL support, and skip frame rate detection if the modes only
@@ -344,6 +353,30 @@ public:
     UidToFrameRateOverride getFrameRateOverrides(const std::vector<LayerRequirement>& layers,
                                                  Fps displayFrameRate, bool touch) const
             EXCLUDES(mLock);
+
+    bool supportsKernelIdleTimer() const { return mConfig.supportKernelIdleTimer; }
+
+    void setIdleTimerCallbacks(std::function<void()> platformTimerReset,
+                               std::function<void()> platformTimerExpired,
+                               std::function<void()> kernelTimerReset,
+                               std::function<void()> kernelTimerExpired) {
+        std::scoped_lock lock(mIdleTimerCallbacksMutex);
+        mIdleTimerCallbacks.emplace();
+        mIdleTimerCallbacks->platform.onReset = platformTimerReset;
+        mIdleTimerCallbacks->platform.onExpired = platformTimerExpired;
+        mIdleTimerCallbacks->kernel.onReset = kernelTimerReset;
+        mIdleTimerCallbacks->kernel.onExpired = kernelTimerExpired;
+    }
+
+    void resetIdleTimer(bool kernelOnly) {
+        if (!mIdleTimer) {
+            return;
+        }
+        if (kernelOnly && !mConfig.supportKernelIdleTimer) {
+            return;
+        }
+        mIdleTimer->reset();
+    };
 
     void dump(std::string& result) const EXCLUDES(mLock);
 
@@ -403,6 +436,8 @@ private:
 
     void updateDisplayModes(const DisplayModes& mode, DisplayModeId currentModeId) EXCLUDES(mLock);
 
+    void initializeIdleTimer();
+
     // The list of refresh rates, indexed by display modes ID. This may change after this
     // object is initialized.
     AllRefreshRatesMapType mRefreshRates GUARDED_BY(mLock);
@@ -446,6 +481,22 @@ private:
     };
     mutable std::optional<GetBestRefreshRateInvocation> lastBestRefreshRateInvocation
             GUARDED_BY(mLock);
+
+    // Timer that records time between requests for next vsync.
+    std::optional<scheduler::OneShotTimer> mIdleTimer;
+
+    struct IdleTimerCallbacks {
+        struct Callbacks {
+            std::function<void()> onReset;
+            std::function<void()> onExpired;
+        };
+
+        Callbacks platform;
+        Callbacks kernel;
+    };
+
+    std::mutex mIdleTimerCallbacksMutex;
+    std::optional<IdleTimerCallbacks> mIdleTimerCallbacks GUARDED_BY(mIdleTimerCallbacksMutex);
 };
 
 } // namespace android::scheduler
