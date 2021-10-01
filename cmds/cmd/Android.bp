@@ -49,6 +49,7 @@ cc_binary {
         "liblog",
         "libselinux",
         "libbinder",
+        "packagemanager_aidl-cpp",
     ],
 
     cflags: [
