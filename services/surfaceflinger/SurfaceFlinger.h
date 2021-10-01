@@ -759,8 +759,6 @@ private:
     // Keeps track of whether the kernel idle timer is currently enabled, so we don't have to
     // make calls to sys prop each time.
     bool mKernelIdleTimerEnabled = false;
-    // Keeps track of whether the kernel timer is supported on the SF side.
-    bool mSupportKernelIdleTimer = false;
     // Show spinner with refresh rate overlay
     bool mRefreshRateOverlaySpinner = false;
 
