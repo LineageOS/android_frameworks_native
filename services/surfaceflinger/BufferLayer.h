@@ -77,7 +77,7 @@ public:
 
     bool isHdrY410() const override;
 
-    bool onPostComposition(const DisplayDevice*, const std::shared_ptr<FenceTime>& glDoneFence,
+    void onPostComposition(const DisplayDevice*, const std::shared_ptr<FenceTime>& glDoneFence,
                            const std::shared_ptr<FenceTime>& presentFence,
                            const CompositorTiming&) override;
 

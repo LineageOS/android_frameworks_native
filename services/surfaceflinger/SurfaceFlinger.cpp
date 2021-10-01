@@ -2282,13 +2282,9 @@ void SurfaceFlinger::postComposition() {
     }
 
     for (const auto& layer: mLayersWithQueuedFrames) {
-        const bool frameLatched =
-                layer->onPostComposition(display, glCompositionDoneFenceTime,
-                                         mPreviousPresentFences[0].fenceTime, compositorTiming);
+        layer->onPostComposition(display, glCompositionDoneFenceTime,
+                                 mPreviousPresentFences[0].fenceTime, compositorTiming);
         layer->releasePendingBuffer(/*dequeueReadyTime*/ now);
-        if (frameLatched) {
-            recordBufferingStats(layer->getName(), layer->getOccupancyHistory(false));
-        }
     }
 
     std::vector<std::pair<std::shared_ptr<compositionengine::Display>, sp<HdrLayerInfoReporter>>>
@@ -3213,8 +3209,6 @@ void SurfaceFlinger::doCommitTransactions() {
     if (!mLayersPendingRemoval.isEmpty()) {
         // Notify removed layers now that they can't be drawn from
         for (const auto& l : mLayersPendingRemoval) {
-            recordBufferingStats(l->getName(), l->getOccupancyHistory(true));
-
             // Ensure any buffers set to display on any children are released.
             if (l->isRemovedFromCurrentState()) {
                 l->latchAndReleaseBuffer();
@@ -4824,61 +4818,11 @@ void SurfaceFlinger::dumpStaticScreenStats(std::string& result) const {
                   bucketTimeSec, percent);
 }
 
-void SurfaceFlinger::recordBufferingStats(const std::string& layerName,
-                                          std::vector<OccupancyTracker::Segment>&& history) {
-    Mutex::Autolock lock(getBE().mBufferingStatsMutex);
-    auto& stats = getBE().mBufferingStats[layerName];
-    for (const auto& segment : history) {
-        if (!segment.usedThirdBuffer) {
-            stats.twoBufferTime += segment.totalTime;
-        }
-        if (segment.occupancyAverage < 1.0f) {
-            stats.doubleBufferedTime += segment.totalTime;
-        } else if (segment.occupancyAverage < 2.0f) {
-            stats.tripleBufferedTime += segment.totalTime;
-        }
-        ++stats.numSegments;
-        stats.totalTime += segment.totalTime;
-    }
-}
-
 void SurfaceFlinger::dumpFrameEventsLocked(std::string& result) {
     result.append("Layer frame timestamps:\n");
     // Traverse all layers to dump frame-events for each layer
     mCurrentState.traverseInZOrder(
         [&] (Layer* layer) { layer->dumpFrameEvents(result); });
-}
-
-void SurfaceFlinger::dumpBufferingStats(std::string& result) const {
-    result.append("Buffering stats:\n");
-    result.append("  [Layer name] <Active time> <Two buffer> "
-            "<Double buffered> <Triple buffered>\n");
-    Mutex::Autolock lock(getBE().mBufferingStatsMutex);
-    typedef std::tuple<std::string, float, float, float> BufferTuple;
-    std::map<float, BufferTuple, std::greater<float>> sorted;
-    for (const auto& statsPair : getBE().mBufferingStats) {
-        const char* name = statsPair.first.c_str();
-        const SurfaceFlingerBE::BufferingStats& stats = statsPair.second;
-        if (stats.numSegments == 0) {
-            continue;
-        }
-        float activeTime = ns2ms(stats.totalTime) / 1000.0f;
-        float twoBufferRatio = static_cast<float>(stats.twoBufferTime) /
-                stats.totalTime;
-        float doubleBufferRatio = static_cast<float>(
-                stats.doubleBufferedTime) / stats.totalTime;
-        float tripleBufferRatio = static_cast<float>(
-                stats.tripleBufferedTime) / stats.totalTime;
-        sorted.insert({activeTime, {name, twoBufferRatio,
-                doubleBufferRatio, tripleBufferRatio}});
-    }
-    for (const auto& sortedPair : sorted) {
-        float activeTime = sortedPair.first;
-        const BufferTuple& values = sortedPair.second;
-        StringAppendF(&result, "  [%s] %.2f %.3f %.3f %.3f\n", std::get<0>(values).c_str(),
-                      activeTime, std::get<1>(values), std::get<2>(values), std::get<3>(values));
-    }
-    result.append("\n");
 }
 
 void SurfaceFlinger::dumpDisplayIdentificationData(std::string& result) const {
@@ -5071,8 +5015,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     StringAppendF(&result, "Total missed frame count: %u\n", mFrameMissedCount.load());
     StringAppendF(&result, "HWC missed frame count: %u\n", mHwcFrameMissedCount.load());
     StringAppendF(&result, "GPU missed frame count: %u\n\n", mGpuFrameMissedCount.load());
-
-    dumpBufferingStats(result);
 
     /*
      * Dump the visible layer list

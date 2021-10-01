@@ -346,13 +346,13 @@ TimeStats::SetFrameRateVote frameRateToSetFrameRateVotePayload(Layer::FrameRate 
 }
 } // namespace
 
-bool BufferLayer::onPostComposition(const DisplayDevice* display,
+void BufferLayer::onPostComposition(const DisplayDevice* display,
                                     const std::shared_ptr<FenceTime>& glDoneFence,
                                     const std::shared_ptr<FenceTime>& presentFence,
                                     const CompositorTiming& compositorTiming) {
     // mFrameLatencyNeeded is true when a new frame was latched for the
     // composition.
-    if (!mBufferInfo.mFrameLatencyNeeded) return false;
+    if (!mBufferInfo.mFrameLatencyNeeded) return;
 
     // Update mFrameEventHistory.
     {
@@ -426,7 +426,6 @@ bool BufferLayer::onPostComposition(const DisplayDevice* display,
 
     mFrameTracker.advanceFrame();
     mBufferInfo.mFrameLatencyNeeded = false;
-    return true;
 }
 
 void BufferLayer::gatherBufferInfo() {
