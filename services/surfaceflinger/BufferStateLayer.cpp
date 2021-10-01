@@ -214,7 +214,7 @@ void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
                 JankData(surfaceFrame->getToken(), surfaceFrame->getJankType().value()));
     }
 
-    mFlinger->getTransactionCallbackInvoker().finalizePendingCallbackHandles(
+    mFlinger->getTransactionCallbackInvoker().addCallbackHandles(
             mDrawingState.callbackHandles, jankData);
 
     mDrawingState.callbackHandles = {};
@@ -564,10 +564,6 @@ bool BufferStateLayer::setTransactionCompletedListeners(
             handle->acquireTime = mCallbackHandleAcquireTime;
             handle->frameNumber = mDrawingState.frameNumber;
 
-            // Notify the transaction completed thread that there is a pending latched callback
-            // handle
-            mFlinger->getTransactionCallbackInvoker().registerPendingCallbackHandle(handle);
-
             // Store so latched time and release fence can be set
             mDrawingState.callbackHandles.push_back(handle);
 
@@ -765,7 +761,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
 
     std::deque<sp<CallbackHandle>> remainingHandles;
     mFlinger->getTransactionCallbackInvoker()
-            .finalizeOnCommitCallbackHandles(mDrawingState.callbackHandles, remainingHandles);
+            .addOnCommitCallbackHandles(mDrawingState.callbackHandles, remainingHandles);
     mDrawingState.callbackHandles = remainingHandles;
 
     mDrawingStateModified = false;

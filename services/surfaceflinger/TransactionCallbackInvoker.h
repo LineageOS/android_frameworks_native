@@ -56,79 +56,38 @@ public:
 
 class TransactionCallbackInvoker {
 public:
-    ~TransactionCallbackInvoker();
-
-    // Adds listener and callbackIds in case there are no SurfaceControls that are supposed
-    // to be included in the callback. This functions should be call before attempting to register
-    // any callback handles.
-    status_t startRegistration(const ListenerCallbacks& listenerCallbacks);
-    // Ends the registration. After this is called, no more CallbackHandles will be registered.
-    // It is safe to send a callback if the Transaction doesn't have any Pending callback handles.
-    status_t endRegistration(const ListenerCallbacks& listenerCallbacks);
-
-    // Informs the TransactionCallbackInvoker that there is a Transaction with a CallbackHandle
-    // that needs to be latched and presented this frame. This function should be called once the
-    // layer has received the CallbackHandle so the TransactionCallbackInvoker knows not to send
-    // a callback for that Listener/Transaction pair until that CallbackHandle has been latched and
-    // presented.
-    status_t registerPendingCallbackHandle(const sp<CallbackHandle>& handle);
-    // Notifies the TransactionCallbackInvoker that a pending CallbackHandle has been presented.
-    status_t finalizePendingCallbackHandles(const std::deque<sp<CallbackHandle>>& handles,
+    status_t addCallbackHandles(const std::deque<sp<CallbackHandle>>& handles,
                                             const std::vector<JankData>& jankData);
-    status_t finalizeOnCommitCallbackHandles(const std::deque<sp<CallbackHandle>>& handles,
+    status_t addOnCommitCallbackHandles(const std::deque<sp<CallbackHandle>>& handles,
                                              std::deque<sp<CallbackHandle>>& outRemainingHandles);
 
     // Adds the Transaction CallbackHandle from a layer that does not need to be relatched and
     // presented this frame.
     status_t registerUnpresentedCallbackHandle(const sp<CallbackHandle>& handle);
+    void addEmptyTransaction(const ListenerCallbacks& listenerCallbacks);
 
     void addPresentFence(const sp<Fence>& presentFence);
 
     void sendCallbacks();
-
-private:
-
-    bool isRegisteringTransaction(const sp<IBinder>& transactionListener,
-                                  const std::vector<CallbackId>& callbackIds) REQUIRES(mMutex);
-
-    status_t findTransactionStats(const sp<IBinder>& listener,
-                                  const std::vector<CallbackId>& callbackIds,
-                                  TransactionStats** outTransactionStats) REQUIRES(mMutex);
+    void clearCompletedTransactions() {
+        mCompletedTransactions.clear();
+    }
 
     status_t addCallbackHandle(const sp<CallbackHandle>& handle,
-                               const std::vector<JankData>& jankData) REQUIRES(mMutex);
+                               const std::vector<JankData>& jankData);
 
-    status_t finalizeCallbackHandle(const sp<CallbackHandle>& handle,
-                                    const std::vector<JankData>& jankData) REQUIRES(mMutex);
 
-    class CallbackDeathRecipient : public IBinder::DeathRecipient {
-    public:
-        // This function is a no-op. isBinderAlive needs a linked DeathRecipient to work.
-        // Death recipients needs a binderDied function.
-        //
-        // (isBinderAlive checks if BpBinder's mAlive is 0. mAlive is only set to 0 in sendObituary.
-        // sendObituary is only called if linkToDeath was called with a DeathRecipient.)
-        void binderDied(const wp<IBinder>& /*who*/) override {}
-    };
-    sp<CallbackDeathRecipient> mDeathRecipient =
-        new CallbackDeathRecipient();
+private:
+    status_t findTransactionStats(const sp<IBinder>& listener,
+                                  const std::vector<CallbackId>& callbackIds,
+                                  TransactionStats** outTransactionStats);
 
-    std::mutex mMutex;
-    std::condition_variable_any mConditionVariable;
 
-    std::unordered_set<ListenerCallbacks, ListenerCallbacksHash> mRegisteringTransactions
-            GUARDED_BY(mMutex);
-
-    std::unordered_map<
-            sp<IBinder>,
-            std::unordered_map<std::vector<CallbackId>, uint32_t /*count*/, CallbackIdsHash>,
-            IListenerHash>
-            mPendingTransactions GUARDED_BY(mMutex);
 
     std::unordered_map<sp<IBinder>, std::deque<TransactionStats>, IListenerHash>
-            mCompletedTransactions GUARDED_BY(mMutex);
+        mCompletedTransactions;
 
-    sp<Fence> mPresentFence GUARDED_BY(mMutex);
+    sp<Fence> mPresentFence;
 };
 
 } // namespace android

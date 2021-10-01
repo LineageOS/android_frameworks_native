@@ -136,7 +136,6 @@ public:
     // Detects content using layer history, and selects a matching refresh rate.
     void chooseRefreshRateForContent() EXCLUDES(mRefreshRateConfigsLock);
 
-    bool isIdleTimerEnabled() const { return mIdleTimer.has_value(); }
     void resetIdleTimer();
 
     // Indicates that touch interaction is taking place.
@@ -187,6 +186,15 @@ public:
             EXCLUDES(mRefreshRateConfigsLock) {
         std::scoped_lock lock(mRefreshRateConfigsLock);
         mRefreshRateConfigs = std::move(refreshRateConfigs);
+        mRefreshRateConfigs->setIdleTimerCallbacks(
+                [this] { std::invoke(&Scheduler::idleTimerCallback, this, TimerState::Reset); },
+                [this] { std::invoke(&Scheduler::idleTimerCallback, this, TimerState::Expired); },
+                [this] {
+                    std::invoke(&Scheduler::kernelIdleTimerCallback, this, TimerState::Reset);
+                },
+                [this] {
+                    std::invoke(&Scheduler::kernelIdleTimerCallback, this, TimerState::Expired);
+                });
     }
 
     nsecs_t getVsyncPeriodFromRefreshRateConfigs() const EXCLUDES(mRefreshRateConfigsLock) {
@@ -206,8 +214,6 @@ private:
     enum class TouchState { Inactive, Active };
 
     struct Options {
-        // Whether to use idle timer callbacks that support the kernel timer.
-        bool supportKernelTimer;
         // Whether to use content detection at all.
         bool useContentDetection;
     };
@@ -293,8 +299,6 @@ private:
     // Used to choose refresh rate if content detection is enabled.
     std::unique_ptr<LayerHistory> mLayerHistory;
 
-    // Timer that records time between requests for next vsync.
-    std::optional<scheduler::OneShotTimer> mIdleTimer;
     // Timer used to monitor touch events.
     std::optional<scheduler::OneShotTimer> mTouchTimer;
     // Timer used to monitor display power mode.

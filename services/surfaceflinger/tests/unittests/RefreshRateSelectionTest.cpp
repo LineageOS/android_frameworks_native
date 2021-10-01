@@ -21,7 +21,6 @@
 #include <gtest/gtest.h>
 #include <gui/LayerMetadata.h>
 
-#include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
 #include "EffectLayer.h"
 #include "Layer.h"
@@ -60,7 +59,6 @@ protected:
     static constexpr int32_t PRIORITY_UNSET = -1;
 
     void setupScheduler();
-    sp<BufferQueueLayer> createBufferQueueLayer();
     sp<BufferStateLayer> createBufferStateLayer();
     sp<EffectLayer> createEffectLayer();
 
@@ -90,12 +88,6 @@ RefreshRateSelectionTest::~RefreshRateSelectionTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-sp<BufferQueueLayer> RefreshRateSelectionTest::createBufferQueueLayer() {
-    sp<Client> client;
-    LayerCreationArgs args(mFlinger.flinger(), client, "buffer-queue-layer", WIDTH, HEIGHT,
-                           LAYER_FLAGS, LayerMetadata());
-    return new BufferQueueLayer(args);
-}
 
 sp<BufferStateLayer> RefreshRateSelectionTest::createBufferStateLayer() {
     sp<Client> client;
@@ -149,46 +141,6 @@ namespace {
 /* ------------------------------------------------------------------------
  * Test cases
  */
-TEST_F(RefreshRateSelectionTest, testPriorityOnBufferQueueLayers) {
-    mParent = createBufferQueueLayer();
-    mChild = createBufferQueueLayer();
-    setParent(mChild.get(), mParent.get());
-    mGrandChild = createBufferQueueLayer();
-    setParent(mGrandChild.get(), mChild.get());
-
-    ASSERT_EQ(PRIORITY_UNSET, mParent->getFrameRateSelectionPriority());
-    ASSERT_EQ(PRIORITY_UNSET, mChild->getFrameRateSelectionPriority());
-    ASSERT_EQ(PRIORITY_UNSET, mGrandChild->getFrameRateSelectionPriority());
-
-    // Child has its own priority.
-    mGrandChild->setFrameRateSelectionPriority(1);
-    commitTransaction(mGrandChild.get());
-    ASSERT_EQ(PRIORITY_UNSET, mParent->getFrameRateSelectionPriority());
-    ASSERT_EQ(PRIORITY_UNSET, mChild->getFrameRateSelectionPriority());
-    ASSERT_EQ(1, mGrandChild->getFrameRateSelectionPriority());
-
-    // Child inherits from his parent.
-    mChild->setFrameRateSelectionPriority(1);
-    commitTransaction(mChild.get());
-    mGrandChild->setFrameRateSelectionPriority(PRIORITY_UNSET);
-    commitTransaction(mGrandChild.get());
-
-    ASSERT_EQ(PRIORITY_UNSET, mParent->getFrameRateSelectionPriority());
-    ASSERT_EQ(1, mChild->getFrameRateSelectionPriority());
-    ASSERT_EQ(1, mGrandChild->getFrameRateSelectionPriority());
-
-    // Grandchild inherits from his grand parent.
-    mParent->setFrameRateSelectionPriority(1);
-    commitTransaction(mParent.get());
-    mChild->setFrameRateSelectionPriority(PRIORITY_UNSET);
-    commitTransaction(mChild.get());
-    mGrandChild->setFrameRateSelectionPriority(PRIORITY_UNSET);
-    commitTransaction(mGrandChild.get());
-    ASSERT_EQ(1, mParent->getFrameRateSelectionPriority());
-    ASSERT_EQ(1, mChild->getFrameRateSelectionPriority());
-    ASSERT_EQ(1, mGrandChild->getFrameRateSelectionPriority());
-}
-
 TEST_F(RefreshRateSelectionTest, testPriorityOnBufferStateLayers) {
     mParent = createBufferStateLayer();
     mChild = createBufferStateLayer();
