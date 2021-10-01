@@ -50,7 +50,6 @@ layer_state_t::layer_state_t()
         transform(0),
         transformToDisplayInverse(false),
         crop(Rect::INVALID_RECT),
-        orientedDisplaySpaceRect(Rect::INVALID_RECT),
         dataspace(ui::Dataspace::UNKNOWN),
         surfaceDamageRegion(),
         api(-1),
@@ -100,7 +99,6 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.write, transparentRegion);
     SAFE_PARCEL(output.writeUint32, transform);
     SAFE_PARCEL(output.writeBool, transformToDisplayInverse);
-    SAFE_PARCEL(output.write, orientedDisplaySpaceRect);
 
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dataspace));
     SAFE_PARCEL(output.write, hdrMetadata);
@@ -195,7 +193,6 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, transparentRegion);
     SAFE_PARCEL(input.readUint32, &transform);
     SAFE_PARCEL(input.readBool, &transformToDisplayInverse);
-    SAFE_PARCEL(input.read, orientedDisplaySpaceRect);
 
     uint32_t tmpUint32 = 0;
     SAFE_PARCEL(input.readUint32, &tmpUint32);

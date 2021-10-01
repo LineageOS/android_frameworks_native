@@ -206,7 +206,6 @@ struct layer_state_t {
     uint32_t transform;
     bool transformToDisplayInverse;
     Rect crop;
-    Rect orientedDisplaySpaceRect;
     BufferData bufferData;
     ui::Dataspace dataspace;
     HdrMetadata hdrMetadata;
