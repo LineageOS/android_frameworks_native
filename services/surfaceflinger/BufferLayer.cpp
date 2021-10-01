@@ -620,14 +620,6 @@ bool BufferLayer::needsFilteringForScreenshots(const DisplayDevice* display,
     return sourceCrop.getHeight() != frameHeight || sourceCrop.getWidth() != frameWidth;
 }
 
-uint64_t BufferLayer::getHeadFrameNumber(nsecs_t expectedPresentTime) const {
-    if (hasFrameUpdate()) {
-        return getFrameNumber(expectedPresentTime);
-    } else {
-        return mCurrentFrameNumber;
-    }
-}
-
 Rect BufferLayer::getBufferSize(const State& s) const {
     // If we have a sideband stream, or we are scaling the buffer then return the layer size since
     // we cannot determine the buffer size.

@@ -46,6 +46,7 @@ public:
         ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
         setupScheduler();
         mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
+        mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
     }
 
     ~TransactionFrameTracerTest() {
@@ -92,21 +93,17 @@ public:
     }
 
     TestableSurfaceFlinger mFlinger;
-    renderengine::mock::RenderEngine mRenderEngine;
+    renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
 
     FenceToFenceTimeMap fenceFactory;
-    client_cache_t mClientCache;
 
     void BLASTTransactionSendsFrameTracerEvents() {
         sp<BufferStateLayer> layer = createBufferStateLayer();
 
         sp<Fence> fence(new Fence());
-        const auto buffer = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                 1, 0),
-                                               mRenderEngine, false);
+        const auto buffer = new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0);
         int32_t layerId = layer->getSequence();
-        uint64_t bufferId = buffer->getBuffer()->getId();
+        uint64_t bufferId = buffer->getId();
         uint64_t frameNumber = 5;
         nsecs_t dequeueTime = 10;
         nsecs_t postTime = 20;
@@ -117,9 +114,14 @@ public:
         EXPECT_CALL(*mFlinger.getFrameTracer(),
                     traceTimestamp(layerId, bufferId, frameNumber, postTime,
                                    FrameTracer::FrameEvent::QUEUE, /*duration*/ 0));
-        layer->setBuffer(buffer, fence, postTime, /*desiredPresentTime*/ 30, false, mClientCache,
-                         frameNumber, dequeueTime, FrameTimelineInfo{},
-                         nullptr /* releaseBufferCallback */, nullptr /* releaseBufferEndpoint*/);
+        BufferData bufferData;
+        bufferData.buffer = buffer;
+        bufferData.acquireFence = fence;
+        bufferData.frameNumber = frameNumber;
+        bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+        bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+        layer->setBuffer(bufferData, postTime, /*desiredPresentTime*/ 30, false, dequeueTime,
+                         FrameTimelineInfo{});
 
         commitTransaction(layer.get());
         bool computeVisisbleRegions;

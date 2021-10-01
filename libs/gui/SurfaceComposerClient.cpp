@@ -805,7 +805,7 @@ void SurfaceComposerClient::Transaction::cacheBuffers() {
         layer_state_t* s = &(mComposerStates[handle].state);
         if (!(s->what & layer_state_t::eBufferChanged)) {
             continue;
-        } else if (s->what & layer_state_t::eCachedBufferChanged) {
+        } else if (s->bufferData.flags.test(BufferData::BufferDataChange::cachedBufferChanged)) {
             // If eBufferChanged and eCachedBufferChanged are both trued then that means
             // we already cached the buffer in a previous call to cacheBuffers, perhaps
             // from writeToParcel on a Transaction that was merged in to this one.
@@ -814,23 +814,22 @@ void SurfaceComposerClient::Transaction::cacheBuffers() {
 
         // Don't try to cache a null buffer. Sending null buffers is cheap so we shouldn't waste
         // time trying to cache them.
-        if (!s->buffer) {
+        if (!s->bufferData.buffer) {
             continue;
         }
 
         uint64_t cacheId = 0;
-        status_t ret = BufferCache::getInstance().getCacheId(s->buffer, &cacheId);
+        status_t ret = BufferCache::getInstance().getCacheId(s->bufferData.buffer, &cacheId);
         if (ret == NO_ERROR) {
             // Cache-hit. Strip the buffer and send only the id.
-            s->what &= ~static_cast<uint64_t>(layer_state_t::eBufferChanged);
-            s->buffer = nullptr;
+            s->bufferData.buffer = nullptr;
         } else {
             // Cache-miss. Include the buffer and send the new cacheId.
-            cacheId = BufferCache::getInstance().cache(s->buffer);
+            cacheId = BufferCache::getInstance().cache(s->bufferData.buffer);
         }
-        s->what |= layer_state_t::eCachedBufferChanged;
-        s->cachedBuffer.token = BufferCache::getInstance().getToken();
-        s->cachedBuffer.id = cacheId;
+        s->bufferData.flags |= BufferData::BufferDataChange::cachedBufferChanged;
+        s->bufferData.cachedBuffer.token = BufferCache::getInstance().getToken();
+        s->bufferData.cachedBuffer.id = cacheId;
 
         // If we have more buffers than the size of the cache, we should stop caching so we don't
         // evict other buffers in this transaction
@@ -1289,22 +1288,33 @@ SurfaceComposerClient::Transaction::setTransformToDisplayInverse(const sp<Surfac
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffer(
-        const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer, const ReleaseCallbackId& id,
-        ReleaseBufferCallback callback) {
+        const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
+        const std::optional<sp<Fence>>& fence, const std::optional<uint64_t>& frameNumber,
+        const ReleaseCallbackId& id, ReleaseBufferCallback callback) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
     removeReleaseBufferCallback(s);
-    s->what |= layer_state_t::eBufferChanged;
-    s->buffer = buffer;
-    s->releaseBufferEndpoint = IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    BufferData bufferData;
+    bufferData.buffer = buffer;
+    if (frameNumber) {
+        bufferData.frameNumber = *frameNumber;
+        bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+    }
+    if (fence) {
+        bufferData.acquireFence = *fence;
+        bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+    }
+    bufferData.releaseBufferEndpoint =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
     if (mIsAutoTimestamp) {
         mDesiredPresentTime = systemTime();
     }
-    setReleaseBufferCallback(s, id, callback);
-
+    setReleaseBufferCallback(&bufferData, id, callback);
+    s->what |= layer_state_t::eBufferChanged;
+    s->bufferData = bufferData;
     registerSurfaceControlForCallback(sc);
 
     mContainsBuffer = true;
@@ -1312,49 +1322,31 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
 }
 
 void SurfaceComposerClient::Transaction::removeReleaseBufferCallback(layer_state_t* s) {
-    if (!s->releaseBufferListener) {
+    if (!(s->what & layer_state_t::eBufferChanged)) {
         return;
     }
 
-    s->what &= ~static_cast<uint64_t>(layer_state_t::eReleaseBufferListenerChanged);
-    s->releaseBufferListener = nullptr;
     auto listener = TransactionCompletedListener::getInstance();
-    listener->removeReleaseBufferCallback(s->releaseCallbackId);
-    s->releaseCallbackId = ReleaseCallbackId::INVALID_ID;
+    listener->removeReleaseBufferCallback(s->bufferData.releaseCallbackId);
 }
 
-void SurfaceComposerClient::Transaction::setReleaseBufferCallback(layer_state_t* s,
+void SurfaceComposerClient::Transaction::setReleaseBufferCallback(BufferData* bufferData,
                                                                   const ReleaseCallbackId& id,
                                                                   ReleaseBufferCallback callback) {
     if (!callback) {
         return;
     }
 
-    if (!s->buffer) {
+    if (!bufferData->buffer) {
         ALOGW("Transaction::setReleaseBufferCallback"
               "ignored trying to set a callback on a null buffer.");
         return;
     }
 
-    s->what |= layer_state_t::eReleaseBufferListenerChanged;
-    s->releaseBufferListener = TransactionCompletedListener::getIInstance();
-    s->releaseCallbackId = id;
+    bufferData->releaseBufferListener = TransactionCompletedListener::getIInstance();
+    bufferData->releaseCallbackId = id;
     auto listener = TransactionCompletedListener::getInstance();
     listener->setReleaseBufferCallback(id, callback);
-}
-
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAcquireFence(
-        const sp<SurfaceControl>& sc, const sp<Fence>& fence) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-    s->what |= layer_state_t::eAcquireFenceChanged;
-    s->acquireFence = fence;
-
-    registerSurfaceControlForCallback(sc);
-    return *this;
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDataspace(
@@ -1503,20 +1495,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::notifyPr
     }
 
     s->what |= layer_state_t::eProducerDisconnect;
-    return *this;
-}
-
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameNumber(
-        const sp<SurfaceControl>& sc, uint64_t frameNumber) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-
-    s->what |= layer_state_t::eFrameNumberChanged;
-    s->frameNumber = frameNumber;
-
     return *this;
 }
 

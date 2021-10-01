@@ -164,8 +164,6 @@ protected:
     void updateCloneBufferInfo() override;
     uint64_t mPreviousFrameNumber = 0;
 
-    uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const override;
-
     void setTransformHint(ui::Transform::RotationFlags displayTransformHint) override;
 
     // Transform hint provided to the producer. This must be accessed holding
@@ -189,8 +187,6 @@ protected:
 private:
     virtual bool fenceHasSignaled() const = 0;
     virtual bool framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const = 0;
-    virtual uint64_t getFrameNumber(nsecs_t expectedPresentTime) const = 0;
-
 
     // Latch sideband stream and returns true if the dirty region should be updated.
     virtual bool latchSidebandStream(bool& recomputeVisibleRegions) = 0;

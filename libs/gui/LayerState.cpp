@@ -64,12 +64,10 @@ layer_state_t::layer_state_t()
         frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
         changeFrameRateStrategy(ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS),
         fixedTransformHint(ui::Transform::ROT_INVALID),
-        frameNumber(0),
         autoRefresh(false),
         isTrustedOverlay(false),
         bufferCrop(Rect::INVALID_RECT),
         destinationFrame(Rect::INVALID_RECT),
-        releaseBufferListener(nullptr),
         dropInputMode(gui::DropInputMode::NONE) {
     matrix.dsdx = matrix.dtdy = 1.0f;
     matrix.dsdy = matrix.dtdx = 0.0f;
@@ -104,20 +102,6 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeBool, transformToDisplayInverse);
     SAFE_PARCEL(output.write, orientedDisplaySpaceRect);
 
-    if (buffer) {
-        SAFE_PARCEL(output.writeBool, true);
-        SAFE_PARCEL(output.write, *buffer);
-    } else {
-        SAFE_PARCEL(output.writeBool, false);
-    }
-
-    if (acquireFence) {
-        SAFE_PARCEL(output.writeBool, true);
-        SAFE_PARCEL(output.write, *acquireFence);
-    } else {
-        SAFE_PARCEL(output.writeBool, false);
-    }
-
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dataspace));
     SAFE_PARCEL(output.write, hdrMetadata);
     SAFE_PARCEL(output.write, surfaceDamageRegion);
@@ -133,8 +117,6 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.write, colorTransform.asArray(), 16 * sizeof(float));
     SAFE_PARCEL(output.writeFloat, cornerRadius);
     SAFE_PARCEL(output.writeUint32, backgroundBlurRadius);
-    SAFE_PARCEL(output.writeStrongBinder, cachedBuffer.token.promote());
-    SAFE_PARCEL(output.writeUint64, cachedBuffer.id);
     SAFE_PARCEL(output.writeParcelable, metadata);
     SAFE_PARCEL(output.writeFloat, bgColorAlpha);
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(bgColorDataspace));
@@ -151,9 +133,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeByte, frameRateCompatibility);
     SAFE_PARCEL(output.writeByte, changeFrameRateStrategy);
     SAFE_PARCEL(output.writeUint32, fixedTransformHint);
-    SAFE_PARCEL(output.writeUint64, frameNumber);
     SAFE_PARCEL(output.writeBool, autoRefresh);
-    SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(releaseBufferListener));
 
     SAFE_PARCEL(output.writeUint32, blurRegions.size());
     for (auto region : blurRegions) {
@@ -174,8 +154,8 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.write, destinationFrame);
     SAFE_PARCEL(output.writeBool, isTrustedOverlay);
 
-    SAFE_PARCEL(output.writeStrongBinder, releaseBufferEndpoint);
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dropInputMode));
+    SAFE_PARCEL(bufferData.write, output);
     return NO_ERROR;
 }
 
@@ -217,19 +197,6 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readBool, &transformToDisplayInverse);
     SAFE_PARCEL(input.read, orientedDisplaySpaceRect);
 
-    bool tmpBool = false;
-    SAFE_PARCEL(input.readBool, &tmpBool);
-    if (tmpBool) {
-        buffer = new GraphicBuffer();
-        SAFE_PARCEL(input.read, *buffer);
-    }
-
-    SAFE_PARCEL(input.readBool, &tmpBool);
-    if (tmpBool) {
-        acquireFence = new Fence();
-        SAFE_PARCEL(input.read, *acquireFence);
-    }
-
     uint32_t tmpUint32 = 0;
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     dataspace = static_cast<ui::Dataspace>(tmpUint32);
@@ -237,6 +204,8 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, hdrMetadata);
     SAFE_PARCEL(input.read, surfaceDamageRegion);
     SAFE_PARCEL(input.readInt32, &api);
+
+    bool tmpBool = false;
     SAFE_PARCEL(input.readBool, &tmpBool);
     if (tmpBool) {
         sidebandStream = NativeHandle::create(input.readNativeHandle(), true);
@@ -245,10 +214,6 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, &colorTransform, 16 * sizeof(float));
     SAFE_PARCEL(input.readFloat, &cornerRadius);
     SAFE_PARCEL(input.readUint32, &backgroundBlurRadius);
-    sp<IBinder> tmpBinder;
-    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
-    cachedBuffer.token = tmpBinder;
-    SAFE_PARCEL(input.readUint64, &cachedBuffer.id);
     SAFE_PARCEL(input.readParcelable, &metadata);
 
     SAFE_PARCEL(input.readFloat, &bgColorAlpha);
@@ -273,14 +238,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readByte, &changeFrameRateStrategy);
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
-    SAFE_PARCEL(input.readUint64, &frameNumber);
     SAFE_PARCEL(input.readBool, &autoRefresh);
-
-    tmpBinder = nullptr;
-    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
-    if (tmpBinder) {
-        releaseBufferListener = checked_interface_cast<ITransactionCompletedListener>(tmpBinder);
-    }
 
     uint32_t numRegions = 0;
     SAFE_PARCEL(input.readUint32, &numRegions);
@@ -305,11 +263,10 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, destinationFrame);
     SAFE_PARCEL(input.readBool, &isTrustedOverlay);
 
-    SAFE_PARCEL(input.readNullableStrongBinder, &releaseBufferEndpoint);
-
     uint32_t mode;
     SAFE_PARCEL(input.readUint32, &mode);
     dropInputMode = static_cast<gui::DropInputMode>(mode);
+    SAFE_PARCEL(bufferData.read, input);
     return NO_ERROR;
 }
 
@@ -460,12 +417,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eBufferChanged) {
         what |= eBufferChanged;
-        buffer = other.buffer;
-        releaseBufferEndpoint = other.releaseBufferEndpoint;
-    }
-    if (other.what & eAcquireFenceChanged) {
-        what |= eAcquireFenceChanged;
-        acquireFence = other.acquireFence;
+        bufferData = other.bufferData;
     }
     if (other.what & eDataspaceChanged) {
         what |= eDataspaceChanged;
@@ -498,10 +450,6 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eInputInfoChanged;
         windowInfoHandle = new WindowInfoHandle(*other.windowInfoHandle);
     }
-    if (other.what & eCachedBufferChanged) {
-        what |= eCachedBufferChanged;
-        cachedBuffer = other.cachedBuffer;
-    }
     if (other.what & eBackgroundColorChanged) {
         what |= eBackgroundColorChanged;
         color = other.color;
@@ -530,10 +478,6 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eFixedTransformHintChanged;
         fixedTransformHint = other.fixedTransformHint;
     }
-    if (other.what & eFrameNumberChanged) {
-        what |= eFrameNumberChanged;
-        frameNumber = other.frameNumber;
-    }
     if (other.what & eAutoRefreshChanged) {
         what |= eAutoRefreshChanged;
         autoRefresh = other.autoRefresh;
@@ -541,13 +485,6 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eTrustedOverlayChanged) {
         what |= eTrustedOverlayChanged;
         isTrustedOverlay = other.isTrustedOverlay;
-    }
-    if (other.what & eReleaseBufferListenerChanged) {
-        if (releaseBufferListener) {
-            ALOGW("Overriding releaseBufferListener");
-        }
-        what |= eReleaseBufferListenerChanged;
-        releaseBufferListener = other.releaseBufferListener;
     }
     if (other.what & eStretchChanged) {
         what |= eStretchChanged;
@@ -576,11 +513,11 @@ void layer_state_t::merge(const layer_state_t& other) {
 }
 
 bool layer_state_t::hasBufferChanges() const {
-    return (what & layer_state_t::eBufferChanged) || (what & layer_state_t::eCachedBufferChanged);
+    return what & layer_state_t::eBufferChanged;
 }
 
 bool layer_state_t::hasValidBuffer() const {
-    return buffer || cachedBuffer.isValid();
+    return bufferData.buffer || bufferData.cachedBuffer.isValid();
 }
 
 status_t layer_state_t::matrix22_t::write(Parcel& output) const {
@@ -738,6 +675,68 @@ status_t LayerCaptureArgs::read(const Parcel& input) {
     }
 
     SAFE_PARCEL(input.readBool, &childrenOnly);
+    return NO_ERROR;
+}
+
+status_t BufferData::write(Parcel& output) const {
+    SAFE_PARCEL(output.writeInt32, flags.get());
+
+    if (buffer) {
+        SAFE_PARCEL(output.writeBool, true);
+        SAFE_PARCEL(output.write, *buffer);
+    } else {
+        SAFE_PARCEL(output.writeBool, false);
+    }
+
+    if (acquireFence) {
+        SAFE_PARCEL(output.writeBool, true);
+        SAFE_PARCEL(output.write, *acquireFence);
+    } else {
+        SAFE_PARCEL(output.writeBool, false);
+    }
+
+    SAFE_PARCEL(output.writeUint64, frameNumber);
+    SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(releaseBufferListener));
+    SAFE_PARCEL(output.writeStrongBinder, releaseBufferEndpoint);
+
+    SAFE_PARCEL(output.writeStrongBinder, cachedBuffer.token.promote());
+    SAFE_PARCEL(output.writeUint64, cachedBuffer.id);
+
+    return NO_ERROR;
+}
+
+status_t BufferData::read(const Parcel& input) {
+    int32_t tmpInt32;
+    SAFE_PARCEL(input.readInt32, &tmpInt32);
+    flags = Flags<BufferDataChange>(tmpInt32);
+
+    bool tmpBool = false;
+    SAFE_PARCEL(input.readBool, &tmpBool);
+    if (tmpBool) {
+        buffer = new GraphicBuffer();
+        SAFE_PARCEL(input.read, *buffer);
+    }
+
+    SAFE_PARCEL(input.readBool, &tmpBool);
+    if (tmpBool) {
+        acquireFence = new Fence();
+        SAFE_PARCEL(input.read, *acquireFence);
+    }
+
+    SAFE_PARCEL(input.readUint64, &frameNumber);
+
+    sp<IBinder> tmpBinder = nullptr;
+    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
+    if (tmpBinder) {
+        releaseBufferListener = checked_interface_cast<ITransactionCompletedListener>(tmpBinder);
+    }
+    SAFE_PARCEL(input.readNullableStrongBinder, &releaseBufferEndpoint);
+
+    tmpBinder = nullptr;
+    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
+    cachedBuffer.token = tmpBinder;
+    SAFE_PARCEL(input.readUint64, &cachedBuffer.id);
+
     return NO_ERROR;
 }
 

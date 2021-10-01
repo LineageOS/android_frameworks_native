@@ -363,6 +363,10 @@ protected:
         return static_cast<bool>(findDisplay(p));
     }
 
+    bool exceedsMaxRenderTargetSize(uint32_t width, uint32_t height) const {
+        return width > mMaxRenderTargetSize || height > mMaxRenderTargetSize;
+    }
+
 private:
     friend class BufferLayer;
     friend class BufferQueueLayer;
@@ -936,10 +940,6 @@ private:
     void traverseLayersInLayerStack(ui::LayerStack, const int32_t uid, const LayerVector::Visitor&);
 
     void readPersistentProperties();
-
-    bool exceedsMaxRenderTargetSize(uint32_t width, uint32_t height) const {
-        return width > mMaxRenderTargetSize || height > mMaxRenderTargetSize;
-    }
 
     uint32_t getMaxAcquiredBufferCountForCurrentRefreshRate(uid_t uid) const;
 
