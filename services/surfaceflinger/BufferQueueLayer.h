@@ -89,7 +89,6 @@ protected:
     };
 
 private:
-    uint64_t getFrameNumber(nsecs_t expectedPresentTime) const override;
 
     bool latchSidebandStream(bool& recomputeVisibleRegions) override;
     void setTransformHint(ui::Transform::RotationFlags displayTransformHint) override;

@@ -161,8 +161,7 @@ public:
                                                  Color::RED);
         transaction->setLayerStack(mSurfaceControl, ui::DEFAULT_LAYER_STACK)
                 .setLayer(mSurfaceControl, std::numeric_limits<int32_t>::max())
-                .setBuffer(mSurfaceControl, gb)
-                .setAcquireFence(mSurfaceControl, fence)
+                .setBuffer(mSurfaceControl, gb, fence)
                 .show(mSurfaceControl)
                 .addTransactionCompletedCallback(mCallbackHelper.function,
                                                  mCallbackHelper.getContext());
@@ -312,8 +311,7 @@ TEST_F(IPCTest, MergeBasic) {
     Transaction transaction;
     transaction.setLayerStack(sc, ui::DEFAULT_LAYER_STACK)
             .setLayer(sc, std::numeric_limits<int32_t>::max() - 1)
-            .setBuffer(sc, gb)
-            .setAcquireFence(sc, fence)
+            .setBuffer(sc, gb, fence)
             .show(sc)
             .addTransactionCompletedCallback(helper1.function, helper1.getContext());
 

@@ -389,9 +389,9 @@ static void generateOETF(ui::Dataspace dataspace, SkString& shader) {
 
 static void generateEffectiveOOTF(bool undoPremultipliedAlpha, SkString& shader) {
     shader.append(R"(
-        uniform shader input;
+        uniform shader child;
         half4 main(float2 xy) {
-            float4 c = float4(input.eval(xy));
+            float4 c = float4(child.eval(xy));
     )");
     if (undoPremultipliedAlpha) {
         shader.append(R"(
@@ -451,7 +451,7 @@ sk_sp<SkShader> createLinearEffectShader(sk_sp<SkShader> shader, const LinearEff
     ATRACE_CALL();
     SkRuntimeShaderBuilder effectBuilder(runtimeEffect);
 
-    effectBuilder.child("input") = shader;
+    effectBuilder.child("child") = shader;
 
     if (linearEffect.inputDataspace == linearEffect.outputDataspace) {
         effectBuilder.uniform("in_rgbToXyz") = mat4();

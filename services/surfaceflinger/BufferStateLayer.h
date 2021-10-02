@@ -55,13 +55,9 @@ public:
     bool setTransform(uint32_t transform) override;
     bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
     bool setCrop(const Rect& crop) override;
-    bool setBuffer(const std::shared_ptr<renderengine::ExternalTexture>& buffer,
-                   const sp<Fence>& acquireFence, nsecs_t postTime, nsecs_t desiredPresentTime,
-                   bool isAutoTimestamp, const client_cache_t& clientCacheId, uint64_t frameNumber,
-                   std::optional<nsecs_t> dequeueTime, const FrameTimelineInfo& info,
-                   const sp<ITransactionCompletedListener>& transactionListener,
-                   const sp<IBinder>& releaseBufferEndpoint) override;
-    bool setAcquireFence(const sp<Fence>& fence) override;
+    bool setBuffer(const BufferData& bufferData, nsecs_t postTime, nsecs_t desiredPresentTime,
+                   bool isAutoTimestamp, std::optional<nsecs_t> dequeueTime,
+                   const FrameTimelineInfo& info) override;
     bool setDataspace(ui::Dataspace dataspace) override;
     bool setHdrMetadata(const HdrMetadata& hdrMetadata) override;
     bool setSurfaceDamageRegion(const Region& surfaceDamage) override;
@@ -105,7 +101,6 @@ public:
 
 protected:
     void gatherBufferInfo() override;
-    uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
     void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame);
     ui::Transform getInputTransform() const override;
     Rect getInputBounds() const override;
@@ -121,8 +116,6 @@ private:
                                  nsecs_t requestedPresentTime);
 
     status_t addReleaseFence(const sp<CallbackHandle>& ch, const sp<Fence>& releaseFence);
-
-    uint64_t getFrameNumber(nsecs_t expectedPresentTime) const override;
 
     bool latchSidebandStream(bool& recomputeVisibleRegions) override;
 
@@ -142,6 +135,9 @@ private:
     bool willPresentCurrentTransaction() const;
 
     bool bufferNeedsFiltering() const override;
+
+    std::shared_ptr<renderengine::ExternalTexture> getBufferFromBufferData(
+            const BufferData& bufferData);
 
     sp<Fence> mPreviousReleaseFence;
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;

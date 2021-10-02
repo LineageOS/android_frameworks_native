@@ -34,19 +34,19 @@ namespace skia {
 
 BlurFilter::BlurFilter() {
     SkString blurString(R"(
-        uniform shader input;
+        uniform shader child;
         uniform float2 in_blurOffset;
         uniform float2 in_maxSizeXY;
 
         half4 main(float2 xy) {
-            half4 c = input.eval(xy);
-            c += input.eval(float2(clamp( in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
+            half4 c = child.eval(xy);
+            c += child.eval(float2(clamp( in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
                                    clamp( in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
-            c += input.eval(float2(clamp( in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
+            c += child.eval(float2(clamp( in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
                                    clamp(-in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
-            c += input.eval(float2(clamp(-in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
+            c += child.eval(float2(clamp(-in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
                                    clamp( in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
-            c += input.eval(float2(clamp(-in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
+            c += child.eval(float2(clamp(-in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
                                    clamp(-in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
 
             return half4(c.rgb * 0.2, 1.0);
@@ -101,7 +101,7 @@ sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t 
     // start by downscaling and doing the first blur pass
     SkSamplingOptions linear(SkFilterMode::kLinear, SkMipmapMode::kNone);
     SkRuntimeShaderBuilder blurBuilder(mBlurEffect);
-    blurBuilder.child("input") =
+    blurBuilder.child("child") =
             input->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear, blurMatrix);
     blurBuilder.uniform("in_blurOffset") = SkV2{stepX * kInputScale, stepY * kInputScale};
     blurBuilder.uniform("in_maxSizeXY") =
@@ -112,7 +112,7 @@ sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t 
     // And now we'll build our chain of scaled blur stages
     for (auto i = 1; i < numberOfPasses; i++) {
         const float stepScale = (float)i * kInputScale;
-        blurBuilder.child("input") =
+        blurBuilder.child("child") =
                 tmpBlur->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
         blurBuilder.uniform("in_blurOffset") = SkV2{stepX * stepScale, stepY * stepScale};
         blurBuilder.uniform("in_maxSizeXY") =
