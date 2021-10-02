@@ -22,6 +22,7 @@
 #pragma clang diagnostic ignored "-Wextra"
 
 #include "RefreshRateConfigs.h"
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <utils/Trace.h>
 #include <chrono>
@@ -679,7 +680,29 @@ void RefreshRateConfigs::setCurrentModeId(DisplayModeId modeId) {
 RefreshRateConfigs::RefreshRateConfigs(const DisplayModes& modes, DisplayModeId currentModeId,
                                        Config config)
       : mKnownFrameRates(constructKnownFrameRates(modes)), mConfig(config) {
+    initializeIdleTimer();
     updateDisplayModes(modes, currentModeId);
+}
+
+void RefreshRateConfigs::initializeIdleTimer() {
+    if (mConfig.idleTimerTimeoutMs > 0) {
+        const auto getCallback = [this]() -> std::optional<IdleTimerCallbacks::Callbacks> {
+            std::scoped_lock lock(mIdleTimerCallbacksMutex);
+            if (!mIdleTimerCallbacks.has_value()) return {};
+            return mConfig.supportKernelIdleTimer ? mIdleTimerCallbacks->kernel
+                                                  : mIdleTimerCallbacks->platform;
+        };
+
+        mIdleTimer.emplace(
+                "IdleTimer", std::chrono::milliseconds(mConfig.idleTimerTimeoutMs),
+                [getCallback] {
+                    if (const auto callback = getCallback()) callback->onReset();
+                },
+                [getCallback] {
+                    if (const auto callback = getCallback()) callback->onExpired();
+                });
+        mIdleTimer->start();
+    }
 }
 
 void RefreshRateConfigs::updateDisplayModes(const DisplayModes& modes,
@@ -944,6 +967,9 @@ void RefreshRateConfigs::dump(std::string& result) const {
 
     base::StringAppendF(&result, "Supports Frame Rate Override: %s\n",
                         mSupportsFrameRateOverride ? "yes" : "no");
+    base::StringAppendF(&result, "Idle timer: (%s) %s\n",
+                        mConfig.supportKernelIdleTimer ? "kernel" : "platform",
+                        mIdleTimer ? mIdleTimer->dump().c_str() : "off");
     result.append("\n");
 }
 
