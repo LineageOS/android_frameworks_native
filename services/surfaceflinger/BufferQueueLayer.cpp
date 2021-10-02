@@ -161,39 +161,6 @@ bool BufferQueueLayer::framePresentTimeIsCurrent(nsecs_t expectedPresentTime) co
     return mQueueItems[0].item.mTimestamp <= expectedPresentTime;
 }
 
-uint64_t BufferQueueLayer::getFrameNumber(nsecs_t expectedPresentTime) const {
-    Mutex::Autolock lock(mQueueItemLock);
-    uint64_t frameNumber = mQueueItems[0].item.mFrameNumber;
-
-    // The head of the queue will be dropped if there are signaled and timely frames behind it
-    if (isRemovedFromCurrentState()) {
-        expectedPresentTime = 0;
-    }
-
-    for (size_t i = 1; i < mQueueItems.size(); i++) {
-        const bool fenceSignaled =
-                mQueueItems[i].item.mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
-        if (!fenceSignaled) {
-            break;
-        }
-
-        // We don't drop frames without explicit timestamps
-        if (mQueueItems[i].item.mIsAutoTimestamp) {
-            break;
-        }
-
-        const nsecs_t desiredPresent = mQueueItems[i].item.mTimestamp;
-        if (desiredPresent < expectedPresentTime - BufferQueueConsumer::MAX_REASONABLE_NSEC ||
-            desiredPresent > expectedPresentTime) {
-            break;
-        }
-
-        frameNumber = mQueueItems[i].item.mFrameNumber;
-    }
-
-    return frameNumber;
-}
-
 bool BufferQueueLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     // We need to update the sideband stream if the layer has both a buffer and a sideband stream.
     editCompositionState()->sidebandStreamHasFrame = hasFrameUpdate() && mSidebandStream.get();

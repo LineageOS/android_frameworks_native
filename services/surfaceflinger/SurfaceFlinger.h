@@ -363,6 +363,10 @@ protected:
         return static_cast<bool>(findDisplay(p));
     }
 
+    bool exceedsMaxRenderTargetSize(uint32_t width, uint32_t height) const {
+        return width > mMaxRenderTargetSize || height > mMaxRenderTargetSize;
+    }
+
 private:
     friend class BufferLayer;
     friend class BufferQueueLayer;
@@ -759,8 +763,6 @@ private:
     // Keeps track of whether the kernel idle timer is currently enabled, so we don't have to
     // make calls to sys prop each time.
     bool mKernelIdleTimerEnabled = false;
-    // Keeps track of whether the kernel timer is supported on the SF side.
-    bool mSupportKernelIdleTimer = false;
     // Show spinner with refresh rate overlay
     bool mRefreshRateOverlaySpinner = false;
 
@@ -938,10 +940,6 @@ private:
     void traverseLayersInLayerStack(ui::LayerStack, const int32_t uid, const LayerVector::Visitor&);
 
     void readPersistentProperties();
-
-    bool exceedsMaxRenderTargetSize(uint32_t width, uint32_t height) const {
-        return width > mMaxRenderTargetSize || height > mMaxRenderTargetSize;
-    }
 
     uint32_t getMaxAcquiredBufferCountForCurrentRefreshRate(uid_t uid) const;
 

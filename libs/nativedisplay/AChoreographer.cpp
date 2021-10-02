@@ -151,8 +151,6 @@ public:
 
     static Choreographer* getForThread();
     virtual ~Choreographer() override EXCLUDES(gChoreographers.lock);
-    int64_t getVsyncId() const;
-    int64_t getFrameDeadline() const;
     int64_t getFrameInterval() const;
     bool inCallback() const;
 
@@ -449,14 +447,6 @@ void Choreographer::handleMessage(const Message& message) {
     }
 }
 
-int64_t Choreographer::getVsyncId() const {
-    return mLastVsyncEventData.id;
-}
-
-int64_t Choreographer::getFrameDeadline() const {
-    return mLastVsyncEventData.deadlineTimestamp;
-}
-
 int64_t Choreographer::getFrameInterval() const {
     return mLastVsyncEventData.frameInterval;
 }
@@ -585,14 +575,6 @@ int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTime
 int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineDeadline(
         const AChoreographerFrameCallbackData* data, size_t index) {
     return AChoreographerFrameCallbackData_getFrameTimelineDeadline(data, index);
-}
-
-int64_t AChoreographer_getVsyncId(const AChoreographer* choreographer) {
-    return AChoreographer_to_Choreographer(choreographer)->getVsyncId();
-}
-
-int64_t AChoreographer_getFrameDeadline(const AChoreographer* choreographer) {
-    return AChoreographer_to_Choreographer(choreographer)->getFrameDeadline();
 }
 
 int64_t AChoreographer_getFrameInterval(const AChoreographer* choreographer) {

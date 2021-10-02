@@ -42,6 +42,7 @@ VSyncReactor::VSyncReactor(std::unique_ptr<Clock> clock, VSyncTracker& tracker,
       : mClock(std::move(clock)),
         mTracker(tracker),
         mPendingLimit(pendingFenceLimit),
+        // TODO(adyabr): change mSupportKernelIdleTimer when the active display changes
         mSupportKernelIdleTimer(supportKernelIdleTimer) {}
 
 VSyncReactor::~VSyncReactor() = default;
