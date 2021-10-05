@@ -40,14 +40,15 @@ VerifiedKeyEvent verifiedKeyEventFromKeyEntry(const KeyEntry& entry) {
             entry.repeatCount};
 }
 
-VerifiedMotionEvent verifiedMotionEventFromMotionEntry(const MotionEntry& entry) {
-    const float rawX = entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X);
-    const float rawY = entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y);
+VerifiedMotionEvent verifiedMotionEventFromMotionEntry(const MotionEntry& entry,
+                                                       const ui::Transform& rawTransform) {
+    const vec2 rawXY = MotionEvent::calculateTransformedXY(entry.source, rawTransform,
+                                                           entry.pointerCoords[0].getXYValue());
     const int actionMasked = entry.action & AMOTION_EVENT_ACTION_MASK;
     return {{VerifiedInputEvent::Type::MOTION, entry.deviceId, entry.eventTime, entry.source,
              entry.displayId},
-            rawX,
-            rawY,
+            rawXY.x,
+            rawXY.y,
             actionMasked,
             entry.downTime,
             entry.flags & VERIFIED_MOTION_EVENT_FLAGS,

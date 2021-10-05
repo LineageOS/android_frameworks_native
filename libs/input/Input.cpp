@@ -65,8 +65,8 @@ float transformAngle(const ui::Transform& transform, float angleRadians) {
     return result;
 }
 
-vec2 transformWithoutTranslation(const ui::Transform& transform, float x, float y) {
-    const vec2 transformedXy = transform.transform(x, y);
+vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy) {
+    const vec2 transformedXy = transform.transform(xy);
     const vec2 transformedOrigin = transform.transform(0, 0);
     return transformedXy - transformedOrigin;
 }
@@ -501,21 +501,16 @@ float MotionEvent::getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
     const PointerCoords* coords = getHistoricalRawPointerCoords(pointerIndex, historicalIndex);
 
     if (axis == AMOTION_EVENT_AXIS_X || axis == AMOTION_EVENT_AXIS_Y) {
-        // For compatibility, convert raw coordinates into logical display space.
-        const vec2 xy = shouldDisregardTranslation(mSource)
-                ? transformWithoutTranslation(mRawTransform, coords->getX(), coords->getY())
-                : mRawTransform.transform(coords->getX(), coords->getY());
+        const vec2 xy = calculateTransformedXY(mSource, mRawTransform, coords->getXYValue());
         static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
         return xy[axis];
     }
 
     if (axis == AMOTION_EVENT_AXIS_RELATIVE_X || axis == AMOTION_EVENT_AXIS_RELATIVE_Y) {
-        // For compatibility, since we report raw coordinates in logical display space, we
-        // need to convert the relative axes into the same orientation for consistency.
         const vec2 relativeXy =
                 transformWithoutTranslation(mRawTransform,
-                                            coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
-                                            coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y));
+                                            {coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
+                                             coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y)});
         return axis == AMOTION_EVENT_AXIS_RELATIVE_X ? relativeXy.x : relativeXy.y;
     }
 
@@ -527,9 +522,7 @@ float MotionEvent::getHistoricalAxisValue(int32_t axis, size_t pointerIndex,
     const PointerCoords* coords = getHistoricalRawPointerCoords(pointerIndex, historicalIndex);
 
     if (axis == AMOTION_EVENT_AXIS_X || axis == AMOTION_EVENT_AXIS_Y) {
-        const vec2 xy = shouldDisregardTranslation(mSource)
-                ? transformWithoutTranslation(mTransform, coords->getX(), coords->getY())
-                : mTransform.transform(coords->getXYValue());
+        const vec2 xy = calculateTransformedXY(mSource, mTransform, coords->getXYValue());
         static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
         return xy[axis];
     }
@@ -537,8 +530,8 @@ float MotionEvent::getHistoricalAxisValue(int32_t axis, size_t pointerIndex,
     if (axis == AMOTION_EVENT_AXIS_RELATIVE_X || axis == AMOTION_EVENT_AXIS_RELATIVE_Y) {
         const vec2 relativeXy =
                 transformWithoutTranslation(mTransform,
-                                            coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
-                                            coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y));
+                                            {coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
+                                             coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y)});
         return axis == AMOTION_EVENT_AXIS_RELATIVE_X ? relativeXy.x : relativeXy.y;
     }
 
@@ -815,6 +808,12 @@ std::string MotionEvent::actionToString(int32_t action) {
     return android::base::StringPrintf("%" PRId32, action);
 }
 
+vec2 MotionEvent::calculateTransformedXY(uint32_t source, const ui::Transform& transform,
+                                         const vec2& xy) {
+    return shouldDisregardTranslation(source) ? transformWithoutTranslation(transform, xy)
+                                              : transform.transform(xy);
+}
+
 // --- FocusEvent ---
 
 void FocusEvent::initialize(int32_t id, bool hasFocus, bool inTouchMode) {
@@ -966,6 +965,13 @@ void PooledInputEventFactory::recycle(InputEvent* event) {
     case AINPUT_EVENT_TYPE_DRAG:
         if (mDragEventPool.size() < mMaxPoolSize) {
             mDragEventPool.push(std::unique_ptr<DragEvent>(static_cast<DragEvent*>(event)));
+            return;
+        }
+        break;
+    case AINPUT_EVENT_TYPE_TOUCH_MODE:
+        if (mTouchModeEventPool.size() < mMaxPoolSize) {
+            mTouchModeEventPool.push(
+                    std::unique_ptr<TouchModeEvent>(static_cast<TouchModeEvent*>(event)));
             return;
         }
         break;
