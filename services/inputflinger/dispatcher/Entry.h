@@ -254,7 +254,8 @@ private:
 };
 
 VerifiedKeyEvent verifiedKeyEventFromKeyEntry(const KeyEntry& entry);
-VerifiedMotionEvent verifiedMotionEventFromMotionEntry(const MotionEntry& entry);
+VerifiedMotionEvent verifiedMotionEventFromMotionEntry(const MotionEntry& entry,
+                                                       const ui::Transform& rawTransform);
 
 } // namespace android::inputdispatcher
 

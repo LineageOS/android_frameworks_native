@@ -2801,7 +2801,14 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    ui::Transform transform;
+    transform.set({1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 0, 0, 1});
+
+    gui::DisplayInfo displayInfo;
+    displayInfo.displayId = ADISPLAY_ID_DEFAULT;
+    displayInfo.transform = transform;
+
+    mDispatcher->onWindowInfosChanged({*window->getInfo()}, {displayInfo});
 
     NotifyMotionArgs motionArgs =
             generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
@@ -2822,8 +2829,11 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
 
     const VerifiedMotionEvent& verifiedMotion = static_cast<const VerifiedMotionEvent&>(*verified);
 
-    EXPECT_EQ(motionArgs.pointerCoords[0].getX(), verifiedMotion.rawX);
-    EXPECT_EQ(motionArgs.pointerCoords[0].getY(), verifiedMotion.rawY);
+    const vec2 rawXY =
+            MotionEvent::calculateTransformedXY(motionArgs.source, transform,
+                                                motionArgs.pointerCoords[0].getXYValue());
+    EXPECT_EQ(rawXY.x, verifiedMotion.rawX);
+    EXPECT_EQ(rawXY.y, verifiedMotion.rawY);
     EXPECT_EQ(motionArgs.action & AMOTION_EVENT_ACTION_MASK, verifiedMotion.actionMasked);
     EXPECT_EQ(motionArgs.downTime, verifiedMotion.downTimeNanos);
     EXPECT_EQ(motionArgs.flags & VERIFIED_MOTION_EVENT_FLAGS, verifiedMotion.flags);
