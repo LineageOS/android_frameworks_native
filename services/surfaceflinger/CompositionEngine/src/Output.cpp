@@ -1064,9 +1064,11 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     }
 
     // Generate the client composition requests for the layers on this output.
+    std::vector<LayerFE*> clientCompositionLayersFE;
     std::vector<LayerFE::LayerSettings> clientCompositionLayers =
             generateClientCompositionRequests(supportsProtectedContent,
-                                              clientCompositionDisplay.outputDataspace);
+                                              clientCompositionDisplay.outputDataspace,
+                                              clientCompositionLayersFE);
     appendRegionFlashRequests(debugRegion, clientCompositionLayers);
 
     // Check if the client composition requests were rendered into the provided graphic buffer. If
@@ -1131,11 +1133,18 @@ std::optional<base::unique_fd> Output::composeSurfaces(
                                                      new Fence(dup(drawFence.get()))));
     }
 
+    if (clientCompositionLayersFE.size() > 0) {
+        sp<Fence> clientCompFence = new Fence(dup(drawFence.get()));
+        for (auto clientComposedLayer : clientCompositionLayersFE) {
+            clientComposedLayer->setWasClientComposed(clientCompFence);
+        }
+    }
+
     return std::move(drawFence);
 }
 
 std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
-        bool supportsProtectedContent, ui::Dataspace outputDataspace) {
+      bool supportsProtectedContent, ui::Dataspace outputDataspace, std::vector<LayerFE*>& outLayerFEs) {
     std::vector<LayerFE::LayerSettings> clientCompositionLayers;
     ALOGV("Rendering client layers");
 
@@ -1214,6 +1223,7 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                 }
             }
 
+            outLayerFEs.push_back(&layerFE);
             clientCompositionLayers.insert(clientCompositionLayers.end(),
                                            std::make_move_iterator(results.begin()),
                                            std::make_move_iterator(results.end()));

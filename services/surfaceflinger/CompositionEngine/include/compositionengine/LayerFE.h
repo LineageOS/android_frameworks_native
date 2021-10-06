@@ -161,6 +161,7 @@ public:
 
     // Whether the layer should be rendered with rounded corners.
     virtual bool hasRoundedCorners() const = 0;
+    virtual void setWasClientComposed(const sp<Fence>&) {}
 };
 
 // TODO(b/121291683): Specialize std::hash<> for sp<T> so these and others can
