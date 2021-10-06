@@ -20,6 +20,7 @@
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -72,34 +73,43 @@ public:
     void deregisterLayer(Layer*);
     std::string dump() const;
 
+    // return the frames per second of the layer with the given sequence id.
+    float getLayerFramerate(nsecs_t now, int32_t id) const;
+
 private:
     friend class LayerHistoryTest;
     friend class TestableScheduler;
 
     using LayerPair = std::pair<Layer*, std::unique_ptr<LayerInfo>>;
-    using LayerInfos = std::vector<LayerPair>;
+    // keyed by id as returned from Layer::getSequence()
+    using LayerInfos = std::unordered_map<int32_t, LayerPair>;
 
-    struct ActiveLayers {
-        LayerInfos& infos;
-        const size_t index;
+    // Iterates over layers maps moving all active layers to mActiveLayerInfos and all inactive
+    // layers to mInactiveLayerInfos.
+    // worst case time complexity is O(2 * inactive + active)
+    void partitionLayers(nsecs_t now) REQUIRES(mLock);
 
-        auto begin() { return infos.begin(); }
-        auto end() { return begin() + static_cast<long>(index); }
+    enum class layerStatus {
+        NotFound,
+        LayerInActiveMap,
+        LayerInInactiveMap,
     };
 
-    ActiveLayers activeLayers() REQUIRES(mLock) { return {mLayerInfos, mActiveLayersEnd}; }
-
-    // Iterates over layers in a single pass, swapping pairs such that active layers precede
-    // inactive layers, and inactive layers precede expired layers. Removes expired layers by
-    // truncating after inactive layers.
-    void partitionLayers(nsecs_t now) REQUIRES(mLock);
+    // looks up a layer by sequence id in both layerInfo maps.
+    // The first element indicates if and where the item was found
+    std::pair<layerStatus, LayerHistory::LayerPair*> findLayer(int32_t id) REQUIRES(mLock);
+    std::pair<layerStatus, const LayerHistory::LayerPair*> findLayer(int32_t id) const
+            REQUIRES(mLock);
 
     mutable std::mutex mLock;
 
-    // Partitioned such that active layers precede inactive layers. For fast lookup, the few active
-    // layers are at the front, and weak pointers are stored in contiguous memory to hit the cache.
-    LayerInfos mLayerInfos GUARDED_BY(mLock);
-    size_t mActiveLayersEnd GUARDED_BY(mLock) = 0;
+    // Partitioned into two maps to facility two kinds of retrieval:
+    // 1. retrieval of a layer by id (attempt lookup in both maps)
+    // 2. retrieval of all active layers (iterate that map)
+    // The partitioning is allowed to become out of date but calling partitionLayers refreshes the
+    // validity of each map.
+    LayerInfos mActiveLayerInfos GUARDED_BY(mLock);
+    LayerInfos mInactiveLayerInfos GUARDED_BY(mLock);
 
     uint32_t mDisplayArea = 0;
 

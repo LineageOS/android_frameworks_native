@@ -75,12 +75,16 @@ bool LayerInfo::isFrameTimeValid(const FrameTimeData& frameTime) const {
 }
 
 bool LayerInfo::isFrequent(nsecs_t now) const {
+    using fps_approx_ops::operator>=;
     // If we know nothing about this layer we consider it as frequent as it might be the start
     // of an animation.
     if (mFrameTimes.size() < kFrequentLayerWindowSize) {
         return true;
     }
+    return getFps(now) >= kMinFpsForFrequentLayer;
+}
 
+Fps LayerInfo::getFps(nsecs_t now) const {
     // Find the first active frame
     auto it = mFrameTimes.begin();
     for (; it != mFrameTimes.end(); ++it) {
@@ -91,14 +95,12 @@ bool LayerInfo::isFrequent(nsecs_t now) const {
 
     const auto numFrames = std::distance(it, mFrameTimes.end());
     if (numFrames < kFrequentLayerWindowSize) {
-        return false;
+        return Fps();
     }
-
-    using fps_approx_ops::operator>=;
 
     // Layer is considered frequent if the average frame rate is higher than the threshold
     const auto totalTime = mFrameTimes.back().queueTime - it->queueTime;
-    return Fps::fromPeriodNsecs(totalTime / (numFrames - 1)) >= kMinFpsForFrequentLayer;
+    return Fps::fromPeriodNsecs(totalTime / (numFrames - 1));
 }
 
 bool LayerInfo::isAnimating(nsecs_t now) const {
@@ -236,7 +238,7 @@ LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateConfigs& ref
     if (!isFrequent(now)) {
         ALOGV("%s is infrequent", mName.c_str());
         mLastRefreshRate.animatingOrInfrequent = true;
-        // Infrequent layers vote for minimal refresh rate for
+        // Infrequent layers vote for mininal refresh rate for
         // battery saving purposes and also to prevent b/135718869.
         return {LayerHistory::LayerVoteType::Min, Fps()};
     }

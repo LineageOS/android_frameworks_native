@@ -63,33 +63,42 @@ protected:
     const LayerHistory& history() const { return mScheduler->mutableLayerHistory(); }
 
     LayerHistory::Summary summarizeLayerHistory(nsecs_t now) {
-        return history().summarize(*mScheduler->refreshRateConfigs(), now);
+        // LayerHistory::summarize makes no guarantee of the order of the elements in the summary
+        // however, for testing only, a stable order is required, therefore we sort the list here.
+        // Any tests requiring ordered results must create layers with names.
+        auto summary = history().summarize(*mScheduler->refreshRateConfigs(), now);
+        std::sort(summary.begin(), summary.end(),
+                  [](const RefreshRateConfigs::LayerRequirement& a,
+                     const RefreshRateConfigs::LayerRequirement& b) -> bool {
+                      return a.name < b.name;
+                  });
+        return summary;
     }
 
     size_t layerCount() const { return mScheduler->layerHistorySize(); }
-    size_t activeLayerCount() const NO_THREAD_SAFETY_ANALYSIS { return history().mActiveLayersEnd; }
+    size_t activeLayerCount() const NO_THREAD_SAFETY_ANALYSIS {
+        return history().mActiveLayerInfos.size();
+    }
 
     auto frequentLayerCount(nsecs_t now) const NO_THREAD_SAFETY_ANALYSIS {
-        const auto& infos = history().mLayerInfos;
-        return std::count_if(infos.begin(),
-                             infos.begin() + static_cast<long>(history().mActiveLayersEnd),
-                             [now](const auto& pair) { return pair.second->isFrequent(now); });
+        const auto& infos = history().mActiveLayerInfos;
+        return std::count_if(infos.begin(), infos.end(), [now](const auto& pair) {
+            return pair.second.second->isFrequent(now);
+        });
     }
 
     auto animatingLayerCount(nsecs_t now) const NO_THREAD_SAFETY_ANALYSIS {
-        const auto& infos = history().mLayerInfos;
-        return std::count_if(infos.begin(),
-                             infos.begin() + static_cast<long>(history().mActiveLayersEnd),
-                             [now](const auto& pair) { return pair.second->isAnimating(now); });
+        const auto& infos = history().mActiveLayerInfos;
+        return std::count_if(infos.begin(), infos.end(), [now](const auto& pair) {
+            return pair.second.second->isAnimating(now);
+        });
     }
 
     void setDefaultLayerVote(Layer* layer,
                              LayerHistory::LayerVoteType vote) NO_THREAD_SAFETY_ANALYSIS {
-        for (auto& [layerUnsafe, info] : history().mLayerInfos) {
-            if (layerUnsafe == layer) {
-                info->setDefaultLayerVote(vote);
-                return;
-            }
+        auto [found, layerPair] = history().findLayer(layer->getSequence());
+        if (found != LayerHistory::layerStatus::NotFound) {
+            layerPair->second->setDefaultLayerVote(vote);
         }
     }
 
@@ -143,6 +152,8 @@ TEST_F(LayerHistoryTest, oneLayer) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
+
+    // history().registerLayer(layer, LayerHistory::LayerVoteType::Max);
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
@@ -368,9 +379,9 @@ TEST_F(LayerHistoryTest, oneLayerExplicitExactVote) {
 }
 
 TEST_F(LayerHistoryTest, multipleLayers) {
-    auto layer1 = createLayer();
-    auto layer2 = createLayer();
-    auto layer3 = createLayer();
+    auto layer1 = createLayer("A");
+    auto layer2 = createLayer("B");
+    auto layer3 = createLayer("C");
 
     EXPECT_CALL(*layer1, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer1, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
@@ -652,6 +663,29 @@ TEST_F(LayerHistoryTest, infrequentAnimatingLayer) {
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(0, frequentLayerCount(time));
     EXPECT_EQ(1, animatingLayerCount(time));
+}
+
+TEST_F(LayerHistoryTest, getFramerate) {
+    auto layer = createLayer();
+
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
+
+    nsecs_t time = systemTime();
+
+    EXPECT_EQ(1, layerCount());
+    EXPECT_EQ(0, activeLayerCount());
+    EXPECT_EQ(0, frequentLayerCount(time));
+    EXPECT_EQ(0, animatingLayerCount(time));
+
+    // layer is active but infrequent.
+    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
+        history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
+    }
+
+    float expectedFramerate = 1e9f / MAX_FREQUENT_LAYER_PERIOD_NS.count();
+    EXPECT_FLOAT_EQ(expectedFramerate, history().getLayerFramerate(time, layer->getSequence()));
 }
 
 TEST_F(LayerHistoryTest, heuristicLayer60Hz) {
