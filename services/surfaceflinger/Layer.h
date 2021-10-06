@@ -623,6 +623,11 @@ public:
     std::vector<compositionengine::LayerFE::LayerSettings> prepareClientCompositionList(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
+
+    void setWasClientComposed(const sp<Fence>& fence) override {
+        mLastClientCompositionFence = fence;
+    }
+
     const char* getDebugName() const override;
 
     bool setShadowRadius(float shadowRadius);
@@ -1028,6 +1033,8 @@ protected:
 
     mutable bool mDrawingStateModified = false;
 
+    sp<Fence> mLastClientCompositionFence;
+    bool mLastClientCompositionDisplayed = false;
 private:
     virtual void setTransformHint(ui::Transform::RotationFlags) {}
 

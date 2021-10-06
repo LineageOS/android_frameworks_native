@@ -114,8 +114,8 @@ public:
     MOCK_METHOD1(renderCachedSets, void(const CompositionRefreshArgs&));
     MOCK_METHOD0(presentAndGetFrameFences, compositionengine::Output::FrameFences());
 
-    MOCK_METHOD2(generateClientCompositionRequests,
-                 std::vector<LayerFE::LayerSettings>(bool, ui::Dataspace));
+    MOCK_METHOD3(generateClientCompositionRequests,
+                 std::vector<LayerFE::LayerSettings>(bool, ui::Dataspace, std::vector<compositionengine::LayerFE*>&));
     MOCK_METHOD2(appendRegionFlashRequests,
                  void(const Region&, std::vector<LayerFE::LayerSettings>&));
     MOCK_METHOD1(setExpensiveRenderingExpected, void(bool));
