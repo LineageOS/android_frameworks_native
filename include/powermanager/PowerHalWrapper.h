@@ -123,6 +123,7 @@ public:
             int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
             int64_t durationNanos) = 0;
     virtual HalResult<int64_t> getHintSessionPreferredRate() = 0;
+    virtual HalResult<int> getFeature(vendor::lineage::power::V1_0::LineageFeature feature) = 0;
 };
 
 // Empty Power HAL wrapper that ignores all api calls.
@@ -137,6 +138,7 @@ public:
             int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
             int64_t durationNanos) override;
     virtual HalResult<int64_t> getHintSessionPreferredRate() override;
+    virtual HalResult<int> getFeature(vendor::lineage::power::V1_0::LineageFeature feature) = override;
 };
 
 // Wrapper for the HIDL Power HAL v1.0.
@@ -152,6 +154,7 @@ public:
             int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
             int64_t durationNanos) override;
     virtual HalResult<int64_t> getHintSessionPreferredRate() override;
+    virtual HalResult<int> getFeature(vendor::lineage::power::V1_0::LineageFeature feature) = override;
 
 protected:
     virtual HalResult<void> sendPowerHint(hardware::power::V1_0::PowerHint hintId, uint32_t data);
@@ -190,6 +193,7 @@ public:
             int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
             int64_t durationNanos) override;
     virtual HalResult<int64_t> getHintSessionPreferredRate() override;
+    virtual HalResult<int> getFeature(vendor::lineage::power::V1_0::LineageFeature feature) = override;
 
 private:
     // Control access to the boost and mode supported arrays.

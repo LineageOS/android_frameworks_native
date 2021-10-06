@@ -22,8 +22,10 @@
 #include <hardware/power.h>
 #include <hardware_legacy/power.h>
 #include <powermanager/PowerHalLoader.h>
+#include <vendor/lineage/power/1.0/ILineagePower.h>
 
 using namespace android::hardware::power;
+using namespace vendor::lineage::power::V1_0;
 
 namespace android {
 
@@ -55,12 +57,14 @@ std::mutex PowerHalLoader::gHalMutex;
 sp<IPower> PowerHalLoader::gHalAidl = nullptr;
 sp<V1_0::IPower> PowerHalLoader::gHalHidlV1_0 = nullptr;
 sp<V1_1::IPower> PowerHalLoader::gHalHidlV1_1 = nullptr;
+sp<ILineagePower> PowerHalLoader::gHalLineageHidlV1_0 = nullptr;
 
 void PowerHalLoader::unloadAll() {
     std::lock_guard<std::mutex> lock(gHalMutex);
     gHalAidl = nullptr;
     gHalHidlV1_0 = nullptr;
     gHalHidlV1_1 = nullptr;
+    gHalLineageHidlV1_0 = nullptr;
 }
 
 sp<IPower> PowerHalLoader::loadAidl() {
@@ -82,10 +86,22 @@ sp<V1_1::IPower> PowerHalLoader::loadHidlV1_1() {
     return loadHal<V1_1::IPower>(gHalExists, gHalHidlV1_1, loadFn, "HIDL v1.1");
 }
 
+sp<V1_0::ILineagePower> PowerHalLoader::loadLineageHidlV1_0() {
+    std::lock_guard<std::mutex> lock(gHalMutex);
+    return loadLineageHidlV1_0Locked();
+}
+
 sp<V1_0::IPower> PowerHalLoader::loadHidlV1_0Locked() {
     static bool gHalExists = true;
     static auto loadFn = []() { return V1_0::IPower::getService(); };
     return loadHal<V1_0::IPower>(gHalExists, gHalHidlV1_0, loadFn, "HIDL v1.0");
+}
+
+sp<V1_0::ILineagePower> PowerHalLoader::loadLineageHidlV1_0Locked() {
+    static bool gHalExists = true;
+    static auto loadFn = []() { return :V1_0::ILineagePower:getService(); };
+    return loadHal<V1_0::ILineagePower>(gHalExists, gHalLineageHidlV1_0, loadFn, "Lineage HIDL v1.0");
+
 }
 
 // -------------------------------------------------------------------------------------------------

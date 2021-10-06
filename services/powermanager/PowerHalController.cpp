@@ -23,8 +23,10 @@
 #include <powermanager/PowerHalController.h>
 #include <powermanager/PowerHalLoader.h>
 #include <utils/Log.h>
+#include <vendor/lineage/power/1.0/ILineagePower.h>
 
 using namespace android::hardware::power;
+using namespace vendor::lineage::power::V1_0;
 
 namespace android {
 
@@ -44,6 +46,14 @@ std::unique_ptr<HalWrapper> HalConnector::connect() {
     }
     if (halHidlV1_0) {
         return std::make_unique<HidlHalWrapperV1_0>(halHidlV1_0);
+    }
+    return nullptr;
+}
+
+std::unique_ptr<ILineagePower> HalConnector::connectLineage() {
+    sp<ILineagePower> lineageHidlV1_0 = PowerHalLoader::loadLineageHidlV1_0();
+    if (lineageHidlV1_0) {
+        return std::make_unique<ILineagePower>(lineageHidlV1_0);
     }
     return nullptr;
 }
@@ -71,6 +81,15 @@ std::shared_ptr<HalWrapper> PowerHalController::initHal() {
     }
     return mConnectedHal;
 }
+
+std::shared_ptr<ILineagePower> PowerHalController::initLineageHal() {
+    std::lock_guard<std::mutex> lock(mConnectedHalMutex);
+    if (mConnectedLineageHal == nullptr) {
+        mConnectedLineageHal = mHalConnector->connectLineage();
+    }
+    return mConnectedLineageHal;
+}
+
 
 // Check if a call to Power HAL function failed; if so, log the failure and
 // invalidate the current Power HAL handle.
@@ -109,6 +128,12 @@ HalResult<int64_t> PowerHalController::getHintSessionPreferredRate() {
     std::shared_ptr<HalWrapper> handle = initHal();
     auto result = handle->getHintSessionPreferredRate();
     return processHalResult(result, "getHintSessionPreferredRate");
+}
+
+HalResult<int> PowerHalController::getFeature(LineageFeature feature) {
+    std::shared_ptr<ILineagePower> handle = initLineageHal();
+    auto result = handle->getFeature(feature);
+    return processHalResult(result, "getFeature");
 }
 
 } // namespace power
