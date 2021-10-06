@@ -20,6 +20,7 @@
 #include <android-base/thread_annotations.h>
 #include <android/hardware/power/1.1/IPower.h>
 #include <android/hardware/power/IPower.h>
+#include <vendor/lineage/power/IPower.h>
 
 namespace android {
 
@@ -32,12 +33,14 @@ public:
     static sp<hardware::power::IPower> loadAidl();
     static sp<hardware::power::V1_0::IPower> loadHidlV1_0();
     static sp<hardware::power::V1_1::IPower> loadHidlV1_1();
+    static sp<vendor::lineage::power::IPower> loadLineageAidl();
 
 private:
     static std::mutex gHalMutex;
     static sp<hardware::power::IPower> gHalAidl GUARDED_BY(gHalMutex);
     static sp<hardware::power::V1_0::IPower> gHalHidlV1_0 GUARDED_BY(gHalMutex);
     static sp<hardware::power::V1_1::IPower> gHalHidlV1_1 GUARDED_BY(gHalMutex);
+    static sp<vendor::lineage::power::IPower> gHalLineageAidl GUARDED_BY(gHalMutex);
 
     static sp<hardware::power::V1_0::IPower> loadHidlV1_0Locked()
             EXCLUSIVE_LOCKS_REQUIRED(gHalMutex);
