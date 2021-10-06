@@ -108,6 +108,8 @@ public:
                          std::optional<ui::Cta861_3>* outCta861_3) const override;
     status_t getSmpte2094_40(buffer_handle_t bufferHandle,
                              std::optional<std::vector<uint8_t>>* outSmpte2094_40) const override;
+    status_t getSmpte2094_10(buffer_handle_t bufferHandle,
+                             std::optional<std::vector<uint8_t>>* outSmpte2094_10) const override;
 
     status_t getDefaultPixelFormatFourCC(uint32_t width, uint32_t height, PixelFormat format,
                                          uint32_t layerCount, uint64_t usage,
