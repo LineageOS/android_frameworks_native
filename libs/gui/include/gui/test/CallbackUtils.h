@@ -134,10 +134,8 @@ private:
 
         void verifySurfaceControlStats(const SurfaceControlStats& surfaceControlStats,
                                        nsecs_t latchTime) const {
-            const auto&
-                    [surfaceControl, latch, acquireTime, presentFence, previousReleaseFence,
-                     transformHint,
-                     frameEvents] = surfaceControlStats;
+            const auto& [surfaceControl, latch, acquireTime, presentFence, previousReleaseFence,
+                         transformHint, frameEvents] = surfaceControlStats;
 
             ASSERT_EQ(acquireTime > 0, mBufferResult == ExpectedResult::Buffer::ACQUIRED)
                     << "bad acquire time";
@@ -199,7 +197,7 @@ public:
         std::this_thread::sleep_for(500ms);
 
         std::lock_guard lock(mMutex);
-        EXPECT_EQ(mCallbackDataQueue.size(), 0) << "extra callbacks received";
+        EXPECT_EQ(mCallbackDataQueue.size(), 0U) << "extra callbacks received";
         mCallbackDataQueue = {};
     }
 
@@ -209,5 +207,5 @@ public:
     std::condition_variable mConditionVariable;
     std::queue<CallbackData> mCallbackDataQueue;
 };
-}
+} // namespace
 } // namespace android
