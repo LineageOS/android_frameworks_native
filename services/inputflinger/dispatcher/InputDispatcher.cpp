@@ -2541,24 +2541,9 @@ void InputDispatcher::addMonitoringTargetLocked(const Monitor& monitor, int32_t 
     target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
     ui::Transform t;
     if (const auto& it = mDisplayInfos.find(displayId); it != mDisplayInfos.end()) {
-        // Input monitors always get un-rotated display coordinates. We undo the display
-        // rotation that is present in the display transform so that display rotation is not
-        // applied to these input targets.
-        const auto& displayInfo = it->second;
-        int32_t width = displayInfo.logicalWidth;
-        int32_t height = displayInfo.logicalHeight;
-        const auto orientation = displayInfo.transform.getOrientation();
-        uint32_t inverseOrientation = orientation;
-        if (orientation == ui::Transform::ROT_90) {
-            inverseOrientation = ui::Transform::ROT_270;
-            std::swap(width, height);
-        } else if (orientation == ui::Transform::ROT_270) {
-            inverseOrientation = ui::Transform::ROT_90;
-            std::swap(width, height);
-        }
-        target.displayTransform =
-                ui::Transform(inverseOrientation, width, height) * displayInfo.transform;
-        t = t * target.displayTransform;
+        const auto& displayTransform = it->second.transform;
+        target.displayTransform = displayTransform;
+        t = displayTransform;
     }
     target.setDefaultPointerTransform(t);
     inputTargets.push_back(target);
