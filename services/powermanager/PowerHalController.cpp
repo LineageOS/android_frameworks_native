@@ -25,6 +25,7 @@
 #include <utils/Log.h>
 
 using namespace android::hardware::power;
+namespace LineageAidl = vendor::lineage::power;
 
 namespace android {
 
@@ -48,6 +49,11 @@ std::unique_ptr<HalWrapper> HalConnector::connect() {
     return nullptr;
 }
 
+std::unique_ptr<HalWrapper> HalConnector::connectLineage() {
+    sp<LineageAidl::IPower> halLineageAidl = PowerHalLoader::loadLineageAidl();
+    return std::make_unique<LineageAidlHalWrapper>(halLineageAidl);
+}
+
 void HalConnector::reset() {
     PowerHalLoader::unloadAll();
 }
@@ -56,6 +62,7 @@ void HalConnector::reset() {
 
 void PowerHalController::init() {
     initHal();
+    initLineageHal();
 }
 
 // Check validity of current handle to the power HAL service, and create a new
@@ -70,6 +77,20 @@ std::shared_ptr<HalWrapper> PowerHalController::initHal() {
         }
     }
     return mConnectedHal;
+}
+
+// Check validity of current handle to the Lineage power HAL service, and create a new
+// one if necessary.
+std::shared_ptr<HalWrapper> PowerHalController::initLineageHal() {
+    std::lock_guard<std::mutex> lock(mConnectedHalMutex);
+    if (mConnectedLineageHal == nullptr) {
+        mConnectedLineageHal = mHalConnector->connectLineage();
+        if (mConnectedLineageHal == nullptr) {
+            // Unable to connect to Lineage Power HAL service. Fallback to default.
+            return mDefaultHal;
+        }
+    }
+    return mConnectedLineageHal;
 }
 
 // Check if a call to Power HAL function failed; if so, log the failure and
@@ -109,6 +130,12 @@ HalResult<int64_t> PowerHalController::getHintSessionPreferredRate() {
     std::shared_ptr<HalWrapper> handle = initHal();
     auto result = handle->getHintSessionPreferredRate();
     return processHalResult(result, "getHintSessionPreferredRate");
+}
+
+HalResult<int> PowerHalController::getFeature(LineageAidl::Feature feature) {
+    std::shared_ptr<HalWrapper> handle = initLineageHal();
+    auto result = handle->getFeature(feature);
+    return processHalResult(result, "getFeature");
 }
 
 } // namespace power
