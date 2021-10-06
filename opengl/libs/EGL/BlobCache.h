@@ -54,8 +54,7 @@ public:
     //   0 < keySize
     //   value != NULL
     //   0 < valueSize
-    void set(const void* key, size_t keySize, const void* value,
-            size_t valueSize);
+    void set(const void* key, size_t keySize, const void* value, size_t valueSize);
 
     // get retrieves from the cache the binary value associated with a given
     // binary key.  If the key is present in the cache then the length of the
@@ -74,7 +73,6 @@ public:
     //   0 < keySize
     //   0 <= valueSize
     size_t get(const void* key, size_t keySize, void* value, size_t valueSize);
-
 
     // getFlattenedSize returns the number of bytes needed to store the entire
     // serialized cache.
@@ -168,7 +166,6 @@ private:
         void setValue(const std::shared_ptr<Blob>& value);
 
     private:
-
         // mKey is the key that identifies the cache entry.
         std::shared_ptr<Blob> mKey;
 
@@ -245,6 +242,6 @@ private:
     std::vector<CacheEntry> mCacheEntries;
 };
 
-}
+} // namespace android
 
 #endif // ANDROID_BLOB_CACHE_H

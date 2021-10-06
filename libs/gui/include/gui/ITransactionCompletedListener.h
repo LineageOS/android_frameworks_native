@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "JankInfo.h"
+
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
@@ -34,7 +36,52 @@ namespace android {
 class ITransactionCompletedListener;
 class ListenerCallbacks;
 
-using CallbackId = int64_t;
+class CallbackId : public Parcelable {
+public:
+    int64_t id;
+    enum class Type : int32_t { ON_COMPLETE, ON_COMMIT } type;
+
+    CallbackId() {}
+    CallbackId(int64_t id, Type type) : id(id), type(type) {}
+    status_t writeToParcel(Parcel* output) const override;
+    status_t readFromParcel(const Parcel* input) override;
+
+    bool operator==(const CallbackId& rhs) const { return id == rhs.id && type == rhs.type; }
+};
+
+struct CallbackIdHash {
+    std::size_t operator()(const CallbackId& key) const { return std::hash<int64_t>()(key.id); }
+};
+
+class ReleaseCallbackId : public Parcelable {
+public:
+    static const ReleaseCallbackId INVALID_ID;
+
+    uint64_t bufferId;
+    uint64_t framenumber;
+    ReleaseCallbackId() {}
+    ReleaseCallbackId(uint64_t bufferId, uint64_t framenumber)
+          : bufferId(bufferId), framenumber(framenumber) {}
+    status_t writeToParcel(Parcel* output) const override;
+    status_t readFromParcel(const Parcel* input) override;
+
+    bool operator==(const ReleaseCallbackId& rhs) const {
+        return bufferId == rhs.bufferId && framenumber == rhs.framenumber;
+    }
+    bool operator!=(const ReleaseCallbackId& rhs) const { return !operator==(rhs); }
+    std::string to_string() const {
+        if (*this == INVALID_ID) return "INVALID_ID";
+
+        return "bufferId:" + std::to_string(bufferId) +
+                " framenumber:" + std::to_string(framenumber);
+    }
+};
+
+struct ReleaseBufferCallbackIdHash {
+    std::size_t operator()(const ReleaseCallbackId& key) const {
+        return std::hash<uint64_t>()(key.bufferId);
+    }
+};
 
 class FrameEventHistoryStats : public Parcelable {
 public:
@@ -57,6 +104,26 @@ public:
     nsecs_t dequeueReadyTime;
 };
 
+/**
+ * Jank information representing SurfaceFlinger's jank classification about frames for a specific
+ * surface.
+ */
+class JankData : public Parcelable {
+public:
+    status_t writeToParcel(Parcel* output) const override;
+    status_t readFromParcel(const Parcel* input) override;
+
+    JankData();
+    JankData(int64_t frameVsyncId, int32_t jankType)
+          : frameVsyncId(frameVsyncId), jankType(jankType) {}
+
+    // Identifier for the frame submitted with Transaction.setFrameTimelineVsyncId
+    int64_t frameVsyncId;
+
+    // Bitmask of janks that occurred
+    int32_t jankType;
+};
+
 class SurfaceStats : public Parcelable {
 public:
     status_t writeToParcel(Parcel* output) const override;
@@ -64,18 +131,26 @@ public:
 
     SurfaceStats() = default;
     SurfaceStats(const sp<IBinder>& sc, nsecs_t time, const sp<Fence>& prevReleaseFence,
-                 uint32_t hint, FrameEventHistoryStats frameEventStats)
+                 uint32_t hint, uint32_t currentMaxAcquiredBuffersCount,
+                 FrameEventHistoryStats frameEventStats, std::vector<JankData> jankData,
+                 ReleaseCallbackId previousReleaseCallbackId)
           : surfaceControl(sc),
             acquireTime(time),
             previousReleaseFence(prevReleaseFence),
             transformHint(hint),
-            eventStats(frameEventStats) {}
+            currentMaxAcquiredBufferCount(currentMaxAcquiredBuffersCount),
+            eventStats(frameEventStats),
+            jankData(std::move(jankData)),
+            previousReleaseCallbackId(previousReleaseCallbackId) {}
 
     sp<IBinder> surfaceControl;
     nsecs_t acquireTime = -1;
     sp<Fence> previousReleaseFence;
     uint32_t transformHint = 0;
+    uint32_t currentMaxAcquiredBufferCount = 0;
     FrameEventHistoryStats eventStats;
+    std::vector<JankData> jankData;
+    ReleaseCallbackId previousReleaseCallbackId;
 };
 
 class TransactionStats : public Parcelable {
@@ -85,7 +160,7 @@ public:
 
     TransactionStats() = default;
     TransactionStats(const std::vector<CallbackId>& ids) : callbackIds(ids) {}
-    TransactionStats(const std::unordered_set<CallbackId>& ids)
+    TransactionStats(const std::unordered_set<CallbackId, CallbackIdHash>& ids)
           : callbackIds(ids.begin(), ids.end()) {}
     TransactionStats(const std::vector<CallbackId>& ids, nsecs_t latch, const sp<Fence>& present,
                      const std::vector<SurfaceStats>& surfaces)
@@ -102,8 +177,9 @@ public:
     status_t writeToParcel(Parcel* output) const override;
     status_t readFromParcel(const Parcel* input) override;
 
-    static ListenerStats createEmpty(const sp<IBinder>& listener,
-                                     const std::unordered_set<CallbackId>& callbackIds);
+    static ListenerStats createEmpty(
+            const sp<IBinder>& listener,
+            const std::unordered_set<CallbackId, CallbackIdHash>& callbackIds);
 
     sp<IBinder> listener;
     std::vector<TransactionStats> transactionStats;
@@ -114,6 +190,10 @@ public:
     DECLARE_META_INTERFACE(TransactionCompletedListener)
 
     virtual void onTransactionCompleted(ListenerStats stats) = 0;
+
+    virtual void onReleaseBuffer(ReleaseCallbackId callbackId, sp<Fence> releaseFence,
+                                 uint32_t transformHint,
+                                 uint32_t currentMaxAcquiredBufferCount) = 0;
 };
 
 class BnTransactionCompletedListener : public SafeBnInterface<ITransactionCompletedListener> {
@@ -127,7 +207,8 @@ public:
 
 class ListenerCallbacks {
 public:
-    ListenerCallbacks(const sp<IBinder>& listener, const std::unordered_set<CallbackId>& callbacks)
+    ListenerCallbacks(const sp<IBinder>& listener,
+                      const std::unordered_set<CallbackId, CallbackIdHash>& callbacks)
           : transactionCompletedListener(listener),
             callbackIds(callbacks.begin(), callbacks.end()) {}
 
@@ -141,8 +222,11 @@ public:
         if (callbackIds.empty()) {
             return rhs.callbackIds.empty();
         }
-        return callbackIds.front() == rhs.callbackIds.front();
+        return callbackIds.front().id == rhs.callbackIds.front().id;
     }
+
+    // Returns a new ListenerCallbacks filtered by type
+    ListenerCallbacks filter(CallbackId::Type type) const;
 
     sp<IBinder> transactionCompletedListener;
     std::vector<CallbackId> callbackIds;
@@ -162,7 +246,7 @@ struct CallbackIdsHash {
     // same members. It is sufficient to just check the first CallbackId in the vectors. If
     // they match, they are the same. If they do not match, they are not the same.
     std::size_t operator()(const std::vector<CallbackId>& callbackIds) const {
-        return std::hash<CallbackId>{}((callbackIds.empty()) ? 0 : callbackIds.front());
+        return std::hash<int64_t>{}((callbackIds.empty()) ? 0 : callbackIds.front().id);
     }
 };
 

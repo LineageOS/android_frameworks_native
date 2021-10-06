@@ -39,9 +39,6 @@ using ::testing::SaveArg;
 using ::testing::StrictMock;
 
 struct CompositionEngineTest : public testing::Test {
-    android::mock::HWComposer* mHwc = new StrictMock<android::mock::HWComposer>();
-    renderengine::mock::RenderEngine* mRenderEngine =
-            new StrictMock<renderengine::mock::RenderEngine>();
     std::shared_ptr<TimeStats> mTimeStats;
 
     impl::CompositionEngine mEngine;
@@ -58,15 +55,18 @@ TEST_F(CompositionEngineTest, canInstantiateCompositionEngine) {
 }
 
 TEST_F(CompositionEngineTest, canSetHWComposer) {
-    mEngine.setHwComposer(std::unique_ptr<android::HWComposer>(mHwc));
+    android::mock::HWComposer* hwc = new StrictMock<android::mock::HWComposer>();
+    mEngine.setHwComposer(std::unique_ptr<android::HWComposer>(hwc));
 
-    EXPECT_EQ(mHwc, &mEngine.getHwComposer());
+    EXPECT_EQ(hwc, &mEngine.getHwComposer());
 }
 
 TEST_F(CompositionEngineTest, canSetRenderEngine) {
-    mEngine.setRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
+    renderengine::mock::RenderEngine* renderEngine =
+            new StrictMock<renderengine::mock::RenderEngine>();
+    mEngine.setRenderEngine(std::unique_ptr<renderengine::RenderEngine>(renderEngine));
 
-    EXPECT_EQ(mRenderEngine, &mEngine.getRenderEngine());
+    EXPECT_EQ(renderEngine, &mEngine.getRenderEngine());
 }
 
 TEST_F(CompositionEngineTest, canSetTimeStats) {
@@ -130,10 +130,10 @@ TEST_F(CompositionEnginePresentTest, worksAsExpected) {
 struct CompositionEngineUpdateCursorAsyncTest : public CompositionEngineTest {
 public:
     struct Layer {
-        Layer() { EXPECT_CALL(outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(layerFE)); }
+        Layer() { EXPECT_CALL(outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(*layerFE)); }
 
         StrictMock<mock::OutputLayer> outputLayer;
-        StrictMock<mock::LayerFE> layerFE;
+        sp<StrictMock<mock::LayerFE>> layerFE = sp<StrictMock<mock::LayerFE>>::make();
         LayerFECompositionState layerFEState;
     };
 
@@ -175,21 +175,21 @@ TEST_F(CompositionEngineUpdateCursorAsyncTest, handlesMultipleLayersBeingCursorL
     {
         InSequence seq;
         EXPECT_CALL(mOutput2Layer1.outputLayer, isHardwareCursor()).WillRepeatedly(Return(true));
-        EXPECT_CALL(mOutput2Layer1.layerFE, prepareCompositionState(LayerFE::StateSubset::Cursor));
+        EXPECT_CALL(*mOutput2Layer1.layerFE, prepareCompositionState(LayerFE::StateSubset::Cursor));
         EXPECT_CALL(mOutput2Layer1.outputLayer, writeCursorPositionToHWC());
     }
 
     {
         InSequence seq;
         EXPECT_CALL(mOutput3Layer1.outputLayer, isHardwareCursor()).WillRepeatedly(Return(true));
-        EXPECT_CALL(mOutput3Layer1.layerFE, prepareCompositionState(LayerFE::StateSubset::Cursor));
+        EXPECT_CALL(*mOutput3Layer1.layerFE, prepareCompositionState(LayerFE::StateSubset::Cursor));
         EXPECT_CALL(mOutput3Layer1.outputLayer, writeCursorPositionToHWC());
     }
 
     {
         InSequence seq;
         EXPECT_CALL(mOutput3Layer2.outputLayer, isHardwareCursor()).WillRepeatedly(Return(true));
-        EXPECT_CALL(mOutput3Layer2.layerFE, prepareCompositionState(LayerFE::StateSubset::Cursor));
+        EXPECT_CALL(*mOutput3Layer2.layerFE, prepareCompositionState(LayerFE::StateSubset::Cursor));
         EXPECT_CALL(mOutput3Layer2.outputLayer, writeCursorPositionToHWC());
     }
 

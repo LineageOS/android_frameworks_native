@@ -62,10 +62,9 @@ void FrameTracker::setActualPresentTime(nsecs_t presentTime) {
     mFrameRecords[mOffset].actualPresentTime = presentTime;
 }
 
-void FrameTracker::setActualPresentFence(
-        std::shared_ptr<FenceTime>&& readyFence) {
+void FrameTracker::setActualPresentFence(const std::shared_ptr<FenceTime>& readyFence) {
     Mutex::Autolock lock(mMutex);
-    mFrameRecords[mOffset].actualPresentFence = std::move(readyFence);
+    mFrameRecords[mOffset].actualPresentFence = readyFence;
     mNumFences++;
 }
 

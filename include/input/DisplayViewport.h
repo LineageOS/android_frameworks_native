@@ -17,11 +17,12 @@
 #ifndef _LIBINPUT_DISPLAY_VIEWPORT_H
 #define _LIBINPUT_DISPLAY_VIEWPORT_H
 
-#include <cinttypes>
-#include <optional>
-
 #include <android-base/stringprintf.h>
 #include <input/Input.h>
+#include <input/NamedEnum.h>
+
+#include <cinttypes>
+#include <optional>
 
 using android::base::StringPrintf;
 
@@ -39,23 +40,10 @@ enum {
  * Keep in sync with values in InputManagerService.java.
  */
 enum class ViewportType : int32_t {
-    VIEWPORT_INTERNAL = 1,
-    VIEWPORT_EXTERNAL = 2,
-    VIEWPORT_VIRTUAL = 3,
+    INTERNAL = 1,
+    EXTERNAL = 2,
+    VIRTUAL = 3,
 };
-
-static const char* viewportTypeToString(ViewportType type) {
-    switch(type) {
-        case ViewportType::VIEWPORT_INTERNAL:
-            return "INTERNAL";
-        case ViewportType::VIEWPORT_EXTERNAL:
-            return "EXTERNAL";
-        case ViewportType::VIEWPORT_VIRTUAL:
-            return "VIRTUAL";
-        default:
-            return "UNKNOWN";
-    }
-}
 
 /*
  * Describes how coordinates are mapped on a physical display.
@@ -97,7 +85,7 @@ struct DisplayViewport {
             isActive(false),
             uniqueId(),
             physicalPort(std::nullopt),
-            type(ViewportType::VIEWPORT_INTERNAL) {}
+            type(ViewportType::INTERNAL) {}
 
     bool operator==(const DisplayViewport& other) const {
         return displayId == other.displayId && orientation == other.orientation &&
@@ -131,10 +119,10 @@ struct DisplayViewport {
         physicalBottom = height;
         deviceWidth = width;
         deviceHeight = height;
-        isActive = false;
+        isActive = true;
         uniqueId.clear();
         physicalPort = std::nullopt;
-        type = ViewportType::VIEWPORT_INTERNAL;
+        type = ViewportType::INTERNAL;
     }
 
     std::string toString() const {
@@ -143,7 +131,7 @@ struct DisplayViewport {
                             "physicalFrame=[%d, %d, %d, %d], "
                             "deviceSize=[%d, %d], "
                             "isActive=[%d]",
-                            viewportTypeToString(type), displayId, uniqueId.c_str(),
+                            NamedEnum::string(type).c_str(), displayId, uniqueId.c_str(),
                             physicalPort ? StringPrintf("%" PRIu8, *physicalPort).c_str()
                                          : "<none>",
                             orientation, logicalLeft, logicalTop, logicalRight, logicalBottom,

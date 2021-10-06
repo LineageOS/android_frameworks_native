@@ -17,6 +17,9 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wextra"
+
+#include <algorithm>
 
 #include "RefreshRateOverlay.h"
 #include "Client.h"
@@ -106,52 +109,86 @@ void RefreshRateOverlay::SevenSegmentDrawer::drawDigit(int digit, int left, cons
         drawSegment(Segment::Buttom, left, color, buffer, pixels);
 }
 
-sp<GraphicBuffer> RefreshRateOverlay::SevenSegmentDrawer::drawNumber(int number,
-                                                                     const half4& color) {
-    if (number < 0 || number > 1000) return nullptr;
+std::vector<sp<GraphicBuffer>> RefreshRateOverlay::SevenSegmentDrawer::drawNumber(
+        int number, const half4& color, bool showSpinner) {
+    if (number < 0 || number > 1000) return {};
 
     const auto hundreds = number / 100;
     const auto tens = (number / 10) % 10;
     const auto ones = number % 10;
 
-    sp<GraphicBuffer> buffer =
-            new GraphicBuffer(BUFFER_WIDTH, BUFFER_HEIGHT, HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                              GRALLOC_USAGE_SW_WRITE_RARELY | GRALLOC_USAGE_HW_COMPOSER |
-                                      GRALLOC_USAGE_HW_TEXTURE,
-                              "RefreshRateOverlayBuffer");
-    uint8_t* pixels;
-    buffer->lock(GRALLOC_USAGE_SW_WRITE_RARELY, reinterpret_cast<void**>(&pixels));
-    // Clear buffer content
-    drawRect(Rect(BUFFER_WIDTH, BUFFER_HEIGHT), half4(0), buffer, pixels);
-    int left = 0;
-    if (hundreds != 0) {
-        drawDigit(hundreds, left, color, buffer, pixels);
+    std::vector<sp<GraphicBuffer>> buffers;
+    const auto loopCount = showSpinner ? 6 : 1;
+    for (int i = 0; i < loopCount; i++) {
+        sp<GraphicBuffer> buffer =
+                new GraphicBuffer(BUFFER_WIDTH, BUFFER_HEIGHT, HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                  GRALLOC_USAGE_SW_WRITE_RARELY | GRALLOC_USAGE_HW_COMPOSER |
+                                          GRALLOC_USAGE_HW_TEXTURE,
+                                  "RefreshRateOverlayBuffer");
+        const status_t bufferStatus = buffer->initCheck();
+        LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "RefreshRateOverlay: Buffer failed to allocate: %d",
+                            bufferStatus);
+        uint8_t* pixels;
+        buffer->lock(GRALLOC_USAGE_SW_WRITE_RARELY, reinterpret_cast<void**>(&pixels));
+        // Clear buffer content
+        drawRect(Rect(BUFFER_WIDTH, BUFFER_HEIGHT), half4(0), buffer, pixels);
+        int left = 0;
+        if (hundreds != 0) {
+            drawDigit(hundreds, left, color, buffer, pixels);
+        }
         left += DIGIT_WIDTH + DIGIT_SPACE;
-    }
 
-    if (tens != 0) {
-        drawDigit(tens, left, color, buffer, pixels);
+        if (tens != 0) {
+            drawDigit(tens, left, color, buffer, pixels);
+        }
         left += DIGIT_WIDTH + DIGIT_SPACE;
-    }
 
-    drawDigit(ones, left, color, buffer, pixels);
-    buffer->unlock();
-    return buffer;
+        drawDigit(ones, left, color, buffer, pixels);
+        left += DIGIT_WIDTH + DIGIT_SPACE;
+
+        if (showSpinner) {
+            switch (i) {
+                case 0:
+                    drawSegment(Segment::Upper, left, color, buffer, pixels);
+                    break;
+                case 1:
+                    drawSegment(Segment::UpperRight, left, color, buffer, pixels);
+                    break;
+                case 2:
+                    drawSegment(Segment::LowerRight, left, color, buffer, pixels);
+                    break;
+                case 3:
+                    drawSegment(Segment::Buttom, left, color, buffer, pixels);
+                    break;
+                case 4:
+                    drawSegment(Segment::LowerLeft, left, color, buffer, pixels);
+                    break;
+                case 5:
+                    drawSegment(Segment::UpperLeft, left, color, buffer, pixels);
+                    break;
+            }
+        }
+
+        buffer->unlock();
+        buffers.emplace_back(buffer);
+    }
+    return buffers;
 }
 
-RefreshRateOverlay::RefreshRateOverlay(SurfaceFlinger& flinger)
-      : mFlinger(flinger), mClient(new Client(&mFlinger)) {
+RefreshRateOverlay::RefreshRateOverlay(SurfaceFlinger& flinger, bool showSpinner)
+      : mFlinger(flinger), mClient(new Client(&mFlinger)), mShowSpinner(showSpinner) {
     createLayer();
-    primeCache();
+    reset();
 }
 
 bool RefreshRateOverlay::createLayer() {
+    int32_t layerId;
     const status_t ret =
             mFlinger.createLayer(String8("RefreshRateOverlay"), mClient,
                                  SevenSegmentDrawer::getWidth(), SevenSegmentDrawer::getHeight(),
                                  PIXEL_FORMAT_RGBA_8888,
                                  ISurfaceComposerClient::eFXSurfaceBufferState, LayerMetadata(),
-                                 &mIBinder, &mGbp, nullptr);
+                                 &mIBinder, &mGbp, nullptr, &layerId);
     if (ret) {
         ALOGE("failed to create buffer state layer");
         return false;
@@ -159,63 +196,97 @@ bool RefreshRateOverlay::createLayer() {
 
     Mutex::Autolock _l(mFlinger.mStateLock);
     mLayer = mClient->getLayerUser(mIBinder);
-    mLayer->setFrameRate(Layer::FrameRate(0, Layer::FrameRateCompatibility::NoVote));
+    mLayer->setFrameRate(Layer::FrameRate(Fps(0.0f), Layer::FrameRateCompatibility::NoVote));
+    mLayer->setIsAtRoot(true);
 
     // setting Layer's Z requires resorting layersSortedByZ
-    ssize_t idx = mFlinger.mCurrentState.layersSortedByZ.indexOf(mLayer);
+    ssize_t idx = mFlinger.mDrawingState.layersSortedByZ.indexOf(mLayer);
     if (mLayer->setLayer(INT32_MAX - 2) && idx >= 0) {
-        mFlinger.mCurrentState.layersSortedByZ.removeAt(idx);
-        mFlinger.mCurrentState.layersSortedByZ.add(mLayer);
+        mFlinger.mDrawingState.layersSortedByZ.removeAt(idx);
+        mFlinger.mDrawingState.layersSortedByZ.add(mLayer);
     }
 
     return true;
 }
 
-void RefreshRateOverlay::primeCache() {
-    auto& allRefreshRates = mFlinger.mRefreshRateConfigs->getAllRefreshRates();
-    if (allRefreshRates.size() == 1) {
-        auto fps = allRefreshRates.begin()->second->getFps();
-        half4 color = {LOW_FPS_COLOR, ALPHA};
-        mBufferCache.emplace(fps, SevenSegmentDrawer::drawNumber(fps, color));
-        return;
-    }
-
-    std::vector<uint32_t> supportedFps;
-    supportedFps.reserve(allRefreshRates.size());
-    for (auto& [ignored, refreshRate] : allRefreshRates) {
-        supportedFps.push_back(refreshRate->getFps());
-    }
-
-    std::sort(supportedFps.begin(), supportedFps.end());
-    const auto mLowFps = supportedFps[0];
-    const auto mHighFps = supportedFps[supportedFps.size() - 1];
-    for (auto fps : supportedFps) {
-        const auto fpsScale = float(fps - mLowFps) / (mHighFps - mLowFps);
+const std::vector<std::shared_ptr<renderengine::ExternalTexture>>&
+RefreshRateOverlay::getOrCreateBuffers(uint32_t fps) {
+    if (mBufferCache.find(fps) == mBufferCache.end()) {
+        // Ensure the range is > 0, so we don't divide by 0.
+        const auto rangeLength = std::max(1u, mHighFps - mLowFps);
+        // Clip values outside the range [mLowFps, mHighFps]. The current fps may be outside
+        // of this range if the display has changed its set of supported refresh rates.
+        fps = std::max(fps, mLowFps);
+        fps = std::min(fps, mHighFps);
+        const auto fpsScale = static_cast<float>(fps - mLowFps) / rangeLength;
         half4 color;
         color.r = HIGH_FPS_COLOR.r * fpsScale + LOW_FPS_COLOR.r * (1 - fpsScale);
         color.g = HIGH_FPS_COLOR.g * fpsScale + LOW_FPS_COLOR.g * (1 - fpsScale);
         color.b = HIGH_FPS_COLOR.b * fpsScale + LOW_FPS_COLOR.b * (1 - fpsScale);
         color.a = ALPHA;
-        mBufferCache.emplace(fps, SevenSegmentDrawer::drawNumber(fps, color));
+        auto buffers = SevenSegmentDrawer::drawNumber(fps, color, mShowSpinner);
+        std::vector<std::shared_ptr<renderengine::ExternalTexture>> textures;
+        std::transform(buffers.begin(), buffers.end(), std::back_inserter(textures),
+                       [&](const auto& buffer) -> std::shared_ptr<renderengine::ExternalTexture> {
+                           return std::make_shared<
+                                   renderengine::ExternalTexture>(buffer,
+                                                                  mFlinger.getRenderEngine(),
+                                                                  renderengine::ExternalTexture::
+                                                                          Usage::READABLE);
+                       });
+        mBufferCache.emplace(fps, textures);
     }
+
+    return mBufferCache[fps];
 }
 
 void RefreshRateOverlay::setViewport(ui::Size viewport) {
-    Rect frame(viewport.width >> 3, viewport.height >> 5);
+    Rect frame((3 * viewport.width) >> 4, viewport.height >> 5);
     frame.offsetBy(viewport.width >> 5, viewport.height >> 4);
-    mLayer->setFrame(frame);
+
+    layer_state_t::matrix22_t matrix;
+    matrix.dsdx = frame.getWidth() / static_cast<float>(SevenSegmentDrawer::getWidth());
+    matrix.dtdx = 0;
+    matrix.dtdy = 0;
+    matrix.dsdy = frame.getHeight() / static_cast<float>(SevenSegmentDrawer::getHeight());
+    mLayer->setMatrix(matrix, true);
+    mLayer->setPosition(frame.left, frame.top);
+    mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
+}
+
+void RefreshRateOverlay::changeRefreshRate(const Fps& fps) {
+    mCurrentFps = fps.getIntValue();
+    auto buffer = getOrCreateBuffers(*mCurrentFps)[mFrame];
+    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, true, {},
+                      mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */),
+                      std::nullopt /* dequeueTime */, FrameTimelineInfo{},
+                      nullptr /* releaseBufferListener */);
 
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }
 
-void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
-    auto buffer = mBufferCache[refreshRate.getFps()];
-    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, {});
+void RefreshRateOverlay::onInvalidate() {
+    if (!mCurrentFps.has_value()) return;
+
+    const auto& buffers = getOrCreateBuffers(*mCurrentFps);
+    mFrame = (mFrame + 1) % buffers.size();
+    auto buffer = buffers[mFrame];
+    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, true, {},
+                      mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */),
+                      std::nullopt /* dequeueTime */, FrameTimelineInfo{},
+                      nullptr /* releaseBufferListener */);
 
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
+}
+
+void RefreshRateOverlay::reset() {
+    mBufferCache.clear();
+    const auto range = mFlinger.mRefreshRateConfigs->getSupportedRefreshRateRange();
+    mLowFps = range.min.getIntValue();
+    mHighFps = range.max.getIntValue();
 }
 
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
+#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"

@@ -4,6 +4,7 @@ LIBNATIVEWINDOW {
     AHardwareBuffer_allocate;
     AHardwareBuffer_createFromHandle; # llndk # apex
     AHardwareBuffer_describe;
+    AHardwareBuffer_getId; # introduced=31
     AHardwareBuffer_getNativeHandle; # llndk # apex
     AHardwareBuffer_isSupported; # introduced=29
     AHardwareBuffer_lock;
@@ -46,6 +47,7 @@ LIBNATIVEWINDOW {
     ANativeWindow_setBuffersTransform;
     ANativeWindow_setDequeueTimeout; # apex # introduced=30
     ANativeWindow_setFrameRate; # introduced=30
+    ANativeWindow_setFrameRateWithChangeStrategy; # introduced=31
     ANativeWindow_setSharedBufferMode; # llndk
     ANativeWindow_setSwapInterval; # llndk
     ANativeWindow_setUsage; # llndk

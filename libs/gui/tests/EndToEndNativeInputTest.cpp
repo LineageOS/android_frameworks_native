@@ -36,18 +36,20 @@
 #include <gui/SurfaceComposerClient.h>
 #include <gui/SurfaceControl.h>
 
-#include <input/InputWindow.h>
-#include <input/IInputFlinger.h>
-#include <input/InputTransport.h>
+#include <android/os/IInputFlinger.h>
 #include <input/Input.h>
+#include <input/InputTransport.h>
+#include <input/InputWindow.h>
 
-#include <ui/DisplayConfig.h>
+#include <ui/DisplayMode.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
+using android::os::IInputFlinger;
 
-namespace android {
-namespace test {
+using android::hardware::graphics::common::V1_1::BufferUsage;
+
+namespace android::test {
 
 using Transaction = SurfaceComposerClient::Transaction;
 
@@ -62,16 +64,16 @@ sp<IInputFlinger> getInputFlinger() {
 
 // We use the top 10 layers as a way to haphazardly place ourselves above anything else.
 static const int LAYER_BASE = INT32_MAX - 10;
+static constexpr std::chrono::nanoseconds DISPATCHING_TIMEOUT = 5s;
 
 class InputSurface {
 public:
     InputSurface(const sp<SurfaceControl> &sc, int width, int height) {
         mSurfaceControl = sc;
 
-        InputChannel::openInputChannelPair("testchannels", mServerChannel, mClientChannel);
-
         mInputFlinger = getInputFlinger();
-        mInputFlinger->registerInputChannel(mServerChannel);
+        mClientChannel = std::make_shared<InputChannel>();
+        mInputFlinger->createInputChannel("testchannels", mClientChannel.get());
 
         populateInputInfo(width, height);
 
@@ -153,25 +155,57 @@ public:
         EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
     }
 
-    ~InputSurface() {
-        mInputFlinger->unregisterInputChannel(mServerChannel);
+    void expectTapWithFlag(int x, int y, int32_t flags) {
+        InputEvent *ev = consumeEvent();
+        ASSERT_NE(ev, nullptr);
+        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, ev->getType());
+        MotionEvent *mev = static_cast<MotionEvent *>(ev);
+        EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, mev->getAction());
+        EXPECT_EQ(x, mev->getX(0));
+        EXPECT_EQ(y, mev->getY(0));
+        EXPECT_EQ(flags, mev->getFlags() & flags);
+
+        ev = consumeEvent();
+        ASSERT_NE(ev, nullptr);
+        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, ev->getType());
+        mev = static_cast<MotionEvent *>(ev);
+        EXPECT_EQ(AMOTION_EVENT_ACTION_UP, mev->getAction());
+        EXPECT_EQ(flags, mev->getFlags() & flags);
     }
 
-    void doTransaction(std::function<void(SurfaceComposerClient::Transaction&,
-                    const sp<SurfaceControl>&)> transactionBody) {
+    virtual ~InputSurface() {
+        mInputFlinger->removeInputChannel(mClientChannel->getConnectionToken());
+    }
+
+    virtual void doTransaction(
+            std::function<void(SurfaceComposerClient::Transaction &, const sp<SurfaceControl> &)>
+                    transactionBody) {
         SurfaceComposerClient::Transaction t;
         transactionBody(t, mSurfaceControl);
         t.apply(true);
     }
 
-    void showAt(int x, int y) {
+    virtual void showAt(int x, int y, Rect crop = Rect(0, 0, 100, 100)) {
         SurfaceComposerClient::Transaction t;
         t.show(mSurfaceControl);
         t.setInputWindowInfo(mSurfaceControl, mInputInfo);
         t.setLayer(mSurfaceControl, LAYER_BASE);
         t.setPosition(mSurfaceControl, x, y);
-        t.setCrop_legacy(mSurfaceControl, Rect(0, 0, 100, 100));
+        t.setCrop(mSurfaceControl, crop);
         t.setAlpha(mSurfaceControl, 1);
+        t.apply(true);
+    }
+
+    void requestFocus() {
+        SurfaceComposerClient::Transaction t;
+        FocusRequest request;
+        request.token = mInputInfo.token;
+        request.windowName = mInputInfo.name;
+        request.focusedToken = nullptr;
+        request.focusedWindowName = "";
+        request.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
+        request.displayId = 0;
+        t.setFocusedWindow(request);
         t.apply(true);
     }
 
@@ -185,14 +219,13 @@ private:
     }
 
     void populateInputInfo(int width, int height) {
-        mInputInfo.token = mServerChannel->getConnectionToken();
+        mInputInfo.token = mClientChannel->getConnectionToken();
         mInputInfo.name = "Test info";
-        mInputInfo.layoutParamsFlags = InputWindowInfo::FLAG_NOT_TOUCH_MODAL;
-        mInputInfo.layoutParamsType = InputWindowInfo::TYPE_BASE_APPLICATION;
-        mInputInfo.dispatchingTimeout = seconds_to_nanoseconds(5);
+        mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCH_MODAL;
+        mInputInfo.type = InputWindowInfo::Type::BASE_APPLICATION;
+        mInputInfo.dispatchingTimeout = 5s;
         mInputInfo.globalScaleFactor = 1.0;
-        mInputInfo.canReceiveKeys = true;
-        mInputInfo.hasFocus = true;
+        mInputInfo.focusable = true;
         mInputInfo.hasWallpaper = false;
         mInputInfo.paused = false;
 
@@ -201,25 +234,76 @@ private:
         // TODO: Fill in from SF?
         mInputInfo.ownerPid = 11111;
         mInputInfo.ownerUid = 11111;
-        mInputInfo.inputFeatures = 0;
         mInputInfo.displayId = 0;
 
         InputApplicationInfo aInfo;
         aInfo.token = new BBinder();
         aInfo.name = "Test app info";
-        aInfo.dispatchingTimeout = seconds_to_nanoseconds(5);
+        aInfo.dispatchingTimeoutMillis =
+                std::chrono::duration_cast<std::chrono::milliseconds>(DISPATCHING_TIMEOUT).count();
 
         mInputInfo.applicationInfo = aInfo;
     }
 public:
     sp<SurfaceControl> mSurfaceControl;
-    sp<InputChannel> mServerChannel, mClientChannel;
+    std::shared_ptr<InputChannel> mClientChannel;
     sp<IInputFlinger> mInputFlinger;
 
     InputWindowInfo mInputInfo;
 
     PreallocatedInputEventFactory mInputEventFactory;
     InputConsumer* mInputConsumer;
+};
+
+class BlastInputSurface : public InputSurface {
+public:
+    BlastInputSurface(const sp<SurfaceControl> &sc, const sp<SurfaceControl> &parentSc, int width,
+                      int height)
+          : InputSurface(sc, width, height) {
+        mParentSurfaceControl = parentSc;
+    }
+
+    ~BlastInputSurface() = default;
+
+    static std::unique_ptr<BlastInputSurface> makeBlastInputSurface(
+            const sp<SurfaceComposerClient> &scc, int width, int height) {
+        sp<SurfaceControl> parentSc =
+                scc->createSurface(String8("Test Parent Surface"), 0 /* bufHeight */,
+                                   0 /* bufWidth */, PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceContainer);
+
+        sp<SurfaceControl> surfaceControl =
+                scc->createSurface(String8("Test Buffer Surface"), width, height,
+                                   PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceBufferState,
+                                   parentSc->getHandle());
+        return std::make_unique<BlastInputSurface>(surfaceControl, parentSc, width, height);
+    }
+
+    void doTransaction(
+            std::function<void(SurfaceComposerClient::Transaction &, const sp<SurfaceControl> &)>
+                    transactionBody) override {
+        SurfaceComposerClient::Transaction t;
+        transactionBody(t, mParentSurfaceControl);
+        t.apply(true);
+    }
+
+    void showAt(int x, int y, Rect crop = Rect(0, 0, 100, 100)) override {
+        SurfaceComposerClient::Transaction t;
+        t.show(mParentSurfaceControl);
+        t.setLayer(mParentSurfaceControl, LAYER_BASE);
+        t.setPosition(mParentSurfaceControl, x, y);
+        t.setCrop(mParentSurfaceControl, crop);
+
+        t.show(mSurfaceControl);
+        t.setInputWindowInfo(mSurfaceControl, mInputInfo);
+        t.setCrop(mSurfaceControl, crop);
+        t.setAlpha(mSurfaceControl, 1);
+        t.apply(true);
+    }
+
+private:
+    sp<SurfaceControl> mParentSurfaceControl;
 };
 
 class InputSurfacesTest : public ::testing::Test {
@@ -235,13 +319,13 @@ public:
         const auto display = mComposerClient->getInternalDisplayToken();
         ASSERT_NE(display, nullptr);
 
-        DisplayConfig config;
-        ASSERT_EQ(NO_ERROR, mComposerClient->getActiveDisplayConfig(display, &config));
+        ui::DisplayMode mode;
+        ASSERT_EQ(NO_ERROR, mComposerClient->getActiveDisplayMode(display, &mode));
 
         // After a new buffer is queued, SurfaceFlinger is notified and will
         // latch the new buffer on next vsync.  Let's heuristically wait for 3
         // vsyncs.
-        mBufferPostDelay = static_cast<int32_t>(1e6 / config.refreshRate) * 3;
+        mBufferPostDelay = static_cast<int32_t>(1e6 / mode.refreshRate) * 3;
     }
 
     void TearDown() {
@@ -252,15 +336,12 @@ public:
         return InputSurface::makeColorInputSurface(mComposerClient, width, height);
     }
 
-    void postBuffer(const sp<SurfaceControl> &layer) {
-        // wait for previous transactions (such as setSize) to complete
-        Transaction().apply(true);
-        ANativeWindow_Buffer buffer = {};
-        EXPECT_EQ(NO_ERROR, layer->getSurface()->lock(&buffer, nullptr));
-        ASSERT_EQ(NO_ERROR, layer->getSurface()->unlockAndPost());
-        // Request an empty transaction to get applied synchronously to ensure the buffer is
-        // latched.
-        Transaction().apply(true);
+    void postBuffer(const sp<SurfaceControl> &layer, int32_t w, int32_t h) {
+        int64_t usageFlags = BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                BufferUsage::COMPOSER_OVERLAY | BufferUsage::GPU_TEXTURE;
+        sp<GraphicBuffer> buffer =
+                new GraphicBuffer(w, h, PIXEL_FORMAT_RGBA_8888, 1, usageFlags, "test");
+        Transaction().setBuffer(layer, buffer).apply(true);
         usleep(mBufferPostDelay);
     }
 
@@ -280,7 +361,6 @@ void injectTap(int x, int y) {
 TEST_F(InputSurfacesTest, can_receive_input) {
     std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
     surface->showAt(100, 100);
-    surface->assertFocusChange(true);
 
     injectTap(101, 101);
 
@@ -296,12 +376,9 @@ TEST_F(InputSurfacesTest, can_receive_input) {
 TEST_F(InputSurfacesTest, input_respects_positioning) {
     std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
     surface->showAt(100, 100);
-    surface->assertFocusChange(true);
 
     std::unique_ptr<InputSurface> surface2 = makeSurface(100, 100);
     surface2->showAt(200, 200);
-    surface->assertFocusChange(false);
-    surface2->assertFocusChange(true);
 
     injectTap(201, 201);
     surface2->expectTap(1, 1);
@@ -328,16 +405,11 @@ TEST_F(InputSurfacesTest, input_respects_layering) {
     std::unique_ptr<InputSurface> surface2 = makeSurface(100, 100);
 
     surface->showAt(10, 10);
-    surface->assertFocusChange(true);
     surface2->showAt(10, 10);
-    surface->assertFocusChange(false);
-    surface2->assertFocusChange(true);
 
     surface->doTransaction([](auto &t, auto &sc) {
          t.setLayer(sc, LAYER_BASE + 1);
     });
-    surface2->assertFocusChange(false);
-    surface->assertFocusChange(true);
 
     injectTap(11, 11);
     surface->expectTap(1, 1);
@@ -345,8 +417,6 @@ TEST_F(InputSurfacesTest, input_respects_layering) {
     surface2->doTransaction([](auto &t, auto &sc) {
          t.setLayer(sc, LAYER_BASE + 1);
     });
-    surface2->assertFocusChange(true);
-    surface->assertFocusChange(false);
 
     injectTap(11, 11);
     surface2->expectTap(1, 1);
@@ -354,8 +424,6 @@ TEST_F(InputSurfacesTest, input_respects_layering) {
     surface2->doTransaction([](auto &t, auto &sc) {
          t.hide(sc);
     });
-    surface2->assertFocusChange(false);
-    surface->assertFocusChange(true);
 
     injectTap(11, 11);
     surface->expectTap(1, 1);
@@ -368,12 +436,9 @@ TEST_F(InputSurfacesTest, input_respects_surface_insets) {
     std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
     std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
     bgSurface->showAt(100, 100);
-    bgSurface->assertFocusChange(true);
 
     fgSurface->mInputInfo.surfaceInset = 5;
     fgSurface->showAt(100, 100);
-    fgSurface->assertFocusChange(true);
-    bgSurface->assertFocusChange(false);
 
     injectTap(106, 106);
     fgSurface->expectTap(1, 1);
@@ -387,16 +452,13 @@ TEST_F(InputSurfacesTest, input_respects_cropped_surface_insets) {
     std::unique_ptr<InputSurface> parentSurface = makeSurface(100, 100);
     std::unique_ptr<InputSurface> childSurface = makeSurface(100, 100);
     parentSurface->showAt(100, 100);
-    parentSurface->assertFocusChange(true);
 
     childSurface->mInputInfo.surfaceInset = 10;
     childSurface->showAt(100, 100);
-    childSurface->assertFocusChange(true);
-    parentSurface->assertFocusChange(false);
 
     childSurface->doTransaction([&](auto &t, auto &sc) {
         t.setPosition(sc, -5, -5);
-        t.reparent(sc, parentSurface->mSurfaceControl->getHandle());
+        t.reparent(sc, parentSurface->mSurfaceControl);
     });
 
     injectTap(106, 106);
@@ -411,12 +473,9 @@ TEST_F(InputSurfacesTest, input_respects_scaled_surface_insets) {
     std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
     std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
     bgSurface->showAt(100, 100);
-    bgSurface->assertFocusChange(true);
 
     fgSurface->mInputInfo.surfaceInset = 5;
     fgSurface->showAt(100, 100);
-    bgSurface->assertFocusChange(false);
-    fgSurface->assertFocusChange(true);
 
     fgSurface->doTransaction([&](auto &t, auto &sc) { t.setMatrix(sc, 2.0, 0, 0, 4.0); });
 
@@ -433,7 +492,6 @@ TEST_F(InputSurfacesTest, input_respects_scaled_surface_insets_overflow) {
     // In case we pass the very big inset without any checking.
     fgSurface->mInputInfo.surfaceInset = INT32_MAX;
     fgSurface->showAt(100, 100);
-    fgSurface->assertFocusChange(true);
 
     fgSurface->doTransaction([&](auto &t, auto &sc) { t.setMatrix(sc, 2.0, 0, 0, 2.0); });
 
@@ -450,7 +508,6 @@ TEST_F(InputSurfacesTest, input_ignores_transparent_region) {
         t.setTransparentRegionHint(sc, transparentRegion);
     });
     surface->showAt(100, 100);
-    surface->assertFocusChange(true);
     injectTap(101, 101);
     surface->expectTap(1, 1);
 }
@@ -461,34 +518,28 @@ TEST_F(InputSurfacesTest, input_ignores_transparent_region) {
 // Original bug ref: b/120839715
 TEST_F(InputSurfacesTest, input_ignores_buffer_layer_buffer) {
     std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
-    std::unique_ptr<InputSurface> bufferSurface =
-            InputSurface::makeBufferInputSurface(mComposerClient, 100, 100);
+    std::unique_ptr<BlastInputSurface> bufferSurface =
+            BlastInputSurface::makeBlastInputSurface(mComposerClient, 100, 100);
 
     bgSurface->showAt(10, 10);
-    bgSurface->assertFocusChange(true);
     bufferSurface->showAt(10, 10);
-    bgSurface->assertFocusChange(false);
-    bufferSurface->assertFocusChange(true);
 
     injectTap(11, 11);
     bufferSurface->expectTap(1, 1);
 
-    postBuffer(bufferSurface->mSurfaceControl);
+    postBuffer(bufferSurface->mSurfaceControl, 100, 100);
     injectTap(11, 11);
     bufferSurface->expectTap(1, 1);
 }
 
 TEST_F(InputSurfacesTest, input_ignores_buffer_layer_alpha) {
     std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
-    std::unique_ptr<InputSurface> bufferSurface =
-            InputSurface::makeBufferInputSurface(mComposerClient, 100, 100);
-    postBuffer(bufferSurface->mSurfaceControl);
+    std::unique_ptr<BlastInputSurface> bufferSurface =
+            BlastInputSurface::makeBlastInputSurface(mComposerClient, 100, 100);
+    postBuffer(bufferSurface->mSurfaceControl, 100, 100);
 
     bgSurface->showAt(10, 10);
-    bgSurface->assertFocusChange(true);
     bufferSurface->showAt(10, 10);
-    bufferSurface->assertFocusChange(true);
-    bgSurface->assertFocusChange(false);
 
     injectTap(11, 11);
     bufferSurface->expectTap(1, 1);
@@ -504,10 +555,7 @@ TEST_F(InputSurfacesTest, input_ignores_color_layer_alpha) {
     std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
 
     bgSurface->showAt(10, 10);
-    bgSurface->assertFocusChange(true);
     fgSurface->showAt(10, 10);
-    bgSurface->assertFocusChange(false);
-    fgSurface->assertFocusChange(true);
 
     injectTap(11, 11);
     fgSurface->expectTap(1, 1);
@@ -524,17 +572,12 @@ TEST_F(InputSurfacesTest, input_respects_container_layer_visiblity) {
             InputSurface::makeContainerInputSurface(mComposerClient, 100, 100);
 
     bgSurface->showAt(10, 10);
-    bgSurface->assertFocusChange(true);
     containerSurface->showAt(10, 10);
-    bgSurface->assertFocusChange(false);
-    containerSurface->assertFocusChange(true);
 
     injectTap(11, 11);
     containerSurface->expectTap(1, 1);
 
     containerSurface->doTransaction([](auto &t, auto &sc) { t.hide(sc); });
-    containerSurface->assertFocusChange(false);
-    bgSurface->assertFocusChange(true);
 
     injectTap(11, 11);
     bgSurface->expectTap(1, 1);
@@ -543,7 +586,6 @@ TEST_F(InputSurfacesTest, input_respects_container_layer_visiblity) {
 TEST_F(InputSurfacesTest, input_respects_outscreen) {
     std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
     surface->showAt(-1, -1);
-    surface->assertFocusChange(true);
 
     injectTap(0, 0);
     surface->expectTap(1, 1);
@@ -555,11 +597,183 @@ TEST_F(InputSurfacesTest, input_ignores_cursor_layer) {
             InputSurface::makeCursorInputSurface(mComposerClient, 10, 10);
 
     surface->showAt(10, 10);
-    surface->assertFocusChange(true);
     cursorSurface->showAt(10, 10);
 
     injectTap(11, 11);
     surface->expectTap(1, 1);
 }
+
+TEST_F(InputSurfacesTest, can_be_focused) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(100, 100);
+    surface->requestFocus();
+
+    surface->assertFocusChange(true);
 }
+
+TEST_F(InputSurfacesTest, rotate_surface) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(10, 10);
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, 1, -1, 0); // 90 degrees
+    });
+    injectTap(8, 11);
+    surface->expectTap(1, 2);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, -1, 0, 0, -1); // 180 degrees
+    });
+    injectTap(9, 8);
+    surface->expectTap(1, 2);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, -1, 1, 0); // 270 degrees
+    });
+    injectTap(12, 9);
+    surface->expectTap(1, 2);
 }
+
+TEST_F(InputSurfacesTest, rotate_surface_with_scale) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(10, 10);
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, 2, -4, 0); // 90 degrees
+    });
+    injectTap(2, 12);
+    surface->expectTap(1, 2);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, -2, 0, 0, -4); // 180 degrees
+    });
+    injectTap(8, 2);
+    surface->expectTap(1, 2);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, -2, 4, 0); // 270 degrees
+    });
+    injectTap(18, 8);
+    surface->expectTap(1, 2);
+}
+
+TEST_F(InputSurfacesTest, rotate_surface_with_scale_and_insets) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->mInputInfo.surfaceInset = 5;
+    surface->showAt(100, 100);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, 2, -4, 0); // 90 degrees
+    });
+    injectTap(40, 120);
+    surface->expectTap(5, 10);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, -2, 0, 0, -4); // 180 degrees
+    });
+    injectTap(80, 40);
+    surface->expectTap(5, 10);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, -2, 4, 0); // 270 degrees
+    });
+    injectTap(160, 80);
+    surface->expectTap(5, 10);
+}
+
+TEST_F(InputSurfacesTest, touch_flag_obscured) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(100, 100);
+
+    // Add non touchable window to fully cover touchable window. Window behind gets touch, but
+    // with flag AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED
+    std::unique_ptr<InputSurface> nonTouchableSurface = makeSurface(100, 100);
+    nonTouchableSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    nonTouchableSurface->mInputInfo.ownerUid = 22222;
+    // Overriding occlusion mode otherwise the touch would be discarded at InputDispatcher by
+    // the default obscured/untrusted touch filter introduced in S.
+    nonTouchableSurface->mInputInfo.touchOcclusionMode = TouchOcclusionMode::ALLOW;
+    nonTouchableSurface->showAt(100, 100);
+
+    injectTap(190, 199);
+    surface->expectTapWithFlag(90, 99, AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED);
+}
+
+TEST_F(InputSurfacesTest, touch_flag_partially_obscured_with_crop) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(100, 100);
+
+    // Add non touchable window to cover touchable window, but parent is cropped to not cover area
+    // that will be tapped. Window behind gets touch, but with flag
+    // AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED
+    std::unique_ptr<InputSurface> parentSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> nonTouchableSurface = makeSurface(100, 100);
+    nonTouchableSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    parentSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    nonTouchableSurface->mInputInfo.ownerUid = 22222;
+    parentSurface->mInputInfo.ownerUid = 22222;
+    nonTouchableSurface->showAt(0, 0);
+    parentSurface->showAt(100, 100);
+
+    nonTouchableSurface->doTransaction([&](auto &t, auto &sc) {
+        t.setCrop(parentSurface->mSurfaceControl, Rect(0, 0, 50, 50));
+        t.reparent(sc, parentSurface->mSurfaceControl);
+    });
+
+    injectTap(190, 199);
+    surface->expectTapWithFlag(90, 99, AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED);
+}
+
+TEST_F(InputSurfacesTest, touch_not_obscured_with_crop) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(100, 100);
+
+    // Add non touchable window to cover touchable window, but parent is cropped to avoid covering
+    // the touchable window. Window behind gets touch with no obscured flags.
+    std::unique_ptr<InputSurface> parentSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> nonTouchableSurface = makeSurface(100, 100);
+    nonTouchableSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    parentSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    nonTouchableSurface->mInputInfo.ownerUid = 22222;
+    parentSurface->mInputInfo.ownerUid = 22222;
+    nonTouchableSurface->showAt(0, 0);
+    parentSurface->showAt(50, 50);
+
+    nonTouchableSurface->doTransaction([&](auto &t, auto &sc) {
+        t.setCrop(parentSurface->mSurfaceControl, Rect(0, 0, 50, 50));
+        t.reparent(sc, parentSurface->mSurfaceControl);
+    });
+
+    injectTap(101, 110);
+    surface->expectTap(1, 10);
+}
+
+TEST_F(InputSurfacesTest, touch_not_obscured_with_zero_sized_bql) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+
+    std::unique_ptr<InputSurface> bufferSurface =
+            InputSurface::makeBufferInputSurface(mComposerClient, 0, 0);
+    bufferSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    bufferSurface->mInputInfo.ownerUid = 22222;
+
+    surface->showAt(10, 10);
+    bufferSurface->showAt(50, 50, Rect::EMPTY_RECT);
+
+    injectTap(11, 11);
+    surface->expectTap(1, 1);
+}
+
+TEST_F(InputSurfacesTest, touch_not_obscured_with_zero_sized_blast) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+
+    std::unique_ptr<BlastInputSurface> bufferSurface =
+            BlastInputSurface::makeBlastInputSurface(mComposerClient, 0, 0);
+    bufferSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    bufferSurface->mInputInfo.ownerUid = 22222;
+
+    surface->showAt(10, 10);
+    bufferSurface->showAt(50, 50, Rect::EMPTY_RECT);
+
+    injectTap(11, 11);
+    surface->expectTap(1, 1);
+}
+
+} // namespace android::test

@@ -20,53 +20,50 @@
 #include <sys/mman.h>
 #include <time.h>
 
+#include <attestation/HmacKeyManager.h>
 #include <cutils/ashmem.h>
 #include <gtest/gtest.h>
 #include <input/InputTransport.h>
-#include <utils/Timers.h>
 #include <utils/StopWatch.h>
+#include <utils/Timers.h>
+
+using android::base::Result;
 
 namespace android {
 
 class InputPublisherAndConsumerTest : public testing::Test {
 protected:
-    sp<InputChannel> serverChannel, clientChannel;
-    InputPublisher* mPublisher;
-    InputConsumer* mConsumer;
+    std::shared_ptr<InputChannel> mServerChannel, mClientChannel;
+    std::unique_ptr<InputPublisher> mPublisher;
+    std::unique_ptr<InputConsumer> mConsumer;
     PreallocatedInputEventFactory mEventFactory;
 
-    virtual void SetUp() {
+    void SetUp() override {
+        std::unique_ptr<InputChannel> serverChannel, clientChannel;
         status_t result = InputChannel::openInputChannelPair("channel name",
                 serverChannel, clientChannel);
         ASSERT_EQ(OK, result);
+        mServerChannel = std::move(serverChannel);
+        mClientChannel = std::move(clientChannel);
 
-        mPublisher = new InputPublisher(serverChannel);
-        mConsumer = new InputConsumer(clientChannel);
-    }
-
-    virtual void TearDown() {
-        if (mPublisher) {
-            delete mPublisher;
-            mPublisher = nullptr;
-        }
-
-        if (mConsumer) {
-            delete mConsumer;
-            mConsumer = nullptr;
-        }
-
-        serverChannel.clear();
-        clientChannel.clear();
+        mPublisher = std::make_unique<InputPublisher>(mServerChannel);
+        mConsumer = std::make_unique<InputConsumer>(mClientChannel);
     }
 
     void PublishAndConsumeKeyEvent();
     void PublishAndConsumeMotionEvent();
     void PublishAndConsumeFocusEvent();
+    void PublishAndConsumeCaptureEvent();
+    void PublishAndConsumeDragEvent();
 };
 
 TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
-    EXPECT_EQ(serverChannel.get(), mPublisher->getChannel().get());
-    EXPECT_EQ(clientChannel.get(), mConsumer->getChannel().get());
+    ASSERT_NE(nullptr, mPublisher->getChannel());
+    ASSERT_NE(nullptr, mConsumer->getChannel());
+    EXPECT_EQ(mServerChannel.get(), mPublisher->getChannel().get());
+    EXPECT_EQ(mClientChannel.get(), mConsumer->getChannel().get());
+    ASSERT_EQ(mPublisher->getChannel()->getConnectionToken(),
+              mConsumer->getChannel()->getConnectionToken());
 }
 
 void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
@@ -88,6 +85,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
     constexpr int32_t repeatCount = 1;
     constexpr nsecs_t downTime = 3;
     constexpr nsecs_t eventTime = 4;
+    const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
     status = mPublisher->publishKeyEvent(seq, eventId, deviceId, source, displayId, hmac, action,
                                          flags, keyCode, scanCode, metaState, repeatCount, downTime,
@@ -126,15 +124,16 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
     ASSERT_EQ(OK, status)
             << "consumer sendFinishedSignal should return OK";
 
-    uint32_t finishedSeq = 0;
-    bool handled = false;
-    status = mPublisher->receiveFinishedSignal(&finishedSeq, &handled);
-    ASSERT_EQ(OK, status)
-            << "publisher receiveFinishedSignal should return OK";
-    ASSERT_EQ(seq, finishedSeq)
-            << "publisher receiveFinishedSignal should have returned the original sequence number";
-    ASSERT_TRUE(handled)
-            << "publisher receiveFinishedSignal should have set handled to consumer's reply";
+    Result<InputPublisher::ConsumerResponse> result = mPublisher->receiveConsumerResponse();
+    ASSERT_TRUE(result.ok()) << "receiveConsumerResponse should return OK";
+    ASSERT_TRUE(std::holds_alternative<InputPublisher::Finished>(*result));
+    const InputPublisher::Finished& finish = std::get<InputPublisher::Finished>(*result);
+    ASSERT_EQ(seq, finish.seq)
+            << "receiveConsumerResponse should have returned the original sequence number";
+    ASSERT_TRUE(finish.handled)
+            << "receiveConsumerResponse should have set handled to consumer's reply";
+    ASSERT_GE(finish.consumeTime, publishTime)
+            << "finished signal's consume time should be greater than publish time";
 }
 
 void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
@@ -163,9 +162,12 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     constexpr float yPrecision = 0.5;
     constexpr float xCursorPosition = 1.3;
     constexpr float yCursorPosition = 50.6;
+    constexpr int32_t displayWidth = 1000;
+    constexpr int32_t displayHeight = 2000;
     constexpr nsecs_t downTime = 3;
     constexpr size_t pointerCount = 3;
     constexpr nsecs_t eventTime = 4;
+    const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
     PointerProperties pointerProperties[pointerCount];
     PointerCoords pointerCoords[pointerCount];
     for (size_t i = 0; i < pointerCount; i++) {
@@ -185,11 +187,13 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 3.5 * i);
     }
 
+    ui::Transform transform;
+    transform.set({xScale, 0, xOffset, 0, yScale, yOffset, 0, 0, 1});
     status = mPublisher->publishMotionEvent(seq, eventId, deviceId, source, displayId, hmac, action,
                                             actionButton, flags, edgeFlags, metaState, buttonState,
-                                            classification, xScale, yScale, xOffset, yOffset,
-                                            xPrecision, yPrecision, xCursorPosition,
-                                            yCursorPosition, downTime, eventTime, pointerCount,
+                                            classification, transform, xPrecision, yPrecision,
+                                            xCursorPosition, yCursorPosition, displayWidth,
+                                            displayHeight, downTime, eventTime, pointerCount,
                                             pointerProperties, pointerCoords);
     ASSERT_EQ(OK, status)
             << "publisher publishMotionEvent should return OK";
@@ -218,8 +222,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     EXPECT_EQ(metaState, motionEvent->getMetaState());
     EXPECT_EQ(buttonState, motionEvent->getButtonState());
     EXPECT_EQ(classification, motionEvent->getClassification());
-    EXPECT_EQ(xScale, motionEvent->getXScale());
-    EXPECT_EQ(yScale, motionEvent->getYScale());
+    EXPECT_EQ(transform, motionEvent->getTransform());
     EXPECT_EQ(xOffset, motionEvent->getXOffset());
     EXPECT_EQ(yOffset, motionEvent->getYOffset());
     EXPECT_EQ(xPrecision, motionEvent->getXPrecision());
@@ -228,6 +231,8 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     EXPECT_EQ(yCursorPosition, motionEvent->getRawYCursorPosition());
     EXPECT_EQ(xCursorPosition * xScale + xOffset, motionEvent->getXCursorPosition());
     EXPECT_EQ(yCursorPosition * yScale + yOffset, motionEvent->getYCursorPosition());
+    EXPECT_EQ(displayWidth, motionEvent->getDisplaySize().x);
+    EXPECT_EQ(displayHeight, motionEvent->getDisplaySize().y);
     EXPECT_EQ(downTime, motionEvent->getDownTime());
     EXPECT_EQ(eventTime, motionEvent->getEventTime());
     EXPECT_EQ(pointerCount, motionEvent->getPointerCount());
@@ -266,15 +271,16 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     ASSERT_EQ(OK, status)
             << "consumer sendFinishedSignal should return OK";
 
-    uint32_t finishedSeq = 0;
-    bool handled = true;
-    status = mPublisher->receiveFinishedSignal(&finishedSeq, &handled);
-    ASSERT_EQ(OK, status)
-            << "publisher receiveFinishedSignal should return OK";
-    ASSERT_EQ(seq, finishedSeq)
-            << "publisher receiveFinishedSignal should have returned the original sequence number";
-    ASSERT_FALSE(handled)
-            << "publisher receiveFinishedSignal should have set handled to consumer's reply";
+    Result<InputPublisher::ConsumerResponse> result = mPublisher->receiveConsumerResponse();
+    ASSERT_TRUE(result.ok()) << "receiveConsumerResponse should return OK";
+    ASSERT_TRUE(std::holds_alternative<InputPublisher::Finished>(*result));
+    const InputPublisher::Finished& finish = std::get<InputPublisher::Finished>(*result);
+    ASSERT_EQ(seq, finish.seq)
+            << "receiveConsumerResponse should have returned the original sequence number";
+    ASSERT_FALSE(finish.handled)
+            << "receiveConsumerResponse should have set handled to consumer's reply";
+    ASSERT_GE(finish.consumeTime, publishTime)
+            << "finished signal's consume time should be greater than publish time";
 }
 
 void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
@@ -284,9 +290,10 @@ void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
     int32_t eventId = InputEvent::nextId();
     constexpr bool hasFocus = true;
     constexpr bool inTouchMode = true;
+    const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
     status = mPublisher->publishFocusEvent(seq, eventId, hasFocus, inTouchMode);
-    ASSERT_EQ(OK, status) << "publisher publishKeyEvent should return OK";
+    ASSERT_EQ(OK, status) << "publisher publishFocusEvent should return OK";
 
     uint32_t consumeSeq;
     InputEvent* event;
@@ -306,14 +313,117 @@ void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
     status = mConsumer->sendFinishedSignal(seq, true);
     ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
 
-    uint32_t finishedSeq = 0;
-    bool handled = false;
-    status = mPublisher->receiveFinishedSignal(&finishedSeq, &handled);
-    ASSERT_EQ(OK, status) << "publisher receiveFinishedSignal should return OK";
-    ASSERT_EQ(seq, finishedSeq)
-            << "publisher receiveFinishedSignal should have returned the original sequence number";
-    ASSERT_TRUE(handled)
-            << "publisher receiveFinishedSignal should have set handled to consumer's reply";
+    Result<InputPublisher::ConsumerResponse> result = mPublisher->receiveConsumerResponse();
+    ASSERT_TRUE(result.ok()) << "receiveConsumerResponse should return OK";
+    ASSERT_TRUE(std::holds_alternative<InputPublisher::Finished>(*result));
+    const InputPublisher::Finished& finish = std::get<InputPublisher::Finished>(*result);
+
+    ASSERT_EQ(seq, finish.seq)
+            << "receiveConsumerResponse should have returned the original sequence number";
+    ASSERT_TRUE(finish.handled)
+            << "receiveConsumerResponse should have set handled to consumer's reply";
+    ASSERT_GE(finish.consumeTime, publishTime)
+            << "finished signal's consume time should be greater than publish time";
+}
+
+void InputPublisherAndConsumerTest::PublishAndConsumeCaptureEvent() {
+    status_t status;
+
+    constexpr uint32_t seq = 42;
+    int32_t eventId = InputEvent::nextId();
+    constexpr bool captureEnabled = true;
+    const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
+
+    status = mPublisher->publishCaptureEvent(seq, eventId, captureEnabled);
+    ASSERT_EQ(OK, status) << "publisher publishCaptureEvent should return OK";
+
+    uint32_t consumeSeq;
+    InputEvent* event;
+    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    ASSERT_EQ(OK, status) << "consumer consume should return OK";
+
+    ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
+    ASSERT_EQ(AINPUT_EVENT_TYPE_CAPTURE, event->getType())
+            << "consumer should have returned a capture event";
+
+    const CaptureEvent* captureEvent = static_cast<CaptureEvent*>(event);
+    EXPECT_EQ(seq, consumeSeq);
+    EXPECT_EQ(eventId, captureEvent->getId());
+    EXPECT_EQ(captureEnabled, captureEvent->getPointerCaptureEnabled());
+
+    status = mConsumer->sendFinishedSignal(seq, true);
+    ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
+
+    Result<InputPublisher::ConsumerResponse> result = mPublisher->receiveConsumerResponse();
+    ASSERT_TRUE(result.ok()) << "receiveConsumerResponse should return OK";
+    ASSERT_TRUE(std::holds_alternative<InputPublisher::Finished>(*result));
+    const InputPublisher::Finished& finish = std::get<InputPublisher::Finished>(*result);
+    ASSERT_EQ(seq, finish.seq)
+            << "receiveConsumerResponse should have returned the original sequence number";
+    ASSERT_TRUE(finish.handled)
+            << "receiveConsumerResponse should have set handled to consumer's reply";
+    ASSERT_GE(finish.consumeTime, publishTime)
+            << "finished signal's consume time should be greater than publish time";
+}
+
+void InputPublisherAndConsumerTest::PublishAndConsumeDragEvent() {
+    status_t status;
+
+    constexpr uint32_t seq = 15;
+    int32_t eventId = InputEvent::nextId();
+    constexpr bool isExiting = false;
+    constexpr float x = 10;
+    constexpr float y = 15;
+    const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
+
+    status = mPublisher->publishDragEvent(seq, eventId, x, y, isExiting);
+    ASSERT_EQ(OK, status) << "publisher publishDragEvent should return OK";
+
+    uint32_t consumeSeq;
+    InputEvent* event;
+    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    ASSERT_EQ(OK, status) << "consumer consume should return OK";
+
+    ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
+    ASSERT_EQ(AINPUT_EVENT_TYPE_DRAG, event->getType())
+            << "consumer should have returned a drag event";
+
+    const DragEvent& dragEvent = static_cast<const DragEvent&>(*event);
+    EXPECT_EQ(seq, consumeSeq);
+    EXPECT_EQ(eventId, dragEvent.getId());
+    EXPECT_EQ(isExiting, dragEvent.isExiting());
+    EXPECT_EQ(x, dragEvent.getX());
+    EXPECT_EQ(y, dragEvent.getY());
+
+    status = mConsumer->sendFinishedSignal(seq, true);
+    ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
+
+    Result<InputPublisher::ConsumerResponse> result = mPublisher->receiveConsumerResponse();
+    ASSERT_TRUE(result.ok()) << "receiveConsumerResponse should return OK";
+    ASSERT_TRUE(std::holds_alternative<InputPublisher::Finished>(*result));
+    const InputPublisher::Finished& finish = std::get<InputPublisher::Finished>(*result);
+    ASSERT_EQ(seq, finish.seq)
+            << "receiveConsumerResponse should have returned the original sequence number";
+    ASSERT_TRUE(finish.handled)
+            << "receiveConsumerResponse should have set handled to consumer's reply";
+    ASSERT_GE(finish.consumeTime, publishTime)
+            << "finished signal's consume time should be greater than publish time";
+}
+
+TEST_F(InputPublisherAndConsumerTest, SendTimeline) {
+    const int32_t inputEventId = 20;
+    std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline;
+    graphicsTimeline[GraphicsTimeline::GPU_COMPLETED_TIME] = 30;
+    graphicsTimeline[GraphicsTimeline::PRESENT_TIME] = 40;
+    status_t status = mConsumer->sendTimeline(inputEventId, graphicsTimeline);
+    ASSERT_EQ(OK, status);
+
+    Result<InputPublisher::ConsumerResponse> result = mPublisher->receiveConsumerResponse();
+    ASSERT_TRUE(result.ok()) << "receiveConsumerResponse should return OK";
+    ASSERT_TRUE(std::holds_alternative<InputPublisher::Timeline>(*result));
+    const InputPublisher::Timeline& timeline = std::get<InputPublisher::Timeline>(*result);
+    ASSERT_EQ(inputEventId, timeline.inputEventId);
+    ASSERT_EQ(graphicsTimeline, timeline.graphicsTimeline);
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishKeyEvent_EndToEnd) {
@@ -328,6 +438,14 @@ TEST_F(InputPublisherAndConsumerTest, PublishFocusEvent_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeFocusEvent());
 }
 
+TEST_F(InputPublisherAndConsumerTest, PublishCaptureEvent_EndToEnd) {
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeCaptureEvent());
+}
+
+TEST_F(InputPublisherAndConsumerTest, PublishDragEvent_EndToEnd) {
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeDragEvent());
+}
+
 TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZero_ReturnsError) {
     status_t status;
     const size_t pointerCount = 1;
@@ -338,11 +456,11 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZer
         pointerCoords[i].clear();
     }
 
+    ui::Transform identityTransform;
     status = mPublisher->publishMotionEvent(0, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
-                                            0, 0, 0, MotionClassification::NONE, 1 /* xScale */,
-                                            1 /* yScale */, 0, 0, 0, 0,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
+                                            0, 0, 0, MotionClassification::NONE, identityTransform,
+                                            0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0, 0, 0,
                                             pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
@@ -354,11 +472,11 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountLessTha
     PointerProperties pointerProperties[pointerCount];
     PointerCoords pointerCoords[pointerCount];
 
+    ui::Transform identityTransform;
     status = mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
-                                            0, 0, 0, MotionClassification::NONE, 1 /* xScale */,
-                                            1 /* yScale */, 0, 0, 0, 0,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
+                                            0, 0, 0, MotionClassification::NONE, identityTransform,
+                                            0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0, 0, 0,
                                             pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
@@ -375,11 +493,11 @@ TEST_F(InputPublisherAndConsumerTest,
         pointerCoords[i].clear();
     }
 
+    ui::Transform identityTransform;
     status = mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
-                                            0, 0, 0, MotionClassification::NONE, 1 /* xScale */,
-                                            1 /* yScale */, 0, 0, 0, 0,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
+                                            0, 0, 0, MotionClassification::NONE, identityTransform,
+                                            0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0, 0, 0,
                                             pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
@@ -390,6 +508,10 @@ TEST_F(InputPublisherAndConsumerTest, PublishMultipleEvents_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeFocusEvent());
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeCaptureEvent());
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeDragEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
 }

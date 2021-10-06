@@ -1,3 +1,23 @@
+/*
+ * Copyright (C) 2020 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <gtest/gtest.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerDebugInfo.h>
@@ -5,10 +25,11 @@
 #include <gui/SurfaceComposerClient.h>
 #include <private/android_filesystem_config.h>
 #include <private/gui/ComposerService.h>
-#include <ui/DisplayConfig.h>
+#include <ui/DisplayMode.h>
+#include <ui/DynamicDisplayInfo.h>
 #include <utils/String8.h>
-
 #include <functional>
+#include "utils/ScreenshotUtils.h"
 
 namespace android {
 
@@ -18,7 +39,6 @@ using ui::ColorMode;
 namespace {
 const String8 DISPLAY_NAME("Credentials Display Test");
 const String8 SURFACE_NAME("Test Surface Name");
-const float FRAME_SCALE = 1.0f;
 } // namespace
 
 /**
@@ -62,14 +82,13 @@ protected:
         mDisplay = SurfaceComposerClient::getInternalDisplayToken();
         ASSERT_FALSE(mDisplay == nullptr);
 
-        DisplayConfig config;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(mDisplay, &config));
+        ui::DisplayMode mode;
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(mDisplay, &mode));
 
         // Background surface
-        mBGSurfaceControl =
-                mComposerClient->createSurface(SURFACE_NAME, config.resolution.getWidth(),
-                                               config.resolution.getHeight(),
-                                               PIXEL_FORMAT_RGBA_8888, 0);
+        mBGSurfaceControl = mComposerClient->createSurface(SURFACE_NAME, mode.resolution.getWidth(),
+                                                           mode.resolution.getHeight(),
+                                                           PIXEL_FORMAT_RGBA_8888, 0);
         ASSERT_TRUE(mBGSurfaceControl != nullptr);
         ASSERT_TRUE(mBGSurfaceControl->isValid());
 
@@ -77,26 +96,6 @@ protected:
         t.setDisplayLayerStack(mDisplay, 0);
         ASSERT_EQ(NO_ERROR,
                   t.setLayer(mBGSurfaceControl, INT_MAX - 3).show(mBGSurfaceControl).apply());
-    }
-
-    void setupVirtualDisplay() {
-        mVirtualDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, true);
-        const ssize_t displayWidth = 100;
-        const ssize_t displayHeight = 100;
-
-        // Background surface
-        mVirtualSurfaceControl =
-                mComposerClient->createSurface(SURFACE_NAME, displayWidth, displayHeight,
-                                               PIXEL_FORMAT_RGBA_8888, 0);
-        ASSERT_TRUE(mVirtualSurfaceControl != nullptr);
-        ASSERT_TRUE(mVirtualSurfaceControl->isValid());
-
-        Transaction t;
-        t.setDisplayLayerStack(mVirtualDisplay, 0);
-        ASSERT_EQ(NO_ERROR,
-                  t.setLayer(mVirtualSurfaceControl, INT_MAX - 3)
-                          .show(mVirtualSurfaceControl)
-                          .apply());
     }
 
     /**
@@ -146,6 +145,10 @@ protected:
         // Check as a non-supported user.
         setBinUID();
         ASSERT_EQ(unprivilegedValue, condition());
+
+        // Check as shell since shell has some additional permissions
+        seteuid(AID_SHELL);
+        ASSERT_EQ(unprivilegedValue, condition());
     }
 };
 
@@ -182,23 +185,19 @@ TEST_F(CredentialsTest, AllowedGetterMethodsTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     ASSERT_TRUE(display != nullptr);
 
-    DisplayConfig config;
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+    ui::DisplayMode mode;
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
 
-    Vector<DisplayConfig> configs;
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
-
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveConfig(display));
-
-    ASSERT_NE(static_cast<ui::ColorMode>(BAD_VALUE),
-              SurfaceComposerClient::getActiveColorMode(display));
+    Vector<ui::DisplayMode> modes;
+    ui::DynamicDisplayInfo info;
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDynamicDisplayInfo(display, &info));
 }
 
-TEST_F(CredentialsTest, GetDisplayColorModesTest) {
+TEST_F(CredentialsTest, GetDynamicDisplayInfoTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     std::function<status_t()> condition = [=]() {
-        Vector<ui::ColorMode> outColorModes;
-        return SurfaceComposerClient::getDisplayColorModes(display, &outColorModes);
+        ui::DynamicDisplayInfo info;
+        return SurfaceComposerClient::getDynamicDisplayInfo(display, &info);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, NO_ERROR));
 }
@@ -214,22 +213,23 @@ TEST_F(CredentialsTest, GetDisplayNativePrimariesTest) {
 
 TEST_F(CredentialsTest, SetDesiredDisplayConfigsTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
-    int32_t defaultConfig;
+    ui::DisplayModeId defaultMode;
+    bool allowGroupSwitching;
     float primaryFpsMin;
     float primaryFpsMax;
     float appRequestFpsMin;
     float appRequestFpsMax;
     status_t res =
-            SurfaceComposerClient::getDesiredDisplayConfigSpecs(display, &defaultConfig,
-                                                                &primaryFpsMin, &primaryFpsMax,
-                                                                &appRequestFpsMin,
-                                                                &appRequestFpsMax);
+            SurfaceComposerClient::getDesiredDisplayModeSpecs(display, &defaultMode,
+                                                              &allowGroupSwitching, &primaryFpsMin,
+                                                              &primaryFpsMax, &appRequestFpsMin,
+                                                              &appRequestFpsMax);
     ASSERT_EQ(res, NO_ERROR);
     std::function<status_t()> condition = [=]() {
-        return SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, defaultConfig,
-                                                                   primaryFpsMin, primaryFpsMax,
-                                                                   appRequestFpsMin,
-                                                                   appRequestFpsMax);
+        return SurfaceComposerClient::setDesiredDisplayModeSpecs(display, defaultMode,
+                                                                 allowGroupSwitching, primaryFpsMin,
+                                                                 primaryFpsMax, appRequestFpsMin,
+                                                                 appRequestFpsMax);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }
@@ -243,11 +243,31 @@ TEST_F(CredentialsTest, SetActiveColorModeTest) {
 }
 
 TEST_F(CredentialsTest, CreateDisplayTest) {
+    // Only graphics and system processes can create a secure display.
     std::function<bool()> condition = [=]() {
         sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, true);
         return testDisplay.get() != nullptr;
     };
-    ASSERT_NO_FATAL_FAILURE(checkWithPrivileges(condition, true, false));
+
+    // Check with root.
+    seteuid(AID_ROOT);
+    ASSERT_FALSE(condition());
+
+    // Check as a Graphics user.
+    setGraphicsUID();
+    ASSERT_TRUE(condition());
+
+    // Check as a system user.
+    setSystemUID();
+    ASSERT_TRUE(condition());
+
+    // Check as a non-supported user.
+    setBinUID();
+    ASSERT_FALSE(condition());
+
+    // Check as shell since shell has some additional permissions
+    seteuid(AID_SHELL);
+    ASSERT_FALSE(condition());
 
     condition = [=]() {
         sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, false);
@@ -260,9 +280,10 @@ TEST_F(CredentialsTest, CaptureTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     std::function<status_t()> condition = [=]() {
         sp<GraphicBuffer> outBuffer;
-        return ScreenshotClient::capture(display, ui::Dataspace::V0_SRGB,
-                                         ui::PixelFormat::RGBA_8888, Rect(), 0 /*reqWidth*/,
-                                         0 /*reqHeight*/, false, ui::ROTATION_0, &outBuffer);
+        DisplayCaptureArgs captureArgs;
+        captureArgs.displayToken = display;
+        ScreenCaptureResults captureResults;
+        return ScreenCapture::captureDisplay(captureArgs, captureResults);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }
@@ -271,10 +292,12 @@ TEST_F(CredentialsTest, CaptureLayersTest) {
     setupBackgroundSurface();
     sp<GraphicBuffer> outBuffer;
     std::function<status_t()> condition = [=]() {
-        sp<GraphicBuffer> outBuffer;
-        return ScreenshotClient::captureLayers(mBGSurfaceControl->getHandle(),
-                                               ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888,
-                                               Rect(0, 0, 1, 1), FRAME_SCALE, &outBuffer);
+        LayerCaptureArgs captureArgs;
+        captureArgs.layerHandle = mBGSurfaceControl->getHandle();
+        captureArgs.sourceCrop = {0, 0, 1, 1};
+
+        ScreenCaptureResults captureResults;
+        return ScreenCapture::captureLayers(captureArgs, captureResults);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }
@@ -282,25 +305,6 @@ TEST_F(CredentialsTest, CaptureLayersTest) {
 /**
  * The following tests are for methods accessible directly through SurfaceFlinger.
  */
-
-/**
- * An app can pass a buffer queue to the media server and ask the media server to decode a DRM video
- * to that buffer queue. The media server is the buffer producer in this case. Because the app may create
- * its own buffer queue and act as the buffer consumer, the media server wants to be careful to avoid
- * sending decoded video frames to the app. This is where authenticateSurfaceTexture call comes in, to check
- * the consumer of a buffer queue is SurfaceFlinger.
- */
-TEST_F(CredentialsTest, AuthenticateSurfaceTextureTest) {
-    setupBackgroundSurface();
-    sp<IGraphicBufferProducer> producer =
-            mBGSurfaceControl->getSurface()->getIGraphicBufferProducer();
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-
-    std::function<bool()> condition = [=]() { return sf->authenticateSurfaceTexture(producer); };
-    // Anyone should be able to check if the consumer of the buffer queue is SF.
-    ASSERT_NO_FATAL_FAILURE(checkWithPrivileges(condition, true, true));
-}
-
 TEST_F(CredentialsTest, GetLayerDebugInfo) {
     setupBackgroundSurface();
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
@@ -329,8 +333,9 @@ TEST_F(CredentialsTest, IsWideColorDisplayBasicCorrectness) {
     status_t error = SurfaceComposerClient::isWideColorDisplay(display, &result);
     ASSERT_EQ(NO_ERROR, error);
     bool hasWideColorMode = false;
-    Vector<ColorMode> colorModes;
-    SurfaceComposerClient::getDisplayColorModes(display, &colorModes);
+    ui::DynamicDisplayInfo info;
+    SurfaceComposerClient::getDynamicDisplayInfo(display, &info);
+    const auto& colorModes = info.supportedColorModes;
     for (ColorMode colorMode : colorModes) {
         switch (colorMode) {
             case ColorMode::DISPLAY_P3:
@@ -358,7 +363,9 @@ TEST_F(CredentialsTest, IsWideColorDisplayWithPrivileges) {
 TEST_F(CredentialsTest, GetActiveColorModeBasicCorrectness) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     ASSERT_FALSE(display == nullptr);
-    ColorMode colorMode = SurfaceComposerClient::getActiveColorMode(display);
+    ui::DynamicDisplayInfo info;
+    SurfaceComposerClient::getDynamicDisplayInfo(display, &info);
+    ColorMode colorMode = info.activeColorMode;
     ASSERT_NE(static_cast<ColorMode>(BAD_VALUE), colorMode);
 }
 

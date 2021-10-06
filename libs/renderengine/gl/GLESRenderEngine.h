@@ -48,7 +48,7 @@ namespace gl {
 class GLImage;
 class BlurFilter;
 
-class GLESRenderEngine : public impl::RenderEngine {
+class GLESRenderEngine : public RenderEngine {
 public:
     static std::unique_ptr<GLESRenderEngine> create(const RenderEngineCreationArgs& args);
 
@@ -57,25 +57,21 @@ public:
                      EGLSurface protectedStub);
     ~GLESRenderEngine() override EXCLUDES(mRenderingMutex);
 
-    void primeCache() const override;
+    std::future<void> primeCache() override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
-    void bindExternalTextureImage(uint32_t texName, const Image& image) override;
-    status_t bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
-                                       const sp<Fence>& fence) EXCLUDES(mRenderingMutex);
-    void cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) EXCLUDES(mRenderingMutex);
-    void unbindExternalTextureBuffer(uint64_t bufferId) EXCLUDES(mRenderingMutex);
-    status_t bindFrameBuffer(Framebuffer* framebuffer) override;
-    void unbindFrameBuffer(Framebuffer* framebuffer) override;
-
     bool isProtected() const override { return mInProtectedContext; }
     bool supportsProtectedContent() const override;
-    bool useProtectedContext(bool useProtectedContext) override;
+    void useProtectedContext(bool useProtectedContext) override;
     status_t drawLayers(const DisplaySettings& display,
                         const std::vector<const LayerSettings*>& layers,
-                        ANativeWindowBuffer* buffer, const bool useFramebufferCache,
-                        base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
-    bool cleanupPostRender(CleanupMode mode) override;
+                        const std::shared_ptr<ExternalTexture>& buffer,
+                        const bool useFramebufferCache, base::unique_fd&& bufferFence,
+                        base::unique_fd* drawFence) override;
+    void cleanupPostRender() override;
+    int getContextPriority() override;
+    bool supportsBackgroundBlur() override { return mBlurFilter != nullptr; }
+    void onPrimaryDisplaySizeChanged(ui::Size size) override {}
 
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
     // Creates an output image for rendering to
@@ -102,13 +98,19 @@ public:
     std::shared_ptr<ImageManager::Barrier> unbindExternalTextureBufferForTesting(uint64_t bufferId);
 
 protected:
-    Framebuffer* getFramebufferForDrawing() override;
+    Framebuffer* getFramebufferForDrawing();
     void dump(std::string& result) override EXCLUDES(mRenderingMutex)
             EXCLUDES(mFramebufferImageCacheMutex);
     size_t getMaxTextureSize() const override;
     size_t getMaxViewportDims() const override;
+    void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable)
+            EXCLUDES(mRenderingMutex);
+    void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) EXCLUDES(mRenderingMutex);
+    bool canSkipPostRenderCleanup() const override;
 
 private:
+    friend class BindNativeBufferAsFramebuffer;
+
     enum GlesVersion {
         GLES_VERSION_1_0 = 0x10000,
         GLES_VERSION_1_1 = 0x10001,
@@ -119,8 +121,11 @@ private:
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
     static GlesVersion parseGlesVersion(const char* str);
     static EGLContext createEglContext(EGLDisplay display, EGLConfig config,
-                                       EGLContext shareContext, bool useContextPriority,
+                                       EGLContext shareContext,
+                                       std::optional<ContextPriority> contextPriority,
                                        Protection protection);
+    static std::optional<RenderEngine::ContextPriority> createContextPriority(
+            const RenderEngineCreationArgs& args);
     static EGLSurface createStubEglPbufferSurface(EGLDisplay display, EGLConfig config,
                                                   int hwcFormat, Protection protection);
     std::unique_ptr<Framebuffer> createFramebuffer();
@@ -133,6 +138,12 @@ private:
     status_t cacheExternalTextureBufferInternal(const sp<GraphicBuffer>& buffer)
             EXCLUDES(mRenderingMutex);
     void unbindExternalTextureBufferInternal(uint64_t bufferId) EXCLUDES(mRenderingMutex);
+    status_t bindFrameBuffer(Framebuffer* framebuffer);
+    void unbindFrameBuffer(Framebuffer* framebuffer);
+    void bindExternalTextureImage(uint32_t texName, const Image& image);
+    void bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
+                                   const sp<Fence>& fence) EXCLUDES(mRenderingMutex);
+    void cleanFramebufferCache() EXCLUDES(mFramebufferImageCacheMutex) override;
 
     // A data space is considered HDR data space if it has BT2020 color space
     // with PQ or HLG transfer function.
@@ -190,7 +201,7 @@ private:
     GLuint mVpWidth;
     GLuint mVpHeight;
     Description mState;
-    GLShadowTexture mShadowTexture;
+    std::unique_ptr<GLShadowTexture> mShadowTexture = nullptr;
 
     mat4 mSrgbToXyz;
     mat4 mDisplayP3ToXyz;
@@ -228,6 +239,10 @@ private:
     // Whether device supports color management, currently color management
     // supports sRGB, DisplayP3 color spaces.
     const bool mUseColorManagement = false;
+
+    // Whether only shaders performing tone mapping from HDR to SDR will be generated on
+    // primeCache().
+    const bool mPrecacheToneMapperShaderOnly = false;
 
     // Cache of GL images that we'll store per GraphicBuffer ID
     std::unordered_map<uint64_t, std::unique_ptr<Image>> mImageCache GUARDED_BY(mRenderingMutex);
@@ -287,7 +302,7 @@ private:
     friend class BlurFilter;
     friend class GenericProgram;
     std::unique_ptr<FlushTracer> mFlushTracer;
-    std::unique_ptr<ImageManager> mImageManager = std::make_unique<ImageManager>(this);
+    std::unique_ptr<ImageManager> mImageManager;
 };
 
 } // namespace gl

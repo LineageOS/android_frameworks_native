@@ -17,6 +17,7 @@
 #include "SensorInterface.h"
 #include "SensorDevice.h"
 #include "SensorFusion.h"
+#include "SensorService.h"
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -82,6 +83,39 @@ void HardwareSensor::autoDisable(void *ident, int handle) {
 
 VirtualSensor::VirtualSensor() :
         BaseSensor(DUMMY_SENSOR), mSensorFusion(SensorFusion::getInstance()) {
+}
+
+// ---------------------------------------------------------------------------
+
+ProximitySensor::ProximitySensor(const sensor_t& sensor, SensorService& service)
+        : HardwareSensor(sensor), mSensorService(service) {
+}
+
+status_t ProximitySensor::activate(void* ident, bool enabled) {
+    bool lastState = mSensorDevice.isSensorActive(mSensor.getHandle());
+
+    status_t status = HardwareSensor::activate(ident, enabled);
+    if (status != NO_ERROR) {
+        return status;
+    }
+
+    bool currentState = mSensorDevice.isSensorActive(mSensor.getHandle());
+    if (currentState != lastState) {
+        mSensorService.onProximityActiveLocked(currentState);
+    }
+    return NO_ERROR;
+}
+
+void ProximitySensor::willDisableAllSensors() {
+    if (mSensorDevice.isSensorActive(mSensor.getHandle())) {
+        mSensorService.onProximityActiveLocked(false);
+    }
+}
+
+void ProximitySensor::didEnableAllSensors() {
+    if (mSensorDevice.isSensorActive(mSensor.getHandle())) {
+        mSensorService.onProximityActiveLocked(true);
+    }
 }
 
 // ---------------------------------------------------------------------------

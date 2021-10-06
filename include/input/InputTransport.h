@@ -30,18 +30,22 @@
  */
 
 #include <string>
+#include <unordered_map>
 
 #include <android-base/chrono_utils.h>
+#include <android-base/result.h>
+#include <android-base/unique_fd.h>
 
 #include <binder/IBinder.h>
+#include <binder/Parcelable.h>
 #include <input/Input.h>
+#include <sys/stat.h>
+#include <ui/Transform.h>
 #include <utils/BitSet.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
-#include <utils/Vector.h>
 
-#include <android-base/unique_fd.h>
 
 namespace android {
 class Parcel;
@@ -65,24 +69,29 @@ struct InputMessage {
         MOTION,
         FINISHED,
         FOCUS,
+        CAPTURE,
+        DRAG,
+        TIMELINE,
     };
 
     struct Header {
         Type type; // 4 bytes
-        // We don't need this field in order to align the body below but we
-        // leave it here because InputMessage::size() and other functions
-        // compute the size of this structure as sizeof(Header) + sizeof(Body).
-        uint32_t padding;
+        uint32_t seq;
     } header;
 
-    // Body *must* be 8 byte aligned.
     // For keys and motions, rely on the fact that std::array takes up exactly as much space
     // as the underlying data. This is not guaranteed by C++, but it simplifies the conversions.
     static_assert(sizeof(std::array<uint8_t, 32>) == 32);
+
+    // For bool values, rely on the fact that they take up exactly one byte. This is not guaranteed
+    // by C++ and is implementation-dependent, but it simplifies the conversions.
+    static_assert(sizeof(bool) == 1);
+
+    // Body *must* be 8 byte aligned.
     union Body {
         struct Key {
-            uint32_t seq;
             int32_t eventId;
+            uint32_t empty1;
             nsecs_t eventTime __attribute__((aligned(8)));
             int32_t deviceId;
             int32_t source;
@@ -101,8 +110,8 @@ struct InputMessage {
         } key;
 
         struct Motion {
-            uint32_t seq;
             int32_t eventId;
+            uint32_t empty1;
             nsecs_t eventTime __attribute__((aligned(8)));
             int32_t deviceId;
             int32_t source;
@@ -117,14 +126,18 @@ struct InputMessage {
             uint8_t empty2[3];                   // 3 bytes to fill gap created by classification
             int32_t edgeFlags;
             nsecs_t downTime __attribute__((aligned(8)));
-            float xScale;
-            float yScale;
-            float xOffset;
-            float yOffset;
+            float dsdx;
+            float dtdx;
+            float dtdy;
+            float dsdy;
+            float tx;
+            float ty;
             float xPrecision;
             float yPrecision;
             float xCursorPosition;
             float yCursorPosition;
+            int32_t displayWidth;
+            int32_t displayHeight;
             uint32_t pointerCount;
             uint32_t empty3;
             /**
@@ -151,22 +164,48 @@ struct InputMessage {
         } motion;
 
         struct Finished {
-            uint32_t seq;
-            uint32_t handled; // actually a bool, but we must maintain 8-byte alignment
+            bool handled;
+            uint8_t empty[7];
+            nsecs_t consumeTime; // The time when the event was consumed by the receiving end
 
             inline size_t size() const { return sizeof(Finished); }
         } finished;
 
         struct Focus {
-            uint32_t seq;
             int32_t eventId;
-            uint32_t empty1;
-            // The following two fields take up 4 bytes total
-            uint16_t hasFocus;    // actually a bool
-            uint16_t inTouchMode; // actually a bool, but we must maintain 8-byte alignment
+            // The following 3 fields take up 4 bytes total
+            bool hasFocus;
+            bool inTouchMode;
+            uint8_t empty[2];
 
             inline size_t size() const { return sizeof(Focus); }
         } focus;
+
+        struct Capture {
+            int32_t eventId;
+            bool pointerCaptureEnabled;
+            uint8_t empty[3];
+
+            inline size_t size() const { return sizeof(Capture); }
+        } capture;
+
+        struct Drag {
+            int32_t eventId;
+            float x;
+            float y;
+            bool isExiting;
+            uint8_t empty[3];
+
+            inline size_t size() const { return sizeof(Drag); }
+        } drag;
+
+        struct Timeline {
+            int32_t eventId;
+            uint32_t empty;
+            std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline;
+
+            inline size_t size() const { return sizeof(Timeline); }
+        } timeline;
     } __attribute__((aligned(8))) body;
 
     bool isValid(size_t actualSize) const;
@@ -182,14 +221,15 @@ struct InputMessage {
  *
  * The input channel is closed when all references to it are released.
  */
-class InputChannel : public RefBase {
-protected:
-    virtual ~InputChannel();
-
+class InputChannel : public Parcelable {
 public:
-    static sp<InputChannel> create(const std::string& name, android::base::unique_fd fd,
-                                   sp<IBinder> token);
-
+    static std::unique_ptr<InputChannel> create(const std::string& name,
+                                                android::base::unique_fd fd, sp<IBinder> token);
+    InputChannel() = default;
+    InputChannel(const InputChannel& other)
+          : mName(other.mName), mFd(::dup(other.mFd)), mToken(other.mToken){};
+    InputChannel(const std::string name, android::base::unique_fd fd, sp<IBinder> token);
+    ~InputChannel() override;
     /**
      * Create a pair of input channels.
      * The two returned input channels are equivalent, and are labeled as "server" and "client"
@@ -198,10 +238,12 @@ public:
      * Return OK on success.
      */
     static status_t openInputChannelPair(const std::string& name,
-            sp<InputChannel>& outServerChannel, sp<InputChannel>& outClientChannel);
+                                         std::unique_ptr<InputChannel>& outServerChannel,
+                                         std::unique_ptr<InputChannel>& outClientChannel);
 
     inline std::string getName() const { return mName; }
-    inline int getFd() const { return mFd.get(); }
+    inline const android::base::unique_fd& getFd() const { return mFd; }
+    inline sp<IBinder> getToken() const { return mToken; }
 
     /* Send a message to the other endpoint.
      *
@@ -229,10 +271,12 @@ public:
     status_t receiveMessage(InputMessage* msg);
 
     /* Return a new object that has a duplicate of this channel's fd. */
-    sp<InputChannel> dup() const;
+    std::unique_ptr<InputChannel> dup() const;
 
-    status_t write(Parcel& out) const;
-    static sp<InputChannel> read(const Parcel& from);
+    void copyTo(InputChannel& outChannel) const;
+
+    status_t readFromParcel(const android::Parcel* parcel) override;
+    status_t writeToParcel(android::Parcel* parcel) const override;
 
     /**
      * The connection token is used to identify the input connection, i.e.
@@ -248,8 +292,22 @@ public:
      */
     sp<IBinder> getConnectionToken() const;
 
+    bool operator==(const InputChannel& inputChannel) const {
+        struct stat lhs, rhs;
+        if (fstat(mFd.get(), &lhs) != 0) {
+            return false;
+        }
+        if (fstat(inputChannel.getFd(), &rhs) != 0) {
+            return false;
+        }
+        // If file descriptors are pointing to same inode they are duplicated fds.
+        return inputChannel.getName() == getName() && inputChannel.getConnectionToken() == mToken &&
+                lhs.st_ino == rhs.st_ino;
+    }
+
 private:
-    InputChannel(const std::string& name, android::base::unique_fd fd, sp<IBinder> token);
+    base::unique_fd dupFd() const;
+
     std::string mName;
     android::base::unique_fd mFd;
 
@@ -262,13 +320,13 @@ private:
 class InputPublisher {
 public:
     /* Creates a publisher associated with an input channel. */
-    explicit InputPublisher(const sp<InputChannel>& channel);
+    explicit InputPublisher(const std::shared_ptr<InputChannel>& channel);
 
     /* Destroys the publisher and releases its input channel. */
     ~InputPublisher();
 
     /* Gets the underlying input channel. */
-    inline sp<InputChannel> getChannel() { return mChannel; }
+    inline std::shared_ptr<InputChannel> getChannel() { return mChannel; }
 
     /* Publishes a key event to the input channel.
      *
@@ -295,10 +353,10 @@ public:
                                 int32_t displayId, std::array<uint8_t, 32> hmac, int32_t action,
                                 int32_t actionButton, int32_t flags, int32_t edgeFlags,
                                 int32_t metaState, int32_t buttonState,
-                                MotionClassification classification, float xScale, float yScale,
-                                float xOffset, float yOffset, float xPrecision, float yPrecision,
-                                float xCursorPosition, float yCursorPosition, nsecs_t downTime,
-                                nsecs_t eventTime, uint32_t pointerCount,
+                                MotionClassification classification, const ui::Transform& transform,
+                                float xPrecision, float yPrecision, float xCursorPosition,
+                                float yCursorPosition, int32_t displayWidth, int32_t displayHeight,
+                                nsecs_t downTime, nsecs_t eventTime, uint32_t pointerCount,
                                 const PointerProperties* pointerProperties,
                                 const PointerCoords* pointerCoords);
 
@@ -311,22 +369,60 @@ public:
      */
     status_t publishFocusEvent(uint32_t seq, int32_t eventId, bool hasFocus, bool inTouchMode);
 
-    /* Receives the finished signal from the consumer in reply to the original dispatch signal.
-     * If a signal was received, returns the message sequence number,
-     * and whether the consumer handled the message.
-     *
-     * The returned sequence number is never 0 unless the operation failed.
+    /* Publishes a capture event to the input channel.
      *
      * Returns OK on success.
-     * Returns WOULD_BLOCK if there is no signal present.
+     * Returns WOULD_BLOCK if the channel is full.
      * Returns DEAD_OBJECT if the channel's peer has been closed.
      * Other errors probably indicate that the channel is broken.
      */
-    status_t receiveFinishedSignal(uint32_t* outSeq, bool* outHandled);
+    status_t publishCaptureEvent(uint32_t seq, int32_t eventId, bool pointerCaptureEnabled);
+
+    /* Publishes a drag event to the input channel.
+     *
+     * Returns OK on success.
+     * Returns WOULD_BLOCK if the channel is full.
+     * Returns DEAD_OBJECT if the channel's peer has been closed.
+     * Other errors probably indicate that the channel is broken.
+     */
+    status_t publishDragEvent(uint32_t seq, int32_t eventId, float x, float y, bool isExiting);
+
+    struct Finished {
+        uint32_t seq;
+        bool handled;
+        nsecs_t consumeTime;
+    };
+
+    struct Timeline {
+        int32_t inputEventId;
+        std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline;
+    };
+
+    typedef std::variant<Finished, Timeline> ConsumerResponse;
+    /* Receive a signal from the consumer in reply to the original dispatch signal.
+     * If a signal was received, returns a Finished or a Timeline object.
+     * The InputConsumer should return a Finished object for every InputMessage that it is sent
+     * to confirm that it has been processed and that the InputConsumer is responsive.
+     * If several InputMessages are sent to InputConsumer, it's possible to receive Finished
+     * events out of order for those messages.
+     *
+     * The Timeline object is returned whenever the receiving end has processed a graphical frame
+     * and is returning the timeline of the frame. Not all input events will cause a Timeline
+     * object to be returned, and there is not guarantee about when it will arrive.
+     *
+     * If an object of Finished is returned, the returned sequence number is never 0 unless the
+     * operation failed.
+     *
+     * Returned error codes:
+     *         OK on success.
+     *         WOULD_BLOCK if there is no signal present.
+     *         DEAD_OBJECT if the channel's peer has been closed.
+     *         Other errors probably indicate that the channel is broken.
+     */
+    android::base::Result<ConsumerResponse> receiveConsumerResponse();
 
 private:
-
-    sp<InputChannel> mChannel;
+    std::shared_ptr<InputChannel> mChannel;
 };
 
 /*
@@ -335,13 +431,13 @@ private:
 class InputConsumer {
 public:
     /* Creates a consumer associated with an input channel. */
-    explicit InputConsumer(const sp<InputChannel>& channel);
+    explicit InputConsumer(const std::shared_ptr<InputChannel>& channel);
 
     /* Destroys the consumer and releases its input channel. */
     ~InputConsumer();
 
     /* Gets the underlying input channel. */
-    inline sp<InputChannel> getChannel() { return mChannel; }
+    inline std::shared_ptr<InputChannel> getChannel() { return mChannel; }
 
     /* Consumes an input event from the input channel and copies its contents into
      * an InputEvent object created using the specified factory.
@@ -379,6 +475,9 @@ public:
      */
     status_t sendFinishedSignal(uint32_t seq, bool handled);
 
+    status_t sendTimeline(int32_t inputEventId,
+                          std::array<nsecs_t, GraphicsTimeline::SIZE> timeline);
+
     /* Returns true if there is a deferred event waiting.
      *
      * Should be called after calling consume() to determine whether the consumer
@@ -411,12 +510,13 @@ public:
      */
     int32_t getPendingBatchSource() const;
 
+    std::string dump() const;
+
 private:
     // True if touch resampling is enabled.
     const bool mResampleTouch;
 
-    // The input channel.
-    sp<InputChannel> mChannel;
+    std::shared_ptr<InputChannel> mChannel;
 
     // The current input message.
     InputMessage mMsg;
@@ -427,9 +527,9 @@ private:
 
     // Batched motion events per device and source.
     struct Batch {
-        Vector<InputMessage> samples;
+        std::vector<InputMessage> samples;
     };
-    Vector<Batch> mBatches;
+    std::vector<Batch> mBatches;
 
     // Touch state per device and source, only for sources of class pointer.
     struct History {
@@ -516,7 +616,7 @@ private:
             return false;
         }
     };
-    Vector<TouchState> mTouchStates;
+    std::vector<TouchState> mTouchStates;
 
     // Chain of batched sequence numbers.  When multiple input messages are combined into
     // a batch, we append a record here that associates the last sequence number in the
@@ -526,7 +626,14 @@ private:
         uint32_t seq;   // sequence number of batched input message
         uint32_t chain; // sequence number of previous batched input message
     };
-    Vector<SeqChain> mSeqChains;
+    std::vector<SeqChain> mSeqChains;
+
+    // The time at which each event with the sequence number 'seq' was consumed.
+    // This data is provided in 'finishInputEvent' so that the receiving end can measure the latency
+    // This collection is populated when the event is received, and the entries are erased when the
+    // events are finished. It should not grow infinitely because if an event is not ack'd, ANR
+    // will be raised for that connection, and no further events will be posted to that channel.
+    std::unordered_map<uint32_t /*seq*/, nsecs_t /*consumeTime*/> mConsumeTimes;
 
     status_t consumeBatch(InputEventFactoryInterface* factory,
             nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent);
@@ -540,12 +647,16 @@ private:
     ssize_t findBatch(int32_t deviceId, int32_t source) const;
     ssize_t findTouchState(int32_t deviceId, int32_t source) const;
 
+    nsecs_t getConsumeTime(uint32_t seq) const;
+    void popConsumeTime(uint32_t seq);
     status_t sendUnchainedFinishedSignal(uint32_t seq, bool handled);
 
     static void rewriteMessage(TouchState& state, InputMessage& msg);
     static void initializeKeyEvent(KeyEvent* event, const InputMessage* msg);
     static void initializeMotionEvent(MotionEvent* event, const InputMessage* msg);
     static void initializeFocusEvent(FocusEvent* event, const InputMessage* msg);
+    static void initializeCaptureEvent(CaptureEvent* event, const InputMessage* msg);
+    static void initializeDragEvent(DragEvent* event, const InputMessage* msg);
     static void addSample(MotionEvent* event, const InputMessage* msg);
     static bool canAddSample(const Batch& batch, const InputMessage* msg);
     static ssize_t findSampleNoLaterThan(const Batch& batch, nsecs_t time);

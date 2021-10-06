@@ -537,6 +537,30 @@ android_dataspace GetNativeDataspace(VkColorSpaceKHR colorspace) {
     }
 }
 
+int get_min_buffer_count(ANativeWindow* window,
+                         uint32_t* out_min_buffer_count) {
+    constexpr int kExtraBuffers = 2;
+
+    int err;
+    int min_undequeued_buffers;
+    err = window->query(window, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
+                        &min_undequeued_buffers);
+    if (err != android::OK || min_undequeued_buffers < 0) {
+        ALOGE(
+            "NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS query failed: %s (%d) "
+            "value=%d",
+            strerror(-err), err, min_undequeued_buffers);
+        if (err == android::OK) {
+            err = android::UNKNOWN_ERROR;
+        }
+        return err;
+    }
+
+    *out_min_buffer_count =
+        static_cast<uint32_t>(min_undequeued_buffers + kExtraBuffers);
+    return android::OK;
+}
+
 }  // anonymous namespace
 
 VKAPI_ATTR
@@ -848,15 +872,13 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
 
     int err;
     int query_value;
+    uint32_t min_buffer_count;
     ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
 
-    err = window->query(window, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &query_value);
-    if (err != android::OK || query_value < 0) {
-        ALOGE("NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS query failed: %s (%d) value=%d",
-              strerror(-err), err, query_value);
+    err = get_min_buffer_count(window, &min_buffer_count);
+    if (err != android::OK) {
         return VK_ERROR_SURFACE_LOST_KHR;
     }
-    uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
 
     err = window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT, &query_value);
     if (err != android::OK || query_value < 0) {
@@ -867,16 +889,15 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
     uint32_t max_buffer_count = static_cast<uint32_t>(query_value);
 
     std::vector<VkPresentModeKHR> present_modes;
-    if (min_undequeued_buffers + 1 < max_buffer_count)
+    if (min_buffer_count < max_buffer_count)
         present_modes.push_back(VK_PRESENT_MODE_MAILBOX_KHR);
     present_modes.push_back(VK_PRESENT_MODE_FIFO_KHR);
 
     VkPhysicalDevicePresentationPropertiesANDROID present_properties;
-    if (QueryPresentationProperties(pdev, &present_properties)) {
-        if (present_properties.sharedImage) {
-            present_modes.push_back(VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR);
-            present_modes.push_back(VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR);
-        }
+    QueryPresentationProperties(pdev, &present_properties);
+    if (present_properties.sharedImage) {
+        present_modes.push_back(VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR);
+        present_modes.push_back(VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR);
     }
 
     uint32_t num_modes = uint32_t(present_modes.size());
@@ -961,7 +982,6 @@ VkResult GetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice,
                   strerror(-err), err);
         }
 
-        // TODO(b/143294545): Return something better than "whole window"
         pRects[0].offset.x = 0;
         pRects[0].offset.y = 0;
         pRects[0].extent = VkExtent2D{static_cast<uint32_t>(width),
@@ -1190,19 +1210,14 @@ VkResult CreateSwapchainKHR(VkDevice device,
         }
     }
 
-    int query_value;
-    err = window->query(window, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
-                        &query_value);
-    if (err != android::OK || query_value < 0) {
-        ALOGE("window->query failed: %s (%d) value=%d", strerror(-err), err,
-              query_value);
+    uint32_t min_buffer_count;
+    err = get_min_buffer_count(window, &min_buffer_count);
+    if (err != android::OK) {
         return VK_ERROR_SURFACE_LOST_KHR;
     }
-    uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
+
     uint32_t num_images =
-        (swap_interval ? create_info->minImageCount
-                       : std::max(3u, create_info->minImageCount)) -
-        1 + min_undequeued_buffers;
+        std::max(min_buffer_count, create_info->minImageCount);
 
     // Lower layer insists that we have at least two buffers. This is wasteful
     // and we'd like to relax it in the shared case, but not all the pieces are

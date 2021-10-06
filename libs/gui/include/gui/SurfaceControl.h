@@ -20,7 +20,6 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
 #include <utils/threads.h>
 
@@ -38,14 +37,19 @@ namespace android {
 class IGraphicBufferProducer;
 class Surface;
 class SurfaceComposerClient;
+class BLASTBufferQueue;
 
 // ---------------------------------------------------------------------------
 
 class SurfaceControl : public RefBase
 {
 public:
-    static sp<SurfaceControl> readFromParcel(const Parcel* parcel);
-    void writeToParcel(Parcel* parcel);
+    static status_t readFromParcel(const Parcel& parcel, sp<SurfaceControl>* outSurfaceControl);
+    status_t writeToParcel(Parcel& parcel);
+
+    static status_t readNullableFromParcel(const Parcel& parcel,
+                                           sp<SurfaceControl>* outSurfaceControl);
+    static status_t writeNullableToParcel(Parcel& parcel, const sp<SurfaceControl>& surfaceControl);
 
     static bool isValid(const sp<SurfaceControl>& surface) {
         return (surface != nullptr) && surface->isValid();
@@ -67,11 +71,13 @@ public:
     static status_t writeSurfaceToParcel(
             const sp<SurfaceControl>& control, Parcel* parcel);
 
-    sp<Surface> getSurface() const;
-    sp<Surface> createSurface() const;
+    sp<Surface> getSurface();
+    sp<Surface> createSurface();
     sp<IBinder> getHandle() const;
+    sp<IBinder> getLayerStateHandle() const;
+    int32_t getLayerId() const;
 
-    sp<IGraphicBufferProducer> getIGraphicBufferProducer() const;
+    sp<IGraphicBufferProducer> getIGraphicBufferProducer();
 
     status_t clearLayerFrameStats() const;
     status_t getLayerFrameStats(FrameStats* outStats) const;
@@ -81,11 +87,16 @@ public:
     uint32_t getTransformHint() const;
 
     void setTransformHint(uint32_t hint);
+    void updateDefaultBufferSize(uint32_t width, uint32_t height);
 
     explicit SurfaceControl(const sp<SurfaceControl>& other);
 
     SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
-                   const sp<IGraphicBufferProducer>& gbp, uint32_t transformHint = 0);
+                   const sp<IGraphicBufferProducer>& gbp, int32_t layerId,
+                   uint32_t width = 0, uint32_t height = 0, PixelFormat format = 0,
+                   uint32_t transformHint = 0, uint32_t flags = 0);
+
+    sp<SurfaceControl> getParentingLayer();
 
 private:
     // can't be copied
@@ -97,7 +108,7 @@ private:
 
     ~SurfaceControl();
 
-    sp<Surface> generateSurfaceLocked() const;
+    sp<Surface> generateSurfaceLocked();
     status_t validate() const;
 
     sp<SurfaceComposerClient>   mClient;
@@ -105,7 +116,14 @@ private:
     sp<IGraphicBufferProducer>  mGraphicBufferProducer;
     mutable Mutex               mLock;
     mutable sp<Surface>         mSurfaceData;
+    mutable sp<BLASTBufferQueue> mBbq;
+    mutable sp<SurfaceControl> mBbqChild;
+    int32_t mLayerId;
     uint32_t mTransformHint;
+    uint32_t mWidth;
+    uint32_t mHeight;
+    PixelFormat mFormat;
+    uint32_t mCreateFlags;
 };
 
 }; // namespace android

@@ -426,33 +426,6 @@ static bool prepare_app_profile_dir(const std::string& packageName, int32_t appI
     return true;
 }
 
-binder::Status InstalldNativeService::createAppDataBatched(
-        const std::optional<std::vector<std::optional<std::string>>>& uuids,
-        const std::optional<std::vector<std::optional<std::string>>>& packageNames,
-        int32_t userId, int32_t flags, const std::vector<int32_t>& appIds,
-        const std::vector<std::string>& seInfos, const std::vector<int32_t>& targetSdkVersions,
-        int64_t* _aidl_return) {
-    ENFORCE_UID(AID_SYSTEM);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
-
-    ATRACE_BEGIN("createAppDataBatched");
-    binder::Status ret;
-    for (size_t i = 0; i < uuids->size(); i++) {
-        std::optional<std::string> packageName = packageNames->at(i);
-        if (!packageName) {
-            continue;
-        }
-        ret = createAppData(uuids->at(i), *packageName, userId, flags, appIds[i],
-                seInfos[i], targetSdkVersions[i], _aidl_return);
-        if (!ret.isOk()) {
-            ATRACE_END();
-            return ret;
-        }
-    }
-    ATRACE_END();
-    return ok();
-}
-
 binder::Status InstalldNativeService::createAppData(const std::optional<std::string>& uuid,
         const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
         const std::string& seInfo, int32_t targetSdkVersion, int64_t* _aidl_return) {
@@ -531,6 +504,38 @@ binder::Status InstalldNativeService::createAppData(const std::optional<std::str
             return error("Failed to prepare profiles for " + packageName);
         }
     }
+    return ok();
+}
+
+
+binder::Status InstalldNativeService::createAppData(
+        const android::os::CreateAppDataArgs& args,
+        android::os::CreateAppDataResult* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    int64_t ceDataInode = -1;
+    auto status = createAppData(args.uuid, args.packageName, args.userId, args.flags, args.appId,
+                                args.seInfo, args.targetSdkVersion, &ceDataInode);
+    _aidl_return->ceDataInode = ceDataInode;
+    _aidl_return->exceptionCode = status.exceptionCode();
+    _aidl_return->exceptionMessage = status.exceptionMessage();
+    return ok();
+}
+
+binder::Status InstalldNativeService::createAppDataBatched(
+        const std::vector<android::os::CreateAppDataArgs>& args,
+        std::vector<android::os::CreateAppDataResult>* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    std::vector<android::os::CreateAppDataResult> results;
+    for (auto arg : args) {
+        android::os::CreateAppDataResult result;
+        createAppData(arg, &result);
+        results.push_back(result);
+    }
+    *_aidl_return = results;
     return ok();
 }
 
@@ -2204,9 +2209,6 @@ binder::Status InstalldNativeService::getExternalSize(const std::optional<std::s
         auto obbPath = StringPrintf("%s/Android/obb",
                 create_data_media_path(uuid_, userId).c_str());
         calculate_tree_size(obbPath, &obbSize);
-        if (!(flags & FLAG_USE_QUOTA)) {
-            totalSize -= obbSize;
-        }
         ATRACE_END();
     }
 
@@ -2258,7 +2260,7 @@ binder::Status InstalldNativeService::getAppCrates(
 #if CRATE_DEBUG
     LOG(WARNING) << "retVector.size() =" << retVector.size();
     for (auto& item : retVector) {
-        CrateManager::dump(item);
+        CrateManager::dump(*item);
     }
 #endif
 
@@ -2290,7 +2292,7 @@ binder::Status InstalldNativeService::getUserCrates(
         if (cratedFolder == nullptr) {
             return;
         }
-        retVector->push_back(std::move(crateMetadata));
+        retVector.push_back(std::move(crateMetadata));
     };
 
     std::function<void(FTSENT*)> onHandingPackage = [&](FTSENT* packageDir) -> void {
@@ -2302,7 +2304,7 @@ binder::Status InstalldNativeService::getUserCrates(
 #if CRATE_DEBUG
     LOG(DEBUG) << "retVector.size() =" << retVector.size();
     for (auto& item : retVector) {
-        CrateManager::dump(item);
+        CrateManager::dump(*item);
     }
 #endif
 

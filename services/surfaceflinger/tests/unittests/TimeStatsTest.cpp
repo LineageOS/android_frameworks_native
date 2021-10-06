@@ -17,15 +17,16 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wextra"
 
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
 #include <TimeStats/TimeStats.h>
-#include <android/util/ProtoOutputStream.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <log/log.h>
+#include <timestatsatomsproto/TimeStatsAtomsProtoHeader.h>
 #include <utils/String16.h>
 #include <utils/Vector.h>
 
@@ -47,20 +48,33 @@ using testing::AnyNumber;
 using testing::Contains;
 using testing::HasSubstr;
 using testing::InSequence;
+using testing::Not;
 using testing::SizeIs;
 using testing::StrEq;
 using testing::UnorderedElementsAre;
 
 using PowerMode = hardware::graphics::composer::V2_4::IComposerClient::PowerMode;
+using SurfaceflingerStatsLayerInfo = android::surfaceflinger::SurfaceflingerStatsLayerInfo;
+using SurfaceflingerStatsLayerInfoWrapper =
+        android::surfaceflinger::SurfaceflingerStatsLayerInfoWrapper;
 
 // clang-format off
-#define FMT_PROTO          true
-#define FMT_STRING         false
-#define LAYER_ID_0         0
-#define LAYER_ID_1         1
-#define LAYER_ID_INVALID   -1
-#define NUM_LAYERS         1
-#define NUM_LAYERS_INVALID "INVALID"
+#define FMT_PROTO             true
+#define FMT_STRING            false
+#define LAYER_ID_0            0
+#define LAYER_ID_1            1
+#define UID_0                 123
+#define REFRESH_RATE_0        61
+#define RENDER_RATE_0         31
+#define REFRESH_RATE_BUCKET_0 60
+#define RENDER_RATE_BUCKET_0  30
+#define LAYER_ID_INVALID      -1
+#define NUM_LAYERS            1
+#define NUM_LAYERS_INVALID    "INVALID"
+
+const constexpr Fps kRefreshRate0 = Fps(static_cast<float>(REFRESH_RATE_0));
+const constexpr Fps kRenderRate0 = Fps(static_cast<float>(RENDER_RATE_0));
+static constexpr int32_t kGameMode = TimeStatsHelper::GameModeUnsupported;
 
 enum InputCommand : int32_t {
     ENABLE                 = 0,
@@ -132,57 +146,23 @@ public:
 
     std::string inputCommand(InputCommand cmd, bool useProto);
 
-    void setTimeStamp(TimeStamp type, int32_t id, uint64_t frameNumber, nsecs_t ts);
+    void setTimeStamp(TimeStamp type, int32_t id, uint64_t frameNumber, nsecs_t ts,
+                      TimeStats::SetFrameRateVote frameRateVote, int32_t gameMode);
 
     int32_t genRandomInt32(int32_t begin, int32_t end);
 
     template <size_t N>
     void insertTimeRecord(const TimeStamp (&sequence)[N], int32_t id, uint64_t frameNumber,
-                          nsecs_t ts) {
+                          nsecs_t ts, TimeStats::SetFrameRateVote frameRateVote = {},
+                          int32_t gameMode = kGameMode) {
         for (size_t i = 0; i < N; i++, ts += 1000000) {
-            setTimeStamp(sequence[i], id, frameNumber, ts);
+            setTimeStamp(sequence[i], id, frameNumber, ts, frameRateVote, gameMode);
         }
     }
 
     std::mt19937 mRandomEngine = std::mt19937(std::random_device()());
-
-    class FakeStatsEventDelegate : public impl::TimeStats::StatsEventDelegate {
-    public:
-        FakeStatsEventDelegate() = default;
-        ~FakeStatsEventDelegate() override = default;
-
-        struct AStatsEvent* addStatsEventToPullData(AStatsEventList*) override {
-            return mEvent;
-        }
-        void setStatsPullAtomCallback(int32_t atom_tag, AStatsManager_PullAtomMetadata*,
-                                      AStatsManager_PullAtomCallback callback,
-                                      void* cookie) override {
-            mAtomTags.push_back(atom_tag);
-            mCallback = callback;
-            mCookie = cookie;
-        }
-
-        AStatsManager_PullAtomCallbackReturn makePullAtomCallback(int32_t atom_tag, void* cookie) {
-            return (*mCallback)(atom_tag, nullptr, cookie);
-        }
-
-        MOCK_METHOD1(clearStatsPullAtomCallback, void(int32_t));
-        MOCK_METHOD2(statsEventSetAtomId, void(AStatsEvent*, uint32_t));
-        MOCK_METHOD2(statsEventWriteInt32, void(AStatsEvent*, int32_t));
-        MOCK_METHOD2(statsEventWriteInt64, void(AStatsEvent*, int64_t));
-        MOCK_METHOD2(statsEventWriteString8, void(AStatsEvent*, const char*));
-        MOCK_METHOD3(statsEventWriteByteArray, void(AStatsEvent*, const uint8_t*, size_t));
-        MOCK_METHOD1(statsEventBuild, void(AStatsEvent*));
-
-        AStatsEvent* mEvent = AStatsEvent_obtain();
-        std::vector<int32_t> mAtomTags;
-        AStatsManager_PullAtomCallback mCallback = nullptr;
-        void* mCookie = nullptr;
-    };
-    FakeStatsEventDelegate* mDelegate = new FakeStatsEventDelegate;
     std::unique_ptr<TimeStats> mTimeStats =
-            std::make_unique<impl::TimeStats>(std::unique_ptr<FakeStatsEventDelegate>(mDelegate),
-                                              std::nullopt, std::nullopt);
+            std::make_unique<impl::TimeStats>(std::nullopt, std::nullopt);
 };
 
 std::string TimeStatsTest::inputCommand(InputCommand cmd, bool useProto) {
@@ -224,10 +204,12 @@ static std::string genLayerName(int32_t layerId) {
     return (layerId < 0 ? "PopupWindow:b54fcd1#0" : "com.example.fake#") + std::to_string(layerId);
 }
 
-void TimeStatsTest::setTimeStamp(TimeStamp type, int32_t id, uint64_t frameNumber, nsecs_t ts) {
+void TimeStatsTest::setTimeStamp(TimeStamp type, int32_t id, uint64_t frameNumber, nsecs_t ts,
+                                 TimeStats::SetFrameRateVote frameRateVote, int32_t gameMode) {
     switch (type) {
         case TimeStamp::POST:
-            ASSERT_NO_FATAL_FAILURE(mTimeStats->setPostTime(id, frameNumber, genLayerName(id), ts));
+            ASSERT_NO_FATAL_FAILURE(mTimeStats->setPostTime(id, frameNumber, genLayerName(id),
+                                                            UID_0, ts, gameMode));
             break;
         case TimeStamp::ACQUIRE:
             ASSERT_NO_FATAL_FAILURE(mTimeStats->setAcquireTime(id, frameNumber, ts));
@@ -243,11 +225,15 @@ void TimeStatsTest::setTimeStamp(TimeStamp type, int32_t id, uint64_t frameNumbe
             ASSERT_NO_FATAL_FAILURE(mTimeStats->setDesiredTime(id, frameNumber, ts));
             break;
         case TimeStamp::PRESENT:
-            ASSERT_NO_FATAL_FAILURE(mTimeStats->setPresentTime(id, frameNumber, ts));
+            ASSERT_NO_FATAL_FAILURE(mTimeStats->setPresentTime(id, frameNumber, ts, kRefreshRate0,
+                                                               kRenderRate0, frameRateVote,
+                                                               gameMode));
             break;
         case TimeStamp::PRESENT_FENCE:
-            ASSERT_NO_FATAL_FAILURE(
-                    mTimeStats->setPresentFence(id, frameNumber, std::make_shared<FenceTime>(ts)));
+            ASSERT_NO_FATAL_FAILURE(mTimeStats->setPresentFence(id, frameNumber,
+                                                                std::make_shared<FenceTime>(ts),
+                                                                kRefreshRate0, kRenderRate0,
+                                                                frameRateVote, gameMode));
             break;
         default:
             ALOGD("Invalid timestamp type");
@@ -261,21 +247,6 @@ int32_t TimeStatsTest::genRandomInt32(int32_t begin, int32_t end) {
 
 TEST_F(TimeStatsTest, disabledByDefault) {
     ASSERT_FALSE(mTimeStats->isEnabled());
-}
-
-TEST_F(TimeStatsTest, setsCallbacksAfterBoot) {
-    mTimeStats->onBootFinished();
-    EXPECT_THAT(mDelegate->mAtomTags,
-                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
-}
-
-TEST_F(TimeStatsTest, clearsCallbacksOnDestruction) {
-    EXPECT_CALL(*mDelegate,
-                clearStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO));
-    EXPECT_CALL(*mDelegate,
-                clearStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO));
-    mTimeStats.reset();
 }
 
 TEST_F(TimeStatsTest, canEnableAndDisableTimeStats) {
@@ -349,6 +320,147 @@ TEST_F(TimeStatsTest, canIncreaseBadDesiredPresent) {
     EXPECT_THAT(result, HasSubstr(expectedResult));
 }
 
+TEST_F(TimeStatsTest, canIncreaseJankyFramesForLayer) {
+    // this stat is not in the proto so verify by checking the string dump
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::SurfaceFlingerCpuDeadlineMissed, 1, 2,
+                                      3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::SurfaceFlingerGpuDeadlineMissed, 1, 2,
+                                      3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::DisplayHAL, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::AppDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::SurfaceFlingerScheduling, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::PredictionError, 1, 2, 3});
+    mTimeStats->incrementJankyFrames(
+            {kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0), kGameMode,
+             JankType::AppDeadlineMissed | JankType::BufferStuffing, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::None, 1, 2, 3});
+
+    const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+    std::string expectedResult =
+            "displayRefreshRate = " + std::to_string(REFRESH_RATE_BUCKET_0) + " fps";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "renderRate = " + std::to_string(RENDER_RATE_BUCKET_0) + " fps";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "totalTimelineFrames = " + std::to_string(8);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "jankyFrames = " + std::to_string(7);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongCpuJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongGpuJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfUnattributedJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appUnattributedJankyFrames = " + std::to_string(2);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfSchedulingJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfPredictionErrorJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appBufferStuffingJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+}
+
+TEST_F(TimeStatsTest, canCaptureSetFrameRateVote) {
+    // this stat is not in the proto so verify by checking the string dump
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+
+    const auto frameRate60 = TimeStats::SetFrameRateVote{
+            .frameRate = 60.0f,
+            .frameRateCompatibility = TimeStats::SetFrameRateVote::FrameRateCompatibility::Default,
+            .seamlessness = TimeStats::SetFrameRateVote::Seamlessness::ShouldBeSeamless,
+    };
+    const auto frameRate90 = TimeStats::SetFrameRateVote{
+            .frameRate = 90.0f,
+            .frameRateCompatibility =
+                    TimeStats::SetFrameRateVote::FrameRateCompatibility::ExactOrMultiple,
+            .seamlessness = TimeStats::SetFrameRateVote::Seamlessness::NotRequired,
+    };
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000, frameRate60);
+    std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+    std::string expectedResult = "frameRate = 60.00";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "frameRateCompatibility = Default";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "seamlessness = ShouldBeSeamless";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 3, 3000000, frameRate90);
+    result = inputCommand(InputCommand::DUMP_ALL, FMT_STRING);
+    expectedResult = "frameRate = 90.00";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "frameRateCompatibility = ExactOrMultiple";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "seamlessness = NotRequired";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+
+    insertTimeRecord(NORMAL_SEQUENCE_2, LAYER_ID_0, 4, 4000000, frameRate60);
+    result = inputCommand(InputCommand::DUMP_ALL, FMT_STRING);
+    expectedResult = "frameRate = 60.00";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "frameRateCompatibility = Default";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "seamlessness = ShouldBeSeamless";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+}
+
+TEST_F(TimeStatsTest, canCaptureSetFrameRateVoteAfterZeroForLayer) {
+    // this stat is not in the proto so verify by checking the string dump
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+
+    const auto frameRate90 = TimeStats::SetFrameRateVote{
+            .frameRate = 90.0f,
+            .frameRateCompatibility =
+                    TimeStats::SetFrameRateVote::FrameRateCompatibility::ExactOrMultiple,
+            .seamlessness = TimeStats::SetFrameRateVote::Seamlessness::NotRequired,
+    };
+    const auto frameRateDefault = TimeStats::SetFrameRateVote{
+            .frameRate = 0.0f,
+            .frameRateCompatibility = TimeStats::SetFrameRateVote::FrameRateCompatibility::Default,
+            .seamlessness = TimeStats::SetFrameRateVote::Seamlessness::ShouldBeSeamless,
+    };
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000, frameRate90);
+    std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+    std::string expectedResult = "frameRate = 90.00";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "frameRateCompatibility = ExactOrMultiple";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "seamlessness = NotRequired";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 3, 3000000, frameRateDefault);
+    result = inputCommand(InputCommand::DUMP_ALL, FMT_STRING);
+    expectedResult = "frameRate = 90.00";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "frameRateCompatibility = ExactOrMultiple";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "seamlessness = NotRequired";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+
+    insertTimeRecord(NORMAL_SEQUENCE_2, LAYER_ID_0, 4, 4000000, frameRateDefault);
+    result = inputCommand(InputCommand::DUMP_ALL, FMT_STRING);
+    expectedResult = "frameRate = 90.00";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "frameRateCompatibility = ExactOrMultiple";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "seamlessness = NotRequired";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+}
+
 TEST_F(TimeStatsTest, canIncreaseClientCompositionReusedFrames) {
     // this stat is not in the proto so verify by checking the string dump
     constexpr size_t CLIENT_COMPOSITION_REUSED_FRAMES = 2;
@@ -397,14 +509,10 @@ TEST_F(TimeStatsTest, canIncreaseCompositionStrategyChanges) {
 TEST_F(TimeStatsTest, canAverageFrameDuration) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
     mTimeStats->setPowerMode(PowerMode::ON);
-    mTimeStats
-            ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count(),
-                                  std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
-                                          .count());
-    mTimeStats
-            ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count(),
-                                  std::chrono::duration_cast<std::chrono::nanoseconds>(16ms)
-                                          .count());
+    mTimeStats->recordFrameDuration(std::chrono::nanoseconds(1ms).count(),
+                                    std::chrono::nanoseconds(6ms).count());
+    mTimeStats->recordFrameDuration(std::chrono::nanoseconds(1ms).count(),
+                                    std::chrono::nanoseconds(16ms).count());
 
     const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
     EXPECT_THAT(result, HasSubstr("averageFrameDuration = 10.000 ms"));
@@ -412,22 +520,19 @@ TEST_F(TimeStatsTest, canAverageFrameDuration) {
 
 TEST_F(TimeStatsTest, canAverageRenderEngineTimings) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
-    mTimeStats->recordRenderEngineDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms)
-                                                   .count(),
+    mTimeStats->recordRenderEngineDuration(std::chrono::nanoseconds(1ms).count(),
                                            std::make_shared<FenceTime>(
                                                    std::chrono::duration_cast<
                                                            std::chrono::nanoseconds>(3ms)
                                                            .count()));
 
-    mTimeStats->recordRenderEngineDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(4ms)
-                                                   .count(),
-                                           std::chrono::duration_cast<std::chrono::nanoseconds>(8ms)
-                                                   .count());
+    mTimeStats->recordRenderEngineDuration(std::chrono::nanoseconds(4ms).count(),
+                                           std::chrono::nanoseconds(8ms).count());
 
     // Push a fake present fence to trigger flushing the RenderEngine timings.
     mTimeStats->setPowerMode(PowerMode::ON);
-    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count()));
+    mTimeStats->setPresentFenceGlobal(
+            std::make_shared<FenceTime>(std::chrono::nanoseconds(1ms).count()));
 
     const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
     EXPECT_THAT(result, HasSubstr("averageRenderEngineTiming = 3.000 ms"));
@@ -466,15 +571,11 @@ TEST_F(TimeStatsTest, canInsertGlobalFrameDuration) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
     mTimeStats->setPowerMode(PowerMode::OFF);
-    mTimeStats
-            ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count(),
-                                  std::chrono::duration_cast<std::chrono::nanoseconds>(5ms)
-                                          .count());
+    mTimeStats->recordFrameDuration(std::chrono::nanoseconds(1ms).count(),
+                                    std::chrono::nanoseconds(5ms).count());
     mTimeStats->setPowerMode(PowerMode::ON);
-    mTimeStats
-            ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(3ms).count(),
-                                  std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
-                                          .count());
+    mTimeStats->recordFrameDuration(std::chrono::nanoseconds(3ms).count(),
+                                    std::chrono::nanoseconds(6ms).count());
 
     SFTimeStatsGlobalProto globalProto;
     ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
@@ -488,17 +589,14 @@ TEST_F(TimeStatsTest, canInsertGlobalFrameDuration) {
 TEST_F(TimeStatsTest, canInsertGlobalRenderEngineTiming) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
-    mTimeStats->recordRenderEngineDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms)
-                                                   .count(),
+    mTimeStats->recordRenderEngineDuration(std::chrono::nanoseconds(1ms).count(),
                                            std::make_shared<FenceTime>(
                                                    std::chrono::duration_cast<
                                                            std::chrono::nanoseconds>(3ms)
                                                            .count()));
 
-    mTimeStats->recordRenderEngineDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(4ms)
-                                                   .count(),
-                                           std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
-                                                   .count());
+    mTimeStats->recordRenderEngineDuration(std::chrono::nanoseconds(4ms).count(),
+                                           std::chrono::nanoseconds(6ms).count());
 
     // First verify that flushing RenderEngine durations did not occur yet.
     SFTimeStatsGlobalProto preFlushProto;
@@ -507,8 +605,8 @@ TEST_F(TimeStatsTest, canInsertGlobalRenderEngineTiming) {
 
     // Push a fake present fence to trigger flushing the RenderEngine timings.
     mTimeStats->setPowerMode(PowerMode::ON);
-    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count()));
+    mTimeStats->setPresentFenceGlobal(
+            std::make_shared<FenceTime>(std::chrono::nanoseconds(1ms).count()));
 
     // Now we can verify that RenderEngine durations were flushed now.
     SFTimeStatsGlobalProto postFlushProto;
@@ -743,14 +841,10 @@ TEST_F(TimeStatsTest, canClearTimeStats) {
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementClientCompositionFrames());
     ASSERT_NO_FATAL_FAILURE(mTimeStats->setPowerMode(PowerMode::ON));
 
-    mTimeStats
-            ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(3ms).count(),
-                                  std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
-                                          .count());
-    mTimeStats->recordRenderEngineDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(4ms)
-                                                   .count(),
-                                           std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
-                                                   .count());
+    mTimeStats->recordFrameDuration(std::chrono::nanoseconds(3ms).count(),
+                                    std::chrono::nanoseconds(6ms).count());
+    mTimeStats->recordRenderEngineDuration(std::chrono::nanoseconds(4ms).count(),
+                                           std::chrono::nanoseconds(6ms).count());
     ASSERT_NO_FATAL_FAILURE(
             mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(1000000)));
     ASSERT_NO_FATAL_FAILURE(
@@ -779,16 +873,33 @@ TEST_F(TimeStatsTest, canClearDumpOnlyTimeStats) {
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementRefreshRateSwitches());
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementCompositionStrategyChanges());
     mTimeStats->setPowerMode(PowerMode::ON);
-    mTimeStats
-            ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count(),
-                                  std::chrono::duration_cast<std::chrono::nanoseconds>(5ms)
-                                          .count());
-    mTimeStats->recordRenderEngineDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(4ms)
-                                                   .count(),
-                                           std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
-                                                   .count());
-    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count()));
+    mTimeStats->recordFrameDuration(std::chrono::nanoseconds(1ms).count(),
+                                    std::chrono::nanoseconds(5ms).count());
+    mTimeStats->recordRenderEngineDuration(std::chrono::nanoseconds(4ms).count(),
+                                           std::chrono::nanoseconds(6ms).count());
+    mTimeStats->setPresentFenceGlobal(
+            std::make_shared<FenceTime>(std::chrono::nanoseconds(1ms).count()));
+
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::SurfaceFlingerCpuDeadlineMissed, 1, 2,
+                                      3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::SurfaceFlingerGpuDeadlineMissed, 1, 2,
+                                      3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::DisplayHAL, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::AppDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::SurfaceFlingerScheduling, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::PredictionError, 1, 2, 3});
+    mTimeStats->incrementJankyFrames(
+            {kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0), kGameMode,
+             JankType::AppDeadlineMissed | JankType::BufferStuffing, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::None, 1, 2, 3});
+
     EXPECT_TRUE(inputCommand(InputCommand::CLEAR, FMT_STRING).empty());
 
     const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
@@ -797,6 +908,24 @@ TEST_F(TimeStatsTest, canClearDumpOnlyTimeStats) {
     EXPECT_THAT(result, HasSubstr("compositionStrategyChanges = 0"));
     EXPECT_THAT(result, HasSubstr("averageFrameDuration = 0.000 ms"));
     EXPECT_THAT(result, HasSubstr("averageRenderEngineTiming = 0.000 ms"));
+    std::string expectedResult = "totalTimelineFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "jankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "sfLongCpuJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "sfLongGpuJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "sfUnattributedJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "appUnattributedJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "sfSchedulingJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "sfPredictionErrorJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "appBufferStuffingJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
 }
 
 TEST_F(TimeStatsTest, canDumpWithMaxLayers) {
@@ -843,46 +972,49 @@ TEST_F(TimeStatsTest, noInfInAverageFPS) {
 }
 
 namespace {
-std::string buildExpectedHistogramBytestring(const std::vector<int32_t>& times,
-                                             const std::vector<int32_t>& frameCounts) {
-    util::ProtoOutputStream proto;
+FrameTimingHistogram buildExpectedHistogram(const std::vector<int32_t>& times,
+                                            const std::vector<int32_t>& frameCounts) {
+    FrameTimingHistogram histogram;
     for (int i = 0; i < times.size(); i++) {
         ALOGE("Writing time: %d", times[i]);
-        proto.write(util::FIELD_TYPE_INT32 | util::FIELD_COUNT_REPEATED | 1 /* field id */,
-                    (int32_t)times[i]);
+        histogram.add_time_millis_buckets(times[i]);
         ALOGE("Writing count: %d", frameCounts[i]);
-        proto.write(util::FIELD_TYPE_INT64 | util::FIELD_COUNT_REPEATED | 2 /* field id */,
-                    (int64_t)frameCounts[i]);
+        histogram.add_frame_counts((int64_t)frameCounts[i]);
     }
-    std::string byteString;
-    proto.serializeToString(&byteString);
-    return byteString;
+    return histogram;
 }
-
-std::string dumpByteStringHex(const std::string& str) {
-    std::stringstream ss;
-    ss << std::hex;
-    for (const char& c : str) {
-        ss << (int)c << " ";
-    }
-
-    return ss.str();
-}
-
 } // namespace
 
-MATCHER_P2(BytesEq, bytes, size, "") {
-    std::string expected;
-    expected.append((const char*)bytes, size);
-    std::string actual;
-    actual.append((const char*)arg, size);
+MATCHER_P(HistogramEq, expected, "") {
+    *result_listener << "Histograms are not equal! \n";
 
-    *result_listener << "Bytes are not equal! \n";
-    *result_listener << "size: " << size << "\n";
-    *result_listener << "expected: " << dumpByteStringHex(expected).c_str() << "\n";
-    *result_listener << "actual: " << dumpByteStringHex(actual).c_str() << "\n";
+    if (arg.time_millis_buckets_size() != expected.time_millis_buckets_size()) {
+        *result_listener << "Time millis bucket are different sizes. Expected: "
+                         << expected.time_millis_buckets_size() << ". Actual "
+                         << arg.time_millis_buckets_size();
+        return false;
+    }
+    if (arg.frame_counts_size() != expected.frame_counts_size()) {
+        *result_listener << "Frame counts are different sizes. Expected: "
+                         << expected.frame_counts_size() << ". Actual " << arg.frame_counts_size();
+        return false;
+    }
 
-    return expected == actual;
+    for (int i = 0; i < expected.time_millis_buckets_size(); i++) {
+        if (arg.time_millis_buckets(i) != expected.time_millis_buckets(i)) {
+            *result_listener << "time_millis_bucket[" << i
+                             << "] is different. Expected: " << expected.time_millis_buckets(i)
+                             << ". Actual: " << arg.time_millis_buckets(i);
+            return false;
+        }
+        if (arg.frame_counts(i) != expected.frame_counts(i)) {
+            *result_listener << "frame_counts[" << i
+                             << "] is different. Expected: " << expected.frame_counts(i)
+                             << ". Actual: " << arg.frame_counts(i);
+            return false;
+        }
+    }
+    return true;
 }
 
 TEST_F(TimeStatsTest, globalStatsCallback) {
@@ -890,8 +1022,10 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     constexpr size_t MISSED_FRAMES = 4;
     constexpr size_t CLIENT_COMPOSITION_FRAMES = 3;
     constexpr size_t DISPLAY_EVENT_CONNECTIONS = 14;
+    constexpr nsecs_t DISPLAY_DEADLINE_DELTA = 1'000'000;
+    constexpr nsecs_t DISPLAY_PRESENT_JITTER = 2'000'000;
+    constexpr nsecs_t APP_DEADLINE_DELTA = 3'000'000;
 
-    mTimeStats->onBootFinished();
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
     for (size_t i = 0; i < TOTAL_FRAMES; i++) {
@@ -904,6 +1038,8 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
         mTimeStats->incrementClientCompositionFrames();
     }
 
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+
     mTimeStats->recordDisplayEventConnectionCount(DISPLAY_EVENT_CONNECTIONS);
     mTimeStats->setPowerMode(PowerMode::ON);
     mTimeStats->recordFrameDuration(1000000, 3000000);
@@ -913,42 +1049,68 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000));
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000));
 
-    EXPECT_THAT(mDelegate->mAtomTags,
-                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
-    EXPECT_NE(nullptr, mDelegate->mCallback);
-    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::SurfaceFlingerCpuDeadlineMissed,
+                                      DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER,
+                                      APP_DEADLINE_DELTA});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::SurfaceFlingerGpuDeadlineMissed,
+                                      DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER,
+                                      APP_DEADLINE_DELTA});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::DisplayHAL, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::AppDeadlineMissed,
+                                      DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER,
+                                      APP_DEADLINE_DELTA});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::SurfaceFlingerScheduling,
+                                      DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER,
+                                      APP_DEADLINE_DELTA});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::PredictionError, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA});
+    mTimeStats->incrementJankyFrames(
+            {kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0), kGameMode,
+             JankType::AppDeadlineMissed | JankType::BufferStuffing, DISPLAY_DEADLINE_DELTA,
+             DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::BufferStuffing, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      kGameMode, JankType::None, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA});
 
-    std::string expectedFrameDuration = buildExpectedHistogramBytestring({2}, {1});
-    std::string expectedRenderEngineTiming = buildExpectedHistogramBytestring({1, 2}, {1, 1});
+    std::string pulledData;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10062 /*SURFACEFLINGER_STATS_GLOBAL_INFO*/, &pulledData));
 
-    {
-        InSequence seq;
-        EXPECT_CALL(*mDelegate,
-                    statsEventSetAtomId(mDelegate->mEvent,
-                                        android::util::SURFACEFLINGER_STATS_GLOBAL_INFO));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, TOTAL_FRAMES));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, MISSED_FRAMES));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, CLIENT_COMPOSITION_FRAMES));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, _));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, 2));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, DISPLAY_EVENT_CONNECTIONS));
-        EXPECT_CALL(*mDelegate,
-                    statsEventWriteByteArray(mDelegate->mEvent,
-                                             BytesEq((const uint8_t*)expectedFrameDuration.c_str(),
-                                                     expectedFrameDuration.size()),
-                                             expectedFrameDuration.size()));
-        EXPECT_CALL(*mDelegate,
-                    statsEventWriteByteArray(mDelegate->mEvent,
-                                             BytesEq((const uint8_t*)
-                                                             expectedRenderEngineTiming.c_str(),
-                                                     expectedRenderEngineTiming.size()),
-                                             expectedRenderEngineTiming.size()));
-        EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
-    }
-    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
-              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                              mDelegate->mCookie));
+    android::surfaceflinger::SurfaceflingerStatsGlobalInfoWrapper atomList;
+    ASSERT_TRUE(atomList.ParseFromString(pulledData));
+    ASSERT_EQ(atomList.atom_size(), 1);
+    const android::surfaceflinger::SurfaceflingerStatsGlobalInfo& atom = atomList.atom(0);
+
+    EXPECT_EQ(atom.total_frames(), TOTAL_FRAMES);
+    EXPECT_EQ(atom.missed_frames(), MISSED_FRAMES);
+    EXPECT_EQ(atom.client_composition_frames(), CLIENT_COMPOSITION_FRAMES);
+    // Display on millis is not checked.
+    EXPECT_EQ(atom.animation_millis(), 2);
+    EXPECT_EQ(atom.event_connection_count(), DISPLAY_EVENT_CONNECTIONS);
+    EXPECT_THAT(atom.frame_duration(), HistogramEq(buildExpectedHistogram({2}, {1})));
+    EXPECT_THAT(atom.render_engine_timing(), HistogramEq(buildExpectedHistogram({1, 2}, {1, 1})));
+    EXPECT_EQ(atom.total_timeline_frames(), 9);
+    EXPECT_EQ(atom.total_janky_frames(), 7);
+    EXPECT_EQ(atom.total_janky_frames_with_long_cpu(), 1);
+    EXPECT_EQ(atom.total_janky_frames_with_long_gpu(), 1);
+    EXPECT_EQ(atom.total_janky_frames_sf_unattributed(), 1);
+    EXPECT_EQ(atom.total_janky_frames_app_unattributed(), 2);
+    EXPECT_EQ(atom.total_janky_frames_sf_scheduling(), 1);
+    EXPECT_EQ(atom.total_jank_frames_sf_prediction_error(), 1);
+    EXPECT_EQ(atom.total_jank_frames_app_buffer_stuffing(), 2);
+    EXPECT_EQ(atom.display_refresh_rate_bucket(), REFRESH_RATE_BUCKET_0);
+    EXPECT_THAT(atom.sf_deadline_misses(), HistogramEq(buildExpectedHistogram({1}, {7})));
+    EXPECT_THAT(atom.sf_prediction_errors(), HistogramEq(buildExpectedHistogram({2}, {7})));
+    EXPECT_EQ(atom.render_rate_bucket(), RENDER_RATE_BUCKET_0);
 
     SFTimeStatsGlobalProto globalProto;
     ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
@@ -957,127 +1119,285 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     EXPECT_EQ(0, globalProto.missed_frames());
     EXPECT_EQ(0, globalProto.client_composition_frames());
     EXPECT_EQ(0, globalProto.present_to_present_size());
+
+    // also check dump-only stats: expect that global stats are indeed dropped but there should
+    // still be stats for the layer
+    const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+    std::string expectedResult = "totalTimelineFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "totalTimelineFrames = " + std::to_string(9);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "jankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "jankyFrames = " + std::to_string(7);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongCpuJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongCpuJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongGpuJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongGpuJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfUnattributedJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfUnattributedJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appUnattributedJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appUnattributedJankyFrames = " + std::to_string(2);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfSchedulingJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfSchedulingJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfPredictionErrorJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfPredictionErrorJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appBufferStuffingJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appBufferStuffingJankyFrames = " + std::to_string(2);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
 }
 
 TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
     constexpr size_t LATE_ACQUIRE_FRAMES = 2;
     constexpr size_t BAD_DESIRED_PRESENT_FRAMES = 3;
+    constexpr nsecs_t DISPLAY_DEADLINE_DELTA = 1'000'000;
+    constexpr nsecs_t DISPLAY_PRESENT_JITTER = 2'000'000;
+    constexpr nsecs_t APP_DEADLINE_DELTA_2MS = 2'000'000;
+    constexpr nsecs_t APP_DEADLINE_DELTA_3MS = 3'000'000;
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
-    mTimeStats->onBootFinished();
-
-    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000, {},
+                     TimeStatsHelper::GameModeStandard);
     for (size_t i = 0; i < LATE_ACQUIRE_FRAMES; i++) {
         mTimeStats->incrementLatchSkipped(LAYER_ID_0, TimeStats::LatchSkipReason::LateAcquire);
     }
     for (size_t i = 0; i < BAD_DESIRED_PRESENT_FRAMES; i++) {
         mTimeStats->incrementBadDesiredPresent(LAYER_ID_0);
     }
-    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
+    const auto frameRate60 = TimeStats::SetFrameRateVote{
+            .frameRate = 60.0f,
+            .frameRateCompatibility =
+                    TimeStats::SetFrameRateVote::FrameRateCompatibility::ExactOrMultiple,
+            .seamlessness = TimeStats::SetFrameRateVote::Seamlessness::NotRequired,
+    };
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000, frameRate60,
+                     TimeStatsHelper::GameModeStandard);
 
-    EXPECT_THAT(mDelegate->mAtomTags,
-                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
-    EXPECT_NE(nullptr, mDelegate->mCallback);
-    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
+    mTimeStats->incrementJankyFrames(
+            {kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+             TimeStatsHelper::GameModeStandard, JankType::SurfaceFlingerCpuDeadlineMissed,
+             DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA_3MS});
+    mTimeStats->incrementJankyFrames(
+            {kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+             TimeStatsHelper::GameModeStandard, JankType::SurfaceFlingerGpuDeadlineMissed,
+             DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA_3MS});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      TimeStatsHelper::GameModeStandard, JankType::DisplayHAL,
+                                      DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER,
+                                      APP_DEADLINE_DELTA_3MS});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      TimeStatsHelper::GameModeStandard,
+                                      JankType::AppDeadlineMissed, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA_3MS});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      TimeStatsHelper::GameModeStandard,
+                                      JankType::SurfaceFlingerScheduling, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA_2MS});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      TimeStatsHelper::GameModeStandard, JankType::PredictionError,
+                                      DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER,
+                                      APP_DEADLINE_DELTA_2MS});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      TimeStatsHelper::GameModeStandard,
+                                      JankType::AppDeadlineMissed | JankType::BufferStuffing,
+                                      DISPLAY_DEADLINE_DELTA, APP_DEADLINE_DELTA_2MS,
+                                      APP_DEADLINE_DELTA_2MS});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      TimeStatsHelper::GameModeStandard, JankType::None,
+                                      DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER,
+                                      APP_DEADLINE_DELTA_3MS});
 
-    std::string expectedPresentToPresent = buildExpectedHistogramBytestring({1}, {1});
-    std::string expectedPostToPresent = buildExpectedHistogramBytestring({4}, {1});
-    std::string expectedAcquireToPresent = buildExpectedHistogramBytestring({3}, {1});
-    std::string expectedLatchToPresent = buildExpectedHistogramBytestring({2}, {1});
-    std::string expectedDesiredToPresent = buildExpectedHistogramBytestring({1}, {1});
-    std::string expectedPostToAcquire = buildExpectedHistogramBytestring({1}, {1});
-    {
-        InSequence seq;
-        EXPECT_CALL(*mDelegate,
-                    statsEventSetAtomId(mDelegate->mEvent,
-                                        android::util::SURFACEFLINGER_STATS_LAYER_INFO));
-        EXPECT_CALL(*mDelegate,
-                    statsEventWriteString8(mDelegate->mEvent,
-                                           StrEq(genLayerName(LAYER_ID_0).c_str())));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, 1));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, 0));
-        EXPECT_CALL(*mDelegate,
-                    statsEventWriteByteArray(mDelegate->mEvent,
-                                             BytesEq((const uint8_t*)
-                                                             expectedPresentToPresent.c_str(),
-                                                     expectedPresentToPresent.size()),
-                                             expectedPresentToPresent.size()));
-        EXPECT_CALL(*mDelegate,
-                    statsEventWriteByteArray(mDelegate->mEvent,
-                                             BytesEq((const uint8_t*)expectedPostToPresent.c_str(),
-                                                     expectedPostToPresent.size()),
-                                             expectedPostToPresent.size()));
-        EXPECT_CALL(*mDelegate,
-                    statsEventWriteByteArray(mDelegate->mEvent,
-                                             BytesEq((const uint8_t*)
-                                                             expectedAcquireToPresent.c_str(),
-                                                     expectedAcquireToPresent.size()),
-                                             expectedAcquireToPresent.size()));
-        EXPECT_CALL(*mDelegate,
-                    statsEventWriteByteArray(mDelegate->mEvent,
-                                             BytesEq((const uint8_t*)expectedLatchToPresent.c_str(),
-                                                     expectedLatchToPresent.size()),
-                                             expectedLatchToPresent.size()));
-        EXPECT_CALL(*mDelegate,
-                    statsEventWriteByteArray(mDelegate->mEvent,
-                                             BytesEq((const uint8_t*)
-                                                             expectedDesiredToPresent.c_str(),
-                                                     expectedDesiredToPresent.size()),
-                                             expectedDesiredToPresent.size()));
-        EXPECT_CALL(*mDelegate,
-                    statsEventWriteByteArray(mDelegate->mEvent,
-                                             BytesEq((const uint8_t*)expectedPostToAcquire.c_str(),
-                                                     expectedPostToAcquire.size()),
-                                             expectedPostToAcquire.size()));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, LATE_ACQUIRE_FRAMES));
-        EXPECT_CALL(*mDelegate,
-                    statsEventWriteInt64(mDelegate->mEvent, BAD_DESIRED_PRESENT_FRAMES));
-        EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
-    }
-    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
-              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
-                                              mDelegate->mCookie));
+    std::string pulledData;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));
+
+    SurfaceflingerStatsLayerInfoWrapper atomList;
+    ASSERT_TRUE(atomList.ParseFromString(pulledData));
+    ASSERT_EQ(atomList.atom_size(), 1);
+    const SurfaceflingerStatsLayerInfo& atom = atomList.atom(0);
+
+    EXPECT_EQ(atom.layer_name(), genLayerName(LAYER_ID_0));
+    EXPECT_EQ(atom.total_frames(), 1);
+    EXPECT_EQ(atom.dropped_frames(), 0);
+    EXPECT_THAT(atom.present_to_present(), HistogramEq(buildExpectedHistogram({1}, {1})));
+    EXPECT_THAT(atom.post_to_present(), HistogramEq(buildExpectedHistogram({4}, {1})));
+    EXPECT_THAT(atom.acquire_to_present(), HistogramEq(buildExpectedHistogram({3}, {1})));
+    EXPECT_THAT(atom.latch_to_present(), HistogramEq(buildExpectedHistogram({2}, {1})));
+    EXPECT_THAT(atom.desired_to_present(), HistogramEq(buildExpectedHistogram({1}, {1})));
+    EXPECT_THAT(atom.post_to_acquire(), HistogramEq(buildExpectedHistogram({1}, {1})));
+    EXPECT_EQ(atom.late_acquire_frames(), LATE_ACQUIRE_FRAMES);
+    EXPECT_EQ(atom.bad_desired_present_frames(), BAD_DESIRED_PRESENT_FRAMES);
+    EXPECT_EQ(atom.uid(), UID_0);
+    EXPECT_EQ(atom.total_timeline_frames(), 8);
+    EXPECT_EQ(atom.total_janky_frames(), 7);
+    EXPECT_EQ(atom.total_janky_frames_with_long_cpu(), 1);
+    EXPECT_EQ(atom.total_janky_frames_with_long_gpu(), 1);
+    EXPECT_EQ(atom.total_janky_frames_sf_unattributed(), 1);
+    EXPECT_EQ(atom.total_janky_frames_app_unattributed(), 2);
+    EXPECT_EQ(atom.total_janky_frames_sf_scheduling(), 1);
+    EXPECT_EQ(atom.total_jank_frames_sf_prediction_error(), 1);
+    EXPECT_EQ(atom.total_jank_frames_app_buffer_stuffing(), 1);
+    EXPECT_EQ(atom.display_refresh_rate_bucket(), REFRESH_RATE_BUCKET_0);
+    EXPECT_EQ(atom.render_rate_bucket(), RENDER_RATE_BUCKET_0);
+    EXPECT_THAT(atom.set_frame_rate_vote().frame_rate(), testing::FloatEq(frameRate60.frameRate));
+    EXPECT_EQ((int)atom.set_frame_rate_vote().frame_rate_compatibility(),
+              (int)frameRate60.frameRateCompatibility);
+    EXPECT_EQ((int)atom.set_frame_rate_vote().seamlessness(), (int)frameRate60.seamlessness);
+    EXPECT_THAT(atom.app_deadline_misses(), HistogramEq(buildExpectedHistogram({3, 2}, {4, 3})));
+    EXPECT_EQ(atom.game_mode(), SurfaceflingerStatsLayerInfo::GAME_MODE_STANDARD);
 
     SFTimeStatsGlobalProto globalProto;
     ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
 
     EXPECT_EQ(0, globalProto.stats_size());
+
+    // also check dump-only stats: expect that layer stats are indeed dropped but there should still
+    // be global stats
+    const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+    std::string expectedResult = "totalTimelineFrames = " + std::to_string(8);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "jankyFrames = " + std::to_string(7);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongCpuJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongGpuJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfUnattributedJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appUnattributedJankyFrames = " + std::to_string(2);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfSchedulingJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfPredictionErrorJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appBufferStuffingJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+
+    std::string expectedMissing = "uid = " + std::to_string(UID_0);
+    EXPECT_THAT(result, Not(HasSubstr(expectedMissing)));
+}
+
+TEST_F(TimeStatsTest, layerStatsCallback_multipleGameModes) {
+    constexpr size_t LATE_ACQUIRE_FRAMES = 2;
+    constexpr size_t BAD_DESIRED_PRESENT_FRAMES = 3;
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000, {},
+                     TimeStatsHelper::GameModeStandard);
+    for (size_t i = 0; i < LATE_ACQUIRE_FRAMES; i++) {
+        mTimeStats->incrementLatchSkipped(LAYER_ID_0, TimeStats::LatchSkipReason::LateAcquire);
+    }
+    for (size_t i = 0; i < BAD_DESIRED_PRESENT_FRAMES; i++) {
+        mTimeStats->incrementBadDesiredPresent(LAYER_ID_0);
+    }
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000, {},
+                     TimeStatsHelper::GameModeStandard);
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 3, 3000000, {},
+                     TimeStatsHelper::GameModePerformance);
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 4, 4000000, {}, TimeStatsHelper::GameModeBattery);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 5, 4000000, {}, TimeStatsHelper::GameModeBattery);
+
+    std::string pulledData;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));
+
+    SurfaceflingerStatsLayerInfoWrapper atomList;
+    ASSERT_TRUE(atomList.ParseFromString(pulledData));
+    // The first time record is never uploaded to stats.
+    ASSERT_EQ(atomList.atom_size(), 3);
+    // Layers are ordered based on the hash in LayerStatsKey. For this test, the order happens to
+    // be: 0 - Battery 1 - Performance 2 - Standard
+    const SurfaceflingerStatsLayerInfo& atom0 = atomList.atom(0);
+
+    EXPECT_EQ(atom0.layer_name(), genLayerName(LAYER_ID_0));
+    EXPECT_EQ(atom0.total_frames(), 2);
+    EXPECT_EQ(atom0.dropped_frames(), 0);
+    EXPECT_THAT(atom0.present_to_present(), HistogramEq(buildExpectedHistogram({0, 1}, {1, 1})));
+    EXPECT_THAT(atom0.post_to_present(), HistogramEq(buildExpectedHistogram({4}, {2})));
+    EXPECT_THAT(atom0.acquire_to_present(), HistogramEq(buildExpectedHistogram({3}, {2})));
+    EXPECT_THAT(atom0.latch_to_present(), HistogramEq(buildExpectedHistogram({2}, {2})));
+    EXPECT_THAT(atom0.desired_to_present(), HistogramEq(buildExpectedHistogram({1}, {2})));
+    EXPECT_THAT(atom0.post_to_acquire(), HistogramEq(buildExpectedHistogram({1}, {2})));
+    EXPECT_EQ(atom0.late_acquire_frames(), 0);
+    EXPECT_EQ(atom0.bad_desired_present_frames(), 0);
+    EXPECT_EQ(atom0.uid(), UID_0);
+    EXPECT_EQ(atom0.display_refresh_rate_bucket(), REFRESH_RATE_BUCKET_0);
+    EXPECT_EQ(atom0.render_rate_bucket(), RENDER_RATE_BUCKET_0);
+    EXPECT_EQ(atom0.game_mode(), SurfaceflingerStatsLayerInfo::GAME_MODE_BATTERY);
+
+    const SurfaceflingerStatsLayerInfo& atom1 = atomList.atom(1);
+
+    EXPECT_EQ(atom1.layer_name(), genLayerName(LAYER_ID_0));
+    EXPECT_EQ(atom1.total_frames(), 1);
+    EXPECT_EQ(atom1.dropped_frames(), 0);
+    EXPECT_THAT(atom1.present_to_present(), HistogramEq(buildExpectedHistogram({1}, {1})));
+    EXPECT_THAT(atom1.post_to_present(), HistogramEq(buildExpectedHistogram({4}, {1})));
+    EXPECT_THAT(atom1.acquire_to_present(), HistogramEq(buildExpectedHistogram({3}, {1})));
+    EXPECT_THAT(atom1.latch_to_present(), HistogramEq(buildExpectedHistogram({2}, {1})));
+    EXPECT_THAT(atom1.desired_to_present(), HistogramEq(buildExpectedHistogram({1}, {1})));
+    EXPECT_THAT(atom1.post_to_acquire(), HistogramEq(buildExpectedHistogram({1}, {1})));
+    EXPECT_EQ(atom1.late_acquire_frames(), 0);
+    EXPECT_EQ(atom1.bad_desired_present_frames(), 0);
+    EXPECT_EQ(atom1.uid(), UID_0);
+    EXPECT_EQ(atom1.display_refresh_rate_bucket(), REFRESH_RATE_BUCKET_0);
+    EXPECT_EQ(atom1.render_rate_bucket(), RENDER_RATE_BUCKET_0);
+    EXPECT_EQ(atom1.game_mode(), SurfaceflingerStatsLayerInfo::GAME_MODE_PERFORMANCE);
+
+    const SurfaceflingerStatsLayerInfo& atom2 = atomList.atom(2);
+
+    EXPECT_EQ(atom2.layer_name(), genLayerName(LAYER_ID_0));
+    EXPECT_EQ(atom2.total_frames(), 1);
+    EXPECT_EQ(atom2.dropped_frames(), 0);
+    EXPECT_THAT(atom2.present_to_present(), HistogramEq(buildExpectedHistogram({1}, {1})));
+    EXPECT_THAT(atom2.post_to_present(), HistogramEq(buildExpectedHistogram({4}, {1})));
+    EXPECT_THAT(atom2.acquire_to_present(), HistogramEq(buildExpectedHistogram({3}, {1})));
+    EXPECT_THAT(atom2.latch_to_present(), HistogramEq(buildExpectedHistogram({2}, {1})));
+    EXPECT_THAT(atom2.desired_to_present(), HistogramEq(buildExpectedHistogram({1}, {1})));
+    EXPECT_THAT(atom2.post_to_acquire(), HistogramEq(buildExpectedHistogram({1}, {1})));
+    EXPECT_EQ(atom2.late_acquire_frames(), LATE_ACQUIRE_FRAMES);
+    EXPECT_EQ(atom2.bad_desired_present_frames(), BAD_DESIRED_PRESENT_FRAMES);
+    EXPECT_EQ(atom2.uid(), UID_0);
+    EXPECT_EQ(atom2.display_refresh_rate_bucket(), REFRESH_RATE_BUCKET_0);
+    EXPECT_EQ(atom2.render_rate_bucket(), RENDER_RATE_BUCKET_0);
+    EXPECT_EQ(atom2.game_mode(), SurfaceflingerStatsLayerInfo::GAME_MODE_STANDARD);
 }
 
 TEST_F(TimeStatsTest, layerStatsCallback_pullsMultipleLayers) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
-
-    mTimeStats->onBootFinished();
 
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_1, 1, 2000000);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_1, 2, 3000000);
 
-    EXPECT_THAT(mDelegate->mAtomTags,
-                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
-    EXPECT_NE(nullptr, mDelegate->mCallback);
-    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
+    std::string pulledData;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));
 
-    EXPECT_CALL(*mDelegate,
-                statsEventSetAtomId(mDelegate->mEvent,
-                                    android::util::SURFACEFLINGER_STATS_LAYER_INFO))
-            .Times(2);
-    EXPECT_CALL(*mDelegate,
-                statsEventWriteString8(mDelegate->mEvent, StrEq(genLayerName(LAYER_ID_0).c_str())));
-    EXPECT_CALL(*mDelegate,
-                statsEventWriteString8(mDelegate->mEvent, StrEq(genLayerName(LAYER_ID_1).c_str())));
-    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
-              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
-                                              mDelegate->mCookie));
+    SurfaceflingerStatsLayerInfoWrapper atomList;
+    ASSERT_TRUE(atomList.ParseFromString(pulledData));
+    ASSERT_EQ(atomList.atom_size(), 2);
+    std::vector<std::string> actualLayerNames = {atomList.atom(0).layer_name(),
+                                                 atomList.atom(1).layer_name()};
+    EXPECT_THAT(actualLayerNames,
+                UnorderedElementsAre(genLayerName(LAYER_ID_0), genLayerName(LAYER_ID_1)));
 }
 
 TEST_F(TimeStatsTest, layerStatsCallback_pullsMultipleBuckets) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
-
-    mTimeStats->onBootFinished();
 
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
@@ -1088,80 +1408,39 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsMultipleBuckets) {
     mTimeStats->setPowerMode(PowerMode::ON);
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000));
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000));
-    EXPECT_THAT(mDelegate->mAtomTags,
-                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
-    EXPECT_NE(nullptr, mDelegate->mCallback);
-    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
 
-    EXPECT_THAT(mDelegate->mAtomTags,
-                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
-    std::string expectedPresentToPresent = buildExpectedHistogramBytestring({1, 2}, {2, 1});
-    {
-        InSequence seq;
-        EXPECT_CALL(*mDelegate,
-                    statsEventWriteByteArray(mDelegate->mEvent,
-                                             BytesEq((const uint8_t*)
-                                                             expectedPresentToPresent.c_str(),
-                                                     expectedPresentToPresent.size()),
-                                             expectedPresentToPresent.size()));
-        EXPECT_CALL(*mDelegate, statsEventWriteByteArray(mDelegate->mEvent, _, _))
-                .Times(AnyNumber());
-    }
-    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
-              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
-                                              mDelegate->mCookie));
+    std::string pulledData;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));
+
+    SurfaceflingerStatsLayerInfoWrapper atomList;
+    ASSERT_TRUE(atomList.ParseFromString(pulledData));
+    ASSERT_EQ(atomList.atom_size(), 1);
+    const SurfaceflingerStatsLayerInfo& atom = atomList.atom(0);
+    EXPECT_THAT(atom.present_to_present(), HistogramEq(buildExpectedHistogram({1, 2}, {2, 1})));
 }
 
 TEST_F(TimeStatsTest, layerStatsCallback_limitsHistogramBuckets) {
-    mDelegate = new FakeStatsEventDelegate;
-    mTimeStats =
-            std::make_unique<impl::TimeStats>(std::unique_ptr<FakeStatsEventDelegate>(mDelegate),
-                                              std::nullopt, 1);
+    mTimeStats = std::make_unique<impl::TimeStats>(std::nullopt, 1);
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
-
-    mTimeStats->onBootFinished();
 
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 3, 4000000);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 4, 5000000);
 
-    EXPECT_THAT(mDelegate->mAtomTags,
-                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
-    EXPECT_NE(nullptr, mDelegate->mCallback);
-    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
+    std::string pulledData;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));
 
-    EXPECT_THAT(mDelegate->mAtomTags,
-                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
-    std::string expectedPresentToPresent = buildExpectedHistogramBytestring({1}, {2});
-    {
-        InSequence seq;
-        EXPECT_CALL(*mDelegate,
-                    statsEventWriteByteArray(mDelegate->mEvent,
-                                             BytesEq((const uint8_t*)
-                                                             expectedPresentToPresent.c_str(),
-                                                     expectedPresentToPresent.size()),
-                                             expectedPresentToPresent.size()));
-        EXPECT_CALL(*mDelegate, statsEventWriteByteArray(mDelegate->mEvent, _, _))
-                .Times(AnyNumber());
-    }
-    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
-              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
-                                              mDelegate->mCookie));
+    SurfaceflingerStatsLayerInfoWrapper atomList;
+    ASSERT_TRUE(atomList.ParseFromString(pulledData));
+    ASSERT_EQ(atomList.atom_size(), 1);
+    const SurfaceflingerStatsLayerInfo& atom = atomList.atom(0);
+    EXPECT_THAT(atom.present_to_present(), HistogramEq(buildExpectedHistogram({1}, {2})));
 }
 
 TEST_F(TimeStatsTest, layerStatsCallback_limitsLayers) {
-    mDelegate = new FakeStatsEventDelegate;
-    mTimeStats =
-            std::make_unique<impl::TimeStats>(std::unique_ptr<FakeStatsEventDelegate>(mDelegate), 1,
-                                              std::nullopt);
+    mTimeStats = std::make_unique<impl::TimeStats>(1, std::nullopt);
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
-
-    mTimeStats->onBootFinished();
 
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
@@ -1169,21 +1448,13 @@ TEST_F(TimeStatsTest, layerStatsCallback_limitsLayers) {
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_1, 2, 3000000);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_1, 4, 5000000);
 
-    EXPECT_THAT(mDelegate->mAtomTags,
-                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
-    EXPECT_NE(nullptr, mDelegate->mCallback);
-    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
+    std::string pulledData;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));
 
-    EXPECT_CALL(*mDelegate,
-                statsEventSetAtomId(mDelegate->mEvent,
-                                    android::util::SURFACEFLINGER_STATS_LAYER_INFO))
-            .Times(1);
-    EXPECT_CALL(*mDelegate,
-                statsEventWriteString8(mDelegate->mEvent, StrEq(genLayerName(LAYER_ID_1).c_str())));
-    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
-              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
-                                              mDelegate->mCookie));
+    SurfaceflingerStatsLayerInfoWrapper atomList;
+    ASSERT_TRUE(atomList.ParseFromString(pulledData));
+    ASSERT_EQ(atomList.atom_size(), 1);
+    EXPECT_EQ(atomList.atom(0).layer_name(), genLayerName(LAYER_ID_1));
 }
 
 TEST_F(TimeStatsTest, canSurviveMonkey) {
@@ -1209,12 +1480,36 @@ TEST_F(TimeStatsTest, canSurviveMonkey) {
         TimeStamp type = static_cast<TimeStamp>(genRandomInt32(TIME_STAMP_BEGIN, TIME_STAMP_END));
         const int32_t ts = genRandomInt32(1, 1000000000);
         ALOGV("type[%d], layerId[%d], frameNumber[%d], ts[%d]", type, layerId, frameNumber, ts);
-        setTimeStamp(type, layerId, frameNumber, ts);
+        setTimeStamp(type, layerId, frameNumber, ts, {}, kGameMode);
     }
+}
+
+TEST_F(TimeStatsTest, refreshRateIsClampedToNearestBucket) {
+    // this stat is not in the proto so verify by checking the string dump
+    const auto verifyRefreshRateBucket = [&](Fps fps, int32_t bucket) {
+        EXPECT_TRUE(inputCommand(InputCommand::CLEAR, FMT_STRING).empty());
+        EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+        insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+        mTimeStats->incrementJankyFrames({fps, std::nullopt, UID_0, genLayerName(LAYER_ID_0),
+                                          kGameMode, JankType::None, 0, 0, 0});
+        const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+        std::string expectedResult = "displayRefreshRate = " + std::to_string(bucket) + " fps";
+        EXPECT_THAT(result, HasSubstr(expectedResult)) << "failed for " << fps;
+    };
+
+    verifyRefreshRateBucket(Fps(91.f), 90);
+    verifyRefreshRateBucket(Fps(89.f), 90);
+
+    verifyRefreshRateBucket(Fps(61.f), 60);
+    verifyRefreshRateBucket(Fps(59.f), 60);
+
+    verifyRefreshRateBucket(Fps(31.f), 30);
+    verifyRefreshRateBucket(Fps(29.f), 30);
 }
 
 } // namespace
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
+#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"

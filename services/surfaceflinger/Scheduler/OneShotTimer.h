@@ -16,9 +16,11 @@
 
 #pragma once
 
+#include <semaphore.h>
 #include <chrono>
 #include <condition_variable>
 #include <thread>
+#include "../Clock.h"
 
 #include <android-base/thread_annotations.h>
 
@@ -35,8 +37,9 @@ public:
     using ResetCallback = std::function<void()>;
     using TimeoutCallback = std::function<void()>;
 
-    OneShotTimer(const Interval& interval, const ResetCallback& resetCallback,
-                 const TimeoutCallback& timeoutCallback);
+    OneShotTimer(std::string name, const Interval& interval, const ResetCallback& resetCallback,
+                 const TimeoutCallback& timeoutCallback,
+                 std::unique_ptr<Clock> clock = std::make_unique<SteadyClock>());
     ~OneShotTimer();
 
     // Initializes and turns on the idle timer.
@@ -70,17 +73,21 @@ private:
     // Function that loops until the condition for stopping is met.
     void loop();
 
+    // Checks whether mResetTriggered and mStopTriggered were set and updates
+    // mState if so.
+    TimerState checkForResetAndStop(TimerState state);
+
     // Thread waiting for timer to expire.
     std::thread mThread;
 
-    // Condition used to notify mThread.
-    std::condition_variable_any mCondition;
+    // Clock object for the timer. Mocked in unit tests.
+    std::unique_ptr<Clock> mClock;
 
-    // Lock used for synchronizing the waiting thread with the application thread.
-    std::mutex mMutex;
+    // Semaphore to keep mThread synchronized.
+    sem_t mSemaphore;
 
-    // Current timer state
-    TimerState mState GUARDED_BY(mMutex) = TimerState::RESET;
+    // Timer's name.
+    std::string mName;
 
     // Interval after which timer expires.
     const Interval mInterval;
@@ -90,6 +97,12 @@ private:
 
     // Callback that happens when timer expires.
     const TimeoutCallback mTimeoutCallback;
+
+    // After removing lock guarding mState, the state can be now accessed at
+    // any time. Keep a bool if the reset or stop were requested, and occasionally
+    // check in the main loop if they were.
+    std::atomic<bool> mResetTriggered = false;
+    std::atomic<bool> mStopTriggered = false;
 };
 
 } // namespace scheduler

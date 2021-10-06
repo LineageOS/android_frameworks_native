@@ -57,7 +57,7 @@ public:
     void finishFrame(const CompositionRefreshArgs&) override;
 
     // compositionengine::Display overrides
-    const std::optional<DisplayId>& getId() const override;
+    DisplayId getId() const override;
     bool isSecure() const override;
     bool isVirtual() const override;
     void disconnect() override;
@@ -80,16 +80,12 @@ public:
 
     // Internal
     virtual void setConfiguration(const compositionengine::DisplayCreationArgs&);
-    virtual std::optional<DisplayId> maybeAllocateDisplayIdForVirtualDisplay(ui::Size,
-                                                                             ui::PixelFormat) const;
     std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(const sp<LayerFE>&) const;
-
-    // Testing
-    void setDisplayIdForTesting(std::optional<DisplayId> displayId);
 
 private:
     bool mIsVirtual = false;
-    std::optional<DisplayId> mId;
+    bool mIsDisconnected = false;
+    DisplayId mId;
     Hwc2::PowerAdvisor* mPowerAdvisor = nullptr;
 };
 

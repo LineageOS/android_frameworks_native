@@ -20,6 +20,7 @@
 
 #include <ui/PixelFormat.h>
 #include <ui/Region.h>
+#include <ui/StretchEffect.h>
 
 #include <string>
 #include <math/vec4.h>
@@ -66,6 +67,7 @@ public:
     bool mRefreshPending = false;
     bool mIsOpaque = false;
     bool mContentDirty = false;
+    StretchEffect mStretchEffect = {};
 };
 
 std::string to_string(const LayerDebugInfo& info);

@@ -66,7 +66,7 @@ void VelocityControl::move(nsecs_t eventTime, float* deltaX, float* deltaY) {
         if (deltaY) {
             mRawPosition.y += *deltaY;
         }
-        mVelocityTracker.addMovement(eventTime, BitSet32(BitSet32::valueForBit(0)), &mRawPosition);
+        mVelocityTracker.addMovement(eventTime, BitSet32(BitSet32::valueForBit(0)), {mRawPosition});
 
         float vx, vy;
         float scale = mParameters.scale;

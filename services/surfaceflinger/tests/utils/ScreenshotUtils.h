@@ -15,8 +15,10 @@
  */
 #pragma once
 
+#include <gui/SyncScreenCaptureListener.h>
 #include <ui/Rect.h>
 #include <utils/String8.h>
+#include <functional>
 #include "TransactionUtils.h"
 
 namespace android {
@@ -27,59 +29,69 @@ namespace {
 // individual pixel values for testing purposes.
 class ScreenCapture : public RefBase {
 public:
+    static status_t captureDisplay(DisplayCaptureArgs& captureArgs,
+                                   ScreenCaptureResults& captureResults) {
+        const auto sf = ComposerService::getComposerService();
+        SurfaceComposerClient::Transaction().apply(true);
+
+        captureArgs.dataspace = ui::Dataspace::V0_SRGB;
+        const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
+        status_t status = sf->captureDisplay(captureArgs, captureListener);
+
+        if (status != NO_ERROR) {
+            return status;
+        }
+        captureResults = captureListener->waitForResults();
+        return captureResults.result;
+    }
+
     static void captureScreen(std::unique_ptr<ScreenCapture>* sc) {
         captureScreen(sc, SurfaceComposerClient::getInternalDisplayToken());
     }
 
     static void captureScreen(std::unique_ptr<ScreenCapture>* sc, sp<IBinder> displayToken) {
+        DisplayCaptureArgs args;
+        args.displayToken = displayToken;
+        captureDisplay(sc, args);
+    }
+
+    static void captureDisplay(std::unique_ptr<ScreenCapture>* sc,
+                               DisplayCaptureArgs& captureArgs) {
+        ScreenCaptureResults captureResults;
+        ASSERT_EQ(NO_ERROR, captureDisplay(captureArgs, captureResults));
+        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
+    }
+
+    static status_t captureLayers(LayerCaptureArgs& captureArgs,
+                                  ScreenCaptureResults& captureResults) {
         const auto sf = ComposerService::getComposerService();
         SurfaceComposerClient::Transaction().apply(true);
 
-        sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR, sf->captureScreen(displayToken, &outBuffer, Rect(), 0, 0, false));
-        *sc = std::make_unique<ScreenCapture>(outBuffer);
+        captureArgs.dataspace = ui::Dataspace::V0_SRGB;
+        const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
+        status_t status = sf->captureLayers(captureArgs, captureListener);
+        if (status != NO_ERROR) {
+            return status;
+        }
+        captureResults = captureListener->waitForResults();
+        return captureResults.result;
     }
 
-    static void captureLayers(std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
-                              Rect crop = Rect::EMPTY_RECT, float frameScale = 1.0) {
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        SurfaceComposerClient::Transaction().apply(true);
-
-        sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR, sf->captureLayers(parentHandle, &outBuffer, crop, frameScale));
-        *sc = std::make_unique<ScreenCapture>(outBuffer);
-    }
-
-    static void captureChildLayers(std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
-                                   Rect crop = Rect::EMPTY_RECT, float frameScale = 1.0) {
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        SurfaceComposerClient::Transaction().apply(true);
-
-        sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR, sf->captureLayers(parentHandle, &outBuffer, crop, frameScale, true));
-        *sc = std::make_unique<ScreenCapture>(outBuffer);
-    }
-
-    static void captureChildLayersExcluding(
-            std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
-            std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> excludeLayers) {
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        SurfaceComposerClient::Transaction().apply(true);
-
-        sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR,
-                  sf->captureLayers(parentHandle, &outBuffer, ui::Dataspace::V0_SRGB,
-                                    ui::PixelFormat::RGBA_8888, Rect::EMPTY_RECT, excludeLayers,
-                                    1.0f, true));
-        *sc = std::make_unique<ScreenCapture>(outBuffer);
+    static void captureLayers(std::unique_ptr<ScreenCapture>* sc, LayerCaptureArgs& captureArgs) {
+        ScreenCaptureResults captureResults;
+        ASSERT_EQ(NO_ERROR, captureLayers(captureArgs, captureResults));
+        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
     }
 
     void expectColor(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
+        ASSERT_NE(nullptr, mOutBuffer);
+        ASSERT_NE(nullptr, mPixels);
         ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
         TransactionUtils::expectBufferColor(mOutBuffer, mPixels, rect, color, tolerance);
     }
 
     void expectBorder(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
+        ASSERT_NE(nullptr, mOutBuffer);
         ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
         const bool leftBorder = rect.left > 0;
         const bool topBorder = rect.top > 0;
@@ -137,6 +149,7 @@ public:
     }
 
     void checkPixel(uint32_t x, uint32_t y, uint8_t r, uint8_t g, uint8_t b) {
+        ASSERT_NE(nullptr, mOutBuffer);
         ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
         const uint8_t* pixel = mPixels + (4 * (y * mOutBuffer->getStride() + x));
         if (r != pixel[0] || g != pixel[1] || b != pixel[2]) {
@@ -147,6 +160,15 @@ public:
         }
     }
 
+    Color getPixelColor(uint32_t x, uint32_t y) {
+        if (!mOutBuffer || mOutBuffer->getPixelFormat() != HAL_PIXEL_FORMAT_RGBA_8888) {
+            return {0, 0, 0, 0};
+        }
+
+        const uint8_t* pixel = mPixels + (4 * (y * mOutBuffer->getStride() + x));
+        return {pixel[0], pixel[1], pixel[2], pixel[3]};
+    }
+
     void expectFGColor(uint32_t x, uint32_t y) { checkPixel(x, y, 195, 63, 63); }
 
     void expectBGColor(uint32_t x, uint32_t y) { checkPixel(x, y, 63, 63, 195); }
@@ -154,10 +176,14 @@ public:
     void expectChildColor(uint32_t x, uint32_t y) { checkPixel(x, y, 200, 200, 200); }
 
     explicit ScreenCapture(const sp<GraphicBuffer>& outBuffer) : mOutBuffer(outBuffer) {
-        mOutBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, reinterpret_cast<void**>(&mPixels));
+        if (mOutBuffer) {
+            mOutBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, reinterpret_cast<void**>(&mPixels));
+        }
     }
 
-    ~ScreenCapture() { mOutBuffer->unlock(); }
+    ~ScreenCapture() {
+        if (mOutBuffer) mOutBuffer->unlock();
+    }
 
 private:
     sp<GraphicBuffer> mOutBuffer;

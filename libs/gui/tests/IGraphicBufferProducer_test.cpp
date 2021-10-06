@@ -70,6 +70,9 @@ namespace {
     const int QUEUE_BUFFER_INPUT_SCALING_MODE = 0;
     const int QUEUE_BUFFER_INPUT_TRANSFORM = 0;
     const sp<Fence> QUEUE_BUFFER_INPUT_FENCE = Fence::NO_FENCE;
+    const uint32_t QUEUE_BUFFER_INPUT_STICKY_TRANSFORM = 0;
+    const bool QUEUE_BUFFER_INPUT_GET_TIMESTAMPS = 0;
+    const int QUEUE_BUFFER_INPUT_SLOT = -1;
 
     // Enums to control which IGraphicBufferProducer backend to test.
     enum IGraphicBufferProducerTestCode {
@@ -156,6 +159,9 @@ protected:
            scalingMode = QUEUE_BUFFER_INPUT_SCALING_MODE;
            transform = QUEUE_BUFFER_INPUT_TRANSFORM;
            fence = QUEUE_BUFFER_INPUT_FENCE;
+           stickyTransform = QUEUE_BUFFER_INPUT_STICKY_TRANSFORM;
+           getTimestamps = QUEUE_BUFFER_INPUT_GET_TIMESTAMPS;
+           slot = QUEUE_BUFFER_INPUT_SLOT;
         }
 
         IGraphicBufferProducer::QueueBufferInput build() {
@@ -166,7 +172,10 @@ protected:
                     crop,
                     scalingMode,
                     transform,
-                    fence);
+                    fence,
+                    stickyTransform,
+                    getTimestamps,
+                    slot);
         }
 
         QueueBufferInputBuilder& setTimestamp(int64_t timestamp) {
@@ -204,6 +213,21 @@ protected:
             return *this;
         }
 
+        QueueBufferInputBuilder& setStickyTransform(uint32_t stickyTransform) {
+            this->stickyTransform = stickyTransform;
+            return *this;
+        }
+
+        QueueBufferInputBuilder& setGetTimestamps(bool getTimestamps) {
+            this->getTimestamps = getTimestamps;
+            return *this;
+        }
+
+        QueueBufferInputBuilder& setSlot(int slot) {
+            this->slot = slot;
+            return *this;
+        }
+
     private:
         int64_t timestamp;
         bool isAutoTimestamp;
@@ -212,17 +236,17 @@ protected:
         int scalingMode;
         uint32_t transform;
         sp<Fence> fence;
+        uint32_t stickyTransform;
+        bool getTimestamps;
+        int slot;
     }; // struct QueueBufferInputBuilder
 
-    // To easily store dequeueBuffer results into containers
-    struct DequeueBufferResult {
-        int slot;
-        sp<Fence> fence;
-    };
-
-    status_t dequeueBuffer(uint32_t w, uint32_t h, uint32_t format, uint32_t usage, DequeueBufferResult* result) {
-        return mProducer->dequeueBuffer(&result->slot, &result->fence, w, h, format, usage,
-                                        nullptr, nullptr);
+    status_t dequeueBuffer(uint32_t w, uint32_t h, uint32_t format, uint32_t usage,
+                           IGraphicBufferProducer::DequeueBufferOutput* result) {
+        result->result =
+            mProducer->dequeueBuffer(&result->slot, &result->fence, w, h, format, usage,
+                                     &result->bufferAge, nullptr);
+        return result->result;
     }
 
     void setupDequeueRequestBuffer(int *slot, sp<Fence> *fence,
@@ -336,6 +360,27 @@ TEST_P(IGraphicBufferProducerTest, Query_Succeeds) {
     EXPECT_OK(mProducer->query(NATIVE_WINDOW_CONSUMER_USAGE_BITS, &value));
     EXPECT_EQ(DEFAULT_CONSUMER_USAGE_BITS, value);
 
+    { // Test the batched version
+        std::vector<int32_t> inputs = {
+                NATIVE_WINDOW_WIDTH,
+                NATIVE_WINDOW_HEIGHT,
+                NATIVE_WINDOW_FORMAT,
+                NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
+                NATIVE_WINDOW_CONSUMER_RUNNING_BEHIND,
+                NATIVE_WINDOW_CONSUMER_USAGE_BITS };
+        using QueryOutput = IGraphicBufferProducer::QueryOutput;
+        std::vector<QueryOutput> outputs;
+        EXPECT_OK(mProducer->query(inputs, &outputs));
+        EXPECT_EQ(DEFAULT_WIDTH, static_cast<uint32_t>(outputs[0].value));
+        EXPECT_EQ(DEFAULT_HEIGHT, static_cast<uint32_t>(outputs[1].value));
+        EXPECT_EQ(DEFAULT_FORMAT, outputs[2].value);
+        EXPECT_LE(0, outputs[3].value);
+        EXPECT_FALSE(outputs[4].value);
+        EXPECT_EQ(DEFAULT_CONSUMER_USAGE_BITS, outputs[5].value);
+        for (const QueryOutput& output : outputs) {
+            EXPECT_OK(output.result);
+        }
+    }
 }
 
 TEST_P(IGraphicBufferProducerTest, Query_ReturnsError) {
@@ -357,6 +402,24 @@ TEST_P(IGraphicBufferProducerTest, Query_ReturnsError) {
     EXPECT_EQ(BAD_VALUE, mProducer->query(NATIVE_WINDOW_DEFAULT_HEIGHT, &value));
     EXPECT_EQ(BAD_VALUE, mProducer->query(NATIVE_WINDOW_TRANSFORM_HINT, &value));
     // TODO: Consider documented the above enums as unsupported or make a new enum for IGBP
+
+    { // Test the batched version
+        std::vector<int32_t> inputs = {
+                -1,
+                static_cast<int32_t>(0xDEADBEEF),
+                NATIVE_WINDOW_QUERY_LAST_OFF_BY_ONE,
+                NATIVE_WINDOW_QUEUES_TO_WINDOW_COMPOSER,
+                NATIVE_WINDOW_CONCRETE_TYPE,
+                NATIVE_WINDOW_DEFAULT_WIDTH,
+                NATIVE_WINDOW_DEFAULT_HEIGHT,
+                NATIVE_WINDOW_TRANSFORM_HINT};
+        using QueryOutput = IGraphicBufferProducer::QueryOutput;
+        std::vector<QueryOutput> outputs;
+        EXPECT_OK(mProducer->query(inputs, &outputs));
+        for (const QueryOutput& output : outputs) {
+            EXPECT_EQ(BAD_VALUE, output.result);
+        }
+    }
 
     // Value was NULL
     EXPECT_EQ(BAD_VALUE, mProducer->query(NATIVE_WINDOW_FORMAT, /*value*/nullptr));
@@ -416,29 +479,113 @@ TEST_P(IGraphicBufferProducerTest, Queue_Succeeds) {
 
     // Buffer was not in the dequeued state
     EXPECT_EQ(BAD_VALUE, mProducer->queueBuffer(dequeuedSlot, input, &output));
+
+    { // Test batched methods
+        constexpr size_t BATCH_SIZE = 4;
+
+        ASSERT_OK(mProducer->setMaxDequeuedBufferCount(BATCH_SIZE));
+        // Dequeue
+        using DequeueBufferInput = IGraphicBufferProducer::DequeueBufferInput;
+        using DequeueBufferOutput = IGraphicBufferProducer::DequeueBufferOutput;
+        DequeueBufferInput dequeueInput;
+        dequeueInput.width = DEFAULT_WIDTH;
+        dequeueInput.height = DEFAULT_HEIGHT;
+        dequeueInput.format = DEFAULT_FORMAT;
+        dequeueInput.usage = TEST_PRODUCER_USAGE_BITS;
+        dequeueInput.getTimestamps = false;
+        std::vector<DequeueBufferInput> dequeueInputs(BATCH_SIZE, dequeueInput);
+        std::vector<DequeueBufferOutput> dequeueOutputs;
+        EXPECT_OK(mProducer->dequeueBuffers(dequeueInputs, &dequeueOutputs));
+        ASSERT_EQ(dequeueInputs.size(), dequeueOutputs.size());
+
+        // Request
+        std::vector<int32_t> requestInputs;
+        requestInputs.reserve(BATCH_SIZE);
+        for (const DequeueBufferOutput& dequeueOutput : dequeueOutputs) {
+            ASSERT_EQ(OK, ~IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION &
+                      dequeueOutput.result);
+            requestInputs.emplace_back(dequeueOutput.slot);
+        }
+        using RequestBufferOutput = IGraphicBufferProducer::RequestBufferOutput;
+        std::vector<RequestBufferOutput> requestOutputs;
+        EXPECT_OK(mProducer->requestBuffers(requestInputs, &requestOutputs));
+        ASSERT_EQ(requestInputs.size(), requestOutputs.size());
+        for (const RequestBufferOutput& requestOutput : requestOutputs) {
+            EXPECT_OK(requestOutput.result);
+        }
+
+        // Queue
+        using QueueBufferInput = IGraphicBufferProducer::QueueBufferInput;
+        using QueueBufferOutput = IGraphicBufferProducer::QueueBufferOutput;
+        std::vector<QueueBufferInput> queueInputs;
+        queueInputs.reserve(BATCH_SIZE);
+        for (const DequeueBufferOutput& dequeueOutput : dequeueOutputs) {
+            queueInputs.emplace_back(CreateBufferInput()).slot =
+                dequeueOutput.slot;
+        }
+        std::vector<QueueBufferOutput> queueOutputs;
+        EXPECT_OK(mProducer->queueBuffers(queueInputs, &queueOutputs));
+        ASSERT_EQ(queueInputs.size(), queueOutputs.size());
+        for (const QueueBufferOutput& queueOutput : queueOutputs) {
+            EXPECT_OK(queueOutput.result);
+        }
+
+        // Re-queue
+        EXPECT_OK(mProducer->queueBuffers(queueInputs, &queueOutputs));
+        ASSERT_EQ(queueInputs.size(), queueOutputs.size());
+        for (const QueueBufferOutput& queueOutput : queueOutputs) {
+            EXPECT_EQ(BAD_VALUE, queueOutput.result);
+        }
+    }
 }
 
 TEST_P(IGraphicBufferProducerTest, Queue_ReturnsError) {
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
 
+    using QueueBufferInput = IGraphicBufferProducer::QueueBufferInput;
+    using QueueBufferOutput = IGraphicBufferProducer::QueueBufferOutput;
     // Invalid slot number
     {
         // A generic "valid" input
-        IGraphicBufferProducer::QueueBufferInput input = CreateBufferInput();
-        IGraphicBufferProducer::QueueBufferOutput output;
+        QueueBufferInput input = CreateBufferInput();
+        QueueBufferOutput output;
 
         EXPECT_EQ(BAD_VALUE, mProducer->queueBuffer(/*slot*/-1, input, &output));
         EXPECT_EQ(BAD_VALUE, mProducer->queueBuffer(/*slot*/0xDEADBEEF, input, &output));
         EXPECT_EQ(BAD_VALUE, mProducer->queueBuffer(BufferQueue::NUM_BUFFER_SLOTS,
                                                     input, &output));
+
+        { // Test with the batched version
+            constexpr size_t BATCH_SIZE = 16;
+            input.slot = -1;
+            std::vector<QueueBufferInput> inputs(BATCH_SIZE, input);
+            std::vector<QueueBufferOutput> outputs;
+            EXPECT_OK(mProducer->queueBuffers(inputs, &outputs));
+            ASSERT_EQ(inputs.size(), outputs.size());
+            for (const QueueBufferOutput& output : outputs) {
+                EXPECT_EQ(BAD_VALUE, output.result);
+            }
+        }
     }
 
     // Slot was not in the dequeued state (all slots start out in Free state)
     {
-        IGraphicBufferProducer::QueueBufferInput input = CreateBufferInput();
-        IGraphicBufferProducer::QueueBufferOutput output;
+        QueueBufferInput input = CreateBufferInput();
+        QueueBufferOutput output;
 
         EXPECT_EQ(BAD_VALUE, mProducer->queueBuffer(/*slot*/0, input, &output));
+
+        { // Test with the batched version
+            constexpr size_t BATCH_SIZE = 16;
+            input.slot = 0;
+            std::vector<QueueBufferInput> inputs(BATCH_SIZE, input);
+            std::vector<QueueBufferOutput> outputs;
+            EXPECT_OK(mProducer->queueBuffers(inputs, &outputs));
+            ASSERT_EQ(inputs.size(), outputs.size());
+            for (const QueueBufferOutput& output : outputs) {
+                EXPECT_EQ(BAD_VALUE, output.result);
+            }
+        }
     }
 
     // Put the slot into the "dequeued" state for the rest of the test
@@ -453,10 +600,22 @@ TEST_P(IGraphicBufferProducerTest, Queue_ReturnsError) {
 
     // Slot was enqueued without requesting a buffer
     {
-        IGraphicBufferProducer::QueueBufferInput input = CreateBufferInput();
-        IGraphicBufferProducer::QueueBufferOutput output;
+        QueueBufferInput input = CreateBufferInput();
+        QueueBufferOutput output;
 
         EXPECT_EQ(BAD_VALUE, mProducer->queueBuffer(dequeuedSlot, input, &output));
+
+        { // Test with the batched version
+            constexpr size_t BATCH_SIZE = 16;
+            input.slot = dequeuedSlot;
+            std::vector<QueueBufferInput> inputs(BATCH_SIZE, input);
+            std::vector<QueueBufferOutput> outputs;
+            EXPECT_OK(mProducer->queueBuffers(inputs, &outputs));
+            ASSERT_EQ(inputs.size(), outputs.size());
+            for (const QueueBufferOutput& output : outputs) {
+                EXPECT_EQ(BAD_VALUE, output.result);
+            }
+        }
     }
 
     // Request the buffer so that the rest of the tests don't fail on earlier checks.
@@ -467,11 +626,23 @@ TEST_P(IGraphicBufferProducerTest, Queue_ReturnsError) {
     {
         sp<Fence> nullFence = nullptr;
 
-        IGraphicBufferProducer::QueueBufferInput input =
+        QueueBufferInput input =
                 QueueBufferInputBuilder().setFence(nullFence).build();
-        IGraphicBufferProducer::QueueBufferOutput output;
+        QueueBufferOutput output;
 
         EXPECT_EQ(BAD_VALUE, mProducer->queueBuffer(dequeuedSlot, input, &output));
+
+        { // Test with the batched version
+            constexpr size_t BATCH_SIZE = 16;
+            input.slot = dequeuedSlot;
+            std::vector<QueueBufferInput> inputs(BATCH_SIZE, input);
+            std::vector<QueueBufferOutput> outputs;
+            EXPECT_OK(mProducer->queueBuffers(inputs, &outputs));
+            ASSERT_EQ(inputs.size(), outputs.size());
+            for (const QueueBufferOutput& output : outputs) {
+                EXPECT_EQ(BAD_VALUE, output.result);
+            }
+        }
     }
 
     // Scaling mode was unknown
@@ -482,9 +653,33 @@ TEST_P(IGraphicBufferProducerTest, Queue_ReturnsError) {
 
         EXPECT_EQ(BAD_VALUE, mProducer->queueBuffer(dequeuedSlot, input, &output));
 
+        { // Test with the batched version
+            constexpr size_t BATCH_SIZE = 16;
+            input.slot = dequeuedSlot;
+            std::vector<QueueBufferInput> inputs(BATCH_SIZE, input);
+            std::vector<QueueBufferOutput> outputs;
+            EXPECT_OK(mProducer->queueBuffers(inputs, &outputs));
+            ASSERT_EQ(inputs.size(), outputs.size());
+            for (const QueueBufferOutput& output : outputs) {
+                EXPECT_EQ(BAD_VALUE, output.result);
+            }
+        }
+
         input = QueueBufferInputBuilder().setScalingMode(0xDEADBEEF).build();
 
         EXPECT_EQ(BAD_VALUE, mProducer->queueBuffer(dequeuedSlot, input, &output));
+
+        { // Test with the batched version
+            constexpr size_t BATCH_SIZE = 16;
+            input.slot = dequeuedSlot;
+            std::vector<QueueBufferInput> inputs(BATCH_SIZE, input);
+            std::vector<QueueBufferOutput> outputs;
+            EXPECT_OK(mProducer->queueBuffers(inputs, &outputs));
+            ASSERT_EQ(inputs.size(), outputs.size());
+            for (const QueueBufferOutput& output : outputs) {
+                EXPECT_EQ(BAD_VALUE, output.result);
+            }
+        }
     }
 
     // Crop rect is out of bounds of the buffer dimensions
@@ -495,6 +690,18 @@ TEST_P(IGraphicBufferProducerTest, Queue_ReturnsError) {
         IGraphicBufferProducer::QueueBufferOutput output;
 
         EXPECT_EQ(BAD_VALUE, mProducer->queueBuffer(dequeuedSlot, input, &output));
+
+        { // Test with the batched version
+            constexpr size_t BATCH_SIZE = 16;
+            input.slot = dequeuedSlot;
+            std::vector<QueueBufferInput> inputs(BATCH_SIZE, input);
+            std::vector<QueueBufferOutput> outputs;
+            EXPECT_OK(mProducer->queueBuffers(inputs, &outputs));
+            ASSERT_EQ(inputs.size(), outputs.size());
+            for (const QueueBufferOutput& output : outputs) {
+                EXPECT_EQ(BAD_VALUE, output.result);
+            }
+        }
     }
 
     // Abandon the buffer queue so that the last test fails
@@ -507,6 +714,18 @@ TEST_P(IGraphicBufferProducerTest, Queue_ReturnsError) {
 
         // TODO(b/73267953): Make BufferHub honor producer and consumer connection.
         EXPECT_EQ(NO_INIT, mProducer->queueBuffer(dequeuedSlot, input, &output));
+
+        { // Test with the batched version
+            constexpr size_t BATCH_SIZE = 16;
+            input.slot = dequeuedSlot;
+            std::vector<QueueBufferInput> inputs(BATCH_SIZE, input);
+            std::vector<QueueBufferOutput> outputs;
+            EXPECT_OK(mProducer->queueBuffers(inputs, &outputs));
+            ASSERT_EQ(inputs.size(), outputs.size());
+            for (const QueueBufferOutput& output : outputs) {
+                EXPECT_EQ(NO_INIT, output.result);
+            }
+        }
     }
 }
 
@@ -525,6 +744,44 @@ TEST_P(IGraphicBufferProducerTest, CancelBuffer_DoesntCrash) {
     // No return code, but at least test that it doesn't blow up...
     // TODO: add a return code
     mProducer->cancelBuffer(dequeuedSlot, dequeuedFence);
+
+    { // Test batched methods
+        constexpr size_t BATCH_SIZE = 4;
+        ASSERT_OK(mProducer->setMaxDequeuedBufferCount(BATCH_SIZE));
+
+        // Dequeue
+        using DequeueBufferInput = IGraphicBufferProducer::DequeueBufferInput;
+        using DequeueBufferOutput = IGraphicBufferProducer::DequeueBufferOutput;
+        DequeueBufferInput dequeueInput;
+        dequeueInput.width = DEFAULT_WIDTH;
+        dequeueInput.height = DEFAULT_HEIGHT;
+        dequeueInput.format = DEFAULT_FORMAT;
+        dequeueInput.usage = TEST_PRODUCER_USAGE_BITS;
+        dequeueInput.getTimestamps = false;
+        std::vector<DequeueBufferInput> dequeueInputs(BATCH_SIZE, dequeueInput);
+        std::vector<DequeueBufferOutput> dequeueOutputs;
+        EXPECT_OK(mProducer->dequeueBuffers(dequeueInputs, &dequeueOutputs));
+        ASSERT_EQ(dequeueInputs.size(), dequeueOutputs.size());
+
+        // Cancel
+        using CancelBufferInput = IGraphicBufferProducer::CancelBufferInput;
+        std::vector<CancelBufferInput> cancelInputs;
+        cancelInputs.reserve(BATCH_SIZE);
+        for (const DequeueBufferOutput& dequeueOutput : dequeueOutputs) {
+            ASSERT_EQ(OK,
+                      ~IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION &
+                      dequeueOutput.result);
+            CancelBufferInput& cancelInput = cancelInputs.emplace_back();
+            cancelInput.slot = dequeueOutput.slot;
+            cancelInput.fence = dequeueOutput.fence;
+        }
+        std::vector<status_t> cancelOutputs;
+        EXPECT_OK(mProducer->cancelBuffers(cancelInputs, &cancelOutputs));
+        ASSERT_EQ(cancelInputs.size(), cancelOutputs.size());
+        for (status_t result : cancelOutputs) {
+            EXPECT_OK(result);
+        }
+    }
 }
 
 TEST_P(IGraphicBufferProducerTest, SetMaxDequeuedBufferCount_Succeeds) {
@@ -541,11 +798,11 @@ TEST_P(IGraphicBufferProducerTest, SetMaxDequeuedBufferCount_Succeeds) {
             << "bufferCount: " << minBuffers;
 
     // Should now be able to dequeue up to minBuffers times
-    DequeueBufferResult result;
+    IGraphicBufferProducer::DequeueBufferOutput result;
     for (int i = 0; i < minBuffers; ++i) {
         EXPECT_EQ(OK, ~IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION &
                 (dequeueBuffer(DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_FORMAT,
-                              TEST_PRODUCER_USAGE_BITS, &result)))
+                               TEST_PRODUCER_USAGE_BITS, &result)))
                 << "iteration: " << i << ", slot: " << result.slot;
     }
 
@@ -557,7 +814,6 @@ TEST_P(IGraphicBufferProducerTest, SetMaxDequeuedBufferCount_Succeeds) {
     sp<GraphicBuffer> buffer;
     ASSERT_OK(mProducer->requestBuffer(result.slot, &buffer));
     ASSERT_OK(mProducer->queueBuffer(result.slot, input, &output));
-
 
     // Should now be able to dequeue up to maxBuffers times
     int dequeuedSlot = -1;
@@ -794,6 +1050,71 @@ TEST_P(IGraphicBufferProducerTest, DetachThenAttach_Succeeds) {
 
     EXPECT_OK(mProducer->attachBuffer(&slot, buffer));
     EXPECT_OK(buffer->initCheck());
+
+    ASSERT_OK(mProducer->detachBuffer(slot));
+
+    { // Test batched methods
+        constexpr size_t BATCH_SIZE = 4;
+        ASSERT_OK(mProducer->setMaxDequeuedBufferCount(BATCH_SIZE));
+
+        // Dequeue
+        using DequeueBufferInput = IGraphicBufferProducer::DequeueBufferInput;
+        using DequeueBufferOutput = IGraphicBufferProducer::DequeueBufferOutput;
+        DequeueBufferInput dequeueInput;
+        dequeueInput.width = DEFAULT_WIDTH;
+        dequeueInput.height = DEFAULT_HEIGHT;
+        dequeueInput.format = DEFAULT_FORMAT;
+        dequeueInput.usage = TEST_PRODUCER_USAGE_BITS;
+        dequeueInput.getTimestamps = false;
+        std::vector<DequeueBufferInput> dequeueInputs(BATCH_SIZE, dequeueInput);
+        std::vector<DequeueBufferOutput> dequeueOutputs;
+        EXPECT_OK(mProducer->dequeueBuffers(dequeueInputs, &dequeueOutputs));
+        ASSERT_EQ(dequeueInputs.size(), dequeueOutputs.size());
+
+        // Request
+        std::vector<int32_t> requestInputs;
+        requestInputs.reserve(BATCH_SIZE);
+        for (const DequeueBufferOutput& dequeueOutput : dequeueOutputs) {
+            ASSERT_EQ(OK, ~IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION &
+                      dequeueOutput.result);
+            requestInputs.emplace_back(dequeueOutput.slot);
+        }
+        using RequestBufferOutput = IGraphicBufferProducer::RequestBufferOutput;
+        std::vector<RequestBufferOutput> requestOutputs;
+        EXPECT_OK(mProducer->requestBuffers(requestInputs, &requestOutputs));
+        ASSERT_EQ(requestInputs.size(), requestOutputs.size());
+        for (const RequestBufferOutput& requestOutput : requestOutputs) {
+            EXPECT_OK(requestOutput.result);
+        }
+
+        // Detach
+        std::vector<int32_t> detachInputs;
+        detachInputs.reserve(BATCH_SIZE);
+        for (const DequeueBufferOutput& dequeueOutput : dequeueOutputs) {
+            detachInputs.emplace_back(dequeueOutput.slot);
+        }
+        std::vector<status_t> detachOutputs;
+        EXPECT_OK(mProducer->detachBuffers(detachInputs, &detachOutputs));
+        ASSERT_EQ(detachInputs.size(), detachOutputs.size());
+        for (status_t result : detachOutputs) {
+            EXPECT_OK(result);
+        }
+
+        // Attach
+        using AttachBufferOutput = IGraphicBufferProducer::AttachBufferOutput;
+        std::vector<sp<GraphicBuffer>> attachInputs;
+        attachInputs.reserve(BATCH_SIZE);
+        for (const RequestBufferOutput& requestOutput : requestOutputs) {
+            attachInputs.emplace_back(requestOutput.buffer);
+        }
+        std::vector<AttachBufferOutput> attachOutputs;
+        EXPECT_OK(mProducer->attachBuffers(attachInputs, &attachOutputs));
+        ASSERT_EQ(attachInputs.size(), attachOutputs.size());
+        for (const AttachBufferOutput& attachOutput : attachOutputs) {
+            EXPECT_OK(attachOutput.result);
+            EXPECT_NE(-1, attachOutput.slot);
+        }
+    }
 }
 
 #if USE_BUFFER_HUB_AS_BUFFER_QUEUE

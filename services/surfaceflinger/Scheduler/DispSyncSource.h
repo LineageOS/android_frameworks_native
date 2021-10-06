@@ -18,45 +18,47 @@
 #include <mutex>
 #include <string>
 
-#include "DispSync.h"
 #include "EventThread.h"
 #include "TracedOrdinal.h"
+#include "VSyncDispatch.h"
 
-namespace android {
+namespace android::scheduler {
+class CallbackRepeater;
 
-class DispSyncSource final : public VSyncSource, private DispSync::Callback {
+class DispSyncSource final : public VSyncSource {
 public:
-    DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset, bool traceVsync, const char* name);
+    DispSyncSource(VSyncDispatch& vSyncDispatch, std::chrono::nanoseconds workDuration,
+                   std::chrono::nanoseconds readyDuration, bool traceVsync, const char* name);
 
-    ~DispSyncSource() override = default;
+    ~DispSyncSource() override;
 
     // The following methods are implementation of VSyncSource.
     const char* getName() const override { return mName; }
     void setVSyncEnabled(bool enable) override;
     void setCallback(VSyncSource::Callback* callback) override;
-    void setPhaseOffset(nsecs_t phaseOffset) override;
+    void setDuration(std::chrono::nanoseconds workDuration,
+                     std::chrono::nanoseconds readyDuration) override;
 
     void dump(std::string&) const override;
 
 private:
-    // The following method is the implementation of the DispSync::Callback.
-    void onDispSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp) override;
+    void onVsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, nsecs_t readyTime);
 
     const char* const mName;
     TracedOrdinal<int> mValue;
 
     const bool mTraceVsync;
     const std::string mVsyncOnLabel;
-    nsecs_t mLastCallbackTime GUARDED_BY(mVsyncMutex) = 0;
 
-    DispSync* mDispSync;
+    std::unique_ptr<CallbackRepeater> mCallbackRepeater;
 
     std::mutex mCallbackMutex;
     VSyncSource::Callback* mCallback GUARDED_BY(mCallbackMutex) = nullptr;
 
     mutable std::mutex mVsyncMutex;
-    TracedOrdinal<nsecs_t> mPhaseOffset GUARDED_BY(mVsyncMutex);
+    TracedOrdinal<std::chrono::nanoseconds> mWorkDuration GUARDED_BY(mVsyncMutex);
+    std::chrono::nanoseconds mReadyDuration GUARDED_BY(mVsyncMutex);
     bool mEnabled GUARDED_BY(mVsyncMutex) = false;
 };
 
-} // namespace android
+} // namespace android::scheduler

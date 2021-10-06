@@ -24,8 +24,7 @@ namespace android {
 
 class GraphicBuffer;
 
-namespace Hwc2 {
-namespace mock {
+namespace Hwc2::mock {
 
 using android::hardware::graphics::common::V1_0::ColorTransform;
 using android::hardware::graphics::common::V1_0::Transform;
@@ -55,7 +54,8 @@ public:
     MOCK_METHOD0(resetCommands, void());
     MOCK_METHOD0(executeCommands, Error());
     MOCK_METHOD0(getMaxVirtualDisplayCount, uint32_t());
-    MOCK_METHOD4(createVirtualDisplay, Error(uint32_t, uint32_t, PixelFormat*, Display*));
+    MOCK_METHOD5(createVirtualDisplay,
+                 Error(uint32_t, uint32_t, PixelFormat*, std::optional<Display>, Display*));
     MOCK_METHOD1(destroyVirtualDisplay, Error(Display));
     MOCK_METHOD1(acceptDisplayChanges, Error(Display));
     MOCK_METHOD2(createLayer, Error(Display, Layer* outLayer));
@@ -140,6 +140,5 @@ public:
     MOCK_METHOD2(getClientTargetProperty, Error(Display, IComposerClient::ClientTargetProperty*));
 };
 
-} // namespace mock
-} // namespace Hwc2
+} // namespace Hwc2::mock
 } // namespace android

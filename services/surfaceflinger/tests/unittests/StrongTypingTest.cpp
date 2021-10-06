@@ -24,7 +24,6 @@ namespace android {
 
 TEST(StrongTypeTest, comparison) {
     using SpunkyType = StrongTyping<int, struct SpunkyTypeTag, Compare>;
-    SpunkyType f2(22);
     SpunkyType f1(10);
 
     EXPECT_TRUE(f1 == f1);

@@ -16,14 +16,15 @@
 
 #pragma once
 
-#include <unordered_map>
-
 #include <math/vec4.h>
+#include <renderengine/RenderEngine.h>
 #include <ui/Rect.h>
 #include <ui/Size.h>
 #include <utils/StrongPointer.h>
 
-#include "Scheduler/RefreshRateConfigs.h"
+#include <unordered_map>
+
+#include "Fps.h"
 
 namespace android {
 
@@ -34,19 +35,20 @@ class IGraphicBufferProducer;
 class Layer;
 class SurfaceFlinger;
 
-using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
-
 class RefreshRateOverlay {
 public:
-    explicit RefreshRateOverlay(SurfaceFlinger&);
+    RefreshRateOverlay(SurfaceFlinger&, bool showSpinner);
 
     void setViewport(ui::Size);
-    void changeRefreshRate(const RefreshRate&);
+    void changeRefreshRate(const Fps&);
+    void onInvalidate();
+    void reset();
 
 private:
     class SevenSegmentDrawer {
     public:
-        static sp<GraphicBuffer> drawNumber(int number, const half4& color);
+        static std::vector<sp<GraphicBuffer>> drawNumber(int number, const half4& color,
+                                                         bool showSpinner);
         static uint32_t getHeight() { return BUFFER_HEIGHT; }
         static uint32_t getWidth() { return BUFFER_WIDTH; }
 
@@ -65,11 +67,12 @@ private:
         static constexpr uint32_t DIGIT_SPACE = 16;
         static constexpr uint32_t BUFFER_HEIGHT = DIGIT_HEIGHT;
         static constexpr uint32_t BUFFER_WIDTH =
-                3 * DIGIT_WIDTH + 2 * DIGIT_SPACE; // Digit|Space|Digit|Space|Digit
+                4 * DIGIT_WIDTH + 3 * DIGIT_SPACE; // Digit|Space|Digit|Space|Digit|Space|Spinner
     };
 
     bool createLayer();
-    void primeCache();
+    const std::vector<std::shared_ptr<renderengine::ExternalTexture>>& getOrCreateBuffers(
+            uint32_t fps);
 
     SurfaceFlinger& mFlinger;
     const sp<Client> mClient;
@@ -77,11 +80,19 @@ private:
     sp<IBinder> mIBinder;
     sp<IGraphicBufferProducer> mGbp;
 
-    std::unordered_map<int, sp<GraphicBuffer>> mBufferCache;
-
+    std::unordered_map<int, std::vector<std::shared_ptr<renderengine::ExternalTexture>>>
+            mBufferCache;
+    std::optional<int> mCurrentFps;
+    int mFrame = 0;
     static constexpr float ALPHA = 0.8f;
     const half3 LOW_FPS_COLOR = half3(1.0f, 0.0f, 0.0f);
     const half3 HIGH_FPS_COLOR = half3(0.0f, 1.0f, 0.0f);
+
+    const bool mShowSpinner;
+
+    // Interpolate the colors between these values.
+    uint32_t mLowFps;
+    uint32_t mHighFps;
 };
 
 } // namespace android

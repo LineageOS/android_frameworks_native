@@ -429,11 +429,6 @@ ProcessState::ProcessState(const char* driver)
         mThreadPoolStarted(false),
         mThreadPoolSeq(1),
         mCallRestriction(CallRestriction::NONE) {
-// TODO(b/166468760): enforce in build system
-#if defined(__ANDROID_APEX__)
-    LOG_ALWAYS_FATAL("Cannot use libbinder in APEX (only system.img libbinder) since it is not stable.");
-#endif
-
     base::Result<int> opened = open_driver(driver);
 
     if (opened.ok()) {

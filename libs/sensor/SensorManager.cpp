@@ -225,13 +225,14 @@ Sensor const* SensorManager::getDefaultSensor(int type)
     return nullptr;
 }
 
-sp<SensorEventQueue> SensorManager::createEventQueue(String8 packageName, int mode) {
+sp<SensorEventQueue> SensorManager::createEventQueue(
+    String8 packageName, int mode, String16 attributionTag) {
     sp<SensorEventQueue> queue;
 
     Mutex::Autolock _l(mLock);
     while (assertStateLocked() == NO_ERROR) {
-        sp<ISensorEventConnection> connection =
-                mSensorServer->createSensorEventConnection(packageName, mode, mOpPackageName);
+        sp<ISensorEventConnection> connection = mSensorServer->createSensorEventConnection(
+            packageName, mode, mOpPackageName, attributionTag);
         if (connection == nullptr) {
             // SensorService just died or the app doesn't have required permissions.
             ALOGE("createEventQueue: connection is NULL.");

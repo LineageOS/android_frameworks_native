@@ -21,6 +21,8 @@
 
 #include <mutex>
 
+#include <binder/IBinder.h>
+
 #include <gui/LayerState.h>
 
 #include <utils/KeyedVector.h>
@@ -48,7 +50,7 @@ using DisplayChange = surfaceflinger::DisplayChange;
 
 constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/transaction_trace.pb";
 
-class SurfaceInterceptor {
+class SurfaceInterceptor : public IBinder::DeathRecipient {
 public:
     virtual ~SurfaceInterceptor();
 
@@ -58,11 +60,16 @@ public:
     virtual void disable() = 0;
     virtual bool isEnabled() = 0;
 
+    virtual void addTransactionTraceListener(
+            const sp<gui::ITransactionTraceListener>& listener) = 0;
+    virtual void binderDied(const wp<IBinder>& who) = 0;
+
     // Intercept display and surface transactions
     virtual void saveTransaction(
             const Vector<ComposerState>& stateUpdates,
             const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>& displays,
-            const Vector<DisplayState>& changedDisplays, uint32_t flags) = 0;
+            const Vector<DisplayState>& changedDisplays, uint32_t flags, int originPid,
+            int originUid, uint64_t transactionId) = 0;
 
     // Intercept surface data
     virtual void saveSurfaceCreation(const sp<const Layer>& layer) = 0;
@@ -85,7 +92,7 @@ namespace impl {
  */
 class SurfaceInterceptor final : public android::SurfaceInterceptor {
 public:
-    explicit SurfaceInterceptor(SurfaceFlinger* const flinger);
+    SurfaceInterceptor() = default;
     ~SurfaceInterceptor() override = default;
 
     // Both vectors are used to capture the current state of SF as the initial snapshot in the trace
@@ -94,10 +101,14 @@ public:
     void disable() override;
     bool isEnabled() override;
 
+    void addTransactionTraceListener(const sp<gui::ITransactionTraceListener>& listener) override;
+    void binderDied(const wp<IBinder>& who) override;
+
     // Intercept display and surface transactions
     void saveTransaction(const Vector<ComposerState>& stateUpdates,
                          const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>& displays,
-                         const Vector<DisplayState>& changedDisplays, uint32_t flags) override;
+                         const Vector<DisplayState>& changedDisplays, uint32_t flags, int originPid,
+                         int originUid, uint64_t transactionId) override;
 
     // Intercept surface data
     void saveSurfaceCreation(const sp<const Layer>& layer) override;
@@ -154,20 +165,19 @@ private:
     void addCornerRadiusLocked(Transaction* transaction, int32_t layerId, float cornerRadius);
     void addBackgroundBlurRadiusLocked(Transaction* transaction, int32_t layerId,
                                        int32_t backgroundBlurRadius);
-    void addDeferTransactionLocked(Transaction* transaction, int32_t layerId,
-            const sp<const Layer>& layer, uint64_t frameNumber);
-    void addOverrideScalingModeLocked(Transaction* transaction, int32_t layerId,
-            int32_t overrideScalingMode);
+    void addBlurRegionsLocked(Transaction* transaction, int32_t layerId,
+                              const std::vector<BlurRegion>& effectRegions);
     void addSurfaceChangesLocked(Transaction* transaction, const layer_state_t& state);
     void addTransactionLocked(Increment* increment, const Vector<ComposerState>& stateUpdates,
-            const DefaultKeyedVector< wp<IBinder>, DisplayDeviceState>& displays,
-            const Vector<DisplayState>& changedDisplays, uint32_t transactionFlags);
+                              const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>& displays,
+                              const Vector<DisplayState>& changedDisplays,
+                              uint32_t transactionFlags, int originPid, int originUid,
+                              uint64_t transactionId);
     void addReparentLocked(Transaction* transaction, int32_t layerId, int32_t parentId);
-    void addReparentChildrenLocked(Transaction* transaction, int32_t layerId, int32_t parentId);
-    void addDetachChildrenLocked(Transaction* transaction, int32_t layerId, bool detached);
     void addRelativeParentLocked(Transaction* transaction, int32_t layerId, int32_t parentId,
                                  int z);
     void addShadowRadiusLocked(Transaction* transaction, int32_t layerId, float shadowRadius);
+    void addTrustedOverlayLocked(Transaction* transaction, int32_t layerId, bool isTrustedOverlay);
 
     // Add display transactions to the trace
     DisplayChange* createDisplayChangeLocked(Transaction* transaction, int32_t sequenceId);
@@ -182,12 +192,16 @@ private:
     void addDisplayChangesLocked(Transaction* transaction,
             const DisplayState& state, int32_t sequenceId);
 
+    // Add transaction origin to trace
+    void setTransactionOriginLocked(Transaction* transaction, int32_t pid, int32_t uid);
 
     bool mEnabled {false};
     std::string mOutputFileName {DEFAULT_FILENAME};
     std::mutex mTraceMutex {};
     Trace mTrace {};
-    SurfaceFlinger* const mFlinger;
+    std::mutex mListenersMutex;
+    std::map<wp<IBinder>, sp<gui::ITransactionTraceListener>> mTraceToggledListeners
+            GUARDED_BY(mListenersMutex);
 };
 
 } // namespace impl
