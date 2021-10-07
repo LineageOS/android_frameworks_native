@@ -36,7 +36,7 @@
 #define INDENT2 "    "
 
 struct input_property_map {
-    android::PropertyMap* propertyMap;
+    std::unique_ptr<android::PropertyMap> propertyMap;
 };
 
 struct input_property {
@@ -217,22 +217,25 @@ input_property_map_t* InputDriver::inputGetDevicePropertyMap(input_device_identi
     idi.product = id->productId;
     idi.version = id->version;
 
-    std::string configFile = getInputDeviceConfigurationFilePathByDeviceIdentifier(
-            idi, INPUT_DEVICE_CONFIGURATION_FILE_TYPE_CONFIGURATION);
+    std::string configFile =
+            getInputDeviceConfigurationFilePathByDeviceIdentifier(idi,
+                                                                  InputDeviceConfigurationFileType::
+                                                                          CONFIGURATION);
     if (configFile.empty()) {
         ALOGD("No input device configuration file found for device '%s'.",
                 idi.name.c_str());
     } else {
-        auto propMap = new input_property_map_t();
-        status_t status = PropertyMap::load(String8(configFile.c_str()), &propMap->propertyMap);
-        if (status) {
+        std::unique_ptr<input_property_map_t> propMap = std::make_unique<input_property_map_t>();
+        android::base::Result<std::unique_ptr<PropertyMap>> result =
+                PropertyMap::load(configFile.c_str());
+        if (!result.ok()) {
             ALOGE("Error loading input device configuration file for device '%s'. "
                     "Using default configuration.",
                     idi.name.c_str());
-            delete propMap;
             return nullptr;
         }
-        return propMap;
+        propMap->propertyMap = std::move(*result);
+        return propMap.release();
     }
     return nullptr;
 }
@@ -276,7 +279,6 @@ void InputDriver::inputFreeDeviceProperty(input_property_t* property) {
 
 void InputDriver::inputFreeDevicePropertyMap(input_property_map_t* map) {
     if (map != nullptr) {
-        delete map->propertyMap;
         delete map;
     }
 }

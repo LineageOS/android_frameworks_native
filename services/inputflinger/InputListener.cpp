@@ -48,12 +48,12 @@ void NotifyConfigurationChangedArgs::notify(const sp<InputListenerInterface>& li
     listener->notifyConfigurationChanged(this);
 }
 
-
 // --- NotifyKeyArgs ---
 
-NotifyKeyArgs::NotifyKeyArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
-                             int32_t displayId, uint32_t policyFlags, int32_t action, int32_t flags,
-                             int32_t keyCode, int32_t scanCode, int32_t metaState, nsecs_t downTime)
+NotifyKeyArgs::NotifyKeyArgs(int32_t id, nsecs_t eventTime, nsecs_t readTime, int32_t deviceId,
+                             uint32_t source, int32_t displayId, uint32_t policyFlags,
+                             int32_t action, int32_t flags, int32_t keyCode, int32_t scanCode,
+                             int32_t metaState, nsecs_t downTime)
       : NotifyArgs(id, eventTime),
         deviceId(deviceId),
         source(source),
@@ -64,7 +64,8 @@ NotifyKeyArgs::NotifyKeyArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, ui
         keyCode(keyCode),
         scanCode(scanCode),
         metaState(metaState),
-        downTime(downTime) {}
+        downTime(downTime),
+        readTime(readTime) {}
 
 NotifyKeyArgs::NotifyKeyArgs(const NotifyKeyArgs& other)
       : NotifyArgs(other.id, other.eventTime),
@@ -77,32 +78,31 @@ NotifyKeyArgs::NotifyKeyArgs(const NotifyKeyArgs& other)
         keyCode(other.keyCode),
         scanCode(other.scanCode),
         metaState(other.metaState),
-        downTime(other.downTime) {}
+        downTime(other.downTime),
+        readTime(other.readTime) {}
 
 bool NotifyKeyArgs::operator==(const NotifyKeyArgs& rhs) const {
-    return id == rhs.id && eventTime == rhs.eventTime && deviceId == rhs.deviceId &&
-            source == rhs.source && displayId == rhs.displayId && policyFlags == rhs.policyFlags &&
-            action == rhs.action && flags == rhs.flags && keyCode == rhs.keyCode &&
-            scanCode == rhs.scanCode && metaState == rhs.metaState && downTime == rhs.downTime;
+    return id == rhs.id && eventTime == rhs.eventTime && readTime == rhs.readTime &&
+            deviceId == rhs.deviceId && source == rhs.source && displayId == rhs.displayId &&
+            policyFlags == rhs.policyFlags && action == rhs.action && flags == rhs.flags &&
+            keyCode == rhs.keyCode && scanCode == rhs.scanCode && metaState == rhs.metaState &&
+            downTime == rhs.downTime;
 }
 
 void NotifyKeyArgs::notify(const sp<InputListenerInterface>& listener) const {
     listener->notifyKey(this);
 }
 
-
 // --- NotifyMotionArgs ---
 
-NotifyMotionArgs::NotifyMotionArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
-                                   int32_t displayId, uint32_t policyFlags, int32_t action,
-                                   int32_t actionButton, int32_t flags, int32_t metaState,
-                                   int32_t buttonState, MotionClassification classification,
-                                   int32_t edgeFlags, uint32_t pointerCount,
-                                   const PointerProperties* pointerProperties,
-                                   const PointerCoords* pointerCoords, float xPrecision,
-                                   float yPrecision, float xCursorPosition, float yCursorPosition,
-                                   nsecs_t downTime,
-                                   const std::vector<TouchVideoFrame>& videoFrames)
+NotifyMotionArgs::NotifyMotionArgs(
+        int32_t id, nsecs_t eventTime, nsecs_t readTime, int32_t deviceId, uint32_t source,
+        int32_t displayId, uint32_t policyFlags, int32_t action, int32_t actionButton,
+        int32_t flags, int32_t metaState, int32_t buttonState, MotionClassification classification,
+        int32_t edgeFlags, uint32_t pointerCount, const PointerProperties* pointerProperties,
+        const PointerCoords* pointerCoords, float xPrecision, float yPrecision,
+        float xCursorPosition, float yCursorPosition, nsecs_t downTime,
+        const std::vector<TouchVideoFrame>& videoFrames)
       : NotifyArgs(id, eventTime),
         deviceId(deviceId),
         source(source),
@@ -121,6 +121,7 @@ NotifyMotionArgs::NotifyMotionArgs(int32_t id, nsecs_t eventTime, int32_t device
         xCursorPosition(xCursorPosition),
         yCursorPosition(yCursorPosition),
         downTime(downTime),
+        readTime(readTime),
         videoFrames(videoFrames) {
     for (uint32_t i = 0; i < pointerCount; i++) {
         this->pointerProperties[i].copyFrom(pointerProperties[i]);
@@ -147,6 +148,7 @@ NotifyMotionArgs::NotifyMotionArgs(const NotifyMotionArgs& other)
         xCursorPosition(other.xCursorPosition),
         yCursorPosition(other.yCursorPosition),
         downTime(other.downTime),
+        readTime(other.readTime),
         videoFrames(other.videoFrames) {
     for (uint32_t i = 0; i < pointerCount; i++) {
         pointerProperties[i].copyFrom(other.pointerProperties[i]);
@@ -159,11 +161,12 @@ static inline bool isCursorPositionEqual(float lhs, float rhs) {
 }
 
 bool NotifyMotionArgs::operator==(const NotifyMotionArgs& rhs) const {
-    bool equal = id == rhs.id && eventTime == rhs.eventTime && deviceId == rhs.deviceId &&
-            source == rhs.source && displayId == rhs.displayId && policyFlags == rhs.policyFlags &&
-            action == rhs.action && actionButton == rhs.actionButton && flags == rhs.flags &&
-            metaState == rhs.metaState && buttonState == rhs.buttonState &&
-            classification == rhs.classification && edgeFlags == rhs.edgeFlags &&
+    bool equal = id == rhs.id && eventTime == rhs.eventTime && readTime == rhs.readTime &&
+            deviceId == rhs.deviceId && source == rhs.source && displayId == rhs.displayId &&
+            policyFlags == rhs.policyFlags && action == rhs.action &&
+            actionButton == rhs.actionButton && flags == rhs.flags && metaState == rhs.metaState &&
+            buttonState == rhs.buttonState && classification == rhs.classification &&
+            edgeFlags == rhs.edgeFlags &&
             pointerCount == rhs.pointerCount
             // PointerProperties and PointerCoords are compared separately below
             && xPrecision == rhs.xPrecision && yPrecision == rhs.yPrecision &&
@@ -189,7 +192,6 @@ void NotifyMotionArgs::notify(const sp<InputListenerInterface>& listener) const 
     listener->notifyMotion(this);
 }
 
-
 // --- NotifySwitchArgs ---
 
 NotifySwitchArgs::NotifySwitchArgs(int32_t id, nsecs_t eventTime, uint32_t policyFlags,
@@ -214,6 +216,58 @@ void NotifySwitchArgs::notify(const sp<InputListenerInterface>& listener) const 
     listener->notifySwitch(this);
 }
 
+// --- NotifySensorArgs ---
+
+NotifySensorArgs::NotifySensorArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+                                   InputDeviceSensorType sensorType,
+                                   InputDeviceSensorAccuracy accuracy, bool accuracyChanged,
+                                   nsecs_t hwTimestamp, std::vector<float> values)
+      : NotifyArgs(id, eventTime),
+        deviceId(deviceId),
+        source(source),
+        sensorType(sensorType),
+        accuracy(accuracy),
+        accuracyChanged(accuracyChanged),
+        hwTimestamp(hwTimestamp),
+        values(std::move(values)) {}
+
+NotifySensorArgs::NotifySensorArgs(const NotifySensorArgs& other)
+      : NotifyArgs(other.id, other.eventTime),
+        deviceId(other.deviceId),
+        source(other.source),
+        sensorType(other.sensorType),
+        accuracy(other.accuracy),
+        accuracyChanged(other.accuracyChanged),
+        hwTimestamp(other.hwTimestamp),
+        values(other.values) {}
+
+bool NotifySensorArgs::operator==(const NotifySensorArgs rhs) const {
+    return id == rhs.id && eventTime == rhs.eventTime && sensorType == rhs.sensorType &&
+            accuracy == rhs.accuracy && accuracyChanged == rhs.accuracyChanged &&
+            hwTimestamp == rhs.hwTimestamp && values == rhs.values;
+}
+
+void NotifySensorArgs::notify(const sp<InputListenerInterface>& listener) const {
+    listener->notifySensor(this);
+}
+
+// --- NotifyVibratorStateArgs ---
+
+NotifyVibratorStateArgs::NotifyVibratorStateArgs(int32_t id, nsecs_t eventTime, int32_t deviceId,
+                                                 bool isOn)
+      : NotifyArgs(id, eventTime), deviceId(deviceId), isOn(isOn) {}
+
+NotifyVibratorStateArgs::NotifyVibratorStateArgs(const NotifyVibratorStateArgs& other)
+      : NotifyArgs(other.id, other.eventTime), deviceId(other.deviceId), isOn(other.isOn) {}
+
+bool NotifyVibratorStateArgs::operator==(const NotifyVibratorStateArgs rhs) const {
+    return id == rhs.id && eventTime == rhs.eventTime && deviceId == rhs.deviceId &&
+            isOn == rhs.isOn;
+}
+
+void NotifyVibratorStateArgs::notify(const sp<InputListenerInterface>& listener) const {
+    listener->notifyVibratorState(this);
+}
 
 // --- NotifyDeviceResetArgs ---
 
@@ -231,6 +285,23 @@ void NotifyDeviceResetArgs::notify(const sp<InputListenerInterface>& listener) c
     listener->notifyDeviceReset(this);
 }
 
+// --- NotifyPointerCaptureChangedArgs ---
+
+NotifyPointerCaptureChangedArgs::NotifyPointerCaptureChangedArgs(int32_t id, nsecs_t eventTime,
+                                                                 bool enabled)
+      : NotifyArgs(id, eventTime), enabled(enabled) {}
+
+NotifyPointerCaptureChangedArgs::NotifyPointerCaptureChangedArgs(
+        const NotifyPointerCaptureChangedArgs& other)
+      : NotifyArgs(other.id, other.eventTime), enabled(other.enabled) {}
+
+bool NotifyPointerCaptureChangedArgs::operator==(const NotifyPointerCaptureChangedArgs& rhs) const {
+    return id == rhs.id && eventTime == rhs.eventTime && enabled == rhs.enabled;
+}
+
+void NotifyPointerCaptureChangedArgs::notify(const sp<InputListenerInterface>& listener) const {
+    listener->notifyPointerCaptureChanged(this);
+}
 
 // --- QueuedInputListener ---
 
@@ -273,9 +344,24 @@ void QueuedInputListener::notifySwitch(const NotifySwitchArgs* args) {
     mArgsQueue.push_back(new NotifySwitchArgs(*args));
 }
 
+void QueuedInputListener::notifySensor(const NotifySensorArgs* args) {
+    traceEvent(__func__, args->id);
+    mArgsQueue.push_back(new NotifySensorArgs(*args));
+}
+
+void QueuedInputListener::notifyVibratorState(const NotifyVibratorStateArgs* args) {
+    traceEvent(__func__, args->id);
+    mArgsQueue.push_back(new NotifyVibratorStateArgs(*args));
+}
+
 void QueuedInputListener::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     traceEvent(__func__, args->id);
     mArgsQueue.push_back(new NotifyDeviceResetArgs(*args));
+}
+
+void QueuedInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
+    traceEvent(__func__, args->id);
+    mArgsQueue.push_back(new NotifyPointerCaptureChangedArgs(*args));
 }
 
 void QueuedInputListener::flush() {
@@ -287,6 +373,5 @@ void QueuedInputListener::flush() {
     }
     mArgsQueue.clear();
 }
-
 
 } // namespace android

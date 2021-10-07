@@ -391,6 +391,16 @@ void InputClassifier::notifyMotion(const NotifyMotionArgs* args) {
     mListener->notifyMotion(&newArgs);
 }
 
+void InputClassifier::notifySensor(const NotifySensorArgs* args) {
+    // pass through
+    mListener->notifySensor(args);
+}
+
+void InputClassifier::notifyVibratorState(const NotifyVibratorStateArgs* args) {
+    // pass through
+    mListener->notifyVibratorState(args);
+}
+
 void InputClassifier::notifySwitch(const NotifySwitchArgs* args) {
     // pass through
     mListener->notifySwitch(args);
@@ -403,6 +413,11 @@ void InputClassifier::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     }
     // continue to next stage
     mListener->notifyDeviceReset(args);
+}
+
+void InputClassifier::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
+    // pass through
+    mListener->notifyPointerCaptureChanged(args);
 }
 
 void InputClassifier::setMotionClassifier(

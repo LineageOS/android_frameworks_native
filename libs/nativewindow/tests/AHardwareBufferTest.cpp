@@ -17,12 +17,11 @@
 #define LOG_TAG "AHardwareBuffer_test"
 //#define LOG_NDEBUG 0
 
-#include <android/hardware_buffer.h>
-#include <private/android/AHardwareBufferHelpers.h>
 #include <android/hardware/graphics/common/1.0/types.h>
-#include <vndk/hardware_buffer.h>
-
 #include <gtest/gtest.h>
+#include <private/android/AHardwareBufferHelpers.h>
+#include <ui/GraphicBuffer.h>
+#include <vndk/hardware_buffer.h>
 
 using namespace android;
 using android::hardware::graphics::common::V1_0::BufferUsage;
@@ -130,4 +129,44 @@ TEST(AHardwareBufferTest, GetCreateHandleTest) {
 
     AHardwareBuffer_release(buffer);
     AHardwareBuffer_release(otherBuffer);
+}
+
+TEST(AHardwareBufferTest, GetIdTest) {
+    const uint32_t testWidth = 4;
+    const uint32_t testHeight = 4;
+    const uint32_t testLayers = 1;
+
+    AHardwareBuffer* ahb1 = nullptr;
+    uint64_t id1 = 0;
+    const AHardwareBuffer_Desc desc = {
+            .width = testWidth,
+            .height = testHeight,
+            .layers = testLayers,
+            .format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
+            .usage = AHARDWAREBUFFER_USAGE_CPU_READ_RARELY,
+    };
+    int res = AHardwareBuffer_allocate(&desc, &ahb1);
+    EXPECT_EQ(NO_ERROR, res);
+    EXPECT_NE(nullptr, ahb1);
+    EXPECT_EQ(0, AHardwareBuffer_getId(ahb1, &id1));
+    const GraphicBuffer* gb1 = AHardwareBuffer_to_GraphicBuffer(ahb1);
+    EXPECT_NE(nullptr, gb1);
+    EXPECT_EQ(id1, gb1->getId());
+    EXPECT_NE(id1, 0);
+
+    sp<GraphicBuffer> gb2(new GraphicBuffer(testWidth,
+                                            testHeight,
+                                            PIXEL_FORMAT_RGBA_8888,
+                                            testLayers,
+                                            GraphicBuffer::USAGE_SW_READ_RARELY,
+                                            std::string("test")));
+    EXPECT_NE(nullptr, gb2.get());
+    const AHardwareBuffer* ahb2 = AHardwareBuffer_from_GraphicBuffer(gb2.get());
+    EXPECT_NE(nullptr, ahb2);
+    uint64_t id2 = 0;
+    EXPECT_EQ(0, AHardwareBuffer_getId(ahb2, &id2));
+    EXPECT_EQ(id2, gb2->getId());
+    EXPECT_NE(id2, 0);
+
+    EXPECT_NE(id1, id2);
 }

@@ -74,10 +74,11 @@ cc_library_shared {
         "libGLESv2",
     ],
 
+    export_header_lib_headers: ["jni_headers"],
+
     header_libs: [
+        "jni_headers",
         "libnativedisplay_headers",
         "libnativehelper_header_only",
     ],
-
-    export_header_lib_headers: ["libnativehelper_header_only"],
 }

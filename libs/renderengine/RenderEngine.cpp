@@ -18,39 +18,82 @@
 
 #include <cutils/properties.h>
 #include <log/log.h>
-#include <private/gui/SyncFeatures.h>
 #include "gl/GLESRenderEngine.h"
+#include "threaded/RenderEngineThreaded.h"
+
+#include "skia/SkiaGLRenderEngine.h"
 
 namespace android {
 namespace renderengine {
 
-std::unique_ptr<impl::RenderEngine> RenderEngine::create(const RenderEngineCreationArgs& args) {
+std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArgs& args) {
+    RenderEngineType renderEngineType = args.renderEngineType;
+
+    // Keep the ability to override by PROPERTIES:
     char prop[PROPERTY_VALUE_MAX];
-    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "gles");
+    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "");
     if (strcmp(prop, "gles") == 0) {
-        ALOGD("RenderEngine GLES Backend");
-        return renderengine::gl::GLESRenderEngine::create(args);
+        renderEngineType = RenderEngineType::GLES;
     }
-    ALOGE("UNKNOWN BackendType: %s, create GLES RenderEngine.", prop);
-    return renderengine::gl::GLESRenderEngine::create(args);
+    if (strcmp(prop, "threaded") == 0) {
+        renderEngineType = RenderEngineType::THREADED;
+    }
+    if (strcmp(prop, "skiagl") == 0) {
+        renderEngineType = RenderEngineType::SKIA_GL;
+    }
+    if (strcmp(prop, "skiaglthreaded") == 0) {
+        renderEngineType = RenderEngineType::SKIA_GL_THREADED;
+    }
+
+    switch (renderEngineType) {
+        case RenderEngineType::THREADED:
+            ALOGD("Threaded RenderEngine with GLES Backend");
+            return renderengine::threaded::RenderEngineThreaded::create(
+                    [args]() { return android::renderengine::gl::GLESRenderEngine::create(args); },
+                    renderEngineType);
+        case RenderEngineType::SKIA_GL:
+            ALOGD("RenderEngine with SkiaGL Backend");
+            return renderengine::skia::SkiaGLRenderEngine::create(args);
+        case RenderEngineType::SKIA_GL_THREADED: {
+            // These need to be recreated, since they are a constant reference, and we need to
+            // let SkiaRE know that it's running as threaded, and all GL operation will happen on
+            // the same thread.
+            RenderEngineCreationArgs skiaArgs =
+                    RenderEngineCreationArgs::Builder()
+                            .setPixelFormat(args.pixelFormat)
+                            .setImageCacheSize(args.imageCacheSize)
+                            .setUseColorManagerment(args.useColorManagement)
+                            .setEnableProtectedContext(args.enableProtectedContext)
+                            .setPrecacheToneMapperShaderOnly(args.precacheToneMapperShaderOnly)
+                            .setSupportsBackgroundBlur(args.supportsBackgroundBlur)
+                            .setContextPriority(args.contextPriority)
+                            .setRenderEngineType(renderEngineType)
+                            .build();
+            ALOGD("Threaded RenderEngine with SkiaGL Backend");
+            return renderengine::threaded::RenderEngineThreaded::create(
+                    [skiaArgs]() {
+                        return android::renderengine::skia::SkiaGLRenderEngine::create(skiaArgs);
+                    },
+                    renderEngineType);
+        }
+        case RenderEngineType::GLES:
+        default:
+            ALOGD("RenderEngine with GLES Backend");
+            return renderengine::gl::GLESRenderEngine::create(args);
+    }
 }
 
 RenderEngine::~RenderEngine() = default;
 
-namespace impl {
-
-RenderEngine::RenderEngine(const RenderEngineCreationArgs& args) : mArgs(args) {}
-
-RenderEngine::~RenderEngine() = default;
-
-bool RenderEngine::useNativeFenceSync() const {
-    return SyncFeatures::getInstance().useNativeFenceSync();
+void RenderEngine::validateInputBufferUsage(const sp<GraphicBuffer>& buffer) {
+    LOG_ALWAYS_FATAL_IF(!(buffer->getUsage() & GraphicBuffer::USAGE_HW_TEXTURE),
+                        "input buffer not gpu readable");
 }
 
-bool RenderEngine::useWaitSync() const {
-    return SyncFeatures::getInstance().useWaitSync();
+void RenderEngine::validateOutputBufferUsage(const sp<GraphicBuffer>& buffer) {
+    LOG_ALWAYS_FATAL_IF(!(buffer->getUsage() & GraphicBuffer::USAGE_HW_RENDER),
+                        "output buffer not gpu writeable");
 }
 
-} // namespace impl
 } // namespace renderengine
 } // namespace android

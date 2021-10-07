@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wextra"
+
 #include <functional>
 #include <string_view>
 
@@ -22,6 +26,8 @@
 
 #include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/Hash.h"
+
+using ::testing::ElementsAre;
 
 namespace android {
 namespace {
@@ -304,102 +310,101 @@ TEST(DisplayIdentificationTest, parseDisplayIdentificationData) {
     ASSERT_TRUE(tertiaryInfo);
 
     // Display IDs should be unique.
-    EXPECT_EQ(21571479025788672, primaryInfo->id.value);
-    EXPECT_EQ(9834267132873217, secondaryInfo->id.value);
-    EXPECT_EQ(21441883803501570, tertiaryInfo->id.value);
+    EXPECT_EQ(4633257497453176576, primaryInfo->id.value);
+    EXPECT_EQ(4621520285560261121, secondaryInfo->id.value);
+    EXPECT_EQ(4633127902230889474, tertiaryInfo->id.value);
 }
 
 TEST(DisplayIdentificationTest, deviceProductInfo) {
     using ManufactureYear = DeviceProductInfo::ManufactureYear;
     using ManufactureWeekAndYear = DeviceProductInfo::ManufactureWeekAndYear;
     using ModelYear = DeviceProductInfo::ModelYear;
-    using RelativeAddress = DeviceProductInfo::RelativeAddress;
 
     {
         const auto displayIdInfo = parseDisplayIdentificationData(0, getInternalEdid());
         ASSERT_TRUE(displayIdInfo);
         ASSERT_TRUE(displayIdInfo->deviceProductInfo);
         const auto& info = *displayIdInfo->deviceProductInfo;
-        EXPECT_STREQ("", info.name.data());
+        EXPECT_EQ("", info.name);
         EXPECT_STREQ("SEC", info.manufacturerPnpId.data());
-        EXPECT_STREQ("12610", info.productId.data());
+        EXPECT_EQ("12610", info.productId);
         ASSERT_TRUE(std::holds_alternative<ManufactureYear>(info.manufactureOrModelDate));
         EXPECT_EQ(2011, std::get<ManufactureYear>(info.manufactureOrModelDate).year);
-        EXPECT_EQ(DeviceProductInfo::NO_RELATIVE_ADDRESS, info.relativeAddress);
+        EXPECT_TRUE(info.relativeAddress.empty());
     }
     {
         const auto displayIdInfo = parseDisplayIdentificationData(0, getExternalEdid());
         ASSERT_TRUE(displayIdInfo);
         ASSERT_TRUE(displayIdInfo->deviceProductInfo);
         const auto& info = *displayIdInfo->deviceProductInfo;
-        EXPECT_STREQ("HP ZR30w", info.name.data());
+        EXPECT_EQ("HP ZR30w", info.name);
         EXPECT_STREQ("HWP", info.manufacturerPnpId.data());
-        EXPECT_STREQ("10348", info.productId.data());
+        EXPECT_EQ("10348", info.productId);
         ASSERT_TRUE(std::holds_alternative<ManufactureWeekAndYear>(info.manufactureOrModelDate));
         const auto& date = std::get<ManufactureWeekAndYear>(info.manufactureOrModelDate);
         EXPECT_EQ(2012, date.year);
         EXPECT_EQ(2, date.week);
-        EXPECT_EQ(DeviceProductInfo::NO_RELATIVE_ADDRESS, info.relativeAddress);
+        EXPECT_TRUE(info.relativeAddress.empty());
     }
     {
         const auto displayIdInfo = parseDisplayIdentificationData(0, getExternalEedid());
         ASSERT_TRUE(displayIdInfo);
         ASSERT_TRUE(displayIdInfo->deviceProductInfo);
         const auto& info = *displayIdInfo->deviceProductInfo;
-        EXPECT_STREQ("SAMSUNG", info.name.data());
+        EXPECT_EQ("SAMSUNG", info.name);
         EXPECT_STREQ("SAM", info.manufacturerPnpId.data());
-        EXPECT_STREQ("2302", info.productId.data());
+        EXPECT_EQ("2302", info.productId);
         ASSERT_TRUE(std::holds_alternative<ManufactureWeekAndYear>(info.manufactureOrModelDate));
         const auto& date = std::get<ManufactureWeekAndYear>(info.manufactureOrModelDate);
         EXPECT_EQ(2011, date.year);
         EXPECT_EQ(41, date.week);
-        EXPECT_EQ((RelativeAddress{{2, 0, 0, 0}}), info.relativeAddress);
+        EXPECT_THAT(info.relativeAddress, ElementsAre(2, 0, 0, 0));
     }
     {
         const auto displayIdInfo = parseDisplayIdentificationData(0, getPanasonicTvEdid());
         ASSERT_TRUE(displayIdInfo);
         ASSERT_TRUE(displayIdInfo->deviceProductInfo);
         const auto& info = *displayIdInfo->deviceProductInfo;
-        EXPECT_STREQ("Panasonic-TV", info.name.data());
+        EXPECT_EQ("Panasonic-TV", info.name);
         EXPECT_STREQ("MEI", info.manufacturerPnpId.data());
-        EXPECT_STREQ("41622", info.productId.data());
+        EXPECT_EQ("41622", info.productId);
         ASSERT_TRUE(std::holds_alternative<ManufactureYear>(info.manufactureOrModelDate));
         const auto& date = std::get<ManufactureYear>(info.manufactureOrModelDate);
         EXPECT_EQ(2019, date.year);
-        EXPECT_EQ((RelativeAddress{{2, 0, 0, 0}}), info.relativeAddress);
+        EXPECT_THAT(info.relativeAddress, ElementsAre(2, 0, 0, 0));
     }
     {
         const auto displayIdInfo = parseDisplayIdentificationData(0, getHisenseTvEdid());
         ASSERT_TRUE(displayIdInfo);
         ASSERT_TRUE(displayIdInfo->deviceProductInfo);
         const auto& info = *displayIdInfo->deviceProductInfo;
-        EXPECT_STREQ("Hisense", info.name.data());
+        EXPECT_EQ("Hisense", info.name);
         EXPECT_STREQ("HEC", info.manufacturerPnpId.data());
-        EXPECT_STREQ("0", info.productId.data());
+        EXPECT_EQ("0", info.productId);
         ASSERT_TRUE(std::holds_alternative<ManufactureWeekAndYear>(info.manufactureOrModelDate));
         const auto& date = std::get<ManufactureWeekAndYear>(info.manufactureOrModelDate);
         EXPECT_EQ(2019, date.year);
         EXPECT_EQ(18, date.week);
-        EXPECT_EQ((RelativeAddress{{1, 2, 3, 4}}), info.relativeAddress);
+        EXPECT_THAT(info.relativeAddress, ElementsAre(1, 2, 3, 4));
     }
     {
         const auto displayIdInfo = parseDisplayIdentificationData(0, getCtlDisplayEdid());
         ASSERT_TRUE(displayIdInfo);
         ASSERT_TRUE(displayIdInfo->deviceProductInfo);
         const auto& info = *displayIdInfo->deviceProductInfo;
-        EXPECT_STREQ("LP2361", info.name.data());
+        EXPECT_EQ("LP2361", info.name);
         EXPECT_STREQ("CTL", info.manufacturerPnpId.data());
-        EXPECT_STREQ("9373", info.productId.data());
+        EXPECT_EQ("9373", info.productId);
         ASSERT_TRUE(std::holds_alternative<ModelYear>(info.manufactureOrModelDate));
         EXPECT_EQ(2013, std::get<ModelYear>(info.manufactureOrModelDate).year);
-        EXPECT_EQ(DeviceProductInfo::NO_RELATIVE_ADDRESS, info.relativeAddress);
+        EXPECT_TRUE(info.relativeAddress.empty());
     }
 }
 
-TEST(DisplayIdentificationTest, getFallbackDisplayId) {
+TEST(DisplayIdentificationTest, fromPort) {
     // Manufacturer ID should be invalid.
-    ASSERT_FALSE(getPnpId(getFallbackDisplayId(0)));
-    ASSERT_FALSE(getPnpId(getFallbackDisplayId(0xffu)));
+    ASSERT_FALSE(getPnpId(PhysicalDisplayId::fromPort(0)));
+    ASSERT_FALSE(getPnpId(PhysicalDisplayId::fromPort(0xffu)));
 }
 
 TEST(DisplayIdentificationTest, getVirtualDisplayId) {
@@ -409,3 +414,6 @@ TEST(DisplayIdentificationTest, getVirtualDisplayId) {
 }
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wextra"

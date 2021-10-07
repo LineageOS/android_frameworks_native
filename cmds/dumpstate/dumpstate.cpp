@@ -176,6 +176,7 @@ void add_mountinfo();
 #define LINKERCONFIG_DIR "/linkerconfig"
 #define PACKAGE_DEX_USE_LIST "/data/system/package-dex-usage.list"
 #define SYSTEM_TRACE_SNAPSHOT "/data/misc/perfetto-traces/bugreport/systrace.pftrace"
+#define CGROUPFS_DIR "/sys/fs/cgroup"
 
 // TODO(narayan): Since this information has to be kept in sync
 // with tombstoned, we should just put it in a common header.
@@ -1385,7 +1386,8 @@ static Dumpstate::RunStatus RunDumpsysNormal() {
 static void DumpHals(int out_fd = STDOUT_FILENO) {
     if (!ds.IsZipping()) {
         RunCommand("HARDWARE HALS", {"lshal", "--all", "--types=all", "--debug"},
-                   CommandOptions::WithTimeout(60).AsRootIfAvailable().Build());
+                   CommandOptions::WithTimeout(60).AsRootIfAvailable().Build(),
+                   false, out_fd);
         return;
     }
     RunCommand("HARDWARE HALS", {"lshal", "--all", "--types=all"},
@@ -1797,6 +1799,9 @@ static Dumpstate::RunStatus dumpstate() {
 
     // Add linker configuration directory
     ds.AddDir(LINKERCONFIG_DIR, true);
+
+    /* Dump cgroupfs */
+    ds.AddDir(CGROUPFS_DIR, true);
 
     if (ds.dump_pool_) {
         WAIT_TASK_WITH_CONSENT_CHECK(DUMP_INCIDENT_REPORT_TASK, ds.dump_pool_);
@@ -2446,7 +2451,9 @@ static void SendBroadcast(const std::string& action, const std::vector<std::stri
 
 static void Vibrate(int duration_ms) {
     // clang-format off
-    RunCommand("", {"cmd", "vibrator", "vibrate", "-f", std::to_string(duration_ms), "dumpstate"},
+    std::vector<std::string> args = {"cmd", "vibrator_manager", "synced", "-f", "-d", "dumpstate",
+                                     "oneshot", std::to_string(duration_ms)};
+    RunCommand("", args,
                CommandOptions::WithTimeout(10)
                    .Log("Vibrate: '%s'\n")
                    .Always()
@@ -3208,6 +3215,11 @@ Dumpstate::RunStatus Dumpstate::CopyBugreportIfUserConsented(int32_t calling_uid
         // Since we do not have user consent to share the bugreport it does not get
         // copied over to the calling app but remains in the internal directory from
         // where the user can manually pull it.
+        std::string final_path = GetPath(".zip");
+        bool copy_succeeded = android::os::CopyFileToFile(path_, final_path);
+        if (copy_succeeded) {
+            android::os::UnlinkAndLogOnError(path_);
+        }
         return Dumpstate::RunStatus::USER_CONSENT_TIMED_OUT;
     }
     // Unknown result; must be a programming error.

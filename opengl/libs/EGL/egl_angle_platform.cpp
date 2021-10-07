@@ -16,7 +16,6 @@
 
 #if defined(__ANDROID__)
 
-#include "Loader.h"
 #include "egl_angle_platform.h"
 
 #pragma GCC diagnostic push
@@ -31,6 +30,8 @@
 #include <log/log.h>
 #include <time.h>
 #include <vndksupport/linker.h>
+
+#include "Loader.h"
 
 namespace angle {
 
@@ -151,9 +152,8 @@ bool initializeAnglePlatform(EGLDisplay dpy) {
             reinterpret_cast<ResetDisplayPlatformFunc>(dlsym(so, "ANGLEResetDisplayPlatform"));
 
     PlatformMethods* platformMethods = nullptr;
-    if (!((angleGetDisplayPlatform)(dpy, g_PlatformMethodNames,
-                                                              g_NumPlatformMethods, nullptr,
-                                                              &platformMethods))) {
+    if (!((angleGetDisplayPlatform)(dpy, g_PlatformMethodNames, g_NumPlatformMethods, nullptr,
+                                    &platformMethods))) {
         ALOGE("ANGLEGetDisplayPlatform call failed!");
         return false;
     }

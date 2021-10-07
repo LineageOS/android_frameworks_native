@@ -29,8 +29,10 @@ public:
     PowerAdvisor();
     ~PowerAdvisor() override;
 
+    MOCK_METHOD0(init, void());
     MOCK_METHOD0(onBootFinished, void());
     MOCK_METHOD2(setExpensiveRenderingExpected, void(DisplayId displayId, bool expected));
+    MOCK_METHOD0(isUsingExpensiveRendering, bool());
     MOCK_METHOD0(notifyDisplayUpdateImminent, void());
 };
 

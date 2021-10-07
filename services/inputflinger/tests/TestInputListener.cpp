@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
+#include "TestInputListener.h"
 
 #include <gtest/gtest.h>
-
-#include "TestInputListener.h"
 
 namespace android {
 
@@ -28,7 +27,7 @@ TestInputListener::TestInputListener(std::chrono::milliseconds eventHappenedTime
       : mEventHappenedTimeout(eventHappenedTimeout),
         mEventDidNotHappenTimeout(eventDidNotHappenTimeout) {}
 
-TestInputListener::~TestInputListener() { }
+TestInputListener::~TestInputListener() {}
 
 void TestInputListener::assertNotifyConfigurationChangedWasCalled(
         NotifyConfigurationChangedArgs* outEventArgs) {
@@ -43,8 +42,7 @@ void TestInputListener::assertNotifyConfigurationChangedWasNotCalled() {
             "notifyConfigurationChanged() should not be called."));
 }
 
-void TestInputListener::assertNotifyDeviceResetWasCalled(
-        NotifyDeviceResetArgs* outEventArgs) {
+void TestInputListener::assertNotifyDeviceResetWasCalled(NotifyDeviceResetArgs* outEventArgs) {
     ASSERT_NO_FATAL_FAILURE(
             assertCalled<
                     NotifyDeviceResetArgs>(outEventArgs,
@@ -73,13 +71,33 @@ void TestInputListener::assertNotifyMotionWasCalled(NotifyMotionArgs* outEventAr
 
 void TestInputListener::assertNotifyMotionWasNotCalled() {
     ASSERT_NO_FATAL_FAILURE(
-            assertNotCalled<NotifySwitchArgs>("notifySwitch() should not be called."));
+            assertNotCalled<NotifyMotionArgs>("notifyMotion() should not be called."));
 }
 
 void TestInputListener::assertNotifySwitchWasCalled(NotifySwitchArgs* outEventArgs) {
     ASSERT_NO_FATAL_FAILURE(
             assertCalled<NotifySwitchArgs>(outEventArgs,
                                            "Expected notifySwitch() to have been called."));
+}
+
+void TestInputListener::assertNotifySensorWasCalled(NotifySensorArgs* outEventArgs) {
+    ASSERT_NO_FATAL_FAILURE(
+            assertCalled<NotifySensorArgs>(outEventArgs,
+                                           "Expected notifySensor() to have been called."));
+}
+
+void TestInputListener::assertNotifyVibratorStateWasCalled(NotifyVibratorStateArgs* outEventArgs) {
+    ASSERT_NO_FATAL_FAILURE(assertCalled<NotifyVibratorStateArgs>(outEventArgs,
+                                                                  "Expected notifyVibratorState() "
+                                                                  "to have been called."));
+}
+
+void TestInputListener::assertNotifyCaptureWasCalled(
+        NotifyPointerCaptureChangedArgs* outEventArgs) {
+    ASSERT_NO_FATAL_FAILURE(
+            assertCalled<NotifyPointerCaptureChangedArgs>(outEventArgs,
+                                                          "Expected notifyPointerCaptureChanged() "
+                                                          "to have been called."));
 }
 
 template <class NotifyArgsType>
@@ -143,6 +161,18 @@ void TestInputListener::notifyMotion(const NotifyMotionArgs* args) {
 
 void TestInputListener::notifySwitch(const NotifySwitchArgs* args) {
     notify<NotifySwitchArgs>(args);
+}
+
+void TestInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
+    notify<NotifyPointerCaptureChangedArgs>(args);
+}
+
+void TestInputListener::notifySensor(const NotifySensorArgs* args) {
+    notify<NotifySensorArgs>(args);
+}
+
+void TestInputListener::notifyVibratorState(const NotifyVibratorStateArgs* args) {
+    notify<NotifyVibratorStateArgs>(args);
 }
 
 } // namespace android

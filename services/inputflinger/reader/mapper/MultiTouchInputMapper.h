@@ -87,6 +87,7 @@ private:
     bool mHaveStylus;
 
     void clearSlots(int32_t initialSlot);
+    void warnIfNotInUse(const RawEvent& event, const Slot& slot);
 };
 
 class MultiTouchInputMapper : public TouchInputMapper {

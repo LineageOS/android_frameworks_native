@@ -125,6 +125,10 @@ public:
 
     bool isSensorActive(int handle) const;
 
+    // To update the BatchParams of a SensorEventConnection when the mic toggle changes its state
+    // while the Sensors Off toggle is on.
+    void onMicSensorAccessChanged(void* ident, int handle, nsecs_t samplingPeriodNs);
+
     // Dumpable
     virtual std::string dump() const override;
     virtual void dump(util::ProtoOutputStream* proto) const override;

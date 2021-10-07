@@ -363,10 +363,80 @@ const ProcHook g_proc_hooks[] = {
         reinterpret_cast<PFN_vkVoidFunction>(checkedGetPastPresentationTimingGOOGLE),
     },
     {
+        "vkGetPhysicalDeviceExternalBufferProperties",
+        ProcHook::INSTANCE,
+        ProcHook::EXTENSION_CORE_1_1,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceExternalBufferProperties),
+        nullptr,
+    },
+    {
+        "vkGetPhysicalDeviceExternalFenceProperties",
+        ProcHook::INSTANCE,
+        ProcHook::EXTENSION_CORE_1_1,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceExternalFenceProperties),
+        nullptr,
+    },
+    {
+        "vkGetPhysicalDeviceExternalSemaphoreProperties",
+        ProcHook::INSTANCE,
+        ProcHook::EXTENSION_CORE_1_1,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceExternalSemaphoreProperties),
+        nullptr,
+    },
+    {
+        "vkGetPhysicalDeviceFeatures2",
+        ProcHook::INSTANCE,
+        ProcHook::EXTENSION_CORE_1_1,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceFeatures2),
+        nullptr,
+    },
+    {
+        "vkGetPhysicalDeviceFormatProperties2",
+        ProcHook::INSTANCE,
+        ProcHook::EXTENSION_CORE_1_1,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceFormatProperties2),
+        nullptr,
+    },
+    {
+        "vkGetPhysicalDeviceImageFormatProperties2",
+        ProcHook::INSTANCE,
+        ProcHook::EXTENSION_CORE_1_1,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceImageFormatProperties2),
+        nullptr,
+    },
+    {
+        "vkGetPhysicalDeviceMemoryProperties2",
+        ProcHook::INSTANCE,
+        ProcHook::EXTENSION_CORE_1_1,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceMemoryProperties2),
+        nullptr,
+    },
+    {
         "vkGetPhysicalDevicePresentRectanglesKHR",
         ProcHook::INSTANCE,
         ProcHook::KHR_swapchain,
         reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDevicePresentRectanglesKHR),
+        nullptr,
+    },
+    {
+        "vkGetPhysicalDeviceProperties2",
+        ProcHook::INSTANCE,
+        ProcHook::EXTENSION_CORE_1_1,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceProperties2),
+        nullptr,
+    },
+    {
+        "vkGetPhysicalDeviceQueueFamilyProperties2",
+        ProcHook::INSTANCE,
+        ProcHook::EXTENSION_CORE_1_1,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceQueueFamilyProperties2),
+        nullptr,
+    },
+    {
+        "vkGetPhysicalDeviceSparseImageFormatProperties2",
+        ProcHook::INSTANCE,
+        ProcHook::EXTENSION_CORE_1_1,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceSparseImageFormatProperties2),
         nullptr,
     },
     {
@@ -480,10 +550,9 @@ const ProcHook g_proc_hooks[] = {
 }  // namespace
 
 const ProcHook* GetProcHook(const char* name) {
-    const auto& begin = g_proc_hooks;
-    const auto& end =
-        g_proc_hooks + sizeof(g_proc_hooks) / sizeof(g_proc_hooks[0]);
-    const auto hook = std::lower_bound(
+    auto begin = std::cbegin(g_proc_hooks);
+    auto end = std::cend(g_proc_hooks);
+    auto hook = std::lower_bound(
         begin, end, name,
         [](const ProcHook& e, const char* n) { return strcmp(e.name, n) < 0; });
     return (hook < end && strcmp(hook->name, name) == 0) ? hook : nullptr;
@@ -505,6 +574,10 @@ ProcHook::Extension GetProcHookExtension(const char* name) {
     if (strcmp(name, "VK_ANDROID_external_memory_android_hardware_buffer") == 0) return ProcHook::ANDROID_external_memory_android_hardware_buffer;
     if (strcmp(name, "VK_KHR_bind_memory2") == 0) return ProcHook::KHR_bind_memory2;
     if (strcmp(name, "VK_KHR_get_physical_device_properties2") == 0) return ProcHook::KHR_get_physical_device_properties2;
+    if (strcmp(name, "VK_KHR_device_group_creation") == 0) return ProcHook::KHR_device_group_creation;
+    if (strcmp(name, "VK_KHR_external_memory_capabilities") == 0) return ProcHook::KHR_external_memory_capabilities;
+    if (strcmp(name, "VK_KHR_external_semaphore_capabilities") == 0) return ProcHook::KHR_external_semaphore_capabilities;
+    if (strcmp(name, "VK_KHR_external_fence_capabilities") == 0) return ProcHook::KHR_external_fence_capabilities;
     // clang-format on
     return ProcHook::EXTENSION_UNKNOWN;
 }
@@ -543,9 +616,28 @@ bool InitDriverTable(VkInstance instance,
     INIT_PROC_EXT(EXT_debug_report, true, instance, CreateDebugReportCallbackEXT);
     INIT_PROC_EXT(EXT_debug_report, true, instance, DestroyDebugReportCallbackEXT);
     INIT_PROC_EXT(EXT_debug_report, true, instance, DebugReportMessageEXT);
+    INIT_PROC(false, instance, GetPhysicalDeviceFeatures2);
+    INIT_PROC_EXT(KHR_get_physical_device_properties2, true, instance, GetPhysicalDeviceFeatures2KHR);
     INIT_PROC(false, instance, GetPhysicalDeviceProperties2);
     INIT_PROC_EXT(KHR_get_physical_device_properties2, true, instance, GetPhysicalDeviceProperties2KHR);
+    INIT_PROC(false, instance, GetPhysicalDeviceFormatProperties2);
+    INIT_PROC_EXT(KHR_get_physical_device_properties2, true, instance, GetPhysicalDeviceFormatProperties2KHR);
+    INIT_PROC(false, instance, GetPhysicalDeviceImageFormatProperties2);
+    INIT_PROC_EXT(KHR_get_physical_device_properties2, true, instance, GetPhysicalDeviceImageFormatProperties2KHR);
+    INIT_PROC(false, instance, GetPhysicalDeviceQueueFamilyProperties2);
+    INIT_PROC_EXT(KHR_get_physical_device_properties2, true, instance, GetPhysicalDeviceQueueFamilyProperties2KHR);
+    INIT_PROC(false, instance, GetPhysicalDeviceMemoryProperties2);
+    INIT_PROC_EXT(KHR_get_physical_device_properties2, true, instance, GetPhysicalDeviceMemoryProperties2KHR);
+    INIT_PROC(false, instance, GetPhysicalDeviceSparseImageFormatProperties2);
+    INIT_PROC_EXT(KHR_get_physical_device_properties2, true, instance, GetPhysicalDeviceSparseImageFormatProperties2KHR);
+    INIT_PROC(false, instance, GetPhysicalDeviceExternalBufferProperties);
+    INIT_PROC_EXT(KHR_external_memory_capabilities, true, instance, GetPhysicalDeviceExternalBufferPropertiesKHR);
+    INIT_PROC(false, instance, GetPhysicalDeviceExternalSemaphoreProperties);
+    INIT_PROC_EXT(KHR_external_semaphore_capabilities, true, instance, GetPhysicalDeviceExternalSemaphorePropertiesKHR);
+    INIT_PROC(false, instance, GetPhysicalDeviceExternalFenceProperties);
+    INIT_PROC_EXT(KHR_external_fence_capabilities, true, instance, GetPhysicalDeviceExternalFencePropertiesKHR);
     INIT_PROC(false, instance, EnumeratePhysicalDeviceGroups);
+    INIT_PROC_EXT(KHR_device_group_creation, true, instance, EnumeratePhysicalDeviceGroupsKHR);
     // clang-format on
 
     return success;
@@ -575,6 +667,54 @@ bool InitDriverTable(VkDevice dev,
     // clang-format on
 
     return success;
+}
+
+const std::pair<const char*, uint32_t> g_promoted_instance_extensions[] = {
+    // clang-format off
+    std::make_pair("VK_KHR_device_group_creation", VK_API_VERSION_1_1),
+    std::make_pair("VK_KHR_external_fence_capabilities", VK_API_VERSION_1_1),
+    std::make_pair("VK_KHR_external_memory_capabilities", VK_API_VERSION_1_1),
+    std::make_pair("VK_KHR_external_semaphore_capabilities", VK_API_VERSION_1_1),
+    std::make_pair("VK_KHR_get_physical_device_properties2", VK_API_VERSION_1_1),
+    // clang-format on
+};
+
+std::optional<uint32_t> GetInstanceExtensionPromotedVersion(const char* name) {
+    auto begin = std::cbegin(g_promoted_instance_extensions);
+    auto end = std::cend(g_promoted_instance_extensions);
+    auto iter =
+        std::lower_bound(begin, end, name,
+                         [](const std::pair<const char*, uint32_t>& e,
+                            const char* n) { return strcmp(e.first, n) < 0; });
+    return (iter < end && strcmp(iter->first, name) == 0)
+               ? std::optional<uint32_t>(iter->second)
+               : std::nullopt;
+}
+
+uint32_t CountPromotedInstanceExtensions(uint32_t begin_version,
+                                         uint32_t end_version) {
+    auto begin = std::cbegin(g_promoted_instance_extensions);
+    auto end = std::cend(g_promoted_instance_extensions);
+    uint32_t count = 0;
+
+    for (auto iter = begin; iter != end; iter++)
+        if (iter->second > begin_version && iter->second <= end_version)
+            count++;
+
+    return count;
+}
+
+std::vector<const char*> GetPromotedInstanceExtensions(uint32_t begin_version,
+                                                       uint32_t end_version) {
+    auto begin = std::cbegin(g_promoted_instance_extensions);
+    auto end = std::cend(g_promoted_instance_extensions);
+    std::vector<const char*> extensions;
+
+    for (auto iter = begin; iter != end; iter++)
+        if (iter->second > begin_version && iter->second <= end_version)
+            extensions.emplace_back(iter->first);
+
+    return extensions;
 }
 
 }  // namespace driver

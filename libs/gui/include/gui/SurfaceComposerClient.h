@@ -29,6 +29,7 @@
 #include <utils/SortedVector.h>
 #include <utils/threads.h>
 
+#include <ui/BlurRegion.h>
 #include <ui/ConfigStoreTypes.h>
 #include <ui/DisplayedFrameStats.h>
 #include <ui/FrameStats.h>
@@ -49,6 +50,7 @@ class HdrCapabilities;
 class ISurfaceComposerClient;
 class IGraphicBufferProducer;
 class IRegionSamplingListener;
+class ITunnelModeEnabledListener;
 class Region;
 
 struct SurfaceControlStats {
@@ -79,6 +81,14 @@ using TransactionCompletedCallbackTakesContext =
 using TransactionCompletedCallback =
         std::function<void(nsecs_t /*latchTime*/, const sp<Fence>& /*presentFence*/,
                            const std::vector<SurfaceControlStats>& /*stats*/)>;
+using ReleaseBufferCallback =
+        std::function<void(const ReleaseCallbackId&, const sp<Fence>& /*releaseFence*/,
+                           uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount)>;
+
+using SurfaceStatsCallback =
+        std::function<void(void* /*context*/, nsecs_t /*latchTime*/,
+                           const sp<Fence>& /*presentFence*/,
+                           const SurfaceStats& /*stats*/)>;
 
 // ---------------------------------------------------------------------------
 
@@ -107,56 +117,41 @@ public:
     static status_t getDisplayState(const sp<IBinder>& display, ui::DisplayState*);
 
     // Get immutable information about given physical display.
-    static status_t getDisplayInfo(const sp<IBinder>& display, DisplayInfo*);
+    static status_t getStaticDisplayInfo(const sp<IBinder>& display, ui::StaticDisplayInfo*);
 
-    // Get configurations supported by given physical display.
-    static status_t getDisplayConfigs(const sp<IBinder>& display, Vector<DisplayConfig>*);
+    // Get dynamic information about given physical display.
+    static status_t getDynamicDisplayInfo(const sp<IBinder>& display, ui::DynamicDisplayInfo*);
 
-    // Get the ID of the active DisplayConfig, as getDisplayConfigs index.
-    static int getActiveConfig(const sp<IBinder>& display);
-
-    // Shorthand for getDisplayConfigs element at getActiveConfig index.
-    static status_t getActiveDisplayConfig(const sp<IBinder>& display, DisplayConfig*);
+    // Shorthand for the active display mode from getDynamicDisplayInfo().
+    // TODO(b/180391891): Update clients to use getDynamicDisplayInfo and remove this function.
+    static status_t getActiveDisplayMode(const sp<IBinder>& display, ui::DisplayMode*);
 
     // Sets the refresh rate boundaries for the display.
-    static status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                 int32_t defaultConfig, float primaryRefreshRateMin,
-                                                 float primaryRefreshRateMax,
-                                                 float appRequestRefreshRateMin,
-                                                 float appRequestRefreshRateMax);
+    static status_t setDesiredDisplayModeSpecs(
+            const sp<IBinder>& displayToken, ui::DisplayModeId defaultMode,
+            bool allowGroupSwitching, float primaryRefreshRateMin, float primaryRefreshRateMax,
+            float appRequestRefreshRateMin, float appRequestRefreshRateMax);
     // Gets the refresh rate boundaries for the display.
-    static status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                 int32_t* outDefaultConfig,
-                                                 float* outPrimaryRefreshRateMin,
-                                                 float* outPrimaryRefreshRateMax,
-                                                 float* outAppRequestRefreshRateMin,
-                                                 float* outAppRequestRefreshRateMax);
-
-    // Gets the list of supported color modes for the given display
-    static status_t getDisplayColorModes(const sp<IBinder>& display,
-            Vector<ui::ColorMode>* outColorModes);
+    static status_t getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
+                                               ui::DisplayModeId* outDefaultMode,
+                                               bool* outAllowGroupSwitching,
+                                               float* outPrimaryRefreshRateMin,
+                                               float* outPrimaryRefreshRateMax,
+                                               float* outAppRequestRefreshRateMin,
+                                               float* outAppRequestRefreshRateMax);
 
     // Get the coordinates of the display's native color primaries
     static status_t getDisplayNativePrimaries(const sp<IBinder>& display,
             ui::DisplayPrimaries& outPrimaries);
 
-    // Gets the active color mode for the given display
-    static ui::ColorMode getActiveColorMode(const sp<IBinder>& display);
-
     // Sets the active color mode for the given display
     static status_t setActiveColorMode(const sp<IBinder>& display,
             ui::ColorMode colorMode);
-
-    // Reports whether the connected display supports Auto Low Latency Mode
-    static bool getAutoLowLatencyModeSupport(const sp<IBinder>& display);
 
     // Switches on/off Auto Low Latency Mode on the connected display. This should only be
     // called if the connected display supports Auto Low Latency Mode as reported by
     // #getAutoLowLatencyModeSupport
     static void setAutoLowLatencyMode(const sp<IBinder>& display, bool on);
-
-    // Reports whether the connected display supports Game content type
-    static bool getGameContentTypeSupport(const sp<IBinder>& display);
 
     // Turns Game mode on/off on the connected display. This should only be called
     // if the display supports Game content type, as reported by #getGameContentTypeSupport
@@ -180,6 +175,11 @@ public:
      * Requires the ACCESS_SURFACE_FLINGER permission.
      */
     static bool getProtectedContentSupport();
+
+    /**
+     * Gets the context priority of surface flinger's render engine.
+     */
+    static int getGPUContextPriority();
 
     /**
      * Uncaches a buffer in ISurfaceComposer. It must be uncached via a transaction so that it is
@@ -214,17 +214,23 @@ public:
      *      BAD_VALUE         if the brightness value is invalid, or
      *      INVALID_OPERATION if brightness operaetions are not supported.
      */
-    static status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness);
+    static status_t setDisplayBrightness(const sp<IBinder>& displayToken,
+                                         const gui::DisplayBrightness& brightness);
+
+    static status_t addHdrLayerInfoListener(const sp<IBinder>& displayToken,
+                                            const sp<gui::IHdrLayerInfoListener>& listener);
+    static status_t removeHdrLayerInfoListener(const sp<IBinder>& displayToken,
+                                               const sp<gui::IHdrLayerInfoListener>& listener);
 
     /*
-     * Sends a power hint to the composer. This function is asynchronous.
+     * Sends a power boost to the composer. This function is asynchronous.
      *
-     * hintId
-     *      hint id according to android::hardware::power::V1_0::PowerHint
+     * boostId
+     *      boost id according to android::hardware::power::Boost
      *
      * Returns NO_ERROR upon success.
      */
-    static status_t notifyPowerHint(int32_t hintId);
+    static status_t notifyPowerBoost(int32_t boostId);
 
     /*
      * Sets the global configuration for all the shadows drawn by SurfaceFlinger. Shadow follows
@@ -253,13 +259,13 @@ public:
     static sp<SurfaceComposerClient> getDefault();
 
     //! Create a surface
-    sp<SurfaceControl> createSurface(const String8& name,              // name of the surface
-                                     uint32_t w,                       // width in pixel
-                                     uint32_t h,                       // height in pixel
-                                     PixelFormat format,               // pixel-format desired
-                                     uint32_t flags = 0,               // usage flags
-                                     SurfaceControl* parent = nullptr, // parent
-                                     LayerMetadata metadata = LayerMetadata(), // metadata
+    sp<SurfaceControl> createSurface(const String8& name, // name of the surface
+                                     uint32_t w,          // width in pixel
+                                     uint32_t h,          // height in pixel
+                                     PixelFormat format,  // pixel-format desired
+                                     uint32_t flags = 0,  // usage flags
+                                     const sp<IBinder>& parentHandle = nullptr, // parentHandle
+                                     LayerMetadata metadata = LayerMetadata(),  // metadata
                                      uint32_t* outTransformHint = nullptr);
 
     status_t createSurfaceChecked(const String8& name, // name of the surface
@@ -267,9 +273,9 @@ public:
                                   uint32_t h,          // height in pixel
                                   PixelFormat format,  // pixel-format desired
                                   sp<SurfaceControl>* outSurface,
-                                  uint32_t flags = 0,                       // usage flags
-                                  SurfaceControl* parent = nullptr,         // parent
-                                  LayerMetadata metadata = LayerMetadata(), // metadata
+                                  uint32_t flags = 0,                        // usage flags
+                                  const sp<IBinder>& parentHandle = nullptr, // parentHandle
+                                  LayerMetadata metadata = LayerMetadata(),  // metadata
                                   uint32_t* outTransformHint = nullptr);
 
     //! Create a surface
@@ -332,25 +338,30 @@ public:
     struct CallbackInfo {
         // All the callbacks that have been requested for a TransactionCompletedListener in the
         // Transaction
-        std::unordered_set<CallbackId> callbackIds;
+        std::unordered_set<CallbackId, CallbackIdHash> callbackIds;
         // All the SurfaceControls that have been modified in this TransactionCompletedListener's
         // process that require a callback if there is one or more callbackIds set.
         std::unordered_set<sp<SurfaceControl>, SCHash> surfaceControls;
     };
 
     class Transaction : public Parcelable {
+    private:
+        static std::atomic<uint32_t> idCounter;
+        int64_t generateId();
+
     protected:
         std::unordered_map<sp<IBinder>, ComposerState, IBinderHash> mComposerStates;
-        SortedVector<DisplayState > mDisplayStates;
+        SortedVector<DisplayState> mDisplayStates;
         std::unordered_map<sp<ITransactionCompletedListener>, CallbackInfo, TCLHash>
                 mListenerCallbacks;
+
+        uint64_t mId;
 
         uint32_t mForceSynchronous = 0;
         uint32_t mTransactionNestCount = 0;
         bool mAnimation = false;
-        bool mEarlyWakeup = false;
-        bool mExplicitEarlyWakeupStart = false;
-        bool mExplicitEarlyWakeupEnd = false;
+        bool mEarlyWakeupStart = false;
+        bool mEarlyWakeupEnd = false;
 
         // Indicates that the Transaction contains a buffer that should be cached
         bool mContainsBuffer = false;
@@ -359,28 +370,39 @@ public:
         // to be presented. When it is not possible to present at exactly that time, it will be
         // presented after the time has passed.
         //
+        // If the client didn't pass a desired presentation time, mDesiredPresentTime will be
+        // populated to the time setBuffer was called, and mIsAutoTimestamp will be set to true.
+        //
         // Desired present times that are more than 1 second in the future may be ignored.
         // When a desired present time has already passed, the transaction will be presented as soon
         // as possible.
         //
         // Transactions from the same process are presented in the same order that they are applied.
         // The desired present time does not affect this ordering.
-        int64_t mDesiredPresentTime = -1;
+        int64_t mDesiredPresentTime = 0;
+        bool mIsAutoTimestamp = true;
+
+        // The vsync id provided by Choreographer.getVsyncId and the input event id
+        FrameTimelineInfo mFrameTimelineInfo;
+
+        // If not null, transactions will be queued up using this token otherwise a common token
+        // per process will be used.
+        sp<IBinder> mApplyToken = nullptr;
 
         InputWindowCommands mInputWindowCommands;
         int mStatus = NO_ERROR;
 
-        layer_state_t* getLayerState(const sp<IBinder>& surfaceHandle);
-        layer_state_t* getLayerState(const sp<SurfaceControl>& sc) {
-            return getLayerState(sc->getHandle());
-        }
+        layer_state_t* getLayerState(const sp<SurfaceControl>& sc);
         DisplayState& getDisplayState(const sp<IBinder>& token);
 
         void cacheBuffers();
         void registerSurfaceControlForCallback(const sp<SurfaceControl>& sc);
+        void setReleaseBufferCallback(layer_state_t*, const ReleaseCallbackId&,
+                                      ReleaseBufferCallback);
+        void removeReleaseBufferCallback(layer_state_t*);
 
     public:
-        Transaction() = default;
+        Transaction();
         virtual ~Transaction() = default;
         Transaction(Transaction const& other);
 
@@ -418,7 +440,7 @@ public:
         // If the relative is removed, the Surface will have no layer and be
         // invisible, until the next time set(Relative)Layer is called.
         Transaction& setRelativeLayer(const sp<SurfaceControl>& sc,
-                const sp<IBinder>& relativeTo, int32_t z);
+                                      const sp<SurfaceControl>& relativeTo, int32_t z);
         Transaction& setFlags(const sp<SurfaceControl>& sc,
                 uint32_t flags, uint32_t mask);
         Transaction& setTransparentRegionHint(const sp<SurfaceControl>& sc,
@@ -427,33 +449,17 @@ public:
                 float alpha);
         Transaction& setMatrix(const sp<SurfaceControl>& sc,
                 float dsdx, float dtdx, float dtdy, float dsdy);
-        Transaction& setCrop_legacy(const sp<SurfaceControl>& sc, const Rect& crop);
+        Transaction& setCrop(const sp<SurfaceControl>& sc, const Rect& crop);
         Transaction& setCornerRadius(const sp<SurfaceControl>& sc, float cornerRadius);
         Transaction& setBackgroundBlurRadius(const sp<SurfaceControl>& sc,
                                              int backgroundBlurRadius);
+        Transaction& setBlurRegions(const sp<SurfaceControl>& sc,
+                                    const std::vector<BlurRegion>& regions);
         Transaction& setLayerStack(const sp<SurfaceControl>& sc, uint32_t layerStack);
         Transaction& setMetadata(const sp<SurfaceControl>& sc, uint32_t key, const Parcel& p);
-        // Defers applying any changes made in this transaction until the Layer
-        // identified by handle reaches the given frameNumber. If the Layer identified
-        // by handle is removed, then we will apply this transaction regardless of
-        // what frame number has been reached.
-        Transaction& deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
-                                                  const sp<IBinder>& handle, uint64_t frameNumber);
-        // A variant of deferTransactionUntil_legacy which identifies the Layer we wait for by
-        // Surface instead of Handle. Useful for clients which may not have the
-        // SurfaceControl for some of their Surfaces. Otherwise behaves identically.
-        Transaction& deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
-                                                  const sp<Surface>& barrierSurface,
-                                                  uint64_t frameNumber);
-        // Reparents all children of this layer to the new parent handle.
-        Transaction& reparentChildren(const sp<SurfaceControl>& sc,
-                const sp<IBinder>& newParentHandle);
 
         /// Reparents the current layer to the new parent handle. The new parent must not be null.
-        // This can be used instead of reparentChildren if the caller wants to
-        // only re-parent a specific child.
-        Transaction& reparent(const sp<SurfaceControl>& sc,
-                const sp<IBinder>& newParentHandle);
+        Transaction& reparent(const sp<SurfaceControl>& sc, const sp<SurfaceControl>& newParent);
 
         Transaction& setColor(const sp<SurfaceControl>& sc, const half3& color);
 
@@ -464,9 +470,9 @@ public:
         Transaction& setTransform(const sp<SurfaceControl>& sc, uint32_t transform);
         Transaction& setTransformToDisplayInverse(const sp<SurfaceControl>& sc,
                                                   bool transformToDisplayInverse);
-        Transaction& setCrop(const sp<SurfaceControl>& sc, const Rect& crop);
-        Transaction& setFrame(const sp<SurfaceControl>& sc, const Rect& frame);
-        Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer);
+        Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
+                               const ReleaseCallbackId& id = ReleaseCallbackId::INVALID_ID,
+                               ReleaseBufferCallback callback = nullptr);
         Transaction& setCachedBuffer(const sp<SurfaceControl>& sc, int32_t bufferId);
         Transaction& setAcquireFence(const sp<SurfaceControl>& sc, const sp<Fence>& fence);
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
@@ -482,31 +488,23 @@ public:
         // Sets information about the priority of the frame.
         Transaction& setFrameRateSelectionPriority(const sp<SurfaceControl>& sc, int32_t priority);
 
+        Transaction& addTransactionCallback(TransactionCompletedCallbackTakesContext callback,
+                                            void* callbackContext, CallbackId::Type callbackType);
+
         Transaction& addTransactionCompletedCallback(
+                TransactionCompletedCallbackTakesContext callback, void* callbackContext);
+
+        Transaction& addTransactionCommittedCallback(
                 TransactionCompletedCallbackTakesContext callback, void* callbackContext);
 
         // ONLY FOR BLAST ADAPTER
         Transaction& notifyProducerDisconnect(const sp<SurfaceControl>& sc);
-
-        // Detaches all child surfaces (and their children recursively)
-        // from their SurfaceControl.
-        // The child SurfaceControls will not throw exceptions or return errors,
-        // but transactions will have no effect.
-        // The child surfaces will continue to follow their parent surfaces,
-        // and remain eligible for rendering, but their relative state will be
-        // frozen. We use this in the WindowManager, in app shutdown/relaunch
-        // scenarios, where the app would otherwise clean up its child Surfaces.
-        // Sometimes the WindowManager needs to extend their lifetime slightly
-        // in order to perform an exit animation or prevent flicker.
-        Transaction& detachChildren(const sp<SurfaceControl>& sc);
-        // Set an override scaling mode as documented in <system/window.h>
-        // the override scaling mode will take precedence over any client
-        // specified scaling mode. -1 will clear the override scaling mode.
-        Transaction& setOverrideScalingMode(const sp<SurfaceControl>& sc,
-                int32_t overrideScalingMode);
+        // Set the framenumber generated by the graphics producer to mimic BufferQueue behaviour.
+        Transaction& setFrameNumber(const sp<SurfaceControl>& sc, uint64_t frameNumber);
 
 #ifndef NO_INPUT
         Transaction& setInputWindowInfo(const sp<SurfaceControl>& sc, const InputWindowInfo& info);
+        Transaction& setFocusedWindow(const FocusRequest& request);
         Transaction& syncInputWindows();
 #endif
 
@@ -519,7 +517,7 @@ public:
         Transaction& setShadowRadius(const sp<SurfaceControl>& sc, float cornerRadius);
 
         Transaction& setFrameRate(const sp<SurfaceControl>& sc, float frameRate,
-                                  int8_t compatibility);
+                                  int8_t compatibility, int8_t changeFrameRateStrategy);
 
         // Set by window manager indicating the layer and all its children are
         // in a different orientation than the display. The hint suggests that
@@ -528,6 +526,43 @@ public:
         // the layer orientation, the graphic producer may not need to allocate
         // a buffer of a different size.
         Transaction& setFixedTransformHint(const sp<SurfaceControl>& sc, int32_t transformHint);
+
+        // Sets the frame timeline vsync id received from choreographer that corresponds
+        // to the transaction, and the input event id that identifies the input event that caused
+        // the current frame.
+        Transaction& setFrameTimelineInfo(const FrameTimelineInfo& frameTimelineInfo);
+
+        // Indicates that the consumer should acquire the next frame as soon as it
+        // can and not wait for a frame to become available. This is only relevant
+        // in shared buffer mode.
+        Transaction& setAutoRefresh(const sp<SurfaceControl>& sc, bool autoRefresh);
+
+        // Sets that this surface control and its children are trusted overlays for input
+        Transaction& setTrustedOverlay(const sp<SurfaceControl>& sc, bool isTrustedOverlay);
+
+        // Queues up transactions using this token in SurfaceFlinger.  By default, all transactions
+        // from a client are placed on the same queue. This can be used to prevent multiple
+        // transactions from blocking each other.
+        Transaction& setApplyToken(const sp<IBinder>& token);
+
+        /**
+         * Provides the stretch effect configured on a container that the
+         * surface is rendered within.
+         * @param sc target surface the stretch should be applied to
+         * @param stretchEffect the corresponding stretch effect to be applied
+         *    to the surface. This can be directly on the surface itself or
+         *    configured from a parent of the surface in which case the
+         *    StretchEffect provided has parameters mapping the position of
+         *    the surface within the container that has the stretch configured
+         *    on it
+         * @return The transaction being constructed
+         */
+        Transaction& setStretchEffect(const sp<SurfaceControl>& sc,
+                                      const StretchEffect& stretchEffect);
+
+        Transaction& setBufferCrop(const sp<SurfaceControl>& sc, const Rect& bufferCrop);
+        Transaction& setDestinationFrame(const sp<SurfaceControl>& sc,
+                                         const Rect& destinationFrame);
 
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
@@ -548,9 +583,8 @@ public:
                                   const Rect& layerStackRect, const Rect& displayRect);
         void setDisplaySize(const sp<IBinder>& token, uint32_t width, uint32_t height);
         void setAnimationTransaction();
-        void setEarlyWakeup();
-        void setExplicitEarlyWakeupStart();
-        void setExplicitEarlyWakeupEnd();
+        void setEarlyWakeupStart();
+        void setEarlyWakeupEnd();
     };
 
     status_t clearLayerFrameStats(const sp<IBinder>& token) const;
@@ -558,8 +592,10 @@ public:
     static status_t clearAnimationFrameStats();
     static status_t getAnimationFrameStats(FrameStats* outStats);
 
-    static status_t getHdrCapabilities(const sp<IBinder>& display,
-            HdrCapabilities* outCapabilities);
+    static status_t overrideHdrTypes(const sp<IBinder>& display,
+                                     const std::vector<ui::Hdr>& hdrTypes);
+
+    static status_t onPullAtom(const int32_t atomId, std::string* outData, bool* success);
 
     static void setDisplayProjection(const sp<IBinder>& token, ui::Rotation orientation,
                                      const Rect& layerStackRect, const Rect& displayRect);
@@ -579,6 +615,12 @@ public:
                                               const sp<IBinder>& stopLayerHandle,
                                               const sp<IRegionSamplingListener>& listener);
     static status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener);
+    static status_t addFpsListener(int32_t taskId, const sp<gui::IFpsListener>& listener);
+    static status_t removeFpsListener(const sp<gui::IFpsListener>& listener);
+    static status_t addTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& listener);
+    static status_t removeTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& listener);
 
 private:
     virtual void onFirstRef();
@@ -592,50 +634,61 @@ private:
 
 class ScreenshotClient {
 public:
-    // if cropping isn't required, callers may pass in a default Rect, e.g.:
-    //   capture(display, producer, Rect(), reqWidth, ...);
-    static status_t capture(const sp<IBinder>& display, ui::Dataspace reqDataSpace,
-                            ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                            uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                            ui::Rotation rotation, bool captureSecureLayers,
-                            sp<GraphicBuffer>* outBuffer, bool& outCapturedSecureLayers);
-    static status_t capture(const sp<IBinder>& display, ui::Dataspace reqDataSpace,
-                            ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                            uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                            ui::Rotation rotation, sp<GraphicBuffer>* outBuffer);
-    static status_t capture(uint64_t displayOrLayerStack, ui::Dataspace* outDataspace,
-                            sp<GraphicBuffer>* outBuffer);
-    static status_t captureLayers(const sp<IBinder>& layerHandle, ui::Dataspace reqDataSpace,
-                                  ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                                  float frameScale, sp<GraphicBuffer>* outBuffer);
-    static status_t captureChildLayers(
-            const sp<IBinder>& layerHandle, ui::Dataspace reqDataSpace,
-            ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-            const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>&
-                    excludeHandles,
-            float frameScale, sp<GraphicBuffer>* outBuffer);
+    static status_t captureDisplay(const DisplayCaptureArgs& captureArgs,
+                                   const sp<IScreenCaptureListener>& captureListener);
+    static status_t captureDisplay(uint64_t displayOrLayerStack,
+                                   const sp<IScreenCaptureListener>& captureListener);
+    static status_t captureLayers(const LayerCaptureArgs& captureArgs,
+                                  const sp<IScreenCaptureListener>& captureListener);
 };
 
 // ---------------------------------------------------------------------------
 
+class JankDataListener : public VirtualLightRefBase {
+public:
+    virtual ~JankDataListener() = 0;
+    virtual void onJankDataAvailable(const std::vector<JankData>& jankData) = 0;
+};
+
 class TransactionCompletedListener : public BnTransactionCompletedListener {
     TransactionCompletedListener();
 
-    CallbackId getNextIdLocked() REQUIRES(mMutex);
+    int64_t getNextIdLocked() REQUIRES(mMutex);
 
     std::mutex mMutex;
 
+    // This lock needs to be recursive so we can unregister a callback from within that callback.
+    std::recursive_mutex mSurfaceStatsListenerMutex;
+
     bool mListening GUARDED_BY(mMutex) = false;
 
-    CallbackId mCallbackIdCounter GUARDED_BY(mMutex) = 1;
-
+    int64_t mCallbackIdCounter GUARDED_BY(mMutex) = 1;
     struct CallbackTranslation {
         TransactionCompletedCallback callbackFunction;
         std::unordered_map<sp<IBinder>, sp<SurfaceControl>, SurfaceComposerClient::IBinderHash>
                 surfaceControls;
     };
 
-    std::unordered_map<CallbackId, CallbackTranslation> mCallbacks GUARDED_BY(mMutex);
+    struct SurfaceStatsCallbackEntry {
+        SurfaceStatsCallbackEntry(void* context, void* cookie, SurfaceStatsCallback callback)
+                : context(context),
+                cookie(cookie),
+                callback(callback) {}
+
+        void* context;
+        void* cookie;
+        SurfaceStatsCallback callback;
+    };
+
+    std::unordered_map<CallbackId, CallbackTranslation, CallbackIdHash> mCallbacks
+            GUARDED_BY(mMutex);
+    std::multimap<sp<IBinder>, sp<JankDataListener>> mJankListeners GUARDED_BY(mMutex);
+    std::unordered_map<ReleaseCallbackId, ReleaseBufferCallback, ReleaseBufferCallbackIdHash>
+            mReleaseBufferCallbacks GUARDED_BY(mMutex);
+
+    // This is protected by mSurfaceStatsListenerMutex, but GUARDED_BY isn't supported for
+    // std::recursive_mutex
+    std::multimap<sp<IBinder>, SurfaceStatsCallbackEntry> mSurfaceStatsListeners;
 
 public:
     static sp<TransactionCompletedListener> getInstance();
@@ -646,13 +699,39 @@ public:
     CallbackId addCallbackFunction(
             const TransactionCompletedCallback& callbackFunction,
             const std::unordered_set<sp<SurfaceControl>, SurfaceComposerClient::SCHash>&
-                    surfaceControls);
+                    surfaceControls,
+            CallbackId::Type callbackType);
 
-    void addSurfaceControlToCallbacks(const sp<SurfaceControl>& surfaceControl,
-                                      const std::unordered_set<CallbackId>& callbackIds);
+    void addSurfaceControlToCallbacks(
+            const sp<SurfaceControl>& surfaceControl,
+            const std::unordered_set<CallbackId, CallbackIdHash>& callbackIds);
 
-    // Overrides BnTransactionCompletedListener's onTransactionCompleted
+    /*
+     * Adds a jank listener to be informed about SurfaceFlinger's jank classification for a specific
+     * surface. Jank classifications arrive as part of the transaction callbacks about previous
+     * frames submitted to this Surface.
+     */
+    void addJankListener(const sp<JankDataListener>& listener, sp<SurfaceControl> surfaceControl);
+
+    /**
+     * Removes a jank listener previously added to addJankCallback.
+     */
+    void removeJankListener(const sp<JankDataListener>& listener);
+
+    void addSurfaceStatsListener(void* context, void* cookie, sp<SurfaceControl> surfaceControl,
+                SurfaceStatsCallback listener);
+    void removeSurfaceStatsListener(void* context, void* cookie);
+
+    void setReleaseBufferCallback(const ReleaseCallbackId&, ReleaseBufferCallback);
+    void removeReleaseBufferCallback(const ReleaseCallbackId&);
+
+    // BnTransactionCompletedListener overrides
     void onTransactionCompleted(ListenerStats stats) override;
+    void onReleaseBuffer(ReleaseCallbackId, sp<Fence> releaseFence, uint32_t transformHint,
+                         uint32_t currentMaxAcquiredBufferCount) override;
+
+private:
+    ReleaseBufferCallback popReleaseBufferCallbackLocked(const ReleaseCallbackId&);
 };
 
 } // namespace android

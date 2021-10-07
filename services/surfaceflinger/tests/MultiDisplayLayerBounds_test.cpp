@@ -37,13 +37,13 @@ protected:
 
         mMainDisplay = SurfaceComposerClient::getInternalDisplayToken();
         SurfaceComposerClient::getDisplayState(mMainDisplay, &mMainDisplayState);
-        SurfaceComposerClient::getActiveDisplayConfig(mMainDisplay, &mMainDisplayConfig);
+        SurfaceComposerClient::getActiveDisplayMode(mMainDisplay, &mMainDisplayMode);
 
         sp<IGraphicBufferConsumer> consumer;
         BufferQueue::createBufferQueue(&mProducer, &consumer);
         consumer->setConsumerName(String8("Virtual disp consumer"));
-        consumer->setDefaultBufferSize(mMainDisplayConfig.resolution.getWidth(),
-                                       mMainDisplayConfig.resolution.getHeight());
+        consumer->setDefaultBufferSize(mMainDisplayMode.resolution.getWidth(),
+                                       mMainDisplayMode.resolution.getHeight());
     }
 
     virtual void TearDown() {
@@ -59,7 +59,7 @@ protected:
             t.setDisplaySurface(mVirtualDisplay, mProducer);
             t.setDisplayLayerStack(mVirtualDisplay, layerStack);
             t.setDisplayProjection(mVirtualDisplay, mMainDisplayState.orientation,
-                                   Rect(layerStackSize), Rect(mMainDisplayConfig.resolution));
+                                   Rect(layerStackSize), Rect(mMainDisplayMode.resolution));
         });
     }
 
@@ -71,7 +71,7 @@ protected:
         ASSERT_TRUE(mColorLayer->isValid());
         asTransaction([&](Transaction& t) {
             t.setLayerStack(mColorLayer, layerStack);
-            t.setCrop_legacy(mColorLayer, Rect(0, 0, 30, 40));
+            t.setCrop(mColorLayer, Rect(0, 0, 30, 40));
             t.setLayer(mColorLayer, INT32_MAX - 2);
             t.setColor(mColorLayer,
                        half3{mExpectedColor.r / 255.0f, mExpectedColor.g / 255.0f,
@@ -81,7 +81,7 @@ protected:
     }
 
     ui::DisplayState mMainDisplayState;
-    DisplayConfig mMainDisplayConfig;
+    ui::DisplayMode mMainDisplayMode;
     sp<IBinder> mMainDisplay;
     sp<IBinder> mVirtualDisplay;
     sp<IGraphicBufferProducer> mProducer;
@@ -90,7 +90,7 @@ protected:
 };
 
 TEST_F(MultiDisplayLayerBoundsTest, RenderLayerInVirtualDisplay) {
-    createDisplay(mMainDisplayState.viewport, 1 /* layerStack */);
+    createDisplay(mMainDisplayState.layerStackSpaceRect, 1 /* layerStack */);
     createColorLayer(1 /* layerStack */);
 
     asTransaction([&](Transaction& t) { t.setPosition(mColorLayer, 10, 10); });
@@ -111,9 +111,9 @@ TEST_F(MultiDisplayLayerBoundsTest, RenderLayerInMirroredVirtualDisplay) {
     // Create a display and set its layer stack to the main display's layer stack so
     // the contents of the main display are mirrored on to the virtual display.
 
-    // Assumption here is that the new mirrored display has the same viewport as the
+    // Assumption here is that the new mirrored display has the same layer stack rect as the
     // primary display that it is mirroring.
-    createDisplay(mMainDisplayState.viewport, 0 /* layerStack */);
+    createDisplay(mMainDisplayState.layerStackSpaceRect, 0 /* layerStack */);
     createColorLayer(0 /* layerStack */);
 
     asTransaction([&](Transaction& t) { t.setPosition(mColorLayer, 10, 10); });

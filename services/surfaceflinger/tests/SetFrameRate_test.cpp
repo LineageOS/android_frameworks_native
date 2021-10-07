@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
 #include <system/window.h>
 
 #include <thread>
@@ -50,8 +46,8 @@ protected:
         }
     }
 
-    const int mLayerWidth = 32;
-    const int mLayerHeight = 32;
+    const uint32_t mLayerWidth = 32;
+    const uint32_t mLayerHeight = 32;
     sp<SurfaceControl> mLayer;
     uint32_t mLayerType;
 };
@@ -59,26 +55,27 @@ protected:
 TEST_F(SetFrameRateTest, BufferQueueLayerSetFrameRate) {
     CreateLayer(ISurfaceComposerClient::eFXSurfaceBufferQueue);
     native_window_set_frame_rate(mLayer->getSurface().get(), 100.f,
-                                 ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT);
+                                 ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT,
+                                 /* shouldBeSeamless */ true);
     ASSERT_NO_FATAL_FAILURE(PostBuffers(Color::RED));
     Transaction()
-            .setFrameRate(mLayer, 200.f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT)
+            .setFrameRate(mLayer, 200.f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT,
+                          /* shouldBeSeamless */ true)
             .apply();
     ASSERT_NO_FATAL_FAILURE(PostBuffers(Color::RED));
     native_window_set_frame_rate(mLayer->getSurface().get(), 300.f,
-                                 ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT);
+                                 ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT,
+                                 /* shouldBeSeamless */ true);
     ASSERT_NO_FATAL_FAILURE(PostBuffers(Color::RED));
 }
 
 TEST_F(SetFrameRateTest, BufferStateLayerSetFrameRate) {
     CreateLayer(ISurfaceComposerClient::eFXSurfaceBufferState);
     Transaction()
-            .setFrameRate(mLayer, 400.f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT)
+            .setFrameRate(mLayer, 400.f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT,
+                          /* shouldBeSeamless */ true)
             .apply();
     ASSERT_NO_FATAL_FAILURE(PostBuffers(Color::GREEN));
 }
 
 } // namespace android
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"

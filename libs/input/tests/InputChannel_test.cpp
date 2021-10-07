@@ -23,6 +23,7 @@
 #include <errno.h>
 
 #include <binder/Binder.h>
+#include <binder/Parcel.h>
 #include <gtest/gtest.h>
 #include <input/InputTransport.h>
 #include <utils/StopWatch.h>
@@ -32,9 +33,6 @@
 namespace android {
 
 class InputChannelTest : public testing::Test {
-protected:
-    virtual void SetUp() { }
-    virtual void TearDown() { }
 };
 
 
@@ -46,7 +44,7 @@ TEST_F(InputChannelTest, ConstructorAndDestructor_TakesOwnershipOfFileDescriptor
 
     android::base::unique_fd sendFd(pipe.sendFd);
 
-    sp<InputChannel> inputChannel =
+    std::unique_ptr<InputChannel> inputChannel =
             InputChannel::create("channel name", std::move(sendFd), new BBinder());
 
     EXPECT_NE(inputChannel, nullptr) << "channel should be successfully created";
@@ -61,14 +59,14 @@ TEST_F(InputChannelTest, ConstructorAndDestructor_TakesOwnershipOfFileDescriptor
 TEST_F(InputChannelTest, SetAndGetToken) {
     Pipe pipe;
     sp<IBinder> token = new BBinder();
-    sp<InputChannel> channel =
+    std::unique_ptr<InputChannel> channel =
             InputChannel::create("test channel", android::base::unique_fd(pipe.sendFd), token);
 
     EXPECT_EQ(token, channel->getConnectionToken());
 }
 
 TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
-    sp<InputChannel> serverChannel, clientChannel;
+    std::unique_ptr<InputChannel> serverChannel, clientChannel;
 
     status_t result = InputChannel::openInputChannelPair("channel name",
             serverChannel, clientChannel);
@@ -102,7 +100,7 @@ TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
     InputMessage clientReply;
     memset(&clientReply, 0, sizeof(InputMessage));
     clientReply.header.type = InputMessage::Type::FINISHED;
-    clientReply.body.finished.seq = 0x11223344;
+    clientReply.header.seq = 0x11223344;
     clientReply.body.finished.handled = true;
     EXPECT_EQ(OK, clientChannel->sendMessage(&clientReply))
             << "client channel should be able to send message to server channel";
@@ -112,14 +110,14 @@ TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
             << "server channel should be able to receive message from client channel";
     EXPECT_EQ(clientReply.header.type, serverReply.header.type)
             << "server channel should receive the correct message from client channel";
-    EXPECT_EQ(clientReply.body.finished.seq, serverReply.body.finished.seq)
+    EXPECT_EQ(clientReply.header.seq, serverReply.header.seq)
             << "server channel should receive the correct message from client channel";
     EXPECT_EQ(clientReply.body.finished.handled, serverReply.body.finished.handled)
             << "server channel should receive the correct message from client channel";
 }
 
 TEST_F(InputChannelTest, ReceiveSignal_WhenNoSignalPresent_ReturnsAnError) {
-    sp<InputChannel> serverChannel, clientChannel;
+    std::unique_ptr<InputChannel> serverChannel, clientChannel;
 
     status_t result = InputChannel::openInputChannelPair("channel name",
             serverChannel, clientChannel);
@@ -133,7 +131,7 @@ TEST_F(InputChannelTest, ReceiveSignal_WhenNoSignalPresent_ReturnsAnError) {
 }
 
 TEST_F(InputChannelTest, ReceiveSignal_WhenPeerClosed_ReturnsAnError) {
-    sp<InputChannel> serverChannel, clientChannel;
+    std::unique_ptr<InputChannel> serverChannel, clientChannel;
 
     status_t result = InputChannel::openInputChannelPair("channel name",
             serverChannel, clientChannel);
@@ -141,7 +139,7 @@ TEST_F(InputChannelTest, ReceiveSignal_WhenPeerClosed_ReturnsAnError) {
     ASSERT_EQ(OK, result)
             << "should have successfully opened a channel pair";
 
-    serverChannel.clear(); // close server channel
+    serverChannel.reset(); // close server channel
 
     InputMessage msg;
     EXPECT_EQ(DEAD_OBJECT, clientChannel->receiveMessage(&msg))
@@ -149,7 +147,7 @@ TEST_F(InputChannelTest, ReceiveSignal_WhenPeerClosed_ReturnsAnError) {
 }
 
 TEST_F(InputChannelTest, SendSignal_WhenPeerClosed_ReturnsAnError) {
-    sp<InputChannel> serverChannel, clientChannel;
+    std::unique_ptr<InputChannel> serverChannel, clientChannel;
 
     status_t result = InputChannel::openInputChannelPair("channel name",
             serverChannel, clientChannel);
@@ -157,7 +155,7 @@ TEST_F(InputChannelTest, SendSignal_WhenPeerClosed_ReturnsAnError) {
     ASSERT_EQ(OK, result)
             << "should have successfully opened a channel pair";
 
-    serverChannel.clear(); // close server channel
+    serverChannel.reset(); // close server channel
 
     InputMessage msg;
     msg.header.type = InputMessage::Type::KEY;
@@ -166,7 +164,7 @@ TEST_F(InputChannelTest, SendSignal_WhenPeerClosed_ReturnsAnError) {
 }
 
 TEST_F(InputChannelTest, SendAndReceive_MotionClassification) {
-    sp<InputChannel> serverChannel, clientChannel;
+    std::unique_ptr<InputChannel> serverChannel, clientChannel;
     status_t result = InputChannel::openInputChannelPair("channel name",
             serverChannel, clientChannel);
     ASSERT_EQ(OK, result)
@@ -180,7 +178,7 @@ TEST_F(InputChannelTest, SendAndReceive_MotionClassification) {
 
     InputMessage serverMsg = {}, clientMsg;
     serverMsg.header.type = InputMessage::Type::MOTION;
-    serverMsg.body.motion.seq = 1;
+    serverMsg.header.seq = 1;
     serverMsg.body.motion.pointerCount = 1;
 
     for (MotionClassification classification : classifications) {
@@ -197,5 +195,36 @@ TEST_F(InputChannelTest, SendAndReceive_MotionClassification) {
     }
 }
 
+TEST_F(InputChannelTest, InputChannelParcelAndUnparcel) {
+    std::unique_ptr<InputChannel> serverChannel, clientChannel;
+
+    status_t result =
+            InputChannel::openInputChannelPair("channel parceling", serverChannel, clientChannel);
+
+    ASSERT_EQ(OK, result) << "should have successfully opened a channel pair";
+
+    InputChannel chan;
+    Parcel parcel;
+    ASSERT_EQ(OK, serverChannel->writeToParcel(&parcel));
+    parcel.setDataPosition(0);
+    chan.readFromParcel(&parcel);
+
+    EXPECT_EQ(chan == *serverChannel, true)
+            << "inputchannel should be equal after parceling and unparceling.\n"
+            << "name " << chan.getName() << " name " << serverChannel->getName();
+}
+
+TEST_F(InputChannelTest, DuplicateChannelAndAssertEqual) {
+    std::unique_ptr<InputChannel> serverChannel, clientChannel;
+
+    status_t result =
+            InputChannel::openInputChannelPair("channel dup", serverChannel, clientChannel);
+
+    ASSERT_EQ(OK, result) << "should have successfully opened a channel pair";
+
+    std::unique_ptr<InputChannel> dupChan = serverChannel->dup();
+
+    EXPECT_EQ(*serverChannel == *dupChan, true) << "inputchannel should be equal after duplication";
+}
 
 } // namespace android

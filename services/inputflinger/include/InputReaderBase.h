@@ -17,30 +17,27 @@
 #ifndef _UI_INPUT_READER_BASE_H
 #define _UI_INPUT_READER_BASE_H
 
-#include "PointerControllerInterface.h"
-
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
 #include <input/InputDevice.h>
 #include <input/VelocityControl.h>
 #include <input/VelocityTracker.h>
+#include <stddef.h>
+#include <unistd.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
-#include <stddef.h>
-#include <unistd.h>
 #include <optional>
 #include <set>
 #include <unordered_map>
 #include <vector>
 
+#include "PointerControllerInterface.h"
+#include "VibrationElement.h"
+
 // Maximum supported size of a vibration pattern.
 // Must be at least 2.
 #define MAX_VIBRATE_PATTERN_SIZE 100
-
-// Maximum allowable delay value in a vibration pattern before
-// which the delay will be truncated.
-#define MAX_VIBRATE_PATTERN_DELAY_NSECS (1000000 * 1000000000LL)
 
 namespace android {
 
@@ -81,7 +78,7 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual void getInputDevices(std::vector<InputDeviceInfo>& outInputDevices) = 0;
+    virtual std::vector<InputDeviceInfo> getInputDevices() const = 0;
 
     /* Query current input state. */
     virtual int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask,
@@ -104,12 +101,44 @@ public:
     virtual void requestRefreshConfiguration(uint32_t changes) = 0;
 
     /* Controls the vibrator of a particular input device. */
-    virtual void vibrate(int32_t deviceId, const nsecs_t* pattern, size_t patternSize,
-            ssize_t repeat, int32_t token) = 0;
+    virtual void vibrate(int32_t deviceId, const VibrationSequence& sequence, ssize_t repeat,
+                         int32_t token) = 0;
     virtual void cancelVibrate(int32_t deviceId, int32_t token) = 0;
+
+    virtual bool isVibrating(int32_t deviceId) = 0;
+
+    virtual std::vector<int32_t> getVibratorIds(int32_t deviceId) = 0;
+    /* Get battery level of a particular input device. */
+    virtual std::optional<int32_t> getBatteryCapacity(int32_t deviceId) = 0;
+    /* Get battery status of a particular input device. */
+    virtual std::optional<int32_t> getBatteryStatus(int32_t deviceId) = 0;
+
+    virtual std::vector<InputDeviceLightInfo> getLights(int32_t deviceId) = 0;
+
+    virtual std::vector<InputDeviceSensorInfo> getSensors(int32_t deviceId) = 0;
 
     /* Return true if the device can send input events to the specified display. */
     virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) = 0;
+
+    /* Enable sensor in input reader mapper. */
+    virtual bool enableSensor(int32_t deviceId, InputDeviceSensorType sensorType,
+                              std::chrono::microseconds samplingPeriod,
+                              std::chrono::microseconds maxBatchReportLatency) = 0;
+
+    /* Disable sensor in input reader mapper. */
+    virtual void disableSensor(int32_t deviceId, InputDeviceSensorType sensorType) = 0;
+
+    /* Flush sensor data in input reader mapper. */
+    virtual void flushSensor(int32_t deviceId, InputDeviceSensorType sensorType) = 0;
+
+    /* Set color for the light */
+    virtual bool setLightColor(int32_t deviceId, int32_t lightId, int32_t color) = 0;
+    /* Set player ID for the light */
+    virtual bool setLightPlayerId(int32_t deviceId, int32_t lightId, int32_t playerId) = 0;
+    /* Get light color */
+    virtual std::optional<int32_t> getLightColor(int32_t deviceId, int32_t lightId) = 0;
+    /* Get light player ID */
+    virtual std::optional<int32_t> getLightPlayerId(int32_t deviceId, int32_t lightId) = 0;
 };
 
 // --- InputReaderConfiguration ---
@@ -168,6 +197,10 @@ struct InputReaderConfiguration {
     // The associations between input ports and display ports.
     // Used to determine which DisplayViewport should be tied to which InputDevice.
     std::unordered_map<std::string, uint8_t> portAssociations;
+
+    // The associations between input device names and display unique ids.
+    // Used to determine which DisplayViewport should be tied to which InputDevice.
+    std::unordered_map<std::string, std::string> uniqueIdAssociations;
 
     // The suggested display ID to show the cursor.
     int32_t defaultPointerDisplayId;
@@ -344,7 +377,7 @@ public:
     virtual void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) = 0;
 
     /* Gets the keyboard layout for a particular input device. */
-    virtual sp<KeyCharacterMap> getKeyboardLayoutOverlay(
+    virtual std::shared_ptr<KeyCharacterMap> getKeyboardLayoutOverlay(
             const InputDeviceIdentifier& identifier) = 0;
 
     /* Gets a user-supplied alias for a particular input device, or an empty string if none. */

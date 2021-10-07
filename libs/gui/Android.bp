@@ -39,6 +39,50 @@ cc_library_headers {
     min_sdk_version: "29",
 }
 
+cc_library_headers {
+    name: "libgui_aidl_headers",
+    vendor_available: true,
+    static_libs: [
+        "libgui_aidl_static",
+    ],
+
+    export_static_lib_headers: [
+        "libgui_aidl_static",
+    ],
+}
+
+filegroup {
+    name: "libgui_aidl",
+    srcs: ["aidl/**/*.aidl"],
+    path: "aidl/",
+}
+
+cc_library_static {
+    name: "libgui_aidl_static",
+    vendor_available: true,
+    srcs: [
+        ":libgui_aidl",
+    ],
+
+    shared_libs: [
+        "libbinder",
+        "libui",
+    ],
+
+    local_include_dirs: [
+        "include",
+    ],
+
+    export_shared_lib_headers: [
+        "libbinder",
+    ],
+
+    aidl: {
+        export_aidl_headers: true
+    }
+}
+
+
 cc_library_shared {
     name: "libgui",
     vendor_available: true,
@@ -50,8 +94,16 @@ cc_library_shared {
 
     defaults: ["libgui_bufferqueue-defaults"],
 
+    static_libs: [
+        "libgui_aidl_static",
+    ],
+    export_static_lib_headers: [
+        "libgui_aidl_static",
+    ],
+
     srcs: [
         ":framework_native_aidl",
+        ":inputconstants_aidl",
         ":libgui_bufferqueue_sources",
 
         "BitTube.cpp",
@@ -64,8 +116,8 @@ cc_library_shared {
         "DebugEGLImageTracker.cpp",
         "DisplayEventDispatcher.cpp",
         "DisplayEventReceiver.cpp",
+        "FrameTimelineInfo.cpp",
         "GLConsumer.cpp",
-        "GuiConfig.cpp",
         "IConsumerListener.cpp",
         "IDisplayEventConnection.cpp",
         "IGraphicBufferConsumer.cpp",
@@ -80,10 +132,12 @@ cc_library_shared {
         "LayerState.cpp",
         "OccupancyTracker.cpp",
         "StreamSplitter.cpp",
+        "ScreenCaptureResults.cpp",
         "Surface.cpp",
         "SurfaceControl.cpp",
         "SurfaceComposerClient.cpp",
         "SyncFeatures.cpp",
+        "TransactionTracing.cpp",
         "view/Surface.cpp",
         "bufferqueue/1.0/B2HProducerListener.cpp",
         "bufferqueue/1.0/H2BGraphicBufferProducer.cpp",
@@ -102,6 +156,11 @@ cc_library_shared {
 
     export_shared_lib_headers: [
         "libbinder",
+        "libinput",
+    ],
+
+    export_header_lib_headers: [
+        "libgui_aidl_headers",
     ],
 
     // bufferhub is not used when building libgui for vendors
@@ -125,14 +184,15 @@ cc_library_shared {
         },
     },
 
-    header_libs: [
-        "libdvr_headers",
-        "libpdx_headers",
-    ],
-
     aidl: {
         export_aidl_headers: true,
     },
+
+    header_libs: [
+        "libdvr_headers",
+        "libgui_aidl_headers",
+        "libpdx_headers",
+    ],
 
     pgo: {
         sampling: true,
@@ -163,13 +223,16 @@ cc_library_static {
     defaults: ["libgui_bufferqueue-defaults"],
 
     srcs: [
+        ":inputconstants_aidl",
         ":libgui_bufferqueue_sources",
+        ":libgui_aidl",
     ],
 }
 
 filegroup {
     name: "libgui_bufferqueue_sources",
     srcs: [
+        "BatchBufferOps.cpp",
         "BufferItem.cpp",
         "BufferQueue.cpp",
         "BufferQueueConsumer.cpp",
@@ -180,7 +243,7 @@ filegroup {
         "FrameTimestamps.cpp",
         "GLConsumerUtils.cpp",
         "HdrMetadata.cpp",
-        "QueueBufferInputOutput.cpp",
+        "IGraphicBufferProducerFlattenables.cpp",
         "bufferqueue/1.0/Conversion.cpp",
         "bufferqueue/1.0/H2BProducerListener.cpp",
         "bufferqueue/1.0/WProducerListener.cpp",
@@ -244,6 +307,10 @@ cc_defaults {
     header_libs: [
         "libgui_headers",
         "libnativebase_headers",
+    ],
+
+    include_dirs: [
+        "frameworks/native/include",
     ],
 
     export_shared_lib_headers: [
