@@ -564,7 +564,7 @@ bool TimeStats::canAddNewAggregatedStats(uid_t uid, const std::string& layerName
         layerRecords += record.second.stats.size();
     }
 
-    return mTimeStats.stats.size() < MAX_NUM_LAYER_STATS;
+    return layerRecords < MAX_NUM_LAYER_STATS;
 }
 
 void TimeStats::setPostTime(int32_t layerId, uint64_t frameNumber, const std::string& layerName,
