@@ -1939,8 +1939,9 @@ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
     Rect layerCropRect = getCroppedBufferSize(getDrawingState());
     const float radius = getDrawingState().cornerRadius;
     RoundedCornerState layerSettings(layerCropRect.toFloatRect(), radius);
+    const bool layerSettingsValid = layerSettings.radius > 0 && layerCropRect.isValid();
 
-    if (layerSettings.radius > 0 && parentSettings.radius > 0) {
+    if (layerSettingsValid && parentSettings.radius > 0) {
         // If the parent and the layer have rounded corner settings, use the parent settings if the
         // parent crop is entirely inside the layer crop.
         // This has limitations and cause rendering artifacts. See b/200300845 for correct fix.
@@ -1952,7 +1953,7 @@ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
         } else {
             return layerSettings;
         }
-    } else if (layerSettings.radius > 0) {
+    } else if (layerSettingsValid) {
         return layerSettings;
     } else if (parentSettings.radius > 0) {
         return parentSettings;
