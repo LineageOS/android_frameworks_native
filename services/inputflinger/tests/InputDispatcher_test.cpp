@@ -976,14 +976,18 @@ public:
 
     void setApplicationToken(sp<IBinder> token) { mInfo.applicationInfo.token = token; }
 
-    void setFrame(const Rect& frame) {
+    void setFrame(const Rect& frame, const ui::Transform& displayTransform = ui::Transform()) {
         mInfo.frameLeft = frame.left;
         mInfo.frameTop = frame.top;
         mInfo.frameRight = frame.right;
         mInfo.frameBottom = frame.bottom;
-        mInfo.transform.set(-frame.left, -frame.top);
         mInfo.touchableRegion.clear();
         mInfo.addTouchableRegion(frame);
+
+        const Rect logicalDisplayFrame = displayTransform.transform(frame);
+        ui::Transform translate;
+        translate.set(-logicalDisplayFrame.left, -logicalDisplayFrame.top);
+        mInfo.transform = translate * displayTransform;
     }
 
     void setType(WindowInfo::Type type) { mInfo.type = type; }
@@ -1416,6 +1420,21 @@ TEST_F(InputDispatcherTest, SetInputWindow_SingleWindowTouch) {
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    // Window should receive motion event.
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+}
+
+TEST_F(InputDispatcherTest, WhenDisplayNotSpecified_InjectMotionToDefaultDisplay) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    // Inject a MotionEvent to an unknown display.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_NONE))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
 
     // Window should receive motion event.
@@ -1943,6 +1962,119 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsMotionStream) {
     mDispatcher->notifyDeviceReset(&args);
     window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL, ADISPLAY_ID_DEFAULT,
                          0 /*expectedFlags*/);
+}
+
+/**
+ * Ensure the correct coordinate spaces are used by InputDispatcher.
+ *
+ * InputDispatcher works in the display space, so its coordinate system is relative to the display
+ * panel. Windows get events in the window space, and get raw coordinates in the logical display
+ * space.
+ */
+class InputDispatcherDisplayProjectionTest : public InputDispatcherTest {
+public:
+    void SetUp() override {
+        InputDispatcherTest::SetUp();
+        mDisplayInfos.clear();
+        mWindowInfos.clear();
+    }
+
+    void addDisplayInfo(int displayId, const ui::Transform& transform) {
+        gui::DisplayInfo info;
+        info.displayId = displayId;
+        info.transform = transform;
+        mDisplayInfos.push_back(std::move(info));
+        mDispatcher->onWindowInfosChanged(mWindowInfos, mDisplayInfos);
+    }
+
+    void addWindow(const sp<WindowInfoHandle>& windowHandle) {
+        mWindowInfos.push_back(*windowHandle->getInfo());
+        mDispatcher->onWindowInfosChanged(mWindowInfos, mDisplayInfos);
+    }
+
+    // Set up a test scenario where the display has a scaled projection and there are two windows
+    // on the display.
+    std::pair<sp<FakeWindowHandle>, sp<FakeWindowHandle>> setupScaledDisplayScenario() {
+        // The display has a projection that has a scale factor of 2 and 4 in the x and y directions
+        // respectively.
+        ui::Transform displayTransform;
+        displayTransform.set(2, 0, 0, 4);
+        addDisplayInfo(ADISPLAY_ID_DEFAULT, displayTransform);
+
+        std::shared_ptr<FakeApplicationHandle> application =
+                std::make_shared<FakeApplicationHandle>();
+
+        // Add two windows to the display. Their frames are represented in the display space.
+        sp<FakeWindowHandle> firstWindow =
+                new FakeWindowHandle(application, mDispatcher, "First Window", ADISPLAY_ID_DEFAULT);
+        firstWindow->addFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+        firstWindow->setFrame(Rect(0, 0, 100, 200), displayTransform);
+        addWindow(firstWindow);
+
+        sp<FakeWindowHandle> secondWindow =
+                new FakeWindowHandle(application, mDispatcher, "Second Window",
+                                     ADISPLAY_ID_DEFAULT);
+        secondWindow->addFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
+        secondWindow->setFrame(Rect(100, 200, 200, 400), displayTransform);
+        addWindow(secondWindow);
+        return {std::move(firstWindow), std::move(secondWindow)};
+    }
+
+private:
+    std::vector<gui::DisplayInfo> mDisplayInfos;
+    std::vector<gui::WindowInfo> mWindowInfos;
+};
+
+TEST_F(InputDispatcherDisplayProjectionTest, HitTestsInDisplaySpace) {
+    auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
+    // Send down to the first window. The point is represented in the display space. The point is
+    // selected so that if the hit test was done with the transform applied to it, then it would
+    // end up in the incorrect window.
+    NotifyMotionArgs downMotionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT, {PointF{75, 55}});
+    mDispatcher->notifyMotion(&downMotionArgs);
+
+    firstWindow->consumeMotionDown();
+    secondWindow->assertNoEvents();
+}
+
+// Ensure that when a MotionEvent is injected through the InputDispatcher::injectInputEvent() API,
+// the event should be treated as being in the logical display space.
+TEST_F(InputDispatcherDisplayProjectionTest, InjectionInLogicalDisplaySpace) {
+    auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
+    // Send down to the first window. The point is represented in the logical display space. The
+    // point is selected so that if the hit test was done in logical display space, then it would
+    // end up in the incorrect window.
+    injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                     PointF{75 * 2, 55 * 4});
+
+    firstWindow->consumeMotionDown();
+    secondWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherDisplayProjectionTest, WindowGetsEventsInCorrectCoordinateSpace) {
+    auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
+
+    // Send down to the second window.
+    NotifyMotionArgs downMotionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT, {PointF{150, 220}});
+    mDispatcher->notifyMotion(&downMotionArgs);
+
+    firstWindow->assertNoEvents();
+    const MotionEvent* event = secondWindow->consumeMotion();
+    EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, event->getAction());
+
+    // Ensure that the events from the "getRaw" API are in logical display coordinates.
+    EXPECT_EQ(300, event->getRawX(0));
+    EXPECT_EQ(880, event->getRawY(0));
+
+    // Ensure that the x and y values are in the window's coordinate space.
+    // The left-top of the second window is at (100, 200) in display space, which is (200, 800) in
+    // the logical display space. This will be the origin of the window space.
+    EXPECT_EQ(100, event->getX(0));
+    EXPECT_EQ(80, event->getY(0));
 }
 
 using TransferFunction = std::function<bool(const std::unique_ptr<InputDispatcher>& dispatcher,
