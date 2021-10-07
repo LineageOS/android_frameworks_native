@@ -47,6 +47,10 @@ bool WindowInfo::isSpy() const {
     return inputFeatures.test(Feature::SPY);
 }
 
+bool WindowInfo::interceptsStylus() const {
+    return inputFeatures.test(Feature::INTERCEPTS_STYLUS);
+}
+
 bool WindowInfo::overlaps(const WindowInfo* other) const {
     return frameLeft < other->frameRight && frameRight > other->frameLeft &&
             frameTop < other->frameBottom && frameBottom > other->frameTop;
