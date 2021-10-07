@@ -32,7 +32,6 @@
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/ITransactionCompletedListener.h>
 #include <gui/LayerState.h>
-#include <gui/OccupancyTracker.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <math/mat4.h>
 #include <renderengine/LayerSettings.h>
@@ -155,22 +154,6 @@ struct SurfaceFlingerBE {
     nsecs_t mFrameBuckets[NUM_BUCKETS] = {};
     nsecs_t mTotalTime = 0;
     std::atomic<nsecs_t> mLastSwapTime = 0;
-
-    // Double- vs. triple-buffering stats
-    struct BufferingStats {
-        size_t numSegments = 0;
-        nsecs_t totalTime = 0;
-
-        // "Two buffer" means that a third buffer was never used, whereas
-        // "double-buffered" means that on average the segment only used two
-        // buffers (though it may have used a third for some part of the
-        // segment)
-        nsecs_t twoBufferTime = 0;
-        nsecs_t doubleBufferedTime = 0;
-        nsecs_t tripleBufferedTime = 0;
-    };
-    mutable Mutex mBufferingStatsMutex;
-    std::unordered_map<std::string, BufferingStats> mBufferingStats;
 };
 
 class SurfaceFlinger : public BnSurfaceComposer,
@@ -1158,10 +1141,6 @@ private:
     void dumpStaticScreenStats(std::string& result) const;
     // Not const because each Layer needs to query Fences and cache timestamps.
     void dumpFrameEventsLocked(std::string& result);
-
-    void recordBufferingStats(const std::string& layerName,
-                              std::vector<OccupancyTracker::Segment>&& history);
-    void dumpBufferingStats(std::string& result) const;
     void dumpDisplayIdentificationData(std::string& result) const REQUIRES(mStateLock);
     void dumpRawDisplayIdentificationData(const DumpArgs&, std::string& result) const;
     void dumpWideColorInfo(std::string& result) const REQUIRES(mStateLock);
