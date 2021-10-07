@@ -315,7 +315,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                         state.overrideInfo = {
                                 .buffer = mNewCachedSet->getBuffer(),
                                 .acquireFence = mNewCachedSet->getDrawFence(),
-                                .displayFrame = mNewCachedSet->getTextureBounds(),
+                                .displayFrame = mNewCachedSet->getBounds(),
                                 .dataspace = mNewCachedSet->getOutputDataspace(),
                                 .displaySpace = mNewCachedSet->getOutputSpace(),
                                 .damageRegion = Region::INVALID_REGION,
@@ -355,7 +355,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                 state.overrideInfo = {
                         .buffer = currentLayerIter->getBuffer(),
                         .acquireFence = currentLayerIter->getDrawFence(),
-                        .displayFrame = currentLayerIter->getTextureBounds(),
+                        .displayFrame = currentLayerIter->getBounds(),
                         .dataspace = currentLayerIter->getOutputDataspace(),
                         .displaySpace = currentLayerIter->getOutputSpace(),
                         .damageRegion = Region(),

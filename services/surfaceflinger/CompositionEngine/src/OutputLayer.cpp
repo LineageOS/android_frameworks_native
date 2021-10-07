@@ -381,12 +381,7 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(HWC2::Layer* hwcLayer,
 
     if (outputDependentState.overrideInfo.buffer != nullptr) {
         displayFrame = outputDependentState.overrideInfo.displayFrame;
-        sourceCrop =
-                FloatRect(0.f, 0.f,
-                          static_cast<float>(outputDependentState.overrideInfo.buffer->getBuffer()
-                                                     ->getWidth()),
-                          static_cast<float>(outputDependentState.overrideInfo.buffer->getBuffer()
-                                                     ->getHeight()));
+        sourceCrop = displayFrame.toFloatRect();
     }
 
     ALOGV("Writing display frame [%d, %d, %d, %d]", displayFrame.left, displayFrame.top,
@@ -737,7 +732,7 @@ std::vector<LayerFE::LayerSettings> OutputLayer::getOverrideCompositionList() co
     // framebuffer space of the override buffer to layer space.
     const ProjectionSpace& layerSpace = getOutput().getState().layerStackSpace;
     const ui::Transform transform = getState().overrideInfo.displaySpace.getTransform(layerSpace);
-    const Rect boundaries = transform.transform(getState().overrideInfo.displayFrame);
+    const Rect boundaries = transform.transform(getState().overrideInfo.displaySpace.getContent());
 
     LayerFE::LayerSettings settings;
     settings.geometry = renderengine::Geometry{

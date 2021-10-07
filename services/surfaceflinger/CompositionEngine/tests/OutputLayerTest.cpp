@@ -876,7 +876,7 @@ const half4 OutputLayerWriteStateToHWCTest::kColor{81.f / 255.f, 82.f / 255.f, 8
                                                    84.f / 255.f};
 const Rect OutputLayerWriteStateToHWCTest::kDisplayFrame{1001, 1002, 1003, 10044};
 const Rect OutputLayerWriteStateToHWCTest::kOverrideDisplayFrame{1002, 1003, 1004, 20044};
-const FloatRect OutputLayerWriteStateToHWCTest::kOverrideSourceCrop{0.f, 0.f, 4.f, 5.f};
+const FloatRect OutputLayerWriteStateToHWCTest::kOverrideSourceCrop{1002, 1003, 1004, 20044};
 const Region OutputLayerWriteStateToHWCTest::kOutputSpaceVisibleRegion{
         Rect{1005, 1006, 1007, 1008}};
 const Region OutputLayerWriteStateToHWCTest::kOverrideVisibleRegion{Rect{1006, 1007, 1008, 1009}};
