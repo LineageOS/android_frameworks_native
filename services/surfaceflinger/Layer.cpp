@@ -426,20 +426,6 @@ void Layer::prepareBasicGeometryCompositionState() {
 
 void Layer::prepareGeometryCompositionState() {
     const auto& drawingState{getDrawingState()};
-
-    int type = drawingState.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
-    int appId = drawingState.metadata.getInt32(METADATA_OWNER_UID, 0);
-    sp<Layer> parent = mDrawingParent.promote();
-    if (parent.get()) {
-        auto& parentState = parent->getDrawingState();
-        const int parentType = parentState.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
-        const int parentAppId = parentState.metadata.getInt32(METADATA_OWNER_UID, 0);
-        if (parentType > 0 && parentAppId > 0) {
-            type = parentType;
-            appId = parentAppId;
-        }
-    }
-
     auto* compositionState = editCompositionState();
 
     compositionState->geomBufferSize = getBufferSize(drawingState);
