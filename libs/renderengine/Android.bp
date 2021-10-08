@@ -40,6 +40,10 @@ cc_defaults {
         "libui",
         "libutils",
     ],
+
+    static_libs: [
+        "libtonemap",
+    ],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
 }
@@ -97,7 +101,7 @@ filegroup {
         "skia/filters/GaussianBlurFilter.cpp",
         "skia/filters/KawaseBlurFilter.cpp",
         "skia/filters/LinearEffect.cpp",
-        "skia/filters/StretchShaderFactory.cpp"
+        "skia/filters/StretchShaderFactory.cpp",
     ],
 }
 

@@ -79,6 +79,7 @@ cc_defaults {
         "libperfetto_client_experimental",
         "librenderengine",
         "libserviceutils",
+        "libtonemap",
         "libtrace_proto",
         "libaidlcommonsupport",
     ],
