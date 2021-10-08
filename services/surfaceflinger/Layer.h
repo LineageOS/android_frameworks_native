@@ -525,12 +525,10 @@ public:
      * called after composition.
      * returns true if the layer latched a new buffer this frame.
      */
-    virtual bool onPostComposition(const DisplayDevice*,
+    virtual void onPostComposition(const DisplayDevice*,
                                    const std::shared_ptr<FenceTime>& /*glDoneFence*/,
                                    const std::shared_ptr<FenceTime>& /*presentFence*/,
-                                   const CompositorTiming&) {
-        return false;
-    }
+                                   const CompositorTiming&) {}
 
     // If a buffer was replaced this frame, release the former buffer
     virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) { }
@@ -590,10 +588,6 @@ public:
         return parentBounds;
     }
     virtual FrameRate getFrameRateForLayerTree() const;
-
-    virtual std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool /*forceFlush*/) {
-        return {};
-    }
 
     virtual bool getTransformToDisplayInverse() const { return false; }
 

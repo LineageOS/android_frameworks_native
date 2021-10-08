@@ -65,16 +65,6 @@ void BufferQueueLayer::setTransformHint(ui::Transform::RotationFlags displayTran
     mConsumer->setTransformHint(mTransformHint);
 }
 
-std::vector<OccupancyTracker::Segment> BufferQueueLayer::getOccupancyHistory(bool forceFlush) {
-    std::vector<OccupancyTracker::Segment> history;
-    status_t result = mConsumer->getOccupancyHistory(forceFlush, &history);
-    if (result != NO_ERROR) {
-        ALOGW("[%s] Failed to obtain occupancy history (%d)", getDebugName(), result);
-        return {};
-    }
-    return history;
-}
-
 void BufferQueueLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     if (!mConsumer->releasePendingBuffer()) {
         return;
