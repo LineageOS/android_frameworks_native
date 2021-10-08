@@ -82,11 +82,6 @@ public:
         return std::make_unique<scheduler::FakePhaseOffsets>();
     }
 
-    std::unique_ptr<Scheduler> createScheduler(
-            const std::shared_ptr<scheduler::RefreshRateConfigs>&, ISchedulerCallback&) override {
-        return nullptr;
-    }
-
     sp<SurfaceInterceptor> createSurfaceInterceptor() override {
         return new android::impl::SurfaceInterceptor();
     }

@@ -454,20 +454,16 @@ TEST_P(SetFrameRateTest, SetOnParentActivatesTree) {
     parent->setFrameRate(FRAME_RATE_VOTE1);
     commitTransaction();
 
-    mFlinger.mutableScheduler()
-            .mutableLayerHistory()
-            ->record(parent.get(), 0, 0, LayerHistory::LayerUpdateType::Buffer);
-    mFlinger.mutableScheduler()
-            .mutableLayerHistory()
-            ->record(child.get(), 0, 0, LayerHistory::LayerUpdateType::Buffer);
+    auto& history = mFlinger.mutableScheduler().mutableLayerHistory();
+    history.record(parent.get(), 0, 0, LayerHistory::LayerUpdateType::Buffer);
+    history.record(child.get(), 0, 0, LayerHistory::LayerUpdateType::Buffer);
 
-    const auto layerHistorySummary =
-            mFlinger.mutableScheduler()
-                    .mutableLayerHistory()
-                    ->summarize(*mFlinger.mutableScheduler().refreshRateConfigs(), 0);
-    ASSERT_EQ(2u, layerHistorySummary.size());
-    EXPECT_EQ(FRAME_RATE_VOTE1.rate, layerHistorySummary[0].desiredRefreshRate);
-    EXPECT_EQ(FRAME_RATE_VOTE1.rate, layerHistorySummary[1].desiredRefreshRate);
+    const auto configs = mFlinger.mutableScheduler().refreshRateConfigs();
+    const auto summary = history.summarize(*configs, 0);
+
+    ASSERT_EQ(2u, summary.size());
+    EXPECT_EQ(FRAME_RATE_VOTE1.rate, summary[0].desiredRefreshRate);
+    EXPECT_EQ(FRAME_RATE_VOTE1.rate, summary[1].desiredRefreshRate);
 }
 
 TEST_P(SetFrameRateTest, addChildForParentWithTreeVote) {
