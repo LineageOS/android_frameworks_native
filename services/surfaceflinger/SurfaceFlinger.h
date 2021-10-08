@@ -64,6 +64,7 @@
 #include "SurfaceTracing.h"
 #include "TracedOrdinal.h"
 #include "TransactionCallbackInvoker.h"
+#include "TransactionState.h"
 
 #include <atomic>
 #include <cstdint>
@@ -459,96 +460,6 @@ private:
     struct HotplugEvent {
         hal::HWDisplayId hwcDisplayId;
         hal::Connection connection = hal::Connection::INVALID;
-    };
-
-    class CountDownLatch {
-    public:
-        enum {
-            eSyncTransaction = 1 << 0,
-            eSyncInputWindows = 1 << 1,
-        };
-        explicit CountDownLatch(uint32_t flags) : mFlags(flags) {}
-
-        // True if there is no waiting condition after count down.
-        bool countDown(uint32_t flag) {
-            std::unique_lock<std::mutex> lock(mMutex);
-            if (mFlags == 0) {
-                return true;
-            }
-            mFlags &= ~flag;
-            if (mFlags == 0) {
-                mCountDownComplete.notify_all();
-                return true;
-            }
-            return false;
-        }
-
-        // Return true if triggered.
-        bool wait_until(const std::chrono::seconds& timeout) const {
-            std::unique_lock<std::mutex> lock(mMutex);
-            const auto untilTime = std::chrono::system_clock::now() + timeout;
-            while (mFlags != 0) {
-                // Conditional variables can be woken up sporadically, so we check count
-                // to verify the wakeup was triggered by |countDown|.
-                if (std::cv_status::timeout == mCountDownComplete.wait_until(lock, untilTime)) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-    private:
-        uint32_t mFlags;
-        mutable std::condition_variable mCountDownComplete;
-        mutable std::mutex mMutex;
-    };
-
-    struct TransactionState {
-        TransactionState(const FrameTimelineInfo& frameTimelineInfo,
-                         const Vector<ComposerState>& composerStates,
-                         const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
-                         const sp<IBinder>& applyToken,
-                         const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
-                         bool isAutoTimestamp, const client_cache_t& uncacheBuffer,
-                         int64_t postTime, uint32_t permissions, bool hasListenerCallbacks,
-                         std::vector<ListenerCallbacks> listenerCallbacks, int originPid,
-                         int originUid, uint64_t transactionId)
-              : frameTimelineInfo(frameTimelineInfo),
-                states(composerStates),
-                displays(displayStates),
-                flags(transactionFlags),
-                applyToken(applyToken),
-                inputWindowCommands(inputWindowCommands),
-                desiredPresentTime(desiredPresentTime),
-                isAutoTimestamp(isAutoTimestamp),
-                buffer(uncacheBuffer),
-                postTime(postTime),
-                permissions(permissions),
-                hasListenerCallbacks(hasListenerCallbacks),
-                listenerCallbacks(listenerCallbacks),
-                originPid(originPid),
-                originUid(originUid),
-                id(transactionId) {}
-
-        void traverseStatesWithBuffers(std::function<void(const layer_state_t&)> visitor);
-
-        FrameTimelineInfo frameTimelineInfo;
-        Vector<ComposerState> states;
-        Vector<DisplayState> displays;
-        uint32_t flags;
-        sp<IBinder> applyToken;
-        InputWindowCommands inputWindowCommands;
-        const int64_t desiredPresentTime;
-        const bool isAutoTimestamp;
-        client_cache_t buffer;
-        const int64_t postTime;
-        uint32_t permissions;
-        bool hasListenerCallbacks;
-        std::vector<ListenerCallbacks> listenerCallbacks;
-        int originPid;
-        int originUid;
-        uint64_t id;
-        std::shared_ptr<CountDownLatch> transactionCommittedSignal;
     };
 
     template <typename F, std::enable_if_t<!std::is_member_function_pointer_v<F>>* = nullptr>
