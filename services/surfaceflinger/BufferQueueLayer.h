@@ -44,8 +44,6 @@ public:
 
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
 
-    std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush) override;
-
     // If a buffer was replaced this frame, release the former buffer
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;
 

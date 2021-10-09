@@ -208,6 +208,37 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadius) {
     }
 }
 
+// b/200781179 - don't round a layer without a valid crop
+// This behaviour should be fixed since we treat buffer layers differently than
+// effect or container layers.
+TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusInvalidCrop) {
+    sp<SurfaceControl> parent;
+    sp<SurfaceControl> child;
+    const uint8_t size = 64;
+    const uint8_t testArea = 4;
+    const float cornerRadius = 20.0f;
+    ASSERT_NO_FATAL_FAILURE(parent = createLayer("parent", size, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(parent, Color::GREEN, size, size));
+    ASSERT_NO_FATAL_FAILURE(child = createColorLayer("child", Color::RED));
+
+    Transaction().setCornerRadius(child, cornerRadius).reparent(child, parent).show(child).apply();
+    {
+        const uint8_t bottom = size - 1;
+        const uint8_t right = size - 1;
+        auto shot = getScreenCapture();
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        // Solid corners since we don't round a layer without a valid crop
+        shot->expectColor(Rect(0, 0, testArea, testArea), Color::RED);
+        shot->expectColor(Rect(size - testArea, 0, right, testArea), Color::RED);
+        shot->expectColor(Rect(0, bottom - testArea, testArea, bottom), Color::RED);
+        shot->expectColor(Rect(size - testArea, bottom - testArea, right, bottom), Color::RED);
+        // Solid center
+        shot->expectColor(Rect(size / 2 - testArea / 2, size / 2 - testArea / 2,
+                               size / 2 + testArea / 2, size / 2 + testArea / 2),
+                          Color::RED);
+    }
+}
+
 TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusRotated) {
     sp<SurfaceControl> parent;
     sp<SurfaceControl> child;
