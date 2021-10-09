@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "51144299_6cfcdf82",
+        "filename": "services/powermanager/PowerHalLoader.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 90,
+      "author": {
+        "id": 10258
+      },
+      "writtenOn": "2021-10-09T02:01:38Z",
+      "side": 1,
+      "message": "ig it\u0027s not a good idea to reuse this lock",
+      "range": {
+        "startLine": 90,
+        "startChar": 37,
+        "endLine": 90,
+        "endChar": 46
+      },
+      "revId": "5e073af388a1e1dd1ca4c58f128438b0ff745b41",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
