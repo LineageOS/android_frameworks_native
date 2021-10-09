@@ -56,6 +56,7 @@ std::unique_ptr<HalWrapper> HalConnector::connectLineage() {
 
 void HalConnector::reset() {
     PowerHalLoader::unloadAll();
+    PowerHalLoader::unloadLineage();
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -82,7 +83,7 @@ std::shared_ptr<HalWrapper> PowerHalController::initHal() {
 // Check validity of current handle to the Lineage power HAL service, and create a new
 // one if necessary.
 std::shared_ptr<HalWrapper> PowerHalController::initLineageHal() {
-    std::lock_guard<std::mutex> lock(mConnectedHalMutex);
+    std::lock_guard<std::mutex> lock(mConnectedLineageHalMutex);
     if (mConnectedLineageHal == nullptr) {
         mConnectedLineageHal = mHalConnector->connect();
         if (mConnectedLineageHal == nullptr) {
