@@ -2207,6 +2207,9 @@ binder::Status InstalldNativeService::getExternalSize(const std::optional<std::s
         auto obbPath = StringPrintf("%s/Android/obb",
                 create_data_media_path(uuid_, userId).c_str());
         calculate_tree_size(obbPath, &obbSize);
+        if (!(flags & FLAG_USE_QUOTA)) {
+            totalSize -= obbSize;
+        }
         ATRACE_END();
     }
 
