@@ -22,6 +22,30 @@
       "revId": "5e073af388a1e1dd1ca4c58f128438b0ff745b41",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "f2f39f34_9aa5cf61",
+        "filename": "services/powermanager/PowerHalLoader.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 90,
+      "author": {
+        "id": 11883
+      },
+      "writtenOn": "2021-10-09T09:35:29Z",
+      "side": 1,
+      "message": "I would agree, this is 1:1 of the old impl. I will spin up a different CL to change the mutex",
+      "parentUuid": "51144299_6cfcdf82",
+      "range": {
+        "startLine": 90,
+        "startChar": 37,
+        "endLine": 90,
+        "endChar": 46
+      },
+      "revId": "5e073af388a1e1dd1ca4c58f128438b0ff745b41",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
     }
   ]
 }
