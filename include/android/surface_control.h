@@ -595,6 +595,15 @@ void ASurfaceTransaction_setEnableBackPressure(ASurfaceTransaction* transaction,
                                                bool enableBackPressure)
                                                __INTRODUCED_IN(31);
 
+/**
+ * Sets the frame timeline to use.
+ *
+ * \param vsyncId The vsync ID received from AChoreographer, setting the frame's present target to
+ * the corresponding expected present time and deadline from the frame to be rendered.
+ */
+void ASurfaceTransaction_setFrameTimeline(ASurfaceTransaction* transaction,
+                                          int64_t vsyncId) __INTRODUCED_IN(33);
+
 __END_DECLS
 
 #endif // ANDROID_SURFACE_CONTROL_H
