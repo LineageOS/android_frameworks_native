@@ -18,6 +18,7 @@
 
 #include <condition_variable>
 #include <deque>
+#include <queue>
 #include <mutex>
 #include <thread>
 #include <unordered_map>
@@ -56,8 +57,11 @@ public:
 
 class TransactionCallbackInvoker {
 public:
+    TransactionCallbackInvoker();
+    ~TransactionCallbackInvoker();
+
     status_t addCallbackHandles(const std::deque<sp<CallbackHandle>>& handles,
-                                            const std::vector<JankData>& jankData);
+                                const std::vector<JankData>& jankData);
     status_t addOnCommitCallbackHandles(const std::deque<sp<CallbackHandle>>& handles,
                                              std::deque<sp<CallbackHandle>>& outRemainingHandles);
 
@@ -88,6 +92,12 @@ private:
         mCompletedTransactions;
 
     sp<Fence> mPresentFence;
+
+    std::mutex mCallbackThreadMutex;
+    std::condition_variable mCallbackConditionVariable;
+    std::thread mThread;
+    bool mKeepRunning = true;
+    std::queue<std::function<void()>> mCallbackThreadWork;
 };
 
 } // namespace android

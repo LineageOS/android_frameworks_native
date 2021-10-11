@@ -49,6 +49,31 @@ static bool containsOnCommitCallbacks(const std::vector<CallbackId>& callbacks) 
     return !callbacks.empty() && callbacks.front().type == CallbackId::Type::ON_COMMIT;
 }
 
+TransactionCallbackInvoker::TransactionCallbackInvoker() {
+    mThread = std::thread([&]() {
+          std::unique_lock lock(mCallbackThreadMutex);
+
+        while (mKeepRunning) {
+          while (mCallbackThreadWork.size() > 0) {
+              mCallbackThreadWork.front()();
+              mCallbackThreadWork.pop();
+          }
+          mCallbackConditionVariable.wait(lock);
+        }
+    });
+}
+
+TransactionCallbackInvoker::~TransactionCallbackInvoker() {
+    {
+          std::unique_lock lock(mCallbackThreadMutex);
+          mKeepRunning = false;
+          mCallbackConditionVariable.notify_all();
+    }
+    if (mThread.joinable()) {
+        mThread.join();
+    }
+}
+
 void TransactionCallbackInvoker::addEmptyTransaction(const ListenerCallbacks& listenerCallbacks) {
     auto& [listener, callbackIds] = listenerCallbacks;
     auto& transactionStatsDeque = mCompletedTransactions[listener];
@@ -180,8 +205,15 @@ void TransactionCallbackInvoker::sendCallbacks() {
                 // keep it as an IBinder due to consistency reasons: if we
                 // interface_cast at the IPC boundary when reading a Parcel,
                 // we get pointers that compare unequal in the SF process.
-                interface_cast<ITransactionCompletedListener>(listenerStats.listener)
-                        ->onTransactionCompleted(listenerStats);
+                {
+                    std::unique_lock lock(mCallbackThreadMutex);
+                    mCallbackThreadWork.push(
+                        [stats = std::move(listenerStats)]() {
+                          interface_cast<ITransactionCompletedListener>(stats.listener)
+                              ->onTransactionCompleted(stats);
+                    });
+                    mCallbackConditionVariable.notify_all();
+                }
             }
         }
         completedTransactionsItr++;
