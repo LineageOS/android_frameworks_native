@@ -88,6 +88,9 @@ constexpr bool DEBUG_INJECTION = false;
 // Log debug messages about input focus tracking.
 constexpr bool DEBUG_FOCUS = false;
 
+// Log debug messages about touch mode event
+constexpr bool DEBUG_TOUCH_MODE = false;
+
 // Log debug messages about touch occlusion
 // STOPSHIP(b/169067926): Set to false
 constexpr bool DEBUG_TOUCH_OCCLUSION = true;
@@ -534,6 +537,23 @@ vec2 transformWithoutTranslation(const ui::Transform& transform, float x, float 
     return transformedXy - transformedOrigin;
 }
 
+// Returns true if the event type passed as argument represents a user activity.
+bool isUserActivityEvent(const EventEntry& eventEntry) {
+    switch (eventEntry.type) {
+        case EventEntry::Type::FOCUS:
+        case EventEntry::Type::POINTER_CAPTURE_CHANGED:
+        case EventEntry::Type::DRAG:
+        case EventEntry::Type::TOUCH_MODE_CHANGED:
+        case EventEntry::Type::SENSOR:
+        case EventEntry::Type::CONFIGURATION_CHANGED:
+            return false;
+        case EventEntry::Type::DEVICE_RESET:
+        case EventEntry::Type::KEY:
+        case EventEntry::Type::MOTION:
+            return true;
+    }
+}
+
 } // namespace
 
 // --- InputDispatcher ---
@@ -552,7 +572,7 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         // mInTouchMode will be initialized by the WindowManager to the default device config.
         // To avoid leaking stack in case that call never comes, and for tests,
         // initialize it here anyways.
-        mInTouchMode(true),
+        mInTouchMode(kDefaultInTouchMode),
         mMaximumObscuringOpacityForTouch(1.0f),
         mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
         mWindowTokenWithPointerCapture(nullptr),
@@ -1789,9 +1809,9 @@ int32_t InputDispatcher::getTargetDisplayId(const EventEntry& entry) {
             displayId = motionEntry.displayId;
             break;
         }
+        case EventEntry::Type::TOUCH_MODE_CHANGED:
         case EventEntry::Type::POINTER_CAPTURE_CHANGED:
         case EventEntry::Type::FOCUS:
-        case EventEntry::Type::TOUCH_MODE_CHANGED:
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET:
         case EventEntry::Type::SENSOR:
@@ -2757,11 +2777,8 @@ std::string InputDispatcher::getApplicationWindowLabel(
 }
 
 void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
-    if (eventEntry.type == EventEntry::Type::FOCUS ||
-        eventEntry.type == EventEntry::Type::POINTER_CAPTURE_CHANGED ||
-        eventEntry.type == EventEntry::Type::DRAG) {
-        // Focus or pointer capture changed events are passed to apps, but do not represent user
-        // activity.
+    if (!isUserActivityEvent(eventEntry)) {
+        // Not poking user activity if the event type does not represent a user activity
         return;
     }
     int32_t displayId = getTargetDisplayId(eventEntry);
@@ -2797,16 +2814,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
             eventType = USER_ACTIVITY_EVENT_BUTTON;
             break;
         }
-        case EventEntry::Type::TOUCH_MODE_CHANGED: {
-            break;
-        }
-
-        case EventEntry::Type::FOCUS:
-        case EventEntry::Type::CONFIGURATION_CHANGED:
-        case EventEntry::Type::DEVICE_RESET:
-        case EventEntry::Type::SENSOR:
-        case EventEntry::Type::POINTER_CAPTURE_CHANGED:
-        case EventEntry::Type::DRAG: {
+        default: {
             LOG_ALWAYS_FATAL("%s events are not user activity",
                              ftl::enum_string(eventEntry.type).c_str());
             break;
@@ -3781,7 +3789,7 @@ void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChange
         ALOGD("notifyConfigurationChanged - eventTime=%" PRId64, args->eventTime);
     }
 
-    bool needWake;
+    bool needWake = false;
     { // acquire lock
         std::scoped_lock _l(mLock);
 
@@ -3876,7 +3884,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
               std::to_string(t.duration().count()).c_str());
     }
 
-    bool needWake;
+    bool needWake = false;
     { // acquire lock
         mLock.lock();
 
@@ -3953,7 +3961,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
               std::to_string(t.duration().count()).c_str());
     }
 
-    bool needWake;
+    bool needWake = false;
     { // acquire lock
         mLock.lock();
 
@@ -4018,7 +4026,7 @@ void InputDispatcher::notifySensor(const NotifySensorArgs* args) {
               ftl::enum_string(args->sensorType).c_str());
     }
 
-    bool needWake;
+    bool needWake = false;
     { // acquire lock
         mLock.lock();
 
@@ -4068,7 +4076,7 @@ void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
               args->deviceId);
     }
 
-    bool needWake;
+    bool needWake = false;
     { // acquire lock
         std::scoped_lock _l(mLock);
 
@@ -4088,7 +4096,7 @@ void InputDispatcher::notifyPointerCaptureChanged(const NotifyPointerCaptureChan
               args->request.enable ? "true" : "false");
     }
 
-    bool needWake;
+    bool needWake = false;
     { // acquire lock
         std::scoped_lock _l(mLock);
         auto entry = std::make_unique<PointerCaptureChangedEntry>(args->id, args->eventTime,
@@ -4909,9 +4917,29 @@ void InputDispatcher::setInputFilterEnabled(bool enabled) {
 }
 
 void InputDispatcher::setInTouchMode(bool inTouchMode) {
-    std::scoped_lock lock(mLock);
-    mInTouchMode = inTouchMode;
-    // TODO(b/193718270): Fire TouchModeEvent here.
+    bool needWake = false;
+    {
+        std::scoped_lock lock(mLock);
+        if (mInTouchMode == inTouchMode) {
+            return;
+        }
+        if (DEBUG_TOUCH_MODE) {
+            ALOGD("Request to change touch mode from %s to %s", toString(mInTouchMode),
+                  toString(inTouchMode));
+            // TODO(b/198487159): Also print the current last interacted apps.
+        }
+
+        // TODO(b/198499018): Store touch mode per display.
+        mInTouchMode = inTouchMode;
+
+        // TODO(b/198487159): Enforce that only last interacted apps can change touch mode.
+        auto entry = std::make_unique<TouchModeEntry>(mIdGenerator.nextId(), now(), inTouchMode);
+        needWake = enqueueInboundEventLocked(std::move(entry));
+    } // release lock
+
+    if (needWake) {
+        mLooper->wake();
+    }
 }
 
 void InputDispatcher::setMaximumObscuringOpacityForTouch(float opacity) {
