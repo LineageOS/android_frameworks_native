@@ -185,6 +185,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.wifi.passpoint.prebuilt.xml",
+    src: "android.hardware.wifi.passpoint.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.software.device_id_attestation.prebuilt.xml",
     src: "android.software.device_id_attestation.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
