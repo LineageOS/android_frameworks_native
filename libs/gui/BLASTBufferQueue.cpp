@@ -162,6 +162,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
 
     ComposerService::getComposerService()->getMaxAcquiredBufferCount(&mMaxAcquiredBuffers);
     mBufferItemConsumer->setMaxAcquiredBufferCount(mMaxAcquiredBuffers);
+    mCurrentMaxAcquiredBufferCount = mMaxAcquiredBuffers;
 
     mTransformHint = mSurfaceControl->getTransformHint();
     mBufferItemConsumer->setTransformHint(mTransformHint);
@@ -325,30 +326,22 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
 // So we pass in a weak pointer to the BBQ and if it still alive, then we release the buffer.
 // Otherwise, this is a no-op.
 static void releaseBufferCallbackThunk(wp<BLASTBufferQueue> context, const ReleaseCallbackId& id,
-                                       const sp<Fence>& releaseFence, uint32_t transformHint,
-                                       uint32_t currentMaxAcquiredBufferCount) {
+                                       const sp<Fence>& releaseFence,
+                                       std::optional<uint32_t> currentMaxAcquiredBufferCount) {
     sp<BLASTBufferQueue> blastBufferQueue = context.promote();
     if (blastBufferQueue) {
-        blastBufferQueue->releaseBufferCallback(id, releaseFence, transformHint,
-                                                currentMaxAcquiredBufferCount);
+        blastBufferQueue->releaseBufferCallback(id, releaseFence, currentMaxAcquiredBufferCount);
     } else {
         ALOGV("releaseBufferCallbackThunk %s blastBufferQueue is dead", id.to_string().c_str());
     }
 }
 
-void BLASTBufferQueue::releaseBufferCallback(const ReleaseCallbackId& id,
-                                             const sp<Fence>& releaseFence, uint32_t transformHint,
-                                             uint32_t currentMaxAcquiredBufferCount) {
+void BLASTBufferQueue::releaseBufferCallback(
+        const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
+        std::optional<uint32_t> currentMaxAcquiredBufferCount) {
     ATRACE_CALL();
     std::unique_lock _lock{mMutex};
     BQA_LOGV("releaseBufferCallback %s", id.to_string().c_str());
-
-    if (mSurfaceControl != nullptr) {
-        mTransformHint = transformHint;
-        mSurfaceControl->setTransformHint(transformHint);
-        mBufferItemConsumer->setTransformHint(mTransformHint);
-        BQA_LOGV("updated mTransformHint=%d", mTransformHint);
-    }
 
     // Calculate how many buffers we need to hold before we release them back
     // to the buffer queue. This will prevent higher latency when we are running
@@ -359,8 +352,12 @@ void BLASTBufferQueue::releaseBufferCallback(const ReleaseCallbackId& id,
         return it != mSubmitted.end() && it->second.mApi == NATIVE_WINDOW_API_EGL;
     }();
 
+    if (currentMaxAcquiredBufferCount) {
+        mCurrentMaxAcquiredBufferCount = *currentMaxAcquiredBufferCount;
+    }
+
     const auto numPendingBuffersToHold =
-            isEGL ? std::max(0u, mMaxAcquiredBuffers - currentMaxAcquiredBufferCount) : 0;
+            isEGL ? std::max(0u, mMaxAcquiredBuffers - mCurrentMaxAcquiredBufferCount) : 0;
     mPendingRelease.emplace_back(ReleasedBuffer{id, releaseFence});
 
     // Release all buffers that are beyond the ones that we need to hold
@@ -374,7 +371,7 @@ void BLASTBufferQueue::releaseBufferCallback(const ReleaseCallbackId& id,
             return;
         }
         mNumAcquired--;
-        BQA_LOGV("released %s", id.to_string().c_str());
+        BQA_LOGV("released %s", releaseBuffer.callbackId.to_string().c_str());
         mBufferItemConsumer->releaseBuffer(it->second, releaseBuffer.releaseFence);
         mSubmitted.erase(it);
         processNextBufferLocked(false /* useNextTransaction */);
@@ -466,8 +463,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
 
     auto releaseBufferCallback =
             std::bind(releaseBufferCallbackThunk, wp<BLASTBufferQueue>(this) /* callbackContext */,
-                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
-                      std::placeholders::_4);
+                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
     sp<Fence> fence = bufferItem.mFence ? new Fence(bufferItem.mFence->dup()) : Fence::NO_FENCE;
     t->setBuffer(mSurfaceControl, buffer, fence, bufferItem.mFrameNumber, releaseCallbackId,
                  releaseBufferCallback);
