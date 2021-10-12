@@ -389,6 +389,20 @@ void RenderEngineThreaded::onActiveDisplaySizeChanged(ui::Size size) {
     mCondition.notify_one();
 }
 
+std::optional<pid_t> RenderEngineThreaded::getRenderEngineTid() const {
+    std::promise<pid_t> tidPromise;
+    std::future<pid_t> tidFuture = tidPromise.get_future();
+    {
+        std::lock_guard lock(mThreadMutex);
+        mFunctionCalls.push([&tidPromise](renderengine::RenderEngine& instance) {
+            tidPromise.set_value(gettid());
+        });
+    }
+
+    mCondition.notify_one();
+    return std::make_optional(tidFuture.get());
+}
+
 } // namespace threaded
 } // namespace renderengine
 } // namespace android
