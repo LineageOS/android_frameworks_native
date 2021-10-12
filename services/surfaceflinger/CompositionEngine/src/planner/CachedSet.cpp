@@ -193,6 +193,11 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
                              clientCompositionList.cend());
     }
 
+    std::vector<const renderengine::LayerSettings*> layerSettingsPointers;
+    std::transform(layerSettings.cbegin(), layerSettings.cend(),
+                   std::back_inserter(layerSettingsPointers),
+                   [](const renderengine::LayerSettings& settings) { return &settings; });
+
     renderengine::LayerSettings blurLayerSettings;
     if (mBlurLayer) {
         auto blurSettings = targetSettings;
@@ -207,7 +212,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
         blurLayerSettings.name = std::string("blur layer");
         // Clear out the shadow settings
         blurLayerSettings.shadow = {};
-        layerSettings.push_back(blurLayerSettings);
+        layerSettingsPointers.push_back(&blurLayerSettings);
     }
 
     renderengine::LayerSettings holePunchSettings;
@@ -225,7 +230,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
         holePunchSettings.disableBlending = true;
         holePunchSettings.alpha = 0.0f;
         holePunchSettings.name = std::string("hole punch layer");
-        layerSettings.push_back(holePunchSettings);
+        layerSettingsPointers.push_back(&holePunchSettings);
 
         // Add a solid background as the first layer in case there is no opaque
         // buffer behind the punch hole
@@ -234,7 +239,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
         holePunchBackgroundSettings.geometry.boundaries = holePunchSettings.geometry.boundaries;
         holePunchBackgroundSettings.geometry.positionTransform =
                 holePunchSettings.geometry.positionTransform;
-        layerSettings.emplace(layerSettings.begin(), holePunchBackgroundSettings);
+        layerSettingsPointers.insert(layerSettingsPointers.begin(), &holePunchBackgroundSettings);
     }
 
     if (sDebugHighlighLayers) {
@@ -252,7 +257,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
                 .alpha = half(0.05f),
         };
 
-        layerSettings.emplace_back(highlight);
+        layerSettingsPointers.emplace_back(&highlight);
     }
 
     auto texture = texturePool.borrowTexture();
@@ -268,8 +273,8 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
     }
 
     auto [status, drawFence] = renderEngine
-                                       .drawLayers(displaySettings, layerSettings, texture->get(),
-                                                   false, std::move(bufferFence))
+                                       .drawLayers(displaySettings, layerSettingsPointers,
+                                                   texture->get(), false, std::move(bufferFence))
                                        .get();
 
     if (status == NO_ERROR) {
