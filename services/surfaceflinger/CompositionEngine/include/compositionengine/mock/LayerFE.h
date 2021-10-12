@@ -39,7 +39,7 @@ public:
                  std::vector<compositionengine::LayerFE::LayerSettings>(
                          compositionengine::LayerFE::ClientCompositionTargetSettings&));
 
-    MOCK_METHOD1(onLayerDisplayed, void(const sp<Fence>&));
+    MOCK_METHOD1(onLayerDisplayed, void(std::shared_future<renderengine::RenderEngineResult>));
 
     MOCK_CONST_METHOD0(getDebugName, const char*());
     MOCK_CONST_METHOD0(getSequence, int32_t());
