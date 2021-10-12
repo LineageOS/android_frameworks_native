@@ -333,6 +333,7 @@ void SensorService::onUidStateChanged(uid_t uid, UidState state) {
             conn->onSensorAccessChanged(hasAccess);
         }
     }
+    checkAndReportProxStateChangeLocked();
 }
 
 bool SensorService::hasSensorAccess(uid_t uid, const String16& opPackageName) {
