@@ -356,13 +356,10 @@ void RegionSamplingThread::captureSample() {
                                                renderengine::ExternalTexture::Usage::WRITEABLE);
     }
 
-    auto captureScreenResultFuture =
-            mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
-                                         true /* regionSampling */, false /* grayscale */, nullptr);
-    auto& captureScreenResult = captureScreenResultFuture.get();
-    if (captureScreenResult.drawFence.ok()) {
-        sync_wait(captureScreenResult.drawFence.get(), -1);
-    }
+    const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
+    mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
+                                 true /* regionSampling */, false /* grayscale */, captureListener);
+    ScreenCaptureResults captureResults = captureListener->waitForResults();
 
     std::vector<Descriptor> activeDescriptors;
     for (const auto& descriptor : descriptors) {
