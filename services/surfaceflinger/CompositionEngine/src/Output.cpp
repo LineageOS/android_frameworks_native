@@ -27,6 +27,7 @@
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/impl/planner/Planner.h>
+#include <ftl/future.h>
 
 #include <thread>
 
@@ -1097,12 +1098,12 @@ std::optional<base::unique_fd> Output::composeSurfaces(
         setExpensiveRenderingExpected(true);
     }
 
-    std::vector<const renderengine::LayerSettings*> clientCompositionLayerPointers;
-    clientCompositionLayerPointers.reserve(clientCompositionLayers.size());
+    std::vector<renderengine::LayerSettings> clientRenderEngineLayers;
+    clientRenderEngineLayers.reserve(clientCompositionLayers.size());
     std::transform(clientCompositionLayers.begin(), clientCompositionLayers.end(),
-                   std::back_inserter(clientCompositionLayerPointers),
-                   [](LayerFE::LayerSettings& settings) -> renderengine::LayerSettings* {
-                       return &settings;
+                   std::back_inserter(clientRenderEngineLayers),
+                   [](LayerFE::LayerSettings& settings) -> renderengine::LayerSettings {
+                       return settings;
                    });
 
     const nsecs_t renderEngineStart = systemTime();
@@ -1115,7 +1116,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     const bool useFramebufferCache = outputState.layerFilter.toInternalDisplay;
     auto [status, drawFence] =
             renderEngine
-                    .drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, tex,
+                    .drawLayers(clientCompositionDisplay, clientRenderEngineLayers, tex,
                                 useFramebufferCache, std::move(fd))
                     .get();
 
@@ -1295,8 +1296,10 @@ void Output::postFramebuffer() {
             releaseFence =
                     Fence::merge("LayerRelease", releaseFence, frame.clientTargetAcquireFence);
         }
-
-        layer->getLayerFE().onLayerDisplayed(releaseFence);
+        layer->getLayerFE().onLayerDisplayed(
+                ftl::yield<renderengine::RenderEngineResult>(
+                        {NO_ERROR, base::unique_fd(releaseFence->dup())})
+                        .share());
     }
 
     // We've got a list of layers needing fences, that are disjoint with
@@ -1304,7 +1307,9 @@ void Output::postFramebuffer() {
     // supply them with the present fence.
     for (auto& weakLayer : mReleasedLayers) {
         if (auto layer = weakLayer.promote(); layer != nullptr) {
-            layer->onLayerDisplayed(frame.presentFence);
+            layer->onLayerDisplayed(ftl::yield<renderengine::RenderEngineResult>(
+                                            {NO_ERROR, base::unique_fd(frame.presentFence->dup())})
+                                            .share());
         }
     }
 

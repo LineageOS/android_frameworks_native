@@ -172,20 +172,21 @@ TEST_F(RenderEngineThreadedTest, supportsBackgroundBlur_returnsTrue) {
 
 TEST_F(RenderEngineThreadedTest, drawLayers) {
     renderengine::DisplaySettings settings;
-    std::vector<const renderengine::LayerSettings*> layers;
+    std::vector<renderengine::LayerSettings> layers;
     std::shared_ptr<renderengine::ExternalTexture> buffer = std::make_shared<
             renderengine::ExternalTexture>(new GraphicBuffer(), *mRenderEngine,
                                            renderengine::ExternalTexture::Usage::READABLE |
                                                    renderengine::ExternalTexture::Usage::WRITEABLE);
+
     base::unique_fd bufferFence;
 
     EXPECT_CALL(*mRenderEngine, drawLayersInternal)
             .WillOnce([&](const std::shared_ptr<std::promise<renderengine::RenderEngineResult>>&&
                                   resultPromise,
                           const renderengine::DisplaySettings&,
-                          const std::vector<const renderengine::LayerSettings*>&,
+                          const std::vector<renderengine::LayerSettings>&,
                           const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                          base::unique_fd &&) -> void {
+                          base::unique_fd&&) -> void {
                 resultPromise->set_value({NO_ERROR, base::unique_fd()});
             });
 

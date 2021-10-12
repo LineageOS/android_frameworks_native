@@ -104,7 +104,7 @@ protected:
     bool canSkipPostRenderCleanup() const override;
     void drawLayersInternal(const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
                             const DisplaySettings& display,
-                            const std::vector<const LayerSettings*>& layers,
+                            const std::vector<LayerSettings>& layers,
                             const std::shared_ptr<ExternalTexture>& buffer,
                             const bool useFramebufferCache, base::unique_fd&& bufferFence) override;
 

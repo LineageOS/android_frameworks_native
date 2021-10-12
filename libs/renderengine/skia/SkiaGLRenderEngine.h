@@ -74,7 +74,7 @@ protected:
     bool canSkipPostRenderCleanup() const override;
     void drawLayersInternal(const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
                             const DisplaySettings& display,
-                            const std::vector<const LayerSettings*>& layers,
+                            const std::vector<LayerSettings>& layers,
                             const std::shared_ptr<ExternalTexture>& buffer,
                             const bool useFramebufferCache, base::unique_fd&& bufferFence) override;
 
@@ -92,7 +92,7 @@ private:
     inline SkRect getSkRect(const Rect& layer);
     inline std::pair<SkRRect, SkRRect> getBoundsAndClip(const FloatRect& bounds,
                                                         const FloatRect& crop, float cornerRadius);
-    inline bool layerHasBlur(const LayerSettings* layer, bool colorTransformModifiesAlpha);
+    inline bool layerHasBlur(const LayerSettings& layer, bool colorTransformModifiesAlpha);
     inline SkColor getSkColor(const vec4& color);
     inline SkM44 getSkM44(const mat4& matrix);
     inline SkPoint3 getSkPoint3(const vec3& vector);
@@ -108,8 +108,7 @@ private:
                     const ShadowSettings& shadowSettings);
     // If requiresLinearEffect is true or the layer has a stretchEffect a new shader is returned.
     // Otherwise it returns the input shader.
-    sk_sp<SkShader> createRuntimeEffectShader(sk_sp<SkShader> shader,
-                                              const LayerSettings* layer,
+    sk_sp<SkShader> createRuntimeEffectShader(sk_sp<SkShader> shader, const LayerSettings& layer,
                                               const DisplaySettings& display,
                                               bool undoPremultipliedAlpha,
                                               bool requiresLinearEffect);
