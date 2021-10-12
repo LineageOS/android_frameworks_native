@@ -82,6 +82,8 @@ class Connection;
  */
 class InputDispatcher : public android::InputDispatcherInterface {
 public:
+    static constexpr bool kDefaultInTouchMode = true;
+
     explicit InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy);
     ~InputDispatcher() override;
 

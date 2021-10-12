@@ -40,13 +40,13 @@ using PresentState = frametimeline::SurfaceFrame::PresentState;
 namespace {
 void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
                                const sp<GraphicBuffer>& buffer, uint64_t framenumber,
-                               const sp<Fence>& releaseFence, uint32_t transformHint,
+                               const sp<Fence>& releaseFence,
                                uint32_t currentMaxAcquiredBufferCount) {
     if (!listener) {
         return;
     }
     listener->onReleaseBuffer({buffer->getId(), framenumber},
-                              releaseFence ? releaseFence : Fence::NO_FENCE, transformHint,
+                              releaseFence ? releaseFence : Fence::NO_FENCE,
                               currentMaxAcquiredBufferCount);
 }
 } // namespace
@@ -64,7 +64,7 @@ BufferStateLayer::~BufferStateLayer() {
     if (mBufferInfo.mBuffer != nullptr && !isClone()) {
         callReleaseBufferCallback(mDrawingState.releaseBufferListener,
                                   mBufferInfo.mBuffer->getBuffer(), mBufferInfo.mFrameNumber,
-                                  mBufferInfo.mFence, mTransformHint,
+                                  mBufferInfo.mFence,
                                   mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(
                                           mOwnerUid));
     }
@@ -479,7 +479,7 @@ bool BufferStateLayer::setBuffer(const BufferData& bufferData, nsecs_t postTime,
             // call any release buffer callbacks if set.
             callReleaseBufferCallback(mDrawingState.releaseBufferListener,
                                       mDrawingState.buffer->getBuffer(), mDrawingState.frameNumber,
-                                      mDrawingState.acquireFence, mTransformHint,
+                                      mDrawingState.acquireFence,
                                       mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(
                                               mOwnerUid));
             decrementPendingBufferCount();
@@ -491,9 +491,9 @@ bool BufferStateLayer::setBuffer(const BufferData& bufferData, nsecs_t postTime,
         } else if (mLastClientCompositionFence != nullptr) {
             callReleaseBufferCallback(mDrawingState.releaseBufferListener,
                                       mDrawingState.buffer->getBuffer(), mDrawingState.frameNumber,
-                                      mLastClientCompositionFence, mTransformHint,
+                                      mLastClientCompositionFence,
                                       mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(
-                                          mOwnerUid));
+                                              mOwnerUid));
             mLastClientCompositionFence = nullptr;
         }
     }
@@ -989,7 +989,7 @@ void BufferStateLayer::tracePendingBufferCount(int32_t pendingBuffers) {
  * how to go from screen space back to window space.
  */
 ui::Transform BufferStateLayer::getInputTransform() const {
-    sp<Layer> parent = mDrawingParent.promote();
+    auto parent = mDrawingParent;
     if (parent == nullptr) {
         return ui::Transform();
     }

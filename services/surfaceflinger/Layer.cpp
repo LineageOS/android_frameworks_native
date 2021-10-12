@@ -179,8 +179,22 @@ Layer::~Layer() {
     if (mDrawingState.sidebandStream != nullptr) {
         mFlinger->mTunnelModeEnabledReporter->decrementTunnelModeCount();
     }
+
     if (mHadClonedChild) {
         mFlinger->mNumClones--;
+    }
+
+    for (auto const& child : mCurrentChildren) {
+        if (child->mCurrentParent == this) child->mCurrentParent = nullptr;
+        if (child->mDrawingParent == this) {
+            child->mDrawingParent = nullptr;
+        }
+    }
+    for (auto const& child : mDrawingChildren) {
+        if (child->mCurrentParent == this) child->mCurrentParent = nullptr;
+        if (child->mDrawingParent == this) {
+            child->mDrawingParent = nullptr;
+        }
     }
 }
 
@@ -237,7 +251,7 @@ void Layer::removeFromCurrentState() {
 }
 
 sp<Layer> Layer::getRootLayer() {
-    sp<Layer> parent = getParent();
+    auto parent = getParent();
     if (parent == nullptr) {
         return this;
     }
@@ -662,7 +676,7 @@ bool Layer::isSecure() const {
         return true;
     }
 
-    const auto p = mDrawingParent.promote();
+    const auto p = mDrawingParent;
     return (p != nullptr) ? p->isSecure() : false;
 }
 
@@ -845,7 +859,7 @@ bool Layer::isTrustedOverlay() const {
     if (getDrawingState().isTrustedOverlay) {
         return true;
     }
-    const auto& p = mDrawingParent.promote();
+    const auto p = mDrawingParent;
     return (p != nullptr) && p->isTrustedOverlay();
 }
 
@@ -1025,7 +1039,7 @@ int32_t Layer::getFrameRateSelectionPriority() const {
         return mDrawingState.frameRateSelectionPriority;
     }
     // If not, search whether its parents have it set.
-    sp<Layer> parent = getParent();
+    auto parent = getParent();
     if (parent != nullptr) {
         return parent->getFrameRateSelectionPriority();
     }
@@ -1038,10 +1052,11 @@ bool Layer::isLayerFocusedBasedOnPriority(int32_t priority) {
 };
 
 ui::LayerStack Layer::getLayerStack() const {
-    if (const auto parent = mDrawingParent.promote()) {
-        return parent->getLayerStack();
+    auto p = mDrawingParent;
+    if (p == nullptr) {
+        return getDrawingState().layerStack;
     }
-    return getDrawingState().layerStack;
+    return mDrawingParent->getLayerStack();
 }
 
 bool Layer::setShadowRadius(float shadowRadius) {
@@ -1086,7 +1101,7 @@ StretchEffect Layer::getStretchEffect() const {
         return mDrawingState.stretchEffect;
     }
 
-    sp<Layer> parent = getParent();
+    auto parent = mDrawingParent;
     if (parent != nullptr) {
         auto effect = parent->getStretchEffect();
         if (effect.hasEffect()) {
@@ -1301,7 +1316,7 @@ Layer::FrameRate Layer::getFrameRateForLayerTree() const {
 
 bool Layer::isHiddenByPolicy() const {
     const State& s(mDrawingState);
-    const auto& parent = mDrawingParent.promote();
+    auto parent = mDrawingParent;
     if (parent != nullptr && parent->isHiddenByPolicy()) {
         return true;
     }
@@ -1348,7 +1363,7 @@ LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
     LayerDebugInfo info;
     const State& ds = getDrawingState();
     info.mName = getName();
-    sp<Layer> parent = mDrawingParent.promote();
+    auto parent = mDrawingParent;
     info.mParentName = parent ? parent->getName() : "none"s;
     info.mType = getType();
     info.mTransparentRegion = ds.activeTransparentRegion_legacy;
@@ -1580,7 +1595,7 @@ ssize_t Layer::removeChild(const sp<Layer>& layer) {
 
 void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
     for (const sp<Layer>& child : mDrawingChildren) {
-        child->mDrawingParent = newParent;
+        child->mDrawingParent = newParent.get();
         child->computeBounds(newParent->mBounds, newParent->mEffectiveTransform,
                              newParent->mEffectiveShadowRadius);
     }
@@ -1600,7 +1615,7 @@ bool Layer::reparent(const sp<IBinder>& newParentHandle) {
         }
     }
 
-    sp<Layer> parent = getParent();
+    auto parent = getParent();
     if (parent != nullptr) {
         parent->removeChild(this);
     }
@@ -1635,7 +1650,7 @@ bool Layer::setColorTransform(const mat4& matrix) {
 
 mat4 Layer::getColorTransform() const {
     mat4 colorTransform = mat4(getDrawingState().colorTransform);
-    if (sp<Layer> parent = mDrawingParent.promote(); parent != nullptr) {
+    if (auto parent = mDrawingParent; parent != nullptr) {
         colorTransform = parent->getColorTransform() * colorTransform;
     }
     return colorTransform;
@@ -1643,7 +1658,7 @@ mat4 Layer::getColorTransform() const {
 
 bool Layer::hasColorTransform() const {
     bool hasColorTransform = getDrawingState().hasColorTransform;
-    if (sp<Layer> parent = mDrawingParent.promote(); parent != nullptr) {
+    if (auto parent = mDrawingParent; parent != nullptr) {
         hasColorTransform = hasColorTransform || parent->hasColorTransform();
     }
     return hasColorTransform;
@@ -1657,7 +1672,7 @@ bool Layer::isLegacyDataSpace() const {
 }
 
 void Layer::setParent(const sp<Layer>& layer) {
-    mCurrentParent = layer;
+    mCurrentParent = layer.get();
 }
 
 int32_t Layer::getZ(LayerVector::StateSet) const {
@@ -1861,7 +1876,7 @@ ui::Transform Layer::getTransform() const {
 }
 
 half Layer::getAlpha() const {
-    const auto& p = mDrawingParent.promote();
+    auto p = mDrawingParent;
 
     half parentAlpha = (p != nullptr) ? p->getAlpha() : 1.0_hf;
     return parentAlpha * getDrawingState().color.a;
@@ -1872,7 +1887,7 @@ ui::Transform::RotationFlags Layer::getFixedTransformHint() const {
     if (fixedTransformHint != ui::Transform::ROT_INVALID) {
         return fixedTransformHint;
     }
-    const auto& p = mCurrentParent.promote();
+    auto p = mCurrentParent;
     if (!p) return fixedTransformHint;
     return p->getFixedTransformHint();
 }
@@ -1883,7 +1898,7 @@ half4 Layer::getColor() const {
 }
 
 int32_t Layer::getBackgroundBlurRadius() const {
-    const auto& p = mDrawingParent.promote();
+    auto p = mDrawingParent;
 
     half parentAlpha = (p != nullptr) ? p->getAlpha() : 1.0_hf;
     return parentAlpha * getDrawingState().backgroundBlurRadius;
@@ -1901,9 +1916,8 @@ const std::vector<BlurRegion> Layer::getBlurRegions() const {
 Layer::RoundedCornerState Layer::getRoundedCornerState() const {
     // Get parent settings
     RoundedCornerState parentSettings;
-    const auto& parent = mDrawingParent.promote();
-    if (parent != nullptr) {
-        parentSettings = parent->getRoundedCornerState();
+    if (mDrawingParent != nullptr) {
+        parentSettings = mDrawingParent->getRoundedCornerState();
         if (parentSettings.radius > 0) {
             ui::Transform t = getActiveTransform(getDrawingState());
             t = t.inverse();
@@ -2119,7 +2133,7 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
         LayerProtoHelper::writeToProtoDeprecated(requestedTransform,
                                                  layerInfo->mutable_requested_transform());
 
-        auto parent = useDrawing ? mDrawingParent.promote() : mCurrentParent.promote();
+        auto parent = useDrawing ? mDrawingParent : mCurrentParent;
         if (parent != nullptr) {
             layerInfo->set_parent(parent->sequence);
         } else {
@@ -2266,9 +2280,9 @@ void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& displayTra
 }
 
 void Layer::fillTouchOcclusionMode(WindowInfo& info) {
-    sp<Layer> p = this;
+    Layer* p = this;
     while (p != nullptr && !p->hasInputInfo()) {
-        p = p->mDrawingParent.promote();
+        p = p->mDrawingParent;
     }
     if (p != nullptr) {
         info.touchOcclusionMode = p->mDrawingState.inputInfo.touchOcclusionMode;
@@ -2280,9 +2294,8 @@ gui::DropInputMode Layer::getDropInputMode() const {
     if (mode == gui::DropInputMode::ALL) {
         return mode;
     }
-    sp<Layer> parent = mDrawingParent.promote();
-    if (parent) {
-        gui::DropInputMode parentMode = parent->getDropInputMode();
+    if (mDrawingParent) {
+        gui::DropInputMode parentMode = mDrawingParent->getDropInputMode();
         if (parentMode != gui::DropInputMode::NONE) {
             return parentMode;
         }
@@ -2309,8 +2322,7 @@ void Layer::handleDropInputMode(gui::WindowInfo& info) const {
     }
 
     // Check if the parent has set an alpha on the layer
-    sp<Layer> parent = mDrawingParent.promote();
-    if (parent && parent->getAlpha() != 1.0_hf) {
+    if (mDrawingParent && mDrawingParent->getAlpha() != 1.0_hf) {
         info.inputFeatures |= WindowInfo::Feature::DROP_INPUT;
         ALOGV("Dropping input for %s as requested by policy because alpha=%f", getDebugName(),
               static_cast<float>(getAlpha()));
@@ -2408,10 +2420,10 @@ sp<Layer> Layer::getClonedRoot() {
     if (mClonedChild != nullptr) {
         return this;
     }
-    if (mDrawingParent == nullptr || mDrawingParent.promote() == nullptr) {
+    if (mDrawingParent == nullptr) {
         return nullptr;
     }
-    return mDrawingParent.promote()->getClonedRoot();
+    return mDrawingParent->getClonedRoot();
 }
 
 bool Layer::hasInputInfo() const {
@@ -2598,8 +2610,7 @@ bool Layer::isInternalDisplayOverlay() const {
         return true;
     }
 
-    sp<Layer> parent = mDrawingParent.promote();
-    return parent && parent->isInternalDisplayOverlay();
+    return mDrawingParent && mDrawingParent->isInternalDisplayOverlay();
 }
 
 void Layer::setClonedChild(const sp<Layer>& clonedChild) {
