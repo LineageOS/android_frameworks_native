@@ -817,6 +817,9 @@ public:
             case AINPUT_EVENT_TYPE_CAPTURE: {
                 FAIL() << "Use 'consumeCaptureEvent' for CAPTURE events";
             }
+            case AINPUT_EVENT_TYPE_TOUCH_MODE: {
+                FAIL() << "Use 'consumeTouchModeEvent' for TOUCH_MODE events";
+            }
             case AINPUT_EVENT_TYPE_DRAG: {
                 FAIL() << "Use 'consumeDragEvent' for DRAG events";
             }
@@ -874,6 +877,20 @@ public:
         EXPECT_EQ(y, dragEvent.getY());
     }
 
+    void consumeTouchModeEvent(bool inTouchMode) {
+        const InputEvent* event = consume();
+        ASSERT_NE(nullptr, event) << mName.c_str()
+                                  << ": consumer should have returned non-NULL event.";
+        ASSERT_EQ(AINPUT_EVENT_TYPE_TOUCH_MODE, event->getType())
+                << "Got " << inputEventTypeToString(event->getType())
+                << " event instead of TOUCH_MODE event";
+
+        ASSERT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
+                << mName.c_str() << ": event displayId should always be NONE.";
+        const auto& touchModeEvent = static_cast<const TouchModeEvent&>(*event);
+        EXPECT_EQ(inTouchMode, touchModeEvent.isInTouchMode());
+    }
+
     void assertNoEvents() {
         InputEvent* event = consume();
         if (event == nullptr) {
@@ -895,6 +912,10 @@ public:
             const auto& captureEvent = static_cast<CaptureEvent&>(*event);
             ADD_FAILURE() << "Received capture event, pointerCaptureEnabled = "
                           << (captureEvent.getPointerCaptureEnabled() ? "true" : "false");
+        } else if (event->getType() == AINPUT_EVENT_TYPE_TOUCH_MODE) {
+            const auto& touchModeEvent = static_cast<TouchModeEvent&>(*event);
+            ADD_FAILURE() << "Received touch mode event, inTouchMode = "
+                          << (touchModeEvent.isInTouchMode() ? "true" : "false");
         }
         FAIL() << mName.c_str()
                << ": should not have received any events, so consume() should return NULL";
@@ -1089,6 +1110,12 @@ public:
 
     void consumeDragEvent(bool isExiting, float x, float y) {
         mInputReceiver->consumeDragEvent(isExiting, x, y);
+    }
+
+    void consumeTouchModeEvent(bool inTouchMode) {
+        ASSERT_NE(mInputReceiver, nullptr)
+                << "Cannot consume events from a window with no receiver";
+        mInputReceiver->consumeTouchModeEvent(inTouchMode);
     }
 
     std::optional<uint32_t> receiveEvent(InputEvent** outEvent = nullptr) {
@@ -2857,7 +2884,6 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
     SCOPED_TRACE("Check default value of touch mode");
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     setFocusedWindow(window);
-
     window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
 
     SCOPED_TRACE("Remove the window to trigger focus loss");
@@ -2867,6 +2893,7 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
 
     SCOPED_TRACE("Disable touch mode");
     mDispatcher->setInTouchMode(false);
+    window->consumeTouchModeEvent(false);
     window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     setFocusedWindow(window);
@@ -2879,6 +2906,7 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
 
     SCOPED_TRACE("Enable touch mode again");
     mDispatcher->setInTouchMode(true);
+    window->consumeTouchModeEvent(true);
     window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     setFocusedWindow(window);
@@ -6022,6 +6050,45 @@ TEST_F(InputDispatcherDropInputFeatureTest, UnobscuredWindowGetsInput) {
     mDispatcher->notifyMotion(&motionArgs);
     window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
     window->assertNoEvents();
+}
+
+class InputDispatcherTouchModeChangedTests : public InputDispatcherTest {
+protected:
+    std::shared_ptr<FakeApplicationHandle> mApp;
+    sp<FakeWindowHandle> mWindow;
+    sp<FakeWindowHandle> mSecondWindow;
+
+    void SetUp() override {
+        InputDispatcherTest::SetUp();
+
+        mApp = std::make_shared<FakeApplicationHandle>();
+        mWindow = new FakeWindowHandle(mApp, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
+        mWindow->setFocusable(true);
+        mSecondWindow = new FakeWindowHandle(mApp, mDispatcher, "TestWindow2", ADISPLAY_ID_DEFAULT);
+        mSecondWindow->setFocusable(true);
+
+        mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApp);
+        mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow, mSecondWindow}}});
+
+        setFocusedWindow(mWindow);
+        mWindow->consumeFocusEvent(true);
+    }
+
+    void changeAndVerifyTouchMode(bool inTouchMode) {
+        mDispatcher->setInTouchMode(inTouchMode);
+        mWindow->consumeTouchModeEvent(inTouchMode);
+        mSecondWindow->consumeTouchModeEvent(inTouchMode);
+    }
+};
+
+TEST_F(InputDispatcherTouchModeChangedTests, ChangeTouchModeOnFocusedWindow) {
+    changeAndVerifyTouchMode(!InputDispatcher::kDefaultInTouchMode);
+}
+
+TEST_F(InputDispatcherTouchModeChangedTests, EventIsNotGeneratedIfNotChangingTouchMode) {
+    mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode);
+    mWindow->assertNoEvents();
+    mSecondWindow->assertNoEvents();
 }
 
 } // namespace android::inputdispatcher

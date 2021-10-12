@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <set>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -84,12 +85,28 @@ using TransactionCompletedCallback =
                            const std::vector<SurfaceControlStats>& /*stats*/)>;
 using ReleaseBufferCallback =
         std::function<void(const ReleaseCallbackId&, const sp<Fence>& /*releaseFence*/,
-                           uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount)>;
+                           std::optional<uint32_t> currentMaxAcquiredBufferCount)>;
 
 using SurfaceStatsCallback =
         std::function<void(void* /*context*/, nsecs_t /*latchTime*/,
                            const sp<Fence>& /*presentFence*/,
                            const SurfaceStats& /*stats*/)>;
+
+// ---------------------------------------------------------------------------
+
+class ReleaseCallbackThread {
+public:
+    void addReleaseCallback(const ReleaseCallbackId, sp<Fence>);
+    void threadMain();
+
+private:
+    std::thread mThread;
+    std::mutex mMutex;
+    bool mStarted GUARDED_BY(mMutex) = false;
+    std::condition_variable mReleaseCallbackPending;
+    std::queue<std::tuple<const ReleaseCallbackId, const sp<Fence>>> mCallbackInfos
+            GUARDED_BY(mMutex);
+};
 
 // ---------------------------------------------------------------------------
 
@@ -350,6 +367,7 @@ public:
     private:
         static std::atomic<uint32_t> idCounter;
         int64_t generateId();
+        void releaseBufferIfOverwriting(const layer_state_t& state);
 
     protected:
         std::unordered_map<sp<IBinder>, ComposerState, IBinderHash> mComposerStates;
@@ -400,7 +418,6 @@ public:
         void cacheBuffers();
         void registerSurfaceControlForCallback(const sp<SurfaceControl>& sc);
         void setReleaseBufferCallback(BufferData*, const ReleaseCallbackId&, ReleaseBufferCallback);
-        void removeReleaseBufferCallback(layer_state_t*);
 
     public:
         Transaction();
@@ -625,6 +642,9 @@ public:
     status_t addWindowInfosListener(const sp<gui::WindowInfosListener>& windowInfosListener);
     status_t removeWindowInfosListener(const sp<gui::WindowInfosListener>& windowInfosListener);
 
+protected:
+    ReleaseCallbackThread mReleaseCallbackThread;
+
 private:
     virtual void onFirstRef();
 
@@ -725,11 +745,10 @@ public:
     void removeSurfaceStatsListener(void* context, void* cookie);
 
     void setReleaseBufferCallback(const ReleaseCallbackId&, ReleaseBufferCallback);
-    void removeReleaseBufferCallback(const ReleaseCallbackId&);
 
     // BnTransactionCompletedListener overrides
     void onTransactionCompleted(ListenerStats stats) override;
-    void onReleaseBuffer(ReleaseCallbackId, sp<Fence> releaseFence, uint32_t transformHint,
+    void onReleaseBuffer(ReleaseCallbackId, sp<Fence> releaseFence,
                          uint32_t currentMaxAcquiredBufferCount) override;
 
     // For Testing Only

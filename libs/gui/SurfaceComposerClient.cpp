@@ -214,12 +214,6 @@ void TransactionCompletedListener::setReleaseBufferCallback(const ReleaseCallbac
     mReleaseBufferCallbacks[callbackId] = listener;
 }
 
-void TransactionCompletedListener::removeReleaseBufferCallback(
-        const ReleaseCallbackId& callbackId) {
-    std::scoped_lock<std::mutex> lock(mMutex);
-    mReleaseBufferCallbacks.erase(callbackId);
-}
-
 void TransactionCompletedListener::addSurfaceStatsListener(void* context, void* cookie,
         sp<SurfaceControl> surfaceControl, SurfaceStatsCallback listener) {
     std::scoped_lock<std::recursive_mutex> lock(mSurfaceStatsListenerMutex);
@@ -343,7 +337,6 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                                  surfaceStats.previousReleaseFence
                                          ? surfaceStats.previousReleaseFence
                                          : Fence::NO_FENCE,
-                                 surfaceStats.transformHint,
                                  surfaceStats.currentMaxAcquiredBufferCount);
                     }
                 }
@@ -389,7 +382,7 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
 }
 
 void TransactionCompletedListener::onReleaseBuffer(ReleaseCallbackId callbackId,
-                                                   sp<Fence> releaseFence, uint32_t transformHint,
+                                                   sp<Fence> releaseFence,
                                                    uint32_t currentMaxAcquiredBufferCount) {
     ReleaseBufferCallback callback;
     {
@@ -401,7 +394,11 @@ void TransactionCompletedListener::onReleaseBuffer(ReleaseCallbackId callbackId,
               callbackId.to_string().c_str());
         return;
     }
-    callback(callbackId, releaseFence, transformHint, currentMaxAcquiredBufferCount);
+    std::optional<uint32_t> optionalMaxAcquiredBufferCount =
+            currentMaxAcquiredBufferCount == UINT_MAX
+            ? std::nullopt
+            : std::make_optional<uint32_t>(currentMaxAcquiredBufferCount);
+    callback(callbackId, releaseFence, optionalMaxAcquiredBufferCount);
 }
 
 ReleaseBufferCallback TransactionCompletedListener::popReleaseBufferCallbackLocked(
@@ -712,11 +709,34 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
     return NO_ERROR;
 }
 
+void SurfaceComposerClient::Transaction::releaseBufferIfOverwriting(const layer_state_t& state) {
+    if (!(state.what & layer_state_t::eBufferChanged)) {
+        return;
+    }
+
+    auto listener = state.bufferData.releaseBufferListener;
+    sp<Fence> fence =
+            state.bufferData.acquireFence ? state.bufferData.acquireFence : Fence::NO_FENCE;
+    if (state.bufferData.releaseBufferEndpoint ==
+        IInterface::asBinder(TransactionCompletedListener::getIInstance())) {
+        // if the callback is in process, run on a different thread to avoid any lock contigency
+        // issues in the client.
+        SurfaceComposerClient::getDefault()
+                ->mReleaseCallbackThread.addReleaseCallback(state.bufferData.releaseCallbackId,
+                                                            fence);
+    } else {
+        listener->onReleaseBuffer(state.bufferData.releaseCallbackId, fence, UINT_MAX);
+    }
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Transaction&& other) {
     for (auto const& [handle, composerState] : other.mComposerStates) {
         if (mComposerStates.count(handle) == 0) {
             mComposerStates[handle] = composerState;
         } else {
+            if (composerState.state.what & layer_state_t::eBufferChanged) {
+                releaseBufferIfOverwriting(mComposerStates[handle].state);
+            }
             mComposerStates[handle].state.merge(composerState.state);
         }
     }
@@ -1296,7 +1316,9 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
         mStatus = BAD_INDEX;
         return *this;
     }
-    removeReleaseBufferCallback(s);
+
+    releaseBufferIfOverwriting(*s);
+
     BufferData bufferData;
     bufferData.buffer = buffer;
     if (frameNumber) {
@@ -1319,15 +1341,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
 
     mContainsBuffer = true;
     return *this;
-}
-
-void SurfaceComposerClient::Transaction::removeReleaseBufferCallback(layer_state_t* s) {
-    if (!(s->what & layer_state_t::eBufferChanged)) {
-        return;
-    }
-
-    auto listener = TransactionCompletedListener::getInstance();
-    listener->removeReleaseBufferCallback(s->bufferData.releaseCallbackId);
 }
 
 void SurfaceComposerClient::Transaction::setReleaseBufferCallback(BufferData* bufferData,
@@ -2208,6 +2221,45 @@ status_t ScreenshotClient::captureLayers(const LayerCaptureArgs& captureArgs,
     if (s == nullptr) return NO_INIT;
 
     return s->captureLayers(captureArgs, captureListener);
+}
+
+// ---------------------------------------------------------------------------------
+
+void ReleaseCallbackThread::addReleaseCallback(const ReleaseCallbackId callbackId,
+                                               sp<Fence> releaseFence) {
+    std::scoped_lock<std::mutex> lock(mMutex);
+    if (!mStarted) {
+        mThread = std::thread(&ReleaseCallbackThread::threadMain, this);
+        mStarted = true;
+    }
+
+    mCallbackInfos.emplace(callbackId, std::move(releaseFence));
+    mReleaseCallbackPending.notify_one();
+}
+
+void ReleaseCallbackThread::threadMain() {
+    const auto listener = TransactionCompletedListener::getInstance();
+    std::queue<std::tuple<const ReleaseCallbackId, const sp<Fence>>> callbackInfos;
+    while (true) {
+        {
+            std::unique_lock<std::mutex> lock(mMutex);
+            callbackInfos = std::move(mCallbackInfos);
+            mCallbackInfos = {};
+        }
+
+        while (!callbackInfos.empty()) {
+            auto [callbackId, releaseFence] = callbackInfos.front();
+            listener->onReleaseBuffer(callbackId, std::move(releaseFence), UINT_MAX);
+            callbackInfos.pop();
+        }
+
+        {
+            std::unique_lock<std::mutex> lock(mMutex);
+            if (mCallbackInfos.size() == 0) {
+                mReleaseCallbackPending.wait(lock);
+            }
+        }
+    }
 }
 
 } // namespace android
