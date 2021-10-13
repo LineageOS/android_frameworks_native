@@ -66,11 +66,44 @@ private:
     int32_t mNumReleased GUARDED_BY(mMutex) = 0;
 };
 
+class TestBLASTBufferQueue : public BLASTBufferQueue {
+public:
+    TestBLASTBufferQueue(const std::string& name, const sp<SurfaceControl>& surface, int width,
+                         int height, int32_t format)
+          : BLASTBufferQueue(name, surface, width, height, format) {}
+
+    void transactionCommittedCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
+                                      const std::vector<SurfaceControlStats>& stats) override {
+        BLASTBufferQueue::transactionCommittedCallback(latchTime, presentFence, stats);
+
+        uint64_t frameNumber = stats[0].frameEventStats.frameNumber;
+
+        {
+            std::unique_lock lock{frameNumberMutex};
+            mLastTransactionCommittedFrameNumber = frameNumber;
+            mCommittedCV.notify_all();
+        }
+    }
+
+    void waitForCallback(int64_t frameNumber) {
+        std::unique_lock lock{frameNumberMutex};
+        // Wait until all but one of the submitted buffers have been released.
+        while (mLastTransactionCommittedFrameNumber < frameNumber) {
+            mCommittedCV.wait(lock);
+        }
+    }
+
+private:
+    std::mutex frameNumberMutex;
+    std::condition_variable mCommittedCV;
+    int64_t mLastTransactionCommittedFrameNumber = -1;
+};
+
 class BLASTBufferQueueHelper {
 public:
     BLASTBufferQueueHelper(const sp<SurfaceControl>& sc, int width, int height) {
-        mBlastBufferQueueAdapter = new BLASTBufferQueue("TestBLASTBufferQueue", sc, width, height,
-                                                        PIXEL_FORMAT_RGBA_8888);
+        mBlastBufferQueueAdapter = new TestBLASTBufferQueue("TestBLASTBufferQueue", sc, width,
+                                                            height, PIXEL_FORMAT_RGBA_8888);
     }
 
     void update(const sp<SurfaceControl>& sc, int width, int height) {
@@ -107,28 +140,12 @@ public:
         }
     }
 
-    void setTransactionCompleteCallback(int64_t frameNumber) {
-        mBlastBufferQueueAdapter->setTransactionCompleteCallback(frameNumber, [&](int64_t frame) {
-            std::unique_lock lock{mMutex};
-            mLastTransactionCompleteFrameNumber = frame;
-            mCallbackCV.notify_all();
-        });
-    }
-
     void waitForCallback(int64_t frameNumber) {
-        std::unique_lock lock{mMutex};
-        // Wait until all but one of the submitted buffers have been released.
-        while (mLastTransactionCompleteFrameNumber < frameNumber) {
-            mCallbackCV.wait(lock);
-        }
+        mBlastBufferQueueAdapter->waitForCallback(frameNumber);
     }
 
 private:
-    sp<BLASTBufferQueue> mBlastBufferQueueAdapter;
-
-    std::mutex mMutex;
-    std::condition_variable mCallbackCV;
-    int64_t mLastTransactionCompleteFrameNumber = -1;
+    sp<TestBLASTBufferQueue> mBlastBufferQueueAdapter;
 };
 
 class BLASTBufferQueueTest : public ::testing::Test {
@@ -1366,7 +1383,6 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_Basic) {
     IGraphicBufferProducer::QueueBufferOutput qbOutput;
     nsecs_t requestedPresentTimeA = 0;
     nsecs_t postedTimeA = 0;
-    adapter.setTransactionCompleteCallback(1);
     setUpAndQueueBuffer(igbProducer, &requestedPresentTimeA, &postedTimeA, &qbOutput, true);
     history.applyDelta(qbOutput.frameTimestamps);
 
@@ -1435,7 +1451,6 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_DroppedFrame) {
     // queue another buffer so the first can be dropped
     nsecs_t requestedPresentTimeB = 0;
     nsecs_t postedTimeB = 0;
-    adapter.setTransactionCompleteCallback(2);
     presentTime = systemTime() + std::chrono::nanoseconds(1ms).count();
     setUpAndQueueBuffer(igbProducer, &requestedPresentTimeB, &postedTimeB, &qbOutput, true,
                         presentTime);
@@ -1501,7 +1516,6 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_CompositorTimings) {
     IGraphicBufferProducer::QueueBufferOutput qbOutput;
     nsecs_t requestedPresentTimeA = 0;
     nsecs_t postedTimeA = 0;
-    adapter.setTransactionCompleteCallback(1);
     setUpAndQueueBuffer(igbProducer, &requestedPresentTimeA, &postedTimeA, &qbOutput, true);
     history.applyDelta(qbOutput.frameTimestamps);
     adapter.waitForCallback(1);

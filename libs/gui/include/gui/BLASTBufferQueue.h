@@ -88,8 +88,8 @@ public:
     void onFrameDequeued(const uint64_t) override;
     void onFrameCancelled(const uint64_t) override;
 
-    void transactionCommittedCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
-                                      const std::vector<SurfaceControlStats>& stats);
+    virtual void transactionCommittedCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
+                                              const std::vector<SurfaceControlStats>& stats);
     void transactionCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
             const std::vector<SurfaceControlStats>& stats);
     void releaseBufferCallback(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
@@ -97,8 +97,6 @@ public:
     void setNextTransaction(SurfaceComposerClient::Transaction *t);
     void mergeWithNextTransaction(SurfaceComposerClient::Transaction* t, uint64_t frameNumber);
     void applyPendingTransactions(uint64_t frameNumber);
-    void setTransactionCompleteCallback(uint64_t frameNumber,
-                                        std::function<void(int64_t)>&& transactionCompleteCallback);
 
     void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format,
                 SurfaceComposerClient::Transaction* outTransaction = nullptr);
@@ -223,9 +221,6 @@ private:
 
     // Tracks the last acquired frame number
     uint64_t mLastAcquiredFrameNumber GUARDED_BY(mMutex) = 0;
-
-    std::function<void(int64_t)> mTransactionCompleteCallback GUARDED_BY(mMutex) = nullptr;
-    uint64_t mTransactionCompleteFrameNumber GUARDED_BY(mMutex){0};
 
     // Queues up transactions using this token in SurfaceFlinger. This prevents queued up
     // transactions from other parts of the client from blocking this transaction.
