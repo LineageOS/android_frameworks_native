@@ -282,7 +282,7 @@ private:
     InjectVSyncSource* mVSyncInjector = nullptr;
     ConnectionHandle mInjectorConnectionHandle;
 
-    std::mutex mHWVsyncLock;
+    mutable std::mutex mHWVsyncLock;
     bool mPrimaryHWVsyncEnabled GUARDED_BY(mHWVsyncLock) = false;
     bool mHWVsyncAvailable GUARDED_BY(mHWVsyncLock) = false;
 
@@ -345,6 +345,9 @@ private:
             GUARDED_BY(mFrameRateOverridesLock);
     scheduler::RefreshRateConfigs::UidToFrameRateOverride mFrameRateOverridesFromBackdoor
             GUARDED_BY(mFrameRateOverridesLock);
+
+    // Keeps track of whether the screen is acquired for debug
+    std::atomic<bool> mScreenAcquired = false;
 };
 
 } // namespace android

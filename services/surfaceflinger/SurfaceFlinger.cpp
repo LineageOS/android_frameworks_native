@@ -1824,7 +1824,7 @@ void SurfaceFlinger::setVsyncEnabled(bool enabled) {
 
         if (const auto display = getDefaultDisplayDeviceLocked();
             display && display->isPoweredOn()) {
-            getHwComposer().setVsyncEnabled(display->getPhysicalId(), mHWCVsyncPendingState);
+            setHWCVsyncEnabled(display->getPhysicalId(), mHWCVsyncPendingState);
         }
     }));
 }
@@ -4585,6 +4585,12 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         return;
     }
 
+    const auto activeDisplay = getDisplayDeviceLocked(mActiveDisplayToken);
+    if (activeDisplay != display && display->isInternal() && activeDisplay &&
+        activeDisplay->isPoweredOn()) {
+        ALOGW("Trying to change power mode on non active display while the active display is ON");
+    }
+
     display->setPowerMode(mode);
 
     if (mInterceptor->isEnabled()) {
@@ -4592,7 +4598,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     }
     const auto vsyncPeriod = display->refreshRateConfigs().getCurrentRefreshRate().getVsyncPeriod();
     if (currentMode == hal::PowerMode::OFF) {
-        const auto activeDisplay = getDisplayDeviceLocked(mActiveDisplayToken);
+        // Turn on the display
         if (display->isInternal() && (!activeDisplay || !activeDisplay->isPoweredOn())) {
             onActiveDisplayChangedLocked(display);
         }
@@ -4606,7 +4612,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         }
         getHwComposer().setPowerMode(displayId, mode);
         if (display->isInternal() && mode != hal::PowerMode::DOZE_SUSPEND) {
-            getHwComposer().setVsyncEnabled(displayId, mHWCVsyncPendingState);
+            setHWCVsyncEnabled(displayId, mHWCVsyncPendingState);
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, vsyncPeriod);
         }
@@ -4628,7 +4634,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         }
 
         // Make sure HWVsync is disabled before turning off the display
-        getHwComposer().setVsyncEnabled(displayId, hal::Vsync::DISABLE);
+        setHWCVsyncEnabled(displayId, hal::Vsync::DISABLE);
 
         getHwComposer().setPowerMode(displayId, mode);
         mVisibleRegionsDirty = true;
@@ -4831,6 +4837,8 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
 
     mScheduler->dump(mAppConnectionHandle, result);
     mScheduler->dumpVsync(result);
+    StringAppendF(&result, "mHWCVsyncPendingState=%s mLastHWCVsyncState=%s\n",
+                  to_string(mHWCVsyncPendingState).c_str(), to_string(mLastHWCVsyncState).c_str());
 }
 
 void SurfaceFlinger::dumpPlannerInfo(const DumpArgs& args, std::string& result) const {
