@@ -126,6 +126,8 @@ public:
     status_t getCta861_3(buffer_handle_t bufferHandle, std::optional<ui::Cta861_3>* outCta861_3);
     status_t getSmpte2094_40(buffer_handle_t bufferHandle,
                              std::optional<std::vector<uint8_t>>* outSmpte2094_40);
+    status_t getSmpte2094_10(buffer_handle_t bufferHandle,
+                             std::optional<std::vector<uint8_t>>* outSmpte2094_10);
 
     /**
      * Gets the default metadata for a gralloc buffer allocated with the given parameters.
