@@ -28,8 +28,8 @@
 
 #include <limits>
 
+#include <gui/test/CallbackUtils.h>
 #include "BufferGenerator.h"
-#include "utils/CallbackUtils.h"
 #include "utils/ColorUtils.h"
 #include "utils/TransactionUtils.h"
 
