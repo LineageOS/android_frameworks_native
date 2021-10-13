@@ -1134,6 +1134,18 @@ status_t decodeSmpte2094_40(const hidl_vec<uint8_t>& smpte2094_40,
                           decodeByteVector);
 }
 
+status_t encodeSmpte2094_10(const std::optional<std::vector<uint8_t>>& smpte2094_10,
+                            hidl_vec<uint8_t>* outSmpte2094_10) {
+    return encodeOptionalMetadata(MetadataType_Smpte2094_10, smpte2094_10, outSmpte2094_10,
+                                  encodeByteVector);
+}
+
+status_t decodeSmpte2094_10(const hidl_vec<uint8_t>& smpte2094_10,
+                            std::optional<std::vector<uint8_t>>* outSmpte2094_10) {
+    return decodeOptionalMetadata(MetadataType_Smpte2094_10, smpte2094_10, outSmpte2094_10,
+                                  decodeByteVector);
+}
+
 status_t encodeUint32(const MetadataType& metadataType, uint32_t input,
                       hidl_vec<uint8_t>* output) {
     return encodeMetadata(metadataType, input, output, encodeInteger);

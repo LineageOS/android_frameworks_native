@@ -634,6 +634,12 @@ status_t Gralloc4Mapper::getSmpte2094_40(
                outSmpte2094_40);
 }
 
+status_t Gralloc4Mapper::getSmpte2094_10(
+        buffer_handle_t bufferHandle, std::optional<std::vector<uint8_t>>* outSmpte2094_10) const {
+    return get(bufferHandle, gralloc4::MetadataType_Smpte2094_10, gralloc4::decodeSmpte2094_10,
+               outSmpte2094_10);
+}
+
 template <class T>
 status_t Gralloc4Mapper::getDefault(uint32_t width, uint32_t height, PixelFormat format,
                                     uint32_t layerCount, uint64_t usage,
