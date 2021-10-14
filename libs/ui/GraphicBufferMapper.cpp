@@ -301,6 +301,11 @@ status_t GraphicBufferMapper::getSmpte2094_40(
     return mMapper->getSmpte2094_40(bufferHandle, outSmpte2094_40);
 }
 
+status_t GraphicBufferMapper::getSmpte2094_10(
+        buffer_handle_t bufferHandle, std::optional<std::vector<uint8_t>>* outSmpte2094_10) {
+    return mMapper->getSmpte2094_10(bufferHandle, outSmpte2094_10);
+}
+
 status_t GraphicBufferMapper::getDefaultPixelFormatFourCC(uint32_t width, uint32_t height,
                                                           PixelFormat format, uint32_t layerCount,
                                                           uint64_t usage,

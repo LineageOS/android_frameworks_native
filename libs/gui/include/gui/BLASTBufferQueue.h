@@ -88,6 +88,8 @@ public:
     void onFrameDequeued(const uint64_t) override;
     void onFrameCancelled(const uint64_t) override;
 
+    void transactionCommittedCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
+                                      const std::vector<SurfaceControlStats>& stats);
     void transactionCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
             const std::vector<SurfaceControlStats>& stats);
     void releaseBufferCallback(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
@@ -120,7 +122,8 @@ private:
     void createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
                            sp<IGraphicBufferConsumer>* outConsumer);
 
-    void processNextBufferLocked(bool useNextTransaction) REQUIRES(mMutex);
+    void acquireNextBufferLocked(
+            const std::optional<SurfaceComposerClient::Transaction*> transaction) REQUIRES(mMutex);
     Rect computeCrop(const BufferItem& item) REQUIRES(mMutex);
     // Return true if we need to reject the buffer based on the scaling mode and the buffer size.
     bool rejectBuffer(const BufferItem& item) REQUIRES(mMutex);
@@ -128,6 +131,9 @@ private:
     static PixelFormat convertBufferFormat(PixelFormat& format);
     void mergePendingTransactions(SurfaceComposerClient::Transaction* t, uint64_t frameNumber)
             REQUIRES(mMutex);
+
+    void flushShadowQueue() REQUIRES(mMutex);
+    void acquireAndReleaseBuffer() REQUIRES(mMutex);
 
     std::string mName;
     // Represents the queued buffer count from buffer queue,
@@ -238,6 +244,7 @@ private:
     std::queue<sp<SurfaceControl>> mSurfaceControlsWithPendingCallback GUARDED_BY(mMutex);
 
     uint32_t mCurrentMaxAcquiredBufferCount;
+    bool mWaitForTransactionCallback = false;
 };
 
 } // namespace android
