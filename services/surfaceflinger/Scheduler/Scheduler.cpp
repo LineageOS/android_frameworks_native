@@ -870,7 +870,7 @@ DisplayModePtr Scheduler::getPreferredDisplayMode() {
 
 void Scheduler::onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline) {
     if (timeline.refreshRequired) {
-        mSchedulerCallback.scheduleRefresh(FrameHint::kNone);
+        mSchedulerCallback.scheduleComposite(FrameHint::kNone);
     }
 
     std::lock_guard<std::mutex> lock(mVsyncTimelineLock);
@@ -882,12 +882,12 @@ void Scheduler::onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimel
     }
 }
 
-void Scheduler::onDisplayRefreshed(nsecs_t timestamp) {
-    const bool refresh = [=] {
+void Scheduler::onPostComposition(nsecs_t presentTime) {
+    const bool recomposite = [=] {
         std::lock_guard<std::mutex> lock(mVsyncTimelineLock);
         if (mLastVsyncPeriodChangeTimeline && mLastVsyncPeriodChangeTimeline->refreshRequired) {
-            if (timestamp < mLastVsyncPeriodChangeTimeline->refreshTimeNanos) {
-                // We need to schedule another refresh as refreshTimeNanos is still in the future.
+            if (presentTime < mLastVsyncPeriodChangeTimeline->refreshTimeNanos) {
+                // We need to composite again as refreshTimeNanos is still in the future.
                 return true;
             }
 
@@ -896,8 +896,8 @@ void Scheduler::onDisplayRefreshed(nsecs_t timestamp) {
         return false;
     }();
 
-    if (refresh) {
-        mSchedulerCallback.scheduleRefresh(FrameHint::kNone);
+    if (recomposite) {
+        mSchedulerCallback.scheduleComposite(FrameHint::kNone);
     }
 }
 

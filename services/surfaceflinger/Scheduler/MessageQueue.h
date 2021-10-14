@@ -33,7 +33,14 @@
 
 namespace android {
 
-class SurfaceFlinger;
+struct ICompositor {
+    virtual bool commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expectedVsyncTime) = 0;
+    virtual void composite(nsecs_t frameTime) = 0;
+    virtual void sample() = 0;
+
+protected:
+    ~ICompositor() = default;
+};
 
 template <typename F>
 class Task : public MessageHandler {
@@ -56,65 +63,65 @@ inline auto makeTask(F&& f) {
 
 class MessageQueue {
 public:
-    enum {
-        INVALIDATE = 0,
-        REFRESH = 1,
-    };
-
     virtual ~MessageQueue() = default;
 
-    virtual void init(const sp<SurfaceFlinger>& flinger) = 0;
     virtual void initVsync(scheduler::VSyncDispatch&, frametimeline::TokenManager&,
                            std::chrono::nanoseconds workDuration) = 0;
     virtual void setDuration(std::chrono::nanoseconds workDuration) = 0;
     virtual void setInjector(sp<EventThreadConnection>) = 0;
     virtual void waitMessage() = 0;
     virtual void postMessage(sp<MessageHandler>&&) = 0;
-    virtual void invalidate() = 0;
-    virtual void refresh() = 0;
-    virtual std::optional<std::chrono::steady_clock::time_point> nextExpectedInvalidate() = 0;
-};
+    virtual void scheduleCommit() = 0;
+    virtual void scheduleComposite() = 0;
 
-// ---------------------------------------------------------------------------
+    using Clock = std::chrono::steady_clock;
+    virtual std::optional<Clock::time_point> getScheduledFrameTime() const = 0;
+};
 
 namespace impl {
 
 class MessageQueue : public android::MessageQueue {
 protected:
     class Handler : public MessageHandler {
-        enum : uint32_t {
-            eventMaskInvalidate = 0x1,
-            eventMaskRefresh = 0x2,
-            eventMaskTransaction = 0x4
-        };
+        static constexpr uint32_t kCommit = 0b1;
+        static constexpr uint32_t kComposite = 0b10;
+
         MessageQueue& mQueue;
-        std::atomic<uint32_t> mEventMask;
-        std::atomic<int64_t> mVsyncId;
-        std::atomic<nsecs_t> mExpectedVSyncTime;
+        std::atomic<uint32_t> mEventMask = 0;
+        std::atomic<int64_t> mVsyncId = 0;
+        std::atomic<nsecs_t> mExpectedVsyncTime = 0;
 
     public:
-        explicit Handler(MessageQueue& queue) : mQueue(queue), mEventMask(0) {}
+        explicit Handler(MessageQueue& queue) : mQueue(queue) {}
         void handleMessage(const Message& message) override;
-        virtual void dispatchRefresh();
-        virtual void dispatchInvalidate(int64_t vsyncId, nsecs_t expectedVSyncTimestamp);
-        virtual bool invalidatePending();
+
+        bool isFramePending() const;
+
+        virtual void dispatchCommit(int64_t vsyncId, nsecs_t expectedVsyncTime);
+        void dispatchComposite();
     };
 
     friend class Handler;
 
-    sp<SurfaceFlinger> mFlinger;
-    sp<Looper> mLooper;
+    // For tests.
+    MessageQueue(ICompositor&, sp<Handler>);
+
+    void vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, nsecs_t readyTime);
+
+private:
+    ICompositor& mCompositor;
+    const sp<Looper> mLooper;
+    const sp<Handler> mHandler;
 
     struct Vsync {
         frametimeline::TokenManager* tokenManager = nullptr;
         std::unique_ptr<scheduler::VSyncCallbackRegistration> registration;
 
-        std::mutex mutex;
+        mutable std::mutex mutex;
         TracedOrdinal<std::chrono::nanoseconds> workDuration
                 GUARDED_BY(mutex) = {"VsyncWorkDuration-sf", std::chrono::nanoseconds(0)};
         std::chrono::nanoseconds lastCallbackTime GUARDED_BY(mutex) = std::chrono::nanoseconds{0};
-        bool scheduled GUARDED_BY(mutex) = false;
-        std::optional<nsecs_t> expectedWakeupTime GUARDED_BY(mutex);
+        std::optional<nsecs_t> scheduledFrameTime GUARDED_BY(mutex);
         TracedOrdinal<int> value = {"VSYNC-sf", 0};
     };
 
@@ -127,14 +134,11 @@ protected:
     Vsync mVsync;
     Injector mInjector;
 
-    sp<Handler> mHandler;
-
-    void vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, nsecs_t readyTime);
     void injectorCallback();
 
 public:
-    ~MessageQueue() override = default;
-    void init(const sp<SurfaceFlinger>& flinger) override;
+    explicit MessageQueue(ICompositor&);
+
     void initVsync(scheduler::VSyncDispatch&, frametimeline::TokenManager&,
                    std::chrono::nanoseconds workDuration) override;
     void setDuration(std::chrono::nanoseconds workDuration) override;
@@ -143,13 +147,10 @@ public:
     void waitMessage() override;
     void postMessage(sp<MessageHandler>&&) override;
 
-    // sends INVALIDATE message at next VSYNC
-    void invalidate() override;
+    void scheduleCommit() override;
+    void scheduleComposite() override;
 
-    // sends REFRESH message at next VSYNC
-    void refresh() override;
-
-    std::optional<std::chrono::steady_clock::time_point> nextExpectedInvalidate() override;
+    std::optional<Clock::time_point> getScheduledFrameTime() const override;
 };
 
 } // namespace impl

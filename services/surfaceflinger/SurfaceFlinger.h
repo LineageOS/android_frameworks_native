@@ -56,6 +56,7 @@
 #include "Fps.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
+#include "Scheduler/MessageQueue.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
@@ -161,6 +162,7 @@ class SurfaceFlinger : public BnSurfaceComposer,
                        public PriorityDumper,
                        private IBinder::DeathRecipient,
                        private HWC2::ComposerCallback,
+                       private ICompositor,
                        private ISchedulerCallback {
 public:
     struct SkipInitializationTag {};
@@ -271,11 +273,13 @@ public:
     [[nodiscard]] std::future<T> schedule(F&&);
 
     // Schedule commit of transactions on the main thread ahead of the next VSYNC.
-    void scheduleInvalidate(FrameHint);
-    // As above, but also force refresh regardless if transactions were committed.
-    void scheduleRefresh(FrameHint) override;
+    void scheduleCommit(FrameHint);
+    // As above, but also force composite regardless if transactions were committed.
+    void scheduleComposite(FrameHint) override;
     // As above, but also force dirty geometry to repaint.
     void scheduleRepaint();
+    // Schedule sampling independently from commit or composite.
+    void scheduleSample();
 
     surfaceflinger::Factory& getFactory() { return mFactory; }
 
@@ -289,11 +293,6 @@ public:
     // utility function to delete a texture on the main thread
     void deleteTextureAsync(uint32_t texture);
 
-    // called on the main thread by MessageQueue when an internal message
-    // is received
-    // TODO: this should be made accessible only to MessageQueue
-    void onMessageReceived(int32_t what, int64_t vsyncId, nsecs_t expectedVSyncTime);
-
     renderengine::RenderEngine& getRenderEngine() const;
 
     bool authenticateSurfaceTextureLocked(
@@ -301,6 +300,7 @@ public:
 
     void onLayerFirstRef(Layer*);
     void onLayerDestroyed(Layer*);
+    void onLayerUpdate();
 
     void removeHierarchyFromOffscreenLayers(Layer* layer);
     void removeFromOffscreenLayers(Layer* layer);
@@ -628,9 +628,6 @@ private:
     // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
 
-    // Implements RefBase.
-    void onFirstRef() override;
-
     // HWC2::ComposerCallback overrides:
     void onComposerHalVsync(hal::HWDisplayId, int64_t timestamp,
                             std::optional<hal::VsyncPeriodNanos>) override;
@@ -639,6 +636,19 @@ private:
     void onComposerHalVsyncPeriodTimingChanged(hal::HWDisplayId,
                                                const hal::VsyncPeriodChangeTimeline&) override;
     void onComposerHalSeamlessPossible(hal::HWDisplayId) override;
+
+    // ICompositor overrides:
+
+    // Commits transactions for layers and displays. Returns whether any state has been invalidated,
+    // i.e. whether a frame should be composited for each display.
+    bool commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expectedVsyncTime) override;
+
+    // Composites a frame for each display. CompositionEngine performs GPU and/or HAL composition
+    // via RenderEngine and the Composer HAL, respectively.
+    void composite(nsecs_t frameTime) override;
+
+    // Samples the composited frame via RegionSamplingThread.
+    void sample() override;
 
     /*
      * ISchedulerCallback
@@ -659,13 +669,6 @@ private:
     bool mKernelIdleTimerEnabled = false;
     // Show spinner with refresh rate overlay
     bool mRefreshRateOverlaySpinner = false;
-
-    /*
-     * Message handling
-     */
-    // Can only be called from the main thread or with mStateLock held
-    void signalLayerUpdate();
-    void signalRefresh();
 
     // Called on the main thread in response to initializeDisplays()
     void onInitializeDisplays() REQUIRES(mStateLock);
@@ -691,10 +694,6 @@ private:
             const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy)
             EXCLUDES(mStateLock);
 
-    // Handle the INVALIDATE message queue event, latching new buffers and applying
-    // incoming transactions
-    void onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncTime);
-
     // Returns whether transactions were committed.
     bool flushAndCommitTransactions() EXCLUDES(mStateLock);
 
@@ -702,12 +701,10 @@ private:
     void commitTransactionsLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
     void doCommitTransactions() REQUIRES(mStateLock);
 
-    // Handle the REFRESH message queue event, sending the current frame down to RenderEngine and
-    // the Composer HAL for presentation
-    void onMessageRefresh();
+    // Returns whether a new buffer has been latched.
+    bool latchBuffers();
 
-    // Returns whether a new buffer has been latched (see handlePageFlip())
-    bool handleMessageInvalidate();
+    void updateLayerGeometry();
 
     void updateInputFlinger();
     void notifyWindowInfos();
@@ -718,11 +715,6 @@ private:
     void updatePhaseConfiguration(const Fps&) REQUIRES(mStateLock);
     void setVsyncConfig(const VsyncModulator::VsyncConfig&, nsecs_t vsyncPeriod);
 
-    /* handlePageFlip - latch a new buffer if available and compute the dirty
-     * region. Returns whether a new buffer has been latched, i.e., whether it
-     * is necessary to perform a refresh during this vsync.
-     */
-    bool handlePageFlip();
 
     /*
      * Transactions
@@ -1140,7 +1132,7 @@ private:
     bool mLayersRemoved = false;
     bool mLayersAdded = false;
 
-    std::atomic_bool mForceRefresh = false;
+    std::atomic_bool mMustComposite = false;
     std::atomic_bool mGeometryDirty = false;
 
     // constant members (no synchronization needed for access)
@@ -1240,10 +1232,6 @@ private:
     mutable Mutex mDestroyedLayerLock;
     Vector<Layer const *> mDestroyedLayers;
 
-    nsecs_t mRefreshStartTime = 0;
-
-    std::atomic<bool> mRefreshPending = false;
-
     // We maintain a pool of pre-generated texture names to hand out to avoid
     // layer creation needing to run on the main thread (which it would
     // otherwise need to do to access RenderEngine).
@@ -1336,9 +1324,6 @@ private:
 
     Hwc2::impl::PowerAdvisor mPowerAdvisor;
 
-    // This should only be accessed on the main thread.
-    nsecs_t mFrameStartTime = 0;
-
     void enableRefreshRateOverlay(bool enable) REQUIRES(mStateLock);
 
     // Flag used to set override desired display mode from backdoor
@@ -1391,9 +1376,6 @@ private:
     sp<Layer> handleLayerCreatedLocked(const sp<IBinder>& handle) REQUIRES(mStateLock);
 
     std::atomic<ui::Transform::RotationFlags> mActiveDisplayTransformHint;
-
-    void scheduleRegionSamplingThread();
-    void notifyRegionSamplingThread();
 
     bool isRefreshRateOverlayEnabled() const REQUIRES(mStateLock) {
         return std::any_of(mDisplays.begin(), mDisplays.end(),

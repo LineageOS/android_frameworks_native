@@ -1314,7 +1314,7 @@ void Output::postFramebuffer() {
 
 void Output::renderCachedSets(const CompositionRefreshArgs& refreshArgs) {
     if (mPlanner) {
-        mPlanner->renderCachedSets(getState(), refreshArgs.nextInvalidateTime);
+        mPlanner->renderCachedSets(getState(), refreshArgs.scheduledFrameTime);
     }
 }
 

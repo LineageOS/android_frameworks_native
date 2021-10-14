@@ -595,7 +595,7 @@ bool BufferStateLayer::setSidebandStream(const sp<NativeHandle>& sidebandStream)
     setTransactionFlags(eTransactionNeeded);
     if (!mSidebandStreamChanged.exchange(true)) {
         // mSidebandStreamChanged was false
-        mFlinger->signalLayerUpdate();
+        mFlinger->onLayerUpdate();
     }
     return true;
 }
@@ -713,7 +713,7 @@ bool BufferStateLayer::onPreComposition(nsecs_t refreshStartTime) {
 
 void BufferStateLayer::setAutoRefresh(bool autoRefresh) {
     if (!mAutoRefresh.exchange(autoRefresh)) {
-        mFlinger->signalLayerUpdate();
+        mFlinger->onLayerUpdate();
     }
 }
 

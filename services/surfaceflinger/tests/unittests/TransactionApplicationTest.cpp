@@ -126,8 +126,7 @@ public:
 
     void NotPlacedOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-        // called in SurfaceFlinger::signalTransaction
-        EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+        EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
         TransactionInfo transaction;
         setupSingle(transaction, flags, syncInputWindows,
                     /*desiredPresentTime*/ systemTime(), /*isAutoTimestamp*/ true,
@@ -157,8 +156,7 @@ public:
 
     void PlaceOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-        // called in SurfaceFlinger::signalTransaction
-        EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+        EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
 
         // first check will see desired present time has not passed,
         // but afterwards it will look like the desired present time has passed
@@ -187,12 +185,11 @@ public:
 
     void BlockedByPriorTransaction(uint32_t flags, bool syncInputWindows) {
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-        // called in SurfaceFlinger::signalTransaction
         nsecs_t time = systemTime();
         if (!syncInputWindows) {
-            EXPECT_CALL(*mMessageQueue, invalidate()).Times(2);
+            EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(2);
         } else {
-            EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+            EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
         }
         // transaction that should go on the pending thread
         TransactionInfo transactionA;
@@ -255,8 +252,7 @@ public:
 
 TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
     ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-    // called in SurfaceFlinger::signalTransaction
-    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
 
     TransactionInfo transactionA; // transaction to go on pending queue
     setupSingle(transactionA, /*flags*/ 0, /*syncInputWindows*/ false,

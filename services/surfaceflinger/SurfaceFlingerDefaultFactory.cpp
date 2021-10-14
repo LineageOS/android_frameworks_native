@@ -51,8 +51,8 @@ std::unique_ptr<HWComposer> DefaultFactory::createHWComposer(const std::string& 
     return std::make_unique<android::impl::HWComposer>(serviceName);
 }
 
-std::unique_ptr<MessageQueue> DefaultFactory::createMessageQueue() {
-    return std::make_unique<android::impl::MessageQueue>();
+std::unique_ptr<MessageQueue> DefaultFactory::createMessageQueue(ICompositor& compositor) {
+    return std::make_unique<android::impl::MessageQueue>(compositor);
 }
 
 std::unique_ptr<scheduler::VsyncConfiguration> DefaultFactory::createVsyncConfiguration(

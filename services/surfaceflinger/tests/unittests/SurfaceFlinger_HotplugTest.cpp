@@ -38,9 +38,8 @@ TEST_F(HotplugTest, enqueuesEventsForDisplayTransaction) {
     // --------------------------------------------------------------------
     // Call Expectations
 
-    // We expect invalidate() to be invoked once to trigger display transaction
-    // processing.
-    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+    // We expect a scheduled commit for the display transaction.
+    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation
@@ -86,9 +85,8 @@ TEST_F(HotplugTest, processesEnqueuedEventsIfCalledOnMainThread) {
     // --------------------------------------------------------------------
     // Call Expectations
 
-    // We expect invalidate() to be invoked once to trigger display transaction
-    // processing.
-    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+    // We expect a scheduled commit for the display transaction.
+    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation

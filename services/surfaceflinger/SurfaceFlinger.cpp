@@ -371,7 +371,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mTimeStats(std::make_shared<impl::TimeStats>()),
         mFrameTracer(mFactory.createFrameTracer()),
         mFrameTimeline(mFactory.createFrameTimeline(mTimeStats, getpid())),
-        mEventQueue(mFactory.createMessageQueue()),
+        mEventQueue(mFactory.createMessageQueue(*this)),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mHwcServiceName(base::GetProperty("debug.sf.hwc_service_name"s, "default"s)),
         mTunnelModeEnabledReporter(new TunnelModeEnabledReporter()),
@@ -505,10 +505,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 }
 
 SurfaceFlinger::~SurfaceFlinger() = default;
-
-void SurfaceFlinger::onFirstRef() {
-    mEventQueue->init(this);
-}
 
 void SurfaceFlinger::binderDied(const wp<IBinder>&) {
     // the window manager died on us. prepare its eulogy.
@@ -1104,7 +1100,7 @@ void SurfaceFlinger::setDesiredActiveMode(const ActiveModeInfo& info) {
     }
 
     if (display->setDesiredActiveMode(info)) {
-        scheduleRefresh(FrameHint::kNone);
+        scheduleComposite(FrameHint::kNone);
 
         // Start receiving vsync samples now, so that we can detect a period
         // switch.
@@ -1704,31 +1700,26 @@ sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
     return mScheduler->createDisplayEventConnection(handle, eventRegistration);
 }
 
-void SurfaceFlinger::scheduleInvalidate(FrameHint hint) {
+void SurfaceFlinger::scheduleCommit(FrameHint hint) {
     if (hint == FrameHint::kActive) {
         mScheduler->resetIdleTimer();
     }
     mPowerAdvisor.notifyDisplayUpdateImminent();
-    mEventQueue->invalidate();
+    mEventQueue->scheduleCommit();
 }
 
-void SurfaceFlinger::scheduleRefresh(FrameHint hint) {
-    mForceRefresh = true;
-    scheduleInvalidate(hint);
+void SurfaceFlinger::scheduleComposite(FrameHint hint) {
+    mMustComposite = true;
+    scheduleCommit(hint);
 }
 
 void SurfaceFlinger::scheduleRepaint() {
     mGeometryDirty = true;
-    scheduleRefresh(FrameHint::kActive);
+    scheduleComposite(FrameHint::kActive);
 }
 
-void SurfaceFlinger::signalLayerUpdate() {
-    scheduleInvalidate(FrameHint::kActive);
-}
-
-void SurfaceFlinger::signalRefresh() {
-    mRefreshPending = true;
-    mEventQueue->refresh();
+void SurfaceFlinger::scheduleSample() {
+    static_cast<void>(schedule([this] { sample(); }));
 }
 
 nsecs_t SurfaceFlinger::getVsyncPeriodFromHWC() const {
@@ -1834,7 +1825,7 @@ void SurfaceFlinger::onComposerHalSeamlessPossible(hal::HWDisplayId) {
 
 void SurfaceFlinger::onComposerHalRefresh(hal::HWDisplayId) {
     Mutex::Autolock lock(mStateLock);
-    scheduleRefresh(FrameHint::kNone);
+    scheduleComposite(FrameHint::kNone);
 }
 
 void SurfaceFlinger::setVsyncEnabled(bool enabled) {
@@ -1889,40 +1880,26 @@ nsecs_t SurfaceFlinger::calculateExpectedPresentTime(DisplayStatInfo stats) cons
                                                           : stats.vsyncTime + stats.vsyncPeriod;
 }
 
-void SurfaceFlinger::onMessageReceived(int32_t what, int64_t vsyncId, nsecs_t expectedVSyncTime) {
-    switch (what) {
-        case MessageQueue::INVALIDATE: {
-            onMessageInvalidate(vsyncId, expectedVSyncTime);
-            break;
-        }
-        case MessageQueue::REFRESH: {
-            onMessageRefresh();
-            break;
-        }
-    }
-}
-
-void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncTime) {
-    const nsecs_t frameStart = systemTime();
+bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expectedVsyncTime) {
     // calculate the expected present time once and use the cached
     // value throughout this frame to make sure all layers are
     // seeing this same value.
-    if (expectedVSyncTime >= frameStart) {
-        mExpectedPresentTime = expectedVSyncTime;
+    if (expectedVsyncTime >= frameTime) {
+        mExpectedPresentTime = expectedVsyncTime;
     } else {
-        const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(frameStart);
+        const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(frameTime);
         mExpectedPresentTime = calculateExpectedPresentTime(stats);
     }
 
     const nsecs_t lastScheduledPresentTime = mScheduledPresentTime;
-    mScheduledPresentTime = expectedVSyncTime;
+    mScheduledPresentTime = expectedVsyncTime;
 
     const auto vsyncIn = [&] {
         if (!ATRACE_ENABLED()) return 0.f;
         return (mExpectedPresentTime - systemTime()) / 1e6f;
     }();
-    ATRACE_FORMAT("onMessageInvalidate %" PRId64 " vsyncIn %.2fms%s", vsyncId, vsyncIn,
-                  mExpectedPresentTime == expectedVSyncTime ? "" : " (adjusted)");
+    ATRACE_FORMAT("%s %" PRId64 " vsyncIn %.2fms%s", __func__, vsyncId, vsyncIn,
+                  mExpectedPresentTime == expectedVsyncTime ? "" : " (adjusted)");
 
     // When Backpressure propagation is enabled we want to give a small grace period
     // for the present fence to fire instead of just giving up on this frame to handle cases
@@ -1969,11 +1946,11 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
     }
 
     // If we are in the middle of a mode change and the fence hasn't
-    // fired yet just wait for the next invalidate
+    // fired yet just wait for the next commit.
     if (mSetActiveModePending) {
         if (framePending) {
-            mEventQueue->invalidate();
-            return;
+            mEventQueue->scheduleCommit();
+            return false;
         }
 
         // We received the present fence from the HWC, so we assume it successfully updated
@@ -1984,8 +1961,8 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
 
     if (framePending) {
         if ((hwcFrameMissed && !gpuFrameMissed) || mPropagateBackpressureClientComposition) {
-            signalLayerUpdate();
-            return;
+            scheduleCommit(FrameHint::kNone);
+            return false;
         }
     }
 
@@ -1997,11 +1974,12 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
     if (mRefreshRateOverlaySpinner) {
         Mutex::Autolock lock(mStateLock);
         if (const auto display = getDefaultDisplayDeviceLocked()) {
-            display->onInvalidate();
+            display->animateRefreshRateOverlay();
         }
     }
 
-    bool refreshNeeded = mForceRefresh.exchange(false);
+    // Composite if transactions were committed, or if requested by HWC.
+    bool mustComposite = mMustComposite.exchange(false);
     {
         mTracePostComposition = mTracing.flagIsSet(SurfaceTracing::TRACE_COMPOSITION) ||
                 mTracing.flagIsSet(SurfaceTracing::TRACE_SYNC) ||
@@ -2009,10 +1987,12 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
         const bool tracePreComposition = mTracingEnabled && !mTracePostComposition;
         ConditionalLockGuard<std::mutex> lock(mTracingLock, tracePreComposition);
 
-        mFrameTimeline->setSfWakeUp(vsyncId, frameStart, Fps::fromPeriodNsecs(stats.vsyncPeriod));
+        mFrameTimeline->setSfWakeUp(vsyncId, frameTime, Fps::fromPeriodNsecs(stats.vsyncPeriod));
 
-        refreshNeeded |= flushAndCommitTransactions();
-        refreshNeeded |= handleMessageInvalidate();
+        mustComposite |= flushAndCommitTransactions();
+        mustComposite |= latchBuffers();
+
+        updateLayerGeometry();
 
         if (tracePreComposition) {
             if (mVisibleRegionsDirty) {
@@ -2035,25 +2015,7 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
     updateCursorAsync();
     updateInputFlinger();
 
-    if (refreshNeeded && CC_LIKELY(mBootStage != BootStage::BOOTLOADER)) {
-        // Signal a refresh if a transaction modified the window state,
-        // a new buffer was latched, or if HWC has requested a full
-        // repaint
-        if (mFrameStartTime <= 0) {
-            // We should only use the time of the first invalidate
-            // message that signals a refresh as the beginning of the
-            // frame. Otherwise the real frame time will be
-            // underestimated.
-            mFrameStartTime = frameStart;
-        }
-
-        // Run the refresh immediately after invalidate as there is no point going thru the message
-        // queue again, and to ensure that we actually refresh the screen instead of handling
-        // other messages that were queued us already in the MessageQueue.
-        mRefreshPending = true;
-        onMessageRefresh();
-    }
-    notifyRegionSamplingThread();
+    return mustComposite && CC_LIKELY(mBootStage != BootStage::BOOTLOADER);
 }
 
 bool SurfaceFlinger::flushAndCommitTransactions() {
@@ -2068,6 +2030,9 @@ bool SurfaceFlinger::flushAndCommitTransactions() {
         commitTransactions();
     }
 
+    // Invoke OnCommit callbacks.
+    mTransactionCallbackInvoker.sendCallbacks();
+
     if (transactionFlushNeeded()) {
         setTransactionFlags(eTransactionFlushNeeded);
     }
@@ -2075,10 +2040,8 @@ bool SurfaceFlinger::flushAndCommitTransactions() {
     return shouldCommit;
 }
 
-void SurfaceFlinger::onMessageRefresh() {
+void SurfaceFlinger::composite(nsecs_t frameTime) {
     ATRACE_CALL();
-
-    mRefreshPending = false;
 
     compositionengine::CompositionRefreshArgs refreshArgs;
     const auto& displays = ON_MAIN_THREAD(mDisplays);
@@ -2123,18 +2086,16 @@ void SurfaceFlinger::onMessageRefresh() {
     const auto hwcMinWorkDuration = mVsyncConfiguration->getCurrentConfigs().hwcMinWorkDuration;
     refreshArgs.earliestPresentTime = prevVsyncTime - hwcMinWorkDuration;
     refreshArgs.previousPresentFence = mPreviousPresentFences[0].fenceTime;
-    refreshArgs.nextInvalidateTime = mEventQueue->nextExpectedInvalidate();
+    refreshArgs.scheduledFrameTime = mEventQueue->getScheduledFrameTime();
 
     // Store the present time just before calling to the composition engine so we could notify
     // the scheduler.
     const auto presentTime = systemTime();
 
     mCompositionEngine->present(refreshArgs);
-    mTimeStats->recordFrameDuration(mFrameStartTime, systemTime());
-    // Reset the frame start time now that we've recorded this frame.
-    mFrameStartTime = 0;
+    mTimeStats->recordFrameDuration(frameTime, systemTime());
 
-    mScheduler->onDisplayRefreshed(presentTime);
+    mScheduler->onPostComposition(presentTime);
 
     postFrame();
     postComposition();
@@ -2177,17 +2138,12 @@ void SurfaceFlinger::onMessageRefresh() {
     mVisibleRegionsDirty = false;
 
     if (mCompositionEngine->needsAnotherUpdate()) {
-        signalLayerUpdate();
+        scheduleCommit(FrameHint::kNone);
     }
 }
 
-bool SurfaceFlinger::handleMessageInvalidate() {
+void SurfaceFlinger::updateLayerGeometry() {
     ATRACE_CALL();
-        // Send on commit callbacks
-    mTransactionCallbackInvoker.sendCallbacks();
-
-    bool refreshNeeded = handlePageFlip();
-
 
     if (mVisibleRegionsDirty) {
         computeLayerBounds();
@@ -2199,7 +2155,6 @@ bool SurfaceFlinger::handleMessageInvalidate() {
         invalidateLayerStack(layer, visibleReg);
     }
     mLayersPendingRefresh.clear();
-    return refreshNeeded;
 }
 
 void SurfaceFlinger::updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
@@ -3295,11 +3250,10 @@ void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Re
     }
 }
 
-bool SurfaceFlinger::handlePageFlip() {
+bool SurfaceFlinger::latchBuffers() {
     ATRACE_CALL();
-    ALOGV("handlePageFlip");
 
-    nsecs_t latchTime = systemTime();
+    const nsecs_t latchTime = systemTime();
 
     bool visibleRegions = false;
     bool frameQueued = false;
@@ -3368,7 +3322,7 @@ bool SurfaceFlinger::handlePageFlip() {
     // queued frame that shouldn't be displayed during this vsync period, wake
     // up during the next vsync period to check again.
     if (frameQueued && (mLayersWithQueuedFrames.empty() || !newDataLatched)) {
-        signalLayerUpdate();
+        scheduleCommit(FrameHint::kNone);
     }
 
     // enter boot animation on first buffer latch
@@ -3448,7 +3402,7 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule 
                                              const sp<IBinder>& applyToken) {
     const uint32_t old = mTransactionFlags.fetch_or(mask);
     modulateVsync(&VsyncModulator::setTransactionSchedule, schedule, applyToken);
-    if ((old & mask) == 0) scheduleInvalidate(FrameHint::kActive);
+    if ((old & mask) == 0) scheduleCommit(FrameHint::kActive);
     return old;
 }
 
@@ -4567,7 +4521,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
 
         mVisibleRegionsDirty = true;
         mHasPoweredOff = true;
-        scheduleRefresh(FrameHint::kActive);
+        scheduleComposite(FrameHint::kActive);
     } else if (mode == hal::PowerMode::OFF) {
         // Turn off the display
         if (SurfaceFlinger::setSchedFifo(false) != NO_ERROR) {
@@ -5373,8 +5327,8 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 }
                 scheduleRepaint();
                 return NO_ERROR;
-            case 1004: // Force refresh ahead of next VSYNC.
-                scheduleRefresh(FrameHint::kActive);
+            case 1004: // Force composite ahead of next VSYNC.
+                scheduleComposite(FrameHint::kActive);
                 return NO_ERROR;
             case 1005: { // Force commit ahead of next VSYNC.
                 Mutex::Autolock lock(mStateLock);
@@ -5382,8 +5336,8 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                                     eTraversalNeeded);
                 return NO_ERROR;
             }
-            case 1006: // Force refresh immediately.
-                signalRefresh();
+            case 1006: // Force composite immediately.
+                mEventQueue->scheduleComposite();
                 return NO_ERROR;
             case 1007: // Unused.
                 return NAME_NOT_FOUND;
@@ -5774,7 +5728,7 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
         const bool timerExpired = mKernelIdleTimerEnabled && expired;
 
         if (display->onKernelTimerChanged(desiredModeId, timerExpired)) {
-            mEventQueue->invalidate();
+            mEventQueue->scheduleCommit();
         }
     }));
 }
@@ -6205,12 +6159,6 @@ status_t SurfaceFlinger::captureScreenCommon(
     bool canCaptureBlackoutContent = hasCaptureBlackoutContentPermission();
 
     static_cast<void>(schedule([=, renderAreaFuture = std::move(renderAreaFuture)]() mutable {
-        if (mRefreshPending) {
-            ALOGW("Skipping screenshot for now");
-            captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer, regionSampling,
-                                grayscale, captureListener);
-            return;
-        }
         ScreenCaptureResults captureResults;
         std::unique_ptr<RenderArea> renderArea = renderAreaFuture.get();
         if (!renderArea) {
@@ -6557,6 +6505,10 @@ void SurfaceFlinger::onLayerDestroyed(Layer* layer) {
     }
 }
 
+void SurfaceFlinger::onLayerUpdate() {
+    scheduleCommit(FrameHint::kActive);
+}
+
 // WARNING: ONLY CALL THIS FROM LAYER DTOR
 // Here we add children in the current state to offscreen layers and remove the
 // layer itself from the offscreen layer list.  Since
@@ -6881,16 +6833,12 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
     return layer;
 }
 
-void SurfaceFlinger::scheduleRegionSamplingThread() {
-    static_cast<void>(schedule([&] { notifyRegionSamplingThread(); }));
-}
-
-void SurfaceFlinger::notifyRegionSamplingThread() {
+void SurfaceFlinger::sample() {
     if (!mLumaSampling || !mRegionSamplingThread) {
         return;
     }
 
-    mRegionSamplingThread->onCompositionComplete(mEventQueue->nextExpectedInvalidate());
+    mRegionSamplingThread->onCompositionComplete(mEventQueue->getScheduledFrameTime());
 }
 
 void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<DisplayDevice>& activeDisplay) {

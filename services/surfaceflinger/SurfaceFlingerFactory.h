@@ -31,11 +31,11 @@ namespace android {
 typedef int32_t PixelFormat;
 
 class BufferQueueLayer;
-class BufferStateLayer;
 class BufferLayerConsumer;
-class EffectLayer;
+class BufferStateLayer;
 class ContainerLayer;
 class DisplayDevice;
+class EffectLayer;
 class FrameTracer;
 class GraphicBuffer;
 class HWComposer;
@@ -50,6 +50,7 @@ class SurfaceInterceptor;
 class TimeStats;
 
 struct DisplayDeviceCreationArgs;
+struct ICompositor;
 struct ISchedulerCallback;
 struct LayerCreationArgs;
 
@@ -76,7 +77,7 @@ class NativeWindowSurface;
 class Factory {
 public:
     virtual std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) = 0;
-    virtual std::unique_ptr<MessageQueue> createMessageQueue() = 0;
+    virtual std::unique_ptr<MessageQueue> createMessageQueue(ICompositor&) = 0;
     virtual std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
             Fps currentRefreshRate) = 0;
     virtual std::unique_ptr<Scheduler> createScheduler(

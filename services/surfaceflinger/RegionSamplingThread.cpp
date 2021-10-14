@@ -150,7 +150,7 @@ void RegionSamplingThread::checkForStaleLuma() {
     if (mSampleRequestTime.has_value()) {
         ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForSamplePhase));
         mSampleRequestTime.reset();
-        mFlinger.scheduleRegionSamplingThread();
+        mFlinger.scheduleSample();
     }
 }
 

@@ -85,8 +85,8 @@ struct CompositionRefreshArgs {
     // to prevent an early presentation of a frame.
     std::shared_ptr<FenceTime> previousPresentFence;
 
-    // The predicted next invalidation time
-    std::optional<std::chrono::steady_clock::time_point> nextInvalidateTime;
+    // If set, a frame has been scheduled for that time.
+    std::optional<std::chrono::steady_clock::time_point> scheduledFrameTime;
 };
 
 } // namespace android::compositionengine
