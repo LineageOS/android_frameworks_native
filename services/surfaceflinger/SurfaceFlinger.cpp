@@ -6787,7 +6787,7 @@ int SurfaceFlinger::getMaxAcquiredBufferCountForRefreshRate(Fps refreshRate) con
     return calculateMaxAcquiredBufferCount(refreshRate, presentLatency);
 }
 
-void SurfaceFlinger::TransactionState::traverseStatesWithBuffers(
+void TransactionState::traverseStatesWithBuffers(
         std::function<void(const layer_state_t&)> visitor) {
     for (const auto& state : states) {
         if (state.state.hasBufferChanges() && state.state.hasValidBuffer() && state.state.surface) {

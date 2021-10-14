@@ -19,6 +19,7 @@
 #include <Layer.h>
 #include <gui/WindowInfo.h>
 #include <math/vec4.h>
+#include <ui/BlurRegion.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
@@ -33,9 +34,13 @@ public:
     static void writeSizeToProto(const uint32_t w, const uint32_t h,
                                  std::function<SizeProto*()> getSizeProto);
     static void writeToProto(const Rect& rect, std::function<RectProto*()> getRectProto);
+    static void writeToProto(const Rect& rect, RectProto* rectProto);
+    static void readFromProto(const RectProto& proto, Rect& outRect);
     static void writeToProto(const FloatRect& rect,
                              std::function<FloatRectProto*()> getFloatRectProto);
     static void writeToProto(const Region& region, std::function<RegionProto*()> getRegionProto);
+    static void writeToProto(const Region& region, RegionProto* regionProto);
+    static void readFromProto(const RegionProto& regionProto, Region& outRegion);
     static void writeToProto(const half4 color, std::function<ColorProto*()> getColorProto);
     // This writeToProto for transform is incorrect, but due to backwards compatibility, we can't
     // update Layers to use it. Use writeTransformToProto for any new transform proto data.
@@ -49,6 +54,9 @@ public:
                              const wp<Layer>& touchableRegionBounds,
                              std::function<InputWindowInfoProto*()> getInputWindowInfoProto);
     static void writeToProto(const mat4 matrix, ColorTransformProto* colorTransformProto);
+    static void readFromProto(const ColorTransformProto& colorTransformProto, mat4& matrix);
+    static void writeToProto(const android::BlurRegion region, BlurRegion*);
+    static void readFromProto(const BlurRegion& proto, android::BlurRegion& outRegion);
 };
 
 } // namespace surfaceflinger

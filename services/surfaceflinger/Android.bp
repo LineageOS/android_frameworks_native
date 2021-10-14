@@ -102,7 +102,7 @@ cc_defaults {
     // TODO (marissaw): this library is not used by surfaceflinger. This is here so
     // the library compiled in a way that is accessible to system partition when running
     // IMapper's VTS.
-    required: ["libgralloctypes"]
+    required: ["libgralloctypes"],
 }
 
 cc_defaults {
@@ -191,6 +191,7 @@ filegroup {
         "SurfaceFlingerDefaultFactory.cpp",
         "SurfaceInterceptor.cpp",
         "SurfaceTracing.cpp",
+        "Tracing/TransactionProtoParser.cpp",
         "TransactionCallbackInvoker.cpp",
         "TunnelModeEnabledReporter.cpp",
     ],
@@ -249,7 +250,7 @@ cc_binary {
         "libSurfaceFlingerProp",
     ],
 
-     logtags: ["EventLog/EventLogTags.logtags"],
+    logtags: ["EventLog/EventLogTags.logtags"],
 }
 
 subdirs = [

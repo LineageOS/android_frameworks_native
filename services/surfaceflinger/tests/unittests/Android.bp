@@ -91,6 +91,7 @@ cc_test {
         "TimerTest.cpp",
         "TransactionApplicationTest.cpp",
         "TransactionFrameTracerTest.cpp",
+        "TransactionProtoParserTest.cpp",
         "TransactionSurfaceFrameTest.cpp",
         "TunnelModeEnabledReporterTest.cpp",
         "StrongTypingTest.cpp",
