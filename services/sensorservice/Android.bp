@@ -77,7 +77,6 @@ cc_library_shared {
         "libsensor",
         "libsensorprivacy",
         "libpermission",
-        "packagemanager_aidl-cpp",
     ],
 }
 
