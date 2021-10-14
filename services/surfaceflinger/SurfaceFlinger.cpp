@@ -5453,15 +5453,12 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                     mClientColorMatrix = mat4();
                 }
 
-                // TODO(b/193487656): Restore once HWASan bug is fixed.
-#if 0
                 // Check that supplied matrix's last row is {0,0,0,1} so we can avoid
                 // the division by w in the fragment shader
                 float4 lastRow(transpose(mClientColorMatrix)[3]);
                 if (any(greaterThan(abs(lastRow - float4{0, 0, 0, 1}), float4{1e-4f}))) {
                     ALOGE("The color transform's last row must be (0, 0, 0, 1)");
                 }
-#endif
 
                 updateColorMatrixLocked();
                 return NO_ERROR;
