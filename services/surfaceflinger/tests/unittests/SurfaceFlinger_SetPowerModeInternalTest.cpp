@@ -260,6 +260,11 @@ struct DisplayPowerCase {
         auto display = Display::makeFakeExistingDisplayInjector(test);
         display.inject();
         display.mutableDisplayDevice()->setPowerMode(mode);
+        if (display.mutableDisplayDevice()->isInternal()) {
+            test->mFlinger.mutableActiveDisplayToken() =
+                    display.mutableDisplayDevice()->getDisplayToken();
+        }
+
         return display;
     }
 
