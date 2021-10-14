@@ -103,8 +103,9 @@ public:
     void cleanupConnection(SensorDirectConnection* c);
 
     // Call with mLock held.
-    void onProximityActiveLocked(bool isActive);
-    void notifyProximityStateLocked(const std::vector<sp<ProximityActiveListener>>& listeners);
+    void checkAndReportProxStateChangeLocked();
+    void notifyProximityStateLocked(const bool isActive,
+                                    const std::vector<sp<ProximityActiveListener>>& listeners);
 
     status_t enable(const sp<SensorEventConnection>& connection, int handle,
                     nsecs_t samplingPeriodNs,  nsecs_t maxBatchReportLatencyNs, int reservedFlags,
@@ -496,8 +497,11 @@ private:
     // Checks if the mic sensor privacy is enabled for the uid
     bool isMicSensorPrivacyEnabledForUid(uid_t uid);
 
-    // Counts how many proximity sensors are currently active.
-    int mProximityActiveCount;
+    // Keeps track of the handles of all proximity sensors in the system.
+    std::vector<int32_t> mProxSensorHandles;
+    // The last proximity sensor active state reported to listeners.
+    bool mLastReportedProxIsActive;
+    // Listeners subscribed to receive updates on the proximity sensor active state.
     std::vector<sp<ProximityActiveListener>> mProximityActiveListeners;
 };
 
