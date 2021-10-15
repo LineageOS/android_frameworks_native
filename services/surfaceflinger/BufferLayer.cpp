@@ -111,6 +111,10 @@ bool BufferLayer::isOpaque(const Layer::State& s) const {
     return ((s.flags & layer_state_t::eLayerOpaque) != 0) || getOpacityForFormat(getPixelFormat());
 }
 
+bool BufferLayer::canReceiveInput() const {
+    return !isHiddenByPolicy() && (mBufferInfo.mBuffer == nullptr || getAlpha() > 0.0f);
+}
+
 bool BufferLayer::isVisible() const {
     return !isHiddenByPolicy() && getAlpha() > 0.0f &&
             (mBufferInfo.mBuffer != nullptr || mSidebandStream != nullptr);
