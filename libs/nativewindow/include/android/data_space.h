@@ -56,9 +56,7 @@ enum ADataSpace {
      * Defines the chromaticity coordinates of the source primaries in terms of
      * the CIE 1931 definition of x and y specified in ISO 11664-1.
      */
-    STANDARD_SHIFT = 16,
-
-    STANDARD_MASK = 63 << 16, // 63 << STANDARD_SHIFT = 0x3F
+    STANDARD_MASK = 63 << 16,
 
     /**
      * Chromacity coordinates are unknown or are determined by the application.
@@ -73,7 +71,7 @@ enum ADataSpace {
      * For all other formats standard is undefined, and implementations should use
      * an appropriate standard for the data represented.
      */
-    STANDARD_UNSPECIFIED = 0 << 16, // STANDARD_SHIFT
+    STANDARD_UNSPECIFIED = 0 << 16,
 
     /**
      * Primaries:       x       y
@@ -85,7 +83,7 @@ enum ADataSpace {
      * Use the unadjusted KR = 0.2126, KB = 0.0722 luminance interpretation
      * for RGB conversion.
      */
-    STANDARD_BT709 = 1 << 16, // 1 << STANDARD_SHIFT
+    STANDARD_BT709 = 1 << 16,
 
     /**
      * Primaries:       x       y
@@ -99,7 +97,7 @@ enum ADataSpace {
      *  to minimize the color shift into RGB space that uses BT.709
      *  primaries.
      */
-    STANDARD_BT601_625 = 2 << 16, // 2 << STANDARD_SHIFT,
+    STANDARD_BT601_625 = 2 << 16,
 
     /**
      * Primaries:       x       y
@@ -111,7 +109,7 @@ enum ADataSpace {
      * Use the unadjusted KR = 0.222, KB = 0.071 luminance interpretation
      * for RGB conversion.
      */
-    STANDARD_BT601_625_UNADJUSTED = 3 << 16, // 3 << STANDARD_SHIFT
+    STANDARD_BT601_625_UNADJUSTED = 3 << 16,
 
     /**
      * Primaries:       x       y
@@ -125,7 +123,7 @@ enum ADataSpace {
      *  to minimize the color shift into RGB space that uses BT.709
      *  primaries.
      */
-    STANDARD_BT601_525 = 4 << 16, // 4 << STANDARD_SHIFT
+    STANDARD_BT601_525 = 4 << 16,
 
     /**
      * Primaries:       x       y
@@ -137,7 +135,7 @@ enum ADataSpace {
      * Use the unadjusted KR = 0.212, KB = 0.087 luminance interpretation
      * for RGB conversion (as in SMPTE 240M).
      */
-    STANDARD_BT601_525_UNADJUSTED = 5 << 16, // 5 << STANDARD_SHIFT
+    STANDARD_BT601_525_UNADJUSTED = 5 << 16,
 
     /**
      * Primaries:       x       y
@@ -149,7 +147,7 @@ enum ADataSpace {
      * Use the unadjusted KR = 0.2627, KB = 0.0593 luminance interpretation
      * for RGB conversion.
      */
-    STANDARD_BT2020 = 6 << 16, // 6 << STANDARD_SHIFT
+    STANDARD_BT2020 = 6 << 16,
 
     /**
      * Primaries:       x       y
@@ -161,7 +159,7 @@ enum ADataSpace {
      * Use the unadjusted KR = 0.2627, KB = 0.0593 luminance interpretation
      * for RGB conversion using the linear domain.
      */
-    STANDARD_BT2020_CONSTANT_LUMINANCE = 7 << 16, // 7 << STANDARD_SHIFT
+    STANDARD_BT2020_CONSTANT_LUMINANCE = 7 << 16,
 
     /**
      * Primaries:       x      y
@@ -173,7 +171,7 @@ enum ADataSpace {
      * Use the unadjusted KR = 0.30, KB = 0.11 luminance interpretation
      * for RGB conversion.
      */
-    STANDARD_BT470M = 8 << 16, // 8 << STANDARD_SHIFT
+    STANDARD_BT470M = 8 << 16,
 
     /**
      * Primaries:       x       y
@@ -185,7 +183,7 @@ enum ADataSpace {
      * Use the unadjusted KR = 0.254, KB = 0.068 luminance interpretation
      * for RGB conversion.
      */
-    STANDARD_FILM = 9 << 16, // 9 << STANDARD_SHIFT
+    STANDARD_FILM = 9 << 16,
 
     /**
      * SMPTE EG 432-1 and SMPTE RP 431-2. (DCI-P3)
@@ -195,7 +193,7 @@ enum ADataSpace {
      *  red             0.680   0.320
      *  white (D65)     0.3127  0.3290
      */
-    STANDARD_DCI_P3 = 10 << 16, // 10 << STANDARD_SHIFT
+    STANDARD_DCI_P3 = 10 << 16,
 
     /**
      * Adobe RGB
@@ -205,7 +203,7 @@ enum ADataSpace {
      *  red             0.640   0.330
      *  white (D65)     0.3127  0.3290
      */
-    STANDARD_ADOBE_RGB = 11 << 16, // 11 << STANDARD_SHIFT
+    STANDARD_ADOBE_RGB = 11 << 16,
 
     /**
      * Transfer aspect
@@ -220,9 +218,7 @@ enum ADataSpace {
      * component. Implementation may apply the transfer function in RGB space
      * for all pixel formats if desired.
      */
-    TRANSFER_SHIFT = 22,
-
-    TRANSFER_MASK = 31 << 22, // 31 << TRANSFER_SHIFT = 0x1F
+    TRANSFER_MASK = 31 << 22,
 
     /**
      * Transfer characteristics are unknown or are determined by the
@@ -236,7 +232,7 @@ enum ADataSpace {
      * For all other formats transfer function is undefined, and implementations
      * should use an appropriate standard for the data represented.
      */
-    TRANSFER_UNSPECIFIED = 0 << 22, // 0 << TRANSFER_SHIFT
+    TRANSFER_UNSPECIFIED = 0 << 22,
 
     /**
      * Transfer characteristic curve:
@@ -244,7 +240,7 @@ enum ADataSpace {
      *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
      *      E - corresponding electrical signal
      */
-    TRANSFER_LINEAR = 1 << 22, // 1 << TRANSFER_SHIFT
+    TRANSFER_LINEAR = 1 << 22,
 
     /**
      * Transfer characteristic curve:
@@ -254,7 +250,7 @@ enum ADataSpace {
      *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
      *     E - corresponding electrical signal
      */
-    TRANSFER_SRGB = 2 << 22, // 2 << TRANSFER_SHIFT
+    TRANSFER_SRGB = 2 << 22,
 
     /**
      * BT.601 525, BT.601 625, BT.709, BT.2020
@@ -265,7 +261,7 @@ enum ADataSpace {
      *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
      *      E - corresponding electrical signal
      */
-    TRANSFER_SMPTE_170M = 3 << 22, // 3 << TRANSFER_SHIFT
+    TRANSFER_SMPTE_170M = 3 << 22,
 
     /**
      * Assumed display gamma 2.2.
@@ -275,7 +271,7 @@ enum ADataSpace {
      *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
      *      E - corresponding electrical signal
      */
-    TRANSFER_GAMMA2_2 = 4 << 22, // 4 << TRANSFER_SHIFT
+    TRANSFER_GAMMA2_2 = 4 << 22,
 
     /**
      *  display gamma 2.6.
@@ -285,7 +281,7 @@ enum ADataSpace {
      *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
      *      E - corresponding electrical signal
      */
-    TRANSFER_GAMMA2_6 = 5 << 22, // 5 << TRANSFER_SHIFT
+    TRANSFER_GAMMA2_6 = 5 << 22,
 
     /**
      *  display gamma 2.8.
@@ -295,7 +291,7 @@ enum ADataSpace {
      *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
      *      E - corresponding electrical signal
      */
-    TRANSFER_GAMMA2_8 = 6 << 22, // 6 << TRANSFER_SHIFT
+    TRANSFER_GAMMA2_8 = 6 << 22,
 
     /**
      * SMPTE ST 2084 (Dolby Perceptual Quantizer)
@@ -311,7 +307,7 @@ enum ADataSpace {
      *          L = 1 corresponds to 10000 cd/m2
      *      E - corresponding electrical signal
      */
-    TRANSFER_ST2084 = 7 << 22, // 7 << TRANSFER_SHIFT
+    TRANSFER_ST2084 = 7 << 22,
 
     /**
      * ARIB STD-B67 Hybrid Log Gamma
@@ -327,7 +323,7 @@ enum ADataSpace {
      *          to reference white level of 100 cd/m2
      *      E - corresponding electrical signal
      */
-    TRANSFER_HLG = 8 << 22, // 8 << TRANSFER_SHIFT
+    TRANSFER_HLG = 8 << 22,
 
     /**
      * Range aspect
@@ -335,9 +331,7 @@ enum ADataSpace {
      * Defines the range of values corresponding to the unit range of 0-1.
      * This is defined for YCbCr only, but can be expanded to RGB space.
      */
-    RANGE_SHIFT = 27,
-
-    RANGE_MASK = 7 << 27, // 7 << RANGE_SHIFT = 0x7
+    RANGE_MASK = 7 << 27,
 
     /**
      * Range is unknown or are determined by the application.  Implementations
@@ -350,13 +344,13 @@ enum ADataSpace {
      * For all other formats range is undefined, and implementations should use
      * an appropriate range for the data represented.
      */
-    RANGE_UNSPECIFIED = 0 << 27, // 0 << RANGE_SHIFT = 0x0
+    RANGE_UNSPECIFIED = 0 << 27,
 
     /**
      * Full range uses all values for Y, Cb and Cr from
      * 0 to 2^b-1, where b is the bit depth of the color format.
      */
-    RANGE_FULL = 1 << 27, // 1 << RANGE_SHIFT = 0x8000000
+    RANGE_FULL = 1 << 27,
 
     /**
      * Limited range uses values 16/256*2^b to 235/256*2^b for Y, and
@@ -371,7 +365,7 @@ enum ADataSpace {
      * Luma (Y) samples should range from 64 to 940, inclusive
      * Chroma (Cb, Cr) samples should range from 64 to 960, inclusive
      */
-    RANGE_LIMITED = 2 << 27, // 2 << RANGE_SHIFT = 0x10000000
+    RANGE_LIMITED = 2 << 27,
 
     /**
      * Extended range is used for scRGB. Intended for use with
@@ -380,7 +374,7 @@ enum ADataSpace {
      * color outside the sRGB gamut.
      * Used to blend / merge multiple dataspaces on a single display.
      */
-    RANGE_EXTENDED = 3 << 27, // 3 << RANGE_SHIFT = 0x18000000
+    RANGE_EXTENDED = 3 << 27,
 
     /**
      * scRGB linear encoding:
