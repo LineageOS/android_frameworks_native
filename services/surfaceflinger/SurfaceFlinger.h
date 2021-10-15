@@ -786,8 +786,6 @@ private:
     status_t mirrorLayer(const sp<Client>& client, const sp<IBinder>& mirrorFromHandle,
                          sp<IBinder>* outHandle, int32_t* outLayerId);
 
-    std::string getUniqueLayerName(const char* name);
-
     // called when all clients have released all their references to
     // this layer meaning it is entirely safe to destroy all
     // resources associated to this layer.

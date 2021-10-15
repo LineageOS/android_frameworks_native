@@ -4209,7 +4209,7 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
 
     sp<Layer> mirrorLayer;
     sp<Layer> mirrorFrom;
-    std::string uniqueName = getUniqueLayerName("MirrorRoot");
+    std::string layerName = "MirrorRoot";
 
     {
         Mutex::Autolock _l(mStateLock);
@@ -4218,7 +4218,7 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
             return NAME_NOT_FOUND;
         }
 
-        status_t result = createContainerLayer(client, std::move(uniqueName), -1, -1, 0,
+        status_t result = createContainerLayer(client, std::move(layerName), -1, -1, 0,
                                                LayerMetadata(), outHandle, &mirrorLayer);
         if (result != NO_ERROR) {
             return result;
@@ -4252,12 +4252,12 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
 
     sp<Layer> layer;
 
-    std::string uniqueName = getUniqueLayerName(name.string());
+    std::string layerName{name.string()};
 
     switch (flags & ISurfaceComposerClient::eFXSurfaceMask) {
         case ISurfaceComposerClient::eFXSurfaceBufferQueue:
         case ISurfaceComposerClient::eFXSurfaceBufferState: {
-            result = createBufferStateLayer(client, std::move(uniqueName), w, h, flags,
+            result = createBufferStateLayer(client, std::move(layerName), w, h, flags,
                                             std::move(metadata), handle, &layer);
             std::atomic<int32_t>* pendingBufferCounter = layer->getPendingBufferCounter();
             if (pendingBufferCounter) {
@@ -4274,7 +4274,7 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
                 return BAD_VALUE;
             }
 
-            result = createEffectLayer(client, std::move(uniqueName), w, h, flags,
+            result = createEffectLayer(client, std::move(layerName), w, h, flags,
                                        std::move(metadata), handle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceContainer:
@@ -4284,7 +4284,7 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
                       int(w), int(h));
                 return BAD_VALUE;
             }
-            result = createContainerLayer(client, std::move(uniqueName), w, h, flags,
+            result = createContainerLayer(client, std::move(layerName), w, h, flags,
                                           std::move(metadata), handle, &layer);
             break;
         default:
@@ -4302,36 +4302,10 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
     if (result != NO_ERROR) {
         return result;
     }
-    mInterceptor->saveSurfaceCreation(layer);
 
     setTransactionFlags(eTransactionNeeded);
     *outLayerId = layer->sequence;
     return result;
-}
-
-std::string SurfaceFlinger::getUniqueLayerName(const char* name) {
-    unsigned dupeCounter = 0;
-
-    // Tack on our counter whether there is a hit or not, so everyone gets a tag
-    std::string uniqueName = base::StringPrintf("%s#%u", name, dupeCounter);
-
-    // Grab the state lock since we're accessing mCurrentState
-    Mutex::Autolock lock(mStateLock);
-
-    // Loop over layers until we're sure there is no matching name
-    bool matchFound = true;
-    while (matchFound) {
-        matchFound = false;
-        mCurrentState.traverse([&](Layer* layer) {
-            if (layer->getName() == uniqueName) {
-                matchFound = true;
-                uniqueName = base::StringPrintf("%s#%u", name, ++dupeCounter);
-            }
-        });
-    }
-
-    ALOGV_IF(dupeCounter > 0, "duplicate layer name: changing %s to %s", name, uniqueName.c_str());
-    return uniqueName;
 }
 
 status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, std::string name,
@@ -6885,6 +6859,7 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
         }
     }
 
+    mInterceptor->saveSurfaceCreation(layer);
     return layer;
 }
 
