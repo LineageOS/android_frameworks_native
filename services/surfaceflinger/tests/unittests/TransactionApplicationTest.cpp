@@ -103,7 +103,7 @@ public:
         static_assert(0xffffffffffffffff == static_cast<uint64_t>(-1));
     };
 
-    void checkEqual(TransactionInfo info, SurfaceFlinger::TransactionState state) {
+    void checkEqual(TransactionInfo info, TransactionState state) {
         EXPECT_EQ(0u, info.states.size());
         EXPECT_EQ(0u, state.states.size());
 

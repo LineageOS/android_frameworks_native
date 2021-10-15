@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
+#include <gui/test/CallbackUtils.h>
 #include "LayerTransactionTest.h"
-#include "utils/CallbackUtils.h"
 
 using namespace std::chrono_literals;
 
@@ -61,7 +61,7 @@ public:
         std::this_thread::sleep_for(300ms);
 
         std::lock_guard lock(mMutex);
-        EXPECT_EQ(mCallbackDataQueue.size(), 0) << "extra callbacks received";
+        EXPECT_EQ(mCallbackDataQueue.size(), 0U) << "extra callbacks received";
         mCallbackDataQueue = {};
     }
 
