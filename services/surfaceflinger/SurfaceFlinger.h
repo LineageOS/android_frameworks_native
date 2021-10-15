@@ -1064,6 +1064,11 @@ private:
      */
     nsecs_t getVsyncPeriodFromHWC() const REQUIRES(mStateLock);
 
+    void setHWCVsyncEnabled(PhysicalDisplayId id, hal::Vsync enabled) {
+        mLastHWCVsyncState = enabled;
+        getHwComposer().setVsyncEnabled(id, enabled);
+    }
+
     // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
     void changeRefreshRateLocked(const RefreshRate&, Scheduler::ModeEvent) REQUIRES(mStateLock);
@@ -1422,6 +1427,7 @@ private:
     std::atomic<nsecs_t> mExpectedPresentTime = 0;
     nsecs_t mScheduledPresentTime = 0;
     hal::Vsync mHWCVsyncPendingState = hal::Vsync::DISABLE;
+    hal::Vsync mLastHWCVsyncState = hal::Vsync::DISABLE;
 
     // below flags are set by main thread only
     bool mSetActiveModePending = false;
