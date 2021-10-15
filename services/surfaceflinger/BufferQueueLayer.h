@@ -42,7 +42,8 @@ public:
     // Implements Layer.
     const char* getType() const override { return "BufferQueueLayer"; }
 
-    void onLayerDisplayed(const sp<Fence>& releaseFence) override;
+    void onLayerDisplayed(
+            std::shared_future<renderengine::RenderEngineResult> futureRenderEngineResult) override;
 
     // If a buffer was replaced this frame, release the former buffer
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;

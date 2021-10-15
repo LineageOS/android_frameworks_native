@@ -808,17 +808,17 @@ private:
     // Boot animation, on/off animations and screen capture
     void startBootAnim();
 
-    status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, ui::Size bufferSize,
-                                 ui::PixelFormat, bool allowProtected, bool grayscale,
-                                 const sp<IScreenCaptureListener>&);
-    status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction,
-                                 const std::shared_ptr<renderengine::ExternalTexture>&,
-                                 bool regionSampling, bool grayscale,
-                                 const sp<IScreenCaptureListener>&);
-    status_t renderScreenImplLocked(const RenderArea&, TraverseLayersFunction,
-                                    const std::shared_ptr<renderengine::ExternalTexture>&,
-                                    bool canCaptureBlackoutContent, bool regionSampling,
-                                    bool grayscale, ScreenCaptureResults&);
+    std::shared_future<renderengine::RenderEngineResult> captureScreenCommon(
+            RenderAreaFuture, TraverseLayersFunction, ui::Size bufferSize, ui::PixelFormat,
+            bool allowProtected, bool grayscale, const sp<IScreenCaptureListener>&);
+    std::shared_future<renderengine::RenderEngineResult> captureScreenCommon(
+            RenderAreaFuture, TraverseLayersFunction,
+            const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
+            bool grayscale, const sp<IScreenCaptureListener>&);
+    std::shared_future<renderengine::RenderEngineResult> renderScreenImplLocked(
+            const RenderArea&, TraverseLayersFunction,
+            const std::shared_ptr<renderengine::ExternalTexture>&, bool canCaptureBlackoutContent,
+            bool regionSampling, bool grayscale, ScreenCaptureResults&);
 
     // If the uid provided is not UNSET_UID, the traverse will skip any layers that don't have a
     // matching ownerUid

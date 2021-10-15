@@ -346,15 +346,15 @@ TEST_F(CachedSetTest, renderUnsecureOutput) {
 
     const auto drawLayers =
             [&](const renderengine::DisplaySettings& displaySettings,
-                const std::vector<const renderengine::LayerSettings*>& layers,
+                const std::vector<renderengine::LayerSettings>& layers,
                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd &&) -> std::future<renderengine::RenderEngineResult> {
+                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
         EXPECT_EQ(mOutputState.framebufferSpace.getContent(), displaySettings.physicalDisplay);
         EXPECT_EQ(mOutputState.layerStackSpace.getContent(), displaySettings.clip);
         EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.getOrientation()),
                   displaySettings.orientation);
-        EXPECT_EQ(0.5f, layers[0]->alpha);
-        EXPECT_EQ(0.75f, layers[1]->alpha);
+        EXPECT_EQ(0.5f, layers[0].alpha);
+        EXPECT_EQ(0.75f, layers[1].alpha);
         EXPECT_EQ(ui::Dataspace::SRGB, displaySettings.outputDataspace);
         return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
     };
@@ -398,15 +398,15 @@ TEST_F(CachedSetTest, renderSecureOutput) {
 
     const auto drawLayers =
             [&](const renderengine::DisplaySettings& displaySettings,
-                const std::vector<const renderengine::LayerSettings*>& layers,
+                const std::vector<renderengine::LayerSettings>& layers,
                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd &&) -> std::future<renderengine::RenderEngineResult> {
+                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
         EXPECT_EQ(mOutputState.framebufferSpace.getContent(), displaySettings.physicalDisplay);
         EXPECT_EQ(mOutputState.layerStackSpace.getContent(), displaySettings.clip);
         EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.getOrientation()),
                   displaySettings.orientation);
-        EXPECT_EQ(0.5f, layers[0]->alpha);
-        EXPECT_EQ(0.75f, layers[1]->alpha);
+        EXPECT_EQ(0.5f, layers[0].alpha);
+        EXPECT_EQ(0.75f, layers[1].alpha);
         EXPECT_EQ(ui::Dataspace::SRGB, displaySettings.outputDataspace);
 
         return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
@@ -453,15 +453,15 @@ TEST_F(CachedSetTest, rendersWithOffsetFramebufferContent) {
 
     const auto drawLayers =
             [&](const renderengine::DisplaySettings& displaySettings,
-                const std::vector<const renderengine::LayerSettings*>& layers,
+                const std::vector<renderengine::LayerSettings>& layers,
                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd &&) -> std::future<renderengine::RenderEngineResult> {
+                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
         EXPECT_EQ(mOutputState.framebufferSpace.getContent(), displaySettings.physicalDisplay);
         EXPECT_EQ(mOutputState.layerStackSpace.getContent(), displaySettings.clip);
         EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.getOrientation()),
                   displaySettings.orientation);
-        EXPECT_EQ(0.5f, layers[0]->alpha);
-        EXPECT_EQ(0.75f, layers[1]->alpha);
+        EXPECT_EQ(0.5f, layers[0].alpha);
+        EXPECT_EQ(0.75f, layers[1].alpha);
         EXPECT_EQ(ui::Dataspace::SRGB, displaySettings.outputDataspace);
 
         return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
@@ -656,26 +656,26 @@ TEST_F(CachedSetTest, addHolePunch) {
 
     const auto drawLayers =
             [&](const renderengine::DisplaySettings&,
-                const std::vector<const renderengine::LayerSettings*>& layers,
+                const std::vector<renderengine::LayerSettings>& layers,
                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd &&) -> std::future<renderengine::RenderEngineResult> {
+                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
         // If the highlight layer is enabled, it will increase the size by 1.
         // We're interested in the third layer either way.
         EXPECT_GE(layers.size(), 4u);
         {
-            const auto* holePunchSettings = layers[3];
-            EXPECT_EQ(nullptr, holePunchSettings->source.buffer.buffer);
-            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchSettings->source.solidColor);
-            EXPECT_TRUE(holePunchSettings->disableBlending);
-            EXPECT_EQ(0.0f, holePunchSettings->alpha);
+            const auto holePunchSettings = layers[3];
+            EXPECT_EQ(nullptr, holePunchSettings.source.buffer.buffer);
+            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchSettings.source.solidColor);
+            EXPECT_TRUE(holePunchSettings.disableBlending);
+            EXPECT_EQ(0.0f, holePunchSettings.alpha);
         }
 
         {
-            const auto* holePunchBackgroundSettings = layers[0];
-            EXPECT_EQ(nullptr, holePunchBackgroundSettings->source.buffer.buffer);
-            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchBackgroundSettings->source.solidColor);
-            EXPECT_FALSE(holePunchBackgroundSettings->disableBlending);
-            EXPECT_EQ(1.0f, holePunchBackgroundSettings->alpha);
+            const auto holePunchBackgroundSettings = layers[0];
+            EXPECT_EQ(nullptr, holePunchBackgroundSettings.source.buffer.buffer);
+            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchBackgroundSettings.source.solidColor);
+            EXPECT_FALSE(holePunchBackgroundSettings.disableBlending);
+            EXPECT_EQ(1.0f, holePunchBackgroundSettings.alpha);
         }
 
         return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
@@ -717,27 +717,27 @@ TEST_F(CachedSetTest, addHolePunch_noBuffer) {
 
     const auto drawLayers =
             [&](const renderengine::DisplaySettings&,
-                const std::vector<const renderengine::LayerSettings*>& layers,
+                const std::vector<renderengine::LayerSettings>& layers,
                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd &&) -> std::future<renderengine::RenderEngineResult> {
+                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
         // If the highlight layer is enabled, it will increase the size by 1.
         // We're interested in the third layer either way.
         EXPECT_GE(layers.size(), 4u);
 
         {
-            const auto* holePunchSettings = layers[3];
-            EXPECT_EQ(nullptr, holePunchSettings->source.buffer.buffer);
-            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchSettings->source.solidColor);
-            EXPECT_TRUE(holePunchSettings->disableBlending);
-            EXPECT_EQ(0.0f, holePunchSettings->alpha);
+            const auto holePunchSettings = layers[3];
+            EXPECT_EQ(nullptr, holePunchSettings.source.buffer.buffer);
+            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchSettings.source.solidColor);
+            EXPECT_TRUE(holePunchSettings.disableBlending);
+            EXPECT_EQ(0.0f, holePunchSettings.alpha);
         }
 
         {
-            const auto* holePunchBackgroundSettings = layers[0];
-            EXPECT_EQ(nullptr, holePunchBackgroundSettings->source.buffer.buffer);
-            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchBackgroundSettings->source.solidColor);
-            EXPECT_FALSE(holePunchBackgroundSettings->disableBlending);
-            EXPECT_EQ(1.0f, holePunchBackgroundSettings->alpha);
+            const auto holePunchBackgroundSettings = layers[0];
+            EXPECT_EQ(nullptr, holePunchBackgroundSettings.source.buffer.buffer);
+            EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), holePunchBackgroundSettings.source.solidColor);
+            EXPECT_FALSE(holePunchBackgroundSettings.disableBlending);
+            EXPECT_EQ(1.0f, holePunchBackgroundSettings.alpha);
         }
 
         return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
@@ -867,16 +867,16 @@ TEST_F(CachedSetTest, addBlur) {
 
     const auto drawLayers =
             [&](const renderengine::DisplaySettings&,
-                const std::vector<const renderengine::LayerSettings*>& layers,
+                const std::vector<renderengine::LayerSettings>& layers,
                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd &&) -> std::future<renderengine::RenderEngineResult> {
+                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
         // If the highlight layer is enabled, it will increase the size by 1.
         // We're interested in the third layer either way.
         EXPECT_GE(layers.size(), 3u);
-        const auto* blurSettings = layers[2];
-        EXPECT_TRUE(blurSettings->skipContentDraw);
-        EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), blurSettings->source.solidColor);
-        EXPECT_EQ(0.0f, blurSettings->alpha);
+        const auto blurSettings = layers[2];
+        EXPECT_TRUE(blurSettings.skipContentDraw);
+        EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), blurSettings.source.solidColor);
+        EXPECT_EQ(0.0f, blurSettings.alpha);
 
         return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
     };
