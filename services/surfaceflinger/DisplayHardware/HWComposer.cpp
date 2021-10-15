@@ -143,7 +143,7 @@ HWComposer::HWComposer(std::unique_ptr<Hwc2::Composer> composer)
                 sysprop::update_device_product_info_on_hotplug_reconnect(false)) {}
 
 HWComposer::HWComposer(const std::string& composerServiceName)
-      : HWComposer(std::make_unique<Hwc2::impl::Composer>(composerServiceName)) {}
+      : HWComposer(Hwc2::Composer::create(composerServiceName)) {}
 
 HWComposer::~HWComposer() {
     mDisplayData.clear();

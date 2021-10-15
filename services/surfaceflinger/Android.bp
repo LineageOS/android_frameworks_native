@@ -153,6 +153,7 @@ filegroup {
         "ContainerLayer.cpp",
         "DisplayDevice.cpp",
         "DisplayHardware/AidlComposerHal.cpp",
+        "DisplayHardware/HidlComposerHal.cpp",
         "DisplayHardware/ComposerHal.cpp",
         "DisplayHardware/DisplayIdentification.cpp",
         "DisplayHardware/FramebufferSurface.cpp",

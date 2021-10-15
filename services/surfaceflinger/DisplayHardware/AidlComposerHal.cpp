@@ -18,7 +18,7 @@
 #define LOG_TAG "HwcComposer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "ComposerHal.h"
+#include "AidlComposerHal.h"
 
 #include <android/binder_ibinder_platform.h>
 #include <android/binder_manager.h>
@@ -218,12 +218,18 @@ private:
     sp<V2_4::IComposerCallback> mCallback;
 };
 
-namespace impl {
+std::string AidlComposer::instance(const std::string& serviceName) {
+    return std::string(AidlIComposer::descriptor) + "/" + serviceName;
+}
+
+bool AidlComposer::isDeclared(const std::string& serviceName) {
+    return AServiceManager_isDeclared(instance(serviceName).c_str());
+}
 
 AidlComposer::AidlComposer(const std::string& serviceName) : mWriter(kWriterInitialSize) {
     // This only waits if the service is actually declared
-    mAidlComposer = AidlIComposer::fromBinder(ndk::SpAIBinder(
-            AServiceManager_waitForService((AidlIComposer::descriptor + serviceName).c_str())));
+    mAidlComposer = AidlIComposer::fromBinder(
+            ndk::SpAIBinder(AServiceManager_waitForService(instance(serviceName).c_str())));
     if (!mAidlComposer) {
         LOG_ALWAYS_FATAL("Failed to get AIDL composer service");
         return;
@@ -263,7 +269,7 @@ void AidlComposer::registerCallback(const sp<IComposerCallback>& callback) {
     if (mAidlComposerCallback) {
         ALOGE("Callback already registered");
     }
-    mAidlComposerCallback = std::make_shared<AidlIComposerCallbackWrapper>(callback);
+    mAidlComposerCallback = ndk::SharedRefBase::make<AidlIComposerCallbackWrapper>(callback);
     AIBinder_setMinSchedulerPolicy(mAidlComposerCallback->asBinder().get(), SCHED_FIFO, 2);
 
     const auto status = mAidlComposerClient->registerCallback(mAidlComposerCallback);
@@ -1361,6 +1367,5 @@ void AidlCommandReader::takeClientTargetProperty(
     *outClientTargetProperty = data.clientTargetProperty;
 }
 
-} // namespace impl
 } // namespace Hwc2
 } // namespace android
