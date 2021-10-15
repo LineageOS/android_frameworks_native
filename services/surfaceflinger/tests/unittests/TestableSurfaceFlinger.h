@@ -442,6 +442,7 @@ public:
     auto& mutableInternalHwcDisplayId() { return getHwComposer().mInternalHwcDisplayId; }
     auto& mutableExternalHwcDisplayId() { return getHwComposer().mExternalHwcDisplayId; }
     auto& mutableUseFrameRateApi() { return mFlinger->useFrameRateApi; }
+    auto& mutableActiveDisplayToken() { return mFlinger->mActiveDisplayToken; }
 
     auto fromHandle(const sp<IBinder>& handle) {
         return mFlinger->fromHandle(handle);
