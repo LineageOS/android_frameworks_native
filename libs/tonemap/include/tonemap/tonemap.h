@@ -17,6 +17,7 @@
 #pragma once
 
 #include <aidl/android/hardware/graphics/common/Dataspace.h>
+#include <math/vec3.h>
 
 #include <string>
 #include <vector>
@@ -48,7 +49,9 @@ struct Metadata {
 class ToneMapper {
 public:
     virtual ~ToneMapper() {}
-    // Constructs a tonemap shader whose shader language is SkSL
+    // Constructs a tonemap shader whose shader language is SkSL, which tonemaps from an
+    // input whose dataspace is described by sourceDataspace, to an output whose dataspace
+    // is described by destinationDataspace
     //
     // The returned shader string *must* contain a function with the following signature:
     // float libtonemap_LookupTonemapGain(vec3 linearRGB, vec3 xyz);
@@ -94,6 +97,19 @@ public:
     // assume that there are predefined floats in_libtonemap_displayMaxLuminance and
     // in_libtonemap_inputMaxLuminance inside of the body of the tone-mapping shader.
     virtual std::vector<ShaderUniform> generateShaderSkSLUniforms(const Metadata& metadata) = 0;
+
+    // CPU implementation of the tonemapping gain. This must match the GPU implementation returned
+    // by generateTonemapGainShaderSKSL() above, with some epsilon difference to account for
+    // differences in hardware precision.
+    //
+    // The gain is computed assuming an input described by sourceDataspace, tonemapped to an output
+    // described by destinationDataspace. To compute the gain, the input colors are provided by
+    // linearRGB, which is the RGB colors in linear space. The colors in XYZ space are also
+    // provided. Metadata is also provided for helping to compute the tonemapping curve.
+    virtual double lookupTonemapGain(
+            aidl::android::hardware::graphics::common::Dataspace sourceDataspace,
+            aidl::android::hardware::graphics::common::Dataspace destinationDataspace,
+            vec3 linearRGB, vec3 xyz, const Metadata& metadata) = 0;
 };
 
 // Retrieves a tonemapper instance.
