@@ -284,7 +284,7 @@ void RefreshRateOverlay::changeRefreshRate(const Fps& fps) {
     t.apply();
 }
 
-void RefreshRateOverlay::onInvalidate() {
+void RefreshRateOverlay::animate() {
     if (!mCurrentFps.has_value()) return;
 
     const auto& buffers = getOrCreateBuffers(*mCurrentFps);

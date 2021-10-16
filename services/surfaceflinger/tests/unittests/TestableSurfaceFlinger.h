@@ -73,8 +73,8 @@ public:
         return nullptr;
     }
 
-    std::unique_ptr<MessageQueue> createMessageQueue() override {
-        return std::make_unique<android::impl::MessageQueue>();
+    std::unique_ptr<MessageQueue> createMessageQueue(ICompositor& compositor) override {
+        return std::make_unique<android::impl::MessageQueue>(compositor);
     }
 
     std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
@@ -296,6 +296,16 @@ public:
      * Forwarding for functions being tested
      */
 
+    nsecs_t commit() {
+        constexpr int64_t kVsyncId = 123;
+        const nsecs_t now = systemTime();
+        const nsecs_t expectedVsyncTime = now + 10'000'000;
+        mFlinger->commit(now, kVsyncId, expectedVsyncTime);
+        return now;
+    }
+
+    void commitAndComposite() { mFlinger->composite(commit()); }
+
     auto createDisplay(const String8& displayName, bool secure) {
         return mFlinger->createDisplay(displayName, secure);
     }
@@ -341,10 +351,6 @@ public:
     auto setPowerModeInternal(const sp<DisplayDevice>& display,
                               hal::PowerMode mode) NO_THREAD_SAFETY_ANALYSIS {
         return mFlinger->setPowerModeInternal(display, mode);
-    }
-
-    auto onMessageReceived(int32_t what) {
-        return mFlinger->onMessageReceived(what, /*vsyncId=*/0, systemTime());
     }
 
     auto renderScreenImplLocked(const RenderArea& renderArea,
@@ -440,6 +446,7 @@ public:
     auto& mutableHwcPhysicalDisplayIdMap() { return getHwComposer().mPhysicalDisplayIdMap; }
     auto& mutablePrimaryHwcDisplayId() { return getHwComposer().mPrimaryHwcDisplayId; }
     auto& mutableUseFrameRateApi() { return mFlinger->useFrameRateApi; }
+    auto& mutableActiveDisplayToken() { return mFlinger->mActiveDisplayToken; }
 
     auto fromHandle(const sp<IBinder>& handle) {
         return mFlinger->fromHandle(handle);
@@ -761,7 +768,7 @@ public:
     };
 
 private:
-    void scheduleRefresh(FrameHint) override {}
+    void scheduleComposite(FrameHint) override {}
     void setVsyncEnabled(bool) override {}
     void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ModeEvent) override {}
     void kernelTimerChanged(bool) override {}

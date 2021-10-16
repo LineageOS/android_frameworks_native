@@ -133,7 +133,6 @@ int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transfo
 
 int32_t ANativeWindow_setBuffersDataSpace(ANativeWindow* window, int32_t dataSpace) {
     static_assert(static_cast<int>(ADATASPACE_UNKNOWN) == static_cast<int>(HAL_DATASPACE_UNKNOWN));
-    static_assert(static_cast<int>(STANDARD_SHIFT) == static_cast<int>(HAL_DATASPACE_STANDARD_SHIFT));
     static_assert(static_cast<int>(STANDARD_MASK) == static_cast<int>(HAL_DATASPACE_STANDARD_MASK));
     static_assert(static_cast<int>(STANDARD_UNSPECIFIED) == static_cast<int>(HAL_DATASPACE_STANDARD_UNSPECIFIED));
     static_assert(static_cast<int>(STANDARD_BT709) == static_cast<int>(HAL_DATASPACE_STANDARD_BT709));
@@ -145,7 +144,6 @@ int32_t ANativeWindow_setBuffersDataSpace(ANativeWindow* window, int32_t dataSpa
     static_assert(static_cast<int>(STANDARD_FILM) == static_cast<int>(HAL_DATASPACE_STANDARD_FILM));
     static_assert(static_cast<int>(STANDARD_DCI_P3) == static_cast<int>(HAL_DATASPACE_STANDARD_DCI_P3));
     static_assert(static_cast<int>(STANDARD_ADOBE_RGB) == static_cast<int>(HAL_DATASPACE_STANDARD_ADOBE_RGB));
-    static_assert(static_cast<int>(TRANSFER_SHIFT) == static_cast<int>(HAL_DATASPACE_TRANSFER_SHIFT));
     static_assert(static_cast<int>(TRANSFER_MASK) == static_cast<int>(HAL_DATASPACE_TRANSFER_MASK));
     static_assert(static_cast<int>(TRANSFER_UNSPECIFIED) == static_cast<int>(HAL_DATASPACE_TRANSFER_UNSPECIFIED));
     static_assert(static_cast<int>(TRANSFER_LINEAR) == static_cast<int>(HAL_DATASPACE_TRANSFER_LINEAR));

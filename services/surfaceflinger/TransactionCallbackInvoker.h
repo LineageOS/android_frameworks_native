@@ -18,8 +18,9 @@
 
 #include <condition_variable>
 #include <deque>
-#include <queue>
+#include <future>
 #include <mutex>
+#include <queue>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
@@ -28,6 +29,7 @@
 
 #include <binder/IBinder.h>
 #include <gui/ITransactionCompletedListener.h>
+#include <renderengine/RenderEngine.h>
 #include <ui/Fence.h>
 
 namespace android {
@@ -42,7 +44,9 @@ public:
     wp<IBinder> surfaceControl;
 
     bool releasePreviousBuffer = false;
+    std::string name;
     sp<Fence> previousReleaseFence;
+    std::vector<std::shared_future<renderengine::RenderEngineResult>> previousReleaseFences;
     nsecs_t acquireTime = -1;
     nsecs_t latchTime = -1;
     uint32_t transformHint = 0;

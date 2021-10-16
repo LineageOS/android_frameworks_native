@@ -202,8 +202,7 @@ void CompositionTest::displayRefreshCompositionDirtyGeometry() {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.onMessageReceived(MessageQueue::INVALIDATE);
-    mFlinger.onMessageReceived(MessageQueue::REFRESH);
+    mFlinger.commitAndComposite();
 
     LayerCase::cleanup(this);
 }
@@ -215,8 +214,7 @@ void CompositionTest::displayRefreshCompositionDirtyFrame() {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.onMessageReceived(MessageQueue::INVALIDATE);
-    mFlinger.onMessageReceived(MessageQueue::REFRESH);
+    mFlinger.commitAndComposite();
 
     LayerCase::cleanup(this);
 }
@@ -247,10 +245,16 @@ void CompositionTest::captureScreenComposition() {
                                                              "screenshot"),
                                            *mRenderEngine, true);
 
-    status_t result =
-            mFlinger.renderScreenImplLocked(*renderArea, traverseLayers, mCaptureScreenBuffer,
-                                            forSystem, regionSampling);
-    EXPECT_EQ(NO_ERROR, result);
+    auto result = mFlinger.renderScreenImplLocked(*renderArea, traverseLayers, mCaptureScreenBuffer,
+                                                  forSystem, regionSampling);
+    EXPECT_TRUE(result.valid());
+
+    auto& [status, drawFence] = result.get();
+
+    EXPECT_EQ(NO_ERROR, status);
+    if (drawFence.ok()) {
+        sync_wait(drawFence.get(), -1);
+    }
 
     LayerCase::cleanup(this);
 }
@@ -346,9 +350,9 @@ struct BaseDisplayVariant {
     static void setupCommonScreensCaptureCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillRepeatedly([&](const renderengine::DisplaySettings& displaySettings,
-                                    const std::vector<const renderengine::LayerSettings*>&,
+                                    const std::vector<renderengine::LayerSettings>&,
                                     const std::shared_ptr<renderengine::ExternalTexture>&,
-                                    const bool, base::unique_fd &&)
+                                    const bool, base::unique_fd&&)
                                         -> std::future<renderengine::RenderEngineResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
@@ -397,9 +401,9 @@ struct BaseDisplayVariant {
                                 Return(0)));
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillRepeatedly([&](const renderengine::DisplaySettings& displaySettings,
-                                    const std::vector<const renderengine::LayerSettings*>&,
+                                    const std::vector<renderengine::LayerSettings>&,
                                     const std::shared_ptr<renderengine::ExternalTexture>&,
-                                    const bool, base::unique_fd &&)
+                                    const bool, base::unique_fd&&)
                                         -> std::future<renderengine::RenderEngineResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
@@ -537,7 +541,7 @@ struct BaseLayerProperties {
         ASSERT_EQ(NO_ERROR, err);
         Mock::VerifyAndClear(test->mRenderEngine);
 
-        EXPECT_CALL(*test->mMessageQueue, invalidate()).Times(1);
+        EXPECT_CALL(*test->mMessageQueue, scheduleCommit()).Times(1);
         enqueueBuffer(test, layer);
         Mock::VerifyAndClearExpectations(test->mMessageQueue);
 
@@ -633,9 +637,9 @@ struct BaseLayerProperties {
     static void setupREBufferCompositionCommonCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([&](const renderengine::DisplaySettings& displaySettings,
-                              const std::vector<const renderengine::LayerSettings*>& layerSettings,
+                              const std::vector<renderengine::LayerSettings>& layerSettings,
                               const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                              base::unique_fd &&) -> std::future<renderengine::RenderEngineResult> {
+                              base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -652,16 +656,16 @@ struct BaseLayerProperties {
                                          "verification lambda";
                         return resultFuture;
                     }
-                    const renderengine::LayerSettings* layer = layerSettings.back();
-                    EXPECT_THAT(layer->source.buffer.buffer, Not(IsNull()));
-                    EXPECT_THAT(layer->source.buffer.fence, Not(IsNull()));
-                    EXPECT_EQ(DEFAULT_TEXTURE_ID, layer->source.buffer.textureName);
-                    EXPECT_EQ(false, layer->source.buffer.isY410BT2020);
-                    EXPECT_EQ(true, layer->source.buffer.usePremultipliedAlpha);
-                    EXPECT_EQ(false, layer->source.buffer.isOpaque);
-                    EXPECT_EQ(0.0, layer->geometry.roundedCornersRadius);
-                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer->sourceDataspace);
-                    EXPECT_EQ(LayerProperties::COLOR[3], layer->alpha);
+                    const renderengine::LayerSettings layer = layerSettings.back();
+                    EXPECT_THAT(layer.source.buffer.buffer, Not(IsNull()));
+                    EXPECT_THAT(layer.source.buffer.fence, Not(IsNull()));
+                    EXPECT_EQ(DEFAULT_TEXTURE_ID, layer.source.buffer.textureName);
+                    EXPECT_EQ(false, layer.source.buffer.isY410BT2020);
+                    EXPECT_EQ(true, layer.source.buffer.usePremultipliedAlpha);
+                    EXPECT_EQ(false, layer.source.buffer.isOpaque);
+                    EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius);
+                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer.sourceDataspace);
+                    EXPECT_EQ(LayerProperties::COLOR[3], layer.alpha);
                     return resultFuture;
                 });
     }
@@ -685,9 +689,9 @@ struct BaseLayerProperties {
     static void setupREColorCompositionCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([&](const renderengine::DisplaySettings& displaySettings,
-                              const std::vector<const renderengine::LayerSettings*>& layerSettings,
+                              const std::vector<renderengine::LayerSettings>& layerSettings,
                               const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                              base::unique_fd &&) -> std::future<renderengine::RenderEngineResult> {
+                              base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -704,14 +708,14 @@ struct BaseLayerProperties {
                                    "setupREColorCompositionCallExpectations verification lambda";
                         return resultFuture;
                     }
-                    const renderengine::LayerSettings* layer = layerSettings.back();
-                    EXPECT_THAT(layer->source.buffer.buffer, IsNull());
+                    const renderengine::LayerSettings layer = layerSettings.back();
+                    EXPECT_THAT(layer.source.buffer.buffer, IsNull());
                     EXPECT_EQ(half3(LayerProperties::COLOR[0], LayerProperties::COLOR[1],
                                     LayerProperties::COLOR[2]),
-                              layer->source.solidColor);
-                    EXPECT_EQ(0.0, layer->geometry.roundedCornersRadius);
-                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer->sourceDataspace);
-                    EXPECT_EQ(LayerProperties::COLOR[3], layer->alpha);
+                              layer.source.solidColor);
+                    EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius);
+                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer.sourceDataspace);
+                    EXPECT_EQ(LayerProperties::COLOR[3], layer.alpha);
                     return resultFuture;
                 });
     }
@@ -765,9 +769,9 @@ struct CommonSecureLayerProperties : public BaseLayerProperties<LayerProperties>
     static void setupInsecureREBufferCompositionCommonCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([&](const renderengine::DisplaySettings& displaySettings,
-                              const std::vector<const renderengine::LayerSettings*>& layerSettings,
+                              const std::vector<renderengine::LayerSettings>& layerSettings,
                               const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                              base::unique_fd &&) -> std::future<renderengine::RenderEngineResult> {
+                              base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -784,12 +788,12 @@ struct CommonSecureLayerProperties : public BaseLayerProperties<LayerProperties>
                                          "verification lambda";
                         return resultFuture;
                     }
-                    const renderengine::LayerSettings* layer = layerSettings.back();
-                    EXPECT_THAT(layer->source.buffer.buffer, IsNull());
-                    EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), layer->source.solidColor);
-                    EXPECT_EQ(0.0, layer->geometry.roundedCornersRadius);
-                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer->sourceDataspace);
-                    EXPECT_EQ(1.0f, layer->alpha);
+                    const renderengine::LayerSettings layer = layerSettings.back();
+                    EXPECT_THAT(layer.source.buffer.buffer, IsNull());
+                    EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), layer.source.solidColor);
+                    EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius);
+                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer.sourceDataspace);
+                    EXPECT_EQ(1.0f, layer.alpha);
                     return resultFuture;
                 });
     }
@@ -883,7 +887,7 @@ struct BaseLayerVariant {
         test->mFlinger.mutableDrawingState().layersSortedByZ.clear();
 
         // Layer should be unregistered with scheduler.
-        test->mFlinger.onMessageReceived(MessageQueue::INVALIDATE);
+        test->mFlinger.commit();
         EXPECT_EQ(0, test->mFlinger.scheduler()->layerHistorySize());
     }
 };

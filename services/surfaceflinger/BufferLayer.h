@@ -62,6 +62,7 @@ public:
     void useEmptyDamage() override;
 
     bool isOpaque(const Layer::State& s) const override;
+    bool canReceiveInput() const override;
 
     // isVisible - true if this layer is visible, false otherwise
     bool isVisible() const override;
