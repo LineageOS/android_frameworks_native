@@ -150,7 +150,7 @@ void RegionSamplingThread::checkForStaleLuma() {
     if (mSampleRequestTime.has_value()) {
         ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForSamplePhase));
         mSampleRequestTime.reset();
-        mFlinger.scheduleRegionSamplingThread();
+        mFlinger.scheduleSample();
     }
 }
 
@@ -356,10 +356,13 @@ void RegionSamplingThread::captureSample() {
                                                renderengine::ExternalTexture::Usage::WRITEABLE);
     }
 
-    const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
-    mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
-                                 true /* regionSampling */, false /* grayscale */, captureListener);
-    ScreenCaptureResults captureResults = captureListener->waitForResults();
+    auto captureScreenResultFuture =
+            mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
+                                         true /* regionSampling */, false /* grayscale */, nullptr);
+    auto& captureScreenResult = captureScreenResultFuture.get();
+    if (captureScreenResult.drawFence.ok()) {
+        sync_wait(captureScreenResult.drawFence.get(), -1);
+    }
 
     std::vector<Descriptor> activeDescriptors;
     for (const auto& descriptor : descriptors) {

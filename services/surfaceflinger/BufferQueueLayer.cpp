@@ -48,7 +48,9 @@ BufferQueueLayer::~BufferQueueLayer() {
 // Interface implementation for Layer
 // -----------------------------------------------------------------------
 
-void BufferQueueLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
+void BufferQueueLayer::onLayerDisplayed(
+        std::shared_future<renderengine::RenderEngineResult> futureRenderEngineResult) {
+    sp<Fence> releaseFence = new Fence(dup(futureRenderEngineResult.get().drawFence));
     mConsumer->setReleaseFence(releaseFence);
 
     // Prevent tracing the same release multiple times.
@@ -218,7 +220,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     if (updateResult == BufferQueue::PRESENT_LATER) {
         // Producer doesn't want buffer to be displayed yet.  Signal a
         // layer update so we check again at the next opportunity.
-        mFlinger->signalLayerUpdate();
+        mFlinger->onLayerUpdate();
         return BAD_VALUE;
     } else if (updateResult == BufferLayerConsumer::BUFFER_REJECTED) {
         // If the buffer has been rejected, remove it from the shadow queue
@@ -299,7 +301,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     // Decrement the queued-frames count.  Signal another event if we
     // have more frames pending.
     if ((queuedBuffer && more_frames_pending) || mAutoRefresh) {
-        mFlinger->signalLayerUpdate();
+        mFlinger->onLayerUpdate();
     }
 
     return NO_ERROR;
@@ -402,7 +404,7 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     mFlinger->mInterceptor->saveBufferUpdate(layerId, item.mGraphicBuffer->getWidth(),
                                              item.mGraphicBuffer->getHeight(), item.mFrameNumber);
 
-    mFlinger->signalLayerUpdate();
+    mFlinger->onLayerUpdate();
     mConsumer->onBufferAvailable(item);
 }
 
@@ -448,7 +450,7 @@ void BufferQueueLayer::onSidebandStreamChanged() {
     bool sidebandStreamChanged = false;
     if (mSidebandStreamChanged.compare_exchange_strong(sidebandStreamChanged, true)) {
         // mSidebandStreamChanged was changed to true
-        mFlinger->signalLayerUpdate();
+        mFlinger->onLayerUpdate();
     }
 }
 

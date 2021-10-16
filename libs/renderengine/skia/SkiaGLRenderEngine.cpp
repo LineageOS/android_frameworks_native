@@ -610,17 +610,18 @@ private:
     AutoBackendTexture::CleanupManager& mMgr;
 };
 
-sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
-        sk_sp<SkShader> shader,
-        const LayerSettings* layer, const DisplaySettings& display, bool undoPremultipliedAlpha,
-        bool requiresLinearEffect) {
-    const auto stretchEffect = layer->stretchEffect;
+sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(sk_sp<SkShader> shader,
+                                                              const LayerSettings& layer,
+                                                              const DisplaySettings& display,
+                                                              bool undoPremultipliedAlpha,
+                                                              bool requiresLinearEffect) {
+    const auto stretchEffect = layer.stretchEffect;
     // The given surface will be stretched by HWUI via matrix transformation
     // which gets similar results for most surfaces
     // Determine later on if we need to leverage the stertch shader within
     // surface flinger
     if (stretchEffect.hasEffect()) {
-        const auto targetBuffer = layer->source.buffer.buffer;
+        const auto targetBuffer = layer.source.buffer.buffer;
         const auto graphicBuffer = targetBuffer ? targetBuffer->getBuffer() : nullptr;
         if (graphicBuffer && shader) {
             shader = mStretchShaderFactory.createSkShader(shader, stretchEffect);
@@ -629,7 +630,7 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
 
     if (requiresLinearEffect) {
         const ui::Dataspace inputDataspace =
-                mUseColorManagement ? layer->sourceDataspace : ui::Dataspace::V0_SRGB_LINEAR;
+                mUseColorManagement ? layer.sourceDataspace : ui::Dataspace::V0_SRGB_LINEAR;
         const ui::Dataspace outputDataspace =
                 mUseColorManagement ? display.outputDataspace : ui::Dataspace::V0_SRGB_LINEAR;
 
@@ -645,13 +646,13 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
         } else {
             runtimeEffect = effectIter->second;
         }
-        float maxLuminance = layer->source.buffer.maxLuminanceNits;
+        float maxLuminance = layer.source.buffer.maxLuminanceNits;
         // If the buffer doesn't have a max luminance, treat it as SDR & use the display's SDR
         // white point
         if (maxLuminance <= 0.f) {
             maxLuminance = display.sdrWhitePointNits;
         }
-        return createLinearEffectShader(shader, effect, runtimeEffect, layer->colorTransform,
+        return createLinearEffectShader(shader, effect, runtimeEffect, layer.colorTransform,
                                         display.maxLuminance, maxLuminance);
     }
     return shader;
@@ -729,7 +730,7 @@ static SkRRect getBlurRRect(const BlurRegion& region) {
 
 void SkiaGLRenderEngine::drawLayersInternal(
         const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
-        const DisplaySettings& display, const std::vector<const LayerSettings*>& layers,
+        const DisplaySettings& display, const std::vector<LayerSettings>& layers,
         const std::shared_ptr<ExternalTexture>& buffer, const bool /*useFramebufferCache*/,
         base::unique_fd&& bufferFence) {
     ATRACE_NAME("SkiaGL::drawLayers");
@@ -801,11 +802,11 @@ void SkiaGLRenderEngine::drawLayersInternal(
             if (!layerHasBlur(layer, ctModifiesAlpha)) {
                 continue;
             }
-            if (layer->backgroundBlurRadius > 0 &&
-                layer->backgroundBlurRadius < BlurFilter::kMaxCrossFadeRadius) {
+            if (layer.backgroundBlurRadius > 0 &&
+                layer.backgroundBlurRadius < BlurFilter::kMaxCrossFadeRadius) {
                 requiresCompositionLayer = true;
             }
-            for (auto region : layer->blurRegions) {
+            for (auto region : layer.blurRegions) {
                 if (region.blurRadius < BlurFilter::kMaxCrossFadeRadius) {
                     requiresCompositionLayer = true;
                 }
@@ -813,7 +814,7 @@ void SkiaGLRenderEngine::drawLayersInternal(
             if (requiresCompositionLayer) {
                 activeSurface = dstSurface->makeSurface(dstSurface->imageInfo());
                 canvas = mCapture->tryOffscreenCapture(activeSurface.get(), &offscreenCaptureState);
-                blurCompositionLayer = layer;
+                blurCompositionLayer = &layer;
                 break;
             }
         }
@@ -825,11 +826,11 @@ void SkiaGLRenderEngine::drawLayersInternal(
     initCanvas(canvas, display);
 
     for (const auto& layer : layers) {
-        ATRACE_FORMAT("DrawLayer: %s", layer->name.c_str());
+        ATRACE_FORMAT("DrawLayer: %s", layer.name.c_str());
 
         if (kPrintLayerSettings) {
             std::stringstream ls;
-            PrintTo(*layer, &ls);
+            PrintTo(layer, &ls);
             auto debugs = ls.str();
             int pos = 0;
             while (pos < debugs.size()) {
@@ -839,7 +840,7 @@ void SkiaGLRenderEngine::drawLayersInternal(
         }
 
         sk_sp<SkImage> blurInput;
-        if (blurCompositionLayer == layer) {
+        if (blurCompositionLayer == &layer) {
             LOG_ALWAYS_FATAL_IF(activeSurface == dstSurface);
             LOG_ALWAYS_FATAL_IF(canvas == dstCanvas);
 
@@ -878,17 +879,17 @@ void SkiaGLRenderEngine::drawLayersInternal(
         if (CC_UNLIKELY(mCapture->isCaptureRunning())) {
             // Record the name of the layer if the capture is running.
             std::stringstream layerSettings;
-            PrintTo(*layer, &layerSettings);
+            PrintTo(layer, &layerSettings);
             // Store the LayerSettings in additional information.
-            canvas->drawAnnotation(SkRect::MakeEmpty(), layer->name.c_str(),
+            canvas->drawAnnotation(SkRect::MakeEmpty(), layer.name.c_str(),
                                    SkData::MakeWithCString(layerSettings.str().c_str()));
         }
         // Layers have a local transform that should be applied to them
-        canvas->concat(getSkM44(layer->geometry.positionTransform).asM33());
+        canvas->concat(getSkM44(layer.geometry.positionTransform).asM33());
 
         const auto [bounds, roundRectClip] =
-                getBoundsAndClip(layer->geometry.boundaries, layer->geometry.roundedCornersCrop,
-                                 layer->geometry.roundedCornersRadius);
+                getBoundsAndClip(layer.geometry.boundaries, layer.geometry.roundedCornersCrop,
+                                 layer.geometry.roundedCornersRadius);
         if (mBlurFilter && layerHasBlur(layer, ctModifiesAlpha)) {
             std::unordered_map<uint32_t, sk_sp<SkImage>> cachedBlurs;
 
@@ -909,20 +910,19 @@ void SkiaGLRenderEngine::drawLayersInternal(
 
             // TODO(b/182216890): Filter out empty layers earlier
             if (blurRect.width() > 0 && blurRect.height() > 0) {
-                if (layer->backgroundBlurRadius > 0) {
+                if (layer.backgroundBlurRadius > 0) {
                     ATRACE_NAME("BackgroundBlur");
-                    auto blurredImage =
-                            mBlurFilter->generate(grContext, layer->backgroundBlurRadius, blurInput,
-                                                  blurRect);
+                    auto blurredImage = mBlurFilter->generate(grContext, layer.backgroundBlurRadius,
+                                                              blurInput, blurRect);
 
-                    cachedBlurs[layer->backgroundBlurRadius] = blurredImage;
+                    cachedBlurs[layer.backgroundBlurRadius] = blurredImage;
 
-                    mBlurFilter->drawBlurRegion(canvas, bounds, layer->backgroundBlurRadius, 1.0f,
+                    mBlurFilter->drawBlurRegion(canvas, bounds, layer.backgroundBlurRadius, 1.0f,
                                                 blurRect, blurredImage, blurInput);
                 }
 
-                canvas->concat(getSkM44(layer->blurRegionTransform).asM33());
-                for (auto region : layer->blurRegions) {
+                canvas->concat(getSkM44(layer.blurRegionTransform).asM33());
+                for (auto region : layer.blurRegions) {
                     if (cachedBlurs[region.blurRadius] == nullptr) {
                         ATRACE_NAME("BlurRegion");
                         cachedBlurs[region.blurRadius] =
@@ -937,19 +937,18 @@ void SkiaGLRenderEngine::drawLayersInternal(
             }
         }
 
-        if (layer->shadow.length > 0) {
+        if (layer.shadow.length > 0) {
             // This would require a new parameter/flag to SkShadowUtils::DrawShadow
-            LOG_ALWAYS_FATAL_IF(layer->disableBlending, "Cannot disableBlending with a shadow");
+            LOG_ALWAYS_FATAL_IF(layer.disableBlending, "Cannot disableBlending with a shadow");
 
             SkRRect shadowBounds, shadowClip;
-            if (layer->geometry.boundaries == layer->shadow.boundaries) {
+            if (layer.geometry.boundaries == layer.shadow.boundaries) {
                 shadowBounds = bounds;
                 shadowClip = roundRectClip;
             } else {
                 std::tie(shadowBounds, shadowClip) =
-                        getBoundsAndClip(layer->shadow.boundaries,
-                                         layer->geometry.roundedCornersCrop,
-                                         layer->geometry.roundedCornersRadius);
+                        getBoundsAndClip(layer.shadow.boundaries, layer.geometry.roundedCornersCrop,
+                                         layer.geometry.roundedCornersRadius);
             }
 
             // Technically, if bounds is a rect and roundRectClip is not empty,
@@ -960,18 +959,18 @@ void SkiaGLRenderEngine::drawLayersInternal(
             // looks more like the intent.
             const auto& rrect =
                     shadowBounds.isRect() && !shadowClip.isEmpty() ? shadowClip : shadowBounds;
-            drawShadow(canvas, rrect, layer->shadow);
+            drawShadow(canvas, rrect, layer.shadow);
         }
 
-        const bool requiresLinearEffect = layer->colorTransform != mat4() ||
+        const bool requiresLinearEffect = layer.colorTransform != mat4() ||
                 (mUseColorManagement &&
-                 needsToneMapping(layer->sourceDataspace, display.outputDataspace)) ||
+                 needsToneMapping(layer.sourceDataspace, display.outputDataspace)) ||
                 (display.sdrWhitePointNits > 0.f &&
                  display.sdrWhitePointNits != display.maxLuminance);
 
         // quick abort from drawing the remaining portion of the layer
-        if (layer->skipContentDraw ||
-            (layer->alpha == 0 && !requiresLinearEffect && !layer->disableBlending &&
+        if (layer.skipContentDraw ||
+            (layer.alpha == 0 && !requiresLinearEffect && !layer.disableBlending &&
              (!displayColorTransform || displayColorTransform->isAlphaUnchanged()))) {
             continue;
         }
@@ -981,13 +980,13 @@ void SkiaGLRenderEngine::drawLayersInternal(
         // management is a no-op.
         const ui::Dataspace layerDataspace = (!mUseColorManagement || requiresLinearEffect)
                 ? dstDataspace
-                : layer->sourceDataspace;
+                : layer.sourceDataspace;
 
         SkPaint paint;
-        if (layer->source.buffer.buffer) {
+        if (layer.source.buffer.buffer) {
             ATRACE_NAME("DrawImage");
-            validateInputBufferUsage(layer->source.buffer.buffer->getBuffer());
-            const auto& item = layer->source.buffer;
+            validateInputBufferUsage(layer.source.buffer.buffer->getBuffer());
+            const auto& item = layer.source.buffer;
             std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef = nullptr;
 
             if (const auto& iter = cache.find(item.buffer->getBuffer()->getId());
@@ -1006,8 +1005,8 @@ void SkiaGLRenderEngine::drawLayersInternal(
 
             // if the layer's buffer has a fence, then we must must respect the fence prior to using
             // the buffer.
-            if (layer->source.buffer.fence != nullptr) {
-                waitFence(layer->source.buffer.fence->get());
+            if (layer.source.buffer.fence != nullptr) {
+                waitFence(layer.source.buffer.fence->get());
             }
 
             // isOpaque means we need to ignore the alpha in the image,
@@ -1051,7 +1050,7 @@ void SkiaGLRenderEngine::drawLayersInternal(
 
             sk_sp<SkShader> shader;
 
-            if (layer->source.buffer.useTextureFiltering) {
+            if (layer.source.buffer.useTextureFiltering) {
                 shader = image->makeShader(SkTileMode::kClamp, SkTileMode::kClamp,
                                            SkSamplingOptions(
                                                    {SkFilterMode::kLinear, SkMipmapMode::kNone}),
@@ -1069,21 +1068,21 @@ void SkiaGLRenderEngine::drawLayersInternal(
             paint.setShader(createRuntimeEffectShader(shader, layer, display,
                                                       !item.isOpaque && item.usePremultipliedAlpha,
                                                       requiresLinearEffect));
-            paint.setAlphaf(layer->alpha);
+            paint.setAlphaf(layer.alpha);
         } else {
             ATRACE_NAME("DrawColor");
-            const auto color = layer->source.solidColor;
+            const auto color = layer.source.solidColor;
             sk_sp<SkShader> shader = SkShaders::Color(SkColor4f{.fR = color.r,
                                                                 .fG = color.g,
                                                                 .fB = color.b,
-                                                                .fA = layer->alpha},
+                                                                .fA = layer.alpha},
                                                       toSkColorSpace(layerDataspace));
             paint.setShader(createRuntimeEffectShader(shader, layer, display,
                                                       /* undoPremultipliedAlpha */ false,
                                                       requiresLinearEffect));
         }
 
-        if (layer->disableBlending) {
+        if (layer.disableBlending) {
             paint.setBlendMode(SkBlendMode::kSrc);
         }
 
@@ -1251,13 +1250,13 @@ inline std::pair<SkRRect, SkRRect> SkiaGLRenderEngine::getBoundsAndClip(const Fl
     return {SkRRect::MakeRect(bounds), clip};
 }
 
-inline bool SkiaGLRenderEngine::layerHasBlur(const LayerSettings* layer,
+inline bool SkiaGLRenderEngine::layerHasBlur(const LayerSettings& layer,
                                              bool colorTransformModifiesAlpha) {
-    if (layer->backgroundBlurRadius > 0 || layer->blurRegions.size()) {
+    if (layer.backgroundBlurRadius > 0 || layer.blurRegions.size()) {
         // return false if the content is opaque and would therefore occlude the blur
-        const bool opaqueContent = !layer->source.buffer.buffer || layer->source.buffer.isOpaque;
-        const bool opaqueAlpha = layer->alpha == 1.0f && !colorTransformModifiesAlpha;
-        return layer->skipContentDraw || !(opaqueContent && opaqueAlpha);
+        const bool opaqueContent = !layer.source.buffer.buffer || layer.source.buffer.isOpaque;
+        const bool opaqueAlpha = layer.alpha == 1.0f && !colorTransformModifiesAlpha;
+        return layer.skipContentDraw || !(opaqueContent && opaqueAlpha);
     }
     return false;
 }

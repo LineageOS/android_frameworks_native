@@ -39,7 +39,9 @@ public:
     // Implements Layer.
     const char* getType() const override { return "BufferStateLayer"; }
 
-    void onLayerDisplayed(const sp<Fence>& releaseFence) override;
+    void onLayerDisplayed(
+            std::shared_future<renderengine::RenderEngineResult> futureRenderEngineResult) override;
+
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;
 
     void finalizeFrameEventHistory(const std::shared_ptr<FenceTime>& glDoneFence,
@@ -115,8 +117,6 @@ private:
     bool updateFrameEventHistory(const sp<Fence>& acquireFence, nsecs_t postedTime,
                                  nsecs_t requestedPresentTime);
 
-    status_t addReleaseFence(const sp<CallbackHandle>& ch, const sp<Fence>& releaseFence);
-
     bool latchSidebandStream(bool& recomputeVisibleRegions) override;
 
     bool hasFrameUpdate() const override;
@@ -139,7 +139,6 @@ private:
     std::shared_ptr<renderengine::ExternalTexture> getBufferFromBufferData(
             const BufferData& bufferData);
 
-    sp<Fence> mPreviousReleaseFence;
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     uint64_t mPreviousReleasedFrameNumber = 0;
 

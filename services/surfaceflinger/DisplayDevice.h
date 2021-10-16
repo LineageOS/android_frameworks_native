@@ -234,7 +234,7 @@ public:
     void enableRefreshRateOverlay(bool enable, bool showSpinner);
     bool isRefreshRateOverlayEnabled() const { return mRefreshRateOverlay != nullptr; }
     bool onKernelTimerChanged(std::optional<DisplayModeId>, bool timerExpired);
-    void onInvalidate();
+    void animateRefreshRateOverlay();
 
     void onVsync(nsecs_t timestamp);
     nsecs_t getVsyncPeriodFromHWC() const;

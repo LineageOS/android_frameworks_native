@@ -260,6 +260,11 @@ struct DisplayPowerCase {
         auto display = Display::makeFakeExistingDisplayInjector(test);
         display.inject();
         display.mutableDisplayDevice()->setPowerMode(mode);
+        if (display.mutableDisplayDevice()->isInternal()) {
+            test->mFlinger.mutableActiveDisplayToken() =
+                    display.mutableDisplayDevice()->getDisplayToken();
+        }
+
         return display;
     }
 
@@ -268,7 +273,7 @@ struct DisplayPowerCase {
     }
 
     static void setupRepaintEverythingCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mMessageQueue, invalidate()).Times(1);
+        EXPECT_CALL(*test->mMessageQueue, scheduleCommit()).Times(1);
     }
 
     static void setupSurfaceInterceptorCallExpectations(DisplayTransactionTest* test,

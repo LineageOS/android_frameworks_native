@@ -103,7 +103,7 @@ static const String16 sManageSensorsPermission("android.permission.MANAGE_SENSOR
 
 SensorService::SensorService()
     : mInitCheck(NO_INIT), mSocketBufferSize(SOCKET_BUFFER_SIZE_NON_BATCHED),
-      mWakeLockAcquired(false), mProximityActiveCount(0) {
+      mWakeLockAcquired(false), mLastReportedProxIsActive(false) {
     mUidPolicy = new UidPolicy(this);
     mSensorPrivacyPolicy = new SensorPrivacyPolicy(this);
 }
@@ -204,9 +204,11 @@ void SensorService::onFirstRef() {
                 }
                 if (useThisSensor) {
                     if (list[i].type == SENSOR_TYPE_PROXIMITY) {
-                        registerSensor(new ProximitySensor(list[i], *this));
+                        SensorInterface* s = new ProximitySensor(list[i], *this);
+                        registerSensor(s);
+                        mProxSensorHandles.push_back(s->getSensor().getHandle());
                     } else {
-                        registerSensor( new HardwareSensor(list[i]) );
+                        registerSensor(new HardwareSensor(list[i]));
                     }
                 }
             }
@@ -331,6 +333,7 @@ void SensorService::onUidStateChanged(uid_t uid, UidState state) {
             conn->onSensorAccessChanged(hasAccess);
         }
     }
+    checkAndReportProxStateChangeLocked();
 }
 
 bool SensorService::hasSensorAccess(uid_t uid, const String16& opPackageName) {
@@ -680,11 +683,8 @@ void SensorService::disableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
         bool hasAccess = hasSensorAccessLocked(conn->getUid(), conn->getOpPackageName());
         conn->onSensorAccessChanged(hasAccess);
     }
-    mSensors.forEachEntry([](const SensorServiceUtil::SensorList::Entry& e) {
-        e.si->willDisableAllSensors();
-        return true;
-    });
     dev.disableAllSensors();
+    checkAndReportProxStateChangeLocked();
     // Clear all pending flush connections for all active sensors. If one of the active
     // connections has called flush() and the underlying sensor has been disabled before a
     // flush complete event is returned, we need to remove the connection from this queue.
@@ -709,14 +709,11 @@ void SensorService::enableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
     }
     SensorDevice& dev(SensorDevice::getInstance());
     dev.enableAllSensors();
-    mSensors.forEachEntry([](const SensorServiceUtil::SensorList::Entry& e) {
-        e.si->didEnableAllSensors();
-        return true;
-    });
     for (const sp<SensorDirectConnection>& conn : connLock->getDirectConnections()) {
         bool hasAccess = hasSensorAccessLocked(conn->getUid(), conn->getOpPackageName());
         conn->onSensorAccessChanged(hasAccess);
     }
+    checkAndReportProxStateChangeLocked();
 }
 
 void SensorService::capRates(userid_t userId) {
@@ -1538,10 +1535,7 @@ status_t SensorService::resetToNormalModeLocked() {
     if (err == NO_ERROR) {
         mCurrentOperatingMode = NORMAL;
         dev.enableAllSensors();
-        mSensors.forEachEntry([](const SensorServiceUtil::SensorList::Entry& e) {
-            e.si->didEnableAllSensors();
-            return true;
-        });
+        checkAndReportProxStateChangeLocked();
     }
     return err;
 }
@@ -1606,28 +1600,26 @@ void SensorService::cleanupConnection(SensorDirectConnection* c) {
     mConnectionHolder.removeDirectConnection(c);
 }
 
-void SensorService::onProximityActiveLocked(bool isActive) {
-    int prevCount = mProximityActiveCount;
-    bool activeStateChanged = false;
-    if (isActive) {
-        mProximityActiveCount++;
-        activeStateChanged = prevCount == 0;
-    } else {
-        mProximityActiveCount--;
-        if (mProximityActiveCount < 0) {
-            ALOGE("Proximity active count is negative (%d)!", mProximityActiveCount);
-        }
-        activeStateChanged = prevCount > 0 && mProximityActiveCount <= 0;
-    }
+void SensorService::checkAndReportProxStateChangeLocked() {
+    if (mProxSensorHandles.empty()) return;
 
-    if (activeStateChanged) {
-        notifyProximityStateLocked(mProximityActiveListeners);
+    SensorDevice& dev(SensorDevice::getInstance());
+    bool isActive = false;
+    for (auto& sensor : mProxSensorHandles) {
+        if (dev.isSensorActive(sensor)) {
+            isActive = true;
+            break;
+        }
+    }
+    if (isActive != mLastReportedProxIsActive) {
+        notifyProximityStateLocked(isActive, mProximityActiveListeners);
+        mLastReportedProxIsActive = isActive;
     }
 }
 
 void SensorService::notifyProximityStateLocked(
+        const bool isActive,
         const std::vector<sp<ProximityActiveListener>>& listeners) {
-    const bool isActive = mProximityActiveCount > 0;
     const uint64_t mySeq = ++curProxCallbackSeq;
     std::thread t([isActive, mySeq, listenersCopy = listeners]() {
         while (completedCallbackSeq.load() != mySeq - 1)
@@ -1655,7 +1647,7 @@ status_t SensorService::addProximityActiveListener(const sp<ProximityActiveListe
 
     mProximityActiveListeners.push_back(callback);
     std::vector<sp<ProximityActiveListener>> listener(1, callback);
-    notifyProximityStateLocked(listener);
+    notifyProximityStateLocked(mLastReportedProxIsActive, listener);
     return OK;
 }
 

@@ -46,9 +46,8 @@ TEST_F(OnInitializeDisplaysTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
     // We expect a call to get the active display config.
     Case::Display::setupHwcGetActiveConfigCallExpectations(this);
 
-    // We expect invalidate() to be invoked once to trigger display transaction
-    // processing.
-    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+    // We expect a scheduled commit for the display transaction.
+    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
 
     EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
 

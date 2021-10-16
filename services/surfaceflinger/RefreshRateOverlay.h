@@ -46,7 +46,7 @@ public:
     void setLayerStack(ui::LayerStack);
     void setViewport(ui::Size);
     void changeRefreshRate(const Fps&);
-    void onInvalidate();
+    void animate();
 
 private:
     class SevenSegmentDrawer {

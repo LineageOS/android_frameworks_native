@@ -466,9 +466,9 @@ bool DisplayDevice::onKernelTimerChanged(std::optional<DisplayModeId> desiredMod
     return false;
 }
 
-void DisplayDevice::onInvalidate() {
+void DisplayDevice::animateRefreshRateOverlay() {
     if (mRefreshRateOverlay) {
-        mRefreshRateOverlay->onInvalidate();
+        mRefreshRateOverlay->animate();
     }
 }
 

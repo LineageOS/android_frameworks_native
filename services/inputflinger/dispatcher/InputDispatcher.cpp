@@ -116,7 +116,7 @@ private:
 // coordinates and SurfaceFlinger includes the display rotation in the input window transforms.
 bool isPerWindowInputRotationEnabled() {
     static const bool PER_WINDOW_INPUT_ROTATION =
-            sysprop::InputFlingerProperties::per_window_input_rotation().value_or(false);
+            sysprop::InputFlingerProperties::per_window_input_rotation().value_or(true);
 
     return PER_WINDOW_INPUT_ROTATION;
 }

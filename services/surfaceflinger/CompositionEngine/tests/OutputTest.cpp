@@ -24,6 +24,7 @@
 #include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/OutputLayer.h>
 #include <compositionengine/mock/RenderSurface.h>
+#include <ftl/future.h>
 #include <gtest/gtest.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <ui/Rect.h>
@@ -2884,12 +2885,24 @@ TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
     // are passed. This happens to work with the current implementation, but
     // would not survive certain calls like Fence::merge() which would return a
     // new instance.
-    EXPECT_CALL(*mLayer1.layerFE,
-                onLayerDisplayed(Property(&sp<Fence>::get, Eq(layer1Fence.get()))));
-    EXPECT_CALL(*mLayer2.layerFE,
-                onLayerDisplayed(Property(&sp<Fence>::get, Eq(layer2Fence.get()))));
-    EXPECT_CALL(*mLayer3.layerFE,
-                onLayerDisplayed(Property(&sp<Fence>::get, Eq(layer3Fence.get()))));
+    base::unique_fd layer1FD(layer1Fence->dup());
+    base::unique_fd layer2FD(layer2Fence->dup());
+    base::unique_fd layer3FD(layer3Fence->dup());
+    EXPECT_CALL(*mLayer1.layerFE, onLayerDisplayed(_))
+            .WillOnce([&layer1FD](std::shared_future<renderengine::RenderEngineResult>
+                                          futureRenderEngineResult) {
+                EXPECT_EQ(layer1FD, futureRenderEngineResult.get().drawFence);
+            });
+    EXPECT_CALL(*mLayer2.layerFE, onLayerDisplayed(_))
+            .WillOnce([&layer2FD](std::shared_future<renderengine::RenderEngineResult>
+                                          futureRenderEngineResult) {
+                EXPECT_EQ(layer2FD, futureRenderEngineResult.get().drawFence);
+            });
+    EXPECT_CALL(*mLayer3.layerFE, onLayerDisplayed(_))
+            .WillOnce([&layer3FD](std::shared_future<renderengine::RenderEngineResult>
+                                          futureRenderEngineResult) {
+                EXPECT_EQ(layer3FD, futureRenderEngineResult.get().drawFence);
+            });
 
     mOutput.postFramebuffer();
 }
@@ -2915,9 +2928,9 @@ TEST_F(OutputPostFramebufferTest, releaseFencesIncludeClientTargetAcquireFence) 
     // Fence::merge is called, and since none of the fences are actually valid,
     // Fence::NO_FENCE is returned and passed to each onLayerDisplayed() call.
     // This is the best we can do without creating a real kernel fence object.
-    EXPECT_CALL(*mLayer1.layerFE, onLayerDisplayed(Fence::NO_FENCE));
-    EXPECT_CALL(*mLayer2.layerFE, onLayerDisplayed(Fence::NO_FENCE));
-    EXPECT_CALL(*mLayer3.layerFE, onLayerDisplayed(Fence::NO_FENCE));
+    EXPECT_CALL(*mLayer1.layerFE, onLayerDisplayed).WillOnce(Return());
+    EXPECT_CALL(*mLayer2.layerFE, onLayerDisplayed).WillOnce(Return());
+    EXPECT_CALL(*mLayer3.layerFE, onLayerDisplayed).WillOnce(Return());
 
     mOutput.postFramebuffer();
 }
@@ -2949,12 +2962,22 @@ TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 
     // Each released layer should be given the presentFence.
-    EXPECT_CALL(*releasedLayer1,
-                onLayerDisplayed(Property(&sp<Fence>::get, Eq(presentFence.get()))));
-    EXPECT_CALL(*releasedLayer2,
-                onLayerDisplayed(Property(&sp<Fence>::get, Eq(presentFence.get()))));
-    EXPECT_CALL(*releasedLayer3,
-                onLayerDisplayed(Property(&sp<Fence>::get, Eq(presentFence.get()))));
+    base::unique_fd layerFD(presentFence.get()->dup());
+    EXPECT_CALL(*releasedLayer1, onLayerDisplayed(_))
+            .WillOnce([&layerFD](std::shared_future<renderengine::RenderEngineResult>
+                                         futureRenderEngineResult) {
+                EXPECT_EQ(layerFD, futureRenderEngineResult.get().drawFence);
+            });
+    EXPECT_CALL(*releasedLayer2, onLayerDisplayed(_))
+            .WillOnce([&layerFD](std::shared_future<renderengine::RenderEngineResult>
+                                         futureRenderEngineResult) {
+                EXPECT_EQ(layerFD, futureRenderEngineResult.get().drawFence);
+            });
+    EXPECT_CALL(*releasedLayer3, onLayerDisplayed(_))
+            .WillOnce([&layerFD](std::shared_future<renderengine::RenderEngineResult>
+                                         futureRenderEngineResult) {
+                EXPECT_EQ(layerFD, futureRenderEngineResult.get().drawFence);
+            });
 
     mOutput.postFramebuffer();
 
@@ -3131,9 +3154,9 @@ TEST_F(OutputComposeSurfacesTest, handlesZeroCompositionRequests) {
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
     EXPECT_CALL(mRenderEngine, drawLayers(_, IsEmpty(), _, false, _))
             .WillRepeatedly([&](const renderengine::DisplaySettings&,
-                                const std::vector<const renderengine::LayerSettings*>&,
+                                const std::vector<renderengine::LayerSettings>&,
                                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                                base::unique_fd &&)
+                                base::unique_fd&&)
                                     -> std::future<renderengine::RenderEngineResult> {
                 return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
             });
@@ -3161,11 +3184,11 @@ TEST_F(OutputComposeSurfacesTest, buildsAndRendersRequestList) {
                     }));
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, false, _))
             .WillRepeatedly([&](const renderengine::DisplaySettings&,
-                                const std::vector<const renderengine::LayerSettings*>&,
+                                const std::vector<renderengine::LayerSettings>&,
                                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                                base::unique_fd &&)
+                                base::unique_fd&&)
                                     -> std::future<renderengine::RenderEngineResult> {
                 return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
             });
@@ -3196,11 +3219,11 @@ TEST_F(OutputComposeSurfacesTest,
                     }));
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, true, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, true, _))
             .WillRepeatedly([&](const renderengine::DisplaySettings&,
-                                const std::vector<const renderengine::LayerSettings*>&,
+                                const std::vector<renderengine::LayerSettings>&,
                                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                                base::unique_fd &&)
+                                base::unique_fd&&)
                                     -> std::future<renderengine::RenderEngineResult> {
                 return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
             });
@@ -3226,7 +3249,7 @@ TEST_F(OutputComposeSurfacesTest, renderDuplicateClientCompositionRequestsWithou
             .WillRepeatedly(Return());
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, false, _))
             .Times(2)
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))))
@@ -3258,7 +3281,7 @@ TEST_F(OutputComposeSurfacesTest, skipDuplicateClientCompositionRequests) {
             .WillRepeatedly(Return());
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, false, _))
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false));
@@ -3294,11 +3317,11 @@ TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChanges) {
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_))
             .WillOnce(Return(mOutputBuffer))
             .WillOnce(Return(otherOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, false, _))
             .WillRepeatedly([&](const renderengine::DisplaySettings&,
-                                const std::vector<const renderengine::LayerSettings*>&,
+                                const std::vector<renderengine::LayerSettings>&,
                                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                                base::unique_fd &&)
+                                base::unique_fd&&)
                                     -> std::future<renderengine::RenderEngineResult> {
                 return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
             });
@@ -3330,10 +3353,10 @@ TEST_F(OutputComposeSurfacesTest, clientCompositionIfRequestChanges) {
             .WillRepeatedly(Return());
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, false, _))
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r3)), _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r3), _, false, _))
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
 
@@ -3487,9 +3510,9 @@ struct OutputComposeSurfacesTest_HandlesProtectedContent : public OutputComposeS
         EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _))
                 .WillRepeatedly(
                         [&](const renderengine::DisplaySettings&,
-                            const std::vector<const renderengine::LayerSettings*>&,
+                            const std::vector<renderengine::LayerSettings>&,
                             const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                            base::unique_fd &&) -> std::future<renderengine::RenderEngineResult> {
+                            base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
                             return futureOf<renderengine::RenderEngineResult>(
                                     {NO_ERROR, base::unique_fd()});
                         });
