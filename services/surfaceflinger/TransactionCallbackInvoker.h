@@ -76,7 +76,7 @@ public:
 
     void addPresentFence(const sp<Fence>& presentFence);
 
-    void sendCallbacks();
+    void sendCallbacks(bool onCommitOnly);
     void clearCompletedTransactions() {
         mCompletedTransactions.clear();
     }
@@ -86,11 +86,9 @@ public:
 
 
 private:
-    status_t findTransactionStats(const sp<IBinder>& listener,
-                                  const std::vector<CallbackId>& callbackIds,
-                                  TransactionStats** outTransactionStats);
-
-
+    status_t findOrCreateTransactionStats(const sp<IBinder>& listener,
+                                          const std::vector<CallbackId>& callbackIds,
+                                          TransactionStats** outTransactionStats);
 
     std::unordered_map<sp<IBinder>, std::deque<TransactionStats>, IListenerHash>
         mCompletedTransactions;
