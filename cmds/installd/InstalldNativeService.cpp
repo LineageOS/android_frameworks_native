@@ -25,6 +25,7 @@
 #include <functional>
 #include <inttypes.h>
 #include <regex>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/capability.h>
@@ -281,36 +282,31 @@ status_t InstalldNativeService::start() {
 }
 
 status_t InstalldNativeService::dump(int fd, const Vector<String16> & /* args */) {
-    auto out = std::fstream(StringPrintf("/proc/self/fd/%d", fd));
     const binder::Status dump_permission = checkPermission(kDump);
     if (!dump_permission.isOk()) {
-        out << dump_permission.toString8() << endl;
+        dprintf(fd, "%s\n", dump_permission.toString8().c_str());
         return PERMISSION_DENIED;
     }
-    std::lock_guard<std::recursive_mutex> lock(mLock);
 
-    out << "installd is happy!" << endl;
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     {
         std::lock_guard<std::recursive_mutex> lock(mMountsLock);
-        out << endl << "Storage mounts:" << endl;
+        dprintf(fd, "Storage mounts:\n");
         for (const auto& n : mStorageMounts) {
-            out << "    " << n.first << " = " << n.second << endl;
+            dprintf(fd, "    %s = %s\n", n.first.c_str(), n.second.c_str());
         }
     }
 
     {
         std::lock_guard<std::recursive_mutex> lock(mQuotasLock);
-        out << endl << "Per-UID cache quotas:" << endl;
+        dprintf(fd, "Per-UID cache quotas:\n");
         for (const auto& n : mCacheQuotas) {
-            out << "    " << n.first << " = " << n.second << endl;
+            dprintf(fd, "    %d = %" PRId64 "\n", n.first, n.second);
         }
     }
 
-    out << "is_dexopt_blocked:" << android::installd::is_dexopt_blocked() << endl;
-
-    out << endl;
-    out.flush();
+    dprintf(fd, "is_dexopt_blocked:%d\n", android::installd::is_dexopt_blocked());
 
     return NO_ERROR;
 }
