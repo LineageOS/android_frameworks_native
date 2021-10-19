@@ -56,13 +56,8 @@ float transformAngle(const ui::Transform& transform, float angleRadians) {
     transformedPoint.y -= origin.y;
 
     // Derive the transformed vector's clockwise angle from vertical.
-    float result = atan2f(transformedPoint.x, -transformedPoint.y);
-    if (result < -M_PI_2) {
-        result += M_PI;
-    } else if (result > M_PI_2) {
-        result -= M_PI;
-    }
-    return result;
+    // The return value of atan2f is in range [-pi, pi] which conforms to the orientation API.
+    return atan2f(transformedPoint.x, -transformedPoint.y);
 }
 
 vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy) {
