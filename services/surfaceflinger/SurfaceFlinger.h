@@ -1344,7 +1344,7 @@ private:
             GUARDED_BY(mStateLock);
     mutable Mutex mCreatedLayersLock;
     struct LayerCreatedState {
-        LayerCreatedState(const wp<Layer>& layer, const wp<IBinder>& parent,
+        LayerCreatedState(const wp<Layer>& layer, const sp<IBinder>& parent,
                           const wp<Layer> parentLayer, const wp<IBinder>& producer, bool addToRoot)
               : layer(layer),
                 initialParent(parent),
@@ -1354,7 +1354,7 @@ private:
         wp<Layer> layer;
         // Indicates the initial parent of the created layer, only used for creating layer in
         // SurfaceFlinger. If nullptr, it may add the created layer into the current root layers.
-        wp<IBinder> initialParent;
+        sp<IBinder> initialParent;
         wp<Layer> initialParentLayer;
         // Indicates the initial graphic buffer producer of the created layer, only used for
         // creating layer in SurfaceFlinger.
@@ -1369,7 +1369,7 @@ private:
     // thread.
     std::unordered_map<BBinder*, std::unique_ptr<LayerCreatedState>> mCreatedLayers;
     void setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
-                              const wp<IBinder>& parent, const wp<Layer> parentLayer,
+                              const sp<IBinder>& parent, const wp<Layer> parentLayer,
                               const wp<IBinder>& producer, bool addToRoot);
     auto getLayerCreatedState(const sp<IBinder>& handle);
     sp<Layer> handleLayerCreatedLocked(const sp<IBinder>& handle) REQUIRES(mStateLock);
