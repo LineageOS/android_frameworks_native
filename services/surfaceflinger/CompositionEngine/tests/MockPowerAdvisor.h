@@ -29,11 +29,21 @@ public:
     PowerAdvisor();
     ~PowerAdvisor() override;
 
-    MOCK_METHOD0(init, void());
-    MOCK_METHOD0(onBootFinished, void());
-    MOCK_METHOD2(setExpensiveRenderingExpected, void(DisplayId displayId, bool expected));
-    MOCK_METHOD0(isUsingExpensiveRendering, bool());
-    MOCK_METHOD0(notifyDisplayUpdateImminent, void());
+    MOCK_METHOD(void, init, (), (override));
+    MOCK_METHOD(void, onBootFinished, (), (override));
+    MOCK_METHOD(void, setExpensiveRenderingExpected, (DisplayId displayId, bool expected),
+                (override));
+    MOCK_METHOD(bool, isUsingExpensiveRendering, (), (override));
+    MOCK_METHOD(void, notifyDisplayUpdateImminent, (), (override));
+    MOCK_METHOD(bool, usePowerHintSession, (), (override));
+    MOCK_METHOD(bool, supportsPowerHintSession, (), (override));
+    MOCK_METHOD(bool, isPowerHintSessionRunning, (), (override));
+    MOCK_METHOD(void, setTargetWorkDuration, (int64_t targetDurationNanos), (override));
+    MOCK_METHOD(void, setPowerHintSessionThreadIds, (const std::vector<int32_t>& threadIds),
+                (override));
+    MOCK_METHOD(void, sendActualWorkDuration, (int64_t actualDurationNanos, nsecs_t timestamp),
+                (override));
+    MOCK_METHOD(void, enablePowerHint, (bool enabled), (override));
 };
 
 } // namespace mock

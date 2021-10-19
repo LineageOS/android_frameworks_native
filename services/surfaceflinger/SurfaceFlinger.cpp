@@ -709,6 +709,7 @@ void SurfaceFlinger::bootFinished() {
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
 
     mFlagManager = std::make_unique<android::FlagManager>();
+    mPowerAdvisor.enablePowerHint(mFlagManager->use_adpf_cpu_hint());
     mFrameTracer->initialize();
     mFrameTimeline->onBootFinished();
 
