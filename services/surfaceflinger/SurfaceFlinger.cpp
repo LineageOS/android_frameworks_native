@@ -6804,7 +6804,7 @@ void TransactionState::traverseStatesWithBuffers(
 }
 
 void SurfaceFlinger::setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
-                                          const wp<IBinder>& parent, const wp<Layer> parentLayer,
+                                          const sp<IBinder>& parent, const wp<Layer> parentLayer,
                                           const wp<IBinder>& producer, bool addToRoot) {
     Mutex::Autolock lock(mCreatedLayersLock);
     mCreatedLayers[handle->localBinder()] =
@@ -6848,9 +6848,9 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
     sp<Layer> parent;
     bool allowAddRoot = state->addToRoot;
     if (state->initialParent != nullptr) {
-        parent = fromHandle(state->initialParent.promote()).promote();
+        parent = fromHandle(state->initialParent).promote();
         if (parent == nullptr) {
-            ALOGE("Invalid parent %p", state->initialParent.unsafe_get());
+            ALOGE("Invalid parent %p", state->initialParent.get());
             allowAddRoot = false;
         }
     } else if (state->initialParentLayer != nullptr) {
