@@ -40,6 +40,13 @@ public:
     virtual void setExpensiveRenderingExpected(DisplayId displayId, bool expected) = 0;
     virtual bool isUsingExpensiveRendering() = 0;
     virtual void notifyDisplayUpdateImminent() = 0;
+    virtual bool usePowerHintSession() = 0;
+    virtual bool supportsPowerHintSession() = 0;
+    virtual bool isPowerHintSessionRunning() = 0;
+    virtual void setTargetWorkDuration(int64_t targetDurationNanos) = 0;
+    virtual void setPowerHintSessionThreadIds(const std::vector<int32_t>& threadIds) = 0;
+    virtual void sendActualWorkDuration(int64_t actualDurationNanos, nsecs_t timestamp) = 0;
+    virtual void enablePowerHint(bool enabled) = 0;
 };
 
 namespace impl {
@@ -54,6 +61,17 @@ public:
 
         virtual bool setExpensiveRendering(bool enabled) = 0;
         virtual bool notifyDisplayUpdateImminent() = 0;
+        virtual bool supportsPowerHintSession() = 0;
+        virtual bool isPowerHintSessionRunning() = 0;
+        virtual void restartPowerHintSession() = 0;
+        virtual void setPowerHintSessionThreadIds(const std::vector<int32_t>& threadIds) = 0;
+        virtual bool startPowerHintSession() = 0;
+        virtual void setTargetWorkDuration(int64_t targetDurationNanos) = 0;
+        virtual void sendActualWorkDuration(int64_t actualDurationNanos,
+                                            nsecs_t timeStampNanos) = 0;
+        virtual bool shouldReconnectHAL() = 0;
+        virtual std::vector<int32_t> getPowerHintSessionThreadIds() = 0;
+        virtual std::optional<int64_t> getTargetWorkDuration() = 0;
     };
 
     PowerAdvisor(SurfaceFlinger& flinger);
@@ -62,8 +80,15 @@ public:
     void init() override;
     void onBootFinished() override;
     void setExpensiveRenderingExpected(DisplayId displayId, bool expected) override;
-    bool isUsingExpensiveRendering() override { return mNotifiedExpensiveRendering; }
+    bool isUsingExpensiveRendering() override { return mNotifiedExpensiveRendering; };
     void notifyDisplayUpdateImminent() override;
+    bool usePowerHintSession() override;
+    bool supportsPowerHintSession() override;
+    bool isPowerHintSessionRunning() override;
+    void setTargetWorkDuration(int64_t targetDurationNanos) override;
+    void setPowerHintSessionThreadIds(const std::vector<int32_t>& threadIds) override;
+    void sendActualWorkDuration(int64_t actualDurationNanos, nsecs_t timestamp) override;
+    void enablePowerHint(bool enabled) override;
 
 private:
     HalWrapper* getPowerHal() REQUIRES(mPowerHalMutex);
@@ -71,6 +96,9 @@ private:
     std::mutex mPowerHalMutex;
 
     std::atomic_bool mBootFinished = false;
+    std::optional<bool> mPowerHintEnabled;
+    std::optional<bool> mSupportsPowerHint;
+    bool mPowerHintSessionRunning = false;
 
     std::unordered_set<DisplayId> mExpensiveDisplays;
     bool mNotifiedExpensiveRendering = false;

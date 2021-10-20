@@ -38,11 +38,6 @@
 #include "DumpPool.h"
 #include "TaskQueue.h"
 
-// Workaround for const char *args[MAX_ARGS_ARRAY_SIZE] variables until they're converted to
-// std::vector<std::string>
-// TODO: remove once not used
-#define MAX_ARGS_ARRAY_SIZE 1000
-
 // TODO: move everything under this namespace
 // TODO: and then remove explicitly android::os::dumpstate:: prefixes
 namespace android {

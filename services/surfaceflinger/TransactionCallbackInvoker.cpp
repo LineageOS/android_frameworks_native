@@ -121,7 +121,7 @@ status_t TransactionCallbackInvoker::registerUnpresentedCallbackHandle(
     return addCallbackHandle(handle, std::vector<JankData>());
 }
 
-status_t TransactionCallbackInvoker::findTransactionStats(
+status_t TransactionCallbackInvoker::findOrCreateTransactionStats(
         const sp<IBinder>& listener, const std::vector<CallbackId>& callbackIds,
         TransactionStats** outTransactionStats) {
     auto& transactionStatsDeque = mCompletedTransactions[listener];
@@ -143,7 +143,8 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
     // If we can't find the transaction stats something has gone wrong. The client should call
     // startRegistration before trying to add a callback handle.
     TransactionStats* transactionStats;
-    status_t err = findTransactionStats(handle->listener, handle->callbackIds, &transactionStats);
+    status_t err =
+            findOrCreateTransactionStats(handle->listener, handle->callbackIds, &transactionStats);
     if (err != NO_ERROR) {
         return err;
     }
@@ -204,7 +205,7 @@ void TransactionCallbackInvoker::addPresentFence(const sp<Fence>& presentFence) 
     mPresentFence = presentFence;
 }
 
-void TransactionCallbackInvoker::sendCallbacks() {
+void TransactionCallbackInvoker::sendCallbacks(bool onCommitOnly) {
     // For each listener
     auto completedTransactionsItr = mCompletedTransactions.begin();
     while (completedTransactionsItr != mCompletedTransactions.end()) {
@@ -216,6 +217,10 @@ void TransactionCallbackInvoker::sendCallbacks() {
         auto transactionStatsItr = transactionStatsDeque.begin();
         while (transactionStatsItr != transactionStatsDeque.end()) {
             auto& transactionStats = *transactionStatsItr;
+            if (onCommitOnly && !containsOnCommitCallbacks(transactionStats.callbackIds)) {
+                transactionStatsItr++;
+                continue;
+            }
 
             // If the transaction has been latched
             if (transactionStats.latchTime >= 0 &&
