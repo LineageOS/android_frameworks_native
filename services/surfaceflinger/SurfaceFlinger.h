@@ -712,7 +712,7 @@ private:
     /*
      * Transactions
      */
-    void applyTransactionState(const FrameTimelineInfo& info, const Vector<ComposerState>& state,
+    bool applyTransactionState(const FrameTimelineInfo& info, const Vector<ComposerState>& state,
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
                                const int64_t desiredPresentTime, bool isAutoTimestamp,
@@ -722,15 +722,13 @@ private:
                                int originPid, int originUid, uint64_t transactionId)
             REQUIRES(mStateLock);
     // flush pending transaction that was presented after desiredPresentTime.
-    void flushTransactionQueues();
+    bool flushTransactionQueues();
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
 
     uint32_t setClientStateLocked(const FrameTimelineInfo&, const ComposerState&,
                                   int64_t desiredPresentTime, bool isAutoTimestamp,
-                                  int64_t postTime, uint32_t permissions,
-                                  std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>&)
-            REQUIRES(mStateLock);
+                                  int64_t postTime, uint32_t permissions) REQUIRES(mStateLock);
 
     uint32_t getTransactionFlags() const;
 
@@ -1115,7 +1113,6 @@ private:
     std::vector<std::shared_ptr<CountDownLatch>> mTransactionCommittedSignals;
     bool mAnimTransactionPending = false;
     SortedVector<sp<Layer>> mLayersPendingRemoval;
-    bool mForceTraversal = false;
 
     // global color transform states
     Daltonizer mDaltonizer;

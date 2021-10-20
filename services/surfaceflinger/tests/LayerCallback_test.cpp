@@ -1029,4 +1029,60 @@ TEST_F(LayerCallbackTest, ExpectedPresentTime) {
     EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
 }
 
+// b202394221
+TEST_F(LayerCallbackTest, EmptyBufferStateChanges) {
+    sp<SurfaceControl> bufferLayer, emptyBufferLayer;
+    ASSERT_NO_FATAL_FAILURE(bufferLayer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(emptyBufferLayer = createBufferStateLayer());
+
+    Transaction transaction;
+    CallbackHelper callback;
+    for (size_t i = 0; i < 10; i++) {
+        int err = fillTransaction(transaction, &callback, bufferLayer);
+        if (err) {
+            GTEST_SUCCEED() << "test not supported";
+            return;
+        }
+
+        ui::Size bufferSize = getBufferSize();
+
+        TransactionUtils::setFrame(transaction, bufferLayer,
+                                   Rect(0, 0, bufferSize.width, bufferSize.height),
+                                   Rect(0, 0, 32, 32));
+        transaction.setPosition(emptyBufferLayer, 1 + i, 2 + i);
+        transaction.apply();
+
+        ExpectedResult expected;
+        expected.addSurface(ExpectedResult::Transaction::PRESENTED, bufferLayer,
+                            ExpectedResult::Buffer::ACQUIRED,
+                            (i == 0) ? ExpectedResult::PreviousBuffer::NOT_RELEASED
+                                     : ExpectedResult::PreviousBuffer::RELEASED);
+        expected.addSurface(ExpectedResult::Transaction::PRESENTED, emptyBufferLayer,
+                            ExpectedResult::Buffer::NOT_ACQUIRED,
+                            ExpectedResult::PreviousBuffer::NOT_RELEASED);
+
+        EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected));
+    }
+    ASSERT_NO_FATAL_FAILURE(callback.verifyFinalState());
+}
+
+// b202394221
+TEST_F(LayerCallbackTest, DISABLED_NonBufferLayerStateChanges) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createColorLayer("ColorLayer", Color::RED));
+
+    Transaction transaction;
+    CallbackHelper callback;
+    int err = fillTransaction(transaction, &callback);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+    transaction.setPosition(layer, 1, 2);
+    transaction.apply();
+
+    ExpectedResult expected;
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
+}
+
 } // namespace android
