@@ -206,14 +206,14 @@ std::optional<Fps> Scheduler::getFrameRateOverride(uid_t uid) const {
     {
         const auto iter = mFrameRateOverridesFromBackdoor.find(uid);
         if (iter != mFrameRateOverridesFromBackdoor.end()) {
-            return std::make_optional<Fps>(iter->second);
+            return iter->second;
         }
     }
 
     {
         const auto iter = mFrameRateOverridesByContent.find(uid);
         if (iter != mFrameRateOverridesByContent.end()) {
-            return std::make_optional<Fps>(iter->second);
+            return iter->second;
         }
     }
 
@@ -699,15 +699,16 @@ void Scheduler::kernelIdleTimerCallback(TimerState state) {
         return mRefreshRateConfigs->getCurrentRefreshRate();
     }();
 
-    constexpr Fps FPS_THRESHOLD_FOR_KERNEL_TIMER{65.0f};
-    if (state == TimerState::Reset &&
-        refreshRate.getFps().greaterThanWithMargin(FPS_THRESHOLD_FOR_KERNEL_TIMER)) {
+    constexpr Fps FPS_THRESHOLD_FOR_KERNEL_TIMER = 65_Hz;
+    using namespace fps_approx_ops;
+
+    if (state == TimerState::Reset && refreshRate.getFps() > FPS_THRESHOLD_FOR_KERNEL_TIMER) {
         // If we're not in performance mode then the kernel timer shouldn't do
         // anything, as the refresh rate during DPU power collapse will be the
         // same.
         resyncToHardwareVsync(true /* makeAvailable */, refreshRate.getVsyncPeriod());
     } else if (state == TimerState::Expired &&
-               refreshRate.getFps().lessThanOrEqualWithMargin(FPS_THRESHOLD_FOR_KERNEL_TIMER)) {
+               refreshRate.getFps() <= FPS_THRESHOLD_FOR_KERNEL_TIMER) {
         // Disable HW VSYNC if the timer expired, as we don't need it enabled if
         // we're not pushing frames, and if we're in PERFORMANCE mode then we'll
         // need to update the VsyncController model anyway.
@@ -790,13 +791,12 @@ bool Scheduler::updateFrameRateOverrides(
     if (!consideredSignals.idle) {
         const auto frameRateOverrides =
                 refreshRateConfigs->getFrameRateOverrides(mFeatures.contentRequirements,
-                                                          displayRefreshRate,
-                                                          consideredSignals.touch);
+                                                          displayRefreshRate, consideredSignals);
         std::lock_guard lock(mFrameRateOverridesLock);
         if (!std::equal(mFrameRateOverridesByContent.begin(), mFrameRateOverridesByContent.end(),
                         frameRateOverrides.begin(), frameRateOverrides.end(),
-                        [](const std::pair<uid_t, Fps>& a, const std::pair<uid_t, Fps>& b) {
-                            return a.first == b.first && a.second.equalsWithMargin(b.second);
+                        [](const auto& lhs, const auto& rhs) {
+                            return lhs.first == rhs.first && isApproxEqual(lhs.second, rhs.second);
                         })) {
             mFrameRateOverridesByContent = frameRateOverrides;
             return true;
@@ -921,7 +921,8 @@ void Scheduler::setPreferredRefreshRateForUid(FrameRateOverride frameRateOverrid
 
     std::lock_guard lock(mFrameRateOverridesLock);
     if (frameRateOverride.frameRateHz != 0.f) {
-        mFrameRateOverridesFromBackdoor[frameRateOverride.uid] = Fps(frameRateOverride.frameRateHz);
+        mFrameRateOverridesFromBackdoor[frameRateOverride.uid] =
+                Fps::fromValue(frameRateOverride.frameRateHz);
     } else {
         mFrameRateOverridesFromBackdoor.erase(frameRateOverride.uid);
     }

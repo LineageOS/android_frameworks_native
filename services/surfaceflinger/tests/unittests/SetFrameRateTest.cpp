@@ -29,6 +29,7 @@
 #include "Layer.h"
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
+#include "FpsOps.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/MockEventThread.h"
@@ -96,12 +97,11 @@ std::string PrintToStringParamName(
  */
 class SetFrameRateTest : public ::testing::TestWithParam<std::shared_ptr<LayerFactory>> {
 protected:
-    const FrameRate FRAME_RATE_VOTE1 = FrameRate(Fps(67.f), FrameRateCompatibility::Default);
-    const FrameRate FRAME_RATE_VOTE2 =
-            FrameRate(Fps(14.f), FrameRateCompatibility::ExactOrMultiple);
-    const FrameRate FRAME_RATE_VOTE3 = FrameRate(Fps(99.f), FrameRateCompatibility::NoVote);
-    const FrameRate FRAME_RATE_TREE = FrameRate(Fps(0.f), FrameRateCompatibility::NoVote);
-    const FrameRate FRAME_RATE_NO_VOTE = FrameRate(Fps(0.f), FrameRateCompatibility::Default);
+    const FrameRate FRAME_RATE_VOTE1 = FrameRate(67_Hz, FrameRateCompatibility::Default);
+    const FrameRate FRAME_RATE_VOTE2 = FrameRate(14_Hz, FrameRateCompatibility::ExactOrMultiple);
+    const FrameRate FRAME_RATE_VOTE3 = FrameRate(99_Hz, FrameRateCompatibility::NoVote);
+    const FrameRate FRAME_RATE_TREE = FrameRate(Fps(), FrameRateCompatibility::NoVote);
+    const FrameRate FRAME_RATE_NO_VOTE = FrameRate(Fps(), FrameRateCompatibility::Default);
 
     SetFrameRateTest();
 
@@ -172,9 +172,7 @@ void SetFrameRateTest::setupScheduler() {
 }
 
 namespace {
-/* ------------------------------------------------------------------------
- * Test cases
- */
+
 TEST_P(SetFrameRateTest, SetAndGet) {
     EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
 
@@ -470,8 +468,8 @@ TEST_P(SetFrameRateTest, SetOnParentActivatesTree) {
                     .mutableLayerHistory()
                     ->summarize(*mFlinger.mutableScheduler().refreshRateConfigs(), 0);
     ASSERT_EQ(2u, layerHistorySummary.size());
-    EXPECT_TRUE(FRAME_RATE_VOTE1.rate.equalsWithMargin(layerHistorySummary[0].desiredRefreshRate));
-    EXPECT_TRUE(FRAME_RATE_VOTE1.rate.equalsWithMargin(layerHistorySummary[1].desiredRefreshRate));
+    EXPECT_EQ(FRAME_RATE_VOTE1.rate, layerHistorySummary[0].desiredRefreshRate);
+    EXPECT_EQ(FRAME_RATE_VOTE1.rate, layerHistorySummary[1].desiredRefreshRate);
 }
 
 TEST_P(SetFrameRateTest, addChildForParentWithTreeVote) {

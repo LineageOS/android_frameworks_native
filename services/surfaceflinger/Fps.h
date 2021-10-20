@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,94 +19,110 @@
 #include <cmath>
 #include <ostream>
 #include <string>
+#include <type_traits>
 
 #include <android-base/stringprintf.h>
 #include <utils/Timers.h>
 
 namespace android {
 
-// Value which represents "frames per second". This class is a wrapper around
-// float, providing some useful utilities, such as comparisons with tolerance
-// and converting between period duration and frequency.
+// Frames per second, stored as floating-point frequency. Provides conversion from/to period in
+// nanoseconds, and relational operators with precision threshold.
+//
+//     const Fps fps = 60_Hz;
+//
+//     using namespace fps_approx_ops;
+//     assert(fps == Fps::fromPeriodNsecs(16'666'667));
+//
 class Fps {
 public:
-    static constexpr Fps fromPeriodNsecs(nsecs_t period) { return Fps(1e9f / period, period); }
+    constexpr Fps() = default;
 
-    Fps() = default;
-    explicit constexpr Fps(float fps)
-          : fps(fps), period(fps == 0.0f ? 0 : static_cast<nsecs_t>(1e9f / fps)) {}
-
-    constexpr float getValue() const { return fps; }
-
-    constexpr nsecs_t getPeriodNsecs() const { return period; }
-
-    bool equalsWithMargin(const Fps& other) const { return std::abs(fps - other.fps) < kMargin; }
-
-    // DO NOT use for std::sort. Instead use comparesLess().
-    bool lessThanWithMargin(const Fps& other) const { return fps + kMargin < other.fps; }
-
-    bool greaterThanWithMargin(const Fps& other) const { return fps > other.fps + kMargin; }
-
-    bool lessThanOrEqualWithMargin(const Fps& other) const { return !greaterThanWithMargin(other); }
-
-    bool greaterThanOrEqualWithMargin(const Fps& other) const { return !lessThanWithMargin(other); }
-
-    bool isValid() const { return fps > 0.0f; }
-
-    int getIntValue() const { return static_cast<int>(std::round(fps)); }
-
-    // Use this comparator for sorting. Using a comparator with margins can
-    // cause std::sort to crash.
-    inline static bool comparesLess(const Fps& left, const Fps& right) {
-        return left.fps < right.fps;
+    static constexpr Fps fromValue(float frequency) {
+        return frequency > 0.f ? Fps(frequency, static_cast<nsecs_t>(1e9f / frequency)) : Fps();
     }
 
-    // Compares two FPS with margin.
-    // Transitivity is not guaranteed, i.e. a==b and b==c doesn't imply a==c.
-    // DO NOT use with hash maps. Instead use EqualsInBuckets.
-    struct EqualsWithMargin {
-        bool operator()(const Fps& left, const Fps& right) const {
-            return left.equalsWithMargin(right);
-        }
-    };
-
-    // Equals comparator which can be used with hash maps.
-    // It's guaranteed that if two elements are equal, then their hashes are equal.
-    struct EqualsInBuckets {
-        bool operator()(const Fps& left, const Fps& right) const {
-            return left.getBucket() == right.getBucket();
-        }
-    };
-
-    inline friend std::string to_string(const Fps& fps) {
-        return base::StringPrintf("%.2ffps", fps.fps);
+    static constexpr Fps fromPeriodNsecs(nsecs_t period) {
+        return period > 0 ? Fps(1e9f / period, period) : Fps();
     }
 
-    inline friend std::ostream& operator<<(std::ostream& os, const Fps& fps) {
-        return os << to_string(fps);
-    }
+    constexpr bool isValid() const { return mFrequency > 0.f; }
+
+    constexpr float getValue() const { return mFrequency; }
+    int getIntValue() const { return static_cast<int>(std::round(mFrequency)); }
+
+    constexpr nsecs_t getPeriodNsecs() const { return mPeriod; }
 
 private:
-    friend std::hash<android::Fps>;
+    constexpr Fps(float frequency, nsecs_t period) : mFrequency(frequency), mPeriod(period) {}
 
-    constexpr Fps(float fps, nsecs_t period) : fps(fps), period(period) {}
-
-    float getBucket() const { return std::round(fps / kMargin); }
-
-    static constexpr float kMargin = 0.001f;
-    float fps = 0;
-    nsecs_t period = 0;
+    float mFrequency = 0.f;
+    nsecs_t mPeriod = 0;
 };
 
 static_assert(std::is_trivially_copyable_v<Fps>);
 
-} // namespace android
+constexpr Fps operator""_Hz(unsigned long long frequency) {
+    return Fps::fromValue(static_cast<float>(frequency));
+}
 
-namespace std {
-template <>
-struct hash<android::Fps> {
-    std::size_t operator()(const android::Fps& fps) const {
-        return std::hash<float>()(fps.getBucket());
-    }
+constexpr Fps operator""_Hz(long double frequency) {
+    return Fps::fromValue(static_cast<float>(frequency));
+}
+
+inline bool isStrictlyLess(Fps lhs, Fps rhs) {
+    return lhs.getValue() < rhs.getValue();
+}
+
+// Does not satisfy equivalence relation.
+inline bool isApproxEqual(Fps lhs, Fps rhs) {
+    // TODO(b/185536303): Replace with ULP distance.
+    return std::abs(lhs.getValue() - rhs.getValue()) < 0.001f;
+}
+
+// Does not satisfy strict weak order.
+inline bool isApproxLess(Fps lhs, Fps rhs) {
+    return isStrictlyLess(lhs, rhs) && !isApproxEqual(lhs, rhs);
+}
+
+namespace fps_approx_ops {
+
+inline bool operator==(Fps lhs, Fps rhs) {
+    return isApproxEqual(lhs, rhs);
+}
+
+inline bool operator<(Fps lhs, Fps rhs) {
+    return isApproxLess(lhs, rhs);
+}
+
+inline bool operator!=(Fps lhs, Fps rhs) {
+    return !isApproxEqual(lhs, rhs);
+}
+
+inline bool operator>(Fps lhs, Fps rhs) {
+    return isApproxLess(rhs, lhs);
+}
+
+inline bool operator<=(Fps lhs, Fps rhs) {
+    return !isApproxLess(rhs, lhs);
+}
+
+inline bool operator>=(Fps lhs, Fps rhs) {
+    return !isApproxLess(lhs, rhs);
+}
+
+} // namespace fps_approx_ops
+
+struct FpsApproxEqual {
+    bool operator()(Fps lhs, Fps rhs) const { return isApproxEqual(lhs, rhs); }
 };
-} // namespace std
+
+inline std::string to_string(Fps fps) {
+    return base::StringPrintf("%.2f Hz", fps.getValue());
+}
+
+inline std::ostream& operator<<(std::ostream& stream, Fps fps) {
+    return stream << to_string(fps);
+}
+
+} // namespace android

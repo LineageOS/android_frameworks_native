@@ -559,7 +559,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsDisplayMiss) {
 }
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMiss) {
-    Fps refreshRate = Fps(11.0);
+    Fps refreshRate = 11_Hz;
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(TimeStats::JankyFramesInfo{refreshRate, std::nullopt, sUidOne,
                                                                 sLayerNameOne, sGameMode,

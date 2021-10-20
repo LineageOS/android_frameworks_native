@@ -344,7 +344,7 @@ public:
         // Both the droppedSurfaceFrame and presentedSurfaceFrame should be in
         // pendingJankClassifications.
         EXPECT_EQ(2u, layer->mPendingJankClassifications.size());
-        presentedSurfaceFrame->onPresent(20, JankType::None, Fps::fromPeriodNsecs(11),
+        presentedSurfaceFrame->onPresent(20, JankType::None, 90_Hz,
                                          /*displayDeadlineDelta*/ 0, /*displayPresentDelta*/ 0);
         layer->releasePendingBuffer(25);
 
@@ -462,10 +462,10 @@ public:
         // BufferlessSurfaceFrames are immediately set to presented and added to the DisplayFrame.
         // Since we don't have access to DisplayFrame here, trigger an onPresent directly.
         for (auto& surfaceFrame : bufferlessSurfaceFrames) {
-            surfaceFrame->onPresent(20, JankType::None, Fps::fromPeriodNsecs(11),
+            surfaceFrame->onPresent(20, JankType::None, 90_Hz,
                                     /*displayDeadlineDelta*/ 0, /*displayPresentDelta*/ 0);
         }
-        presentedBufferSurfaceFrame->onPresent(20, JankType::None, Fps::fromPeriodNsecs(11),
+        presentedBufferSurfaceFrame->onPresent(20, JankType::None, 90_Hz,
                                                /*displayDeadlineDelta*/ 0,
                                                /*displayPresentDelta*/ 0);
 

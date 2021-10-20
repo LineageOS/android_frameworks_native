@@ -129,13 +129,15 @@ public:
         nsecs_t displayPresentJitter = 0;
         nsecs_t appDeadlineDelta = 0;
 
+        static bool isOptApproxEqual(std::optional<Fps> lhs, std::optional<Fps> rhs) {
+            return (!lhs && !rhs) || (lhs && rhs && isApproxEqual(*lhs, *rhs));
+        }
+
         bool operator==(const JankyFramesInfo& o) const {
-            return Fps::EqualsInBuckets{}(refreshRate, o.refreshRate) &&
-                    ((renderRate == std::nullopt && o.renderRate == std::nullopt) ||
-                     (renderRate != std::nullopt && o.renderRate != std::nullopt &&
-                      Fps::EqualsInBuckets{}(*renderRate, *o.renderRate))) &&
-                    uid == o.uid && layerName == o.layerName && gameMode == o.gameMode &&
-                    reasons == o.reasons && displayDeadlineDelta == o.displayDeadlineDelta &&
+            return isApproxEqual(refreshRate, o.refreshRate) &&
+                    isOptApproxEqual(renderRate, o.renderRate) && uid == o.uid &&
+                    layerName == o.layerName && gameMode == o.gameMode && reasons == o.reasons &&
+                    displayDeadlineDelta == o.displayDeadlineDelta &&
                     displayPresentJitter == o.displayPresentJitter &&
                     appDeadlineDelta == o.appDeadlineDelta;
         }
