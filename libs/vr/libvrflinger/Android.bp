@@ -31,7 +31,7 @@ sourceFiles = [
     "vr_flinger.cpp",
 ]
 
-includeFiles = [ "include" ]
+includeFiles = ["include"]
 
 staticLibraries = [
     "libdisplay",
@@ -41,6 +41,7 @@ staticLibraries = [
     "libbroadcastring",
     "libvr_manager",
     "libbroadcastring",
+    "libaidlcommonsupport",
 ]
 
 sharedLibraries = [
@@ -50,7 +51,9 @@ sharedLibraries = [
     "android.hardware.graphics.composer@2.2",
     "android.hardware.graphics.composer@2.3",
     "android.hardware.graphics.composer@2.4",
+    "android.hardware.graphics.composer3-V1-ndk",
     "libbinder",
+    "libbinder_ndk",
     "libbase",
     "libbufferhubqueue",
     "libcutils",
@@ -76,6 +79,7 @@ headerLibraries = [
     "android.hardware.graphics.composer@2.2-command-buffer",
     "android.hardware.graphics.composer@2.3-command-buffer",
     "android.hardware.graphics.composer@2.4-command-buffer",
+    "android.hardware.graphics.composer3-command-buffer",
     "libdvr_headers",
     "libsurfaceflinger_headers",
 ]

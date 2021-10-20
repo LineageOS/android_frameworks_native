@@ -239,7 +239,7 @@ void HardwareComposer::UpdatePostThreadState(PostThreadStateType state,
 void HardwareComposer::CreateComposer() {
   if (composer_)
     return;
-  composer_.reset(new Hwc2::impl::Composer("default"));
+  composer_ = Hwc2::Composer::create("default");
   composer_callback_ = new ComposerCallback;
   composer_->registerCallback(composer_callback_);
   LOG_ALWAYS_FATAL_IF(!composer_callback_->GotFirstHotplug(),
