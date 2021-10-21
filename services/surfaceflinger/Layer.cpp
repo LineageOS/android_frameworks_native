@@ -1138,7 +1138,7 @@ bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool* tran
     if (!frameRate.rate.isValid() && frameRate.type != FrameRateCompatibility::NoVote &&
         childrenHaveFrameRate) {
         *transactionNeeded |=
-                setFrameRateForLayerTree(FrameRate(Fps(0.0f), FrameRateCompatibility::NoVote));
+                setFrameRateForLayerTree(FrameRate(Fps(), FrameRateCompatibility::NoVote));
     }
 
     // We return whether this layer ot its children has a vote. We ignore ExactOrMultiple votes for

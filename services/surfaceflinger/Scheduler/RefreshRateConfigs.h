@@ -76,18 +76,14 @@ public:
 
         // Checks whether the fps of this RefreshRate struct is within a given min and max refresh
         // rate passed in. Margin of error is applied to the boundaries for approximation.
-        bool inPolicy(Fps minRefreshRate, Fps maxRefreshRate) const {
-            return minRefreshRate.lessThanOrEqualWithMargin(getFps()) &&
-                    getFps().lessThanOrEqualWithMargin(maxRefreshRate);
-        }
+        bool inPolicy(Fps minRefreshRate, Fps maxRefreshRate) const;
 
-        bool operator!=(const RefreshRate& other) const { return mode != other.mode; }
+        bool operator==(const RefreshRate& other) const { return mode == other.mode; }
+        bool operator!=(const RefreshRate& other) const { return !operator==(other); }
 
         bool operator<(const RefreshRate& other) const {
-            return getFps().getValue() < other.getFps().getValue();
+            return isStrictlyLess(getFps(), other.getFps());
         }
-
-        bool operator==(const RefreshRate& other) const { return !(*this != other); }
 
         std::string toString() const;
         friend std::ostream& operator<<(std::ostream& os, const RefreshRate& refreshRate) {
@@ -105,11 +101,11 @@ public:
             std::unordered_map<DisplayModeId, std::unique_ptr<const RefreshRate>>;
 
     struct FpsRange {
-        Fps min{0.0f};
-        Fps max{std::numeric_limits<float>::max()};
+        Fps min = Fps::fromValue(0.f);
+        Fps max = Fps::fromValue(std::numeric_limits<float>::max());
 
         bool operator==(const FpsRange& other) const {
-            return min.equalsWithMargin(other.min) && max.equalsWithMargin(other.max);
+            return isApproxEqual(min, other.min) && isApproxEqual(max, other.max);
         }
 
         bool operator!=(const FpsRange& other) const { return !(*this == other); }
@@ -221,7 +217,7 @@ public:
         // Layer vote type.
         LayerVoteType vote = LayerVoteType::NoVote;
         // Layer's desired refresh rate, if applicable.
-        Fps desiredRefreshRate{0.0f};
+        Fps desiredRefreshRate;
         // If a seamless mode switch is required.
         Seamlessness seamlessness = Seamlessness::Default;
         // Layer's weight in the range of [0, 1]. The higher the weight the more impact this layer
@@ -232,7 +228,7 @@ public:
 
         bool operator==(const LayerRequirement& other) const {
             return name == other.name && vote == other.vote &&
-                    desiredRefreshRate.equalsWithMargin(other.desiredRefreshRate) &&
+                    isApproxEqual(desiredRefreshRate, other.desiredRefreshRate) &&
                     seamlessness == other.seamlessness && weight == other.weight &&
                     focused == other.focused;
         }
@@ -247,18 +243,14 @@ public:
         // True if the system hasn't seen any buffers posted to layers recently.
         bool idle = false;
 
-        bool operator==(const GlobalSignals& other) const {
+        bool operator==(GlobalSignals other) const {
             return touch == other.touch && idle == other.idle;
         }
     };
 
-    // Returns the refresh rate that fits best to the given layers.
-    //   layers - The layer requirements to consider.
-    //   globalSignals - global state of touch and idle
-    //   outSignalsConsidered - An output param that tells the caller whether the refresh rate was
-    //                          chosen based on touch boost and/or idle timer.
-    RefreshRate getBestRefreshRate(const std::vector<LayerRequirement>& layers,
-                                   const GlobalSignals& globalSignals,
+    // Returns the refresh rate that best fits the given layers. outSignalsConsidered returns
+    // whether the refresh rate was chosen based on touch boost and/or idle timer.
+    RefreshRate getBestRefreshRate(const std::vector<LayerRequirement>&, GlobalSignals,
                                    GlobalSignals* outSignalsConsidered = nullptr) const
             EXCLUDES(mLock);
 
@@ -349,13 +341,10 @@ public:
     static bool isFractionalPairOrMultiple(Fps, Fps);
 
     using UidToFrameRateOverride = std::map<uid_t, Fps>;
+
     // Returns the frame rate override for each uid.
-    //
-    // @param layers list of visible layers
-    // @param displayFrameRate the display frame rate
-    // @param touch whether touch timer is active (i.e. user touched the screen recently)
-    UidToFrameRateOverride getFrameRateOverrides(const std::vector<LayerRequirement>& layers,
-                                                 Fps displayFrameRate, bool touch) const
+    UidToFrameRateOverride getFrameRateOverrides(const std::vector<LayerRequirement>&,
+                                                 Fps displayFrameRate, GlobalSignals) const
             EXCLUDES(mLock);
 
     bool supportsKernelIdleTimer() const { return mConfig.supportKernelIdleTimer; }
@@ -396,13 +385,12 @@ private:
             const std::function<bool(const RefreshRate&)>& shouldAddRefreshRate,
             std::vector<const RefreshRate*>* outRefreshRates) REQUIRES(mLock);
 
-    std::optional<RefreshRate> getCachedBestRefreshRate(const std::vector<LayerRequirement>& layers,
-                                                        const GlobalSignals& globalSignals,
+    std::optional<RefreshRate> getCachedBestRefreshRate(const std::vector<LayerRequirement>&,
+                                                        GlobalSignals,
                                                         GlobalSignals* outSignalsConsidered) const
             REQUIRES(mLock);
 
-    RefreshRate getBestRefreshRateLocked(const std::vector<LayerRequirement>& layers,
-                                         const GlobalSignals& globalSignals,
+    RefreshRate getBestRefreshRateLocked(const std::vector<LayerRequirement>&, GlobalSignals,
                                          GlobalSignals* outSignalsConsidered) const REQUIRES(mLock);
 
     // Returns the refresh rate with the highest score in the collection specified from begin
