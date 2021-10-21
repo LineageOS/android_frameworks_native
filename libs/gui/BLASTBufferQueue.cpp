@@ -319,9 +319,6 @@ static void transactionCallbackThunk(void* context, nsecs_t latchTime,
 
 void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence>& /*presentFence*/,
                                            const std::vector<SurfaceControlStats>& stats) {
-    std::function<void(int64_t)> transactionCompleteCallback = nullptr;
-    uint64_t currFrameNumber = 0;
-
     {
         std::unique_lock _lock{mMutex};
         ATRACE_CALL();
@@ -348,18 +345,6 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
                                                     stat.latchTime,
                                                     stat.frameEventStats.dequeueReadyTime);
                 }
-                currFrameNumber = stat.frameEventStats.frameNumber;
-
-                if (mTransactionCompleteCallback &&
-                    currFrameNumber >= mTransactionCompleteFrameNumber) {
-                    if (currFrameNumber > mTransactionCompleteFrameNumber) {
-                        BQA_LOGE("transactionCallback received for a newer framenumber=%" PRIu64
-                                 " than expected=%" PRIu64,
-                                 currFrameNumber, mTransactionCompleteFrameNumber);
-                    }
-                    transactionCompleteCallback = std::move(mTransactionCompleteCallback);
-                    mTransactionCompleteFrameNumber = 0;
-                }
             } else {
                 BQA_LOGE("Failed to find matching SurfaceControl in transaction callback");
             }
@@ -369,10 +354,6 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
         }
 
         decStrong((void*)transactionCallbackThunk);
-    }
-
-    if (transactionCompleteCallback) {
-        transactionCompleteCallback(currFrameNumber);
     }
 }
 
@@ -696,17 +677,6 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
 
     // reject buffers if the buffer size doesn't match.
     return mSize != bufferSize;
-}
-
-void BLASTBufferQueue::setTransactionCompleteCallback(
-        uint64_t frameNumber, std::function<void(int64_t)>&& transactionCompleteCallback) {
-    std::lock_guard _lock{mMutex};
-    if (transactionCompleteCallback == nullptr) {
-        mTransactionCompleteCallback = nullptr;
-    } else {
-        mTransactionCompleteCallback = std::move(transactionCompleteCallback);
-        mTransactionCompleteFrameNumber = frameNumber;
-    }
 }
 
 // Check if we have acquired the maximum number of buffers.

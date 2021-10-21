@@ -64,16 +64,14 @@ using SurfaceflingerStatsLayerInfoWrapper =
 #define LAYER_ID_0            0
 #define LAYER_ID_1            1
 #define UID_0                 123
-#define REFRESH_RATE_0        61
-#define RENDER_RATE_0         31
 #define REFRESH_RATE_BUCKET_0 60
 #define RENDER_RATE_BUCKET_0  30
 #define LAYER_ID_INVALID      -1
 #define NUM_LAYERS            1
 #define NUM_LAYERS_INVALID    "INVALID"
 
-const constexpr Fps kRefreshRate0 = Fps(static_cast<float>(REFRESH_RATE_0));
-const constexpr Fps kRenderRate0 = Fps(static_cast<float>(RENDER_RATE_0));
+const constexpr Fps kRefreshRate0 = 61_Hz;
+const constexpr Fps kRenderRate0 = 31_Hz;
 static constexpr int32_t kGameMode = TimeStatsHelper::GameModeUnsupported;
 
 enum InputCommand : int32_t {
@@ -1498,14 +1496,14 @@ TEST_F(TimeStatsTest, refreshRateIsClampedToNearestBucket) {
         EXPECT_THAT(result, HasSubstr(expectedResult)) << "failed for " << fps;
     };
 
-    verifyRefreshRateBucket(Fps(91.f), 90);
-    verifyRefreshRateBucket(Fps(89.f), 90);
+    verifyRefreshRateBucket(91_Hz, 90);
+    verifyRefreshRateBucket(89_Hz, 90);
 
-    verifyRefreshRateBucket(Fps(61.f), 60);
-    verifyRefreshRateBucket(Fps(59.f), 60);
+    verifyRefreshRateBucket(61_Hz, 60);
+    verifyRefreshRateBucket(59_Hz, 60);
 
-    verifyRefreshRateBucket(Fps(31.f), 30);
-    verifyRefreshRateBucket(Fps(29.f), 30);
+    verifyRefreshRateBucket(31_Hz, 30);
+    verifyRefreshRateBucket(29_Hz, 30);
 }
 
 } // namespace

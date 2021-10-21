@@ -16,14 +16,16 @@
 
 #pragma once
 
+#include <chrono>
 #include <numeric>
+
+#include <android-base/stringprintf.h>
+#include <ftl/small_map.h>
+#include <utils/Timers.h>
 
 #include "Fps.h"
 #include "Scheduler/SchedulerUtils.h"
 #include "TimeStats/TimeStats.h"
-
-#include "android-base/stringprintf.h"
-#include "utils/Timers.h"
 
 namespace android::scheduler {
 
@@ -40,6 +42,7 @@ class RefreshRateStats {
     static constexpr int64_t MS_PER_DAY = 24 * MS_PER_HOUR;
 
 public:
+    // TODO(b/185535769): Inject clock to avoid sleeping in tests.
     RefreshRateStats(TimeStats& timeStats, Fps currentRefreshRate,
                      android::hardware::graphics::composer::hal::PowerMode currentPowerMode)
           : mTimeStats(timeStats),
@@ -58,7 +61,7 @@ public:
     // Sets config mode. If the mode has changed, it records how much time was spent in the previous
     // mode.
     void setRefreshRate(Fps currRefreshRate) {
-        if (mCurrentRefreshRate.equalsWithMargin(currRefreshRate)) {
+        if (isApproxEqual(mCurrentRefreshRate, currRefreshRate)) {
             return;
         }
         mTimeStats.incrementRefreshRateSwitches();
@@ -66,25 +69,26 @@ public:
         mCurrentRefreshRate = currRefreshRate;
     }
 
-    // Returns a map between human readable refresh rate and number of seconds the device spent in
-    // that mode.
-    std::unordered_map<std::string, int64_t> getTotalTimes() {
+    // Maps stringified refresh rate to total time spent in that mode.
+    using TotalTimes = ftl::SmallMap<std::string, std::chrono::milliseconds, 3>;
+
+    TotalTimes getTotalTimes() {
         // If the power mode is on, then we are probably switching between the config modes. If
         // it's not then the screen is probably off. Make sure to flush times before printing
         // them.
         flushTime();
 
-        std::unordered_map<std::string, int64_t> totalTime;
-        // Multiple configs may map to the same name, e.g. "60fps". Add the
-        // times for such configs together.
-        for (const auto& [configId, time] : mConfigModesTotalTime) {
-            totalTime[to_string(configId)] = 0;
+        TotalTimes totalTimes = ftl::init::map("ScreenOff", mScreenOffTime);
+        const auto zero = std::chrono::milliseconds::zero();
+
+        // Sum the times for modes that map to the same name, e.g. "60 Hz".
+        for (const auto& [fps, time] : mFpsTotalTimes) {
+            const auto string = to_string(fps);
+            const auto total = std::as_const(totalTimes).get(string).value_or(std::cref(zero));
+            totalTimes.emplace_or_replace(string, total.get() + time);
         }
-        for (const auto& [configId, time] : mConfigModesTotalTime) {
-            totalTime[to_string(configId)] += time;
-        }
-        totalTime["ScreenOff"] = mScreenOffTime;
-        return totalTime;
+
+        return totalTimes;
     }
 
     // Traverses through the map of config modes and returns how long they've been running in easy
@@ -102,28 +106,32 @@ private:
     // Calculates the time that passed in ms between the last time we recorded time and the time
     // this method was called.
     void flushTime() {
-        nsecs_t currentTime = systemTime();
-        nsecs_t timeElapsed = currentTime - mPreviousRecordedTime;
-        int64_t timeElapsedMs = ns2ms(timeElapsed);
+        const nsecs_t currentTime = systemTime();
+        const nsecs_t timeElapsed = currentTime - mPreviousRecordedTime;
         mPreviousRecordedTime = currentTime;
 
+        const auto duration = std::chrono::milliseconds{ns2ms(timeElapsed)};
+        const auto zero = std::chrono::milliseconds::zero();
+
         uint32_t fps = 0;
+
         if (mCurrentPowerMode == android::hardware::graphics::composer::hal::PowerMode::ON) {
             // Normal power mode is counted under different config modes.
-            if (mConfigModesTotalTime.find(mCurrentRefreshRate) == mConfigModesTotalTime.end()) {
-                mConfigModesTotalTime[mCurrentRefreshRate] = 0;
-            }
-            mConfigModesTotalTime[mCurrentRefreshRate] += timeElapsedMs;
+            const auto total = std::as_const(mFpsTotalTimes)
+                                       .get(mCurrentRefreshRate)
+                                       .value_or(std::cref(zero));
+            mFpsTotalTimes.emplace_or_replace(mCurrentRefreshRate, total.get() + duration);
+
             fps = static_cast<uint32_t>(mCurrentRefreshRate.getIntValue());
         } else {
-            mScreenOffTime += timeElapsedMs;
+            mScreenOffTime += duration;
         }
         mTimeStats.recordRefreshRate(fps, timeElapsed);
     }
 
     // Formats the time in milliseconds into easy to read format.
-    static std::string getDateFormatFromMs(int64_t timeMs) {
-        auto [days, dayRemainderMs] = std::div(timeMs, MS_PER_DAY);
+    static std::string getDateFormatFromMs(std::chrono::milliseconds time) {
+        auto [days, dayRemainderMs] = std::div(static_cast<int64_t>(time.count()), MS_PER_DAY);
         auto [hours, hourRemainderMs] = std::div(dayRemainderMs, MS_PER_HOUR);
         auto [mins, minsRemainderMs] = std::div(hourRemainderMs, MS_PER_MIN);
         auto [sec, secRemainderMs] = std::div(minsRemainderMs, MS_PER_S);
@@ -138,9 +146,8 @@ private:
     Fps mCurrentRefreshRate;
     android::hardware::graphics::composer::hal::PowerMode mCurrentPowerMode;
 
-    std::unordered_map<Fps, int64_t /* duration in ms */, std::hash<Fps>, Fps::EqualsInBuckets>
-            mConfigModesTotalTime;
-    int64_t mScreenOffTime = 0;
+    ftl::SmallMap<Fps, std::chrono::milliseconds, 2, FpsApproxEqual> mFpsTotalTimes;
+    std::chrono::milliseconds mScreenOffTime = std::chrono::milliseconds::zero();
 
     nsecs_t mPreviousRecordedTime = systemTime();
 };

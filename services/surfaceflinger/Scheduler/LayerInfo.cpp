@@ -41,7 +41,7 @@ LayerInfo::LayerInfo(const std::string& name, uid_t ownerUid,
       : mName(name),
         mOwnerUid(ownerUid),
         mDefaultVote(defaultVote),
-        mLayerVote({defaultVote, Fps(0.0f)}),
+        mLayerVote({defaultVote, Fps()}),
         mRefreshRateHistory(name) {}
 
 void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUpdateType updateType,
@@ -93,10 +93,11 @@ bool LayerInfo::isFrequent(nsecs_t now) const {
         return false;
     }
 
+    using fps_approx_ops::operator>=;
+
     // Layer is considered frequent if the average frame rate is higher than the threshold
     const auto totalTime = mFrameTimes.back().queueTime - it->queueTime;
-    return Fps::fromPeriodNsecs(totalTime / (numFrames - 1))
-            .greaterThanOrEqualWithMargin(kMinFpsForFrequentLayer);
+    return Fps::fromPeriodNsecs(totalTime / (numFrames - 1)) >= kMinFpsForFrequentLayer;
 }
 
 bool LayerInfo::isAnimating(nsecs_t now) const {
@@ -191,17 +192,17 @@ std::optional<Fps> LayerInfo::calculateRefreshRateIfPossible(
         return std::nullopt;
     }
 
-    const auto averageFrameTime = calculateAverageFrameTime();
-    if (averageFrameTime.has_value()) {
+    if (const auto averageFrameTime = calculateAverageFrameTime()) {
         const auto refreshRate = Fps::fromPeriodNsecs(*averageFrameTime);
         const bool refreshRateConsistent = mRefreshRateHistory.add(refreshRate, now);
         if (refreshRateConsistent) {
             const auto knownRefreshRate = refreshRateConfigs.findClosestKnownFrameRate(refreshRate);
-            // To avoid oscillation, use the last calculated refresh rate if it is
-            // close enough
+            using fps_approx_ops::operator!=;
+
+            // To avoid oscillation, use the last calculated refresh rate if it is close enough.
             if (std::abs(mLastRefreshRate.calculated.getValue() - refreshRate.getValue()) >
                         MARGIN &&
-                !mLastRefreshRate.reported.equalsWithMargin(knownRefreshRate)) {
+                mLastRefreshRate.reported != knownRefreshRate) {
                 mLastRefreshRate.calculated = refreshRate;
                 mLastRefreshRate.reported = knownRefreshRate;
             }
@@ -228,15 +229,15 @@ LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateConfigs& ref
     if (isAnimating(now)) {
         ALOGV("%s is animating", mName.c_str());
         mLastRefreshRate.animatingOrInfrequent = true;
-        return {LayerHistory::LayerVoteType::Max, Fps(0.0f)};
+        return {LayerHistory::LayerVoteType::Max, Fps()};
     }
 
     if (!isFrequent(now)) {
         ALOGV("%s is infrequent", mName.c_str());
         mLastRefreshRate.animatingOrInfrequent = true;
-        // Infrequent layers vote for mininal refresh rate for
+        // Infrequent layers vote for minimal refresh rate for
         // battery saving purposes and also to prevent b/135718869.
-        return {LayerHistory::LayerVoteType::Min, Fps(0.0f)};
+        return {LayerHistory::LayerVoteType::Min, Fps()};
     }
 
     // If the layer was previously tagged as animating or infrequent, we clear
@@ -253,7 +254,7 @@ LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateConfigs& ref
     }
 
     ALOGV("%s Max (can't resolve refresh rate)", mName.c_str());
-    return {LayerHistory::LayerVoteType::Max, Fps(0.0f)};
+    return {LayerHistory::LayerVoteType::Max, Fps()};
 }
 
 const char* LayerInfo::getTraceTag(android::scheduler::LayerHistory::LayerVoteType type) const {
@@ -300,9 +301,13 @@ bool LayerInfo::RefreshRateHistory::add(Fps refreshRate, nsecs_t now) {
 bool LayerInfo::RefreshRateHistory::isConsistent() const {
     if (mRefreshRates.empty()) return true;
 
-    const auto max = std::max_element(mRefreshRates.begin(), mRefreshRates.end());
-    const auto min = std::min_element(mRefreshRates.begin(), mRefreshRates.end());
-    const auto consistent =
+    const auto [min, max] =
+            std::minmax_element(mRefreshRates.begin(), mRefreshRates.end(),
+                                [](const auto& lhs, const auto& rhs) {
+                                    return isStrictlyLess(lhs.refreshRate, rhs.refreshRate);
+                                });
+
+    const bool consistent =
             max->refreshRate.getValue() - min->refreshRate.getValue() < MARGIN_CONSISTENT_FPS;
 
     if (CC_UNLIKELY(sTraceEnabled)) {

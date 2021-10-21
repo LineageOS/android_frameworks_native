@@ -1040,7 +1040,7 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
         outMode.refreshRate = Fps::fromPeriodNsecs(period).getValue();
 
         const auto vsyncConfigSet =
-                mVsyncConfiguration->getConfigsForRefreshRate(Fps(outMode.refreshRate));
+                mVsyncConfiguration->getConfigsForRefreshRate(Fps::fromValue(outMode.refreshRate));
         outMode.appVsyncOffset = vsyncConfigSet.late.appOffset;
         outMode.sfVsyncOffset = vsyncConfigSet.late.sfOffset;
         outMode.group = mode->getGroup();
@@ -4110,7 +4110,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
             const auto strategy =
                     Layer::FrameRate::convertChangeFrameRateStrategy(s.changeFrameRateStrategy);
 
-            if (layer->setFrameRate(Layer::FrameRate(Fps(s.frameRate), compatibility, strategy))) {
+            if (layer->setFrameRate(
+                        Layer::FrameRate(Fps::fromValue(s.frameRate), compatibility, strategy))) {
                 flags |= eTraversalNeeded;
             }
         }
@@ -6492,8 +6493,10 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecs(
             using Policy = scheduler::RefreshRateConfigs::Policy;
             const Policy policy{DisplayModeId(defaultMode),
                                 allowGroupSwitching,
-                                {Fps(primaryRefreshRateMin), Fps(primaryRefreshRateMax)},
-                                {Fps(appRequestRefreshRateMin), Fps(appRequestRefreshRateMax)}};
+                                {Fps::fromValue(primaryRefreshRateMin),
+                                 Fps::fromValue(primaryRefreshRateMax)},
+                                {Fps::fromValue(appRequestRefreshRateMin),
+                                 Fps::fromValue(appRequestRefreshRateMax)}};
             constexpr bool kOverridePolicy = false;
 
             return setDesiredDisplayModeSpecsInternal(display, policy, kOverridePolicy);
@@ -6625,7 +6628,7 @@ status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface,
             const auto strategy =
                     Layer::FrameRate::convertChangeFrameRateStrategy(changeFrameRateStrategy);
             if (layer->setFrameRate(
-                        Layer::FrameRate(Fps{frameRate},
+                        Layer::FrameRate(Fps::fromValue(frameRate),
                                          Layer::FrameRate::convertCompatibility(compatibility),
                                          strategy))) {
                 setTransactionFlags(eTraversalNeeded);
@@ -6759,7 +6762,7 @@ int SurfaceFlinger::calculateMaxAcquiredBufferCount(Fps refreshRate,
 }
 
 status_t SurfaceFlinger::getMaxAcquiredBufferCount(int* buffers) const {
-    Fps maxRefreshRate(60.f);
+    Fps maxRefreshRate = 60_Hz;
 
     if (!getHwComposer().isHeadless()) {
         if (const auto display = getDefaultDisplayDevice()) {
@@ -6772,7 +6775,7 @@ status_t SurfaceFlinger::getMaxAcquiredBufferCount(int* buffers) const {
 }
 
 uint32_t SurfaceFlinger::getMaxAcquiredBufferCountForCurrentRefreshRate(uid_t uid) const {
-    Fps refreshRate(60.f);
+    Fps refreshRate = 60_Hz;
 
     if (const auto frameRateOverride = mScheduler->getFrameRateOverride(uid)) {
         refreshRate = *frameRateOverride;
@@ -6801,7 +6804,7 @@ void TransactionState::traverseStatesWithBuffers(
 }
 
 void SurfaceFlinger::setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
-                                          const wp<IBinder>& parent, const wp<Layer> parentLayer,
+                                          const sp<IBinder>& parent, const wp<Layer> parentLayer,
                                           const wp<IBinder>& producer, bool addToRoot) {
     Mutex::Autolock lock(mCreatedLayersLock);
     mCreatedLayers[handle->localBinder()] =
@@ -6845,9 +6848,9 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
     sp<Layer> parent;
     bool allowAddRoot = state->addToRoot;
     if (state->initialParent != nullptr) {
-        parent = fromHandle(state->initialParent.promote()).promote();
+        parent = fromHandle(state->initialParent).promote();
         if (parent == nullptr) {
-            ALOGE("Invalid parent %p", state->initialParent.unsafe_get());
+            ALOGE("Invalid parent %p", state->initialParent.get());
             allowAddRoot = false;
         }
     } else if (state->initialParentLayer != nullptr) {

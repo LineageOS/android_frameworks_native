@@ -20,6 +20,7 @@ cc_defaults {
         "android.hardware.graphics.composer@2.2",
         "android.hardware.graphics.composer@2.3",
         "android.hardware.graphics.composer@2.4",
+        "android.hardware.graphics.composer3-V1-ndk",
         "android.hardware.power@1.0",
         "android.hardware.power@1.3",
         "libbase",
@@ -38,12 +39,14 @@ cc_defaults {
         "libmath",
         "librenderengine",
         "libtrace_proto",
+        "libaidlcommonsupport",
     ],
     header_libs: [
         "android.hardware.graphics.composer@2.1-command-buffer",
         "android.hardware.graphics.composer@2.2-command-buffer",
         "android.hardware.graphics.composer@2.3-command-buffer",
         "android.hardware.graphics.composer@2.4-command-buffer",
+        "android.hardware.graphics.composer3-command-buffer",
         "libsurfaceflinger_headers",
     ],
 }

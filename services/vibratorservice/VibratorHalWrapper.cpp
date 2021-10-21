@@ -402,12 +402,21 @@ HalResult<std::vector<milliseconds>> AidlHalWrapper::getPrimitiveDurationsIntern
         auto primitiveIdx = static_cast<size_t>(primitive);
         if (primitiveIdx >= durations.size()) {
             // Safety check, should not happen if enum_range is correct.
+            ALOGE("Supported primitive %zu is outside range [0,%zu), skipping load duration",
+                  primitiveIdx, durations.size());
             continue;
         }
         int32_t duration = 0;
-        auto status = getHal()->getPrimitiveDuration(primitive, &duration);
-        if (!status.isOk()) {
-            return HalResult<std::vector<milliseconds>>::failed(status.toString8().c_str());
+        auto result = getHal()->getPrimitiveDuration(primitive, &duration);
+        auto halResult = HalResult<int32_t>::fromStatus(result, duration);
+        if (halResult.isUnsupported()) {
+            // Should not happen, supported primitives should always support requesting duration.
+            ALOGE("Supported primitive %zu returned unsupported for getPrimitiveDuration",
+                  primitiveIdx);
+        }
+        if (halResult.isFailed()) {
+            // Fail entire request if one request has failed.
+            return HalResult<std::vector<milliseconds>>::failed(result.toString8().c_str());
         }
         durations[primitiveIdx] = milliseconds(duration);
     }
