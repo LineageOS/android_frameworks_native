@@ -9,5 +9,5 @@ service servicemanager /system/bin/servicemanager
     onrestart class_restart main
     onrestart class_restart hal
     onrestart class_restart early_hal
-    writepid /dev/cpuset/system-background/tasks
+    task_profiles ServiceCapacityLow
     shutdown critical
