@@ -3381,7 +3381,6 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
     states.add(composerState);
 
     lbc->updateTransformHint(mActiveDisplayTransformHint);
-
     if (outTransformHint) {
         *outTransformHint = mActiveDisplayTransformHint;
     }
@@ -3922,7 +3921,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
     if (what & layer_state_t::eLayerChanged) {
         // NOTE: index needs to be calculated before we update the state
-        auto p = layer->getParent();
+        const auto& p = layer->getParent();
         if (p == nullptr) {
             ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
             if (layer->setLayer(s.z) && idx >= 0) {
@@ -3940,7 +3939,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
     if (what & layer_state_t::eRelativeLayerChanged) {
         // NOTE: index needs to be calculated before we update the state
-        auto p = layer->getParent();
+        const auto& p = layer->getParent();
         const auto& relativeHandle = s.relativeLayerSurfaceControl ?
                 s.relativeLayerSurfaceControl->getHandle() : nullptr;
         if (p == nullptr) {
@@ -6078,7 +6077,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
                 return;
             }
 
-            auto p = layer;
+            sp<Layer> p = layer;
             while (p != nullptr) {
                 if (excludeLayers.count(p) != 0) {
                     return;
