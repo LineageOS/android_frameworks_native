@@ -1344,7 +1344,7 @@ binder::Status InstalldNativeService::destroyUserData(const std::optional<std::s
 }
 
 binder::Status InstalldNativeService::freeCache(const std::optional<std::string>& uuid,
-        int64_t targetFreeBytes, int64_t cacheReservedBytes, int32_t flags) {
+        int64_t targetFreeBytes, int32_t flags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     std::lock_guard<std::recursive_mutex> lock(mLock);
@@ -1444,12 +1444,6 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
                     && !(flags & FLAG_FREE_CACHE_V2_DEFY_QUOTA)) {
                 LOG(DEBUG) << "Active ratio " << active->getCacheRatio()
                         << " isn't over quota, and defy not requested";
-                break;
-            }
-
-            // Only keep clearing when we haven't pushed into reserved area
-            if (cacheReservedBytes > 0 && cleared >= (cacheTotal - cacheReservedBytes)) {
-                LOG(DEBUG) << "Refusing to clear cached data in reserved space";
                 break;
             }
 
