@@ -989,7 +989,7 @@ void BufferStateLayer::tracePendingBufferCount(int32_t pendingBuffers) {
  * how to go from screen space back to window space.
  */
 ui::Transform BufferStateLayer::getInputTransform() const {
-    auto parent = mDrawingParent;
+    sp<Layer> parent = mDrawingParent.promote();
     if (parent == nullptr) {
         return ui::Transform();
     }

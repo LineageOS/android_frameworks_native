@@ -223,7 +223,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
          * of a camera where the buffer remains in native orientation,
          * we want the pixels to always be upright.
          */
-        auto p = mDrawingParent;
+        sp<Layer> p = mDrawingParent.promote();
         if (p != nullptr) {
             const auto parentTransform = p->getTransform();
             tr = tr * inverseOrientation(parentTransform.getOrientation());

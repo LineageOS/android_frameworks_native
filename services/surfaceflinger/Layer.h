@@ -795,12 +795,12 @@ public:
     // Returns index if removed, or negative value otherwise
     // for symmetry with Vector::remove
     ssize_t removeChild(const sp<Layer>& layer);
+    sp<Layer> getParent() const { return mCurrentParent.promote(); }
 
     // Should be called with the surfaceflinger statelock held
     bool isAtRoot() const { return mIsAtRoot; }
     void setIsAtRoot(bool isAtRoot) { mIsAtRoot = isAtRoot; }
 
-    Layer* getParent() const { return mCurrentParent; }
     bool hasParent() const { return getParent() != nullptr; }
     Rect getScreenBounds(bool reduceTransparentRegion = true) const;
     bool setChildLayer(const sp<Layer>& childLayer, int32_t z);
@@ -1007,8 +1007,8 @@ protected:
     LayerVector mCurrentChildren{LayerVector::StateSet::Current};
     LayerVector mDrawingChildren{LayerVector::StateSet::Drawing};
 
-    Layer* mCurrentParent = nullptr;
-    Layer* mDrawingParent = nullptr;
+    wp<Layer> mCurrentParent;
+    wp<Layer> mDrawingParent;
 
     // Window types from WindowManager.LayoutParams
     const gui::WindowInfo::Type mWindowType;
