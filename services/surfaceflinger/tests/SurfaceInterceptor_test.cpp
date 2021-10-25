@@ -19,6 +19,7 @@
 #pragma clang diagnostic ignored "-Wconversion"
 #pragma clang diagnostic ignored "-Wextra"
 
+#include <android-base/stringprintf.h>
 #include <frameworks/native/cmds/surfacereplayer/proto/src/trace.pb.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <gtest/gtest.h>
@@ -56,10 +57,7 @@ std::vector<BlurRegion> BLUR_REGIONS_UPDATE;
 const String8 DISPLAY_NAME("SurfaceInterceptor Display Test");
 constexpr auto TEST_BG_SURFACE_NAME = "BG Interceptor Test Surface";
 constexpr auto TEST_FG_SURFACE_NAME = "FG Interceptor Test Surface";
-constexpr auto UNIQUE_TEST_BG_SURFACE_NAME = "BG Interceptor Test Surface#0";
-constexpr auto UNIQUE_TEST_FG_SURFACE_NAME = "FG Interceptor Test Surface#0";
 constexpr auto LAYER_NAME = "Layer Create and Delete Test";
-constexpr auto UNIQUE_LAYER_NAME = "Layer Create and Delete Test#0";
 
 constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/transaction_trace.winscope";
 
@@ -105,11 +103,15 @@ static void disableInterceptor() {
     system("service call SurfaceFlinger 1020 i32 0 > /dev/null");
 }
 
+std::string getUniqueName(const std::string& name, const Increment& increment) {
+    return base::StringPrintf("%s#%d", name.c_str(), increment.surface_creation().id());
+}
+
 int32_t getSurfaceId(const Trace& capturedTrace, const std::string& surfaceName) {
     int32_t layerId = 0;
     for (const auto& increment : capturedTrace.increment()) {
         if (increment.increment_case() == increment.kSurfaceCreation) {
-            if (increment.surface_creation().name() == surfaceName) {
+            if (increment.surface_creation().name() == getUniqueName(surfaceName, increment)) {
                 layerId = increment.surface_creation().id();
             }
         }
@@ -293,8 +295,8 @@ void SurfaceInterceptorTest::setupBackgroundSurface() {
 }
 
 void SurfaceInterceptorTest::preProcessTrace(const Trace& trace) {
-    mBGLayerId = getSurfaceId(trace, UNIQUE_TEST_BG_SURFACE_NAME);
-    mFGLayerId = getSurfaceId(trace, UNIQUE_TEST_FG_SURFACE_NAME);
+    mBGLayerId = getSurfaceId(trace, TEST_BG_SURFACE_NAME);
+    mFGLayerId = getSurfaceId(trace, TEST_FG_SURFACE_NAME);
 }
 
 void SurfaceInterceptorTest::captureTest(TestTransactionAction action,
@@ -752,9 +754,9 @@ void SurfaceInterceptorTest::assertAllUpdatesFound(const Trace& trace) {
 }
 
 bool SurfaceInterceptorTest::surfaceCreationFound(const Increment& increment, bool foundSurface) {
-    bool isMatch(increment.surface_creation().name() == UNIQUE_LAYER_NAME &&
-            increment.surface_creation().w() == SIZE_UPDATE &&
-            increment.surface_creation().h() == SIZE_UPDATE);
+    bool isMatch(increment.surface_creation().name() == getUniqueName(LAYER_NAME, increment) &&
+                 increment.surface_creation().w() == SIZE_UPDATE &&
+                 increment.surface_creation().h() == SIZE_UPDATE);
     if (isMatch && !foundSurface) {
         foundSurface = true;
     } else if (isMatch && foundSurface) {
@@ -808,7 +810,7 @@ bool SurfaceInterceptorTest::singleIncrementFound(const Trace& trace,
                     break;
                 case Increment::IncrementCase::kSurfaceDeletion:
                     // Find the id of created surface.
-                    targetId = getSurfaceId(trace, UNIQUE_LAYER_NAME);
+                    targetId = getSurfaceId(trace, LAYER_NAME);
                     foundIncrement = surfaceDeletionFound(increment, targetId, foundIncrement);
                     break;
                 case Increment::IncrementCase::kDisplayCreation:
