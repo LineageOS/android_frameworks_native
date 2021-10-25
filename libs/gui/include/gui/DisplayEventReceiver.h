@@ -49,6 +49,9 @@ static inline constexpr uint32_t fourcc(char c1, char c2, char c3, char c4) {
 // ----------------------------------------------------------------------------
 class DisplayEventReceiver {
 public:
+    // Max amount of frame timelines is arbitrarily set to be reasonable.
+    static constexpr int64_t kFrameTimelinesLength = 7;
+
     enum {
         DISPLAY_EVENT_VSYNC = fourcc('v', 's', 'y', 'n'),
         DISPLAY_EVENT_HOTPLUG = fourcc('p', 'l', 'u', 'g'),
@@ -77,6 +80,12 @@ public:
             nsecs_t deadlineTimestamp __attribute__((aligned(8)));
             nsecs_t frameInterval __attribute__((aligned(8)));
             int64_t vsyncId;
+            size_t preferredFrameTimelineIndex __attribute__((aligned(8)));
+            struct FrameTimeline {
+                nsecs_t expectedVSyncTimestamp __attribute__((aligned(8)));
+                nsecs_t deadlineTimestamp __attribute__((aligned(8)));
+                int64_t vsyncId;
+            } frameTimelines[kFrameTimelinesLength];
         };
 
         struct Hotplug {
