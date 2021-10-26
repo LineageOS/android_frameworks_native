@@ -429,11 +429,11 @@ protected:
     uint32_t mReqHeight;
 
     // mReqFormat is the buffer pixel format that will be requested at the next
-    // deuque operation. It is initialized to PIXEL_FORMAT_RGBA_8888.
+    // dequeue operation. It is initialized to PIXEL_FORMAT_RGBA_8888.
     PixelFormat mReqFormat;
 
     // mReqUsage is the set of buffer usage flags that will be requested
-    // at the next deuque operation. It is initialized to 0.
+    // at the next dequeue operation. It is initialized to 0.
     uint64_t mReqUsage;
 
     // mTimestamp is the timestamp that will be used for the next buffer queue
