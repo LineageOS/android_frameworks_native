@@ -18,7 +18,7 @@ service rss_hwm_reset /system/bin/rss_hwm_reset
     oneshot
     user nobody
     group nobody readproc
-    writepid /dev/cpuset/system-background/tasks
+    task_profiles ServiceCapacityLow
     capabilities DAC_OVERRIDE
 
 on property:sys.rss_hwm_reset.on=1
