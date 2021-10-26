@@ -3012,59 +3012,6 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
     EXPECT_EQ(motionArgs.buttonState, verifiedMotion.buttonState);
 }
 
-TEST_F(InputDispatcherTest, NonPointerMotionEvent_JoystickAndTouchpadNotTransformed) {
-    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> window =
-            new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
-    const std::string name = window->getName();
-
-    // Window gets transformed by offset values.
-    window->setWindowOffset(500.0f, 500.0f);
-
-    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
-    window->setFocusable(true);
-
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
-
-    // First, we set focused window so that focusedWindowHandle is not null.
-    setFocusedWindow(window);
-
-    // Second, we consume focus event if it is right or wrong according to onFocusChangedLocked.
-    window->consumeFocusEvent(true);
-
-    constexpr const std::array nonTransformedSources = {std::pair(AINPUT_SOURCE_TOUCHPAD,
-                                                                  AMOTION_EVENT_ACTION_DOWN),
-                                                        std::pair(AINPUT_SOURCE_JOYSTICK,
-                                                                  AMOTION_EVENT_ACTION_MOVE)};
-    for (const auto& [source, action] : nonTransformedSources) {
-        const NotifyMotionArgs motionArgs = generateMotionArgs(action, source, ADISPLAY_ID_DEFAULT);
-        mDispatcher->notifyMotion(&motionArgs);
-
-        MotionEvent* event = window->consumeMotion();
-        ASSERT_NE(event, nullptr);
-
-        const MotionEvent& motionEvent = *event;
-        EXPECT_EQ(action, motionEvent.getAction());
-        EXPECT_EQ(motionArgs.pointerCount, motionEvent.getPointerCount());
-
-        float expectedX = motionArgs.pointerCoords[0].getX();
-        float expectedY = motionArgs.pointerCoords[0].getY();
-
-        // Ensure the axis values from the final motion event are not transformed.
-        EXPECT_EQ(expectedX, motionEvent.getX(0))
-                << "expected " << expectedX << " for x coord of " << name.c_str() << ", got "
-                << motionEvent.getX(0);
-        EXPECT_EQ(expectedY, motionEvent.getY(0))
-                << "expected " << expectedY << " for y coord of " << name.c_str() << ", got "
-                << motionEvent.getY(0);
-        // Ensure the raw and transformed axis values for the motion event are the same.
-        EXPECT_EQ(motionEvent.getRawX(0), motionEvent.getX(0))
-                << "expected raw and transformed X-axis values to be equal";
-        EXPECT_EQ(motionEvent.getRawY(0), motionEvent.getY(0))
-                << "expected raw and transformed Y-axis values to be equal";
-    }
-}
-
 /**
  * Ensure that separate calls to sign the same data are generating the same key.
  * We avoid asserting against INVALID_HMAC. Since the key is random, there is a non-zero chance

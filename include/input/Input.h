@@ -801,8 +801,11 @@ public:
 
     static std::string actionToString(int32_t action);
 
+    // MotionEvent will transform various axes in different ways, based on the source. For
+    // example, the x and y axes will not have any offsets/translations applied if it comes from a
+    // relative mouse device (since SOURCE_RELATIVE_MOUSE is a non-pointer source). These methods
+    // are used to apply these transformations for different axes.
     static vec2 calculateTransformedXY(uint32_t source, const ui::Transform&, const vec2& xy);
-
     static float calculateTransformedAxisValue(int32_t axis, uint32_t source, const ui::Transform&,
                                                const PointerCoords&);
 
