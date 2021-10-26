@@ -146,7 +146,6 @@ cc_library_shared {
     ],
 
     shared_libs: [
-        "android.frameworks.bufferhub@1.0",
         "libbinder",
         "libbufferhub",
         "libbufferhubqueue", // TODO(b/70046255): Remove this once BufferHub is integrated into libgui.
@@ -175,7 +174,6 @@ cc_library_shared {
                 "BufferHubProducer.cpp",
             ],
             exclude_shared_libs: [
-                "android.frameworks.bufferhub@1.0",
                 "libbufferhub",
                 "libbufferhubqueue",
                 "libinput",
