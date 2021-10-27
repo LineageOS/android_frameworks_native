@@ -153,6 +153,7 @@ constexpr size_t RECENT_QUEUE_MAX_SIZE = 10;
 // Event log tags. See EventLogTags.logtags for reference
 constexpr int LOGTAG_INPUT_INTERACTION = 62000;
 constexpr int LOGTAG_INPUT_FOCUS = 62001;
+constexpr int LOGTAG_INPUT_CANCEL = 62003;
 
 inline nsecs_t now() {
     return systemTime(SYSTEM_TIME_MONOTONIC);
@@ -2077,6 +2078,8 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
 
         // Handle the case where we did not find a window.
         if (newTouchedWindowHandle == nullptr) {
+            ALOGD("No new touched window at (%" PRId32 ", %" PRId32 ") in display %" PRId32, x, y,
+                  displayId);
             // Try to assign the pointer to the first foreground window we find, if there is one.
             newTouchedWindowHandle = tempTouchState.getFirstForegroundWindowHandle();
         }
@@ -2870,6 +2873,11 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
             if (!splitMotionEntry) {
                 return; // split event was dropped
             }
+            if (splitMotionEntry->action == AMOTION_EVENT_ACTION_CANCEL) {
+                std::string reason = std::string("reason=pointer cancel on split window");
+                android_log_event_list(LOGTAG_INPUT_CANCEL)
+                        << connection->getInputChannelName().c_str() << reason << LOG_ID_EVENTS;
+            }
             if (DEBUG_FOCUS) {
                 ALOGD("channel '%s' ~ Split motion event.",
                       connection->getInputChannelName().c_str());
@@ -3574,6 +3582,10 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
               connection->getInputChannelName().c_str(), cancelationEvents.size(), options.reason,
               options.mode);
     }
+
+    std::string reason = std::string("reason=").append(options.reason);
+    android_log_event_list(LOGTAG_INPUT_CANCEL)
+            << connection->getInputChannelName().c_str() << reason << LOG_ID_EVENTS;
 
     InputTarget target;
     sp<WindowInfoHandle> windowHandle =
