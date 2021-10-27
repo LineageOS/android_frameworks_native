@@ -130,6 +130,19 @@ int DisplayEventDispatcher::handleEvent(int, int events, void*) {
     return 1; // keep the callback
 }
 
+void DisplayEventDispatcher::populateFrameTimelines(const DisplayEventReceiver::Event& event,
+                                                    VsyncEventData* outVsyncEventData) const {
+    for (size_t i = 0; i < DisplayEventReceiver::kFrameTimelinesLength; i++) {
+        DisplayEventReceiver::Event::VSync::FrameTimeline receiverTimeline =
+                event.vsync.frameTimelines[i];
+        outVsyncEventData->frameTimelines[i] = {.id = receiverTimeline.vsyncId,
+                                                .deadlineTimestamp =
+                                                        receiverTimeline.deadlineTimestamp,
+                                                .expectedPresentTime =
+                                                        receiverTimeline.expectedVSyncTimestamp};
+    }
+}
+
 bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
                                                   PhysicalDisplayId* outDisplayId,
                                                   uint32_t* outCount,
@@ -154,6 +167,9 @@ bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
                     outVsyncEventData->deadlineTimestamp = ev.vsync.deadlineTimestamp;
                     outVsyncEventData->frameInterval = ev.vsync.frameInterval;
                     outVsyncEventData->expectedPresentTime = ev.vsync.expectedVSyncTimestamp;
+                    outVsyncEventData->preferredFrameTimelineIndex =
+                            ev.vsync.preferredFrameTimelineIndex;
+                    populateFrameTimelines(ev, outVsyncEventData);
                     break;
                 case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
                     dispatchHotplug(ev.header.timestamp, ev.header.displayId, ev.hotplug.connected);
