@@ -177,6 +177,13 @@ static uint64_t getValidUsageBits() {
         for (const auto bit : ndk::enum_range<BufferUsage>{}) {
             bits |= static_cast<int64_t>(bit);
         }
+
+        if (ADDNL_GRALLOC_10_USAGE_BITS) {
+            uint64_t addnl_bits = static_cast<uint64_t>(ADDNL_GRALLOC_10_USAGE_BITS);
+            ALOGI("Adding additional valid usage bits: 0x%" PRIx64, addnl_bits);
+            bits |= addnl_bits;
+        }
+
         return bits;
     }();
     return validUsageBits | kRemovedUsageBits;
