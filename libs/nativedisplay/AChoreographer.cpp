@@ -100,17 +100,10 @@ class Choreographer;
  * Implementation of AChoreographerFrameCallbackData.
  */
 struct ChoreographerFrameCallbackDataImpl {
-    struct FrameTimeline {
-        int64_t vsyncId{0};
-        int64_t expectedPresentTimeNanos{0};
-        int64_t deadlineNanos{0};
-    };
-
     int64_t frameTimeNanos{0};
 
-    size_t frameTimelinesLength;
-
-    std::vector<FrameTimeline> frameTimelines;
+    std::array<VsyncEventData::FrameTimeline, DisplayEventReceiver::kFrameTimelinesLength>
+            frameTimelines;
 
     size_t preferredFrameTimelineIndex;
 
@@ -456,14 +449,9 @@ bool Choreographer::inCallback() const {
 }
 
 ChoreographerFrameCallbackDataImpl Choreographer::createFrameCallbackData(nsecs_t timestamp) const {
-    std::vector<ChoreographerFrameCallbackDataImpl::FrameTimeline> frameTimelines;
-    frameTimelines.push_back({.vsyncId = mLastVsyncEventData.id,
-                              .expectedPresentTimeNanos = mLastVsyncEventData.expectedPresentTime,
-                              .deadlineNanos = mLastVsyncEventData.deadlineTimestamp});
     return {.frameTimeNanos = timestamp,
-            .frameTimelinesLength = 1,
-            .preferredFrameTimelineIndex = 0,
-            .frameTimelines = frameTimelines,
+            .preferredFrameTimelineIndex = mLastVsyncEventData.preferredFrameTimelineIndex,
+            .frameTimelines = mLastVsyncEventData.frameTimelines,
             .choreographer = this};
 }
 
@@ -646,7 +634,7 @@ size_t AChoreographerFrameCallbackData_getFrameTimelinesLength(
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);
     LOG_ALWAYS_FATAL_IF(!frameCallbackData->choreographer->inCallback(),
                         "Data is only valid in callback");
-    return frameCallbackData->frameTimelinesLength;
+    return frameCallbackData->frameTimelines.size();
 }
 size_t AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex(
         const AChoreographerFrameCallbackData* data) {
@@ -662,8 +650,8 @@ int64_t AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);
     LOG_ALWAYS_FATAL_IF(!frameCallbackData->choreographer->inCallback(),
                         "Data is only valid in callback");
-    LOG_ALWAYS_FATAL_IF(index >= frameCallbackData->frameTimelinesLength, "Index out of bounds");
-    return frameCallbackData->frameTimelines[index].vsyncId;
+    LOG_ALWAYS_FATAL_IF(index >= frameCallbackData->frameTimelines.size(), "Index out of bounds");
+    return frameCallbackData->frameTimelines[index].id;
 }
 int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTime(
         const AChoreographerFrameCallbackData* data, size_t index) {
@@ -671,8 +659,8 @@ int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTime(
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);
     LOG_ALWAYS_FATAL_IF(!frameCallbackData->choreographer->inCallback(),
                         "Data is only valid in callback");
-    LOG_ALWAYS_FATAL_IF(index >= frameCallbackData->frameTimelinesLength, "Index out of bounds");
-    return frameCallbackData->frameTimelines[index].expectedPresentTimeNanos;
+    LOG_ALWAYS_FATAL_IF(index >= frameCallbackData->frameTimelines.size(), "Index out of bounds");
+    return frameCallbackData->frameTimelines[index].expectedPresentTime;
 }
 int64_t AChoreographerFrameCallbackData_getFrameTimelineDeadline(
         const AChoreographerFrameCallbackData* data, size_t index) {
@@ -680,8 +668,8 @@ int64_t AChoreographerFrameCallbackData_getFrameTimelineDeadline(
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);
     LOG_ALWAYS_FATAL_IF(!frameCallbackData->choreographer->inCallback(),
                         "Data is only valid in callback");
-    LOG_ALWAYS_FATAL_IF(index >= frameCallbackData->frameTimelinesLength, "Index out of bounds");
-    return frameCallbackData->frameTimelines[index].deadlineNanos;
+    LOG_ALWAYS_FATAL_IF(index >= frameCallbackData->frameTimelines.size(), "Index out of bounds");
+    return frameCallbackData->frameTimelines[index].deadlineTimestamp;
 }
 
 AChoreographer* AChoreographer_create() {
