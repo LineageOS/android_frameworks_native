@@ -33,11 +33,8 @@ public:
     static constexpr float kInputScale = 0.25f;
     // Downsample scale factor used to improve performance
     static constexpr float kInverseInputScale = 1.0f / kInputScale;
-    // To avoid downscaling artifacts, we interpolate the blurred fbo with the full composited
-    // image, up to this radius.
-    static constexpr float kMaxCrossFadeRadius = 10.0f;
 
-    explicit BlurFilter(){}
+    explicit BlurFilter(float maxCrossFadeRadius = 10.0f);
     virtual ~BlurFilter(){}
 
     // Execute blur, saving it to a texture
@@ -54,10 +51,20 @@ public:
      * @param blurredImage down-sampled blurred content that was produced by the generate() method
      * @param input original unblurred input that is used to crossfade with the blurredImage
      */
-    virtual void drawBlurRegion(SkCanvas* canvas, const SkRRect& effectRegion,
+    void drawBlurRegion(SkCanvas* canvas, const SkRRect& effectRegion,
                                 const uint32_t blurRadius, const float blurAlpha,
                                 const SkRect& blurRect, sk_sp<SkImage> blurredImage,
-                                sk_sp<SkImage> input) = 0;
+                                sk_sp<SkImage> input);
+
+    float getMaxCrossFadeRadius() const;
+
+private:
+    // To avoid downscaling artifacts, we interpolate the blurred fbo with the full composited
+    // image, up to this radius.
+    const float mMaxCrossFadeRadius;
+
+    // Optional blend used for crossfade only if mMaxCrossFadeRadius > 0
+    const sk_sp<SkRuntimeEffect> mMixEffect;
 };
 
 } // namespace skia
