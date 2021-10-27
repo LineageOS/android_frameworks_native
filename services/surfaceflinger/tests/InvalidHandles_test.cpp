@@ -52,17 +52,6 @@ protected:
     }
 };
 
-TEST_F(InvalidHandleTest, createSurfaceInvalidParentHandle) {
-    // The createSurface is scheduled now, we could still get a created surface from createSurface.
-    // Should verify if it actually added into current state by checking the screenshot.
-    auto notSc = mScc->createSurface(String8("lolcats"), 19, 47, PIXEL_FORMAT_RGBA_8888, 0,
-                                     mNotSc->getHandle());
-    LayerCaptureArgs args;
-    args.layerHandle = notSc->getHandle();
-    ScreenCaptureResults captureResults;
-    ASSERT_EQ(NAME_NOT_FOUND, ScreenCapture::captureLayers(args, captureResults));
-}
-
 TEST_F(InvalidHandleTest, captureLayersInvalidHandle) {
     LayerCaptureArgs args;
     args.layerHandle = mNotSc->getHandle();

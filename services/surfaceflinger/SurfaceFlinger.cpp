@@ -2455,7 +2455,7 @@ void SurfaceFlinger::postComposition() {
     }
 }
 
-void SurfaceFlinger::computeLayerBounds() {
+FloatRect SurfaceFlinger::getMaxDisplayBounds() {
     // Find the largest width and height among all the displays.
     int32_t maxDisplayWidth = 0;
     int32_t maxDisplayHeight = 0;
@@ -2473,8 +2473,13 @@ void SurfaceFlinger::computeLayerBounds() {
 
     // Ignore display bounds for now since they will be computed later. Use a large Rect bound
     // to ensure it's bigger than an actual display will be.
-    FloatRect maxBounds(-maxDisplayWidth * 10, -maxDisplayHeight * 10, maxDisplayWidth * 10,
-                        maxDisplayHeight * 10);
+    FloatRect maxBounds = FloatRect(-maxDisplayWidth * 10, -maxDisplayHeight * 10,
+                                    maxDisplayWidth * 10, maxDisplayHeight * 10);
+    return maxBounds;
+}
+
+void SurfaceFlinger::computeLayerBounds() {
+    FloatRect maxBounds = getMaxDisplayBounds();
     for (const auto& layer : mDrawingState.layersSortedByZ) {
         layer->computeBounds(maxBounds, ui::Transform(), 0.f /* shadowRadius */);
     }
@@ -6167,9 +6172,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     sp<Layer> parent;
     Rect crop(args.sourceCrop);
     std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> excludeLayers;
-    Rect layerStackSpaceRect;
     ui::Dataspace dataspace;
-    bool captureSecureLayers;
 
     // Call this before holding mStateLock to avoid any deadlocking.
     bool canCaptureBlackoutContent = hasCaptureBlackoutContentPermission();
@@ -6178,7 +6181,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         Mutex::Autolock lock(mStateLock);
 
         parent = fromHandle(args.layerHandle).promote();
-        if (parent == nullptr || parent->isRemovedFromCurrentState()) {
+        if (parent == nullptr) {
             ALOGE("captureLayers called with an invalid or removed parent");
             return NAME_NOT_FOUND;
         }
@@ -6217,39 +6220,36 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
             }
         }
 
-        const auto display = findDisplay(WithLayerStack(parent->getLayerStack()));
-        if (!display) {
-            return NAME_NOT_FOUND;
-        }
-
-        layerStackSpaceRect = display->getLayerStackSpaceRect();
-
         // The dataspace is depended on the color mode of display, that could use non-native mode
         // (ex. displayP3) to enhance the content, but some cases are checking native RGB in bytes,
         // and failed if display is not in native mode. This provide a way to force using native
         // colors when capture.
         dataspace = args.dataspace;
         if (dataspace == ui::Dataspace::UNKNOWN) {
+            auto display = findDisplay(WithLayerStack(parent->getLayerStack()));
+            if (!display) {
+                // If the layer is not on a display, use the dataspace for the default display.
+                display = getDefaultDisplayDeviceLocked();
+            }
+
             const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
             dataspace = pickDataspaceFromColorMode(colorMode);
         }
 
-        captureSecureLayers = args.captureSecureLayers && display->isSecure();
     } // mStateLock
 
     // really small crop or frameScale
-    if (reqSize.width <= 0) {
-        reqSize.width = 1;
-    }
-    if (reqSize.height <= 0) {
-        reqSize.height = 1;
+    if (reqSize.width <= 0 || reqSize.height <= 0) {
+        ALOGW("Failed to captureLayes: crop or scale too small");
+        return BAD_VALUE;
     }
 
+    Rect layerStackSpaceRect(0, 0, reqSize.width, reqSize.height);
     bool childrenOnly = args.childrenOnly;
     RenderAreaFuture renderAreaFuture = ftl::defer([=]() -> std::unique_ptr<RenderArea> {
         return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
                                                  childrenOnly, layerStackSpaceRect,
-                                                 captureSecureLayers);
+                                                 args.captureSecureLayers);
     });
 
     auto traverseLayers = [parent, args, excludeLayers](const LayerVector::Visitor& visitor) {
