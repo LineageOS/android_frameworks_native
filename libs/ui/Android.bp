@@ -151,6 +151,7 @@ cc_library_shared {
 
     defaults: [
         "libui-defaults",
+        "gralloc_10_usage_bits_defaults",
         // Uncomment the following line to enable VALIDATE_REGIONS traces
         //defaults: ["libui-validate-regions-defaults"],
     ],
