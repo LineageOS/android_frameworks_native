@@ -56,13 +56,8 @@ float transformAngle(const ui::Transform& transform, float angleRadians) {
     transformedPoint.y -= origin.y;
 
     // Derive the transformed vector's clockwise angle from vertical.
-    float result = atan2f(transformedPoint.x, -transformedPoint.y);
-    if (result < -M_PI_2) {
-        result += M_PI;
-    } else if (result > M_PI_2) {
-        result -= M_PI;
-    }
-    return result;
+    // The return value of atan2f is in range [-pi, pi] which conforms to the orientation API.
+    return atan2f(transformedPoint.x, -transformedPoint.y);
 }
 
 vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy) {
@@ -498,44 +493,14 @@ const PointerCoords* MotionEvent::getHistoricalRawPointerCoords(
 
 float MotionEvent::getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
                                              size_t historicalIndex) const {
-    const PointerCoords* coords = getHistoricalRawPointerCoords(pointerIndex, historicalIndex);
-
-    if (axis == AMOTION_EVENT_AXIS_X || axis == AMOTION_EVENT_AXIS_Y) {
-        const vec2 xy = calculateTransformedXY(mSource, mRawTransform, coords->getXYValue());
-        static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
-        return xy[axis];
-    }
-
-    if (axis == AMOTION_EVENT_AXIS_RELATIVE_X || axis == AMOTION_EVENT_AXIS_RELATIVE_Y) {
-        const vec2 relativeXy =
-                transformWithoutTranslation(mRawTransform,
-                                            {coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
-                                             coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y)});
-        return axis == AMOTION_EVENT_AXIS_RELATIVE_X ? relativeXy.x : relativeXy.y;
-    }
-
-    return coords->getAxisValue(axis);
+    const PointerCoords& coords = *getHistoricalRawPointerCoords(pointerIndex, historicalIndex);
+    return calculateTransformedAxisValue(axis, mSource, mRawTransform, coords);
 }
 
 float MotionEvent::getHistoricalAxisValue(int32_t axis, size_t pointerIndex,
                                           size_t historicalIndex) const {
-    const PointerCoords* coords = getHistoricalRawPointerCoords(pointerIndex, historicalIndex);
-
-    if (axis == AMOTION_EVENT_AXIS_X || axis == AMOTION_EVENT_AXIS_Y) {
-        const vec2 xy = calculateTransformedXY(mSource, mTransform, coords->getXYValue());
-        static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
-        return xy[axis];
-    }
-
-    if (axis == AMOTION_EVENT_AXIS_RELATIVE_X || axis == AMOTION_EVENT_AXIS_RELATIVE_Y) {
-        const vec2 relativeXy =
-                transformWithoutTranslation(mTransform,
-                                            {coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
-                                             coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y)});
-        return axis == AMOTION_EVENT_AXIS_RELATIVE_X ? relativeXy.x : relativeXy.y;
-    }
-
-    return coords->getAxisValue(axis);
+    const PointerCoords& coords = *getHistoricalRawPointerCoords(pointerIndex, historicalIndex);
+    return calculateTransformedAxisValue(axis, mSource, mTransform, coords);
 }
 
 ssize_t MotionEvent::findPointerIndex(int32_t pointerId) const {
@@ -574,15 +539,6 @@ void MotionEvent::transform(const std::array<float, 9>& matrix) {
     ui::Transform newTransform;
     newTransform.set(matrix);
     mTransform = newTransform * mTransform;
-
-    // We need to update the AXIS_ORIENTATION value here to maintain the old behavior where the
-    // orientation angle is not affected by the initial transformation set in the MotionEvent.
-    std::for_each(mSamplePointerCoords.begin(), mSamplePointerCoords.end(),
-                  [&newTransform](PointerCoords& c) {
-                      float orientation = c.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
-                      c.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
-                                     transformAngle(newTransform, orientation));
-                  });
 }
 
 void MotionEvent::applyTransform(const std::array<float, 9>& matrix) {
@@ -812,6 +768,30 @@ vec2 MotionEvent::calculateTransformedXY(uint32_t source, const ui::Transform& t
                                          const vec2& xy) {
     return shouldDisregardTranslation(source) ? transformWithoutTranslation(transform, xy)
                                               : transform.transform(xy);
+}
+
+float MotionEvent::calculateTransformedAxisValue(int32_t axis, uint32_t source,
+                                                 const ui::Transform& transform,
+                                                 const PointerCoords& coords) {
+    if (axis == AMOTION_EVENT_AXIS_X || axis == AMOTION_EVENT_AXIS_Y) {
+        const vec2 xy = calculateTransformedXY(source, transform, coords.getXYValue());
+        static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
+        return xy[axis];
+    }
+
+    if (axis == AMOTION_EVENT_AXIS_RELATIVE_X || axis == AMOTION_EVENT_AXIS_RELATIVE_Y) {
+        const vec2 relativeXy =
+                transformWithoutTranslation(transform,
+                                            {coords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
+                                             coords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y)});
+        return axis == AMOTION_EVENT_AXIS_RELATIVE_X ? relativeXy.x : relativeXy.y;
+    }
+
+    if (axis == AMOTION_EVENT_AXIS_ORIENTATION) {
+        return transformAngle(transform, coords.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION));
+    }
+
+    return coords.getAxisValue(axis);
 }
 
 // --- FocusEvent ---

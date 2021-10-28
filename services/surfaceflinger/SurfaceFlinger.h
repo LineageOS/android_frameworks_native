@@ -795,8 +795,8 @@ private:
     // add a layer to SurfaceFlinger
     status_t addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
                             const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
-                            const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer,
-                            bool addToRoot, uint32_t* outTransformHint);
+                            const wp<Layer>& parentLayer, bool addToRoot,
+                            uint32_t* outTransformHint);
 
     // Traverse through all the layers and compute and cache its bounds.
     void computeLayerBounds();
@@ -1345,18 +1345,16 @@ private:
             GUARDED_BY(mStateLock);
     mutable Mutex mCreatedLayersLock;
     struct LayerCreatedState {
-        LayerCreatedState(const wp<Layer>& layer, const sp<IBinder>& parent,
-                          const wp<Layer> parentLayer, const wp<IBinder>& producer, bool addToRoot)
+        LayerCreatedState(const wp<Layer>& layer, const wp<Layer> parent,
+                          const wp<IBinder>& producer, bool addToRoot)
               : layer(layer),
                 initialParent(parent),
-                initialParentLayer(parentLayer),
                 initialProducer(producer),
                 addToRoot(addToRoot) {}
         wp<Layer> layer;
         // Indicates the initial parent of the created layer, only used for creating layer in
         // SurfaceFlinger. If nullptr, it may add the created layer into the current root layers.
-        sp<IBinder> initialParent;
-        wp<Layer> initialParentLayer;
+        wp<Layer> initialParent;
         // Indicates the initial graphic buffer producer of the created layer, only used for
         // creating layer in SurfaceFlinger.
         wp<IBinder> initialProducer;
@@ -1370,8 +1368,7 @@ private:
     // thread.
     std::unordered_map<BBinder*, std::unique_ptr<LayerCreatedState>> mCreatedLayers;
     void setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
-                              const sp<IBinder>& parent, const wp<Layer> parentLayer,
-                              const wp<IBinder>& producer, bool addToRoot);
+                              const wp<Layer> parent, const wp<IBinder>& producer, bool addToRoot);
     auto getLayerCreatedState(const sp<IBinder>& handle);
     sp<Layer> handleLayerCreatedLocked(const sp<IBinder>& handle) REQUIRES(mStateLock);
 
