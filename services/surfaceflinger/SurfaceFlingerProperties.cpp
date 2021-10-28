@@ -304,14 +304,6 @@ bool support_kernel_idle_timer(bool defaultValue) {
     return defaultValue;
 }
 
-bool use_frame_rate_api(bool defaultValue) {
-    auto temp = SurfaceFlingerProperties::use_frame_rate_api();
-    if (temp.has_value()) {
-        return *temp;
-    }
-    return defaultValue;
-}
-
 bool enable_sdr_dimming(bool defaultValue) {
     return SurfaceFlingerProperties::enable_sdr_dimming().value_or(defaultValue);
 }

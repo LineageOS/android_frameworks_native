@@ -122,8 +122,6 @@ SetFrameRateTest::SetFrameRateTest() {
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-    mFlinger.mutableUseFrameRateApi() = true;
-
     setupScheduler();
 
     mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
