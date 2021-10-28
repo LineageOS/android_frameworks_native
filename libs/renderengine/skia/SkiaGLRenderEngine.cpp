@@ -53,6 +53,7 @@
 #include "SkBlendMode.h"
 #include "SkImageInfo.h"
 #include "filters/BlurFilter.h"
+#include "filters/KawaseBlurFilter.h"
 #include "filters/LinearEffect.h"
 #include "log/log_main.h"
 #include "skia/debug/SkiaCapture.h"
@@ -328,7 +329,7 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGL
 
     if (args.supportsBackgroundBlur) {
         ALOGD("Background Blurs Enabled");
-        mBlurFilter = new BlurFilter();
+        mBlurFilter = new KawaseBlurFilter();
     }
     mCapture = std::make_unique<SkiaCapture>();
 }

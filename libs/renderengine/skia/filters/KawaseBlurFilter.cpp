@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The Android Open Source Project
+ * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "BlurFilter.h"
+#include "KawaseBlurFilter.h"
 #include <SkCanvas.h>
 #include <SkData.h>
 #include <SkPaint.h>
@@ -32,23 +32,17 @@ namespace android {
 namespace renderengine {
 namespace skia {
 
-BlurFilter::BlurFilter() {
+KawaseBlurFilter::KawaseBlurFilter(): BlurFilter() {
     SkString blurString(R"(
         uniform shader child;
-        uniform float2 in_blurOffset;
-        uniform float2 in_maxSizeXY;
+        uniform float in_blurOffset;
 
         half4 main(float2 xy) {
             half4 c = child.eval(xy);
-            c += child.eval(float2(clamp( in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
-                                   clamp( in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
-            c += child.eval(float2(clamp( in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
-                                   clamp(-in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
-            c += child.eval(float2(clamp(-in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
-                                   clamp( in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
-            c += child.eval(float2(clamp(-in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
-                                   clamp(-in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
-
+            c += child.eval(xy + float2(+in_blurOffset, +in_blurOffset));
+            c += child.eval(xy + float2(+in_blurOffset, -in_blurOffset));
+            c += child.eval(xy + float2(-in_blurOffset, -in_blurOffset));
+            c += child.eval(xy + float2(-in_blurOffset, +in_blurOffset));
             return half4(c.rgb * 0.2, 1.0);
         }
     )");
@@ -76,8 +70,9 @@ BlurFilter::BlurFilter() {
     mMixEffect = std::move(mixEffect);
 }
 
-sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t blurRadius,
-                                    const sk_sp<SkImage> input, const SkRect& blurRect) const {
+sk_sp<SkImage> KawaseBlurFilter::generate(GrRecordingContext* context, const uint32_t blurRadius,
+                                          const sk_sp<SkImage> input, const SkRect& blurRect)
+    const {
     // Kawase is an approximation of Gaussian, but it behaves differently from it.
     // A radius transformation is required for approximating them, and also to introduce
     // non-integer steps, necessary to smoothly interpolate large radii.
@@ -88,9 +83,6 @@ sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t 
     // create blur surface with the bit depth and colorspace of the original surface
     SkImageInfo scaledInfo = input->imageInfo().makeWH(std::ceil(blurRect.width() * kInputScale),
                                                        std::ceil(blurRect.height() * kInputScale));
-
-    const float stepX = radiusByPasses;
-    const float stepY = radiusByPasses;
 
     // For sampling Skia's API expects the inverse of what logically seems appropriate. In this
     // case you might expect Translate(blurRect.fLeft, blurRect.fTop) X Scale(kInverseInputScale)
@@ -103,20 +95,15 @@ sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t 
     SkRuntimeShaderBuilder blurBuilder(mBlurEffect);
     blurBuilder.child("child") =
             input->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear, blurMatrix);
-    blurBuilder.uniform("in_blurOffset") = SkV2{stepX * kInputScale, stepY * kInputScale};
-    blurBuilder.uniform("in_maxSizeXY") =
-            SkV2{blurRect.width() * kInputScale, blurRect.height() * kInputScale};
+    blurBuilder.uniform("in_blurOffset") = radiusByPasses * kInputScale;
 
     sk_sp<SkImage> tmpBlur(blurBuilder.makeImage(context, nullptr, scaledInfo, false));
 
     // And now we'll build our chain of scaled blur stages
     for (auto i = 1; i < numberOfPasses; i++) {
-        const float stepScale = (float)i * kInputScale;
         blurBuilder.child("child") =
                 tmpBlur->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
-        blurBuilder.uniform("in_blurOffset") = SkV2{stepX * stepScale, stepY * stepScale};
-        blurBuilder.uniform("in_maxSizeXY") =
-                SkV2{blurRect.width() * kInputScale, blurRect.height() * kInputScale};
+        blurBuilder.uniform("in_blurOffset") = (float) i * radiusByPasses * kInputScale;
         tmpBlur = blurBuilder.makeImage(context, nullptr, scaledInfo, false);
     }
 
@@ -139,7 +126,7 @@ static SkMatrix getShaderTransform(const SkCanvas* canvas, const SkRect& blurRec
     return matrix;
 }
 
-void BlurFilter::drawBlurRegion(SkCanvas* canvas, const SkRRect& effectRegion,
+void KawaseBlurFilter::drawBlurRegion(SkCanvas* canvas, const SkRRect& effectRegion,
                                 const uint32_t blurRadius, const float blurAlpha,
                                 const SkRect& blurRect, sk_sp<SkImage> blurredImage,
                                 sk_sp<SkImage> input) {

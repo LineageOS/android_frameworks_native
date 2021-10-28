@@ -2841,6 +2841,17 @@ TEST_F(InputDispatcherTest, GestureMonitor_NoWindowTransform) {
     ASSERT_EQ(ui::Transform(), event->getTransform());
 }
 
+TEST_F(InputDispatcherTest, GestureMonitor_NoWindow) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    FakeMonitorReceiver monitor = FakeMonitorReceiver(mDispatcher, "GM_1", ADISPLAY_ID_DEFAULT,
+                                                      true /*isGestureMonitor*/);
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    monitor.consumeMotionDown(ADISPLAY_ID_DEFAULT);
+}
+
 TEST_F(InputDispatcherTest, TestMoveEvent) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =

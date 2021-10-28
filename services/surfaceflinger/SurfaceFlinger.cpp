@@ -3356,8 +3356,7 @@ bool SurfaceFlinger::latchBuffers() {
 
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
                                         const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
-                                        const sp<IBinder>& parentHandle,
-                                        const sp<Layer>& parentLayer, bool addToRoot,
+                                        const wp<Layer>& parent, bool addToRoot,
                                         uint32_t* outTransformHint) {
     if (mNumLayers >= ISurfaceComposer::MAX_LAYERS) {
         ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
@@ -3369,7 +3368,7 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
     if (gbc != nullptr) {
         initialProducer = IInterface::asBinder(gbc);
     }
-    setLayerCreatedState(handle, lbc, parentHandle, parentLayer, initialProducer, addToRoot);
+    setLayerCreatedState(handle, lbc, parent, initialProducer, addToRoot);
 
     // Create a transaction includes the initial parent and producer.
     Vector<ComposerState> states;
@@ -4227,7 +4226,7 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
     }
 
     *outLayerId = mirrorLayer->sequence;
-    return addClientLayer(client, *outHandle, nullptr, mirrorLayer, nullptr, nullptr, false,
+    return addClientLayer(client, *outHandle, nullptr, mirrorLayer, nullptr, false,
                           nullptr /* outTransformHint */);
 }
 
@@ -4296,8 +4295,15 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
     }
 
     bool addToRoot = callingThreadHasUnscopedSurfaceFlingerAccess();
-    result = addClientLayer(client, *handle, *gbp, layer, parentHandle, parentLayer, addToRoot,
-                            outTransformHint);
+    wp<Layer> parent(parentHandle != nullptr ? fromHandle(parentHandle) : parentLayer);
+    if (parentHandle != nullptr && parent == nullptr) {
+        ALOGE("Invalid parent handle %p.", parentHandle.get());
+        addToRoot = false;
+    }
+    if (parentLayer != nullptr) {
+        addToRoot = false;
+    }
+    result = addClientLayer(client, *handle, *gbp, layer, parent, addToRoot, outTransformHint);
     if (result != NO_ERROR) {
         return result;
     }
@@ -6777,11 +6783,11 @@ void TransactionState::traverseStatesWithBuffers(
 }
 
 void SurfaceFlinger::setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
-                                          const sp<IBinder>& parent, const wp<Layer> parentLayer,
-                                          const wp<IBinder>& producer, bool addToRoot) {
+                                          const wp<Layer> parent, const wp<IBinder>& producer,
+                                          bool addToRoot) {
     Mutex::Autolock lock(mCreatedLayersLock);
     mCreatedLayers[handle->localBinder()] =
-            std::make_unique<LayerCreatedState>(layer, parent, parentLayer, producer, addToRoot);
+            std::make_unique<LayerCreatedState>(layer, parent, producer, addToRoot);
 }
 
 auto SurfaceFlinger::getLayerCreatedState(const sp<IBinder>& handle) {
@@ -6819,19 +6825,14 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
     }
 
     sp<Layer> parent;
-    bool allowAddRoot = state->addToRoot;
     if (state->initialParent != nullptr) {
-        parent = fromHandle(state->initialParent).promote();
+        parent = state->initialParent.promote();
         if (parent == nullptr) {
-            ALOGE("Invalid parent %p", state->initialParent.get());
-            allowAddRoot = false;
+            ALOGE("Invalid parent %p", state->initialParent.unsafe_get());
         }
-    } else if (state->initialParentLayer != nullptr) {
-        parent = state->initialParentLayer.promote();
-        allowAddRoot = false;
     }
 
-    if (parent == nullptr && allowAddRoot) {
+    if (parent == nullptr && state->addToRoot) {
         layer->setIsAtRoot(true);
         mCurrentState.layersSortedByZ.add(layer);
     } else if (parent == nullptr) {

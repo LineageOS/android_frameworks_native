@@ -259,7 +259,13 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
         EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR), motionEvent->getTouchMinor(i));
         EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR), motionEvent->getToolMajor(i));
         EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR), motionEvent->getToolMinor(i));
-        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION), motionEvent->getOrientation(i));
+
+        // Calculate the orientation after scaling, keeping in mind that an orientation of 0 is
+        // "up", and the positive y direction is "down".
+        const float unscaledOrientation = pc.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
+        const float x = sinf(unscaledOrientation) * xScale;
+        const float y = -cosf(unscaledOrientation) * yScale;
+        EXPECT_EQ(atan2f(x, -y), motionEvent->getOrientation(i));
     }
 
     status = mConsumer->sendFinishedSignal(seq, false);

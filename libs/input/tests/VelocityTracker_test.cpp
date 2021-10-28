@@ -343,7 +343,7 @@ TEST_F(VelocityTrackerTest, SailfishFlingUpSlow1) {
         { 235089162955851ns, {{560.66, 843.82}} }, // ACTION_UP
     };
     computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X,
-                            872.794617);
+                            764.345703);
     computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X,
                             951.698181);
     computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_Y,

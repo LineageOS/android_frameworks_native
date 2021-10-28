@@ -15,6 +15,13 @@
  */
 
 /**
+ * @defgroup ADataSpace Data Space
+ *
+ * ADataSpace describes how to interpret colors.
+ * @{
+ */
+
+/**
  * @file data_space.h
  */
 
@@ -517,3 +524,5 @@ enum ADataSpace {
 __END_DECLS
 
 #endif // ANDROID_DATA_SPACE_H
+
+/** @} */

@@ -803,6 +803,9 @@ public:
 
     static vec2 calculateTransformedXY(uint32_t source, const ui::Transform&, const vec2& xy);
 
+    static float calculateTransformedAxisValue(int32_t axis, uint32_t source, const ui::Transform&,
+                                               const PointerCoords&);
+
 protected:
     int32_t mAction;
     int32_t mActionButton;

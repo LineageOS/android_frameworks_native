@@ -444,12 +444,19 @@ void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
     ASSERT_EQ(217, event->getToolMinor(0));
     ASSERT_EQ(227, event->getToolMinor(1));
 
-    ASSERT_EQ(18, event->getHistoricalOrientation(0, 0));
-    ASSERT_EQ(28, event->getHistoricalOrientation(1, 0));
-    ASSERT_EQ(118, event->getHistoricalOrientation(0, 1));
-    ASSERT_EQ(128, event->getHistoricalOrientation(1, 1));
-    ASSERT_EQ(218, event->getOrientation(0));
-    ASSERT_EQ(228, event->getOrientation(1));
+    // Calculate the orientation after scaling, keeping in mind that an orientation of 0 is "up",
+    // and the positive y direction is "down".
+    auto toScaledOrientation = [](float angle) {
+        const float x = sinf(angle) * X_SCALE;
+        const float y = -cosf(angle) * Y_SCALE;
+        return atan2f(x, -y);
+    };
+    ASSERT_EQ(toScaledOrientation(18), event->getHistoricalOrientation(0, 0));
+    ASSERT_EQ(toScaledOrientation(28), event->getHistoricalOrientation(1, 0));
+    ASSERT_EQ(toScaledOrientation(118), event->getHistoricalOrientation(0, 1));
+    ASSERT_EQ(toScaledOrientation(128), event->getHistoricalOrientation(1, 1));
+    ASSERT_EQ(toScaledOrientation(218), event->getOrientation(0));
+    ASSERT_EQ(toScaledOrientation(228), event->getOrientation(1));
 }
 
 TEST_F(MotionEventTest, Properties) {
@@ -518,6 +525,7 @@ TEST_F(MotionEventTest, OffsetLocation) {
 TEST_F(MotionEventTest, Scale) {
     MotionEvent event;
     initializeEventWithHistory(&event);
+    const float unscaledOrientation = event.getOrientation(0);
 
     event.scale(2.0f);
 
@@ -534,7 +542,7 @@ TEST_F(MotionEventTest, Scale) {
     ASSERT_EQ(215 * 2, event.getTouchMinor(0));
     ASSERT_EQ(216 * 2, event.getToolMajor(0));
     ASSERT_EQ(217 * 2, event.getToolMinor(0));
-    ASSERT_EQ(218, event.getOrientation(0));
+    ASSERT_EQ(unscaledOrientation, event.getOrientation(0));
 }
 
 TEST_F(MotionEventTest, Parcel) {
