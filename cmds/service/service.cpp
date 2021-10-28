@@ -45,33 +45,6 @@ void writeString16(Parcel& parcel, const char* string)
     }
 }
 
-// get the name of the generic interface we hold a reference to
-static String16 get_interface_name(sp<IBinder> service)
-{
-    if (service != nullptr) {
-        Parcel data, reply;
-        data.markForBinder(service);
-        status_t err = service->transact(IBinder::INTERFACE_TRANSACTION, data, &reply);
-        if (err == NO_ERROR) {
-            return reply.readString16();
-        }
-    }
-    return String16();
-}
-
-static String8 good_old_string(const String16& src)
-{
-    String8 name8;
-    char ch8[2];
-    ch8[1] = 0;
-    for (unsigned j = 0; j < src.size(); j++) {
-        char16_t ch = src[j];
-        if (ch < 128) ch8[0] = (char)ch;
-        name8.append(ch8);
-    }
-    return name8;
-}
-
 int main(int argc, char* const argv[])
 {
     bool wantsUsage = false;
@@ -132,8 +105,8 @@ int main(int argc, char* const argv[])
                 String16 name = services[i];
                 sp<IBinder> service = sm->checkService(name);
                 aout << i
-                     << "\t" << good_old_string(name)
-                     << ": [" << good_old_string(get_interface_name(service)) << "]"
+                     << "\t" << name
+                     << ": [" << (service ? service->getInterfaceDescriptor() : String16()) << "]"
                      << endl;
             }
         } else if (strcmp(argv[optind], "call") == 0) {
@@ -141,7 +114,7 @@ int main(int argc, char* const argv[])
             if (optind+1 < argc) {
                 int serviceArg = optind;
                 sp<IBinder> service = sm->checkService(String16(argv[optind++]));
-                String16 ifName = get_interface_name(service);
+                String16 ifName = (service ? service->getInterfaceDescriptor() : String16());
                 int32_t code = atoi(argv[optind++]);
                 if (service != nullptr && ifName.size() > 0) {
                     Parcel data, reply;
