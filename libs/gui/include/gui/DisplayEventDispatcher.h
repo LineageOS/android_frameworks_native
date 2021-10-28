@@ -35,9 +35,6 @@ struct VsyncEventData {
     // The current frame interval in ns when this frame was scheduled.
     int64_t frameInterval = 0;
 
-    // The anticipated Vsync present time.
-    int64_t expectedPresentTime = 0;
-
     struct FrameTimeline {
         // The Vsync Id corresponsing to this vsync event. This will be used to
         // populate ISurfaceComposer::setFrameTimelineVsync and
