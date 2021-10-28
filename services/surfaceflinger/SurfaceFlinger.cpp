@@ -6825,14 +6825,16 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
     }
 
     sp<Layer> parent;
+    bool addToRoot = state->addToRoot;
     if (state->initialParent != nullptr) {
         parent = state->initialParent.promote();
         if (parent == nullptr) {
             ALOGE("Invalid parent %p", state->initialParent.unsafe_get());
+            addToRoot = false;
         }
     }
 
-    if (parent == nullptr && state->addToRoot) {
+    if (parent == nullptr && addToRoot) {
         layer->setIsAtRoot(true);
         mCurrentState.layersSortedByZ.add(layer);
     } else if (parent == nullptr) {
