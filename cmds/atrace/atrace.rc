@@ -265,6 +265,22 @@ on late-init
     chmod 0666 /sys/kernel/tracing/per_cpu/cpu14/trace
     chmod 0666 /sys/kernel/debug/tracing/per_cpu/cpu15/trace
     chmod 0666 /sys/kernel/tracing/per_cpu/cpu15/trace
+    chmod 0666 /sys/kernel/debug/tracing/per_cpu/cpu16/trace
+    chmod 0666 /sys/kernel/tracing/per_cpu/cpu16/trace
+    chmod 0666 /sys/kernel/debug/tracing/per_cpu/cpu17/trace
+    chmod 0666 /sys/kernel/tracing/per_cpu/cpu17/trace
+    chmod 0666 /sys/kernel/debug/tracing/per_cpu/cpu18/trace
+    chmod 0666 /sys/kernel/tracing/per_cpu/cpu18/trace
+    chmod 0666 /sys/kernel/debug/tracing/per_cpu/cpu19/trace
+    chmod 0666 /sys/kernel/tracing/per_cpu/cpu19/trace
+    chmod 0666 /sys/kernel/debug/tracing/per_cpu/cpu20/trace
+    chmod 0666 /sys/kernel/tracing/per_cpu/cpu20/trace
+    chmod 0666 /sys/kernel/debug/tracing/per_cpu/cpu21/trace
+    chmod 0666 /sys/kernel/tracing/per_cpu/cpu21/trace
+    chmod 0666 /sys/kernel/debug/tracing/per_cpu/cpu22/trace
+    chmod 0666 /sys/kernel/tracing/per_cpu/cpu22/trace
+    chmod 0666 /sys/kernel/debug/tracing/per_cpu/cpu23/trace
+    chmod 0666 /sys/kernel/tracing/per_cpu/cpu23/trace
 
 # Only create the tracing instance if persist.mm_events.enabled
 # Attempting to remove the tracing instance after it has been created
@@ -337,6 +353,22 @@ on post-fs-data && property:persist.mm_events.enabled=true
     chmod 0666 /sys/kernel/tracing/instances/mm_events/per_cpu/cpu14/trace
     chmod 0666 /sys/kernel/debug/tracing/instances/mm_events/per_cpu/cpu15/trace
     chmod 0666 /sys/kernel/tracing/instances/mm_events/per_cpu/cpu15/trace
+    chmod 0666 /sys/kernel/debug/tracing/instances/mm_events/per_cpu/cpu16/trace
+    chmod 0666 /sys/kernel/tracing/instances/mm_events/per_cpu/cpu16/trace
+    chmod 0666 /sys/kernel/debug/tracing/instances/mm_events/per_cpu/cpu17/trace
+    chmod 0666 /sys/kernel/tracing/instances/mm_events/per_cpu/cpu17/trace
+    chmod 0666 /sys/kernel/debug/tracing/instances/mm_events/per_cpu/cpu18/trace
+    chmod 0666 /sys/kernel/tracing/instances/mm_events/per_cpu/cpu18/trace
+    chmod 0666 /sys/kernel/debug/tracing/instances/mm_events/per_cpu/cpu19/trace
+    chmod 0666 /sys/kernel/tracing/instances/mm_events/per_cpu/cpu19/trace
+    chmod 0666 /sys/kernel/debug/tracing/instances/mm_events/per_cpu/cpu20/trace
+    chmod 0666 /sys/kernel/tracing/instances/mm_events/per_cpu/cpu20/trace
+    chmod 0666 /sys/kernel/debug/tracing/instances/mm_events/per_cpu/cpu21/trace
+    chmod 0666 /sys/kernel/tracing/instances/mm_events/per_cpu/cpu21/trace
+    chmod 0666 /sys/kernel/debug/tracing/instances/mm_events/per_cpu/cpu22/trace
+    chmod 0666 /sys/kernel/tracing/instances/mm_events/per_cpu/cpu22/trace
+    chmod 0666 /sys/kernel/debug/tracing/instances/mm_events/per_cpu/cpu23/trace
+    chmod 0666 /sys/kernel/tracing/instances/mm_events/per_cpu/cpu23/trace
 
 on property:persist.debug.atrace.boottrace=1
     start boottrace
