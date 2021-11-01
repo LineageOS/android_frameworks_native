@@ -1150,41 +1150,6 @@ public:
         return reply.readInt32();
     }
 
-    status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) override {
-        if (!outToken) return BAD_VALUE;
-
-        Parcel data, reply;
-        status_t err = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (err != NO_ERROR) {
-            ALOGE("acquireFrameRateFlexibilityToken: failed writing interface token: %s (%d)",
-                  strerror(-err), -err);
-            return err;
-        }
-
-        err = remote()->transact(BnSurfaceComposer::ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN, data,
-                                 &reply);
-        if (err != NO_ERROR) {
-            ALOGE("acquireFrameRateFlexibilityToken: failed to transact: %s (%d)", strerror(-err),
-                  err);
-            return err;
-        }
-
-        err = reply.readInt32();
-        if (err != NO_ERROR) {
-            ALOGE("acquireFrameRateFlexibilityToken: call failed: %s (%d)", strerror(-err), err);
-            return err;
-        }
-
-        err = reply.readStrongBinder(outToken);
-        if (err != NO_ERROR) {
-            ALOGE("acquireFrameRateFlexibilityToken: failed reading binder token: %s (%d)",
-                  strerror(-err), err);
-            return err;
-        }
-
-        return NO_ERROR;
-    }
-
     status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
                                   const FrameTimelineInfo& frameTimelineInfo) override {
         Parcel data, reply;
@@ -2071,16 +2036,6 @@ status_t BnSurfaceComposer::onTransact(
             status_t result =
                     setFrameRate(surface, frameRate, compatibility, changeFrameRateStrategy);
             reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> token;
-            status_t result = acquireFrameRateFlexibilityToken(&token);
-            reply->writeInt32(result);
-            if (result == NO_ERROR) {
-                reply->writeStrongBinder(token);
-            }
             return NO_ERROR;
         }
         case SET_FRAME_TIMELINE_INFO: {
