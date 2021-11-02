@@ -287,6 +287,7 @@ protected:
                 kTestUserId,
                 kAppDataFlags,
                 kTestAppUid,
+                0 /* previousAppId */,
                 se_info_,
                 kOSdkVersion,
                 &ce_data_inode_);
@@ -1257,6 +1258,7 @@ TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
             kTestUserId,
             kAppDataFlags,
             kTestAppUid,
+            0 /* previousAppId */,
             se_info_,
             kOSdkVersion,
             &ce_data_inode_));
@@ -1320,6 +1322,7 @@ class BootProfileTest : public ProfileTest {
                     kTestUserId,
                     kAppDataFlags,
                     kTestAppUid,
+                    0 /* previousAppId */,
                     se_info_,
                     kOSdkVersion,
                     &ce_data_inode));
