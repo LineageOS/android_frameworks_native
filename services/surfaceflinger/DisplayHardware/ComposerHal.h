@@ -221,7 +221,11 @@ public:
     virtual V2_4::Error getLayerGenericMetadataKeys(
             std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) = 0;
     virtual Error getClientTargetProperty(
-            Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty) = 0;
+            Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty,
+            float* outWhitePointNits) = 0;
+
+    // AIDL Composer
+    virtual Error setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) = 0;
 };
 
 } // namespace android::Hwc2

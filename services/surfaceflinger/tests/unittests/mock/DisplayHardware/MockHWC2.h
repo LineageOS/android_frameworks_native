@@ -85,7 +85,8 @@ public:
     MOCK_METHOD(hal::Error, getSupportedContentTypes, (std::vector<hal::ContentType> *),
                 (const, override));
     MOCK_METHOD(hal::Error, setContentType, (hal::ContentType), (override));
-    MOCK_METHOD(hal::Error, getClientTargetProperty, (hal::ClientTargetProperty *), (override));
+    MOCK_METHOD(hal::Error, getClientTargetProperty, (hal::ClientTargetProperty *, float *),
+                (override));
 };
 
 class Layer : public HWC2::Layer {
@@ -116,6 +117,7 @@ public:
     MOCK_METHOD(hal::Error, setColorTransform, (const android::mat4 &), (override));
     MOCK_METHOD(hal::Error, setLayerGenericMetadata,
                 (const std::string &, bool, const std::vector<uint8_t> &), (override));
+    MOCK_METHOD(hal::Error, setWhitePointNits, (float whitePointNits), (override));
 };
 
 } // namespace android::HWC2::mock

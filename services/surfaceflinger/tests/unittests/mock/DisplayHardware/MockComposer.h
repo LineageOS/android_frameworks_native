@@ -136,7 +136,9 @@ public:
                              const std::vector<uint8_t>&));
     MOCK_METHOD1(getLayerGenericMetadataKeys,
                  V2_4::Error(std::vector<IComposerClient::LayerGenericMetadataKey>*));
-    MOCK_METHOD2(getClientTargetProperty, Error(Display, IComposerClient::ClientTargetProperty*));
+    MOCK_METHOD3(getClientTargetProperty,
+                 Error(Display, IComposerClient::ClientTargetProperty*, float*));
+    MOCK_METHOD3(setLayerWhitePointNits, Error(Display, Layer, float));
 };
 
 } // namespace Hwc2::mock

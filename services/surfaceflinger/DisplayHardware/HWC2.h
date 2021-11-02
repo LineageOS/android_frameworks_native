@@ -146,7 +146,7 @@ public:
             std::vector<hal::ContentType>*) const = 0;
     [[clang::warn_unused_result]] virtual hal::Error setContentType(hal::ContentType) = 0;
     [[clang::warn_unused_result]] virtual hal::Error getClientTargetProperty(
-            hal::ClientTargetProperty* outClientTargetProperty) = 0;
+            hal::ClientTargetProperty* outClientTargetProperty, float* outWhitePointNits) = 0;
 };
 
 namespace impl {
@@ -209,7 +209,8 @@ public:
     hal::Error getSupportedContentTypes(
             std::vector<hal::ContentType>* outSupportedContentTypes) const override;
     hal::Error setContentType(hal::ContentType) override;
-    hal::Error getClientTargetProperty(hal::ClientTargetProperty* outClientTargetProperty) override;
+    hal::Error getClientTargetProperty(hal::ClientTargetProperty* outClientTargetProperty,
+                                       float* outWhitePointNits) override;
 
     // Other Display methods
     hal::HWDisplayId getId() const override { return mId; }
@@ -288,6 +289,9 @@ public:
     // Composer HAL 2.4
     [[clang::warn_unused_result]] virtual hal::Error setLayerGenericMetadata(
             const std::string& name, bool mandatory, const std::vector<uint8_t>& value) = 0;
+
+    // AIDL HAL
+    [[clang::warn_unused_result]] virtual hal::Error setWhitePointNits(float whitePointNits) = 0;
 };
 
 namespace impl {
@@ -330,6 +334,9 @@ public:
     // Composer HAL 2.4
     hal::Error setLayerGenericMetadata(const std::string& name, bool mandatory,
                                        const std::vector<uint8_t>& value) override;
+
+    // AIDL HAL
+    hal::Error setWhitePointNits(float whitePointNits) override;
 
 private:
     // These are references to data owned by HWC2::Device, which will outlive

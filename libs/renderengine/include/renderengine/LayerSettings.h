@@ -171,6 +171,12 @@ struct LayerSettings {
 
     // Name associated with the layer for debugging purposes.
     std::string name;
+
+    // Luminance of the white point for this layer. Used for linear dimming.
+    // Individual layers will be dimmed by (whitePointNits / maxWhitePoint).
+    // If white point nits are unknown, then this layer is assumed to have the
+    // same luminance as the brightest layer in the scene.
+    float whitePointNits = -1.f;
 };
 
 // Keep in sync with custom comparison function in

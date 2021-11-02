@@ -57,8 +57,10 @@ struct DisplaySettings {
     // orientation.
     uint32_t orientation = ui::Transform::ROT_0;
 
-    // SDR white point, -1f if unknown
-    float sdrWhitePointNits = -1.f;
+    // Target luminance of the display. -1f if unknown.
+    // All layers will be dimmed by (max(layer white points) / targetLuminanceNits).
+    // If the target luminance is unknown, then no display-level dimming occurs.
+    float targetLuminanceNits = -1.f;
 };
 
 static inline bool operator==(const DisplaySettings& lhs, const DisplaySettings& rhs) {

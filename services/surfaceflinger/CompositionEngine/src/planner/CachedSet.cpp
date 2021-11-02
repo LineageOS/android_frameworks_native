@@ -170,6 +170,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
             .clip = viewport,
             .outputDataspace = outputDataspace,
             .orientation = orientation,
+            .targetLuminanceNits = outputState.displayBrightnessNits,
     };
 
     LayerFE::ClientCompositionTargetSettings targetSettings{
@@ -182,6 +183,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
             .realContentIsVisible = true,
             .clearContent = false,
             .blurSetting = LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            .whitePointNits = outputState.displayBrightnessNits,
     };
 
     std::vector<renderengine::LayerSettings> layerSettings;

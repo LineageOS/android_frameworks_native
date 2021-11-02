@@ -1164,8 +1164,14 @@ V2_4::Error HidlComposer::getLayerGenericMetadataKeys(
 }
 
 Error HidlComposer::getClientTargetProperty(
-        Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty) {
+        Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty,
+        float* outWhitePointNits) {
     mReader.takeClientTargetProperty(display, outClientTargetProperty);
+    *outWhitePointNits = -1.f;
+    return Error::NONE;
+}
+
+Error HidlComposer::setLayerWhitePointNits(Display, Layer, float) {
     return Error::NONE;
 }
 

@@ -24,6 +24,9 @@
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <cstdint>
+#include "system/graphics-base-v1.0.h"
+
+#include <ui/DataspaceUtils.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
@@ -317,6 +320,14 @@ void OutputLayer::updateCompositionState(
             ? outputState.targetDataspace
             : layerFEState->dataspace;
 
+    // For hdr content, treat the white point as the display brightness - HDR content should not be
+    // boosted or dimmed.
+    if (isHdrDataspace(state.dataspace)) {
+        state.whitePointNits = getOutput().getState().displayBrightnessNits;
+    } else {
+        state.whitePointNits = getOutput().getState().sdrWhitePointNits;
+    }
+
     // These are evaluated every frame as they can potentially change at any
     // time.
     if (layerFEState->forceClientComposition || !profile.isDataspaceSupported(state.dataspace) ||
@@ -478,6 +489,16 @@ void OutputLayer::writeOutputDependentPerFrameStateToHWC(HWC2::Layer* hwcLayer) 
     if (auto error = hwcLayer->setDataspace(dataspace); error != hal::Error::NONE) {
         ALOGE("[%s] Failed to set dataspace %d: %s (%d)", getLayerFE().getDebugName(), dataspace,
               to_string(error).c_str(), static_cast<int32_t>(error));
+    }
+
+    // Don't dim cached layers
+    const auto whitePointNits = outputDependentState.overrideInfo.buffer
+            ? getOutput().getState().displayBrightnessNits
+            : outputDependentState.whitePointNits;
+
+    if (auto error = hwcLayer->setWhitePointNits(whitePointNits); error != hal::Error::NONE) {
+        ALOGE("[%s] Failed to set white point %f: %s (%d)", getLayerFE().getDebugName(),
+              whitePointNits, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 }
 
