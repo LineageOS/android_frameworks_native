@@ -422,9 +422,131 @@ static bool prepare_app_profile_dir(const std::string& packageName, int32_t appI
     return true;
 }
 
+static bool chown_app_dir(const std::string& path, uid_t uid, uid_t previousUid, gid_t cacheGid) {
+    FTS* fts;
+    char *argv[] = { (char*) path.c_str(), nullptr };
+    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nullptr))) {
+        return false;
+    }
+    for (FTSENT* p; (p = fts_read(fts)) != nullptr;) {
+        if (p->fts_info == FTS_D && p->fts_level == 1
+            && (strcmp(p->fts_name, "cache") == 0
+                || strcmp(p->fts_name, "code_cache") == 0)) {
+            // Mark cache dirs
+            p->fts_number = 1;
+        } else {
+            // Inherit parent's number
+            p->fts_number = p->fts_parent->fts_number;
+        }
+
+        switch (p->fts_info) {
+        case FTS_D:
+        case FTS_F:
+        case FTS_SL:
+        case FTS_SLNONE:
+            if (p->fts_statp->st_uid == previousUid) {
+                if (lchown(p->fts_path, uid, p->fts_number ? cacheGid : uid) != 0) {
+                    PLOG(WARNING) << "Failed to lchown " << p->fts_path;
+                }
+            } else {
+                LOG(WARNING) << "Ignoring " << p->fts_path << " with unexpected UID "
+                        << p->fts_statp->st_uid << " instead of " << previousUid;
+            }
+            break;
+        }
+    }
+    fts_close(fts);
+    return true;
+}
+
+static void chown_app_profile_dir(const std::string &packageName, int32_t appId, int32_t userId) {
+    uid_t uid = multiuser_get_uid(userId, appId);
+    gid_t sharedGid = multiuser_get_shared_gid(userId, appId);
+
+    const std::string profile_dir =
+            create_primary_current_profile_package_dir_path(userId, packageName);
+    char *argv[] = { (char*) profile_dir.c_str(), nullptr };
+    if (FTS* fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nullptr)) {
+        for (FTSENT* p; (p = fts_read(fts)) != nullptr;) {
+            switch (p->fts_info) {
+            case FTS_D:
+            case FTS_F:
+            case FTS_SL:
+            case FTS_SLNONE:
+                if (lchown(p->fts_path, uid, uid) != 0) {
+                    PLOG(WARNING) << "Failed to lchown " << p->fts_path;
+                }
+                break;
+            }
+        }
+        fts_close(fts);
+    }
+
+    const std::string ref_profile_path =
+            create_primary_reference_profile_package_dir_path(packageName);
+    argv[0] = (char *) ref_profile_path.c_str();
+    if (FTS* fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nullptr)) {
+        for (FTSENT* p; (p = fts_read(fts)) != nullptr;) {
+            if (p->fts_info == FTS_D && p->fts_level == 0) {
+                if (chown(p->fts_path, AID_SYSTEM, sharedGid) != 0) {
+                    PLOG(WARNING) << "Failed to chown " << p->fts_path;
+                }
+                continue;
+            }
+            switch (p->fts_info) {
+            case FTS_D:
+            case FTS_F:
+            case FTS_SL:
+            case FTS_SLNONE:
+                if (lchown(p->fts_path, sharedGid, sharedGid) != 0) {
+                    PLOG(WARNING) << "Failed to lchown " << p->fts_path;
+                }
+                break;
+            }
+        }
+        fts_close(fts);
+    }
+}
+
+static binder::Status createAppDataDirs(const std::string& path,
+        int32_t uid, int32_t* previousUid, int32_t cacheGid,
+        const std::string& seInfo, mode_t targetMode) {
+    struct stat st{};
+    bool existing = (stat(path.c_str(), &st) == 0);
+    if (existing) {
+        if (*previousUid < 0) {
+            // If previousAppId is -1 in CreateAppDataArgs, we will assume the current owner
+            // of the directory as previousUid. This is required because it is not always possible
+            // to chown app data during app upgrade (e.g. secondary users' CE storage not unlocked)
+            *previousUid = st.st_uid;
+        }
+        if (*previousUid != uid) {
+            if (!chown_app_dir(path, uid, *previousUid, cacheGid)) {
+                return error("Failed to chown " + path);
+            }
+        }
+    }
+
+    if (prepare_app_dir(path, targetMode, uid) ||
+            prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid) ||
+            prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid)) {
+        return error("Failed to prepare " + path);
+    }
+
+    // Consider restorecon over contents if label changed
+    if (restorecon_app_data_lazy(path, seInfo, uid, existing) ||
+            restorecon_app_data_lazy(path, "cache", seInfo, uid, existing) ||
+            restorecon_app_data_lazy(path, "code_cache", seInfo, uid, existing)) {
+        return error("Failed to restorecon " + path);
+    }
+
+    return ok();
+}
+
 binder::Status InstalldNativeService::createAppData(const std::optional<std::string>& uuid,
         const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
-        const std::string& seInfo, int32_t targetSdkVersion, int64_t* _aidl_return) {
+        int32_t previousAppId, const std::string& seInfo, int32_t targetSdkVersion,
+        int64_t* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
@@ -437,6 +559,14 @@ binder::Status InstalldNativeService::createAppData(const std::optional<std::str
     if (_aidl_return != nullptr) *_aidl_return = -1;
 
     int32_t uid = multiuser_get_uid(userId, appId);
+
+    // If previousAppId < 0, we will use the existing app data owner as previousAppUid
+    // If previousAppId == 0, we use uid as previousUid (no data migration will happen)
+    // if previousAppId > 0, an app is upgrading and changing its app ID
+    int32_t previousUid = previousAppId > 0
+        ? (int32_t) multiuser_get_uid(userId, previousAppId)
+        : (previousAppId == 0 ? uid : -1);
+
     int32_t cacheGid = multiuser_get_cache_gid(userId, appId);
     mode_t targetMode = targetSdkVersion >= MIN_RESTRICTED_HOME_SDK_VERSION ? 0700 : 0751;
 
@@ -447,19 +577,13 @@ binder::Status InstalldNativeService::createAppData(const std::optional<std::str
 
     if (flags & FLAG_STORAGE_CE) {
         auto path = create_data_user_ce_package_path(uuid_, userId, pkgname);
-        bool existing = (access(path.c_str(), F_OK) == 0);
 
-        if (prepare_app_dir(path, targetMode, uid) ||
-                prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid) ||
-                prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid)) {
-            return error("Failed to prepare " + path);
+        auto status = createAppDataDirs(path, uid, &previousUid, cacheGid, seInfo, targetMode);
+        if (!status.isOk()) {
+            return status;
         }
-
-        // Consider restorecon over contents if label changed
-        if (restorecon_app_data_lazy(path, seInfo, uid, existing) ||
-                restorecon_app_data_lazy(path, "cache", seInfo, uid, existing) ||
-                restorecon_app_data_lazy(path, "code_cache", seInfo, uid, existing)) {
-            return error("Failed to restorecon " + path);
+        if (previousUid != uid) {
+            chown_app_profile_dir(packageName, appId, userId);
         }
 
         // Remember inode numbers of cache directories so that we can clear
@@ -481,19 +605,10 @@ binder::Status InstalldNativeService::createAppData(const std::optional<std::str
     }
     if (flags & FLAG_STORAGE_DE) {
         auto path = create_data_user_de_package_path(uuid_, userId, pkgname);
-        bool existing = (access(path.c_str(), F_OK) == 0);
 
-        if (prepare_app_dir(path, targetMode, uid) ||
-                prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid) ||
-                prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid)) {
-            return error("Failed to prepare " + path);
-        }
-
-        // Consider restorecon over contents if label changed
-        if (restorecon_app_data_lazy(path, seInfo, uid, existing) ||
-                restorecon_app_data_lazy(path, "cache", seInfo, uid, existing) ||
-                restorecon_app_data_lazy(path, "code_cache", seInfo, uid, existing)) {
-            return error("Failed to restorecon " + path);
+        auto status = createAppDataDirs(path, uid, &previousUid, cacheGid, seInfo, targetMode);
+        if (!status.isOk()) {
+            return status;
         }
 
         if (!prepare_app_profile_dir(packageName, appId, userId)) {
@@ -503,7 +618,6 @@ binder::Status InstalldNativeService::createAppData(const std::optional<std::str
     return ok();
 }
 
-
 binder::Status InstalldNativeService::createAppData(
         const android::os::CreateAppDataArgs& args,
         android::os::CreateAppDataResult* _aidl_return) {
@@ -512,7 +626,7 @@ binder::Status InstalldNativeService::createAppData(
 
     int64_t ceDataInode = -1;
     auto status = createAppData(args.uuid, args.packageName, args.userId, args.flags, args.appId,
-                                args.seInfo, args.targetSdkVersion, &ceDataInode);
+            args.previousAppId, args.seInfo, args.targetSdkVersion, &ceDataInode);
     _aidl_return->ceDataInode = ceDataInode;
     _aidl_return->exceptionCode = status.exceptionCode();
     _aidl_return->exceptionMessage = status.exceptionMessage();
@@ -526,7 +640,7 @@ binder::Status InstalldNativeService::createAppDataBatched(
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     std::vector<android::os::CreateAppDataResult> results;
-    for (auto arg : args) {
+    for (const auto &arg : args) {
         android::os::CreateAppDataResult result;
         createAppData(arg, &result);
         results.push_back(result);
@@ -624,14 +738,11 @@ binder::Status InstalldNativeService::clearAppData(const std::optional<std::stri
         }
     }
     if (flags & FLAG_STORAGE_DE) {
-        std::string suffix = "";
-        bool only_cache = false;
+        std::string suffix;
         if (flags & FLAG_CLEAR_CACHE_ONLY) {
             suffix = CACHE_DIR_POSTFIX;
-            only_cache = true;
         } else if (flags & FLAG_CLEAR_CODE_CACHE_ONLY) {
             suffix = CODE_CACHE_DIR_POSTFIX;
-            only_cache = true;
         }
 
         auto path = create_data_user_de_package_path(uuid_, userId, pkgname) + suffix;
@@ -1226,7 +1337,7 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::optional<std::s
         }
 
         if (!createAppData(toUuid, packageName, user, FLAG_STORAGE_CE | FLAG_STORAGE_DE, appId,
-                seInfo, targetSdkVersion, nullptr).isOk()) {
+                /* previousAppId */ -1, seInfo, targetSdkVersion, nullptr).isOk()) {
             res = error("Failed to create package target");
             goto fail;
         }

@@ -47,7 +47,8 @@ public:
 
     binder::Status createAppData(const std::optional<std::string>& uuid,
             const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
-            const std::string& seInfo, int32_t targetSdkVersion, int64_t* _aidl_return);
+            int32_t previousAppId, const std::string& seInfo, int32_t targetSdkVersion,
+            int64_t* _aidl_return);
 
     binder::Status createAppData(
             const android::os::CreateAppDataArgs& args,
