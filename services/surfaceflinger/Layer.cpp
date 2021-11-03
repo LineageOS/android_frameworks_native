@@ -421,8 +421,6 @@ void Layer::prepareBasicGeometryCompositionState() {
 
     compositionState->blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
     compositionState->alpha = alpha;
-    compositionState->backgroundBlurRadius = drawingState.backgroundBlurRadius;
-    compositionState->blurRegions = drawingState.blurRegions;
     compositionState->stretchEffect = getStretchEffect();
 }
 
@@ -498,6 +496,9 @@ void Layer::preparePerFrameCompositionState() {
         compositionState->stretchEffect.hasEffect()) {
         compositionState->forceClientComposition = true;
     }
+    // If there are no visible region changes, we still need to update blur parameters.
+    compositionState->blurRegions = drawingState.blurRegions;
+    compositionState->backgroundBlurRadius = drawingState.backgroundBlurRadius;
 }
 
 void Layer::prepareCursorCompositionState() {
@@ -938,8 +939,11 @@ bool Layer::setCornerRadius(float cornerRadius) {
 
 bool Layer::setBackgroundBlurRadius(int backgroundBlurRadius) {
     if (mDrawingState.backgroundBlurRadius == backgroundBlurRadius) return false;
-
-    mDrawingState.sequence++;
+    // If we start or stop drawing blur then the layer's visibility state may change so increment
+    // the magic sequence number.
+    if (mDrawingState.backgroundBlurRadius == 0 || backgroundBlurRadius == 0) {
+        mDrawingState.sequence++;
+    }
     mDrawingState.backgroundBlurRadius = backgroundBlurRadius;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -972,6 +976,11 @@ bool Layer::setTransparentRegionHint(const Region& transparent) {
 }
 
 bool Layer::setBlurRegions(const std::vector<BlurRegion>& blurRegions) {
+    // If we start or stop drawing blur then the layer's visibility state may change so increment
+    // the magic sequence number.
+    if (mDrawingState.blurRegions.size() == 0 || blurRegions.size() == 0) {
+        mDrawingState.sequence++;
+    }
     mDrawingState.blurRegions = blurRegions;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
