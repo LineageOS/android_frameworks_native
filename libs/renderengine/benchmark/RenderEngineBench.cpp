@@ -46,8 +46,8 @@ std::string RenderEngineTypeName(RenderEngine::RenderEngineType type) {
 }
 
 /**
- * Passed (indirectly - see RunSkiaGL) to Benchmark::Apply to create a Benchmark
- * which specifies which RenderEngineType it uses.
+ * Passed (indirectly - see RunSkiaGLThreaded) to Benchmark::Apply to create a
+ * Benchmark which specifies which RenderEngineType it uses.
  *
  * This simplifies calling ->Arg(type)->Arg(type) and provides strings to make
  * it obvious which version is being run.
@@ -62,10 +62,10 @@ static void AddRenderEngineType(benchmark::internal::Benchmark* b,
 }
 
 /**
- * Run a benchmark once using SKIA_GL.
+ * Run a benchmark once using SKIA_GL_THREADED.
  */
-static void RunSkiaGL(benchmark::internal::Benchmark* b) {
-    AddRenderEngineType(b, RenderEngine::RenderEngineType::SKIA_GL);
+static void RunSkiaGLThreaded(benchmark::internal::Benchmark* b) {
+    AddRenderEngineType(b, RenderEngine::RenderEngineType::SKIA_GL_THREADED);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -256,4 +256,4 @@ void BM_blur(benchmark::State& benchState) {
     benchDrawLayers(*re, layers, benchState, "blurred");
 }
 
-BENCHMARK(BM_blur)->Apply(RunSkiaGL);
+BENCHMARK(BM_blur)->Apply(RunSkiaGLThreaded);
