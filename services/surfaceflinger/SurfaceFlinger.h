@@ -337,6 +337,7 @@ public:
     // Disables expensive rendering for all displays
     // This is scheduled on the main thread
     void disableExpensiveRendering();
+    FloatRect getMaxDisplayBounds();
 
 protected:
     // We're reference counted, never destroy SurfaceFlinger directly
