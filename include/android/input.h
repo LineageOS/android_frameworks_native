@@ -1385,6 +1385,14 @@ int32_t AInputQueue_preDispatchEvent(AInputQueue* queue, AInputEvent* event);
  */
 void AInputQueue_finishEvent(AInputQueue* queue, AInputEvent* event, int handled);
 
+/**
+ * Supplies the AInputQueue* object associated with the supplied Java InputQueue
+ * object.
+ *
+ * Available since API level 33.
+ */
+AInputQueue* AInputQueue_fromJava(jobject inputQueue) __INTRODUCED_IN(33);
+
 #ifdef __cplusplus
 }
 #endif
