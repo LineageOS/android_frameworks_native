@@ -23,6 +23,8 @@
 #include <utils/Mutex.h>
 #include <unordered_map>
 
+#include "WpHash.h"
+
 namespace android {
 
 class SurfaceFlinger;
@@ -41,12 +43,6 @@ protected:
 
 private:
     void windowInfosReported();
-
-    struct WpHash {
-        size_t operator()(const wp<IBinder>& p) const {
-            return std::hash<IBinder*>()(p.unsafe_get());
-        }
-    };
 
     const sp<SurfaceFlinger> mSf;
     std::mutex mListenersMutex;

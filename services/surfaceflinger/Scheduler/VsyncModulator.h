@@ -25,6 +25,8 @@
 #include <binder/IBinder.h>
 #include <utils/Timers.h>
 
+#include "../WpHash.h"
+
 namespace android::scheduler {
 
 // State machine controlled by transaction flags. VsyncModulator switches to early phase offsets
@@ -123,12 +125,6 @@ private:
 
     using Schedule = TransactionSchedule;
     std::atomic<Schedule> mTransactionSchedule = Schedule::Late;
-
-    struct WpHash {
-        size_t operator()(const wp<IBinder>& p) const {
-            return std::hash<IBinder*>()(p.unsafe_get());
-        }
-    };
 
     std::unordered_set<wp<IBinder>, WpHash> mEarlyWakeupRequests GUARDED_BY(mMutex);
     std::atomic<bool> mRefreshRateChangePending = false;
