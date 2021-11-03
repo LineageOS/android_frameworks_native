@@ -263,14 +263,6 @@ bool validateCompositionDataspace(Dataspace dataspace) {
     return dataspace == Dataspace::V0_SRGB || dataspace == Dataspace::DISPLAY_P3;
 }
 
-class FrameRateFlexibilityToken : public BBinder {
-public:
-    FrameRateFlexibilityToken(std::function<void()> callback) : mCallback(callback) {}
-    virtual ~FrameRateFlexibilityToken() { mCallback(); }
-
-private:
-    std::function<void()> mCallback;
-};
 
 enum Permission {
     ACCESS_SURFACE_FLINGER = 0x1,
@@ -5165,11 +5157,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_GLOBAL_SHADOW_SETTINGS:
         case GET_PRIMARY_PHYSICAL_DISPLAY_ID:
         case ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN: {
-            // ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN and OVERRIDE_HDR_TYPES are used by CTS tests,
-            // which acquire the necessary permission dynamically. Don't use the permission cache
-            // for this check.
-            bool usePermissionCache =
-                    code != ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN && code != OVERRIDE_HDR_TYPES;
+            // OVERRIDE_HDR_TYPES is used by CTS tests, which acquire the necessary
+            // permission dynamically. Don't use the permission cache for this check.
+            bool usePermissionCache = code != OVERRIDE_HDR_TYPES;
             if (!callingThreadHasUnscopedSurfaceFlingerAccess(usePermissionCache)) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",
@@ -5621,17 +5611,39 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 mDebugDisplayModeSetByBackdoor = result == NO_ERROR;
                 return result;
             }
+            // Turn on/off frame rate flexibility mode. When turned on it overrides the display
+            // manager frame rate policy a new policy which allows switching between all refresh
+            // rates.
             case 1036: {
-                if (data.readInt32() > 0) {
-                    status_t result =
-                            acquireFrameRateFlexibilityToken(&mDebugFrameRateFlexibilityToken);
-                    if (result != NO_ERROR) {
-                        return result;
-                    }
-                } else {
-                    mDebugFrameRateFlexibilityToken = nullptr;
+                if (data.readInt32() > 0) { // turn on
+                    return schedule([this] {
+                               const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
+
+                               // This is a little racy, but not in a way that hurts anything. As we
+                               // grab the defaultMode from the display manager policy, we could be
+                               // setting a new display manager policy, leaving us using a stale
+                               // defaultMode. The defaultMode doesn't matter for the override
+                               // policy though, since we set allowGroupSwitching to true, so it's
+                               // not a problem.
+                               scheduler::RefreshRateConfigs::Policy overridePolicy;
+                               overridePolicy.defaultMode = display->refreshRateConfigs()
+                                                                    .getDisplayManagerPolicy()
+                                                                    .defaultMode;
+                               overridePolicy.allowGroupSwitching = true;
+                               constexpr bool kOverridePolicy = true;
+                               return setDesiredDisplayModeSpecsInternal(display, overridePolicy,
+                                                                         kOverridePolicy);
+                           })
+                            .get();
+                } else { // turn off
+                    return schedule([this] {
+                               const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
+                               constexpr bool kOverridePolicy = true;
+                               return setDesiredDisplayModeSpecsInternal(display, {},
+                                                                         kOverridePolicy);
+                           })
+                            .get();
                 }
-                return NO_ERROR;
             }
             // Inject a hotplug connected event for the primary display. This will deallocate and
             // reallocate the display state including framebuffers.
@@ -6618,74 +6630,6 @@ status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface,
     }));
 
     return NO_ERROR;
-}
-
-status_t SurfaceFlinger::acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) {
-    if (!outToken) {
-        return BAD_VALUE;
-    }
-
-    auto future = schedule([this] {
-        status_t result = NO_ERROR;
-        sp<IBinder> token;
-
-        if (mFrameRateFlexibilityTokenCount == 0) {
-            const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
-
-            // This is a little racy, but not in a way that hurts anything. As we grab the
-            // defaultMode from the display manager policy, we could be setting a new display
-            // manager policy, leaving us using a stale defaultMode. The defaultMode doesn't
-            // matter for the override policy though, since we set allowGroupSwitching to
-            // true, so it's not a problem.
-            scheduler::RefreshRateConfigs::Policy overridePolicy;
-            overridePolicy.defaultMode =
-                    display->refreshRateConfigs().getDisplayManagerPolicy().defaultMode;
-            overridePolicy.allowGroupSwitching = true;
-            constexpr bool kOverridePolicy = true;
-            result = setDesiredDisplayModeSpecsInternal(display, overridePolicy, kOverridePolicy);
-        }
-
-        if (result == NO_ERROR) {
-            mFrameRateFlexibilityTokenCount++;
-            // Handing out a reference to the SurfaceFlinger object, as we're doing in the line
-            // below, is something to consider carefully. The lifetime of the
-            // FrameRateFlexibilityToken isn't tied to SurfaceFlinger object lifetime, so if this
-            // SurfaceFlinger object were to be destroyed while the token still exists, the token
-            // destructor would be accessing a stale SurfaceFlinger reference, and crash. This is ok
-            // in this case, for two reasons:
-            //   1. Once SurfaceFlinger::run() is called by main_surfaceflinger.cpp, the only way
-            //   the program exits is via a crash. So we won't have a situation where the
-            //   SurfaceFlinger object is dead but the process is still up.
-            //   2. The frame rate flexibility token is acquired/released only by CTS tests, so even
-            //   if condition 1 were changed, the problem would only show up when running CTS tests,
-            //   not on end user devices, so we could spot it and fix it without serious impact.
-            token = new FrameRateFlexibilityToken(
-                    [this]() { onFrameRateFlexibilityTokenReleased(); });
-            ALOGD("Frame rate flexibility token acquired. count=%d",
-                  mFrameRateFlexibilityTokenCount);
-        }
-
-        return std::make_pair(result, token);
-    });
-
-    status_t result;
-    std::tie(result, *outToken) = future.get();
-    return result;
-}
-
-void SurfaceFlinger::onFrameRateFlexibilityTokenReleased() {
-    static_cast<void>(schedule([this] {
-        LOG_ALWAYS_FATAL_IF(mFrameRateFlexibilityTokenCount == 0,
-                            "Failed tracking frame rate flexibility tokens");
-        mFrameRateFlexibilityTokenCount--;
-        ALOGD("Frame rate flexibility token released. count=%d", mFrameRateFlexibilityTokenCount);
-        if (mFrameRateFlexibilityTokenCount == 0) {
-            const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
-            constexpr bool kOverridePolicy = true;
-            status_t result = setDesiredDisplayModeSpecsInternal(display, {}, kOverridePolicy);
-            LOG_ALWAYS_FATAL_IF(result < 0, "Failed releasing frame rate flexibility token");
-        }
-    }));
 }
 
 status_t SurfaceFlinger::setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,

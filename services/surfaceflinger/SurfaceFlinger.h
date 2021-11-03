@@ -602,7 +602,6 @@ private:
                                      float lightPosY, float lightPosZ, float lightRadius) override;
     status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
                           int8_t compatibility, int8_t changeFrameRateStrategy) override;
-    status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) override;
 
     status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
                                   const FrameTimelineInfo& frameTimelineInfo) override;
@@ -1068,8 +1067,6 @@ private:
         return doDump(fd, args, asProto);
     }
 
-    void onFrameRateFlexibilityTokenReleased();
-
     static mat4 calculateColorMatrix(float saturation);
 
     void updateColorMatrixLocked();
@@ -1335,10 +1332,6 @@ private:
     // The Layer pointer is removed from the set when the destructor is called so there shouldn't
     // be any issues with a raw pointer referencing an invalid object.
     std::unordered_set<Layer*> mOffscreenLayers;
-
-    int mFrameRateFlexibilityTokenCount = 0;
-
-    sp<IBinder> mDebugFrameRateFlexibilityToken;
 
     BufferCountTracker mBufferCountTracker;
 
