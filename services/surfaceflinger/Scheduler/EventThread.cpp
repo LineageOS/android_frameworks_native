@@ -560,8 +560,8 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
     }
 }
 
-int64_t EventThread::generateToken(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp,
-                                   nsecs_t deadlineTimestamp) const {
+int64_t EventThread::generateToken(nsecs_t timestamp, nsecs_t deadlineTimestamp,
+                                   nsecs_t expectedVSyncTimestamp) const {
     if (mTokenManager != nullptr) {
         return mTokenManager->generateTokenForPredictions(
                 {timestamp, deadlineTimestamp, expectedVSyncTimestamp});
@@ -586,7 +586,7 @@ void EventThread::generateFrameTimeline(DisplayEventReceiver::Event& event) cons
                 nsecs_t expectedVSync =
                         event.vsync.expectedVSyncTimestamp + multiplier * event.vsync.frameInterval;
                 event.vsync.frameTimelines[currentIndex] =
-                        {.vsyncId = generateToken(event.header.timestamp, expectedVSync, deadline),
+                        {.vsyncId = generateToken(event.header.timestamp, deadline, expectedVSync),
                          .deadlineTimestamp = deadline,
                          .expectedVSyncTimestamp = expectedVSync};
             }

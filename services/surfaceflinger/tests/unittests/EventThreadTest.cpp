@@ -258,6 +258,15 @@ void EventThreadTest::expectVsyncEventFrameTimelinesCorrect(nsecs_t expectedTime
                                   << expectedTimestamp;
     const auto& event = std::get<0>(args.value());
     for (int i = 0; i < DisplayEventReceiver::kFrameTimelinesLength; i++) {
+        auto prediction =
+                mTokenManager->getPredictionsForToken(event.vsync.frameTimelines[i].vsyncId);
+        EXPECT_TRUE(prediction.has_value());
+        EXPECT_EQ(prediction.value().endTime, event.vsync.frameTimelines[i].deadlineTimestamp)
+                << "Deadline timestamp does not match cached value";
+        EXPECT_EQ(prediction.value().presentTime,
+                  event.vsync.frameTimelines[i].expectedVSyncTimestamp)
+                << "Expected vsync timestamp does not match cached value";
+
         if (i > 0) {
             EXPECT_GT(event.vsync.frameTimelines[i].deadlineTimestamp,
                       event.vsync.frameTimelines[i - 1].deadlineTimestamp)

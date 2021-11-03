@@ -204,8 +204,8 @@ private:
     void onVSyncEvent(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp,
                       nsecs_t deadlineTimestamp) override;
 
-    int64_t generateToken(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp,
-                          nsecs_t deadlineTimestamp) const;
+    int64_t generateToken(nsecs_t timestamp, nsecs_t deadlineTimestamp,
+                          nsecs_t expectedVSyncTimestamp) const;
     void generateFrameTimeline(DisplayEventReceiver::Event& event) const;
 
     const std::unique_ptr<VSyncSource> mVSyncSource GUARDED_BY(mMutex);
