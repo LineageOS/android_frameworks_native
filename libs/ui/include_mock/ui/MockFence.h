@@ -27,6 +27,7 @@ public:
     virtual ~MockFence() = default;
 
     MOCK_METHOD(nsecs_t, getSignalTime, (), (const, override));
+    MOCK_METHOD(Status, getStatus, (), (override));
 };
 
 }; // namespace android::mock

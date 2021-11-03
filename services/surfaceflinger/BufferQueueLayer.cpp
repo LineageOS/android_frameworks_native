@@ -118,7 +118,7 @@ bool BufferQueueLayer::isBufferDue(nsecs_t expectedPresentTime) const {
 bool BufferQueueLayer::fenceHasSignaled() const {
     Mutex::Autolock lock(mQueueItemLock);
 
-    if (SurfaceFlinger::enableLatchUnsignaled) {
+    if (SurfaceFlinger::enableLatchUnsignaledConfig != LatchUnsignaledConfig::Disabled) {
         return true;
     }
 

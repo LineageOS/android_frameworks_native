@@ -42,4 +42,16 @@ TEST_F(MockFenceTest, getSignalTime) {
     EXPECT_EQ(1234, fence->getSignalTime());
 }
 
+TEST_F(MockFenceTest, getStatus) {
+    sp<Fence> fence = getFenceForTesting();
+
+    EXPECT_CALL(getMockFence(), getStatus).WillOnce(Return(Fence::Status::Unsignaled));
+    EXPECT_EQ(Fence::Status::Unsignaled, fence->getStatus());
+
+    EXPECT_CALL(getMockFence(), getStatus).WillOnce(Return(Fence::Status::Signaled));
+    EXPECT_EQ(Fence::Status::Signaled, fence->getStatus());
+
+    EXPECT_CALL(getMockFence(), getStatus).WillOnce(Return(Fence::Status::Invalid));
+    EXPECT_EQ(Fence::Status::Invalid, fence->getStatus());
+}
 } // namespace android::ui
