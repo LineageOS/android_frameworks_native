@@ -1102,7 +1102,7 @@ void SurfaceFlinger::setDesiredActiveMode(const ActiveModeInfo& info) {
     }
 }
 
-status_t SurfaceFlinger::setActiveMode(const sp<IBinder>& displayToken, int modeId) {
+status_t SurfaceFlinger::setActiveModeFromBackdoor(const sp<IBinder>& displayToken, int modeId) {
     ATRACE_CALL();
 
     if (!displayToken) {
@@ -1143,7 +1143,7 @@ status_t SurfaceFlinger::setActiveMode(const sp<IBinder>& displayToken, int mode
     return future.get();
 }
 
-void SurfaceFlinger::setActiveModeInternal() {
+void SurfaceFlinger::updateInternalStateWithChangedMode() {
     ATRACE_CALL();
 
     const auto display = getDefaultDisplayDeviceLocked();
@@ -1198,9 +1198,8 @@ void SurfaceFlinger::desiredActiveModeChangeDone(const sp<DisplayDevice>& displa
     updatePhaseConfiguration(refreshRate);
 }
 
-void SurfaceFlinger::performSetActiveMode() {
+void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
     ATRACE_CALL();
-    ALOGV("%s", __FUNCTION__);
 
     for (const auto& iter : mDisplays) {
         const auto& display = iter.second;
@@ -1235,8 +1234,7 @@ void SurfaceFlinger::performSetActiveMode() {
               to_string(display->getId()).c_str());
 
         if (display->getActiveMode()->getId() == desiredActiveMode->mode->getId()) {
-            // display is not valid or we are already in the requested mode
-            // on both cases there is nothing left to do
+            // we are already in the requested mode, there is nothing left to do
             desiredActiveModeChangeDone(display);
             continue;
         }
@@ -1935,7 +1933,7 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
         // We received the present fence from the HWC, so we assume it successfully updated
         // the mode, hence we update SF.
         mSetActiveModePending = false;
-        ON_MAIN_THREAD(setActiveModeInternal());
+        ON_MAIN_THREAD(updateInternalStateWithChangedMode());
     }
 
     if (framePending) {
@@ -2002,7 +2000,7 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
         mScheduler->chooseRefreshRateForContent();
     }
 
-    ON_MAIN_THREAD(performSetActiveMode());
+    ON_MAIN_THREAD(setActiveModeInHwcIfNeeded());
 
     updateCursorAsync();
     updateInputFlinger();
@@ -5611,7 +5609,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 }();
 
                 mDebugDisplayModeSetByBackdoor = false;
-                const status_t result = setActiveMode(display, modeId);
+                const status_t result = setActiveModeFromBackdoor(display, modeId);
                 mDebugDisplayModeSetByBackdoor = result == NO_ERROR;
                 return result;
             }

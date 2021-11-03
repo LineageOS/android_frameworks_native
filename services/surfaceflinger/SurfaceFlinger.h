@@ -659,13 +659,13 @@ private:
     void onInitializeDisplays() REQUIRES(mStateLock);
     // Sets the desired active mode bit. It obtains the lock, and sets mDesiredActiveMode.
     void setDesiredActiveMode(const ActiveModeInfo& info) REQUIRES(mStateLock);
-    status_t setActiveMode(const sp<IBinder>& displayToken, int id);
+    status_t setActiveModeFromBackdoor(const sp<IBinder>& displayToken, int id);
     // Once HWC has returned the present fence, this sets the active mode and a new refresh
     // rate in SF.
-    void setActiveModeInternal() REQUIRES(mStateLock);
+    void updateInternalStateWithChangedMode() REQUIRES(mStateLock);
     // Calls to setActiveMode on the main thread if there is a pending mode change
     // that needs to be applied.
-    void performSetActiveMode() REQUIRES(mStateLock);
+    void setActiveModeInHwcIfNeeded() REQUIRES(mStateLock);
     void clearDesiredActiveModeState(const sp<DisplayDevice>&) REQUIRES(mStateLock);
     // Called when active mode is no longer is progress
     void desiredActiveModeChangeDone(const sp<DisplayDevice>&) REQUIRES(mStateLock);
