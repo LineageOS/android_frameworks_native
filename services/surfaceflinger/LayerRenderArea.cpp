@@ -94,8 +94,22 @@ void LayerRenderArea::render(std::function<void()> drawLayers) {
     // no need to check rotation because there is none
     mNeedsFiltering = sourceCrop.width() != getReqWidth() || sourceCrop.height() != getReqHeight();
 
+    // If layer is offscreen, update mirroring info if it exists
+    if (mLayer->isRemovedFromCurrentState()) {
+        mLayer->traverse(LayerVector::StateSet::Drawing,
+                         [&](Layer* layer) { layer->updateMirrorInfo(); });
+        mLayer->traverse(LayerVector::StateSet::Drawing,
+                         [&](Layer* layer) { layer->updateCloneBufferInfo(); });
+    }
+
     if (!mChildrenOnly) {
         mTransform = mLayer->getTransform().inverse();
+        // If the layer is offscreen, compute bounds since we don't compute bounds for offscreen
+        // layers in a regular cycles.
+        if (mLayer->isRemovedFromCurrentState()) {
+            FloatRect maxBounds = mFlinger.getMaxDisplayBounds();
+            mLayer->computeBounds(maxBounds, ui::Transform(), 0.f /* shadowRadius */);
+        }
         drawLayers();
     } else {
         uint32_t w = static_cast<uint32_t>(getWidth());
