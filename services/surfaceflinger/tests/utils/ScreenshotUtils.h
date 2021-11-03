@@ -175,6 +175,11 @@ public:
 
     void expectChildColor(uint32_t x, uint32_t y) { checkPixel(x, y, 200, 200, 200); }
 
+    void expectSize(uint32_t width, uint32_t height) {
+        EXPECT_EQ(width, mOutBuffer->getWidth());
+        EXPECT_EQ(height, mOutBuffer->getHeight());
+    }
+
     explicit ScreenCapture(const sp<GraphicBuffer>& outBuffer) : mOutBuffer(outBuffer) {
         if (mOutBuffer) {
             mOutBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, reinterpret_cast<void**>(&mPixels));
