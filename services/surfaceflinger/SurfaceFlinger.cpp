@@ -1766,24 +1766,6 @@ void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
     *compositorTiming = getBE().mCompositorTiming;
 }
 
-void SurfaceFlinger::changeRefreshRateLocked(const RefreshRate& refreshRate,
-                                             Scheduler::ModeEvent event) {
-    const auto display = getDefaultDisplayDeviceLocked();
-    if (!display || mBootStage != BootStage::FINISHED) {
-        return;
-    }
-    ATRACE_CALL();
-
-    // Don't do any updating if the current fps is the same as the new one.
-    if (!display->refreshRateConfigs().isModeAllowed(refreshRate.getModeId())) {
-        ALOGV("Skipping mode %d as it is not part of allowed modes",
-              refreshRate.getModeId().value());
-        return;
-    }
-
-    setDesiredActiveMode({refreshRate.getMode(), event});
-}
-
 void SurfaceFlinger::onComposerHalHotplug(hal::HWDisplayId hwcDisplayId,
                                           hal::Connection connection) {
     const bool connected = connection == hal::Connection::CONNECTED;
@@ -3113,7 +3095,21 @@ void SurfaceFlinger::changeRefreshRate(const RefreshRate& refreshRate, Scheduler
     // Scheduler::chooseRefreshRateForContent
 
     ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
-    changeRefreshRateLocked(refreshRate, event);
+
+    const auto display = getDefaultDisplayDeviceLocked();
+    if (!display || mBootStage != BootStage::FINISHED) {
+        return;
+    }
+    ATRACE_CALL();
+
+    // Don't do any updating if the current fps is the same as the new one.
+    if (!display->refreshRateConfigs().isModeAllowed(refreshRate.getModeId())) {
+        ALOGV("Skipping mode %d as it is not part of allowed modes",
+              refreshRate.getModeId().value());
+        return;
+    }
+
+    setDesiredActiveMode({refreshRate.getMode(), event});
 }
 
 void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
