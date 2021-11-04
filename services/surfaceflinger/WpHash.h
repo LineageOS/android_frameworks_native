@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,10 @@
 
 #pragma once
 
-#include <gmock/gmock.h>
-#include <ui/Fence.h>
+namespace android {
 
-namespace android::mock {
-
-class MockFence : public android::Fence {
-public:
-    MockFence() = default;
-    virtual ~MockFence() = default;
-
-    MOCK_METHOD(nsecs_t, getSignalTime, (), (const, override));
-    MOCK_METHOD(Status, getStatus, (), (override));
+struct WpHash {
+    size_t operator()(const wp<IBinder>& p) const { return std::hash<IBinder*>()(p.unsafe_get()); }
 };
 
-}; // namespace android::mock
+} // namespace android

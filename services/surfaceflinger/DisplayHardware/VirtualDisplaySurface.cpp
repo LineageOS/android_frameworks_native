@@ -326,7 +326,7 @@ status_t VirtualDisplaySurface::setAsyncMode(bool async) {
 
 status_t VirtualDisplaySurface::dequeueBuffer(Source source,
         PixelFormat format, uint64_t usage, int* sslot, sp<Fence>* fence) {
-    LOG_FATAL_IF(GpuVirtualDisplayId::tryCast(mDisplayId));
+    LOG_ALWAYS_FATAL_IF(GpuVirtualDisplayId::tryCast(mDisplayId).has_value());
 
     status_t result =
             mSource[source]->dequeueBuffer(sslot, fence, mSinkBufferWidth, mSinkBufferHeight,
@@ -641,7 +641,7 @@ void VirtualDisplaySurface::resetPerFrameState() {
 }
 
 status_t VirtualDisplaySurface::refreshOutputBuffer() {
-    LOG_FATAL_IF(GpuVirtualDisplayId::tryCast(mDisplayId));
+    LOG_ALWAYS_FATAL_IF(GpuVirtualDisplayId::tryCast(mDisplayId).has_value());
 
     if (mOutputProducerSlot >= 0) {
         mSource[SOURCE_SINK]->cancelBuffer(
