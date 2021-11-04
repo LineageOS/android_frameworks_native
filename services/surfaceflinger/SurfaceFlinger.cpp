@@ -1259,7 +1259,7 @@ void SurfaceFlinger::performSetActiveMode() {
         const auto displayModeAllowed =
                 display->refreshRateConfigs().isModeAllowed(desiredActiveMode->mode->getId());
         if (!displayModeAllowed) {
-            desiredActiveModeChangeDone(display);
+            clearDesiredActiveModeState(display);
             continue;
         }
 
