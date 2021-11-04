@@ -30,6 +30,7 @@
 #include <unordered_map>
 
 #include "Scheduler/OneShotTimer.h"
+#include "WpHash.h"
 
 namespace android {
 
@@ -88,11 +89,6 @@ private:
         sp<IRegionSamplingListener> listener;
     };
 
-    struct WpHash {
-        size_t operator()(const wp<IBinder>& p) const {
-            return std::hash<IBinder*>()(p.unsafe_get());
-        }
-    };
     std::vector<float> sampleBuffer(
             const sp<GraphicBuffer>& buffer, const Point& leftTop,
             const std::vector<RegionSamplingThread::Descriptor>& descriptors, uint32_t orientation);

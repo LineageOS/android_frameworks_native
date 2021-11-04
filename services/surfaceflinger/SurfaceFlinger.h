@@ -135,6 +135,8 @@ enum {
     eTransactionMask = 0x1f,
 };
 
+enum class LatchUnsignaledConfig { Always, Auto, Disabled };
+
 using DisplayColorSetting = compositionengine::OutputColorSetting;
 
 struct SurfaceFlingerBE {
@@ -257,7 +259,7 @@ public:
     // being treated as native display brightness
     static bool enableSdrDimming;
 
-    static bool enableLatchUnsignaled;
+    static LatchUnsignaledConfig enableLatchUnsignaledConfig;
 
     // must be called before clients can connect
     void init() ANDROID_API;
@@ -602,7 +604,6 @@ private:
                                      float lightPosY, float lightPosZ, float lightRadius) override;
     status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
                           int8_t compatibility, int8_t changeFrameRateStrategy) override;
-    status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) override;
 
     status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
                                   const FrameTimelineInfo& frameTimelineInfo) override;
@@ -752,7 +753,14 @@ private:
             const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
             uid_t originUid, const Vector<ComposerState>& states,
             const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>&
-                    bufferLayersReadyToPresent) const REQUIRES(mStateLock);
+                    bufferLayersReadyToPresent,
+            bool allowLatchUnsignaled) const REQUIRES(mStateLock);
+    static LatchUnsignaledConfig getLatchUnsignaledConfig();
+    bool latchUnsignaledIsAllowed(std::vector<TransactionState>& transactions) REQUIRES(mStateLock);
+    bool allowedLatchUnsignaled() REQUIRES(mQueueLock, mStateLock);
+    bool checkTransactionCanLatchUnsignaled(const TransactionState& transaction)
+            REQUIRES(mStateLock);
+    bool applyTransactions(std::vector<TransactionState>& transactions) REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
             REQUIRES(mStateLock);
@@ -1068,8 +1076,6 @@ private:
         return doDump(fd, args, asProto);
     }
 
-    void onFrameRateFlexibilityTokenReleased();
-
     static mat4 calculateColorMatrix(float saturation);
 
     void updateColorMatrixLocked();
@@ -1243,7 +1249,7 @@ private:
     Condition mTransactionQueueCV;
     std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash>
             mPendingTransactionQueues GUARDED_BY(mQueueLock);
-    std::queue<TransactionState> mTransactionQueue GUARDED_BY(mQueueLock);
+    std::deque<TransactionState> mTransactionQueue GUARDED_BY(mQueueLock);
     /*
      * Feature prototyping
      */
@@ -1335,10 +1341,6 @@ private:
     // The Layer pointer is removed from the set when the destructor is called so there shouldn't
     // be any issues with a raw pointer referencing an invalid object.
     std::unordered_set<Layer*> mOffscreenLayers;
-
-    int mFrameRateFlexibilityTokenCount = 0;
-
-    sp<IBinder> mDebugFrameRateFlexibilityToken;
 
     BufferCountTracker mBufferCountTracker;
 

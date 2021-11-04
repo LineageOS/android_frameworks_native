@@ -263,14 +263,6 @@ bool validateCompositionDataspace(Dataspace dataspace) {
     return dataspace == Dataspace::V0_SRGB || dataspace == Dataspace::DISPLAY_P3;
 }
 
-class FrameRateFlexibilityToken : public BBinder {
-public:
-    FrameRateFlexibilityToken(std::function<void()> callback) : mCallback(callback) {}
-    virtual ~FrameRateFlexibilityToken() { mCallback(); }
-
-private:
-    std::function<void()> mCallback;
-};
 
 enum Permission {
     ACCESS_SURFACE_FLINGER = 0x1,
@@ -341,7 +333,7 @@ Dataspace SurfaceFlinger::wideColorGamutCompositionDataspace = Dataspace::V0_SRG
 ui::PixelFormat SurfaceFlinger::wideColorGamutCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
 bool SurfaceFlinger::useFrameRateApi;
 bool SurfaceFlinger::enableSdrDimming;
-bool SurfaceFlinger::enableLatchUnsignaled;
+LatchUnsignaledConfig SurfaceFlinger::enableLatchUnsignaledConfig;
 
 std::string decodeDisplayColorSetting(DisplayColorSetting displayColorSetting) {
     switch(displayColorSetting) {
@@ -501,7 +493,17 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     // Debug property overrides ro. property
     enableSdrDimming = property_get_bool("debug.sf.enable_sdr_dimming", enable_sdr_dimming(false));
 
-    enableLatchUnsignaled = base::GetBoolProperty("debug.sf.latch_unsignaled"s, false);
+    enableLatchUnsignaledConfig = getLatchUnsignaledConfig();
+}
+
+LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
+    if (base::GetBoolProperty("debug.sf.latch_unsignaled"s, false)) {
+        return LatchUnsignaledConfig::Always;
+    } else if (base::GetBoolProperty("debug.sf.auto_latch_unsignaled"s, false)) {
+        return LatchUnsignaledConfig::Auto;
+    } else {
+        return LatchUnsignaledConfig::Disabled;
+    }
 }
 
 SurfaceFlinger::~SurfaceFlinger() = default;
@@ -3425,29 +3427,34 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule 
 }
 
 bool SurfaceFlinger::flushTransactionQueues() {
-    bool needsTraversal = false;
     // to prevent onHandleDestroyed from being called while the lock is held,
     // we must keep a copy of the transactions (specifically the composer
     // states) around outside the scope of the lock
-    std::vector<const TransactionState> transactions;
+    std::vector<TransactionState> transactions;
     // Layer handles that have transactions with buffers that are ready to be applied.
     std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> bufferLayersReadyToPresent;
     {
         Mutex::Autolock _l(mStateLock);
         {
             Mutex::Autolock _l(mQueueLock);
+            // allowLatchUnsignaled acts as a filter condition when latch unsignaled is either auto
+            // or always. auto: in this case we let buffer latch unsignaled if we have only one
+            // applyToken and if only first transaction is latch unsignaled. If more than one
+            // applyToken we don't latch unsignaled.
+            bool allowLatchUnsignaled = allowedLatchUnsignaled();
+            bool isFirstUnsignaledTransactionApplied = false;
             // Collect transactions from pending transaction queue.
             auto it = mPendingTransactionQueues.begin();
             while (it != mPendingTransactionQueues.end()) {
                 auto& [applyToken, transactionQueue] = *it;
-
                 while (!transactionQueue.empty()) {
                     auto& transaction = transactionQueue.front();
                     if (!transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
                                                        transaction.isAutoTimestamp,
                                                        transaction.desiredPresentTime,
                                                        transaction.originUid, transaction.states,
-                                                       bufferLayersReadyToPresent)) {
+                                                       bufferLayersReadyToPresent,
+                                                       allowLatchUnsignaled)) {
                         setTransactionFlags(eTransactionFlushNeeded);
                         break;
                     }
@@ -3456,6 +3463,14 @@ bool SurfaceFlinger::flushTransactionQueues() {
                     });
                     transactions.emplace_back(std::move(transaction));
                     transactionQueue.pop();
+                    if (allowLatchUnsignaled &&
+                        enableLatchUnsignaledConfig == LatchUnsignaledConfig::Auto) {
+                        // if allowLatchUnsignaled && we are in LatchUnsignaledConfig::Auto
+                        // then we should have only one applyToken for processing.
+                        // so we can stop further transactions on this applyToken.
+                        isFirstUnsignaledTransactionApplied = true;
+                        break;
+                    }
                 }
 
                 if (transactionQueue.empty()) {
@@ -3467,50 +3482,113 @@ bool SurfaceFlinger::flushTransactionQueues() {
             }
 
             // Collect transactions from current transaction queue or queue to pending transactions.
-            // Case 1: push to pending when transactionIsReadyToBeApplied is false.
+            // Case 1: push to pending when transactionIsReadyToBeApplied is false
+            // or the first transaction was unsignaled.
             // Case 2: push to pending when there exist a pending queue.
-            // Case 3: others are ready to apply.
+            // Case 3: others are the transactions that are ready to apply.
             while (!mTransactionQueue.empty()) {
                 auto& transaction = mTransactionQueue.front();
                 bool pendingTransactions = mPendingTransactionQueues.find(transaction.applyToken) !=
                         mPendingTransactionQueues.end();
-                if (pendingTransactions ||
+                if (isFirstUnsignaledTransactionApplied || pendingTransactions ||
                     !transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
                                                    transaction.isAutoTimestamp,
                                                    transaction.desiredPresentTime,
                                                    transaction.originUid, transaction.states,
-                                                   bufferLayersReadyToPresent)) {
+                                                   bufferLayersReadyToPresent,
+                                                   allowLatchUnsignaled)) {
                     mPendingTransactionQueues[transaction.applyToken].push(std::move(transaction));
                 } else {
                     transaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
                         bufferLayersReadyToPresent.insert(state.surface);
                     });
                     transactions.emplace_back(std::move(transaction));
+                    if (allowLatchUnsignaled &&
+                        enableLatchUnsignaledConfig == LatchUnsignaledConfig::Auto) {
+                        isFirstUnsignaledTransactionApplied = true;
+                    }
                 }
-                mTransactionQueue.pop();
+                mTransactionQueue.pop_front();
                 ATRACE_INT("TransactionQueue", mTransactionQueue.size());
             }
-        }
 
-        // Now apply all transactions.
-        for (const auto& transaction : transactions) {
-            needsTraversal |=
-                    applyTransactionState(transaction.frameTimelineInfo, transaction.states,
-                                          transaction.displays, transaction.flags,
-                                          transaction.inputWindowCommands,
-                                          transaction.desiredPresentTime,
-                                          transaction.isAutoTimestamp, transaction.buffer,
-                                          transaction.postTime, transaction.permissions,
-                                          transaction.hasListenerCallbacks,
-                                          transaction.listenerCallbacks, transaction.originPid,
-                                          transaction.originUid, transaction.id);
-            if (transaction.transactionCommittedSignal) {
-                mTransactionCommittedSignals.emplace_back(
-                        std::move(transaction.transactionCommittedSignal));
-            }
+            return applyTransactions(transactions);
         }
-    } // unlock mStateLock
+    }
+}
+
+bool SurfaceFlinger::applyTransactions(std::vector<TransactionState>& transactions) {
+    bool needsTraversal = false;
+    // Now apply all transactions.
+    for (const auto& transaction : transactions) {
+        needsTraversal |=
+                applyTransactionState(transaction.frameTimelineInfo, transaction.states,
+                                      transaction.displays, transaction.flags,
+                                      transaction.inputWindowCommands,
+                                      transaction.desiredPresentTime, transaction.isAutoTimestamp,
+                                      transaction.buffer, transaction.postTime,
+                                      transaction.permissions, transaction.hasListenerCallbacks,
+                                      transaction.listenerCallbacks, transaction.originPid,
+                                      transaction.originUid, transaction.id);
+        if (transaction.transactionCommittedSignal) {
+            mTransactionCommittedSignals.emplace_back(
+                    std::move(transaction.transactionCommittedSignal));
+        }
+    }
     return needsTraversal;
+}
+
+bool SurfaceFlinger::allowedLatchUnsignaled() {
+    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::Disabled) {
+        return false;
+    }
+    // Always mode matches the current latch unsignaled behavior.
+    // This behavior is currently used by the partners and we would like
+    // to keep it until we are completely migrated to Auto mode successfully
+    // and we we have our fallback based implementation in place.
+    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::Always) {
+        return true;
+    }
+
+    //  if enableLatchUnsignaledConfig == LatchUnsignaledConfig::Auto
+    //  we don't latch unsignaled if more than one applyToken, as it can backpressure
+    //  the other transactions.
+    if (mPendingTransactionQueues.size() > 1) {
+        return false;
+    }
+    std::optional<sp<IBinder>> applyToken = std::nullopt;
+    bool isPendingTransactionQueuesItem = false;
+    if (!mPendingTransactionQueues.empty()) {
+        applyToken = mPendingTransactionQueues.begin()->first;
+        isPendingTransactionQueuesItem = true;
+    }
+
+    for (const auto& item : mTransactionQueue) {
+        if (!applyToken.has_value()) {
+            applyToken = item.applyToken;
+        } else if (applyToken.has_value() && applyToken != item.applyToken) {
+            return false;
+        }
+    }
+
+    if (isPendingTransactionQueuesItem) {
+        return checkTransactionCanLatchUnsignaled(
+                mPendingTransactionQueues.begin()->second.front());
+    } else if (applyToken.has_value()) {
+        return checkTransactionCanLatchUnsignaled((mTransactionQueue.front()));
+    }
+    return false;
+}
+
+bool SurfaceFlinger::checkTransactionCanLatchUnsignaled(const TransactionState& transaction) {
+    if (transaction.states.size() == 1) {
+        const auto& state = transaction.states.begin()->state;
+        return (state.flags & ~layer_state_t::eBufferChanged) == 0 &&
+                state.bufferData.flags.test(BufferData::BufferDataChange::fenceChanged) &&
+                state.bufferData.acquireFence &&
+                state.bufferData.acquireFence->getStatus() == Fence::Status::Unsignaled;
+    }
+    return false;
 }
 
 bool SurfaceFlinger::transactionFlushNeeded() {
@@ -3544,7 +3622,8 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
         const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
         uid_t originUid, const Vector<ComposerState>& states,
         const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>&
-                bufferLayersReadyToPresent) const {
+                bufferLayersReadyToPresent,
+        bool allowLatchUnsignaled) const {
     ATRACE_CALL();
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
@@ -3571,7 +3650,7 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
         const layer_state_t& s = state.state;
         const bool acquireFenceChanged =
                 s.bufferData.flags.test(BufferData::BufferDataChange::fenceChanged);
-        if (acquireFenceChanged && s.bufferData.acquireFence && !enableLatchUnsignaled &&
+        if (acquireFenceChanged && s.bufferData.acquireFence && !allowLatchUnsignaled &&
             s.bufferData.acquireFence->getStatus() == Fence::Status::Unsignaled) {
             ATRACE_NAME("fence unsignaled");
             return false;
@@ -3632,7 +3711,7 @@ void SurfaceFlinger::queueTransaction(TransactionState& state) {
                          : CountDownLatch::eSyncTransaction));
     }
 
-    mTransactionQueue.emplace(state);
+    mTransactionQueue.emplace_back(state);
     ATRACE_INT("TransactionQueue", mTransactionQueue.size());
 
     const auto schedule = [](uint32_t flags) {
@@ -5165,11 +5244,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_GLOBAL_SHADOW_SETTINGS:
         case GET_PRIMARY_PHYSICAL_DISPLAY_ID:
         case ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN: {
-            // ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN and OVERRIDE_HDR_TYPES are used by CTS tests,
-            // which acquire the necessary permission dynamically. Don't use the permission cache
-            // for this check.
-            bool usePermissionCache =
-                    code != ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN && code != OVERRIDE_HDR_TYPES;
+            // OVERRIDE_HDR_TYPES is used by CTS tests, which acquire the necessary
+            // permission dynamically. Don't use the permission cache for this check.
+            bool usePermissionCache = code != OVERRIDE_HDR_TYPES;
             if (!callingThreadHasUnscopedSurfaceFlingerAccess(usePermissionCache)) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",
@@ -5621,17 +5698,39 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 mDebugDisplayModeSetByBackdoor = result == NO_ERROR;
                 return result;
             }
+            // Turn on/off frame rate flexibility mode. When turned on it overrides the display
+            // manager frame rate policy a new policy which allows switching between all refresh
+            // rates.
             case 1036: {
-                if (data.readInt32() > 0) {
-                    status_t result =
-                            acquireFrameRateFlexibilityToken(&mDebugFrameRateFlexibilityToken);
-                    if (result != NO_ERROR) {
-                        return result;
-                    }
-                } else {
-                    mDebugFrameRateFlexibilityToken = nullptr;
+                if (data.readInt32() > 0) { // turn on
+                    return schedule([this] {
+                               const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
+
+                               // This is a little racy, but not in a way that hurts anything. As we
+                               // grab the defaultMode from the display manager policy, we could be
+                               // setting a new display manager policy, leaving us using a stale
+                               // defaultMode. The defaultMode doesn't matter for the override
+                               // policy though, since we set allowGroupSwitching to true, so it's
+                               // not a problem.
+                               scheduler::RefreshRateConfigs::Policy overridePolicy;
+                               overridePolicy.defaultMode = display->refreshRateConfigs()
+                                                                    .getDisplayManagerPolicy()
+                                                                    .defaultMode;
+                               overridePolicy.allowGroupSwitching = true;
+                               constexpr bool kOverridePolicy = true;
+                               return setDesiredDisplayModeSpecsInternal(display, overridePolicy,
+                                                                         kOverridePolicy);
+                           })
+                            .get();
+                } else { // turn off
+                    return schedule([this] {
+                               const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
+                               constexpr bool kOverridePolicy = true;
+                               return setDesiredDisplayModeSpecsInternal(display, {},
+                                                                         kOverridePolicy);
+                           })
+                            .get();
                 }
-                return NO_ERROR;
             }
             // Inject a hotplug connected event for the primary display. This will deallocate and
             // reallocate the display state including framebuffers.
@@ -6618,74 +6717,6 @@ status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface,
     }));
 
     return NO_ERROR;
-}
-
-status_t SurfaceFlinger::acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) {
-    if (!outToken) {
-        return BAD_VALUE;
-    }
-
-    auto future = schedule([this] {
-        status_t result = NO_ERROR;
-        sp<IBinder> token;
-
-        if (mFrameRateFlexibilityTokenCount == 0) {
-            const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
-
-            // This is a little racy, but not in a way that hurts anything. As we grab the
-            // defaultMode from the display manager policy, we could be setting a new display
-            // manager policy, leaving us using a stale defaultMode. The defaultMode doesn't
-            // matter for the override policy though, since we set allowGroupSwitching to
-            // true, so it's not a problem.
-            scheduler::RefreshRateConfigs::Policy overridePolicy;
-            overridePolicy.defaultMode =
-                    display->refreshRateConfigs().getDisplayManagerPolicy().defaultMode;
-            overridePolicy.allowGroupSwitching = true;
-            constexpr bool kOverridePolicy = true;
-            result = setDesiredDisplayModeSpecsInternal(display, overridePolicy, kOverridePolicy);
-        }
-
-        if (result == NO_ERROR) {
-            mFrameRateFlexibilityTokenCount++;
-            // Handing out a reference to the SurfaceFlinger object, as we're doing in the line
-            // below, is something to consider carefully. The lifetime of the
-            // FrameRateFlexibilityToken isn't tied to SurfaceFlinger object lifetime, so if this
-            // SurfaceFlinger object were to be destroyed while the token still exists, the token
-            // destructor would be accessing a stale SurfaceFlinger reference, and crash. This is ok
-            // in this case, for two reasons:
-            //   1. Once SurfaceFlinger::run() is called by main_surfaceflinger.cpp, the only way
-            //   the program exits is via a crash. So we won't have a situation where the
-            //   SurfaceFlinger object is dead but the process is still up.
-            //   2. The frame rate flexibility token is acquired/released only by CTS tests, so even
-            //   if condition 1 were changed, the problem would only show up when running CTS tests,
-            //   not on end user devices, so we could spot it and fix it without serious impact.
-            token = new FrameRateFlexibilityToken(
-                    [this]() { onFrameRateFlexibilityTokenReleased(); });
-            ALOGD("Frame rate flexibility token acquired. count=%d",
-                  mFrameRateFlexibilityTokenCount);
-        }
-
-        return std::make_pair(result, token);
-    });
-
-    status_t result;
-    std::tie(result, *outToken) = future.get();
-    return result;
-}
-
-void SurfaceFlinger::onFrameRateFlexibilityTokenReleased() {
-    static_cast<void>(schedule([this] {
-        LOG_ALWAYS_FATAL_IF(mFrameRateFlexibilityTokenCount == 0,
-                            "Failed tracking frame rate flexibility tokens");
-        mFrameRateFlexibilityTokenCount--;
-        ALOGD("Frame rate flexibility token released. count=%d", mFrameRateFlexibilityTokenCount);
-        if (mFrameRateFlexibilityTokenCount == 0) {
-            const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
-            constexpr bool kOverridePolicy = true;
-            status_t result = setDesiredDisplayModeSpecsInternal(display, {}, kOverridePolicy);
-            LOG_ALWAYS_FATAL_IF(result < 0, "Failed releasing frame rate flexibility token");
-        }
-    }));
 }
 
 status_t SurfaceFlinger::setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,

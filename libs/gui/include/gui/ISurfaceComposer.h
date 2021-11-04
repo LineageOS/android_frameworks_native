@@ -512,14 +512,6 @@ public:
                                   int8_t compatibility, int8_t changeFrameRateStrategy) = 0;
 
     /*
-     * Acquire a frame rate flexibility token from SurfaceFlinger. While this token is acquired,
-     * surface flinger will freely switch between frame rates in any way it sees fit, regardless of
-     * the current restrictions applied by DisplayManager. This is useful to get consistent behavior
-     * for tests. Release the token by releasing the returned IBinder reference.
-     */
-    virtual status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) = 0;
-
-    /*
      * Sets the frame timeline vsync info received from choreographer that corresponds to next
      * buffer submitted on that surface.
      */
@@ -616,6 +608,7 @@ public:
         GET_GAME_CONTENT_TYPE_SUPPORT, // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
         SET_GAME_CONTENT_TYPE,
         SET_FRAME_RATE,
+        // Deprecated. Use DisplayManager.setShouldAlwaysRespectAppRequestedMode(true);
         ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN,
         SET_FRAME_TIMELINE_INFO,
         ADD_TRANSACTION_TRACE_LISTENER,

@@ -630,7 +630,7 @@ FloatRect BufferStateLayer::computeSourceBounds(const FloatRect& parentBounds) c
 // Interface implementation for BufferLayer
 // -----------------------------------------------------------------------
 bool BufferStateLayer::fenceHasSignaled() const {
-    if (SurfaceFlinger::enableLatchUnsignaled) {
+    if (SurfaceFlinger::enableLatchUnsignaledConfig != LatchUnsignaledConfig::Disabled) {
         return true;
     }
 

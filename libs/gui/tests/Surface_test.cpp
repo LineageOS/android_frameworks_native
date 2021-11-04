@@ -885,10 +885,6 @@ public:
         return NO_ERROR;
     }
 
-    status_t acquireFrameRateFlexibilityToken(sp<IBinder>* /*outToken*/) override {
-        return NO_ERROR;
-    }
-
     status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& /*surface*/,
                                   const FrameTimelineInfo& /*frameTimelineInfo*/) override {
         return NO_ERROR;

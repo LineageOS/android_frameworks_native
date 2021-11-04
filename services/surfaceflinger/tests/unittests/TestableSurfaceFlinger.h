@@ -375,6 +375,7 @@ public:
 
     auto& getTransactionQueue() { return mFlinger->mTransactionQueue; }
     auto& getPendingTransactionQueue() { return mFlinger->mPendingTransactionQueues; }
+    auto& getTransactionCommittedSignals() { return mFlinger->mTransactionCommittedSignals; }
 
     auto setTransactionState(
             const FrameTimelineInfo& frameTimelineInfo, const Vector<ComposerState>& states,
