@@ -733,6 +733,83 @@ inline bool Iterate(Visitor* visitor, VkPhysicalDeviceVulkan12Features* features
     visitor->Visit("shaderOutputLayer", &features->shaderOutputLayer) &&
     visitor->Visit("shaderOutputLayer", &features->shaderOutputLayer);
 }
+
+template <typename Visitor>
+inline bool Iterate(Visitor* visitor, VkJsonCore13* core) {
+  return
+    visitor->Visit("features", &core->features) &&
+    visitor->Visit("properties", &core->properties);
+}
+
+template <typename Visitor>
+inline bool Iterate(Visitor* visitor, VkPhysicalDeviceVulkan13Properties* properties) {
+  return
+    visitor->Visit("minSubgroupSize", &properties->minSubgroupSize) &&
+    visitor->Visit("maxSubgroupSize", &properties->maxSubgroupSize) &&
+    visitor->Visit("maxComputeWorkgroupSubgroups", &properties->maxComputeWorkgroupSubgroups) &&
+    visitor->Visit("requiredSubgroupSizeStages", &properties->requiredSubgroupSizeStages) &&
+    visitor->Visit("maxInlineUniformBlockSize", &properties->maxInlineUniformBlockSize) &&
+    visitor->Visit("maxPerStageDescriptorInlineUniformBlocks", &properties->maxPerStageDescriptorInlineUniformBlocks) &&
+    visitor->Visit("maxPerStageDescriptorUpdateAfterBindInlineUniformBlocks", &properties->maxPerStageDescriptorUpdateAfterBindInlineUniformBlocks) &&
+    visitor->Visit("maxDescriptorSetInlineUniformBlocks", &properties->maxDescriptorSetInlineUniformBlocks) &&
+    visitor->Visit("maxDescriptorSetUpdateAfterBindInlineUniformBlocks", &properties->maxDescriptorSetUpdateAfterBindInlineUniformBlocks) &&
+    visitor->Visit("maxInlineUniformTotalSize", &properties->maxInlineUniformTotalSize) &&
+    visitor->Visit("integerDotProduct8BitUnsignedAccelerated", &properties->integerDotProduct8BitUnsignedAccelerated) &&
+    visitor->Visit("integerDotProduct8BitSignedAccelerated", &properties->integerDotProduct8BitSignedAccelerated) &&
+    visitor->Visit("integerDotProduct8BitMixedSignednessAccelerated", &properties->integerDotProduct8BitMixedSignednessAccelerated) &&
+    visitor->Visit("integerDotProduct4x8BitPackedUnsignedAccelerated", &properties->integerDotProduct4x8BitPackedUnsignedAccelerated) &&
+    visitor->Visit("integerDotProduct4x8BitPackedSignedAccelerated", &properties->integerDotProduct4x8BitPackedSignedAccelerated) &&
+    visitor->Visit("integerDotProduct4x8BitPackedMixedSignednessAccelerated", &properties->integerDotProduct4x8BitPackedMixedSignednessAccelerated) &&
+    visitor->Visit("integerDotProduct16BitUnsignedAccelerated", &properties->integerDotProduct16BitUnsignedAccelerated) &&
+    visitor->Visit("integerDotProduct16BitSignedAccelerated", &properties->integerDotProduct16BitSignedAccelerated) &&
+    visitor->Visit("integerDotProduct16BitMixedSignednessAccelerated", &properties->integerDotProduct16BitMixedSignednessAccelerated) &&
+    visitor->Visit("integerDotProduct32BitUnsignedAccelerated", &properties->integerDotProduct32BitUnsignedAccelerated) &&
+    visitor->Visit("integerDotProduct32BitSignedAccelerated", &properties->integerDotProduct32BitSignedAccelerated) &&
+    visitor->Visit("integerDotProduct32BitMixedSignednessAccelerated", &properties->integerDotProduct32BitMixedSignednessAccelerated) &&
+    visitor->Visit("integerDotProduct64BitUnsignedAccelerated", &properties->integerDotProduct64BitUnsignedAccelerated) &&
+    visitor->Visit("integerDotProduct64BitSignedAccelerated", &properties->integerDotProduct64BitSignedAccelerated) &&
+    visitor->Visit("integerDotProduct64BitMixedSignednessAccelerated", &properties->integerDotProduct64BitMixedSignednessAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating8BitUnsignedAccelerated", &properties->integerDotProductAccumulatingSaturating8BitUnsignedAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating8BitSignedAccelerated", &properties->integerDotProductAccumulatingSaturating8BitSignedAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating8BitMixedSignednessAccelerated", &properties->integerDotProductAccumulatingSaturating8BitMixedSignednessAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating4x8BitPackedUnsignedAccelerated", &properties->integerDotProductAccumulatingSaturating4x8BitPackedUnsignedAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating4x8BitPackedSignedAccelerated", &properties->integerDotProductAccumulatingSaturating4x8BitPackedSignedAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating4x8BitPackedMixedSignednessAccelerated", &properties->integerDotProductAccumulatingSaturating4x8BitPackedMixedSignednessAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating16BitUnsignedAccelerated", &properties->integerDotProductAccumulatingSaturating16BitUnsignedAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating16BitSignedAccelerated", &properties->integerDotProductAccumulatingSaturating16BitSignedAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating16BitMixedSignednessAccelerated", &properties->integerDotProductAccumulatingSaturating16BitMixedSignednessAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating32BitUnsignedAccelerated", &properties->integerDotProductAccumulatingSaturating32BitUnsignedAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating32BitSignedAccelerated", &properties->integerDotProductAccumulatingSaturating32BitSignedAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating32BitMixedSignednessAccelerated", &properties->integerDotProductAccumulatingSaturating32BitMixedSignednessAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating64BitUnsignedAccelerated", &properties->integerDotProductAccumulatingSaturating64BitUnsignedAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating64BitSignedAccelerated", &properties->integerDotProductAccumulatingSaturating64BitSignedAccelerated) &&
+    visitor->Visit("integerDotProductAccumulatingSaturating64BitMixedSignednessAccelerated", &properties->integerDotProductAccumulatingSaturating64BitMixedSignednessAccelerated) &&
+    visitor->Visit("storageTexelBufferOffsetAlignmentBytes", &properties->storageTexelBufferOffsetAlignmentBytes) &&
+    visitor->Visit("storageTexelBufferOffsetSingleTexelAlignment", &properties->storageTexelBufferOffsetSingleTexelAlignment) &&
+    visitor->Visit("uniformTexelBufferOffsetAlignmentBytes", &properties->uniformTexelBufferOffsetAlignmentBytes) &&
+    visitor->Visit("uniformTexelBufferOffsetSingleTexelAlignment", &properties->uniformTexelBufferOffsetSingleTexelAlignment) &&
+    visitor->Visit("maxBufferSize", &properties->maxBufferSize);
+}
+
+template <typename Visitor>
+inline bool Iterate(Visitor* visitor, VkPhysicalDeviceVulkan13Features* features) {
+  return
+    visitor->Visit("robustImageAccess", &features->robustImageAccess) &&
+    visitor->Visit("inlineUniformBlock", &features->inlineUniformBlock) &&
+    visitor->Visit("descriptorBindingInlineUniformBlockUpdateAfterBind", &features->descriptorBindingInlineUniformBlockUpdateAfterBind) &&
+    visitor->Visit("pipelineCreationCacheControl", &features->pipelineCreationCacheControl) &&
+    visitor->Visit("privateData", &features->privateData) &&
+    visitor->Visit("shaderDemoteToHelperInvocation", &features->shaderDemoteToHelperInvocation) &&
+    visitor->Visit("shaderTerminateInvocation", &features->shaderTerminateInvocation) &&
+    visitor->Visit("subgroupSizeControl", &features->subgroupSizeControl) &&
+    visitor->Visit("computeFullSubgroups", &features->computeFullSubgroups) &&
+    visitor->Visit("synchronization2", &features->synchronization2) &&
+    visitor->Visit("textureCompressionASTC_HDR", &features->textureCompressionASTC_HDR) &&
+    visitor->Visit("shaderZeroInitializeWorkgroupMemory", &features->shaderZeroInitializeWorkgroupMemory) &&
+    visitor->Visit("dynamicRendering", &features->dynamicRendering) &&
+    visitor->Visit("shaderIntegerDotProduct", &features->shaderIntegerDotProduct) &&
+    visitor->Visit("maintenance4", &features->maintenance4);
+}
 // clang-format on
 
 template <typename Visitor>
@@ -974,6 +1051,7 @@ inline bool Iterate(Visitor* visitor, VkJsonDevice* device) {
   switch (device->properties.apiVersion ^
           VK_API_VERSION_PATCH(device->properties.apiVersion)) {
     case VK_API_VERSION_1_3:
+      ret &= visitor->Visit("core13", &device->core13);
       FALLTHROUGH_INTENDED;
     case VK_API_VERSION_1_2:
       ret &= visitor->Visit("core12", &device->core12);

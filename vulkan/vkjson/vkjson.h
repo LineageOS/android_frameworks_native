@@ -79,6 +79,11 @@ struct VkJsonCore12 {
   VkPhysicalDeviceVulkan12Features features;
 };
 
+struct VkJsonCore13 {
+  VkPhysicalDeviceVulkan13Properties properties;
+  VkPhysicalDeviceVulkan13Features features;
+};
+
 struct VkJsonDevice {
   VkJsonDevice() {
     memset(&properties, 0, sizeof(VkPhysicalDeviceProperties));
@@ -104,6 +109,7 @@ struct VkJsonDevice {
     memset(&shader_draw_parameter_features, 0,
            sizeof(VkPhysicalDeviceShaderDrawParameterFeatures));
     memset(&core12, 0, sizeof(VkJsonCore12));
+    memset(&core13, 0, sizeof(VkJsonCore13));
   }
   VkPhysicalDeviceProperties properties;
   VkPhysicalDeviceFeatures features;
@@ -132,6 +138,7 @@ struct VkJsonDevice {
   std::map<VkExternalSemaphoreHandleTypeFlagBits, VkExternalSemaphoreProperties>
       external_semaphore_properties;
   VkJsonCore12 core12;
+  VkJsonCore13 core13;
 };
 
 struct VkJsonDeviceGroup {
