@@ -216,7 +216,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     bool autoRefresh;
     status_t updateResult = mConsumer->updateTexImage(&r, expectedPresentTime, &autoRefresh,
                                                       &queuedBuffer, maxFrameNumberToAcquire);
-    mAutoRefresh = autoRefresh;
+    mDrawingState.autoRefresh = autoRefresh;
     if (updateResult == BufferQueue::PRESENT_LATER) {
         // Producer doesn't want buffer to be displayed yet.  Signal a
         // layer update so we check again at the next opportunity.
@@ -300,7 +300,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
 
     // Decrement the queued-frames count.  Signal another event if we
     // have more frames pending.
-    if ((queuedBuffer && more_frames_pending) || mAutoRefresh) {
+    if ((queuedBuffer && more_frames_pending) || mDrawingState.autoRefresh) {
         mFlinger->onLayerUpdate();
     }
 
