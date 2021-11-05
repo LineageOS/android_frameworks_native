@@ -109,6 +109,8 @@ public:
     uint32_t getLastTransformHint() const;
     uint64_t getLastAcquiredFrameNum();
 
+    void onProducerDisconnect();
+
     virtual ~BLASTBufferQueue();
 
 private:
@@ -154,6 +156,12 @@ private:
     // Keep a reference to the submitted buffers so we can release when surfaceflinger drops the
     // buffer or the buffer has been presented and a new buffer is ready to be presented.
     std::unordered_map<ReleaseCallbackId, BufferItem, ReleaseBufferCallbackIdHash> mSubmitted
+            GUARDED_BY(mMutex);
+
+    // Keep a reference to the submitted buffers that were freed so we can drop the buffer quietly
+    // when we get the release callback from flinger. This can happen if the client had disconnected
+    // from the queue.
+    std::unordered_map<ReleaseCallbackId, BufferItem, ReleaseBufferCallbackIdHash> mFreedBuffers
             GUARDED_BY(mMutex);
 
     // Keep a queue of the released buffers instead of immediately releasing
@@ -240,6 +248,10 @@ private:
 
     uint32_t mCurrentMaxAcquiredBufferCount;
     bool mWaitForTransactionCallback = false;
+    bool mLogScSwap = true;
+    bool mLogMissingReleaseCallback = true;
+    uint32_t mSurfaceControlSwapCount = 0;
+    uint32_t mProducerDisconnectCount = 0;
 };
 
 } // namespace android
