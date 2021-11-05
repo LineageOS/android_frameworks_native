@@ -2640,6 +2640,17 @@ bool Layer::setDropInputMode(gui::DropInputMode mode) {
     return true;
 }
 
+bool Layer::setTransactionCompletedListeners(
+        const std::vector<ListenerCallbacks>& listenerCallbacks, const sp<IBinder>&) {
+    if (listenerCallbacks.empty()) {
+        return false;
+    }
+    for (auto& listener : listenerCallbacks) {
+        mFlinger->getTransactionCallbackInvoker().addEmptyCallback(listener);
+    }
+    return false;
+}
+
 // ---------------------------------------------------------------------------
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate) {

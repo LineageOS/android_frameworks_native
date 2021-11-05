@@ -65,7 +65,8 @@ public:
     bool setSurfaceDamageRegion(const Region& surfaceDamage) override;
     bool setApi(int32_t api) override;
     bool setSidebandStream(const sp<NativeHandle>& sidebandStream) override;
-    bool setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& handles) override;
+    bool setTransactionCompletedListeners(const std::vector<ListenerCallbacks>& handles,
+                                          const sp<IBinder>& layerHandle) override;
     bool addFrameEvent(const sp<Fence>& acquireFence, nsecs_t postedTime,
                        nsecs_t requestedPresentTime) override;
     bool setPosition(float /*x*/, float /*y*/) override;
