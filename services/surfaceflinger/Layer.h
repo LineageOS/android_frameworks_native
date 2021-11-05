@@ -57,7 +57,7 @@
 #include "Scheduler/LayerInfo.h"
 #include "Scheduler/Seamlessness.h"
 #include "SurfaceFlinger.h"
-#include "SurfaceTracing.h"
+#include "Tracing/LayerTracing.h"
 #include "TransactionCallbackInvoker.h"
 
 using namespace android::surfaceflinger;
@@ -691,7 +691,7 @@ public:
     // external mStateLock. If writing drawing state, this function should be called on the
     // main or tracing thread.
     void writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet,
-                                 uint32_t traceFlags = SurfaceTracing::TRACE_ALL);
+                                 uint32_t traceFlags = LayerTracing::TRACE_ALL);
 
     gui::WindowInfo::Type getWindowType() const { return mWindowType; }
 
