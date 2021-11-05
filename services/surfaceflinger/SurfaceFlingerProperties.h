@@ -88,8 +88,6 @@ bool enable_protected_contents(bool defaultValue);
 
 bool support_kernel_idle_timer(bool defaultValue);
 
-bool use_frame_rate_api(bool defaultValue);
-
 int32_t display_update_imminent_timeout_ms(int32_t defaultValue);
 
 android::ui::DisplayPrimaries getDisplayNativePrimaries();

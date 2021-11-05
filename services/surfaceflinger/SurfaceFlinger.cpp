@@ -331,7 +331,6 @@ Dataspace SurfaceFlinger::defaultCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::defaultCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
 Dataspace SurfaceFlinger::wideColorGamutCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::wideColorGamutCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
-bool SurfaceFlinger::useFrameRateApi;
 bool SurfaceFlinger::enableSdrDimming;
 LatchUnsignaledConfig SurfaceFlinger::enableLatchUnsignaledConfig;
 
@@ -485,8 +484,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
         ALOGI("Enabling Treble testing override");
         android::hardware::details::setTrebleTestingOverride(true);
     }
-
-    useFrameRateApi = use_frame_rate_api(true);
 
     mRefreshRateOverlaySpinner = property_get_bool("sf.debug.show_refresh_rate_overlay_spinner", 0);
 

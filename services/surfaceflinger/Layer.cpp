@@ -1166,9 +1166,6 @@ void Layer::updateTreeHasFrameRateVote() {
 }
 
 bool Layer::setFrameRate(FrameRate frameRate) {
-    if (!mFlinger->useFrameRateApi) {
-        return false;
-    }
     if (mDrawingState.frameRate == frameRate) {
         return false;
     }
