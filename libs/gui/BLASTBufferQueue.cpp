@@ -295,7 +295,7 @@ void BLASTBufferQueue::transactionCommittedCallback(nsecs_t /*latchTime*/,
                     flushShadowQueueLocked();
                 }
             } else {
-                BQA_LOGE("Failed to find matching SurfaceControl in transaction callback");
+                BQA_LOGE("Failed to find matching SurfaceControl in transactionCommittedCallback");
             }
         } else {
             BQA_LOGE("No matching SurfaceControls found: mSurfaceControlsWithPendingCallback was "
@@ -360,7 +360,7 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
                     mTransactionCompleteFrameNumber = 0;
                 }
             } else {
-                BQA_LOGE("Failed to find matching SurfaceControl in transaction callback");
+                BQA_LOGE("Failed to find matching SurfaceControl in transactionCallback");
             }
         } else {
             BQA_LOGE("No matching SurfaceControls found: mSurfaceControlsWithPendingCallback was "
