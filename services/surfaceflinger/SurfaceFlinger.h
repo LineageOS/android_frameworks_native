@@ -651,7 +651,7 @@ private:
 
     // Toggles hardware VSYNC by calling into HWC.
     void setVsyncEnabled(bool) override;
-    // Initiates a refresh rate change to be applied on invalidate.
+    // Initiates a refresh rate change to be applied on commit.
     void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ModeEvent) override;
     // Called when kernel idle timer has expired. Used to update the refresh rate overlay.
     void kernelTimerChanged(bool expired) override;
@@ -960,10 +960,6 @@ private:
         mLastHWCVsyncState = enabled;
         getHwComposer().setVsyncEnabled(id, enabled);
     }
-
-    // Sets the refresh rate by switching active configs, if they are available for
-    // the desired refresh rate.
-    void changeRefreshRateLocked(const RefreshRate&, Scheduler::ModeEvent) REQUIRES(mStateLock);
 
     struct FenceWithFenceTime {
         sp<Fence> fence = Fence::NO_FENCE;
