@@ -84,8 +84,7 @@ void TestInputMessageAlignment() {
 
   CHECK_OFFSET(InputMessage::Body::Focus, eventId, 0);
   CHECK_OFFSET(InputMessage::Body::Focus, hasFocus, 4);
-  CHECK_OFFSET(InputMessage::Body::Focus, inTouchMode, 5);
-  CHECK_OFFSET(InputMessage::Body::Focus, empty, 6);
+  CHECK_OFFSET(InputMessage::Body::Focus, empty, 5);
 
   CHECK_OFFSET(InputMessage::Body::Capture, eventId, 0);
   CHECK_OFFSET(InputMessage::Body::Capture, pointerCaptureEnabled, 4);

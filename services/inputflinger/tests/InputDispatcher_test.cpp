@@ -842,7 +842,6 @@ public:
 
         FocusEvent* focusEvent = static_cast<FocusEvent*>(event);
         EXPECT_EQ(hasFocus, focusEvent->getHasFocus());
-        EXPECT_EQ(inTouchMode, focusEvent->getInTouchMode());
     }
 
     void consumeCaptureEvent(bool hasCapture) {

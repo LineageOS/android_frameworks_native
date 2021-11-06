@@ -820,17 +820,15 @@ float MotionEvent::calculateTransformedAxisValue(int32_t axis, uint32_t source,
 
 // --- FocusEvent ---
 
-void FocusEvent::initialize(int32_t id, bool hasFocus, bool inTouchMode) {
+void FocusEvent::initialize(int32_t id, bool hasFocus) {
     InputEvent::initialize(id, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
                            ADISPLAY_ID_NONE, INVALID_HMAC);
     mHasFocus = hasFocus;
-    mInTouchMode = inTouchMode;
 }
 
 void FocusEvent::initialize(const FocusEvent& from) {
     InputEvent::initialize(from);
     mHasFocus = from.mHasFocus;
-    mInTouchMode = from.mInTouchMode;
 }
 
 // --- CaptureEvent ---

@@ -278,7 +278,6 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
         case InputMessage::Type::FOCUS: {
             msg->body.focus.eventId = body.focus.eventId;
             msg->body.focus.hasFocus = body.focus.hasFocus;
-            msg->body.focus.inTouchMode = body.focus.inTouchMode;
             break;
         }
         case InputMessage::Type::CAPTURE: {
@@ -622,13 +621,10 @@ status_t InputPublisher::publishMotionEvent(
     return mChannel->sendMessage(&msg);
 }
 
-status_t InputPublisher::publishFocusEvent(uint32_t seq, int32_t eventId, bool hasFocus,
-                                           bool inTouchMode) {
+status_t InputPublisher::publishFocusEvent(uint32_t seq, int32_t eventId, bool hasFocus) {
     if (ATRACE_ENABLED()) {
-        std::string message =
-                StringPrintf("publishFocusEvent(inputChannel=%s, hasFocus=%s, inTouchMode=%s)",
-                             mChannel->getName().c_str(), toString(hasFocus),
-                             toString(inTouchMode));
+        std::string message = StringPrintf("publishFocusEvent(inputChannel=%s, hasFocus=%s)",
+                                           mChannel->getName().c_str(), toString(hasFocus));
         ATRACE_NAME(message.c_str());
     }
 
@@ -637,7 +633,6 @@ status_t InputPublisher::publishFocusEvent(uint32_t seq, int32_t eventId, bool h
     msg.header.seq = seq;
     msg.body.focus.eventId = eventId;
     msg.body.focus.hasFocus = hasFocus;
-    msg.body.focus.inTouchMode = inTouchMode;
     return mChannel->sendMessage(&msg);
 }
 
@@ -1371,8 +1366,7 @@ void InputConsumer::initializeKeyEvent(KeyEvent* event, const InputMessage* msg)
 }
 
 void InputConsumer::initializeFocusEvent(FocusEvent* event, const InputMessage* msg) {
-    event->initialize(msg->body.focus.eventId, msg->body.focus.hasFocus,
-                      msg->body.focus.inTouchMode);
+    event->initialize(msg->body.focus.eventId, msg->body.focus.hasFocus);
 }
 
 void InputConsumer::initializeCaptureEvent(CaptureEvent* event, const InputMessage* msg) {
@@ -1491,9 +1485,8 @@ std::string InputConsumer::dump() const {
                     break;
                 }
                 case InputMessage::Type::FOCUS: {
-                    out += android::base::StringPrintf("hasFocus=%s inTouchMode=%s",
-                                                       toString(msg.body.focus.hasFocus),
-                                                       toString(msg.body.focus.inTouchMode));
+                    out += android::base::StringPrintf("hasFocus=%s",
+                                                       toString(msg.body.focus.hasFocus));
                     break;
                 }
                 case InputMessage::Type::CAPTURE: {
