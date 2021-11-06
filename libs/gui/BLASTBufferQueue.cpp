@@ -295,7 +295,7 @@ void BLASTBufferQueue::transactionCommittedCallback(nsecs_t /*latchTime*/,
                     flushShadowQueueLocked();
                 }
             } else {
-                BQA_LOGE("Failed to find matching SurfaceControl in transaction callback");
+                BQA_LOGE("Failed to find matching SurfaceControl in transactionCommittedCallback");
             }
         } else {
             BQA_LOGE("No matching SurfaceControls found: mSurfaceControlsWithPendingCallback was "
@@ -360,7 +360,7 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
                     mTransactionCompleteFrameNumber = 0;
                 }
             } else {
-                BQA_LOGE("Failed to find matching SurfaceControl in transaction callback");
+                BQA_LOGE("Failed to find matching SurfaceControl in transactionCallback");
             }
         } else {
             BQA_LOGE("No matching SurfaceControls found: mSurfaceControlsWithPendingCallback was "
@@ -621,9 +621,15 @@ Rect BLASTBufferQueue::computeCrop(const BufferItem& item) {
 
 void BLASTBufferQueue::acquireAndReleaseBuffer() {
     BufferItem bufferItem;
-    mBufferItemConsumer->acquireBuffer(&bufferItem, 0 /* expectedPresent */, false);
-    mBufferItemConsumer->releaseBuffer(bufferItem, Fence::NO_FENCE);
+    status_t status =
+            mBufferItemConsumer->acquireBuffer(&bufferItem, 0 /* expectedPresent */, false);
+    if (status != OK) {
+        BQA_LOGE("Failed to acquire a buffer in acquireAndReleaseBuffer, err=%s",
+                 statusToString(status).c_str());
+        return;
+    }
     mNumFrameAvailable--;
+    mBufferItemConsumer->releaseBuffer(bufferItem, bufferItem.mFence);
 }
 
 void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
