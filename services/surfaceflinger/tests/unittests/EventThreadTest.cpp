@@ -28,6 +28,7 @@
 
 #include "AsyncCallRecorder.h"
 #include "DisplayHardware/DisplayMode.h"
+#include "FrameTimeline.h"
 #include "Scheduler/EventThread.h"
 
 using namespace std::chrono_literals;
@@ -96,6 +97,8 @@ protected:
                                               ConnectionEventRecorder& connectionEventRecorder,
                                               nsecs_t expectedTimestamp, unsigned expectedCount);
     void expectVsyncEventReceivedByConnection(nsecs_t expectedTimestamp, unsigned expectedCount);
+    void expectVsyncEventFrameTimelinesCorrect(nsecs_t expectedTimestamp,
+                                               nsecs_t preferredDeadline);
     void expectHotplugEventReceivedByConnection(PhysicalDisplayId expectedDisplayId,
                                                 bool expectedConnected);
     void expectConfigChangedEventReceivedByConnection(PhysicalDisplayId expectedDisplayId,
@@ -120,6 +123,7 @@ protected:
     std::unique_ptr<impl::EventThread> mThread;
     sp<MockEventThreadConnection> mConnection;
     sp<MockEventThreadConnection> mThrottledConnection;
+    std::unique_ptr<frametimeline::impl::TokenManager> mTokenManager;
 
     static constexpr uid_t mConnectionUid = 443;
     static constexpr uid_t mThrottledConnectionUid = 177;
@@ -173,8 +177,8 @@ void EventThreadTest::createThread(std::unique_ptr<VSyncSource> source) {
         return VSYNC_PERIOD.count();
     };
 
-    mThread = std::make_unique<impl::EventThread>(std::move(source),
-                                                  /*tokenManager=*/nullptr,
+    mTokenManager = std::make_unique<frametimeline::impl::TokenManager>();
+    mThread = std::make_unique<impl::EventThread>(std::move(source), mTokenManager.get(),
                                                   mInterceptVSyncCallRecorder.getInvocable(),
                                                   throttleVsync, getVsyncPeriod);
 
@@ -245,6 +249,45 @@ void EventThreadTest::expectVsyncEventReceivedByConnection(nsecs_t expectedTimes
     expectVsyncEventReceivedByConnection("mConnectionEventCallRecorder",
                                          mConnectionEventCallRecorder, expectedTimestamp,
                                          expectedCount);
+}
+
+void EventThreadTest::expectVsyncEventFrameTimelinesCorrect(nsecs_t expectedTimestamp,
+                                                            nsecs_t preferredDeadline) {
+    auto args = mConnectionEventCallRecorder.waitForCall();
+    ASSERT_TRUE(args.has_value()) << " did not receive an event for timestamp "
+                                  << expectedTimestamp;
+    const auto& event = std::get<0>(args.value());
+    for (int i = 0; i < DisplayEventReceiver::kFrameTimelinesLength; i++) {
+        auto prediction =
+                mTokenManager->getPredictionsForToken(event.vsync.frameTimelines[i].vsyncId);
+        EXPECT_TRUE(prediction.has_value());
+        EXPECT_EQ(prediction.value().endTime, event.vsync.frameTimelines[i].deadlineTimestamp)
+                << "Deadline timestamp does not match cached value";
+        EXPECT_EQ(prediction.value().presentTime,
+                  event.vsync.frameTimelines[i].expectedVSyncTimestamp)
+                << "Expected vsync timestamp does not match cached value";
+
+        if (i > 0) {
+            EXPECT_GT(event.vsync.frameTimelines[i].deadlineTimestamp,
+                      event.vsync.frameTimelines[i - 1].deadlineTimestamp)
+                    << "Deadline timestamp out of order for frame timeline " << i;
+            EXPECT_GT(event.vsync.frameTimelines[i].expectedVSyncTimestamp,
+                      event.vsync.frameTimelines[i - 1].expectedVSyncTimestamp)
+                    << "Expected vsync timestamp out of order for frame timeline " << i;
+        }
+        if (event.vsync.frameTimelines[i].deadlineTimestamp == preferredDeadline) {
+            EXPECT_EQ(i, event.vsync.preferredFrameTimelineIndex)
+                    << "Preferred frame timeline index should be " << i;
+            // For the platform-preferred frame timeline, the vsync ID is 0 because the first frame
+            // timeline is made before the rest.
+            EXPECT_EQ(0, event.vsync.frameTimelines[i].vsyncId)
+                    << "Vsync ID incorrect for frame timeline " << i;
+        } else {
+            // Vsync ID 0 is used for the preferred frame timeline.
+            EXPECT_EQ(i + 1, event.vsync.frameTimelines[i].vsyncId)
+                    << "Vsync ID incorrect for frame timeline " << i;
+        }
+    }
 }
 
 void EventThreadTest::expectHotplugEventReceivedByConnection(PhysicalDisplayId expectedDisplayId,
@@ -342,6 +385,19 @@ TEST_F(EventThreadTest, requestNextVsyncPostsASingleVSyncEventToTheConnection) {
     // EventThread should also detect that at this point that it does not need
     // any more vsync events, and should disable their generation.
     expectVSyncSetEnabledCallReceived(false);
+}
+
+TEST_F(EventThreadTest, requestNextVsyncEventFrameTimelinesCorrect) {
+    // Signal that we want the next vsync event to be posted to the connection
+    mThread->requestNextVsync(mConnection);
+
+    expectVSyncSetEnabledCallReceived(true);
+
+    // Use the received callback to signal a vsync event.
+    // The interceptor should receive the event, as well as the connection.
+    mCallback->onVSyncEvent(123, 456, 789);
+    expectInterceptCallReceived(123);
+    expectVsyncEventFrameTimelinesCorrect(123, 789);
 }
 
 TEST_F(EventThreadTest, setVsyncRateZeroPostsNoVSyncEventsToThatConnection) {

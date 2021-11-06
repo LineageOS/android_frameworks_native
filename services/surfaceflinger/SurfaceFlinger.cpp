@@ -331,7 +331,6 @@ Dataspace SurfaceFlinger::defaultCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::defaultCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
 Dataspace SurfaceFlinger::wideColorGamutCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::wideColorGamutCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
-bool SurfaceFlinger::useFrameRateApi;
 bool SurfaceFlinger::enableSdrDimming;
 LatchUnsignaledConfig SurfaceFlinger::enableLatchUnsignaledConfig;
 
@@ -485,8 +484,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
         ALOGI("Enabling Treble testing override");
         android::hardware::details::setTrebleTestingOverride(true);
     }
-
-    useFrameRateApi = use_frame_rate_api(true);
 
     mRefreshRateOverlaySpinner = property_get_bool("sf.debug.show_refresh_rate_overlay_spinner", 0);
 
@@ -3806,11 +3803,10 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
         transactionFlags |= setDisplayStateLocked(display);
     }
 
-    // start and end registration for listeners w/ no surface so they can get their callback.  Note
-    // that listeners with SurfaceControls will start registration during setClientStateLocked
-    // below.
+    // Add listeners w/ surfaces so they can get their callback.  Note that listeners with
+    // SurfaceControls will start registration during setClientStateLocked below.
     for (const auto& listener : listenerCallbacks) {
-        mTransactionCallbackInvoker.addEmptyTransaction(listener);
+        mTransactionCallbackInvoker.addEmptyCallback(listener);
     }
 
     uint32_t clientStateFlags = 0;
@@ -3982,7 +3978,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
     if (layer == nullptr) {
         for (auto& [listener, callbackIds] : s.listeners) {
-            mTransactionCallbackInvoker.registerUnpresentedCallbackHandle(
+            mTransactionCallbackInvoker.addUnpresentedCallbackHandle(
                     new CallbackHandle(listener, callbackIds, s.surface));
         }
         return 0;
@@ -4253,12 +4249,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
             flags |= eTransactionNeeded | eTraversalNeeded;
         }
     }
-    std::vector<sp<CallbackHandle>> callbackHandles;
-    if ((what & layer_state_t::eHasListenerCallbacksChanged) && (!filteredListeners.empty())) {
-        for (auto& [listener, callbackIds] : filteredListeners) {
-            callbackHandles.emplace_back(new CallbackHandle(listener, callbackIds, s.surface));
-        }
-    }
 
     if (what & layer_state_t::eBufferChanged &&
         layer->setBuffer(s.bufferData, postTime, desiredPresentTime, isAutoTimestamp,
@@ -4268,7 +4258,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         layer->setFrameTimelineVsyncForBufferlessTransaction(frameTimelineInfo, postTime);
     }
 
-    if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
+    if ((what & layer_state_t::eHasListenerCallbacksChanged) && (!filteredListeners.empty())) {
+        if (layer->setTransactionCompletedListeners(filteredListeners, s.surface)) {
+            flags |= eTraversalNeeded;
+        }
+    }
     // Do not put anything that updates layer state or modifies flags after
     // setTransactionCompletedListener
     return flags;
