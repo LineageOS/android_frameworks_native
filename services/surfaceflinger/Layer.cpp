@@ -1166,9 +1166,6 @@ void Layer::updateTreeHasFrameRateVote() {
 }
 
 bool Layer::setFrameRate(FrameRate frameRate) {
-    if (!mFlinger->useFrameRateApi) {
-        return false;
-    }
     if (mDrawingState.frameRate == frameRate) {
         return false;
     }
@@ -2641,6 +2638,17 @@ bool Layer::setDropInputMode(gui::DropInputMode mode) {
     }
     mDrawingState.dropInputMode = mode;
     return true;
+}
+
+bool Layer::setTransactionCompletedListeners(
+        const std::vector<ListenerCallbacks>& listenerCallbacks, const sp<IBinder>&) {
+    if (listenerCallbacks.empty()) {
+        return false;
+    }
+    for (auto& listener : listenerCallbacks) {
+        mFlinger->getTransactionCallbackInvoker().addEmptyCallback(listener);
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------------------
