@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "e12858aa_0d7e5460",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 14838
+      },
+      "writtenOn": "2021-11-07T18:08:22Z",
+      "side": 1,
+      "message": "Pretty sure the BufferQueueLayer part is broken, adding logs in that function shows it\u0027s never called.\nFrom what I can see, BufferQueueLayer is nowadays used only for mirroring, no longer for \"normal\" layers",
+      "revId": "126cb3dcc3cdcbd88888bbb0a7e022e7baebd2e2",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
