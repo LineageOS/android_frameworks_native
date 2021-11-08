@@ -3044,7 +3044,9 @@ void SurfaceFlinger::updateInputFlinger() {
 void SurfaceFlinger::notifyWindowInfos() {
     std::vector<WindowInfo> windowInfos;
     std::vector<DisplayInfo> displayInfos;
-    std::unordered_map<uint32_t /*layerStackId*/, const ui::Transform> displayTransforms;
+    std::unordered_map<uint32_t /*layerStackId*/,
+                       std::pair<bool /* isSecure */, const ui::Transform>>
+            inputDisplayDetails;
 
     for (const auto& [_, display] : ON_MAIN_THREAD(mDisplays)) {
         if (!display->receivesInput()) {
@@ -3052,7 +3054,8 @@ void SurfaceFlinger::notifyWindowInfos() {
         }
         const uint32_t layerStackId = display->getLayerStack().id;
         const auto& [info, transform] = display->getInputInfo();
-        const auto& [it, emplaced] = displayTransforms.try_emplace(layerStackId, transform);
+        const auto& [it, emplaced] =
+                inputDisplayDetails.try_emplace(layerStackId, display->isSecure(), transform);
         if (!emplaced) {
             ALOGE("Multiple displays claim to accept input for the same layer stack: %u",
                   layerStackId);
@@ -3064,19 +3067,21 @@ void SurfaceFlinger::notifyWindowInfos() {
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (!layer->needsInputInfo()) return;
 
-        const DisplayDevice* display = ON_MAIN_THREAD(getDisplayWithInputByLayer(layer)).get();
+        bool isSecure = true;
         ui::Transform displayTransform = ui::Transform();
 
-        if (display != nullptr) {
-            // When calculating the screen bounds we ignore the transparent region since it may
-            // result in an unwanted offset.
-            const auto it = displayTransforms.find(display->getLayerStack().id);
-            if (it != displayTransforms.end()) {
-                displayTransform = it->second;
-            }
+        const uint32_t layerStackId = layer->getLayerStack().id;
+        const auto it = inputDisplayDetails.find(layerStackId);
+        if (it != inputDisplayDetails.end()) {
+            const auto& [secure, transform] = it->second;
+            isSecure = secure;
+            displayTransform = transform;
+        } else {
+            ALOGE("No input-enabled display found for layer `%s` on layer stack id: %d",
+                  layer->getDebugName(), layerStackId);
         }
-        const bool displayIsSecure = !display || display->isSecure();
-        windowInfos.push_back(layer->fillInputInfo(displayTransform, displayIsSecure));
+
+        windowInfos.push_back(layer->fillInputInfo(displayTransform, isSecure));
     });
     mWindowInfosListenerInvoker->windowInfosChanged(windowInfos, displayInfos,
                                                     mInputWindowCommands.syncInputWindows);
@@ -4515,25 +4520,6 @@ void SurfaceFlinger::onInitializeDisplays() {
 void SurfaceFlinger::initializeDisplays() {
     // Async since we may be called from the main thread.
     static_cast<void>(schedule([this]() MAIN_THREAD { onInitializeDisplays(); }));
-}
-
-sp<DisplayDevice> SurfaceFlinger::getDisplayWithInputByLayer(Layer* layer) const {
-    const auto filter = layer->getOutputFilter();
-    sp<DisplayDevice> inputDisplay;
-
-    for (const auto& [_, display] : mDisplays) {
-        if (!display->receivesInput() || !display->getCompositionDisplay()->includesLayer(filter)) {
-            continue;
-        }
-        // Don't return immediately so that we can log duplicates.
-        if (inputDisplay) {
-            ALOGE("Multiple displays claim to accept input for the same layer stack: %u",
-                  filter.layerStack.id);
-            continue;
-        }
-        inputDisplay = display;
-    }
-    return inputDisplay;
 }
 
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode) {
