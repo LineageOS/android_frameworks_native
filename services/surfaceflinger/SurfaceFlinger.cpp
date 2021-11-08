@@ -1971,8 +1971,33 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
 
         mFrameTimeline->setSfWakeUp(vsyncId, frameTime, Fps::fromPeriodNsecs(stats.vsyncPeriod));
 
-        mustComposite |= flushAndCommitTransactions();
+        bool needsTraversal = false;
+        if (clearTransactionFlags(eTransactionFlushNeeded)) {
+            needsTraversal = flushTransactionQueues();
+        }
+
+        const bool shouldCommit =
+                (getTransactionFlags() & ~eTransactionFlushNeeded) || needsTraversal;
+        if (shouldCommit) {
+            commitTransactions();
+        }
+
+        if (transactionFlushNeeded()) {
+            setTransactionFlags(eTransactionFlushNeeded);
+        }
+
+        mustComposite |= shouldCommit;
         mustComposite |= latchBuffers();
+
+        // This has to be called after latchBuffers because we want to include the layers that have
+        // been latched in the commit callback
+        if (!needsTraversal) {
+            // Invoke empty transaction callbacks early.
+            mTransactionCallbackInvoker.sendCallbacks(false /* onCommitOnly */);
+        } else {
+            // Invoke OnCommit callbacks.
+            mTransactionCallbackInvoker.sendCallbacks(true /* onCommitOnly */);
+        }
 
         updateLayerGeometry();
 
@@ -1998,34 +2023,6 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     updateInputFlinger();
 
     return mustComposite && CC_LIKELY(mBootStage != BootStage::BOOTLOADER);
-}
-
-bool SurfaceFlinger::flushAndCommitTransactions() {
-    ATRACE_CALL();
-
-    bool needsTraversal = false;
-    if (clearTransactionFlags(eTransactionFlushNeeded)) {
-        needsTraversal = flushTransactionQueues();
-    }
-
-    const bool shouldCommit = (getTransactionFlags() & ~eTransactionFlushNeeded) || needsTraversal;
-    if (shouldCommit) {
-        commitTransactions();
-    }
-
-    if (!needsTraversal) {
-        // Invoke empty transaction callbacks early.
-        mTransactionCallbackInvoker.sendCallbacks(false /* onCommitOnly */);
-    } else {
-        // Invoke OnCommit callbacks.
-        mTransactionCallbackInvoker.sendCallbacks(true /* onCommitOnly */);
-    }
-
-    if (transactionFlushNeeded()) {
-        setTransactionFlags(eTransactionFlushNeeded);
-    }
-
-    return shouldCommit;
 }
 
 void SurfaceFlinger::composite(nsecs_t frameTime) {
