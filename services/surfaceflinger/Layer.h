@@ -280,6 +280,8 @@ public:
         sp<IBinder> releaseBufferEndpoint;
 
         gui::DropInputMode dropInputMode;
+
+        bool autoRefresh = false;
     };
 
     /*
