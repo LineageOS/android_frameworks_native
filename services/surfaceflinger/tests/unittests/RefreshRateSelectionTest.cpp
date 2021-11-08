@@ -91,15 +91,14 @@ RefreshRateSelectionTest::~RefreshRateSelectionTest() {
 
 sp<BufferStateLayer> RefreshRateSelectionTest::createBufferStateLayer() {
     sp<Client> client;
-    LayerCreationArgs args(mFlinger.flinger(), client, "buffer-queue-layer", WIDTH, HEIGHT,
-                           LAYER_FLAGS, LayerMetadata());
+    LayerCreationArgs args(mFlinger.flinger(), client, "buffer-queue-layer", LAYER_FLAGS,
+                           LayerMetadata());
     return new BufferStateLayer(args);
 }
 
 sp<EffectLayer> RefreshRateSelectionTest::createEffectLayer() {
     sp<Client> client;
-    LayerCreationArgs args(mFlinger.flinger(), client, "color-layer", WIDTH, HEIGHT, LAYER_FLAGS,
-                           LayerMetadata());
+    LayerCreationArgs args(mFlinger.flinger(), client, "color-layer", LAYER_FLAGS, LayerMetadata());
     return new EffectLayer(args);
 }
 

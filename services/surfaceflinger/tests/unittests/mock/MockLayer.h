@@ -25,7 +25,7 @@ namespace android::mock {
 class MockLayer : public Layer {
 public:
     MockLayer(SurfaceFlinger* flinger, std::string name)
-          : Layer(LayerCreationArgs(flinger, nullptr, std::move(name), 800, 600, 0, {})) {}
+          : Layer(LayerCreationArgs(flinger, nullptr, std::move(name), 0, {})) {}
     explicit MockLayer(SurfaceFlinger* flinger) : MockLayer(flinger, "TestLayer") {}
 
     MOCK_CONST_METHOD0(getType, const char*());

@@ -535,6 +535,7 @@ struct BaseLayerProperties {
 
     static void setupLatchedBuffer(CompositionTest* test, sp<BufferQueueLayer> layer) {
         // TODO: Eliminate the complexity of actually creating a buffer
+        layer->setSizeForTest(LayerProperties::WIDTH, LayerProperties::HEIGHT);
         status_t err =
                 layer->setDefaultBufferProperties(LayerProperties::WIDTH, LayerProperties::HEIGHT,
                                                   LayerProperties::FORMAT);
@@ -901,7 +902,6 @@ struct EffectLayerVariant : public BaseLayerVariant<LayerProperties> {
         FlingerLayerType layer = Base::template createLayerWithFactory<EffectLayer>(test, [test]() {
             return new EffectLayer(
                     LayerCreationArgs(test->mFlinger.flinger(), sp<Client>(), "test-layer",
-                                      LayerProperties::WIDTH, LayerProperties::HEIGHT,
                                       LayerProperties::LAYER_FLAGS, LayerMetadata()));
         });
 
@@ -940,7 +940,6 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
         FlingerLayerType layer =
                 Base::template createLayerWithFactory<BufferQueueLayer>(test, [test]() {
                     LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-layer",
-                                           LayerProperties::WIDTH, LayerProperties::HEIGHT,
                                            LayerProperties::LAYER_FLAGS, LayerMetadata());
                     args.textureName = test->mFlinger.mutableTexturePool().back();
                     return new BufferQueueLayer(args);
@@ -952,7 +951,6 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
     }
 
     static void cleanupInjectedLayers(CompositionTest* test) {
-        EXPECT_CALL(*test->mMessageQueue, postMessage(_)).Times(1);
         Base::cleanupInjectedLayers(test);
     }
 
@@ -990,7 +988,6 @@ struct ContainerLayerVariant : public BaseLayerVariant<LayerProperties> {
 
     static FlingerLayerType createLayer(CompositionTest* test) {
         LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-container-layer",
-                               LayerProperties::WIDTH, LayerProperties::HEIGHT,
                                LayerProperties::LAYER_FLAGS, LayerMetadata());
         FlingerLayerType layer = new ContainerLayer(args);
         Base::template initLayerDrawingStateAndComputeBounds(test, layer);

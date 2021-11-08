@@ -763,29 +763,23 @@ private:
     /*
      * Layer management
      */
-    status_t createLayer(const String8& name, const sp<Client>& client, uint32_t w, uint32_t h,
-                         PixelFormat format, uint32_t flags, LayerMetadata metadata,
-                         sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp,
+    status_t createLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
                          const sp<IBinder>& parentHandle, int32_t* outLayerId,
                          const sp<Layer>& parentLayer = nullptr,
                          uint32_t* outTransformHint = nullptr);
 
-    status_t createBufferQueueLayer(const sp<Client>& client, std::string name, uint32_t w,
-                                    uint32_t h, uint32_t flags, LayerMetadata metadata,
-                                    PixelFormat& format, sp<IBinder>* outHandle,
-                                    sp<IGraphicBufferProducer>* outGbp, sp<Layer>* outLayer);
+    status_t createBufferQueueLayer(LayerCreationArgs& args, PixelFormat& format,
+                                    sp<IBinder>* outHandle, sp<IGraphicBufferProducer>* outGbp,
+                                    sp<Layer>* outLayer);
 
-    status_t createBufferStateLayer(const sp<Client>& client, std::string name, uint32_t w,
-                                    uint32_t h, uint32_t flags, LayerMetadata metadata,
-                                    sp<IBinder>* outHandle, sp<Layer>* outLayer);
+    status_t createBufferStateLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
+                                    sp<Layer>* outLayer);
 
-    status_t createEffectLayer(const sp<Client>& client, std::string name, uint32_t w, uint32_t h,
-                               uint32_t flags, LayerMetadata metadata, sp<IBinder>* outHandle,
+    status_t createEffectLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
                                sp<Layer>* outLayer);
 
-    status_t createContainerLayer(const sp<Client>& client, std::string name, uint32_t w,
-                                  uint32_t h, uint32_t flags, LayerMetadata metadata,
-                                  sp<IBinder>* outHandle, sp<Layer>* outLayer);
+    status_t createContainerLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
+                                  sp<Layer>* outLayer);
 
     status_t mirrorLayer(const sp<Client>& client, const sp<IBinder>& mirrorFromHandle,
                          sp<IBinder>* outHandle, int32_t* outLayerId);
@@ -798,8 +792,7 @@ private:
 
     // add a layer to SurfaceFlinger
     status_t addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
-                            const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
-                            const wp<Layer>& parentLayer, bool addToRoot,
+                            const sp<Layer>& lbc, const wp<Layer>& parentLayer, bool addToRoot,
                             uint32_t* outTransformHint);
 
     // Traverse through all the layers and compute and cache its bounds.
@@ -1115,15 +1108,11 @@ private:
     float mGlobalSaturationFactor = 1.0f;
     mat4 mClientColorMatrix;
 
-    // Can't be unordered_set because wp<> isn't hashable
-    std::set<wp<IBinder>> mGraphicBufferProducerList;
     size_t mMaxGraphicBufferProducerListSize = ISurfaceComposer::MAX_LAYERS;
     // If there are more GraphicBufferProducers tracked by SurfaceFlinger than
     // this threshold, then begin logging.
     size_t mGraphicBufferProducerListSizeLogThreshold =
             static_cast<size_t>(0.95 * static_cast<double>(MAX_LAYERS));
-
-    void removeGraphicBufferProducerAsync(const wp<IBinder>&);
 
     // protected by mStateLock (but we could use another lock)
     bool mLayersRemoved = false;
@@ -1339,19 +1328,12 @@ private:
             GUARDED_BY(mStateLock);
     mutable Mutex mCreatedLayersLock;
     struct LayerCreatedState {
-        LayerCreatedState(const wp<Layer>& layer, const wp<Layer> parent,
-                          const wp<IBinder>& producer, bool addToRoot)
-              : layer(layer),
-                initialParent(parent),
-                initialProducer(producer),
-                addToRoot(addToRoot) {}
+        LayerCreatedState(const wp<Layer>& layer, const wp<Layer> parent, bool addToRoot)
+              : layer(layer), initialParent(parent), addToRoot(addToRoot) {}
         wp<Layer> layer;
         // Indicates the initial parent of the created layer, only used for creating layer in
         // SurfaceFlinger. If nullptr, it may add the created layer into the current root layers.
         wp<Layer> initialParent;
-        // Indicates the initial graphic buffer producer of the created layer, only used for
-        // creating layer in SurfaceFlinger.
-        wp<IBinder> initialProducer;
         // Indicates whether the layer getting created should be added at root if there's no parent
         // and has permission ACCESS_SURFACE_FLINGER. If set to false and no parent, the layer will
         // be added offscreen.
@@ -1362,7 +1344,7 @@ private:
     // thread.
     std::unordered_map<BBinder*, std::unique_ptr<LayerCreatedState>> mCreatedLayers;
     void setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
-                              const wp<Layer> parent, const wp<IBinder>& producer, bool addToRoot);
+                              const wp<Layer> parent, bool addToRoot);
     auto getLayerCreatedState(const sp<IBinder>& handle);
     sp<Layer> handleLayerCreatedLocked(const sp<IBinder>& handle) REQUIRES(mStateLock);
 

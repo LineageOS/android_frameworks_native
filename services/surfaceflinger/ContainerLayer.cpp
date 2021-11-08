@@ -36,8 +36,7 @@ bool ContainerLayer::isVisible() const {
 
 sp<Layer> ContainerLayer::createClone() {
     sp<ContainerLayer> layer = mFlinger->getFactory().createContainerLayer(
-            LayerCreationArgs(mFlinger.get(), nullptr, mName + " (Mirror)", 0, 0, 0,
-                              LayerMetadata()));
+            LayerCreationArgs(mFlinger.get(), nullptr, mName + " (Mirror)", 0, LayerMetadata()));
     layer->setInitialValuesForClone(this);
     return layer;
 }
