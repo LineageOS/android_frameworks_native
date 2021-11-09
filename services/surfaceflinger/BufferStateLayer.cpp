@@ -404,7 +404,7 @@ bool BufferStateLayer::setBuffer(const BufferData& bufferData, nsecs_t postTime,
                                  nsecs_t desiredPresentTime, bool isAutoTimestamp,
                                  std::optional<nsecs_t> dequeueTime,
                                  const FrameTimelineInfo& info) {
-    ATRACE_NAME(mSetBufferTraceTag.c_str());
+    ATRACE_CALL();
 
     const std::shared_ptr<renderengine::ExternalTexture>& buffer =
             getBufferFromBufferData(bufferData);
