@@ -142,6 +142,7 @@ cc_test {
         "libtimestats",
         "libtimestats_atoms_proto",
         "libtimestats_proto",
+        "libtonemap",
         "libtrace_proto",
         "perfetto_trace_protos",
     ],
