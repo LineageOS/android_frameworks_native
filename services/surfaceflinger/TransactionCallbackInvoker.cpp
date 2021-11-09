@@ -74,10 +74,10 @@ TransactionCallbackInvoker::~TransactionCallbackInvoker() {
     }
 }
 
-void TransactionCallbackInvoker::addEmptyCallback(const ListenerCallbacks& listenerCallbacks) {
+void TransactionCallbackInvoker::addEmptyTransaction(const ListenerCallbacks& listenerCallbacks) {
     auto& [listener, callbackIds] = listenerCallbacks;
-    TransactionStats* transactionStats;
-    findOrCreateTransactionStats(listener, callbackIds, &transactionStats);
+    auto& transactionStatsDeque = mCompletedTransactions[listener];
+    transactionStatsDeque.emplace_back(callbackIds);
 }
 
 status_t TransactionCallbackInvoker::addOnCommitCallbackHandles(
@@ -116,7 +116,7 @@ status_t TransactionCallbackInvoker::addCallbackHandles(
     return NO_ERROR;
 }
 
-status_t TransactionCallbackInvoker::addUnpresentedCallbackHandle(
+status_t TransactionCallbackInvoker::registerUnpresentedCallbackHandle(
         const sp<CallbackHandle>& handle) {
     return addCallbackHandle(handle, std::vector<JankData>());
 }

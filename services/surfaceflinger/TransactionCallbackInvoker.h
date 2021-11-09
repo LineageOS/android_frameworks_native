@@ -71,10 +71,8 @@ public:
 
     // Adds the Transaction CallbackHandle from a layer that does not need to be relatched and
     // presented this frame.
-    status_t addUnpresentedCallbackHandle(const sp<CallbackHandle>& handle);
-    // Adds the callback handles for empty transactions or for non-buffer layer updates which do not
-    // include layer stats.
-    void addEmptyCallback(const ListenerCallbacks& listenerCallbacks);
+    status_t registerUnpresentedCallbackHandle(const sp<CallbackHandle>& handle);
+    void addEmptyTransaction(const ListenerCallbacks& listenerCallbacks);
 
     void addPresentFence(const sp<Fence>& presentFence);
 
@@ -83,12 +81,14 @@ public:
         mCompletedTransactions.clear();
     }
 
+    status_t addCallbackHandle(const sp<CallbackHandle>& handle,
+                               const std::vector<JankData>& jankData);
+
+
 private:
     status_t findOrCreateTransactionStats(const sp<IBinder>& listener,
                                           const std::vector<CallbackId>& callbackIds,
                                           TransactionStats** outTransactionStats);
-    status_t addCallbackHandle(const sp<CallbackHandle>& handle,
-                               const std::vector<JankData>& jankData);
 
     std::unordered_map<sp<IBinder>, std::deque<TransactionStats>, IListenerHash>
         mCompletedTransactions;

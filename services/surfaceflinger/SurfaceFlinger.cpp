@@ -3795,10 +3795,11 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
         transactionFlags |= setDisplayStateLocked(display);
     }
 
-    // Add listeners w/ surfaces so they can get their callback.  Note that listeners with
-    // SurfaceControls will start registration during setClientStateLocked below.
+    // start and end registration for listeners w/ no surface so they can get their callback.  Note
+    // that listeners with SurfaceControls will start registration during setClientStateLocked
+    // below.
     for (const auto& listener : listenerCallbacks) {
-        mTransactionCallbackInvoker.addEmptyCallback(listener);
+        mTransactionCallbackInvoker.addEmptyTransaction(listener);
     }
 
     uint32_t clientStateFlags = 0;
@@ -3970,7 +3971,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
     if (layer == nullptr) {
         for (auto& [listener, callbackIds] : s.listeners) {
-            mTransactionCallbackInvoker.addUnpresentedCallbackHandle(
+            mTransactionCallbackInvoker.registerUnpresentedCallbackHandle(
                     new CallbackHandle(listener, callbackIds, s.surface));
         }
         return 0;
@@ -4241,6 +4242,12 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
             flags |= eTransactionNeeded | eTraversalNeeded;
         }
     }
+    std::vector<sp<CallbackHandle>> callbackHandles;
+    if ((what & layer_state_t::eHasListenerCallbacksChanged) && (!filteredListeners.empty())) {
+        for (auto& [listener, callbackIds] : filteredListeners) {
+            callbackHandles.emplace_back(new CallbackHandle(listener, callbackIds, s.surface));
+        }
+    }
 
     if (what & layer_state_t::eBufferChanged &&
         layer->setBuffer(s.bufferData, postTime, desiredPresentTime, isAutoTimestamp,
@@ -4250,11 +4257,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         layer->setFrameTimelineVsyncForBufferlessTransaction(frameTimelineInfo, postTime);
     }
 
-    if ((what & layer_state_t::eHasListenerCallbacksChanged) && (!filteredListeners.empty())) {
-        if (layer->setTransactionCompletedListeners(filteredListeners, s.surface)) {
-            flags |= eTraversalNeeded;
-        }
-    }
+    if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
     // Do not put anything that updates layer state or modifies flags after
     // setTransactionCompletedListener
     return flags;
