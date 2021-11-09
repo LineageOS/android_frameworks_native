@@ -87,11 +87,12 @@ using gui::WindowInfo;
 std::atomic<int32_t> Layer::sSequence{1};
 
 Layer::Layer(const LayerCreationArgs& args)
-      : mFlinger(args.flinger),
+      : sequence(args.sequence.value_or(sSequence++)),
+        mFlinger(args.flinger),
         mName(base::StringPrintf("%s#%d", args.name.c_str(), sequence)),
         mClientRef(args.client),
-        mWindowType(
-                static_cast<WindowInfo::Type>(args.metadata.getInt32(METADATA_WINDOW_TYPE, 0))) {
+        mWindowType(static_cast<WindowInfo::Type>(args.metadata.getInt32(METADATA_WINDOW_TYPE, 0))),
+        mLayerCreationFlags(args.flags) {
     uint32_t layerFlags = 0;
     if (args.flags & ISurfaceComposerClient::eHidden) layerFlags |= layer_state_t::eLayerHidden;
     if (args.flags & ISurfaceComposerClient::eOpaque) layerFlags |= layer_state_t::eLayerOpaque;
@@ -99,8 +100,6 @@ Layer::Layer(const LayerCreationArgs& args)
     if (args.flags & ISurfaceComposerClient::eSkipScreenshot)
         layerFlags |= layer_state_t::eLayerSkipScreenshot;
 
-    mDrawingState.active_legacy.w = args.w;
-    mDrawingState.active_legacy.h = args.h;
     mDrawingState.flags = layerFlags;
     mDrawingState.active_legacy.transform.set(0, 0);
     mDrawingState.crop.makeInvalid();
@@ -185,12 +184,10 @@ Layer::~Layer() {
 }
 
 LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, sp<Client> client, std::string name,
-                                     uint32_t w, uint32_t h, uint32_t flags, LayerMetadata metadata)
+                                     uint32_t flags, LayerMetadata metadata)
       : flinger(flinger),
         client(std::move(client)),
         name(std::move(name)),
-        w(w),
-        h(h),
         flags(flags),
         metadata(std::move(metadata)) {
     IPCThreadState* ipc = IPCThreadState::self();
@@ -887,7 +884,7 @@ bool Layer::setBackgroundColor(const half3& color, float alpha, ui::Dataspace da
         uint32_t flags = ISurfaceComposerClient::eFXSurfaceEffect;
         std::string name = mName + "BackgroundColorLayer";
         mDrawingState.bgColorLayer = mFlinger->getFactory().createEffectLayer(
-                LayerCreationArgs(mFlinger.get(), nullptr, std::move(name), 0, 0, flags,
+                LayerCreationArgs(mFlinger.get(), nullptr, std::move(name), flags,
                                   LayerMetadata()));
 
         // add to child list

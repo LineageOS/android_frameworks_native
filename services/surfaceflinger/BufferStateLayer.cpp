@@ -883,7 +883,7 @@ Rect BufferStateLayer::computeBufferCrop(const State& s) {
 }
 
 sp<Layer> BufferStateLayer::createClone() {
-    LayerCreationArgs args(mFlinger.get(), nullptr, mName + " (Mirror)", 0, 0, 0, LayerMetadata());
+    LayerCreationArgs args(mFlinger.get(), nullptr, mName + " (Mirror)", 0, LayerMetadata());
     args.textureName = mTextureName;
     sp<BufferStateLayer> layer = mFlinger->getFactory().createBufferStateLayer(args);
     layer->mHwcSlotGenerator = mHwcSlotGenerator;

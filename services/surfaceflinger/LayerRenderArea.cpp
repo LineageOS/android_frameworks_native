@@ -112,12 +112,10 @@ void LayerRenderArea::render(std::function<void()> drawLayers) {
         }
         drawLayers();
     } else {
-        uint32_t w = static_cast<uint32_t>(getWidth());
-        uint32_t h = static_cast<uint32_t>(getHeight());
         // In the "childrenOnly" case we reparent the children to a screenshot
         // layer which has no properties set and which does not draw.
         sp<ContainerLayer> screenshotParentLayer = mFlinger.getFactory().createContainerLayer(
-                {&mFlinger, nullptr, "Screenshot Parent"s, w, h, 0, LayerMetadata()});
+                {&mFlinger, nullptr, "Screenshot Parent"s, 0, LayerMetadata()});
 
         ReparentForDrawing reparent(mLayer, screenshotParentLayer, sourceCrop);
         drawLayers();

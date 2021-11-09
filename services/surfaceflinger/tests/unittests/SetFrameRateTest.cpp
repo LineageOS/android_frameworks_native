@@ -70,8 +70,8 @@ public:
     std::string name() override { return "BufferStateLayer"; }
     sp<Layer> createLayer(TestableSurfaceFlinger& flinger) override {
         sp<Client> client;
-        LayerCreationArgs args(flinger.flinger(), client, "buffer-state-layer", WIDTH, HEIGHT,
-                               LAYER_FLAGS, LayerMetadata());
+        LayerCreationArgs args(flinger.flinger(), client, "buffer-state-layer", LAYER_FLAGS,
+                               LayerMetadata());
         return new BufferStateLayer(args);
     }
 };
@@ -81,7 +81,7 @@ public:
     std::string name() override { return "EffectLayer"; }
     sp<Layer> createLayer(TestableSurfaceFlinger& flinger) override {
         sp<Client> client;
-        LayerCreationArgs args(flinger.flinger(), client, "color-layer", WIDTH, HEIGHT, LAYER_FLAGS,
+        LayerCreationArgs args(flinger.flinger(), client, "color-layer", LAYER_FLAGS,
                                LayerMetadata());
         return new EffectLayer(args);
     }

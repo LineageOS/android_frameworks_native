@@ -85,20 +85,18 @@ class SurfaceFrame;
 } // namespace frametimeline
 
 struct LayerCreationArgs {
-    LayerCreationArgs(SurfaceFlinger*, sp<Client>, std::string name, uint32_t w, uint32_t h,
-                      uint32_t flags, LayerMetadata);
+    LayerCreationArgs(SurfaceFlinger*, sp<Client>, std::string name, uint32_t flags, LayerMetadata);
 
     SurfaceFlinger* flinger;
     const sp<Client> client;
     std::string name;
-    uint32_t w;
-    uint32_t h;
     uint32_t flags;
     LayerMetadata metadata;
 
     pid_t callingPid;
     uid_t callingUid;
     uint32_t textureName;
+    std::optional<uint32_t> sequence = std::nullopt;
 };
 
 class Layer : public virtual RefBase, compositionengine::LayerFE {
@@ -881,7 +879,7 @@ public:
     // Layer serial number.  This gives layers an explicit ordering, so we
     // have a stable sort order when their layer stack and Z-order are
     // the same.
-    int32_t sequence{sSequence++};
+    const int32_t sequence;
 
     bool mPendingHWCDestroy{false};
 
@@ -1119,6 +1117,8 @@ private:
     const std::vector<BlurRegion> getBlurRegions() const;
 
     bool mIsAtRoot = false;
+
+    uint32_t mLayerCreationFlags;
 };
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate);
