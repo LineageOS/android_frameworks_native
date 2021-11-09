@@ -123,6 +123,8 @@ message LayerProto {
   bool is_relative_of = 51;
   // Layer's background blur radius in pixels.
   int32 background_blur_radius = 52;
+
+  bool is_trusted_overlay = 53;
 }
 
 message PositionProto {
