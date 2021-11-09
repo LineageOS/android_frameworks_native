@@ -43,20 +43,18 @@ public:
     LatencyTracker(InputEventTimelineProcessor* processor);
     /**
      * Start keeping track of an event identified by inputEventId. This must be called first.
+     * If duplicate events are encountered (events that have the same eventId), none of them will be
+     * tracked. This is because there is not enough information to correctly track them. The api's
+     * 'trackFinishedEvent' and 'trackGraphicsLatency' only contain the inputEventId, and not the
+     * eventTime. Even if eventTime was provided, there would still be a possibility of having
+     * duplicate events that happen to have the same eventTime and inputEventId. Therefore, we
+     * must drop all duplicate data.
      */
     void trackListener(int32_t inputEventId, bool isDown, nsecs_t eventTime, nsecs_t readTime);
     void trackFinishedEvent(int32_t inputEventId, const sp<IBinder>& connectionToken,
                             nsecs_t deliveryTime, nsecs_t consumeTime, nsecs_t finishTime);
     void trackGraphicsLatency(int32_t inputEventId, const sp<IBinder>& connectionToken,
                               std::array<nsecs_t, GraphicsTimeline::SIZE> timeline);
-
-    /**
-     * Report all collected events immediately, even if some of them are currently incomplete
-     * and may receive 'trackFinishedEvent' or 'trackGraphicsLatency' calls in the future.
-     * This is useful for tests. Otherwise, tests would have to inject additional "future" events,
-     * which is not convenient.
-     */
-    void reportNow();
 
     std::string dump(const char* prefix);
 
