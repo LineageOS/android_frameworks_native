@@ -118,6 +118,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.shadowRadius = 0.f;
     mCurrentState.treeHasFrameRateVote = false;
     mCurrentState.fixedTransformHint = ui::Transform::ROT_INVALID;
+    mCurrentState.isTrustedOverlay = false;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
