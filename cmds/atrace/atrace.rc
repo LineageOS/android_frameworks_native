@@ -282,6 +282,21 @@ on late-init
     chmod 0666 /sys/kernel/debug/tracing/per_cpu/cpu23/trace
     chmod 0666 /sys/kernel/tracing/per_cpu/cpu23/trace
 
+# Setup synthetic events
+    chmod 0666 /sys/kernel/tracing/synthetic_events
+    chmod 0666 /sys/kernel/debug/tracing/synthetic_events
+
+    # rss_stat_throttled
+    write /sys/kernel/tracing/synthetic_events "rss_stat_throttled unsigned int mm_id; unsigned int curr; int member; long size"
+    write /sys/kernel/debug/tracing/synthetic_events "rss_stat_throttled unsigned int mm_id; unsigned int curr; int member; long size"
+
+# Set up histogram triggers
+    # rss_stat_throttled (bucket size == 512KB)
+    chmod 0666 /sys/kernel/tracing/events/kmem/rss_stat/trigger
+    chmod 0666 /sys/kernel/debug/tracing/events/kmem/rss_stat/trigger
+    write /sys/kernel/tracing/events/kmem/rss_stat/trigger "hist:keys=mm_id,member:bucket=size/0x80000:onchange($$bucket).rss_stat_throttled(mm_id,curr,member,size)"
+    write /sys/kernel/debug/tracing/events/kmem/rss_stat/trigger "hist:keys=mm_id,member:bucket=size/0x80000:onchange($$bucket).rss_stat_throttled(mm_id,curr,member,size)"
+
 # Only create the tracing instance if persist.mm_events.enabled
 # Attempting to remove the tracing instance after it has been created
 # will likely fail with EBUSY as it would be in use by traced_probes.
