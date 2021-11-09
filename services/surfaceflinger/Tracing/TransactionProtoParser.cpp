@@ -22,9 +22,9 @@
 
 namespace android::surfaceflinger {
 
-proto::TransactionState TransactionProtoParser::toProto(
-        const TransactionState& t, std::function<int32_t(const sp<IBinder>&)> getLayerId,
-        std::function<int32_t(const sp<IBinder>&)> getDisplayId) {
+proto::TransactionState TransactionProtoParser::toProto(const TransactionState& t,
+                                                        LayerHandleToIdFn getLayerId,
+                                                        DisplayHandleToIdFn getDisplayId) {
     proto::TransactionState proto;
     proto.set_pid(t.originPid);
     proto.set_uid(t.originUid);
@@ -42,10 +42,38 @@ proto::TransactionState TransactionProtoParser::toProto(
     return proto;
 }
 
-proto::LayerState TransactionProtoParser::toProto(
-        const layer_state_t& layer, std::function<int32_t(const sp<IBinder>&)> getLayerId) {
+proto::TransactionState TransactionProtoParser::toProto(
+        std::vector<std::pair<int32_t /* layerId */, TracingLayerState>> states) {
+    proto::TransactionState proto;
+    for (auto& [layerId, state] : states) {
+        proto::LayerState layerProto = toProto(state, nullptr);
+        if (layerProto.has_buffer_data()) {
+            proto::LayerState_BufferData* bufferProto = layerProto.mutable_buffer_data();
+            bufferProto->set_buffer_id(state.bufferId);
+            bufferProto->set_width(state.bufferWidth);
+            bufferProto->set_height(state.bufferHeight);
+        }
+        layerProto.set_has_sideband_stream(state.hasSidebandStream);
+        layerProto.set_layer_id(state.layerId);
+        layerProto.set_parent_id(state.parentId);
+        layerProto.set_relative_parent_id(state.relativeParentId);
+        if (layerProto.has_window_info_handle()) {
+            layerProto.mutable_window_info_handle()->set_crop_layer_id(state.inputCropId);
+        }
+        proto.mutable_layer_changes()->Add(std::move(layerProto));
+    }
+    return proto;
+}
+
+proto::LayerState TransactionProtoParser::toProto(const layer_state_t& layer,
+                                                  LayerHandleToIdFn getLayerId) {
     proto::LayerState proto;
-    proto.set_layer_id(layer.layerId);
+    if (getLayerId != nullptr) {
+        proto.set_layer_id(getLayerId(layer.surface));
+    } else {
+        proto.set_layer_id(layer.layerId);
+    }
+
     proto.set_what(layer.what);
 
     if (layer.what & layer_state_t::ePositionChanged) {
@@ -130,13 +158,13 @@ proto::LayerState TransactionProtoParser::toProto(
         }
     }
 
-    if (layer.what & layer_state_t::eReparent) {
+    if ((layer.what & layer_state_t::eReparent) && getLayerId != nullptr) {
         int32_t layerId = layer.parentSurfaceControlForChild
                 ? getLayerId(layer.parentSurfaceControlForChild->getHandle())
                 : -1;
         proto.set_parent_id(layerId);
     }
-    if (layer.what & layer_state_t::eRelativeLayerChanged) {
+    if ((layer.what & layer_state_t::eRelativeLayerChanged) && getLayerId != nullptr) {
         int32_t layerId = layer.relativeLayerSurfaceControl
                 ? getLayerId(layer.relativeLayerSurfaceControl->getHandle())
                 : -1;
@@ -164,8 +192,12 @@ proto::LayerState TransactionProtoParser::toProto(
             transformProto->set_ty(inputInfo->transform.ty());
             windowInfoProto->set_replace_touchable_region_with_crop(
                     inputInfo->replaceTouchableRegionWithCrop);
-            windowInfoProto->set_crop_layer_id(
-                    getLayerId(inputInfo->touchableRegionCropHandle.promote()));
+            if (getLayerId != nullptr) {
+                windowInfoProto->set_crop_layer_id(
+                        getLayerId(inputInfo->touchableRegionCropHandle.promote()));
+            } else {
+                windowInfoProto->set_crop_layer_id(-1);
+            }
         }
     }
     if (layer.what & layer_state_t::eBackgroundColorChanged) {
@@ -212,11 +244,13 @@ proto::LayerState TransactionProtoParser::toProto(
     return proto;
 }
 
-proto::DisplayState TransactionProtoParser::toProto(
-        const DisplayState& display, std::function<int32_t(const sp<IBinder>&)> getDisplayId) {
+proto::DisplayState TransactionProtoParser::toProto(const DisplayState& display,
+                                                    DisplayHandleToIdFn getDisplayId) {
     proto::DisplayState proto;
     proto.set_what(display.what);
-    proto.set_id(getDisplayId(display.token));
+    if (getDisplayId != nullptr) {
+        proto.set_id(getDisplayId(display.token));
+    }
 
     if (display.what & DisplayState::eLayerStackChanged) {
         proto.set_layer_stack(display.layerStack.id);
@@ -238,9 +272,18 @@ proto::DisplayState TransactionProtoParser::toProto(
     return proto;
 }
 
-TransactionState TransactionProtoParser::fromProto(
-        const proto::TransactionState& proto, std::function<sp<IBinder>(int32_t)> getLayerHandle,
-        std::function<sp<IBinder>(int32_t)> getDisplayHandle) {
+proto::LayerCreationArgs TransactionProtoParser::toProto(const TracingLayerCreationArgs& args) {
+    proto::LayerCreationArgs proto;
+    proto.set_layer_id(args.layerId);
+    proto.set_name(args.name);
+    proto.set_flags(args.flags);
+    proto.set_parent_id(args.parentId);
+    return proto;
+}
+
+TransactionState TransactionProtoParser::fromProto(const proto::TransactionState& proto,
+                                                   LayerIdToHandleFn getLayerHandle,
+                                                   DisplayIdToHandleFn getDisplayHandle) {
     TransactionState t;
     t.originPid = proto.pid();
     t.originUid = proto.uid();
@@ -251,7 +294,7 @@ TransactionState TransactionProtoParser::fromProto(
     t.states.reserve(static_cast<size_t>(layerCount));
     for (int i = 0; i < layerCount; i++) {
         ComposerState s;
-        s.state = std::move(fromProto(proto.layer_changes(i), getLayerHandle));
+        fromProto(proto.layer_changes(i), getLayerHandle, s.state);
         t.states.add(s);
     }
 
@@ -263,88 +306,116 @@ TransactionState TransactionProtoParser::fromProto(
     return t;
 }
 
-layer_state_t TransactionProtoParser::fromProto(
-        const proto::LayerState& proto, std::function<sp<IBinder>(int32_t)> getLayerHandle) {
-    layer_state_t layer;
-    layer.layerId = proto.layer_id();
-    layer.what = proto.what();
+void TransactionProtoParser::fromProto(const proto::LayerCreationArgs& proto,
+                                       TracingLayerCreationArgs& outArgs) {
+    outArgs.layerId = proto.layer_id();
+    outArgs.name = proto.name();
+    outArgs.flags = proto.flags();
+    outArgs.parentId = proto.parent_id();
+}
 
-    if (layer.what & layer_state_t::ePositionChanged) {
+void TransactionProtoParser::fromProto(const proto::LayerState& proto,
+                                       LayerIdToHandleFn getLayerHandle,
+                                       TracingLayerState& outState) {
+    fromProto(proto, getLayerHandle, static_cast<layer_state_t&>(outState));
+    if (proto.what() & layer_state_t::eReparent) {
+        outState.parentId = proto.parent_id();
+    }
+    if (proto.what() & layer_state_t::eRelativeLayerChanged) {
+        outState.relativeParentId = proto.relative_parent_id();
+    }
+    if (proto.what() & layer_state_t::eInputInfoChanged) {
+        outState.inputCropId = proto.window_info_handle().crop_layer_id();
+    }
+    if (proto.what() & layer_state_t::eBufferChanged) {
+        const proto::LayerState_BufferData& bufferProto = proto.buffer_data();
+        outState.bufferId = bufferProto.buffer_id();
+        outState.bufferWidth = bufferProto.width();
+        outState.bufferHeight = bufferProto.height();
+    }
+    if (proto.what() & layer_state_t::eSidebandStreamChanged) {
+        outState.hasSidebandStream = proto.has_sideband_stream();
+    }
+}
+
+void TransactionProtoParser::fromProto(const proto::LayerState& proto,
+                                       LayerIdToHandleFn getLayerHandle, layer_state_t& layer) {
+    layer.layerId = proto.layer_id();
+    layer.what |= proto.what();
+
+    if (getLayerHandle != nullptr) {
+        layer.surface = getLayerHandle(layer.layerId);
+    }
+
+    if (proto.what() & layer_state_t::ePositionChanged) {
         layer.x = proto.x();
         layer.y = proto.y();
     }
-    if (layer.what & layer_state_t::eLayerChanged) {
+    if (proto.what() & layer_state_t::eLayerChanged) {
         layer.z = proto.z();
     }
-    if (layer.what & layer_state_t::eSizeChanged) {
+    if (proto.what() & layer_state_t::eSizeChanged) {
         layer.w = proto.w();
         layer.h = proto.h();
     }
-    if (layer.what & layer_state_t::eLayerStackChanged) {
+    if (proto.what() & layer_state_t::eLayerStackChanged) {
         layer.layerStack.id = proto.layer_stack();
     }
-    if (layer.what & layer_state_t::eFlagsChanged) {
+    if (proto.what() & layer_state_t::eFlagsChanged) {
         layer.flags = proto.flags();
         layer.mask = proto.mask();
     }
-    if (layer.what & layer_state_t::eMatrixChanged) {
+    if (proto.what() & layer_state_t::eMatrixChanged) {
         const proto::LayerState_Matrix22& matrixProto = proto.matrix();
         layer.matrix.dsdx = matrixProto.dsdx();
         layer.matrix.dsdy = matrixProto.dsdy();
         layer.matrix.dtdx = matrixProto.dtdx();
         layer.matrix.dtdy = matrixProto.dtdy();
     }
-    if (layer.what & layer_state_t::eCornerRadiusChanged) {
+    if (proto.what() & layer_state_t::eCornerRadiusChanged) {
         layer.cornerRadius = proto.corner_radius();
     }
-    if (layer.what & layer_state_t::eBackgroundBlurRadiusChanged) {
+    if (proto.what() & layer_state_t::eBackgroundBlurRadiusChanged) {
         layer.backgroundBlurRadius = proto.background_blur_radius();
     }
 
-    if (layer.what & layer_state_t::eAlphaChanged) {
+    if (proto.what() & layer_state_t::eAlphaChanged) {
         layer.alpha = proto.alpha();
     }
 
-    if (layer.what & layer_state_t::eColorChanged) {
+    if (proto.what() & layer_state_t::eColorChanged) {
         const proto::LayerState_Color3& colorProto = proto.color();
         layer.color.r = colorProto.r();
         layer.color.g = colorProto.g();
         layer.color.b = colorProto.b();
     }
-    if (layer.what & layer_state_t::eTransparentRegionChanged) {
+    if (proto.what() & layer_state_t::eTransparentRegionChanged) {
         LayerProtoHelper::readFromProto(proto.transparent_region(), layer.transparentRegion);
     }
-    if (layer.what & layer_state_t::eTransformChanged) {
+    if (proto.what() & layer_state_t::eTransformChanged) {
         layer.transform = proto.transform();
     }
-    if (layer.what & layer_state_t::eTransformToDisplayInverseChanged) {
+    if (proto.what() & layer_state_t::eTransformToDisplayInverseChanged) {
         layer.transformToDisplayInverse = proto.transform_to_display_inverse();
     }
-    if (layer.what & layer_state_t::eCropChanged) {
+    if (proto.what() & layer_state_t::eCropChanged) {
         LayerProtoHelper::readFromProto(proto.crop(), layer.crop);
     }
-    if (layer.what & layer_state_t::eBufferChanged) {
+    if (proto.what() & layer_state_t::eBufferChanged) {
         const proto::LayerState_BufferData& bufferProto = proto.buffer_data();
-        layer.bufferData.buffer = new GraphicBuffer(bufferProto.width(), bufferProto.height(),
-                                                    HAL_PIXEL_FORMAT_RGBA_8888, 1, 0);
         layer.bufferData.frameNumber = bufferProto.frame_number();
         layer.bufferData.flags = Flags<BufferData::BufferDataChange>(bufferProto.flags());
         layer.bufferData.cachedBuffer.id = bufferProto.cached_buffer_id();
     }
-    if (layer.what & layer_state_t::eSidebandStreamChanged) {
-        native_handle_t* handle = native_handle_create(0, 0);
-        layer.sidebandStream =
-                proto.has_sideband_stream() ? NativeHandle::create(handle, true) : nullptr;
-    }
 
-    if (layer.what & layer_state_t::eApiChanged) {
+    if (proto.what() & layer_state_t::eApiChanged) {
         layer.api = proto.api();
     }
 
-    if (layer.what & layer_state_t::eColorTransformChanged) {
+    if (proto.what() & layer_state_t::eColorTransformChanged) {
         LayerProtoHelper::readFromProto(proto.color_transform(), layer.colorTransform);
     }
-    if (layer.what & layer_state_t::eBlurRegionsChanged) {
+    if (proto.what() & layer_state_t::eBlurRegionsChanged) {
         layer.blurRegions.reserve(static_cast<size_t>(proto.blur_regions_size()));
         for (int i = 0; i < proto.blur_regions_size(); i++) {
             android::BlurRegion region;
@@ -353,20 +424,20 @@ layer_state_t TransactionProtoParser::fromProto(
         }
     }
 
-    if (layer.what & layer_state_t::eReparent) {
+    if ((proto.what() & layer_state_t::eReparent) && (getLayerHandle != nullptr)) {
         int32_t layerId = proto.parent_id();
         layer.parentSurfaceControlForChild =
                 new SurfaceControl(SurfaceComposerClient::getDefault(), getLayerHandle(layerId),
                                    nullptr, layerId);
     }
-    if (layer.what & layer_state_t::eRelativeLayerChanged) {
+    if ((proto.what() & layer_state_t::eRelativeLayerChanged) && (getLayerHandle != nullptr)) {
         int32_t layerId = proto.relative_parent_id();
         layer.relativeLayerSurfaceControl =
                 new SurfaceControl(SurfaceComposerClient::getDefault(), getLayerHandle(layerId),
                                    nullptr, layerId);
     }
 
-    if ((layer.what & layer_state_t::eInputInfoChanged) && proto.has_window_info_handle()) {
+    if ((proto.what() & layer_state_t::eInputInfoChanged) && proto.has_window_info_handle()) {
         gui::WindowInfo inputInfo;
         const proto::LayerState_WindowInfo& windowInfoProto = proto.window_info_handle();
 
@@ -385,10 +456,12 @@ layer_state_t TransactionProtoParser::fromProto(
         inputInfo.replaceTouchableRegionWithCrop =
                 windowInfoProto.replace_touchable_region_with_crop();
         int32_t layerId = windowInfoProto.crop_layer_id();
-        inputInfo.touchableRegionCropHandle = getLayerHandle(layerId);
+        if (getLayerHandle != nullptr) {
+            inputInfo.touchableRegionCropHandle = getLayerHandle(layerId);
+        }
         layer.windowInfoHandle = sp<gui::WindowInfoHandle>::make(inputInfo);
     }
-    if (layer.what & layer_state_t::eBackgroundColorChanged) {
+    if (proto.what() & layer_state_t::eBackgroundColorChanged) {
         layer.bgColorAlpha = proto.bg_color_alpha();
         layer.bgColorDataspace = static_cast<ui::Dataspace>(proto.bg_color_dataspace());
         const proto::LayerState_Color3& colorProto = proto.color();
@@ -396,44 +469,43 @@ layer_state_t TransactionProtoParser::fromProto(
         layer.color.g = colorProto.g();
         layer.color.b = colorProto.b();
     }
-    if (layer.what & layer_state_t::eColorSpaceAgnosticChanged) {
+    if (proto.what() & layer_state_t::eColorSpaceAgnosticChanged) {
         layer.colorSpaceAgnostic = proto.color_space_agnostic();
     }
-    if (layer.what & layer_state_t::eShadowRadiusChanged) {
+    if (proto.what() & layer_state_t::eShadowRadiusChanged) {
         layer.shadowRadius = proto.shadow_radius();
     }
-    if (layer.what & layer_state_t::eFrameRateSelectionPriority) {
+    if (proto.what() & layer_state_t::eFrameRateSelectionPriority) {
         layer.frameRateSelectionPriority = proto.frame_rate_selection_priority();
     }
-    if (layer.what & layer_state_t::eFrameRateChanged) {
+    if (proto.what() & layer_state_t::eFrameRateChanged) {
         layer.frameRate = proto.frame_rate();
         layer.frameRateCompatibility = static_cast<int8_t>(proto.frame_rate_compatibility());
         layer.changeFrameRateStrategy = static_cast<int8_t>(proto.change_frame_rate_strategy());
     }
-    if (layer.what & layer_state_t::eFixedTransformHintChanged) {
+    if (proto.what() & layer_state_t::eFixedTransformHintChanged) {
         layer.fixedTransformHint =
                 static_cast<ui::Transform::RotationFlags>(proto.fixed_transform_hint());
     }
-    if (layer.what & layer_state_t::eAutoRefreshChanged) {
+    if (proto.what() & layer_state_t::eAutoRefreshChanged) {
         layer.autoRefresh = proto.auto_refresh();
     }
-    if (layer.what & layer_state_t::eTrustedOverlayChanged) {
+    if (proto.what() & layer_state_t::eTrustedOverlayChanged) {
         layer.isTrustedOverlay = proto.is_trusted_overlay();
     }
-    if (layer.what & layer_state_t::eBufferCropChanged) {
+    if (proto.what() & layer_state_t::eBufferCropChanged) {
         LayerProtoHelper::readFromProto(proto.buffer_crop(), layer.bufferCrop);
     }
-    if (layer.what & layer_state_t::eDestinationFrameChanged) {
+    if (proto.what() & layer_state_t::eDestinationFrameChanged) {
         LayerProtoHelper::readFromProto(proto.destination_frame(), layer.destinationFrame);
     }
-    if (layer.what & layer_state_t::eDropInputModeChanged) {
+    if (proto.what() & layer_state_t::eDropInputModeChanged) {
         layer.dropInputMode = static_cast<gui::DropInputMode>(proto.drop_input_mode());
     }
-    return layer;
 }
 
-DisplayState TransactionProtoParser::fromProto(
-        const proto::DisplayState& proto, std::function<sp<IBinder>(int32_t)> getDisplayHandle) {
+DisplayState TransactionProtoParser::fromProto(const proto::DisplayState& proto,
+                                               DisplayIdToHandleFn getDisplayHandle) {
     DisplayState display;
     display.what = proto.what();
     display.token = getDisplayHandle(proto.id());
