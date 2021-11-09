@@ -154,7 +154,6 @@ private:
     static constexpr int kPendingClassificationMaxSurfaceFrames = 25;
 
     const std::string mBlastTransactionName{"BufferTX - " + mName};
-    const std::string mSetBufferTraceTag{"setBuffer - " + mName};
     // This integer is incremented everytime a buffer arrives at the server for this layer,
     // and decremented when a buffer is dropped or latched. When changed the integer is exported
     // to systrace with ATRACE_INT and mBlastTransactionName. This way when debugging perf it is
