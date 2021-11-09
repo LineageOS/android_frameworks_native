@@ -40,7 +40,7 @@ static sp<IBinder> getConnectionToken(FuzzedDataProvider& fdp,
                                       std::array<sp<IBinder>, 10>& tokens) {
     const bool useExistingToken = fdp.ConsumeBool();
     if (useExistingToken) {
-        return tokens[fdp.ConsumeIntegralInRange(0ul, tokens.size() - 1)];
+        return tokens[fdp.ConsumeIntegralInRange<size_t>(0ul, tokens.size() - 1)];
     }
     return new BBinder();
 }
