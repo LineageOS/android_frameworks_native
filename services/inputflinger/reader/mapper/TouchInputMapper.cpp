@@ -749,43 +749,31 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mPhysicalLeft = naturalPhysicalLeft;
             mPhysicalTop = naturalPhysicalTop;
 
-            if (isPerWindowInputRotationEnabled()) {
-                // When per-window input rotation is enabled, InputReader works in the display
-                // space, so the surface bounds are the bounds of the display device.
-                const int32_t oldSurfaceWidth = mRawSurfaceWidth;
-                const int32_t oldSurfaceHeight = mRawSurfaceHeight;
-                mRawSurfaceWidth = naturalDeviceWidth;
-                mRawSurfaceHeight = naturalDeviceHeight;
-                mSurfaceLeft = 0;
-                mSurfaceTop = 0;
-                mSurfaceRight = mRawSurfaceWidth;
-                mSurfaceBottom = mRawSurfaceHeight;
-                // When per-window input rotation is enabled, InputReader works in the un-rotated
-                // coordinate space, so we don't need to do anything if the device is already
-                // orientation-aware. If the device is not orientation-aware, then we need to apply
-                // the inverse rotation of the display so that when the display rotation is applied
-                // later as a part of the per-window transform, we get the expected screen
-                // coordinates.
-                mSurfaceOrientation = mParameters.orientationAware
-                        ? DISPLAY_ORIENTATION_0
-                        : getInverseRotation(mViewport.orientation);
-                // For orientation-aware devices that work in the un-rotated coordinate space, the
-                // viewport update should be skipped if it is only a change in the orientation.
-                skipViewportUpdate = mParameters.orientationAware &&
-                        mRawSurfaceWidth == oldSurfaceWidth &&
-                        mRawSurfaceHeight == oldSurfaceHeight && viewportOrientationChanged;
-            } else {
-                mRawSurfaceWidth = naturalLogicalWidth * naturalDeviceWidth / naturalPhysicalWidth;
-                mRawSurfaceHeight =
-                        naturalLogicalHeight * naturalDeviceHeight / naturalPhysicalHeight;
-                mSurfaceLeft = naturalPhysicalLeft * naturalLogicalWidth / naturalPhysicalWidth;
-                mSurfaceTop = naturalPhysicalTop * naturalLogicalHeight / naturalPhysicalHeight;
-                mSurfaceRight = mSurfaceLeft + naturalLogicalWidth;
-                mSurfaceBottom = mSurfaceTop + naturalLogicalHeight;
+            // TODO(prabirmsp): Cleanup surface bounds.
+            // When per-window input rotation is enabled, InputReader works in the display
+            // space, so the surface bounds are the bounds of the display device.
+            const int32_t oldSurfaceWidth = mRawSurfaceWidth;
+            const int32_t oldSurfaceHeight = mRawSurfaceHeight;
+            mRawSurfaceWidth = naturalDeviceWidth;
+            mRawSurfaceHeight = naturalDeviceHeight;
+            mSurfaceLeft = 0;
+            mSurfaceTop = 0;
+            mSurfaceRight = mRawSurfaceWidth;
+            mSurfaceBottom = mRawSurfaceHeight;
 
-                mSurfaceOrientation = mParameters.orientationAware ? mViewport.orientation
-                                                                   : DISPLAY_ORIENTATION_0;
-            }
+            // InputReader works in the un-rotated display coordinate space, so we don't need to do
+            // anything if the device is already orientation-aware. If the device is not
+            // orientation-aware, then we need to apply the inverse rotation of the display so that
+            // when the display rotation is applied later as a part of the per-window transform, we
+            // get the expected screen coordinates.
+            mSurfaceOrientation = mParameters.orientationAware
+                    ? DISPLAY_ORIENTATION_0
+                    : getInverseRotation(mViewport.orientation);
+            // For orientation-aware devices that work in the un-rotated coordinate space, the
+            // viewport update should be skipped if it is only a change in the orientation.
+            skipViewportUpdate = mParameters.orientationAware &&
+                    mRawSurfaceWidth == oldSurfaceWidth && mRawSurfaceHeight == oldSurfaceHeight &&
+                    viewportOrientationChanged;
 
             // Apply the input device orientation for the device.
             mSurfaceOrientation =
@@ -3781,16 +3769,10 @@ bool TouchInputMapper::isPointInsideSurface(int32_t x, int32_t y) {
     const float xScaled = (x - mRawPointerAxes.x.minValue) * mXScale;
     const float yScaled = (y - mRawPointerAxes.y.minValue) * mYScale;
 
-    if (isPerWindowInputRotationEnabled()) {
-        return x >= mRawPointerAxes.x.minValue && x <= mRawPointerAxes.x.maxValue &&
-                xScaled >= mPhysicalLeft && xScaled <= (mPhysicalLeft + mPhysicalWidth) &&
-                y >= mRawPointerAxes.y.minValue && y <= mRawPointerAxes.y.maxValue &&
-                yScaled >= mPhysicalTop && yScaled <= (mPhysicalTop + mPhysicalHeight);
-    }
     return x >= mRawPointerAxes.x.minValue && x <= mRawPointerAxes.x.maxValue &&
-            xScaled >= mSurfaceLeft && xScaled <= mSurfaceRight &&
+            xScaled >= mPhysicalLeft && xScaled <= (mPhysicalLeft + mPhysicalWidth) &&
             y >= mRawPointerAxes.y.minValue && y <= mRawPointerAxes.y.maxValue &&
-            yScaled >= mSurfaceTop && yScaled <= mSurfaceBottom;
+            yScaled >= mPhysicalTop && yScaled <= (mPhysicalTop + mPhysicalHeight);
 }
 
 const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(int32_t x, int32_t y) {
@@ -4048,11 +4030,9 @@ std::optional<int32_t> TouchInputMapper::getAssociatedDisplayId() {
 }
 
 void TouchInputMapper::moveMouseCursor(float dx, float dy) const {
-    if (isPerWindowInputRotationEnabled()) {
-        // Convert from InputReader's un-rotated coordinate space to PointerController's coordinate
-        // space that is oriented with the viewport.
-        rotateDelta(mViewport.orientation, &dx, &dy);
-    }
+    // Convert from InputReader's un-rotated coordinate space to PointerController's coordinate
+    // space that is oriented with the viewport.
+    rotateDelta(mViewport.orientation, &dx, &dy);
 
     mPointerController->move(dx, dy);
 }
@@ -4062,7 +4042,6 @@ std::pair<float, float> TouchInputMapper::getMouseCursorPosition() const {
     float y = 0;
     mPointerController->getPosition(&x, &y);
 
-    if (!isPerWindowInputRotationEnabled()) return {x, y};
     if (!mViewport.isValid()) return {x, y};
 
     // Convert from PointerController's rotated coordinate space that is oriented with the viewport
@@ -4073,11 +4052,9 @@ std::pair<float, float> TouchInputMapper::getMouseCursorPosition() const {
 }
 
 void TouchInputMapper::setMouseCursorPosition(float x, float y) const {
-    if (isPerWindowInputRotationEnabled() && mViewport.isValid()) {
-        // Convert from InputReader's un-rotated coordinate space to PointerController's rotated
-        // coordinate space that is oriented with the viewport.
-        rotatePoint(mViewport.orientation, x, y, mRawSurfaceWidth, mRawSurfaceHeight);
-    }
+    // Convert from InputReader's un-rotated coordinate space to PointerController's rotated
+    // coordinate space that is oriented with the viewport.
+    rotatePoint(mViewport.orientation, x, y, mRawSurfaceWidth, mRawSurfaceHeight);
 
     mPointerController->setPosition(x, y);
 }
@@ -4092,11 +4069,9 @@ void TouchInputMapper::setTouchSpots(const PointerCoords* spotCoords, const uint
         float y = spotCoords[index].getY();
         float pressure = spotCoords[index].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE);
 
-        if (isPerWindowInputRotationEnabled()) {
-            // Convert from InputReader's un-rotated coordinate space to PointerController's rotated
-            // coordinate space.
-            rotatePoint(mViewport.orientation, x, y, mRawSurfaceWidth, mRawSurfaceHeight);
-        }
+        // Convert from InputReader's un-rotated coordinate space to PointerController's rotated
+        // coordinate space.
+        rotatePoint(mViewport.orientation, x, y, mRawSurfaceWidth, mRawSurfaceHeight);
 
         outSpotCoords[index].setAxisValue(AMOTION_EVENT_AXIS_X, x);
         outSpotCoords[index].setAxisValue(AMOTION_EVENT_AXIS_Y, y);
