@@ -3557,10 +3557,13 @@ bool SurfaceFlinger::allowedLatchUnsignaled() {
 bool SurfaceFlinger::checkTransactionCanLatchUnsignaled(const TransactionState& transaction) {
     if (transaction.states.size() == 1) {
         const auto& state = transaction.states.begin()->state;
-        return (state.flags & ~layer_state_t::eBufferChanged) == 0 &&
-                state.bufferData.flags.test(BufferData::BufferDataChange::fenceChanged) &&
-                state.bufferData.acquireFence &&
-                state.bufferData.acquireFence->getStatus() == Fence::Status::Unsignaled;
+        if ((state.flags & ~layer_state_t::eBufferChanged) == 0 &&
+            state.bufferData.flags.test(BufferData::BufferDataChange::fenceChanged) &&
+            state.bufferData.acquireFence &&
+            state.bufferData.acquireFence->getStatus() == Fence::Status::Unsignaled) {
+            ATRACE_NAME("transactionCanLatchUnsignaled");
+            return true;
+        }
     }
     return false;
 }
