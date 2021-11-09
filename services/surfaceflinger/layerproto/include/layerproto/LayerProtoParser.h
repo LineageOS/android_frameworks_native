@@ -109,6 +109,7 @@ public:
         int32_t queuedFrames;
         bool refreshPending;
         bool isProtected;
+        bool isTrustedOverlay;
         float cornerRadius;
         int backgroundBlurRadius;
         LayerMetadata metadata;
