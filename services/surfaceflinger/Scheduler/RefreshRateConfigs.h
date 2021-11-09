@@ -16,20 +16,21 @@
 
 #pragma once
 
-#include <android-base/stringprintf.h>
-#include <gui/DisplayEventReceiver.h>
-
 #include <algorithm>
 #include <numeric>
 #include <optional>
 #include <type_traits>
 
+#include <android-base/stringprintf.h>
+#include <gui/DisplayEventReceiver.h>
+
+#include <scheduler/Fps.h>
+#include <scheduler/Seamlessness.h>
+
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
-#include "Fps.h"
 #include "Scheduler/OneShotTimer.h"
 #include "Scheduler/SchedulerUtils.h"
-#include "Scheduler/Seamlessness.h"
 #include "Scheduler/StrongTyping.h"
 
 namespace android::scheduler {
