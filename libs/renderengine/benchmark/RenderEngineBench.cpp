@@ -111,8 +111,7 @@ static std::unique_ptr<RenderEngine> createRenderEngine(RenderEngine::RenderEngi
     return RenderEngine::create(args);
 }
 
-static std::shared_ptr<ExternalTexture> allocateBuffer(RenderEngine& re,
-                                                       uint32_t width,
+static std::shared_ptr<ExternalTexture> allocateBuffer(RenderEngine& re, uint32_t width,
                                                        uint32_t height,
                                                        uint64_t extraUsageFlags = 0,
                                                        std::string name = "output") {
@@ -160,11 +159,21 @@ static std::shared_ptr<ExternalTexture> copyBuffer(RenderEngine& re,
 
     auto [status, drawFence] =
             re.drawLayers(display, layers, texture, kUseFrameBufferCache, base::unique_fd()).get();
-    sp<Fence> waitFence = new Fence(std::move(drawFence));
+    sp<Fence> waitFence = sp<Fence>::make(std::move(drawFence));
     waitFence->waitForever(LOG_TAG);
     return texture;
 }
 
+/**
+ * Helper for timing calls to drawLayers.
+ *
+ * Caller needs to create RenderEngine and the LayerSettings, and this takes
+ * care of setting up the display, starting and stopping the timer, calling
+ * drawLayers, and saving (if --save is used).
+ *
+ * This times both the CPU and GPU work initiated by drawLayers. All work done
+ * outside of the for loop is excluded from the timing measurements.
+ */
 static void benchDrawLayers(RenderEngine& re, const std::vector<LayerSettings>& layers,
                             benchmark::State& benchState, const char* saveFileName) {
     auto [width, height] = getDisplaySize();
@@ -177,18 +186,16 @@ static void benchDrawLayers(RenderEngine& re, const std::vector<LayerSettings>& 
             .maxLuminance = 500,
     };
 
-    base::unique_fd fence;
+    // This loop starts and stops the timer.
     for (auto _ : benchState) {
-        auto [status, drawFence] =
-                re.drawLayers(display, layers, outputBuffer, kUseFrameBufferCache, std::move(fence))
-                        .get();
-        fence = std::move(drawFence);
+        auto [status, drawFence] = re.drawLayers(display, layers, outputBuffer,
+                                                 kUseFrameBufferCache, base::unique_fd())
+                                           .get();
+        sp<Fence> waitFence = sp<Fence>::make(std::move(drawFence));
+        waitFence->waitForever(LOG_TAG);
     }
 
     if (renderenginebench::save() && saveFileName) {
-        sp<Fence> waitFence = new Fence(std::move(fence));
-        waitFence->waitForever(LOG_TAG);
-
         // Copy to a CPU-accessible buffer so we can encode it.
         outputBuffer = copyBuffer(re, outputBuffer, GRALLOC_USAGE_SW_READ_OFTEN, "to_encode");
 
@@ -209,8 +216,8 @@ void BM_blur(benchmark::State& benchState) {
 
     // Initially use cpu access so we can decode into it with AImageDecoder.
     auto [width, height] = getDisplaySize();
-    auto srcBuffer = allocateBuffer(*re, width, height, GRALLOC_USAGE_SW_WRITE_OFTEN,
-                                    "decoded_source");
+    auto srcBuffer =
+            allocateBuffer(*re, width, height, GRALLOC_USAGE_SW_WRITE_OFTEN, "decoded_source");
     {
         std::string srcImage = base::GetExecutableDirectory();
         srcImage.append("/resources/homescreen.png");
