@@ -549,17 +549,11 @@ bool BufferStateLayer::setSidebandStream(const sp<NativeHandle>& sidebandStream)
 }
 
 bool BufferStateLayer::setTransactionCompletedListeners(
-        const std::vector<ListenerCallbacks>& listenerCallbacks, const sp<IBinder>& layerHandle) {
+        const std::vector<sp<CallbackHandle>>& handles) {
     // If there is no handle, we will not send a callback so reset mReleasePreviousBuffer and return
-    if (listenerCallbacks.empty()) {
+    if (handles.empty()) {
         mReleasePreviousBuffer = false;
         return false;
-    }
-
-    std::vector<sp<CallbackHandle>> handles;
-    handles.reserve(listenerCallbacks.size());
-    for (auto& [listener, callbackIds] : listenerCallbacks) {
-        handles.emplace_back(new CallbackHandle(listener, callbackIds, layerHandle));
     }
 
     const bool willPresent = willPresentCurrentTransaction();
@@ -577,10 +571,9 @@ bool BufferStateLayer::setTransactionCompletedListeners(
             // Store so latched time and release fence can be set
             mDrawingState.callbackHandles.push_back(handle);
 
-        } else {
-            // If this layer will NOT need to be relatched and presented this frame
+        } else { // If this layer will NOT need to be relatched and presented this frame
             // Notify the transaction completed thread this handle is done
-            mFlinger->getTransactionCallbackInvoker().addUnpresentedCallbackHandle(handle);
+            mFlinger->getTransactionCallbackInvoker().registerUnpresentedCallbackHandle(handle);
         }
     }
 
