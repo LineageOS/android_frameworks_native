@@ -66,11 +66,21 @@ vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy)
     return transformedXy - transformedOrigin;
 }
 
-bool shouldDisregardTranslation(uint32_t source) {
+bool isFromSource(uint32_t source, uint32_t test) {
+    return (source & test) == test;
+}
+
+bool shouldDisregardTransformation(uint32_t source) {
+    // Do not apply any transformations to axes from joysticks or touchpads.
+    return isFromSource(source, AINPUT_SOURCE_CLASS_JOYSTICK) ||
+            isFromSource(source, AINPUT_SOURCE_CLASS_POSITION);
+}
+
+bool shouldDisregardOffset(uint32_t source) {
     // Pointer events are the only type of events that refer to absolute coordinates on the display,
     // so we should apply the entire window transform. For other types of events, we should make
     // sure to not apply the window translation/offset.
-    return (source & AINPUT_SOURCE_CLASS_POINTER) == 0;
+    return !isFromSource(source, AINPUT_SOURCE_CLASS_POINTER);
 }
 
 } // namespace
@@ -707,7 +717,7 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
 #endif
 
 bool MotionEvent::isTouchEvent(uint32_t source, int32_t action) {
-    if (source & AINPUT_SOURCE_CLASS_POINTER) {
+    if (isFromSource(source, AINPUT_SOURCE_CLASS_POINTER)) {
         // Specifically excludes HOVER_MOVE and SCROLL.
         switch (action & AMOTION_EVENT_ACTION_MASK) {
         case AMOTION_EVENT_ACTION_DOWN:
@@ -764,17 +774,31 @@ std::string MotionEvent::actionToString(int32_t action) {
     return android::base::StringPrintf("%" PRId32, action);
 }
 
+// Apply the given transformation to the point without checking whether the entire transform
+// should be disregarded altogether for the provided source.
+static inline vec2 calculateTransformedXYUnchecked(uint32_t source, const ui::Transform& transform,
+                                                   const vec2& xy) {
+    return shouldDisregardOffset(source) ? transformWithoutTranslation(transform, xy)
+                                         : transform.transform(xy);
+}
+
 vec2 MotionEvent::calculateTransformedXY(uint32_t source, const ui::Transform& transform,
                                          const vec2& xy) {
-    return shouldDisregardTranslation(source) ? transformWithoutTranslation(transform, xy)
-                                              : transform.transform(xy);
+    if (shouldDisregardTransformation(source)) {
+        return xy;
+    }
+    return calculateTransformedXYUnchecked(source, transform, xy);
 }
 
 float MotionEvent::calculateTransformedAxisValue(int32_t axis, uint32_t source,
                                                  const ui::Transform& transform,
                                                  const PointerCoords& coords) {
+    if (shouldDisregardTransformation(source)) {
+        return coords.getAxisValue(axis);
+    }
+
     if (axis == AMOTION_EVENT_AXIS_X || axis == AMOTION_EVENT_AXIS_Y) {
-        const vec2 xy = calculateTransformedXY(source, transform, coords.getXYValue());
+        const vec2 xy = calculateTransformedXYUnchecked(source, transform, coords.getXYValue());
         static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
         return xy[axis];
     }

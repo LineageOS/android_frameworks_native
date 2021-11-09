@@ -647,9 +647,8 @@ TEST_F(MotionEventTest, Transform) {
     ASSERT_NEAR(originalRawY, event.getRawY(0), 0.001);
 }
 
-MotionEvent createTouchDownEvent(float x, float y, float dx, float dy,
-                                 const ui::Transform& transform,
-                                 const ui::Transform& rawTransform) {
+MotionEvent createMotionEvent(int32_t source, uint32_t action, float x, float y, float dx, float dy,
+                              const ui::Transform& transform, const ui::Transform& rawTransform) {
     std::vector<PointerProperties> pointerProperties;
     pointerProperties.push_back(PointerProperties{/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER});
     std::vector<PointerCoords> pointerCoords;
@@ -660,14 +659,21 @@ MotionEvent createTouchDownEvent(float x, float y, float dx, float dy,
     pointerCoords.back().setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, dy);
     nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
     MotionEvent event;
-    event.initialize(InputEvent::nextId(), /* deviceId */ 1, AINPUT_SOURCE_TOUCHSCREEN,
-                     /* displayId */ 0, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN,
+    event.initialize(InputEvent::nextId(), /* deviceId */ 1, source,
+                     /* displayId */ 0, INVALID_HMAC, action,
                      /* actionButton */ 0, /* flags */ 0, /* edgeFlags */ 0, AMETA_NONE,
                      /* buttonState */ 0, MotionClassification::NONE, transform,
                      /* xPrecision */ 0, /* yPrecision */ 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, rawTransform, eventTime, eventTime,
                      pointerCoords.size(), pointerProperties.data(), pointerCoords.data());
     return event;
+}
+
+MotionEvent createTouchDownEvent(float x, float y, float dx, float dy,
+                                 const ui::Transform& transform,
+                                 const ui::Transform& rawTransform) {
+    return createMotionEvent(AINPUT_SOURCE_TOUCHSCREEN, AMOTION_EVENT_ACTION_DOWN, x, y, dx, dy,
+                             transform, rawTransform);
 }
 
 TEST_F(MotionEventTest, ApplyTransform) {
@@ -708,16 +714,39 @@ TEST_F(MotionEventTest, ApplyTransform) {
                 changedEvent.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0), 0.001);
 }
 
+TEST_F(MotionEventTest, JoystickAndTouchpadAreNotTransformed) {
+    constexpr static std::array kNonTransformedSources = {std::pair(AINPUT_SOURCE_TOUCHPAD,
+                                                                    AMOTION_EVENT_ACTION_DOWN),
+                                                          std::pair(AINPUT_SOURCE_JOYSTICK,
+                                                                    AMOTION_EVENT_ACTION_MOVE)};
+    // Create a rotate-90 transform with an offset (like a window which isn't fullscreen).
+    ui::Transform transform(ui::Transform::ROT_90, 800, 400);
+    transform.set(transform.tx() + 20, transform.ty() + 40);
+
+    for (const auto& [source, action] : kNonTransformedSources) {
+        const MotionEvent event =
+                createMotionEvent(source, action, 60, 100, 0, 0, transform, transform);
+
+        // These events should not be transformed in any way.
+        ASSERT_EQ(60, event.getX(0));
+        ASSERT_EQ(100, event.getY(0));
+        ASSERT_EQ(event.getRawX(0), event.getX(0));
+        ASSERT_EQ(event.getRawY(0), event.getY(0));
+    }
+}
+
 TEST_F(MotionEventTest, NonPointerSourcesAreNotTranslated) {
-    constexpr static auto NON_POINTER_SOURCES = {AINPUT_SOURCE_TRACKBALL,
-                                                 AINPUT_SOURCE_MOUSE_RELATIVE,
-                                                 AINPUT_SOURCE_JOYSTICK};
-    for (uint32_t source : NON_POINTER_SOURCES) {
-        // Create a rotate-90 transform with an offset (like a window which isn't fullscreen).
-        ui::Transform transform(ui::Transform::ROT_90, 800, 400);
-        transform.set(transform.tx() + 20, transform.ty() + 40);
-        MotionEvent event = createTouchDownEvent(60, 100, 42, 96, transform, transform);
-        event.setSource(source);
+    constexpr static std::array kNonPointerSources = {std::pair(AINPUT_SOURCE_TRACKBALL,
+                                                                AMOTION_EVENT_ACTION_DOWN),
+                                                      std::pair(AINPUT_SOURCE_MOUSE_RELATIVE,
+                                                                AMOTION_EVENT_ACTION_MOVE)};
+    // Create a rotate-90 transform with an offset (like a window which isn't fullscreen).
+    ui::Transform transform(ui::Transform::ROT_90, 800, 400);
+    transform.set(transform.tx() + 20, transform.ty() + 40);
+
+    for (const auto& [source, action] : kNonPointerSources) {
+        const MotionEvent event =
+                createMotionEvent(source, action, 60, 100, 42, 96, transform, transform);
 
         // Since this event comes from a non-pointer source, it should include rotation but not
         // translation/offset.

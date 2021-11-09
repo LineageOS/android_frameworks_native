@@ -667,9 +667,7 @@ bool BufferStateLayer::onPreComposition(nsecs_t refreshStartTime) {
 }
 
 void BufferStateLayer::setAutoRefresh(bool autoRefresh) {
-    if (!mAutoRefresh.exchange(autoRefresh)) {
-        mFlinger->onLayerUpdate();
-    }
+    mDrawingState.autoRefresh = autoRefresh;
 }
 
 bool BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
