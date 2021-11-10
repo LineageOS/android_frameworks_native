@@ -56,6 +56,8 @@ private:
     sp<Looper> mLooper;
     DisplayEventReceiver mReceiver;
     bool mWaitingForVsync;
+    uint32_t mLastVsyncCount;
+    nsecs_t mLastScheduleVsyncTime;
 
     std::vector<FrameRateOverride> mFrameRateOverrides;
 
