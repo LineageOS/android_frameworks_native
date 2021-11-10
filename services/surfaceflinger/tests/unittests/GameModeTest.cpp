@@ -53,7 +53,7 @@ public:
 
     sp<BufferStateLayer> createBufferStateLayer() {
         sp<Client> client;
-        LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", 100, 100, 0,
+        LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", 0,
                                LayerMetadata());
         return new BufferStateLayer(args);
     }

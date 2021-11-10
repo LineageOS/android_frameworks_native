@@ -19,7 +19,6 @@
 
 #define LOG_NDEBUG 1
 
-#include <InputFlingerProperties.sysprop.h>
 #include <android-base/chrono_utils.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
@@ -111,15 +110,6 @@ public:
 private:
     std::mutex& mMutex;
 };
-
-// When per-window-input-rotation is enabled, InputFlinger works in the un-rotated display
-// coordinates and SurfaceFlinger includes the display rotation in the input window transforms.
-bool isPerWindowInputRotationEnabled() {
-    static const bool PER_WINDOW_INPUT_ROTATION =
-            sysprop::InputFlingerProperties::per_window_input_rotation().value_or(true);
-
-    return PER_WINDOW_INPUT_ROTATION;
-}
 
 // Default input dispatching timeout if there is no focused application or paused window
 // from which to determine an appropriate dispatching timeout.
@@ -2519,8 +2509,7 @@ void InputDispatcher::addWindowTargetLocked(const sp<WindowInfoHandle>& windowHa
         if (displayInfoIt != mDisplayInfos.end()) {
             inputTarget.displayTransform = displayInfoIt->second.transform;
         } else {
-            ALOGI_IF(isPerWindowInputRotationEnabled(),
-                     "DisplayInfo not found for window on display: %d", windowInfo->displayId);
+            ALOGE("DisplayInfo not found for window on display: %d", windowInfo->displayId);
         }
         inputTargets.push_back(inputTarget);
         it = inputTargets.end() - 1;
@@ -4725,21 +4714,19 @@ void InputDispatcher::setInputWindowsLocked(
         }
     }
 
-    if (isPerWindowInputRotationEnabled()) {
-        // Determine if the orientation of any of the input windows have changed, and cancel all
-        // pointer events if necessary.
-        for (const sp<WindowInfoHandle>& oldWindowHandle : oldWindowHandles) {
-            const sp<WindowInfoHandle> newWindowHandle = getWindowHandleLocked(oldWindowHandle);
-            if (newWindowHandle != nullptr &&
-                newWindowHandle->getInfo()->transform.getOrientation() !=
-                        oldWindowOrientations[oldWindowHandle->getId()]) {
-                std::shared_ptr<InputChannel> inputChannel =
-                        getInputChannelLocked(newWindowHandle->getToken());
-                if (inputChannel != nullptr) {
-                    CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
-                                               "touched window's orientation changed");
-                    synthesizeCancelationEventsForInputChannelLocked(inputChannel, options);
-                }
+    // Determine if the orientation of any of the input windows have changed, and cancel all
+    // pointer events if necessary.
+    for (const sp<WindowInfoHandle>& oldWindowHandle : oldWindowHandles) {
+        const sp<WindowInfoHandle> newWindowHandle = getWindowHandleLocked(oldWindowHandle);
+        if (newWindowHandle != nullptr &&
+            newWindowHandle->getInfo()->transform.getOrientation() !=
+                    oldWindowOrientations[oldWindowHandle->getId()]) {
+            std::shared_ptr<InputChannel> inputChannel =
+                    getInputChannelLocked(newWindowHandle->getToken());
+            if (inputChannel != nullptr) {
+                CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
+                                           "touched window's orientation changed");
+                synthesizeCancelationEventsForInputChannelLocked(inputChannel, options);
             }
         }
     }

@@ -904,9 +904,8 @@ bool SurfaceFlinger::authenticateSurfaceTexture(
 }
 
 bool SurfaceFlinger::authenticateSurfaceTextureLocked(
-        const sp<IGraphicBufferProducer>& bufferProducer) const {
-    sp<IBinder> surfaceTextureBinder(IInterface::asBinder(bufferProducer));
-    return mGraphicBufferProducerList.count(surfaceTextureBinder.get()) > 0;
+        const sp<IGraphicBufferProducer>& /* bufferProducer */) const {
+    return false;
 }
 
 status_t SurfaceFlinger::getSupportedFrameTimestamps(
@@ -3041,32 +3040,24 @@ void SurfaceFlinger::updateInputFlinger() {
     mInputWindowCommands.clear();
 }
 
-bool enablePerWindowInputRotation() {
-    static bool value =
-            android::base::GetBoolProperty("persist.debug.per_window_input_rotation", true);
-    return value;
-}
-
 void SurfaceFlinger::notifyWindowInfos() {
     std::vector<WindowInfo> windowInfos;
     std::vector<DisplayInfo> displayInfos;
     std::unordered_map<uint32_t /*layerStackId*/, const ui::Transform> displayTransforms;
 
-    if (enablePerWindowInputRotation()) {
-        for (const auto& [_, display] : ON_MAIN_THREAD(mDisplays)) {
-            if (!display->receivesInput()) {
-                continue;
-            }
-            const uint32_t layerStackId = display->getLayerStack().id;
-            const auto& [info, transform] = display->getInputInfo();
-            const auto& [it, emplaced] = displayTransforms.try_emplace(layerStackId, transform);
-            if (!emplaced) {
-                ALOGE("Multiple displays claim to accept input for the same layer stack: %u",
-                      layerStackId);
-                continue;
-            }
-            displayInfos.emplace_back(info);
+    for (const auto& [_, display] : ON_MAIN_THREAD(mDisplays)) {
+        if (!display->receivesInput()) {
+            continue;
         }
+        const uint32_t layerStackId = display->getLayerStack().id;
+        const auto& [info, transform] = display->getInputInfo();
+        const auto& [it, emplaced] = displayTransforms.try_emplace(layerStackId, transform);
+        if (!emplaced) {
+            ALOGE("Multiple displays claim to accept input for the same layer stack: %u",
+                  layerStackId);
+            continue;
+        }
+        displayInfos.emplace_back(info);
     }
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
@@ -3075,7 +3066,7 @@ void SurfaceFlinger::notifyWindowInfos() {
         const DisplayDevice* display = ON_MAIN_THREAD(getDisplayWithInputByLayer(layer)).get();
         ui::Transform displayTransform = ui::Transform();
 
-        if (enablePerWindowInputRotation() && display != nullptr) {
+        if (display != nullptr) {
             // When calculating the screen bounds we ignore the transparent region since it may
             // result in an unwanted offset.
             const auto it = displayTransforms.find(display->getLayerStack().id);
@@ -3355,20 +3346,15 @@ bool SurfaceFlinger::latchBuffers() {
 }
 
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
-                                        const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
-                                        const wp<Layer>& parent, bool addToRoot,
-                                        uint32_t* outTransformHint) {
+                                        const sp<Layer>& lbc, const wp<Layer>& parent,
+                                        bool addToRoot, uint32_t* outTransformHint) {
     if (mNumLayers >= ISurfaceComposer::MAX_LAYERS) {
         ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
               ISurfaceComposer::MAX_LAYERS);
         return NO_MEMORY;
     }
 
-    wp<IBinder> initialProducer;
-    if (gbc != nullptr) {
-        initialProducer = IInterface::asBinder(gbc);
-    }
-    setLayerCreatedState(handle, lbc, parent, initialProducer, addToRoot);
+    setLayerCreatedState(handle, lbc, parent, addToRoot);
 
     // Create a transaction includes the initial parent and producer.
     Vector<ComposerState> states;
@@ -3384,19 +3370,14 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
         *outTransformHint = mActiveDisplayTransformHint;
     }
     // attach this layer to the client
-    client->attachLayer(handle, lbc);
+    if (client != nullptr) {
+        client->attachLayer(handle, lbc);
+    }
 
     return setTransactionState(FrameTimelineInfo{}, states, displays, 0 /* flags */, nullptr,
                                InputWindowCommands{}, -1 /* desiredPresentTime */,
                                true /* isAutoTimestamp */, {}, false /* hasListenerCallbacks */, {},
                                0 /* Undefined transactionId */);
-}
-
-void SurfaceFlinger::removeGraphicBufferProducerAsync(const wp<IBinder>& binder) {
-    static_cast<void>(schedule([=] {
-        Mutex::Autolock lock(mStateLock);
-        mGraphicBufferProducerList.erase(binder);
-    }));
 }
 
 uint32_t SurfaceFlinger::getTransactionFlags() const {
@@ -4284,17 +4265,14 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
 
     sp<Layer> mirrorLayer;
     sp<Layer> mirrorFrom;
-    std::string layerName = "MirrorRoot";
-
     {
         Mutex::Autolock _l(mStateLock);
         mirrorFrom = fromHandle(mirrorFromHandle).promote();
         if (!mirrorFrom) {
             return NAME_NOT_FOUND;
         }
-
-        status_t result = createContainerLayer(client, std::move(layerName), -1, -1, 0,
-                                               LayerMetadata(), outHandle, &mirrorLayer);
+        LayerCreationArgs args(this, client, "MirrorRoot", 0, LayerMetadata());
+        status_t result = createContainerLayer(args, outHandle, &mirrorLayer);
         if (result != NO_ERROR) {
             return result;
         }
@@ -4303,22 +4281,13 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
     }
 
     *outLayerId = mirrorLayer->sequence;
-    return addClientLayer(client, *outHandle, nullptr, mirrorLayer, nullptr, false,
-                          nullptr /* outTransformHint */);
+    return addClientLayer(client, *outHandle, mirrorLayer /* layer */, nullptr /* parent */,
+                          false /* addAsRoot */, nullptr /* outTransformHint */);
 }
 
-status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& client, uint32_t w,
-                                     uint32_t h, PixelFormat format, uint32_t flags,
-                                     LayerMetadata metadata, sp<IBinder>* handle,
-                                     sp<IGraphicBufferProducer>* gbp,
+status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
                                      const sp<IBinder>& parentHandle, int32_t* outLayerId,
                                      const sp<Layer>& parentLayer, uint32_t* outTransformHint) {
-    if (int32_t(w|h) < 0) {
-        ALOGE("createLayer() failed, w or h is negative (w=%d, h=%d)",
-                int(w), int(h));
-        return BAD_VALUE;
-    }
-
     ALOG_ASSERT(parentLayer == nullptr || parentHandle == nullptr,
             "Expected only one of parentLayer or parentHandle to be non-null. "
             "Programmer error?");
@@ -4327,40 +4296,22 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
 
     sp<Layer> layer;
 
-    std::string layerName{name.string()};
-
-    switch (flags & ISurfaceComposerClient::eFXSurfaceMask) {
+    switch (args.flags & ISurfaceComposerClient::eFXSurfaceMask) {
         case ISurfaceComposerClient::eFXSurfaceBufferQueue:
         case ISurfaceComposerClient::eFXSurfaceBufferState: {
-            result = createBufferStateLayer(client, std::move(layerName), w, h, flags,
-                                            std::move(metadata), handle, &layer);
+            result = createBufferStateLayer(args, outHandle, &layer);
             std::atomic<int32_t>* pendingBufferCounter = layer->getPendingBufferCounter();
             if (pendingBufferCounter) {
                 std::string counterName = layer->getPendingBufferCounterName();
-                mBufferCountTracker.add((*handle)->localBinder(), counterName,
+                mBufferCountTracker.add((*outHandle)->localBinder(), counterName,
                                         pendingBufferCounter);
             }
         } break;
         case ISurfaceComposerClient::eFXSurfaceEffect:
-            // check if buffer size is set for color layer.
-            if (w > 0 || h > 0) {
-                ALOGE("createLayer() failed, w or h cannot be set for color layer (w=%d, h=%d)",
-                      int(w), int(h));
-                return BAD_VALUE;
-            }
-
-            result = createEffectLayer(client, std::move(layerName), w, h, flags,
-                                       std::move(metadata), handle, &layer);
+            result = createEffectLayer(args, outHandle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceContainer:
-            // check if buffer size is set for container layer.
-            if (w > 0 || h > 0) {
-                ALOGE("createLayer() failed, w or h cannot be set for container layer (w=%d, h=%d)",
-                      int(w), int(h));
-                return BAD_VALUE;
-            }
-            result = createContainerLayer(client, std::move(layerName), w, h, flags,
-                                          std::move(metadata), handle, &layer);
+            result = createContainerLayer(args, outHandle, &layer);
             break;
         default:
             result = BAD_VALUE;
@@ -4380,7 +4331,7 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
     if (parentLayer != nullptr) {
         addToRoot = false;
     }
-    result = addClientLayer(client, *handle, *gbp, layer, parent, addToRoot, outTransformHint);
+    result = addClientLayer(args.client, *outHandle, layer, parent, addToRoot, outTransformHint);
     if (result != NO_ERROR) {
         return result;
     }
@@ -4390,9 +4341,7 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
     return result;
 }
 
-status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, std::string name,
-                                                uint32_t w, uint32_t h, uint32_t flags,
-                                                LayerMetadata metadata, PixelFormat& format,
+status_t SurfaceFlinger::createBufferQueueLayer(LayerCreationArgs& args, PixelFormat& format,
                                                 sp<IBinder>* handle,
                                                 sp<IGraphicBufferProducer>* gbp,
                                                 sp<Layer>* outLayer) {
@@ -4408,7 +4357,6 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, std::s
     }
 
     sp<BufferQueueLayer> layer;
-    LayerCreationArgs args(this, client, std::move(name), w, h, flags, std::move(metadata));
     args.textureName = getNewTexture();
     {
         // Grab the SF state lock during this since it's the only safe way to access
@@ -4418,7 +4366,7 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, std::s
         layer = getFactory().createBufferQueueLayer(args);
     }
 
-    status_t err = layer->setDefaultBufferProperties(w, h, format);
+    status_t err = layer->setDefaultBufferProperties(0, 0, format);
     if (err == NO_ERROR) {
         *handle = layer->getHandle();
         *gbp = layer->getProducer();
@@ -4429,34 +4377,24 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, std::s
     return err;
 }
 
-status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, std::string name,
-                                                uint32_t w, uint32_t h, uint32_t flags,
-                                                LayerMetadata metadata, sp<IBinder>* handle,
+status_t SurfaceFlinger::createBufferStateLayer(LayerCreationArgs& args, sp<IBinder>* handle,
                                                 sp<Layer>* outLayer) {
-    LayerCreationArgs args(this, client, std::move(name), w, h, flags, std::move(metadata));
     args.textureName = getNewTexture();
-    sp<BufferStateLayer> layer = getFactory().createBufferStateLayer(args);
-    *handle = layer->getHandle();
-    *outLayer = layer;
-
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::createEffectLayer(const sp<Client>& client, std::string name, uint32_t w,
-                                           uint32_t h, uint32_t flags, LayerMetadata metadata,
-                                           sp<IBinder>* handle, sp<Layer>* outLayer) {
-    *outLayer = getFactory().createEffectLayer(
-            {this, client, std::move(name), w, h, flags, std::move(metadata)});
+    *outLayer = getFactory().createBufferStateLayer(args);
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client, std::string name,
-                                              uint32_t w, uint32_t h, uint32_t flags,
-                                              LayerMetadata metadata, sp<IBinder>* handle,
+status_t SurfaceFlinger::createEffectLayer(LayerCreationArgs& args, sp<IBinder>* handle,
+                                           sp<Layer>* outLayer) {
+    *outLayer = getFactory().createEffectLayer(args);
+    *handle = (*outLayer)->getHandle();
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::createContainerLayer(LayerCreationArgs& args, sp<IBinder>* handle,
                                               sp<Layer>* outLayer) {
-    *outLayer = getFactory().createContainerLayer(
-            {this, client, std::move(name), w, h, flags, std::move(metadata)});
+    *outLayer = getFactory().createContainerLayer(args);
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
@@ -5042,8 +4980,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
      */
     colorizer.bold(result);
     StringAppendF(&result, "Visible layers (count = %zu)\n", mNumLayers.load());
-    StringAppendF(&result, "GraphicBufferProducers: %zu, max %zu\n",
-                  mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize);
     colorizer.reset(result);
 
     {
@@ -6805,11 +6741,10 @@ void TransactionState::traverseStatesWithBuffers(
 }
 
 void SurfaceFlinger::setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
-                                          const wp<Layer> parent, const wp<IBinder>& producer,
-                                          bool addToRoot) {
+                                          const wp<Layer> parent, bool addToRoot) {
     Mutex::Autolock lock(mCreatedLayersLock);
     mCreatedLayers[handle->localBinder()] =
-            std::make_unique<LayerCreatedState>(layer, parent, producer, addToRoot);
+            std::make_unique<LayerCreatedState>(layer, parent, addToRoot);
 }
 
 auto SurfaceFlinger::getLayerCreatedState(const sp<IBinder>& handle) {
@@ -6869,19 +6804,6 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
     }
 
     layer->updateTransformHint(mActiveDisplayTransformHint);
-
-    if (state->initialProducer != nullptr) {
-        mGraphicBufferProducerList.insert(state->initialProducer);
-        LOG_ALWAYS_FATAL_IF(mGraphicBufferProducerList.size() > mMaxGraphicBufferProducerListSize,
-                            "Suspected IGBP leak: %zu IGBPs (%zu max), %zu Layers",
-                            mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize,
-                            mNumLayers.load());
-        if (mGraphicBufferProducerList.size() > mGraphicBufferProducerListSizeLogThreshold) {
-            ALOGW("Suspected IGBP leak: %zu IGBPs (%zu max), %zu Layers",
-                  mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize,
-                  mNumLayers.load());
-        }
-    }
 
     mInterceptor->saveSurfaceCreation(layer);
     return layer;

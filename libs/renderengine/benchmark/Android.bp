@@ -23,7 +23,10 @@ package {
 
 cc_benchmark {
     name: "librenderengine_bench",
-    defaults: ["skia_deps", "surfaceflinger_defaults"],
+    defaults: [
+        "skia_deps",
+        "surfaceflinger_defaults",
+    ],
     srcs: [
         "main.cpp",
         "Codec.cpp",
@@ -32,6 +35,7 @@ cc_benchmark {
     ],
     static_libs: [
         "librenderengine",
+        "libtonemap",
     ],
     cflags: [
         "-DLOG_TAG=\"RenderEngineBench\"",
@@ -50,5 +54,5 @@ cc_benchmark {
         "libutils",
     ],
 
-    data: [ "resources/*"],
+    data: ["resources/*"],
 }
