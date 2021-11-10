@@ -113,7 +113,7 @@ private:
 
     void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override {}
 
-    void setPointerCapture(bool enabled) override {}
+    void setPointerCapture(const PointerCaptureRequest&) override {}
 
     void notifyDropWindow(const sp<IBinder>&, float x, float y) override {}
 

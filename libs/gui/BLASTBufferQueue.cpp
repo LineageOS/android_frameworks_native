@@ -118,12 +118,12 @@ void BLASTBufferItemConsumer::getConnectionEvents(uint64_t frameNumber, bool* ne
 }
 
 void BLASTBufferItemConsumer::setBlastBufferQueue(BLASTBufferQueue* blastbufferqueue) {
-    Mutex::Autolock lock(mMutex);
+    std::scoped_lock lock(mBufferQueueMutex);
     mBLASTBufferQueue = blastbufferqueue;
 }
 
 void BLASTBufferItemConsumer::onSidebandStreamChanged() {
-    Mutex::Autolock lock(mMutex);
+    std::scoped_lock lock(mBufferQueueMutex);
     if (mBLASTBufferQueue != nullptr) {
         sp<NativeHandle> stream = getSidebandStream();
         mBLASTBufferQueue->setSidebandStream(stream);
@@ -630,7 +630,10 @@ bool BLASTBufferQueue::maxBuffersAcquired(bool includeExtraAcquire) const {
 
 class BBQSurface : public Surface {
 private:
+    std::mutex mMutex;
     sp<BLASTBufferQueue> mBbq;
+    bool mDestroyed = false;
+
 public:
     BBQSurface(const sp<IGraphicBufferProducer>& igbp, bool controlledByApp,
                const sp<IBinder>& scHandle, const sp<BLASTBufferQueue>& bbq)
@@ -650,6 +653,10 @@ public:
 
     status_t setFrameRate(float frameRate, int8_t compatibility,
                           int8_t changeFrameRateStrategy) override {
+        std::unique_lock _lock{mMutex};
+        if (mDestroyed) {
+            return DEAD_OBJECT;
+        }
         if (!ValidateFrameRate(frameRate, compatibility, changeFrameRateStrategy,
                                "BBQSurface::setFrameRate")) {
             return BAD_VALUE;
@@ -658,7 +665,19 @@ public:
     }
 
     status_t setFrameTimelineInfo(const FrameTimelineInfo& frameTimelineInfo) override {
+        std::unique_lock _lock{mMutex};
+        if (mDestroyed) {
+            return DEAD_OBJECT;
+        }
         return mBbq->setFrameTimelineInfo(frameTimelineInfo);
+    }
+
+    void destroy() override {
+        Surface::destroy();
+
+        std::unique_lock _lock{mMutex};
+        mDestroyed = true;
+        mBbq = nullptr;
     }
 };
 
