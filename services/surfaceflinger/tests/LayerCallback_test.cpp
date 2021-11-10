@@ -1067,7 +1067,7 @@ TEST_F(LayerCallbackTest, EmptyBufferStateChanges) {
 }
 
 // b202394221
-TEST_F(LayerCallbackTest, NonBufferLayerStateChanges) {
+TEST_F(LayerCallbackTest, DISABLED_NonBufferLayerStateChanges) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createColorLayer("ColorLayer", Color::RED));
 
@@ -1083,49 +1083,6 @@ TEST_F(LayerCallbackTest, NonBufferLayerStateChanges) {
 
     ExpectedResult expected;
     EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
-}
-
-class TimedCallbackHelper {
-public:
-    static void function(void* callbackContext, nsecs_t, const sp<Fence>&,
-                         const std::vector<SurfaceControlStats>&) {
-        if (!callbackContext) {
-            ALOGE("failed to get callback context");
-        }
-        TimedCallbackHelper* helper = static_cast<TimedCallbackHelper*>(callbackContext);
-        std::lock_guard lock(helper->mMutex);
-        helper->mInvokedTime = systemTime();
-        helper->mCv.notify_all();
-    }
-
-    void waitForCallback() {
-        std::unique_lock lock(mMutex);
-        ASSERT_TRUE(mCv.wait_for(lock, std::chrono::seconds(3), [&] { return mInvokedTime != -1; }))
-                << "did not receive callback";
-    }
-    void* getContext() { return static_cast<void*>(this); }
-
-    std::mutex mMutex;
-    std::condition_variable mCv;
-    nsecs_t mInvokedTime = -1;
-};
-
-TEST_F(LayerCallbackTest, EmptyTransactionCallbackOrder) {
-    TimedCallbackHelper onCommitCallback;
-    TimedCallbackHelper onCompleteCallback;
-
-    // Add transaction callback before on commit callback
-    Transaction()
-            .addTransactionCompletedCallback(onCompleteCallback.function,
-                                             onCompleteCallback.getContext())
-            .addTransactionCommittedCallback(onCommitCallback.function,
-                                             onCommitCallback.getContext())
-            .apply();
-
-    EXPECT_NO_FATAL_FAILURE(onCompleteCallback.waitForCallback());
-    EXPECT_NO_FATAL_FAILURE(onCommitCallback.waitForCallback());
-    // verify we get the oncomplete at the same time or after the oncommit callback.
-    EXPECT_GE(onCompleteCallback.mInvokedTime, onCommitCallback.mInvokedTime);
 }
 
 } // namespace android
