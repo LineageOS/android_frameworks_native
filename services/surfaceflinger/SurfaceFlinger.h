@@ -684,9 +684,6 @@ private:
             const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy)
             EXCLUDES(mStateLock);
 
-    // Returns whether transactions were committed.
-    bool flushAndCommitTransactions() EXCLUDES(mStateLock);
-
     void commitTransactions() EXCLUDES(mStateLock);
     void commitTransactionsLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
     void doCommitTransactions() REQUIRES(mStateLock);
