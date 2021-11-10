@@ -17,7 +17,6 @@
 #ifndef _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H
 #define _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H
 
-#include <InputFlingerProperties.sysprop.h>
 #include <input/DisplayViewport.h>
 #include <stdint.h>
 
@@ -28,13 +27,6 @@
 namespace android {
 
 // --- Static Definitions ---
-
-// When per-window input rotation is enabled, display transformations such as rotation and
-// projection are part of the input window's transform. This means InputReader should work in the
-// un-rotated coordinate space.
-static bool isPerWindowInputRotationEnabled() {
-    return sysprop::InputFlingerProperties::per_window_input_rotation().value_or(true);
-}
 
 static int32_t getInverseRotation(int32_t orientation) {
     switch (orientation) {

@@ -100,8 +100,7 @@ TunnelModeEnabledReporterTest::~TunnelModeEnabledReporterTest() {
 sp<BufferStateLayer> TunnelModeEnabledReporterTest::createBufferStateLayer(
         LayerMetadata metadata = {}) {
     sp<Client> client;
-    LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", WIDTH, HEIGHT,
-                           LAYER_FLAGS, metadata);
+    LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", LAYER_FLAGS, metadata);
     return new BufferStateLayer(args);
 }
 

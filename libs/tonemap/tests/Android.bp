@@ -1,4 +1,4 @@
-// Copyright 2018 The Android Open Source Project
+// Copyright 2021 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,37 +22,17 @@ package {
 }
 
 cc_test {
-    name: "librenderengine_test",
-    defaults: [
-        "skia_deps",
-        "surfaceflinger_defaults",
-    ],
+    name: "libtonemap_test",
     test_suites: ["device-tests"],
     srcs: [
-        "RenderEngineTest.cpp",
-        "RenderEngineThreadedTest.cpp",
+        "tonemap_test.cpp",
     ],
-    include_dirs: [
-        "external/skia/src/gpu",
+    shared_libs: [
+        "android.hardware.graphics.common-V3-ndk",
     ],
     static_libs: [
         "libgmock",
-        "librenderengine",
-        "librenderengine_mocks",
+        "libgtest",
         "libtonemap",
-    ],
-
-    shared_libs: [
-        "libbase",
-        "libcutils",
-        "libEGL",
-        "libGLESv2",
-        "libgui",
-        "liblog",
-        "libnativewindow",
-        "libprocessgroup",
-        "libsync",
-        "libui",
-        "libutils",
     ],
 }

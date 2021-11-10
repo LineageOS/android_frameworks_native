@@ -19,6 +19,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <SkString.h>
+#include <tonemap/tonemap.h>
 #include <utils/Trace.h>
 
 #include <optional>
@@ -31,6 +32,11 @@
 namespace android {
 namespace renderengine {
 namespace skia {
+
+static aidl::android::hardware::graphics::common::Dataspace toAidlDataspace(
+        ui::Dataspace dataspace) {
+    return static_cast<aidl::android::hardware::graphics::common::Dataspace>(dataspace);
+}
 
 static void generateEOTF(ui::Dataspace dataspace, SkString& shader) {
     switch (dataspace & HAL_DATASPACE_TRANSFER_MASK) {
@@ -127,155 +133,9 @@ static void generateLuminanceScalesForOOTF(ui::Dataspace inputDataspace, SkStrin
         default:
             shader.append(R"(
                     float3 ScaleLuminance(float3 xyz) {
-                        return xyz * in_inputMaxLuminance;
+                        return xyz * in_libtonemap_inputMaxLuminance;
                     }
                 )");
-            break;
-    }
-}
-
-static void generateToneMapInterpolation(ui::Dataspace inputDataspace,
-                                         ui::Dataspace outputDataspace, SkString& shader) {
-    switch (inputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
-        case HAL_DATASPACE_TRANSFER_ST2084:
-        case HAL_DATASPACE_TRANSFER_HLG:
-            switch (outputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
-                case HAL_DATASPACE_TRANSFER_ST2084:
-                    shader.append(R"(
-                            float3 ToneMap(float3 xyz) {
-                                return xyz;
-                            }
-                        )");
-                    break;
-                case HAL_DATASPACE_TRANSFER_HLG:
-                    // PQ has a wider luminance range (10,000 nits vs. 1,000 nits) than HLG, so
-                    // we'll clamp the luminance range in case we're mapping from PQ input to HLG
-                    // output.
-                    shader.append(R"(
-                            float3 ToneMap(float3 xyz) {
-                                return clamp(xyz, 0.0, 1000.0);
-                            }
-                        )");
-                    break;
-                default:
-                    // Here we're mapping from HDR to SDR content, so interpolate using a Hermitian
-                    // polynomial onto the smaller luminance range.
-                    shader.append(R"(
-                            float3 ToneMap(float3 xyz) {
-                                float maxInLumi = in_inputMaxLuminance;
-                                float maxOutLumi = in_displayMaxLuminance;
-
-                                float nits = xyz.y;
-
-                                // if the max input luminance is less than what we can output then
-                                // no tone mapping is needed as all color values will be in range.
-                                if (maxInLumi <= maxOutLumi) {
-                                    return xyz;
-                                } else {
-
-                                    // three control points
-                                    const float x0 = 10.0;
-                                    const float y0 = 17.0;
-                                    float x1 = maxOutLumi * 0.75;
-                                    float y1 = x1;
-                                    float x2 = x1 + (maxInLumi - x1) / 2.0;
-                                    float y2 = y1 + (maxOutLumi - y1) * 0.75;
-
-                                    // horizontal distances between the last three control points
-                                    float h12 = x2 - x1;
-                                    float h23 = maxInLumi - x2;
-                                    // tangents at the last three control points
-                                    float m1 = (y2 - y1) / h12;
-                                    float m3 = (maxOutLumi - y2) / h23;
-                                    float m2 = (m1 + m3) / 2.0;
-
-                                    if (nits < x0) {
-                                        // scale [0.0, x0] to [0.0, y0] linearly
-                                        float slope = y0 / x0;
-                                        return xyz * slope;
-                                    } else if (nits < x1) {
-                                        // scale [x0, x1] to [y0, y1] linearly
-                                        float slope = (y1 - y0) / (x1 - x0);
-                                        nits = y0 + (nits - x0) * slope;
-                                    } else if (nits < x2) {
-                                        // scale [x1, x2] to [y1, y2] using Hermite interp
-                                        float t = (nits - x1) / h12;
-                                        nits = (y1 * (1.0 + 2.0 * t) + h12 * m1 * t) * (1.0 - t) * (1.0 - t) +
-                                                (y2 * (3.0 - 2.0 * t) + h12 * m2 * (t - 1.0)) * t * t;
-                                    } else {
-                                        // scale [x2, maxInLumi] to [y2, maxOutLumi] using Hermite interp
-                                        float t = (nits - x2) / h23;
-                                        nits = (y2 * (1.0 + 2.0 * t) + h23 * m2 * t) * (1.0 - t) * (1.0 - t) +
-                                                (maxOutLumi * (3.0 - 2.0 * t) + h23 * m3 * (t - 1.0)) * t * t;
-                                    }
-                                }
-
-                                // color.y is greater than x0 and is thus non-zero
-                                return xyz * (nits / xyz.y);
-                            }
-                        )");
-                    break;
-            }
-            break;
-        default:
-            switch (outputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
-                case HAL_DATASPACE_TRANSFER_ST2084:
-                case HAL_DATASPACE_TRANSFER_HLG:
-                    // Map from SDR onto an HDR output buffer
-                    // Here we use a polynomial curve to map from [0, displayMaxLuminance] onto
-                    // [0, maxOutLumi] which is hard-coded to be 3000 nits.
-                    shader.append(R"(
-                            float3 ToneMap(float3 xyz) {
-                                const float maxOutLumi = 3000.0;
-
-                                const float x0 = 5.0;
-                                const float y0 = 2.5;
-                                float x1 = in_displayMaxLuminance * 0.7;
-                                float y1 = maxOutLumi * 0.15;
-                                float x2 = in_displayMaxLuminance * 0.9;
-                                float y2 = maxOutLumi * 0.45;
-                                float x3 = in_displayMaxLuminance;
-                                float y3 = maxOutLumi;
-
-                                float c1 = y1 / 3.0;
-                                float c2 = y2 / 2.0;
-                                float c3 = y3 / 1.5;
-
-                                float nits = xyz.y;
-
-                                if (nits <= x0) {
-                                    // scale [0.0, x0] to [0.0, y0] linearly
-                                    float slope = y0 / x0;
-                                    return xyz * slope;
-                                } else if (nits <= x1) {
-                                    // scale [x0, x1] to [y0, y1] using a curve
-                                    float t = (nits - x0) / (x1 - x0);
-                                    nits = (1.0 - t) * (1.0 - t) * y0 + 2.0 * (1.0 - t) * t * c1 + t * t * y1;
-                                } else if (nits <= x2) {
-                                    // scale [x1, x2] to [y1, y2] using a curve
-                                    float t = (nits - x1) / (x2 - x1);
-                                    nits = (1.0 - t) * (1.0 - t) * y1 + 2.0 * (1.0 - t) * t * c2 + t * t * y2;
-                                } else {
-                                    // scale [x2, x3] to [y2, y3] using a curve
-                                    float t = (nits - x2) / (x3 - x2);
-                                    nits = (1.0 - t) * (1.0 - t) * y2 + 2.0 * (1.0 - t) * t * c3 + t * t * y3;
-                                }
-
-                                // xyz.y is greater than x0 and is thus non-zero
-                                return xyz * (nits / xyz.y);
-                            }
-                        )");
-                    break;
-                default:
-                    // For completeness, this is tone-mapping from SDR to SDR, where this is just a
-                    // no-op.
-                    shader.append(R"(
-                            float3 ToneMap(float3 xyz) {
-                                return xyz;
-                            }
-                        )");
-                    break;
-            }
             break;
     }
 }
@@ -300,7 +160,7 @@ static void generateLuminanceNormalizationForOOTF(ui::Dataspace outputDataspace,
         default:
             shader.append(R"(
                     float3 NormalizeLuminance(float3 xyz) {
-                        return xyz / in_displayMaxLuminance;
+                        return xyz / in_libtonemap_displayMaxLuminance;
                     }
                 )");
             break;
@@ -309,19 +169,22 @@ static void generateLuminanceNormalizationForOOTF(ui::Dataspace outputDataspace,
 
 static void generateOOTF(ui::Dataspace inputDataspace, ui::Dataspace outputDataspace,
                          SkString& shader) {
-    // Input uniforms
-    shader.append(R"(
-            uniform float in_displayMaxLuminance;
-            uniform float in_inputMaxLuminance;
-        )");
+    shader.append(tonemap::getToneMapper()
+                          ->generateTonemapGainShaderSkSL(toAidlDataspace(inputDataspace),
+                                                          toAidlDataspace(outputDataspace))
+                          .c_str());
 
     generateLuminanceScalesForOOTF(inputDataspace, shader);
-    generateToneMapInterpolation(inputDataspace, outputDataspace, shader);
     generateLuminanceNormalizationForOOTF(outputDataspace, shader);
 
     shader.append(R"(
-            float3 OOTF(float3 xyz) {
-                return NormalizeLuminance(ToneMap(ScaleLuminance(xyz)));
+            float3 OOTF(float3 linearRGB, float3 xyz) {
+                float3 scaledLinearRGB = ScaleLuminance(linearRGB);
+                float3 scaledXYZ = ScaleLuminance(xyz);
+
+                float gain = libtonemap_LookupTonemapGain(scaledLinearRGB, scaledXYZ);
+
+                return NormalizeLuminance(scaledXYZ * gain);
             }
         )");
 }
@@ -399,7 +262,9 @@ static void generateEffectiveOOTF(bool undoPremultipliedAlpha, SkString& shader)
         )");
     }
     shader.append(R"(
-        c.rgb = OETF(ToRGB(OOTF(ToXYZ(EOTF(c.rgb)))));
+        float3 linearRGB = EOTF(c.rgb);
+        float3 xyz = ToXYZ(linearRGB);
+        c.rgb = OETF(ToRGB(OOTF(linearRGB, xyz)));
     )");
     if (undoPremultipliedAlpha) {
         shader.append(R"(
@@ -465,11 +330,20 @@ sk_sp<SkShader> createLinearEffectShader(sk_sp<SkShader> shader, const LinearEff
                 colorTransform * mat4(outputColorSpace.getXYZtoRGB());
     }
 
-    effectBuilder.uniform("in_displayMaxLuminance") = maxDisplayLuminance;
-    // If the input luminance is unknown, use display luminance (aka, no-op any luminance changes)
-    // This will be the case for eg screenshots in addition to uncalibrated displays
-    effectBuilder.uniform("in_inputMaxLuminance") =
-            maxLuminance > 0 ? maxLuminance : maxDisplayLuminance;
+    tonemap::Metadata metadata{.displayMaxLuminance = maxDisplayLuminance,
+                               // If the input luminance is unknown, use display luminance (aka,
+                               // no-op any luminance changes)
+                               // This will be the case for eg screenshots in addition to
+                               // uncalibrated displays
+                               .contentMaxLuminance =
+                                       maxLuminance > 0 ? maxLuminance : maxDisplayLuminance};
+
+    const auto uniforms = tonemap::getToneMapper()->generateShaderSkSLUniforms(metadata);
+
+    for (const auto& uniform : uniforms) {
+        effectBuilder.uniform(uniform.name.c_str()).set(uniform.value.data(), uniform.value.size());
+    }
+
     return effectBuilder.makeShader(nullptr, false);
 }
 

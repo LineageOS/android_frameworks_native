@@ -754,9 +754,7 @@ void SurfaceInterceptorTest::assertAllUpdatesFound(const Trace& trace) {
 }
 
 bool SurfaceInterceptorTest::surfaceCreationFound(const Increment& increment, bool foundSurface) {
-    bool isMatch(increment.surface_creation().name() == getUniqueName(LAYER_NAME, increment) &&
-                 increment.surface_creation().w() == SIZE_UPDATE &&
-                 increment.surface_creation().h() == SIZE_UPDATE);
+    bool isMatch(increment.surface_creation().name() == getUniqueName(LAYER_NAME, increment));
     if (isMatch && !foundSurface) {
         foundSurface = true;
     } else if (isMatch && foundSurface) {

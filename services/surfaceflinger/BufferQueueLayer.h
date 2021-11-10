@@ -62,6 +62,11 @@ public:
     status_t setDefaultBufferProperties(uint32_t w, uint32_t h, PixelFormat format);
     sp<IGraphicBufferProducer> getProducer() const;
 
+    void setSizeForTest(uint32_t w, uint32_t h) {
+        mDrawingState.active_legacy.w = w;
+        mDrawingState.active_legacy.h = h;
+    }
+
 protected:
     void gatherBufferInfo() override;
 

@@ -406,8 +406,8 @@ protected:
     virtual void dumpParameters(std::string& dump);
     virtual void configureRawPointerAxes();
     virtual void dumpRawPointerAxes(std::string& dump);
-    virtual void configureSurface(nsecs_t when, bool* outResetNeeded);
-    virtual void dumpSurface(std::string& dump);
+    virtual void configureInputDevice(nsecs_t when, bool* outResetNeeded);
+    virtual void dumpDisplay(std::string& dump);
     virtual void configureVirtualKeys();
     virtual void dumpVirtualKeys(std::string& dump);
     virtual void parseCalibration();
@@ -426,39 +426,27 @@ private:
     // The components of the viewport are specified in the display's rotated orientation.
     DisplayViewport mViewport;
 
-    // The surface orientation, width and height set by configureSurface().
-    // The width and height are derived from the viewport but are specified
+    // The width and height are obtained from the viewport and are specified
     // in the natural orientation.
-    // They could be used for calculating diagonal, scaling factors, and virtual keys.
-    int32_t mRawSurfaceWidth;
-    int32_t mRawSurfaceHeight;
+    int32_t mDisplayWidth;
+    int32_t mDisplayHeight;
 
-    // The surface origin specifies how the surface coordinates should be translated
-    // to align with the logical display coordinate space.
-    // TODO(b/188939842): Remove surface coordinates when Per-Window Input Rotation is enabled.
-    int32_t mSurfaceLeft;
-    int32_t mSurfaceTop;
-    int32_t mSurfaceRight;
-    int32_t mSurfaceBottom;
-
-    // Similar to the surface coordinates, but in the raw display coordinate space rather than in
-    // the logical coordinate space.
+    // The physical frame is the rectangle in the display's coordinate space that maps to the
+    // the logical display frame.
     int32_t mPhysicalWidth;
     int32_t mPhysicalHeight;
     int32_t mPhysicalLeft;
     int32_t mPhysicalTop;
 
-    // The orientation may be different from the viewport orientation as it specifies
-    // the rotation of the surface coordinates required to produce the viewport's
-    // requested orientation, so it will depend on whether the device is orientation aware.
-    int32_t mSurfaceOrientation;
+    // The orientation of the input device relative to that of the display panel. It specifies
+    // the rotation of the input device coordinates required to produce the display panel
+    // orientation, so it will depend on whether the device is orientation aware.
+    int32_t mInputDeviceOrientation;
 
     // Translation and scaling factors, orientation-independent.
-    float mXTranslate;
     float mXScale;
     float mXPrecision;
 
-    float mYTranslate;
     float mYScale;
     float mYPrecision;
 
@@ -808,13 +796,13 @@ private:
     // touchscreen.
     void updateTouchSpots();
 
-    bool isPointInsideSurface(int32_t x, int32_t y);
+    bool isPointInsidePhysicalFrame(int32_t x, int32_t y) const;
     const VirtualKey* findVirtualKeyHit(int32_t x, int32_t y);
 
     static void assignPointerIds(const RawState& last, RawState& current);
 
     const char* modeToString(DeviceMode deviceMode);
-    void rotateAndScale(float& x, float& y);
+    void rotateAndScale(float& x, float& y) const;
 
     // Wrapper methods for interfacing with PointerController. These are used to convert points
     // between the coordinate spaces used by InputReader and PointerController, if they differ.
