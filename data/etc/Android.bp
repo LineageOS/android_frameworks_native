@@ -89,6 +89,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.fingerprint.prebuilt.xml",
+    src: "android.hardware.fingerprint.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.location.gps.prebuilt.xml",
     src: "android.hardware.location.gps.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
