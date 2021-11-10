@@ -62,8 +62,8 @@
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VsyncModulator.h"
 #include "SurfaceFlingerFactory.h"
-#include "SurfaceTracing.h"
 #include "TracedOrdinal.h"
+#include "Tracing/LayerTracing.h"
 #include "TransactionCallbackInvoker.h"
 #include "TransactionState.h"
 
@@ -353,7 +353,7 @@ private:
     friend class MonitoredProducer;
     friend class RefreshRateOverlay;
     friend class RegionSamplingThread;
-    friend class SurfaceTracing;
+    friend class LayerTracing;
 
     // For unit tests
     friend class TestableSurfaceFlinger;
@@ -1039,12 +1039,12 @@ private:
     void dumpWideColorInfo(std::string& result) const REQUIRES(mStateLock);
     LayersProto dumpDrawingStateProto(uint32_t traceFlags) const;
     void dumpOffscreenLayersProto(LayersProto& layersProto,
-                                  uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
+                                  uint32_t traceFlags = LayerTracing::TRACE_ALL) const;
     void dumpDisplayProto(LayersTraceProto& layersTraceProto) const;
 
     // Dumps state from HW Composer
     void dumpHwc(std::string& result) const;
-    LayersProto dumpProtoFromMainThread(uint32_t traceFlags = SurfaceTracing::TRACE_ALL)
+    LayersProto dumpProtoFromMainThread(uint32_t traceFlags = LayerTracing::TRACE_ALL)
             EXCLUDES(mStateLock);
     void dumpOffscreenLayers(std::string& result) EXCLUDES(mStateLock);
     void dumpPlannerInfo(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
@@ -1187,10 +1187,9 @@ private:
     bool mPropagateBackpressureClientComposition = false;
     sp<SurfaceInterceptor> mInterceptor;
 
-    SurfaceTracing mTracing{*this};
+    LayerTracing mLayerTracing{*this};
     std::mutex mTracingLock;
     bool mTracingEnabled = false;
-    bool mTracePostComposition = false;
     std::atomic<bool> mTracingEnabledChanged = false;
 
     const std::shared_ptr<TimeStats> mTimeStats;
