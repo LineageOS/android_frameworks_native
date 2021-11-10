@@ -1119,9 +1119,12 @@ inline bool Iterate(Visitor* visitor, VkJsonInstance* instance) {
       ret &= visitor->Visit("deviceGroups", &instance->device_groups);
       FALLTHROUGH_INTENDED;
     case VK_API_VERSION_1_0:
+      char depString[] =
+          "vkjson is deprecated, and will be replaced in a future release";
       ret &= visitor->Visit("layers", &instance->layers) &&
              visitor->Visit("extensions", &instance->extensions) &&
-             visitor->Visit("devices", &instance->devices);
+             visitor->Visit("devices", &instance->devices) &&
+             visitor->Visit("_comment", &depString);
   }
   return ret;
 }
