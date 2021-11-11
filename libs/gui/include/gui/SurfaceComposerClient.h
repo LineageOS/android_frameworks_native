@@ -307,6 +307,7 @@ public:
 
     //! Get stable IDs for connected physical displays
     static std::vector<PhysicalDisplayId> getPhysicalDisplayIds();
+    static status_t getPrimaryPhysicalDisplayId(PhysicalDisplayId*);
     static std::optional<PhysicalDisplayId> getInternalDisplayId();
 
     //! Get token for a physical display given its stable ID

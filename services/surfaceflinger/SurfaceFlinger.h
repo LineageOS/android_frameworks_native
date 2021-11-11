@@ -614,6 +614,7 @@ private:
     sp<IBinder> createDisplay(const String8& displayName, bool secure) override;
     void destroyDisplay(const sp<IBinder>& displayToken) override;
     std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override;
+    status_t getPrimaryPhysicalDisplayId(PhysicalDisplayId*) const override EXCLUDES(mStateLock);
     sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const override;
     status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
                                  const Vector<ComposerState>& state,
