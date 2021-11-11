@@ -1,0 +1,107 @@
+/*
+ * Copyright 2021 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#pragma once
+
+#include <android-base/thread_annotations.h>
+#include <layerproto/TransactionProto.h>
+#include <utils/Errors.h>
+#include <utils/Timers.h>
+
+#include <memory>
+#include <mutex>
+#include <thread>
+
+#include "TransactionProtoParser.h"
+
+using namespace android::surfaceflinger;
+
+namespace android {
+
+template <typename FileProto, typename EntryProto>
+class RingBuffer;
+
+class SurfaceFlinger;
+class TransactionTracingTest;
+/*
+ * Records all committed transactions into a ring bufffer.
+ *
+ * Transactions come in via the binder thread. They are serialized to proto
+ * and stored in a map using the transaction id as key. Main thread will
+ * pass the list of transaction ids that are committed every vsync and notify
+ * the tracing thread. The tracing thread will then wake up and add the
+ * committed transactions to the ring buffer.
+ *
+ * When generating SF dump state, we will flush the buffer to a file which
+ * will then be included in the bugreport.
+ *
+ */
+class TransactionTracing {
+public:
+    TransactionTracing();
+    ~TransactionTracing();
+
+    bool enable();
+    bool disable();
+    bool isEnabled() const;
+
+    void addQueuedTransaction(const TransactionState&);
+    void addCommittedTransactions(std::vector<TransactionState>& transactions, int64_t vsyncId);
+    status_t writeToFile();
+    void setBufferSize(size_t bufferSizeInBytes);
+    void dump(std::string&) const;
+    static constexpr auto CONTINUOUS_TRACING_BUFFER_SIZE = 512 * 1024;
+    static constexpr auto ACTIVE_TRACING_BUFFER_SIZE = 100 * 1024 * 1024;
+
+private:
+    friend class TransactionTracingTest;
+
+    static constexpr auto FILE_NAME = "/data/misc/wmtrace/transactions_trace.winscope";
+
+    mutable std::mutex mTraceLock;
+    bool mEnabled GUARDED_BY(mTraceLock) = false;
+    std::unique_ptr<RingBuffer<proto::TransactionTraceFile, proto::TransactionTraceEntry>> mBuffer
+            GUARDED_BY(mTraceLock);
+    size_t mBufferSizeInBytes GUARDED_BY(mTraceLock) = CONTINUOUS_TRACING_BUFFER_SIZE;
+    std::unordered_map<uint64_t, proto::TransactionState> mQueuedTransactions
+            GUARDED_BY(mTraceLock);
+
+    // We do not want main thread to block so main thread will try to acquire mMainThreadLock,
+    // otherwise will push data to temporary container.
+    std::mutex mMainThreadLock;
+    std::thread mThread GUARDED_BY(mMainThreadLock);
+    bool mDone GUARDED_BY(mMainThreadLock) = false;
+    std::condition_variable mTransactionsAvailableCv;
+    std::condition_variable mTransactionsAddedToBufferCv;
+    struct CommittedTransactions {
+        std::vector<uint64_t> transactionIds;
+        int64_t vsyncId;
+        int64_t timestamp;
+    };
+    std::vector<CommittedTransactions> mCommittedTransactions GUARDED_BY(mMainThreadLock);
+    std::vector<CommittedTransactions> mPendingTransactions; // only accessed by main thread
+    proto::TransactionTraceFile createTraceFileProto() const;
+
+    void loop();
+    void addEntry(const std::vector<CommittedTransactions>& committedTransactions)
+            EXCLUDES(mTraceLock);
+
+    // TEST
+    // Wait until all the committed transactions are added to the buffer.
+    void flush() EXCLUDES(mMainThreadLock);
+};
+
+} // namespace android

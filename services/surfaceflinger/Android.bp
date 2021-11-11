@@ -202,6 +202,7 @@ filegroup {
         "SurfaceFlingerDefaultFactory.cpp",
         "SurfaceInterceptor.cpp",
         "Tracing/LayerTracing.cpp",
+        "Tracing/TransactionTracing.cpp",
         "Tracing/TransactionProtoParser.cpp",
         "TransactionCallbackInvoker.cpp",
         "TunnelModeEnabledReporter.cpp",

@@ -93,6 +93,7 @@ cc_test {
         "TransactionFrameTracerTest.cpp",
         "TransactionProtoParserTest.cpp",
         "TransactionSurfaceFrameTest.cpp",
+        "TransactionTracingTest.cpp",
         "TunnelModeEnabledReporterTest.cpp",
         "StrongTypingTest.cpp",
         "VSyncDispatchTimerQueueTest.cpp",

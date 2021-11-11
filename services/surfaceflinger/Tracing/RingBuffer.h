@@ -21,8 +21,9 @@
 
 #include <log/log.h>
 #include <utils/Errors.h>
-#include <utils/SystemClock.h>
+#include <utils/Timers.h>
 #include <utils/Trace.h>
+#include <chrono>
 #include <queue>
 
 namespace android {
@@ -57,9 +58,7 @@ public:
     status_t writeToFile(FileProto& fileProto, std::string filename) {
         ATRACE_CALL();
         std::string output;
-        flush(fileProto);
-        reset(mSizeInBytes);
-        if (!fileProto.SerializeToString(&output)) {
+        if (!writeToString(fileProto, &output)) {
             ALOGE("Could not serialize proto.");
             return UNKNOWN_ERROR;
         }
@@ -71,6 +70,13 @@ public:
             return PERMISSION_DENIED;
         }
         return NO_ERROR;
+    }
+
+    bool writeToString(FileProto& fileProto, std::string* outString) {
+        ATRACE_CALL();
+        flush(fileProto);
+        reset(mSizeInBytes);
+        return fileProto.SerializeToString(outString);
     }
 
     std::vector<EntryProto> emplace(EntryProto&& proto) {
@@ -99,8 +105,8 @@ public:
         const int64_t durationCount = duration.count();
         base::StringAppendF(&result,
                             "  number of entries: %zu (%.2fMB / %.2fMB) duration: %" PRIi64 "ms\n",
-                            frameCount(), float(used()) / 1024.f * 1024.f,
-                            float(size()) / 1024.f * 1024.f, durationCount);
+                            frameCount(), float(used()) / (1024.f * 1024.f),
+                            float(size()) / (1024.f * 1024.f), durationCount);
     }
 
 private:

@@ -357,10 +357,11 @@ bool callingThreadHasRotateSurfaceFlingerAccess() {
 
 SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
       : mFactory(factory),
+        mPid(getpid()),
         mInterceptor(mFactory.createSurfaceInterceptor()),
         mTimeStats(std::make_shared<impl::TimeStats>()),
         mFrameTracer(mFactory.createFrameTracer()),
-        mFrameTimeline(mFactory.createFrameTimeline(mTimeStats, getpid())),
+        mFrameTimeline(mFactory.createFrameTimeline(mTimeStats, mPid)),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mHwcServiceName(base::GetProperty("debug.sf.hwc_service_name"s, "default"s)),
         mTunnelModeEnabledReporter(new TunnelModeEnabledReporter()),
@@ -489,6 +490,11 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     enableSdrDimming = property_get_bool("debug.sf.enable_sdr_dimming", enable_sdr_dimming(false));
 
     enableLatchUnsignaledConfig = getLatchUnsignaledConfig();
+
+    mTransactionTracingEnabled = property_get_bool("debug.sf.enable_transaction_tracing", false);
+    if (mTransactionTracingEnabled) {
+        mTransactionTracing.enable();
+    }
 }
 
 LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
@@ -1946,7 +1952,7 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     }
 
     if (mTracingEnabledChanged) {
-        mTracingEnabled = mLayerTracing.isEnabled();
+        mLayerTracingEnabled = mLayerTracing.isEnabled();
         mTracingEnabledChanged = false;
     }
 
@@ -1964,7 +1970,7 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
 
         bool needsTraversal = false;
         if (clearTransactionFlags(eTransactionFlushNeeded)) {
-            needsTraversal = flushTransactionQueues();
+            needsTraversal = flushTransactionQueues(vsyncId);
         }
 
         const bool shouldCommit =
@@ -2095,7 +2101,7 @@ void SurfaceFlinger::composite(nsecs_t frameTime) {
     modulateVsync(&VsyncModulator::onDisplayRefresh, usedGpuComposition);
 
     mLayersWithQueuedFrames.clear();
-    if (mTracingEnabled) {
+    if (mLayerTracingEnabled) {
         // This will block and should only be used for debugging.
         if (mVisibleRegionsDirty) {
             mLayerTracing.notify("visibleRegionsDirty");
@@ -3374,10 +3380,11 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
         client->attachLayer(handle, lbc);
     }
 
+    int64_t transactionId = (((int64_t)mPid) << 32) | mUniqueTransactionId++;
     return setTransactionState(FrameTimelineInfo{}, states, displays, 0 /* flags */, nullptr,
                                InputWindowCommands{}, -1 /* desiredPresentTime */,
                                true /* isAutoTimestamp */, {}, false /* hasListenerCallbacks */, {},
-                               0 /* Undefined transactionId */);
+                               transactionId);
 }
 
 uint32_t SurfaceFlinger::getTransactionFlags() const {
@@ -3400,7 +3407,7 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule 
     return old;
 }
 
-bool SurfaceFlinger::flushTransactionQueues() {
+bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
     // to prevent onHandleDestroyed from being called while the lock is held,
     // we must keep a copy of the transactions (specifically the composer
     // states) around outside the scope of the lock
@@ -3486,12 +3493,13 @@ bool SurfaceFlinger::flushTransactionQueues() {
                 ATRACE_INT("TransactionQueue", mTransactionQueue.size());
             }
 
-            return applyTransactions(transactions);
+            return applyTransactions(transactions, vsyncId);
         }
     }
 }
 
-bool SurfaceFlinger::applyTransactions(std::vector<TransactionState>& transactions) {
+bool SurfaceFlinger::applyTransactions(std::vector<TransactionState>& transactions,
+                                       int64_t vsyncId) {
     bool needsTraversal = false;
     // Now apply all transactions.
     for (const auto& transaction : transactions) {
@@ -3508,6 +3516,10 @@ bool SurfaceFlinger::applyTransactions(std::vector<TransactionState>& transactio
             mTransactionCommittedSignals.emplace_back(
                     std::move(transaction.transactionCommittedSignal));
         }
+    }
+
+    if (mTransactionTracingEnabled) {
+        mTransactionTracing.addCommittedTransactions(transactions, vsyncId);
     }
     return needsTraversal;
 }
@@ -3762,6 +3774,10 @@ status_t SurfaceFlinger::setTransactionState(
     state.traverseStatesWithBuffers([&](const layer_state_t& state) {
         mBufferCountTracker.increment(state.surface->localBinder());
     });
+
+    if (mTransactionTracingEnabled) {
+        mTransactionTracing.addQueuedTransaction(state);
+    }
     queueTransaction(state);
 
     // Check the pending state to make sure the transaction is synchronous.
@@ -4448,10 +4464,12 @@ void SurfaceFlinger::onInitializeDisplays() {
     displays.add(d);
 
     nsecs_t now = systemTime();
+
+    int64_t transactionId = (((int64_t)mPid) << 32) | mUniqueTransactionId++;
     // It should be on the main thread, apply it directly.
     applyTransactionState(FrameTimelineInfo{}, state, displays, 0, mInputWindowCommands,
                           /* desiredPresentTime */ now, true, {}, /* postTime */ now, true, false,
-                          {}, getpid(), getuid(), 0 /* Undefined transactionId */);
+                          {}, mPid, getuid(), transactionId);
 
     setPowerModeInternal(display, hal::PowerMode::ON);
     const nsecs_t vsyncPeriod =
@@ -4650,8 +4668,9 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
 }
 
 status_t SurfaceFlinger::dumpCritical(int fd, const DumpArgs&, bool asProto) {
-    if (asProto && mLayerTracing.isEnabled()) {
+    if (asProto) {
         mLayerTracing.writeToFile();
+        mTransactionTracing.writeToFile();
     }
 
     return doDump(fd, DumpArgs(), asProto);
@@ -4848,7 +4867,6 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
 }
 
 LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
-    // If context is SurfaceTracing thread, mTracingLock blocks display transactions on main thread.
     const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
 
     LayersProto layersProto;
@@ -5048,6 +5066,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
      * Tracing state
      */
     mLayerTracing.dump(result);
+    result.append("\n");
+    mTransactionTracing.dump(result);
     result.append("\n");
 
     /*
@@ -5281,9 +5301,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1040 are currently used for backdoors. The code
+    // Numbers from 1000 to 1041 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1040) {
+    if (code >= 1000 && code <= 1041) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -5722,6 +5742,20 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                     return error;
                 }
                 scheduleRepaint();
+                return NO_ERROR;
+            }
+            case 1041: { // Transaction tracing
+                if (data.readInt32()) {
+                    // Transaction tracing is always running but allow the user to temporarily
+                    // increase the buffer when actively debugging.
+                    mTransactionTracing.setBufferSize(
+                            TransactionTracing::ACTIVE_TRACING_BUFFER_SIZE);
+                } else {
+                    mTransactionTracing.setBufferSize(
+                            TransactionTracing::CONTINUOUS_TRACING_BUFFER_SIZE);
+                    mTransactionTracing.writeToFile();
+                }
+                reply->writeInt32(NO_ERROR);
                 return NO_ERROR;
             }
         }
