@@ -913,6 +913,10 @@ std::vector<PhysicalDisplayId> SurfaceComposerClient::getPhysicalDisplayIds() {
     return ComposerService::getComposerService()->getPhysicalDisplayIds();
 }
 
+status_t SurfaceComposerClient::getPrimaryPhysicalDisplayId(PhysicalDisplayId* id) {
+    return ComposerService::getComposerService()->getPrimaryPhysicalDisplayId(id);
+}
+
 std::optional<PhysicalDisplayId> SurfaceComposerClient::getInternalDisplayId() {
     return ComposerService::getComposerService()->getInternalDisplayId();
 }

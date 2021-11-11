@@ -694,6 +694,7 @@ public:
             bool /*secure*/) override { return nullptr; }
     void destroyDisplay(const sp<IBinder>& /*display */) override {}
     std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override { return {}; }
+    status_t getPrimaryPhysicalDisplayId(PhysicalDisplayId*) const override { return NO_ERROR; }
     sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId) const override { return nullptr; }
     status_t setTransactionState(const FrameTimelineInfo& /*frameTimelineInfo*/,
                                  const Vector<ComposerState>& /*state*/,
