@@ -72,31 +72,30 @@ public:
                          int height, int32_t format)
           : BLASTBufferQueue(name, surface, width, height, format) {}
 
-    void transactionCommittedCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
-                                      const std::vector<SurfaceControlStats>& stats) override {
-        BLASTBufferQueue::transactionCommittedCallback(latchTime, presentFence, stats);
-
+    void transactionCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
+                             const std::vector<SurfaceControlStats>& stats) override {
+        BLASTBufferQueue::transactionCallback(latchTime, presentFence, stats);
         uint64_t frameNumber = stats[0].frameEventStats.frameNumber;
 
         {
             std::unique_lock lock{frameNumberMutex};
-            mLastTransactionCommittedFrameNumber = frameNumber;
-            mCommittedCV.notify_all();
+            mLastTransactionFrameNumber = frameNumber;
+            mWaitForCallbackCV.notify_all();
         }
     }
 
     void waitForCallback(int64_t frameNumber) {
         std::unique_lock lock{frameNumberMutex};
         // Wait until all but one of the submitted buffers have been released.
-        while (mLastTransactionCommittedFrameNumber < frameNumber) {
-            mCommittedCV.wait(lock);
+        while (mLastTransactionFrameNumber < frameNumber) {
+            mWaitForCallbackCV.wait(lock);
         }
     }
 
 private:
     std::mutex frameNumberMutex;
-    std::condition_variable mCommittedCV;
-    int64_t mLastTransactionCommittedFrameNumber = -1;
+    std::condition_variable mWaitForCallbackCV;
+    int64_t mLastTransactionFrameNumber = -1;
 };
 
 class BLASTBufferQueueHelper {

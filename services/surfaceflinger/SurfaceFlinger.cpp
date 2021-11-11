@@ -1948,7 +1948,7 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     }
 
     if (mTracingEnabledChanged) {
-        mTracingEnabled = mTracing.isEnabled();
+        mTracingEnabled = mLayerTracing.isEnabled();
         mTracingEnabledChanged = false;
     }
 
@@ -1962,24 +1962,37 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     // Composite if transactions were committed, or if requested by HWC.
     bool mustComposite = mMustComposite.exchange(false);
     {
-        mTracePostComposition = mTracing.flagIsSet(SurfaceTracing::TRACE_COMPOSITION) ||
-                mTracing.flagIsSet(SurfaceTracing::TRACE_SYNC) ||
-                mTracing.flagIsSet(SurfaceTracing::TRACE_BUFFERS);
-        const bool tracePreComposition = mTracingEnabled && !mTracePostComposition;
-        ConditionalLockGuard<std::mutex> lock(mTracingLock, tracePreComposition);
-
         mFrameTimeline->setSfWakeUp(vsyncId, frameTime, Fps::fromPeriodNsecs(stats.vsyncPeriod));
 
-        mustComposite |= flushAndCommitTransactions();
+        bool needsTraversal = false;
+        if (clearTransactionFlags(eTransactionFlushNeeded)) {
+            needsTraversal = flushTransactionQueues();
+        }
+
+        const bool shouldCommit =
+                (getTransactionFlags() & ~eTransactionFlushNeeded) || needsTraversal;
+        if (shouldCommit) {
+            commitTransactions();
+        }
+
+        if (transactionFlushNeeded()) {
+            setTransactionFlags(eTransactionFlushNeeded);
+        }
+
+        mustComposite |= shouldCommit;
         mustComposite |= latchBuffers();
 
-        updateLayerGeometry();
-
-        if (tracePreComposition) {
-            if (mVisibleRegionsDirty) {
-                mTracing.notifyLocked("visibleRegionsDirty");
-            }
+        // This has to be called after latchBuffers because we want to include the layers that have
+        // been latched in the commit callback
+        if (!needsTraversal) {
+            // Invoke empty transaction callbacks early.
+            mTransactionCallbackInvoker.sendCallbacks(false /* onCommitOnly */);
+        } else {
+            // Invoke OnCommit callbacks.
+            mTransactionCallbackInvoker.sendCallbacks(true /* onCommitOnly */);
         }
+
+        updateLayerGeometry();
     }
 
     // Layers need to get updated (in the previous line) before we can use them for
@@ -1997,34 +2010,6 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     updateInputFlinger();
 
     return mustComposite && CC_LIKELY(mBootStage != BootStage::BOOTLOADER);
-}
-
-bool SurfaceFlinger::flushAndCommitTransactions() {
-    ATRACE_CALL();
-
-    bool needsTraversal = false;
-    if (clearTransactionFlags(eTransactionFlushNeeded)) {
-        needsTraversal = flushTransactionQueues();
-    }
-
-    const bool shouldCommit = (getTransactionFlags() & ~eTransactionFlushNeeded) || needsTraversal;
-    if (shouldCommit) {
-        commitTransactions();
-    }
-
-    if (!needsTraversal) {
-        // Invoke empty transaction callbacks early.
-        mTransactionCallbackInvoker.sendCallbacks(false /* onCommitOnly */);
-    } else {
-        // Invoke OnCommit callbacks.
-        mTransactionCallbackInvoker.sendCallbacks(true /* onCommitOnly */);
-    }
-
-    if (transactionFlushNeeded()) {
-        setTransactionFlags(eTransactionFlushNeeded);
-    }
-
-    return shouldCommit;
 }
 
 void SurfaceFlinger::composite(nsecs_t frameTime) {
@@ -2112,12 +2097,12 @@ void SurfaceFlinger::composite(nsecs_t frameTime) {
     modulateVsync(&VsyncModulator::onDisplayRefresh, usedGpuComposition);
 
     mLayersWithQueuedFrames.clear();
-    if (mTracingEnabled && mTracePostComposition) {
-        // This may block if SurfaceTracing is running in sync mode.
+    if (mTracingEnabled) {
+        // This will block and should only be used for debugging.
         if (mVisibleRegionsDirty) {
-            mTracing.notify("visibleRegionsDirty");
-        } else if (mTracing.flagIsSet(SurfaceTracing::TRACE_BUFFERS)) {
-            mTracing.notify("bufferLatched");
+            mLayerTracing.notify("visibleRegionsDirty");
+        } else if (mLayerTracing.flagIsSet(LayerTracing::TRACE_BUFFERS)) {
+            mLayerTracing.notify("bufferLatched");
         }
     }
 
@@ -4642,7 +4627,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
         }
 
         if (dumpLayers) {
-            LayersTraceFileProto traceFileProto = SurfaceTracing::createLayersTraceFileProto();
+            LayersTraceFileProto traceFileProto = mLayerTracing.createTraceFileProto();
             LayersTraceProto* layersTrace = traceFileProto.add_entry();
             LayersProto layersProto = dumpProtoFromMainThread();
             layersTrace->mutable_layers()->Swap(&layersProto);
@@ -4664,8 +4649,8 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
 }
 
 status_t SurfaceFlinger::dumpCritical(int fd, const DumpArgs&, bool asProto) {
-    if (asProto && mTracing.isEnabled()) {
-        mTracing.writeToFile();
+    if (asProto && mLayerTracing.isEnabled()) {
+        mLayerTracing.writeToFile();
     }
 
     return doDump(fd, DumpArgs(), asProto);
@@ -5061,7 +5046,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     /*
      * Tracing state
      */
-    mTracing.dump(result);
+    mLayerTracing.dump(result);
     result.append("\n");
 
     /*
@@ -5488,20 +5473,20 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 bool tracingEnabledChanged;
                 if (n) {
                     ALOGD("LayerTracing enabled");
-                    tracingEnabledChanged = mTracing.enable();
+                    tracingEnabledChanged = mLayerTracing.enable();
                     if (tracingEnabledChanged) {
-                        schedule([&]() MAIN_THREAD { mTracing.notify("start"); }).wait();
+                        schedule([&]() MAIN_THREAD { mLayerTracing.notify("start"); }).wait();
                     }
                 } else {
                     ALOGD("LayerTracing disabled");
-                    tracingEnabledChanged = mTracing.disable();
+                    tracingEnabledChanged = mLayerTracing.disable();
                 }
                 mTracingEnabledChanged = tracingEnabledChanged;
                 reply->writeInt32(NO_ERROR);
                 return NO_ERROR;
             }
             case 1026: { // Get layer tracing status
-                reply->writeBool(mTracing.isEnabled());
+                reply->writeBool(mLayerTracing.isEnabled());
                 return NO_ERROR;
             }
             // Is a DisplayColorSetting supported?
@@ -5542,7 +5527,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 }
 
                 ALOGD("Updating trace buffer to %d KB", n);
-                mTracing.setBufferSize(n * 1024);
+                mLayerTracing.setBufferSize(n * 1024);
                 reply->writeInt32(NO_ERROR);
                 return NO_ERROR;
             }
@@ -5587,7 +5572,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             case 1033: {
                 n = data.readUint32();
                 ALOGD("Updating trace flags to 0x%x", n);
-                mTracing.setTraceFlags(n);
+                mLayerTracing.setTraceFlags(n);
                 reply->writeInt32(NO_ERROR);
                 return NO_ERROR;
             }

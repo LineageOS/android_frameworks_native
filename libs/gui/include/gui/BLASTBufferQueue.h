@@ -88,10 +88,10 @@ public:
     void onFrameDequeued(const uint64_t) override;
     void onFrameCancelled(const uint64_t) override;
 
-    virtual void transactionCommittedCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
-                                              const std::vector<SurfaceControlStats>& stats);
-    void transactionCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
-            const std::vector<SurfaceControlStats>& stats);
+    void transactionCommittedCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
+                                      const std::vector<SurfaceControlStats>& stats);
+    virtual void transactionCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
+                                     const std::vector<SurfaceControlStats>& stats);
     void releaseBufferCallback(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
                                std::optional<uint32_t> currentMaxAcquiredBufferCount);
     void setNextTransaction(SurfaceComposerClient::Transaction *t);
