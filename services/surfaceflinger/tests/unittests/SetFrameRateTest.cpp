@@ -33,7 +33,6 @@
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/MockEventThread.h"
-#include "mock/MockMessageQueue.h"
 #include "mock/MockVsyncController.h"
 
 namespace android {
@@ -112,7 +111,6 @@ protected:
     void commitTransaction();
 
     TestableSurfaceFlinger mFlinger;
-    mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
 
     std::vector<sp<Layer>> mLayers;
 };
@@ -125,7 +123,6 @@ SetFrameRateTest::SetFrameRateTest() {
     setupScheduler();
 
     mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
-    mFlinger.mutableEventQueue().reset(mMessageQueue);
 }
 
 void SetFrameRateTest::addChild(sp<Layer> layer, sp<Layer> child) {
@@ -172,7 +169,7 @@ void SetFrameRateTest::setupScheduler() {
 namespace {
 
 TEST_P(SetFrameRateTest, SetAndGet) {
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -183,7 +180,7 @@ TEST_P(SetFrameRateTest, SetAndGet) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetParent) {
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -208,7 +205,7 @@ TEST_P(SetFrameRateTest, SetAndGetParent) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetParentAllVote) {
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -247,7 +244,7 @@ TEST_P(SetFrameRateTest, SetAndGetParentAllVote) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetChild) {
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -272,7 +269,7 @@ TEST_P(SetFrameRateTest, SetAndGetChild) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetChildAllVote) {
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -311,7 +308,7 @@ TEST_P(SetFrameRateTest, SetAndGetChildAllVote) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetChildAddAfterVote) {
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -341,7 +338,7 @@ TEST_P(SetFrameRateTest, SetAndGetChildAddAfterVote) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetChildRemoveAfterVote) {
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -372,7 +369,7 @@ TEST_P(SetFrameRateTest, SetAndGetChildRemoveAfterVote) {
 }
 
 TEST_P(SetFrameRateTest, SetAndGetParentNotInTree) {
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
 
     const auto& layerFactory = GetParam();
 
@@ -467,7 +464,7 @@ TEST_P(SetFrameRateTest, SetOnParentActivatesTree) {
 }
 
 TEST_P(SetFrameRateTest, addChildForParentWithTreeVote) {
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleCommit()).Times(1);
 
     const auto& layerFactory = GetParam();
 

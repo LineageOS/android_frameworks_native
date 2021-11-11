@@ -56,7 +56,6 @@
 #include "Fps.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
-#include "Scheduler/MessageQueue.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
@@ -264,10 +263,6 @@ public:
 
     SurfaceFlingerBE& getBE() { return mBE; }
     const SurfaceFlingerBE& getBE() const { return mBE; }
-
-    // Schedule an asynchronous or synchronous task on the main thread.
-    template <typename F, typename T = std::invoke_result_t<F>>
-    [[nodiscard]] std::future<T> schedule(F&&);
 
     // Schedule commit of transactions on the main thread ahead of the next VSYNC.
     void scheduleCommit(FrameHint);
@@ -1204,13 +1199,8 @@ private:
 
     TransactionCallbackInvoker mTransactionCallbackInvoker;
 
-    // these are thread safe
-    std::unique_ptr<MessageQueue> mEventQueue;
+    // Thread-safe.
     FrameTracker mAnimFrameTracker;
-
-    // protected by mDestroyedLayerLock;
-    mutable Mutex mDestroyedLayerLock;
-    Vector<Layer const *> mDestroyedLayers;
 
     // We maintain a pool of pre-generated texture names to hand out to avoid
     // layer creation needing to run on the main thread (which it would

@@ -27,7 +27,6 @@ public:
     virtual ~DefaultFactory();
 
     std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) override;
-    std::unique_ptr<MessageQueue> createMessageQueue(ICompositor&) override;
     std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
             Fps currentRefreshRate) override;
     sp<SurfaceInterceptor> createSurfaceInterceptor() override;

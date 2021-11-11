@@ -30,7 +30,7 @@
 
 namespace android {
 
-class TestableScheduler : public Scheduler {
+class TestableScheduler : public Scheduler, private ICompositor {
 public:
     TestableScheduler(std::shared_ptr<scheduler::RefreshRateConfigs> configs,
                       ISchedulerCallback& callback)
@@ -42,10 +42,18 @@ public:
                       std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
                       std::shared_ptr<scheduler::RefreshRateConfigs> configs,
                       ISchedulerCallback& callback)
-          : Scheduler(callback, {.useContentDetection = true}) {
+          : Scheduler(*this, callback, {.useContentDetection = true}) {
         mVsyncSchedule = {std::move(vsyncController), std::move(vsyncTracker), nullptr};
         setRefreshRateConfigs(std::move(configs));
+
+        ON_CALL(*this, postMessage).WillByDefault([](sp<MessageHandler>&& handler) {
+            // Execute task to prevent broken promise exception on destruction.
+            handler->handleMessage(Message());
+        });
     }
+
+    MOCK_METHOD(void, scheduleCommit, (), (override));
+    MOCK_METHOD(void, postMessage, (sp<MessageHandler>&&), (override));
 
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
@@ -104,6 +112,12 @@ public:
         mVsyncSchedule.controller.reset();
         mConnections.clear();
     }
+
+private:
+    // ICompositor overrides:
+    bool commit(nsecs_t, int64_t, nsecs_t) override { return false; }
+    void composite(nsecs_t) override {}
+    void sample() override {}
 };
 
 } // namespace android
