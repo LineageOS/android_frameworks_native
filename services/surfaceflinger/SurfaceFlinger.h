@@ -887,8 +887,6 @@ private:
     // region of all screens presenting this layer stack.
     void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
 
-    sp<DisplayDevice> getDisplayWithInputByLayer(Layer* layer) const REQUIRES(mStateLock);
-
     bool isDisplayActiveLocked(const sp<const DisplayDevice>& display) const REQUIRES(mStateLock) {
         return display->getDisplayToken() == mActiveDisplayToken;
     }
