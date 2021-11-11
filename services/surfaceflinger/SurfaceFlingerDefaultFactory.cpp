@@ -64,12 +64,6 @@ std::unique_ptr<scheduler::VsyncConfiguration> DefaultFactory::createVsyncConfig
     }
 }
 
-std::unique_ptr<Scheduler> DefaultFactory::createScheduler(
-        const std::shared_ptr<scheduler::RefreshRateConfigs>& refreshRateConfigs,
-        ISchedulerCallback& callback) {
-    return std::make_unique<Scheduler>(std::move(refreshRateConfigs), callback);
-}
-
 sp<SurfaceInterceptor> DefaultFactory::createSurfaceInterceptor() {
     return new android::impl::SurfaceInterceptor();
 }

@@ -117,16 +117,10 @@ private:
     }
 };
 
-Scheduler::Scheduler(const std::shared_ptr<scheduler::RefreshRateConfigs>& configs,
-                     ISchedulerCallback& callback)
-      : Scheduler(configs, callback,
-                  {.useContentDetection = sysprop::use_content_detection_for_refresh_rate(false)}) {
-}
+Scheduler::Scheduler(ISchedulerCallback& callback, Options options)
+      : mOptions(options), mSchedulerCallback(callback) {}
 
-Scheduler::Scheduler(const std::shared_ptr<scheduler::RefreshRateConfigs>& configs,
-                     ISchedulerCallback& callback, Options options)
-      : Scheduler(createVsyncSchedule(configs->supportsKernelIdleTimer()), configs, callback,
-                  createLayerHistory(), options) {
+void Scheduler::startTimers() {
     using namespace sysprop;
 
     if (const int64_t millis = set_touch_timer_ms(0); millis > 0) {
@@ -147,22 +141,6 @@ Scheduler::Scheduler(const std::shared_ptr<scheduler::RefreshRateConfigs>& confi
     }
 }
 
-Scheduler::Scheduler(VsyncSchedule schedule,
-                     const std::shared_ptr<scheduler::RefreshRateConfigs>& configs,
-                     ISchedulerCallback& schedulerCallback,
-                     std::unique_ptr<LayerHistory> layerHistory, Options options)
-      : mOptions(options),
-        mVsyncSchedule(std::move(schedule)),
-        mLayerHistory(std::move(layerHistory)),
-        mSchedulerCallback(schedulerCallback),
-        mPredictedVsyncTracer(
-                base::GetBoolProperty("debug.sf.show_predicted_vsync", false)
-                        ? std::make_unique<PredictedVsyncTracer>(*mVsyncSchedule.dispatch)
-                        : nullptr) {
-    setRefreshRateConfigs(configs);
-    mSchedulerCallback.setVsyncEnabled(false);
-}
-
 Scheduler::~Scheduler() {
     // Ensure the OneShotTimer threads are joined before we start destroying state.
     mDisplayPowerTimer.reset();
@@ -170,7 +148,7 @@ Scheduler::~Scheduler() {
     mRefreshRateConfigs.reset();
 }
 
-Scheduler::VsyncSchedule Scheduler::createVsyncSchedule(bool supportKernelTimer) {
+void Scheduler::createVsyncSchedule(bool supportKernelTimer) {
     auto clock = std::make_unique<scheduler::SystemClock>();
     auto tracker = createVSyncTracker();
     auto dispatch = createVSyncDispatch(*tracker);
@@ -180,11 +158,11 @@ Scheduler::VsyncSchedule Scheduler::createVsyncSchedule(bool supportKernelTimer)
     auto controller =
             std::make_unique<scheduler::VSyncReactor>(std::move(clock), *tracker, pendingFenceLimit,
                                                       supportKernelTimer);
-    return {std::move(controller), std::move(tracker), std::move(dispatch)};
-}
+    mVsyncSchedule = {std::move(controller), std::move(tracker), std::move(dispatch)};
 
-std::unique_ptr<LayerHistory> Scheduler::createLayerHistory() {
-    return std::make_unique<scheduler::LayerHistory>();
+    if (base::GetBoolProperty("debug.sf.show_predicted_vsync", false)) {
+        mPredictedVsyncTracer = std::make_unique<PredictedVsyncTracer>(*mVsyncSchedule.dispatch);
+    }
 }
 
 std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(
@@ -594,11 +572,11 @@ void Scheduler::registerLayer(Layer* layer) {
     // If the content detection feature is off, we still keep the layer history,
     // since we use it for other features (like Frame Rate API), so layers
     // still need to be registered.
-    mLayerHistory->registerLayer(layer, voteType);
+    mLayerHistory.registerLayer(layer, voteType);
 }
 
 void Scheduler::deregisterLayer(Layer* layer) {
-    mLayerHistory->deregisterLayer(layer);
+    mLayerHistory.deregisterLayer(layer);
 }
 
 void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime,
@@ -608,11 +586,11 @@ void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime,
         if (!mRefreshRateConfigs->canSwitch()) return;
     }
 
-    mLayerHistory->record(layer, presentTime, systemTime(), updateType);
+    mLayerHistory.record(layer, presentTime, systemTime(), updateType);
 }
 
 void Scheduler::setModeChangePending(bool pending) {
-    mLayerHistory->setModeChangePending(pending);
+    mLayerHistory.setModeChangePending(pending);
 }
 
 void Scheduler::chooseRefreshRateForContent() {
@@ -625,7 +603,7 @@ void Scheduler::chooseRefreshRateForContent() {
 
     const auto refreshRateConfigs = holdRefreshRateConfigs();
     scheduler::LayerHistory::Summary summary =
-            mLayerHistory->summarize(*refreshRateConfigs, systemTime());
+            mLayerHistory.summarize(*refreshRateConfigs, systemTime());
     scheduler::RefreshRateConfigs::GlobalSignals consideredSignals;
     DisplayModePtr newMode;
     bool frameRateChanged;
@@ -686,7 +664,7 @@ void Scheduler::setDisplayPowerState(bool normal) {
 
     // Display Power event will boost the refresh rate to performance.
     // Clear Layer History to get fresh FPS detection
-    mLayerHistory->clear();
+    mLayerHistory.clear();
 }
 
 void Scheduler::kernelIdleTimerCallback(TimerState state) {
@@ -730,7 +708,7 @@ void Scheduler::touchTimerCallback(TimerState state) {
     // NOTE: Instead of checking all the layers, we should be checking the layer
     // that is currently on top. b/142507166 will give us this capability.
     if (handleTimerStateChanged(&mFeatures.touch, touch)) {
-        mLayerHistory->clear();
+        mLayerHistory.clear();
     }
     ATRACE_INT("TouchState", static_cast<int>(touch));
 }
@@ -747,7 +725,7 @@ void Scheduler::dump(std::string& result) const {
                   mTouchTimer ? mTouchTimer->dump().c_str() : "off");
     StringAppendF(&result, "+  Content detection: %s %s\n\n",
                   toContentDetectionString(mOptions.useContentDetection),
-                  mLayerHistory ? mLayerHistory->dump().c_str() : "(no layer history)");
+                  mLayerHistory.dump().c_str());
 
     {
         std::lock_guard lock(mFrameRateOverridesLock);
@@ -911,7 +889,7 @@ void Scheduler::onPostComposition(nsecs_t presentTime) {
 }
 
 void Scheduler::onActiveDisplayAreaChanged(uint32_t displayArea) {
-    mLayerHistory->setDisplayArea(displayArea);
+    mLayerHistory.setDisplayArea(displayArea);
 }
 
 void Scheduler::setPreferredRefreshRateForUid(FrameRateOverride frameRateOverride) {

@@ -32,19 +32,20 @@ namespace android {
 
 class TestableScheduler : public Scheduler {
 public:
-    TestableScheduler(const std::shared_ptr<scheduler::RefreshRateConfigs>& refreshRateConfigs,
+    TestableScheduler(std::shared_ptr<scheduler::RefreshRateConfigs> configs,
                       ISchedulerCallback& callback)
           : TestableScheduler(std::make_unique<mock::VsyncController>(),
-                              std::make_unique<mock::VSyncTracker>(), refreshRateConfigs,
+                              std::make_unique<mock::VSyncTracker>(), std::move(configs),
                               callback) {}
 
     TestableScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
                       std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
-                      const std::shared_ptr<scheduler::RefreshRateConfigs>& refreshRateConfigs,
+                      std::shared_ptr<scheduler::RefreshRateConfigs> configs,
                       ISchedulerCallback& callback)
-          : Scheduler({std::move(vsyncController), std::move(vsyncTracker), nullptr},
-                      refreshRateConfigs, callback, createLayerHistory(),
-                      {.useContentDetection = true}) {}
+          : Scheduler(callback, {.useContentDetection = true}) {
+        mVsyncSchedule = {std::move(vsyncController), std::move(vsyncTracker), nullptr};
+        setRefreshRateConfigs(std::move(configs));
+    }
 
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
@@ -58,21 +59,12 @@ public:
     auto& mutablePrimaryHWVsyncEnabled() { return mPrimaryHWVsyncEnabled; }
     auto& mutableHWVsyncAvailable() { return mHWVsyncAvailable; }
 
-    bool hasLayerHistory() const { return static_cast<bool>(mLayerHistory); }
+    auto& mutableLayerHistory() { return mLayerHistory; }
 
-    auto* mutableLayerHistory() { return mLayerHistory.get(); }
-
-    size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {
-        if (!mLayerHistory) return 0;
-        return mutableLayerHistory()->mLayerInfos.size();
-    }
+    size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS { return mLayerHistory.mLayerInfos.size(); }
+    size_t getNumActiveLayers() NO_THREAD_SAFETY_ANALYSIS { return mLayerHistory.mActiveLayersEnd; }
 
     auto refreshRateConfigs() { return holdRefreshRateConfigs(); }
-
-    size_t getNumActiveLayers() NO_THREAD_SAFETY_ANALYSIS {
-        if (!mLayerHistory) return 0;
-        return mutableLayerHistory()->mActiveLayersEnd;
-    }
 
     void replaceTouchTimer(int64_t millis) {
         if (mTouchTimer) {

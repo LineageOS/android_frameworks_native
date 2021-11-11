@@ -3125,8 +3125,19 @@ void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
     mVsyncConfiguration = getFactory().createVsyncConfiguration(currRefreshRate);
     mVsyncModulator = sp<VsyncModulator>::make(mVsyncConfiguration->getCurrentConfigs());
 
-    // start the EventThread
-    mScheduler = getFactory().createScheduler(display->holdRefreshRateConfigs(), *this);
+    const Scheduler::Options options = {
+            .useContentDetection = sysprop::use_content_detection_for_refresh_rate(false)};
+
+    mScheduler = std::make_unique<Scheduler>(static_cast<ISchedulerCallback&>(*this), options);
+    {
+        auto configs = display->holdRefreshRateConfigs();
+        mScheduler->createVsyncSchedule(configs->supportsKernelIdleTimer());
+        mScheduler->setRefreshRateConfigs(std::move(configs));
+    }
+
+    setVsyncEnabled(false);
+    mScheduler->startTimers();
+
     const auto configs = mVsyncConfiguration->getCurrentConfigs();
     const nsecs_t vsyncPeriod = currRefreshRate.getPeriodNsecs();
     mAppConnectionHandle =

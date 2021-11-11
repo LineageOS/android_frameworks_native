@@ -145,9 +145,6 @@ public:
         mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
                                 std::move(eventThread), std::move(sfEventThread), kCallback,
                                 kHasMultipleConfigs);
-
-        // Layer history should be created if there are multiple configs.
-        ASSERT_TRUE(mFlinger.scheduler()->hasLayerHistory());
     }
 
     void setupForceGeometryDirty() {
@@ -844,7 +841,7 @@ struct BaseLayerVariant {
         sp<L> layer = factory();
 
         // Layer should be registered with scheduler.
-        EXPECT_EQ(1, test->mFlinger.scheduler()->layerHistorySize());
+        EXPECT_EQ(1u, test->mFlinger.scheduler()->layerHistorySize());
 
         Mock::VerifyAndClear(test->mComposer);
         Mock::VerifyAndClear(test->mRenderEngine);
@@ -889,7 +886,7 @@ struct BaseLayerVariant {
 
         // Layer should be unregistered with scheduler.
         test->mFlinger.commit();
-        EXPECT_EQ(0, test->mFlinger.scheduler()->layerHistorySize());
+        EXPECT_EQ(0u, test->mFlinger.scheduler()->layerHistorySize());
     }
 };
 

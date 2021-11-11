@@ -75,8 +75,16 @@ public:
     using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
     using ModeEvent = scheduler::RefreshRateConfigEvent;
 
-    Scheduler(const std::shared_ptr<scheduler::RefreshRateConfigs>&, ISchedulerCallback&);
+    struct Options {
+        // Whether to use content detection at all.
+        bool useContentDetection = false;
+    };
+
+    Scheduler(ISchedulerCallback&, Options);
     ~Scheduler();
+
+    void createVsyncSchedule(bool supportKernelIdleTimer);
+    void startTimers();
 
     using ConnectionHandle = scheduler::ConnectionHandle;
     ConnectionHandle createConnection(const char* connectionName, frametimeline::TokenManager*,
@@ -213,26 +221,11 @@ private:
     enum class TimerState { Reset, Expired };
     enum class TouchState { Inactive, Active };
 
-    struct Options {
-        // Whether to use content detection at all.
-        bool useContentDetection;
-    };
-
     struct VsyncSchedule {
         std::unique_ptr<scheduler::VsyncController> controller;
         std::unique_ptr<scheduler::VSyncTracker> tracker;
         std::unique_ptr<scheduler::VSyncDispatch> dispatch;
     };
-
-    // Unlike the testing constructor, this creates the VsyncSchedule, LayerHistory, and timers.
-    Scheduler(const std::shared_ptr<scheduler::RefreshRateConfigs>&, ISchedulerCallback&, Options);
-
-    // Used by tests to inject mocks.
-    Scheduler(VsyncSchedule, const std::shared_ptr<scheduler::RefreshRateConfigs>&,
-              ISchedulerCallback&, std::unique_ptr<LayerHistory>, Options);
-
-    static VsyncSchedule createVsyncSchedule(bool supportKernelIdleTimer);
-    static std::unique_ptr<LayerHistory> createLayerHistory();
 
     // Create a connection on the given EventThread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread>);
@@ -297,7 +290,7 @@ private:
     VsyncSchedule mVsyncSchedule;
 
     // Used to choose refresh rate if content detection is enabled.
-    std::unique_ptr<LayerHistory> mLayerHistory;
+    LayerHistory mLayerHistory;
 
     // Timer used to monitor touch events.
     std::optional<scheduler::OneShotTimer> mTouchTimer;
@@ -338,7 +331,7 @@ private:
             GUARDED_BY(mVsyncTimelineLock);
     static constexpr std::chrono::nanoseconds MAX_VSYNC_APPLIED_TIME = 200ms;
 
-    const std::unique_ptr<PredictedVsyncTracer> mPredictedVsyncTracer;
+    std::unique_ptr<PredictedVsyncTracer> mPredictedVsyncTracer;
 
     // The frame rate override lists need their own mutex as they are being read
     // by SurfaceFlinger, Scheduler and EventThread (as a callback) to prevent deadlocks
