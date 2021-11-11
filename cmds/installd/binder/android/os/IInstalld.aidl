@@ -86,8 +86,7 @@ interface IInstalld {
     void destroyProfileSnapshot(@utf8InCpp String packageName, @utf8InCpp String profileName);
 
     void rmPackageDir(@utf8InCpp String packageDir);
-    void freeCache(@nullable @utf8InCpp String uuid, long targetFreeBytes,
-            long cacheReservedBytes, int flags);
+    void freeCache(@nullable @utf8InCpp String uuid, long targetFreeBytes, int flags);
     void linkNativeLibraryDirectory(@nullable @utf8InCpp String uuid,
             @utf8InCpp String packageName, @utf8InCpp String nativeLibPath32, int userId);
     void createOatDir(@utf8InCpp String oatDir, @utf8InCpp String instructionSet);
