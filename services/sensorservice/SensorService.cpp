@@ -164,7 +164,6 @@ void SensorService::onFirstRef() {
         sensor_t const* list;
         ssize_t count = dev.getSensorList(&list);
         if (count > 0) {
-            ssize_t orientationIndex = -1;
             bool hasGyro = false, hasAccel = false, hasMag = false;
             uint32_t virtualSensorsNeeds =
                     (1<<SENSOR_TYPE_GRAVITY) |
@@ -183,9 +182,6 @@ void SensorService::onFirstRef() {
                     case SENSOR_TYPE_MAGNETIC_FIELD:
                         hasMag = true;
                         break;
-                    case SENSOR_TYPE_ORIENTATION:
-                        orientationIndex = i;
-                        break;
                     case SENSOR_TYPE_GYROSCOPE:
                     case SENSOR_TYPE_GYROSCOPE_UNCALIBRATED:
                         hasGyro = true;
@@ -200,6 +196,8 @@ void SensorService::onFirstRef() {
                         } else {
                             virtualSensorsNeeds &= ~(1<<list[i].type);
                         }
+                        break;
+                    default:
                         break;
                 }
                 if (useThisSensor) {
