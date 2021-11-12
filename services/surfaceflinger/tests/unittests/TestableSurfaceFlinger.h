@@ -73,18 +73,9 @@ public:
         return nullptr;
     }
 
-    std::unique_ptr<MessageQueue> createMessageQueue(ICompositor& compositor) override {
-        return std::make_unique<android::impl::MessageQueue>(compositor);
-    }
-
     std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
             Fps /*currentRefreshRate*/) override {
         return std::make_unique<scheduler::FakePhaseOffsets>();
-    }
-
-    std::unique_ptr<Scheduler> createScheduler(
-            const std::shared_ptr<scheduler::RefreshRateConfigs>&, ISchedulerCallback&) override {
-        return nullptr;
     }
 
     sp<SurfaceInterceptor> createSurfaceInterceptor() override {
@@ -431,7 +422,6 @@ public:
     auto& mutableDisplayColorSetting() { return mFlinger->mDisplayColorSetting; }
     auto& mutableDisplays() { return mFlinger->mDisplays; }
     auto& mutableDrawingState() { return mFlinger->mDrawingState; }
-    auto& mutableEventQueue() { return mFlinger->mEventQueue; }
     auto& mutableGeometryDirty() { return mFlinger->mGeometryDirty; }
     auto& mutableInterceptor() { return mFlinger->mInterceptor; }
     auto& mutableMainThreadId() { return mFlinger->mMainThreadId; }
@@ -460,7 +450,6 @@ public:
         mutableDisplays().clear();
         mutableCurrentState().displays.clear();
         mutableDrawingState().displays.clear();
-        mutableEventQueue().reset();
         mutableInterceptor().clear();
         mFlinger->mScheduler.reset();
         mFlinger->mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());

@@ -273,7 +273,7 @@ struct DisplayPowerCase {
     }
 
     static void setupRepaintEverythingCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mMessageQueue, scheduleCommit()).Times(1);
+        EXPECT_CALL(*test->mFlinger.scheduler(), scheduleFrame()).Times(1);
     }
 
     static void setupSurfaceInterceptorCallExpectations(DisplayTransactionTest* test,

@@ -41,7 +41,7 @@ TEST_F(DestroyDisplayTest, destroyDisplayClearsCurrentStateForDisplay) {
     EXPECT_CALL(*mSurfaceInterceptor, saveDisplayDeletion(_)).Times(1);
 
     // Destroying the display commits a display transaction.
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation

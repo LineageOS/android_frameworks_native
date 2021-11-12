@@ -45,7 +45,6 @@
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockPowerAdvisor.h"
 #include "mock/MockEventThread.h"
-#include "mock/MockMessageQueue.h"
 #include "mock/MockTimeStats.h"
 #include "mock/MockVsyncController.h"
 #include "mock/system/window/MockNativeWindow.h"
@@ -95,7 +94,6 @@ public:
                 ::testing::UnitTest::GetInstance()->current_test_info();
         ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-        mFlinger.mutableEventQueue().reset(mMessageQueue);
         setupScheduler();
 
         EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_WIDTH, _))
@@ -145,9 +143,6 @@ public:
         mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
                                 std::move(eventThread), std::move(sfEventThread), kCallback,
                                 kHasMultipleConfigs);
-
-        // Layer history should be created if there are multiple configs.
-        ASSERT_TRUE(mFlinger.scheduler()->hasLayerHistory());
     }
 
     void setupForceGeometryDirty() {
@@ -186,7 +181,6 @@ public:
     Hwc2::mock::Composer* mComposer = nullptr;
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
     mock::TimeStats* mTimeStats = new mock::TimeStats();
-    mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
     Hwc2::mock::PowerAdvisor mPowerAdvisor;
 
     sp<Fence> mClientTargetAcquireFence = Fence::NO_FENCE;
@@ -542,9 +536,9 @@ struct BaseLayerProperties {
         ASSERT_EQ(NO_ERROR, err);
         Mock::VerifyAndClear(test->mRenderEngine);
 
-        EXPECT_CALL(*test->mMessageQueue, scheduleCommit()).Times(1);
+        EXPECT_CALL(*test->mFlinger.scheduler(), scheduleFrame()).Times(1);
         enqueueBuffer(test, layer);
-        Mock::VerifyAndClearExpectations(test->mMessageQueue);
+        Mock::VerifyAndClearExpectations(test->mFlinger.scheduler());
 
         bool ignoredRecomputeVisibleRegions;
         layer->latchBuffer(ignoredRecomputeVisibleRegions, 0, 0);
@@ -839,16 +833,16 @@ template <typename LayerProperties>
 struct BaseLayerVariant {
     template <typename L, typename F>
     static sp<L> createLayerWithFactory(CompositionTest* test, F factory) {
-        EXPECT_CALL(*test->mMessageQueue, postMessage(_)).Times(0);
+        EXPECT_CALL(*test->mFlinger.scheduler(), postMessage(_)).Times(0);
 
         sp<L> layer = factory();
 
         // Layer should be registered with scheduler.
-        EXPECT_EQ(1, test->mFlinger.scheduler()->layerHistorySize());
+        EXPECT_EQ(1u, test->mFlinger.scheduler()->layerHistorySize());
 
         Mock::VerifyAndClear(test->mComposer);
         Mock::VerifyAndClear(test->mRenderEngine);
-        Mock::VerifyAndClearExpectations(test->mMessageQueue);
+        Mock::VerifyAndClearExpectations(test->mFlinger.scheduler());
 
         initLayerDrawingStateAndComputeBounds(test, layer);
 
@@ -889,7 +883,7 @@ struct BaseLayerVariant {
 
         // Layer should be unregistered with scheduler.
         test->mFlinger.commit();
-        EXPECT_EQ(0, test->mFlinger.scheduler()->layerHistorySize());
+        EXPECT_EQ(0u, test->mFlinger.scheduler()->layerHistorySize());
     }
 };
 

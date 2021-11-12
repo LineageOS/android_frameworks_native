@@ -47,7 +47,6 @@
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockPowerAdvisor.h"
 #include "mock/MockEventThread.h"
-#include "mock/MockMessageQueue.h"
 #include "mock/MockNativeWindowSurface.h"
 #include "mock/MockSchedulerCallback.h"
 #include "mock/MockSurfaceInterceptor.h"
@@ -118,7 +117,6 @@ public:
     // to keep a reference to them for use in setting up call expectations.
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
     Hwc2::mock::Composer* mComposer = nullptr;
-    mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
     sp<mock::SurfaceInterceptor> mSurfaceInterceptor = new mock::SurfaceInterceptor;
 
     mock::VsyncController* mVsyncController = new mock::VsyncController;

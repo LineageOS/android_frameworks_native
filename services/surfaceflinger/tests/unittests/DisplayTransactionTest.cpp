@@ -50,7 +50,6 @@ DisplayTransactionTest::DisplayTransactionTest() {
     });
 
     injectMockScheduler();
-    mFlinger.mutableEventQueue().reset(mMessageQueue);
     mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
     mFlinger.mutableInterceptor() = mSurfaceInterceptor;
 

@@ -71,8 +71,7 @@ public:
     virtual void setInjector(sp<EventThreadConnection>) = 0;
     virtual void waitMessage() = 0;
     virtual void postMessage(sp<MessageHandler>&&) = 0;
-    virtual void scheduleCommit() = 0;
-    virtual void scheduleComposite() = 0;
+    virtual void scheduleFrame() = 0;
 
     using Clock = std::chrono::steady_clock;
     virtual std::optional<Clock::time_point> getScheduledFrameTime() const = 0;
@@ -83,11 +82,8 @@ namespace impl {
 class MessageQueue : public android::MessageQueue {
 protected:
     class Handler : public MessageHandler {
-        static constexpr uint32_t kCommit = 0b1;
-        static constexpr uint32_t kComposite = 0b10;
-
         MessageQueue& mQueue;
-        std::atomic<uint32_t> mEventMask = 0;
+        std::atomic_bool mFramePending = false;
         std::atomic<int64_t> mVsyncId = 0;
         std::atomic<nsecs_t> mExpectedVsyncTime = 0;
 
@@ -97,8 +93,7 @@ protected:
 
         bool isFramePending() const;
 
-        virtual void dispatchCommit(int64_t vsyncId, nsecs_t expectedVsyncTime);
-        void dispatchComposite();
+        virtual void dispatchFrame(int64_t vsyncId, nsecs_t expectedVsyncTime);
     };
 
     friend class Handler;
@@ -147,8 +142,7 @@ public:
     void waitMessage() override;
     void postMessage(sp<MessageHandler>&&) override;
 
-    void scheduleCommit() override;
-    void scheduleComposite() override;
+    void scheduleFrame() override;
 
     std::optional<Clock::time_point> getScheduledFrameTime() const override;
 };

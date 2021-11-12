@@ -59,10 +59,8 @@ protected:
 
     LayerHistoryTest() { mFlinger.resetScheduler(mScheduler); }
 
-    void SetUp() override { ASSERT_TRUE(mScheduler->hasLayerHistory()); }
-
-    LayerHistory& history() { return *mScheduler->mutableLayerHistory(); }
-    const LayerHistory& history() const { return *mScheduler->mutableLayerHistory(); }
+    LayerHistory& history() { return mScheduler->mutableLayerHistory(); }
+    const LayerHistory& history() const { return mScheduler->mutableLayerHistory(); }
 
     LayerHistory::Summary summarizeLayerHistory(nsecs_t now) {
         return history().summarize(*mScheduler->refreshRateConfigs(), now);

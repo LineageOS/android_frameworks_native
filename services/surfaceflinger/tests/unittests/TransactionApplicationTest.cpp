@@ -29,7 +29,6 @@
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/MockEventThread.h"
-#include "mock/MockMessageQueue.h"
 #include "mock/MockVsyncController.h"
 
 namespace android {
@@ -46,7 +45,6 @@ public:
                 ::testing::UnitTest::GetInstance()->current_test_info();
         ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-        mFlinger.mutableEventQueue().reset(mMessageQueue);
         setupScheduler();
     }
 
@@ -92,7 +90,6 @@ public:
 
     std::unique_ptr<mock::EventThread> mEventThread = std::make_unique<mock::EventThread>();
 
-    mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
     mock::VsyncController* mVsyncController = new mock::VsyncController();
     mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker();
     mock::MockFence* mFenceUnsignaled = new mock::MockFence();
@@ -146,7 +143,7 @@ public:
 
     void NotPlacedOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-        EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+        EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
         TransactionInfo transaction;
         setupSingle(transaction, flags, syncInputWindows,
                     /*desiredPresentTime*/ systemTime(), /*isAutoTimestamp*/ true,
@@ -176,7 +173,7 @@ public:
 
     void PlaceOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-        EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+        EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
         // first check will see desired present time has not passed,
         // but afterwards it will look like the desired present time has passed
@@ -207,9 +204,9 @@ public:
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
         nsecs_t time = systemTime();
         if (!syncInputWindows) {
-            EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(2);
+            EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(2);
         } else {
-            EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+            EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
         }
         // transaction that should go on the pending thread
         TransactionInfo transactionA;
@@ -454,7 +451,7 @@ public:
 
 TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
     ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     TransactionInfo transactionA; // transaction to go on pending queue
     setupSingle(transactionA, /*flags*/ 0, /*syncInputWindows*/ false,
