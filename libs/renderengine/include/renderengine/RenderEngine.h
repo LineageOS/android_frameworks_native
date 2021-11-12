@@ -99,7 +99,7 @@ public:
         SKIA_GL_THREADED = 4,
     };
 
-    static std::unique_ptr<RenderEngine> create(const RenderEngineCreationArgs& args);
+    static std::unique_ptr<RenderEngine> create(RenderEngineCreationArgs args);
 
     virtual ~RenderEngine() = 0;
 
