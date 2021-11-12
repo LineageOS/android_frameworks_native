@@ -174,6 +174,7 @@ cc_library {
         "-Wreorder-init-list",
         "-DANDROID_BASE_UNIQUE_FD_DISABLE_IMPLICIT_CONVERSION",
         "-DANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION",
+        "-DBINDER_WITH_KERNEL_IPC",
     ],
     product_variables: {
         binder32bit: {
