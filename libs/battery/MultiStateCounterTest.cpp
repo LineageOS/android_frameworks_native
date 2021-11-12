@@ -176,7 +176,7 @@ TEST_F(MultiStateCounterTest, timeAdjustment_updateValue) {
     testCounter.setState(0, 0);
     testCounter.updateValue(6.0, 2000);
 
-    // Time moves back. The negative delta from 2000 to 1000 is ignored
+    // Time moves back. The delta over the negative interval from 2000 to 1000 is ignored
     testCounter.updateValue(8.0, 1000);
     double delta = testCounter.updateValue(11.0, 3000);
 
@@ -186,6 +186,27 @@ TEST_F(MultiStateCounterTest, timeAdjustment_updateValue) {
     EXPECT_DOUBLE_EQ(9.0, testCounter.getCount(0));
 
     //  11.0-8.0
+    EXPECT_DOUBLE_EQ(3.0, delta);
+}
+
+TEST_F(MultiStateCounterTest, updateValue_nonmonotonic) {
+    DoubleMultiStateCounter testCounter(2, 0);
+    testCounter.updateValue(0, 0);
+    testCounter.setState(0, 0);
+    testCounter.updateValue(6.0, 2000);
+
+    // Value goes down. The negative delta from 6.0 to 4.0 is ignored
+    testCounter.updateValue(4.0, 3000);
+
+    // Value goes up again. The positive delta from 4.0 to 7.0 is accumulated.
+    double delta = testCounter.updateValue(7.0, 4000);
+
+    // The total accumulated count is:
+    //  6.0          // For the period 0-2000
+    //  +(7.0-4.0)   // For the period 3000-4000
+    EXPECT_DOUBLE_EQ(9.0, testCounter.getCount(0));
+
+    //  7.0-4.0
     EXPECT_DOUBLE_EQ(3.0, delta);
 }
 

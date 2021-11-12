@@ -39,7 +39,7 @@ TEST_F(HotplugTest, enqueuesEventsForDisplayTransaction) {
     // Call Expectations
 
     // We expect a scheduled commit for the display transaction.
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation
@@ -86,7 +86,7 @@ TEST_F(HotplugTest, processesEnqueuedEventsIfCalledOnMainThread) {
     // Call Expectations
 
     // We expect a scheduled commit for the display transaction.
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation

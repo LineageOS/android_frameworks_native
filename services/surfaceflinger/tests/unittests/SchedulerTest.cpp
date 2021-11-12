@@ -68,14 +68,6 @@ protected:
             std::make_shared<scheduler::RefreshRateConfigs>(DisplayModes{mode60}, mode60->getId());
 
     mock::SchedulerCallback mSchedulerCallback;
-
-    // The scheduler should initially disable VSYNC.
-    struct ExpectDisableVsync {
-        ExpectDisableVsync(mock::SchedulerCallback& callback) {
-            EXPECT_CALL(callback, setVsyncEnabled(false)).Times(1);
-        }
-    } mExpectDisableVsync{mSchedulerCallback};
-
     TestableScheduler* mScheduler = new TestableScheduler{mConfigs, mSchedulerCallback};
 
     Scheduler::ConnectionHandle mConnectionHandle;
@@ -166,9 +158,9 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSup
     sp<mock::MockLayer> layer = sp<mock::MockLayer>::make(mFlinger.flinger());
 
     // recordLayerHistory should be a noop
-    ASSERT_EQ(static_cast<size_t>(0), mScheduler->getNumActiveLayers());
+    ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
     mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
-    ASSERT_EQ(static_cast<size_t>(0), mScheduler->getNumActiveLayers());
+    ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
 
     constexpr bool kPowerStateNormal = true;
     mScheduler->setDisplayPowerState(kPowerStateNormal);
@@ -181,17 +173,17 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSup
 }
 
 TEST_F(SchedulerTest, updateDisplayModes) {
-    ASSERT_EQ(static_cast<size_t>(0), mScheduler->layerHistorySize());
+    ASSERT_EQ(0u, mScheduler->layerHistorySize());
     sp<mock::MockLayer> layer = sp<mock::MockLayer>::make(mFlinger.flinger());
-    ASSERT_EQ(static_cast<size_t>(1), mScheduler->layerHistorySize());
+    ASSERT_EQ(1u, mScheduler->layerHistorySize());
 
     mScheduler->setRefreshRateConfigs(
             std::make_shared<scheduler::RefreshRateConfigs>(DisplayModes{mode60, mode120},
                                                             mode60->getId()));
 
-    ASSERT_EQ(static_cast<size_t>(0), mScheduler->getNumActiveLayers());
+    ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
     mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
-    ASSERT_EQ(static_cast<size_t>(1), mScheduler->getNumActiveLayers());
+    ASSERT_EQ(1u, mScheduler->getNumActiveLayers());
 }
 
 TEST_F(SchedulerTest, testDispatchCachedReportedMode) {

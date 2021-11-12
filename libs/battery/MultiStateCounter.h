@@ -195,10 +195,18 @@ const T& MultiStateCounter<T>::updateValue(const T& value, time_t timestamp) {
                         << ", which is lower than the previous value " << valueToString(lastValue)
                         << "\n";
                     ALOGE("%s", str.str().c_str());
+
+                    for (int i = 0; i < stateCount; i++) {
+                        states[i].timeInStateSinceUpdate = 0;
+                    }
                 }
             } else if (timestamp < lastUpdateTimestamp) {
                 ALOGE("updateValue is called with an earlier timestamp: %lu, previous: %lu\n",
                       (unsigned long)timestamp, (unsigned long)lastUpdateTimestamp);
+
+                for (int i = 0; i < stateCount; i++) {
+                    states[i].timeInStateSinceUpdate = 0;
+                }
             }
         }
     }

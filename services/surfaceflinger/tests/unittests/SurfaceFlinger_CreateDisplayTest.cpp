@@ -52,7 +52,7 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForNonsecureDisplay) {
     // Cleanup conditions
 
     // Creating the display commits a display transaction.
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 }
 
 TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForSecureDisplay) {
@@ -87,7 +87,7 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForSecureDisplay) {
     // Cleanup conditions
 
     // Creating the display commits a display transaction.
-    EXPECT_CALL(*mMessageQueue, scheduleCommit()).Times(1);
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 }
 
 } // namespace

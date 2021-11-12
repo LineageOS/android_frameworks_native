@@ -30,41 +30,30 @@
 
 namespace android::impl {
 
-void MessageQueue::Handler::dispatchComposite() {
-    if ((mEventMask.fetch_or(kComposite) & kComposite) == 0) {
-        mQueue.mLooper->sendMessage(this, Message(kComposite));
-    }
-}
-
-void MessageQueue::Handler::dispatchCommit(int64_t vsyncId, nsecs_t expectedVsyncTime) {
-    if ((mEventMask.fetch_or(kCommit) & kCommit) == 0) {
+void MessageQueue::Handler::dispatchFrame(int64_t vsyncId, nsecs_t expectedVsyncTime) {
+    if (!mFramePending.exchange(true)) {
         mVsyncId = vsyncId;
         mExpectedVsyncTime = expectedVsyncTime;
-        mQueue.mLooper->sendMessage(this, Message(kCommit));
+        mQueue.mLooper->sendMessage(this, Message());
     }
 }
 
 bool MessageQueue::Handler::isFramePending() const {
-    constexpr auto kPendingMask = kCommit | kComposite;
-    return (mEventMask.load() & kPendingMask) != 0;
+    return mFramePending.load();
 }
 
-void MessageQueue::Handler::handleMessage(const Message& message) {
+void MessageQueue::Handler::handleMessage(const Message&) {
+    mFramePending.store(false);
+
     const nsecs_t frameTime = systemTime();
-    switch (message.what) {
-        case kCommit:
-            mEventMask.fetch_and(~kCommit);
-            if (!mQueue.mCompositor.commit(frameTime, mVsyncId, mExpectedVsyncTime)) {
-                return;
-            }
-            // Composite immediately, rather than after pending tasks through scheduleComposite.
-            [[fallthrough]];
-        case kComposite:
-            mEventMask.fetch_and(~kComposite);
-            mQueue.mCompositor.composite(frameTime);
-            mQueue.mCompositor.sample();
-            break;
+    auto& compositor = mQueue.mCompositor;
+
+    if (!compositor.commit(frameTime, mVsyncId, mExpectedVsyncTime)) {
+        return;
     }
+
+    compositor.composite(frameTime);
+    compositor.sample();
 }
 
 MessageQueue::MessageQueue(ICompositor& compositor)
@@ -122,7 +111,7 @@ void MessageQueue::vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, ns
     const auto vsyncId = mVsync.tokenManager->generateTokenForPredictions(
             {targetWakeupTime, readyTime, vsyncTime});
 
-    mHandler->dispatchCommit(vsyncId, vsyncTime);
+    mHandler->dispatchFrame(vsyncId, vsyncTime);
 }
 
 void MessageQueue::initVsync(scheduler::VSyncDispatch& dispatch,
@@ -176,7 +165,7 @@ void MessageQueue::postMessage(sp<MessageHandler>&& handler) {
     mLooper->sendMessage(handler, Message());
 }
 
-void MessageQueue::scheduleCommit() {
+void MessageQueue::scheduleFrame() {
     ATRACE_CALL();
 
     {
@@ -195,18 +184,14 @@ void MessageQueue::scheduleCommit() {
                                            .earliestVsync = mVsync.lastCallbackTime.count()});
 }
 
-void MessageQueue::scheduleComposite() {
-    mHandler->dispatchComposite();
-}
-
 void MessageQueue::injectorCallback() {
     ssize_t n;
     DisplayEventReceiver::Event buffer[8];
     while ((n = DisplayEventReceiver::getEvents(&mInjector.tube, buffer, 8)) > 0) {
         for (int i = 0; i < n; i++) {
             if (buffer[i].header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC) {
-                mHandler->dispatchCommit(buffer[i].vsync.vsyncId,
-                                         buffer[i].vsync.expectedVSyncTimestamp);
+                auto& vsync = buffer[i].vsync;
+                mHandler->dispatchFrame(vsync.vsyncId, vsync.expectedVSyncTimestamp);
                 break;
             }
         }

@@ -138,7 +138,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
         mSize(width, height),
         mRequestedSize(mSize),
         mFormat(format),
-        mNextTransaction(nullptr) {
+        mSyncTransaction(nullptr) {
     createBufferQueue(&mProducer, &mConsumer);
     // since the adapter is in the client process, set dequeue timeout
     // explicitly so that dequeueBuffer will block
@@ -290,7 +290,7 @@ void BLASTBufferQueue::transactionCommittedCallback(nsecs_t /*latchTime*/,
                 // case, we don't actually want to flush the frames in between since they will get
                 // processed and merged with the sync transaction and released earlier than if they
                 // were sent to SF
-                if (mWaitForTransactionCallback && mNextTransaction == nullptr &&
+                if (mWaitForTransactionCallback && mSyncTransaction == nullptr &&
                     currFrameNumber >= mLastAcquiredFrameNumber) {
                     mWaitForTransactionCallback = false;
                     flushShadowQueue();
@@ -420,7 +420,7 @@ void BLASTBufferQueue::releaseBufferCallback(
         mBufferItemConsumer->releaseBuffer(it->second, releaseBuffer.releaseFence);
         mSubmitted.erase(it);
         // Don't process the transactions here if mWaitForTransactionCallback is set. Instead, let
-        // onFrameAvailable handle processing them since it will merge with the nextTransaction.
+        // onFrameAvailable handle processing them since it will merge with the syncTransaction.
         if (!mWaitForTransactionCallback) {
             acquireNextBufferLocked(std::nullopt);
         }
@@ -593,15 +593,15 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     ATRACE_CALL();
     std::unique_lock _lock{mMutex};
 
-    const bool nextTransactionSet = mNextTransaction != nullptr;
-    BQA_LOGV("onFrameAvailable-start nextTransactionSet=%s", boolToString(nextTransactionSet));
-    if (nextTransactionSet) {
+    const bool syncTransactionSet = mSyncTransaction != nullptr;
+    BQA_LOGV("onFrameAvailable-start syncTransactionSet=%s", boolToString(syncTransactionSet));
+    if (syncTransactionSet) {
         if (mWaitForTransactionCallback) {
             // We are waiting on a previous sync's transaction callback so allow another sync
             // transaction to proceed.
             //
             // We need to first flush out the transactions that were in between the two syncs.
-            // We do this by merging them into mNextTransaction so any buffer merging will get
+            // We do this by merging them into mSyncTransaction so any buffer merging will get
             // a release callback invoked. The release callback will be async so we need to wait
             // on max acquired to make sure we have the capacity to acquire another buffer.
             if (maxBuffersAcquired(false /* includeExtraAcquire */)) {
@@ -625,12 +625,12 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     ATRACE_INT(mQueuedBufferTrace.c_str(),
                mNumFrameAvailable + mNumAcquired - mPendingRelease.size());
 
-    BQA_LOGV("onFrameAvailable framenumber=%" PRIu64 " nextTransactionSet=%s", item.mFrameNumber,
-             boolToString(nextTransactionSet));
+    BQA_LOGV("onFrameAvailable framenumber=%" PRIu64 " syncTransactionSet=%s", item.mFrameNumber,
+             boolToString(syncTransactionSet));
 
-    if (nextTransactionSet) {
-        acquireNextBufferLocked(std::move(mNextTransaction));
-        mNextTransaction = nullptr;
+    if (syncTransactionSet) {
+        acquireNextBufferLocked(std::move(mSyncTransaction));
+        mSyncTransaction = nullptr;
         mWaitForTransactionCallback = true;
     } else if (!mWaitForTransactionCallback) {
         acquireNextBufferLocked(std::nullopt);
@@ -652,9 +652,9 @@ void BLASTBufferQueue::onFrameCancelled(const uint64_t bufferId) {
     mDequeueTimestamps.erase(bufferId);
 };
 
-void BLASTBufferQueue::setNextTransaction(SurfaceComposerClient::Transaction* t) {
+void BLASTBufferQueue::setSyncTransaction(SurfaceComposerClient::Transaction* t) {
     std::lock_guard _lock{mMutex};
-    mNextTransaction = t;
+    mSyncTransaction = t;
 }
 
 bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {

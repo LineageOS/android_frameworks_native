@@ -30,21 +30,30 @@
 
 namespace android {
 
-class TestableScheduler : public Scheduler {
+class TestableScheduler : public Scheduler, private ICompositor {
 public:
-    TestableScheduler(const std::shared_ptr<scheduler::RefreshRateConfigs>& refreshRateConfigs,
+    TestableScheduler(std::shared_ptr<scheduler::RefreshRateConfigs> configs,
                       ISchedulerCallback& callback)
           : TestableScheduler(std::make_unique<mock::VsyncController>(),
-                              std::make_unique<mock::VSyncTracker>(), refreshRateConfigs,
+                              std::make_unique<mock::VSyncTracker>(), std::move(configs),
                               callback) {}
 
     TestableScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
                       std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
-                      const std::shared_ptr<scheduler::RefreshRateConfigs>& refreshRateConfigs,
+                      std::shared_ptr<scheduler::RefreshRateConfigs> configs,
                       ISchedulerCallback& callback)
-          : Scheduler({std::move(vsyncController), std::move(vsyncTracker), nullptr},
-                      refreshRateConfigs, callback, createLayerHistory(),
-                      {.useContentDetection = true}) {}
+          : Scheduler(*this, callback, {.useContentDetection = true}) {
+        mVsyncSchedule = {std::move(vsyncController), std::move(vsyncTracker), nullptr};
+        setRefreshRateConfigs(std::move(configs));
+
+        ON_CALL(*this, postMessage).WillByDefault([](sp<MessageHandler>&& handler) {
+            // Execute task to prevent broken promise exception on destruction.
+            handler->handleMessage(Message());
+        });
+    }
+
+    MOCK_METHOD(void, scheduleFrame, (), (override));
+    MOCK_METHOD(void, postMessage, (sp<MessageHandler>&&), (override));
 
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
@@ -58,21 +67,12 @@ public:
     auto& mutablePrimaryHWVsyncEnabled() { return mPrimaryHWVsyncEnabled; }
     auto& mutableHWVsyncAvailable() { return mHWVsyncAvailable; }
 
-    bool hasLayerHistory() const { return static_cast<bool>(mLayerHistory); }
+    auto& mutableLayerHistory() { return mLayerHistory; }
 
-    auto* mutableLayerHistory() { return mLayerHistory.get(); }
-
-    size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {
-        if (!mLayerHistory) return 0;
-        return mutableLayerHistory()->mLayerInfos.size();
-    }
+    size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS { return mLayerHistory.mLayerInfos.size(); }
+    size_t getNumActiveLayers() NO_THREAD_SAFETY_ANALYSIS { return mLayerHistory.mActiveLayersEnd; }
 
     auto refreshRateConfigs() { return holdRefreshRateConfigs(); }
-
-    size_t getNumActiveLayers() NO_THREAD_SAFETY_ANALYSIS {
-        if (!mLayerHistory) return 0;
-        return mutableLayerHistory()->mActiveLayersEnd;
-    }
 
     void replaceTouchTimer(int64_t millis) {
         if (mTouchTimer) {
@@ -112,6 +112,12 @@ public:
         mVsyncSchedule.controller.reset();
         mConnections.clear();
     }
+
+private:
+    // ICompositor overrides:
+    bool commit(nsecs_t, int64_t, nsecs_t) override { return false; }
+    void composite(nsecs_t) override {}
+    void sample() override {}
 };
 
 } // namespace android

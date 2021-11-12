@@ -94,7 +94,7 @@ public:
                                      const std::vector<SurfaceControlStats>& stats);
     void releaseBufferCallback(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
                                std::optional<uint32_t> currentMaxAcquiredBufferCount);
-    void setNextTransaction(SurfaceComposerClient::Transaction *t);
+    void setSyncTransaction(SurfaceComposerClient::Transaction* t);
     void mergeWithNextTransaction(SurfaceComposerClient::Transaction* t, uint64_t frameNumber);
     void applyPendingTransactions(uint64_t frameNumber);
 
@@ -208,7 +208,7 @@ private:
     sp<IGraphicBufferProducer> mProducer;
     sp<BLASTBufferItemConsumer> mBufferItemConsumer;
 
-    SurfaceComposerClient::Transaction* mNextTransaction GUARDED_BY(mMutex);
+    SurfaceComposerClient::Transaction* mSyncTransaction GUARDED_BY(mMutex);
     std::vector<std::tuple<uint64_t /* framenumber */, SurfaceComposerClient::Transaction>>
             mPendingTransactions GUARDED_BY(mMutex);
 
