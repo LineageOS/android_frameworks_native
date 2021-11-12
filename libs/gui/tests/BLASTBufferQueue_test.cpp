@@ -109,8 +109,8 @@ public:
         mBlastBufferQueueAdapter->update(sc, width, height, PIXEL_FORMAT_RGBA_8888);
     }
 
-    void setSyncTransaction(Transaction* sync) {
-        mBlastBufferQueueAdapter->setSyncTransaction(sync);
+    void setSyncTransaction(Transaction* next, bool acquireSingleBuffer = true) {
+        mBlastBufferQueueAdapter->setSyncTransaction(next, acquireSingleBuffer);
     }
 
     int getWidth() { return mBlastBufferQueueAdapter->mSize.width; }
@@ -141,6 +141,11 @@ public:
 
     void waitForCallback(int64_t frameNumber) {
         mBlastBufferQueueAdapter->waitForCallback(frameNumber);
+    }
+
+    void validateNumFramesSubmitted(int64_t numFramesSubmitted) {
+        std::unique_lock lock{mBlastBufferQueueAdapter->mMutex};
+        ASSERT_EQ(numFramesSubmitted, mBlastBufferQueueAdapter->mSubmitted.size());
     }
 
 private:
@@ -298,7 +303,7 @@ protected:
         auto ret = igbp->dequeueBuffer(&slot, &fence, mDisplayWidth, mDisplayHeight,
                                        PIXEL_FORMAT_RGBA_8888, GRALLOC_USAGE_SW_WRITE_OFTEN,
                                        nullptr, nullptr);
-        ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, ret);
+        ASSERT_TRUE(ret == IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION || ret == NO_ERROR);
         ASSERT_EQ(OK, igbp->requestBuffer(slot, &buf));
 
         uint32_t* bufData;
@@ -818,7 +823,7 @@ TEST_F(BLASTBufferQueueTest, SyncThenNoSync) {
     CallbackData callbackData;
     transactionCallback.getCallbackData(&callbackData);
 
-    // capture screen and verify that it is red
+    // capture screen and verify that it is green
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(0, 255, 0, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
@@ -1023,6 +1028,45 @@ TEST_F(BLASTBufferQueueTest, RunOutOfBuffersWaitingOnSF) {
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
+}
+
+TEST_F(BLASTBufferQueueTest, SetSyncTransactionAcquireMultipleBuffers) {
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
+
+    Transaction next;
+    adapter.setSyncTransaction(&next, false);
+    queueBuffer(igbProducer, 0, 255, 0, 0);
+    queueBuffer(igbProducer, 0, 0, 255, 0);
+    // There should only be one frame submitted since the first frame will be released.
+    adapter.validateNumFramesSubmitted(1);
+    adapter.setSyncTransaction(nullptr);
+
+    // queue non sync buffer, so this one should get blocked
+    // Add a present delay to allow the first screenshot to get taken.
+    nsecs_t presentTimeDelay = std::chrono::nanoseconds(500ms).count();
+    queueBuffer(igbProducer, 255, 0, 0, presentTimeDelay);
+
+    CallbackHelper transactionCallback;
+    next.addTransactionCompletedCallback(transactionCallback.function,
+                                         transactionCallback.getContext())
+            .apply();
+
+    CallbackData callbackData;
+    transactionCallback.getCallbackData(&callbackData);
+
+    // capture screen and verify that it is blue
+    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_NO_FATAL_FAILURE(
+            checkScreenCapture(0, 0, 255, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
+
+    mProducerListener->waitOnNumberReleased(2);
+    // capture screen and verify that it is red
+    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_NO_FATAL_FAILURE(
+            checkScreenCapture(255, 0, 0, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
 
 class TestProducerListener : public BnProducerListener {
