@@ -32,9 +32,10 @@
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
-#include <string>
-#include <unordered_map>
 #include <algorithm> //std::max std::min
+#include <unordered_map>
+#include <string>
+#include <vector>
 
 #include "RingBuffer.h"
 
@@ -136,7 +137,7 @@ private:
     friend class Singleton<SensorDevice>;
 
     sp<::android::hardware::sensors::V2_1::implementation::ISensorsWrapperBase> mSensors;
-    Vector<sensor_t> mSensorList;
+    std::vector<sensor_t> mSensorList;
     std::unordered_map<int32_t, sensor_t*> mConnectedDynamicSensors;
 
     // A bug in the Sensors HIDL spec which marks onDynamicSensorsConnected as oneway causes dynamic
@@ -233,8 +234,8 @@ private:
     bool connectHidlService();
     void initializeSensorList();
     void reactivateSensors(const DefaultKeyedVector<int, Info>& previousActivations);
-    static bool sensorHandlesChanged(const Vector<sensor_t>& oldSensorList,
-                                     const Vector<sensor_t>& newSensorList);
+    static bool sensorHandlesChanged(const std::vector<sensor_t>& oldSensorList,
+                                     const std::vector<sensor_t>& newSensorList);
     static bool sensorIsEquivalent(const sensor_t& prevSensor, const sensor_t& newSensor);
 
     enum HalConnectionStatus {

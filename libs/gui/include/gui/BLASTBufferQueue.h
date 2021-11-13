@@ -94,7 +94,7 @@ public:
                                      const std::vector<SurfaceControlStats>& stats);
     void releaseBufferCallback(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
                                std::optional<uint32_t> currentMaxAcquiredBufferCount);
-    void setSyncTransaction(SurfaceComposerClient::Transaction* t);
+    void setSyncTransaction(SurfaceComposerClient::Transaction* t, bool acquireSingleBuffer = true);
     void mergeWithNextTransaction(SurfaceComposerClient::Transaction* t, uint64_t frameNumber);
     void applyPendingTransactions(uint64_t frameNumber);
 
@@ -132,6 +132,9 @@ private:
 
     void flushShadowQueue() REQUIRES(mMutex);
     void acquireAndReleaseBuffer() REQUIRES(mMutex);
+    void releaseBuffer(const ReleaseCallbackId& callbackId, const sp<Fence>& releaseFence)
+            REQUIRES(mMutex);
+    void flushAndWaitForFreeBuffer(std::unique_lock<std::mutex>& lock);
 
     std::string mName;
     // Represents the queued buffer count from buffer queue,
@@ -239,7 +242,11 @@ private:
     std::queue<sp<SurfaceControl>> mSurfaceControlsWithPendingCallback GUARDED_BY(mMutex);
 
     uint32_t mCurrentMaxAcquiredBufferCount;
-    bool mWaitForTransactionCallback = false;
+    bool mWaitForTransactionCallback GUARDED_BY(mMutex) = false;
+
+    // Flag to determine if syncTransaction should only acquire a single buffer and then clear or
+    // continue to acquire buffers until explicitly cleared
+    bool mAcquireSingleBuffer GUARDED_BY(mMutex) = true;
 };
 
 } // namespace android
