@@ -338,8 +338,8 @@ void SensorDevice::reconnect() {
     mReconnecting = false;
 }
 
-bool SensorDevice::sensorHandlesChanged(const Vector<sensor_t>& oldSensorList,
-                                        const Vector<sensor_t>& newSensorList) {
+bool SensorDevice::sensorHandlesChanged(const std::vector<sensor_t>& oldSensorList,
+                                        const std::vector<sensor_t>& newSensorList) {
     bool didChange = false;
 
     if (oldSensorList.size() != newSensorList.size()) {

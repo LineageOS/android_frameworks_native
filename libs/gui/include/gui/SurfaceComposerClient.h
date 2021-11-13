@@ -493,6 +493,7 @@ public:
                                const std::optional<uint64_t>& frameNumber = std::nullopt,
                                const ReleaseCallbackId& id = ReleaseCallbackId::INVALID_ID,
                                ReleaseBufferCallback callback = nullptr);
+        std::optional<BufferData> getAndClearBuffer(const sp<SurfaceControl>& sc);
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
         Transaction& setHdrMetadata(const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata);
         Transaction& setSurfaceDamageRegion(const sp<SurfaceControl>& sc,
@@ -750,6 +751,8 @@ public:
     void onTransactionCompleted(ListenerStats stats) override;
     void onReleaseBuffer(ReleaseCallbackId, sp<Fence> releaseFence,
                          uint32_t currentMaxAcquiredBufferCount) override;
+
+    void removeReleaseBufferCallback(const ReleaseCallbackId& callbackId);
 
     // For Testing Only
     static void setInstance(const sp<TransactionCompletedListener>&);

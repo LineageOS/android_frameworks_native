@@ -413,6 +413,14 @@ ReleaseBufferCallback TransactionCompletedListener::popReleaseBufferCallbackLock
     return callback;
 }
 
+void TransactionCompletedListener::removeReleaseBufferCallback(
+        const ReleaseCallbackId& callbackId) {
+    {
+        std::scoped_lock<std::mutex> lock(mMutex);
+        popReleaseBufferCallbackLocked(callbackId);
+    }
+}
+
 // ---------------------------------------------------------------------------
 
 void removeDeadBufferCallback(void* /*context*/, uint64_t graphicBufferId);
@@ -1305,6 +1313,28 @@ SurfaceComposerClient::Transaction::setTransformToDisplayInverse(const sp<Surfac
 
     registerSurfaceControlForCallback(sc);
     return *this;
+}
+
+std::optional<BufferData> SurfaceComposerClient::Transaction::getAndClearBuffer(
+        const sp<SurfaceControl>& sc) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        return std::nullopt;
+    }
+    if (!(s->what & layer_state_t::eBufferChanged)) {
+        return std::nullopt;
+    }
+
+    BufferData bufferData = s->bufferData;
+
+    TransactionCompletedListener::getInstance()->removeReleaseBufferCallback(
+            bufferData.releaseCallbackId);
+    BufferData emptyBufferData;
+    s->what &= ~layer_state_t::eBufferChanged;
+    s->bufferData = emptyBufferData;
+
+    mContainsBuffer = false;
+    return bufferData;
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffer(
