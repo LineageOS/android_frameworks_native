@@ -111,6 +111,10 @@ private:
 };
 
 int main(int argc, char** argv) {
+#ifdef __ANDROID_RECOVERY__
+    android::base::InitLogging(argv, android::base::KernelLogger);
+#endif
+
     if (argc > 2) {
         LOG(FATAL) << "usage: " << argv[0] << " [binder driver]";
     }
