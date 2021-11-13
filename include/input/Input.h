@@ -203,6 +203,10 @@ class Parcel;
 
 const char* inputEventTypeToString(int32_t type);
 
+std::string inputEventSourceToString(int32_t source);
+
+bool isFromSource(uint32_t source, uint32_t test);
+
 /*
  * Flags that flow alongside events in the input dispatch system to help with certain
  * policy decisions such as waking from device sleep.

@@ -208,10 +208,8 @@ void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t control
 
 const InputDeviceInfo::MotionRange* InputDeviceInfo::getMotionRange(
         int32_t axis, uint32_t source) const {
-    size_t numRanges = mMotionRanges.size();
-    for (size_t i = 0; i < numRanges; i++) {
-        const MotionRange& range = mMotionRanges[i];
-        if (range.axis == axis && range.source == source) {
+    for (const MotionRange& range : mMotionRanges) {
+        if (range.axis == axis && isFromSource(range.source, source)) {
             return &range;
         }
     }
