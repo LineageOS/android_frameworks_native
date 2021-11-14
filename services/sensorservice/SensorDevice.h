@@ -43,6 +43,8 @@
 
 namespace android {
 
+using Result = ::android::hardware::sensors::V1_0::Result;
+
 // ---------------------------------------------------------------------------
 class SensorsHalDeathReceivier : public android::hardware::hidl_death_recipient {
     virtual void serviceDied(uint64_t cookie,
@@ -110,11 +112,8 @@ public:
     status_t injectSensorData(const sensors_event_t* event);
     void notifyConnectionDestroyed(void* ident);
 
-    using Result = ::android::hardware::sensors::V1_0::Result;
-    hardware::Return<void> onDynamicSensorsConnected(
-            const hardware::hidl_vec<hardware::sensors::V2_1::SensorInfo>& dynamicSensorsAdded);
-    hardware::Return<void> onDynamicSensorsDisconnected(
-            const hardware::hidl_vec<int32_t>& dynamicSensorHandlesRemoved);
+    void onDynamicSensorsConnected(const std::vector<sensor_t>& dynamicSensorsAdded);
+    void onDynamicSensorsDisconnected(const std::vector<int32_t>& dynamicSensorHandlesRemoved);
 
     void setUidStateForConnection(void* ident, SensorService::UidState state);
 
@@ -134,8 +133,9 @@ private:
     friend class Singleton<SensorDevice>;
 
     sp<::android::hardware::sensors::V2_1::implementation::ISensorsWrapperBase> mSensors;
+    sp<::android::hardware::sensors::V2_1::ISensorsCallback> mCallback;
     std::vector<sensor_t> mSensorList;
-    std::unordered_map<int32_t, sensor_t*> mConnectedDynamicSensors;
+    std::unordered_map<int32_t, sensor_t> mConnectedDynamicSensors;
 
     // A bug in the Sensors HIDL spec which marks onDynamicSensorsConnected as oneway causes dynamic
     // meta events and onDynamicSensorsConnected to be received out of order. This mutex + CV are
@@ -262,6 +262,7 @@ private:
             handleHidlDeath(ret.description());
         }
     }
+
     status_t checkReturnAndGetStatus(const Return<Result>& ret);
     // TODO(b/67425500): remove waiter after bug is resolved.
     sp<SensorDeviceUtils::HidlServiceRegistrationWaiter> mRestartWaiter;
