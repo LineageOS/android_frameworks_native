@@ -135,6 +135,10 @@ public:
                  V2_4::Error(Display, Config, const IComposerClient::VsyncPeriodChangeConstraints&,
                              VsyncPeriodChangeTimeline*));
     MOCK_METHOD2(setAutoLowLatencyMode, V2_4::Error(Display, bool));
+    MOCK_METHOD2(getBootDisplayConfigSupport, Error(Display, bool*));
+    MOCK_METHOD2(setBootDisplayConfig, Error(Display, Config));
+    MOCK_METHOD1(clearBootDisplayConfig, Error(Display));
+    MOCK_METHOD2(getPreferredBootDisplayConfig, Error(Display, Config*));
     MOCK_METHOD2(getSupportedContentTypes,
                  V2_4::Error(Display, std::vector<IComposerClient::ContentType>*));
     MOCK_METHOD2(setContentType, V2_4::Error(Display, IComposerClient::ContentType));

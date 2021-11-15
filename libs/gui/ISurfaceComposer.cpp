@@ -428,6 +428,94 @@ public:
         return static_cast<status_t>(reply.readInt32());
     }
 
+    // TODO(b/213909104) : Add unit tests to verify surface flinger boot time APIs
+    status_t getBootDisplayModeSupport(bool* outSupport) const override {
+        Parcel data, reply;
+        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (error != NO_ERROR) {
+            ALOGE("getBootDisplayModeSupport: failed to write interface token: %d", error);
+            return error;
+        }
+        error = remote()->transact(BnSurfaceComposer::GET_BOOT_DISPLAY_MODE_SUPPORT, data, &reply);
+        if (error != NO_ERROR) {
+            ALOGE("getBootDisplayModeSupport: failed to transact: %d", error);
+            return error;
+        }
+        bool support;
+        error = reply.readBool(&support);
+        if (error != NO_ERROR) {
+            ALOGE("getBootDisplayModeSupport: failed to read support: %d", error);
+            return error;
+        }
+        *outSupport = support;
+        return NO_ERROR;
+    }
+
+    status_t setBootDisplayMode(const sp<IBinder>& display,
+                                ui::DisplayModeId displayModeId) override {
+        Parcel data, reply;
+        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (result != NO_ERROR) {
+            ALOGE("setBootDisplayMode failed to writeInterfaceToken: %d", result);
+            return result;
+        }
+        result = data.writeStrongBinder(display);
+        if (result != NO_ERROR) {
+            ALOGE("setBootDisplayMode failed to writeStrongBinder: %d", result);
+            return result;
+        }
+        result = data.writeInt32(displayModeId);
+        if (result != NO_ERROR) {
+            ALOGE("setBootDisplayMode failed to writeIint32: %d", result);
+            return result;
+        }
+        result = remote()->transact(BnSurfaceComposer::SET_BOOT_DISPLAY_MODE, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("setBootDisplayMode failed to transact: %d", result);
+        }
+        return result;
+    }
+
+    status_t clearBootDisplayMode(const sp<IBinder>& display) override {
+        Parcel data, reply;
+        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (result != NO_ERROR) {
+            ALOGE("clearBootDisplayMode failed to writeInterfaceToken: %d", result);
+            return result;
+        }
+        result = data.writeStrongBinder(display);
+        if (result != NO_ERROR) {
+            ALOGE("clearBootDisplayMode failed to writeStrongBinder: %d", result);
+            return result;
+        }
+        result = remote()->transact(BnSurfaceComposer::CLEAR_BOOT_DISPLAY_MODE, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("clearBootDisplayMode failed to transact: %d", result);
+        }
+        return result;
+    }
+
+    status_t getPreferredBootDisplayMode(const sp<IBinder>& display,
+                                         ui::DisplayModeId* displayModeId) override {
+        Parcel data, reply;
+        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (result != NO_ERROR) {
+            ALOGE("getPreferredBootDisplayMode failed to writeInterfaceToken: %d", result);
+            return result;
+        }
+        result = data.writeStrongBinder(display);
+        if (result != NO_ERROR) {
+            ALOGE("getPreferredBootDisplayMode failed to writeStrongBinder: %d", result);
+            return result;
+        }
+        result = remote()->transact(BnSurfaceComposer::GET_PREFERRED_BOOT_DISPLAY_MODE, data,
+                                    &reply);
+        if (result == NO_ERROR) {
+            reply.writeInt32(*displayModeId);
+        }
+        return result;
+    }
+
     void setAutoLowLatencyMode(const sp<IBinder>& display, bool on) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
@@ -1519,6 +1607,56 @@ status_t BnSurfaceComposer::onTransact(
             result = setActiveColorMode(display,
                     static_cast<ColorMode>(colorModeInt));
             result = reply->writeInt32(result);
+            return result;
+        }
+        case GET_BOOT_DISPLAY_MODE_SUPPORT: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            bool support = false;
+            status_t result = getBootDisplayModeSupport(&support);
+            if (result == NO_ERROR) {
+                reply->writeBool(support);
+            }
+            return result;
+        }
+        case SET_BOOT_DISPLAY_MODE: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> display = nullptr;
+            status_t result = data.readStrongBinder(&display);
+            if (result != NO_ERROR) {
+                ALOGE("setBootDisplayMode failed to readStrongBinder: %d", result);
+                return result;
+            }
+            ui::DisplayModeId displayModeId;
+            result = data.readInt32(&displayModeId);
+            if (result != NO_ERROR) {
+                ALOGE("setBootDisplayMode failed to readInt32: %d", result);
+                return result;
+            }
+            return setBootDisplayMode(display, displayModeId);
+        }
+        case CLEAR_BOOT_DISPLAY_MODE: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> display = nullptr;
+            status_t result = data.readStrongBinder(&display);
+            if (result != NO_ERROR) {
+                ALOGE("clearBootDisplayMode failed to readStrongBinder: %d", result);
+                return result;
+            }
+            return clearBootDisplayMode(display);
+        }
+        case GET_PREFERRED_BOOT_DISPLAY_MODE: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> display = nullptr;
+            status_t result = data.readStrongBinder(&display);
+            if (result != NO_ERROR) {
+                ALOGE("getPreferredBootDisplayMode failed to readStrongBinder: %d", result);
+                return result;
+            }
+            ui::DisplayModeId displayModeId;
+            result = getPreferredBootDisplayMode(display, &displayModeId);
+            if (result == NO_ERROR) {
+                reply->writeInt32(displayModeId);
+            }
             return result;
         }
         case SET_AUTO_LOW_LATENCY_MODE: {

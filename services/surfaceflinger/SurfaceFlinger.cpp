@@ -1426,6 +1426,52 @@ status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, Col
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getBootDisplayModeSupport(bool* outSupport) const {
+    auto future = mScheduler->schedule([=]() MAIN_THREAD mutable -> status_t {
+        *outSupport = getHwComposer().getBootDisplayModeSupport();
+        return NO_ERROR;
+    });
+    return future.get();
+}
+
+status_t SurfaceFlinger::setBootDisplayMode(const sp<IBinder>& displayToken, ui::DisplayModeId id) {
+    auto future = mScheduler->schedule([=]() MAIN_THREAD -> status_t {
+        if (const auto displayId = getPhysicalDisplayIdLocked(displayToken)) {
+            return getHwComposer().setBootDisplayMode(*displayId, id);
+        } else {
+            ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
+            return BAD_VALUE;
+        }
+    });
+    return future.get();
+}
+
+status_t SurfaceFlinger::clearBootDisplayMode(const sp<IBinder>& displayToken) {
+    auto future = mScheduler->schedule([=]() MAIN_THREAD -> status_t {
+        if (const auto displayId = getPhysicalDisplayIdLocked(displayToken)) {
+            return getHwComposer().clearBootDisplayMode(*displayId);
+        } else {
+            ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
+            return BAD_VALUE;
+        }
+    });
+    return future.get();
+}
+
+status_t SurfaceFlinger::getPreferredBootDisplayMode(const sp<IBinder>& displayToken,
+                                                     ui::DisplayModeId* id) {
+    auto future = mScheduler->schedule([=]() MAIN_THREAD mutable -> status_t {
+        if (const auto displayId = getPhysicalDisplayIdLocked(displayToken)) {
+            *id = getHwComposer().getPreferredBootDisplayMode(*displayId);
+            return NO_ERROR;
+        } else {
+            ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
+            return BAD_VALUE;
+        }
+    });
+    return future.get();
+}
+
 void SurfaceFlinger::setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on) {
     const char* const whence = __func__;
     static_cast<void>(mScheduler->schedule([=]() MAIN_THREAD {
@@ -5404,6 +5450,10 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_DESIRED_DISPLAY_MODE_SPECS:
         case GET_DESIRED_DISPLAY_MODE_SPECS:
         case SET_ACTIVE_COLOR_MODE:
+        case GET_BOOT_DISPLAY_MODE_SUPPORT:
+        case SET_BOOT_DISPLAY_MODE:
+        case CLEAR_BOOT_DISPLAY_MODE:
+        case GET_PREFERRED_BOOT_DISPLAY_MODE:
         case GET_AUTO_LOW_LATENCY_MODE_SUPPORT:
         case SET_AUTO_LOW_LATENCY_MODE:
         case GET_GAME_CONTENT_TYPE_SUPPORT:

@@ -86,6 +86,9 @@ public:
                 (hal::HWConfigId, const hal::VsyncPeriodChangeConstraints &,
                  hal::VsyncPeriodChangeTimeline *),
                 (override));
+    MOCK_METHOD(hal::Error, setBootDisplayConfig, (hal::HWConfigId), (override));
+    MOCK_METHOD(hal::Error, clearBootDisplayConfig, (), (override));
+    MOCK_METHOD(hal::Error, getPreferredBootDisplayConfig, (hal::HWConfigId *), (const, override));
     MOCK_METHOD(hal::Error, setAutoLowLatencyMode, (bool), (override));
     MOCK_METHOD(hal::Error, getSupportedContentTypes, (std::vector<hal::ContentType> *),
                 (const, override));

@@ -167,6 +167,15 @@ public:
     static status_t setActiveColorMode(const sp<IBinder>& display,
             ui::ColorMode colorMode);
 
+    // Gets if boot display mode operations are supported on a device
+    static status_t getBootDisplayModeSupport(bool* support);
+    // Sets the user-preferred display mode that a device should boot in
+    static status_t setBootDisplayMode(const sp<IBinder>& display, ui::DisplayModeId);
+    // Clears the user-preferred display mode
+    static status_t clearBootDisplayMode(const sp<IBinder>& display);
+    // Gets the display mode in which the device boots if there is no user-preferred display mode
+    static status_t getPreferredBootDisplayMode(const sp<IBinder>& display, ui::DisplayModeId*);
+
     // Switches on/off Auto Low Latency Mode on the connected display. This should only be
     // called if the connected display supports Auto Low Latency Mode as reported by
     // #getAutoLowLatencyModeSupport
