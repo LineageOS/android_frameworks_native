@@ -519,6 +519,20 @@ enum ADataSpace {
      * components.
      */
     ADATASPACE_SRGB_LINEAR = 138477568, // STANDARD_BT709 | TRANSFER_LINEAR | RANGE_FULL
+
+    /**
+     * Hybrid Log Gamma encoding:
+     *
+     * Use full range, hybrid log gamma transfer and BT2020 standard.
+     */
+    ADATASPACE_BT2020_HLG = 168165376, // STANDARD_BT2020 | TRANSFER_HLG | RANGE_FULL
+
+    /**
+     * ITU Hybrid Log Gamma encoding:
+     *
+     * Use limited range, hybrid log gamma transfer and BT2020 standard.
+     */
+    ADATASPACE_BT2020_ITU_HLG = 302383104 // STANDARD_BT2020 | TRANSFER_HLG | RANGE_LIMITED
 };
 
 __END_DECLS
