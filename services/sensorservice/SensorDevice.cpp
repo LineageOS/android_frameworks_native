@@ -322,7 +322,7 @@ void SensorDevice::reconnect() {
     mActivationCount.clear();
     mSensorList.clear();
 
-    if (connectHidlServiceV2_0() == HalConnectionStatus::CONNECTED) {
+    if (connectHidlService()) {
         initializeSensorList();
 
         if (sensorHandlesChanged(previousSensorList, mSensorList)) {
