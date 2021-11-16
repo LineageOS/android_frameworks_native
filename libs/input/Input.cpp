@@ -66,10 +66,6 @@ vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy)
     return transformedXy - transformedOrigin;
 }
 
-bool isFromSource(uint32_t source, uint32_t test) {
-    return (source & test) == test;
-}
-
 bool shouldDisregardTransformation(uint32_t source) {
     // Do not apply any transformations to axes from joysticks or touchpads.
     return isFromSource(source, AINPUT_SOURCE_CLASS_JOYSTICK) ||
@@ -146,6 +142,49 @@ const char* inputEventTypeToString(int32_t type) {
         }
     }
     return "UNKNOWN";
+}
+
+std::string inputEventSourceToString(int32_t source) {
+    if (source == AINPUT_SOURCE_UNKNOWN) {
+        return "UNKNOWN";
+    }
+    if (source == static_cast<int32_t>(AINPUT_SOURCE_ANY)) {
+        return "ANY";
+    }
+    static const std::map<int32_t, const char*> SOURCES{
+            {AINPUT_SOURCE_KEYBOARD, "KEYBOARD"},
+            {AINPUT_SOURCE_DPAD, "DPAD"},
+            {AINPUT_SOURCE_GAMEPAD, "GAMEPAD"},
+            {AINPUT_SOURCE_TOUCHSCREEN, "TOUCHSCREEN"},
+            {AINPUT_SOURCE_MOUSE, "MOUSE"},
+            {AINPUT_SOURCE_STYLUS, "STYLUS"},
+            {AINPUT_SOURCE_BLUETOOTH_STYLUS, "BLUETOOTH_STYLUS"},
+            {AINPUT_SOURCE_TRACKBALL, "TRACKBALL"},
+            {AINPUT_SOURCE_MOUSE_RELATIVE, "MOUSE_RELATIVE"},
+            {AINPUT_SOURCE_TOUCHPAD, "TOUCHPAD"},
+            {AINPUT_SOURCE_TOUCH_NAVIGATION, "TOUCH_NAVIGATION"},
+            {AINPUT_SOURCE_JOYSTICK, "JOYSTICK"},
+            {AINPUT_SOURCE_HDMI, "HDMI"},
+            {AINPUT_SOURCE_SENSOR, "SENSOR"},
+            {AINPUT_SOURCE_ROTARY_ENCODER, "ROTARY_ENCODER"},
+    };
+    std::string result;
+    for (const auto& [source_entry, str] : SOURCES) {
+        if ((source & source_entry) == source_entry) {
+            if (!result.empty()) {
+                result += " | ";
+            }
+            result += str;
+        }
+    }
+    if (result.empty()) {
+        result = StringPrintf("0x%08x", source);
+    }
+    return result;
+}
+
+bool isFromSource(uint32_t source, uint32_t test) {
+    return (source & test) == test;
 }
 
 VerifiedKeyEvent verifiedKeyEventFromKeyEvent(const KeyEvent& event) {

@@ -175,13 +175,13 @@ std::string KeyEntry::getDescription() const {
     if (!GetBoolProperty("ro.debuggable", false)) {
         return "KeyEvent";
     }
-    return StringPrintf("KeyEvent(deviceId=%d, eventTime=%" PRIu64
-                        ", source=0x%08x, displayId=%" PRId32 ", action=%s, "
+    return StringPrintf("KeyEvent(deviceId=%d, eventTime=%" PRIu64 ", source=%s, displayId=%" PRId32
+                        ", action=%s, "
                         "flags=0x%08x, keyCode=%s(%d), scanCode=%d, metaState=0x%08x, "
                         "repeatCount=%d), policyFlags=0x%08x",
-                        deviceId, eventTime, source, displayId, KeyEvent::actionToString(action),
-                        flags, KeyEvent::getLabel(keyCode), keyCode, scanCode, metaState,
-                        repeatCount, policyFlags);
+                        deviceId, eventTime, inputEventSourceToString(source).c_str(), displayId,
+                        KeyEvent::actionToString(action), flags, KeyEvent::getLabel(keyCode),
+                        keyCode, scanCode, metaState, repeatCount, policyFlags);
 }
 
 void KeyEntry::recycle() {
@@ -249,12 +249,12 @@ std::string MotionEntry::getDescription() const {
     }
     std::string msg;
     msg += StringPrintf("MotionEvent(deviceId=%d, eventTime=%" PRIu64
-                        ", source=0x%08x, displayId=%" PRId32
+                        ", source=%s, displayId=%" PRId32
                         ", action=%s, actionButton=0x%08x, flags=0x%08x, metaState=0x%08x, "
                         "buttonState=0x%08x, "
                         "classification=%s, edgeFlags=0x%08x, xPrecision=%.1f, yPrecision=%.1f, "
                         "xCursorPosition=%0.1f, yCursorPosition=%0.1f, pointers=[",
-                        deviceId, eventTime, source, displayId,
+                        deviceId, eventTime, inputEventSourceToString(source).c_str(), displayId,
                         MotionEvent::actionToString(action).c_str(), actionButton, flags, metaState,
                         buttonState, motionClassificationToString(classification), edgeFlags,
                         xPrecision, yPrecision, xCursorPosition, yCursorPosition);
@@ -289,9 +289,11 @@ SensorEntry::~SensorEntry() {}
 
 std::string SensorEntry::getDescription() const {
     std::string msg;
-    msg += StringPrintf("SensorEntry(deviceId=%d, source=0x%08x, sensorType=0x%08x, "
+    std::string sensorTypeStr(ftl::enum_name(sensorType).value_or("?"));
+    msg += StringPrintf("SensorEntry(deviceId=%d, source=%s, sensorType=%s, "
                         "accuracy=0x%08x, hwTimestamp=%" PRId64,
-                        deviceId, source, sensorType, accuracy, hwTimestamp);
+                        deviceId, inputEventSourceToString(source).c_str(), sensorTypeStr.c_str(),
+                        accuracy, hwTimestamp);
 
     if (!GetBoolProperty("ro.debuggable", false)) {
         for (size_t i = 0; i < values.size(); i++) {
