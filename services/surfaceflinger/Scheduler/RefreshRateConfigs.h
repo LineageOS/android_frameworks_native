@@ -362,10 +362,22 @@ public:
                                std::function<void()> kernelTimerExpired) {
         std::scoped_lock lock(mIdleTimerCallbacksMutex);
         mIdleTimerCallbacks.emplace();
-        mIdleTimerCallbacks->platform.onReset = platformTimerReset;
-        mIdleTimerCallbacks->platform.onExpired = platformTimerExpired;
-        mIdleTimerCallbacks->kernel.onReset = kernelTimerReset;
-        mIdleTimerCallbacks->kernel.onExpired = kernelTimerExpired;
+        mIdleTimerCallbacks->platform.onReset = std::move(platformTimerReset);
+        mIdleTimerCallbacks->platform.onExpired = std::move(platformTimerExpired);
+        mIdleTimerCallbacks->kernel.onReset = std::move(kernelTimerReset);
+        mIdleTimerCallbacks->kernel.onExpired = std::move(kernelTimerExpired);
+    }
+
+    void startIdleTimer() {
+        if (mIdleTimer) {
+            mIdleTimer->start();
+        }
+    }
+
+    void stopIdleTimer() {
+        if (mIdleTimer) {
+            mIdleTimer->stop();
+        }
     }
 
     void resetIdleTimer(bool kernelOnly) {
