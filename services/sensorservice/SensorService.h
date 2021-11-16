@@ -89,6 +89,52 @@ public:
       UID_STATE_IDLE,
     };
 
+    enum Mode {
+       // The regular operating mode where any application can register/unregister/call flush on
+       // sensors.
+       NORMAL = 0,
+       // This mode is only used for testing purposes. Not all HALs support this mode. In this mode,
+       // the HAL ignores the sensor data provided by physical sensors and accepts the data that is
+       // injected from the SensorService as if it were the real sensor data. This mode is primarily
+       // used for testing various algorithms like vendor provided SensorFusion, Step Counter and
+       // Step Detector etc. Typically in this mode, there will be a client (a
+       // SensorEventConnection) which will be injecting sensor data into the HAL. Normal apps can
+       // unregister and register for any sensor that supports injection. Registering to sensors
+       // that do not support injection will give an error.  TODO: Allow exactly one
+       // client to inject sensor data at a time.
+       DATA_INJECTION = 1,
+       // This mode is used only for testing sensors. Each sensor can be tested in isolation with
+       // the required sampling_rate and maxReportLatency parameters without having to think about
+       // the data rates requested by other applications. End user devices are always expected to be
+       // in NORMAL mode. When this mode is first activated, all active sensors from all connections
+       // are disabled. Calling flush() will return an error. In this mode, only the requests from
+       // selected apps whose package names are allowlisted are allowed (typically CTS apps).  Only
+       // these apps can register/unregister/call flush() on sensors. If SensorService switches to
+       // NORMAL mode again, all sensors that were previously registered to are activated with the
+       // corresponding parameters if the application hasn't unregistered for sensors in the mean
+       // time.  NOTE: Non allowlisted app whose sensors were previously deactivated may still
+       // receive events if a allowlisted app requests data from the same sensor.
+       RESTRICTED = 2
+
+      // State Transitions supported.
+      //     RESTRICTED   <---  NORMAL   ---> DATA_INJECTION
+      //                  --->           <---
+
+      // Shell commands to switch modes in SensorService.
+      // 1) Put SensorService in RESTRICTED mode with packageName .cts. If it is already in
+      // restricted mode it is treated as a NO_OP (and packageName is NOT changed).
+      //
+      //     $ adb shell dumpsys sensorservice restrict .cts.
+      //
+      // 2) Put SensorService in DATA_INJECTION mode with packageName .xts. If it is already in
+      // data_injection mode it is treated as a NO_OP (and packageName is NOT changed).
+      //
+      //     $ adb shell dumpsys sensorservice data_injection .xts.
+      //
+      // 3) Reset sensorservice back to NORMAL mode.
+      //     $ adb shell dumpsys sensorservice enable
+    };
+
     class ProximityActiveListener : public virtual RefBase {
     public:
         // Note that the callback is invoked from an async thread and can interact with the
@@ -274,52 +320,6 @@ private:
 
         private:
             const int64_t mToken;
-    };
-
-    enum Mode {
-       // The regular operating mode where any application can register/unregister/call flush on
-       // sensors.
-       NORMAL = 0,
-       // This mode is only used for testing purposes. Not all HALs support this mode. In this mode,
-       // the HAL ignores the sensor data provided by physical sensors and accepts the data that is
-       // injected from the SensorService as if it were the real sensor data. This mode is primarily
-       // used for testing various algorithms like vendor provided SensorFusion, Step Counter and
-       // Step Detector etc. Typically in this mode, there will be a client (a
-       // SensorEventConnection) which will be injecting sensor data into the HAL. Normal apps can
-       // unregister and register for any sensor that supports injection. Registering to sensors
-       // that do not support injection will give an error.  TODO(aakella) : Allow exactly one
-       // client to inject sensor data at a time.
-       DATA_INJECTION = 1,
-       // This mode is used only for testing sensors. Each sensor can be tested in isolation with
-       // the required sampling_rate and maxReportLatency parameters without having to think about
-       // the data rates requested by other applications. End user devices are always expected to be
-       // in NORMAL mode. When this mode is first activated, all active sensors from all connections
-       // are disabled. Calling flush() will return an error. In this mode, only the requests from
-       // selected apps whose package names are whitelisted are allowed (typically CTS apps).  Only
-       // these apps can register/unregister/call flush() on sensors. If SensorService switches to
-       // NORMAL mode again, all sensors that were previously registered to are activated with the
-       // corresponding paramaters if the application hasn't unregistered for sensors in the mean
-       // time.  NOTE: Non whitelisted app whose sensors were previously deactivated may still
-       // receive events if a whitelisted app requests data from the same sensor.
-       RESTRICTED = 2
-
-      // State Transitions supported.
-      //     RESTRICTED   <---  NORMAL   ---> DATA_INJECTION
-      //                  --->           <---
-
-      // Shell commands to switch modes in SensorService.
-      // 1) Put SensorService in RESTRICTED mode with packageName .cts. If it is already in
-      // restricted mode it is treated as a NO_OP (and packageName is NOT changed).
-      //
-      //     $ adb shell dumpsys sensorservice restrict .cts.
-      //
-      // 2) Put SensorService in DATA_INJECTION mode with packageName .xts. If it is already in
-      // data_injection mode it is treated as a NO_OP (and packageName is NOT changed).
-      //
-      //     $ adb shell dumpsys sensorservice data_injection .xts.
-      //
-      // 3) Reset sensorservice back to NORMAL mode.
-      //     $ adb shell dumpsys sensorservice enable
     };
 
     static const char* WAKE_LOCK_NAME;
