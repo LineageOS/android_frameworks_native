@@ -701,7 +701,6 @@ void RefreshRateConfigs::initializeIdleTimer() {
                 [getCallback] {
                     if (const auto callback = getCallback()) callback->onExpired();
                 });
-        mIdleTimer->start();
     }
 }
 
