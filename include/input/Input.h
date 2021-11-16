@@ -840,15 +840,12 @@ public:
 
     inline bool getHasFocus() const { return mHasFocus; }
 
-    inline bool getInTouchMode() const { return mInTouchMode; }
-
-    void initialize(int32_t id, bool hasFocus, bool inTouchMode);
+    void initialize(int32_t id, bool hasFocus);
 
     void initialize(const FocusEvent& from);
 
 protected:
     bool mHasFocus;
-    bool mInTouchMode;
 };
 
 /*

@@ -3234,8 +3234,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 const FocusEntry& focusEntry = static_cast<const FocusEntry&>(eventEntry);
                 status = connection->inputPublisher.publishFocusEvent(dispatchEntry->seq,
                                                                       focusEntry.id,
-                                                                      focusEntry.hasFocus,
-                                                                      mInTouchMode);
+                                                                      focusEntry.hasFocus);
                 break;
             }
 
