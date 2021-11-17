@@ -506,10 +506,6 @@ bool isConnectionResponsive(const Connection& connection) {
     return true;
 }
 
-bool isFromSource(uint32_t source, uint32_t test) {
-    return (source & test) == test;
-}
-
 vec2 transformWithoutTranslation(const ui::Transform& transform, float x, float y) {
     const vec2 transformedXy = transform.transform(x, y);
     const vec2 transformedOrigin = transform.transform(0, 0);
@@ -3234,8 +3230,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 const FocusEntry& focusEntry = static_cast<const FocusEntry&>(eventEntry);
                 status = connection->inputPublisher.publishFocusEvent(dispatchEntry->seq,
                                                                       focusEntry.id,
-                                                                      focusEntry.hasFocus,
-                                                                      mInTouchMode);
+                                                                      focusEntry.hasFocus);
                 break;
             }
 

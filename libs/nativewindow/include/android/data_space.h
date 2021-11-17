@@ -444,6 +444,15 @@ enum ADataSpace {
     ADATASPACE_BT2020_PQ = 163971072, // STANDARD_BT2020 | TRANSFER_ST2084 | RANGE_FULL
 
     /**
+     * ITU-R Recommendation 2020 (BT.2020)
+     *
+     * Ultra High-definition television
+     *
+     * Use limited range, SMPTE 2084 (PQ) transfer and BT2020 standard
+     */
+    ADATASPACE_BT2020_ITU_PQ = 298188800,  // STANDARD_BT2020 | TRANSFER_ST2084 | RANGE_LIMITED
+
+    /**
      * Adobe RGB
      *
      * Use full range, gamma 2.2 transfer and Adobe RGB primaries
@@ -519,6 +528,20 @@ enum ADataSpace {
      * components.
      */
     ADATASPACE_SRGB_LINEAR = 138477568, // STANDARD_BT709 | TRANSFER_LINEAR | RANGE_FULL
+
+    /**
+     * Hybrid Log Gamma encoding:
+     *
+     * Use full range, hybrid log gamma transfer and BT2020 standard.
+     */
+    ADATASPACE_BT2020_HLG = 168165376, // STANDARD_BT2020 | TRANSFER_HLG | RANGE_FULL
+
+    /**
+     * ITU Hybrid Log Gamma encoding:
+     *
+     * Use limited range, hybrid log gamma transfer and BT2020 standard.
+     */
+    ADATASPACE_BT2020_ITU_HLG = 302383104 // STANDARD_BT2020 | TRANSFER_HLG | RANGE_LIMITED
 };
 
 __END_DECLS

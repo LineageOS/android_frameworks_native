@@ -178,10 +178,9 @@ struct InputMessage {
 
         struct Focus {
             int32_t eventId;
-            // The following 3 fields take up 4 bytes total
+            // The following 2 fields take up 4 bytes total
             bool hasFocus;
-            bool inTouchMode;
-            uint8_t empty[2];
+            uint8_t empty[3];
 
             inline size_t size() const { return sizeof(Focus); }
         } focus;
@@ -381,7 +380,7 @@ public:
      * Returns DEAD_OBJECT if the channel's peer has been closed.
      * Other errors probably indicate that the channel is broken.
      */
-    status_t publishFocusEvent(uint32_t seq, int32_t eventId, bool hasFocus, bool inTouchMode);
+    status_t publishFocusEvent(uint32_t seq, int32_t eventId, bool hasFocus);
 
     /* Publishes a capture event to the input channel.
      *
