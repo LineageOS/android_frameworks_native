@@ -529,7 +529,6 @@ void BLASTBufferQueue::acquireNextBufferLocked(
 
     // Ensure BLASTBufferQueue stays alive until we receive the transaction complete callback.
     incStrong((void*)transactionCallbackThunk);
-    incStrong((void*)transactionCommittedCallbackThunk);
 
     const bool sizeHasChanged = mRequestedSize != mSize;
     mSize = mRequestedSize;
@@ -550,7 +549,7 @@ void BLASTBufferQueue::acquireNextBufferLocked(
     t->setAcquireFence(mSurfaceControl,
                        bufferItem.mFence ? new Fence(bufferItem.mFence->dup()) : Fence::NO_FENCE);
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
-    t->addTransactionCommittedCallback(transactionCommittedCallbackThunk, static_cast<void*>(this));
+
     mSurfaceControlsWithPendingCallback.push(mSurfaceControl);
 
     if (updateDestinationFrame) {
@@ -673,6 +672,13 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
 
     if (nextTransactionSet) {
         acquireNextBufferLocked(std::move(mNextTransaction));
+
+        // Only need a commit callback when syncing to ensure the buffer that's synced has been sent
+        // to SF
+        incStrong((void*)transactionCommittedCallbackThunk);
+        mNextTransaction->addTransactionCommittedCallback(transactionCommittedCallbackThunk,
+                                                          static_cast<void*>(this));
+
         mNextTransaction = nullptr;
         mWaitForTransactionCallback = true;
     } else if (!mWaitForTransactionCallback) {
