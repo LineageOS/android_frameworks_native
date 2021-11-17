@@ -30,8 +30,7 @@ namespace android {
  * fingers
  *
  * The pointer controller is responsible for providing synchronization and for tracking
- * display orientation changes if needed. It works in the display panel's coordinate space, which
- * is the same coordinate space used by InputReader.
+ * display orientation changes if needed.
  */
 class PointerControllerInterface {
 protected:
