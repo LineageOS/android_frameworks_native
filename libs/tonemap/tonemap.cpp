@@ -26,10 +26,11 @@ namespace {
 
 // Flag containing the variant of tone map algorithm to use.
 enum class ToneMapAlgorithm {
-    AndroidO, // Default algorithm in place since Android O,
+    AndroidO,  // Default algorithm in place since Android O,
+    Android13, // Algorithm used in Android 13.
 };
 
-static const constexpr auto kToneMapAlgorithm = ToneMapAlgorithm::AndroidO;
+static const constexpr auto kToneMapAlgorithm = ToneMapAlgorithm::Android13;
 
 static const constexpr auto kTransferMask =
         static_cast<int32_t>(aidl::android::hardware::graphics::common::Dataspace::TRANSFER_MASK);
@@ -231,7 +232,158 @@ public:
                             .value = buildUniformValue<float>(metadata.displayMaxLuminance)});
         uniforms.push_back({.name = "in_libtonemap_inputMaxLuminance",
                             .value = buildUniformValue<float>(metadata.contentMaxLuminance)});
+        return uniforms;
+    }
+};
 
+class ToneMapper13 : public ToneMapper {
+public:
+    std::string generateTonemapGainShaderSkSL(
+            aidl::android::hardware::graphics::common::Dataspace sourceDataspace,
+            aidl::android::hardware::graphics::common::Dataspace destinationDataspace) override {
+        const int32_t sourceDataspaceInt = static_cast<int32_t>(sourceDataspace);
+        const int32_t destinationDataspaceInt = static_cast<int32_t>(destinationDataspace);
+
+        std::string program;
+        // Input uniforms
+        program.append(R"(
+                uniform float in_libtonemap_displayMaxLuminance;
+                uniform float in_libtonemap_inputMaxLuminance;
+            )");
+        switch (sourceDataspaceInt & kTransferMask) {
+            case kTransferST2084:
+            case kTransferHLG:
+                switch (destinationDataspaceInt & kTransferMask) {
+                    case kTransferST2084:
+                        program.append(R"(
+                                    float libtonemap_ToneMapTargetNits(float maxRGB) {
+                                        return maxRGB;
+                                    }
+                                )");
+                        break;
+                    case kTransferHLG:
+                        // PQ has a wider luminance range (10,000 nits vs. 1,000 nits) than HLG, so
+                        // we'll clamp the luminance range in case we're mapping from PQ input to
+                        // HLG output.
+                        program.append(R"(
+                                    float libtonemap_ToneMapTargetNits(float maxRGB) {
+                                        return clamp(maxRGB, 0.0, 1000.0);
+                                    }
+                                )");
+                        break;
+
+                    default:
+                        switch (sourceDataspaceInt & kTransferMask) {
+                            case kTransferST2084:
+                                program.append(R"(
+                                        float libtonemap_OETFTone(float channel) {
+                                            channel = channel / 10000.0;
+                                            float m1 = (2610.0 / 4096.0) / 4.0;
+                                            float m2 = (2523.0 / 4096.0) * 128.0;
+                                            float c1 = (3424.0 / 4096.0);
+                                            float c2 = (2413.0 / 4096.0) * 32.0;
+                                            float c3 = (2392.0 / 4096.0) * 32.0;
+
+                                            float tmp = pow(channel, float(m1));
+                                            tmp = (c1 + c2 * tmp) / (1.0 + c3 * tmp);
+                                            return pow(tmp, float(m2));
+                                        }
+                                    )");
+                                break;
+                            case kTransferHLG:
+                                program.append(R"(
+                                        float libtonemap_OETFTone(float channel) {
+                                            channel = channel / 1000.0;
+                                            const float a = 0.17883277;
+                                            const float b = 0.28466892;
+                                            const float c = 0.55991073;
+                                            return channel <= 1.0 / 12.0 ? sqrt(3.0 * channel) :
+                                                    a * log(12.0 * channel - b) + c;
+                                        }
+                                    )");
+                                break;
+                        }
+                        // Here we're mapping from HDR to SDR content, so interpolate using a
+                        // Hermitian polynomial onto the smaller luminance range.
+                        program.append(R"(
+                                float libtonemap_ToneMapTargetNits(float maxRGB) {
+                                    float maxInLumi = in_libtonemap_inputMaxLuminance;
+                                    float maxOutLumi = in_libtonemap_displayMaxLuminance;
+
+                                    float nits = maxRGB;
+
+                                    float x1 = maxOutLumi * 0.65;
+                                    float y1 = x1;
+
+                                    float x3 = maxInLumi;
+                                    float y3 = maxOutLumi;
+
+                                    float x2 = x1 + (x3 - x1) * 4.0 / 17.0;
+                                    float y2 = maxOutLumi * 0.9;
+
+                                    float greyNorm1 = libtonemap_OETFTone(x1);
+                                    float greyNorm2 = libtonemap_OETFTone(x2);
+                                    float greyNorm3 = libtonemap_OETFTone(x3);
+
+                                    float slope1 = 0;
+                                    float slope2 = (y2 - y1) / (greyNorm2 - greyNorm1);
+                                    float slope3 = (y3 - y2 ) / (greyNorm3 - greyNorm2);
+
+                                    if (nits < x1) {
+                                        return nits;
+                                    }
+
+                                    if (nits > maxInLumi) {
+                                        return maxOutLumi;
+                                    }
+
+                                    float greyNits = libtonemap_OETFTone(nits);
+
+                                    if (greyNits <= greyNorm2) {
+                                        nits = (greyNits - greyNorm2) * slope2 + y2;
+                                    } else if (greyNits <= greyNorm3) {
+                                        nits = (greyNits - greyNorm3) * slope3 + y3;
+                                    } else {
+                                        nits = maxOutLumi;
+                                    }
+
+                                    return nits;
+                                }
+                                )");
+                        break;
+                }
+                break;
+            default:
+                // Inverse tone-mapping and SDR-SDR mapping is not supported.
+                program.append(R"(
+                            float libtonemap_ToneMapTargetNits(float maxRGB) {
+                                return maxRGB;
+                            }
+                        )");
+                break;
+        }
+
+        program.append(R"(
+            float libtonemap_LookupTonemapGain(vec3 linearRGB, vec3 xyz) {
+                float maxRGB = max(linearRGB.r, max(linearRGB.g, linearRGB.b));
+                if (maxRGB <= 0.0) {
+                    return 1.0;
+                }
+                return libtonemap_ToneMapTargetNits(maxRGB) / maxRGB;
+            }
+        )");
+        return program;
+    }
+
+    std::vector<ShaderUniform> generateShaderSkSLUniforms(const Metadata& metadata) override {
+        // Hardcode the max content luminance to a "reasonable" level
+        static const constexpr float kContentMaxLuminance = 4000.f;
+        std::vector<ShaderUniform> uniforms;
+        uniforms.reserve(2);
+        uniforms.push_back({.name = "in_libtonemap_displayMaxLuminance",
+                            .value = buildUniformValue<float>(metadata.displayMaxLuminance)});
+        uniforms.push_back({.name = "in_libtonemap_inputMaxLuminance",
+                            .value = buildUniformValue<float>(kContentMaxLuminance)});
         return uniforms;
     }
 };
@@ -247,6 +399,8 @@ ToneMapper* getToneMapper() {
             case ToneMapAlgorithm::AndroidO:
                 sToneMapper = std::unique_ptr<ToneMapper>(new ToneMapperO());
                 break;
+            case ToneMapAlgorithm::Android13:
+                sToneMapper = std::unique_ptr<ToneMapper>(new ToneMapper13());
         }
     });
 

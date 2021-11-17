@@ -21,24 +21,53 @@
 #include "TransactionState.h"
 
 namespace android::surfaceflinger {
+
+struct TracingLayerCreationArgs {
+    int32_t layerId;
+    std::string name;
+    uint32_t flags;
+    int32_t parentId;
+};
+
+struct TracingLayerState : layer_state_t {
+    uint64_t bufferId;
+    uint32_t bufferHeight;
+    uint32_t bufferWidth;
+    bool hasSidebandStream;
+    int32_t parentId;
+    int32_t relativeParentId;
+    int32_t inputCropId;
+    std::string name;
+    uint32_t layerCreationFlags;
+};
+
 class TransactionProtoParser {
 public:
+    typedef std::function<sp<IBinder>(int32_t)> LayerIdToHandleFn;
+    typedef std::function<sp<IBinder>(int32_t)> DisplayIdToHandleFn;
+    typedef std::function<int32_t(const sp<IBinder>&)> LayerHandleToIdFn;
+    typedef std::function<int32_t(const sp<IBinder>&)> DisplayHandleToIdFn;
+
+    static proto::TransactionState toProto(const TransactionState&, LayerHandleToIdFn getLayerIdFn,
+                                           DisplayHandleToIdFn getDisplayIdFn);
     static proto::TransactionState toProto(
-            const TransactionState&, std::function<int32_t(const sp<IBinder>&)> getLayerIdFn,
-            std::function<int32_t(const sp<IBinder>&)> getDisplayIdFn);
+            std::vector<std::pair<int32_t /* layerId */, TracingLayerState>>);
+
+    static proto::LayerCreationArgs toProto(const TracingLayerCreationArgs& args);
+
     static TransactionState fromProto(const proto::TransactionState&,
-                                      std::function<sp<IBinder>(int32_t)> getLayerHandleFn,
-                                      std::function<sp<IBinder>(int32_t)> getDisplayHandleFn);
+                                      LayerIdToHandleFn getLayerHandleFn,
+                                      DisplayIdToHandleFn getDisplayHandleFn);
+    static void fromProto(const proto::LayerState&, LayerIdToHandleFn getLayerHandleFn,
+                          TracingLayerState& outState);
+    static void fromProto(const proto::LayerCreationArgs&, TracingLayerCreationArgs& outArgs);
 
 private:
-    static proto::LayerState toProto(const layer_state_t&,
-                                     std::function<int32_t(const sp<IBinder>&)> getLayerId);
-    static proto::DisplayState toProto(const DisplayState&,
-                                       std::function<int32_t(const sp<IBinder>&)> getDisplayId);
-    static layer_state_t fromProto(const proto::LayerState&,
-                                   std::function<sp<IBinder>(int32_t)> getLayerHandle);
-    static DisplayState fromProto(const proto::DisplayState&,
-                                  std::function<sp<IBinder>(int32_t)> getDisplayHandle);
+    static proto::LayerState toProto(const layer_state_t&, LayerHandleToIdFn getLayerId);
+    static proto::DisplayState toProto(const DisplayState&, DisplayHandleToIdFn getDisplayId);
+    static void fromProto(const proto::LayerState&, LayerIdToHandleFn getLayerHandle,
+                          layer_state_t& out);
+    static DisplayState fromProto(const proto::DisplayState&, DisplayIdToHandleFn getDisplayHandle);
 };
 
 } // namespace android::surfaceflinger

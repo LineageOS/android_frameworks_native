@@ -45,6 +45,7 @@ using android::hardware::sensors::V2_1::ISensorsCallback;
 using android::hardware::sensors::V2_1::implementation::convertToNewEvents;
 using android::hardware::sensors::V2_1::implementation::convertToNewSensorInfos;
 using android::hardware::sensors::V2_1::implementation::convertToOldSensorInfo;
+using android::hardware::sensors::V2_1::implementation::convertToSensor;
 using android::hardware::sensors::V2_1::implementation::ISensorsWrapperV1_0;
 using android::hardware::sensors::V2_1::implementation::ISensorsWrapperV2_0;
 using android::hardware::sensors::V2_1::implementation::ISensorsWrapperV2_1;
@@ -98,19 +99,26 @@ struct SensorsCallback : public ISensorsCallback {
 
     Return<void> onDynamicSensorsConnected_2_1(
             const hidl_vec<SensorInfo>& dynamicSensorsAdded) override {
-        return SensorDevice::getInstance().onDynamicSensorsConnected(dynamicSensorsAdded);
+        std::vector<sensor_t> sensors;
+        for (const V2_1::SensorInfo& info : dynamicSensorsAdded) {
+            sensor_t sensor;
+            convertToSensor(info, &sensor);
+            sensors.push_back(sensor);
+        }
+
+        SensorDevice::getInstance().onDynamicSensorsConnected(sensors);
+        return Return<void>();
     }
 
     Return<void> onDynamicSensorsConnected(
             const hidl_vec<V1_0::SensorInfo>& dynamicSensorsAdded) override {
-        return SensorDevice::getInstance().onDynamicSensorsConnected(
-                convertToNewSensorInfos(dynamicSensorsAdded));
+        return onDynamicSensorsConnected_2_1(convertToNewSensorInfos(dynamicSensorsAdded));
     }
 
     Return<void> onDynamicSensorsDisconnected(
             const hidl_vec<int32_t>& dynamicSensorHandlesRemoved) override {
-        return SensorDevice::getInstance().onDynamicSensorsDisconnected(
-                dynamicSensorHandlesRemoved);
+        SensorDevice::getInstance().onDynamicSensorsDisconnected(dynamicSensorHandlesRemoved);
+        return Return<void>();
     }
 };
 
@@ -138,7 +146,7 @@ void SensorDevice::initializeSensorList() {
         Info model;
         for (size_t i = 0; i < count; i++) {
             sensor_t sensor;
-            convertToSensor(convertToOldSensorInfo(list[i]), &sensor);
+            convertToSensor(list[i], &sensor);
 
             if (sensor.type < static_cast<int>(SensorType::DEVICE_PRIVATE_BASE)) {
                 sensor.resolution = SensorDeviceUtils::resolutionForSensor(sensor);
@@ -289,8 +297,9 @@ SensorDevice::HalConnectionStatus SensorDevice::initializeHidlServiceV2_X() {
     CHECK(mSensors != nullptr && mWakeLockQueue != nullptr && mEventQueueFlag != nullptr &&
           mWakeLockQueueFlag != nullptr);
 
-    status_t status = checkReturnAndGetStatus(
-            mSensors->initialize(*mWakeLockQueue->getDesc(), new SensorsCallback()));
+    mCallback = new SensorsCallback();
+    status_t status =
+            checkReturnAndGetStatus(mSensors->initialize(*mWakeLockQueue->getDesc(), mCallback));
 
     if (status != NO_ERROR) {
         connectionStatus = HalConnectionStatus::FAILED_TO_CONNECT;
@@ -609,34 +618,26 @@ ssize_t SensorDevice::pollFmq(sensors_event_t* buffer, size_t maxNumEventsToRead
     return eventsRead;
 }
 
-Return<void> SensorDevice::onDynamicSensorsConnected(
-        const hidl_vec<SensorInfo>& dynamicSensorsAdded) {
+void SensorDevice::onDynamicSensorsConnected(const std::vector<sensor_t>& dynamicSensorsAdded) {
     std::unique_lock<std::mutex> lock(mDynamicSensorsMutex);
 
     // Allocate a sensor_t structure for each dynamic sensor added and insert
     // it into the dictionary of connected dynamic sensors keyed by handle.
     for (size_t i = 0; i < dynamicSensorsAdded.size(); ++i) {
-        const SensorInfo& info = dynamicSensorsAdded[i];
+        const sensor_t& sensor = dynamicSensorsAdded[i];
 
-        auto it = mConnectedDynamicSensors.find(info.sensorHandle);
+        auto it = mConnectedDynamicSensors.find(sensor.handle);
         CHECK(it == mConnectedDynamicSensors.end());
 
-        sensor_t* sensor = new sensor_t();
-        convertToSensor(convertToOldSensorInfo(info), sensor);
-
-        mConnectedDynamicSensors.insert(std::make_pair(sensor->handle, sensor));
+        mConnectedDynamicSensors.insert(std::make_pair(sensor.handle, sensor));
     }
 
     mDynamicSensorsCv.notify_all();
-
-    return Return<void>();
 }
 
-Return<void> SensorDevice::onDynamicSensorsDisconnected(
-        const hidl_vec<int32_t>& dynamicSensorHandlesRemoved) {
-    (void)dynamicSensorHandlesRemoved;
+void SensorDevice::onDynamicSensorsDisconnected(
+        const std::vector<int32_t>& /* dynamicSensorHandlesRemoved */) {
     // TODO: Currently dynamic sensors do not seem to be removed
-    return Return<void>();
 }
 
 void SensorDevice::writeWakeLockHandled(uint32_t count) {
@@ -710,7 +711,6 @@ status_t SensorDevice::activateLocked(void* ident, int handle, int enabled) {
         // dictionary.
         auto it = mConnectedDynamicSensors.find(handle);
         if (it != mConnectedDynamicSensors.end()) {
-            delete it->second;
             mConnectedDynamicSensors.erase(it);
         }
 
@@ -1176,7 +1176,7 @@ void SensorDevice::convertToSensorEvent(const Event& src, sensors_event_t* dst) 
                 CHECK(it != mConnectedDynamicSensors.end());
             }
 
-            dst->dynamic_sensor_meta.sensor = it->second;
+            dst->dynamic_sensor_meta.sensor = &it->second;
 
             memcpy(dst->dynamic_sensor_meta.uuid, dyn.uuid.data(),
                    sizeof(dst->dynamic_sensor_meta.uuid));
@@ -1187,8 +1187,8 @@ void SensorDevice::convertToSensorEvent(const Event& src, sensors_event_t* dst) 
 void SensorDevice::convertToSensorEventsAndQuantize(const hidl_vec<Event>& src,
                                                     const hidl_vec<SensorInfo>& dynamicSensorsAdded,
                                                     sensors_event_t* dst) {
-    if (dynamicSensorsAdded.size() > 0) {
-        onDynamicSensorsConnected(dynamicSensorsAdded);
+    if (dynamicSensorsAdded.size() > 0 && mCallback != nullptr) {
+        mCallback->onDynamicSensorsConnected_2_1(dynamicSensorsAdded);
     }
 
     for (size_t i = 0; i < src.size(); ++i) {
@@ -1208,7 +1208,7 @@ float SensorDevice::getResolutionForSensor(int sensorHandle) {
 
     auto it = mConnectedDynamicSensors.find(sensorHandle);
     if (it != mConnectedDynamicSensors.end()) {
-        return it->second->resolution;
+        return it->second.resolution;
     }
 
     return 0;

@@ -114,7 +114,8 @@ static void generateXYZTransforms(SkString& shader) {
 }
 
 // Conversion from relative light to absolute light (maps from [0, 1] to [0, maxNits])
-static void generateLuminanceScalesForOOTF(ui::Dataspace inputDataspace, SkString& shader) {
+static void generateLuminanceScalesForOOTF(ui::Dataspace inputDataspace,
+                                           ui::Dataspace outputDataspace, SkString& shader) {
     switch (inputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
         case HAL_DATASPACE_TRANSFER_ST2084:
             shader.append(R"(
@@ -131,12 +132,26 @@ static void generateLuminanceScalesForOOTF(ui::Dataspace inputDataspace, SkStrin
                 )");
             break;
         default:
-            shader.append(R"(
-                    float3 ScaleLuminance(float3 xyz) {
-                        return xyz * in_libtonemap_inputMaxLuminance;
-                    }
-                )");
-            break;
+            switch (outputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
+                case HAL_DATASPACE_TRANSFER_ST2084:
+                case HAL_DATASPACE_TRANSFER_HLG:
+                    // SDR -> HDR tonemap
+                    shader.append(R"(
+                            float3 ScaleLuminance(float3 xyz) {
+                                return xyz * in_libtonemap_inputMaxLuminance;
+                            }
+                        )");
+                    break;
+                default:
+                    // Input and output are both SDR, so no tone-mapping is expected so
+                    // no-op the luminance normalization.
+                    shader.append(R"(
+                                float3 ScaleLuminance(float3 xyz) {
+                                    return xyz * in_libtonemap_displayMaxLuminance;
+                                }
+                            )");
+                    break;
+            }
     }
 }
 
@@ -174,7 +189,7 @@ static void generateOOTF(ui::Dataspace inputDataspace, ui::Dataspace outputDatas
                                                           toAidlDataspace(outputDataspace))
                           .c_str());
 
-    generateLuminanceScalesForOOTF(inputDataspace, shader);
+    generateLuminanceScalesForOOTF(inputDataspace, outputDataspace, shader);
     generateLuminanceNormalizationForOOTF(outputDataspace, shader);
 
     shader.append(R"(
