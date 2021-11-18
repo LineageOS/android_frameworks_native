@@ -93,6 +93,7 @@
 #include <type_traits>
 #include <unordered_map>
 
+#include "BackgroundExecutor.h"
 #include "BufferLayer.h"
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
@@ -508,7 +509,7 @@ void SurfaceFlinger::binderDied(const wp<IBinder>&) {
     mBootFinished = false;
 
     // Sever the link to inputflinger since it's gone as well.
-    static_cast<void>(mScheduler->schedule([=] { mInputFlinger = nullptr; }));
+    BackgroundExecutor::getInstance().execute([=] { mInputFlinger = nullptr; });
 
     // restore initial conditions (default device unblank, etc)
     initializeDisplays();
@@ -719,13 +720,15 @@ void SurfaceFlinger::bootFinished() {
 
     sp<IBinder> input(defaultServiceManager()->getService(String16("inputflinger")));
 
-    static_cast<void>(mScheduler->schedule([=] {
+    BackgroundExecutor::getInstance().execute([=] {
         if (input == nullptr) {
             ALOGE("Failed to link to input service");
         } else {
             mInputFlinger = interface_cast<os::IInputFlinger>(input);
         }
+    });
 
+    static_cast<void>(mScheduler->schedule([=] {
         readPersistentProperties();
         mPowerAdvisor.onBootFinished();
         mBootStage = BootStage::FINISHED;
@@ -3004,32 +3007,48 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
 
 void SurfaceFlinger::updateInputFlinger() {
     ATRACE_CALL();
-    if (!mInputFlinger) {
-        return;
-    }
-
+    std::vector<WindowInfo> windowInfos;
+    std::vector<DisplayInfo> displayInfos;
+    bool updateWindowInfo = false;
     if (mVisibleRegionsDirty || mInputInfoChanged) {
         mInputInfoChanged = false;
-        notifyWindowInfos();
-    } else if (mInputWindowCommands.syncInputWindows) {
-        // If the caller requested to sync input windows, but there are no
-        // changes to input windows, notify immediately.
-        windowInfosReported();
+        updateWindowInfo = true;
+        buildWindowInfos(windowInfos, displayInfos);
     }
+    if (!updateWindowInfo && mInputWindowCommands.empty()) {
+        return;
+    }
+    BackgroundExecutor::getInstance().execute([updateWindowInfo,
+                                               windowInfos = std::move(windowInfos),
+                                               displayInfos = std::move(displayInfos),
+                                               inputWindowCommands =
+                                                       std::move(mInputWindowCommands),
+                                               this]() {
+        ATRACE_NAME("BackgroundExecutor::updateInputFlinger");
+        if (!mInputFlinger) {
+            return;
+        }
+        if (updateWindowInfo) {
+            mWindowInfosListenerInvoker->windowInfosChanged(windowInfos, displayInfos,
+                                                            inputWindowCommands.syncInputWindows);
+        } else if (inputWindowCommands.syncInputWindows) {
+            // If the caller requested to sync input windows, but there are no
+            // changes to input windows, notify immediately.
+            windowInfosReported();
+        }
+        for (const auto& focusRequest : inputWindowCommands.focusRequests) {
+            mInputFlinger->setFocusedWindow(focusRequest);
+        }
+    });
 
-    for (const auto& focusRequest : mInputWindowCommands.focusRequests) {
-        mInputFlinger->setFocusedWindow(focusRequest);
-    }
     mInputWindowCommands.clear();
 }
 
-void SurfaceFlinger::notifyWindowInfos() {
-    std::vector<WindowInfo> windowInfos;
-    std::vector<DisplayInfo> displayInfos;
+void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
+                                      std::vector<DisplayInfo>& outDisplayInfos) {
     std::unordered_map<uint32_t /*layerStackId*/,
                        std::pair<bool /* isSecure */, const ui::Transform>>
             inputDisplayDetails;
-
     for (const auto& [_, display] : ON_MAIN_THREAD(mDisplays)) {
         if (!display->receivesInput()) {
             continue;
@@ -3043,7 +3062,7 @@ void SurfaceFlinger::notifyWindowInfos() {
                   layerStackId);
             continue;
         }
-        displayInfos.emplace_back(info);
+        outDisplayInfos.emplace_back(info);
     }
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
@@ -3063,10 +3082,8 @@ void SurfaceFlinger::notifyWindowInfos() {
                   layer->getDebugName(), layerStackId);
         }
 
-        windowInfos.push_back(layer->fillInputInfo(displayTransform, isSecure));
+        outWindowInfos.push_back(layer->fillInputInfo(displayTransform, isSecure));
     });
-    mWindowInfosListenerInvoker->windowInfosChanged(windowInfos, displayInfos,
-                                                    mInputWindowCommands.syncInputWindows);
 }
 
 void SurfaceFlinger::updateCursorAsync() {
