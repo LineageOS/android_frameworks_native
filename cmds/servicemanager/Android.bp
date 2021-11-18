@@ -47,6 +47,15 @@ cc_binary {
 }
 
 cc_binary {
+    name: "servicemanager.recovery",
+    stem: "servicemanager",
+    recovery: true,
+    defaults: ["servicemanager_defaults"],
+    init_rc: ["servicemanager.recovery.rc"],
+    srcs: ["main.cpp"],
+}
+
+cc_binary {
     name: "vndservicemanager",
     defaults: ["servicemanager_defaults"],
     init_rc: ["vndservicemanager.rc"],
