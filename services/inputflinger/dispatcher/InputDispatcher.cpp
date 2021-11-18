@@ -1749,7 +1749,7 @@ void InputDispatcher::cancelEventsForAnrLocked(const sp<Connection>& connection)
     // pile up.
     ALOGW("Canceling events for %s because it is unresponsive",
           connection->inputChannel->getName().c_str());
-    if (connection->status == Connection::STATUS_NORMAL) {
+    if (connection->status == Connection::Status::NORMAL) {
         CancelationOptions options(CancelationOptions::CANCEL_ALL_EVENTS,
                                    "application not responding");
         synthesizeCancelationEventsForConnectionLocked(connection, options);
@@ -2825,10 +2825,11 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
 
     // Skip this event if the connection status is not normal.
     // We don't want to enqueue additional outbound events if the connection is broken.
-    if (connection->status != Connection::STATUS_NORMAL) {
+    if (connection->status != Connection::Status::NORMAL) {
         if (DEBUG_DISPATCH_CYCLE) {
             ALOGD("channel '%s' ~ Dropping event because the channel status is %s",
-                  connection->getInputChannelName().c_str(), connection->getStatusLabel());
+                  connection->getInputChannelName().c_str(),
+                  ftl::enum_string(connection->status).c_str());
         }
         return;
     }
@@ -3142,7 +3143,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
         ALOGD("channel '%s' ~ startDispatchCycle", connection->getInputChannelName().c_str());
     }
 
-    while (connection->status == Connection::STATUS_NORMAL && !connection->outboundQueue.empty()) {
+    while (connection->status == Connection::Status::NORMAL && !connection->outboundQueue.empty()) {
         DispatchEntry* dispatchEntry = connection->outboundQueue.front();
         dispatchEntry->deliveryTime = currentTime;
         const std::chrono::nanoseconds timeout =
@@ -3363,8 +3364,8 @@ void InputDispatcher::finishDispatchCycleLocked(nsecs_t currentTime,
               connection->getInputChannelName().c_str(), seq, toString(handled));
     }
 
-    if (connection->status == Connection::STATUS_BROKEN ||
-        connection->status == Connection::STATUS_ZOMBIE) {
+    if (connection->status == Connection::Status::BROKEN ||
+        connection->status == Connection::Status::ZOMBIE) {
         return;
     }
 
@@ -3391,8 +3392,8 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
 
     // The connection appears to be unrecoverably broken.
     // Ignore already broken or zombie connections.
-    if (connection->status == Connection::STATUS_NORMAL) {
-        connection->status = Connection::STATUS_BROKEN;
+    if (connection->status == Connection::Status::NORMAL) {
+        connection->status = Connection::Status::BROKEN;
 
         if (notify) {
             // Notify other system components.
@@ -3400,7 +3401,7 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
                   connection->getInputChannelName().c_str());
 
             auto command = [this, connection]() REQUIRES(mLock) {
-                if (connection->status == Connection::STATUS_ZOMBIE) return;
+                if (connection->status == Connection::Status::ZOMBIE) return;
                 scoped_unlock unlock(mLock);
                 mPolicy->notifyInputChannelBroken(connection->inputChannel->getConnectionToken());
             };
@@ -3536,7 +3537,7 @@ void InputDispatcher::synthesizeCancelationEventsForInputChannelLocked(
 
 void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
         const sp<Connection>& connection, const CancelationOptions& options) {
-    if (connection->status == Connection::STATUS_BROKEN) {
+    if (connection->status == Connection::Status::BROKEN) {
         return;
     }
 
@@ -3609,7 +3610,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
 
 void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
         const sp<Connection>& connection) {
-    if (connection->status == Connection::STATUS_BROKEN) {
+    if (connection->status == Connection::Status::BROKEN) {
         return;
     }
 
@@ -5286,7 +5287,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          "status=%s, monitor=%s, responsive=%s\n",
                                  connection->inputChannel->getFd().get(),
                                  connection->getInputChannelName().c_str(),
-                                 connection->getWindowName().c_str(), connection->getStatusLabel(),
+                                 connection->getWindowName().c_str(),
+                                 ftl::enum_string(connection->status).c_str(),
                                  toString(connection->monitor), toString(connection->responsive));
 
             if (!connection->outboundQueue.empty()) {
@@ -5459,7 +5461,7 @@ status_t InputDispatcher::removeInputChannelLocked(const sp<IBinder>& connection
     nsecs_t currentTime = now();
     abortBrokenDispatchCycleLocked(currentTime, connection, notify);
 
-    connection->status = Connection::STATUS_ZOMBIE;
+    connection->status = Connection::Status::ZOMBIE;
     return OK;
 }
 
@@ -5678,7 +5680,7 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
             }
         }
         traceWaitQueueLength(*connection);
-        if (restartEvent && connection->status == Connection::STATUS_NORMAL) {
+        if (restartEvent && connection->status == Connection::Status::NORMAL) {
             connection->outboundQueue.push_front(dispatchEntry);
             traceOutboundQueueLength(*connection);
         } else {
@@ -5976,7 +5978,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptable(const sp<Connection>& con
 
         mLock.lock();
 
-        if (connection->status != Connection::STATUS_NORMAL) {
+        if (connection->status != Connection::Status::NORMAL) {
             connection->inputState.removeFallbackKey(originalKeyCode);
             return false;
         }
