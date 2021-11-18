@@ -105,8 +105,6 @@ private:
     VelocityControl mWheelYVelocityControl;
 
     int32_t mOrientation;
-    int32_t mDisplayWidth;
-    int32_t mDisplayHeight;
 
     std::shared_ptr<PointerControllerInterface> mPointerController;
 

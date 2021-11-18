@@ -803,14 +803,6 @@ private:
 
     const char* modeToString(DeviceMode deviceMode);
     void rotateAndScale(float& x, float& y) const;
-
-    // Wrapper methods for interfacing with PointerController. These are used to convert points
-    // between the coordinate spaces used by InputReader and PointerController, if they differ.
-    void moveMouseCursor(float dx, float dy) const;
-    std::pair<float, float> getMouseCursorPosition() const;
-    void setMouseCursorPosition(float x, float y) const;
-    void setTouchSpots(const PointerCoords* spotCoords, const uint32_t* spotIdToIndex,
-                       BitSet32 spotIdBits, int32_t displayId);
 };
 
 } // namespace android
