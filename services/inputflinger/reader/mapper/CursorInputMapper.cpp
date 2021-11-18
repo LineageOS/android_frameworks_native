@@ -188,8 +188,6 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         mOrientation = DISPLAY_ORIENTATION_0;
-        mDisplayWidth = 0;
-        mDisplayHeight = 0;
         const bool isOrientedDevice =
                 (mParameters.orientationAware && mParameters.hasAssociatedDisplay);
 
@@ -203,8 +201,6 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
                     config->getDisplayViewportByType(ViewportType::INTERNAL);
             if (internalViewport) {
                 mOrientation = getInverseRotation(internalViewport->orientation);
-                mDisplayWidth = internalViewport->deviceWidth;
-                mDisplayHeight = internalViewport->deviceHeight;
             }
         }
 
@@ -335,14 +331,7 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
             mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
 
             if (moved) {
-                float dx = deltaX;
-                float dy = deltaY;
-                // Rotate the delta from InputReader's un-rotated coordinate space to
-                // PointerController's rotated coordinate space that is oriented with the
-                // viewport.
-                rotateDelta(getInverseRotation(mOrientation), &dx, &dy);
-
-                mPointerController->move(dx, dy);
+                mPointerController->move(deltaX, deltaY);
             }
 
             if (buttonsChanged) {
@@ -353,10 +342,6 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
         }
 
         mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
-        // Rotate the cursor position that is in PointerController's rotated coordinate space
-        // to InputReader's un-rotated coordinate space.
-        rotatePoint(mOrientation, xCursorPosition /*byRef*/, yCursorPosition /*byRef*/,
-                    mDisplayWidth, mDisplayHeight);
 
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
