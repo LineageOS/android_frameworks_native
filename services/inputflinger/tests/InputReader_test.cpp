@@ -299,8 +299,9 @@ public:
         transform = t;
     }
 
-    void setPointerCapture(bool enabled) {
-        mConfig.pointerCapture = enabled;
+    PointerCaptureRequest setPointerCapture(bool enabled) {
+        mConfig.pointerCaptureRequest = {enabled, mNextPointerCaptureSequenceNumber++};
+        return mConfig.pointerCaptureRequest;
     }
 
     void setShowTouches(bool enabled) {
@@ -314,6 +315,8 @@ public:
     float getPointerGestureMovementSpeedRatio() { return mConfig.pointerGestureMovementSpeedRatio; }
 
 private:
+    uint32_t mNextPointerCaptureSequenceNumber = 0;
+
     DisplayViewport createDisplayViewport(int32_t displayId, int32_t width, int32_t height,
                                           int32_t orientation, bool isActive,
                                           const std::string& uniqueId,
@@ -1961,24 +1964,24 @@ TEST_F(InputReaderTest, GetKeyCodeState_ForwardsRequestsToSubdeviceMappers) {
 TEST_F(InputReaderTest, ChangingPointerCaptureNotifiesInputListener) {
     NotifyPointerCaptureChangedArgs args;
 
-    mFakePolicy->setPointerCapture(true);
+    auto request = mFakePolicy->setPointerCapture(true);
     mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
     mReader->loopOnce();
     mFakeListener->assertNotifyCaptureWasCalled(&args);
-    ASSERT_TRUE(args.enabled) << "Pointer Capture should be enabled.";
+    ASSERT_TRUE(args.request.enable) << "Pointer Capture should be enabled.";
+    ASSERT_EQ(args.request, request) << "Pointer Capture sequence number should match.";
 
     mFakePolicy->setPointerCapture(false);
     mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
     mReader->loopOnce();
     mFakeListener->assertNotifyCaptureWasCalled(&args);
-    ASSERT_FALSE(args.enabled) << "Pointer Capture should be disabled.";
+    ASSERT_FALSE(args.request.enable) << "Pointer Capture should be disabled.";
 
-    // Verify that the Pointer Capture state is re-configured correctly when the configuration value
+    // Verify that the Pointer Capture state is not updated when the configuration value
     // does not change.
     mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
     mReader->loopOnce();
-    mFakeListener->assertNotifyCaptureWasCalled(&args);
-    ASSERT_FALSE(args.enabled) << "Pointer Capture should be disabled.";
+    mFakeListener->assertNotifyCaptureWasNotCalled();
 }
 
 class FakeVibratorInputMapper : public FakeInputMapper {
