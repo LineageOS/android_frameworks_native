@@ -34,6 +34,7 @@
 #include <scheduler/Features.h>
 
 #include "EventThread.h"
+#include "FrameRateOverrideMappings.h"
 #include "LayerHistory.h"
 #include "MessageQueue.h"
 #include "OneShotTimer.h"
@@ -117,7 +118,7 @@ public:
     void onScreenReleased(ConnectionHandle);
 
     void onFrameRateOverridesChanged(ConnectionHandle, PhysicalDisplayId)
-            EXCLUDES(mFrameRateOverridesLock) EXCLUDES(mConnectionsLock);
+            EXCLUDES(mConnectionsLock);
 
     // Modifies work duration in the event thread.
     void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
@@ -167,8 +168,7 @@ public:
 
     // Returns true if a given vsync timestamp is considered valid vsync
     // for a given uid
-    bool isVsyncValid(nsecs_t expectedVsyncTimestamp, uid_t uid) const
-            EXCLUDES(mFrameRateOverridesLock);
+    bool isVsyncValid(nsecs_t expectedVsyncTimestamp, uid_t uid) const;
 
     std::chrono::steady_clock::time_point getPreviousVsyncFrom(nsecs_t expectedPresentTime) const;
 
@@ -197,10 +197,12 @@ public:
 
     // Stores the preferred refresh rate that an app should run at.
     // FrameRateOverride.refreshRateHz == 0 means no preference.
-    void setPreferredRefreshRateForUid(FrameRateOverride) EXCLUDES(mFrameRateOverridesLock);
+    void setPreferredRefreshRateForUid(FrameRateOverride);
+
+    void setGameModeRefreshRateForUid(FrameRateOverride);
+
     // Retrieves the overridden refresh rate for a given uid.
-    std::optional<Fps> getFrameRateOverride(uid_t uid) const
-            EXCLUDES(mRefreshRateConfigsLock, mFrameRateOverridesLock);
+    std::optional<Fps> getFrameRateOverride(uid_t uid) const EXCLUDES(mRefreshRateConfigsLock);
 
     nsecs_t getVsyncPeriodFromRefreshRateConfigs() const EXCLUDES(mRefreshRateConfigsLock) {
         std::scoped_lock lock(mRefreshRateConfigsLock);
@@ -246,7 +248,7 @@ private:
 
     void dispatchCachedReportedMode() REQUIRES(mPolicyLock) EXCLUDES(mRefreshRateConfigsLock);
     bool updateFrameRateOverrides(RefreshRateConfigs::GlobalSignals, Fps displayRefreshRate)
-            REQUIRES(mPolicyLock) EXCLUDES(mFrameRateOverridesLock);
+            REQUIRES(mPolicyLock);
 
     impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const
             EXCLUDES(mRefreshRateConfigsLock);
@@ -321,16 +323,7 @@ private:
             GUARDED_BY(mVsyncTimelineLock);
     static constexpr std::chrono::nanoseconds MAX_VSYNC_APPLIED_TIME = 200ms;
 
-    // The frame rate override lists need their own mutex as they are being read
-    // by SurfaceFlinger, Scheduler and EventThread (as a callback) to prevent deadlocks
-    mutable std::mutex mFrameRateOverridesLock;
-
-    // mappings between a UID and a preferred refresh rate that this app would
-    // run at.
-    RefreshRateConfigs::UidToFrameRateOverride mFrameRateOverridesByContent
-            GUARDED_BY(mFrameRateOverridesLock);
-    RefreshRateConfigs::UidToFrameRateOverride mFrameRateOverridesFromBackdoor
-            GUARDED_BY(mFrameRateOverridesLock);
+    FrameRateOverrideMappings mFrameRateOverrideMappings;
 
     // Keeps track of whether the screen is acquired for debug
     std::atomic<bool> mScreenAcquired = false;

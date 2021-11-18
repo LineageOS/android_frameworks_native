@@ -1346,6 +1346,21 @@ public:
         SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(windowInfosListener));
         return remote()->transact(BnSurfaceComposer::REMOVE_WINDOW_INFOS_LISTENER, data, &reply);
     }
+
+    status_t setOverrideFrameRate(uid_t uid, float frameRate) override {
+        Parcel data, reply;
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeUint32, uid);
+        SAFE_PARCEL(data.writeFloat, frameRate);
+
+        status_t err = remote()->transact(BnSurfaceComposer::SET_OVERRIDE_FRAME_RATE, data, &reply);
+        if (err != NO_ERROR) {
+            ALOGE("setOverrideFrameRate: failed to transact %s (%d)", strerror(-err), err);
+            return err;
+        }
+
+        return NO_ERROR;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -2305,6 +2320,17 @@ status_t BnSurfaceComposer::onTransact(
             SAFE_PARCEL(data.readStrongBinder, &listener);
 
             return removeWindowInfosListener(listener);
+        }
+        case SET_OVERRIDE_FRAME_RATE: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+
+            uid_t uid;
+            SAFE_PARCEL(data.readUint32, &uid);
+
+            float frameRate;
+            SAFE_PARCEL(data.readFloat, &frameRate);
+
+            return setOverrideFrameRate(uid, frameRate);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

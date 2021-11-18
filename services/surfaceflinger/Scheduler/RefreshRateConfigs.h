@@ -328,7 +328,7 @@ public:
     // refresh rates.
     KernelIdleTimerAction getIdleTimerAction() const;
 
-    bool supportsFrameRateOverride() const { return mSupportsFrameRateOverride; }
+    bool supportsFrameRateOverrideByContent() const { return mSupportsFrameRateOverrideByContent; }
 
     // Return the display refresh rate divider to match the layer
     // frame rate, or 0 if the display refresh rate is not a multiple of the
@@ -496,7 +496,7 @@ private:
     const std::vector<Fps> mKnownFrameRates;
 
     const Config mConfig;
-    bool mSupportsFrameRateOverride;
+    bool mSupportsFrameRateOverrideByContent;
 
     struct GetBestRefreshRateInvocation {
         std::vector<LayerRequirement> layerRequirements;

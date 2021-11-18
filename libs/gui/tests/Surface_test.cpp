@@ -31,9 +31,11 @@
 #include <gui/SyncScreenCaptureListener.h>
 #include <inttypes.h>
 #include <private/gui/ComposerService.h>
+#include <sys/types.h>
 #include <ui/BufferQueueDefs.h>
 #include <ui/DisplayMode.h>
 #include <ui/Rect.h>
+#include <utils/Errors.h>
 #include <utils/String8.h>
 
 #include <limits>
@@ -924,6 +926,8 @@ public:
             const sp<gui::IWindowInfosListener>& /*windowInfosListener*/) const override {
         return NO_ERROR;
     }
+
+    status_t setOverrideFrameRate(uid_t /*uid*/, float /*frameRate*/) override { return NO_ERROR; }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }

@@ -25,6 +25,7 @@
 
 #include <binder/IBinder.h>
 
+#include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Singleton.h>
 #include <utils/SortedVector.h>
@@ -175,6 +176,9 @@ public:
     static status_t clearBootDisplayMode(const sp<IBinder>& display);
     // Gets the display mode in which the device boots if there is no user-preferred display mode
     static status_t getPreferredBootDisplayMode(const sp<IBinder>& display, ui::DisplayModeId*);
+    // Sets the frame rate of a particular app (uid). This is currently called
+    // by GameManager.
+    static status_t setOverrideFrameRate(uid_t uid, float frameRate);
 
     // Switches on/off Auto Low Latency Mode on the connected display. This should only be
     // called if the connected display supports Auto Low Latency Mode as reported by
