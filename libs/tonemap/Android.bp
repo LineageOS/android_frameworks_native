@@ -30,7 +30,13 @@ cc_library_static {
 
     shared_libs: [
         "android.hardware.graphics.common-V3-ndk",
+        "liblog",
     ],
+
+    static_libs: [
+        "libmath",
+    ],
+
     srcs: [
         "tonemap.cpp",
     ],
