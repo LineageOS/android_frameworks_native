@@ -219,21 +219,21 @@ public:
     template <class T>
     T getAnrTokenLockedInterruptible(std::chrono::nanoseconds timeout, std::queue<T>& storage,
                                      std::unique_lock<std::mutex>& lock) REQUIRES(mLock) {
-        const std::chrono::time_point start = std::chrono::steady_clock::now();
-        std::chrono::duration timeToWait = timeout + 100ms; // provide some slack
-
         // If there is an ANR, Dispatcher won't be idle because there are still events
         // in the waitQueue that we need to check on. So we can't wait for dispatcher to be idle
         // before checking if ANR was called.
         // Since dispatcher is not guaranteed to call notifyNoFocusedWindowAnr right away, we need
         // to provide it some time to act. 100ms seems reasonable.
-        mNotifyAnr.wait_for(lock, timeToWait,
-                            [&storage]() REQUIRES(mLock) { return !storage.empty(); });
-        const std::chrono::duration waited = std::chrono::steady_clock::now() - start;
-        if (storage.empty()) {
+        std::chrono::duration timeToWait = timeout + 100ms; // provide some slack
+        const std::chrono::time_point start = std::chrono::steady_clock::now();
+        std::optional<T> token =
+                getItemFromStorageLockedInterruptible(timeToWait, storage, lock, mNotifyAnr);
+        if (!token.has_value()) {
             ADD_FAILURE() << "Did not receive the ANR callback";
             return {};
         }
+
+        const std::chrono::duration waited = std::chrono::steady_clock::now() - start;
         // Ensure that the ANR didn't get raised too early. We can't be too strict here because
         // the dispatcher started counting before this function was called
         if (std::chrono::abs(timeout - waited) > 100ms) {
@@ -243,9 +243,24 @@ public:
                           << std::chrono::duration_cast<std::chrono::milliseconds>(waited).count()
                           << "ms instead";
         }
-        T token = storage.front();
+        return *token;
+    }
+
+    template <class T>
+    std::optional<T> getItemFromStorageLockedInterruptible(std::chrono::nanoseconds timeout,
+                                                           std::queue<T>& storage,
+                                                           std::unique_lock<std::mutex>& lock,
+                                                           std::condition_variable& condition)
+            REQUIRES(mLock) {
+        condition.wait_for(lock, timeout,
+                           [&storage]() REQUIRES(mLock) { return !storage.empty(); });
+        if (storage.empty()) {
+            ADD_FAILURE() << "Did not receive the expected callback";
+            return std::nullopt;
+        }
+        T item = storage.front();
         storage.pop();
-        return token;
+        return std::make_optional(item);
     }
 
     void assertNotifyAnrWasNotCalled() {
@@ -303,6 +318,16 @@ public:
         mNotifyDropWindowWasCalled = false;
     }
 
+    void assertNotifyInputChannelBrokenWasCalled(const sp<IBinder>& token) {
+        std::unique_lock lock(mLock);
+        base::ScopedLockAssertion assumeLocked(mLock);
+        std::optional<sp<IBinder>> receivedToken =
+                getItemFromStorageLockedInterruptible(100ms, mBrokenInputChannels, lock,
+                                                      mNotifyInputChannelBroken);
+        ASSERT_TRUE(receivedToken.has_value());
+        ASSERT_EQ(token, *receivedToken);
+    }
+
 private:
     std::mutex mLock;
     std::unique_ptr<InputEvent> mFilteredEvent GUARDED_BY(mLock);
@@ -321,6 +346,8 @@ private:
     std::queue<int32_t> mAnrMonitorPids GUARDED_BY(mLock);
     std::queue<int32_t> mResponsiveMonitorPids GUARDED_BY(mLock);
     std::condition_variable mNotifyAnr;
+    std::queue<sp<IBinder>> mBrokenInputChannels GUARDED_BY(mLock);
+    std::condition_variable mNotifyInputChannelBroken;
 
     sp<IBinder> mDropTargetWindowToken GUARDED_BY(mLock);
     bool mNotifyDropWindowWasCalled GUARDED_BY(mLock) = false;
@@ -361,7 +388,11 @@ private:
         mNotifyAnr.notify_all();
     }
 
-    void notifyInputChannelBroken(const sp<IBinder>&) override {}
+    void notifyInputChannelBroken(const sp<IBinder>& connectionToken) override {
+        std::scoped_lock lock(mLock);
+        mBrokenInputChannels.push(connectionToken);
+        mNotifyInputChannelBroken.notify_all();
+    }
 
     void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) override {}
 
@@ -1175,6 +1206,8 @@ public:
         mInfo.ownerUid = ownerUid;
     }
 
+    void destroyReceiver() { mInputReceiver = nullptr; }
+
 private:
     const std::string mName;
     std::unique_ptr<FakeInputReceiver> mInputReceiver;
@@ -1436,6 +1469,23 @@ static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source, int32
 static NotifyPointerCaptureChangedArgs generatePointerCaptureChangedArgs(
         const PointerCaptureRequest& request) {
     return NotifyPointerCaptureChangedArgs(/* id */ 0, systemTime(SYSTEM_TIME_MONOTONIC), request);
+}
+
+/**
+ * When a window unexpectedly disposes of its input channel, policy should be notified about the
+ * broken channel.
+ */
+TEST_F(InputDispatcherTest, WhenInputChannelBreaks_PolicyIsNotified) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Window that breaks its input channel",
+                                 ADISPLAY_ID_DEFAULT);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    // Window closes its channel, but the window remains.
+    window->destroyReceiver();
+    mFakePolicy->assertNotifyInputChannelBrokenWasCalled(window->getInfo()->token);
 }
 
 TEST_F(InputDispatcherTest, SetInputWindow_SingleWindowTouch) {
