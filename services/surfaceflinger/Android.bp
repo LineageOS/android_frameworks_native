@@ -144,6 +144,7 @@ cc_library_headers {
 filegroup {
     name: "libsurfaceflinger_sources",
     srcs: [
+        "BackgroundExecutor.cpp",
         "BufferLayer.cpp",
         "BufferLayerConsumer.cpp",
         "BufferQueueLayer.cpp",
