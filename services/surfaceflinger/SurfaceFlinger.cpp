@@ -772,6 +772,25 @@ void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
     ATRACE_INT("TexturePoolSize", mTexturePool.size());
 }
 
+static std::optional<renderengine::RenderEngine::RenderEngineType>
+chooseRenderEngineTypeViaSysProp() {
+    char prop[PROPERTY_VALUE_MAX];
+    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "");
+
+    if (strcmp(prop, "gles") == 0) {
+        return renderengine::RenderEngine::RenderEngineType::GLES;
+    } else if (strcmp(prop, "threaded") == 0) {
+        return renderengine::RenderEngine::RenderEngineType::THREADED;
+    } else if (strcmp(prop, "skiagl") == 0) {
+        return renderengine::RenderEngine::RenderEngineType::SKIA_GL;
+    } else if (strcmp(prop, "skiaglthreaded") == 0) {
+        return renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED;
+    } else {
+        ALOGE("Unrecognized RenderEngineType %s; ignoring!", prop);
+        return {};
+    }
+}
+
 // Do not call property_set on main thread which will be blocked by init
 // Use StartPropertySetThread instead.
 void SurfaceFlinger::init() {
@@ -782,19 +801,21 @@ void SurfaceFlinger::init() {
     // Get a RenderEngine for the given display / config (can't fail)
     // TODO(b/77156734): We need to stop casting and use HAL types when possible.
     // Sending maxFrameBufferAcquiredBuffers as the cache size is tightly tuned to single-display.
-    mCompositionEngine->setRenderEngine(renderengine::RenderEngine::create(
-            renderengine::RenderEngineCreationArgs::Builder()
-                    .setPixelFormat(static_cast<int32_t>(defaultCompositionPixelFormat))
-                    .setImageCacheSize(maxFrameBufferAcquiredBuffers)
-                    .setUseColorManagerment(useColorManagement)
-                    .setEnableProtectedContext(enable_protected_contents(false))
-                    .setPrecacheToneMapperShaderOnly(false)
-                    .setSupportsBackgroundBlur(mSupportsBlur)
-                    .setContextPriority(
-                            useContextPriority
-                                    ? renderengine::RenderEngine::ContextPriority::REALTIME
-                                    : renderengine::RenderEngine::ContextPriority::MEDIUM)
-                    .build()));
+    auto builder = renderengine::RenderEngineCreationArgs::Builder()
+                           .setPixelFormat(static_cast<int32_t>(defaultCompositionPixelFormat))
+                           .setImageCacheSize(maxFrameBufferAcquiredBuffers)
+                           .setUseColorManagerment(useColorManagement)
+                           .setEnableProtectedContext(enable_protected_contents(false))
+                           .setPrecacheToneMapperShaderOnly(false)
+                           .setSupportsBackgroundBlur(mSupportsBlur)
+                           .setContextPriority(
+                                   useContextPriority
+                                           ? renderengine::RenderEngine::ContextPriority::REALTIME
+                                           : renderengine::RenderEngine::ContextPriority::MEDIUM);
+    if (auto type = chooseRenderEngineTypeViaSysProp()) {
+        builder.setRenderEngineType(type.value());
+    }
+    mCompositionEngine->setRenderEngine(renderengine::RenderEngine::create(builder.build()));
     mMaxRenderTargetSize =
             std::min(getRenderEngine().getMaxTextureSize(), getRenderEngine().getMaxViewportDims());
 
