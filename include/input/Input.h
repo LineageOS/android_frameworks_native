@@ -201,6 +201,11 @@ namespace android {
 class Parcel;
 #endif
 
+/*
+ * Apply the given transform to the point without applying any translation/offset.
+ */
+vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy);
+
 const char* inputEventTypeToString(int32_t type);
 
 std::string inputEventSourceToString(int32_t source);

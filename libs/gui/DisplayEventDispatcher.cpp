@@ -182,7 +182,6 @@ bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
                     outVsyncEventData->id = ev.vsync.vsyncId;
                     outVsyncEventData->deadlineTimestamp = ev.vsync.deadlineTimestamp;
                     outVsyncEventData->frameInterval = ev.vsync.frameInterval;
-                    outVsyncEventData->expectedPresentTime = ev.vsync.expectedVSyncTimestamp;
                     outVsyncEventData->preferredFrameTimelineIndex =
                             ev.vsync.preferredFrameTimelineIndex;
                     populateFrameTimelines(ev, outVsyncEventData);
