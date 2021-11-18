@@ -3011,8 +3011,9 @@ binder::Status InstalldNativeService::tryMountDataMirror(
 
     const char* uuid_ = uuid->c_str();
 
+    std::lock_guard<std::recursive_mutex> lock(mMountsLock);
+
     std::string mirrorVolCePath(StringPrintf("%s/%s", kDataMirrorCePath, uuid_));
-    std::lock_guard<std::recursive_mutex> lock(mLock);
     if (fs_prepare_dir(mirrorVolCePath.c_str(), 0711, AID_SYSTEM, AID_SYSTEM) != 0) {
         return error("Failed to create CE mirror");
     }
@@ -3081,8 +3082,9 @@ binder::Status InstalldNativeService::onPrivateVolumeRemoved(
     std::string mirrorCeVolPath(StringPrintf("%s/%s", kDataMirrorCePath, uuid_));
     std::string mirrorDeVolPath(StringPrintf("%s/%s", kDataMirrorDePath, uuid_));
 
+    std::lock_guard<std::recursive_mutex> lock(mMountsLock);
+
     // Unmount CE storage
-    std::lock_guard<std::recursive_mutex> lock(mLock);
     if (TEMP_FAILURE_RETRY(umount(mirrorCeVolPath.c_str())) != 0) {
         if (errno != ENOENT) {
             res = error(StringPrintf("Failed to umount %s %s", mirrorCeVolPath.c_str(),
