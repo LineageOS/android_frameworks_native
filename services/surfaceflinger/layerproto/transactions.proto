@@ -42,8 +42,10 @@ message TransactionTraceEntry {
     int64 elapsed_realtime_nanos = 1;
     int64 vsync_id = 2;
     repeated TransactionState transactions = 3;
-    repeated LayerCreationArgs new_layers = 4;
-    repeated DisplayState new_displays = 5;
+    repeated LayerCreationArgs added_layers = 4;
+    repeated int32 removed_layers = 5;
+    repeated DisplayState added_displays = 6;
+    repeated int32 removed_displays = 7;
 }
 
 message LayerCreationArgs {

@@ -62,6 +62,9 @@ public:
     void addCommittedTransactions(std::vector<TransactionState>& transactions, int64_t vsyncId);
     status_t writeToFile();
     void setBufferSize(size_t bufferSizeInBytes);
+    void onLayerAdded(BBinder* layerHandle, int layerId, const std::string& name, uint32_t flags,
+                      int parentId);
+    void onLayerRemoved(int layerId);
     void dump(std::string&) const;
     static constexpr auto CONTINUOUS_TRACING_BUFFER_SIZE = 512 * 1024;
     static constexpr auto ACTIVE_TRACING_BUFFER_SIZE = 100 * 1024 * 1024;
@@ -78,6 +81,12 @@ private:
     size_t mBufferSizeInBytes GUARDED_BY(mTraceLock) = CONTINUOUS_TRACING_BUFFER_SIZE;
     std::unordered_map<uint64_t, proto::TransactionState> mQueuedTransactions
             GUARDED_BY(mTraceLock);
+    nsecs_t mStartingTimestamp GUARDED_BY(mTraceLock);
+    std::vector<proto::LayerCreationArgs> mCreatedLayers GUARDED_BY(mTraceLock);
+    std::unordered_map<BBinder* /* layerHandle */, int32_t /* layerId */> mLayerHandles
+            GUARDED_BY(mTraceLock);
+    std::unordered_map<int32_t /* layerId */, TracingLayerState> mStartingStates
+            GUARDED_BY(mTraceLock);
 
     // We do not want main thread to block so main thread will try to acquire mMainThreadLock,
     // otherwise will push data to temporary container.
@@ -93,15 +102,25 @@ private:
     };
     std::vector<CommittedTransactions> mCommittedTransactions GUARDED_BY(mMainThreadLock);
     std::vector<CommittedTransactions> mPendingTransactions; // only accessed by main thread
-    proto::TransactionTraceFile createTraceFileProto() const;
 
+    std::vector<int32_t /* layerId */> mRemovedLayers GUARDED_BY(mMainThreadLock);
+    std::vector<int32_t /* layerId */> mPendingRemovedLayers; // only accessed by main thread
+
+    proto::TransactionTraceFile createTraceFileProto() const;
     void loop();
-    void addEntry(const std::vector<CommittedTransactions>& committedTransactions)
-            EXCLUDES(mTraceLock);
+    void addEntry(const std::vector<CommittedTransactions>& committedTransactions,
+                  const std::vector<int32_t>& removedLayers) EXCLUDES(mTraceLock);
+    int32_t getLayerIdLocked(const sp<IBinder>& layerHandle) REQUIRES(mTraceLock);
+    void tryPushToTracingThread() EXCLUDES(mMainThreadLock);
+    void addStartingStateToProtoLocked(proto::TransactionTraceFile& proto) REQUIRES(mTraceLock);
+    void updateStartingStateLocked(const proto::TransactionTraceEntry& entry) REQUIRES(mTraceLock);
+    status_t writeToFileLocked() REQUIRES(mTraceLock);
 
     // TEST
-    // Wait until all the committed transactions are added to the buffer.
-    void flush() EXCLUDES(mMainThreadLock);
+    // Wait until all the committed transactions for the specified vsync id are added to the buffer.
+    void flush(int64_t vsyncId) EXCLUDES(mMainThreadLock);
+    // Return buffer contents as trace file proto
+    proto::TransactionTraceFile writeToProto() EXCLUDES(mMainThreadLock);
 };
 
 } // namespace android

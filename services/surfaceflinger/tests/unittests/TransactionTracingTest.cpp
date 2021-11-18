@@ -28,11 +28,14 @@ namespace android {
 
 class TransactionTracingTest : public testing::Test {
 protected:
+    static constexpr size_t SMALL_BUFFER_SIZE = 1024;
     std::unique_ptr<android::TransactionTracing> mTracing;
-
     void SetUp() override { mTracing = std::make_unique<android::TransactionTracing>(); }
 
-    void TearDown() override { mTracing.reset(); }
+    void TearDown() override {
+        mTracing->disable();
+        mTracing.reset();
+    }
 
     auto getCommittedTransactions() {
         std::scoped_lock<std::mutex> lock(mTracing->mMainThreadLock);
@@ -49,7 +52,7 @@ protected:
         return mTracing->mBuffer->used();
     }
 
-    auto flush() { return mTracing->flush(); }
+    auto flush(int64_t vsyncId) { return mTracing->flush(vsyncId); }
 
     auto bufferFront() {
         std::scoped_lock<std::mutex> lock(mTracing->mTraceLock);
@@ -61,12 +64,28 @@ protected:
         return mTracing->mThread.joinable();
     }
 
-    std::string writeToString() {
+    proto::TransactionTraceFile writeToProto() { return mTracing->writeToProto(); }
+
+    auto getCreatedLayers() {
         std::scoped_lock<std::mutex> lock(mTracing->mTraceLock);
-        std::string output;
-        proto::TransactionTraceFile fileProto = mTracing->createTraceFileProto();
-        mTracing->mBuffer->writeToString(fileProto, &output);
-        return output;
+        return mTracing->mCreatedLayers;
+    }
+
+    auto getStartingStates() {
+        std::scoped_lock<std::mutex> lock(mTracing->mTraceLock);
+        return mTracing->mStartingStates;
+    }
+
+    void queueAndCommitTransaction(int64_t vsyncId) {
+        TransactionState transaction;
+        transaction.id = static_cast<uint64_t>(vsyncId * 3);
+        transaction.originUid = 1;
+        transaction.originPid = 2;
+        mTracing->addQueuedTransaction(transaction);
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back(transaction);
+        mTracing->addCommittedTransactions(transactions, vsyncId);
+        flush(vsyncId);
     }
 
     // Test that we clean up the tracing thread and free any memory allocated.
@@ -76,6 +95,7 @@ protected:
         EXPECT_EQ(getCommittedTransactions().size(), 0u);
         EXPECT_EQ(getQueuedTransactions().size(), 0u);
         EXPECT_EQ(getUsedBufferSize(), 0u);
+        EXPECT_EQ(getStartingStates().size(), 0u);
     }
 
     void verifyEntry(const proto::TransactionTraceEntry& actualProto,
@@ -122,17 +142,150 @@ TEST_F(TransactionTracingTest, addTransactions) {
     std::vector<TransactionState> secondTransactionSet =
             std::vector<TransactionState>(transactions.begin(), transactions.begin() + 50);
     mTracing->addCommittedTransactions(secondTransactionSet, secondTransactionSetVsyncId);
-    flush();
+    flush(secondTransactionSetVsyncId);
 
-    std::string protoString = writeToString();
-    proto::TransactionTraceFile proto;
-    proto.ParseFromString(protoString);
-    EXPECT_EQ(proto.entry().size(), 2);
-    verifyEntry(proto.entry(0), firstTransactionSet, firstTransactionSetVsyncId);
-    verifyEntry(proto.entry(1), secondTransactionSet, secondTransactionSetVsyncId);
+    proto::TransactionTraceFile proto = writeToProto();
+    EXPECT_EQ(proto.entry().size(), 3);
+    // skip starting entry
+    verifyEntry(proto.entry(1), firstTransactionSet, firstTransactionSetVsyncId);
+    verifyEntry(proto.entry(2), secondTransactionSet, secondTransactionSetVsyncId);
 
     mTracing->disable();
     verifyDisabledTracingState();
+}
+
+class TransactionTracingLayerHandlingTest : public TransactionTracingTest {
+protected:
+    void SetUp() override {
+        TransactionTracingTest::SetUp();
+        mTracing->enable();
+        // add layers
+        mTracing->setBufferSize(SMALL_BUFFER_SIZE);
+        const sp<IBinder> fakeLayerHandle = new BBinder();
+        mTracing->onLayerAdded(fakeLayerHandle->localBinder(), mParentLayerId, "parent",
+                               123 /* flags */, -1 /* parentId */);
+        const sp<IBinder> fakeChildLayerHandle = new BBinder();
+        mTracing->onLayerAdded(fakeChildLayerHandle->localBinder(), 2 /* layerId */, "child",
+                               456 /* flags */, mParentLayerId);
+
+        // add some layer transaction
+        {
+            TransactionState transaction;
+            transaction.id = 50;
+            ComposerState layerState;
+            layerState.state.surface = fakeLayerHandle;
+            layerState.state.what = layer_state_t::eLayerChanged;
+            layerState.state.z = 42;
+            transaction.states.add(layerState);
+            ComposerState childState;
+            childState.state.surface = fakeChildLayerHandle;
+            layerState.state.z = 43;
+            transaction.states.add(childState);
+            mTracing->addQueuedTransaction(transaction);
+
+            std::vector<TransactionState> transactions;
+            transactions.emplace_back(transaction);
+            VSYNC_ID_FIRST_LAYER_CHANGE = ++mVsyncId;
+            mTracing->addCommittedTransactions(transactions, VSYNC_ID_FIRST_LAYER_CHANGE);
+            flush(VSYNC_ID_FIRST_LAYER_CHANGE);
+        }
+
+        // add transactions that modify the layer state further so we can test that layer state
+        // gets merged
+        {
+            TransactionState transaction;
+            transaction.id = 51;
+            ComposerState layerState;
+            layerState.state.surface = fakeLayerHandle;
+            layerState.state.what = layer_state_t::eLayerChanged | layer_state_t::ePositionChanged;
+            layerState.state.z = 41;
+            layerState.state.x = 22;
+            transaction.states.add(layerState);
+            mTracing->addQueuedTransaction(transaction);
+
+            std::vector<TransactionState> transactions;
+            transactions.emplace_back(transaction);
+            VSYNC_ID_SECOND_LAYER_CHANGE = ++mVsyncId;
+            mTracing->addCommittedTransactions(transactions, VSYNC_ID_SECOND_LAYER_CHANGE);
+            flush(VSYNC_ID_SECOND_LAYER_CHANGE);
+        }
+
+        // remove child layer
+        mTracing->onLayerRemoved(2);
+        VSYNC_ID_CHILD_LAYER_REMOVED = ++mVsyncId;
+        queueAndCommitTransaction(VSYNC_ID_CHILD_LAYER_REMOVED);
+
+        // remove layer
+        mTracing->onLayerRemoved(1);
+        queueAndCommitTransaction(++mVsyncId);
+    }
+
+    void TearDown() override {
+        mTracing->disable();
+        verifyDisabledTracingState();
+        TransactionTracingTest::TearDown();
+    }
+
+    int mParentLayerId = 1;
+    int64_t mVsyncId = 0;
+    int64_t VSYNC_ID_FIRST_LAYER_CHANGE;
+    int64_t VSYNC_ID_SECOND_LAYER_CHANGE;
+    int64_t VSYNC_ID_CHILD_LAYER_REMOVED;
+};
+
+TEST_F(TransactionTracingLayerHandlingTest, addStartingState) {
+    // add transactions until we drop the transaction with the first layer change
+    while (bufferFront().vsync_id() <= VSYNC_ID_FIRST_LAYER_CHANGE) {
+        queueAndCommitTransaction(++mVsyncId);
+    }
+    proto::TransactionTraceFile proto = writeToProto();
+    // verify we can still retrieve the layer change from the first entry containing starting
+    // states.
+    EXPECT_GT(proto.entry().size(), 0);
+    EXPECT_GT(proto.entry(0).transactions().size(), 0);
+    EXPECT_GT(proto.entry(0).added_layers().size(), 0);
+    EXPECT_GT(proto.entry(0).transactions(0).layer_changes().size(), 0);
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).z(), 42);
+}
+
+TEST_F(TransactionTracingLayerHandlingTest, updateStartingState) {
+    // add transactions until we drop the transaction with the second layer change
+    while (bufferFront().vsync_id() <= VSYNC_ID_SECOND_LAYER_CHANGE) {
+        queueAndCommitTransaction(++mVsyncId);
+    }
+    proto::TransactionTraceFile proto = writeToProto();
+    // verify starting states are updated correctly
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).z(), 41);
+}
+
+TEST_F(TransactionTracingLayerHandlingTest, removeStartingState) {
+    // add transactions until we drop the transaction which removes the child layer
+    while (bufferFront().vsync_id() <= VSYNC_ID_CHILD_LAYER_REMOVED) {
+        queueAndCommitTransaction(++mVsyncId);
+    }
+    proto::TransactionTraceFile proto = writeToProto();
+    // verify the child layer has been removed from the trace
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes().size(), 1);
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).layer_id(), mParentLayerId);
+}
+
+TEST_F(TransactionTracingLayerHandlingTest, startingStateSurvivesBufferFlush) {
+    // add transactions until we drop the transaction with the second layer change
+    while (bufferFront().vsync_id() <= VSYNC_ID_SECOND_LAYER_CHANGE) {
+        queueAndCommitTransaction(++mVsyncId);
+    }
+    proto::TransactionTraceFile proto = writeToProto();
+    // verify we have two starting states
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes().size(), 2);
+
+    // Continue adding transactions until child layer is removed
+    while (bufferFront().vsync_id() <= VSYNC_ID_CHILD_LAYER_REMOVED) {
+        queueAndCommitTransaction(++mVsyncId);
+    }
+    proto = writeToProto();
+    // verify we still have the parent layer state
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes().size(), 1);
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).layer_id(), mParentLayerId);
 }
 
 } // namespace android

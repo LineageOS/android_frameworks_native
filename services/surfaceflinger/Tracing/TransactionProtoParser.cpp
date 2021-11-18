@@ -43,7 +43,7 @@ proto::TransactionState TransactionProtoParser::toProto(const TransactionState& 
 }
 
 proto::TransactionState TransactionProtoParser::toProto(
-        std::vector<std::pair<int32_t /* layerId */, TracingLayerState>> states) {
+        const std::unordered_map<int32_t /* layerId */, TracingLayerState> states) {
     proto::TransactionState proto;
     for (auto& [layerId, state] : states) {
         proto::LayerState layerProto = toProto(state, nullptr);
