@@ -3395,7 +3395,6 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
                   connection->getInputChannelName().c_str());
 
             auto command = [this, connection]() REQUIRES(mLock) {
-                if (connection->status == Connection::Status::ZOMBIE) return;
                 scoped_unlock unlock(mLock);
                 mPolicy->notifyInputChannelBroken(connection->inputChannel->getConnectionToken());
             };
