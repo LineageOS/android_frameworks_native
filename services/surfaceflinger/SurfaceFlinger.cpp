@@ -1222,6 +1222,8 @@ void SurfaceFlinger::desiredActiveModeChangeDone(const sp<DisplayDevice>& displa
 void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
     ATRACE_CALL();
 
+    std::optional<PhysicalDisplayId> displayToUpdateImmediately;
+
     for (const auto& iter : mDisplays) {
         const auto& display = iter.second;
         if (!display || !display->isInternal()) {
@@ -1286,8 +1288,26 @@ void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
         }
         mScheduler->onNewVsyncPeriodChangeTimeline(outTimeline);
 
-        // Scheduler will submit an empty frame to HWC if needed.
-        mSetActiveModePending = true;
+        if (outTimeline.refreshRequired) {
+            // Scheduler will submit an empty frame to HWC.
+            mSetActiveModePending = true;
+        } else {
+            // Updating the internal state should be done outside the loop,
+            // because it can recreate a DisplayDevice and modify mDisplays
+            // which will invalidate the iterator.
+            displayToUpdateImmediately = display->getPhysicalId();
+        }
+    }
+
+    if (displayToUpdateImmediately) {
+        updateInternalStateWithChangedMode();
+
+        const auto display = getDisplayDeviceLocked(*displayToUpdateImmediately);
+        const auto desiredActiveMode = display->getDesiredActiveMode();
+        if (desiredActiveMode &&
+            display->getActiveMode()->getId() == desiredActiveMode->mode->getId()) {
+            desiredActiveModeChangeDone(display);
+        }
     }
 }
 
