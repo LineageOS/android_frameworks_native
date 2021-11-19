@@ -4674,8 +4674,10 @@ void InputDispatcher::setInputWindowsLocked(
                         if (wallpaper != nullptr) {
                             sp<Connection> wallpaperConnection =
                                     getConnectionLocked(wallpaper->getToken());
-                            synthesizeCancelationEventsForConnectionLocked(wallpaperConnection,
-                                                                           options);
+                            if (wallpaperConnection != nullptr) {
+                                synthesizeCancelationEventsForConnectionLocked(wallpaperConnection,
+                                                                               options);
+                            }
                         }
                     }
                 }
