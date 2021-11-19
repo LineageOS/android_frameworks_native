@@ -39,6 +39,7 @@ cc_test {
         "libgmock",
         "librenderengine",
         "librenderengine_mocks",
+        "libshaders",
         "libtonemap",
     ],
 
