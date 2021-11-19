@@ -56,7 +56,7 @@ interface IInstalld {
             @utf8InCpp String seInfo, int targetSdkVersion, @utf8InCpp String fromCodePath);
 
     // Returns false if it is cancelled. Returns true if it is completed or have other errors.
-    boolean dexopt(@utf8InCpp String apkPath, int uid, @nullable @utf8InCpp String packageName,
+    boolean dexopt(@utf8InCpp String apkPath, int uid, @utf8InCpp String packageName,
             @utf8InCpp String instructionSet, int dexoptNeeded,
             @nullable @utf8InCpp String outputPath, int dexFlags,
             @utf8InCpp String compilerFilter, @nullable @utf8InCpp String uuid,
@@ -85,20 +85,22 @@ interface IInstalld {
             @utf8InCpp String profileName, @utf8InCpp String classpath);
     void destroyProfileSnapshot(@utf8InCpp String packageName, @utf8InCpp String profileName);
 
-    void rmPackageDir(@utf8InCpp String packageDir);
+    void rmPackageDir(@utf8InCpp String packageName, @utf8InCpp String packageDir);
     void freeCache(@nullable @utf8InCpp String uuid, long targetFreeBytes, int flags);
     void linkNativeLibraryDirectory(@nullable @utf8InCpp String uuid,
             @utf8InCpp String packageName, @utf8InCpp String nativeLibPath32, int userId);
-    void createOatDir(@utf8InCpp String oatDir, @utf8InCpp String instructionSet);
-    void linkFile(@utf8InCpp String relativePath, @utf8InCpp String fromBase,
-            @utf8InCpp String toBase);
-    void moveAb(@utf8InCpp String apkPath, @utf8InCpp String instructionSet,
-            @utf8InCpp String outputPath);
-    long deleteOdex(@utf8InCpp String apkPath, @utf8InCpp String instructionSet,
-            @nullable @utf8InCpp String outputPath);
-    void installApkVerity(@utf8InCpp String filePath, in FileDescriptor verityInput,
-            int contentSize);
-    void assertFsverityRootHashMatches(@utf8InCpp String filePath, in byte[] expectedHash);
+    void createOatDir(@utf8InCpp String packageName, @utf8InCpp String oatDir,
+            @utf8InCpp String instructionSet);
+    void linkFile(@utf8InCpp String packageName, @utf8InCpp String relativePath,
+            @utf8InCpp String fromBase, @utf8InCpp String toBase);
+    void moveAb(@utf8InCpp String packageName, @utf8InCpp String apkPath,
+            @utf8InCpp String instructionSet, @utf8InCpp String outputPath);
+    long deleteOdex(@utf8InCpp String packageName, @utf8InCpp String apkPath,
+            @utf8InCpp String instructionSet, @nullable @utf8InCpp String outputPath);
+    void installApkVerity(@utf8InCpp String packageName, @utf8InCpp String filePath,
+            in FileDescriptor verityInput, int contentSize);
+    void assertFsverityRootHashMatches(@utf8InCpp String packageName, @utf8InCpp String filePath,
+            in byte[] expectedHash);
 
     boolean reconcileSecondaryDexFile(@utf8InCpp String dexPath, @utf8InCpp String pkgName,
         int uid, in @utf8InCpp String[] isas, @nullable @utf8InCpp String volume_uuid,
