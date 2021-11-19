@@ -286,11 +286,10 @@ SensorEntry::~SensorEntry() {}
 
 std::string SensorEntry::getDescription() const {
     std::string msg;
-    std::string sensorTypeStr(ftl::enum_name(sensorType).value_or("?"));
     msg += StringPrintf("SensorEntry(deviceId=%d, source=%s, sensorType=%s, "
                         "accuracy=0x%08x, hwTimestamp=%" PRId64,
-                        deviceId, inputEventSourceToString(source).c_str(), sensorTypeStr.c_str(),
-                        accuracy, hwTimestamp);
+                        deviceId, inputEventSourceToString(source).c_str(),
+                        ftl::enum_string(sensorType).c_str(), accuracy, hwTimestamp);
 
     if (!GetBoolProperty("ro.debuggable", false)) {
         for (size_t i = 0; i < values.size(); i++) {
