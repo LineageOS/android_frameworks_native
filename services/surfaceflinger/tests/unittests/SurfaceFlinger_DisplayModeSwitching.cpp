@@ -20,7 +20,7 @@
 
 #include "DisplayTransactionTestHelpers.h"
 
-#include "Fps.h"
+#include <scheduler/Fps.h>
 
 namespace android {
 namespace {
