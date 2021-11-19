@@ -26,23 +26,7 @@
 namespace android {
 namespace renderengine {
 
-std::unique_ptr<RenderEngine> RenderEngine::create(RenderEngineCreationArgs args) {
-    // Keep the ability to override by PROPERTIES:
-    char prop[PROPERTY_VALUE_MAX];
-    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "");
-    if (strcmp(prop, "gles") == 0) {
-        args.renderEngineType = RenderEngineType::GLES;
-    }
-    if (strcmp(prop, "threaded") == 0) {
-        args.renderEngineType = RenderEngineType::THREADED;
-    }
-    if (strcmp(prop, "skiagl") == 0) {
-        args.renderEngineType = RenderEngineType::SKIA_GL;
-    }
-    if (strcmp(prop, "skiaglthreaded") == 0) {
-        args.renderEngineType = RenderEngineType::SKIA_GL_THREADED;
-    }
-
+std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArgs& args) {
     switch (args.renderEngineType) {
         case RenderEngineType::THREADED:
             ALOGD("Threaded RenderEngine with GLES Backend");

@@ -507,7 +507,6 @@ void BLASTBufferQueue::acquireNextBufferLocked(
 
     // Ensure BLASTBufferQueue stays alive until we receive the transaction complete callback.
     incStrong((void*)transactionCallbackThunk);
-    incStrong((void*)transactionCommittedCallbackThunk);
 
     const bool sizeHasChanged = mRequestedSize != mSize;
     mSize = mRequestedSize;
@@ -527,7 +526,7 @@ void BLASTBufferQueue::acquireNextBufferLocked(
     t->setHdrMetadata(mSurfaceControl, bufferItem.mHdrMetadata);
     t->setSurfaceDamageRegion(mSurfaceControl, bufferItem.mSurfaceDamage);
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
-    t->addTransactionCommittedCallback(transactionCommittedCallbackThunk, static_cast<void*>(this));
+
     mSurfaceControlsWithPendingCallback.push(mSurfaceControl);
 
     if (updateDestinationFrame) {
@@ -658,6 +657,13 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
 
     if (syncTransactionSet) {
         acquireNextBufferLocked(mSyncTransaction);
+
+        // Only need a commit callback when syncing to ensure the buffer that's synced has been sent
+        // to SF
+        incStrong((void*)transactionCommittedCallbackThunk);
+        mSyncTransaction->addTransactionCommittedCallback(transactionCommittedCallbackThunk,
+                                                          static_cast<void*>(this));
+
         if (mAcquireSingleBuffer) {
             mSyncTransaction = nullptr;
         }

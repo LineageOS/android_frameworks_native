@@ -60,6 +60,12 @@ float transformAngle(const ui::Transform& transform, float angleRadians) {
     return atan2f(transformedPoint.x, -transformedPoint.y);
 }
 
+vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy) {
+    const vec2 transformedXy = transform.transform(xy);
+    const vec2 transformedOrigin = transform.transform(0, 0);
+    return transformedXy - transformedOrigin;
+}
+
 bool shouldDisregardTransformation(uint32_t source) {
     // Do not apply any transformations to axes from joysticks or touchpads.
     return isFromSource(source, AINPUT_SOURCE_CLASS_JOYSTICK) ||
@@ -113,12 +119,6 @@ int32_t IdGenerator::nextId() const {
 }
 
 // --- InputEvent ---
-
-vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy) {
-    const vec2 transformedXy = transform.transform(xy);
-    const vec2 transformedOrigin = transform.transform(0, 0);
-    return transformedXy - transformedOrigin;
-}
 
 const char* inputEventTypeToString(int32_t type) {
     switch (type) {

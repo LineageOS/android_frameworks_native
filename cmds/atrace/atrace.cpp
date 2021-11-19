@@ -239,7 +239,7 @@ static const TracingCategory k_categories[] = {
     } },
     { "memory",  "Memory", 0, {
         { OPT,      "events/mm_event/mm_event_record/enable" },
-        { OPT,      "events/kmem/rss_stat/enable" },
+        { OPT,      "events/synthetic/rss_stat_throttled/enable" },
         { OPT,      "events/kmem/ion_heap_grow/enable" },
         { OPT,      "events/kmem/ion_heap_shrink/enable" },
         { OPT,      "events/ion/ion_stat/enable" },

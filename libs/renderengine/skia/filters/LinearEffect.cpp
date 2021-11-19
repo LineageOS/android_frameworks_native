@@ -104,7 +104,7 @@ static void generateXYZTransforms(SkString& shader) {
         uniform float4x4 in_rgbToXyz;
         uniform float4x4 in_xyzToRgb;
         float3 ToXYZ(float3 rgb) {
-            return clamp((in_rgbToXyz * float4(rgb, 1.0)).rgb, 0.0, 1.0);
+            return (in_rgbToXyz * float4(rgb, 1.0)).rgb;
         }
 
         float3 ToRGB(float3 xyz) {
