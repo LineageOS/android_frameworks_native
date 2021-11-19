@@ -18,7 +18,6 @@
 #pragma once
 
 #include <android/gui/DropInputMode.h>
-#include <compositionengine/LayerFE.h>
 #include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
@@ -39,6 +38,10 @@
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
+#include <compositionengine/LayerFE.h>
+#include <scheduler/Fps.h>
+#include <scheduler/Seamlessness.h>
+
 #include <chrono>
 #include <cstdint>
 #include <list>
@@ -49,13 +52,11 @@
 #include "ClientCache.h"
 #include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/HWComposer.h"
-#include "Fps.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "RenderArea.h"
 #include "Scheduler/LayerInfo.h"
-#include "Scheduler/Seamlessness.h"
 #include "SurfaceFlinger.h"
 #include "Tracing/LayerTracing.h"
 #include "TransactionCallbackInvoker.h"

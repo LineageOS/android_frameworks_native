@@ -19,7 +19,8 @@
 
 #include <gtest/gtest.h>
 
-#include "Fps.h"
+#include <scheduler/Fps.h>
+
 #include "FpsOps.h"
 #include "Scheduler/LayerHistory.h"
 #include "Scheduler/LayerInfo.h"

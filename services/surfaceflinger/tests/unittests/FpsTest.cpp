@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-#include "Fps.h"
-#include "FpsOps.h"
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+
+#include <scheduler/Fps.h>
+
+#include "FpsOps.h"
 
 namespace android {
 

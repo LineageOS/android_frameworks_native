@@ -16,15 +16,19 @@
 
 #pragma once
 
+#include <chrono>
+#include <deque>
+#include <optional>
+#include <string>
+#include <unordered_map>
+
 #include <ui/Transform.h>
 #include <utils/Timers.h>
 
-#include <chrono>
-#include <deque>
+#include <scheduler/Seamlessness.h>
 
 #include "LayerHistory.h"
 #include "RefreshRateConfigs.h"
-#include "Scheduler/Seamlessness.h"
 #include "SchedulerUtils.h"
 
 namespace android {

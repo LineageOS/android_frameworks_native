@@ -23,7 +23,6 @@
  */
 
 #include <android-base/thread_annotations.h>
-#include <compositionengine/OutputColorSetting.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <gui/BufferQueue.h>
@@ -47,13 +46,15 @@
 #include <utils/Trace.h>
 #include <utils/threads.h>
 
+#include <compositionengine/OutputColorSetting.h>
+#include <scheduler/Fps.h>
+
 #include "ClientCache.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/PowerAdvisor.h"
 #include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
-#include "Fps.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
 #include "Scheduler/RefreshRateConfigs.h"

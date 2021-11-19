@@ -16,6 +16,10 @@
 
 #pragma once
 
+#include <SkCanvas.h>
+#include <SkColor.h>
+#include <unordered_map>
+
 #include <math/vec4.h>
 #include <renderengine/RenderEngine.h>
 #include <ui/LayerStack.h>
@@ -23,11 +27,7 @@
 #include <ui/Size.h>
 #include <utils/StrongPointer.h>
 
-#include <SkCanvas.h>
-#include <SkColor.h>
-#include <unordered_map>
-
-#include "Fps.h"
+#include <scheduler/Fps.h>
 
 namespace android {
 
@@ -45,7 +45,7 @@ public:
 
     void setLayerStack(ui::LayerStack);
     void setViewport(ui::Size);
-    void changeRefreshRate(const Fps&);
+    void changeRefreshRate(Fps);
     void animate();
 
 private:

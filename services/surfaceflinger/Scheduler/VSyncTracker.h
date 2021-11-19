@@ -17,7 +17,9 @@
 #pragma once
 
 #include <utils/Timers.h>
-#include "Fps.h"
+
+#include <scheduler/Fps.h>
+
 #include "VSyncDispatch.h"
 
 namespace android::scheduler {

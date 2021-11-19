@@ -13,6 +13,9 @@ cc_library_static {
     srcs: [
         "FrameTimeline.cpp",
     ],
+    header_libs: [
+        "libscheduler_headers",
+    ],
     shared_libs: [
         "android.hardware.graphics.composer@2.4",
         "libbase",

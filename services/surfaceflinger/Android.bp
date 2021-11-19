@@ -78,10 +78,10 @@ cc_defaults {
         "libframetimeline",
         "libperfetto_client_experimental",
         "librenderengine",
+        "libscheduler",
         "libserviceutils",
         "libtonemap",
         "libtrace_proto",
-        "libaidlcommonsupport",
     ],
     header_libs: [
         "android.hardware.graphics.composer@2.1-command-buffer",
