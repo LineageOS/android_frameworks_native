@@ -219,21 +219,21 @@ public:
     template <class T>
     T getAnrTokenLockedInterruptible(std::chrono::nanoseconds timeout, std::queue<T>& storage,
                                      std::unique_lock<std::mutex>& lock) REQUIRES(mLock) {
-        const std::chrono::time_point start = std::chrono::steady_clock::now();
-        std::chrono::duration timeToWait = timeout + 100ms; // provide some slack
-
         // If there is an ANR, Dispatcher won't be idle because there are still events
         // in the waitQueue that we need to check on. So we can't wait for dispatcher to be idle
         // before checking if ANR was called.
         // Since dispatcher is not guaranteed to call notifyNoFocusedWindowAnr right away, we need
         // to provide it some time to act. 100ms seems reasonable.
-        mNotifyAnr.wait_for(lock, timeToWait,
-                            [&storage]() REQUIRES(mLock) { return !storage.empty(); });
-        const std::chrono::duration waited = std::chrono::steady_clock::now() - start;
-        if (storage.empty()) {
+        std::chrono::duration timeToWait = timeout + 100ms; // provide some slack
+        const std::chrono::time_point start = std::chrono::steady_clock::now();
+        std::optional<T> token =
+                getItemFromStorageLockedInterruptible(timeToWait, storage, lock, mNotifyAnr);
+        if (!token.has_value()) {
             ADD_FAILURE() << "Did not receive the ANR callback";
             return {};
         }
+
+        const std::chrono::duration waited = std::chrono::steady_clock::now() - start;
         // Ensure that the ANR didn't get raised too early. We can't be too strict here because
         // the dispatcher started counting before this function was called
         if (std::chrono::abs(timeout - waited) > 100ms) {
@@ -243,9 +243,24 @@ public:
                           << std::chrono::duration_cast<std::chrono::milliseconds>(waited).count()
                           << "ms instead";
         }
-        T token = storage.front();
+        return *token;
+    }
+
+    template <class T>
+    std::optional<T> getItemFromStorageLockedInterruptible(std::chrono::nanoseconds timeout,
+                                                           std::queue<T>& storage,
+                                                           std::unique_lock<std::mutex>& lock,
+                                                           std::condition_variable& condition)
+            REQUIRES(mLock) {
+        condition.wait_for(lock, timeout,
+                           [&storage]() REQUIRES(mLock) { return !storage.empty(); });
+        if (storage.empty()) {
+            ADD_FAILURE() << "Did not receive the expected callback";
+            return std::nullopt;
+        }
+        T item = storage.front();
         storage.pop();
-        return token;
+        return std::make_optional(item);
     }
 
     void assertNotifyAnrWasNotCalled() {
@@ -303,6 +318,16 @@ public:
         mNotifyDropWindowWasCalled = false;
     }
 
+    void assertNotifyInputChannelBrokenWasCalled(const sp<IBinder>& token) {
+        std::unique_lock lock(mLock);
+        base::ScopedLockAssertion assumeLocked(mLock);
+        std::optional<sp<IBinder>> receivedToken =
+                getItemFromStorageLockedInterruptible(100ms, mBrokenInputChannels, lock,
+                                                      mNotifyInputChannelBroken);
+        ASSERT_TRUE(receivedToken.has_value());
+        ASSERT_EQ(token, *receivedToken);
+    }
+
 private:
     std::mutex mLock;
     std::unique_ptr<InputEvent> mFilteredEvent GUARDED_BY(mLock);
@@ -321,6 +346,8 @@ private:
     std::queue<int32_t> mAnrMonitorPids GUARDED_BY(mLock);
     std::queue<int32_t> mResponsiveMonitorPids GUARDED_BY(mLock);
     std::condition_variable mNotifyAnr;
+    std::queue<sp<IBinder>> mBrokenInputChannels GUARDED_BY(mLock);
+    std::condition_variable mNotifyInputChannelBroken;
 
     sp<IBinder> mDropTargetWindowToken GUARDED_BY(mLock);
     bool mNotifyDropWindowWasCalled GUARDED_BY(mLock) = false;
@@ -361,7 +388,11 @@ private:
         mNotifyAnr.notify_all();
     }
 
-    void notifyInputChannelBroken(const sp<IBinder>&) override {}
+    void notifyInputChannelBroken(const sp<IBinder>& connectionToken) override {
+        std::scoped_lock lock(mLock);
+        mBrokenInputChannels.push(connectionToken);
+        mNotifyInputChannelBroken.notify_all();
+    }
 
     void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) override {}
 
@@ -1175,6 +1206,8 @@ public:
         mInfo.ownerUid = ownerUid;
     }
 
+    void destroyReceiver() { mInputReceiver = nullptr; }
+
 private:
     const std::string mName;
     std::unique_ptr<FakeInputReceiver> mInputReceiver;
@@ -1438,6 +1471,23 @@ static NotifyPointerCaptureChangedArgs generatePointerCaptureChangedArgs(
     return NotifyPointerCaptureChangedArgs(/* id */ 0, systemTime(SYSTEM_TIME_MONOTONIC), request);
 }
 
+/**
+ * When a window unexpectedly disposes of its input channel, policy should be notified about the
+ * broken channel.
+ */
+TEST_F(InputDispatcherTest, WhenInputChannelBreaks_PolicyIsNotified) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Window that breaks its input channel",
+                                 ADISPLAY_ID_DEFAULT);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    // Window closes its channel, but the window remains.
+    window->destroyReceiver();
+    mFakePolicy->assertNotifyInputChannelBrokenWasCalled(window->getInfo()->token);
+}
+
 TEST_F(InputDispatcherTest, SetInputWindow_SingleWindowTouch) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
@@ -1575,6 +1625,53 @@ TEST_F(InputDispatcherTest, WhenForegroundWindowDisappears_WallpaperTouchIsCance
     foregroundWindow->consumeMotionCancel();
     // Since the "parent" window of the wallpaper is gone, wallpaper should receive cancel, too.
     wallpaperWindow->consumeMotionCancel(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+}
+
+/**
+ * Same test as WhenForegroundWindowDisappears_WallpaperTouchIsCanceled above,
+ * with the following differences:
+ * After ACTION_DOWN, Wallpaper window hangs up its channel, which forces the dispatcher to
+ * clean up the connection.
+ * This later may crash dispatcher during ACTION_CANCEL synthesis, if the dispatcher is not careful.
+ * Ensure that there's no crash in the dispatcher.
+ */
+TEST_F(InputDispatcherTest, WhenWallpaperDisappears_NoCrash) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> foregroundWindow =
+            new FakeWindowHandle(application, mDispatcher, "Foreground", ADISPLAY_ID_DEFAULT);
+    foregroundWindow->setHasWallpaper(true);
+    sp<FakeWindowHandle> wallpaperWindow =
+            new FakeWindowHandle(application, mDispatcher, "Wallpaper", ADISPLAY_ID_DEFAULT);
+    wallpaperWindow->setType(WindowInfo::Type::WALLPAPER);
+    constexpr int expectedWallpaperFlags =
+            AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED | AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {foregroundWindow, wallpaperWindow}}});
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {100, 200}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    // Both foreground window and its wallpaper should receive the touch down
+    foregroundWindow->consumeMotionDown();
+    wallpaperWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
+                                ADISPLAY_ID_DEFAULT, {110, 200}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    foregroundWindow->consumeMotionMove();
+    wallpaperWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+
+    // Wallpaper closes its channel, but the window remains.
+    wallpaperWindow->destroyReceiver();
+    mFakePolicy->assertNotifyInputChannelBrokenWasCalled(wallpaperWindow->getInfo()->token);
+
+    // Now the foreground window goes away, but the wallpaper stays, even though its channel
+    // is no longer valid.
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {wallpaperWindow}}});
+    foregroundWindow->consumeMotionCancel();
 }
 
 /**

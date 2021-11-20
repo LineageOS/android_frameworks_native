@@ -16,11 +16,10 @@
 
 #pragma once
 
-#include <cstring>
 #include <ostream>
+#include <string>
 
-namespace android {
-namespace scheduler {
+namespace android::scheduler {
 
 // The seamlessness requirement of a Layer.
 enum class Seamlessness {
@@ -50,5 +49,4 @@ inline std::ostream& operator<<(std::ostream& os, Seamlessness val) {
     return os << toString(val);
 }
 
-} // namespace scheduler
-} // namespace android
+} // namespace android::scheduler

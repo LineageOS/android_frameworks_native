@@ -17,8 +17,12 @@
 #pragma once
 
 #include <cstdint>
+#include <deque>
+#include <mutex>
+#include <optional>
+#include <unordered_map>
+#include <variant>
 
-#include <../Fps.h>
 #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
 #include <gui/JankInfo.h>
 #include <timestatsproto/TimeStatsHelper.h>
@@ -27,11 +31,7 @@
 #include <utils/String16.h>
 #include <utils/Vector.h>
 
-#include <deque>
-#include <mutex>
-#include <optional>
-#include <unordered_map>
-#include <variant>
+#include <scheduler/Fps.h>
 
 using namespace android::surfaceflinger;
 

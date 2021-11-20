@@ -23,7 +23,6 @@
  */
 
 #include <android-base/thread_annotations.h>
-#include <compositionengine/OutputColorSetting.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <gui/BufferQueue.h>
@@ -47,13 +46,15 @@
 #include <utils/Trace.h>
 #include <utils/threads.h>
 
+#include <compositionengine/OutputColorSetting.h>
+#include <scheduler/Fps.h>
+
 #include "ClientCache.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/PowerAdvisor.h"
 #include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
-#include "Fps.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
 #include "Scheduler/RefreshRateConfigs.h"
@@ -660,8 +661,7 @@ private:
     // Sets the desired active mode bit. It obtains the lock, and sets mDesiredActiveMode.
     void setDesiredActiveMode(const ActiveModeInfo& info) REQUIRES(mStateLock);
     status_t setActiveModeFromBackdoor(const sp<IBinder>& displayToken, int id);
-    // Once HWC has returned the present fence, this sets the active mode and a new refresh
-    // rate in SF.
+    // Sets the active mode and a new refresh rate in SF.
     void updateInternalStateWithChangedMode() REQUIRES(mStateLock);
     // Calls to setActiveMode on the main thread if there is a pending mode change
     // that needs to be applied.

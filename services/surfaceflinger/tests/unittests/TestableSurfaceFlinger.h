@@ -24,6 +24,7 @@
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/mock/DisplaySurface.h>
 #include <gui/ScreenCaptureResults.h>
+#include <algorithm>
 
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
@@ -305,6 +306,11 @@ public:
         return mFlinger->destroyDisplay(displayToken);
     }
 
+    auto getDisplay(const sp<IBinder>& displayToken) {
+        Mutex::Autolock lock(mFlinger->mStateLock);
+        return mFlinger->getDisplayDeviceLocked(displayToken);
+    }
+
     void enableHalVirtualDisplays(bool enable) { mFlinger->enableHalVirtualDisplays(enable); }
 
     auto setupNewDisplayDeviceInternal(
@@ -391,6 +397,21 @@ public:
     auto calculateMaxAcquiredBufferCount(Fps refreshRate,
                                          std::chrono::nanoseconds presentLatency) const {
         return SurfaceFlinger::calculateMaxAcquiredBufferCount(refreshRate, presentLatency);
+    }
+
+    auto setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, ui::DisplayModeId defaultMode,
+                                    bool allowGroupSwitching, float primaryRefreshRateMin,
+                                    float primaryRefreshRateMax, float appRequestRefreshRateMin,
+                                    float appRequestRefreshRateMax) {
+        return mFlinger->setDesiredDisplayModeSpecs(displayToken, defaultMode, allowGroupSwitching,
+                                                    primaryRefreshRateMin, primaryRefreshRateMax,
+                                                    appRequestRefreshRateMin,
+                                                    appRequestRefreshRateMax);
+    }
+
+    void onActiveDisplayChanged(const sp<DisplayDevice>& activeDisplay) {
+        Mutex::Autolock lock(mFlinger->mStateLock);
+        mFlinger->onActiveDisplayChangedLocked(activeDisplay);
     }
 
     /* ------------------------------------------------------------------------
@@ -480,7 +501,7 @@ public:
         static constexpr hal::HWDisplayId DEFAULT_HWC_DISPLAY_ID = 1000;
         static constexpr int32_t DEFAULT_WIDTH = 1920;
         static constexpr int32_t DEFAULT_HEIGHT = 1280;
-        static constexpr int32_t DEFAULT_VSYNC_PERIOD = 16'666'666;
+        static constexpr int32_t DEFAULT_VSYNC_PERIOD = 16'666'667;
         static constexpr int32_t DEFAULT_CONFIG_GROUP = 7;
         static constexpr int32_t DEFAULT_DPI = 320;
         static constexpr hal::HWConfigId DEFAULT_ACTIVE_CONFIG = 0;
@@ -634,10 +655,10 @@ public:
             mCreationArgs.connectionType = connectionType;
             mCreationArgs.isPrimary = isPrimary;
 
-            mActiveModeId = DisplayModeId(0);
+            mCreationArgs.activeModeId = DisplayModeId(0);
             DisplayModePtr activeMode =
                     DisplayMode::Builder(FakeHwcDisplayInjector::DEFAULT_ACTIVE_CONFIG)
-                            .setId(mActiveModeId)
+                            .setId(mCreationArgs.activeModeId)
                             .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
                             .setWidth(FakeHwcDisplayInjector::DEFAULT_WIDTH)
                             .setHeight(FakeHwcDisplayInjector::DEFAULT_HEIGHT)
@@ -673,7 +694,7 @@ public:
         auto& mutableDisplayDevice() { return mFlinger.mutableDisplays()[mDisplayToken]; }
 
         auto& setActiveMode(DisplayModeId mode) {
-            mActiveModeId = mode;
+            mCreationArgs.activeModeId = mode;
             return *this;
         }
 
@@ -728,14 +749,29 @@ public:
                 const auto physicalId = PhysicalDisplayId::tryCast(*displayId);
                 LOG_ALWAYS_FATAL_IF(!physicalId);
                 LOG_ALWAYS_FATAL_IF(!mHwcDisplayId);
-                state.physical = {.id = *physicalId, .type = *type, .hwcDisplayId = *mHwcDisplayId};
+
+                const DisplayModePtr activeModePtr =
+                        *std::find_if(mCreationArgs.supportedModes.begin(),
+                                      mCreationArgs.supportedModes.end(), [&](DisplayModePtr mode) {
+                                          return mode->getId() == mCreationArgs.activeModeId;
+                                      });
+                state.physical = {.id = *physicalId,
+                                  .type = *type,
+                                  .hwcDisplayId = *mHwcDisplayId,
+                                  .deviceProductInfo = {},
+                                  .supportedModes = mCreationArgs.supportedModes,
+                                  .activeMode = activeModePtr};
             }
 
             state.isSecure = mCreationArgs.isSecure;
 
+            mCreationArgs.refreshRateConfigs =
+                    std::make_shared<scheduler::RefreshRateConfigs>(mCreationArgs.supportedModes,
+                                                                    mCreationArgs.activeModeId);
+
             sp<DisplayDevice> device = new DisplayDevice(mCreationArgs);
             if (!device->isVirtual()) {
-                device->setActiveMode(mActiveModeId);
+                device->setActiveMode(mCreationArgs.activeModeId);
             }
             mFlinger.mutableDisplays().emplace(mDisplayToken, device);
             mFlinger.mutableCurrentState().displays.add(mDisplayToken, state);
@@ -753,7 +789,6 @@ public:
         sp<BBinder> mDisplayToken = new BBinder();
         DisplayDeviceCreationArgs mCreationArgs;
         const std::optional<hal::HWDisplayId> mHwcDisplayId;
-        DisplayModeId mActiveModeId;
     };
 
 private:
