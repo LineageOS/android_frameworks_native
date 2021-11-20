@@ -53,6 +53,7 @@
 namespace android {
 
 using gui::FocusRequest;
+using gui::IRegionSamplingListener;
 using gui::WindowInfo;
 using gui::WindowInfoHandle;
 using gui::WindowInfosListener;
