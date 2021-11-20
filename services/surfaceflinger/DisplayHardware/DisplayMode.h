@@ -16,9 +16,9 @@
 
 #pragma once
 
-#include "DisplayHardware/Hal.h"
-#include "Fps.h"
-#include "Scheduler/StrongTyping.h"
+#include <cstddef>
+#include <memory>
+#include <vector>
 
 #include <android-base/stringprintf.h>
 #include <android/configuration.h>
@@ -27,9 +27,10 @@
 #include <ui/Size.h>
 #include <utils/Timers.h>
 
-#include <cstddef>
-#include <memory>
-#include <vector>
+#include <scheduler/Fps.h>
+
+#include "DisplayHardware/Hal.h"
+#include "Scheduler/StrongTyping.h"
 
 namespace android {
 

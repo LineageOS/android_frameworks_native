@@ -23,7 +23,8 @@
 #include <ftl/small_map.h>
 #include <utils/Timers.h>
 
-#include "Fps.h"
+#include <scheduler/Fps.h>
+
 #include "VsyncModulator.h"
 
 namespace android::scheduler {

@@ -1,0 +1,26 @@
+cc_defaults {
+    name: "libscheduler_defaults",
+    defaults: ["surfaceflinger_defaults"],
+    cflags: [
+        "-DLOG_TAG=\"Scheduler\"",
+        "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
+    ],
+    shared_libs: [
+        "libbase",
+        "libutils",
+    ],
+}
+
+cc_library_headers {
+    name: "libscheduler_headers",
+    defaults: ["libscheduler_defaults"],
+    export_include_dirs: ["include"],
+}
+
+cc_library_static {
+    name: "libscheduler",
+    defaults: ["libscheduler_defaults"],
+    srcs: [],
+    local_include_dirs: ["include"],
+    export_include_dirs: ["include"],
+}

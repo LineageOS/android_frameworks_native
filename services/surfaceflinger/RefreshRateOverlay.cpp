@@ -276,7 +276,7 @@ void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
     t.apply();
 }
 
-void RefreshRateOverlay::changeRefreshRate(const Fps& fps) {
+void RefreshRateOverlay::changeRefreshRate(Fps fps) {
     mCurrentFps = fps.getIntValue();
     auto buffer = getOrCreateBuffers(*mCurrentFps)[mFrame];
     SurfaceComposerClient::Transaction t;

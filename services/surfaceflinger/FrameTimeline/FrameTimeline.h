@@ -16,8 +16,14 @@
 
 #pragma once
 
-#include <../Fps.h>
-#include <../TimeStats/TimeStats.h>
+#include <atomic>
+#include <chrono>
+#include <deque>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+
 #include <gui/ISurfaceComposer.h>
 #include <gui/JankInfo.h>
 #include <perfetto/trace/android/frame_timeline_event.pbzero.h>
@@ -28,8 +34,9 @@
 #include <utils/Timers.h>
 #include <utils/Vector.h>
 
-#include <deque>
-#include <mutex>
+#include <scheduler/Fps.h>
+
+#include "../TimeStats/TimeStats.h"
 
 namespace android::frametimeline {
 

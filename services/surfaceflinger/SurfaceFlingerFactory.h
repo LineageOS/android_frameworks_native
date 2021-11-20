@@ -16,15 +16,15 @@
 
 #pragma once
 
-#include "Fps.h"
-
-#include <cutils/compiler.h>
-#include <utils/StrongPointer.h>
-
 #include <cinttypes>
 #include <functional>
 #include <memory>
 #include <string>
+
+#include <cutils/compiler.h>
+#include <utils/StrongPointer.h>
+
+#include <scheduler/Fps.h>
 
 namespace android {
 
