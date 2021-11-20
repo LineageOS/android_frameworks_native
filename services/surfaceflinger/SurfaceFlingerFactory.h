@@ -42,16 +42,12 @@ class HWComposer;
 class IGraphicBufferConsumer;
 class IGraphicBufferProducer;
 class Layer;
-class MessageQueue;
-class Scheduler;
 class StartPropertySetThread;
 class SurfaceFlinger;
 class SurfaceInterceptor;
 class TimeStats;
 
 struct DisplayDeviceCreationArgs;
-struct ICompositor;
-struct ISchedulerCallback;
 struct LayerCreationArgs;
 
 namespace compositionengine {

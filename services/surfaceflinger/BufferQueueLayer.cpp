@@ -372,8 +372,9 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     // Add this buffer from our internal queue tracker
     { // Autolock scope
         const nsecs_t presentTime = item.mIsAutoTimestamp ? 0 : item.mTimestamp;
-        mFlinger->mScheduler->recordLayerHistory(this, presentTime,
-                                                 LayerHistory::LayerUpdateType::Buffer);
+
+        using LayerUpdateType = scheduler::LayerHistory::LayerUpdateType;
+        mFlinger->mScheduler->recordLayerHistory(this, presentTime, LayerUpdateType::Buffer);
 
         Mutex::Autolock lock(mQueueItemLock);
         // Reset the frame number tracker when we receive the first buffer after

@@ -31,11 +31,9 @@
 namespace android {
 
 class Layer;
-class TestableScheduler;
 
 namespace scheduler {
 
-class LayerHistoryTest;
 class LayerInfo;
 
 class LayerHistory {
@@ -75,8 +73,8 @@ public:
     std::string dump() const;
 
 private:
-    friend LayerHistoryTest;
-    friend TestableScheduler;
+    friend class LayerHistoryTest;
+    friend class TestableScheduler;
 
     using LayerPair = std::pair<Layer*, std::unique_ptr<LayerInfo>>;
     using LayerInfos = std::vector<LayerPair>;
