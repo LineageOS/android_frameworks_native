@@ -138,7 +138,7 @@ public:
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
         EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
 
-        constexpr ISchedulerCallback* kCallback = nullptr;
+        constexpr scheduler::ISchedulerCallback* kCallback = nullptr;
         constexpr bool kHasMultipleConfigs = true;
         mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
                                 std::move(eventThread), std::move(sfEventThread), kCallback,

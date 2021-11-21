@@ -476,8 +476,9 @@ bool BufferStateLayer::setBuffer(const BufferData& bufferData, nsecs_t postTime,
 
         return static_cast<nsecs_t>(0);
     }();
-    mFlinger->mScheduler->recordLayerHistory(this, presentTime,
-                                             LayerHistory::LayerUpdateType::Buffer);
+
+    using LayerUpdateType = scheduler::LayerHistory::LayerUpdateType;
+    mFlinger->mScheduler->recordLayerHistory(this, presentTime, LayerUpdateType::Buffer);
 
     addFrameEvent(mDrawingState.acquireFence, postTime, isAutoTimestamp ? 0 : desiredPresentTime);
 

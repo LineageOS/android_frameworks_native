@@ -48,6 +48,8 @@ using android::Hwc2::IComposerClient;
 
 using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
 
+using scheduler::LayerHistory;
+
 using FrameRate = Layer::FrameRate;
 using FrameRateCompatibility = Layer::FrameRateCompatibility;
 

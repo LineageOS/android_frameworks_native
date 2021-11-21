@@ -459,8 +459,8 @@ static UniqueFile open_reference_profile_as_unique_file(uid_t uid, const std::st
     });
 }
 
-static unique_fd open_spnashot_profile(uid_t uid, const std::string& package_name,
-        const std::string& location) {
+static unique_fd open_snapshot_profile(uid_t uid, const std::string& package_name,
+                                       const std::string& location) {
     std::string profile = create_snapshot_profile_path(package_name, location);
     return open_profile(uid, profile, O_CREAT | O_RDWR | O_TRUNC,  S_IRUSR | S_IWUSR);
 }
@@ -2562,7 +2562,7 @@ static bool create_app_profile_snapshot(int32_t app_id,
                                         const std::string& classpath) {
     int app_shared_gid = multiuser_get_shared_gid(/*user_id*/ 0, app_id);
 
-    unique_fd snapshot_fd = open_spnashot_profile(AID_SYSTEM, package_name, profile_name);
+    unique_fd snapshot_fd = open_snapshot_profile(AID_SYSTEM, package_name, profile_name);
     if (snapshot_fd < 0) {
         return false;
     }
@@ -2636,7 +2636,7 @@ static bool create_boot_image_profile_snapshot(const std::string& package_name,
     }
 
     // Open and create the snapshot profile.
-    unique_fd snapshot_fd = open_spnashot_profile(AID_SYSTEM, package_name, profile_name);
+    unique_fd snapshot_fd = open_snapshot_profile(AID_SYSTEM, package_name, profile_name);
 
     // Collect all non empty profiles.
     // The collection will traverse all applications profiles and find the non empty files.

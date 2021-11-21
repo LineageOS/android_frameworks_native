@@ -190,7 +190,7 @@ public:
 
     struct ActiveModeInfo {
         DisplayModePtr mode;
-        scheduler::RefreshRateConfigEvent event = scheduler::RefreshRateConfigEvent::None;
+        scheduler::DisplayModeEvent event = scheduler::DisplayModeEvent::None;
 
         bool operator!=(const ActiveModeInfo& other) const {
             return mode != other.mode || event != other.event;

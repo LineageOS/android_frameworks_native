@@ -29,7 +29,7 @@ using FakeDisplayDeviceInjector = TestableSurfaceFlinger::FakeDisplayDeviceInjec
 
 class InitiateModeChangeTest : public DisplayTransactionTest {
 public:
-    using Event = scheduler::RefreshRateConfigEvent;
+    using Event = scheduler::DisplayModeEvent;
 
     void SetUp() override {
         injectFakeBufferQueueFactory();

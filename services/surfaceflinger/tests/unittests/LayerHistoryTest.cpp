@@ -38,9 +38,9 @@ using testing::_;
 using testing::Return;
 using testing::ReturnRef;
 
-namespace android {
+namespace android::scheduler {
 
-namespace scheduler {
+using MockLayer = android::mock::MockLayer;
 
 class LayerHistoryTest : public testing::Test {
 protected:
@@ -93,12 +93,12 @@ protected:
         }
     }
 
-    auto createLayer() { return sp<mock::MockLayer>(new mock::MockLayer(mFlinger.flinger())); }
+    auto createLayer() { return sp<MockLayer>::make(mFlinger.flinger()); }
     auto createLayer(std::string name) {
-        return sp<mock::MockLayer>(new mock::MockLayer(mFlinger.flinger(), std::move(name)));
+        return sp<MockLayer>::make(mFlinger.flinger(), std::move(name));
     }
 
-    void recordFramesAndExpect(const sp<mock::MockLayer>& layer, nsecs_t& time, Fps frameRate,
+    void recordFramesAndExpect(const sp<MockLayer>& layer, nsecs_t& time, Fps frameRate,
                                Fps desiredRefreshRate, int numFrames) {
         LayerHistory::Summary summary;
         for (int i = 0; i < numFrames; i++) {
@@ -768,8 +768,7 @@ INSTANTIATE_TEST_CASE_P(LeapYearTests, LayerHistoryTestParameterized,
                         ::testing::Values(1s, 2s, 3s, 4s, 5s));
 
 } // namespace
-} // namespace scheduler
-} // namespace android
+} // namespace android::scheduler
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wextra"
