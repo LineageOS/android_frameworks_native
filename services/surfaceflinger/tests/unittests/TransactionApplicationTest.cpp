@@ -26,7 +26,7 @@
 #include <log/log.h>
 #include <ui/MockFence.h>
 #include <utils/String8.h>
-#include "TestableScheduler.h"
+
 #include "TestableSurfaceFlinger.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockVsyncController.h"
@@ -85,10 +85,7 @@ public:
                                 std::move(eventThread), std::move(sfEventThread));
     }
 
-    TestableScheduler* mScheduler;
     TestableSurfaceFlinger mFlinger;
-
-    std::unique_ptr<mock::EventThread> mEventThread = std::make_unique<mock::EventThread>();
 
     mock::VsyncController* mVsyncController = new mock::VsyncController();
     mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker();

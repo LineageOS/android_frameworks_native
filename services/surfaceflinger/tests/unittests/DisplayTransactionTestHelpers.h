@@ -121,7 +121,7 @@ public:
 
     mock::VsyncController* mVsyncController = new mock::VsyncController;
     mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker;
-    mock::SchedulerCallback mSchedulerCallback;
+    scheduler::mock::SchedulerCallback mSchedulerCallback;
     mock::EventThread* mEventThread = new mock::EventThread;
     mock::EventThread* mSFEventThread = new mock::EventThread;
 

@@ -37,7 +37,7 @@ public:
                  bool supportKernelIdleTimer);
     ~VSyncReactor();
 
-    bool addPresentFence(const std::shared_ptr<android::FenceTime>& fence) final;
+    bool addPresentFence(std::shared_ptr<FenceTime>) final;
     void setIgnorePresentFences(bool ignore) final;
 
     void startPeriodTransition(nsecs_t period) final;
