@@ -20,6 +20,7 @@ namespace android {
 namespace renderengine {
 namespace skia {
 
+// please keep in sync with hwui/utils/Color.cpp
 sk_sp<SkColorSpace> toSkColorSpace(ui::Dataspace dataspace) {
     skcms_Matrix3x3 gamut;
     switch (dataspace & HAL_DATASPACE_STANDARD_MASK) {
@@ -32,6 +33,17 @@ sk_sp<SkColorSpace> toSkColorSpace(ui::Dataspace dataspace) {
         case HAL_DATASPACE_STANDARD_DCI_P3:
             gamut = SkNamedGamut::kDisplayP3;
             break;
+        case HAL_DATASPACE_STANDARD_ADOBE_RGB:
+            gamut = SkNamedGamut::kAdobeRGB;
+            break;
+        case HAL_DATASPACE_STANDARD_BT601_625:
+        case HAL_DATASPACE_STANDARD_BT601_625_UNADJUSTED:
+        case HAL_DATASPACE_STANDARD_BT601_525:
+        case HAL_DATASPACE_STANDARD_BT601_525_UNADJUSTED:
+        case HAL_DATASPACE_STANDARD_BT2020_CONSTANT_LUMINANCE:
+        case HAL_DATASPACE_STANDARD_BT470M:
+        case HAL_DATASPACE_STANDARD_FILM:
+        case HAL_DATASPACE_STANDARD_UNSPECIFIED:
         default:
             gamut = SkNamedGamut::kSRGB;
             break;
@@ -42,10 +54,19 @@ sk_sp<SkColorSpace> toSkColorSpace(ui::Dataspace dataspace) {
             return SkColorSpace::MakeRGB(SkNamedTransferFn::kLinear, gamut);
         case HAL_DATASPACE_TRANSFER_SRGB:
             return SkColorSpace::MakeRGB(SkNamedTransferFn::kSRGB, gamut);
+        case HAL_DATASPACE_TRANSFER_GAMMA2_2:
+            return SkColorSpace::MakeRGB({2.2f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}, gamut);
+        case HAL_DATASPACE_TRANSFER_GAMMA2_6:
+            return SkColorSpace::MakeRGB({2.6f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}, gamut);
+        case HAL_DATASPACE_TRANSFER_GAMMA2_8:
+            return SkColorSpace::MakeRGB({2.8f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}, gamut);
         case HAL_DATASPACE_TRANSFER_ST2084:
             return SkColorSpace::MakeRGB(SkNamedTransferFn::kPQ, gamut);
+        case HAL_DATASPACE_TRANSFER_SMPTE_170M:
+            return SkColorSpace::MakeRGB(SkNamedTransferFn::kRec2020, gamut);
         case HAL_DATASPACE_TRANSFER_HLG:
             return SkColorSpace::MakeRGB(SkNamedTransferFn::kHLG, gamut);
+        case HAL_DATASPACE_TRANSFER_UNSPECIFIED:
         default:
             return SkColorSpace::MakeRGB(SkNamedTransferFn::kSRGB, gamut);
     }
