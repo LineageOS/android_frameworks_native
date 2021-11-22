@@ -77,6 +77,8 @@
 #define LOG_TAG "installd"
 #endif
 
+// #define GRANULAR_LOCKS
+
 using android::base::ParseUint;
 using android::base::StringPrintf;
 using std::endl;
@@ -265,6 +267,82 @@ binder::Status checkArgumentPath(const std::optional<std::string>& path) {
     }                                                       \
 }
 
+#ifdef GRANULAR_LOCKS
+
+/**
+ * This class obtains in constructor and keeps the local strong pointer to the RefLock.
+ * On destruction, it checks if there are any other strong pointers, and remove the map entry if
+ * this was the last one.
+ */
+template <class Key>
+struct LocalLockHolder {
+    using WeakPointer = std::weak_ptr<std::recursive_mutex>;
+    using StrongPointer = std::shared_ptr<std::recursive_mutex>;
+    using Map = std::unordered_map<Key, WeakPointer>;
+    using MapLock = std::recursive_mutex;
+
+    LocalLockHolder(Key key, Map& map, MapLock& mapLock)
+          : mKey(std::move(key)), mMap(map), mMapLock(mapLock) {
+        std::lock_guard lock(mMapLock);
+        auto& weakPtr = mMap[mKey];
+
+        // Check if the RefLock is still alive.
+        mRefLock = weakPtr.lock();
+        if (!mRefLock) {
+            // Create a new lock.
+            mRefLock = std::make_shared<std::recursive_mutex>();
+            weakPtr = mRefLock;
+        }
+    }
+    ~LocalLockHolder() {
+        std::lock_guard lock(mMapLock);
+        // Clear the strong pointer.
+        mRefLock.reset();
+        auto found = mMap.find(mKey);
+        if (found == mMap.end()) {
+            return;
+        }
+        const auto& weakPtr = found->second;
+        // If this was the last pointer then it's ok to remove the map entry.
+        if (weakPtr.expired()) {
+            mMap.erase(found);
+        }
+    }
+
+    void lock() { mRefLock->lock(); }
+    void unlock() { mRefLock->unlock(); }
+
+private:
+    Key mKey;
+    Map& mMap;
+    MapLock& mMapLock;
+    StrongPointer mRefLock;
+};
+
+#define LOCK_USER()                                                      \
+    LocalLockHolder<userid_t> localUserLock(userId, mUserIdLock, mLock); \
+    std::lock_guard userLock(localUserLock)
+
+#define LOCK_PACKAGE()                                                                   \
+    LocalLockHolder<std::string> localPackageLock(packageName, mPackageNameLock, mLock); \
+    std::lock_guard packageLock(localPackageLock)
+
+#define LOCK_PACKAGE_USER() \
+    LOCK_PACKAGE();         \
+    LOCK_USER()
+
+#else
+
+#define LOCK_USER() std::lock_guard lock(mLock)
+
+#define LOCK_PACKAGE() std::lock_guard lock(mLock)
+
+#define LOCK_PACKAGE_USER() \
+    (void)userId;           \
+    std::lock_guard lock(mLock)
+
+#endif // GRANULAR_LOCKS
+
 }  // namespace
 
 status_t InstalldNativeService::start() {
@@ -287,8 +365,6 @@ status_t InstalldNativeService::dump(int fd, const Vector<String16> & /* args */
         dprintf(fd, "%s\n", dump_permission.toString8().c_str());
         return PERMISSION_DENIED;
     }
-
-    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     {
         std::lock_guard<std::recursive_mutex> lock(mMountsLock);
@@ -550,7 +626,7 @@ binder::Status InstalldNativeService::createAppData(const std::optional<std::str
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE_USER();
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
@@ -622,7 +698,6 @@ binder::Status InstalldNativeService::createAppData(
         const android::os::CreateAppDataArgs& args,
         android::os::CreateAppDataResult* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     int64_t ceDataInode = -1;
     auto status = createAppData(args.uuid, args.packageName, args.userId, args.flags, args.appId,
@@ -653,7 +728,7 @@ binder::Status InstalldNativeService::migrateAppData(const std::optional<std::st
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE_USER();
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
@@ -697,7 +772,7 @@ binder::Status InstalldNativeService::clearAppProfiles(const std::string& packag
         const std::string& profileName) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     binder::Status res = ok();
     if (!clear_primary_reference_profile(packageName, profileName)) {
@@ -714,7 +789,7 @@ binder::Status InstalldNativeService::clearAppData(const std::optional<std::stri
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE_USER();
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
@@ -811,7 +886,7 @@ static int destroy_app_current_profiles(const std::string& pkgname, userid_t use
 binder::Status InstalldNativeService::destroyAppProfiles(const std::string& packageName) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     binder::Status res = ok();
     std::vector<userid_t> users = get_known_users(/*volume_uuid*/ nullptr);
@@ -831,7 +906,7 @@ binder::Status InstalldNativeService::destroyAppData(const std::optional<std::st
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE_USER();
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
@@ -902,15 +977,15 @@ binder::Status InstalldNativeService::fixupAppData(const std::optional<std::stri
         int32_t flags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
-    for (auto user : get_known_users(uuid_)) {
+    for (auto userId : get_known_users(uuid_)) {
         ATRACE_BEGIN("fixup user");
+        LOCK_USER();
         FTS* fts;
         FTSENT* p;
-        auto ce_path = create_data_user_ce_path(uuid_, user);
-        auto de_path = create_data_user_de_path(uuid_, user);
+        auto ce_path = create_data_user_ce_path(uuid_, userId);
+        auto de_path = create_data_user_de_path(uuid_, userId);
         char *argv[] = { (char*) ce_path.c_str(), (char*) de_path.c_str(), nullptr };
         if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nullptr))) {
             return error("Failed to fts_open");
@@ -1017,14 +1092,14 @@ static int32_t copy_directory_recursive(const char* from, const char* to) {
     return logwrap_fork_execvp(ARRAY_SIZE(argv), argv, nullptr, false, LOG_ALOG, false, nullptr);
 }
 
-binder::Status InstalldNativeService::snapshotAppData(
-        const std::optional<std::string>& volumeUuid,
-        const std::string& packageName, int32_t user, int32_t snapshotId,
-        int32_t storageFlags, int64_t* _aidl_return) {
+binder::Status InstalldNativeService::snapshotAppData(const std::optional<std::string>& volumeUuid,
+                                                      const std::string& packageName,
+                                                      int32_t userId, int32_t snapshotId,
+                                                      int32_t storageFlags, int64_t* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID_IS_TEST_OR_NULL(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE_USER();
 
     const char* volume_uuid = volumeUuid ? volumeUuid->c_str() : nullptr;
     const char* package_name = packageName.c_str();
@@ -1037,19 +1112,19 @@ binder::Status InstalldNativeService::snapshotAppData(
     bool clear_ce_on_exit = false;
     bool clear_de_on_exit = false;
 
-    auto deleter = [&clear_ce_on_exit, &clear_de_on_exit, &volume_uuid, &user, &package_name,
-            &snapshotId] {
+    auto deleter = [&clear_ce_on_exit, &clear_de_on_exit, &volume_uuid, &userId, &package_name,
+                    &snapshotId] {
         if (clear_de_on_exit) {
-            auto to = create_data_misc_de_rollback_package_path(volume_uuid, user, snapshotId,
-                    package_name);
+            auto to = create_data_misc_de_rollback_package_path(volume_uuid, userId, snapshotId,
+                                                                package_name);
             if (delete_dir_contents(to.c_str(), 1, nullptr) != 0) {
                 LOG(WARNING) << "Failed to delete app data snapshot: " << to;
             }
         }
 
         if (clear_ce_on_exit) {
-            auto to = create_data_misc_ce_rollback_package_path(volume_uuid, user, snapshotId,
-                    package_name);
+            auto to = create_data_misc_ce_rollback_package_path(volume_uuid, userId, snapshotId,
+                                                                package_name);
             if (delete_dir_contents(to.c_str(), 1, nullptr) != 0) {
                 LOG(WARNING) << "Failed to delete app data snapshot: " << to;
             }
@@ -1059,10 +1134,11 @@ binder::Status InstalldNativeService::snapshotAppData(
     auto scope_guard = android::base::make_scope_guard(deleter);
 
     if (storageFlags & FLAG_STORAGE_DE) {
-        auto from = create_data_user_de_package_path(volume_uuid, user, package_name);
-        auto to = create_data_misc_de_rollback_path(volume_uuid, user, snapshotId);
-        auto rollback_package_path = create_data_misc_de_rollback_package_path(volume_uuid, user,
-            snapshotId, package_name);
+        auto from = create_data_user_de_package_path(volume_uuid, userId, package_name);
+        auto to = create_data_misc_de_rollback_path(volume_uuid, userId, snapshotId);
+        auto rollback_package_path =
+                create_data_misc_de_rollback_package_path(volume_uuid, userId, snapshotId,
+                                                          package_name);
 
         int rc = create_dir_if_needed(to.c_str(), kRollbackFolderMode);
         if (rc != 0) {
@@ -1086,15 +1162,15 @@ binder::Status InstalldNativeService::snapshotAppData(
     }
 
     // The app may not have any data at all, in which case it's OK to skip here.
-    auto from_ce = create_data_user_ce_package_path(volume_uuid, user, package_name);
+    auto from_ce = create_data_user_ce_package_path(volume_uuid, userId, package_name);
     if (access(from_ce.c_str(), F_OK) != 0) {
         LOG(INFO) << "Missing source " << from_ce;
         return ok();
     }
 
     // ce_data_inode is not needed when FLAG_CLEAR_CACHE_ONLY is set.
-    binder::Status clear_cache_result = clearAppData(volumeUuid, packageName, user,
-            storageFlags | FLAG_CLEAR_CACHE_ONLY, 0);
+    binder::Status clear_cache_result =
+            clearAppData(volumeUuid, packageName, userId, storageFlags | FLAG_CLEAR_CACHE_ONLY, 0);
     if (!clear_cache_result.isOk()) {
         // It should be fine to continue snapshot if we for some reason failed
         // to clear cache.
@@ -1102,8 +1178,9 @@ binder::Status InstalldNativeService::snapshotAppData(
     }
 
     // ce_data_inode is not needed when FLAG_CLEAR_CODE_CACHE_ONLY is set.
-    binder::Status clear_code_cache_result = clearAppData(volumeUuid, packageName, user,
-            storageFlags | FLAG_CLEAR_CODE_CACHE_ONLY, 0);
+    binder::Status clear_code_cache_result =
+            clearAppData(volumeUuid, packageName, userId, storageFlags | FLAG_CLEAR_CODE_CACHE_ONLY,
+                         0);
     if (!clear_code_cache_result.isOk()) {
         // It should be fine to continue snapshot if we for some reason failed
         // to clear code_cache.
@@ -1111,10 +1188,11 @@ binder::Status InstalldNativeService::snapshotAppData(
     }
 
     if (storageFlags & FLAG_STORAGE_CE) {
-        auto from = create_data_user_ce_package_path(volume_uuid, user, package_name);
-        auto to = create_data_misc_ce_rollback_path(volume_uuid, user, snapshotId);
-        auto rollback_package_path = create_data_misc_ce_rollback_package_path(volume_uuid, user,
-            snapshotId, package_name);
+        auto from = create_data_user_ce_package_path(volume_uuid, userId, package_name);
+        auto to = create_data_misc_ce_rollback_path(volume_uuid, userId, snapshotId);
+        auto rollback_package_path =
+                create_data_misc_ce_rollback_package_path(volume_uuid, userId, snapshotId,
+                                                          package_name);
 
         int rc = create_dir_if_needed(to.c_str(), kRollbackFolderMode);
         if (rc != 0) {
@@ -1133,8 +1211,9 @@ binder::Status InstalldNativeService::snapshotAppData(
             return res;
         }
         if (_aidl_return != nullptr) {
-            auto ce_snapshot_path = create_data_misc_ce_rollback_package_path(volume_uuid, user,
-                    snapshotId, package_name);
+            auto ce_snapshot_path =
+                    create_data_misc_ce_rollback_package_path(volume_uuid, userId, snapshotId,
+                                                              package_name);
             rc = get_path_inode(ce_snapshot_path, reinterpret_cast<ino_t*>(_aidl_return));
             if (rc != 0) {
                 res = error(rc, "Failed to get_path_inode for " + ce_snapshot_path);
@@ -1149,20 +1228,20 @@ binder::Status InstalldNativeService::snapshotAppData(
 
 binder::Status InstalldNativeService::restoreAppDataSnapshot(
         const std::optional<std::string>& volumeUuid, const std::string& packageName,
-        const int32_t appId, const std::string& seInfo, const int32_t user,
+        const int32_t appId, const std::string& seInfo, const int32_t userId,
         const int32_t snapshotId, int32_t storageFlags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID_IS_TEST_OR_NULL(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE_USER();
 
     const char* volume_uuid = volumeUuid ? volumeUuid->c_str() : nullptr;
     const char* package_name = packageName.c_str();
 
-    auto from_ce = create_data_misc_ce_rollback_package_path(volume_uuid,
-            user, snapshotId, package_name);
-    auto from_de = create_data_misc_de_rollback_package_path(volume_uuid,
-            user, snapshotId, package_name);
+    auto from_ce = create_data_misc_ce_rollback_package_path(volume_uuid, userId, snapshotId,
+                                                             package_name);
+    auto from_de = create_data_misc_de_rollback_package_path(volume_uuid, userId, snapshotId,
+                                                             package_name);
 
     const bool needs_ce_rollback = (storageFlags & FLAG_STORAGE_CE) &&
         (access(from_ce.c_str(), F_OK) == 0);
@@ -1182,14 +1261,14 @@ binder::Status InstalldNativeService::restoreAppDataSnapshot(
     // It's fine to pass 0 as ceDataInode here, because restoreAppDataSnapshot
     // can only be called when user unlocks the phone, meaning that CE user data
     // is decrypted.
-    binder::Status res = clearAppData(volumeUuid, packageName, user, storageFlags,
-            0 /* ceDataInode */);
+    binder::Status res =
+            clearAppData(volumeUuid, packageName, userId, storageFlags, 0 /* ceDataInode */);
     if (!res.isOk()) {
         return res;
     }
 
     if (needs_ce_rollback) {
-        auto to_ce = create_data_user_ce_path(volume_uuid, user);
+        auto to_ce = create_data_user_ce_path(volume_uuid, userId);
         int rc = copy_directory_recursive(from_ce.c_str(), to_ce.c_str());
         if (rc != 0) {
             res = error(rc, "Failed copying " + from_ce + " to " + to_ce);
@@ -1199,11 +1278,11 @@ binder::Status InstalldNativeService::restoreAppDataSnapshot(
     }
 
     if (needs_de_rollback) {
-        auto to_de = create_data_user_de_path(volume_uuid, user);
+        auto to_de = create_data_user_de_path(volume_uuid, userId);
         int rc = copy_directory_recursive(from_de.c_str(), to_de.c_str());
         if (rc != 0) {
             if (needs_ce_rollback) {
-                auto ce_data = create_data_user_ce_package_path(volume_uuid, user, package_name);
+                auto ce_data = create_data_user_ce_package_path(volume_uuid, userId, package_name);
                 LOG(WARNING) << "de_data rollback failed. Erasing rolled back ce_data " << ce_data;
                 if (delete_dir_contents(ce_data.c_str(), 1, nullptr) != 0) {
                     LOG(WARNING) << "Failed to delete rolled back ce_data " << ce_data;
@@ -1216,24 +1295,24 @@ binder::Status InstalldNativeService::restoreAppDataSnapshot(
     }
 
     // Finally, restore the SELinux label on the app data.
-    return restoreconAppData(volumeUuid, packageName, user, storageFlags, appId, seInfo);
+    return restoreconAppData(volumeUuid, packageName, userId, storageFlags, appId, seInfo);
 }
 
 binder::Status InstalldNativeService::destroyAppDataSnapshot(
-        const std::optional<std::string> &volumeUuid, const std::string& packageName,
-        const int32_t user, const int64_t ceSnapshotInode, const int32_t snapshotId,
+        const std::optional<std::string>& volumeUuid, const std::string& packageName,
+        const int32_t userId, const int64_t ceSnapshotInode, const int32_t snapshotId,
         int32_t storageFlags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID_IS_TEST_OR_NULL(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE_USER();
 
     const char* volume_uuid = volumeUuid ? volumeUuid->c_str() : nullptr;
     const char* package_name = packageName.c_str();
 
     if (storageFlags & FLAG_STORAGE_DE) {
-        auto de_snapshot_path = create_data_misc_de_rollback_package_path(volume_uuid,
-                user, snapshotId, package_name);
+        auto de_snapshot_path = create_data_misc_de_rollback_package_path(volume_uuid, userId,
+                                                                          snapshotId, package_name);
 
         int res = delete_dir_contents_and_dir(de_snapshot_path, true /* ignore_if_missing */);
         if (res != 0) {
@@ -1242,8 +1321,9 @@ binder::Status InstalldNativeService::destroyAppDataSnapshot(
     }
 
     if (storageFlags & FLAG_STORAGE_CE) {
-        auto ce_snapshot_path = create_data_misc_ce_rollback_package_path(volume_uuid,
-                user, snapshotId, package_name, ceSnapshotInode);
+        auto ce_snapshot_path =
+                create_data_misc_ce_rollback_package_path(volume_uuid, userId, snapshotId,
+                                                          package_name, ceSnapshotInode);
         int res = delete_dir_contents_and_dir(ce_snapshot_path, true /* ignore_if_missing */);
         if (res != 0) {
             return error(res, "Failed clearing snapshot " + ce_snapshot_path);
@@ -1253,15 +1333,15 @@ binder::Status InstalldNativeService::destroyAppDataSnapshot(
 }
 
 binder::Status InstalldNativeService::destroyCeSnapshotsNotSpecified(
-        const std::optional<std::string> &volumeUuid, const int32_t user,
+        const std::optional<std::string>& volumeUuid, const int32_t userId,
         const std::vector<int32_t>& retainSnapshotIds) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID_IS_TEST_OR_NULL(volumeUuid);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_USER();
 
     const char* volume_uuid = volumeUuid ? volumeUuid->c_str() : nullptr;
 
-    auto base_path = create_data_misc_ce_rollback_base_path(volume_uuid, user);
+    auto base_path = create_data_misc_ce_rollback_base_path(volume_uuid, userId);
 
     std::unique_ptr<DIR, decltype(&closedir)> dir(opendir(base_path.c_str()), closedir);
     if (!dir) {
@@ -1279,8 +1359,8 @@ binder::Status InstalldNativeService::destroyCeSnapshotsNotSpecified(
         if (parse_ok &&
                 std::find(retainSnapshotIds.begin(), retainSnapshotIds.end(),
                           snapshot_id) == retainSnapshotIds.end()) {
-            auto rollback_path = create_data_misc_ce_rollback_path(
-                volume_uuid, user, snapshot_id);
+            auto rollback_path =
+                    create_data_misc_ce_rollback_path(volume_uuid, userId, snapshot_id);
             int res = delete_dir_contents_and_dir(rollback_path, true /* ignore_if_missing */);
             if (res != 0) {
                 return error(res, "Failed clearing snapshot " + rollback_path);
@@ -1298,7 +1378,7 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::optional<std::s
     CHECK_ARGUMENT_UUID(fromUuid);
     CHECK_ARGUMENT_UUID(toUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     const char* from_uuid = fromUuid ? fromUuid->c_str() : nullptr;
     const char* to_uuid = toUuid ? toUuid->c_str() : nullptr;
@@ -1326,24 +1406,26 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::optional<std::s
     }
 
     // Copy private data for all known users
-    for (auto user : users) {
+    for (auto userId : users) {
+        LOCK_USER();
 
         // Data source may not exist for all users; that's okay
-        auto from_ce = create_data_user_ce_package_path(from_uuid, user, package_name);
+        auto from_ce = create_data_user_ce_package_path(from_uuid, userId, package_name);
         if (access(from_ce.c_str(), F_OK) != 0) {
             LOG(INFO) << "Missing source " << from_ce;
             continue;
         }
 
-        if (!createAppData(toUuid, packageName, user, FLAG_STORAGE_CE | FLAG_STORAGE_DE, appId,
-                /* previousAppId */ -1, seInfo, targetSdkVersion, nullptr).isOk()) {
+        if (!createAppData(toUuid, packageName, userId, FLAG_STORAGE_CE | FLAG_STORAGE_DE, appId,
+                           /* previousAppId */ -1, seInfo, targetSdkVersion, nullptr)
+                     .isOk()) {
             res = error("Failed to create package target");
             goto fail;
         }
 
         {
-            auto from = create_data_user_de_package_path(from_uuid, user, package_name);
-            auto to = create_data_user_de_path(to_uuid, user);
+            auto from = create_data_user_de_package_path(from_uuid, userId, package_name);
+            auto to = create_data_user_de_path(to_uuid, userId);
 
             int rc = copy_directory_recursive(from.c_str(), to.c_str());
             if (rc != 0) {
@@ -1352,8 +1434,8 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::optional<std::s
             }
         }
         {
-            auto from = create_data_user_ce_package_path(from_uuid, user, package_name);
-            auto to = create_data_user_ce_path(to_uuid, user);
+            auto from = create_data_user_ce_package_path(from_uuid, userId, package_name);
+            auto to = create_data_user_ce_path(to_uuid, userId);
 
             int rc = copy_directory_recursive(from.c_str(), to.c_str());
             if (rc != 0) {
@@ -1362,8 +1444,9 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::optional<std::s
             }
         }
 
-        if (!restoreconAppData(toUuid, packageName, user, FLAG_STORAGE_CE | FLAG_STORAGE_DE,
-                appId, seInfo).isOk()) {
+        if (!restoreconAppData(toUuid, packageName, userId, FLAG_STORAGE_CE | FLAG_STORAGE_DE,
+                               appId, seInfo)
+                     .isOk()) {
             res = error("Failed to restorecon");
             goto fail;
         }
@@ -1381,15 +1464,16 @@ fail:
             LOG(WARNING) << "Failed to rollback " << to_app_package_path;
         }
     }
-    for (auto user : users) {
+    for (auto userId : users) {
+        LOCK_USER();
         {
-            auto to = create_data_user_de_package_path(to_uuid, user, package_name);
+            auto to = create_data_user_de_package_path(to_uuid, userId, package_name);
             if (delete_dir_contents(to.c_str(), 1, nullptr) != 0) {
                 LOG(WARNING) << "Failed to rollback " << to;
             }
         }
         {
-            auto to = create_data_user_ce_package_path(to_uuid, user, package_name);
+            auto to = create_data_user_ce_package_path(to_uuid, userId, package_name);
             if (delete_dir_contents(to.c_str(), 1, nullptr) != 0) {
                 LOG(WARNING) << "Failed to rollback " << to;
             }
@@ -1402,7 +1486,7 @@ binder::Status InstalldNativeService::createUserData(const std::optional<std::st
         int32_t userId, int32_t userSerial ATTRIBUTE_UNUSED, int32_t flags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_USER();
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     if (flags & FLAG_STORAGE_DE) {
@@ -1420,7 +1504,7 @@ binder::Status InstalldNativeService::destroyUserData(const std::optional<std::s
         int32_t userId, int32_t flags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_USER();
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     binder::Status res = ok();
@@ -1457,7 +1541,6 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
         int64_t targetFreeBytes, int64_t cacheReservedBytes, int32_t flags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     auto uuidString = uuid.value_or("");
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
@@ -1485,12 +1568,14 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
         // 1. Create trackers for every known UID
         ATRACE_BEGIN("create");
         std::unordered_map<uid_t, std::shared_ptr<CacheTracker>> trackers;
-        for (auto user : get_known_users(uuid_)) {
+        for (auto userId : get_known_users(uuid_)) {
+            LOCK_USER(); // ?????????
+
             FTS *fts;
             FTSENT *p;
-            auto ce_path = create_data_user_ce_path(uuid_, user);
-            auto de_path = create_data_user_de_path(uuid_, user);
-            auto media_path = findDataMediaPath(uuid, user) + "/Android/data/";
+            auto ce_path = create_data_user_ce_path(uuid_, userId);
+            auto de_path = create_data_user_de_path(uuid_, userId);
+            auto media_path = findDataMediaPath(uuid, userId) + "/Android/data/";
             char *argv[] = { (char*) ce_path.c_str(), (char*) de_path.c_str(),
                     (char*) media_path.c_str(), nullptr };
             if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nullptr))) {
@@ -2341,7 +2426,7 @@ binder::Status InstalldNativeService::getAppCrates(
         CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     }
 #ifdef ENABLE_STORAGE_CRATES
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE_USER();
 
     auto retVector = std::vector<std::optional<CrateMetadata>>();
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
@@ -2387,7 +2472,7 @@ binder::Status InstalldNativeService::getUserCrates(
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
 #ifdef ENABLE_STORAGE_CRATES
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_USER();
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     auto retVector = std::vector<std::optional<CrateMetadata>>();
@@ -2444,7 +2529,7 @@ binder::Status InstalldNativeService::dumpProfiles(int32_t uid, const std::strin
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     CHECK_ARGUMENT_PATH(codePath);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     *_aidl_return = dump_profiles(uid, packageName, profileName, codePath);
     return ok();
@@ -2456,7 +2541,7 @@ binder::Status InstalldNativeService::copySystemProfile(const std::string& syste
         bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
     *_aidl_return = copy_system_profile(systemProfile, packageUid, packageName, profileName);
     return ok();
 }
@@ -2466,7 +2551,7 @@ binder::Status InstalldNativeService::mergeProfiles(int32_t uid, const std::stri
         const std::string& profileName, int* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     *_aidl_return = analyze_primary_profiles(uid, packageName, profileName);
     return ok();
@@ -2477,7 +2562,7 @@ binder::Status InstalldNativeService::createProfileSnapshot(int32_t appId,
         const std::string& classpath, bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     *_aidl_return = create_profile_snapshot(appId, packageName, profileName, classpath);
     return ok();
@@ -2487,7 +2572,7 @@ binder::Status InstalldNativeService::destroyProfileSnapshot(const std::string& 
         const std::string& profileName) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     std::string snapshot = create_snapshot_profile_path(packageName, profileName);
     if ((unlink(snapshot.c_str()) != 0) && (errno != ENOENT)) {
@@ -2518,7 +2603,8 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
     }
     CHECK_ARGUMENT_PATH(outputPath);
     CHECK_ARGUMENT_PATH(dexMetadataPath);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    const auto userId = multiuser_get_user_id(uid);
+    LOCK_PACKAGE_USER();
 
     const char* oat_dir = getCStr(outputPath);
     const char* instruction_set = instructionSet.c_str();
@@ -2569,7 +2655,7 @@ binder::Status InstalldNativeService::linkNativeLibraryDirectory(
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     CHECK_ARGUMENT_PATH(nativeLibPath32);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE_USER();
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
@@ -2660,7 +2746,7 @@ binder::Status InstalldNativeService::restoreconAppData(const std::optional<std:
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE_USER();
 
     binder::Status res = ok();
 
@@ -2690,7 +2776,7 @@ binder::Status InstalldNativeService::createOatDir(const std::string& oatDir,
         const std::string& instructionSet) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PATH(oatDir);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     const char* oat_dir = oatDir.c_str();
     const char* instruction_set = instructionSet.c_str();
@@ -2715,7 +2801,7 @@ binder::Status InstalldNativeService::createOatDir(const std::string& oatDir,
 binder::Status InstalldNativeService::rmPackageDir(const std::string& packageDir) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PATH(packageDir);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     if (validate_apk_path(packageDir.c_str())) {
         return error("Invalid path " + packageDir);
@@ -2731,7 +2817,7 @@ binder::Status InstalldNativeService::linkFile(const std::string& relativePath,
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PATH(fromBase);
     CHECK_ARGUMENT_PATH(toBase);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     const char* relative_path = relativePath.c_str();
     const char* from_base = fromBase.c_str();
@@ -2761,7 +2847,7 @@ binder::Status InstalldNativeService::moveAb(const std::string& apkPath,
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PATH(apkPath);
     CHECK_ARGUMENT_PATH(outputPath);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     const char* apk_path = apkPath.c_str();
     const char* instruction_set = instructionSet.c_str();
@@ -2777,7 +2863,7 @@ binder::Status InstalldNativeService::deleteOdex(const std::string& apkPath,
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PATH(apkPath);
     CHECK_ARGUMENT_PATH(outputPath);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     const char* apk_path = apkPath.c_str();
     const char* instruction_set = instructionSet.c_str();
@@ -2810,7 +2896,7 @@ binder::Status InstalldNativeService::installApkVerity(const std::string& filePa
         android::base::unique_fd verityInputAshmem, int32_t contentSize) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PATH(filePath);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     if (!android::base::GetBoolProperty(kPropApkVerityMode, false)) {
         return ok();
@@ -2892,7 +2978,7 @@ binder::Status InstalldNativeService::assertFsverityRootHashMatches(const std::s
         const std::vector<uint8_t>& expectedHash) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PATH(filePath);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE();
 
     if (!android::base::GetBoolProperty(kPropApkVerityMode, false)) {
         return ok();
@@ -2931,7 +3017,8 @@ binder::Status InstalldNativeService::reconcileSecondaryDexFile(
     CHECK_ARGUMENT_UUID(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     CHECK_ARGUMENT_PATH(dexPath);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    const auto userId = multiuser_get_user_id(uid);
+    LOCK_PACKAGE_USER();
 
     bool result = android::installd::reconcile_secondary_dex_file(
             dexPath, packageName, uid, isas, volumeUuid, storage_flag, _aidl_return);
@@ -3133,7 +3220,7 @@ binder::Status InstalldNativeService::prepareAppProfile(const std::string& packa
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     CHECK_ARGUMENT_PATH(codePath);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    LOCK_PACKAGE_USER();
 
     *_aidl_return = prepare_app_profile(packageName, userId, appId, profileName, codePath,
         dexMetadata);
