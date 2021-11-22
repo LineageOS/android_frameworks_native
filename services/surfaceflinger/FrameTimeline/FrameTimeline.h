@@ -26,6 +26,7 @@
 
 #include <gui/ISurfaceComposer.h>
 #include <gui/JankInfo.h>
+#include <gui/LayerMetadata.h>
 #include <perfetto/trace/android/frame_timeline_event.pbzero.h>
 #include <perfetto/tracing.h>
 #include <ui/FenceTime.h>
@@ -161,7 +162,7 @@ public:
                  int32_t layerId, std::string layerName, std::string debugName,
                  PredictionState predictionState, TimelineItem&& predictions,
                  std::shared_ptr<TimeStats> timeStats, JankClassificationThresholds thresholds,
-                 TraceCookieCounter* traceCookieCounter, bool isBuffer, int32_t gameMode);
+                 TraceCookieCounter* traceCookieCounter, bool isBuffer, GameMode);
     ~SurfaceFrame() = default;
 
     // Returns std::nullopt if the frame hasn't been classified yet.
@@ -267,7 +268,7 @@ private:
     // buffer(animations)
     bool mIsBuffer;
     // GameMode from the layer. Used in metrics.
-    int32_t mGameMode = 0;
+    GameMode mGameMode = GameMode::Unsupported;
 };
 
 /*
@@ -288,7 +289,7 @@ public:
     virtual std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(
             const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid,
             int32_t layerId, std::string layerName, std::string debugName, bool isBuffer,
-            int32_t gameMode) = 0;
+            GameMode) = 0;
 
     // Adds a new SurfaceFrame to the current DisplayFrame. Frames from multiple layers can be
     // composited into one display frame.
@@ -448,7 +449,7 @@ public:
     std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(
             const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid,
             int32_t layerId, std::string layerName, std::string debugName, bool isBuffer,
-            int32_t gameMode) override;
+            GameMode) override;
     void addSurfaceFrame(std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame) override;
     void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate) override;
     void setSfPresent(nsecs_t sfPresentTime, const std::shared_ptr<FenceTime>& presentFence,

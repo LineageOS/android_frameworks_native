@@ -127,19 +127,18 @@ status_t RenderSurface::beginFrame(bool mustRecompose) {
 }
 
 void RenderSurface::prepareFrame(bool usesClientComposition, bool usesDeviceComposition) {
-    DisplaySurface::CompositionType compositionType;
-    if (usesClientComposition && usesDeviceComposition) {
-        compositionType = DisplaySurface::COMPOSITION_MIXED;
-    } else if (usesClientComposition) {
-        compositionType = DisplaySurface::COMPOSITION_GPU;
-    } else if (usesDeviceComposition) {
-        compositionType = DisplaySurface::COMPOSITION_HWC;
-    } else {
+    const auto compositionType = [=] {
+        using CompositionType = DisplaySurface::CompositionType;
+
+        if (usesClientComposition && usesDeviceComposition) return CompositionType::Mixed;
+        if (usesClientComposition) return CompositionType::Gpu;
+        if (usesDeviceComposition) return CompositionType::Hwc;
+
         // Nothing to do -- when turning the screen off we get a frame like
         // this. Call it a HWC frame since we won't be doing any GPU work but
         // will do a prepare/set cycle.
-        compositionType = DisplaySurface::COMPOSITION_HWC;
-    }
+        return CompositionType::Hwc;
+    }();
 
     if (status_t result = mDisplaySurface->prepareFrame(compositionType); result != NO_ERROR) {
         ALOGE("updateCompositionType failed for %s: %d (%s)", mDisplay.getName().c_str(), result,

@@ -169,13 +169,14 @@ public:
 
 static const std::string sLayerNameOne = "layer1";
 static const std::string sLayerNameTwo = "layer2";
-static constexpr const uid_t sUidOne = 0;
-static constexpr pid_t sPidOne = 10;
-static constexpr pid_t sPidTwo = 20;
-static constexpr int32_t sInputEventId = 5;
-static constexpr int32_t sLayerIdOne = 1;
-static constexpr int32_t sLayerIdTwo = 2;
-static constexpr int32_t sGameMode = 0;
+
+constexpr const uid_t sUidOne = 0;
+constexpr pid_t sPidOne = 10;
+constexpr pid_t sPidTwo = 20;
+constexpr int32_t sInputEventId = 5;
+constexpr int32_t sLayerIdOne = 1;
+constexpr int32_t sLayerIdTwo = 2;
+constexpr GameMode sGameMode = GameMode::Unsupported;
 
 TEST_F(FrameTimelineTest, tokenManagerRemovesStalePredictions) {
     int64_t token1 = mTokenManager->generateTokenForPredictions({0, 0, 0});

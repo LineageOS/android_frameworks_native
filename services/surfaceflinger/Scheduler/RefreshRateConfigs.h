@@ -206,6 +206,7 @@ public:
         ExplicitExact,           // Specific refresh rate that was provided by the app with
                                  // Exact compatibility
 
+        ftl_last = ExplicitExact
     };
 
     // Captures the layer requirements for a refresh rate. This will be used to determine the
@@ -284,9 +285,6 @@ public:
 
     // Stores the current modeId the device operates at
     void setCurrentModeId(DisplayModeId) EXCLUDES(mLock);
-
-    // Returns a string that represents the layer vote type
-    static std::string layerVoteTypeString(LayerVoteType vote);
 
     // Returns a known frame rate that is the closest to frameRate
     Fps findClosestKnownFrameRate(Fps frameRate) const;
