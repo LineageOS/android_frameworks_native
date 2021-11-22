@@ -52,6 +52,7 @@
 #include <server_configurable_flags/get_flags.h>
 #include <system/thread_defs.h>
 #include <utils/Mutex.h>
+#include <ziparchive/zip_archive.h>
 
 #include "dexopt.h"
 #include "dexopt_return_codes.h"
@@ -2738,6 +2739,20 @@ bool create_profile_snapshot(int32_t app_id, const std::string& package_name,
     }
 }
 
+static bool check_profile_exists_in_dexmetadata(const std::string& dex_metadata) {
+    ZipArchiveHandle zip = nullptr;
+    if (OpenArchive(dex_metadata.c_str(), &zip) != 0) {
+        PLOG(ERROR) << "Failed to open dm '" << dex_metadata << "'";
+        return false;
+    }
+
+    ZipEntry64 entry;
+    int result = FindEntry(zip, "primary.prof", &entry);
+    CloseArchive(zip);
+
+    return result != 0 ? false : true;
+}
+
 bool prepare_app_profile(const std::string& package_name,
                          userid_t user_id,
                          appid_t app_id,
@@ -2754,7 +2769,7 @@ bool prepare_app_profile(const std::string& package_name,
     }
 
     // Check if we need to install the profile from the dex metadata.
-    if (!dex_metadata) {
+    if (!dex_metadata || !check_profile_exists_in_dexmetadata(dex_metadata->c_str())) {
         return true;
     }
 
