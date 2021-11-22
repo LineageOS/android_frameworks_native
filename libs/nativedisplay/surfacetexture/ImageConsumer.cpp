@@ -28,7 +28,8 @@ void ImageConsumer::onReleaseBufferLocked(int buf) {
 }
 
 sp<GraphicBuffer> ImageConsumer::dequeueBuffer(int* outSlotid, android_dataspace* outDataspace,
-                                               bool* outQueueEmpty, SurfaceTexture& st,
+                                               HdrMetadata* outHdrMetadata, bool* outQueueEmpty,
+                                               SurfaceTexture& st,
                                                SurfaceTexture_createReleaseFence createFence,
                                                SurfaceTexture_fenceWait fenceWait,
                                                void* fencePassThroughHandle) {
@@ -121,6 +122,7 @@ sp<GraphicBuffer> ImageConsumer::dequeueBuffer(int* outSlotid, android_dataspace
     st.computeCurrentTransformMatrixLocked();
 
     *outDataspace = item.mDataSpace;
+    *outHdrMetadata = item.mHdrMetadata;
     *outSlotid = slot;
     return st.mSlots[slot].mGraphicBuffer;
 }
