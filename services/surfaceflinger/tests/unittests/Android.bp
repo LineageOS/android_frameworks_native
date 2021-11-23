@@ -21,6 +21,24 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
+filegroup {
+    name: "libsurfaceflinger_mock_sources",
+    srcs: [
+        "mock/DisplayHardware/MockComposer.cpp",
+        "mock/DisplayHardware/MockHWC2.cpp",
+        "mock/DisplayHardware/MockPowerAdvisor.cpp",
+        "mock/MockEventThread.cpp",
+        "mock/MockFrameTimeline.cpp",
+        "mock/MockFrameTracer.cpp",
+        "mock/MockNativeWindowSurface.cpp",
+        "mock/MockSurfaceInterceptor.cpp",
+        "mock/MockTimeStats.cpp",
+        "mock/MockVsyncController.cpp",
+        "mock/MockVSyncTracker.cpp",
+        "mock/system/window/MockNativeWindow.cpp",
+    ],
+}
+
 cc_test {
     name: "libsurfaceflinger_unittest",
     defaults: [
@@ -45,6 +63,7 @@ cc_test {
         address: true,
     },
     srcs: [
+        ":libsurfaceflinger_mock_sources",
         ":libsurfaceflinger_sources",
         "libsurfaceflinger_unittest_main.cpp",
         "CachingTest.cpp",
@@ -103,18 +122,6 @@ cc_test {
         "VSyncPredictorTest.cpp",
         "VSyncReactorTest.cpp",
         "VsyncConfigurationTest.cpp",
-        "mock/DisplayHardware/MockComposer.cpp",
-        "mock/DisplayHardware/MockHWC2.cpp",
-        "mock/DisplayHardware/MockPowerAdvisor.cpp",
-        "mock/MockEventThread.cpp",
-        "mock/MockFrameTimeline.cpp",
-        "mock/MockFrameTracer.cpp",
-        "mock/MockNativeWindowSurface.cpp",
-        "mock/MockSurfaceInterceptor.cpp",
-        "mock/MockTimeStats.cpp",
-        "mock/MockVsyncController.cpp",
-        "mock/MockVSyncTracker.cpp",
-        "mock/system/window/MockNativeWindow.cpp",
     ],
     static_libs: [
         "android.hardware.common-V2-ndk",
