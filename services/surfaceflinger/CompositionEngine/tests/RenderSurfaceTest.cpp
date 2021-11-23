@@ -201,28 +201,28 @@ TEST_F(RenderSurfaceTest, beginFrameAppliesChange) {
  */
 
 TEST_F(RenderSurfaceTest, prepareFrameHandlesMixedComposition) {
-    EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::COMPOSITION_MIXED))
+    EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::CompositionType::Mixed))
             .WillOnce(Return(NO_ERROR));
 
     mSurface.prepareFrame(true, true);
 }
 
 TEST_F(RenderSurfaceTest, prepareFrameHandlesOnlyGpuComposition) {
-    EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::COMPOSITION_GPU))
+    EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::CompositionType::Gpu))
             .WillOnce(Return(NO_ERROR));
 
     mSurface.prepareFrame(true, false);
 }
 
 TEST_F(RenderSurfaceTest, prepareFrameHandlesOnlyHwcComposition) {
-    EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::COMPOSITION_HWC))
+    EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::CompositionType::Hwc))
             .WillOnce(Return(NO_ERROR));
 
     mSurface.prepareFrame(false, true);
 }
 
 TEST_F(RenderSurfaceTest, prepareFrameHandlesNoComposition) {
-    EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::COMPOSITION_HWC))
+    EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::CompositionType::Hwc))
             .WillOnce(Return(NO_ERROR));
 
     mSurface.prepareFrame(false, false);

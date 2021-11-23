@@ -82,6 +82,8 @@ public:
 
         NoVote, // Layer doesn't have any requirements for the refresh rate and
                 // should not be considered when the display refresh rate is determined.
+
+        ftl_last = NoVote
     };
 
     // Encapsulates the frame rate and compatibility of the layer. This information will be used

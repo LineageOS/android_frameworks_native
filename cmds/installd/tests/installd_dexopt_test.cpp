@@ -635,6 +635,7 @@ protected:
 
         int64_t bytes_freed;
         binder::Status result = service_->deleteOdex(
+            package_name_,
             apk_path_,
             kRuntimeIsa,
             in_dalvik_cache ? std::nullopt : std::make_optional<std::string>(app_oat_dir_.c_str()),
@@ -729,7 +730,7 @@ TEST_F(DexoptTest, DexoptPrimaryPublic) {
 
 TEST_F(DexoptTest, DexoptPrimaryPublicCreateOatDir) {
     LOG(INFO) << "DexoptPrimaryPublic";
-    ASSERT_BINDER_SUCCESS(service_->createOatDir(app_oat_dir_, kRuntimeIsa));
+    ASSERT_BINDER_SUCCESS(service_->createOatDir(package_name_, app_oat_dir_, kRuntimeIsa));
     CompilePrimaryDexOk("verify",
                         DEXOPT_BOOTCOMPLETE | DEXOPT_PUBLIC,
                         app_oat_dir_.c_str(),

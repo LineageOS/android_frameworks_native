@@ -17,14 +17,18 @@
 #undef LOG_TAG
 #define LOG_TAG "SchedulerTimer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
-#include <android-base/stringprintf.h>
-#include <log/log.h>
+
+#include <chrono>
+#include <cstdint>
+
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 #include <sys/unistd.h>
+
+#include <android-base/stringprintf.h>
+#include <ftl/enum.h>
+#include <log/log.h>
 #include <utils/Trace.h>
-#include <chrono>
-#include <cstdint>
 
 #include "SchedulerUtils.h"
 #include "Timer.h"
@@ -215,26 +219,9 @@ void Timer::setDebugState(DebugState state) {
     mDebugState = state;
 }
 
-const char* Timer::strDebugState(DebugState state) const {
-    switch (state) {
-        case DebugState::Reset:
-            return "Reset";
-        case DebugState::Running:
-            return "Running";
-        case DebugState::Waiting:
-            return "Waiting";
-        case DebugState::Reading:
-            return "Reading";
-        case DebugState::InCallback:
-            return "InCallback";
-        case DebugState::Terminated:
-            return "Terminated";
-    }
-}
-
 void Timer::dump(std::string& result) const {
     std::lock_guard lock(mMutex);
-    StringAppendF(&result, "\t\tDebugState: %s\n", strDebugState(mDebugState));
+    StringAppendF(&result, "\t\tDebugState: %s\n", ftl::enum_string(mDebugState).c_str());
 }
 
 } // namespace android::scheduler

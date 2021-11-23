@@ -16,9 +16,10 @@
 #include "timestatsproto/TimeStatsHelper.h"
 
 #include <android-base/stringprintf.h>
-#include <inttypes.h>
+#include <ftl/enum.h>
 
 #include <array>
+#include <cinttypes>
 
 #define HISTOGRAM_SIZE 85
 
@@ -91,51 +92,15 @@ std::string TimeStatsHelper::JankPayload::toString() const {
     return result;
 }
 
-std::string TimeStatsHelper::SetFrameRateVote::toString(FrameRateCompatibility compatibility) {
-    switch (compatibility) {
-        case FrameRateCompatibility::Undefined:
-            return "Undefined";
-        case FrameRateCompatibility::Default:
-            return "Default";
-        case FrameRateCompatibility::ExactOrMultiple:
-            return "ExactOrMultiple";
-    }
-}
-
-std::string TimeStatsHelper::SetFrameRateVote::toString(Seamlessness seamlessness) {
-    switch (seamlessness) {
-        case Seamlessness::Undefined:
-            return "Undefined";
-        case Seamlessness::ShouldBeSeamless:
-            return "ShouldBeSeamless";
-        case Seamlessness::NotRequired:
-            return "NotRequired";
-    }
-}
-
 std::string TimeStatsHelper::SetFrameRateVote::toString() const {
     std::string result;
     StringAppendF(&result, "frameRate = %.2f\n", frameRate);
     StringAppendF(&result, "frameRateCompatibility = %s\n",
-                  toString(frameRateCompatibility).c_str());
-    StringAppendF(&result, "seamlessness = %s\n", toString(seamlessness).c_str());
+                  ftl::enum_string(frameRateCompatibility).c_str());
+    StringAppendF(&result, "seamlessness = %s\n", ftl::enum_string(seamlessness).c_str());
     return result;
 }
 
-std::string TimeStatsHelper::TimeStatsLayer::toString(int32_t gameMode) const {
-    switch (gameMode) {
-        case TimeStatsHelper::GameModeUnsupported:
-            return "GameModeUnsupported";
-        case TimeStatsHelper::GameModeStandard:
-            return "GameModeStandard";
-        case TimeStatsHelper::GameModePerformance:
-            return "GameModePerformance";
-        case TimeStatsHelper::GameModeBattery:
-            return "GameModeBattery";
-        default:
-            return "GameModeUnspecified";
-    }
-}
 std::string TimeStatsHelper::TimeStatsLayer::toString() const {
     std::string result = "\n";
     StringAppendF(&result, "displayRefreshRate = %d fps\n", displayRefreshRateBucket);
@@ -143,7 +108,7 @@ std::string TimeStatsHelper::TimeStatsLayer::toString() const {
     StringAppendF(&result, "uid = %d\n", uid);
     StringAppendF(&result, "layerName = %s\n", layerName.c_str());
     StringAppendF(&result, "packageName = %s\n", packageName.c_str());
-    StringAppendF(&result, "gameMode = %s\n", toString(gameMode).c_str());
+    StringAppendF(&result, "gameMode = %s\n", ftl::enum_string(gameMode).c_str());
     StringAppendF(&result, "totalFrames = %d\n", totalFrames);
     StringAppendF(&result, "droppedFrames = %d\n", droppedFrames);
     StringAppendF(&result, "lateAcquireFrames = %d\n", lateAcquireFrames);
