@@ -370,7 +370,7 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _)).Times(1);
 
         EXPECT_CALL(*test->mDisplaySurface,
-                    prepareFrame(compositionengine::DisplaySurface::COMPOSITION_HWC))
+                    prepareFrame(compositionengine::DisplaySurface::CompositionType::Hwc))
                 .Times(1);
     }
 
@@ -384,7 +384,7 @@ struct BaseDisplayVariant {
 
     static void setupRECompositionCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mDisplaySurface,
-                    prepareFrame(compositionengine::DisplaySurface::COMPOSITION_GPU))
+                    prepareFrame(compositionengine::DisplaySurface::CompositionType::Gpu))
                 .Times(1);
         EXPECT_CALL(*test->mDisplaySurface, getClientTargetAcquireFence())
                 .WillRepeatedly(ReturnRef(test->mClientTargetAcquireFence));

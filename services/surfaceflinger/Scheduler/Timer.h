@@ -37,11 +37,20 @@ public:
     void dump(std::string& result) const final;
 
 private:
-    enum class DebugState { Reset, Running, Waiting, Reading, InCallback, Terminated };
+    enum class DebugState {
+        Reset,
+        Running,
+        Waiting,
+        Reading,
+        InCallback,
+        Terminated,
+
+        ftl_last = Terminated
+    };
+
     void reset();
     void cleanup();
     void setDebugState(DebugState state) EXCLUDES(mMutex);
-    const char* strDebugState(DebugState state) const;
 
     int mTimerFd = -1;
     int mEpollFd = -1;

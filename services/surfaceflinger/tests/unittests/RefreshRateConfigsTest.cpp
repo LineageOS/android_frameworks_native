@@ -21,10 +21,9 @@
 #undef LOG_TAG
 #define LOG_TAG "SchedulerUnittests"
 
+#include <ftl/enum.h>
 #include <gmock/gmock.h>
 #include <log/log.h>
-#include <thread>
-
 #include <ui/Size.h>
 
 #include "DisplayHardware/HWC2.h"
@@ -1975,7 +1974,7 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_deviceWithCloseRefreshRates) {
         layers[0].vote = vote;
         EXPECT_EQ(fps.getIntValue(),
                   refreshRateConfigs->getBestRefreshRate(layers, {}).getFps().getIntValue())
-                << "Failed for " << RefreshRateConfigs::layerVoteTypeString(vote);
+                << "Failed for " << ftl::enum_string(vote);
     };
 
     for (int fps = kMinRefreshRate; fps < kMaxRefreshRate; fps++) {
