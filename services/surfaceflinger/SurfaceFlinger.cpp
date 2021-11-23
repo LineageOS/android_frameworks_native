@@ -26,6 +26,7 @@
 
 #include <android-base/properties.h>
 #include <android/configuration.h>
+#include <android/gui/IDisplayEventConnection.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/types.h>
@@ -51,7 +52,6 @@
 #include <ftl/future.h>
 #include <gui/BufferQueue.h>
 #include <gui/DebugEGLImageTracker.h>
-#include <gui/IDisplayEventConnection.h>
 #include <gui/IProducerListener.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/LayerMetadata.h>
@@ -169,6 +169,7 @@ using namespace android::sysprop;
 using android::hardware::power::Boost;
 using base::StringAppendF;
 using gui::DisplayInfo;
+using gui::IDisplayEventConnection;
 using gui::IWindowInfosListener;
 using gui::WindowInfo;
 using ui::ColorMode;
