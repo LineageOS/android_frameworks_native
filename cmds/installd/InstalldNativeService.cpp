@@ -77,7 +77,7 @@
 #define LOG_TAG "installd"
 #endif
 
-// #define GRANULAR_LOCKS
+#define GRANULAR_LOCKS
 
 using android::base::ParseUint;
 using android::base::StringPrintf;
