@@ -29,35 +29,6 @@ static constexpr LatchUnsignaledConfig kLatchUnsignaledConfig[] = {
         LatchUnsignaledConfig::Disabled,
 };
 
-static constexpr ui::PixelFormat kPixelFormats[] = {ui::PixelFormat::RGBA_8888,
-                                                    ui::PixelFormat::RGBX_8888,
-                                                    ui::PixelFormat::RGB_888,
-                                                    ui::PixelFormat::RGB_565,
-                                                    ui::PixelFormat::BGRA_8888,
-                                                    ui::PixelFormat::YCBCR_422_SP,
-                                                    ui::PixelFormat::YCRCB_420_SP,
-                                                    ui::PixelFormat::YCBCR_422_I,
-                                                    ui::PixelFormat::RGBA_FP16,
-                                                    ui::PixelFormat::RAW16,
-                                                    ui::PixelFormat::BLOB,
-                                                    ui::PixelFormat::IMPLEMENTATION_DEFINED,
-                                                    ui::PixelFormat::YCBCR_420_888,
-                                                    ui::PixelFormat::RAW_OPAQUE,
-                                                    ui::PixelFormat::RAW10,
-                                                    ui::PixelFormat::RAW12,
-                                                    ui::PixelFormat::RGBA_1010102,
-                                                    ui::PixelFormat::Y8,
-                                                    ui::PixelFormat::Y16,
-                                                    ui::PixelFormat::YV12,
-                                                    ui::PixelFormat::DEPTH_16,
-                                                    ui::PixelFormat::DEPTH_24,
-                                                    ui::PixelFormat::DEPTH_24_STENCIL_8,
-                                                    ui::PixelFormat::DEPTH_32F,
-                                                    ui::PixelFormat::DEPTH_32F_STENCIL_8,
-                                                    ui::PixelFormat::STENCIL_8,
-                                                    ui::PixelFormat::YCBCR_P010,
-                                                    ui::PixelFormat::HSV_888};
-
 static constexpr ui::Rotation kRotations[] = {ui::Rotation::Rotation0, ui::Rotation::Rotation90,
                                               ui::Rotation::Rotation180, ui::Rotation::Rotation270};
 
