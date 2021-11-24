@@ -2103,7 +2103,7 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
         const std::vector<Monitor> newGestureMonitors = isDown
                 ? selectResponsiveMonitorsLocked(
                           getValueByKey(mGestureMonitorsByDisplay, displayId))
-                : std::vector<Monitor>{};
+                : tempTouchState.gestureMonitors;
 
         if (newTouchedWindowHandle == nullptr && newGestureMonitors.empty()) {
             ALOGI("Dropping event because there is no touchable window or gesture monitor at "
@@ -2139,6 +2139,10 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
                 pointerIds.markBit(pointerId);
             }
             tempTouchState.addOrUpdateWindow(newTouchedWindowHandle, targetFlags, pointerIds);
+        } else if (tempTouchState.windows.empty()) {
+            // If no window is touched, set split to true. This will allow the next pointer down to
+            // be delivered to a new window which supports split touch.
+            tempTouchState.split = true;
         }
 
         tempTouchState.addGestureMonitors(newGestureMonitors);
@@ -5546,6 +5550,7 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
               canceledWindows.c_str());
 
         // Then clear the current touch state so we stop dispatching to them as well.
+        state.split = false;
         state.filterNonMonitors();
     }
     return OK;

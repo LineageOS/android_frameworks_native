@@ -184,6 +184,9 @@ public:
 private:
     std::recursive_mutex mLock;
 
+    std::unordered_map<userid_t, std::weak_ptr<std::recursive_mutex>> mUserIdLock;
+    std::unordered_map<std::string, std::weak_ptr<std::recursive_mutex>> mPackageNameLock;
+
     std::recursive_mutex mMountsLock;
     std::recursive_mutex mQuotasLock;
 
