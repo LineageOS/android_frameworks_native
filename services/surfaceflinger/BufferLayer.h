@@ -153,7 +153,7 @@ protected:
     bool onPreComposition(nsecs_t) override;
     void preparePerFrameCompositionState() override;
 
-    static bool getOpacityForFormat(uint32_t format);
+    static bool getOpacityForFormat(PixelFormat format);
 
     // from graphics API
     const uint32_t mTextureName;
