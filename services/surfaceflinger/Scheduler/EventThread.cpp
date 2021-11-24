@@ -170,20 +170,21 @@ void EventThreadConnection::onFirstRef() {
     mEventThread->registerDisplayEventConnection(this);
 }
 
-status_t EventThreadConnection::stealReceiveChannel(gui::BitTube* outChannel) {
+binder::Status EventThreadConnection::stealReceiveChannel(gui::BitTube* outChannel) {
     outChannel->setReceiveFd(mChannel.moveReceiveFd());
     outChannel->setSendFd(base::unique_fd(dup(mChannel.getSendFd())));
-    return NO_ERROR;
+    return binder::Status::ok();
 }
 
-status_t EventThreadConnection::setVsyncRate(uint32_t rate) {
-    mEventThread->setVsyncRate(rate, this);
-    return NO_ERROR;
+binder::Status EventThreadConnection::setVsyncRate(int rate) {
+    mEventThread->setVsyncRate(static_cast<uint32_t>(rate), this);
+    return binder::Status::ok();
 }
 
-void EventThreadConnection::requestNextVsync() {
+binder::Status EventThreadConnection::requestNextVsync() {
     ATRACE_NAME("requestNextVsync");
     mEventThread->requestNextVsync(this);
+    return binder::Status::ok();
 }
 
 status_t EventThreadConnection::postEvent(const DisplayEventReceiver::Event& event) {

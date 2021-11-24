@@ -17,12 +17,12 @@
 // tag as surfaceflinger
 #define LOG_TAG "SurfaceFlinger"
 
+#include <android/gui/IDisplayEventConnection.h>
 #include <android/gui/IRegionSamplingListener.h>
 #include <android/gui/ITransactionTraceListener.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/Parcel.h>
-#include <gui/IDisplayEventConnection.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
@@ -44,6 +44,7 @@
 
 namespace android {
 
+using gui::IDisplayEventConnection;
 using gui::IRegionSamplingListener;
 using gui::IWindowInfosListener;
 using ui::ColorMode;

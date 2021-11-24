@@ -180,7 +180,6 @@ cc_library_shared {
         "FrameTimelineInfo.cpp",
         "GLConsumer.cpp",
         "IConsumerListener.cpp",
-        "IDisplayEventConnection.cpp",
         "IGraphicBufferConsumer.cpp",
         "IGraphicBufferProducer.cpp",
         "IProducerListener.cpp",

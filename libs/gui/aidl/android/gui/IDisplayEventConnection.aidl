@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,52 +14,28 @@
  * limitations under the License.
  */
 
-#pragma once
+package android.gui;
 
-#include <binder/IInterface.h>
-#include <binder/SafeInterface.h>
-#include <gui/ISurfaceComposer.h>
-#include <utils/Errors.h>
+import android.gui.BitTube;
 
-#include <cstdint>
-
-namespace android {
-
-namespace gui {
-class BitTube;
-} // namespace gui
-
-class IDisplayEventConnection : public IInterface {
-public:
-    DECLARE_META_INTERFACE(DisplayEventConnection)
-
+/** @hide */
+interface IDisplayEventConnection {
     /*
      * stealReceiveChannel() returns a BitTube to receive events from. Only the receive file
      * descriptor of outChannel will be initialized, and this effectively "steals" the receive
      * channel from the remote end (such that the remote end can only use its send channel).
      */
-    virtual status_t stealReceiveChannel(gui::BitTube* outChannel) = 0;
+    void stealReceiveChannel(out BitTube outChannel);
 
     /*
      * setVsyncRate() sets the vsync event delivery rate. A value of 1 returns every vsync event.
      * A value of 2 returns every other event, etc. A value of 0 returns no event unless
      * requestNextVsync() has been called.
      */
-    virtual status_t setVsyncRate(uint32_t count) = 0;
+    void setVsyncRate(in int count);
 
     /*
      * requestNextVsync() schedules the next vsync event. It has no effect if the vsync rate is > 0.
      */
-    virtual void requestNextVsync() = 0; // Asynchronous
-};
-
-class BnDisplayEventConnection : public SafeBnInterface<IDisplayEventConnection> {
-public:
-    BnDisplayEventConnection()
-          : SafeBnInterface<IDisplayEventConnection>("BnDisplayEventConnection") {}
-
-    status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
-                        uint32_t flags = 0) override;
-};
-
-} // namespace android
+    oneway void requestNextVsync(); // Asynchronous
+}
