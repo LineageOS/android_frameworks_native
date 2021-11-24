@@ -2144,8 +2144,9 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             // be delivered to a new window which supports split touch.
             tempTouchState.split = true;
         }
-
-        tempTouchState.addGestureMonitors(newGestureMonitors);
+        if (isDown) {
+            tempTouchState.addGestureMonitors(newGestureMonitors);
+        }
     } else {
         /* Case 2: Pointer move, up, cancel or non-splittable pointer down. */
 
