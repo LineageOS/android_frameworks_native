@@ -2604,9 +2604,12 @@ void Layer::callReleaseBufferCallback(const sp<ITransactionCompletedListener>& l
         return;
     }
     ATRACE_FORMAT_INSTANT("callReleaseBufferCallback %s - %" PRIu64, getDebugName(), framenumber);
-    listener->onReleaseBuffer({buffer->getId(), framenumber},
-                              releaseFence ? releaseFence : Fence::NO_FENCE,
-                              currentMaxAcquiredBufferCount);
+    std::optional<os::ParcelFileDescriptor> fenceFd;
+    if (releaseFence) {
+        fenceFd = os::ParcelFileDescriptor(base::unique_fd(::dup(releaseFence->get())));
+    }
+    listener->onReleaseBuffer({buffer->getId(), framenumber}, fenceFd,
+                              static_cast<int32_t>(currentMaxAcquiredBufferCount));
 }
 
 void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult) {

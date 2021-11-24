@@ -21,22 +21,11 @@
 #include <optional>
 
 #include <gui/ISurfaceComposer.h>
-#include <gui/ITransactionCompletedListener.h>
 #include <gui/LayerState.h>
+#include <gui/ListenerStats.h>
 #include <private/gui/ParcelUtils.h>
 
-namespace android {
-
-namespace { // Anonymous
-
-enum class Tag : uint32_t {
-    ON_TRANSACTION_COMPLETED = IBinder::FIRST_CALL_TRANSACTION,
-    ON_RELEASE_BUFFER,
-    ON_TRANSACTION_QUEUE_STALLED,
-    LAST = ON_TRANSACTION_QUEUE_STALLED,
-};
-
-} // Anonymous namespace
+namespace android::gui {
 
 status_t FrameEventHistoryStats::writeToParcel(Parcel* output) const {
     status_t err = output->writeUint64(frameNumber);
@@ -274,60 +263,6 @@ ListenerStats ListenerStats::createEmpty(
     return listenerStats;
 }
 
-class BpTransactionCompletedListener : public SafeBpInterface<ITransactionCompletedListener> {
-public:
-    explicit BpTransactionCompletedListener(const sp<IBinder>& impl)
-          : SafeBpInterface<ITransactionCompletedListener>(impl, "BpTransactionCompletedListener") {
-    }
-
-    ~BpTransactionCompletedListener() override;
-
-    void onTransactionCompleted(ListenerStats stats) override {
-        callRemoteAsync<decltype(&ITransactionCompletedListener::
-                                         onTransactionCompleted)>(Tag::ON_TRANSACTION_COMPLETED,
-                                                                  stats);
-    }
-
-    void onReleaseBuffer(ReleaseCallbackId callbackId, sp<Fence> releaseFence,
-                         uint32_t currentMaxAcquiredBufferCount) override {
-        callRemoteAsync<decltype(&ITransactionCompletedListener::
-                                         onReleaseBuffer)>(Tag::ON_RELEASE_BUFFER, callbackId,
-                                                           releaseFence,
-                                                           currentMaxAcquiredBufferCount);
-    }
-
-    void onTransactionQueueStalled(const String8& reason) override {
-        callRemoteAsync<
-                decltype(&ITransactionCompletedListener::
-                                 onTransactionQueueStalled)>(Tag::ON_TRANSACTION_QUEUE_STALLED,
-                                                             reason);
-    }
-};
-
-// Out-of-line virtual method definitions to trigger vtable emission in this translation unit (see
-// clang warning -Wweak-vtables)
-BpTransactionCompletedListener::~BpTransactionCompletedListener() = default;
-
-IMPLEMENT_META_INTERFACE(TransactionCompletedListener, "android.gui.ITransactionComposerListener");
-
-status_t BnTransactionCompletedListener::onTransact(uint32_t code, const Parcel& data,
-                                                    Parcel* reply, uint32_t flags) {
-    if (code < IBinder::FIRST_CALL_TRANSACTION || code > static_cast<uint32_t>(Tag::LAST)) {
-        return BBinder::onTransact(code, data, reply, flags);
-    }
-    auto tag = static_cast<Tag>(code);
-    switch (tag) {
-        case Tag::ON_TRANSACTION_COMPLETED:
-            return callLocalAsync(data, reply,
-                                  &ITransactionCompletedListener::onTransactionCompleted);
-        case Tag::ON_RELEASE_BUFFER:
-            return callLocalAsync(data, reply, &ITransactionCompletedListener::onReleaseBuffer);
-        case Tag::ON_TRANSACTION_QUEUE_STALLED:
-            return callLocalAsync(data, reply,
-                                  &ITransactionCompletedListener::onTransactionQueueStalled);
-    }
-}
-
 ListenerCallbacks ListenerCallbacks::filter(CallbackId::Type type) const {
     std::vector<CallbackId> filteredCallbackIds;
     for (const auto& callbackId : callbackIds) {
@@ -366,4 +301,4 @@ status_t ReleaseCallbackId::readFromParcel(const Parcel* input) {
 
 const ReleaseCallbackId ReleaseCallbackId::INVALID_ID = ReleaseCallbackId(0, 0);
 
-}; // namespace android
+}; // namespace android::gui
