@@ -51,9 +51,10 @@ namespace android {
 class HdrCapabilities;
 class ISurfaceComposerClient;
 class IGraphicBufferProducer;
-class IRegionSamplingListener;
 class ITunnelModeEnabledListener;
 class Region;
+
+using gui::IRegionSamplingListener;
 
 struct SurfaceControlStats {
     SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime, nsecs_t acquireTime,

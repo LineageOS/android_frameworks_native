@@ -45,6 +45,7 @@ using namespace std::chrono_literals;
 // retrieve wide-color and hdr settings from configstore
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using gui::IRegionSamplingListener;
 using ui::ColorMode;
 
 using Transaction = SurfaceComposerClient::Transaction;

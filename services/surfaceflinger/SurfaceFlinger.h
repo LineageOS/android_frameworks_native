@@ -105,6 +105,7 @@ class TimeStats;
 class FrameTracer;
 class WindowInfosListenerInvoker;
 
+using gui::IRegionSamplingListener;
 using gui::ScreenCaptureResults;
 
 namespace frametimeline {

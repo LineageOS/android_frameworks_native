@@ -17,6 +17,7 @@
 #pragma once
 
 #include <android-base/thread_annotations.h>
+#include <android/gui/IRegionSamplingListener.h>
 #include <binder/IBinder.h>
 #include <renderengine/ExternalTexture.h>
 #include <ui/GraphicBuffer.h>
@@ -34,11 +35,12 @@
 
 namespace android {
 
-class IRegionSamplingListener;
 class Layer;
 class Scheduler;
 class SurfaceFlinger;
 struct SamplingOffsetCallback;
+
+using gui::IRegionSamplingListener;
 
 float sampleArea(const uint32_t* data, int32_t width, int32_t height, int32_t stride,
                  uint32_t orientation, const Rect& area);
