@@ -19,11 +19,11 @@
 #include <gtest/gtest.h>
 
 #include <SurfaceFlingerProperties.h>
+#include <android/gui/IDisplayEventConnection.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <binder/ProcessState.h>
 #include <configstore/Utils.h>
 #include <gui/BufferItemConsumer.h>
-#include <gui/IDisplayEventConnection.h>
 #include <gui/IProducerListener.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
@@ -45,6 +45,8 @@ using namespace std::chrono_literals;
 // retrieve wide-color and hdr settings from configstore
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using gui::IDisplayEventConnection;
+using gui::IRegionSamplingListener;
 using ui::ColorMode;
 
 using Transaction = SurfaceComposerClient::Transaction;

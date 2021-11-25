@@ -370,7 +370,7 @@ int AHardwareBuffer_isSupported(const AHardwareBuffer_Desc* desc) {
     if (!AHardwareBuffer_isValidDescription(desc, /*log=*/false)) return 0;
 
     bool supported = false;
-    GraphicBuffer* gBuffer = new GraphicBuffer();
+    sp<GraphicBuffer> gBuffer(new GraphicBuffer());
     status_t err = gBuffer->isSupported(desc->width, desc->height, desc->format, desc->layers,
                                         desc->usage, &supported);
 

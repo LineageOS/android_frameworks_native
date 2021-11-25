@@ -17,8 +17,10 @@
 #pragma once
 
 #include <android/gui/DisplayBrightness.h>
+#include <android/gui/IDisplayEventConnection.h>
 #include <android/gui/IFpsListener.h>
 #include <android/gui/IHdrLayerInfoListener.h>
+#include <android/gui/IRegionSamplingListener.h>
 #include <android/gui/IScreenCaptureListener.h>
 #include <android/gui/ITransactionTraceListener.h>
 #include <android/gui/ITunnelModeEnabledListener.h>
@@ -60,13 +62,13 @@ struct InputWindowCommands;
 struct LayerCaptureArgs;
 class LayerDebugInfo;
 class HdrCapabilities;
-class IDisplayEventConnection;
 class IGraphicBufferProducer;
 class ISurfaceComposerClient;
-class IRegionSamplingListener;
 class Rect;
 enum class FrameEvent;
 
+using gui::IDisplayEventConnection;
+using gui::IRegionSamplingListener;
 using gui::IScreenCaptureListener;
 
 namespace ui {
