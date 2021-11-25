@@ -20,9 +20,9 @@
 #include <chrono>
 #include <thread>
 
+#include <android/gui/BnRegionSamplingListener.h>
 #include <binder/IPCThreadState.h>
 #include <binder/ProcessState.h>
-#include <gui/IRegionSamplingListener.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 #include <gui/SurfaceControl.h>
@@ -33,7 +33,7 @@ using namespace std::chrono_literals;
 
 namespace android {
 
-class Button : public BnRegionSamplingListener {
+class Button : public gui::BnRegionSamplingListener {
 public:
     Button(const char* name, const Rect& samplingArea) {
         sp<SurfaceComposerClient> client = new SurfaceComposerClient;
@@ -99,9 +99,10 @@ private:
                 .apply();
     }
 
-    void onSampleCollected(float medianLuma) override {
+    binder::Status onSampleCollected(float medianLuma) override {
         ATRACE_CALL();
         setColor(medianLuma);
+        return binder::Status::ok();
     }
 
     sp<SurfaceComposerClient> mClient;

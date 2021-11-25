@@ -48,9 +48,9 @@ protected:
               : EventThreadConnection(eventThread, /*callingUid=*/0, ResyncCallback()) {}
         ~MockEventThreadConnection() = default;
 
-        MOCK_METHOD1(stealReceiveChannel, status_t(gui::BitTube* outChannel));
-        MOCK_METHOD1(setVsyncRate, status_t(uint32_t count));
-        MOCK_METHOD0(requestNextVsync, void());
+        MOCK_METHOD1(stealReceiveChannel, binder::Status(gui::BitTube* outChannel));
+        MOCK_METHOD1(setVsyncRate, binder::Status(int count));
+        MOCK_METHOD0(requestNextVsync, binder::Status());
     };
 
     SchedulerTest();

@@ -22,7 +22,7 @@
 #include <utility>
 
 #include <android-base/thread_annotations.h>
-#include <gui/IDisplayEventConnection.h>
+#include <android/gui/IDisplayEventConnection.h>
 #include <private/gui/BitTube.h>
 #include <utils/Looper.h>
 #include <utils/Timers.h>

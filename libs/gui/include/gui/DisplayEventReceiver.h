@@ -33,7 +33,7 @@ namespace android {
 
 // ----------------------------------------------------------------------------
 
-class IDisplayEventConnection;
+using gui::IDisplayEventConnection;
 
 namespace gui {
 class BitTube;

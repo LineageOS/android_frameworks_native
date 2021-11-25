@@ -30,7 +30,6 @@
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <cutils/properties.h>
 #include <ftl/future.h>
-#include <gui/IRegionSamplingListener.h>
 #include <gui/SyncScreenCaptureListener.h>
 #include <ui/DisplayStatInfo.h>
 #include <utils/Trace.h>

@@ -17,8 +17,8 @@
 #pragma once
 
 #include <android-base/thread_annotations.h>
+#include <android/gui/BnDisplayEventConnection.h>
 #include <gui/DisplayEventReceiver.h>
-#include <gui/IDisplayEventConnection.h>
 #include <private/gui/BitTube.h>
 #include <sys/types.h>
 #include <utils/Errors.h>
@@ -80,7 +80,7 @@ public:
     virtual void dump(std::string& result) const = 0;
 };
 
-class EventThreadConnection : public BnDisplayEventConnection {
+class EventThreadConnection : public gui::BnDisplayEventConnection {
 public:
     EventThreadConnection(EventThread*, uid_t callingUid, ResyncCallback,
                           ISurfaceComposer::EventRegistrationFlags eventRegistration = {});
@@ -88,9 +88,9 @@ public:
 
     virtual status_t postEvent(const DisplayEventReceiver::Event& event);
 
-    status_t stealReceiveChannel(gui::BitTube* outChannel) override;
-    status_t setVsyncRate(uint32_t rate) override;
-    void requestNextVsync() override; // asynchronous
+    binder::Status stealReceiveChannel(gui::BitTube* outChannel) override;
+    binder::Status setVsyncRate(int rate) override;
+    binder::Status requestNextVsync() override; // asynchronous
 
     // Called in response to requestNextVsync.
     const ResyncCallback resyncCallback;
