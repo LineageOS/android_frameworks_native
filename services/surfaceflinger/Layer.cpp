@@ -2485,8 +2485,7 @@ Region Layer::getVisibleRegion(const DisplayDevice* display) const {
 }
 
 void Layer::setInitialValuesForClone(const sp<Layer>& clonedFrom) {
-    // copy drawing state from cloned layer
-    mDrawingState = clonedFrom->mDrawingState;
+    cloneDrawingState(clonedFrom.get());
     mClonedFrom = clonedFrom;
 }
 
@@ -2521,7 +2520,7 @@ void Layer::updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayer
     // since we may be able to pull out other children that are still alive.
     if (isClonedFromAlive()) {
         sp<Layer> clonedFrom = getClonedFrom();
-        mDrawingState = clonedFrom->mDrawingState;
+        cloneDrawingState(clonedFrom.get());
         clonedLayersMap.emplace(clonedFrom, this);
     }
 
@@ -2682,6 +2681,13 @@ bool Layer::setDropInputMode(gui::DropInputMode mode) {
     }
     mDrawingState.dropInputMode = mode;
     return true;
+}
+
+void Layer::cloneDrawingState(const Layer* from) {
+    mDrawingState = from->mDrawingState;
+    // Skip callback info since they are not applicable for cloned layers.
+    mDrawingState.releaseBufferListener = nullptr;
+    mDrawingState.callbackHandles = {};
 }
 
 // ---------------------------------------------------------------------------
