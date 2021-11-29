@@ -110,6 +110,8 @@ public:
     uint32_t getLastTransformHint() const;
     void flushShadowQueue();
 
+    uint64_t getLastAcquiredFrameNum();
+
     virtual ~BLASTBufferQueue();
 
 private:
