@@ -21,39 +21,24 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
-cc_benchmark {
-    name: "librenderengine_bench",
-    defaults: [
-        "skia_deps",
-        "surfaceflinger_defaults",
-    ],
-    srcs: [
-        "main.cpp",
-        "Codec.cpp",
-        "Flags.cpp",
-        "RenderEngineBench.cpp",
-    ],
-    static_libs: [
-        "librenderengine",
-        "libshaders",
-        "libtonemap",
-    ],
-    cflags: [
-        "-DLOG_TAG=\"RenderEngineBench\"",
-    ],
+cc_library_static {
+    name: "libshaders",
+
+    export_include_dirs: ["include"],
+    local_include_dirs: ["include"],
 
     shared_libs: [
-        "libbase",
-        "libcutils",
-        "libjnigraphics",
-        "libgui",
-        "liblog",
-        "libnativewindow",
-        "libprocessgroup",
-        "libsync",
-        "libui",
-        "libutils",
+        "android.hardware.graphics.common-V3-ndk",
+        "android.hardware.graphics.common@1.2",
     ],
 
-    data: ["resources/*"],
+    static_libs: [
+        "libmath",
+        "libtonemap",
+        "libui-types",
+    ],
+
+    srcs: [
+        "shaders.cpp",
+    ],
 }

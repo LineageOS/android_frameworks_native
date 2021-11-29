@@ -80,6 +80,7 @@ cc_defaults {
         "librenderengine",
         "libscheduler",
         "libserviceutils",
+        "libshaders",
         "libtonemap",
         "libtrace_proto",
     ],

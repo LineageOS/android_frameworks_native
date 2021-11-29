@@ -133,7 +133,8 @@ private:
     // Cache of GL textures that we'll store per GraphicBuffer ID, shared between GPU contexts.
     std::unordered_map<GraphicBufferId, std::shared_ptr<AutoBackendTexture::LocalRef>> mTextureCache
             GUARDED_BY(mRenderingMutex);
-    std::unordered_map<LinearEffect, sk_sp<SkRuntimeEffect>, LinearEffectHasher> mRuntimeEffects;
+    std::unordered_map<shaders::LinearEffect, sk_sp<SkRuntimeEffect>, shaders::LinearEffectHasher>
+            mRuntimeEffects;
     AutoBackendTexture::CleanupManager mTextureCleanupMgr GUARDED_BY(mRenderingMutex);
 
     StretchShaderFactory mStretchShaderFactory;

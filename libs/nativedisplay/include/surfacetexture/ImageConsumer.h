@@ -42,7 +42,8 @@ public:
     typedef status_t (*SurfaceTexture_fenceWait)(int fence, void* fencePassThroughHandle);
 
     sp<GraphicBuffer> dequeueBuffer(int* outSlotid, android_dataspace* outDataspace,
-                                    bool* outQueueEmpty, SurfaceTexture& cb,
+                                    HdrMetadata* outHdrMetadata, bool* outQueueEmpty,
+                                    SurfaceTexture& cb,
                                     SurfaceTexture_createReleaseFence createFence,
                                     SurfaceTexture_fenceWait fenceWait,
                                     void* fencePassThroughHandle);
