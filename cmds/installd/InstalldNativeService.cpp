@@ -274,10 +274,10 @@ binder::Status checkArgumentPath(const std::optional<std::string>& path) {
  * On destruction, it checks if there are any other strong pointers, and remove the map entry if
  * this was the last one.
  */
-template <class Key>
+template <class Key, class Mutex>
 struct LocalLockHolder {
-    using WeakPointer = std::weak_ptr<std::recursive_mutex>;
-    using StrongPointer = std::shared_ptr<std::recursive_mutex>;
+    using WeakPointer = std::weak_ptr<Mutex>;
+    using StrongPointer = std::shared_ptr<Mutex>;
     using Map = std::unordered_map<Key, WeakPointer>;
     using MapLock = std::recursive_mutex;
 
@@ -290,11 +290,22 @@ struct LocalLockHolder {
         mRefLock = weakPtr.lock();
         if (!mRefLock) {
             // Create a new lock.
-            mRefLock = std::make_shared<std::recursive_mutex>();
+            mRefLock = std::make_shared<Mutex>();
             weakPtr = mRefLock;
         }
     }
+    LocalLockHolder(LocalLockHolder&& other) noexcept
+          : mKey(std::move(other.mKey)),
+            mMap(other.mMap),
+            mMapLock(other.mMapLock),
+            mRefLock(std::move(other.mRefLock)) {
+        other.mRefLock.reset();
+    }
     ~LocalLockHolder() {
+        if (!mRefLock) {
+            return;
+        }
+
         std::lock_guard lock(mMapLock);
         // Clear the strong pointer.
         mRefLock.reset();
@@ -311,6 +322,8 @@ struct LocalLockHolder {
 
     void lock() { mRefLock->lock(); }
     void unlock() { mRefLock->unlock(); }
+    void lock_shared() { mRefLock->lock_shared(); }
+    void unlock_shared() { mRefLock->unlock_shared(); }
 
 private:
     Key mKey;
@@ -319,24 +332,33 @@ private:
     StrongPointer mRefLock;
 };
 
-#define LOCK_USER()                                                      \
-    LocalLockHolder<userid_t> localUserLock(userId, mUserIdLock, mLock); \
-    std::lock_guard userLock(localUserLock)
+using UserLock = LocalLockHolder<userid_t, std::shared_mutex>;
+using UserWriteLockGuard = std::unique_lock<UserLock>;
+using UserReadLockGuard = std::shared_lock<UserLock>;
 
-#define LOCK_PACKAGE()                                                                   \
-    LocalLockHolder<std::string> localPackageLock(packageName, mPackageNameLock, mLock); \
-    std::lock_guard packageLock(localPackageLock)
+using PackageLock = LocalLockHolder<std::string, std::recursive_mutex>;
+using PackageLockGuard = std::lock_guard<PackageLock>;
+
+#define LOCK_USER()                                     \
+    UserLock localUserLock(userId, mUserIdLock, mLock); \
+    UserWriteLockGuard userLock(localUserLock)
+
+#define LOCK_USER_READ()                                \
+    UserLock localUserLock(userId, mUserIdLock, mLock); \
+    UserReadLockGuard userLock(localUserLock)
+
+#define LOCK_PACKAGE()                                                  \
+    PackageLock localPackageLock(packageName, mPackageNameLock, mLock); \
+    PackageLockGuard packageLock(localPackageLock)
 
 #define LOCK_PACKAGE_USER() \
-    LOCK_PACKAGE();         \
-    LOCK_USER()
+    LOCK_USER_READ();       \
+    LOCK_PACKAGE()
 
 #else
 
 #define LOCK_USER() std::lock_guard lock(mLock)
-
 #define LOCK_PACKAGE() std::lock_guard lock(mLock)
-
 #define LOCK_PACKAGE_USER() \
     (void)userId;           \
     std::lock_guard lock(mLock)
@@ -619,14 +641,13 @@ static binder::Status createAppDataDirs(const std::string& path,
     return ok();
 }
 
-binder::Status InstalldNativeService::createAppData(const std::optional<std::string>& uuid,
-        const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
-        int32_t previousAppId, const std::string& seInfo, int32_t targetSdkVersion,
-        int64_t* _aidl_return) {
+binder::Status InstalldNativeService::createAppDataLocked(
+        const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
+        int32_t flags, int32_t appId, int32_t previousAppId, const std::string& seInfo,
+        int32_t targetSdkVersion, int64_t* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    LOCK_PACKAGE_USER();
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
@@ -695,9 +716,22 @@ binder::Status InstalldNativeService::createAppData(const std::optional<std::str
 }
 
 binder::Status InstalldNativeService::createAppData(
+        const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
+        int32_t flags, int32_t appId, int32_t previousAppId, const std::string& seInfo,
+        int32_t targetSdkVersion, int64_t* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID(uuid);
+    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    LOCK_PACKAGE_USER();
+    return createAppDataLocked(uuid, packageName, userId, flags, appId, previousAppId, seInfo,
+                               targetSdkVersion, _aidl_return);
+}
+
+binder::Status InstalldNativeService::createAppData(
         const android::os::CreateAppDataArgs& args,
         android::os::CreateAppDataResult* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
+    // Locking is performed depeer in the callstack.
 
     int64_t ceDataInode = -1;
     auto status = createAppData(args.uuid, args.packageName, args.userId, args.flags, args.appId,
@@ -712,6 +746,7 @@ binder::Status InstalldNativeService::createAppDataBatched(
         const std::vector<android::os::CreateAppDataArgs>& args,
         std::vector<android::os::CreateAppDataResult>* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
+    // Locking is performed depeer in the callstack.
 
     std::vector<android::os::CreateAppDataResult> results;
     for (const auto &arg : args) {
@@ -980,8 +1015,8 @@ binder::Status InstalldNativeService::fixupAppData(const std::optional<std::stri
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     for (auto userId : get_known_users(uuid_)) {
-        ATRACE_BEGIN("fixup user");
         LOCK_USER();
+        ATRACE_BEGIN("fixup user");
         FTS* fts;
         FTSENT* p;
         auto ce_path = create_data_user_ce_path(uuid_, userId);
@@ -1416,13 +1451,12 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::optional<std::s
             continue;
         }
 
-        if (!createAppData(toUuid, packageName, userId, FLAG_STORAGE_CE | FLAG_STORAGE_DE, appId,
-                           /* previousAppId */ -1, seInfo, targetSdkVersion, nullptr)
+        if (!createAppDataLocked(toUuid, packageName, userId, FLAG_STORAGE_CE | FLAG_STORAGE_DE,
+                                 appId, /* previousAppId */ -1, seInfo, targetSdkVersion, nullptr)
                      .isOk()) {
             res = error("Failed to create package target");
             goto fail;
         }
-
         {
             auto from = create_data_user_de_package_path(from_uuid, userId, package_name);
             auto to = create_data_user_de_path(to_uuid, userId);
@@ -1444,8 +1478,8 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::optional<std::s
             }
         }
 
-        if (!restoreconAppData(toUuid, packageName, userId, FLAG_STORAGE_CE | FLAG_STORAGE_DE,
-                               appId, seInfo)
+        if (!restoreconAppDataLocked(toUuid, packageName, userId, FLAG_STORAGE_CE | FLAG_STORAGE_DE,
+                                     appId, seInfo)
                      .isOk()) {
             res = error("Failed to restorecon");
             goto fail;
@@ -1541,6 +1575,9 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
         int64_t targetFreeBytes, int64_t cacheReservedBytes, int32_t flags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
+#ifndef GRANULAR_LOCKS
+    std::lock_guard lock(mLock);
+#endif // !GRANULAR_LOCKS
 
     auto uuidString = uuid.value_or("");
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
@@ -1567,10 +1604,19 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
 
         // 1. Create trackers for every known UID
         ATRACE_BEGIN("create");
+        const auto users = get_known_users(uuid_);
+#ifdef GRANULAR_LOCKS
+        std::vector<UserLock> userLocks;
+        userLocks.reserve(users.size());
+        std::vector<UserWriteLockGuard> lockGuards;
+        lockGuards.reserve(users.size());
+#endif // GRANULAR_LOCKS
         std::unordered_map<uid_t, std::shared_ptr<CacheTracker>> trackers;
-        for (auto userId : get_known_users(uuid_)) {
-            LOCK_USER(); // ?????????
-
+        for (auto userId : users) {
+#ifdef GRANULAR_LOCKS
+            userLocks.emplace_back(userId, mUserIdLock, mLock);
+            lockGuards.emplace_back(userLocks.back());
+#endif // GRANULAR_LOCKS
             FTS *fts;
             FTSENT *p;
             auto ce_path = create_data_user_ce_path(uuid_, userId);
@@ -2747,6 +2793,15 @@ binder::Status InstalldNativeService::restoreconAppData(const std::optional<std:
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     LOCK_PACKAGE_USER();
+    return restoreconAppDataLocked(uuid, packageName, userId, flags, appId, seInfo);
+}
+
+binder::Status InstalldNativeService::restoreconAppDataLocked(
+        const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
+        int32_t flags, int32_t appId, const std::string& seInfo) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID(uuid);
+    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
 
     binder::Status res = ok();
 
