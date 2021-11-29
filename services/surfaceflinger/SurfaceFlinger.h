@@ -689,8 +689,7 @@ private:
     void updateLayerGeometry();
 
     void updateInputFlinger();
-    void buildWindowInfos(std::vector<gui::WindowInfo>& outWindowInfos,
-                          std::vector<gui::DisplayInfo>& outDisplayInfos);
+    void notifyWindowInfos();
     void commitInputWindowCommands() REQUIRES(mStateLock);
     void updateCursorAsync();
 
@@ -1290,7 +1289,6 @@ private:
     const float mInternalDisplayDensity;
     const float mEmulatedDisplayDensity;
 
-    // Should only be accessed by BackgroundExecutor thread.
     sp<os::IInputFlinger> mInputFlinger;
     // Should only be accessed by the main thread.
     InputWindowCommands mInputWindowCommands;

@@ -546,7 +546,9 @@ bool InputWindowCommands::merge(const InputWindowCommands& other) {
 }
 
 bool InputWindowCommands::empty() const {
-    return focusRequests.empty() && !syncInputWindows;
+    bool empty = true;
+    empty = focusRequests.empty() && !syncInputWindows;
+    return empty;
 }
 
 void InputWindowCommands::clear() {
