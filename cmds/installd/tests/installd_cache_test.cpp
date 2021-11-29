@@ -122,6 +122,7 @@ protected:
 
         service = new InstalldNativeService();
         testUuid = kTestUuid;
+        system("rm -rf /data/local/tmp/user");
         system("mkdir -p /data/local/tmp/user/0");
     }
 
