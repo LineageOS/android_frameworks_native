@@ -67,7 +67,6 @@ enum {
 typedef int32_t PixelFormat;
 
 uint32_t bytesPerPixel(PixelFormat format);
-uint32_t bitsPerPixel(PixelFormat format);
 
 }; // namespace android
 
