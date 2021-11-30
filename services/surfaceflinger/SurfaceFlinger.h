@@ -64,6 +64,7 @@
 #include "SurfaceFlingerFactory.h"
 #include "TracedOrdinal.h"
 #include "Tracing/LayerTracing.h"
+#include "Tracing/TransactionTracing.h"
 #include "TransactionCallbackInvoker.h"
 #include "TransactionState.h"
 
@@ -712,7 +713,7 @@ private:
                                int originPid, int originUid, uint64_t transactionId)
             REQUIRES(mStateLock);
     // flush pending transaction that was presented after desiredPresentTime.
-    bool flushTransactionQueues();
+    bool flushTransactionQueues(int64_t vsyncId);
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
 
@@ -748,7 +749,8 @@ private:
     bool allowedLatchUnsignaled() REQUIRES(mQueueLock, mStateLock);
     bool checkTransactionCanLatchUnsignaled(const TransactionState& transaction)
             REQUIRES(mStateLock);
-    bool applyTransactions(std::vector<TransactionState>& transactions) REQUIRES(mStateLock);
+    bool applyTransactions(std::vector<TransactionState>& transactions, int64_t vsyncId)
+            REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
             REQUIRES(mStateLock);
@@ -1083,7 +1085,7 @@ private:
 
     sp<StartPropertySetThread> mStartPropertySetThread;
     surfaceflinger::Factory& mFactory;
-
+    pid_t mPid;
     std::future<void> mRenderEnginePrimeCacheFuture;
 
     // access must be protected by mStateLock
@@ -1092,6 +1094,7 @@ private:
     std::atomic<int32_t> mTransactionFlags = 0;
     std::vector<std::shared_ptr<CountDownLatch>> mTransactionCommittedSignals;
     bool mAnimTransactionPending = false;
+    std::atomic<uint32_t> mUniqueTransactionId = 1;
     SortedVector<sp<Layer>> mLayersPendingRemoval;
 
     // global color transform states
@@ -1182,8 +1185,10 @@ private:
     sp<SurfaceInterceptor> mInterceptor;
 
     LayerTracing mLayerTracing{*this};
-    std::mutex mTracingLock;
-    bool mTracingEnabled = false;
+    bool mLayerTracingEnabled = false;
+
+    TransactionTracing mTransactionTracing;
+    bool mTransactionTracingEnabled = false;
     std::atomic<bool> mTracingEnabledChanged = false;
 
     const std::shared_ptr<TimeStats> mTimeStats;
