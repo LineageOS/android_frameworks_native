@@ -796,7 +796,7 @@ void BufferLayer::updateCloneBufferInfo() {
     wp<Layer> tmpTouchableRegionCrop = mDrawingState.touchableRegionCrop;
     WindowInfo tmpInputInfo = mDrawingState.inputInfo;
 
-    mDrawingState = clonedFrom->mDrawingState;
+    cloneDrawingState(clonedFrom.get());
 
     mDrawingState.touchableRegionCrop = tmpTouchableRegionCrop;
     mDrawingState.zOrderRelativeOf = tmpZOrderRelativeOf;

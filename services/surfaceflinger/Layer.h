@@ -922,6 +922,7 @@ protected:
     bool isClone() { return mClonedFrom != nullptr; }
     bool isClonedFromAlive() { return getClonedFrom() != nullptr; }
 
+    void cloneDrawingState(const Layer* from);
     void updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
     void updateClonedChildren(const sp<Layer>& mirrorRoot,
                               std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);

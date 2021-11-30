@@ -636,9 +636,9 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(sk_sp<SkShader> sh
         const ui::Dataspace outputDataspace =
                 mUseColorManagement ? display.outputDataspace : ui::Dataspace::V0_SRGB_LINEAR;
 
-        LinearEffect effect = LinearEffect{.inputDataspace = inputDataspace,
-                                           .outputDataspace = outputDataspace,
-                                           .undoPremultipliedAlpha = undoPremultipliedAlpha};
+        auto effect = shaders::LinearEffect{.inputDataspace = inputDataspace,
+                                            .outputDataspace = outputDataspace,
+                                            .undoPremultipliedAlpha = undoPremultipliedAlpha};
 
         auto effectIter = mRuntimeEffects.find(effect);
         sk_sp<SkRuntimeEffect> runtimeEffect = nullptr;

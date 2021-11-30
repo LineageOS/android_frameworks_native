@@ -107,6 +107,7 @@ protected:
 
         service = new InstalldNativeService();
         testUuid = kTestUuid;
+        system("rm -rf /data/local/tmp/user");
         system("mkdir -p /data/local/tmp/user/0");
 
         init_globals_from_data_and_root();
