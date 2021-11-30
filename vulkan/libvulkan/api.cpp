@@ -965,6 +965,13 @@ VkResult LayerChain::ValidateExtensions(VkPhysicalDevice physical_dev,
     VkResult result = EnumerateDeviceExtensionProperties(physical_dev, nullptr,
                                                          &count, nullptr);
     if (result == VK_SUCCESS && count) {
+        // Work-around a race condition during Android start-up, that can result
+        // in the second call to EnumerateDeviceExtensionProperties having
+        // another extension.  That causes the second call to return
+        // VK_INCOMPLETE.  A work-around is to add 1 to "count" and ask for one
+        // more extension property.  See: http://anglebug.com/6715 and
+        // internal-to-Google b/206733351.
+        count++;
         driver_extensions_ = AllocateDriverExtensionArray(count);
         result = (driver_extensions_)
                      ? EnumerateDeviceExtensionProperties(
