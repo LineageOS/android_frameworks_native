@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <android-base/thread_annotations.h>
 #include <utils/Singleton.h>
 #include <condition_variable>
 #include <mutex>
@@ -34,10 +33,10 @@ public:
 
 private:
     std::mutex mMutex;
-    std::condition_variable mWorkAvailableCv GUARDED_BY(mMutex);
-    bool mDone GUARDED_BY(mMutex) = false;
-    std::vector<std::function<void()>> mTasks GUARDED_BY(mMutex);
+    std::condition_variable mWorkAvailableCv;
     std::thread mThread;
+    bool mDone = false;
+    std::vector<std::function<void()>> mTasks;
 };
 
 } // namespace android
