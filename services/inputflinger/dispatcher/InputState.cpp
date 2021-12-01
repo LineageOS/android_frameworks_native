@@ -296,8 +296,7 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizeCancelationEvents
                                                   memento.yPrecision, memento.xCursorPosition,
                                                   memento.yCursorPosition, memento.downTime,
                                                   memento.pointerCount, memento.pointerProperties,
-                                                  memento.pointerCoords, 0 /*xOffset*/,
-                                                  0 /*yOffset*/));
+                                                  memento.pointerCoords));
         }
     }
     return events;
@@ -349,8 +348,7 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizePointerDownEvents
                                                   AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
                                                   memento.yPrecision, memento.xCursorPosition,
                                                   memento.yCursorPosition, memento.downTime,
-                                                  pointerCount, pointerProperties, pointerCoords,
-                                                  0 /*xOffset*/, 0 /*yOffset*/));
+                                                  pointerCount, pointerProperties, pointerCoords));
         }
 
         memento.firstNewPointerIdx = INVALID_POINTER_INDEX;

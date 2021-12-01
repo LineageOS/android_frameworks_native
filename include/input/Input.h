@@ -382,7 +382,6 @@ struct PointerCoords {
     // window scale. The global scale will be applied to TOUCH/TOOL_MAJOR/MINOR
     // axes, however the window scaling will not.
     void scale(float globalScale, float windowXScale, float windowYScale);
-    void applyOffset(float xOffset, float yOffset);
 
     void transform(const ui::Transform& transform);
 
@@ -572,7 +571,7 @@ public:
 
     inline float getYOffset() const { return mTransform.ty(); }
 
-    inline ui::Transform getTransform() const { return mTransform; }
+    inline const ui::Transform& getTransform() const { return mTransform; }
 
     int getSurfaceRotation() const;
 
@@ -590,7 +589,7 @@ public:
 
     void setCursorPosition(float x, float y);
 
-    ui::Transform getRawTransform() const { return mRawTransform; }
+    inline const ui::Transform& getRawTransform() const { return mRawTransform; }
 
     static inline bool isValidCursorPosition(float x, float y) { return !isnan(x) && !isnan(y); }
 

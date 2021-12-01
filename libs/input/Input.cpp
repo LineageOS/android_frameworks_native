@@ -344,11 +344,6 @@ void PointerCoords::scale(float globalScaleFactor, float windowXScale, float win
     scaleAxisValue(*this, AMOTION_EVENT_AXIS_RELATIVE_Y, windowYScale);
 }
 
-void PointerCoords::applyOffset(float xOffset, float yOffset) {
-    setAxisValue(AMOTION_EVENT_AXIS_X, getX() + xOffset);
-    setAxisValue(AMOTION_EVENT_AXIS_Y, getY() + yOffset);
-}
-
 #ifdef __linux__
 status_t PointerCoords::readFromParcel(Parcel* parcel) {
     bits = parcel->readInt64();
