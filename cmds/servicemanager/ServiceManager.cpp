@@ -28,6 +28,9 @@
 
 #ifndef VENDORSERVICEMANAGER
 #include <vintf/VintfObject.h>
+#ifdef __ANDROID_RECOVERY__
+#include <vintf/VintfObjectRecovery.h>
+#endif // __ANDROID_RECOVERY__
 #include <vintf/constants.h>
 #endif  // !VENDORSERVICEMANAGER
 
@@ -37,16 +40,33 @@ using ::android::internal::Stability;
 namespace android {
 
 #ifndef VENDORSERVICEMANAGER
+
 struct ManifestWithDescription {
     std::shared_ptr<const vintf::HalManifest> manifest;
     const char* description;
 };
+static std::vector<ManifestWithDescription> GetManifestsWithDescription() {
+#ifdef __ANDROID_RECOVERY__
+    auto vintfObject = vintf::VintfObjectRecovery::GetInstance();
+    if (vintfObject == nullptr) {
+        LOG(ERROR) << "NULL VintfObjectRecovery!";
+        return {};
+    }
+    return {ManifestWithDescription{vintfObject->getRecoveryHalManifest(), "recovery"}};
+#else
+    auto vintfObject = vintf::VintfObject::GetInstance();
+    if (vintfObject == nullptr) {
+        LOG(ERROR) << "NULL VintfObject!";
+        return {};
+    }
+    return {ManifestWithDescription{vintfObject->getDeviceHalManifest(), "device"},
+            ManifestWithDescription{vintfObject->getFrameworkHalManifest(), "framework"}};
+#endif
+}
+
 // func true -> stop search and forEachManifest will return true
 static bool forEachManifest(const std::function<bool(const ManifestWithDescription&)>& func) {
-    for (const ManifestWithDescription& mwd : {
-            ManifestWithDescription{ vintf::VintfObject::GetDeviceHalManifest(), "device" },
-            ManifestWithDescription{ vintf::VintfObject::GetFrameworkHalManifest(), "framework" },
-        }) {
+    for (const ManifestWithDescription& mwd : GetManifestsWithDescription()) {
         if (mwd.manifest == nullptr) {
           LOG(ERROR) << "NULL VINTF MANIFEST!: " << mwd.description;
           // note, we explicitly do not retry here, so that we can detect VINTF
