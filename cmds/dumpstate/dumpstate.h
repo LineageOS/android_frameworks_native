@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include <aidl/android/hardware/dumpstate/IDumpstateDevice.h>
 #include <android-base/macros.h>
 #include <android-base/unique_fd.h>
 #include <android/hardware/dumpstate/1.1/types.h>
@@ -400,19 +401,18 @@ class Dumpstate {
         bool limited_only = false;
         // Whether progress updates should be published.
         bool do_progress_updates = false;
-        // The mode we'll use when calling IDumpstateDevice::dumpstateBoard.
+        // this is used to derive dumpstate HAL bug report mode
         // TODO(b/148168577) get rid of the AIDL values, replace them with the HAL values instead.
         // The HAL is actually an API surface that can be validated, while the AIDL is not (@hide).
-        ::android::hardware::dumpstate::V1_1::DumpstateMode dumpstate_hal_mode =
-            ::android::hardware::dumpstate::V1_1::DumpstateMode::DEFAULT;
+        BugreportMode bugreport_mode = Dumpstate::BugreportMode::BUGREPORT_DEFAULT;
         // File descriptor to output zip file. Takes precedence over out_dir.
         android::base::unique_fd bugreport_fd;
         // File descriptor to screenshot file.
         android::base::unique_fd screenshot_fd;
         // Custom output directory.
         std::string out_dir;
-        // Bugreport mode of the bugreport.
-        std::string bugreport_mode;
+        // Bugreport mode of the bugreport as a string
+        std::string bugreport_mode_string;
         // Command-line arguments as string
         std::string args;
         // Notification title and description
