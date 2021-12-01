@@ -192,7 +192,7 @@ status_t DumpstateService::dump(int fd, const Vector<String16>&) {
     dprintf(fd, "progress:\n");
     ds_->progress_->Dump(fd, "  ");
     dprintf(fd, "args: %s\n", ds_->options_->args.c_str());
-    dprintf(fd, "bugreport_mode: %s\n", ds_->options_->bugreport_mode.c_str());
+    dprintf(fd, "bugreport_mode: %s\n", ds_->options_->bugreport_mode_string.c_str());
     dprintf(fd, "version: %s\n", ds_->version_.c_str());
     dprintf(fd, "bugreport_dir: %s\n", destination.c_str());
     dprintf(fd, "screenshot_path: %s\n", ds_->screenshot_path_.c_str());
