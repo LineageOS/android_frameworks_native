@@ -33,6 +33,7 @@
 #include <unistd.h>
 #include <thread>
 
+#include <aidl/android/hardware/dumpstate/IDumpstateDevice.h>
 #include <android-base/file.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
@@ -47,6 +48,7 @@ namespace android {
 namespace os {
 namespace dumpstate {
 
+using DumpstateDeviceAidl = ::aidl::android::hardware::dumpstate::IDumpstateDevice;
 using ::android::hardware::dumpstate::V1_1::DumpstateMode;
 using ::testing::EndsWith;
 using ::testing::Eq;
@@ -186,7 +188,6 @@ TEST_F(DumpOptionsTest, InitializeNone) {
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.limited_only);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 }
 
 TEST_F(DumpOptionsTest, InitializeAdbBugreport) {
@@ -210,7 +211,6 @@ TEST_F(DumpOptionsTest, InitializeAdbBugreport) {
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.stream_to_socket);
     EXPECT_FALSE(options_.limited_only);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 }
 
 TEST_F(DumpOptionsTest, InitializeAdbShellBugreport) {
@@ -234,13 +234,11 @@ TEST_F(DumpOptionsTest, InitializeAdbShellBugreport) {
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.limited_only);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 }
 
 TEST_F(DumpOptionsTest, InitializeFullBugReport) {
     options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_FULL, fd, fd, true);
     EXPECT_TRUE(options_.do_screenshot);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::FULL);
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -256,7 +254,6 @@ TEST_F(DumpOptionsTest, InitializeInteractiveBugReport) {
     options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE, fd, fd, true);
     EXPECT_TRUE(options_.do_progress_updates);
     EXPECT_TRUE(options_.do_screenshot);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::INTERACTIVE);
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -272,7 +269,6 @@ TEST_F(DumpOptionsTest, InitializeRemoteBugReport) {
     EXPECT_TRUE(options_.is_remote_mode);
     EXPECT_FALSE(options_.do_vibrate);
     EXPECT_FALSE(options_.do_screenshot);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::REMOTE);
 
     // Other options retain default values
     EXPECT_FALSE(options_.progress_updates_to_socket);
@@ -286,7 +282,7 @@ TEST_F(DumpOptionsTest, InitializeWearBugReport) {
     options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WEAR, fd, fd, true);
     EXPECT_TRUE(options_.do_screenshot);
     EXPECT_TRUE(options_.do_progress_updates);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::WEAR);
+
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -302,7 +298,6 @@ TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
     EXPECT_FALSE(options_.do_screenshot);
     EXPECT_TRUE(options_.telephony_only);
     EXPECT_TRUE(options_.do_progress_updates);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::CONNECTIVITY);
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -317,7 +312,6 @@ TEST_F(DumpOptionsTest, InitializeWifiBugReport) {
     options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WIFI, fd, fd, false);
     EXPECT_FALSE(options_.do_screenshot);
     EXPECT_TRUE(options_.wifi_only);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::WIFI);
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -354,7 +348,6 @@ TEST_F(DumpOptionsTest, InitializeLimitedOnlyBugreport) {
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.stream_to_socket);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 }
 
 TEST_F(DumpOptionsTest, InitializeDefaultBugReport) {
@@ -371,7 +364,6 @@ TEST_F(DumpOptionsTest, InitializeDefaultBugReport) {
 
     EXPECT_EQ(status, Dumpstate::RunStatus::OK);
     EXPECT_TRUE(options_.do_screenshot);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -408,7 +400,6 @@ TEST_F(DumpOptionsTest, InitializePartial1) {
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.limited_only);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 }
 
 TEST_F(DumpOptionsTest, InitializePartial2) {
@@ -436,7 +427,6 @@ TEST_F(DumpOptionsTest, InitializePartial2) {
     EXPECT_FALSE(options_.stream_to_socket);
     EXPECT_FALSE(options_.progress_updates_to_socket);
     EXPECT_FALSE(options_.limited_only);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 }
 
 TEST_F(DumpOptionsTest, InitializeHelp) {
