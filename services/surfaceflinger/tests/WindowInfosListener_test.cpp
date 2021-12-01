@@ -112,11 +112,12 @@ TEST_F(WindowInfosListenerTest, WindowInfoChanged) {
     sp<SurfaceControl> surfaceControl =
             mClient->createSurface(String8(name.c_str()), 100, 100, PIXEL_FORMAT_RGBA_8888,
                                    ISurfaceComposerClient::eFXSurfaceBufferState);
-
+    const Rect crop(0, 0, 100, 100);
     Transaction()
             .setLayerStack(surfaceControl, ui::DEFAULT_LAYER_STACK)
             .show(surfaceControl)
             .setLayer(surfaceControl, INT32_MAX - 1)
+            .setCrop(surfaceControl, crop)
             .setInputWindowInfo(surfaceControl, windowInfo)
             .apply();
 

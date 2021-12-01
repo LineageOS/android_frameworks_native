@@ -32,9 +32,7 @@ BackgroundExecutor::BackgroundExecutor() : Singleton<BackgroundExecutor>() {
             std::vector<std::function<void()>> tasks;
             {
                 std::unique_lock lock(mMutex);
-                android::base::ScopedLockAssertion assumeLock(mMutex);
-                mWorkAvailableCv.wait(lock,
-                                      [&]() REQUIRES(mMutex) { return mDone || !mTasks.empty(); });
+                mWorkAvailableCv.wait(lock, [&]() { return mDone || !mTasks.empty(); });
                 tasks = std::move(mTasks);
                 mTasks.clear();
                 done = mDone;
@@ -49,7 +47,7 @@ BackgroundExecutor::BackgroundExecutor() : Singleton<BackgroundExecutor>() {
 
 BackgroundExecutor::~BackgroundExecutor() {
     {
-        std::scoped_lock lock(mMutex);
+        std::unique_lock lock(mMutex);
         mDone = true;
         mWorkAvailableCv.notify_all();
     }
@@ -59,7 +57,7 @@ BackgroundExecutor::~BackgroundExecutor() {
 }
 
 void BackgroundExecutor::execute(std::function<void()> task) {
-    std::scoped_lock lock(mMutex);
+    std::unique_lock lock(mMutex);
     mTasks.emplace_back(std::move(task));
     mWorkAvailableCv.notify_all();
 }

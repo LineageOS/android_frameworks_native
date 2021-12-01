@@ -2169,6 +2169,8 @@ void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& displayTra
         info.frameRight = 0;
         info.frameBottom = 0;
         info.transform.reset();
+        info.touchableRegion = Region();
+        info.flags = WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::NOT_FOCUSABLE;
         return;
     }
 
