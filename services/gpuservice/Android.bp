@@ -31,6 +31,7 @@ cc_defaults {
         "libcutils",
         "libgfxstats",
         "libgpumem",
+        "libgpuwork",
         "libgpumemtracer",
         "libgraphicsenv",
         "liblog",
