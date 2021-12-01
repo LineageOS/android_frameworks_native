@@ -39,6 +39,8 @@
 
 #include "ComposerHal.h"
 
+using aidl::android::hardware::graphics::composer3::Composition;
+
 namespace android {
 
 using android::Fence;
@@ -147,7 +149,7 @@ bool Display::isVsyncPeriodSwitchSupported() const {
 
 Error Display::getChangedCompositionTypes(std::unordered_map<HWC2::Layer*, Composition>* outTypes) {
     std::vector<Hwc2::Layer> layerIds;
-    std::vector<Hwc2::IComposerClient::Composition> types;
+    std::vector<Composition> types;
     auto intError = mComposer.getChangedCompositionTypes(
             mId, &layerIds, &types);
     uint32_t numElements = layerIds.size();

@@ -39,8 +39,10 @@ std::optional<LayerStack::ApproximateMatch> LayerStack::getApproximateMatch(
 
         // Skip layers where both are client-composited, since that doesn't change the
         // composition plan
-        if (mLayers[i].getCompositionType() == hal::Composition::CLIENT &&
-            other[i]->getCompositionType() == hal::Composition::CLIENT) {
+        if (mLayers[i].getCompositionType() ==
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT &&
+            other[i]->getCompositionType() ==
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT) {
             continue;
         }
 
@@ -89,22 +91,28 @@ std::optional<Plan> Plan::fromString(const std::string& string) {
     for (char c : string) {
         switch (c) {
             case 'C':
-                plan.addLayerType(hal::Composition::CLIENT);
+                plan.addLayerType(
+                        aidl::android::hardware::graphics::composer3::Composition::CLIENT);
                 continue;
             case 'U':
-                plan.addLayerType(hal::Composition::CURSOR);
+                plan.addLayerType(
+                        aidl::android::hardware::graphics::composer3::Composition::CURSOR);
                 continue;
             case 'D':
-                plan.addLayerType(hal::Composition::DEVICE);
+                plan.addLayerType(
+                        aidl::android::hardware::graphics::composer3::Composition::DEVICE);
                 continue;
             case 'I':
-                plan.addLayerType(hal::Composition::INVALID);
+                plan.addLayerType(
+                        aidl::android::hardware::graphics::composer3::Composition::INVALID);
                 continue;
             case 'B':
-                plan.addLayerType(hal::Composition::SIDEBAND);
+                plan.addLayerType(
+                        aidl::android::hardware::graphics::composer3::Composition::SIDEBAND);
                 continue;
             case 'S':
-                plan.addLayerType(hal::Composition::SOLID_COLOR);
+                plan.addLayerType(
+                        aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR);
                 continue;
             default:
                 return std::nullopt;
@@ -117,22 +125,22 @@ std::string to_string(const Plan& plan) {
     std::string result;
     for (auto type : plan.mLayerTypes) {
         switch (type) {
-            case hal::Composition::CLIENT:
+            case aidl::android::hardware::graphics::composer3::Composition::CLIENT:
                 result.append("C");
                 break;
-            case hal::Composition::CURSOR:
+            case aidl::android::hardware::graphics::composer3::Composition::CURSOR:
                 result.append("U");
                 break;
-            case hal::Composition::DEVICE:
+            case aidl::android::hardware::graphics::composer3::Composition::DEVICE:
                 result.append("D");
                 break;
-            case hal::Composition::INVALID:
+            case aidl::android::hardware::graphics::composer3::Composition::INVALID:
                 result.append("I");
                 break;
-            case hal::Composition::SIDEBAND:
+            case aidl::android::hardware::graphics::composer3::Composition::SIDEBAND:
                 result.append("B");
                 break;
-            case hal::Composition::SOLID_COLOR:
+            case aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR:
                 result.append("S");
                 break;
         }

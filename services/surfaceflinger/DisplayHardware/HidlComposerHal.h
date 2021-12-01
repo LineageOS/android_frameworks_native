@@ -37,6 +37,8 @@
 #include <ui/GraphicBuffer.h>
 #include <utils/StrongPointer.h>
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
@@ -92,8 +94,9 @@ public:
                     uint32_t* outNumLayerRequestMasks) const;
 
     // Get and clear saved changed composition types.
-    void takeChangedCompositionTypes(Display display, std::vector<Layer>* outLayers,
-                                     std::vector<IComposerClient::Composition>* outTypes);
+    void takeChangedCompositionTypes(
+            Display display, std::vector<Layer>* outLayers,
+            std::vector<aidl::android::hardware::graphics::composer3::Composition>* outTypes);
 
     // Get and clear saved display requests.
     void takeDisplayRequests(Display display, uint32_t* outDisplayRequestMask,
@@ -130,7 +133,7 @@ private:
         uint32_t displayRequests = 0;
 
         std::vector<Layer> changedLayers;
-        std::vector<IComposerClient::Composition> compositionTypes;
+        std::vector<aidl::android::hardware::graphics::composer3::Composition> compositionTypes;
 
         std::vector<Layer> requestedLayers;
         std::vector<uint32_t> requestMasks;
@@ -188,8 +191,10 @@ public:
     Error destroyLayer(Display display, Layer layer) override;
 
     Error getActiveConfig(Display display, Config* outConfig) override;
-    Error getChangedCompositionTypes(Display display, std::vector<Layer>* outLayers,
-                                     std::vector<IComposerClient::Composition>* outTypes) override;
+    Error getChangedCompositionTypes(
+            Display display, std::vector<Layer>* outLayers,
+            std::vector<aidl::android::hardware::graphics::composer3::Composition>* outTypes)
+            override;
     Error getColorModes(Display display, std::vector<ColorMode>* outModes) override;
     Error getDisplayAttribute(Display display, Config config, IComposerClient::Attribute attribute,
                               int32_t* outValue) override;
@@ -242,8 +247,9 @@ public:
                                 const std::vector<IComposerClient::Rect>& damage) override;
     Error setLayerBlendMode(Display display, Layer layer, IComposerClient::BlendMode mode) override;
     Error setLayerColor(Display display, Layer layer, const IComposerClient::Color& color) override;
-    Error setLayerCompositionType(Display display, Layer layer,
-                                  IComposerClient::Composition type) override;
+    Error setLayerCompositionType(
+            Display display, Layer layer,
+            aidl::android::hardware::graphics::composer3::Composition type) override;
     Error setLayerDataspace(Display display, Layer layer, Dataspace dataspace) override;
     Error setLayerDisplayFrame(Display display, Layer layer,
                                const IComposerClient::Rect& frame) override;

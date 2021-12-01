@@ -282,7 +282,8 @@ void Display::applyChangedTypesToLayers(const ChangedTypes& changedTypes) {
 
         if (auto it = changedTypes.find(hwcLayer); it != changedTypes.end()) {
             layer->applyDeviceCompositionTypeChange(
-                    static_cast<Hwc2::IComposerClient::Composition>(it->second));
+                    static_cast<aidl::android::hardware::graphics::composer3::Composition>(
+                            it->second));
         }
     }
 }

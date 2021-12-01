@@ -28,6 +28,8 @@
 #include "DisplayHardware/Hal.h"
 #include "math/HashCombine.h"
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+
 namespace std {
 template <typename T>
 struct hash<android::sp<T>> {
@@ -232,7 +234,7 @@ public:
         return mBackgroundBlurRadius.get() > 0 || !mBlurRegions.get().empty();
     }
     int32_t getBackgroundBlurRadius() const { return mBackgroundBlurRadius.get(); }
-    hardware::graphics::composer::hal::Composition getCompositionType() const {
+    aidl::android::hardware::graphics::composer3::Composition getCompositionType() const {
         return mCompositionType.get();
     }
 
@@ -370,17 +372,18 @@ private:
 
     OutputLayerState<mat4, LayerStateField::ColorTransform> mColorTransform;
 
-    using CompositionTypeState = OutputLayerState<hardware::graphics::composer::hal::Composition,
-                                                  LayerStateField::CompositionType>;
-    CompositionTypeState
-            mCompositionType{[](auto layer) {
-                                 return layer->getState().forceClientComposition
-                                         ? hardware::graphics::composer::hal::Composition::CLIENT
-                                         : layer->getLayerFE()
-                                                   .getCompositionState()
-                                                   ->compositionType;
-                             },
-                             CompositionTypeState::getHalToStrings()};
+    using CompositionTypeState =
+            OutputLayerState<aidl::android::hardware::graphics::composer3::Composition,
+                             LayerStateField::CompositionType>;
+    CompositionTypeState mCompositionType{[](auto layer) {
+                                              return layer->getState().forceClientComposition
+                                                      ? aidl::android::hardware::graphics::
+                                                                composer3::Composition::CLIENT
+                                                      : layer->getLayerFE()
+                                                                .getCompositionState()
+                                                                ->compositionType;
+                                          },
+                                          CompositionTypeState::getHalToStrings()};
 
     OutputLayerState<void*, LayerStateField::SidebandStream>
             mSidebandStream{[](auto layer) {

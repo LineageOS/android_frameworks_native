@@ -36,6 +36,8 @@
 
 #include "Hal.h"
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+
 namespace android {
 
 class Fence;
@@ -88,7 +90,8 @@ public:
     [[clang::warn_unused_result]] virtual base::expected<std::shared_ptr<HWC2::Layer>, hal::Error>
     createLayer() = 0;
     [[clang::warn_unused_result]] virtual hal::Error getChangedCompositionTypes(
-            std::unordered_map<Layer*, hal::Composition>* outTypes) = 0;
+            std::unordered_map<Layer*, aidl::android::hardware::graphics::composer3::Composition>*
+                    outTypes) = 0;
     [[clang::warn_unused_result]] virtual hal::Error getColorModes(
             std::vector<hal::ColorMode>* outModes) const = 0;
     // Returns a bitmask which contains HdrMetadata::Type::*.
@@ -163,7 +166,9 @@ public:
     hal::Error acceptChanges() override;
     base::expected<std::shared_ptr<HWC2::Layer>, hal::Error> createLayer() override;
     hal::Error getChangedCompositionTypes(
-            std::unordered_map<HWC2::Layer*, hal::Composition>* outTypes) override;
+            std::unordered_map<HWC2::Layer*,
+                               aidl::android::hardware::graphics::composer3::Composition>* outTypes)
+            override;
     hal::Error getColorModes(std::vector<hal::ColorMode>* outModes) const override;
     // Returns a bitmask which contains HdrMetadata::Type::*.
     int32_t getSupportedPerFrameMetadata() const override;
@@ -266,7 +271,8 @@ public:
 
     [[clang::warn_unused_result]] virtual hal::Error setBlendMode(hal::BlendMode mode) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setColor(hal::Color color) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setCompositionType(hal::Composition type) = 0;
+    [[clang::warn_unused_result]] virtual hal::Error setCompositionType(
+            aidl::android::hardware::graphics::composer3::Composition type) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setDataspace(hal::Dataspace dataspace) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setPerFrameMetadata(
             const int32_t supportedPerFrameMetadata, const android::HdrMetadata& metadata) = 0;
@@ -316,7 +322,8 @@ public:
 
     hal::Error setBlendMode(hal::BlendMode mode) override;
     hal::Error setColor(hal::Color color) override;
-    hal::Error setCompositionType(hal::Composition type) override;
+    hal::Error setCompositionType(
+            aidl::android::hardware::graphics::composer3::Composition type) override;
     hal::Error setDataspace(hal::Dataspace dataspace) override;
     hal::Error setPerFrameMetadata(const int32_t supportedPerFrameMetadata,
                                    const android::HdrMetadata& metadata) override;

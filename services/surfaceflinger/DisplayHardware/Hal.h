@@ -20,6 +20,8 @@
 #include <android/hardware/graphics/composer/2.4/IComposer.h>
 #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+
 #define ERROR_HAS_CHANGES 5
 
 namespace android {
@@ -49,7 +51,6 @@ using V2_4::VsyncPeriodNanos;
 using Attribute = IComposerClient::Attribute;
 using BlendMode = IComposerClient::BlendMode;
 using Color = IComposerClient::Color;
-using Composition = IComposerClient::Composition;
 using Connection = IComposerCallback::Connection;
 using ContentType = IComposerClient::ContentType;
 using Capability = IComposer::Capability;
@@ -95,19 +96,20 @@ inline std::string to_string(hardware::graphics::composer::hal::Attribute attrib
     }
 }
 
-inline std::string to_string(hardware::graphics::composer::hal::Composition composition) {
+inline std::string to_string(
+        aidl::android::hardware::graphics::composer3::Composition composition) {
     switch (composition) {
-        case hardware::graphics::composer::hal::Composition::INVALID:
+        case aidl::android::hardware::graphics::composer3::Composition::INVALID:
             return "Invalid";
-        case hardware::graphics::composer::hal::Composition::CLIENT:
+        case aidl::android::hardware::graphics::composer3::Composition::CLIENT:
             return "Client";
-        case hardware::graphics::composer::hal::Composition::DEVICE:
+        case aidl::android::hardware::graphics::composer3::Composition::DEVICE:
             return "Device";
-        case hardware::graphics::composer::hal::Composition::SOLID_COLOR:
+        case aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR:
             return "SolidColor";
-        case hardware::graphics::composer::hal::Composition::CURSOR:
+        case aidl::android::hardware::graphics::composer3::Composition::CURSOR:
             return "Cursor";
-        case hardware::graphics::composer::hal::Composition::SIDEBAND:
+        case aidl::android::hardware::graphics::composer3::Composition::SIDEBAND:
             return "Sideband";
         default:
             return "Unknown";

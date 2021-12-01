@@ -31,6 +31,8 @@
 #include <ui/GraphicBuffer.h>
 #include <utils/StrongPointer.h>
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
@@ -98,7 +100,7 @@ public:
     virtual Error getActiveConfig(Display display, Config* outConfig) = 0;
     virtual Error getChangedCompositionTypes(
             Display display, std::vector<Layer>* outLayers,
-            std::vector<IComposerClient::Composition>* outTypes) = 0;
+            std::vector<aidl::android::hardware::graphics::composer3::Composition>* outTypes) = 0;
     virtual Error getColorModes(Display display, std::vector<ColorMode>* outModes) = 0;
     virtual Error getDisplayAttribute(Display display, Config config,
                                       IComposerClient::Attribute attribute, int32_t* outValue) = 0;
@@ -155,8 +157,9 @@ public:
                                     IComposerClient::BlendMode mode) = 0;
     virtual Error setLayerColor(Display display, Layer layer,
                                 const IComposerClient::Color& color) = 0;
-    virtual Error setLayerCompositionType(Display display, Layer layer,
-                                          IComposerClient::Composition type) = 0;
+    virtual Error setLayerCompositionType(
+            Display display, Layer layer,
+            aidl::android::hardware::graphics::composer3::Composition type) = 0;
     virtual Error setLayerDataspace(Display display, Layer layer, Dataspace dataspace) = 0;
     virtual Error setLayerDisplayFrame(Display display, Layer layer,
                                        const IComposerClient::Rect& frame) = 0;

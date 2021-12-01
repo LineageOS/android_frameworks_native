@@ -160,7 +160,8 @@ bool operator==(const LayerState& lhs, const LayerState& rhs) {
             lhs.mColorTransform == rhs.mColorTransform &&
             lhs.mCompositionType == rhs.mCompositionType &&
             lhs.mSidebandStream == rhs.mSidebandStream && lhs.mBuffer == rhs.mBuffer &&
-            (lhs.mCompositionType.get() != hal::Composition::SOLID_COLOR ||
+            (lhs.mCompositionType.get() !=
+                     aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR ||
              lhs.mSolidColor == rhs.mSolidColor);
 }
 

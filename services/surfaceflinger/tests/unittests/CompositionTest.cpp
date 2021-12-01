@@ -1029,9 +1029,10 @@ struct NoCompositionTypeVariant {
     }
 };
 
-template <IComposerClient::Composition CompositionType>
+template <aidl::android::hardware::graphics::composer3::Composition CompositionType>
 struct KeepCompositionTypeVariant {
-    static constexpr hal::Composition TYPE = CompositionType;
+    static constexpr aidl::android::hardware::graphics::composer3::Composition TYPE =
+            CompositionType;
 
     static void setupHwcSetCallExpectations(CompositionTest* test) {
         if (!test->mDisplayOff) {
@@ -1046,10 +1047,11 @@ struct KeepCompositionTypeVariant {
     }
 };
 
-template <IComposerClient::Composition InitialCompositionType,
-          IComposerClient::Composition FinalCompositionType>
+template <aidl::android::hardware::graphics::composer3::Composition InitialCompositionType,
+          aidl::android::hardware::graphics::composer3::Composition FinalCompositionType>
 struct ChangeCompositionTypeVariant {
-    static constexpr hal::Composition TYPE = FinalCompositionType;
+    static constexpr aidl::android::hardware::graphics::composer3::Composition TYPE =
+            FinalCompositionType;
 
     static void setupHwcSetCallExpectations(CompositionTest* test) {
         if (!test->mDisplayOff) {
@@ -1063,8 +1065,9 @@ struct ChangeCompositionTypeVariant {
         EXPECT_CALL(*test->mComposer, getChangedCompositionTypes(HWC_DISPLAY, _, _))
                 .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hwc2::Layer>{
                                         static_cast<Hwc2::Layer>(HWC_LAYER)}),
-                                SetArgPointee<2>(std::vector<IComposerClient::Composition>{
-                                        FinalCompositionType}),
+                                SetArgPointee<2>(
+                                        std::vector<aidl::android::hardware::graphics::composer3::
+                                                            Composition>{FinalCompositionType}),
                                 Return(Error::NONE)));
     }
 };
@@ -1258,25 +1261,28 @@ TEST_F(CompositionTest, noLayersDoesMinimalWorkToCaptureScreen) {
  */
 
 TEST_F(CompositionTest, HWCComposedNormalBufferLayerWithDirtyGeometry) {
-    displayRefreshCompositionDirtyGeometry<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::DEVICE>,
-                            HwcCompositionResultVariant>>();
+    displayRefreshCompositionDirtyGeometry<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::DEVICE>,
+            HwcCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, HWCComposedNormalBufferLayerWithDirtyFrame) {
-    displayRefreshCompositionDirtyFrame<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::DEVICE>,
-                            HwcCompositionResultVariant>>();
+    displayRefreshCompositionDirtyFrame<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::DEVICE>,
+            HwcCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, REComposedNormalBufferLayer) {
-    displayRefreshCompositionDirtyFrame<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
-                            ChangeCompositionTypeVariant<IComposerClient::Composition::DEVICE,
-                                                         IComposerClient::Composition::CLIENT>,
-                            RECompositionResultVariant>>();
+    displayRefreshCompositionDirtyFrame<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
+            ChangeCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::DEVICE,
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT>,
+            RECompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, captureScreenNormalBufferLayer) {
@@ -1290,25 +1296,28 @@ TEST_F(CompositionTest, captureScreenNormalBufferLayer) {
  */
 
 TEST_F(CompositionTest, HWCComposedEffectLayerWithDirtyGeometry) {
-    displayRefreshCompositionDirtyGeometry<
-            CompositionCase<DefaultDisplaySetupVariant, EffectLayerVariant<EffectLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::SOLID_COLOR>,
-                            HwcCompositionResultVariant>>();
+    displayRefreshCompositionDirtyGeometry<CompositionCase<
+            DefaultDisplaySetupVariant, EffectLayerVariant<EffectLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR>,
+            HwcCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, HWCComposedEffectLayerWithDirtyFrame) {
-    displayRefreshCompositionDirtyFrame<
-            CompositionCase<DefaultDisplaySetupVariant, EffectLayerVariant<EffectLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::SOLID_COLOR>,
-                            HwcCompositionResultVariant>>();
+    displayRefreshCompositionDirtyFrame<CompositionCase<
+            DefaultDisplaySetupVariant, EffectLayerVariant<EffectLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR>,
+            HwcCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, REComposedEffectLayer) {
-    displayRefreshCompositionDirtyFrame<
-            CompositionCase<DefaultDisplaySetupVariant, EffectLayerVariant<EffectLayerProperties>,
-                            ChangeCompositionTypeVariant<IComposerClient::Composition::SOLID_COLOR,
-                                                         IComposerClient::Composition::CLIENT>,
-                            RECompositionResultVariant>>();
+    displayRefreshCompositionDirtyFrame<CompositionCase<
+            DefaultDisplaySetupVariant, EffectLayerVariant<EffectLayerProperties>,
+            ChangeCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR,
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT>,
+            RECompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, captureScreenEffectLayer) {
@@ -1322,25 +1331,28 @@ TEST_F(CompositionTest, captureScreenEffectLayer) {
  */
 
 TEST_F(CompositionTest, HWCComposedSidebandBufferLayerWithDirtyGeometry) {
-    displayRefreshCompositionDirtyGeometry<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<SidebandLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::SIDEBAND>,
-                            HwcCompositionResultVariant>>();
+    displayRefreshCompositionDirtyGeometry<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<SidebandLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::SIDEBAND>,
+            HwcCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, HWCComposedSidebandBufferLayerWithDirtyFrame) {
-    displayRefreshCompositionDirtyFrame<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<SidebandLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::SIDEBAND>,
-                            HwcCompositionResultVariant>>();
+    displayRefreshCompositionDirtyFrame<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<SidebandLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::SIDEBAND>,
+            HwcCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, REComposedSidebandBufferLayer) {
-    displayRefreshCompositionDirtyFrame<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<SidebandLayerProperties>,
-                            ChangeCompositionTypeVariant<IComposerClient::Composition::SIDEBAND,
-                                                         IComposerClient::Composition::CLIENT>,
-                            RECompositionResultVariant>>();
+    displayRefreshCompositionDirtyFrame<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<SidebandLayerProperties>,
+            ChangeCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::SIDEBAND,
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT>,
+            RECompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, captureScreenSidebandBufferLayer) {
@@ -1354,25 +1366,28 @@ TEST_F(CompositionTest, captureScreenSidebandBufferLayer) {
  */
 
 TEST_F(CompositionTest, HWCComposedSecureBufferLayerWithDirtyGeometry) {
-    displayRefreshCompositionDirtyGeometry<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<SecureLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::DEVICE>,
-                            HwcCompositionResultVariant>>();
+    displayRefreshCompositionDirtyGeometry<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<SecureLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::DEVICE>,
+            HwcCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, HWCComposedSecureBufferLayerWithDirtyFrame) {
-    displayRefreshCompositionDirtyFrame<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<SecureLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::DEVICE>,
-                            HwcCompositionResultVariant>>();
+    displayRefreshCompositionDirtyFrame<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<SecureLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::DEVICE>,
+            HwcCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, REComposedSecureBufferLayer) {
-    displayRefreshCompositionDirtyFrame<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<SecureLayerProperties>,
-                            ChangeCompositionTypeVariant<IComposerClient::Composition::DEVICE,
-                                                         IComposerClient::Composition::CLIENT>,
-                            RECompositionResultVariant>>();
+    displayRefreshCompositionDirtyFrame<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<SecureLayerProperties>,
+            ChangeCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::DEVICE,
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT>,
+            RECompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, captureScreenSecureBufferLayerOnSecureDisplay) {
@@ -1386,17 +1401,19 @@ TEST_F(CompositionTest, captureScreenSecureBufferLayerOnSecureDisplay) {
  */
 
 TEST_F(CompositionTest, HWCComposedSecureBufferLayerOnInsecureDisplayWithDirtyGeometry) {
-    displayRefreshCompositionDirtyGeometry<
-            CompositionCase<InsecureDisplaySetupVariant, BufferLayerVariant<SecureLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::CLIENT>,
-                            ForcedClientCompositionResultVariant>>();
+    displayRefreshCompositionDirtyGeometry<CompositionCase<
+            InsecureDisplaySetupVariant, BufferLayerVariant<SecureLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT>,
+            ForcedClientCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, HWCComposedSecureBufferLayerOnInsecureDisplayWithDirtyFrame) {
-    displayRefreshCompositionDirtyFrame<
-            CompositionCase<InsecureDisplaySetupVariant, BufferLayerVariant<SecureLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::CLIENT>,
-                            ForcedClientCompositionResultVariant>>();
+    displayRefreshCompositionDirtyFrame<CompositionCase<
+            InsecureDisplaySetupVariant, BufferLayerVariant<SecureLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT>,
+            ForcedClientCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, captureScreenSecureBufferLayerOnInsecureDisplay) {
@@ -1411,22 +1428,24 @@ TEST_F(CompositionTest, captureScreenSecureBufferLayerOnInsecureDisplay) {
 
 TEST_F(CompositionTest,
        HWCComposedBufferLayerWithSecureParentLayerOnInsecureDisplayWithDirtyGeometry) {
-    displayRefreshCompositionDirtyGeometry<
-            CompositionCase<InsecureDisplaySetupVariant,
-                            ChildLayerVariant<BufferLayerVariant<ParentSecureLayerProperties>,
-                                              ContainerLayerVariant<SecureLayerProperties>>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::CLIENT>,
-                            ForcedClientCompositionResultVariant>>();
+    displayRefreshCompositionDirtyGeometry<CompositionCase<
+            InsecureDisplaySetupVariant,
+            ChildLayerVariant<BufferLayerVariant<ParentSecureLayerProperties>,
+                              ContainerLayerVariant<SecureLayerProperties>>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT>,
+            ForcedClientCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest,
        HWCComposedBufferLayerWithSecureParentLayerOnInsecureDisplayWithDirtyFrame) {
-    displayRefreshCompositionDirtyFrame<
-            CompositionCase<InsecureDisplaySetupVariant,
-                            ChildLayerVariant<BufferLayerVariant<ParentSecureLayerProperties>,
-                                              ContainerLayerVariant<SecureLayerProperties>>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::CLIENT>,
-                            ForcedClientCompositionResultVariant>>();
+    displayRefreshCompositionDirtyFrame<CompositionCase<
+            InsecureDisplaySetupVariant,
+            ChildLayerVariant<BufferLayerVariant<ParentSecureLayerProperties>,
+                              ContainerLayerVariant<SecureLayerProperties>>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT>,
+            ForcedClientCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, captureScreenBufferLayerWithSecureParentLayerOnInsecureDisplay) {
@@ -1442,25 +1461,28 @@ TEST_F(CompositionTest, captureScreenBufferLayerWithSecureParentLayerOnInsecureD
  */
 
 TEST_F(CompositionTest, HWCComposedCursorLayerWithDirtyGeometry) {
-    displayRefreshCompositionDirtyGeometry<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<CursorLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::CURSOR>,
-                            HwcCompositionResultVariant>>();
+    displayRefreshCompositionDirtyGeometry<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<CursorLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::CURSOR>,
+            HwcCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, HWCComposedCursorLayerWithDirtyFrame) {
-    displayRefreshCompositionDirtyFrame<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<CursorLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::CURSOR>,
-                            HwcCompositionResultVariant>>();
+    displayRefreshCompositionDirtyFrame<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<CursorLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::CURSOR>,
+            HwcCompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, REComposedCursorLayer) {
-    displayRefreshCompositionDirtyFrame<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<CursorLayerProperties>,
-                            ChangeCompositionTypeVariant<IComposerClient::Composition::CURSOR,
-                                                         IComposerClient::Composition::CLIENT>,
-                            RECompositionResultVariant>>();
+    displayRefreshCompositionDirtyFrame<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<CursorLayerProperties>,
+            ChangeCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::CURSOR,
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT>,
+            RECompositionResultVariant>>();
 }
 
 TEST_F(CompositionTest, captureScreenCursorLayer) {
@@ -1477,7 +1499,8 @@ TEST_F(CompositionTest, displayOffHWCComposedNormalBufferLayerWithDirtyGeometry)
     mDisplayOff = true;
     displayRefreshCompositionDirtyGeometry<CompositionCase<
             PoweredOffDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
-            KeepCompositionTypeVariant<IComposerClient::Composition::DEVICE>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::DEVICE>,
             HwcCompositionResultVariant>>();
 }
 
@@ -1485,7 +1508,8 @@ TEST_F(CompositionTest, displayOffHWCComposedNormalBufferLayerWithDirtyFrame) {
     mDisplayOff = true;
     displayRefreshCompositionDirtyFrame<CompositionCase<
             PoweredOffDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
-            KeepCompositionTypeVariant<IComposerClient::Composition::DEVICE>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::DEVICE>,
             HwcCompositionResultVariant>>();
 }
 
@@ -1493,8 +1517,9 @@ TEST_F(CompositionTest, displayOffREComposedNormalBufferLayer) {
     mDisplayOff = true;
     displayRefreshCompositionDirtyFrame<CompositionCase<
             PoweredOffDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
-            ChangeCompositionTypeVariant<IComposerClient::Composition::DEVICE,
-                                         IComposerClient::Composition::CLIENT>,
+            ChangeCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::DEVICE,
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT>,
             RECompositionResultVariant>>();
 }
 
@@ -1509,17 +1534,19 @@ TEST_F(CompositionTest, captureScreenNormalBufferLayerOnPoweredOffDisplay) {
  */
 
 TEST_F(CompositionTest, DebugOptionForcingClientCompositionOfBufferLayerWithDirtyGeometry) {
-    displayRefreshCompositionDirtyGeometry<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::CLIENT>,
-                            ForcedClientCompositionViaDebugOptionResultVariant>>();
+    displayRefreshCompositionDirtyGeometry<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT>,
+            ForcedClientCompositionViaDebugOptionResultVariant>>();
 }
 
 TEST_F(CompositionTest, DebugOptionForcingClientCompositionOfBufferLayerWithDirtyFrame) {
-    displayRefreshCompositionDirtyFrame<
-            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
-                            KeepCompositionTypeVariant<IComposerClient::Composition::CLIENT>,
-                            ForcedClientCompositionViaDebugOptionResultVariant>>();
+    displayRefreshCompositionDirtyFrame<CompositionCase<
+            DefaultDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
+            KeepCompositionTypeVariant<
+                    aidl::android::hardware::graphics::composer3::Composition::CLIENT>,
+            ForcedClientCompositionViaDebugOptionResultVariant>>();
 }
 
 } // namespace
