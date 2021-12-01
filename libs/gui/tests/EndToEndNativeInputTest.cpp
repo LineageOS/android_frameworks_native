@@ -931,6 +931,20 @@ TEST_F(InputSurfacesTest, strict_unobscured_input_cropped_window) {
     EXPECT_EQ(surface->consumeEvent(100), nullptr);
 }
 
+TEST_F(InputSurfacesTest, ignore_touch_region_with_zero_sized_blast) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+
+    std::unique_ptr<BlastInputSurface> bufferSurface =
+            BlastInputSurface::makeBlastInputSurface(mComposerClient, 0, 0);
+
+    surface->showAt(100, 100);
+    bufferSurface->mInputInfo.touchableRegion.orSelf(Rect(0, 0, 200, 200));
+    bufferSurface->showAt(100, 100, Rect::EMPTY_RECT);
+
+    injectTap(101, 101);
+    surface->expectTap(1, 1);
+}
+
 TEST_F(InputSurfacesTest, drop_input_policy) {
     std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
     surface->doTransaction(
