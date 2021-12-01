@@ -574,6 +574,8 @@ public:
 
     inline ui::Transform getTransform() const { return mTransform; }
 
+    int getSurfaceRotation() const;
+
     inline float getXPrecision() const { return mXPrecision; }
 
     inline float getYPrecision() const { return mYPrecision; }
