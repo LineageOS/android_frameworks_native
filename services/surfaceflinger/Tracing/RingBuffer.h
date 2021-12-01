@@ -39,26 +39,28 @@ public:
     void setSize(size_t newSize) { mSizeInBytes = newSize; }
     EntryProto& front() { return mStorage.front(); }
     const EntryProto& front() const { return mStorage.front(); }
+    const EntryProto& back() const { return mStorage.back(); }
 
-    void reset(size_t newSize) {
+    void reset() {
         // use the swap trick to make sure memory is released
-        std::queue<EntryProto>().swap(mStorage);
-        mSizeInBytes = newSize;
+        std::deque<EntryProto>().swap(mStorage);
         mUsedInBytes = 0U;
     }
-    void flush(FileProto& fileProto) {
-        fileProto.mutable_entry()->Reserve(static_cast<int>(mStorage.size()));
-        while (!mStorage.empty()) {
-            auto entry = fileProto.add_entry();
-            entry->Swap(&mStorage.front());
-            mStorage.pop();
+
+    void writeToProto(FileProto& fileProto) {
+        fileProto.mutable_entry()->Reserve(static_cast<int>(mStorage.size()) +
+                                           fileProto.entry().size());
+        for (const EntryProto& entry : mStorage) {
+            EntryProto* entryProto = fileProto.add_entry();
+            *entryProto = entry;
         }
     }
 
     status_t writeToFile(FileProto& fileProto, std::string filename) {
         ATRACE_CALL();
+        writeToProto(fileProto);
         std::string output;
-        if (!writeToString(fileProto, &output)) {
+        if (!fileProto.SerializeToString(&output)) {
             ALOGE("Could not serialize proto.");
             return UNKNOWN_ERROR;
         }
@@ -72,13 +74,6 @@ public:
         return NO_ERROR;
     }
 
-    bool writeToString(FileProto& fileProto, std::string* outString) {
-        ATRACE_CALL();
-        flush(fileProto);
-        reset(mSizeInBytes);
-        return fileProto.SerializeToString(outString);
-    }
-
     std::vector<EntryProto> emplace(EntryProto&& proto) {
         std::vector<EntryProto> replacedEntries;
         size_t protoSize = static_cast<size_t>(proto.ByteSize());
@@ -88,10 +83,10 @@ public:
             }
             mUsedInBytes -= static_cast<size_t>(mStorage.front().ByteSize());
             replacedEntries.emplace_back(mStorage.front());
-            mStorage.pop();
+            mStorage.pop_front();
         }
         mUsedInBytes += protoSize;
-        mStorage.emplace();
+        mStorage.emplace_back();
         mStorage.back().Swap(&proto);
         return replacedEntries;
     }
@@ -112,7 +107,7 @@ public:
 private:
     size_t mUsedInBytes = 0U;
     size_t mSizeInBytes = 0U;
-    std::queue<EntryProto> mStorage;
+    std::deque<EntryProto> mStorage;
 };
 
 } // namespace android
