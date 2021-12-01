@@ -86,9 +86,11 @@ cc_defaults {
     shared_libs: [
         "android.hardware.dumpstate@1.0",
         "android.hardware.dumpstate@1.1",
+        "android.hardware.dumpstate-V1-ndk",
         "libziparchive",
         "libbase",
         "libbinder",
+        "libbinder_ndk",
         "libcrypto",
         "libcutils",
         "libdebuggerd_client",
