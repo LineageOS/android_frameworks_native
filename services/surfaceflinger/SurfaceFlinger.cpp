@@ -93,7 +93,6 @@
 #include <type_traits>
 #include <unordered_map>
 
-#include "BackgroundExecutor.h"
 #include "BufferLayer.h"
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
@@ -516,7 +515,7 @@ void SurfaceFlinger::binderDied(const wp<IBinder>&) {
     mBootFinished = false;
 
     // Sever the link to inputflinger since it's gone as well.
-    BackgroundExecutor::getInstance().execute([=] { mInputFlinger = nullptr; });
+    static_cast<void>(mScheduler->schedule([=] { mInputFlinger = nullptr; }));
 
     // restore initial conditions (default device unblank, etc)
     initializeDisplays();
@@ -727,15 +726,13 @@ void SurfaceFlinger::bootFinished() {
 
     sp<IBinder> input(defaultServiceManager()->getService(String16("inputflinger")));
 
-    BackgroundExecutor::getInstance().execute([=] {
+    static_cast<void>(mScheduler->schedule([=] {
         if (input == nullptr) {
             ALOGE("Failed to link to input service");
         } else {
             mInputFlinger = interface_cast<os::IInputFlinger>(input);
         }
-    });
 
-    static_cast<void>(mScheduler->schedule([=] {
         readPersistentProperties();
         mPowerAdvisor.onBootFinished();
         mBootStage = BootStage::FINISHED;
@@ -3053,48 +3050,32 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
 
 void SurfaceFlinger::updateInputFlinger() {
     ATRACE_CALL();
-    std::vector<WindowInfo> windowInfos;
-    std::vector<DisplayInfo> displayInfos;
-    bool updateWindowInfo = false;
-    if (mVisibleRegionsDirty || mInputInfoChanged) {
-        mInputInfoChanged = false;
-        updateWindowInfo = true;
-        buildWindowInfos(windowInfos, displayInfos);
-    }
-    if (!updateWindowInfo && mInputWindowCommands.empty()) {
+    if (!mInputFlinger) {
         return;
     }
-    BackgroundExecutor::getInstance().execute([updateWindowInfo,
-                                               windowInfos = std::move(windowInfos),
-                                               displayInfos = std::move(displayInfos),
-                                               inputWindowCommands =
-                                                       std::move(mInputWindowCommands),
-                                               this]() {
-        ATRACE_NAME("BackgroundExecutor::updateInputFlinger");
-        if (!mInputFlinger) {
-            return;
-        }
-        if (updateWindowInfo) {
-            mWindowInfosListenerInvoker->windowInfosChanged(windowInfos, displayInfos,
-                                                            inputWindowCommands.syncInputWindows);
-        } else if (inputWindowCommands.syncInputWindows) {
-            // If the caller requested to sync input windows, but there are no
-            // changes to input windows, notify immediately.
-            windowInfosReported();
-        }
-        for (const auto& focusRequest : inputWindowCommands.focusRequests) {
-            mInputFlinger->setFocusedWindow(focusRequest);
-        }
-    });
 
+    if (mVisibleRegionsDirty || mInputInfoChanged) {
+        mInputInfoChanged = false;
+        notifyWindowInfos();
+    } else if (mInputWindowCommands.syncInputWindows) {
+        // If the caller requested to sync input windows, but there are no
+        // changes to input windows, notify immediately.
+        windowInfosReported();
+    }
+
+    for (const auto& focusRequest : mInputWindowCommands.focusRequests) {
+        mInputFlinger->setFocusedWindow(focusRequest);
+    }
     mInputWindowCommands.clear();
 }
 
-void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
-                                      std::vector<DisplayInfo>& outDisplayInfos) {
+void SurfaceFlinger::notifyWindowInfos() {
+    std::vector<WindowInfo> windowInfos;
+    std::vector<DisplayInfo> displayInfos;
     std::unordered_map<uint32_t /*layerStackId*/,
                        std::pair<bool /* isSecure */, const ui::Transform>>
             inputDisplayDetails;
+
     for (const auto& [_, display] : ON_MAIN_THREAD(mDisplays)) {
         if (!display->receivesInput()) {
             continue;
@@ -3108,7 +3089,7 @@ void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
                   layerStackId);
             continue;
         }
-        outDisplayInfos.emplace_back(info);
+        displayInfos.emplace_back(info);
     }
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
@@ -3128,8 +3109,10 @@ void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
                   layer->getDebugName(), layerStackId);
         }
 
-        outWindowInfos.push_back(layer->fillInputInfo(displayTransform, isSecure));
+        windowInfos.push_back(layer->fillInputInfo(displayTransform, isSecure));
     });
+    mWindowInfosListenerInvoker->windowInfosChanged(windowInfos, displayInfos,
+                                                    mInputWindowCommands.syncInputWindows);
 }
 
 void SurfaceFlinger::updateCursorAsync() {
