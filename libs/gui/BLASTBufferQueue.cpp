@@ -649,6 +649,9 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
 
     // add to shadow queue
     mNumFrameAvailable++;
+    if (mWaitForTransactionCallback && mNumFrameAvailable == 2) {
+        acquireAndReleaseBuffer();
+    }
     ATRACE_INT(mQueuedBufferTrace.c_str(),
                mNumFrameAvailable + mNumAcquired - mPendingRelease.size());
 
