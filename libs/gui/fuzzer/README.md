@@ -5,6 +5,7 @@
 + [libgui_surfaceComposerClient_fuzzer](#SurfaceComposerClient)
 + [libgui_parcelable_fuzzer](#Libgui_Parcelable)
 + [libgui_bufferQueue_fuzzer](#BufferQueue)
++ [libgui_consumer_fuzzer](#Libgui_Consumer)
 
 # <a name="libgui_surfaceComposer_fuzzer"></a> Fuzzer for SurfaceComposer
 
@@ -168,4 +169,24 @@ BufferQueue supports the following parameters:
 ```
   $ adb sync data
   $ adb shell /data/fuzz/arm64/libgui_bufferQueue_fuzzer/libgui_bufferQueue_fuzzer
+```
+
+# <a name="libgui_consumer_fuzzer"></a> Fuzzer for Libgui_Consumer
+
+Libgui_Consumer supports the following parameters:
+1. GraphicWidth (parameter name:`graphicWidth`)
+2. GraphicHeight (parameter name:`graphicHeight`)
+4. TransformHint (parameter name:`outTransformHint`)
+5. GraphicPixelFormat (parameter name:`format`)
+6. Usage (parameter name:`usage`)
+
+#### Steps to run
+1. Build the fuzzer
+```
+  $ mm -j$(nproc) libgui_consumer_fuzzer
+```
+2. Run on device
+```
+  $ adb sync data
+  $ adb shell /data/fuzz/arm64/libgui_consumer_fuzzer/libgui_consumer_fuzzer
 ```
