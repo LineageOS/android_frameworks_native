@@ -95,3 +95,13 @@ cc_fuzz {
         "libgui_fuzzer_defaults",
     ],
 }
+
+cc_fuzz {
+    name: "libgui_parcelable_fuzzer",
+    srcs: [
+        "libgui_parcelable_fuzzer.cpp",
+    ],
+    defaults: [
+        "libgui_fuzzer_defaults",
+    ],
+}
