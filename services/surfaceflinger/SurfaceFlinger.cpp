@@ -4407,6 +4407,16 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
         return result;
     }
 
+    int parentId = -1;
+    // We can safely promote the layer in binder thread because we have a strong reference
+    // to the layer's handle inside this scope or we were passed in a sp reference to the layer.
+    sp<Layer> parentSp = parent.promote();
+    if (parentSp != nullptr) {
+        parentId = parentSp->getSequence();
+    }
+    mTransactionTracing.onLayerAdded((*outHandle)->localBinder(), layer->sequence, args.name,
+                                     args.flags, parentId);
+
     setTransactionFlags(eTransactionNeeded);
     *outLayerId = layer->sequence;
     return result;
@@ -6642,6 +6652,7 @@ void SurfaceFlinger::onLayerDestroyed(Layer* layer) {
     if (!layer->isRemovedFromCurrentState()) {
         mScheduler->deregisterLayer(layer);
     }
+    mTransactionTracing.onLayerRemoved(layer->getSequence());
 }
 
 void SurfaceFlinger::onLayerUpdate() {

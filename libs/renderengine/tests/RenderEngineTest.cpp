@@ -504,6 +504,18 @@ public:
     void fillBufferColorTransform();
 
     template <typename SourceVariant>
+    void fillBufferWithColorTransformAndSourceDataspace(const ui::Dataspace sourceDataspace);
+
+    template <typename SourceVariant>
+    void fillBufferColorTransformAndSourceDataspace();
+
+    template <typename SourceVariant>
+    void fillBufferWithColorTransformAndOutputDataspace(const ui::Dataspace outputDataspace);
+
+    template <typename SourceVariant>
+    void fillBufferColorTransformAndOutputDataspace();
+
+    template <typename SourceVariant>
     void fillBufferWithColorTransformZeroLayerAlpha();
 
     template <typename SourceVariant>
@@ -881,9 +893,101 @@ void RenderEngineTest::fillBufferWithColorTransform() {
 }
 
 template <typename SourceVariant>
+void RenderEngineTest::fillBufferWithColorTransformAndSourceDataspace(
+        const ui::Dataspace sourceDataspace) {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = Rect(1, 1);
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+
+    std::vector<renderengine::LayerSettings> layers;
+
+    renderengine::LayerSettings layer;
+    layer.sourceDataspace = sourceDataspace;
+    layer.geometry.boundaries = Rect(1, 1).toFloatRect();
+    SourceVariant::fillColor(layer, 0.5f, 0.25f, 0.125f, this);
+    layer.alpha = 1.0f;
+
+    // construct a fake color matrix
+    // annihilate green and blue channels
+    settings.colorTransform = mat4::scale(vec4(0.9f, 0, 0, 1));
+    // set red channel to red + green
+    layer.colorTransform = mat4(1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+
+    layer.alpha = 1.0f;
+    layer.geometry.boundaries = Rect(1, 1).toFloatRect();
+
+    layers.push_back(layer);
+
+    invokeDraw(settings, layers);
+}
+
+template <typename SourceVariant>
 void RenderEngineTest::fillBufferColorTransform() {
     fillBufferWithColorTransform<SourceVariant>();
     expectBufferColor(fullscreenRect(), 172, 0, 0, 255, 1);
+}
+
+template <typename SourceVariant>
+void RenderEngineTest::fillBufferColorTransformAndSourceDataspace() {
+    unordered_map<ui::Dataspace, ubyte4> dataspaceToColorMap;
+    dataspaceToColorMap[ui::Dataspace::V0_BT709] = {172, 0, 0, 255};
+    dataspaceToColorMap[ui::Dataspace::BT2020] = {172, 0, 0, 255};
+    dataspaceToColorMap[ui::Dataspace::ADOBE_RGB] = {172, 0, 0, 255};
+    ui::Dataspace customizedDataspace = static_cast<ui::Dataspace>(
+            ui::Dataspace::STANDARD_BT709 | ui::Dataspace::TRANSFER_GAMMA2_2 |
+            ui::Dataspace::RANGE_FULL);
+    dataspaceToColorMap[customizedDataspace] = {172, 0, 0, 255};
+    for (const auto& [sourceDataspace, color] : dataspaceToColorMap) {
+        fillBufferWithColorTransformAndSourceDataspace<SourceVariant>(sourceDataspace);
+        expectBufferColor(fullscreenRect(), color.r, color.g, color.b, color.a, 1);
+    }
+}
+
+template <typename SourceVariant>
+void RenderEngineTest::fillBufferWithColorTransformAndOutputDataspace(
+        const ui::Dataspace outputDataspace) {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = Rect(1, 1);
+    settings.outputDataspace = outputDataspace;
+
+    std::vector<renderengine::LayerSettings> layers;
+
+    renderengine::LayerSettings layer;
+    layer.sourceDataspace = ui::Dataspace::V0_SCRGB_LINEAR;
+    layer.geometry.boundaries = Rect(1, 1).toFloatRect();
+    SourceVariant::fillColor(layer, 0.5f, 0.25f, 0.125f, this);
+    layer.alpha = 1.0f;
+
+    // construct a fake color matrix
+    // annihilate green and blue channels
+    settings.colorTransform = mat4::scale(vec4(0.9f, 0, 0, 1));
+    // set red channel to red + green
+    layer.colorTransform = mat4(1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+
+    layer.alpha = 1.0f;
+    layer.geometry.boundaries = Rect(1, 1).toFloatRect();
+
+    layers.push_back(layer);
+
+    invokeDraw(settings, layers);
+}
+
+template <typename SourceVariant>
+void RenderEngineTest::fillBufferColorTransformAndOutputDataspace() {
+    unordered_map<ui::Dataspace, ubyte4> dataspaceToColorMap;
+    dataspaceToColorMap[ui::Dataspace::V0_BT709] = {202, 0, 0, 255};
+    dataspaceToColorMap[ui::Dataspace::BT2020] = {192, 0, 0, 255};
+    dataspaceToColorMap[ui::Dataspace::ADOBE_RGB] = {202, 0, 0, 255};
+    ui::Dataspace customizedDataspace = static_cast<ui::Dataspace>(
+            ui::Dataspace::STANDARD_BT709 | ui::Dataspace::TRANSFER_GAMMA2_6 |
+            ui::Dataspace::RANGE_FULL);
+    dataspaceToColorMap[customizedDataspace] = {202, 0, 0, 255};
+    for (const auto& [outputDataspace, color] : dataspaceToColorMap) {
+        fillBufferWithColorTransformAndOutputDataspace<SourceVariant>(outputDataspace);
+        expectBufferColor(fullscreenRect(), color.r, color.g, color.b, color.a, 1);
+    }
 }
 
 template <typename SourceVariant>
@@ -1427,6 +1531,36 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_colorSource) {
     fillBufferColorTransform<ColorSourceVariant>();
 }
 
+TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_sourceDataspace) {
+    const auto& renderEngineFactory = GetParam();
+    // skip for non color management
+    if (!renderEngineFactory->useColorManagement()) {
+        return;
+    }
+    // skip for GLESRenderEngine
+    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
+        return;
+    }
+
+    initializeRenderEngine();
+    fillBufferColorTransformAndSourceDataspace<ColorSourceVariant>();
+}
+
+TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_outputDataspace) {
+    const auto& renderEngineFactory = GetParam();
+    // skip for non color management
+    if (!renderEngineFactory->useColorManagement()) {
+        return;
+    }
+    // skip for GLESRenderEngine
+    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
+        return;
+    }
+
+    initializeRenderEngine();
+    fillBufferColorTransformAndOutputDataspace<ColorSourceVariant>();
+}
+
 TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_colorSource) {
     initializeRenderEngine();
     fillBufferWithRoundedCorners<ColorSourceVariant>();
@@ -1507,6 +1641,36 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_opaqueBufferSource)
     fillBufferColorTransform<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
+TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_opaqueBufferSource) {
+    const auto& renderEngineFactory = GetParam();
+    // skip for non color management
+    if (!renderEngineFactory->useColorManagement()) {
+        return;
+    }
+    // skip for GLESRenderEngine
+    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
+        return;
+    }
+
+    initializeRenderEngine();
+    fillBufferColorTransformAndSourceDataspace<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
+TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_opaqueBufferSource) {
+    const auto& renderEngineFactory = GetParam();
+    // skip for non color management
+    if (!renderEngineFactory->useColorManagement()) {
+        return;
+    }
+    // skip for GLESRenderEngine
+    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
+        return;
+    }
+
+    initializeRenderEngine();
+    fillBufferColorTransformAndOutputDataspace<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
 TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_opaqueBufferSource) {
     initializeRenderEngine();
     fillBufferWithRoundedCorners<BufferSourceVariant<ForceOpaqueBufferVariant>>();
@@ -1585,6 +1749,36 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferLayerTransform_bufferSource) {
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_bufferSource) {
     initializeRenderEngine();
     fillBufferColorTransform<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_bufferSource) {
+    const auto& renderEngineFactory = GetParam();
+    // skip for non color management
+    if (!renderEngineFactory->useColorManagement()) {
+        return;
+    }
+    // skip for GLESRenderEngine
+    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
+        return;
+    }
+
+    initializeRenderEngine();
+    fillBufferColorTransformAndSourceDataspace<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_bufferSource) {
+    const auto& renderEngineFactory = GetParam();
+    // skip for non color management
+    if (!renderEngineFactory->useColorManagement()) {
+        return;
+    }
+    // skip for GLESRenderEngine
+    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
+        return;
+    }
+
+    initializeRenderEngine();
+    fillBufferColorTransformAndOutputDataspace<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_bufferSource) {
