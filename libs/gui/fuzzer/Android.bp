@@ -105,3 +105,13 @@ cc_fuzz {
         "libgui_fuzzer_defaults",
     ],
 }
+
+cc_fuzz {
+    name: "libgui_bufferQueue_fuzzer",
+    srcs: [
+        "libgui_bufferQueue_fuzzer.cpp",
+    ],
+    defaults: [
+        "libgui_fuzzer_defaults",
+    ],
+}
