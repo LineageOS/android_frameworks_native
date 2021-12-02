@@ -347,6 +347,10 @@ void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t
 
     auto requestedCompositionType = outputIndependentState->compositionType;
 
+    if (requestedCompositionType == hal::Composition::SOLID_COLOR && state.overrideInfo.buffer) {
+        requestedCompositionType = hal::Composition::DEVICE;
+    }
+
     // TODO(b/181172795): We now update geometry for all flattened layers. We should update it
     // only when the geometry actually changes
     const bool isOverridden =
@@ -359,13 +363,15 @@ void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t
     }
 
     writeOutputDependentPerFrameStateToHWC(hwcLayer.get());
-    writeOutputIndependentPerFrameStateToHWC(hwcLayer.get(), *outputIndependentState, skipLayer);
+    writeOutputIndependentPerFrameStateToHWC(hwcLayer.get(), *outputIndependentState,
+                                             requestedCompositionType, skipLayer);
 
     writeCompositionTypeToHWC(hwcLayer.get(), requestedCompositionType, isPeekingThrough,
                               skipLayer);
 
-    // Always set the layer color after setting the composition type.
-    writeSolidColorStateToHWC(hwcLayer.get(), *outputIndependentState);
+    if (requestedCompositionType == hal::Composition::SOLID_COLOR) {
+        writeSolidColorStateToHWC(hwcLayer.get(), *outputIndependentState);
+    }
 
     editState().hwc->stateOverridden = isOverridden;
     editState().hwc->layerSkipped = skipLayer;
@@ -477,7 +483,7 @@ void OutputLayer::writeOutputDependentPerFrameStateToHWC(HWC2::Layer* hwcLayer) 
 
 void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
         HWC2::Layer* hwcLayer, const LayerFECompositionState& outputIndependentState,
-        bool skipLayer) {
+        hal::Composition compositionType, bool skipLayer) {
     switch (auto error = hwcLayer->setColorTransform(outputIndependentState.colorTransform)) {
         case hal::Error::NONE:
             break;
@@ -501,7 +507,7 @@ void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
     }
 
     // Content-specific per-frame state
-    switch (outputIndependentState.compositionType) {
+    switch (compositionType) {
         case hal::Composition::SOLID_COLOR:
             // For compatibility, should be written AFTER the composition type.
             break;
@@ -521,10 +527,6 @@ void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
 
 void OutputLayer::writeSolidColorStateToHWC(HWC2::Layer* hwcLayer,
                                             const LayerFECompositionState& outputIndependentState) {
-    if (outputIndependentState.compositionType != hal::Composition::SOLID_COLOR) {
-        return;
-    }
-
     hal::Color color = {static_cast<uint8_t>(std::round(255.0f * outputIndependentState.color.r)),
                         static_cast<uint8_t>(std::round(255.0f * outputIndependentState.color.g)),
                         static_cast<uint8_t>(std::round(255.0f * outputIndependentState.color.b)),

@@ -746,6 +746,76 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleLayer) {
     EXPECT_EQ(nullptr, peekThroughLayer1);
 }
 
+TEST_F(FlattenerTest, flattenLayers_holePunchSingleColorLayer) {
+    mTestLayers[0]->outputLayerCompositionState.displayFrame = Rect(0, 0, 5, 5);
+    mTestLayers[0]->layerFECompositionState.color = half4(255.f, 0.f, 0.f, 255.f);
+    mTestLayers[0]->layerFECompositionState.buffer = nullptr;
+
+    // An opaque static background
+    auto& layerState0 = mTestLayers[0]->layerState;
+    const auto& overrideBuffer0 = layerState0->getOutputLayer()->getState().overrideInfo.buffer;
+
+    // a rounded updating layer
+    auto& layerState1 = mTestLayers[1]->layerState;
+    const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
+
+    EXPECT_CALL(*mTestLayers[1]->layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
+
+    std::vector<LayerFE::LayerSettings> clientCompositionList = {
+            LayerFE::LayerSettings{},
+    };
+    clientCompositionList[0].source.buffer.buffer = std::make_shared<
+            renderengine::ExternalTexture>(mTestLayers[1]->layerFECompositionState.buffer,
+                                           mRenderEngine,
+                                           renderengine::ExternalTexture::Usage::READABLE);
+    EXPECT_CALL(*mTestLayers[1]->layerFE, prepareClientCompositionList(_))
+            .WillOnce(Return(clientCompositionList));
+
+    const std::vector<const LayerState*> layers = {
+            layerState0.get(),
+            layerState1.get(),
+    };
+
+    initializeFlattener(layers);
+
+    // layer 1 satisfies every condition in CachedSet::requiresHolePunch()
+    mTime += 200ms;
+    layerState1->resetFramesSinceBufferUpdate(); // it is updating
+
+    initializeOverrideBuffer(layers);
+    // Expect no cache invalidation the first time (there's no cache yet)
+    EXPECT_EQ(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+
+    // This will render a CachedSet of layer 0. Though it is just one layer, it satisfies the
+    // exception that there would be a hole punch above it.
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+            .WillOnce(Return(ByMove(
+                    futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
+    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+
+    // We've rendered a CachedSet, but we haven't merged it in.
+    EXPECT_EQ(nullptr, overrideBuffer0);
+
+    // This time we merge the CachedSet in and we should still have only two sets.
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    initializeOverrideBuffer(layers);
+    EXPECT_EQ(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+
+    EXPECT_NE(nullptr, overrideBuffer0); // got overridden
+    EXPECT_EQ(nullptr, overrideBuffer1); // did not
+
+    // expect 0's peek though layer to be 1's output layer
+    const auto* peekThroughLayer0 =
+            layerState0->getOutputLayer()->getState().overrideInfo.peekThroughLayer;
+    const auto* peekThroughLayer1 =
+            layerState1->getOutputLayer()->getState().overrideInfo.peekThroughLayer;
+    EXPECT_EQ(&mTestLayers[1]->outputLayer, peekThroughLayer0);
+    EXPECT_EQ(nullptr, peekThroughLayer1);
+}
+
 TEST_F(FlattenerTest, flattenLayers_flattensBlurBehindRunIfFirstRun) {
     auto& layerState1 = mTestLayers[0]->layerState;
 
@@ -1189,6 +1259,62 @@ TEST_F(FlattenerTest, flattenLayers_skipsHDR2) {
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
     EXPECT_EQ(nullptr, overrideBuffer3);
+}
+
+TEST_F(FlattenerTest, flattenLayers_skipsColorLayers) {
+    auto& layerState1 = mTestLayers[0]->layerState;
+    const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
+    auto& layerState2 = mTestLayers[1]->layerState;
+    const auto& overrideBuffer2 = layerState2->getOutputLayer()->getState().overrideInfo.buffer;
+    auto& layerState3 = mTestLayers[2]->layerState;
+    const auto& overrideBuffer3 = layerState3->getOutputLayer()->getState().overrideInfo.buffer;
+    auto& layerState4 = mTestLayers[3]->layerState;
+    const auto& overrideBuffer4 = layerState4->getOutputLayer()->getState().overrideInfo.buffer;
+
+    // Rewrite the first two layers to just be a solid color.
+    mTestLayers[0]->layerFECompositionState.color = half4(255.f, 0.f, 0.f, 255.f);
+    mTestLayers[0]->layerFECompositionState.buffer = nullptr;
+    mTestLayers[1]->layerFECompositionState.color = half4(0.f, 255.f, 0.f, 255.f);
+    mTestLayers[1]->layerFECompositionState.buffer = nullptr;
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerState2.get(),
+            layerState3.get(),
+            layerState4.get(),
+    };
+
+    initializeFlattener(layers);
+
+    mTime += 200ms;
+    initializeOverrideBuffer(layers);
+    EXPECT_EQ(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+
+    // This will render a CachedSet.
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+            .WillOnce(Return(ByMove(
+                    futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
+    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+
+    // We've rendered a CachedSet, but we haven't merged it in.
+    EXPECT_EQ(nullptr, overrideBuffer1);
+    EXPECT_EQ(nullptr, overrideBuffer2);
+    EXPECT_EQ(nullptr, overrideBuffer3);
+    EXPECT_EQ(nullptr, overrideBuffer4);
+
+    // This time we merge the CachedSet in, so we have a new hash, and we should
+    // only have two sets.
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    initializeOverrideBuffer(layers);
+    EXPECT_NE(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+
+    EXPECT_EQ(nullptr, overrideBuffer1);
+    EXPECT_EQ(nullptr, overrideBuffer2);
+    EXPECT_EQ(overrideBuffer3, overrideBuffer4);
+    EXPECT_NE(nullptr, overrideBuffer4);
 }
 
 } // namespace
