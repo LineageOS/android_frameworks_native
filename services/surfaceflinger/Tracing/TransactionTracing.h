@@ -64,6 +64,8 @@ public:
     void setBufferSize(size_t bufferSizeInBytes);
     void onLayerAdded(BBinder* layerHandle, int layerId, const std::string& name, uint32_t flags,
                       int parentId);
+    void onMirrorLayerAdded(BBinder* layerHandle, int layerId, const std::string& name,
+                            int mirrorFromId);
     void onLayerRemoved(int layerId);
     void dump(std::string&) const;
     static constexpr auto CONTINUOUS_TRACING_BUFFER_SIZE = 512 * 1024;

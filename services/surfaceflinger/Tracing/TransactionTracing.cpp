@@ -227,7 +227,17 @@ void TransactionTracing::flush(int64_t vsyncId) {
 void TransactionTracing::onLayerAdded(BBinder* layerHandle, int layerId, const std::string& name,
                                       uint32_t flags, int parentId) {
     std::scoped_lock lock(mTraceLock);
-    TracingLayerCreationArgs args{layerId, name, flags, parentId};
+    TracingLayerCreationArgs args{layerId, name, flags, parentId, -1 /* mirrorFromId */};
+    mLayerHandles[layerHandle] = layerId;
+    proto::LayerCreationArgs protoArgs = TransactionProtoParser::toProto(args);
+    proto::LayerCreationArgs protoArgsCopy = protoArgs;
+    mCreatedLayers.push_back(protoArgs);
+}
+
+void TransactionTracing::onMirrorLayerAdded(BBinder* layerHandle, int layerId,
+                                            const std::string& name, int mirrorFromId) {
+    std::scoped_lock lock(mTraceLock);
+    TracingLayerCreationArgs args{layerId, name, 0 /* flags */, -1 /* parentId */, mirrorFromId};
     mLayerHandles[layerHandle] = layerId;
     mCreatedLayers.emplace_back(TransactionProtoParser::toProto(args));
 }
@@ -270,9 +280,7 @@ void TransactionTracing::updateStartingStateLocked(
     for (const proto::LayerCreationArgs& addedLayer : removedEntry.added_layers()) {
         TracingLayerState& startingState = mStartingStates[addedLayer.layer_id()];
         startingState.layerId = addedLayer.layer_id();
-        startingState.name = addedLayer.name();
-        startingState.layerCreationFlags = addedLayer.flags();
-        startingState.parentId = addedLayer.parent_id();
+        TransactionProtoParser::fromProto(addedLayer, startingState.args);
     }
 
     // Merge layer states to starting transaction state.
@@ -305,11 +313,13 @@ void TransactionTracing::addStartingStateToProtoLocked(proto::TransactionTraceFi
     proto::TransactionTraceEntry* entryProto = proto.add_entry();
     entryProto->set_elapsed_realtime_nanos(mStartingTimestamp);
     entryProto->set_vsync_id(0);
+    if (mStartingStates.size() == 0) {
+        return;
+    }
+
     entryProto->mutable_added_layers()->Reserve(static_cast<int32_t>(mStartingStates.size()));
     for (auto& [layerId, state] : mStartingStates) {
-        TracingLayerCreationArgs args{layerId, state.name, state.layerCreationFlags,
-                                      state.parentId};
-        entryProto->mutable_added_layers()->Add(TransactionProtoParser::toProto(args));
+        entryProto->mutable_added_layers()->Add(TransactionProtoParser::toProto(state.args));
     }
 
     proto::TransactionState transactionProto = TransactionProtoParser::toProto(mStartingStates);

@@ -769,13 +769,13 @@ private:
     status_t createBufferStateLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
                                     sp<Layer>* outLayer);
 
-    status_t createEffectLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
+    status_t createEffectLayer(const LayerCreationArgs& args, sp<IBinder>* outHandle,
                                sp<Layer>* outLayer);
 
-    status_t createContainerLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
+    status_t createContainerLayer(const LayerCreationArgs& args, sp<IBinder>* outHandle,
                                   sp<Layer>* outLayer);
 
-    status_t mirrorLayer(const sp<Client>& client, const sp<IBinder>& mirrorFromHandle,
+    status_t mirrorLayer(const LayerCreationArgs& args, const sp<IBinder>& mirrorFromHandle,
                          sp<IBinder>* outHandle, int32_t* outLayerId);
 
     // called when all clients have released all their references to

@@ -25,8 +25,9 @@ namespace android::surfaceflinger {
 struct TracingLayerCreationArgs {
     int32_t layerId;
     std::string name;
-    uint32_t flags;
-    int32_t parentId;
+    uint32_t flags = 0;
+    int32_t parentId = -1;
+    int32_t mirrorFromId = -1;
 };
 
 struct TracingLayerState : layer_state_t {
@@ -37,8 +38,7 @@ struct TracingLayerState : layer_state_t {
     int32_t parentId;
     int32_t relativeParentId;
     int32_t inputCropId;
-    std::string name;
-    uint32_t layerCreationFlags;
+    TracingLayerCreationArgs args;
 };
 
 class TransactionProtoParser {

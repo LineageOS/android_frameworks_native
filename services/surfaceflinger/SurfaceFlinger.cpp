@@ -4328,8 +4328,9 @@ uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& input
     return hasChanges ? eTraversalNeeded : 0;
 }
 
-status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>& mirrorFromHandle,
-                                     sp<IBinder>* outHandle, int32_t* outLayerId) {
+status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
+                                     const sp<IBinder>& mirrorFromHandle, sp<IBinder>* outHandle,
+                                     int32_t* outLayerId) {
     if (!mirrorFromHandle) {
         return NAME_NOT_FOUND;
     }
@@ -4342,7 +4343,6 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
         if (!mirrorFrom) {
             return NAME_NOT_FOUND;
         }
-        LayerCreationArgs args(this, client, "MirrorRoot", 0, LayerMetadata());
         status_t result = createContainerLayer(args, outHandle, &mirrorLayer);
         if (result != NO_ERROR) {
             return result;
@@ -4352,7 +4352,11 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
     }
 
     *outLayerId = mirrorLayer->sequence;
-    return addClientLayer(client, *outHandle, mirrorLayer /* layer */, nullptr /* parent */,
+    if (mTransactionTracingEnabled) {
+        mTransactionTracing.onMirrorLayerAdded((*outHandle)->localBinder(), mirrorLayer->sequence,
+                                               args.name, mirrorFrom->sequence);
+    }
+    return addClientLayer(args.client, *outHandle, mirrorLayer /* layer */, nullptr /* parent */,
                           false /* addAsRoot */, nullptr /* outTransformHint */);
 }
 
@@ -4414,8 +4418,10 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
     if (parentSp != nullptr) {
         parentId = parentSp->getSequence();
     }
-    mTransactionTracing.onLayerAdded((*outHandle)->localBinder(), layer->sequence, args.name,
-                                     args.flags, parentId);
+    if (mTransactionTracingEnabled) {
+        mTransactionTracing.onLayerAdded((*outHandle)->localBinder(), layer->sequence, args.name,
+                                         args.flags, parentId);
+    }
 
     setTransactionFlags(eTransactionNeeded);
     *outLayerId = layer->sequence;
@@ -4466,14 +4472,14 @@ status_t SurfaceFlinger::createBufferStateLayer(LayerCreationArgs& args, sp<IBin
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::createEffectLayer(LayerCreationArgs& args, sp<IBinder>* handle,
+status_t SurfaceFlinger::createEffectLayer(const LayerCreationArgs& args, sp<IBinder>* handle,
                                            sp<Layer>* outLayer) {
     *outLayer = getFactory().createEffectLayer(args);
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::createContainerLayer(LayerCreationArgs& args, sp<IBinder>* handle,
+status_t SurfaceFlinger::createContainerLayer(const LayerCreationArgs& args, sp<IBinder>* handle,
                                               sp<Layer>* outLayer) {
     *outLayer = getFactory().createContainerLayer(args);
     *handle = (*outLayer)->getHandle();
@@ -6652,7 +6658,9 @@ void SurfaceFlinger::onLayerDestroyed(Layer* layer) {
     if (!layer->isRemovedFromCurrentState()) {
         mScheduler->deregisterLayer(layer);
     }
-    mTransactionTracing.onLayerRemoved(layer->getSequence());
+    if (mTransactionTracingEnabled) {
+        mTransactionTracing.onLayerRemoved(layer->getSequence());
+    }
 }
 
 void SurfaceFlinger::onLayerUpdate() {
