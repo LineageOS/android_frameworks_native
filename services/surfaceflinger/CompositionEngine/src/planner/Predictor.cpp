@@ -114,6 +114,10 @@ std::optional<Plan> Plan::fromString(const std::string& string) {
                 plan.addLayerType(
                         aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR);
                 continue;
+            case 'A':
+                plan.addLayerType(aidl::android::hardware::graphics::composer3::Composition::
+                                          DISPLAY_DECORATION);
+                continue;
             default:
                 return std::nullopt;
         }
@@ -142,6 +146,10 @@ std::string to_string(const Plan& plan) {
                 break;
             case aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR:
                 result.append("S");
+                break;
+            case aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION:
+                // A for "Alpha", since the decoration is an alpha layer.
+                result.append("A");
                 break;
         }
     }
