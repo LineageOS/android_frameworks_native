@@ -53,6 +53,7 @@ bool LayerTracing::disable() {
     mEnabled = false;
     LayersTraceFileProto fileProto = createTraceFileProto();
     mBuffer->writeToFile(fileProto, FILE_NAME);
+    mBuffer->reset();
     return true;
 }
 

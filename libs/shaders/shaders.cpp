@@ -72,6 +72,70 @@ static void generateEOTF(ui::Dataspace dataspace, std::string& shader) {
                 }
             )");
             break;
+        case HAL_DATASPACE_TRANSFER_SMPTE_170M:
+            shader.append(R"(
+
+                float EOTF_sRGB(float srgb) {
+                    return srgb <= 0.08125 ? srgb / 4.50 : pow((srgb + 0.099) / 1.099, 0.45);
+                }
+
+                float3 EOTF_sRGB(float3 srgb) {
+                    return float3(EOTF_sRGB(srgb.r), EOTF_sRGB(srgb.g), EOTF_sRGB(srgb.b));
+                }
+
+                float3 EOTF(float3 srgb) {
+                    return sign(srgb.rgb) * EOTF_sRGB(abs(srgb.rgb));
+                }
+            )");
+            break;
+        case HAL_DATASPACE_TRANSFER_GAMMA2_2:
+            shader.append(R"(
+
+                float EOTF_sRGB(float srgb) {
+                    return pow(srgb, 2.2);
+                }
+
+                float3 EOTF_sRGB(float3 srgb) {
+                    return float3(EOTF_sRGB(srgb.r), EOTF_sRGB(srgb.g), EOTF_sRGB(srgb.b));
+                }
+
+                float3 EOTF(float3 srgb) {
+                    return sign(srgb.rgb) * EOTF_sRGB(abs(srgb.rgb));
+                }
+            )");
+            break;
+        case HAL_DATASPACE_TRANSFER_GAMMA2_6:
+            shader.append(R"(
+
+                float EOTF_sRGB(float srgb) {
+                    return pow(srgb, 2.6);
+                }
+
+                float3 EOTF_sRGB(float3 srgb) {
+                    return float3(EOTF_sRGB(srgb.r), EOTF_sRGB(srgb.g), EOTF_sRGB(srgb.b));
+                }
+
+                float3 EOTF(float3 srgb) {
+                    return sign(srgb.rgb) * EOTF_sRGB(abs(srgb.rgb));
+                }
+            )");
+            break;
+        case HAL_DATASPACE_TRANSFER_GAMMA2_8:
+            shader.append(R"(
+
+                float EOTF_sRGB(float srgb) {
+                    return pow(srgb, 2.8);
+                }
+
+                float3 EOTF_sRGB(float3 srgb) {
+                    return float3(EOTF_sRGB(srgb.r), EOTF_sRGB(srgb.g), EOTF_sRGB(srgb.b));
+                }
+
+                float3 EOTF(float3 srgb) {
+                    return sign(srgb.rgb) * EOTF_sRGB(abs(srgb.rgb));
+                }
+            )");
+            break;
         case HAL_DATASPACE_TRANSFER_SRGB:
         default:
             shader.append(R"(
@@ -239,6 +303,67 @@ static void generateOETF(ui::Dataspace dataspace, std::string& shader) {
                 }
             )");
             break;
+        case HAL_DATASPACE_TRANSFER_SMPTE_170M:
+            shader.append(R"(
+                float OETF_sRGB(float linear) {
+                    return linear <= 0.018 ?
+                            linear * 4.50 : (pow(linear, 0.45) * 1.099) - 0.099;
+                }
+
+                float3 OETF_sRGB(float3 linear) {
+                    return float3(OETF_sRGB(linear.r), OETF_sRGB(linear.g), OETF_sRGB(linear.b));
+                }
+
+                float3 OETF(float3 linear) {
+                    return sign(linear.rgb) * OETF_sRGB(abs(linear.rgb));
+                }
+            )");
+            break;
+        case HAL_DATASPACE_TRANSFER_GAMMA2_2:
+            shader.append(R"(
+                float OETF_sRGB(float linear) {
+                    return pow(linear, (1.0 / 2.2));
+                }
+
+                float3 OETF_sRGB(float3 linear) {
+                    return float3(OETF_sRGB(linear.r), OETF_sRGB(linear.g), OETF_sRGB(linear.b));
+                }
+
+                float3 OETF(float3 linear) {
+                    return sign(linear.rgb) * OETF_sRGB(abs(linear.rgb));
+                }
+            )");
+            break;
+        case HAL_DATASPACE_TRANSFER_GAMMA2_6:
+            shader.append(R"(
+                float OETF_sRGB(float linear) {
+                    return pow(linear, (1.0 / 2.6));
+                }
+
+                float3 OETF_sRGB(float3 linear) {
+                    return float3(OETF_sRGB(linear.r), OETF_sRGB(linear.g), OETF_sRGB(linear.b));
+                }
+
+                float3 OETF(float3 linear) {
+                    return sign(linear.rgb) * OETF_sRGB(abs(linear.rgb));
+                }
+            )");
+            break;
+        case HAL_DATASPACE_TRANSFER_GAMMA2_8:
+            shader.append(R"(
+                float OETF_sRGB(float linear) {
+                    return pow(linear, (1.0 / 2.8));
+                }
+
+                float3 OETF_sRGB(float3 linear) {
+                    return float3(OETF_sRGB(linear.r), OETF_sRGB(linear.g), OETF_sRGB(linear.b));
+                }
+
+                float3 OETF(float3 linear) {
+                    return sign(linear.rgb) * OETF_sRGB(abs(linear.rgb));
+                }
+            )");
+            break;
         case HAL_DATASPACE_TRANSFER_SRGB:
         default:
             shader.append(R"(
@@ -285,20 +410,31 @@ static void generateEffectiveOOTF(bool undoPremultipliedAlpha, std::string& shad
         }
     )");
 }
+
+// please keep in sync with toSkColorSpace function in renderengine/skia/ColorSpaces.cpp
 static ColorSpace toColorSpace(ui::Dataspace dataspace) {
     switch (dataspace & HAL_DATASPACE_STANDARD_MASK) {
         case HAL_DATASPACE_STANDARD_BT709:
             return ColorSpace::sRGB();
-            break;
         case HAL_DATASPACE_STANDARD_DCI_P3:
             return ColorSpace::DisplayP3();
-            break;
         case HAL_DATASPACE_STANDARD_BT2020:
+        case HAL_DATASPACE_STANDARD_BT2020_CONSTANT_LUMINANCE:
             return ColorSpace::BT2020();
-            break;
+        case HAL_DATASPACE_STANDARD_ADOBE_RGB:
+            return ColorSpace::AdobeRGB();
+        // TODO(b/208290320): BT601 format and variants return different primaries
+        case HAL_DATASPACE_STANDARD_BT601_625:
+        case HAL_DATASPACE_STANDARD_BT601_625_UNADJUSTED:
+        case HAL_DATASPACE_STANDARD_BT601_525:
+        case HAL_DATASPACE_STANDARD_BT601_525_UNADJUSTED:
+        // TODO(b/208290329): BT407M format returns different primaries
+        case HAL_DATASPACE_STANDARD_BT470M:
+        // TODO(b/208290904): FILM format returns different primaries
+        case HAL_DATASPACE_STANDARD_FILM:
+        case HAL_DATASPACE_STANDARD_UNSPECIFIED:
         default:
             return ColorSpace::sRGB();
-            break;
     }
 }
 
