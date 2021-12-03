@@ -2176,6 +2176,33 @@ TEST_F(InputDispatcherDisplayProjectionTest, InjectionInLogicalDisplaySpace) {
     secondWindow->assertNoEvents();
 }
 
+// Ensure that when a MotionEvent that has a custom transform is injected, the post-transformed
+// event should be treated as being in the logical display space.
+TEST_F(InputDispatcherDisplayProjectionTest, InjectionWithTransformInLogicalDisplaySpace) {
+    auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
+
+    const std::array<float, 9> matrix = {1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 0.0, 0.0, 1.0};
+    ui::Transform injectedEventTransform;
+    injectedEventTransform.set(matrix);
+    const vec2 expectedPoint{75, 55}; // The injected point in the logical display space.
+    const vec2 untransformedPoint = injectedEventTransform.inverse().transform(expectedPoint);
+
+    MotionEvent event = MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                .displayId(ADISPLAY_ID_DEFAULT)
+                                .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
+                                .pointer(PointerBuilder(/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                 .x(untransformedPoint.x)
+                                                 .y(untransformedPoint.y))
+                                .build();
+    event.transform(matrix);
+
+    injectMotionEvent(mDispatcher, event, INJECT_EVENT_TIMEOUT,
+                      InputEventInjectionSync::WAIT_FOR_RESULT);
+
+    firstWindow->consumeMotionDown();
+    secondWindow->assertNoEvents();
+}
+
 TEST_F(InputDispatcherDisplayProjectionTest, WindowGetsEventsInCorrectCoordinateSpace) {
     auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
 
