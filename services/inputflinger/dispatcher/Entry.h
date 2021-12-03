@@ -184,7 +184,8 @@ struct MotionEntry : EventEntry {
                 int32_t metaState, int32_t buttonState, MotionClassification classification,
                 int32_t edgeFlags, float xPrecision, float yPrecision, float xCursorPosition,
                 float yCursorPosition, nsecs_t downTime, uint32_t pointerCount,
-                const PointerProperties* pointerProperties, const PointerCoords* pointerCoords);
+                const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
+                float xOffset, float yOffset);
     std::string getDescription() const override;
 
     ~MotionEntry() override;
