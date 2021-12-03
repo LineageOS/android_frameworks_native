@@ -203,12 +203,13 @@ bool RefreshRateOverlay::createLayer() {
         return false;
     }
 
-    SurfaceComposerClient::Transaction t;
-    t.setFrameRate(mSurfaceControl, 0.0f,
-                   static_cast<int8_t>(Layer::FrameRateCompatibility::NoVote),
-                   static_cast<int8_t>(scheduler::Seamlessness::OnlySeamless));
-    t.setLayer(mSurfaceControl, INT32_MAX - 2);
-    t.apply();
+    SurfaceComposerClient::Transaction()
+            .setFrameRate(mSurfaceControl, 0.0f,
+                          static_cast<int8_t>(Layer::FrameRateCompatibility::NoVote),
+                          static_cast<int8_t>(scheduler::Seamlessness::OnlySeamless))
+            .setLayer(mSurfaceControl, INT32_MAX - 2)
+            .setTrustedOverlay(mSurfaceControl, true)
+            .apply();
 
     return true;
 }
