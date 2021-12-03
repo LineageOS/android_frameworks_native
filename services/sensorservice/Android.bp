@@ -78,6 +78,11 @@ cc_library_shared {
         "libsensorprivacy",
         "libpermission",
     ],
+
+    pgo: {
+        sampling: true,
+        profile_file: "sensorservice/libsensorservice.profdata",
+    },
 }
 
 cc_binary {
