@@ -4952,6 +4952,7 @@ void SurfaceFlinger::dumpDisplayProto(LayersTraceProto& layersTraceProto) const 
         });
         LayerProtoHelper::writeTransformToProto(display->getTransform(),
                                                 displayProto->mutable_transform());
+        displayProto->set_is_virtual(display->isVirtual());
     }
 }
 

@@ -378,7 +378,7 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarge
                                           motionEntry.yPrecision, motionEntry.xCursorPosition,
                                           motionEntry.yCursorPosition, motionEntry.downTime,
                                           motionEntry.pointerCount, motionEntry.pointerProperties,
-                                          pointerCoords.data());
+                                          pointerCoords.data(), 0 /* xOffset */, 0 /* yOffset */);
 
     if (motionEntry.injectionState) {
         combinedMotionEntry->injectionState = motionEntry.injectionState;
@@ -504,6 +504,12 @@ bool isConnectionResponsive(const Connection& connection) {
         }
     }
     return true;
+}
+
+vec2 transformWithoutTranslation(const ui::Transform& transform, float x, float y) {
+    const vec2 transformedXy = transform.transform(x, y);
+    const vec2 transformedOrigin = transform.transform(0, 0);
+    return transformedXy - transformedOrigin;
 }
 
 // Returns true if the event type passed as argument represents a user activity.
@@ -3757,7 +3763,7 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
                                           originalMotionEntry.xCursorPosition,
                                           originalMotionEntry.yCursorPosition,
                                           originalMotionEntry.downTime, splitPointerCount,
-                                          splitPointerProperties, splitPointerCoords);
+                                          splitPointerProperties, splitPointerCoords, 0, 0);
 
     if (originalMotionEntry.injectionState) {
         splitMotionEntry->injectionState = originalMotionEntry.injectionState;
@@ -3983,7 +3989,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
                                               args->xPrecision, args->yPrecision,
                                               args->xCursorPosition, args->yCursorPosition,
                                               args->downTime, args->pointerCount,
-                                              args->pointerProperties, args->pointerCoords);
+                                              args->pointerProperties, args->pointerCoords, 0, 0);
 
         if (args->id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
             IdGenerator::getSource(args->id) == IdGenerator::Source::INPUT_READER &&
@@ -4213,8 +4219,10 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
                                                   motionEvent.getRawXCursorPosition(),
                                                   motionEvent.getRawYCursorPosition(),
                                                   motionEvent.getDownTime(), uint32_t(pointerCount),
-                                                  pointerProperties, samplePointerCoords);
-            transformMotionEntryForInjectionLocked(*injectedEntry, motionEvent.getTransform());
+                                                  pointerProperties, samplePointerCoords,
+                                                  motionEvent.getXOffset(),
+                                                  motionEvent.getYOffset());
+            transformMotionEntryForInjectionLocked(*injectedEntry);
             injectedEntries.push(std::move(injectedEntry));
             for (size_t i = motionEvent.getHistorySize(); i > 0; i--) {
                 sampleEventTimes += 1;
@@ -4233,9 +4241,9 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
                                                       motionEvent.getRawYCursorPosition(),
                                                       motionEvent.getDownTime(),
                                                       uint32_t(pointerCount), pointerProperties,
-                                                      samplePointerCoords);
-                transformMotionEntryForInjectionLocked(*nextInjectedEntry,
-                                                       motionEvent.getTransform());
+                                                      samplePointerCoords, motionEvent.getXOffset(),
+                                                      motionEvent.getYOffset());
+                transformMotionEntryForInjectionLocked(*nextInjectedEntry);
                 injectedEntries.push(std::move(nextInjectedEntry));
             }
             break;
@@ -4399,28 +4407,35 @@ void InputDispatcher::setInjectionResult(EventEntry& entry,
     }
 }
 
-void InputDispatcher::transformMotionEntryForInjectionLocked(
-        MotionEntry& entry, const ui::Transform& injectedTransform) const {
+void InputDispatcher::transformMotionEntryForInjectionLocked(MotionEntry& entry) const {
+    const bool isRelativeMouseEvent = isFromSource(entry.source, AINPUT_SOURCE_MOUSE_RELATIVE);
+    if (!isRelativeMouseEvent && !isFromSource(entry.source, AINPUT_SOURCE_CLASS_POINTER)) {
+        return;
+    }
+
     // Input injection works in the logical display coordinate space, but the input pipeline works
     // display space, so we need to transform the injected events accordingly.
     const auto it = mDisplayInfos.find(entry.displayId);
     if (it == mDisplayInfos.end()) return;
-    const auto& transformToDisplay = it->second.transform.inverse() * injectedTransform;
+    const auto& transformToDisplay = it->second.transform.inverse();
 
     for (uint32_t i = 0; i < entry.pointerCount; i++) {
         PointerCoords& pc = entry.pointerCoords[i];
-        // Make a copy of the injected coords. We cannot change them in place because some of them
-        // are interdependent (for example, X coordinate might depend on the Y coordinate).
-        PointerCoords injectedCoords = entry.pointerCoords[i];
+        const auto xy = isRelativeMouseEvent
+                ? transformWithoutTranslation(transformToDisplay, pc.getX(), pc.getY())
+                : transformToDisplay.transform(pc.getXYValue());
+        pc.setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
+        pc.setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
 
-        BitSet64 bits(injectedCoords.bits);
-        while (!bits.isEmpty()) {
-            const auto axis = static_cast<int32_t>(bits.clearFirstMarkedBit());
-            const float value =
-                    MotionEvent::calculateTransformedAxisValue(axis, entry.source,
-                                                               transformToDisplay, injectedCoords);
-            pc.setAxisValue(axis, value);
-        }
+        // Axes with relative values never represent points on a screen, so they should never have
+        // translation applied. If a device does not report relative values, these values are always
+        // 0, and will remain unaffected by the following operation.
+        const auto rel =
+                transformWithoutTranslation(transformToDisplay,
+                                            pc.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
+                                            pc.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y));
+        pc.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, rel.x);
+        pc.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, rel.y);
     }
 }
 
