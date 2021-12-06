@@ -18,10 +18,11 @@
 #include <string>
 
 #include <fcntl.h>
+#include <pwd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/statvfs.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/xattr.h>
 
 #include <android-base/file.h>
@@ -32,8 +33,10 @@
 #include <cutils/properties.h>
 #include <gtest/gtest.h>
 
-#include "binder_test_utils.h"
+#include <android/content/pm/IPackageManagerNative.h>
+#include <binder/IServiceManager.h>
 #include "InstalldNativeService.h"
+#include "binder_test_utils.h"
 #include "dexopt.h"
 #include "globals.h"
 #include "utils.h"
@@ -41,6 +44,34 @@
 using android::base::StringPrintf;
 
 namespace android {
+std::string get_package_name(uid_t uid) {
+    sp<IServiceManager> sm = defaultServiceManager();
+    sp<content::pm::IPackageManagerNative> package_mgr;
+    if (sm.get() == nullptr) {
+        LOG(INFO) << "Cannot find service manager";
+    } else {
+        sp<IBinder> binder = sm->getService(String16("package_native"));
+        if (binder.get() == nullptr) {
+            LOG(INFO) << "Cannot find package_native";
+        } else {
+            package_mgr = interface_cast<content::pm::IPackageManagerNative>(binder);
+        }
+    }
+    // find package name
+    std::string pkg;
+    if (package_mgr != nullptr) {
+        std::vector<std::string> names;
+        binder::Status status = package_mgr->getNamesForUids({(int)uid}, &names);
+        if (!status.isOk()) {
+            LOG(INFO) << "getNamesForUids failed: %s", status.exceptionMessage().c_str();
+        } else {
+            if (!names[0].empty()) {
+                pkg = names[0].c_str();
+            }
+        }
+    }
+    return pkg;
+}
 namespace installd {
 
 constexpr const char* kTestUuid = "TEST";
@@ -248,7 +279,50 @@ TEST_F(ServiceTest, CalculateCache) {
     EXPECT_TRUE(create_cache_path(buf, "/path/to/file.apk", "isa"));
     EXPECT_EQ("/data/dalvik-cache/isa/path@to@file.apk@classes.dex", std::string(buf));
 }
+TEST_F(ServiceTest, GetAppSize) {
+    struct stat s;
 
+    std::string externalPicDir =
+            StringPrintf("%s/Pictures", create_data_media_path(nullptr, 0).c_str());
+    if (stat(externalPicDir.c_str(), &s) == 0) {
+        // fetch the appId from the uid of the external storage owning app
+        int32_t externalStorageAppId = multiuser_get_app_id(s.st_uid);
+        // Fetch Package Name for the external storage owning app uid
+        std::string pkg = get_package_name(s.st_uid);
+
+        std::vector<int64_t> externalStorageSize, externalStorageSizeAfterAddingExternalFile;
+        std::vector<int64_t> ceDataInodes;
+
+        std::vector<std::string> codePaths;
+        std::vector<std::string> packageNames;
+        // set up parameters
+        packageNames.push_back(pkg);
+        ceDataInodes.push_back(0);
+        // initialise the mounts
+        service->invalidateMounts();
+        // call the getAppSize to get the current size of the external storage owning app
+        service->getAppSize(std::nullopt, packageNames, 0, InstalldNativeService::FLAG_USE_QUOTA,
+                            externalStorageAppId, ceDataInodes, codePaths, &externalStorageSize);
+        // add a file with 20MB size to the external storage
+        std::string externalFileLocation =
+                StringPrintf("%s/Pictures/%s", getenv("EXTERNAL_STORAGE"), "External.jpg");
+        std::string externalFileContentCommand =
+                StringPrintf("dd if=/dev/zero of=%s bs=1M count=20", externalFileLocation.c_str());
+        system(externalFileContentCommand.c_str());
+        // call the getAppSize again to get the new size of the external storage owning app
+        service->getAppSize(std::nullopt, packageNames, 0, InstalldNativeService::FLAG_USE_QUOTA,
+                            externalStorageAppId, ceDataInodes, codePaths,
+                            &externalStorageSizeAfterAddingExternalFile);
+        // check that the size before adding the file and after should be the same, as the app size
+        // is not changed.
+        for (size_t i = 0; i < externalStorageSize.size(); i++) {
+            ASSERT_TRUE(externalStorageSize[i] == externalStorageSizeAfterAddingExternalFile[i]);
+        }
+        // remove the external file
+        std::string removeCommand = StringPrintf("rm -f %s", externalFileLocation.c_str());
+        system(removeCommand.c_str());
+    }
+}
 static bool mkdirs(const std::string& path, mode_t mode) {
     struct stat sb;
     if (stat(path.c_str(), &sb) != -1 && S_ISDIR(sb.st_mode)) {
