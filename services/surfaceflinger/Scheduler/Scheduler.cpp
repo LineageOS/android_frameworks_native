@@ -44,7 +44,6 @@
 #include "EventThread.h"
 #include "InjectVSyncSource.h"
 #include "OneShotTimer.h"
-#include "SchedulerUtils.h"
 #include "SurfaceFlingerProperties.h"
 #include "VSyncPredictor.h"
 #include "VSyncReactor.h"

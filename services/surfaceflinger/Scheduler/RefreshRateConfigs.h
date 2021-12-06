@@ -30,7 +30,6 @@
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
 #include "Scheduler/OneShotTimer.h"
-#include "Scheduler/SchedulerUtils.h"
 #include "Scheduler/StrongTyping.h"
 
 namespace android::scheduler {

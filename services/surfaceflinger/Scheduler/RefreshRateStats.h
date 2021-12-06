@@ -25,7 +25,6 @@
 
 #include <scheduler/Fps.h>
 
-#include "Scheduler/SchedulerUtils.h"
 #include "TimeStats/TimeStats.h"
 
 namespace android::scheduler {

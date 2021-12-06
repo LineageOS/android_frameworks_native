@@ -189,7 +189,6 @@ filegroup {
         "Scheduler/MessageQueue.cpp",
         "Scheduler/RefreshRateConfigs.cpp",
         "Scheduler/Scheduler.cpp",
-        "Scheduler/SchedulerUtils.cpp",
         "Scheduler/Timer.cpp",
         "Scheduler/VSyncDispatchTimerQueue.cpp",
         "Scheduler/VSyncPredictor.cpp",
