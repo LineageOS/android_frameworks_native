@@ -56,12 +56,11 @@ public:
 };
 
 struct MockVSyncDispatch : scheduler::VSyncDispatch {
-    MOCK_METHOD2(registerCallback,
-                 CallbackToken(const std::function<void(nsecs_t, nsecs_t, nsecs_t)>&, std::string));
-    MOCK_METHOD1(unregisterCallback, void(CallbackToken));
-    MOCK_METHOD2(schedule, scheduler::ScheduleResult(CallbackToken, ScheduleTiming));
-    MOCK_METHOD1(cancel, scheduler::CancelResult(CallbackToken token));
-    MOCK_CONST_METHOD1(dump, void(std::string&));
+    MOCK_METHOD(CallbackToken, registerCallback, (Callback, std::string), (override));
+    MOCK_METHOD(void, unregisterCallback, (CallbackToken), (override));
+    MOCK_METHOD(scheduler::ScheduleResult, schedule, (CallbackToken, ScheduleTiming), (override));
+    MOCK_METHOD(scheduler::CancelResult, cancel, (CallbackToken token), (override));
+    MOCK_METHOD(void, dump, (std::string&), (const, override));
 };
 
 struct MockTokenManager : frametimeline::TokenManager {

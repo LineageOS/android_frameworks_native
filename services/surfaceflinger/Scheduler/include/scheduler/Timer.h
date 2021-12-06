@@ -16,11 +16,14 @@
 
 #pragma once
 
-#include "TimeKeeper.h"
+#include <array>
+#include <functional>
+#include <mutex>
+#include <thread>
 
 #include <android-base/thread_annotations.h>
-#include <array>
-#include <thread>
+
+#include <scheduler/TimeKeeper.h>
 
 namespace android::scheduler {
 
@@ -28,13 +31,15 @@ class Timer : public TimeKeeper {
 public:
     Timer();
     ~Timer();
+
     nsecs_t now() const final;
 
     // NB: alarmAt and alarmCancel are threadsafe; with the last-returning function being effectual
     //     Most users will want to serialize thes calls so as to be aware of the timer state.
-    void alarmAt(std::function<void()> const& cb, nsecs_t time) final;
+    void alarmAt(std::function<void()>, nsecs_t time) final;
     void alarmCancel() final;
-    void dump(std::string& result) const final;
+
+    void dump(std::string&) const final;
 
 protected:
     // For unit testing
@@ -54,7 +59,7 @@ private:
 
     void reset() EXCLUDES(mMutex);
     void cleanup() REQUIRES(mMutex);
-    void setDebugState(DebugState state) EXCLUDES(mMutex);
+    void setDebugState(DebugState) EXCLUDES(mMutex);
 
     int mTimerFd = -1;
 

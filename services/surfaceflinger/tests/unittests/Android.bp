@@ -89,7 +89,6 @@ cc_test {
         "RegionSamplingTest.cpp",
         "TimeStatsTest.cpp",
         "FrameTracerTest.cpp",
-        "TimerTest.cpp",
         "TransactionApplicationTest.cpp",
         "TransactionFrameTracerTest.cpp",
         "TransactionProtoParserTest.cpp",
@@ -178,11 +177,12 @@ cc_test {
         "server_configurable_flags",
     ],
     header_libs: [
+        "android.hardware.graphics.composer3-command-buffer",
         "android.hardware.graphics.composer@2.1-command-buffer",
         "android.hardware.graphics.composer@2.2-command-buffer",
         "android.hardware.graphics.composer@2.3-command-buffer",
         "android.hardware.graphics.composer@2.4-command-buffer",
-        "android.hardware.graphics.composer3-command-buffer",
+        "libscheduler_test_headers",
         "libsurfaceflinger_headers",
     ],
 }

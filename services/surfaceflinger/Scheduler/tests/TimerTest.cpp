@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-#include "AsyncCallRecorder.h"
-#include "Scheduler/TimeKeeper.h"
-#include "Scheduler/Timer.h"
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-using namespace testing;
-using namespace std::literals;
+#include <scheduler/TimeKeeper.h>
+#include <scheduler/Timer.h>
+
+#include "AsyncCallRecorder.h"
 
 namespace android::scheduler {
 
@@ -35,7 +33,7 @@ public:
 };
 
 struct TimerTest : testing::Test {
-    static constexpr int mIterations = 20;
+    static constexpr int kIterations = 20;
 
     AsyncCallRecorder<void (*)()> mCallbackRecorder;
     TestableTimer mTimer;
@@ -44,17 +42,17 @@ struct TimerTest : testing::Test {
 };
 
 TEST_F(TimerTest, callsCallbackIfScheduledInPast) {
-    for (int i = 0; i < mIterations; i++) {
-        mTimer.alarmAt(std::bind(&TimerTest::timerCallback, this), systemTime() - 10'000'00);
+    for (int i = 0; i < kIterations; i++) {
+        mTimer.alarmAt(std::bind(&TimerTest::timerCallback, this), systemTime() - 1'000'000);
         EXPECT_TRUE(mCallbackRecorder.waitForCall().has_value());
         EXPECT_FALSE(mCallbackRecorder.waitForUnexpectedCall().has_value());
     }
 }
 
 TEST_F(TimerTest, recoversAfterEpollError) {
-    for (int i = 0; i < mIterations; i++) {
+    for (int i = 0; i < kIterations; i++) {
         mTimer.makeEpollError();
-        mTimer.alarmAt(std::bind(&TimerTest::timerCallback, this), systemTime() - 10'000'00);
+        mTimer.alarmAt(std::bind(&TimerTest::timerCallback, this), systemTime() - 1'000'000);
         EXPECT_TRUE(mCallbackRecorder.waitForCall().has_value());
         EXPECT_FALSE(mCallbackRecorder.waitForUnexpectedCall().has_value());
     }

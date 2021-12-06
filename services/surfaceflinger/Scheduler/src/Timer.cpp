@@ -16,7 +16,6 @@
 
 #undef LOG_TAG
 #define LOG_TAG "SchedulerTimer"
-#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <chrono>
 #include <cstdint>
@@ -30,12 +29,15 @@
 #include <log/log.h>
 #include <utils/Trace.h>
 
-#include "Timer.h"
+#include <scheduler/Timer.h>
 
 namespace android::scheduler {
 
-static constexpr size_t kReadPipe = 0;
-static constexpr size_t kWritePipe = 1;
+constexpr size_t kReadPipe = 0;
+constexpr size_t kWritePipe = 1;
+
+Clock::~Clock() = default;
+TimeKeeper::~TimeKeeper() = default;
 
 Timer::Timer() {
     reset();
@@ -104,13 +106,13 @@ nsecs_t Timer::now() const {
     return systemTime(SYSTEM_TIME_MONOTONIC);
 }
 
-void Timer::alarmAt(std::function<void()> const& cb, nsecs_t time) {
+void Timer::alarmAt(std::function<void()> callback, nsecs_t time) {
     std::lock_guard lock(mMutex);
     using namespace std::literals;
     static constexpr int ns_per_s =
             std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
 
-    mCallback = cb;
+    mCallback = std::move(callback);
     mExpectingCallback = true;
 
     struct itimerspec old_timer;

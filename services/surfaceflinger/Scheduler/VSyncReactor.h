@@ -16,14 +16,18 @@
 
 #pragma once
 
-#include <android-base/thread_annotations.h>
-#include <ui/FenceTime.h>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
-#include "TimeKeeper.h"
+
+#include <android-base/thread_annotations.h>
+#include <ui/FenceTime.h>
+
+#include <scheduler/TimeKeeper.h>
+
 #include "VsyncController.h"
+
 namespace android::scheduler {
 
 class Clock;

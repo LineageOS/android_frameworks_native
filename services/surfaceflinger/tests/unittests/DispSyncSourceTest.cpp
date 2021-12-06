@@ -37,12 +37,11 @@ using namespace testing;
 
 class MockVSyncDispatch : public scheduler::VSyncDispatch {
 public:
-    MOCK_METHOD2(registerCallback,
-                 CallbackToken(std::function<void(nsecs_t, nsecs_t, nsecs_t)> const&, std::string));
-    MOCK_METHOD1(unregisterCallback, void(CallbackToken));
-    MOCK_METHOD2(schedule, scheduler::ScheduleResult(CallbackToken, ScheduleTiming));
-    MOCK_METHOD1(cancel, scheduler::CancelResult(CallbackToken token));
-    MOCK_CONST_METHOD1(dump, void(std::string&));
+    MOCK_METHOD(CallbackToken, registerCallback, (Callback, std::string), (override));
+    MOCK_METHOD(void, unregisterCallback, (CallbackToken), (override));
+    MOCK_METHOD(scheduler::ScheduleResult, schedule, (CallbackToken, ScheduleTiming), (override));
+    MOCK_METHOD(scheduler::CancelResult, cancel, (CallbackToken), (override));
+    MOCK_METHOD(void, dump, (std::string&), (const, override));
 
     MockVSyncDispatch() {
         ON_CALL(*this, registerCallback)
