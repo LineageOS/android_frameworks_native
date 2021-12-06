@@ -25,6 +25,7 @@
 #include <math/HashCombine.h>
 #include <renderengine/DisplaySettings.h>
 #include <renderengine/RenderEngine.h>
+#include <ui/DebugUtils.h>
 #include <utils/Trace.h>
 
 #include <utils/Trace.h>
@@ -391,20 +392,29 @@ void CachedSet::dump(std::string& result) const {
 
     if (mLayers.size() == 1) {
         base::StringAppendF(&result, "    Layer [%s]\n", mLayers[0].getName().c_str());
-        base::StringAppendF(&result, "    Buffer %p", mLayers[0].getBuffer().get());
-        base::StringAppendF(&result, "    Protected [%s]",
+        if (auto* buffer = mLayers[0].getBuffer().get()) {
+            base::StringAppendF(&result, "    Buffer %p", buffer);
+            base::StringAppendF(&result, "    Format %s",
+                                decodePixelFormat(buffer->getPixelFormat()).c_str());
+        }
+        base::StringAppendF(&result, "    Protected [%s]\n",
                             mLayers[0].getState()->isProtected() ? "true" : "false");
     } else {
-        result.append("    Cached set of:");
+        result.append("    Cached set of:\n");
         for (const Layer& layer : mLayers) {
-            base::StringAppendF(&result, "\n      Layer [%s]", layer.getName().c_str());
-            base::StringAppendF(&result, "\n      Protected [%s]",
+            base::StringAppendF(&result, "      Layer [%s]\n", layer.getName().c_str());
+            if (auto* buffer = layer.getBuffer().get()) {
+                base::StringAppendF(&result, "       Buffer %p", buffer);
+                base::StringAppendF(&result, "    Format[%s]",
+                                    decodePixelFormat(buffer->getPixelFormat()).c_str());
+            }
+            base::StringAppendF(&result, "       Protected [%s]\n",
                                 layer.getState()->isProtected() ? "true" : "false");
         }
     }
 
-    base::StringAppendF(&result, "\n    Creation cost: %zd", getCreationCost());
-    base::StringAppendF(&result, "\n    Display cost: %zd\n", getDisplayCost());
+    base::StringAppendF(&result, "    Creation cost: %zd\n", getCreationCost());
+    base::StringAppendF(&result, "    Display cost: %zd\n", getDisplayCost());
 }
 
 } // namespace android::compositionengine::impl::planner
