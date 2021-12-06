@@ -225,6 +225,11 @@ cc_library_shared {
         "libui_headers",
     ],
     min_sdk_version: "29",
+
+    pgo: {
+        sampling: true,
+        profile_file: "libui/libui.profdata",
+    },
 }
 
 cc_library_headers {
