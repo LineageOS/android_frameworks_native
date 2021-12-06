@@ -54,7 +54,7 @@ cc_library_static {
     target: {
         windows: {
             enabled: true,
-        }
+        },
     },
 
     defaults: [
@@ -225,6 +225,11 @@ cc_library_shared {
         "libui_headers",
     ],
     min_sdk_version: "29",
+
+    pgo: {
+        sampling: true,
+        profile_file: "libui/libui.profdata",
+    },
 }
 
 cc_library_headers {
@@ -266,6 +271,6 @@ filegroup {
         "Rect.cpp",
         "Region.cpp",
         "PixelFormat.cpp",
-        "Transform.cpp"
+        "Transform.cpp",
     ],
 }
