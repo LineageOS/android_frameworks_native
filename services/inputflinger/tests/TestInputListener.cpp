@@ -100,6 +100,11 @@ void TestInputListener::assertNotifyCaptureWasCalled(
                                                           "to have been called."));
 }
 
+void TestInputListener::assertNotifyCaptureWasNotCalled() {
+    ASSERT_NO_FATAL_FAILURE(assertNotCalled<NotifyPointerCaptureChangedArgs>(
+            "notifyPointerCaptureChanged() should not be called."));
+}
+
 template <class NotifyArgsType>
 void TestInputListener::assertCalled(NotifyArgsType* outEventArgs, std::string message) {
     std::unique_lock<std::mutex> lock(mLock);
