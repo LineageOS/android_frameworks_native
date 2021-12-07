@@ -690,7 +690,8 @@ private:
     void updateLayerGeometry();
 
     void updateInputFlinger();
-    void notifyWindowInfos();
+    void buildWindowInfos(std::vector<gui::WindowInfo>& outWindowInfos,
+                          std::vector<gui::DisplayInfo>& outDisplayInfos);
     void commitInputWindowCommands() REQUIRES(mStateLock);
     void updateCursorAsync();
 
@@ -1294,8 +1295,8 @@ private:
     const float mInternalDisplayDensity;
     const float mEmulatedDisplayDensity;
 
-    sp<os::IInputFlinger> mInputFlinger;
     // Should only be accessed by the main thread.
+    sp<os::IInputFlinger> mInputFlinger;
     InputWindowCommands mInputWindowCommands;
 
     Hwc2::impl::PowerAdvisor mPowerAdvisor;

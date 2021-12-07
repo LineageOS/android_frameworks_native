@@ -1980,7 +1980,18 @@ static void collectManualExternalStatsForUser(const std::string& path, struct st
     }
     fts_close(fts);
 }
-
+static bool ownsExternalStorage(int32_t appId) {
+    //  Fetch external storage owner appid  and check if it is the same as the
+    //  current appId whose size is calculated
+    struct stat s;
+    auto _picDir = StringPrintf("%s/Pictures", create_data_media_path(nullptr, 0).c_str());
+    // check if the stat are present
+    if (stat(_picDir.c_str(), &s) == 0) {
+        // fetch the appId from the uid of the media app
+        return ((int32_t)multiuser_get_app_id(s.st_uid) == appId);
+    }
+    return false;
+}
 binder::Status InstalldNativeService::getAppSize(const std::optional<std::string>& uuid,
         const std::vector<std::string>& packageNames, int32_t userId, int32_t flags,
         int32_t appId, const std::vector<int64_t>& ceDataInodes,
@@ -2035,8 +2046,10 @@ binder::Status InstalldNativeService::getAppSize(const std::optional<std::string
         calculate_tree_size(obbCodePath, &extStats.codeSize);
     }
     ATRACE_END();
-
-    if (flags & FLAG_USE_QUOTA && appId >= AID_APP_START) {
+    // Calculating the app size of the external storage owning app in a manual way, since
+    // calculating it through quota apis also includes external media storage in the app storage
+    // numbers
+    if (flags & FLAG_USE_QUOTA && appId >= AID_APP_START && !ownsExternalStorage(appId)) {
         ATRACE_BEGIN("code");
         for (const auto& codePath : codePaths) {
             calculate_tree_size(codePath, &stats.codeSize, -1,
