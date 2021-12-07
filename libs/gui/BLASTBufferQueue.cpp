@@ -621,12 +621,6 @@ void BLASTBufferQueue::acquireAndReleaseBuffer() {
 
 void BLASTBufferQueue::flushAndWaitForFreeBuffer(std::unique_lock<std::mutex>& lock) {
     if (mWaitForTransactionCallback && mNumFrameAvailable > 0) {
-        if ((mSurfaceControlSwapCount > mProducerDisconnectCount) && mLogScSwap) {
-            BQA_LOGD("Expected producer disconnect sc swap count=%d bq disconnect count=%d",
-                     mSurfaceControlSwapCount, mProducerDisconnectCount);
-            mLogScSwap = false;
-        }
-
         // We are waiting on a previous sync's transaction callback so allow another sync
         // transaction to proceed.
         //
@@ -653,6 +647,11 @@ void BLASTBufferQueue::flushAndWaitForFreeBuffer(std::unique_lock<std::mutex>& l
 void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     ATRACE_CALL();
     std::unique_lock _lock{mMutex};
+    if ((mSurfaceControlSwapCount > mProducerDisconnectCount) && mLogScSwap) {
+        BQA_LOGD("Expected producer disconnect sc swap count=%d bq disconnect count=%d",
+                    mSurfaceControlSwapCount, mProducerDisconnectCount);
+        mLogScSwap = false;
+    }
 
     const bool syncTransactionSet = mSyncTransaction != nullptr;
     BQA_LOGV("onFrameAvailable-start syncTransactionSet=%s", boolToString(syncTransactionSet));
