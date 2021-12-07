@@ -35,6 +35,8 @@ uint32_t bytesPerPixel(PixelFormat format) {
         case PIXEL_FORMAT_RGBA_5551:
         case PIXEL_FORMAT_RGBA_4444:
             return 2;
+        case PIXEL_FORMAT_R_8:
+            return 1;
     }
     return 0;
 }
