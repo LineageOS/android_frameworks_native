@@ -74,6 +74,7 @@ class BLASTBufferQueue
     : public ConsumerBase::FrameAvailableListener, public BufferItemConsumer::BufferFreedListener
 {
 public:
+    BLASTBufferQueue(const std::string& name);
     BLASTBufferQueue(const std::string& name, const sp<SurfaceControl>& surface, int width,
                      int height, int32_t format);
 
