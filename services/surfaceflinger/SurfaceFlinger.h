@@ -1352,6 +1352,11 @@ private:
     const sp<WindowInfosListenerInvoker> mWindowInfosListenerInvoker;
 
     std::unique_ptr<FlagManager> mFlagManager;
+
+    // returns the framerate of the layer with the given sequence ID
+    float getLayerFramerate(nsecs_t now, int32_t id) const {
+        return mScheduler->getLayerFramerate(now, id);
+    }
 };
 
 } // namespace android

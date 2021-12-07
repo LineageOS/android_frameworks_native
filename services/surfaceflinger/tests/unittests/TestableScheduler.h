@@ -67,10 +67,15 @@ public:
 
     auto& mutableLayerHistory() { return mLayerHistory; }
 
-    size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS { return mLayerHistory.mLayerInfos.size(); }
-    size_t getNumActiveLayers() NO_THREAD_SAFETY_ANALYSIS { return mLayerHistory.mActiveLayersEnd; }
+    size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {
+        return mLayerHistory.mActiveLayerInfos.size() + mLayerHistory.mInactiveLayerInfos.size();
+    }
 
     auto refreshRateConfigs() { return holdRefreshRateConfigs(); }
+
+    size_t getNumActiveLayers() NO_THREAD_SAFETY_ANALYSIS {
+        return mLayerHistory.mActiveLayerInfos.size();
+    }
 
     void replaceTouchTimer(int64_t millis) {
         if (mTouchTimer) {
