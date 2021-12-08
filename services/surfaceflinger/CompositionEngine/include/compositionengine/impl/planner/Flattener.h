@@ -87,6 +87,13 @@ public:
         const bool mEnableHolePunch;
     };
 
+    // Constants not yet backed by a sysprop
+    // CachedSets that contain no more than this many layers may be considered inactive on the basis
+    // of FPS.
+    static constexpr int kNumLayersFpsConsideration = 1;
+    // Frames/Second threshold below which these CachedSets may be considered inactive.
+    static constexpr float kFpsActiveThreshold = 1.f;
+
     Flattener(renderengine::RenderEngine& renderEngine, const Tunables& tunables);
 
     void setDisplaySize(ui::Size size) {

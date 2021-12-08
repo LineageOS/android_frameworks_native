@@ -224,6 +224,22 @@ TEST_F(FlattenerTest, flattenLayers_ActiveLayersAreNotFlattened) {
     mFlattener->renderCachedSets(mOutputState, std::nullopt);
 }
 
+TEST_F(FlattenerTest, flattenLayers_ActiveLayersWithLowFpsAreFlattened) {
+    mTestLayers[0]->layerFECompositionState.fps = Flattener::kFpsActiveThreshold / 2;
+    mTestLayers[1]->layerFECompositionState.fps = Flattener::kFpsActiveThreshold;
+
+    auto& layerState1 = mTestLayers[0]->layerState;
+    auto& layerState2 = mTestLayers[1]->layerState;
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerState2.get(),
+    };
+
+    initializeFlattener(layers);
+    expectAllLayersFlattened(layers);
+}
+
 TEST_F(FlattenerTest, flattenLayers_basicFlatten) {
     auto& layerState1 = mTestLayers[0]->layerState;
     auto& layerState2 = mTestLayers[1]->layerState;

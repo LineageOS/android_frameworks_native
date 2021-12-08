@@ -245,6 +245,7 @@ public:
     bool isProtected() const {
         return getOutputLayer()->getLayerFE().getCompositionState()->hasProtectedContent;
     }
+    float getFps() const { return getOutputLayer()->getLayerFE().getCompositionState()->fps; }
 
     void dump(std::string& result) const;
     std::optional<std::string> compare(const LayerState& other) const;

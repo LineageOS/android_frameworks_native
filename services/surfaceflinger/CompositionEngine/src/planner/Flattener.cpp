@@ -409,9 +409,18 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
     bool runHasFirstLayer = false;
 
     for (auto currentSet = mLayers.cbegin(); currentSet != mLayers.cend(); ++currentSet) {
-        const bool layerIsInactive =
-                now - currentSet->getLastUpdate() > mTunables.mActiveLayerTimeout;
+        bool layerIsInactive = now - currentSet->getLastUpdate() > mTunables.mActiveLayerTimeout;
         const bool layerHasBlur = currentSet->hasBlurBehind();
+
+        // Layers should also be considered inactive whenever their framerate is lower than 1fps.
+        if (!layerIsInactive && currentSet->getLayerCount() == kNumLayersFpsConsideration) {
+            auto layerFps = currentSet->getFirstLayer().getState()->getFps();
+            if (layerFps > 0 && layerFps <= kFpsActiveThreshold) {
+                ATRACE_FORMAT("layer is considered inactive due to low FPS [%s] %f",
+                              currentSet->getFirstLayer().getName().c_str(), layerFps);
+                layerIsInactive = true;
+            }
+        }
 
         if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur) &&
             !currentSet->hasUnsupportedDataspace()) {

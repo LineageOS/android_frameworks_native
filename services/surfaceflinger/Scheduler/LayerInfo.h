@@ -178,6 +178,9 @@ public:
     // Returns a C string for tracing a vote
     const char* getTraceTag(LayerHistory::LayerVoteType type) const;
 
+    // Return the framerate of this layer.
+    Fps getFps(nsecs_t now) const;
+
     void onLayerInactive(nsecs_t now) {
         // Mark mFrameTimeValidSince to now to ignore all previous frame times.
         // We are not deleting the old frame to keep track of whether we should treat the first
