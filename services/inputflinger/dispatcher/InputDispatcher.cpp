@@ -6299,4 +6299,19 @@ void InputDispatcher::DispatcherWindowListener::onWindowInfosChanged(
     mDispatcher.onWindowInfosChanged(windowInfos, displayInfos);
 }
 
+void InputDispatcher::cancelCurrentTouch() {
+    {
+        std::scoped_lock _l(mLock);
+        ALOGD("Canceling all ongoing pointer gestures on all displays.");
+        CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
+                                   "cancel current touch");
+        synthesizeCancelationEventsForAllConnectionsLocked(options);
+
+        mTouchStatesByDisplay.clear();
+        mLastHoverWindowHandle.clear();
+    }
+    // Wake up poll loop since there might be work to do.
+    mLooper->wake();
+}
+
 } // namespace android::inputdispatcher
