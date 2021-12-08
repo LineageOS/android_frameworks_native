@@ -165,7 +165,7 @@ protected:
         mTracing->onLayerAdded(fakeLayerHandle->localBinder(), mParentLayerId, "parent",
                                123 /* flags */, -1 /* parentId */);
         const sp<IBinder> fakeChildLayerHandle = new BBinder();
-        mTracing->onLayerAdded(fakeChildLayerHandle->localBinder(), 2 /* layerId */, "child",
+        mTracing->onLayerAdded(fakeChildLayerHandle->localBinder(), mChildLayerId, "child",
                                456 /* flags */, mParentLayerId);
 
         // add some layer transaction
@@ -179,7 +179,8 @@ protected:
             transaction.states.add(layerState);
             ComposerState childState;
             childState.state.surface = fakeChildLayerHandle;
-            layerState.state.z = 43;
+            childState.state.what = layer_state_t::eLayerChanged;
+            childState.state.z = 43;
             transaction.states.add(childState);
             mTracing->addQueuedTransaction(transaction);
 
@@ -227,6 +228,7 @@ protected:
     }
 
     int mParentLayerId = 1;
+    int mChildLayerId = 2;
     int64_t mVsyncId = 0;
     int64_t VSYNC_ID_FIRST_LAYER_CHANGE;
     int64_t VSYNC_ID_SECOND_LAYER_CHANGE;
@@ -244,8 +246,11 @@ TEST_F(TransactionTracingLayerHandlingTest, addStartingState) {
     EXPECT_GT(proto.entry().size(), 0);
     EXPECT_GT(proto.entry(0).transactions().size(), 0);
     EXPECT_GT(proto.entry(0).added_layers().size(), 0);
-    EXPECT_GT(proto.entry(0).transactions(0).layer_changes().size(), 0);
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes().size(), 2);
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).layer_id(), mParentLayerId);
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).z(), 42);
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(1).layer_id(), mChildLayerId);
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(1).z(), 43);
 }
 
 TEST_F(TransactionTracingLayerHandlingTest, updateStartingState) {

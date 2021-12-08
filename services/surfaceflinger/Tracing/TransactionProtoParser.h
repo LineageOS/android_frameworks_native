@@ -51,7 +51,7 @@ public:
     static proto::TransactionState toProto(const TransactionState&, LayerHandleToIdFn getLayerIdFn,
                                            DisplayHandleToIdFn getDisplayIdFn);
     static proto::TransactionState toProto(
-            const std::unordered_map<int32_t /* layerId */, TracingLayerState>);
+            const std::map<int32_t /* layerId */, TracingLayerState>);
 
     static proto::LayerCreationArgs toProto(const TracingLayerCreationArgs& args);
 
