@@ -418,6 +418,8 @@ void Layer::prepareBasicGeometryCompositionState() {
 
     compositionState->blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
     compositionState->alpha = alpha;
+    compositionState->backgroundBlurRadius = drawingState.backgroundBlurRadius;
+    compositionState->blurRegions = drawingState.blurRegions;
     compositionState->stretchEffect = getStretchEffect();
 }
 
@@ -482,6 +484,11 @@ void Layer::preparePerFrameCompositionState() {
     // If there are no visible region changes, we still need to update blur parameters.
     compositionState->blurRegions = drawingState.blurRegions;
     compositionState->backgroundBlurRadius = drawingState.backgroundBlurRadius;
+
+    // Layer framerate is used in caching decisions.
+    // Retrieve it from the scheduler which maintains an instance of LayerHistory, and store it in
+    // LayerFECompositionState where it would be visible to Flattener.
+    compositionState->fps = mFlinger->getLayerFramerate(systemTime(), getSequence());
 }
 
 void Layer::prepareCursorCompositionState() {
@@ -932,7 +939,6 @@ bool Layer::setBackgroundBlurRadius(int backgroundBlurRadius) {
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
-
 bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix,
         bool allowNonRectPreservingTransforms) {
     ui::Transform t;

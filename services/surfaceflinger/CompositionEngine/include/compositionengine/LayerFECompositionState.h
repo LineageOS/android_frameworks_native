@@ -200,6 +200,9 @@ struct LayerFECompositionState {
     // The output-independent frame for the cursor
     Rect cursorFrame;
 
+    // framerate of the layer as measured by LayerHistory
+    float fps;
+
     virtual ~LayerFECompositionState();
 
     // Debugging

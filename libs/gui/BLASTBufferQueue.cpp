@@ -58,22 +58,13 @@ namespace android {
     ALOGE("[%s](f:%u,a:%u) " x, mName.c_str(), mNumFrameAvailable, mNumAcquired, ##__VA_ARGS__)
 
 void BLASTBufferItemConsumer::onDisconnect() {
-    {
-        Mutex::Autolock lock(mMutex);
-        mPreviouslyConnected = mCurrentlyConnected;
-        mCurrentlyConnected = false;
-        if (mPreviouslyConnected) {
-            mDisconnectEvents.push(mCurrentFrameNumber);
-        }
-        mFrameEventHistory.onDisconnect();
+    Mutex::Autolock lock(mMutex);
+    mPreviouslyConnected = mCurrentlyConnected;
+    mCurrentlyConnected = false;
+    if (mPreviouslyConnected) {
+        mDisconnectEvents.push(mCurrentFrameNumber);
     }
-
-    {
-        std::scoped_lock lock(mBufferQueueMutex);
-        if (mBLASTBufferQueue != nullptr) {
-            mBLASTBufferQueue->onProducerDisconnect();
-        }
-    }
+    mFrameEventHistory.onDisconnect();
 }
 
 void BLASTBufferItemConsumer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
@@ -211,11 +202,7 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
     }
 
     SurfaceComposerClient::Transaction t;
-    bool setBackpressureFlag = false;
-    if (!SurfaceControl::isSameSurface(mSurfaceControl, surface)) {
-        mSurfaceControlSwapCount++;
-        setBackpressureFlag = true;
-    }
+    const bool setBackpressureFlag = !SurfaceControl::isSameSurface(mSurfaceControl, surface);
     bool applyTransaction = false;
 
     // Always update the native object even though they might have the same layer handle, so we can
@@ -400,19 +387,6 @@ void BLASTBufferQueue::releaseBufferCallback(
     ATRACE_CALL();
     std::unique_lock _lock{mMutex};
     BQA_LOGV("releaseBufferCallback %s", id.to_string().c_str());
-
-    const auto it = mFreedBuffers.find(id);
-    if (it != mFreedBuffers.end()) {
-        mFreedBuffers.erase(it);
-        BQA_LOGV("releaseBufferCallback ignoring freed buffer %s", id.to_string().c_str());
-        return;
-    }
-
-    if (mFreedBuffers.size() != 0 && mLogMissingReleaseCallback) {
-        BQA_LOGD("Unexpected out of order buffer release. mFreedBuffer count=%d",
-                 static_cast<uint32_t>(mFreedBuffers.size()));
-        mLogMissingReleaseCallback = false;
-    }
 
     // Calculate how many buffers we need to hold before we release them back
     // to the buffer queue. This will prevent higher latency when we are running
@@ -621,12 +595,6 @@ void BLASTBufferQueue::acquireAndReleaseBuffer() {
 
 void BLASTBufferQueue::flushAndWaitForFreeBuffer(std::unique_lock<std::mutex>& lock) {
     if (mWaitForTransactionCallback && mNumFrameAvailable > 0) {
-        if ((mSurfaceControlSwapCount > mProducerDisconnectCount) && mLogScSwap) {
-            BQA_LOGD("Expected producer disconnect sc swap count=%d bq disconnect count=%d",
-                     mSurfaceControlSwapCount, mProducerDisconnectCount);
-            mLogScSwap = false;
-        }
-
         // We are waiting on a previous sync's transaction callback so allow another sync
         // transaction to proceed.
         //
@@ -1030,33 +998,6 @@ uint32_t BLASTBufferQueue::getLastTransformHint() const {
 uint64_t BLASTBufferQueue::getLastAcquiredFrameNum() {
     std::unique_lock _lock{mMutex};
     return mLastAcquiredFrameNumber;
-}
-
-// When the producer disconnects, all buffers in the queue will be freed. So clean up the bbq
-// acquire state and handle any pending release callbacks. If we do get a release callback for a
-// pending buffer for a disconnected queue, we cannot release the buffer back to the queue. So track
-// these separately and drop the release callbacks as they come.
-
-// Transaction callbacks are still expected to come in the order they were submitted regardless of
-// buffer queue state. So we can continue to handles the pending transactions and transaction
-// complete callbacks. When the queue is reconnected, the queue will increment the framenumbers
-// starting from the last queued framenumber.
-void BLASTBufferQueue::onProducerDisconnect() {
-    BQA_LOGV("onProducerDisconnect");
-    std::scoped_lock _lock{mMutex};
-    // reset counts since the queue has been disconnected and all buffers have been freed.
-    mNumFrameAvailable = 0;
-    mNumAcquired = 0;
-
-    // Track submitted buffers in a different container so we can handle any pending release buffer
-    // callbacks without affecting the BBQ acquire state.
-    mFreedBuffers.insert(mSubmitted.begin(), mSubmitted.end());
-    mSubmitted.clear();
-    mPendingRelease.clear();
-    mProducerDisconnectCount++;
-    mCallbackCV.notify_all();
-    mLogMissingReleaseCallback = true;
-    mLogScSwap = true;
 }
 
 } // namespace android

@@ -233,6 +233,11 @@ public:
         return mRefreshRateConfigs->getCurrentRefreshRate().getVsyncPeriod();
     }
 
+    // Returns the framerate of the layer with the given sequence ID
+    float getLayerFramerate(nsecs_t now, int32_t id) const {
+        return mLayerHistory.getLayerFramerate(now, id);
+    }
+
 private:
     friend class TestableScheduler;
 
