@@ -134,21 +134,22 @@ private:
         class Builder {
         private:
             std::vector<CachedSet>::const_iterator mStart;
-            std::vector<size_t> mLengths;
+            int32_t mNumSets = 0;
             const CachedSet* mHolePunchCandidate = nullptr;
             const CachedSet* mBlurringLayer = nullptr;
+            bool mBuilt = false;
 
         public:
             // Initializes a Builder a CachedSet to start from.
             // This start iterator must be an iterator for mLayers
             void init(const std::vector<CachedSet>::const_iterator& start) {
                 mStart = start;
-                mLengths.push_back(start->getLayerCount());
+                mNumSets = 1;
             }
 
             // Appends a new CachedSet to the end of the run
             // The provided length must be the size of the next sequential CachedSet in layers
-            void append(size_t length) { mLengths.push_back(length); }
+            void increment() { mNumSets++; }
 
             // Sets the hole punch candidate for the Run.
             void setHolePunchCandidate(const CachedSet* holePunchCandidate) {
@@ -161,19 +162,36 @@ private:
 
             // Builds a Run instance, if a valid Run may be built.
             std::optional<Run> validateAndBuild() {
-                if (mLengths.size() == 0) {
-                    return std::nullopt;
-                }
-                // Runs of length 1 which are hole punch candidates are allowed if the candidate is
-                // going to be used.
-                if (mLengths.size() == 1 &&
-                    (!mHolePunchCandidate || !(mHolePunchCandidate->requiresHolePunch()))) {
+                const bool built = mBuilt;
+                mBuilt = true;
+                if (mNumSets <= 0 || built) {
                     return std::nullopt;
                 }
 
+                const bool requiresHolePunch =
+                        mHolePunchCandidate && mHolePunchCandidate->requiresHolePunch();
+
+                if (!requiresHolePunch) {
+                    // If we don't require a hole punch, then treat solid color layers at the front
+                    // to be "cheap", so remove them from the candidate cached set.
+                    while (mNumSets > 1 && mStart->getLayerCount() == 1 &&
+                           mStart->getFirstLayer().getBuffer() == nullptr) {
+                        mStart++;
+                        mNumSets--;
+                    }
+
+                    // Only allow for single cached sets if a hole punch is required. If we're here,
+                    // then we don't require a hole punch, so don't build a run.
+                    if (mNumSets <= 1) {
+                        return std::nullopt;
+                    }
+                }
+
                 return Run(mStart,
-                           std::reduce(mLengths.cbegin(), mLengths.cend(), 0u,
-                                       [](size_t left, size_t right) { return left + right; }),
+                           std::reduce(mStart, mStart + mNumSets, 0u,
+                                       [](size_t length, const CachedSet& set) {
+                                           return length + set.getLayerCount();
+                                       }),
                            mHolePunchCandidate, mBlurringLayer);
             }
 
