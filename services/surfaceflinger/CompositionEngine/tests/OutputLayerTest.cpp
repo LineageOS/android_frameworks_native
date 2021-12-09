@@ -1109,22 +1109,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoIfPresent) {
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
 }
 
-TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoForSolidColorIfPresent) {
-    mLayerFEState.compositionType = Hwc2::IComposerClient::Composition::SOLID_COLOR;
-    includeOverrideInfo();
-
-    expectGeometryCommonCalls(kOverrideDisplayFrame, kOverrideSourceCrop, kOverrideBufferTransform,
-                              kOverrideBlendMode, kOverrideAlpha);
-    expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace, kOverrideVisibleRegion,
-                              kOverrideSurfaceDamage);
-    expectSetHdrMetadataAndBufferCalls(kOverrideHwcSlot, kOverrideBuffer, kOverrideFence);
-    expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
-
-    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
-                                 /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
-}
-
 TEST_F(OutputLayerWriteStateToHWCTest, previousOverriddenLayerSendsSurfaceDamage) {
     mLayerFEState.compositionType = Hwc2::IComposerClient::Composition::DEVICE;
     mOutputLayer.editState().hwc->stateOverridden = true;
