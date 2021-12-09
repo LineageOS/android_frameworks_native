@@ -425,18 +425,13 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
         if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur) &&
             !currentSet->hasUnsupportedDataspace()) {
             if (isPartOfRun) {
-                builder.append(currentSet->getLayerCount());
+                builder.increment();
             } else {
-                // Runs can't start with a non-buffer layer
-                if (currentSet->getFirstLayer().getBuffer() == nullptr) {
-                    ALOGV("[%s] Skipping initial non-buffer layer", __func__);
-                } else {
-                    builder.init(currentSet);
-                    if (firstLayer) {
-                        runHasFirstLayer = true;
-                    }
-                    isPartOfRun = true;
+                builder.init(currentSet);
+                if (firstLayer) {
+                    runHasFirstLayer = true;
                 }
+                isPartOfRun = true;
             }
         } else if (isPartOfRun) {
             builder.setHolePunchCandidate(&(*currentSet));
