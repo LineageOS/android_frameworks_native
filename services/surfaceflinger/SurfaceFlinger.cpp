@@ -4422,10 +4422,6 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
     if (parentLayer != nullptr) {
         addToRoot = false;
     }
-    result = addClientLayer(args.client, *outHandle, layer, parent, addToRoot, outTransformHint);
-    if (result != NO_ERROR) {
-        return result;
-    }
 
     int parentId = -1;
     // We can safely promote the layer in binder thread because we have a strong reference
@@ -4437,6 +4433,11 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
     if (mTransactionTracingEnabled) {
         mTransactionTracing.onLayerAdded((*outHandle)->localBinder(), layer->sequence, args.name,
                                          args.flags, parentId);
+    }
+
+    result = addClientLayer(args.client, *outHandle, layer, parent, addToRoot, outTransformHint);
+    if (result != NO_ERROR) {
+        return result;
     }
 
     setTransactionFlags(eTransactionNeeded);
@@ -4521,6 +4522,9 @@ void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer) {
     markLayerPendingRemovalLocked(layer);
     mBufferCountTracker.remove(handle);
     layer.clear();
+    if (mTransactionTracingEnabled) {
+        mTransactionTracing.onHandleRemoved(handle);
+    }
 }
 
 // ---------------------------------------------------------------------------
