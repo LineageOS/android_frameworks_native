@@ -17,6 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "gpuservice_unittest"
 
+#include <unistd.h>
 #include <cutils/properties.h>
 #include <gmock/gmock.h>
 #include <gpustats/GpuStats.h>
@@ -219,6 +220,51 @@ TEST_F(GpuStatsTest, canInsertTargetStatsAfterProperSetup) {
     EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr("cpuVulkanInUse = 1"));
     EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr("falsePrerotation = 1"));
     EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr("gles1InUse = 1"));
+}
+
+// Verify we always have the most recently used apps in mAppStats, even when we fill it.
+TEST_F(GpuStatsTest, canInsertMoreThanMaxNumAppRecords) {
+    constexpr int kNumExtraApps = 15;
+    static_assert(kNumExtraApps > GpuStats::APP_RECORD_HEADROOM);
+
+    // Insert stats for GpuStats::MAX_NUM_APP_RECORDS so we fill it up.
+    for (int i = 0; i < GpuStats::MAX_NUM_APP_RECORDS + kNumExtraApps; ++i) {
+        std::stringstream nameStream;
+        nameStream << "testapp" << "_" << i;
+        std::string fullPkgName = nameStream.str();
+
+        mGpuStats->insertDriverStats(BUILTIN_DRIVER_PKG_NAME, BUILTIN_DRIVER_VER_NAME,
+                                     BUILTIN_DRIVER_VER_CODE, BUILTIN_DRIVER_BUILD_TIME,
+                                     fullPkgName, VULKAN_VERSION, GpuStatsInfo::Driver::GL, true,
+                                     DRIVER_LOADING_TIME_1);
+        mGpuStats->insertTargetStats(fullPkgName, BUILTIN_DRIVER_VER_CODE,
+                                     GpuStatsInfo::Stats::CPU_VULKAN_IN_USE, 0);
+        mGpuStats->insertTargetStats(fullPkgName, BUILTIN_DRIVER_VER_CODE,
+                                     GpuStatsInfo::Stats::FALSE_PREROTATION, 0);
+        mGpuStats->insertTargetStats(fullPkgName, BUILTIN_DRIVER_VER_CODE,
+                                     GpuStatsInfo::Stats::GLES_1_IN_USE, 0);
+
+        EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr(fullPkgName.c_str()));
+        EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr("cpuVulkanInUse = 1"));
+        EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr("falsePrerotation = 1"));
+        EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr("gles1InUse = 1"));
+    }
+
+    // mAppStats purges GpuStats::APP_RECORD_HEADROOM apps removed everytime it's filled up.
+    int numPurges = kNumExtraApps / GpuStats::APP_RECORD_HEADROOM;
+    numPurges += (kNumExtraApps % GpuStats::APP_RECORD_HEADROOM) == 0 ? 0 : 1;
+
+    // Verify the remaining apps are present.
+    for (int i = numPurges * GpuStats::APP_RECORD_HEADROOM;
+         i < GpuStats::MAX_NUM_APP_RECORDS + kNumExtraApps;
+         ++i) {
+        std::stringstream nameStream;
+        // Add a newline to search for the exact package name.
+        nameStream << "testapp" << "_" << i << "\n";
+        std::string fullPkgName = nameStream.str();
+
+        EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr(fullPkgName.c_str()));
+    }
 }
 
 TEST_F(GpuStatsTest, canDumpAllBeforeClearAll) {

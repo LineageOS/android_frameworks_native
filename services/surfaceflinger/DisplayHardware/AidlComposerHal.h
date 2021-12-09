@@ -43,94 +43,9 @@ namespace android::Hwc2 {
 
 using AidlCommandWriterBase = aidl::android::hardware::graphics::composer3::CommandWriterBase;
 using AidlCommandReaderBase = aidl::android::hardware::graphics::composer3::CommandReaderBase;
+using aidl::android::hardware::graphics::composer3::command::CommandResultPayload;
 
 class AidlIComposerCallbackWrapper;
-
-class AidlCommandReader : public AidlCommandReaderBase {
-public:
-    ~AidlCommandReader();
-
-    // Parse and execute commands from the command queue.  The commands are
-    // actually return values from the server and will be saved in ReturnData.
-    int parse();
-
-    // Get and clear saved errors.
-    struct CommandError {
-        uint32_t location;
-        Error error;
-    };
-    std::vector<CommandError> takeErrors();
-
-    bool hasChanges(Display display, uint32_t* outNumChangedCompositionTypes,
-                    uint32_t* outNumLayerRequestMasks) const;
-
-    // Get and clear saved changed composition types.
-    void takeChangedCompositionTypes(Display display, std::vector<Layer>* outLayers,
-                                     std::vector<IComposerClient::Composition>* outTypes);
-
-    // Get and clear saved display requests.
-    void takeDisplayRequests(Display display, uint32_t* outDisplayRequestMask,
-                             std::vector<Layer>* outLayers,
-                             std::vector<uint32_t>* outLayerRequestMasks);
-
-    // Get and clear saved release fences.
-    void takeReleaseFences(Display display, std::vector<Layer>* outLayers,
-                           std::vector<int>* outReleaseFences);
-
-    // Get and clear saved present fence.
-    void takePresentFence(Display display, int* outPresentFence);
-
-    // Get what stage succeeded during PresentOrValidate: Present or Validate
-    void takePresentOrValidateStage(Display display, uint32_t* state);
-
-    // Get the client target properties requested by hardware composer.
-    void takeClientTargetProperty(Display display,
-                                  IComposerClient::ClientTargetProperty* outClientTargetProperty);
-
-private:
-    void resetData();
-
-    bool parseSelectDisplay(uint16_t length);
-    bool parseSetError(uint16_t length);
-    bool parseSetChangedCompositionTypes(uint16_t length);
-    bool parseSetDisplayRequests(uint16_t length);
-    bool parseSetPresentFence(uint16_t length);
-    bool parseSetReleaseFences(uint16_t length);
-    bool parseSetPresentOrValidateDisplayResult(uint16_t length);
-    bool parseSetClientTargetProperty(uint16_t length);
-
-    struct ReturnData {
-        uint32_t displayRequests = 0;
-
-        std::vector<Layer> changedLayers;
-        std::vector<IComposerClient::Composition> compositionTypes;
-
-        std::vector<Layer> requestedLayers;
-        std::vector<uint32_t> requestMasks;
-
-        int presentFence = -1;
-
-        std::vector<Layer> releasedLayers;
-        std::vector<int> releaseFences;
-
-        uint32_t presentOrValidateState;
-
-        // Composer 2.4 implementation can return a client target property
-        // structure to indicate the client target properties that hardware
-        // composer requests. The composer client must change the client target
-        // properties to match this request.
-        IComposerClient::ClientTargetProperty clientTargetProperty{PixelFormat::RGBA_8888,
-                                                                   Dataspace::UNKNOWN};
-    };
-
-    std::vector<CommandError> mErrors;
-    std::unordered_map<Display, ReturnData> mReturnData;
-
-    // When SELECT_DISPLAY is parsed, this is updated to point to the
-    // display's return data in mReturnData.  We use it to avoid repeated
-    // map lookups.
-    ReturnData* mCurrentReturnData;
-};
 
 // Composer is a wrapper to IComposer, a proxy to server-side composer.
 class AidlComposer final : public Hwc2::Composer {
@@ -284,13 +199,6 @@ public:
             IComposerClient::ClientTargetProperty* outClientTargetProperty) override;
 
 private:
-    class AidlCommandWriter : public AidlCommandWriterBase {
-    public:
-        explicit AidlCommandWriter(uint32_t initialMaxSize)
-              : AidlCommandWriterBase(initialMaxSize) {}
-        ~AidlCommandWriter() override {}
-    };
-
     // Many public functions above simply write a command into the command
     // queue to batch the calls.  validateDisplay and presentDisplay will call
     // this function to execute the command queue.
@@ -306,8 +214,8 @@ private:
     // 1. Tightly coupling this cache to the max size of BufferQueue
     // 2. Adding an additional slot for the layer caching feature in SurfaceFlinger (see: Planner.h)
     static const constexpr uint32_t kMaxLayerBufferCount = BufferQueue::NUM_BUFFER_SLOTS + 1;
-    AidlCommandWriter mWriter;
-    AidlCommandReader mReader;
+    AidlCommandWriterBase mWriter;
+    AidlCommandReaderBase mReader;
 
     // Aidl interface
     using AidlIComposer = aidl::android::hardware::graphics::composer3::IComposer;

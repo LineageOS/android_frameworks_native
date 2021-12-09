@@ -84,6 +84,38 @@ static void addLoadingTime(GpuStatsInfo::Driver driver, int64_t driverLoadingTim
     }
 }
 
+void GpuStats::purgeOldDriverStats() {
+    ALOG_ASSERT(mAppStats.size() == MAX_NUM_APP_RECORDS);
+
+    struct GpuStatsApp {
+        // Key is <app package name>+<driver version code>.
+        const std::string *appStatsKey = nullptr;
+        const std::chrono::time_point<std::chrono::system_clock> *lastAccessTime = nullptr;
+    };
+    std::vector<GpuStatsApp> gpuStatsApps(MAX_NUM_APP_RECORDS);
+
+    // Create a list of pointers to package names and their last access times.
+    int index = 0;
+    for (const auto & [appStatsKey, gpuStatsAppInfo] : mAppStats) {
+        GpuStatsApp &gpuStatsApp = gpuStatsApps[index];
+        gpuStatsApp.appStatsKey = &appStatsKey;
+        gpuStatsApp.lastAccessTime = &gpuStatsAppInfo.lastAccessTime;
+        ++index;
+    }
+
+    // Sort the list with the oldest access times at the front.
+    std::sort(gpuStatsApps.begin(), gpuStatsApps.end(), [](GpuStatsApp a, GpuStatsApp b) -> bool {
+        return *a.lastAccessTime < *b.lastAccessTime;
+    });
+
+    // Remove the oldest packages from mAppStats to make room for new apps.
+    for (int i = 0; i < APP_RECORD_HEADROOM; ++i) {
+        mAppStats.erase(*gpuStatsApps[i].appStatsKey);
+        gpuStatsApps[i].appStatsKey = nullptr;
+        gpuStatsApps[i].lastAccessTime = nullptr;
+    }
+}
+
 void GpuStats::insertDriverStats(const std::string& driverPackageName,
                                  const std::string& driverVersionName, uint64_t driverVersionCode,
                                  int64_t driverBuildTime, const std::string& appPackageName,
@@ -123,19 +155,22 @@ void GpuStats::insertDriverStats(const std::string& driverPackageName,
     const std::string appStatsKey = appPackageName + std::to_string(driverVersionCode);
     if (!mAppStats.count(appStatsKey)) {
         if (mAppStats.size() >= MAX_NUM_APP_RECORDS) {
-            ALOGV("GpuStatsAppInfo has reached maximum size. Ignore new stats.");
-            return;
+            ALOGV("GpuStatsAppInfo has reached maximum size. Removing old stats to make room.");
+            purgeOldDriverStats();
         }
 
         GpuStatsAppInfo appInfo;
         addLoadingTime(driver, driverLoadingTime, &appInfo);
         appInfo.appPackageName = appPackageName;
         appInfo.driverVersionCode = driverVersionCode;
+        appInfo.angleInUse = driverPackageName == "angle";
+        appInfo.lastAccessTime = std::chrono::system_clock::now();
         mAppStats.insert({appStatsKey, appInfo});
-        return;
+    } else {
+        mAppStats[appStatsKey].angleInUse = driverPackageName == "angle";
+        addLoadingTime(driver, driverLoadingTime, &mAppStats[appStatsKey]);
+        mAppStats[appStatsKey].lastAccessTime = std::chrono::system_clock::now();
     }
-
-    addLoadingTime(driver, driverLoadingTime, &mAppStats[appStatsKey]);
 }
 
 void GpuStats::insertTargetStats(const std::string& appPackageName,
@@ -311,7 +346,8 @@ AStatsManager_PullAtomCallbackReturn GpuStats::pullAppInfoAtom(AStatsEventList* 
                                               angleDriverBytes.length()),
                     ele.second.cpuVulkanInUse,
                     ele.second.falsePrerotation,
-                    ele.second.gles1InUse);
+                    ele.second.gles1InUse,
+                    ele.second.angleInUse);
         }
     }
 
