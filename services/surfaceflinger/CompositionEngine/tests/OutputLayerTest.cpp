@@ -1093,6 +1093,22 @@ TEST_F(OutputLayerWriteStateToHWCTest, overriddenSkipLayerDoesNotSendBuffer) {
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
 }
 
+TEST_F(OutputLayerWriteStateToHWCTest, overriddenSkipLayerForSolidColorDoesNotSendBuffer) {
+    mLayerFEState.compositionType = Hwc2::IComposerClient::Composition::SOLID_COLOR;
+    includeOverrideInfo();
+
+    expectGeometryCommonCalls(kOverrideDisplayFrame, kOverrideSourceCrop, kOverrideBufferTransform,
+                              kOverrideBlendMode, kSkipAlpha);
+    expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace, kOverrideVisibleRegion,
+                              kOverrideSurfaceDamage);
+    expectSetHdrMetadataAndBufferCalls();
+    expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
+    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
+
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ true, 0,
+                                 /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
+}
+
 TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoIfPresent) {
     mLayerFEState.compositionType = Hwc2::IComposerClient::Composition::DEVICE;
     includeOverrideInfo();
