@@ -3145,8 +3145,8 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_KeyEvent) {
     const VerifiedKeyEvent& verifiedKey = static_cast<const VerifiedKeyEvent&>(*verified);
 
     ASSERT_EQ(keyArgs.action, verifiedKey.action);
-    ASSERT_EQ(keyArgs.downTime, verifiedKey.downTimeNanos);
     ASSERT_EQ(keyArgs.flags & VERIFIED_KEY_EVENT_FLAGS, verifiedKey.flags);
+    ASSERT_EQ(keyArgs.downTime, verifiedKey.downTimeNanos);
     ASSERT_EQ(keyArgs.keyCode, verifiedKey.keyCode);
     ASSERT_EQ(keyArgs.scanCode, verifiedKey.scanCode);
     ASSERT_EQ(keyArgs.metaState, verifiedKey.metaState);
@@ -3194,8 +3194,8 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
     EXPECT_EQ(rawXY.x, verifiedMotion.rawX);
     EXPECT_EQ(rawXY.y, verifiedMotion.rawY);
     EXPECT_EQ(motionArgs.action & AMOTION_EVENT_ACTION_MASK, verifiedMotion.actionMasked);
-    EXPECT_EQ(motionArgs.downTime, verifiedMotion.downTimeNanos);
     EXPECT_EQ(motionArgs.flags & VERIFIED_MOTION_EVENT_FLAGS, verifiedMotion.flags);
+    EXPECT_EQ(motionArgs.downTime, verifiedMotion.downTimeNanos);
     EXPECT_EQ(motionArgs.metaState, verifiedMotion.metaState);
     EXPECT_EQ(motionArgs.buttonState, verifiedMotion.buttonState);
 }
@@ -4179,7 +4179,7 @@ protected:
         }
     }
 
-    void touchAndAssertPositions(int32_t action, std::vector<PointF> touchedPoints,
+    void touchAndAssertPositions(int32_t action, const std::vector<PointF>& touchedPoints,
                                  std::vector<PointF> expectedPoints) {
         NotifyMotionArgs motionArgs = generateMotionArgs(action, AINPUT_SOURCE_TOUCHSCREEN,
                                                          ADISPLAY_ID_DEFAULT, touchedPoints);
