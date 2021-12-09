@@ -73,8 +73,9 @@ private:
     void writeOutputIndependentGeometryStateToHWC(HWC2::Layer*, const LayerFECompositionState&,
                                                   bool skipLayer);
     void writeOutputDependentPerFrameStateToHWC(HWC2::Layer*);
-    void writeOutputIndependentPerFrameStateToHWC(HWC2::Layer*, const LayerFECompositionState&,
-                                                  bool skipLayer);
+    void writeOutputIndependentPerFrameStateToHWC(
+            HWC2::Layer*, const LayerFECompositionState&,
+            Hwc2::IComposerClient::Composition compositionType, bool skipLayer);
     void writeSolidColorStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
     void writeSidebandStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
     void writeBufferStateToHWC(HWC2::Layer*, const LayerFECompositionState&, bool skipLayer);
