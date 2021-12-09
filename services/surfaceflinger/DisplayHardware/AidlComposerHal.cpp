@@ -442,12 +442,15 @@ Error AidlComposer::getDisplayRequests(Display display, uint32_t* outDisplayRequ
 }
 
 Error AidlComposer::getDozeSupport(Display display, bool* outSupport) {
+    std::vector<AidlDisplayCapability> capabilities;
     const auto status =
-            mAidlComposerClient->getDozeSupport(translate<int64_t>(display), outSupport);
+            mAidlComposerClient->getDisplayCapabilities(translate<int64_t>(display), &capabilities);
     if (!status.isOk()) {
-        ALOGE("getDozeSupport failed %s", status.getDescription().c_str());
+        ALOGE("getDisplayCapabilities failed %s", status.getDescription().c_str());
         return static_cast<Error>(status.getServiceSpecificError());
     }
+    *outSupport = std::find(capabilities.begin(), capabilities.end(),
+                            AidlDisplayCapability::DOZE) != capabilities.end();
     return Error::NONE;
 }
 
