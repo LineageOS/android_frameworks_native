@@ -3122,9 +3122,6 @@ void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
             const auto& [secure, transform] = it->second;
             isSecure = secure;
             displayTransform = transform;
-        } else {
-            ALOGE("No input-enabled display found for layer `%s` on layer stack id: %d",
-                  layer->getDebugName(), layerStackId);
         }
 
         outWindowInfos.push_back(layer->fillInputInfo(displayTransform, isSecure));
