@@ -161,7 +161,7 @@ struct LayerFECompositionState {
     // The buffer and related state
     sp<GraphicBuffer> buffer;
     int bufferSlot{BufferQueue::INVALID_BUFFER_SLOT};
-    sp<Fence> acquireFence;
+    sp<Fence> acquireFence = Fence::NO_FENCE;
     Region surfaceDamage;
 
     // The handle to use for a sideband stream for this layer
