@@ -39,6 +39,7 @@ public:
     MOCK_METHOD1(setLayerCachingEnabled, void(bool));
     MOCK_METHOD1(setLayerCachingTexturePoolEnabled, void(bool));
     MOCK_METHOD3(setProjection, void(ui::Rotation, const Rect&, const Rect&));
+    MOCK_METHOD1(setNextBrightness, void(float));
     MOCK_METHOD1(setDisplaySize, void(const ui::Size&));
     MOCK_CONST_METHOD0(getTransformHint, ui::Transform::RotationFlags());
 

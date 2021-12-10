@@ -133,6 +133,10 @@ struct OutputCompositionState {
     // White point of the client target
     float clientTargetWhitePointNits{-1.f};
 
+    // Display brightness that will take effect this frame.
+    // This is slightly distinct from nits, in that nits cannot be passed to hw composer.
+    std::optional<float> displayBrightness = std::nullopt;
+
     // Debugging
     void dump(std::string& result) const;
 };

@@ -246,6 +246,7 @@ bool AidlComposer::isSupported(OptionalFeature feature) const {
     switch (feature) {
         case OptionalFeature::RefreshRateSwitching:
         case OptionalFeature::ExpectedPresentTime:
+        case OptionalFeature::DisplayBrightnessCommand:
             return true;
     }
 }
@@ -906,13 +907,24 @@ Error AidlComposer::setLayerPerFrameMetadataBlobs(
     return Error::NONE;
 }
 
-Error AidlComposer::setDisplayBrightness(Display display, float brightness) {
-    const auto status =
-            mAidlComposerClient->setDisplayBrightness(translate<int64_t>(display), brightness);
-    if (!status.isOk()) {
-        ALOGE("setDisplayBrightness failed %s", status.getDescription().c_str());
-        return static_cast<Error>(status.getServiceSpecificError());
+Error AidlComposer::setDisplayBrightness(Display display, float brightness,
+                                         const DisplayBrightnessOptions& options) {
+    if (!options.sdrDimmingEnabled) {
+        const auto status =
+                mAidlComposerClient->setDisplayBrightness(translate<int64_t>(display), brightness);
+        if (!status.isOk()) {
+            ALOGE("setDisplayBrightness failed %s", status.getDescription().c_str());
+            return static_cast<Error>(status.getServiceSpecificError());
+        }
+        return Error::NONE;
     }
+
+    mWriter.setDisplayBrightness(translate<int64_t>(display), brightness);
+
+    if (options.applyImmediately) {
+        return execute();
+    }
+
     return Error::NONE;
 }
 
