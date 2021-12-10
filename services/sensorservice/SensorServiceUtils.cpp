@@ -58,6 +58,9 @@ size_t eventSizeBySensorType(int type) {
         case SENSOR_TYPE_HINGE_ANGLE:
             return 1;
 
+        case SENSOR_TYPE_HEAD_TRACKER:
+            return 7;
+
         default:
             return 3;
     }
