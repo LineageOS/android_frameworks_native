@@ -555,8 +555,10 @@ Error Display::setContentType(ContentType contentType) {
     return static_cast<Error>(intError);
 }
 
-Error Display::getClientTargetProperty(ClientTargetProperty* outClientTargetProperty) {
-    const auto error = mComposer.getClientTargetProperty(mId, outClientTargetProperty);
+Error Display::getClientTargetProperty(ClientTargetProperty* outClientTargetProperty,
+                                       float* outWhitePointNits) {
+    const auto error =
+            mComposer.getClientTargetProperty(mId, outClientTargetProperty, outWhitePointNits);
     return static_cast<Error>(error);
 }
 
@@ -916,6 +918,16 @@ Error Layer::setLayerGenericMetadata(const std::string& name, bool mandatory,
 
     auto intError =
             mComposer.setLayerGenericMetadata(mDisplay->getId(), mId, name, mandatory, value);
+    return static_cast<Error>(intError);
+}
+
+// AIDL HAL
+Error Layer::setWhitePointNits(float whitePointNits) {
+    if (CC_UNLIKELY(!mDisplay)) {
+        return Error::BAD_DISPLAY;
+    }
+
+    auto intError = mComposer.setLayerWhitePointNits(mDisplay->getId(), mId, whitePointNits);
     return static_cast<Error>(intError);
 }
 

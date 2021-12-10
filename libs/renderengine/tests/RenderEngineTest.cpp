@@ -208,6 +208,21 @@ public:
                                                  renderengine::ExternalTexture::Usage::WRITEABLE);
     }
 
+    std::shared_ptr<renderengine::ExternalTexture> allocateAndFillSourceBuffer(uint32_t width,
+                                                                               uint32_t height,
+                                                                               ubyte4 color) {
+        const auto buffer = allocateSourceBuffer(width, height);
+        uint8_t* pixels;
+        buffer->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                  reinterpret_cast<void**>(&pixels));
+        pixels[0] = color.r;
+        pixels[1] = color.g;
+        pixels[2] = color.b;
+        pixels[3] = color.a;
+        buffer->getBuffer()->unlock();
+        return buffer;
+    }
+
     RenderEngineTest() {
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
@@ -2193,6 +2208,133 @@ TEST_P(RenderEngineTest, testDisableBlendingBuffer) {
     std::vector<renderengine::LayerSettings> layers{redLayer, greenLayer};
     invokeDraw(display, layers);
     expectBufferColor(rect, 0, 128, 0, 128);
+}
+
+TEST_P(RenderEngineTest, testDimming) {
+    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        return;
+    }
+    initializeRenderEngine();
+
+    const auto displayRect = Rect(3, 1);
+    const renderengine::DisplaySettings display{
+            .physicalDisplay = displayRect,
+            .clip = displayRect,
+            .outputDataspace = ui::Dataspace::V0_SRGB_LINEAR,
+            .targetLuminanceNits = 1000.f,
+    };
+
+    const auto greenBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(0, 255, 0, 255));
+    const auto blueBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(0, 0, 255, 255));
+    const auto redBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(255, 0, 0, 255));
+
+    const renderengine::LayerSettings greenLayer{
+            .geometry.boundaries = FloatRect(0.f, 0.f, 1.f, 1.f),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = greenBuffer,
+                                            .usePremultipliedAlpha = true,
+                                    },
+                    },
+            .alpha = 1.0f,
+            .sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR,
+            .whitePointNits = 200.f,
+    };
+
+    const renderengine::LayerSettings blueLayer{
+            .geometry.boundaries = FloatRect(1.f, 0.f, 2.f, 1.f),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = blueBuffer,
+                                            .usePremultipliedAlpha = true,
+                                    },
+                    },
+            .alpha = 1.0f,
+            .sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR,
+            .whitePointNits = 1000.f / 51.f,
+    };
+
+    const renderengine::LayerSettings redLayer{
+            .geometry.boundaries = FloatRect(2.f, 0.f, 3.f, 1.f),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = redBuffer,
+                                            .usePremultipliedAlpha = true,
+                                    },
+                    },
+            .alpha = 1.0f,
+            .sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR,
+            // When the white point is not set for a layer, just ignore it and treat it as the same
+            // as the max layer
+            .whitePointNits = -1.f,
+    };
+
+    std::vector<renderengine::LayerSettings> layers{greenLayer, blueLayer, redLayer};
+    invokeDraw(display, layers);
+
+    expectBufferColor(Rect(1, 1), 0, 51, 0, 255, 1);
+    expectBufferColor(Rect(1, 0, 2, 1), 0, 0, 5, 255, 1);
+    expectBufferColor(Rect(2, 0, 3, 1), 51, 0, 0, 255, 1);
+}
+
+TEST_P(RenderEngineTest, testDimming_withoutTargetLuminance) {
+    initializeRenderEngine();
+    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        return;
+    }
+
+    const auto displayRect = Rect(2, 1);
+    const renderengine::DisplaySettings display{
+            .physicalDisplay = displayRect,
+            .clip = displayRect,
+            .outputDataspace = ui::Dataspace::V0_SRGB_LINEAR,
+            .targetLuminanceNits = -1.f,
+    };
+
+    const auto greenBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(0, 255, 0, 255));
+    const auto blueBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(0, 0, 255, 255));
+
+    const renderengine::LayerSettings greenLayer{
+            .geometry.boundaries = FloatRect(0.f, 0.f, 1.f, 1.f),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = greenBuffer,
+                                            .usePremultipliedAlpha = true,
+                                    },
+                    },
+            .alpha = 1.0f,
+            .sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR,
+            .whitePointNits = 200.f,
+    };
+
+    const renderengine::LayerSettings blueLayer{
+            .geometry.boundaries = FloatRect(1.f, 0.f, 2.f, 1.f),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = blueBuffer,
+                                            .usePremultipliedAlpha = true,
+                                    },
+                    },
+            .alpha = 1.0f,
+            .sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR,
+            .whitePointNits = 1000.f,
+    };
+
+    std::vector<renderengine::LayerSettings> layers{greenLayer, blueLayer};
+    invokeDraw(display, layers);
+
+    expectBufferColor(Rect(1, 1), 0, 51, 0, 255, 1);
+    expectBufferColor(Rect(1, 0, 2, 1), 0, 0, 255, 255);
 }
 
 TEST_P(RenderEngineTest, test_isOpaque) {

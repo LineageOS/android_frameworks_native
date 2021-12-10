@@ -146,6 +146,10 @@ struct OutputLayerCompositionState {
 
     // Timestamp for when the layer is queued for client composition
     nsecs_t clientCompositionTimestamp{0};
+
+    // White point of the layer, in nits.
+    static constexpr float kDefaultWhitePointNits = 200.f;
+    float whitePointNits = kDefaultWhitePointNits;
 };
 
 } // namespace compositionengine::impl

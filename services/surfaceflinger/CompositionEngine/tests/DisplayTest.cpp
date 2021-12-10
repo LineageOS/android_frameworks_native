@@ -596,6 +596,7 @@ TEST_F(DisplayChooseCompositionStrategyTest, normalOperationWithChanges) {
             hal::DisplayRequest::FLIP_CLIENT_TARGET,
             {{nullptr, hal::LayerRequest::CLEAR_CLIENT_TARGET}},
             {hal::PixelFormat::RGBA_8888, hal::Dataspace::UNKNOWN},
+            -1.f,
     };
 
     // Since two calls are made to anyLayersRequireClientComposition with different return
@@ -788,15 +789,18 @@ TEST_F(DisplayApplyLayerRequestsToLayersTest, applyClientTargetRequests) {
             .dataspace = hal::Dataspace::STANDARD_BT470M,
     };
 
+    static constexpr float kWhitePointNits = 800.f;
+
     mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
     mDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
 
     EXPECT_CALL(*renderSurface, setBufferPixelFormat(clientTargetProperty.pixelFormat));
     EXPECT_CALL(*renderSurface, setBufferDataspace(clientTargetProperty.dataspace));
-    mDisplay->applyClientTargetRequests(clientTargetProperty);
+    mDisplay->applyClientTargetRequests(clientTargetProperty, kWhitePointNits);
 
     auto& state = mDisplay->getState();
     EXPECT_EQ(clientTargetProperty.dataspace, state.dataspace);
+    EXPECT_EQ(kWhitePointNits, state.clientTargetWhitePointNits);
 }
 
 /*

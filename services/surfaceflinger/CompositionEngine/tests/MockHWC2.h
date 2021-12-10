@@ -71,6 +71,7 @@ public:
     MOCK_METHOD1(setColorTransform, Error(const android::mat4&));
     MOCK_METHOD3(setLayerGenericMetadata,
                  Error(const std::string&, bool, const std::vector<uint8_t>&));
+    MOCK_METHOD1(setWhitePointNits, Error(float));
 };
 
 } // namespace mock

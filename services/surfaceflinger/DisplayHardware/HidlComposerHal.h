@@ -304,9 +304,10 @@ public:
                                         bool mandatory, const std::vector<uint8_t>& value) override;
     V2_4::Error getLayerGenericMetadataKeys(
             std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) override;
-    Error getClientTargetProperty(
-            Display display,
-            IComposerClient::ClientTargetProperty* outClientTargetProperty) override;
+    Error getClientTargetProperty(Display display,
+                                  IComposerClient::ClientTargetProperty* outClientTargetProperty,
+                                  float* outWhitePointNits) override;
+    Error setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) override;
 
 private:
     class CommandWriter : public CommandWriterBase {
