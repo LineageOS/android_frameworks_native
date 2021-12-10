@@ -86,10 +86,13 @@ static String8 toString(const char16_t* chars, size_t numChars) {
 
 // --- KeyCharacterMap ---
 
-KeyCharacterMap::KeyCharacterMap() : mType(KeyboardType::UNKNOWN) {}
+KeyCharacterMap::KeyCharacterMap(const std::string& filename)
+      : mType(KeyboardType::UNKNOWN), mLoadFileName(filename) {}
 
 KeyCharacterMap::KeyCharacterMap(const KeyCharacterMap& other)
       : mType(other.mType),
+        mLoadFileName(other.mLoadFileName),
+        mLayoutOverlayApplied(other.mLayoutOverlayApplied),
         mKeysByScanCode(other.mKeysByScanCode),
         mKeysByUsageCode(other.mKeysByUsageCode) {
     for (size_t i = 0; i < other.mKeys.size(); i++) {
@@ -98,14 +101,17 @@ KeyCharacterMap::KeyCharacterMap(const KeyCharacterMap& other)
 }
 
 KeyCharacterMap::~KeyCharacterMap() {
-    for (size_t i = 0; i < mKeys.size(); i++) {
-        Key* key = mKeys.editValueAt(i);
-        delete key;
-    }
+    clear();
 }
 
 bool KeyCharacterMap::operator==(const KeyCharacterMap& other) const {
     if (mType != other.mType) {
+        return false;
+    }
+    if (mLoadFileName != other.mLoadFileName) {
+        return false;
+    }
+    if (mLayoutOverlayApplied != other.mLayoutOverlayApplied) {
         return false;
     }
     if (mKeys.size() != other.mKeys.size() ||
@@ -146,6 +152,10 @@ bool KeyCharacterMap::operator==(const KeyCharacterMap& other) const {
     return true;
 }
 
+bool KeyCharacterMap::operator!=(const KeyCharacterMap& other) const {
+    return !(*this == other);
+}
+
 base::Result<std::shared_ptr<KeyCharacterMap>> KeyCharacterMap::load(const std::string& filename,
                                                                      Format format) {
     Tokenizer* tokenizer;
@@ -153,12 +163,18 @@ base::Result<std::shared_ptr<KeyCharacterMap>> KeyCharacterMap::load(const std::
     if (status) {
         return Errorf("Error {} opening key character map file {}.", status, filename.c_str());
     }
-    std::unique_ptr<Tokenizer> t(tokenizer);
-    auto ret = load(t.get(), format);
-    if (ret.ok()) {
-        (*ret)->mLoadFileName = filename;
+    std::shared_ptr<KeyCharacterMap> map =
+            std::shared_ptr<KeyCharacterMap>(new KeyCharacterMap(filename));
+    if (!map.get()) {
+        ALOGE("Error allocating key character map.");
+        return Errorf("Error allocating key character map.");
     }
-    return ret;
+    std::unique_ptr<Tokenizer> t(tokenizer);
+    status = map->load(t.get(), format);
+    if (status == OK) {
+        return map;
+    }
+    return Errorf("Load KeyCharacterMap failed {}.", status);
 }
 
 base::Result<std::shared_ptr<KeyCharacterMap>> KeyCharacterMap::loadContents(
@@ -169,40 +185,67 @@ base::Result<std::shared_ptr<KeyCharacterMap>> KeyCharacterMap::loadContents(
         ALOGE("Error %d opening key character map.", status);
         return Errorf("Error {} opening key character map.", status);
     }
-    std::unique_ptr<Tokenizer> t(tokenizer);
-    auto ret = load(t.get(), format);
-    if (ret.ok()) {
-        (*ret)->mLoadFileName = filename;
-    }
-    return ret;
-}
-
-base::Result<std::shared_ptr<KeyCharacterMap>> KeyCharacterMap::load(Tokenizer* tokenizer,
-                                                                     Format format) {
-    status_t status = OK;
-    std::shared_ptr<KeyCharacterMap> map = std::shared_ptr<KeyCharacterMap>(new KeyCharacterMap());
+    std::shared_ptr<KeyCharacterMap> map =
+            std::shared_ptr<KeyCharacterMap>(new KeyCharacterMap(filename));
     if (!map.get()) {
         ALOGE("Error allocating key character map.");
         return Errorf("Error allocating key character map.");
     }
+    std::unique_ptr<Tokenizer> t(tokenizer);
+    status = map->load(t.get(), format);
+    if (status == OK) {
+        return map;
+    }
+    return Errorf("Load KeyCharacterMap failed {}.", status);
+}
+
+status_t KeyCharacterMap::load(Tokenizer* tokenizer, Format format) {
+    status_t status = OK;
 #if DEBUG_PARSER_PERFORMANCE
     nsecs_t startTime = systemTime(SYSTEM_TIME_MONOTONIC);
 #endif
-    Parser parser(map.get(), tokenizer, format);
+    Parser parser(this, tokenizer, format);
     status = parser.parse();
 #if DEBUG_PARSER_PERFORMANCE
     nsecs_t elapsedTime = systemTime(SYSTEM_TIME_MONOTONIC) - startTime;
     ALOGD("Parsed key character map file '%s' %d lines in %0.3fms.",
           tokenizer->getFilename().string(), tokenizer->getLineNumber(), elapsedTime / 1000000.0);
 #endif
-    if (status == OK) {
-        return map;
+    if (status != OK) {
+        ALOGE("Loading KeyCharacterMap failed with status %s", statusToString(status).c_str());
     }
+    return status;
+}
 
-    return Errorf("Load KeyCharacterMap failed {}.", status);
+void KeyCharacterMap::clear() {
+    mKeysByScanCode.clear();
+    mKeysByUsageCode.clear();
+    for (size_t i = 0; i < mKeys.size(); i++) {
+        Key* key = mKeys.editValueAt(i);
+        delete key;
+    }
+    mKeys.clear();
+    mLayoutOverlayApplied = false;
+    mType = KeyboardType::UNKNOWN;
+}
+
+status_t KeyCharacterMap::reloadBaseFromFile() {
+    clear();
+    Tokenizer* tokenizer;
+    status_t status = Tokenizer::open(String8(mLoadFileName.c_str()), &tokenizer);
+    if (status) {
+        ALOGE("Error %s opening key character map file %s.", statusToString(status).c_str(),
+              mLoadFileName.c_str());
+        return status;
+    }
+    std::unique_ptr<Tokenizer> t(tokenizer);
+    return load(t.get(), KeyCharacterMap::Format::BASE);
 }
 
 void KeyCharacterMap::combine(const KeyCharacterMap& overlay) {
+    if (mLayoutOverlayApplied) {
+        reloadBaseFromFile();
+    }
     for (size_t i = 0; i < overlay.mKeys.size(); i++) {
         int32_t keyCode = overlay.mKeys.keyAt(i);
         Key* key = overlay.mKeys.valueAt(i);
@@ -224,7 +267,7 @@ void KeyCharacterMap::combine(const KeyCharacterMap& overlay) {
         mKeysByUsageCode.replaceValueFor(overlay.mKeysByUsageCode.keyAt(i),
                                          overlay.mKeysByUsageCode.valueAt(i));
     }
-    mLoadFileName = overlay.mLoadFileName;
+    mLayoutOverlayApplied = true;
 }
 
 KeyCharacterMap::KeyboardType KeyCharacterMap::getKeyboardType() const {
@@ -636,8 +679,11 @@ std::shared_ptr<KeyCharacterMap> KeyCharacterMap::readFromParcel(Parcel* parcel)
         ALOGE("%s: Null parcel", __func__);
         return nullptr;
     }
-    std::shared_ptr<KeyCharacterMap> map = std::shared_ptr<KeyCharacterMap>(new KeyCharacterMap());
+    std::string loadFileName = parcel->readCString();
+    std::shared_ptr<KeyCharacterMap> map =
+            std::shared_ptr<KeyCharacterMap>(new KeyCharacterMap(loadFileName));
     map->mType = static_cast<KeyCharacterMap::KeyboardType>(parcel->readInt32());
+    map->mLayoutOverlayApplied = parcel->readBool();
     size_t numKeys = parcel->readInt32();
     if (parcel->errorCheck()) {
         return nullptr;
@@ -687,6 +733,30 @@ std::shared_ptr<KeyCharacterMap> KeyCharacterMap::readFromParcel(Parcel* parcel)
             return nullptr;
         }
     }
+    size_t numKeysByScanCode = parcel->readInt32();
+    if (parcel->errorCheck()) {
+        return nullptr;
+    }
+    for (size_t i = 0; i < numKeysByScanCode; i++) {
+        int32_t key = parcel->readInt32();
+        int32_t value = parcel->readInt32();
+        map->mKeysByScanCode.add(key, value);
+        if (parcel->errorCheck()) {
+            return nullptr;
+        }
+    }
+    size_t numKeysByUsageCode = parcel->readInt32();
+    if (parcel->errorCheck()) {
+        return nullptr;
+    }
+    for (size_t i = 0; i < numKeysByUsageCode; i++) {
+        int32_t key = parcel->readInt32();
+        int32_t value = parcel->readInt32();
+        map->mKeysByUsageCode.add(key, value);
+        if (parcel->errorCheck()) {
+            return nullptr;
+        }
+    }
     return map;
 }
 
@@ -695,7 +765,9 @@ void KeyCharacterMap::writeToParcel(Parcel* parcel) const {
         ALOGE("%s: Null parcel", __func__);
         return;
     }
+    parcel->writeCString(mLoadFileName.c_str());
     parcel->writeInt32(static_cast<int32_t>(mType));
+    parcel->writeBool(mLayoutOverlayApplied);
 
     size_t numKeys = mKeys.size();
     parcel->writeInt32(numKeys);
@@ -714,6 +786,18 @@ void KeyCharacterMap::writeToParcel(Parcel* parcel) const {
             parcel->writeInt32(behavior->replacementKeyCode);
         }
         parcel->writeInt32(0);
+    }
+    size_t numKeysByScanCode = mKeysByScanCode.size();
+    parcel->writeInt32(numKeysByScanCode);
+    for (size_t i = 0; i < numKeysByScanCode; i++) {
+        parcel->writeInt32(mKeysByScanCode.keyAt(i));
+        parcel->writeInt32(mKeysByScanCode.valueAt(i));
+    }
+    size_t numKeysByUsageCode = mKeysByUsageCode.size();
+    parcel->writeInt32(numKeysByUsageCode);
+    for (size_t i = 0; i < numKeysByUsageCode; i++) {
+        parcel->writeInt32(mKeysByUsageCode.keyAt(i));
+        parcel->writeInt32(mKeysByUsageCode.valueAt(i));
     }
 }
 #endif // __linux__
