@@ -98,7 +98,8 @@ status_t Client::createWithSurfaceParent(const String8& /* name */, uint32_t /* 
 
 status_t Client::mirrorSurface(const sp<IBinder>& mirrorFromHandle, sp<IBinder>* outHandle,
                                int32_t* outLayerId) {
-    return mFlinger->mirrorLayer(this, mirrorFromHandle, outHandle, outLayerId);
+    LayerCreationArgs args(mFlinger.get(), this, "MirrorRoot", 0 /* flags */, LayerMetadata());
+    return mFlinger->mirrorLayer(args, mirrorFromHandle, outHandle, outLayerId);
 }
 
 status_t Client::clearLayerFrameStats(const sp<IBinder>& handle) const {

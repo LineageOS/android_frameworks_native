@@ -43,7 +43,7 @@ proto::TransactionState TransactionProtoParser::toProto(const TransactionState& 
 }
 
 proto::TransactionState TransactionProtoParser::toProto(
-        const std::unordered_map<int32_t /* layerId */, TracingLayerState> states) {
+        const std::map<int32_t /* layerId */, TracingLayerState>& states) {
     proto::TransactionState proto;
     for (auto& [layerId, state] : states) {
         proto::LayerState layerProto = toProto(state, nullptr);
@@ -278,6 +278,7 @@ proto::LayerCreationArgs TransactionProtoParser::toProto(const TracingLayerCreat
     proto.set_name(args.name);
     proto.set_flags(args.flags);
     proto.set_parent_id(args.parentId);
+    proto.set_mirror_from_id(args.mirrorFromId);
     return proto;
 }
 
@@ -312,6 +313,7 @@ void TransactionProtoParser::fromProto(const proto::LayerCreationArgs& proto,
     outArgs.name = proto.name();
     outArgs.flags = proto.flags();
     outArgs.parentId = proto.parent_id();
+    outArgs.mirrorFromId = proto.mirror_from_id();
 }
 
 void TransactionProtoParser::fromProto(const proto::LayerState& proto,
@@ -320,6 +322,7 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto,
     fromProto(proto, getLayerHandle, static_cast<layer_state_t&>(outState));
     if (proto.what() & layer_state_t::eReparent) {
         outState.parentId = proto.parent_id();
+        outState.args.parentId = outState.parentId;
     }
     if (proto.what() & layer_state_t::eRelativeLayerChanged) {
         outState.relativeParentId = proto.relative_parent_id();
@@ -508,7 +511,9 @@ DisplayState TransactionProtoParser::fromProto(const proto::DisplayState& proto,
                                                DisplayIdToHandleFn getDisplayHandle) {
     DisplayState display;
     display.what = proto.what();
-    display.token = getDisplayHandle(proto.id());
+    if (getDisplayHandle != nullptr) {
+        display.token = getDisplayHandle(proto.id());
+    }
 
     if (display.what & DisplayState::eLayerStackChanged) {
         display.layerStack.id = proto.layer_stack();
