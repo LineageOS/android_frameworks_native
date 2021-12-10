@@ -192,8 +192,8 @@ VerifiedKeyEvent verifiedKeyEventFromKeyEvent(const KeyEvent& event) {
     return {{VerifiedInputEvent::Type::KEY, event.getDeviceId(), event.getEventTime(),
              event.getSource(), event.getDisplayId()},
             event.getAction(),
-            event.getDownTime(),
             event.getFlags() & VERIFIED_KEY_EVENT_FLAGS,
+            event.getDownTime(),
             event.getKeyCode(),
             event.getScanCode(),
             event.getMetaState(),
@@ -206,8 +206,8 @@ VerifiedMotionEvent verifiedMotionEventFromMotionEvent(const MotionEvent& event)
             event.getRawX(0),
             event.getRawY(0),
             event.getActionMasked(),
-            event.getDownTime(),
             event.getFlags() & VERIFIED_MOTION_EVENT_FLAGS,
+            event.getDownTime(),
             event.getMetaState(),
             event.getButtonState()};
 }
