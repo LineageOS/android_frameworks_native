@@ -782,12 +782,8 @@ bool InputReader::canDispatchToDisplay(int32_t deviceId, int32_t displayId) {
 
     std::optional<int32_t> associatedDisplayId = device->getAssociatedDisplayId();
     // No associated display. By default, can dispatch to all displays.
-    if (!associatedDisplayId) {
-        return true;
-    }
-
-    if (*associatedDisplayId == ADISPLAY_ID_NONE) {
-        ALOGW("Device %s is associated with display ADISPLAY_ID_NONE.", device->getName().c_str());
+    if (!associatedDisplayId ||
+            *associatedDisplayId == ADISPLAY_ID_NONE) {
         return true;
     }
 

@@ -165,7 +165,7 @@ protected:
         mTracing->onLayerAdded(fakeLayerHandle->localBinder(), mParentLayerId, "parent",
                                123 /* flags */, -1 /* parentId */);
         const sp<IBinder> fakeChildLayerHandle = new BBinder();
-        mTracing->onLayerAdded(fakeChildLayerHandle->localBinder(), 2 /* layerId */, "child",
+        mTracing->onLayerAdded(fakeChildLayerHandle->localBinder(), mChildLayerId, "child",
                                456 /* flags */, mParentLayerId);
 
         // add some layer transaction
@@ -179,7 +179,8 @@ protected:
             transaction.states.add(layerState);
             ComposerState childState;
             childState.state.surface = fakeChildLayerHandle;
-            layerState.state.z = 43;
+            childState.state.what = layer_state_t::eLayerChanged;
+            childState.state.z = 43;
             transaction.states.add(childState);
             mTracing->addQueuedTransaction(transaction);
 
@@ -227,6 +228,7 @@ protected:
     }
 
     int mParentLayerId = 1;
+    int mChildLayerId = 2;
     int64_t mVsyncId = 0;
     int64_t VSYNC_ID_FIRST_LAYER_CHANGE;
     int64_t VSYNC_ID_SECOND_LAYER_CHANGE;
@@ -244,8 +246,11 @@ TEST_F(TransactionTracingLayerHandlingTest, addStartingState) {
     EXPECT_GT(proto.entry().size(), 0);
     EXPECT_GT(proto.entry(0).transactions().size(), 0);
     EXPECT_GT(proto.entry(0).added_layers().size(), 0);
-    EXPECT_GT(proto.entry(0).transactions(0).layer_changes().size(), 0);
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes().size(), 2);
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).layer_id(), mParentLayerId);
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).z(), 42);
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(1).layer_id(), mChildLayerId);
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(1).z(), 43);
 }
 
 TEST_F(TransactionTracingLayerHandlingTest, updateStartingState) {
@@ -288,4 +293,69 @@ TEST_F(TransactionTracingLayerHandlingTest, startingStateSurvivesBufferFlush) {
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).layer_id(), mParentLayerId);
 }
 
+class TransactionTracingMirrorLayerTest : public TransactionTracingTest {
+protected:
+    void SetUp() override {
+        TransactionTracingTest::SetUp();
+        mTracing->enable();
+        // add layers
+        mTracing->setBufferSize(SMALL_BUFFER_SIZE);
+        const sp<IBinder> fakeLayerHandle = new BBinder();
+        mTracing->onLayerAdded(fakeLayerHandle->localBinder(), mLayerId, "Test Layer",
+                               123 /* flags */, -1 /* parentId */);
+        const sp<IBinder> fakeMirrorLayerHandle = new BBinder();
+        mTracing->onMirrorLayerAdded(fakeMirrorLayerHandle->localBinder(), mMirrorLayerId, "Mirror",
+                                     mLayerId);
+
+        // add some layer transaction
+        {
+            TransactionState transaction;
+            transaction.id = 50;
+            ComposerState layerState;
+            layerState.state.surface = fakeLayerHandle;
+            layerState.state.what = layer_state_t::eLayerChanged;
+            layerState.state.z = 42;
+            transaction.states.add(layerState);
+            ComposerState mirrorState;
+            mirrorState.state.surface = fakeMirrorLayerHandle;
+            mirrorState.state.what = layer_state_t::eLayerChanged;
+            mirrorState.state.z = 43;
+            transaction.states.add(mirrorState);
+            mTracing->addQueuedTransaction(transaction);
+
+            std::vector<TransactionState> transactions;
+            transactions.emplace_back(transaction);
+            mTracing->addCommittedTransactions(transactions, ++mVsyncId);
+            flush(mVsyncId);
+        }
+    }
+
+    void TearDown() override {
+        mTracing->disable();
+        verifyDisabledTracingState();
+        TransactionTracingTest::TearDown();
+    }
+
+    int mLayerId = 5;
+    int mMirrorLayerId = 55;
+    int64_t mVsyncId = 0;
+    int64_t VSYNC_ID_FIRST_LAYER_CHANGE;
+    int64_t VSYNC_ID_SECOND_LAYER_CHANGE;
+    int64_t VSYNC_ID_CHILD_LAYER_REMOVED;
+};
+
+TEST_F(TransactionTracingMirrorLayerTest, canAddMirrorLayers) {
+    proto::TransactionTraceFile proto = writeToProto();
+    // We don't have any starting states since no layer was removed from.
+    EXPECT_EQ(proto.entry().size(), 2);
+    EXPECT_EQ(proto.entry(0).transactions().size(), 0);
+    EXPECT_EQ(proto.entry(0).added_layers().size(), 0);
+
+    // Verify the mirror layer was added
+    EXPECT_EQ(proto.entry(1).transactions().size(), 1);
+    EXPECT_EQ(proto.entry(1).added_layers().size(), 2);
+    EXPECT_EQ(proto.entry(1).added_layers(1).layer_id(), mMirrorLayerId);
+    EXPECT_EQ(proto.entry(1).transactions(0).layer_changes().size(), 2);
+    EXPECT_EQ(proto.entry(1).transactions(0).layer_changes(1).z(), 43);
+}
 } // namespace android
