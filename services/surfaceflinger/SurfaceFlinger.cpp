@@ -493,7 +493,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     enableLatchUnsignaledConfig = getLatchUnsignaledConfig();
 
-    mTransactionTracingEnabled = property_get_bool("debug.sf.enable_transaction_tracing", false);
+    mTransactionTracingEnabled =
+            !mIsUserBuild && property_get_bool("debug.sf.enable_transaction_tracing", true);
     if (mTransactionTracingEnabled) {
         mTransactionTracing.enable();
     }
