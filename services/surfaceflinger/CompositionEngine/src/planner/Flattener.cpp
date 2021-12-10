@@ -211,7 +211,8 @@ size_t Flattener::calculateDisplayCost(const std::vector<const LayerState*>& lay
         displayCost += static_cast<size_t>(layer->getDisplayFrame().width() *
                                            layer->getDisplayFrame().height());
 
-        hasClientComposition |= layer->getCompositionType() == hal::Composition::CLIENT;
+        hasClientComposition |= layer->getCompositionType() ==
+                aidl::android::hardware::graphics::composer3::Composition::CLIENT;
     }
 
     if (hasClientComposition) {

@@ -278,7 +278,7 @@ Error HidlComposer::getActiveConfig(Display display, Config* outConfig) {
 
 Error HidlComposer::getChangedCompositionTypes(
         Display display, std::vector<Layer>* outLayers,
-        std::vector<IComposerClient::Composition>* outTypes) {
+        std::vector<aidl::android::hardware::graphics::composer3::Composition>* outTypes) {
     mReader.takeChangedCompositionTypes(display, outLayers, outTypes);
     return Error::NONE;
 }
@@ -618,11 +618,17 @@ Error HidlComposer::setLayerColor(Display display, Layer layer,
     return Error::NONE;
 }
 
-Error HidlComposer::setLayerCompositionType(Display display, Layer layer,
-                                            IComposerClient::Composition type) {
+static IComposerClient::Composition to_hidl_type(
+        aidl::android::hardware::graphics::composer3::Composition type) {
+    return static_cast<IComposerClient::Composition>(type);
+}
+
+Error HidlComposer::setLayerCompositionType(
+        Display display, Layer layer,
+        aidl::android::hardware::graphics::composer3::Composition type) {
     mWriter.selectDisplay(display);
     mWriter.selectLayer(layer);
-    mWriter.setLayerCompositionType(type);
+    mWriter.setLayerCompositionType(to_hidl_type(type));
     return Error::NONE;
 }
 
@@ -1266,7 +1272,8 @@ bool CommandReader::parseSetChangedCompositionTypes(uint16_t length) {
     mCurrentReturnData->compositionTypes.reserve(count);
     while (count > 0) {
         auto layer = read64();
-        auto type = static_cast<IComposerClient::Composition>(readSigned());
+        auto type = static_cast<aidl::android::hardware::graphics::composer3::Composition>(
+                readSigned());
 
         mCurrentReturnData->changedLayers.push_back(layer);
         mCurrentReturnData->compositionTypes.push_back(type);
@@ -1394,7 +1401,7 @@ bool CommandReader::hasChanges(Display display, uint32_t* outNumChangedCompositi
 
 void CommandReader::takeChangedCompositionTypes(
         Display display, std::vector<Layer>* outLayers,
-        std::vector<IComposerClient::Composition>* outTypes) {
+        std::vector<aidl::android::hardware::graphics::composer3::Composition>* outTypes) {
     auto found = mReturnData.find(display);
     if (found == mReturnData.end()) {
         outLayers->clear();

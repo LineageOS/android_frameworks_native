@@ -37,6 +37,8 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
 
+using aidl::android::hardware::graphics::composer3::Composition;
+
 namespace android::compositionengine {
 
 OutputLayer::~OutputLayer() = default;
@@ -358,8 +360,8 @@ void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t
 
     auto requestedCompositionType = outputIndependentState->compositionType;
 
-    if (requestedCompositionType == hal::Composition::SOLID_COLOR && state.overrideInfo.buffer) {
-        requestedCompositionType = hal::Composition::DEVICE;
+    if (requestedCompositionType == Composition::SOLID_COLOR && state.overrideInfo.buffer) {
+        requestedCompositionType = Composition::DEVICE;
     }
 
     // TODO(b/181172795): We now update geometry for all flattened layers. We should update it
@@ -380,7 +382,7 @@ void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t
     writeCompositionTypeToHWC(hwcLayer.get(), requestedCompositionType, isPeekingThrough,
                               skipLayer);
 
-    if (requestedCompositionType == hal::Composition::SOLID_COLOR) {
+    if (requestedCompositionType == Composition::SOLID_COLOR) {
         writeSolidColorStateToHWC(hwcLayer.get(), *outputIndependentState);
     }
 
@@ -389,7 +391,7 @@ void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t
 }
 
 void OutputLayer::writeOutputDependentGeometryStateToHWC(HWC2::Layer* hwcLayer,
-                                                         hal::Composition requestedCompositionType,
+                                                         Composition requestedCompositionType,
                                                          uint32_t z) {
     const auto& outputDependentState = getState();
 
@@ -423,7 +425,7 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(HWC2::Layer* hwcLayer,
     }
 
     // Solid-color layers and overridden buffers should always use an identity transform.
-    const auto bufferTransform = (requestedCompositionType != hal::Composition::SOLID_COLOR &&
+    const auto bufferTransform = (requestedCompositionType != Composition::SOLID_COLOR &&
                                   getState().overrideInfo.buffer == nullptr)
             ? outputDependentState.bufferTransform
             : static_cast<hal::Transform>(0);
@@ -504,7 +506,7 @@ void OutputLayer::writeOutputDependentPerFrameStateToHWC(HWC2::Layer* hwcLayer) 
 
 void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
         HWC2::Layer* hwcLayer, const LayerFECompositionState& outputIndependentState,
-        hal::Composition compositionType, bool skipLayer) {
+        Composition compositionType, bool skipLayer) {
     switch (auto error = hwcLayer->setColorTransform(outputIndependentState.colorTransform)) {
         case hal::Error::NONE:
             break;
@@ -529,18 +531,18 @@ void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
 
     // Content-specific per-frame state
     switch (compositionType) {
-        case hal::Composition::SOLID_COLOR:
+        case Composition::SOLID_COLOR:
             // For compatibility, should be written AFTER the composition type.
             break;
-        case hal::Composition::SIDEBAND:
+        case Composition::SIDEBAND:
             writeSidebandStateToHWC(hwcLayer, outputIndependentState);
             break;
-        case hal::Composition::CURSOR:
-        case hal::Composition::DEVICE:
+        case Composition::CURSOR:
+        case Composition::DEVICE:
             writeBufferStateToHWC(hwcLayer, outputIndependentState, skipLayer);
             break;
-        case hal::Composition::INVALID:
-        case hal::Composition::CLIENT:
+        case Composition::INVALID:
+        case Composition::CLIENT:
             // Ignored
             break;
     }
@@ -606,13 +608,13 @@ void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
 }
 
 void OutputLayer::writeCompositionTypeToHWC(HWC2::Layer* hwcLayer,
-                                            hal::Composition requestedCompositionType,
+                                            Composition requestedCompositionType,
                                             bool isPeekingThrough, bool skipLayer) {
     auto& outputDependentState = editState();
 
     if (isClientCompositionForced(isPeekingThrough)) {
         // If we are forcing client composition, we need to tell the HWC
-        requestedCompositionType = hal::Composition::CLIENT;
+        requestedCompositionType = Composition::CLIENT;
     }
 
     // Set the requested composition type with the HWC whenever it changes
@@ -625,7 +627,7 @@ void OutputLayer::writeCompositionTypeToHWC(HWC2::Layer* hwcLayer,
         if (auto error = hwcLayer->setCompositionType(requestedCompositionType);
             error != hal::Error::NONE) {
             ALOGE("[%s] Failed to set composition type %s: %s (%d)", getLayerFE().getDebugName(),
-                  toString(requestedCompositionType).c_str(), to_string(error).c_str(),
+                  to_string(requestedCompositionType).c_str(), to_string(error).c_str(),
                   static_cast<int32_t>(error));
         }
     }
@@ -664,38 +666,37 @@ HWC2::Layer* OutputLayer::getHwcLayer() const {
 
 bool OutputLayer::requiresClientComposition() const {
     const auto& state = getState();
-    return !state.hwc || state.hwc->hwcCompositionType == hal::Composition::CLIENT;
+    return !state.hwc || state.hwc->hwcCompositionType == Composition::CLIENT;
 }
 
 bool OutputLayer::isHardwareCursor() const {
     const auto& state = getState();
-    return state.hwc && state.hwc->hwcCompositionType == hal::Composition::CURSOR;
+    return state.hwc && state.hwc->hwcCompositionType == Composition::CURSOR;
 }
 
-void OutputLayer::detectDisallowedCompositionTypeChange(hal::Composition from,
-                                                        hal::Composition to) const {
+void OutputLayer::detectDisallowedCompositionTypeChange(Composition from, Composition to) const {
     bool result = false;
     switch (from) {
-        case hal::Composition::INVALID:
-        case hal::Composition::CLIENT:
+        case Composition::INVALID:
+        case Composition::CLIENT:
             result = false;
             break;
 
-        case hal::Composition::DEVICE:
-        case hal::Composition::SOLID_COLOR:
-            result = (to == hal::Composition::CLIENT);
+        case Composition::DEVICE:
+        case Composition::SOLID_COLOR:
+            result = (to == Composition::CLIENT);
             break;
 
-        case hal::Composition::CURSOR:
-        case hal::Composition::SIDEBAND:
-            result = (to == hal::Composition::CLIENT || to == hal::Composition::DEVICE);
+        case Composition::CURSOR:
+        case Composition::SIDEBAND:
+            result = (to == Composition::CLIENT || to == Composition::DEVICE);
             break;
     }
 
     if (!result) {
         ALOGE("[%s] Invalid device requested composition type change: %s (%d) --> %s (%d)",
-              getLayerFE().getDebugName(), toString(from).c_str(), static_cast<int>(from),
-              toString(to).c_str(), static_cast<int>(to));
+              getLayerFE().getDebugName(), to_string(from).c_str(), static_cast<int>(from),
+              to_string(to).c_str(), static_cast<int>(to));
     }
 }
 
@@ -704,7 +705,7 @@ bool OutputLayer::isClientCompositionForced(bool isPeekingThrough) const {
             (!isPeekingThrough && getLayerFE().hasRoundedCorners());
 }
 
-void OutputLayer::applyDeviceCompositionTypeChange(hal::Composition compositionType) {
+void OutputLayer::applyDeviceCompositionTypeChange(Composition compositionType) {
     auto& state = editState();
     LOG_FATAL_IF(!state.hwc);
     auto& hwcState = *state.hwc;

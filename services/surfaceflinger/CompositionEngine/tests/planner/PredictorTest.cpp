@@ -24,6 +24,10 @@
 #include <gtest/gtest.h>
 #include <log/log.h>
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+
+using aidl::android::hardware::graphics::composer3::Composition;
+
 namespace android::compositionengine::impl::planner {
 namespace {
 
@@ -103,7 +107,7 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchDifferentCompositionTypes
     mock::LayerFE layerFEOne;
     OutputLayerCompositionState outputLayerCompositionStateOne;
     LayerFECompositionState layerFECompositionStateOne;
-    layerFECompositionStateOne.compositionType = hal::Composition::DEVICE;
+    layerFECompositionStateOne.compositionType = Composition::DEVICE;
     setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
@@ -112,7 +116,7 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchDifferentCompositionTypes
     mock::LayerFE layerFETwo;
     OutputLayerCompositionState outputLayerCompositionStateTwo;
     LayerFECompositionState layerFECompositionStateTwo;
-    layerFECompositionStateTwo.compositionType = hal::Composition::SOLID_COLOR;
+    layerFECompositionStateTwo.compositionType = Composition::SOLID_COLOR;
     setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);
@@ -370,7 +374,7 @@ TEST_F(LayerStackTest, reorderingChangesNonBufferHash) {
 
 TEST_F(PredictionTest, constructPrediction) {
     Plan plan;
-    plan.addLayerType(hal::Composition::DEVICE);
+    plan.addLayerType(Composition::DEVICE);
 
     Prediction prediction({}, plan);
 
@@ -442,13 +446,13 @@ TEST_F(PredictorTest, getPredictedPlan_recordCandidateAndRetrieveExactMatch) {
     mock::LayerFE layerFEOne;
     OutputLayerCompositionState outputLayerCompositionStateOne;
     LayerFECompositionState layerFECompositionStateOne;
-    layerFECompositionStateOne.compositionType = hal::Composition::DEVICE;
+    layerFECompositionStateOne.compositionType = Composition::DEVICE;
     setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
 
     Plan plan;
-    plan.addLayerType(hal::Composition::DEVICE);
+    plan.addLayerType(Composition::DEVICE);
 
     Predictor predictor;
 
@@ -484,7 +488,7 @@ TEST_F(PredictorTest, getPredictedPlan_recordCandidateAndRetrieveApproximateMatc
     LayerState layerStateTwo(&outputLayerTwo);
 
     Plan plan;
-    plan.addLayerType(hal::Composition::DEVICE);
+    plan.addLayerType(Composition::DEVICE);
 
     Predictor predictor;
 
@@ -521,7 +525,7 @@ TEST_F(PredictorTest, recordMissedPlan_skipsApproximateMatch) {
     LayerState layerStateTwo(&outputLayerTwo);
 
     Plan plan;
-    plan.addLayerType(hal::Composition::DEVICE);
+    plan.addLayerType(Composition::DEVICE);
 
     Predictor predictor;
 
@@ -535,7 +539,7 @@ TEST_F(PredictorTest, recordMissedPlan_skipsApproximateMatch) {
     EXPECT_EQ(Prediction::Type::Approximate, predictedPlan->type);
 
     Plan planTwo;
-    planTwo.addLayerType(hal::Composition::CLIENT);
+    planTwo.addLayerType(Composition::CLIENT);
     predictor.recordResult(predictedPlan, hashTwo, {&layerStateTwo}, false, planTwo);
     // Now trying to retrieve the predicted plan again returns a nullopt instead.
     // TODO(b/158790260): Even though this is enforced in this test, we might want to reassess this.

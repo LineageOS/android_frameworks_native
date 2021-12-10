@@ -193,7 +193,7 @@ void Planner::reportFinalPlan(
 
         finalPlan.addLayerType(
                 forcedOrRequestedClient
-                        ? hardware::graphics::composer::hal::Composition::CLIENT
+                        ? aidl::android::hardware::graphics::composer3::Composition::CLIENT
                         : layer->getLayerFE().getCompositionState()->compositionType);
     }
 

@@ -38,7 +38,9 @@ public:
     MOCK_METHOD((base::expected<std::shared_ptr<HWC2::Layer>, hal::Error>), createLayer, (),
                 (override));
     MOCK_METHOD(hal::Error, getChangedCompositionTypes,
-                ((std::unordered_map<Layer *, hal::Composition> *)), (override));
+                ((std::unordered_map<Layer *,
+                                     aidl::android::hardware::graphics::composer3::Composition> *)),
+                (override));
     MOCK_METHOD(hal::Error, getColorModes, (std::vector<hal::ColorMode> *), (const, override));
     MOCK_METHOD(int32_t, getSupportedPerFrameMetadata, (), (const, override));
     MOCK_METHOD(hal::Error, getRenderIntents, (hal::ColorMode, std::vector<hal::RenderIntent> *),
@@ -103,7 +105,8 @@ public:
     MOCK_METHOD(hal::Error, setSurfaceDamage, (const android::Region &), (override));
     MOCK_METHOD(hal::Error, setBlendMode, (hal::BlendMode), (override));
     MOCK_METHOD(hal::Error, setColor, (hal::Color), (override));
-    MOCK_METHOD(hal::Error, setCompositionType, (hal::Composition), (override));
+    MOCK_METHOD(hal::Error, setCompositionType,
+                (aidl::android::hardware::graphics::composer3::Composition), (override));
     MOCK_METHOD(hal::Error, setDataspace, (android::ui::Dataspace), (override));
     MOCK_METHOD(hal::Error, setPerFrameMetadata, (const int32_t, const android::HdrMetadata &),
                 (override));
