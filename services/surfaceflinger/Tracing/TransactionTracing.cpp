@@ -177,9 +177,9 @@ void TransactionTracing::addEntry(const std::vector<CommittedTransactions>& comm
                                   const std::vector<int32_t>& removedLayers) {
     ATRACE_CALL();
     std::scoped_lock lock(mTraceLock);
-    std::vector<proto::TransactionTraceEntry> removedEntries;
+    std::vector<std::string> removedEntries;
+    proto::TransactionTraceEntry entryProto;
     for (const CommittedTransactions& entry : committedTransactions) {
-        proto::TransactionTraceEntry entryProto;
         entryProto.set_elapsed_realtime_nanos(entry.timestamp);
         entryProto.set_vsync_id(entry.vsyncId);
         entryProto.mutable_added_layers()->Reserve(static_cast<int32_t>(mCreatedLayers.size()));
@@ -202,13 +202,21 @@ void TransactionTracing::addEntry(const std::vector<CommittedTransactions>& comm
                 ALOGW("Could not find transaction id %" PRIu64, id);
             }
         }
-        std::vector<proto::TransactionTraceEntry> entries = mBuffer->emplace(std::move(entryProto));
+
+        std::string serializedProto;
+        entryProto.SerializeToString(&serializedProto);
+        entryProto.Clear();
+        std::vector<std::string> entries = mBuffer->emplace(std::move(serializedProto));
+        removedEntries.reserve(removedEntries.size() + entries.size());
         removedEntries.insert(removedEntries.end(), std::make_move_iterator(entries.begin()),
                               std::make_move_iterator(entries.end()));
     }
 
-    for (const proto::TransactionTraceEntry& removedEntry : removedEntries) {
-        updateStartingStateLocked(removedEntry);
+    proto::TransactionTraceEntry removedEntryProto;
+    for (const std::string& removedEntry : removedEntries) {
+        removedEntryProto.ParseFromString(removedEntry);
+        updateStartingStateLocked(removedEntryProto);
+        removedEntryProto.Clear();
     }
     mTransactionsAddedToBufferCv.notify_one();
 }
@@ -220,7 +228,11 @@ void TransactionTracing::flush(int64_t vsyncId) {
     std::unique_lock<std::mutex> lock(mTraceLock);
     base::ScopedLockAssertion assumeLocked(mTraceLock);
     mTransactionsAddedToBufferCv.wait(lock, [&]() REQUIRES(mTraceLock) {
-        return mBuffer->used() > 0 && mBuffer->back().vsync_id() >= vsyncId;
+        proto::TransactionTraceEntry entry;
+        if (mBuffer->used() > 0) {
+            entry.ParseFromString(mBuffer->back());
+        }
+        return mBuffer->used() > 0 && entry.vsync_id() >= vsyncId;
     });
 }
 
