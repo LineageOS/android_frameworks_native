@@ -292,14 +292,15 @@ void BufferLayer::preparePerFrameCompositionState() {
     // Sideband layers
     auto* compositionState = editCompositionState();
     if (compositionState->sidebandStream.get() && !compositionState->sidebandStreamHasFrame) {
-        compositionState->compositionType = Hwc2::IComposerClient::Composition::SIDEBAND;
+        compositionState->compositionType =
+                aidl::android::hardware::graphics::composer3::Composition::SIDEBAND;
         return;
     } else {
         // Normal buffer layers
         compositionState->hdrMetadata = mBufferInfo.mHdrMetadata;
         compositionState->compositionType = mPotentialCursor
-                ? Hwc2::IComposerClient::Composition::CURSOR
-                : Hwc2::IComposerClient::Composition::DEVICE;
+                ? aidl::android::hardware::graphics::composer3::Composition::CURSOR
+                : aidl::android::hardware::graphics::composer3::Composition::DEVICE;
     }
 
     compositionState->buffer = mBufferInfo.mBuffer->getBuffer();

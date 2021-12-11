@@ -366,8 +366,6 @@ public:
 
     class Transaction : public Parcelable {
     private:
-        static std::atomic<uint32_t> idCounter;
-        int64_t generateId();
         void releaseBufferIfOverwriting(const layer_state_t& state);
 
     protected:

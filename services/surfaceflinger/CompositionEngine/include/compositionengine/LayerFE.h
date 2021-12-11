@@ -134,6 +134,9 @@ public:
 
         // Configure layer settings for using blurs
         BlurSetting blurSetting;
+
+        // Requested white point of the layer in nits
+        const float whitePointNits;
     };
 
     // A superset of LayerSettings required by RenderEngine to compose a layer

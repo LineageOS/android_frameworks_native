@@ -109,7 +109,8 @@ void EffectLayer::preparePerFrameCompositionState() {
 
     auto* compositionState = editCompositionState();
     compositionState->color = getColor();
-    compositionState->compositionType = Hwc2::IComposerClient::Composition::SOLID_COLOR;
+    compositionState->compositionType =
+            aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR;
 }
 
 sp<compositionengine::LayerFE> EffectLayer::getCompositionEngineLayerFE() const {

@@ -39,6 +39,8 @@
 
 #include "DisplayHardware/Hal.h"
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
@@ -156,12 +158,13 @@ struct LayerFECompositionState {
      */
 
     // The type of composition for this layer
-    hal::Composition compositionType{hal::Composition::INVALID};
+    aidl::android::hardware::graphics::composer3::Composition compositionType{
+            aidl::android::hardware::graphics::composer3::Composition::INVALID};
 
     // The buffer and related state
     sp<GraphicBuffer> buffer;
     int bufferSlot{BufferQueue::INVALID_BUFFER_SLOT};
-    sp<Fence> acquireFence;
+    sp<Fence> acquireFence = Fence::NO_FENCE;
     Region surfaceDamage;
 
     // The handle to use for a sideband stream for this layer

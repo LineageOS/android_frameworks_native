@@ -106,12 +106,18 @@ private:
     void initCanvas(SkCanvas* canvas, const DisplaySettings& display);
     void drawShadow(SkCanvas* canvas, const SkRRect& casterRRect,
                     const ShadowSettings& shadowSettings);
+
     // If requiresLinearEffect is true or the layer has a stretchEffect a new shader is returned.
     // Otherwise it returns the input shader.
-    sk_sp<SkShader> createRuntimeEffectShader(sk_sp<SkShader> shader, const LayerSettings& layer,
-                                              const DisplaySettings& display,
-                                              bool undoPremultipliedAlpha,
-                                              bool requiresLinearEffect);
+    struct RuntimeEffectShaderParameters {
+        sk_sp<SkShader> shader;
+        const LayerSettings& layer;
+        const DisplaySettings& display;
+        bool undoPremultipliedAlpha;
+        bool requiresLinearEffect;
+        float layerDimmingRatio;
+    };
+    sk_sp<SkShader> createRuntimeEffectShader(const RuntimeEffectShaderParameters&);
 
     EGLDisplay mEGLDisplay;
     EGLContext mEGLContext;

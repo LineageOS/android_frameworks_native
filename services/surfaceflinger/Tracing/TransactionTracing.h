@@ -67,6 +67,7 @@ public:
     void onMirrorLayerAdded(BBinder* layerHandle, int layerId, const std::string& name,
                             int mirrorFromId);
     void onLayerRemoved(int layerId);
+    void onHandleRemoved(BBinder* layerHandle);
     void dump(std::string&) const;
     static constexpr auto CONTINUOUS_TRACING_BUFFER_SIZE = 512 * 1024;
     static constexpr auto ACTIVE_TRACING_BUFFER_SIZE = 100 * 1024 * 1024;

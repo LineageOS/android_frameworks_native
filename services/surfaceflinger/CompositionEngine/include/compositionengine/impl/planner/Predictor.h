@@ -109,7 +109,7 @@ public:
     static std::optional<Plan> fromString(const std::string&);
 
     void reset() { mLayerTypes.clear(); }
-    void addLayerType(hardware::graphics::composer::hal::Composition type) {
+    void addLayerType(aidl::android::hardware::graphics::composer3::Composition type) {
         mLayerTypes.emplace_back(type);
     }
 
@@ -125,7 +125,7 @@ public:
     }
 
 private:
-    std::vector<hardware::graphics::composer::hal::Composition> mLayerTypes;
+    std::vector<aidl::android::hardware::graphics::composer3::Composition> mLayerTypes;
 };
 
 } // namespace android::compositionengine::impl::planner

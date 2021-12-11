@@ -38,6 +38,10 @@
 #include "MockHWComposer.h"
 #include "MockPowerAdvisor.h"
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+
+using aidl::android::hardware::graphics::composer3::Composition;
+
 namespace android::compositionengine {
 namespace {
 
@@ -592,10 +596,11 @@ TEST_F(DisplayChooseCompositionStrategyTest, normalOperation) {
 
 TEST_F(DisplayChooseCompositionStrategyTest, normalOperationWithChanges) {
     android::HWComposer::DeviceRequestedChanges changes{
-            {{nullptr, hal::Composition::CLIENT}},
+            {{nullptr, Composition::CLIENT}},
             hal::DisplayRequest::FLIP_CLIENT_TARGET,
             {{nullptr, hal::LayerRequest::CLEAR_CLIENT_TARGET}},
             {hal::PixelFormat::RGBA_8888, hal::Dataspace::UNKNOWN},
+            -1.f,
     };
 
     // Since two calls are made to anyLayersRequireClientComposition with different return
@@ -699,17 +704,15 @@ TEST_F(DisplayApplyChangedTypesToLayersTest, takesEarlyOutIfNoChangedLayers) {
 }
 
 TEST_F(DisplayApplyChangedTypesToLayersTest, appliesChanges) {
-    EXPECT_CALL(*mLayer1.outputLayer,
-                applyDeviceCompositionTypeChange(Hwc2::IComposerClient::Composition::CLIENT))
+    EXPECT_CALL(*mLayer1.outputLayer, applyDeviceCompositionTypeChange(Composition::CLIENT))
             .Times(1);
-    EXPECT_CALL(*mLayer2.outputLayer,
-                applyDeviceCompositionTypeChange(Hwc2::IComposerClient::Composition::DEVICE))
+    EXPECT_CALL(*mLayer2.outputLayer, applyDeviceCompositionTypeChange(Composition::DEVICE))
             .Times(1);
 
     mDisplay->applyChangedTypesToLayers(impl::Display::ChangedTypes{
-            {&mLayer1.hwc2Layer, hal::Composition::CLIENT},
-            {&mLayer2.hwc2Layer, hal::Composition::DEVICE},
-            {&hwc2LayerUnknown, hal::Composition::SOLID_COLOR},
+            {&mLayer1.hwc2Layer, Composition::CLIENT},
+            {&mLayer2.hwc2Layer, Composition::DEVICE},
+            {&hwc2LayerUnknown, Composition::SOLID_COLOR},
     });
 }
 
@@ -788,15 +791,18 @@ TEST_F(DisplayApplyLayerRequestsToLayersTest, applyClientTargetRequests) {
             .dataspace = hal::Dataspace::STANDARD_BT470M,
     };
 
+    static constexpr float kWhitePointNits = 800.f;
+
     mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
     mDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
 
     EXPECT_CALL(*renderSurface, setBufferPixelFormat(clientTargetProperty.pixelFormat));
     EXPECT_CALL(*renderSurface, setBufferDataspace(clientTargetProperty.dataspace));
-    mDisplay->applyClientTargetRequests(clientTargetProperty);
+    mDisplay->applyClientTargetRequests(clientTargetProperty, kWhitePointNits);
 
     auto& state = mDisplay->getState();
     EXPECT_EQ(clientTargetProperty.dataspace, state.dataspace);
+    EXPECT_EQ(kWhitePointNits, state.clientTargetWhitePointNits);
 }
 
 /*

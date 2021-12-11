@@ -35,6 +35,8 @@
 
 #include "DisplayHardware/ComposerHal.h"
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
@@ -123,8 +125,8 @@ struct OutputLayerCompositionState {
         std::shared_ptr<HWC2::Layer> hwcLayer;
 
         // The most recently set HWC composition type for this layer
-        Hwc2::IComposerClient::Composition hwcCompositionType{
-                Hwc2::IComposerClient::Composition::INVALID};
+        aidl::android::hardware::graphics::composer3::Composition hwcCompositionType{
+                aidl::android::hardware::graphics::composer3::Composition::INVALID};
 
         // The buffer cache for this layer. This is used to lower the
         // cost of sending reused buffers to the HWC.
@@ -146,6 +148,10 @@ struct OutputLayerCompositionState {
 
     // Timestamp for when the layer is queued for client composition
     nsecs_t clientCompositionTimestamp{0};
+
+    // White point of the layer, in nits.
+    static constexpr float kDefaultWhitePointNits = 200.f;
+    float whitePointNits = kDefaultWhitePointNits;
 };
 
 } // namespace compositionengine::impl

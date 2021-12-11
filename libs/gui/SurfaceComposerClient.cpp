@@ -62,6 +62,14 @@ using ui::ColorMode;
 
 ANDROID_SINGLETON_STATIC_INSTANCE(ComposerService);
 
+namespace {
+// Initialize transaction id counter used to generate transaction ids
+std::atomic<uint32_t> idCounter = 0;
+int64_t generateId() {
+    return (((int64_t)getpid()) << 32) | ++idCounter;
+}
+} // namespace
+
 ComposerService::ComposerService()
 : Singleton<ComposerService>() {
     Mutex::Autolock _l(mLock);
@@ -535,10 +543,6 @@ void removeDeadBufferCallback(void* /*context*/, uint64_t graphicBufferId) {
 
 // ---------------------------------------------------------------------------
 
-// Initialize transaction id counter used to generate transaction ids
-// Transactions will start counting at 1, 0 is used for invalid transactions
-std::atomic<uint32_t> SurfaceComposerClient::Transaction::idCounter = 1;
-
 SurfaceComposerClient::Transaction::Transaction() {
     mId = generateId();
 }
@@ -570,9 +574,6 @@ SurfaceComposerClient::Transaction::createFromParcel(const Parcel* parcel) {
     return nullptr;
 }
 
-int64_t SurfaceComposerClient::Transaction::generateId() {
-    return (((int64_t)getpid()) << 32) | idCounter++;
-}
 
 status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel) {
     const uint32_t forceSynchronous = parcel->readUint32();
@@ -825,7 +826,7 @@ void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
 
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
     sf->setTransactionState(FrameTimelineInfo{}, {}, {}, 0, applyToken, {}, systemTime(), true,
-                            uncacheBuffer, false, {}, 0 /* Undefined transactionId */);
+                            uncacheBuffer, false, {}, generateId());
 }
 
 void SurfaceComposerClient::Transaction::cacheBuffers() {

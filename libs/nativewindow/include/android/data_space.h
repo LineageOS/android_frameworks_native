@@ -541,7 +541,21 @@ enum ADataSpace {
      *
      * Use limited range, hybrid log gamma transfer and BT2020 standard.
      */
-    ADATASPACE_BT2020_ITU_HLG = 302383104 // STANDARD_BT2020 | TRANSFER_HLG | RANGE_LIMITED
+    ADATASPACE_BT2020_ITU_HLG = 302383104, // STANDARD_BT2020 | TRANSFER_HLG | RANGE_LIMITED
+
+    /**
+     * Depth:
+     *
+     * This value is valid with formats HAL_PIXEL_FORMAT_Y16 and HAL_PIXEL_FORMAT_BLOB.
+     */
+    DEPTH = 4096,
+
+    /**
+     * ISO 16684-1:2011(E) Dynamic Depth:
+     *
+     * Embedded depth metadata following the dynamic depth specification.
+     */
+    DYNAMIC_DEPTH = 4098
 };
 
 __END_DECLS

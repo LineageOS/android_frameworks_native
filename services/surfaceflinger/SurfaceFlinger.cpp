@@ -67,6 +67,7 @@
 #include <renderengine/RenderEngine.h>
 #include <sys/types.h>
 #include <ui/ColorSpace.h>
+#include <ui/DataspaceUtils.h>
 #include <ui/DebugUtils.h>
 #include <ui/DisplayId.h>
 #include <ui/DisplayMode.h>
@@ -493,7 +494,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     enableLatchUnsignaledConfig = getLatchUnsignaledConfig();
 
-    mTransactionTracingEnabled = property_get_bool("debug.sf.enable_transaction_tracing", false);
+    mTransactionTracingEnabled =
+            !mIsUserBuild && property_get_bool("debug.sf.enable_transaction_tracing", true);
     if (mTransactionTracingEnabled) {
         mTransactionTracing.enable();
     }
@@ -2316,12 +2318,7 @@ void SurfaceFlinger::postComposition() {
             mDrawingState.traverse([&, compositionDisplay = compositionDisplay](Layer* layer) {
                 const auto layerFe = layer->getCompositionEngineLayerFE();
                 if (layer->isVisible() && compositionDisplay->includesLayer(layerFe)) {
-                    const Dataspace transfer =
-                        static_cast<Dataspace>(layer->getDataSpace() & Dataspace::TRANSFER_MASK);
-                    const bool isHdr = (transfer == Dataspace::TRANSFER_ST2084 ||
-                                        transfer == Dataspace::TRANSFER_HLG);
-
-                    if (isHdr) {
+                    if (isHdrDataspace(layer->getDataSpace())) {
                         const auto* outputLayer =
                             compositionDisplay->getOutputLayerForLayer(layerFe);
                         if (outputLayer) {
@@ -4419,10 +4416,6 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
     if (parentLayer != nullptr) {
         addToRoot = false;
     }
-    result = addClientLayer(args.client, *outHandle, layer, parent, addToRoot, outTransformHint);
-    if (result != NO_ERROR) {
-        return result;
-    }
 
     int parentId = -1;
     // We can safely promote the layer in binder thread because we have a strong reference
@@ -4434,6 +4427,11 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
     if (mTransactionTracingEnabled) {
         mTransactionTracing.onLayerAdded((*outHandle)->localBinder(), layer->sequence, args.name,
                                          args.flags, parentId);
+    }
+
+    result = addClientLayer(args.client, *outHandle, layer, parent, addToRoot, outTransformHint);
+    if (result != NO_ERROR) {
+        return result;
     }
 
     setTransactionFlags(eTransactionNeeded);
@@ -4518,6 +4516,9 @@ void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer) {
     markLayerPendingRemovalLocked(layer);
     mBufferCountTracker.remove(handle);
     layer.clear();
+    if (mTransactionTracingEnabled) {
+        mTransactionTracing.onHandleRemoved(handle);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -6428,6 +6429,8 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
                                        BlurSetting::Disabled
                              : compositionengine::LayerFE::ClientCompositionTargetSettings::
                                        BlurSetting::Enabled,
+                DisplayDevice::sDefaultMaxLumiance,
+
         };
         std::vector<compositionengine::LayerFE::LayerSettings> results =
                 layer->prepareClientCompositionList(targetSettings);

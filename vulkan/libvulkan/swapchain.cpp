@@ -23,6 +23,8 @@
 #include <sync/sync.h>
 #include <system/window.h>
 #include <ui/BufferQueueDefs.h>
+#include <ui/DebugUtils.h>
+#include <ui/PixelFormat.h>
 #include <utils/StrongPointer.h>
 #include <utils/Timers.h>
 #include <utils/Trace.h>
@@ -462,21 +464,24 @@ void copy_ready_timings(Swapchain& swapchain,
     *count = num_copied;
 }
 
-android_pixel_format GetNativePixelFormat(VkFormat format) {
-    android_pixel_format native_format = HAL_PIXEL_FORMAT_RGBA_8888;
+android::PixelFormat GetNativePixelFormat(VkFormat format) {
+    android::PixelFormat native_format = android::PIXEL_FORMAT_RGBA_8888;
     switch (format) {
         case VK_FORMAT_R8G8B8A8_UNORM:
         case VK_FORMAT_R8G8B8A8_SRGB:
-            native_format = HAL_PIXEL_FORMAT_RGBA_8888;
+            native_format = android::PIXEL_FORMAT_RGBA_8888;
             break;
         case VK_FORMAT_R5G6B5_UNORM_PACK16:
-            native_format = HAL_PIXEL_FORMAT_RGB_565;
+            native_format = android::PIXEL_FORMAT_RGB_565;
             break;
         case VK_FORMAT_R16G16B16A16_SFLOAT:
-            native_format = HAL_PIXEL_FORMAT_RGBA_FP16;
+            native_format = android::PIXEL_FORMAT_RGBA_FP16;
             break;
         case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
-            native_format = HAL_PIXEL_FORMAT_RGBA_1010102;
+            native_format = android::PIXEL_FORMAT_RGBA_1010102;
+            break;
+        case VK_FORMAT_R8_UNORM:
+            native_format = android::PIXEL_FORMAT_R_8;
             break;
         default:
             ALOGV("unsupported swapchain format %d", format);
@@ -758,6 +763,13 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         }
     }
 
+    desc.format = AHARDWAREBUFFER_FORMAT_R8_UNORM;
+    if (AHardwareBuffer_isSupported(&desc)) {
+        all_formats.emplace_back(
+            VkSurfaceFormatKHR{VK_FORMAT_R8_UNORM,
+                               VK_COLOR_SPACE_PASS_THROUGH_EXT});
+    }
+
     VkResult result = VK_SUCCESS;
     if (formats) {
         uint32_t transfer_count = all_formats.size();
@@ -1034,7 +1046,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
     if (!allocator)
         allocator = &GetData(device).allocator;
 
-    android_pixel_format native_pixel_format =
+    android::PixelFormat native_pixel_format =
         GetNativePixelFormat(create_info->imageFormat);
     android_dataspace native_dataspace =
         GetNativeDataspace(create_info->imageColorSpace);
@@ -1131,8 +1143,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
 
     err = native_window_set_buffers_format(window, native_pixel_format);
     if (err != android::OK) {
-        ALOGE("native_window_set_buffers_format(%d) failed: %s (%d)",
-              native_pixel_format, strerror(-err), err);
+        ALOGE("native_window_set_buffers_format(%s) failed: %s (%d)",
+              decodePixelFormat(native_pixel_format).c_str(), strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
     err = native_window_set_buffers_data_space(window, native_dataspace);
