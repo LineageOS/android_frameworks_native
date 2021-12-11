@@ -2035,7 +2035,10 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
         // We received the present fence from the HWC, so we assume it successfully updated
         // the mode, hence we update SF.
         mSetActiveModePending = false;
-        ON_MAIN_THREAD(updateInternalStateWithChangedMode());
+        {
+            Mutex::Autolock lock(mStateLock);
+            updateInternalStateWithChangedMode();
+        }
     }
 
     if (framePending) {
@@ -2100,9 +2103,8 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     {
         Mutex::Autolock _l(mStateLock);
         mScheduler->chooseRefreshRateForContent();
+        setActiveModeInHwcIfNeeded();
     }
-
-    ON_MAIN_THREAD(setActiveModeInHwcIfNeeded());
 
     updateCursorAsync();
     updateInputFlinger();
