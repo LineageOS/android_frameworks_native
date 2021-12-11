@@ -163,3 +163,13 @@ cc_test {
         "-Werror",
     ],
 }
+
+cc_test {
+    name: "DataspaceUtils_test",
+    shared_libs: ["libui"],
+    srcs: ["DataspaceUtils_test.cpp"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}

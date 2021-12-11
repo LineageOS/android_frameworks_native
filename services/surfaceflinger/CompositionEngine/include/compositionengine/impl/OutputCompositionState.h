@@ -127,6 +127,9 @@ struct OutputCompositionState {
     // SDR white point
     float sdrWhitePointNits{-1.f};
 
+    // White point of the client target
+    float clientTargetWhitePointNits{-1.f};
+
     // Debugging
     void dump(std::string& result) const;
 };

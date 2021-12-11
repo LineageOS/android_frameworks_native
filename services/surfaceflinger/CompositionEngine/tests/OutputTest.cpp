@@ -3023,6 +3023,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
         mOutput.mState.usesDeviceComposition = false;
         mOutput.mState.reusedClientComposition = false;
         mOutput.mState.flipClientTarget = false;
+        mOutput.mState.clientTargetWhitePointNits = kClientTargetLuminanceNits;
 
         EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
@@ -3057,6 +3058,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
     static constexpr float kDefaultMaxLuminance = 0.9f;
     static constexpr float kDefaultAvgLuminance = 0.7f;
     static constexpr float kDefaultMinLuminance = 0.1f;
+    static constexpr float kClientTargetLuminanceNits = 200.f;
 
     static const Rect kDefaultOutputFrame;
     static const Rect kDefaultOutputViewport;
@@ -3424,7 +3426,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposi
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
                                             kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
-                                            kDefaultOutputOrientationFlags})
+                                            kDefaultOutputOrientationFlags,
+                                            kClientTargetLuminanceNits})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3435,7 +3438,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComp
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
                                             kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
-                                            kDefaultOutputOrientationFlags})
+                                            kDefaultOutputOrientationFlags,
+                                            kClientTargetLuminanceNits})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3444,10 +3448,10 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientCo
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
-                                            kDefaultMaxLuminance, kDefaultOutputDataspace,
-                                            kDefaultColorTransformMat,
-                                            kDefaultOutputOrientationFlags})
+            .thenExpectDisplaySettingsUsed(
+                    {kDefaultOutputDestinationClip, kDefaultOutputViewport, kDefaultMaxLuminance,
+                     kDefaultOutputDataspace, kDefaultColorTransformMat,
+                     kDefaultOutputOrientationFlags, kClientTargetLuminanceNits})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3456,10 +3460,10 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClien
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(false)
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
-                                            kDefaultMaxLuminance, kDefaultOutputDataspace,
-                                            kDefaultColorTransformMat,
-                                            kDefaultOutputOrientationFlags})
+            .thenExpectDisplaySettingsUsed(
+                    {kDefaultOutputDestinationClip, kDefaultOutputViewport, kDefaultMaxLuminance,
+                     kDefaultOutputDataspace, kDefaultColorTransformMat,
+                     kDefaultOutputOrientationFlags, kClientTargetLuminanceNits})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3471,7 +3475,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
             .andIfSkipColorTransform(true)
             .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
                                             kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
-                                            kDefaultOutputOrientationFlags})
+                                            kDefaultOutputOrientationFlags,
+                                            kClientTargetLuminanceNits})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3729,6 +3734,8 @@ struct GenerateClientCompositionRequestsTest : public testing::Test {
         mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
     }
 
+    static constexpr float kLayerWhitePointNits = 200.f;
+
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
     StrictMock<OutputPartialMock> mOutput;
@@ -3768,6 +3775,7 @@ struct GenerateClientCompositionRequestsTest_ThreeLayers
 
     static constexpr ui::Rotation kDisplayOrientation = ui::ROTATION_0;
     static constexpr ui::Dataspace kDisplayDataspace = ui::Dataspace::UNKNOWN;
+    static constexpr float kLayerWhitePointNits = 200.f;
 
     static const Rect kDisplayFrame;
     static const Rect kDisplayViewport;
@@ -3930,14 +3938,15 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, clearsHWCLayersIfOpaqu
 
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
-            false,      /* needs filtering */
-            false,      /* secure */
-            false,      /* supports protected content */
+            false, /* needs filtering */
+            false, /* secure */
+            false, /* supports protected content */
             kDisplayViewport,
             kDisplayDataspace,
             false /* realContentIsVisible */,
             true /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
@@ -3949,6 +3958,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, clearsHWCLayersIfOpaqu
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
 
     LayerFE::LayerSettings mBlackoutSettings = mLayers[1].mLayerSettings;
@@ -3988,6 +3998,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(Rect(0, 0, 30, 30)),
@@ -3999,6 +4010,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(Rect(0, 0, 40, 201)),
@@ -4010,6 +4022,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
 
     EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
@@ -4039,6 +4052,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
@@ -4050,6 +4064,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
@@ -4061,6 +4076,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
 
     EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
@@ -4090,7 +4106,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
-
+            kLayerWhitePointNits,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
@@ -4102,6 +4118,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
@@ -4113,6 +4130,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
 
     EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
@@ -4141,6 +4159,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
@@ -4152,6 +4171,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
@@ -4163,6 +4183,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
 
     EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
@@ -4179,7 +4200,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
 
 TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
        protectedContentSupportUsedToGenerateRequests) {
-
     compositionengine::LayerFE::ClientCompositionTargetSettings layer0TargetSettings{
             Region(kDisplayFrame),
             false, /* needs filtering */
@@ -4190,6 +4210,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
@@ -4201,6 +4222,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
@@ -4212,6 +4234,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
 
     EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
@@ -4379,6 +4402,7 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
 
     EXPECT_CALL(leftLayer.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
@@ -4396,6 +4420,7 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
 
     EXPECT_CALL(rightLayer.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
@@ -4428,6 +4453,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             false /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
 
     LayerFE::LayerSettings mShadowSettings;
@@ -4472,6 +4498,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             true /* realContentIsVisible */,
             false /* clearContent */,
             compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+            kLayerWhitePointNits,
     };
 
     EXPECT_CALL(mLayers[0].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));

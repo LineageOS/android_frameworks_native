@@ -46,6 +46,7 @@
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <numeric>
 
 #include "../gl/GLExtensions.h"
 #include "Cache.h"
@@ -612,33 +613,33 @@ private:
     AutoBackendTexture::CleanupManager& mMgr;
 };
 
-sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(sk_sp<SkShader> shader,
-                                                              const LayerSettings& layer,
-                                                              const DisplaySettings& display,
-                                                              bool undoPremultipliedAlpha,
-                                                              bool requiresLinearEffect) {
-    const auto stretchEffect = layer.stretchEffect;
+sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
+        const RuntimeEffectShaderParameters& parameters) {
     // The given surface will be stretched by HWUI via matrix transformation
     // which gets similar results for most surfaces
     // Determine later on if we need to leverage the stertch shader within
     // surface flinger
+    const auto& stretchEffect = parameters.layer.stretchEffect;
+    auto shader = parameters.shader;
     if (stretchEffect.hasEffect()) {
-        const auto targetBuffer = layer.source.buffer.buffer;
+        const auto targetBuffer = parameters.layer.source.buffer.buffer;
         const auto graphicBuffer = targetBuffer ? targetBuffer->getBuffer() : nullptr;
-        if (graphicBuffer && shader) {
+        if (graphicBuffer && parameters.shader) {
             shader = mStretchShaderFactory.createSkShader(shader, stretchEffect);
         }
     }
 
-    if (requiresLinearEffect) {
-        const ui::Dataspace inputDataspace =
-                mUseColorManagement ? layer.sourceDataspace : ui::Dataspace::V0_SRGB_LINEAR;
-        const ui::Dataspace outputDataspace =
-                mUseColorManagement ? display.outputDataspace : ui::Dataspace::V0_SRGB_LINEAR;
+    if (parameters.requiresLinearEffect) {
+        const ui::Dataspace inputDataspace = mUseColorManagement ? parameters.layer.sourceDataspace
+                                                                 : ui::Dataspace::V0_SRGB_LINEAR;
+        const ui::Dataspace outputDataspace = mUseColorManagement
+                ? parameters.display.outputDataspace
+                : ui::Dataspace::V0_SRGB_LINEAR;
 
-        auto effect = shaders::LinearEffect{.inputDataspace = inputDataspace,
-                                            .outputDataspace = outputDataspace,
-                                            .undoPremultipliedAlpha = undoPremultipliedAlpha};
+        auto effect =
+                shaders::LinearEffect{.inputDataspace = inputDataspace,
+                                      .outputDataspace = outputDataspace,
+                                      .undoPremultipliedAlpha = parameters.undoPremultipliedAlpha};
 
         auto effectIter = mRuntimeEffects.find(effect);
         sk_sp<SkRuntimeEffect> runtimeEffect = nullptr;
@@ -648,16 +649,16 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(sk_sp<SkShader> sh
         } else {
             runtimeEffect = effectIter->second;
         }
-        float maxLuminance = layer.source.buffer.maxLuminanceNits;
-        // If the buffer doesn't have a max luminance, treat it as SDR & use the display's SDR
-        // white point
-        if (maxLuminance <= 0.f) {
-            maxLuminance = display.sdrWhitePointNits;
-        }
-        return createLinearEffectShader(shader, effect, runtimeEffect, layer.colorTransform,
-                                        display.maxLuminance, maxLuminance);
+        mat4 colorTransform = parameters.layer.colorTransform;
+
+        colorTransform *=
+                mat4::scale(vec4(parameters.layerDimmingRatio, parameters.layerDimmingRatio,
+                                 parameters.layerDimmingRatio, 1.f));
+        return createLinearEffectShader(parameters.shader, effect, runtimeEffect, colorTransform,
+                                        parameters.display.maxLuminance,
+                                        parameters.layer.source.buffer.maxLuminanceNits);
     }
-    return shader;
+    return parameters.shader;
 }
 
 void SkiaGLRenderEngine::initCanvas(SkCanvas* canvas, const DisplaySettings& display) {
@@ -730,6 +731,11 @@ static SkRRect getBlurRRect(const BlurRegion& region) {
     return roundedRect;
 }
 
+static bool equalsWithinMargin(float expected, float value, float margin) {
+    LOG_ALWAYS_FATAL_IF(margin < 0.f, "Margin is negative!");
+    return std::abs(expected - value) < margin;
+}
+
 void SkiaGLRenderEngine::drawLayersInternal(
         const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
         const DisplaySettings& display, const std::vector<LayerSettings>& layers,
@@ -790,6 +796,18 @@ void SkiaGLRenderEngine::drawLayersInternal(
     }
     const bool ctModifiesAlpha =
             displayColorTransform && !displayColorTransform->isAlphaUnchanged();
+
+    // Find the max layer white point to determine the max luminance of the scene...
+    const float maxLayerWhitePoint = std::transform_reduce(
+            layers.cbegin(), layers.cend(), 0.f,
+            [](float left, float right) { return std::max(left, right); },
+            [&](const auto& l) { return l.whitePointNits; });
+
+    // ...and compute the dimming ratio if dimming is requested
+    const float displayDimmingRatio = display.targetLuminanceNits > 0.f &&
+                    maxLayerWhitePoint > 0.f && display.targetLuminanceNits > maxLayerWhitePoint
+            ? maxLayerWhitePoint / display.targetLuminanceNits
+            : 1.f;
 
     // Find if any layers have requested blur, we'll use that info to decide when to render to an
     // offscreen buffer and when to render to the native buffer.
@@ -964,11 +982,14 @@ void SkiaGLRenderEngine::drawLayersInternal(
             drawShadow(canvas, rrect, layer.shadow);
         }
 
+        const float layerDimmingRatio = layer.whitePointNits <= 0.f
+                ? displayDimmingRatio
+                : (layer.whitePointNits / maxLayerWhitePoint) * displayDimmingRatio;
+
         const bool requiresLinearEffect = layer.colorTransform != mat4() ||
                 (mUseColorManagement &&
                  needsToneMapping(layer.sourceDataspace, display.outputDataspace)) ||
-                (display.sdrWhitePointNits > 0.f &&
-                 display.sdrWhitePointNits != display.maxLuminance);
+                !equalsWithinMargin(1.f, layerDimmingRatio, 0.001f);
 
         // quick abort from drawing the remaining portion of the layer
         if (layer.skipContentDraw ||
@@ -1067,9 +1088,20 @@ void SkiaGLRenderEngine::drawLayersInternal(
                                                            toSkColorSpace(layerDataspace)));
             }
 
-            paint.setShader(createRuntimeEffectShader(shader, layer, display,
-                                                      !item.isOpaque && item.usePremultipliedAlpha,
-                                                      requiresLinearEffect));
+            paint.setShader(createRuntimeEffectShader(
+                    RuntimeEffectShaderParameters{.shader = shader,
+                                                  .layer = layer,
+                                                  .display = display,
+                                                  .undoPremultipliedAlpha = !item.isOpaque &&
+                                                          item.usePremultipliedAlpha,
+                                                  .requiresLinearEffect = requiresLinearEffect,
+                                                  .layerDimmingRatio = layerDimmingRatio}));
+
+            // Turn on dithering when dimming beyond this threshold.
+            static constexpr float kDimmingThreshold = 0.2f;
+            if (layerDimmingRatio <= kDimmingThreshold) {
+                paint.setDither(true);
+            }
             paint.setAlphaf(layer.alpha);
         } else {
             ATRACE_NAME("DrawColor");
@@ -1079,9 +1111,13 @@ void SkiaGLRenderEngine::drawLayersInternal(
                                                                 .fB = color.b,
                                                                 .fA = layer.alpha},
                                                       toSkColorSpace(layerDataspace));
-            paint.setShader(createRuntimeEffectShader(shader, layer, display,
-                                                      /* undoPremultipliedAlpha */ false,
-                                                      requiresLinearEffect));
+            paint.setShader(createRuntimeEffectShader(
+                    RuntimeEffectShaderParameters{.shader = shader,
+                                                  .layer = layer,
+                                                  .display = display,
+                                                  .undoPremultipliedAlpha = false,
+                                                  .requiresLinearEffect = requiresLinearEffect,
+                                                  .layerDimmingRatio = layerDimmingRatio}));
         }
 
         if (layer.disableBlending) {

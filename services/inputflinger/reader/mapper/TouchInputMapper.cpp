@@ -1465,14 +1465,14 @@ void TouchInputMapper::sync(nsecs_t when, nsecs_t readTime) {
         assignPointerIds(last, next);
     }
 
-#if DEBUG_RAW_EVENTS
-    ALOGD("syncTouch: pointerCount %d -> %d, touching ids 0x%08x -> 0x%08x, "
-          "hovering ids 0x%08x -> 0x%08x, canceled ids 0x%08x",
-          last.rawPointerData.pointerCount, next.rawPointerData.pointerCount,
-          last.rawPointerData.touchingIdBits.value, next.rawPointerData.touchingIdBits.value,
-          last.rawPointerData.hoveringIdBits.value, next.rawPointerData.hoveringIdBits.value,
-          next.rawPointerData.canceledIdBits.value);
-#endif
+    if (DEBUG_RAW_EVENTS) {
+        ALOGD("syncTouch: pointerCount %d -> %d, touching ids 0x%08x -> 0x%08x, "
+              "hovering ids 0x%08x -> 0x%08x, canceled ids 0x%08x",
+              last.rawPointerData.pointerCount, next.rawPointerData.pointerCount,
+              last.rawPointerData.touchingIdBits.value, next.rawPointerData.touchingIdBits.value,
+              last.rawPointerData.hoveringIdBits.value, next.rawPointerData.hoveringIdBits.value,
+              next.rawPointerData.canceledIdBits.value);
+    }
 
     if (!next.rawPointerData.touchingIdBits.isEmpty() &&
         !next.rawPointerData.hoveringIdBits.isEmpty() &&
@@ -1526,9 +1526,9 @@ void TouchInputMapper::processRawTouches(bool timeout) {
             nsecs_t when = mExternalStylusFusionTimeout - STYLUS_DATA_LATENCY;
             clearStylusDataPendingFlags();
             mCurrentRawState.copyFrom(mLastRawState);
-#if DEBUG_STYLUS_FUSION
-            ALOGD("Timeout expired, synthesizing event with new stylus data");
-#endif
+            if (DEBUG_STYLUS_FUSION) {
+                ALOGD("Timeout expired, synthesizing event with new stylus data");
+            }
             const nsecs_t readTime = when; // consider this synthetic event to be zero latency
             cookAndDispatch(when, readTime);
         } else if (mExternalStylusFusionTimeout == LLONG_MAX) {
@@ -1715,24 +1715,24 @@ bool TouchInputMapper::assignExternalStylusId(const RawState& state, bool timeou
             state.rawPointerData.pointerCount != 0;
     if (initialDown) {
         if (mExternalStylusState.pressure != 0.0f) {
-#if DEBUG_STYLUS_FUSION
-            ALOGD("Have both stylus and touch data, beginning fusion");
-#endif
+            if (DEBUG_STYLUS_FUSION) {
+                ALOGD("Have both stylus and touch data, beginning fusion");
+            }
             mExternalStylusId = state.rawPointerData.touchingIdBits.firstMarkedBit();
         } else if (timeout) {
-#if DEBUG_STYLUS_FUSION
-            ALOGD("Timeout expired, assuming touch is not a stylus.");
-#endif
+            if (DEBUG_STYLUS_FUSION) {
+                ALOGD("Timeout expired, assuming touch is not a stylus.");
+            }
             resetExternalStylus();
         } else {
             if (mExternalStylusFusionTimeout == LLONG_MAX) {
                 mExternalStylusFusionTimeout = state.when + EXTERNAL_STYLUS_DATA_TIMEOUT;
             }
-#if DEBUG_STYLUS_FUSION
-            ALOGD("No stylus data but stylus is connected, requesting timeout "
-                  "(%" PRId64 "ms)",
-                  mExternalStylusFusionTimeout);
-#endif
+            if (DEBUG_STYLUS_FUSION) {
+                ALOGD("No stylus data but stylus is connected, requesting timeout "
+                      "(%" PRId64 "ms)",
+                      mExternalStylusFusionTimeout);
+            }
             getContext()->requestTimeoutAtTime(mExternalStylusFusionTimeout);
             return true;
         }
@@ -1740,9 +1740,9 @@ bool TouchInputMapper::assignExternalStylusId(const RawState& state, bool timeou
 
     // Check if the stylus pointer has gone up.
     if (mExternalStylusId != -1 && !state.rawPointerData.touchingIdBits.hasBit(mExternalStylusId)) {
-#if DEBUG_STYLUS_FUSION
-        ALOGD("Stylus pointer is going up");
-#endif
+        if (DEBUG_STYLUS_FUSION) {
+            ALOGD("Stylus pointer is going up");
+        }
         mExternalStylusId = -1;
     }
 
@@ -1783,10 +1783,10 @@ bool TouchInputMapper::consumeRawTouches(nsecs_t when, nsecs_t readTime, uint32_
             // Pointer went up while virtual key was down.
             mCurrentVirtualKey.down = false;
             if (!mCurrentVirtualKey.ignored) {
-#if DEBUG_VIRTUAL_KEYS
-                ALOGD("VirtualKeys: Generating key up: keyCode=%d, scanCode=%d",
-                      mCurrentVirtualKey.keyCode, mCurrentVirtualKey.scanCode);
-#endif
+                if (DEBUG_VIRTUAL_KEYS) {
+                    ALOGD("VirtualKeys: Generating key up: keyCode=%d, scanCode=%d",
+                          mCurrentVirtualKey.keyCode, mCurrentVirtualKey.scanCode);
+                }
                 dispatchVirtualKey(when, readTime, policyFlags, AKEY_EVENT_ACTION_UP,
                                    AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_VIRTUAL_HARD_KEY);
             }
@@ -1810,10 +1810,10 @@ bool TouchInputMapper::consumeRawTouches(nsecs_t when, nsecs_t readTime, uint32_
         // into the main display surface.
         mCurrentVirtualKey.down = false;
         if (!mCurrentVirtualKey.ignored) {
-#if DEBUG_VIRTUAL_KEYS
-            ALOGD("VirtualKeys: Canceling key: keyCode=%d, scanCode=%d", mCurrentVirtualKey.keyCode,
-                  mCurrentVirtualKey.scanCode);
-#endif
+            if (DEBUG_VIRTUAL_KEYS) {
+                ALOGD("VirtualKeys: Canceling key: keyCode=%d, scanCode=%d",
+                      mCurrentVirtualKey.keyCode, mCurrentVirtualKey.scanCode);
+            }
             dispatchVirtualKey(when, readTime, policyFlags, AKEY_EVENT_ACTION_UP,
                                AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_VIRTUAL_HARD_KEY |
                                        AKEY_EVENT_FLAG_CANCELED);
@@ -1843,10 +1843,10 @@ bool TouchInputMapper::consumeRawTouches(nsecs_t when, nsecs_t readTime, uint32_
                                                                virtualKey->scanCode);
 
                     if (!mCurrentVirtualKey.ignored) {
-#if DEBUG_VIRTUAL_KEYS
-                        ALOGD("VirtualKeys: Generating key down: keyCode=%d, scanCode=%d",
-                              mCurrentVirtualKey.keyCode, mCurrentVirtualKey.scanCode);
-#endif
+                        if (DEBUG_VIRTUAL_KEYS) {
+                            ALOGD("VirtualKeys: Generating key down: keyCode=%d, scanCode=%d",
+                                  mCurrentVirtualKey.keyCode, mCurrentVirtualKey.scanCode);
+                        }
                         dispatchVirtualKey(when, readTime, policyFlags, AKEY_EVENT_ACTION_DOWN,
                                            AKEY_EVENT_FLAG_FROM_SYSTEM |
                                                    AKEY_EVENT_FLAG_VIRTUAL_HARD_KEY);
@@ -2634,9 +2634,9 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
 
     // Handle TAP timeout.
     if (isTimeout) {
-#if DEBUG_GESTURES
-        ALOGD("Gestures: Processing timeout");
-#endif
+        if (DEBUG_GESTURES) {
+            ALOGD("Gestures: Processing timeout");
+        }
 
         if (mPointerGesture.lastGestureMode == PointerGesture::Mode::TAP) {
             if (when <= mPointerGesture.tapUpTime + mConfig.pointerGestureTapDragInterval) {
@@ -2645,9 +2645,9 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                                                    mConfig.pointerGestureTapDragInterval);
             } else {
                 // The tap is finished.
-#if DEBUG_GESTURES
-                ALOGD("Gestures: TAP finished");
-#endif
+                if (DEBUG_GESTURES) {
+                    ALOGD("Gestures: TAP finished");
+                }
                 *outFinishPreviousGesture = true;
 
                 mPointerGesture.activeGestureId = -1;
@@ -2743,10 +2743,11 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
     // Switch states based on button and pointer state.
     if (isQuietTime) {
         // Case 1: Quiet time. (QUIET)
-#if DEBUG_GESTURES
-        ALOGD("Gestures: QUIET for next %0.3fms",
-              (mPointerGesture.quietTime + mConfig.pointerGestureQuietInterval - when) * 0.000001f);
-#endif
+        if (DEBUG_GESTURES) {
+            ALOGD("Gestures: QUIET for next %0.3fms",
+                  (mPointerGesture.quietTime + mConfig.pointerGestureQuietInterval - when) *
+                          0.000001f);
+        }
         if (mPointerGesture.lastGestureMode != PointerGesture::Mode::QUIET) {
             *outFinishPreviousGesture = true;
         }
@@ -2770,11 +2771,11 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         // active.  If the user first puts one finger down to click then adds another
         // finger to drag then the active pointer should switch to the finger that is
         // being dragged.
-#if DEBUG_GESTURES
-        ALOGD("Gestures: BUTTON_CLICK_OR_DRAG activeTouchId=%d, "
-              "currentFingerCount=%d",
-              activeTouchId, currentFingerCount);
-#endif
+        if (DEBUG_GESTURES) {
+            ALOGD("Gestures: BUTTON_CLICK_OR_DRAG activeTouchId=%d, "
+                  "currentFingerCount=%d",
+                  activeTouchId, currentFingerCount);
+        }
         // Reset state when just starting.
         if (mPointerGesture.lastGestureMode != PointerGesture::Mode::BUTTON_CLICK_OR_DRAG) {
             *outFinishPreviousGesture = true;
@@ -2799,11 +2800,11 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             }
             if (bestId >= 0 && bestId != activeTouchId) {
                 mPointerGesture.activeTouchId = activeTouchId = bestId;
-#if DEBUG_GESTURES
-                ALOGD("Gestures: BUTTON_CLICK_OR_DRAG switched pointers, "
-                      "bestId=%d, bestSpeed=%0.3f",
-                      bestId, bestSpeed);
-#endif
+                if (DEBUG_GESTURES) {
+                    ALOGD("Gestures: BUTTON_CLICK_OR_DRAG switched pointers, "
+                          "bestId=%d, bestSpeed=%0.3f",
+                          bestId, bestSpeed);
+                }
             }
         }
 
@@ -2858,9 +2859,9 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                 mPointerController->getPosition(&x, &y);
                 if (fabs(x - mPointerGesture.tapX) <= mConfig.pointerGestureTapSlop &&
                     fabs(y - mPointerGesture.tapY) <= mConfig.pointerGestureTapSlop) {
-#if DEBUG_GESTURES
-                    ALOGD("Gestures: TAP");
-#endif
+                    if (DEBUG_GESTURES) {
+                        ALOGD("Gestures: TAP");
+                    }
 
                     mPointerGesture.tapUpTime = when;
                     getContext()->requestTimeoutAtTime(when +
@@ -2886,29 +2887,29 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
 
                     tapped = true;
                 } else {
-#if DEBUG_GESTURES
-                    ALOGD("Gestures: Not a TAP, deltaX=%f, deltaY=%f", x - mPointerGesture.tapX,
-                          y - mPointerGesture.tapY);
-#endif
+                    if (DEBUG_GESTURES) {
+                        ALOGD("Gestures: Not a TAP, deltaX=%f, deltaY=%f", x - mPointerGesture.tapX,
+                              y - mPointerGesture.tapY);
+                    }
                 }
             } else {
-#if DEBUG_GESTURES
-                if (mPointerGesture.tapDownTime != LLONG_MIN) {
-                    ALOGD("Gestures: Not a TAP, %0.3fms since down",
-                          (when - mPointerGesture.tapDownTime) * 0.000001f);
-                } else {
-                    ALOGD("Gestures: Not a TAP, incompatible mode transitions");
+                if (DEBUG_GESTURES) {
+                    if (mPointerGesture.tapDownTime != LLONG_MIN) {
+                        ALOGD("Gestures: Not a TAP, %0.3fms since down",
+                              (when - mPointerGesture.tapDownTime) * 0.000001f);
+                    } else {
+                        ALOGD("Gestures: Not a TAP, incompatible mode transitions");
+                    }
                 }
-#endif
             }
         }
 
         mPointerVelocityControl.reset();
 
         if (!tapped) {
-#if DEBUG_GESTURES
-            ALOGD("Gestures: NEUTRAL");
-#endif
+            if (DEBUG_GESTURES) {
+                ALOGD("Gestures: NEUTRAL");
+            }
             mPointerGesture.activeGestureId = -1;
             mPointerGesture.currentGestureMode = PointerGesture::Mode::NEUTRAL;
             mPointerGesture.currentGestureIdBits.clear();
@@ -2929,16 +2930,16 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                     fabs(y - mPointerGesture.tapY) <= mConfig.pointerGestureTapSlop) {
                     mPointerGesture.currentGestureMode = PointerGesture::Mode::TAP_DRAG;
                 } else {
-#if DEBUG_GESTURES
-                    ALOGD("Gestures: Not a TAP_DRAG, deltaX=%f, deltaY=%f",
-                          x - mPointerGesture.tapX, y - mPointerGesture.tapY);
-#endif
+                    if (DEBUG_GESTURES) {
+                        ALOGD("Gestures: Not a TAP_DRAG, deltaX=%f, deltaY=%f",
+                              x - mPointerGesture.tapX, y - mPointerGesture.tapY);
+                    }
                 }
             } else {
-#if DEBUG_GESTURES
-                ALOGD("Gestures: Not a TAP_DRAG, %0.3fms time since up",
-                      (when - mPointerGesture.tapUpTime) * 0.000001f);
-#endif
+                if (DEBUG_GESTURES) {
+                    ALOGD("Gestures: Not a TAP_DRAG, %0.3fms time since up",
+                          (when - mPointerGesture.tapUpTime) * 0.000001f);
+                }
             }
         } else if (mPointerGesture.lastGestureMode == PointerGesture::Mode::TAP_DRAG) {
             mPointerGesture.currentGestureMode = PointerGesture::Mode::TAP_DRAG;
@@ -2965,14 +2966,14 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
 
         bool down;
         if (mPointerGesture.currentGestureMode == PointerGesture::Mode::TAP_DRAG) {
-#if DEBUG_GESTURES
-            ALOGD("Gestures: TAP_DRAG");
-#endif
+            if (DEBUG_GESTURES) {
+                ALOGD("Gestures: TAP_DRAG");
+            }
             down = true;
         } else {
-#if DEBUG_GESTURES
-            ALOGD("Gestures: HOVER");
-#endif
+            if (DEBUG_GESTURES) {
+                ALOGD("Gestures: HOVER");
+            }
             if (mPointerGesture.lastGestureMode != PointerGesture::Mode::HOVER) {
                 *outFinishPreviousGesture = true;
             }
@@ -3026,12 +3027,13 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         } else if (!settled && currentFingerCount > lastFingerCount) {
             // Additional pointers have gone down but not yet settled.
             // Reset the gesture.
-#if DEBUG_GESTURES
-            ALOGD("Gestures: Resetting gesture since additional pointers went down for MULTITOUCH, "
-                  "settle time remaining %0.3fms",
-                  (mPointerGesture.firstTouchTime + mConfig.pointerGestureMultitouchSettleInterval -
-                   when) * 0.000001f);
-#endif
+            if (DEBUG_GESTURES) {
+                ALOGD("Gestures: Resetting gesture since additional pointers went down for "
+                      "MULTITOUCH, settle time remaining %0.3fms",
+                      (mPointerGesture.firstTouchTime +
+                       mConfig.pointerGestureMultitouchSettleInterval - when) *
+                              0.000001f);
+            }
             *outCancelPreviousGesture = true;
         } else {
             // Continue previous gesture.
@@ -3045,12 +3047,13 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             mPointerVelocityControl.reset();
 
             // Use the centroid and pointer location as the reference points for the gesture.
-#if DEBUG_GESTURES
-            ALOGD("Gestures: Using centroid as reference for MULTITOUCH, "
-                  "settle time remaining %0.3fms",
-                  (mPointerGesture.firstTouchTime + mConfig.pointerGestureMultitouchSettleInterval -
-                   when) * 0.000001f);
-#endif
+            if (DEBUG_GESTURES) {
+                ALOGD("Gestures: Using centroid as reference for MULTITOUCH, "
+                      "settle time remaining %0.3fms",
+                      (mPointerGesture.firstTouchTime +
+                       mConfig.pointerGestureMultitouchSettleInterval - when) *
+                              0.000001f);
+            }
             mCurrentRawState.rawPointerData
                     .getCentroidOfTouchingPointers(&mPointerGesture.referenceTouchX,
                                                    &mPointerGesture.referenceTouchY);
@@ -3108,10 +3111,10 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             if (distOverThreshold >= 2) {
                 if (currentFingerCount > 2) {
                     // There are more than two pointers, switch to FREEFORM.
-#if DEBUG_GESTURES
-                    ALOGD("Gestures: PRESS transitioned to FREEFORM, number of pointers %d > 2",
-                          currentFingerCount);
-#endif
+                    if (DEBUG_GESTURES) {
+                        ALOGD("Gestures: PRESS transitioned to FREEFORM, number of pointers %d > 2",
+                              currentFingerCount);
+                    }
                     *outCancelPreviousGesture = true;
                     mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
                 } else {
@@ -3127,10 +3130,11 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                     if (mutualDistance > mPointerGestureMaxSwipeWidth) {
                         // There are two pointers but they are too far apart for a SWIPE,
                         // switch to FREEFORM.
-#if DEBUG_GESTURES
-                        ALOGD("Gestures: PRESS transitioned to FREEFORM, distance %0.3f > %0.3f",
-                              mutualDistance, mPointerGestureMaxSwipeWidth);
-#endif
+                        if (DEBUG_GESTURES) {
+                            ALOGD("Gestures: PRESS transitioned to FREEFORM, distance %0.3f > "
+                                  "%0.3f",
+                                  mutualDistance, mPointerGestureMaxSwipeWidth);
+                        }
                         *outCancelPreviousGesture = true;
                         mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
                     } else {
@@ -3155,25 +3159,25 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                             float cosine = dot / (dist1 * dist2); // denominator always > 0
                             if (cosine >= mConfig.pointerGestureSwipeTransitionAngleCosine) {
                                 // Pointers are moving in the same direction.  Switch to SWIPE.
-#if DEBUG_GESTURES
-                                ALOGD("Gestures: PRESS transitioned to SWIPE, "
-                                      "dist1 %0.3f >= %0.3f, dist2 %0.3f >= %0.3f, "
-                                      "cosine %0.3f >= %0.3f",
-                                      dist1, mConfig.pointerGestureMultitouchMinDistance, dist2,
-                                      mConfig.pointerGestureMultitouchMinDistance, cosine,
-                                      mConfig.pointerGestureSwipeTransitionAngleCosine);
-#endif
+                                if (DEBUG_GESTURES) {
+                                    ALOGD("Gestures: PRESS transitioned to SWIPE, "
+                                          "dist1 %0.3f >= %0.3f, dist2 %0.3f >= %0.3f, "
+                                          "cosine %0.3f >= %0.3f",
+                                          dist1, mConfig.pointerGestureMultitouchMinDistance, dist2,
+                                          mConfig.pointerGestureMultitouchMinDistance, cosine,
+                                          mConfig.pointerGestureSwipeTransitionAngleCosine);
+                                }
                                 mPointerGesture.currentGestureMode = PointerGesture::Mode::SWIPE;
                             } else {
                                 // Pointers are moving in different directions.  Switch to FREEFORM.
-#if DEBUG_GESTURES
-                                ALOGD("Gestures: PRESS transitioned to FREEFORM, "
-                                      "dist1 %0.3f >= %0.3f, dist2 %0.3f >= %0.3f, "
-                                      "cosine %0.3f < %0.3f",
-                                      dist1, mConfig.pointerGestureMultitouchMinDistance, dist2,
-                                      mConfig.pointerGestureMultitouchMinDistance, cosine,
-                                      mConfig.pointerGestureSwipeTransitionAngleCosine);
-#endif
+                                if (DEBUG_GESTURES) {
+                                    ALOGD("Gestures: PRESS transitioned to FREEFORM, "
+                                          "dist1 %0.3f >= %0.3f, dist2 %0.3f >= %0.3f, "
+                                          "cosine %0.3f < %0.3f",
+                                          dist1, mConfig.pointerGestureMultitouchMinDistance, dist2,
+                                          mConfig.pointerGestureMultitouchMinDistance, cosine,
+                                          mConfig.pointerGestureSwipeTransitionAngleCosine);
+                                }
                                 *outCancelPreviousGesture = true;
                                 mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
                             }
@@ -3185,10 +3189,10 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             // Switch from SWIPE to FREEFORM if additional pointers go down.
             // Cancel previous gesture.
             if (currentFingerCount > 2) {
-#if DEBUG_GESTURES
-                ALOGD("Gestures: SWIPE transitioned to FREEFORM, number of pointers %d > 2",
-                      currentFingerCount);
-#endif
+                if (DEBUG_GESTURES) {
+                    ALOGD("Gestures: SWIPE transitioned to FREEFORM, number of pointers %d > 2",
+                          currentFingerCount);
+                }
                 *outCancelPreviousGesture = true;
                 mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
             }
@@ -3222,11 +3226,11 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         if (mPointerGesture.currentGestureMode == PointerGesture::Mode::PRESS ||
             mPointerGesture.currentGestureMode == PointerGesture::Mode::SWIPE) {
             // PRESS or SWIPE mode.
-#if DEBUG_GESTURES
-            ALOGD("Gestures: PRESS or SWIPE activeTouchId=%d,"
-                  "activeGestureId=%d, currentTouchPointerCount=%d",
-                  activeTouchId, mPointerGesture.activeGestureId, currentFingerCount);
-#endif
+            if (DEBUG_GESTURES) {
+                ALOGD("Gestures: PRESS or SWIPE activeTouchId=%d,"
+                      "activeGestureId=%d, currentTouchPointerCount=%d",
+                      activeTouchId, mPointerGesture.activeGestureId, currentFingerCount);
+            }
             ALOG_ASSERT(mPointerGesture.activeGestureId >= 0);
 
             mPointerGesture.currentGestureIdBits.clear();
@@ -3243,11 +3247,11 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
         } else if (mPointerGesture.currentGestureMode == PointerGesture::Mode::FREEFORM) {
             // FREEFORM mode.
-#if DEBUG_GESTURES
-            ALOGD("Gestures: FREEFORM activeTouchId=%d,"
-                  "activeGestureId=%d, currentTouchPointerCount=%d",
-                  activeTouchId, mPointerGesture.activeGestureId, currentFingerCount);
-#endif
+            if (DEBUG_GESTURES) {
+                ALOGD("Gestures: FREEFORM activeTouchId=%d,"
+                      "activeGestureId=%d, currentTouchPointerCount=%d",
+                      activeTouchId, mPointerGesture.activeGestureId, currentFingerCount);
+            }
             ALOG_ASSERT(mPointerGesture.activeGestureId >= 0);
 
             mPointerGesture.currentGestureIdBits.clear();
@@ -3286,13 +3290,13 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                 }
             }
 
-#if DEBUG_GESTURES
-            ALOGD("Gestures: FREEFORM follow up "
-                  "mappedTouchIdBits=0x%08x, usedGestureIdBits=0x%08x, "
-                  "activeGestureId=%d",
-                  mappedTouchIdBits.value, usedGestureIdBits.value,
-                  mPointerGesture.activeGestureId);
-#endif
+            if (DEBUG_GESTURES) {
+                ALOGD("Gestures: FREEFORM follow up "
+                      "mappedTouchIdBits=0x%08x, usedGestureIdBits=0x%08x, "
+                      "activeGestureId=%d",
+                      mappedTouchIdBits.value, usedGestureIdBits.value,
+                      mPointerGesture.activeGestureId);
+            }
 
             BitSet32 idBits(mCurrentCookedState.fingerIdBits);
             for (uint32_t i = 0; i < currentFingerCount; i++) {
@@ -3301,18 +3305,18 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                 if (!mappedTouchIdBits.hasBit(touchId)) {
                     gestureId = usedGestureIdBits.markFirstUnmarkedBit();
                     mPointerGesture.freeformTouchToGestureIdMap[touchId] = gestureId;
-#if DEBUG_GESTURES
-                    ALOGD("Gestures: FREEFORM "
-                          "new mapping for touch id %d -> gesture id %d",
-                          touchId, gestureId);
-#endif
+                    if (DEBUG_GESTURES) {
+                        ALOGD("Gestures: FREEFORM "
+                              "new mapping for touch id %d -> gesture id %d",
+                              touchId, gestureId);
+                    }
                 } else {
                     gestureId = mPointerGesture.freeformTouchToGestureIdMap[touchId];
-#if DEBUG_GESTURES
-                    ALOGD("Gestures: FREEFORM "
-                          "existing mapping for touch id %d -> gesture id %d",
-                          touchId, gestureId);
-#endif
+                    if (DEBUG_GESTURES) {
+                        ALOGD("Gestures: FREEFORM "
+                              "existing mapping for touch id %d -> gesture id %d",
+                              touchId, gestureId);
+                    }
                 }
                 mPointerGesture.currentGestureIdBits.markBit(gestureId);
                 mPointerGesture.currentGestureIdToIndex[gestureId] = i;
@@ -3341,47 +3345,46 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             if (mPointerGesture.activeGestureId < 0) {
                 mPointerGesture.activeGestureId =
                         mPointerGesture.currentGestureIdBits.firstMarkedBit();
-#if DEBUG_GESTURES
-                ALOGD("Gestures: FREEFORM new "
-                      "activeGestureId=%d",
-                      mPointerGesture.activeGestureId);
-#endif
+                if (DEBUG_GESTURES) {
+                    ALOGD("Gestures: FREEFORM new activeGestureId=%d",
+                          mPointerGesture.activeGestureId);
+                }
             }
         }
     }
 
     mPointerController->setButtonState(mCurrentRawState.buttonState);
 
-#if DEBUG_GESTURES
-    ALOGD("Gestures: finishPreviousGesture=%s, cancelPreviousGesture=%s, "
-          "currentGestureMode=%d, currentGestureIdBits=0x%08x, "
-          "lastGestureMode=%d, lastGestureIdBits=0x%08x",
-          toString(*outFinishPreviousGesture), toString(*outCancelPreviousGesture),
-          mPointerGesture.currentGestureMode, mPointerGesture.currentGestureIdBits.value,
-          mPointerGesture.lastGestureMode, mPointerGesture.lastGestureIdBits.value);
-    for (BitSet32 idBits = mPointerGesture.currentGestureIdBits; !idBits.isEmpty();) {
-        uint32_t id = idBits.clearFirstMarkedBit();
-        uint32_t index = mPointerGesture.currentGestureIdToIndex[id];
-        const PointerProperties& properties = mPointerGesture.currentGestureProperties[index];
-        const PointerCoords& coords = mPointerGesture.currentGestureCoords[index];
-        ALOGD("  currentGesture[%d]: index=%d, toolType=%d, "
-              "x=%0.3f, y=%0.3f, pressure=%0.3f",
-              id, index, properties.toolType, coords.getAxisValue(AMOTION_EVENT_AXIS_X),
-              coords.getAxisValue(AMOTION_EVENT_AXIS_Y),
-              coords.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE));
+    if (DEBUG_GESTURES) {
+        ALOGD("Gestures: finishPreviousGesture=%s, cancelPreviousGesture=%s, "
+              "currentGestureMode=%d, currentGestureIdBits=0x%08x, "
+              "lastGestureMode=%d, lastGestureIdBits=0x%08x",
+              toString(*outFinishPreviousGesture), toString(*outCancelPreviousGesture),
+              mPointerGesture.currentGestureMode, mPointerGesture.currentGestureIdBits.value,
+              mPointerGesture.lastGestureMode, mPointerGesture.lastGestureIdBits.value);
+        for (BitSet32 idBits = mPointerGesture.currentGestureIdBits; !idBits.isEmpty();) {
+            uint32_t id = idBits.clearFirstMarkedBit();
+            uint32_t index = mPointerGesture.currentGestureIdToIndex[id];
+            const PointerProperties& properties = mPointerGesture.currentGestureProperties[index];
+            const PointerCoords& coords = mPointerGesture.currentGestureCoords[index];
+            ALOGD("  currentGesture[%d]: index=%d, toolType=%d, "
+                  "x=%0.3f, y=%0.3f, pressure=%0.3f",
+                  id, index, properties.toolType, coords.getAxisValue(AMOTION_EVENT_AXIS_X),
+                  coords.getAxisValue(AMOTION_EVENT_AXIS_Y),
+                  coords.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE));
+        }
+        for (BitSet32 idBits = mPointerGesture.lastGestureIdBits; !idBits.isEmpty();) {
+            uint32_t id = idBits.clearFirstMarkedBit();
+            uint32_t index = mPointerGesture.lastGestureIdToIndex[id];
+            const PointerProperties& properties = mPointerGesture.lastGestureProperties[index];
+            const PointerCoords& coords = mPointerGesture.lastGestureCoords[index];
+            ALOGD("  lastGesture[%d]: index=%d, toolType=%d, "
+                  "x=%0.3f, y=%0.3f, pressure=%0.3f",
+                  id, index, properties.toolType, coords.getAxisValue(AMOTION_EVENT_AXIS_X),
+                  coords.getAxisValue(AMOTION_EVENT_AXIS_Y),
+                  coords.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE));
+        }
     }
-    for (BitSet32 idBits = mPointerGesture.lastGestureIdBits; !idBits.isEmpty();) {
-        uint32_t id = idBits.clearFirstMarkedBit();
-        uint32_t index = mPointerGesture.lastGestureIdToIndex[id];
-        const PointerProperties& properties = mPointerGesture.lastGestureProperties[index];
-        const PointerCoords& coords = mPointerGesture.lastGestureCoords[index];
-        ALOGD("  lastGesture[%d]: index=%d, toolType=%d, "
-              "x=%0.3f, y=%0.3f, pressure=%0.3f",
-              id, index, properties.toolType, coords.getAxisValue(AMOTION_EVENT_AXIS_X),
-              coords.getAxisValue(AMOTION_EVENT_AXIS_Y),
-              coords.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE));
-    }
-#endif
     return true;
 }
 
@@ -3755,12 +3758,12 @@ bool TouchInputMapper::isPointInsidePhysicalFrame(int32_t x, int32_t y) const {
 
 const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(int32_t x, int32_t y) {
     for (const VirtualKey& virtualKey : mVirtualKeys) {
-#if DEBUG_VIRTUAL_KEYS
-        ALOGD("VirtualKeys: Hit test (%d, %d): keyCode=%d, scanCode=%d, "
-              "left=%d, top=%d, right=%d, bottom=%d",
-              x, y, virtualKey.keyCode, virtualKey.scanCode, virtualKey.hitLeft, virtualKey.hitTop,
-              virtualKey.hitRight, virtualKey.hitBottom);
-#endif
+        if (DEBUG_VIRTUAL_KEYS) {
+            ALOGD("VirtualKeys: Hit test (%d, %d): keyCode=%d, scanCode=%d, "
+                  "left=%d, top=%d, right=%d, bottom=%d",
+                  x, y, virtualKey.keyCode, virtualKey.scanCode, virtualKey.hitLeft,
+                  virtualKey.hitTop, virtualKey.hitRight, virtualKey.hitBottom);
+        }
 
         if (virtualKey.isHit(x, y)) {
             return &virtualKey;
@@ -3857,13 +3860,13 @@ void TouchInputMapper::assignPointerIds(const RawState& last, RawState& current)
         }
     }
 
-#if DEBUG_POINTER_ASSIGNMENT
-    ALOGD("assignPointerIds - initial distance min-heap: size=%d", heapSize);
-    for (size_t i = 0; i < heapSize; i++) {
-        ALOGD("  heap[%zu]: cur=%" PRIu32 ", last=%" PRIu32 ", distance=%" PRIu64, i,
-              heap[i].currentPointerIndex, heap[i].lastPointerIndex, heap[i].distance);
+    if (DEBUG_POINTER_ASSIGNMENT) {
+        ALOGD("assignPointerIds - initial distance min-heap: size=%d", heapSize);
+        for (size_t i = 0; i < heapSize; i++) {
+            ALOGD("  heap[%zu]: cur=%" PRIu32 ", last=%" PRIu32 ", distance=%" PRIu64, i,
+                  heap[i].currentPointerIndex, heap[i].lastPointerIndex, heap[i].distance);
+        }
     }
-#endif
 
     // Pull matches out by increasing order of distance.
     // To avoid reassigning pointers that have already been matched, the loop keeps track
@@ -3902,13 +3905,14 @@ void TouchInputMapper::assignPointerIds(const RawState& last, RawState& current)
                     parentIndex = childIndex;
                 }
 
-#if DEBUG_POINTER_ASSIGNMENT
-                ALOGD("assignPointerIds - reduced distance min-heap: size=%d", heapSize);
-                for (size_t j = 0; j < heapSize; j++) {
-                    ALOGD("  heap[%zu]: cur=%" PRIu32 ", last=%" PRIu32 ", distance=%" PRIu64, j,
-                          heap[j].currentPointerIndex, heap[j].lastPointerIndex, heap[j].distance);
+                if (DEBUG_POINTER_ASSIGNMENT) {
+                    ALOGD("assignPointerIds - reduced distance min-heap: size=%d", heapSize);
+                    for (size_t j = 0; j < heapSize; j++) {
+                        ALOGD("  heap[%zu]: cur=%" PRIu32 ", last=%" PRIu32 ", distance=%" PRIu64,
+                              j, heap[j].currentPointerIndex, heap[j].lastPointerIndex,
+                              heap[j].distance);
+                    }
                 }
-#endif
             }
 
             heapSize -= 1;
@@ -3930,11 +3934,11 @@ void TouchInputMapper::assignPointerIds(const RawState& last, RawState& current)
                                                      currentPointerIndex));
             usedIdBits.markBit(id);
 
-#if DEBUG_POINTER_ASSIGNMENT
-            ALOGD("assignPointerIds - matched: cur=%" PRIu32 ", last=%" PRIu32 ", id=%" PRIu32
-                  ", distance=%" PRIu64,
-                  lastPointerIndex, currentPointerIndex, id, heap[0].distance);
-#endif
+            if (DEBUG_POINTER_ASSIGNMENT) {
+                ALOGD("assignPointerIds - matched: cur=%" PRIu32 ", last=%" PRIu32 ", id=%" PRIu32
+                      ", distance=%" PRIu64,
+                      lastPointerIndex, currentPointerIndex, id, heap[0].distance);
+            }
             break;
         }
     }
@@ -3949,9 +3953,10 @@ void TouchInputMapper::assignPointerIds(const RawState& last, RawState& current)
         current.rawPointerData.markIdBit(id,
                                          current.rawPointerData.isHovering(currentPointerIndex));
 
-#if DEBUG_POINTER_ASSIGNMENT
-        ALOGD("assignPointerIds - assigned: cur=%" PRIu32 ", id=%" PRIu32, currentPointerIndex, id);
-#endif
+        if (DEBUG_POINTER_ASSIGNMENT) {
+            ALOGD("assignPointerIds - assigned: cur=%" PRIu32 ", id=%" PRIu32, currentPointerIndex,
+                  id);
+        }
     }
 }
 

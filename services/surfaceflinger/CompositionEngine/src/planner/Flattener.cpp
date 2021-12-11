@@ -211,7 +211,8 @@ size_t Flattener::calculateDisplayCost(const std::vector<const LayerState*>& lay
         displayCost += static_cast<size_t>(layer->getDisplayFrame().width() *
                                            layer->getDisplayFrame().height());
 
-        hasClientComposition |= layer->getCompositionType() == hal::Composition::CLIENT;
+        hasClientComposition |= layer->getCompositionType() ==
+                aidl::android::hardware::graphics::composer3::Composition::CLIENT;
     }
 
     if (hasClientComposition) {
@@ -425,18 +426,13 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
         if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur) &&
             !currentSet->hasUnsupportedDataspace()) {
             if (isPartOfRun) {
-                builder.append(currentSet->getLayerCount());
+                builder.increment();
             } else {
-                // Runs can't start with a non-buffer layer
-                if (currentSet->getFirstLayer().getBuffer() == nullptr) {
-                    ALOGV("[%s] Skipping initial non-buffer layer", __func__);
-                } else {
-                    builder.init(currentSet);
-                    if (firstLayer) {
-                        runHasFirstLayer = true;
-                    }
-                    isPartOfRun = true;
+                builder.init(currentSet);
+                if (firstLayer) {
+                    runHasFirstLayer = true;
                 }
+                isPartOfRun = true;
             }
         } else if (isPartOfRun) {
             builder.setHolePunchCandidate(&(*currentSet));

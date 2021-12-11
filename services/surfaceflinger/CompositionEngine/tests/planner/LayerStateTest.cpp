@@ -27,6 +27,10 @@
 #include "android/hardware_buffer.h"
 #include "compositionengine/LayerFECompositionState.h"
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+
+using aidl::android::hardware::graphics::composer3::Composition;
+
 namespace android::compositionengine::impl::planner {
 namespace {
 
@@ -277,33 +281,28 @@ TEST_F(LayerStateTest, compareDisplayFrame) {
 TEST_F(LayerStateTest, getCompositionType) {
     OutputLayerCompositionState outputLayerCompositionState;
     LayerFECompositionState layerFECompositionState;
-    layerFECompositionState.compositionType =
-            hardware::graphics::composer::hal::Composition::DEVICE;
+    layerFECompositionState.compositionType = Composition::DEVICE;
     setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
                        layerFECompositionState);
     mLayerState = std::make_unique<LayerState>(&mOutputLayer);
-    EXPECT_EQ(hardware::graphics::composer::hal::Composition::DEVICE,
-              mLayerState->getCompositionType());
+    EXPECT_EQ(Composition::DEVICE, mLayerState->getCompositionType());
 }
 
 TEST_F(LayerStateTest, getCompositionType_forcedClient) {
     OutputLayerCompositionState outputLayerCompositionState;
     outputLayerCompositionState.forceClientComposition = true;
     LayerFECompositionState layerFECompositionState;
-    layerFECompositionState.compositionType =
-            hardware::graphics::composer::hal::Composition::DEVICE;
+    layerFECompositionState.compositionType = Composition::DEVICE;
     setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
                        layerFECompositionState);
     mLayerState = std::make_unique<LayerState>(&mOutputLayer);
-    EXPECT_EQ(hardware::graphics::composer::hal::Composition::CLIENT,
-              mLayerState->getCompositionType());
+    EXPECT_EQ(Composition::CLIENT, mLayerState->getCompositionType());
 }
 
 TEST_F(LayerStateTest, updateCompositionType) {
     OutputLayerCompositionState outputLayerCompositionState;
     LayerFECompositionState layerFECompositionState;
-    layerFECompositionState.compositionType =
-            hardware::graphics::composer::hal::Composition::DEVICE;
+    layerFECompositionState.compositionType = Composition::DEVICE;
     setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
                        layerFECompositionState);
     mLayerState = std::make_unique<LayerState>(&mOutputLayer);
@@ -311,29 +310,25 @@ TEST_F(LayerStateTest, updateCompositionType) {
     mock::OutputLayer newOutputLayer;
     mock::LayerFE newLayerFE;
     LayerFECompositionState layerFECompositionStateTwo;
-    layerFECompositionStateTwo.compositionType =
-            hardware::graphics::composer::hal::Composition::SOLID_COLOR;
+    layerFECompositionStateTwo.compositionType = Composition::SOLID_COLOR;
     setupMocksForLayer(newOutputLayer, newLayerFE, outputLayerCompositionState,
                        layerFECompositionStateTwo);
     Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(hardware::graphics::composer::hal::Composition::SOLID_COLOR,
-              mLayerState->getCompositionType());
+    EXPECT_EQ(Composition::SOLID_COLOR, mLayerState->getCompositionType());
     EXPECT_EQ(Flags<LayerStateField>(LayerStateField::CompositionType), updates);
 }
 
 TEST_F(LayerStateTest, compareCompositionType) {
     OutputLayerCompositionState outputLayerCompositionState;
     LayerFECompositionState layerFECompositionState;
-    layerFECompositionState.compositionType =
-            hardware::graphics::composer::hal::Composition::DEVICE;
+    layerFECompositionState.compositionType = Composition::DEVICE;
     setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
                        layerFECompositionState);
     mLayerState = std::make_unique<LayerState>(&mOutputLayer);
     mock::OutputLayer newOutputLayer;
     mock::LayerFE newLayerFE;
     LayerFECompositionState layerFECompositionStateTwo;
-    layerFECompositionStateTwo.compositionType =
-            hardware::graphics::composer::hal::Composition::SOLID_COLOR;
+    layerFECompositionStateTwo.compositionType = Composition::SOLID_COLOR;
     setupMocksForLayer(newOutputLayer, newLayerFE, outputLayerCompositionState,
                        layerFECompositionStateTwo);
     auto otherLayerState = std::make_unique<LayerState>(&newOutputLayer);

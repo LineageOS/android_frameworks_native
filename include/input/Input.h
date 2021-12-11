@@ -945,8 +945,8 @@ struct __attribute__((__packed__)) VerifiedInputEvent {
  */
 struct __attribute__((__packed__)) VerifiedKeyEvent : public VerifiedInputEvent {
     int32_t action;
-    nsecs_t downTimeNanos;
     int32_t flags;
+    nsecs_t downTimeNanos;
     int32_t keyCode;
     int32_t scanCode;
     int32_t metaState;
@@ -961,8 +961,8 @@ struct __attribute__((__packed__)) VerifiedMotionEvent : public VerifiedInputEve
     float rawX;
     float rawY;
     int32_t actionMasked;
-    nsecs_t downTimeNanos;
     int32_t flags;
+    nsecs_t downTimeNanos;
     int32_t metaState;
     int32_t buttonState;
 };

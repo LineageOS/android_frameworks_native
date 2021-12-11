@@ -375,13 +375,11 @@ Error AidlComposer::getActiveConfig(Display display, Config* outConfig) {
 
 Error AidlComposer::getChangedCompositionTypes(
         Display display, std::vector<Layer>* outLayers,
-        std::vector<IComposerClient::Composition>* outTypes) {
+        std::vector<aidl::android::hardware::graphics::composer3::Composition>* outTypes) {
     std::vector<int64_t> layers;
-    std::vector<Composition> types;
-    mReader.takeChangedCompositionTypes(translate<int64_t>(display), &layers, &types);
+    mReader.takeChangedCompositionTypes(translate<int64_t>(display), &layers, outTypes);
 
     *outLayers = translate<Layer>(layers);
-    *outTypes = translate<IComposerClient::Composition>(types);
     return Error::NONE;
 }
 
@@ -649,10 +647,10 @@ Error AidlComposer::setLayerColor(Display display, Layer layer,
     return Error::NONE;
 }
 
-Error AidlComposer::setLayerCompositionType(Display display, Layer layer,
-                                            IComposerClient::Composition type) {
-    mWriter.setLayerCompositionType(translate<int64_t>(display), translate<int64_t>(layer),
-                                    translate<Composition>(type));
+Error AidlComposer::setLayerCompositionType(
+        Display display, Layer layer,
+        aidl::android::hardware::graphics::composer3::Composition type) {
+    mWriter.setLayerCompositionType(translate<int64_t>(display), translate<int64_t>(layer), type);
     return Error::NONE;
 }
 
@@ -1005,10 +1003,17 @@ V2_4::Error AidlComposer::getLayerGenericMetadataKeys(
 }
 
 Error AidlComposer::getClientTargetProperty(
-        Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty) {
+        Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty,
+        float* whitePointNits) {
     ClientTargetProperty property;
-    mReader.takeClientTargetProperty(translate<int64_t>(display), &property);
+    mReader.takeClientTargetProperty(translate<int64_t>(display), &property, whitePointNits);
     *outClientTargetProperty = translate<IComposerClient::ClientTargetProperty>(property);
+    return Error::NONE;
+}
+
+Error AidlComposer::setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) {
+    mWriter.setLayerWhitePointNits(translate<int64_t>(display), translate<int64_t>(layer),
+                                   whitePointNits);
     return Error::NONE;
 }
 

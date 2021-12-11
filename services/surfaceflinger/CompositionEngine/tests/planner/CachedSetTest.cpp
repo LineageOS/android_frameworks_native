@@ -55,11 +55,19 @@ MATCHER_P(ClientCompositionTargetSettingsBlurSettingsEq, expectedBlurSetting, ""
 }
 
 MATCHER_P(ClientCompositionTargetSettingsSecureEq, expectedSecureSetting, "") {
-    *result_listener << "ClientCompositionTargetSettings' SecureSettings aren't equal \n";
+    *result_listener << "ClientCompositionTargetSettings' isSecure bits aren't equal \n";
     *result_listener << "expected " << expectedSecureSetting << "\n";
     *result_listener << "actual " << arg.isSecure << "\n";
 
     return expectedSecureSetting == arg.isSecure;
+}
+
+MATCHER_P(ClientCompositionTargetSettingsWhitePointEq, expectedWhitePoint, "") {
+    *result_listener << "ClientCompositionTargetSettings' white points aren't equal \n";
+    *result_listener << "expected " << expectedWhitePoint << "\n";
+    *result_listener << "actual " << arg.whitePointNits << "\n";
+
+    return expectedWhitePoint == arg.whitePointNits;
 }
 
 static const ui::Size kOutputSize = ui::Size(1, 1);
@@ -417,6 +425,54 @@ TEST_F(CachedSetTest, renderSecureOutput) {
             .WillOnce(Return(clientCompList1));
     EXPECT_CALL(*layerFE2,
                 prepareClientCompositionList(ClientCompositionTargetSettingsSecureEq(true)))
+            .WillOnce(Return(clientCompList2));
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).WillOnce(Invoke(drawLayers));
+    mOutputState.isSecure = true;
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
+    expectReadyBuffer(cachedSet);
+
+    EXPECT_EQ(mOutputState.framebufferSpace, cachedSet.getOutputSpace());
+    EXPECT_EQ(Rect(kOutputSize.width, kOutputSize.height), cachedSet.getTextureBounds());
+
+    // Now check that appending a new cached set properly cleans up RenderEngine resources.
+    CachedSet::Layer& layer3 = *mTestLayers[2]->cachedSetLayer.get();
+    cachedSet.append(CachedSet(layer3));
+}
+
+TEST_F(CachedSetTest, renderWhitePoint) {
+    // Skip the 0th layer to ensure that the bounding box of the layers is offset from (0, 0)
+    CachedSet::Layer& layer1 = *mTestLayers[1]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE1 = mTestLayers[1]->layerFE;
+    CachedSet::Layer& layer2 = *mTestLayers[2]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE2 = mTestLayers[2]->layerFE;
+
+    CachedSet cachedSet(layer1);
+    cachedSet.append(CachedSet(layer2));
+
+    std::vector<compositionengine::LayerFE::LayerSettings> clientCompList1;
+    clientCompList1.push_back({});
+
+    std::vector<compositionengine::LayerFE::LayerSettings> clientCompList2;
+    clientCompList2.push_back({});
+
+    mOutputState.displayBrightnessNits = 400.f;
+
+    const auto drawLayers =
+            [&](const renderengine::DisplaySettings& displaySettings,
+                const std::vector<renderengine::LayerSettings>&,
+                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
+        EXPECT_EQ(mOutputState.displayBrightnessNits, displaySettings.targetLuminanceNits);
+        return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+    };
+
+    EXPECT_CALL(*layerFE1,
+                prepareClientCompositionList(ClientCompositionTargetSettingsWhitePointEq(
+                        mOutputState.displayBrightnessNits)))
+            .WillOnce(Return(clientCompList1));
+    EXPECT_CALL(*layerFE2,
+                prepareClientCompositionList(ClientCompositionTargetSettingsWhitePointEq(
+                        mOutputState.displayBrightnessNits)))
             .WillOnce(Return(clientCompList2));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).WillOnce(Invoke(drawLayers));
     mOutputState.isSecure = true;

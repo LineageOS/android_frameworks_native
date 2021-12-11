@@ -39,6 +39,8 @@
 
 #include "ComposerHal.h"
 
+using aidl::android::hardware::graphics::composer3::Composition;
+
 namespace android {
 
 using android::Fence;
@@ -147,7 +149,7 @@ bool Display::isVsyncPeriodSwitchSupported() const {
 
 Error Display::getChangedCompositionTypes(std::unordered_map<HWC2::Layer*, Composition>* outTypes) {
     std::vector<Hwc2::Layer> layerIds;
-    std::vector<Hwc2::IComposerClient::Composition> types;
+    std::vector<Composition> types;
     auto intError = mComposer.getChangedCompositionTypes(
             mId, &layerIds, &types);
     uint32_t numElements = layerIds.size();
@@ -555,8 +557,10 @@ Error Display::setContentType(ContentType contentType) {
     return static_cast<Error>(intError);
 }
 
-Error Display::getClientTargetProperty(ClientTargetProperty* outClientTargetProperty) {
-    const auto error = mComposer.getClientTargetProperty(mId, outClientTargetProperty);
+Error Display::getClientTargetProperty(ClientTargetProperty* outClientTargetProperty,
+                                       float* outWhitePointNits) {
+    const auto error =
+            mComposer.getClientTargetProperty(mId, outClientTargetProperty, outWhitePointNits);
     return static_cast<Error>(error);
 }
 
@@ -916,6 +920,16 @@ Error Layer::setLayerGenericMetadata(const std::string& name, bool mandatory,
 
     auto intError =
             mComposer.setLayerGenericMetadata(mDisplay->getId(), mId, name, mandatory, value);
+    return static_cast<Error>(intError);
+}
+
+// AIDL HAL
+Error Layer::setWhitePointNits(float whitePointNits) {
+    if (CC_UNLIKELY(!mDisplay)) {
+        return Error::BAD_DISPLAY;
+    }
+
+    auto intError = mComposer.setLayerWhitePointNits(mDisplay->getId(), mId, whitePointNits);
     return static_cast<Error>(intError);
 }
 

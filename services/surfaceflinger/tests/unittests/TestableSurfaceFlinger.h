@@ -270,7 +270,8 @@ public:
         layer->editCompositionState()->sidebandStream = sidebandStream;
     }
 
-    void setLayerCompositionType(const sp<Layer>& layer, hal::Composition type) {
+    void setLayerCompositionType(const sp<Layer>& layer,
+                                 aidl::android::hardware::graphics::composer3::Composition type) {
         auto outputLayer = findOutputLayerForDisplay(layer, mFlinger->getDefaultDisplayDevice());
         LOG_ALWAYS_FATAL_IF(!outputLayer);
         auto& state = outputLayer->editState();
