@@ -459,7 +459,7 @@ status_t HWComposer::setClientTarget(HalDisplayId displayId, uint32_t slot,
 status_t HWComposer::getDeviceCompositionChanges(
         HalDisplayId displayId, bool frameUsesClientComposition,
         std::chrono::steady_clock::time_point earliestPresentTime,
-        const std::shared_ptr<FenceTime>& previousPresentFence,
+        const std::shared_ptr<FenceTime>& previousPresentFence, nsecs_t expectedPresentTime,
         std::optional<android::HWComposer::DeviceRequestedChanges>* outChanges) {
     ATRACE_CALL();
 
@@ -481,16 +481,30 @@ status_t HWComposer::getDeviceCompositionChanges(
     // earliest time to present. Otherwise, we may present a frame too early.
     // 2. There is no client composition. Otherwise, we first need to render the
     // client target buffer.
-    const bool prevFencePending =
-            previousPresentFence->getSignalTime() == Fence::SIGNAL_TIME_PENDING;
-    const bool canPresentEarly =
-            !prevFencePending && std::chrono::steady_clock::now() < earliestPresentTime;
-    const bool canSkipValidate = !canPresentEarly && !frameUsesClientComposition;
+    const bool canSkipValidate = [&] {
+        // We must call validate if we have client composition
+        if (frameUsesClientComposition) {
+            return false;
+        }
+
+        // If composer supports getting the expected present time, we can skip
+        // as composer will make sure to prevent early presentation
+        if (mComposer->isSupported(Hwc2::Composer::OptionalFeature::ExpectedPresentTime)) {
+            return true;
+        }
+
+        // composer doesn't support getting the expected present time. We can only
+        // skip validate if we know that we are not going to present early.
+        return std::chrono::steady_clock::now() >= earliestPresentTime ||
+                previousPresentFence->getSignalTime() == Fence::SIGNAL_TIME_PENDING;
+    }();
+
     displayData.validateWasSkipped = false;
     if (canSkipValidate) {
         sp<Fence> outPresentFence;
         uint32_t state = UINT32_MAX;
-        error = hwcDisplay->presentOrValidate(&numTypes, &numRequests, &outPresentFence , &state);
+        error = hwcDisplay->presentOrValidate(expectedPresentTime, &numTypes, &numRequests,
+                                              &outPresentFence, &state);
         if (!hasChangesError(error)) {
             RETURN_IF_HWC_ERROR_FOR("presentOrValidate", error, displayId, UNKNOWN_ERROR);
         }
@@ -505,7 +519,7 @@ status_t HWComposer::getDeviceCompositionChanges(
         }
         // Present failed but Validate ran.
     } else {
-        error = hwcDisplay->validate(&numTypes, &numRequests);
+        error = hwcDisplay->validate(expectedPresentTime, &numTypes, &numRequests);
     }
     ALOGV("SkipValidate failed, Falling back to SLOW validate/present");
     if (!hasChangesError(error)) {
@@ -571,9 +585,11 @@ status_t HWComposer::presentAndGetReleaseFences(
         return NO_ERROR;
     }
 
-    const bool previousFramePending =
-            previousPresentFence->getSignalTime() == Fence::SIGNAL_TIME_PENDING;
-    if (!previousFramePending) {
+    const bool waitForEarliestPresent =
+            !mComposer->isSupported(Hwc2::Composer::OptionalFeature::ExpectedPresentTime) &&
+            previousPresentFence->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
+
+    if (waitForEarliestPresent) {
         ATRACE_NAME("wait for earliest present time");
         std::this_thread::sleep_until(earliestPresentTime);
     }

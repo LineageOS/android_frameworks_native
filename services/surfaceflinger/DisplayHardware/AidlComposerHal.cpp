@@ -256,6 +256,7 @@ AidlComposer::~AidlComposer() = default;
 bool AidlComposer::isSupported(OptionalFeature feature) const {
     switch (feature) {
         case OptionalFeature::RefreshRateSwitching:
+        case OptionalFeature::ExpectedPresentTime:
             return true;
     }
 }
@@ -580,10 +581,11 @@ Error AidlComposer::setClientTargetSlotCount(Display display) {
     return Error::NONE;
 }
 
-Error AidlComposer::validateDisplay(Display display, uint32_t* outNumTypes,
-                                    uint32_t* outNumRequests) {
+Error AidlComposer::validateDisplay(Display display, nsecs_t expectedPresentTime,
+                                    uint32_t* outNumTypes, uint32_t* outNumRequests) {
     ATRACE_NAME("HwcValidateDisplay");
-    mWriter.validateDisplay(translate<int64_t>(display));
+    mWriter.validateDisplay(translate<int64_t>(display),
+                            ClockMonotonicTimestamp{expectedPresentTime});
 
     Error error = execute();
     if (error != Error::NONE) {
@@ -595,11 +597,12 @@ Error AidlComposer::validateDisplay(Display display, uint32_t* outNumTypes,
     return Error::NONE;
 }
 
-Error AidlComposer::presentOrValidateDisplay(Display display, uint32_t* outNumTypes,
-                                             uint32_t* outNumRequests, int* outPresentFence,
-                                             uint32_t* state) {
+Error AidlComposer::presentOrValidateDisplay(Display display, nsecs_t expectedPresentTime,
+                                             uint32_t* outNumTypes, uint32_t* outNumRequests,
+                                             int* outPresentFence, uint32_t* state) {
     ATRACE_NAME("HwcPresentOrValidateDisplay");
-    mWriter.presentOrvalidateDisplay(translate<int64_t>(display));
+    mWriter.presentOrvalidateDisplay(translate<int64_t>(display),
+                                     ClockMonotonicTimestamp{expectedPresentTime});
 
     Error error = execute();
     if (error != Error::NONE) {

@@ -121,6 +121,9 @@ struct OutputCompositionState {
     // to prevent an early presentation of a frame.
     std::shared_ptr<FenceTime> previousPresentFence;
 
+    // The expected time for the next present
+    nsecs_t expectedPresentTime{0};
+
     // Current display brightness
     float displayBrightnessNits{-1.f};
 

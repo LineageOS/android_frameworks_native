@@ -158,6 +158,8 @@ bool HidlComposer::isSupported(OptionalFeature feature) const {
     switch (feature) {
         case OptionalFeature::RefreshRateSwitching:
             return mClient_2_4 != nullptr;
+        case OptionalFeature::ExpectedPresentTime:
+            return false;
     }
 }
 
@@ -540,8 +542,8 @@ Error HidlComposer::setClientTargetSlotCount(Display display) {
     return unwrapRet(ret);
 }
 
-Error HidlComposer::validateDisplay(Display display, uint32_t* outNumTypes,
-                                    uint32_t* outNumRequests) {
+Error HidlComposer::validateDisplay(Display display, nsecs_t /*expectedPresentTime*/,
+                                    uint32_t* outNumTypes, uint32_t* outNumRequests) {
     ATRACE_NAME("HwcValidateDisplay");
     mWriter.selectDisplay(display);
     mWriter.validateDisplay();
@@ -556,9 +558,9 @@ Error HidlComposer::validateDisplay(Display display, uint32_t* outNumTypes,
     return Error::NONE;
 }
 
-Error HidlComposer::presentOrValidateDisplay(Display display, uint32_t* outNumTypes,
-                                             uint32_t* outNumRequests, int* outPresentFence,
-                                             uint32_t* state) {
+Error HidlComposer::presentOrValidateDisplay(Display display, nsecs_t /*expectedPresentTime*/,
+                                             uint32_t* outNumTypes, uint32_t* outNumRequests,
+                                             int* outPresentFence, uint32_t* state) {
     ATRACE_NAME("HwcPresentOrValidateDisplay");
     mWriter.selectDisplay(display);
     mWriter.presentOrvalidateDisplay();

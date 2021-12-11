@@ -2101,11 +2101,13 @@ void SurfaceFlinger::composite(nsecs_t frameTime) {
         refreshArgs.devOptFlashDirtyRegionsDelay = std::chrono::milliseconds(mDebugFlashDelay);
     }
 
-    const auto prevVsyncTime = mScheduler->getPreviousVsyncFrom(mExpectedPresentTime);
+    const auto expectedPresentTime = mExpectedPresentTime.load();
+    const auto prevVsyncTime = mScheduler->getPreviousVsyncFrom(expectedPresentTime);
     const auto hwcMinWorkDuration = mVsyncConfiguration->getCurrentConfigs().hwcMinWorkDuration;
     refreshArgs.earliestPresentTime = prevVsyncTime - hwcMinWorkDuration;
     refreshArgs.previousPresentFence = mPreviousPresentFences[0].fenceTime;
     refreshArgs.scheduledFrameTime = mScheduler->getScheduledFrameTime();
+    refreshArgs.expectedPresentTime = expectedPresentTime;
 
     // Store the present time just before calling to the composition engine so we could notify
     // the scheduler.

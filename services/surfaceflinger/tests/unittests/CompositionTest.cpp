@@ -367,7 +367,8 @@ struct BaseDisplayVariant {
     }
 
     static void setupHwcCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _)).Times(1);
+        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _, _))
+                .Times(1);
 
         EXPECT_CALL(*test->mDisplaySurface,
                     prepareFrame(compositionengine::DisplaySurface::CompositionType::Hwc))
@@ -375,11 +376,12 @@ struct BaseDisplayVariant {
     }
 
     static void setupHwcClientCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _)).Times(1);
+        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _, _))
+                .Times(1);
     }
 
     static void setupHwcForcedClientCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer, validateDisplay(HWC_DISPLAY, _, _)).Times(1);
+        EXPECT_CALL(*test->mComposer, validateDisplay(HWC_DISPLAY, _, _, _)).Times(1);
     }
 
     static void setupRECompositionCallExpectations(CompositionTest* test) {

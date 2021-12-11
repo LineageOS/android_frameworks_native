@@ -134,7 +134,7 @@ public:
     virtual status_t getDeviceCompositionChanges(
             HalDisplayId, bool frameUsesClientComposition,
             std::chrono::steady_clock::time_point earliestPresentTime,
-            const std::shared_ptr<FenceTime>& previousPresentFence,
+            const std::shared_ptr<FenceTime>& previousPresentFence, nsecs_t expectedPresentTime,
             std::optional<DeviceRequestedChanges>* outChanges) = 0;
 
     virtual status_t setClientTarget(HalDisplayId, uint32_t slot, const sp<Fence>& acquireFence,
@@ -280,7 +280,7 @@ public:
     status_t getDeviceCompositionChanges(
             HalDisplayId, bool frameUsesClientComposition,
             std::chrono::steady_clock::time_point earliestPresentTime,
-            const std::shared_ptr<FenceTime>& previousPresentFence,
+            const std::shared_ptr<FenceTime>& previousPresentFence, nsecs_t expectedPresentTime,
             std::optional<DeviceRequestedChanges>* outChanges) override;
 
     status_t setClientTarget(HalDisplayId, uint32_t slot, const sp<Fence>& acquireFence,

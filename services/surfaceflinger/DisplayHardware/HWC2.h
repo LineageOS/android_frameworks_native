@@ -134,10 +134,11 @@ public:
             const android::sp<android::Fence>& releaseFence) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setPowerMode(hal::PowerMode mode) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setVsyncEnabled(hal::Vsync enabled) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error validate(uint32_t* outNumTypes,
+    [[clang::warn_unused_result]] virtual hal::Error validate(nsecs_t expectedPresentTime,
+                                                              uint32_t* outNumTypes,
                                                               uint32_t* outNumRequests) = 0;
     [[clang::warn_unused_result]] virtual hal::Error presentOrValidate(
-            uint32_t* outNumTypes, uint32_t* outNumRequests,
+            nsecs_t expectedPresentTime, uint32_t* outNumTypes, uint32_t* outNumRequests,
             android::sp<android::Fence>* outPresentFence, uint32_t* state) = 0;
     [[clang::warn_unused_result]] virtual std::future<hal::Error> setDisplayBrightness(
             float brightness) = 0;
@@ -202,8 +203,10 @@ public:
                                const android::sp<android::Fence>& releaseFence) override;
     hal::Error setPowerMode(hal::PowerMode) override;
     hal::Error setVsyncEnabled(hal::Vsync enabled) override;
-    hal::Error validate(uint32_t* outNumTypes, uint32_t* outNumRequests) override;
-    hal::Error presentOrValidate(uint32_t* outNumTypes, uint32_t* outNumRequests,
+    hal::Error validate(nsecs_t expectedPresentTime, uint32_t* outNumTypes,
+                        uint32_t* outNumRequests) override;
+    hal::Error presentOrValidate(nsecs_t expectedPresentTime, uint32_t* outNumTypes,
+                                 uint32_t* outNumRequests,
                                  android::sp<android::Fence>* outPresentFence,
                                  uint32_t* state) override;
     std::future<hal::Error> setDisplayBrightness(float brightness) override;
