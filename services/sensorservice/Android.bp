@@ -11,6 +11,7 @@ cc_library_shared {
     name: "libsensorservice",
 
     srcs: [
+        "AidlSensorHalWrapper.cpp",
         "BatteryService.cpp",
         "CorrectedGyroSensor.cpp",
         "Fusion.cpp",
@@ -61,14 +62,19 @@ cc_library_shared {
         "libbase",
         "libhidlbase",
         "libfmq",
+        "libbinder_ndk",
         "packagemanager_aidl-cpp",
         "android.hardware.sensors@1.0",
         "android.hardware.sensors@2.0",
         "android.hardware.sensors@2.1",
+        "android.hardware.common-V2-ndk",
+        "android.hardware.common.fmq-V1-ndk",
     ],
 
     static_libs: [
+        "libaidlcommonsupport",
         "android.hardware.sensors@1.0-convert",
+        "android.hardware.sensors-V1-ndk",
     ],
 
     generated_headers: ["framework-cppstream-protos"],

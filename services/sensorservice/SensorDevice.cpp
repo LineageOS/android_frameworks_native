@@ -20,6 +20,9 @@
 #include "android/hardware/sensors/2.1/types.h"
 #include "convertV2_1.h"
 
+#include "AidlSensorHalWrapper.h"
+#include "HidlSensorHalWrapper.h"
+
 #include <android-base/logging.h>
 #include <android/util/ProtoOutputStream.h>
 #include <cutils/atomic.h>
@@ -134,11 +137,18 @@ void SensorDevice::initializeSensorList() {
 SensorDevice::~SensorDevice() {}
 
 bool SensorDevice::connectHalService() {
+    std::unique_ptr<ISensorHalWrapper> aidl_wrapper = std::make_unique<AidlSensorHalWrapper>();
+    if (aidl_wrapper->connect(this)) {
+        mHalWrapper = std::move(aidl_wrapper);
+        return true;
+    }
+
     std::unique_ptr<ISensorHalWrapper> hidl_wrapper = std::make_unique<HidlSensorHalWrapper>();
     if (hidl_wrapper->connect(this)) {
         mHalWrapper = std::move(hidl_wrapper);
         return true;
     }
+
     // TODO: check aidl connection;
     return false;
 }
