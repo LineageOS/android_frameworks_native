@@ -56,7 +56,9 @@ protected:
 
     auto bufferFront() {
         std::scoped_lock<std::mutex> lock(mTracing->mTraceLock);
-        return mTracing->mBuffer->front();
+        proto::TransactionTraceEntry entry;
+        entry.ParseFromString(mTracing->mBuffer->front());
+        return entry;
     }
 
     bool threadIsJoinable() {
