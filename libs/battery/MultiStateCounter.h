@@ -63,12 +63,24 @@ public:
     void setValue(state_t state, const T& value);
 
     /**
-     * Updates the value for the current state and returns the delta from the previously
-     * set value.
+     * Updates the value by distributing the delta from the previously set value
+     * among states according to their respective time-in-state.
+     * Returns the delta from the previously set value.
      */
     const T& updateValue(const T& value, time_t timestamp);
 
-    void addValue(const T& value);
+    /**
+     * Updates the value by distributing the specified increment among states according
+     * to their respective time-in-state.
+     */
+    void incrementValue(const T& increment, time_t timestamp);
+
+    /**
+     * Adds the specified increment to the value for the current state, without affecting
+     * the last updated value or timestamp.  Ignores partial time-in-state: the entirety of
+     * the increment is given to the current state.
+     */
+    void addValue(const T& increment);
 
     void reset();
 
@@ -216,11 +228,17 @@ const T& MultiStateCounter<T>::updateValue(const T& value, time_t timestamp) {
 }
 
 template <class T>
+void MultiStateCounter<T>::incrementValue(const T& increment, time_t timestamp) {
+    T newValue = lastValue;
+    add(&newValue, increment, 1 /* numerator */, 1 /* denominator */);
+    updateValue(newValue, timestamp);
+}
+
+template <class T>
 void MultiStateCounter<T>::addValue(const T& value) {
     if (!isEnabled) {
         return;
     }
-
     add(&states[currentState].counter, value, 1 /* numerator */, 1 /* denominator */);
 }
 
