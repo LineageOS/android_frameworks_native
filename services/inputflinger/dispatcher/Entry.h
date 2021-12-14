@@ -104,9 +104,9 @@ struct FocusEntry : EventEntry {
 };
 
 struct PointerCaptureChangedEntry : EventEntry {
-    bool pointerCaptureEnabled;
+    const PointerCaptureRequest pointerCaptureRequest;
 
-    PointerCaptureChangedEntry(int32_t id, nsecs_t eventTime, bool hasPointerCapture);
+    PointerCaptureChangedEntry(int32_t id, nsecs_t eventTime, const PointerCaptureRequest&);
     std::string getDescription() const override;
 
     ~PointerCaptureChangedEntry() override;
@@ -284,7 +284,7 @@ struct CommandEntry {
     sp<IBinder> oldToken;
     sp<IBinder> newToken;
     std::string obscuringPackage;
-    bool enabled;
+    PointerCaptureRequest pointerCaptureRequest;
     int32_t pid;
     nsecs_t consumeTime; // time when the event was consumed by InputConsumer
     int32_t displayId;

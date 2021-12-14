@@ -819,11 +819,7 @@ void Layer::setZOrderRelativeOf(const wp<Layer>& relativeOf) {
 }
 
 bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relativeZ) {
-    sp<Handle> handle = static_cast<Handle*>(relativeToHandle.get());
-    if (handle == nullptr) {
-        return false;
-    }
-    sp<Layer> relative = handle->owner.promote();
+    sp<Layer> relative = fromHandle(relativeToHandle).promote();
     if (relative == nullptr) {
         return false;
     }
@@ -1609,8 +1605,7 @@ void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
 bool Layer::reparent(const sp<IBinder>& newParentHandle) {
     sp<Layer> newParent;
     if (newParentHandle != nullptr) {
-        auto handle = static_cast<Handle*>(newParentHandle.get());
-        newParent = handle->owner.promote();
+        newParent = fromHandle(newParentHandle).promote();
         if (newParent == nullptr) {
             ALOGE("Unable to promote Layer handle");
             return false;
@@ -1985,24 +1980,10 @@ void Layer::commitChildList() {
     mDrawingParent = mCurrentParent;
 }
 
-static wp<Layer> extractLayerFromBinder(const wp<IBinder>& weakBinderHandle) {
-    if (weakBinderHandle == nullptr) {
-        return nullptr;
-    }
-    sp<IBinder> binderHandle = weakBinderHandle.promote();
-    if (binderHandle == nullptr) {
-        return nullptr;
-    }
-    sp<Layer::Handle> handle = static_cast<Layer::Handle*>(binderHandle.get());
-    if (handle == nullptr) {
-        return nullptr;
-    }
-    return handle->owner;
-}
 
 void Layer::setInputInfo(const InputWindowInfo& info) {
     mDrawingState.inputInfo = info;
-    mDrawingState.touchableRegionCrop = extractLayerFromBinder(info.touchableRegionCropHandle);
+    mDrawingState.touchableRegionCrop = fromHandle(info.touchableRegionCropHandle.promote());
     mDrawingState.modified = true;
     mFlinger->mInputInfoChanged = true;
     setTransactionFlags(eTransactionNeeded);
@@ -2559,6 +2540,23 @@ void Layer::setClonedChild(const sp<Layer>& clonedChild) {
     mClonedChild = clonedChild;
     mHadClonedChild = true;
     mFlinger->mNumClones++;
+}
+
+const String16 Layer::Handle::kDescriptor = String16("android.Layer.Handle");
+
+wp<Layer> Layer::fromHandle(const sp<IBinder>& handleBinder) {
+    if (handleBinder == nullptr) {
+        return nullptr;
+    }
+
+    BBinder* b = handleBinder->localBinder();
+    if (b == nullptr || b->getInterfaceDescriptor() != Handle::kDescriptor) {
+        return nullptr;
+    }
+
+    // We can safely cast this binder since its local and we verified its interface descriptor.
+    sp<Handle> handle = static_cast<Handle*>(handleBinder.get());
+    return handle->owner;
 }
 
 // ---------------------------------------------------------------------------
