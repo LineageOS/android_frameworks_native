@@ -880,6 +880,42 @@ int32_t EventHub::getKeyCodeState(int32_t deviceId, int32_t keyCode) const {
     return AKEY_STATE_UNKNOWN;
 }
 
+int32_t EventHub::getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const {
+    std::scoped_lock _l(mLock);
+
+    Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr || !device->hasValidFd() || device->keyMap.keyCharacterMap == nullptr ||
+        device->keyMap.keyLayoutMap == nullptr) {
+        return AKEYCODE_UNKNOWN;
+    }
+    std::vector<int32_t> scanCodes;
+    device->keyMap.keyLayoutMap->findScanCodesForKey(locationKeyCode, &scanCodes);
+    if (scanCodes.empty()) {
+        ALOGW("Failed to get key code for key location: no scan code maps to key code %d for input"
+              "device %d",
+              locationKeyCode, deviceId);
+        return AKEYCODE_UNKNOWN;
+    }
+    if (scanCodes.size() > 1) {
+        ALOGW("Multiple scan codes map to the same key code %d, returning only the first match",
+              locationKeyCode);
+    }
+    int32_t outKeyCode;
+    status_t mapKeyRes =
+            device->getKeyCharacterMap()->mapKey(scanCodes[0], 0 /*usageCode*/, &outKeyCode);
+    switch (mapKeyRes) {
+        case OK:
+            return outKeyCode;
+        case NAME_NOT_FOUND:
+            // key character map doesn't re-map this scanCode, hence the keyCode remains the same
+            return locationKeyCode;
+        default:
+            ALOGW("Failed to get key code for key location: Key character map returned error %s",
+                  statusToString(mapKeyRes).c_str());
+            return AKEYCODE_UNKNOWN;
+    }
+}
+
 int32_t EventHub::getSwitchState(int32_t deviceId, int32_t sw) const {
     if (sw >= 0 && sw <= SW_MAX) {
         std::scoped_lock _l(mLock);

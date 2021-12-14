@@ -178,7 +178,7 @@ TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext)
 
 TouchInputMapper::~TouchInputMapper() {}
 
-uint32_t TouchInputMapper::getSources() {
+uint32_t TouchInputMapper::getSources() const {
     return mSource;
 }
 

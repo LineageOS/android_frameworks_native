@@ -57,7 +57,7 @@ SensorInputMapper::SensorInputMapper(InputDeviceContext& deviceContext)
 
 SensorInputMapper::~SensorInputMapper() {}
 
-uint32_t SensorInputMapper::getSources() {
+uint32_t SensorInputMapper::getSources() const {
     return AINPUT_SOURCE_SENSOR;
 }
 
