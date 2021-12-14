@@ -105,7 +105,6 @@ on late-init
     chmod 0755 /sys/kernel/debug/tracing/events/sched/sched_cpu_hotplug
     chmod 0755 /sys/kernel/debug/tracing/events/sched/sched_pi_setprio
     chmod 0755 /sys/kernel/debug/tracing/events/sched/sched_process_exit
-    chmod 0755 /sys/kernel/debug/tracing/events/sched/sched_process_free
     chmod 0755 /sys/kernel/debug/tracing/events/sched/sched_switch
     chmod 0755 /sys/kernel/debug/tracing/events/sched/sched_wakeup
     chmod 0755 /sys/kernel/debug/tracing/events/sched/sched_wakeup_new
@@ -245,7 +244,6 @@ on late-init
     chmod 0755 /sys/kernel/tracing/events/sched/sched_cpu_hotplug
     chmod 0755 /sys/kernel/tracing/events/sched/sched_pi_setprio
     chmod 0755 /sys/kernel/tracing/events/sched/sched_process_exit
-    chmod 0755 /sys/kernel/tracing/events/sched/sched_process_free
     chmod 0755 /sys/kernel/tracing/events/sched/sched_switch
     chmod 0755 /sys/kernel/tracing/events/sched/sched_wakeup
     chmod 0755 /sys/kernel/tracing/events/sched/sched_wakeup_new
