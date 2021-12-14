@@ -1205,12 +1205,14 @@ VkResult CreateSwapchainKHR(VkDevice device,
         swap_interval ? create_info->minImageCount : mailbox_num_images;
     uint32_t num_images = requested_images - 1 + min_undequeued_buffers;
 
-    // Lower layer insists that we have at least two buffers. This is wasteful
-    // and we'd like to relax it in the shared case, but not all the pieces are
-    // in place for that to work yet. Note we only lie to the lower layer-- we
-    // don't want to give the app back a swapchain with extra images (which they
-    // can't actually use!).
-    err = native_window_set_buffer_count(window, std::max(2u, num_images));
+    // Lower layer insists that we have at least min_undequeued_buffers + 1
+    // buffers.  This is wasteful and we'd like to relax it in the shared case,
+    // but not all the pieces are in place for that to work yet.  Note we only
+    // lie to the lower layer--we don't want to give the app back a swapchain
+    // with extra images (which they can't actually use!).
+    uint32_t min_buffer_count = min_undequeued_buffers + 1;
+    err = native_window_set_buffer_count(
+        window, std::max(min_buffer_count, num_images));
     if (err != android::OK) {
         ALOGE("native_window_set_buffer_count(%d) failed: %s (%d)", num_images,
               strerror(-err), err);
