@@ -188,3 +188,23 @@ cc_test {
         "libotapreoptparameters",
     ],
 }
+
+cc_test {
+    name: "installd_file_test",
+    test_suites: ["device-tests"],
+    clang: true,
+    srcs: ["installd_file_test.cpp"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+    shared_libs: [
+        "libbase",
+        "libcutils",
+        "libutils",
+    ],
+    static_libs: [
+        "libinstalld",
+        "liblog",
+    ],
+}
