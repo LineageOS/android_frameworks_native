@@ -1231,6 +1231,12 @@ VkResult CreateSwapchainKHR(VkDevice device,
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
+    // In shared mode the num_images must be one regardless of how many
+    // buffers were allocated for the buffer queue.
+    if (swapchain_image_usage & VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID) {
+        num_images = 1;
+    }
+
     int32_t legacy_usage = 0;
     if (dispatch.GetSwapchainGrallocUsage2ANDROID) {
         uint64_t consumer_usage, producer_usage;

@@ -1015,6 +1015,25 @@ private:
     std::queue<std::unique_ptr<DragEvent>> mDragEventPool;
 };
 
+/*
+ * Describes a unique request to enable or disable Pointer Capture.
+ */
+struct PointerCaptureRequest {
+public:
+    inline PointerCaptureRequest() : enable(false), seq(0) {}
+    inline PointerCaptureRequest(bool enable, uint32_t seq) : enable(enable), seq(seq) {}
+    inline bool operator==(const PointerCaptureRequest& other) const {
+        return enable == other.enable && seq == other.seq;
+    }
+    explicit inline operator bool() const { return enable; }
+
+    // True iff this is a request to enable Pointer Capture.
+    bool enable;
+
+    // The sequence number for the request.
+    uint32_t seq;
+};
+
 } // namespace android
 
 #endif // _LIBINPUT_INPUT_H

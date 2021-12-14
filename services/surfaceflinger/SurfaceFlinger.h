@@ -327,8 +327,7 @@ public:
     // Returns nullptr if the handle does not point to an existing layer.
     // Otherwise, returns a weak reference so that callers off the main-thread
     // won't accidentally hold onto the last strong reference.
-    wp<Layer> fromHandle(const sp<IBinder>& handle);
-    wp<Layer> fromHandleLocked(const sp<IBinder>& handle) const REQUIRES(mStateLock);
+    wp<Layer> fromHandle(const sp<IBinder>& handle) const;
 
     // If set, disables reusing client composition buffers. This can be set by
     // debug.sf.disable_client_composition_cache
@@ -898,7 +897,7 @@ private:
     // called when all clients have released all their references to
     // this layer meaning it is entirely safe to destroy all
     // resources associated to this layer.
-    void onHandleDestroyed(sp<Layer>& layer);
+    void onHandleDestroyed(BBinder* handle, sp<Layer>& layer);
     void markLayerPendingRemovalLocked(const sp<Layer>& layer);
 
     // add a layer to SurfaceFlinger
@@ -1289,8 +1288,6 @@ private:
         DisplayIdGenerator<GpuVirtualDisplayId> gpu;
         std::optional<DisplayIdGenerator<HalVirtualDisplayId>> hal;
     } mVirtualDisplayIdGenerators;
-
-    std::unordered_map<BBinder*, wp<Layer>> mLayersByLocalBinderToken GUARDED_BY(mStateLock);
 
     // don't use a lock for these, we don't care
     int mDebugRegion = 0;
