@@ -424,14 +424,28 @@ base::unique_fd SkiaGLRenderEngine::flush() {
     return fenceFd;
 }
 
-bool SkiaGLRenderEngine::waitFence(base::unique_fd fenceFd) {
+void SkiaGLRenderEngine::waitFence(base::borrowed_fd fenceFd) {
+    if (fenceFd.get() >= 0 && !waitGpuFence(fenceFd)) {
+        ATRACE_NAME("SkiaGLRenderEngine::waitFence");
+        sync_wait(fenceFd.get(), -1);
+    }
+}
+
+bool SkiaGLRenderEngine::waitGpuFence(base::borrowed_fd fenceFd) {
     if (!gl::GLExtensions::getInstance().hasNativeFenceSync() ||
         !gl::GLExtensions::getInstance().hasWaitSync()) {
         return false;
     }
 
+    // Duplicate the fence for passing to eglCreateSyncKHR.
+    base::unique_fd fenceDup(dup(fenceFd.get()));
+    if (fenceDup.get() < 0) {
+        ALOGE("failed to create duplicate fence fd: %d", fenceDup.get());
+        return false;
+    }
+
     // release the fd and transfer the ownership to EGLSync
-    EGLint attribs[] = {EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fenceFd.release(), EGL_NONE};
+    EGLint attribs[] = {EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fenceDup.release(), EGL_NONE};
     EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, attribs);
     if (sync == EGL_NO_SYNC_KHR) {
         ALOGE("failed to create EGL native fence sync: %#x", eglGetError());
@@ -726,14 +740,6 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         return NO_ERROR;
     }
 
-    if (bufferFence.get() >= 0) {
-        // Duplicate the fence for passing to waitFence.
-        base::unique_fd bufferFenceDup(dup(bufferFence.get()));
-        if (bufferFenceDup < 0 || !waitFence(std::move(bufferFenceDup))) {
-            ATRACE_NAME("Waiting before draw");
-            sync_wait(bufferFence.get(), -1);
-        }
-    }
     if (buffer == nullptr) {
         ALOGE("No output buffer provided. Aborting GPU composition.");
         return BAD_VALUE;
@@ -757,6 +763,9 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                                                        ->toAHardwareBuffer(),
                                                                true, mTextureCleanupMgr);
     }
+
+    // wait on the buffer to be ready to use prior to using it
+    waitFence(bufferFence);
 
     const ui::Dataspace dstDataspace =
             mUseColorManagement ? display.outputDataspace : ui::Dataspace::V0_SRGB_LINEAR;
@@ -1012,6 +1021,12 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                         AutoBackendTexture::LocalRef>(grContext,
                                                       item.buffer->getBuffer()->toAHardwareBuffer(),
                                                       false, mTextureCleanupMgr);
+            }
+
+            // if the layer's buffer has a fence, then we must must respect the fence prior to using
+            // the buffer.
+            if (layer->source.buffer.fence != nullptr) {
+                waitFence(layer->source.buffer.fence->get());
             }
 
             // isOpaque means we need to ignore the alpha in the image,

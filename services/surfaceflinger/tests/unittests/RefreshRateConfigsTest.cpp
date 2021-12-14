@@ -2123,7 +2123,11 @@ TEST_F(RefreshRateConfigsTest, getFrameRateDivider) {
     refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
     displayRefreshRate = refreshRateConfigs->getCurrentRefreshRate().getFps();
     EXPECT_EQ(4, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, Fps(22.5f)));
-    EXPECT_EQ(4, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, Fps(22.6f)));
+
+    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivider(Fps(24.f), Fps(25.f)));
+    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivider(Fps(24.f), Fps(23.976f)));
+    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivider(Fps(30.f), Fps(29.97f)));
+    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivider(Fps(60.f), Fps(59.94f)));
 }
 
 TEST_F(RefreshRateConfigsTest, getFrameRateOverrides_noLayers) {

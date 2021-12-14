@@ -386,6 +386,13 @@ void Scheduler::dispatchCachedReportedMode() {
     }
 
     const auto modeId = *mFeatures.modeId;
+    // If the modeId is not the current mode, this means that a
+    // mode change is in progress. In that case we shouldn't dispatch an event
+    // as it will be dispatched when the current mode changes.
+    if (mRefreshRateConfigs.getCurrentRefreshRate().getModeId() != modeId) {
+        return;
+    }
+
     const auto vsyncPeriod = mRefreshRateConfigs.getRefreshRateFromModeId(modeId).getVsyncPeriod();
 
     // If there is no change from cached mode, there is no need to dispatch an event
