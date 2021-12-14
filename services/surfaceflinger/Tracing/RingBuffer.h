@@ -37,22 +37,21 @@ public:
     size_t used() const { return mUsedInBytes; }
     size_t frameCount() const { return mStorage.size(); }
     void setSize(size_t newSize) { mSizeInBytes = newSize; }
-    EntryProto& front() { return mStorage.front(); }
-    const EntryProto& front() const { return mStorage.front(); }
-    const EntryProto& back() const { return mStorage.back(); }
+    const std::string& front() const { return mStorage.front(); }
+    const std::string& back() const { return mStorage.back(); }
 
     void reset() {
         // use the swap trick to make sure memory is released
-        std::deque<EntryProto>().swap(mStorage);
+        std::deque<std::string>().swap(mStorage);
         mUsedInBytes = 0U;
     }
 
     void writeToProto(FileProto& fileProto) {
         fileProto.mutable_entry()->Reserve(static_cast<int>(mStorage.size()) +
                                            fileProto.entry().size());
-        for (const EntryProto& entry : mStorage) {
+        for (const std::string& entry : mStorage) {
             EntryProto* entryProto = fileProto.add_entry();
-            *entryProto = entry;
+            entryProto->ParseFromString(entry);
         }
     }
 
@@ -74,28 +73,35 @@ public:
         return NO_ERROR;
     }
 
-    std::vector<EntryProto> emplace(EntryProto&& proto) {
-        std::vector<EntryProto> replacedEntries;
-        size_t protoSize = static_cast<size_t>(proto.ByteSize());
+    std::vector<std::string> emplace(std::string&& serializedProto) {
+        std::vector<std::string> replacedEntries;
+        size_t protoSize = static_cast<size_t>(serializedProto.size());
         while (mUsedInBytes + protoSize > mSizeInBytes) {
             if (mStorage.empty()) {
                 return {};
             }
-            mUsedInBytes -= static_cast<size_t>(mStorage.front().ByteSize());
+            mUsedInBytes -= static_cast<size_t>(mStorage.front().size());
             replacedEntries.emplace_back(mStorage.front());
             mStorage.pop_front();
         }
         mUsedInBytes += protoSize;
-        mStorage.emplace_back();
-        mStorage.back().Swap(&proto);
+        mStorage.emplace_back(serializedProto);
         return replacedEntries;
+    }
+
+    std::vector<std::string> emplace(EntryProto&& proto) {
+        std::string serializedProto;
+        proto.SerializeToString(&serializedProto);
+        return emplace(std::move(serializedProto));
     }
 
     void dump(std::string& result) const {
         std::chrono::milliseconds duration(0);
         if (frameCount() > 0) {
+            EntryProto entry;
+            entry.ParseFromString(mStorage.front());
             duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::nanoseconds(systemTime() - front().elapsed_realtime_nanos()));
+                    std::chrono::nanoseconds(systemTime() - entry.elapsed_realtime_nanos()));
         }
         const int64_t durationCount = duration.count();
         base::StringAppendF(&result,
@@ -107,7 +113,7 @@ public:
 private:
     size_t mUsedInBytes = 0U;
     size_t mSizeInBytes = 0U;
-    std::deque<EntryProto> mStorage;
+    std::deque<std::string> mStorage;
 };
 
 } // namespace android
