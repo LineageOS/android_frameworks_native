@@ -71,6 +71,7 @@ class HidlSensorHalWrapper : public ISensorHalWrapper {
 public:
     HidlSensorHalWrapper()
           : mHidlTransportErrors(20),
+            mTotalHidlTransportErrors(0),
             mRestartWaiter(new SensorDeviceUtils::HidlServiceRegistrationWaiter()),
             mEventQueueFlag(nullptr),
             mWakeLockQueueFlag(nullptr) {}
