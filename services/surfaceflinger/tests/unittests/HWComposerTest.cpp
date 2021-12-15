@@ -86,7 +86,8 @@ TEST_F(HWComposerSetCallbackTest, loadsLayerMetadataSupport) {
                             }),
                             Return(hardware::graphics::composer::V2_4::Error::NONE)));
     EXPECT_CALL(*mHal, registerCallback(_));
-    EXPECT_CALL(*mHal, isVsyncPeriodSwitchSupported()).WillOnce(Return(false));
+    EXPECT_CALL(*mHal, isSupported(Hwc2::Composer::OptionalFeature::RefreshRateSwitching))
+            .WillOnce(Return(false));
 
     impl::HWComposer hwc{std::unique_ptr<Hwc2::Composer>(mHal)};
     hwc.setCallback(&mCallback);
@@ -104,7 +105,8 @@ TEST_F(HWComposerSetCallbackTest, handlesUnsupportedCallToGetLayerGenericMetadat
     EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
             .WillOnce(Return(hardware::graphics::composer::V2_4::Error::UNSUPPORTED));
     EXPECT_CALL(*mHal, registerCallback(_));
-    EXPECT_CALL(*mHal, isVsyncPeriodSwitchSupported()).WillOnce(Return(false));
+    EXPECT_CALL(*mHal, isSupported(Hwc2::Composer::OptionalFeature::RefreshRateSwitching))
+            .WillOnce(Return(false));
 
     impl::HWComposer hwc{std::unique_ptr<Hwc2::Composer>(mHal)};
     hwc.setCallback(&mCallback);

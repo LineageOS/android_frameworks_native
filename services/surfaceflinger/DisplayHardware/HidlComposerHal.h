@@ -168,6 +168,8 @@ public:
     explicit HidlComposer(const std::string& serviceName);
     ~HidlComposer() override;
 
+    bool isSupported(OptionalFeature) const;
+
     std::vector<IComposer::Capability> getCapabilities() override;
     std::string dumpDebugInfo() override;
 
@@ -290,7 +292,6 @@ public:
     Error setDisplayBrightness(Display display, float brightness) override;
 
     // Composer HAL 2.4
-    bool isVsyncPeriodSwitchSupported() override { return mClient_2_4 != nullptr; }
     Error getDisplayCapabilities(Display display,
                                  std::vector<DisplayCapability>* outCapabilities) override;
     V2_4::Error getDisplayConnectionType(Display display,

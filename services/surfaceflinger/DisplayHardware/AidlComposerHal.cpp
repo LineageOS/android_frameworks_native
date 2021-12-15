@@ -253,6 +253,13 @@ AidlComposer::AidlComposer(const std::string& serviceName) {
 
 AidlComposer::~AidlComposer() = default;
 
+bool AidlComposer::isSupported(OptionalFeature feature) const {
+    switch (feature) {
+        case OptionalFeature::RefreshRateSwitching:
+            return true;
+    }
+}
+
 std::vector<IComposer::Capability> AidlComposer::getCapabilities() {
     std::vector<Capability> capabilities;
     const auto status = mAidlComposer->getCapabilities(&capabilities);
