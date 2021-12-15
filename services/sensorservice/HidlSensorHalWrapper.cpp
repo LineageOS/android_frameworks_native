@@ -374,29 +374,6 @@ void HidlSensorHalWrapper::writeWakeLockHandled(uint32_t count) {
     }
 }
 
-void HidlSensorHalWrapper::onDynamicSensorsConnected(
-        const std::vector<sensor_t>& dynamicSensorsAdded) {
-    std::unique_lock<std::mutex> lock(mDynamicSensorsMutex);
-
-    // Allocate a sensor_t structure for each dynamic sensor added and insert
-    // it into the dictionary of connected dynamic sensors keyed by handle.
-    for (size_t i = 0; i < dynamicSensorsAdded.size(); ++i) {
-        const sensor_t& sensor = dynamicSensorsAdded[i];
-
-        auto it = mConnectedDynamicSensors.find(sensor.handle);
-        CHECK(it == mConnectedDynamicSensors.end());
-
-        mConnectedDynamicSensors.insert(std::make_pair(sensor.handle, sensor));
-    }
-
-    mDynamicSensorsCv.notify_all();
-}
-
-void HidlSensorHalWrapper::onDynamicSensorsDisconnected(
-        const std::vector<int32_t>& /*dynamicSensorHandlesRemoved*/) {
-    // TODO: Currently dynamic sensors do not seem to be removed
-}
-
 status_t HidlSensorHalWrapper::checkReturnAndGetStatus(const hardware::Return<Result>& ret) {
     checkReturn(ret);
     return (!ret.isOk()) ? DEAD_OBJECT : statusFromResult(ret);

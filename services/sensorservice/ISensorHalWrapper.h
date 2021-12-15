@@ -94,11 +94,6 @@ public:
     virtual status_t configureDirectChannel(int32_t sensorHandle, int32_t channelHandle,
                                             const struct sensors_direct_cfg_t *config) = 0;
 
-    virtual void onDynamicSensorsConnected(const std::vector<sensor_t> &dynamicSensorsAdded) = 0;
-
-    virtual void onDynamicSensorsDisconnected(
-            const std::vector<int32_t> &dynamicSensorHandlesRemoved) = 0;
-
     virtual void writeWakeLockHandled(uint32_t count) = 0;
 
     std::atomic_bool mReconnecting = false;
