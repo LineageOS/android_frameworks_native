@@ -6,8 +6,8 @@ service servicemanager /system/bin/servicemanager
     onrestart restart apexd
     onrestart restart audioserver
     onrestart restart gatekeeperd
-    onrestart class_restart main
-    onrestart class_restart hal
-    onrestart class_restart early_hal
+    onrestart class_restart --only-enabled main
+    onrestart class_restart --only-enabled hal
+    onrestart class_restart --only-enabled early_hal
     task_profiles ServiceCapacityLow
     shutdown critical

@@ -45,7 +45,6 @@ namespace android::Hwc2 {
 
 using AidlCommandWriterBase = aidl::android::hardware::graphics::composer3::CommandWriterBase;
 using AidlCommandReaderBase = aidl::android::hardware::graphics::composer3::CommandReaderBase;
-using aidl::android::hardware::graphics::composer3::command::CommandResultPayload;
 
 class AidlIComposerCallbackWrapper;
 

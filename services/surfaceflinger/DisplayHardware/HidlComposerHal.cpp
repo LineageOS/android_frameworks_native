@@ -30,6 +30,7 @@
 #include <hidl/HidlTransportUtils.h>
 #include <log/log.h>
 #include <utils/Trace.h>
+#include "Hal.h"
 
 #include <algorithm>
 #include <cinttypes>
@@ -620,6 +621,11 @@ Error HidlComposer::setLayerColor(Display display, Layer layer,
 
 static IComposerClient::Composition to_hidl_type(
         aidl::android::hardware::graphics::composer3::Composition type) {
+    LOG_ALWAYS_FATAL_IF(static_cast<int32_t>(type) >
+                                static_cast<int32_t>(IComposerClient::Composition::SIDEBAND),
+                        "Trying to use %s, which is not supported by HidlComposer!",
+                        android::to_string(type).c_str());
+
     return static_cast<IComposerClient::Composition>(type);
 }
 
