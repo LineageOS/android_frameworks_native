@@ -1263,6 +1263,7 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForTransac
                                                                  getSequence(), mName,
                                                                  mTransactionName,
                                                                  /*isBuffer*/ false, getGameMode());
+    surfaceFrame->setActualStartTime(info.startTimeNanos);
     // For Transactions, the post time is considered to be both queue and acquire fence time.
     surfaceFrame->setActualQueueTime(postTime);
     surfaceFrame->setAcquireFenceTime(postTime);
@@ -1280,6 +1281,7 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
             mFlinger->mFrameTimeline->createSurfaceFrameForToken(info, mOwnerPid, mOwnerUid,
                                                                  getSequence(), mName, debugName,
                                                                  /*isBuffer*/ true, getGameMode());
+    surfaceFrame->setActualStartTime(info.startTimeNanos);
     // For buffers, acquire fence time will set during latch.
     surfaceFrame->setActualQueueTime(queueTime);
     const auto fps = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());

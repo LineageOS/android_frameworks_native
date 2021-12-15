@@ -667,7 +667,8 @@ void SurfaceFrame::traceActuals(int64_t displayFrameToken) const {
             packet->set_timestamp(
                     static_cast<uint64_t>(endTime - kPredictionExpiredStartTimeDelta));
         } else {
-            packet->set_timestamp(static_cast<uint64_t>(mPredictions.startTime));
+            packet->set_timestamp(static_cast<uint64_t>(
+                    mActuals.startTime == 0 ? mPredictions.startTime : mActuals.startTime));
         }
 
         auto* event = packet->set_frame_timeline_event();

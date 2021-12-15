@@ -1025,10 +1025,11 @@ static inline int native_window_set_frame_rate(struct ANativeWindow* window, flo
 }
 
 static inline int native_window_set_frame_timeline_info(struct ANativeWindow* window,
-                                                         int64_t frameTimelineVsyncId,
-                                                         int32_t inputEventId) {
-    return window->perform(window, NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO,
-                           frameTimelineVsyncId, inputEventId);
+                                                        int64_t frameTimelineVsyncId,
+                                                        int32_t inputEventId,
+                                                        int64_t startTimeNanos) {
+    return window->perform(window, NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO, frameTimelineVsyncId,
+                           inputEventId, startTimeNanos);
 }
 
 // ------------------------------------------------------------------------------------------------
