@@ -38,11 +38,11 @@ class BufferItemConsumer;
 class BLASTBufferItemConsumer : public BufferItemConsumer {
 public:
     BLASTBufferItemConsumer(const sp<IGraphicBufferConsumer>& consumer, uint64_t consumerUsage,
-                            int bufferCount, bool controlledByApp)
+                            int bufferCount, bool controlledByApp, wp<BLASTBufferQueue> bbq)
           : BufferItemConsumer(consumer, consumerUsage, bufferCount, controlledByApp),
+            mBLASTBufferQueue(std::move(bbq)),
             mCurrentlyConnected(false),
-            mPreviouslyConnected(false),
-            mBLASTBufferQueue(nullptr) {}
+            mPreviouslyConnected(false) {}
 
     void onDisconnect() override;
     void addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
@@ -59,15 +59,15 @@ protected:
     void onSidebandStreamChanged() override REQUIRES(mMutex);
 
 private:
+    const wp<BLASTBufferQueue> mBLASTBufferQueue;
+
     uint64_t mCurrentFrameNumber = 0;
 
     Mutex mMutex;
-    std::mutex mBufferQueueMutex;
     ConsumerFrameEventHistory mFrameEventHistory GUARDED_BY(mMutex);
     std::queue<uint64_t> mDisconnectEvents GUARDED_BY(mMutex);
     bool mCurrentlyConnected GUARDED_BY(mMutex);
     bool mPreviouslyConnected GUARDED_BY(mMutex);
-    BLASTBufferQueue* mBLASTBufferQueue GUARDED_BY(mBufferQueueMutex);
 };
 
 class BLASTBufferQueue
