@@ -41,7 +41,7 @@ using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::PowerMode;
 using aidl::android::hardware::graphics::composer3::VirtualDisplay;
 
-using aidl::android::hardware::graphics::composer3::command::CommandResultPayload;
+using aidl::android::hardware::graphics::composer3::CommandResultPayload;
 
 using AidlColorMode = aidl::android::hardware::graphics::composer3::ColorMode;
 using AidlContentType = aidl::android::hardware::graphics::composer3::ContentType;
@@ -440,12 +440,15 @@ Error AidlComposer::getDisplayRequests(Display display, uint32_t* outDisplayRequ
 }
 
 Error AidlComposer::getDozeSupport(Display display, bool* outSupport) {
+    std::vector<AidlDisplayCapability> capabilities;
     const auto status =
-            mAidlComposerClient->getDozeSupport(translate<int64_t>(display), outSupport);
+            mAidlComposerClient->getDisplayCapabilities(translate<int64_t>(display), &capabilities);
     if (!status.isOk()) {
-        ALOGE("getDozeSupport failed %s", status.getDescription().c_str());
+        ALOGE("getDisplayCapabilities failed %s", status.getDescription().c_str());
         return static_cast<Error>(status.getServiceSpecificError());
     }
+    *outSupport = std::find(capabilities.begin(), capabilities.end(),
+                            AidlDisplayCapability::DOZE) != capabilities.end();
     return Error::NONE;
 }
 
@@ -728,16 +731,11 @@ Error AidlComposer::execute() {
         }
 
         const auto& command = commands[index];
-        if (command.getTag() == command::CommandPayload::Tag::displayCommand) {
-            const auto& displayCommand =
-                    command.get<command::CommandPayload::Tag::displayCommand>();
-            if (displayCommand.validateDisplay || displayCommand.presentDisplay ||
-                displayCommand.presentOrValidateDisplay) {
-                error = translate<Error>(cmdErr.errorCode);
-            } else {
-                ALOGW("command '%s' generated error %" PRId32, command.toString().c_str(),
-                      cmdErr.errorCode);
-            }
+        if (command.validateDisplay || command.presentDisplay || command.presentOrValidateDisplay) {
+            error = translate<Error>(cmdErr.errorCode);
+        } else {
+            ALOGW("command '%s' generated error %" PRId32, command.toString().c_str(),
+                  cmdErr.errorCode);
         }
     }
 

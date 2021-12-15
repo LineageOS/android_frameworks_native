@@ -58,9 +58,10 @@
 #include "dexopt_return_codes.h"
 #include "execv_helper.h"
 #include "globals.h"
-#include "installd_deps.h"
 #include "installd_constants.h"
+#include "installd_deps.h"
 #include "otapreopt_utils.h"
+#include "restorable_file.h"
 #include "run_dex2oat.h"
 #include "unique_file.h"
 #include "utils.h"
@@ -307,12 +308,6 @@ static bool IsBootClassPathProfilingEnable() {
             PROFILE_BOOT_CLASS_PATH,
             /*default_value=*/ profile_boot_class_path);
     return profile_boot_class_path == "true";
-}
-
-static void UnlinkIgnoreResult(const std::string& path) {
-    if (unlink(path.c_str()) < 0) {
-        PLOG(ERROR) << "Failed to unlink " << path;
-    }
 }
 
 /*
@@ -988,42 +983,34 @@ static bool create_oat_out_path(const char* apk_path, const char* instruction_se
 }
 
 // (re)Creates the app image if needed.
-UniqueFile maybe_open_app_image(const std::string& out_oat_path,
-        bool generate_app_image, bool is_public, int uid, bool is_secondary_dex) {
-
+RestorableFile maybe_open_app_image(const std::string& out_oat_path, bool generate_app_image,
+                                    bool is_public, int uid, bool is_secondary_dex) {
     const std::string image_path = create_image_filename(out_oat_path);
     if (image_path.empty()) {
         // Happens when the out_oat_path has an unknown extension.
-        return UniqueFile();
+        return RestorableFile();
     }
-
-    // In case there is a stale image, remove it now. Ignore any error.
-    unlink(image_path.c_str());
 
     // Not enabled, exit.
     if (!generate_app_image) {
-        return UniqueFile();
+        RestorableFile::RemoveAllFiles(image_path);
+        return RestorableFile();
     }
     std::string app_image_format = GetProperty("dalvik.vm.appimageformat", "");
     if (app_image_format.empty()) {
-        return UniqueFile();
+        RestorableFile::RemoveAllFiles(image_path);
+        return RestorableFile();
     }
-    // Recreate is true since we do not want to modify a mapped image. If the app is
-    // already running and we modify the image file, it can cause crashes (b/27493510).
-    UniqueFile image_file(
-            open_output_file(image_path.c_str(), true /*recreate*/, 0600 /*permissions*/),
-            image_path,
-            UnlinkIgnoreResult);
+    // If the app is already running and we modify the image file, it can cause crashes
+    // (b/27493510).
+    RestorableFile image_file = RestorableFile::CreateWritableFile(image_path,
+                                                                   /*permissions*/ 0600);
     if (image_file.fd() < 0) {
         // Could not create application image file. Go on since we can compile without it.
         LOG(ERROR) << "installd could not create '" << image_path
                 << "' for image file during dexopt";
-         // If we have a valid image file path but no image fd, explicitly erase the image file.
-        if (unlink(image_path.c_str()) < 0) {
-            if (errno != ENOENT) {
-                PLOG(ERROR) << "Couldn't unlink image file " << image_path;
-            }
-        }
+        // If we have a valid image file path but cannot create tmp file, reset it.
+        image_file.reset();
     } else if (!set_permissions_and_ownership(
                 image_file.fd(), is_public, uid, image_path.c_str(), is_secondary_dex)) {
         ALOGE("installd cannot set owner '%s' for image during dexopt\n", image_path.c_str());
@@ -1097,9 +1084,9 @@ UniqueFile maybe_open_reference_profile(const std::string& pkgname,
 // Opens the vdex files and assigns the input fd to in_vdex_wrapper and the output fd to
 // out_vdex_wrapper. Returns true for success or false in case of errors.
 bool open_vdex_files_for_dex2oat(const char* apk_path, const char* out_oat_path, int dexopt_needed,
-        const char* instruction_set, bool is_public, int uid, bool is_secondary_dex,
-        bool profile_guided, UniqueFile* in_vdex_wrapper,
-        UniqueFile* out_vdex_wrapper) {
+                                 const char* instruction_set, bool is_public, int uid,
+                                 bool is_secondary_dex, bool profile_guided,
+                                 UniqueFile* in_vdex_wrapper, RestorableFile* out_vdex_wrapper) {
     CHECK(in_vdex_wrapper != nullptr);
     CHECK(out_vdex_wrapper != nullptr);
     // Open the existing VDEX. We do this before creating the new output VDEX, which will
@@ -1111,6 +1098,14 @@ bool open_vdex_files_for_dex2oat(const char* apk_path, const char* out_oat_path,
     // Infer the name of the output VDEX.
     const std::string out_vdex_path_str = create_vdex_filename(out_oat_path);
     if (out_vdex_path_str.empty()) {
+        return false;
+    }
+
+    // Create work file first. All files will be deleted when it fails.
+    *out_vdex_wrapper = RestorableFile::CreateWritableFile(out_vdex_path_str,
+                                                           /*permissions*/ 0644);
+    if (out_vdex_wrapper->fd() < 0) {
+        ALOGE("installd cannot open vdex '%s' during dexopt\n", out_vdex_path_str.c_str());
         return false;
     }
 
@@ -1145,41 +1140,19 @@ bool open_vdex_files_for_dex2oat(const char* apk_path, const char* out_oat_path,
             (dexopt_action == DEX2OAT_FOR_BOOT_IMAGE) &&
             !profile_guided;
         if (update_vdex_in_place) {
+            // dex2oat marks it invalid anyway. So delete it and set work file fd.
+            unlink(in_vdex_path_str.c_str());
             // Open the file read-write to be able to update it.
-            in_vdex_wrapper->reset(open(in_vdex_path_str.c_str(), O_RDWR, 0),
-                                   in_vdex_path_str);
-            if (in_vdex_wrapper->fd() == -1) {
-                // If we failed to open the file, we cannot update it in place.
-                update_vdex_in_place = false;
-            }
+            in_vdex_wrapper->reset(out_vdex_wrapper->fd(), in_vdex_path_str);
+            // Disable auto close for the in wrapper fd (it will be done when destructing the out
+            // wrapper).
+            in_vdex_wrapper->DisableAutoClose();
         } else {
             in_vdex_wrapper->reset(open(in_vdex_path_str.c_str(), O_RDONLY, 0),
                                    in_vdex_path_str);
         }
     }
 
-    // If we are updating the vdex in place, we do not need to recreate a vdex,
-    // and can use the same existing one.
-    if (update_vdex_in_place) {
-        // We unlink the file in case the invocation of dex2oat fails, to ensure we don't
-        // have bogus stale vdex files.
-        out_vdex_wrapper->reset(
-              in_vdex_wrapper->fd(),
-              out_vdex_path_str,
-              UnlinkIgnoreResult);
-        // Disable auto close for the in wrapper fd (it will be done when destructing the out
-        // wrapper).
-        in_vdex_wrapper->DisableAutoClose();
-    } else {
-        out_vdex_wrapper->reset(
-              open_output_file(out_vdex_path_str.c_str(), /*recreate*/true, /*permissions*/0644),
-              out_vdex_path_str,
-              UnlinkIgnoreResult);
-        if (out_vdex_wrapper->fd() < 0) {
-            ALOGE("installd cannot open vdex'%s' during dexopt\n", out_vdex_path_str.c_str());
-            return false;
-        }
-    }
     if (!set_permissions_and_ownership(out_vdex_wrapper->fd(), is_public, uid,
             out_vdex_path_str.c_str(), is_secondary_dex)) {
         ALOGE("installd cannot set owner '%s' for vdex during dexopt\n", out_vdex_path_str.c_str());
@@ -1191,16 +1164,13 @@ bool open_vdex_files_for_dex2oat(const char* apk_path, const char* out_oat_path,
 }
 
 // Opens the output oat file for the given apk.
-UniqueFile open_oat_out_file(const char* apk_path, const char* oat_dir,
-        bool is_public, int uid, const char* instruction_set, bool is_secondary_dex) {
+RestorableFile open_oat_out_file(const char* apk_path, const char* oat_dir, bool is_public, int uid,
+                                 const char* instruction_set, bool is_secondary_dex) {
     char out_oat_path[PKG_PATH_MAX];
     if (!create_oat_out_path(apk_path, instruction_set, oat_dir, is_secondary_dex, out_oat_path)) {
-        return UniqueFile();
+        return RestorableFile();
     }
-    UniqueFile oat(
-            open_output_file(out_oat_path, /*recreate*/true, /*permissions*/0644),
-            out_oat_path,
-            UnlinkIgnoreResult);
+    RestorableFile oat = RestorableFile::CreateWritableFile(out_oat_path, /*permissions*/ 0644);
     if (oat.fd() < 0) {
         PLOG(ERROR) << "installd cannot open output during dexopt" <<  out_oat_path;
     } else if (!set_permissions_and_ownership(
@@ -1839,6 +1809,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
         if (sec_dex_result == kSecondaryDexOptProcessOk) {
             oat_dir = oat_dir_str.c_str();
             if (dexopt_needed == NO_DEXOPT_NEEDED) {
+                *completed = true;
                 return 0;  // Nothing to do, report success.
             }
         } else if (sec_dex_result == kSecondaryDexOptProcessCancelled) {
@@ -1874,8 +1845,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     }
 
     // Create the output OAT file.
-    UniqueFile out_oat = open_oat_out_file(dex_path, oat_dir, is_public, uid,
-            instruction_set, is_secondary_dex);
+    RestorableFile out_oat =
+            open_oat_out_file(dex_path, oat_dir, is_public, uid, instruction_set, is_secondary_dex);
     if (out_oat.fd() < 0) {
         *error_msg = "Could not open out oat file.";
         return -1;
@@ -1883,7 +1854,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
 
     // Open vdex files.
     UniqueFile in_vdex;
-    UniqueFile out_vdex;
+    RestorableFile out_vdex;
     if (!open_vdex_files_for_dex2oat(dex_path, out_oat.path().c_str(), dexopt_needed,
             instruction_set, is_public, uid, is_secondary_dex, profile_guided, &in_vdex,
             &out_vdex)) {
@@ -1919,8 +1890,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     }
 
     // Create the app image file if needed.
-    UniqueFile out_image = maybe_open_app_image(
-            out_oat.path(), generate_app_image, is_public, uid, is_secondary_dex);
+    RestorableFile out_image = maybe_open_app_image(out_oat.path(), generate_app_image, is_public,
+                                                    uid, is_secondary_dex);
 
     UniqueFile dex_metadata;
     if (dex_metadata_path != nullptr) {
@@ -1953,30 +1924,18 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     LOG(VERBOSE) << "DexInv: --- BEGIN '" << dex_path << "' ---";
 
     RunDex2Oat runner(dex2oat_bin, execv_helper.get());
-    runner.Initialize(out_oat,
-                      out_vdex,
-                      out_image,
-                      in_dex,
-                      in_vdex,
-                      dex_metadata,
-                      reference_profile,
-                      class_loader_context,
-                      join_fds(context_input_fds),
-                      swap_fd.get(),
-                      instruction_set,
-                      compiler_filter,
-                      debuggable,
-                      boot_complete,
-                      for_restore,
-                      target_sdk_version,
-                      enable_hidden_api_checks,
-                      generate_compact_dex,
-                      use_jitzygote_image,
+    runner.Initialize(out_oat.GetUniqueFile(), out_vdex.GetUniqueFile(), out_image.GetUniqueFile(),
+                      in_dex, in_vdex, dex_metadata, reference_profile, class_loader_context,
+                      join_fds(context_input_fds), swap_fd.get(), instruction_set, compiler_filter,
+                      debuggable, boot_complete, for_restore, target_sdk_version,
+                      enable_hidden_api_checks, generate_compact_dex, use_jitzygote_image,
                       compilation_reason);
 
     bool cancelled = false;
     pid_t pid = dexopt_status_->check_cancellation_and_fork(&cancelled);
     if (cancelled) {
+        *completed = false;
+        reference_profile.DisableCleanup();
         return 0;
     }
     if (pid == 0) {
@@ -2004,6 +1963,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                 LOG(VERBOSE) << "DexInv: --- END '" << dex_path << "' --- cancelled";
                 // cancelled, not an error
                 *completed = false;
+                reference_profile.DisableCleanup();
                 return 0;
             }
             LOG(VERBOSE) << "DexInv: --- END '" << dex_path << "' --- status=0x"
@@ -2013,12 +1973,41 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
         }
     }
 
-    // TODO(b/156537504) Implement SWAP of completed files
-    // We've been successful, don't delete output.
-    out_oat.DisableCleanup();
-    out_vdex.DisableCleanup();
-    out_image.DisableCleanup();
+    // dex2oat ran successfully, so profile is safe to keep.
     reference_profile.DisableCleanup();
+
+    // We've been successful, commit work files.
+    // If committing (=renaming tmp to regular) fails, try to restore backup files.
+    // If restoring fails as well, as a last resort, remove all files.
+    if (!out_oat.CreateBackupFile() || !out_vdex.CreateBackupFile() ||
+        !out_image.CreateBackupFile()) {
+        // Renaming failure can mean that the original file may not be accessible from installd.
+        LOG(ERROR) << "Cannot create backup file from existing file, file in wrong state?"
+                   << ", out_oat:" << out_oat.path() << " ,out_vdex:" << out_vdex.path()
+                   << " ,out_image:" << out_image.path();
+        out_oat.ResetAndRemoveAllFiles();
+        out_vdex.ResetAndRemoveAllFiles();
+        out_image.ResetAndRemoveAllFiles();
+        return -1;
+    }
+    if (!out_oat.CommitWorkFile() || !out_vdex.CommitWorkFile() || !out_image.CommitWorkFile()) {
+        LOG(ERROR) << "Cannot commit, out_oat:" << out_oat.path()
+                   << " ,out_vdex:" << out_vdex.path() << " ,out_image:" << out_image.path();
+        if (!out_oat.RestoreBackupFile() || !out_vdex.RestoreBackupFile() ||
+            !out_image.RestoreBackupFile()) {
+            LOG(ERROR) << "Cannot cancel commit, out_oat:" << out_oat.path()
+                       << " ,out_vdex:" << out_vdex.path() << " ,out_image:" << out_image.path();
+            // Restoring failed.
+            out_oat.ResetAndRemoveAllFiles();
+            out_vdex.ResetAndRemoveAllFiles();
+            out_image.ResetAndRemoveAllFiles();
+        }
+        return -1;
+    }
+    // Now remove remaining backup files.
+    out_oat.RemoveBackupFile();
+    out_vdex.RemoveBackupFile();
+    out_image.RemoveBackupFile();
 
     *completed = true;
     return 0;

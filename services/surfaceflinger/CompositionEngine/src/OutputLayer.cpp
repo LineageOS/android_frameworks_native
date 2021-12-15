@@ -539,6 +539,7 @@ void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
             break;
         case Composition::CURSOR:
         case Composition::DEVICE:
+        case Composition::DISPLAY_DECORATION:
             writeBufferStateToHWC(hwcLayer, outputIndependentState, skipLayer);
             break;
         case Composition::INVALID:
@@ -684,6 +685,7 @@ void OutputLayer::detectDisallowedCompositionTypeChange(Composition from, Compos
 
         case Composition::DEVICE:
         case Composition::SOLID_COLOR:
+        case Composition::DISPLAY_DECORATION:
             result = (to == Composition::CLIENT);
             break;
 

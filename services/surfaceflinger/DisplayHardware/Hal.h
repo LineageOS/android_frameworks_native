@@ -111,6 +111,8 @@ inline std::string to_string(
             return "Cursor";
         case aidl::android::hardware::graphics::composer3::Composition::SIDEBAND:
             return "Sideband";
+        case aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION:
+            return "DisplayDecoration";
         default:
             return "Unknown";
     }

@@ -210,6 +210,26 @@ TEST_F(MultiStateCounterTest, updateValue_nonmonotonic) {
     EXPECT_DOUBLE_EQ(3.0, delta);
 }
 
+TEST_F(MultiStateCounterTest, incrementValue) {
+    DoubleMultiStateCounter testCounter(2, 0);
+    testCounter.updateValue(0, 0);
+    testCounter.setState(0, 0);
+    testCounter.updateValue(6.0, 2000);
+
+    testCounter.setState(1, 3000);
+
+    testCounter.incrementValue(8.0, 6000);
+
+    // The total accumulated count is:
+    //  6.0             // For the period 0-2000
+    //  +(8.0 * 0.25)   // For the period 3000-4000
+    EXPECT_DOUBLE_EQ(8.0, testCounter.getCount(0));
+
+    // 0                // For the period 0-3000
+    // +(8.0 * 0.75)    // For the period 3000-4000
+    EXPECT_DOUBLE_EQ(6.0, testCounter.getCount(1));
+}
+
 TEST_F(MultiStateCounterTest, addValue) {
     DoubleMultiStateCounter testCounter(1, 0);
     testCounter.updateValue(0, 0);
