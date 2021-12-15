@@ -153,6 +153,13 @@ HidlComposer::HidlComposer(const std::string& serviceName) : mWriter(kWriterInit
     }
 }
 
+bool HidlComposer::isSupported(OptionalFeature feature) const {
+    switch (feature) {
+        case OptionalFeature::RefreshRateSwitching:
+            return mClient_2_4 != nullptr;
+    }
+}
+
 std::vector<IComposer::Capability> HidlComposer::getCapabilities() {
     std::vector<IComposer::Capability> capabilities;
     mComposer->getCapabilities(

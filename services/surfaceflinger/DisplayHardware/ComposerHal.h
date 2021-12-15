@@ -75,6 +75,12 @@ public:
 
     virtual ~Composer() = 0;
 
+    enum class OptionalFeature {
+        RefreshRateSwitching,
+    };
+
+    virtual bool isSupported(OptionalFeature) const = 0;
+
     virtual std::vector<IComposer::Capability> getCapabilities() = 0;
     virtual std::string dumpDebugInfo() = 0;
 
@@ -200,7 +206,6 @@ public:
     virtual Error setDisplayBrightness(Display display, float brightness) = 0;
 
     // Composer HAL 2.4
-    virtual bool isVsyncPeriodSwitchSupported() = 0;
     virtual Error getDisplayCapabilities(Display display,
                                          std::vector<DisplayCapability>* outCapabilities) = 0;
     virtual V2_4::Error getDisplayConnectionType(

@@ -144,7 +144,7 @@ void Display::onLayerDestroyed(hal::HWLayerId layerId) {
 bool Display::isVsyncPeriodSwitchSupported() const {
     ALOGV("[%" PRIu64 "] isVsyncPeriodSwitchSupported()", mId);
 
-    return mComposer.isVsyncPeriodSwitchSupported();
+    return mComposer.isSupported(android::Hwc2::Composer::OptionalFeature::RefreshRateSwitching);
 }
 
 Error Display::getChangedCompositionTypes(std::unordered_map<HWC2::Layer*, Composition>* outTypes) {

@@ -159,8 +159,10 @@ void HWComposer::setCallback(HWC2::ComposerCallback* callback) {
     }
     mRegisteredCallback = true;
 
+    const bool vsyncSwitchingSupported =
+            mComposer->isSupported(Hwc2::Composer::OptionalFeature::RefreshRateSwitching);
     mComposer->registerCallback(
-            sp<ComposerCallbackBridge>::make(callback, mComposer->isVsyncPeriodSwitchSupported()));
+            sp<ComposerCallbackBridge>::make(callback, vsyncSwitchingSupported));
 }
 
 bool HWComposer::getDisplayIdentificationData(hal::HWDisplayId hwcDisplayId, uint8_t* outPort,
