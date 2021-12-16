@@ -56,6 +56,8 @@ public:
     explicit AidlComposer(const std::string& serviceName);
     ~AidlComposer() override;
 
+    bool isSupported(OptionalFeature) const;
+
     std::vector<IComposer::Capability> getCapabilities() override;
     std::string dumpDebugInfo() override;
 
@@ -178,7 +180,6 @@ public:
     Error setDisplayBrightness(Display display, float brightness) override;
 
     // Composer HAL 2.4
-    bool isVsyncPeriodSwitchSupported() override { return true; }
     Error getDisplayCapabilities(Display display,
                                  std::vector<DisplayCapability>* outCapabilities) override;
     V2_4::Error getDisplayConnectionType(Display display,

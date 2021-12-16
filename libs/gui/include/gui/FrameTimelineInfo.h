@@ -36,6 +36,9 @@ struct FrameTimelineInfo {
     // not directly vendor available.
     int32_t inputEventId = 0;
 
+    // The current time in nanoseconds the application started to render the frame.
+    int64_t startTimeNanos = 0;
+
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);
 
