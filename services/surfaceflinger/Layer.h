@@ -959,6 +959,19 @@ protected:
     bool usingRelativeZ(LayerVector::StateSet) const;
 
     virtual ui::Transform getInputTransform() const;
+    /**
+     * Get the bounds in layer space within which this layer can receive input.
+     *
+     * These bounds are used to:
+     * - Determine the input frame for the layer to be used for occlusion detection; and
+     * - Determine the coordinate space within which the layer will receive input. The top-left of
+     *   this rect will be the origin of the coordinate space that the input events sent to the
+     *   layer will be in (prior to accounting for surface insets).
+     *
+     * The layer can still receive touch input if these bounds are invalid if
+     * "replaceTouchableRegionWithCrop" is specified. In this case, the layer will receive input
+     * in this layer's space, regardless of the specified crop layer.
+     */
     virtual Rect getInputBounds() const;
 
     // constant

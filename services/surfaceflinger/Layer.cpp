@@ -2167,25 +2167,15 @@ Rect Layer::getInputBounds() const {
 }
 
 void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& displayTransform) {
-    // Transform layer size to screen space and inset it by surface insets.
-    // If this is a portal window, set the touchableRegion to the layerBounds.
-    Rect layerBounds = info.portalToDisplayId == ADISPLAY_ID_NONE
-            ? getInputBounds()
-            : info.touchableRegion.getBounds();
+    Rect layerBounds = getInputBounds();
     if (!layerBounds.isValid()) {
-        layerBounds = getInputBounds();
-    }
-
-    if (!layerBounds.isValid()) {
-        // If the layer bounds is empty, set the frame to empty and clear the transform
-        info.frameLeft = 0;
-        info.frameTop = 0;
-        info.frameRight = 0;
-        info.frameBottom = 0;
-        info.transform.reset();
-        info.touchableRegion = Region();
         info.flags = WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::NOT_FOCUSABLE;
-        return;
+        info.touchableRegion.clear();
+        // A layer could have invalid input bounds and still expect to receive touch input if it has
+        // replaceTouchableRegionWithCrop. For that case, the input transform needs to be calculated
+        // correctly to determine the coordinate space for input events. Use an empty rect so that
+        // the layer will receive input in its own layer space.
+        layerBounds = Rect::EMPTY_RECT;
     }
 
     const ui::Transform layerTransform = getInputTransform();
