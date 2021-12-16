@@ -57,7 +57,9 @@ class IGraphicBufferProducer;
 class ITunnelModeEnabledListener;
 class Region;
 
+using gui::DisplayCaptureArgs;
 using gui::IRegionSamplingListener;
+using gui::LayerCaptureArgs;
 
 struct SurfaceControlStats {
     SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime,
