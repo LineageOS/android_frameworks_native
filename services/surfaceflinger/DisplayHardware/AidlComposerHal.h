@@ -34,7 +34,8 @@
 
 #include <aidl/android/hardware/graphics/composer3/IComposer.h>
 #include <aidl/android/hardware/graphics/composer3/IComposerClient.h>
-#include <android/hardware/graphics/composer3/command-buffer.h>
+#include <android/hardware/graphics/composer3/ComposerClientReader.h>
+#include <android/hardware/graphics/composer3/ComposerClientWriter.h>
 
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 
@@ -43,8 +44,8 @@
 
 namespace android::Hwc2 {
 
-using AidlCommandWriterBase = aidl::android::hardware::graphics::composer3::CommandWriterBase;
-using AidlCommandReaderBase = aidl::android::hardware::graphics::composer3::CommandReaderBase;
+using aidl::android::hardware::graphics::composer3::ComposerClientReader;
+using aidl::android::hardware::graphics::composer3::ComposerClientWriter;
 
 class AidlIComposerCallbackWrapper;
 
@@ -220,8 +221,8 @@ private:
     // 1. Tightly coupling this cache to the max size of BufferQueue
     // 2. Adding an additional slot for the layer caching feature in SurfaceFlinger (see: Planner.h)
     static const constexpr uint32_t kMaxLayerBufferCount = BufferQueue::NUM_BUFFER_SLOTS + 1;
-    AidlCommandWriterBase mWriter;
-    AidlCommandReaderBase mReader;
+    ComposerClientWriter mWriter;
+    ComposerClientReader mReader;
 
     // Aidl interface
     using AidlIComposer = aidl::android::hardware::graphics::composer3::IComposer;
