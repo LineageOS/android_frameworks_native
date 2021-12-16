@@ -28,7 +28,7 @@ cc_library_shared {
     ],
     shared_libs: [
         "libbase",
-        "libbpf",
+        "libbpf_bcc",
         "libbpf_android",
         "libcutils",
         "liblog",
