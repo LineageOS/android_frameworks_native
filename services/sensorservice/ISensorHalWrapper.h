@@ -30,26 +30,45 @@ namespace android {
  */
 class ISensorHalWrapper {
 public:
-    class ICallback : public ISensorsCallback {
-
-        void onDynamicSensorsConnected(
+    class SensorDeviceCallback {
+    public:
+        virtual void onDynamicSensorsConnected(
                 const std::vector<sensor_t> &dynamicSensorsAdded) = 0;
 
-        void onDynamicSensorsDisconnected(
+        virtual void onDynamicSensorsDisconnected(
                 const std::vector<int32_t> &dynamicSensorHandlesRemoved) = 0;
+
+        virtual ~SensorDeviceCallback(){};
     };
+
+    enum HalConnectionStatus {
+        CONNECTED,         // Successfully connected to the HAL
+        DOES_NOT_EXIST,    // Could not find the HAL
+        FAILED_TO_CONNECT, // Found the HAL but failed to connect/initialize
+        UNKNOWN,
+    };
+
+    virtual ~ISensorHalWrapper(){};
 
     /**
      * Connects to the underlying sensors HAL. This should also be used for any reconnections
      * due to HAL resets.
      */
-    virtual bool connect(ICallback *callback) = 0;
+    virtual bool connect(SensorDeviceCallback *callback) = 0;
+
+    virtual void prepareForReconnect() = 0;
+
+    virtual bool supportsPolling() = 0;
+
+    virtual bool supportsMessageQueues() = 0;
 
     /**
      * Polls for available sensor events. This could be using the traditional sensors
      * polling or from a FMQ.
      */
-    virtual ssize_t poll(sensors_event_t* buffer, size_t count) = 0;
+    virtual ssize_t poll(sensors_event_t *buffer, size_t count) = 0;
+
+    virtual ssize_t pollFmq(sensors_event_t *buffer, size_t maxNumEventsToRead) = 0;
 
     /**
      * The below functions directly mirrors the sensors HAL definitions.
@@ -70,11 +89,15 @@ public:
     virtual status_t registerDirectChannel(const sensors_direct_mem_t *memory,
                                            int32_t *channelHandle) = 0;
 
-    virtual void unregisterDirectChannel(int32_t channelHandle) = 0;
+    virtual status_t unregisterDirectChannel(int32_t channelHandle) = 0;
 
     virtual status_t configureDirectChannel(int32_t sensorHandle, int32_t channelHandle,
                                             const struct sensors_direct_cfg_t *config) = 0;
-}
+
+    virtual void writeWakeLockHandled(uint32_t count) = 0;
+
+    std::atomic_bool mReconnecting = false;
+};
 
 } // namespace android
 

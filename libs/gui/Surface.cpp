@@ -1846,9 +1846,10 @@ int Surface::dispatchSetFrameTimelineInfo(va_list args) {
     ATRACE_CALL();
     auto frameTimelineVsyncId = static_cast<int64_t>(va_arg(args, int64_t));
     auto inputEventId = static_cast<int32_t>(va_arg(args, int32_t));
+    auto startTimeNanos = static_cast<int64_t>(va_arg(args, int64_t));
 
     ALOGV("Surface::%s", __func__);
-    return setFrameTimelineInfo({frameTimelineVsyncId, inputEventId});
+    return setFrameTimelineInfo({frameTimelineVsyncId, inputEventId, startTimeNanos});
 }
 
 bool Surface::transformToDisplayInverse() const {

@@ -52,7 +52,8 @@ public:
 
         // isVsyncPeriodSwitchSupported should return true, otherwise the SF's HWC proxy
         // will call setActiveConfig instead of setActiveConfigWithConstraints.
-        ON_CALL(*mComposer, isVsyncPeriodSwitchSupported()).WillByDefault(Return(true));
+        ON_CALL(*mComposer, isSupported(Hwc2::Composer::OptionalFeature::RefreshRateSwitching))
+                .WillByDefault(Return(true));
     }
 
 protected:

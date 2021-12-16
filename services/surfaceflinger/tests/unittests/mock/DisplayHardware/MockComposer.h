@@ -48,6 +48,7 @@ public:
     Composer();
     ~Composer() override;
 
+    MOCK_METHOD(bool, isSupported, (OptionalFeature), (const, override));
     MOCK_METHOD0(getCapabilities, std::vector<IComposer::Capability>());
     MOCK_METHOD0(dumpDebugInfo, std::string());
     MOCK_METHOD1(registerCallback, void(const sp<IComposerCallback>&));
@@ -119,7 +120,6 @@ public:
     MOCK_METHOD3(setLayerPerFrameMetadataBlobs,
                  Error(Display, Layer, const std::vector<IComposerClient::PerFrameMetadataBlob>&));
     MOCK_METHOD2(setDisplayBrightness, Error(Display, float));
-    MOCK_METHOD0(isVsyncPeriodSwitchSupported, bool());
     MOCK_METHOD2(getDisplayCapabilities, Error(Display, std::vector<DisplayCapability>*));
     MOCK_METHOD2(getDisplayConnectionType,
                  V2_4::Error(Display, IComposerClient::DisplayConnectionType*));
