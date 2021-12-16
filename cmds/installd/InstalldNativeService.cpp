@@ -2882,7 +2882,6 @@ binder::Status InstalldNativeService::createOatDir(const std::string& packageNam
 binder::Status InstalldNativeService::rmPackageDir(const std::string& packageName,
                                                    const std::string& packageDir) {
     ENFORCE_UID(AID_SYSTEM);
-    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     CHECK_ARGUMENT_PATH(packageDir);
     LOCK_PACKAGE();
 
