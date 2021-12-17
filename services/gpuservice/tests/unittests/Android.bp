@@ -34,7 +34,7 @@ cc_test {
     ],
     shared_libs: [
         "libbase",
-        "libbpf",
+        "libbpf_bcc",
         "libbpf_android",
         "libcutils",
         "libgfxstats",
