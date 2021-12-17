@@ -132,12 +132,11 @@ void BLASTBufferItemConsumer::onSidebandStreamChanged() {
     }
 }
 
-BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceControl>& surface,
-                                   int width, int height, int32_t format)
-      : mSurfaceControl(surface),
-        mSize(width, height),
+BLASTBufferQueue::BLASTBufferQueue(const std::string& name)
+      : mSurfaceControl(nullptr),
+        mSize(1, 1),
         mRequestedSize(mSize),
-        mFormat(format),
+        mFormat(PIXEL_FORMAT_RGBA_8888),
         mNextTransaction(nullptr) {
     createBufferQueue(&mProducer, &mConsumer);
     // since the adapter is in the client process, set dequeue timeout
@@ -158,24 +157,19 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     mBufferItemConsumer->setName(String8(consumerName.c_str()));
     mBufferItemConsumer->setFrameAvailableListener(this);
     mBufferItemConsumer->setBufferFreedListener(this);
-    mBufferItemConsumer->setDefaultBufferSize(mSize.width, mSize.height);
-    mBufferItemConsumer->setDefaultBufferFormat(convertBufferFormat(format));
     mBufferItemConsumer->setBlastBufferQueue(this);
 
     ComposerService::getComposerService()->getMaxAcquiredBufferCount(&mMaxAcquiredBuffers);
     mBufferItemConsumer->setMaxAcquiredBufferCount(mMaxAcquiredBuffers);
-
-    mTransformHint = mSurfaceControl->getTransformHint();
-    mBufferItemConsumer->setTransformHint(mTransformHint);
-    SurfaceComposerClient::Transaction()
-            .setFlags(surface, layer_state_t::eEnableBackpressure,
-                      layer_state_t::eEnableBackpressure)
-            .setApplyToken(mApplyToken)
-            .apply();
     mNumAcquired = 0;
     mNumFrameAvailable = 0;
-    BQA_LOGV("BLASTBufferQueue created width=%d height=%d format=%d mTransformHint=%d", width,
-             height, format, mTransformHint);
+    BQA_LOGV("BLASTBufferQueue created");
+}
+
+BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceControl>& surface,
+                                   int width, int height, int32_t format)
+      : BLASTBufferQueue(name) {
+    update(surface, width, height, format);
 }
 
 BLASTBufferQueue::~BLASTBufferQueue() {
@@ -227,12 +221,9 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
             // If the buffer supports scaling, update the frame immediately since the client may
             // want to scale the existing buffer to the new size.
             mSize = mRequestedSize;
-            // We only need to update the scale if we've received at least one buffer. The reason
-            // for this is the scale is calculated based on the requested size and buffer size.
-            // If there's no buffer, the scale will always be 1.
             SurfaceComposerClient::Transaction* destFrameTransaction =
                     (outTransaction) ? outTransaction : &t;
-            if (mSurfaceControl != nullptr && mLastBufferInfo.hasBuffer) {
+            if (mSurfaceControl != nullptr) {
                 destFrameTransaction->setDestinationFrame(mSurfaceControl,
                                                           Rect(0, 0, newSize.getWidth(),
                                                                newSize.getHeight()));
@@ -530,9 +521,8 @@ void BLASTBufferQueue::acquireNextBufferLocked(
     // Ensure BLASTBufferQueue stays alive until we receive the transaction complete callback.
     incStrong((void*)transactionCallbackThunk);
 
-    const bool sizeHasChanged = mRequestedSize != mSize;
+    const bool updateDestinationFrame = mRequestedSize != mSize;
     mSize = mRequestedSize;
-    const bool updateDestinationFrame = sizeHasChanged || !mLastBufferInfo.hasBuffer;
     Rect crop = computeCrop(bufferItem);
     mLastBufferInfo.update(true /* hasBuffer */, bufferItem.mGraphicBuffer->getWidth(),
                            bufferItem.mGraphicBuffer->getHeight(), bufferItem.mTransform,
