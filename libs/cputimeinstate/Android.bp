@@ -12,7 +12,7 @@ cc_library {
     srcs: ["cputimeinstate.cpp"],
     shared_libs: [
         "libbase",
-        "libbpf",
+        "libbpf_bcc",
         "libbpf_android",
         "liblog",
         "libnetdutils"
@@ -31,7 +31,7 @@ cc_test {
     srcs: ["testtimeinstate.cpp"],
     shared_libs: [
         "libbase",
-        "libbpf",
+        "libbpf_bcc",
         "libbpf_android",
         "libtimeinstate",
         "libnetdutils",

@@ -3673,7 +3673,7 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
         const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>&
                 bufferLayersReadyToPresent,
         bool allowLatchUnsignaled) const {
-    ATRACE_CALL();
+    ATRACE_FORMAT("transactionIsReadyToBeApplied vsyncId: %" PRId64, info.vsyncId);
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
     // in the future. We ignore timestamps more than 1 second in the future for stability reasons.
