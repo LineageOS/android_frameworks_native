@@ -2064,8 +2064,9 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             }
         } else {
             // No window is touched, so set split to true. This will allow the next pointer down to
-            // be delivered to a new window which supports split touch.
-            tempTouchState.split = isSplit = true;
+            // be delivered to a new window which supports split touch. Pointers from a mouse device
+            // should never be split.
+            tempTouchState.split = isSplit = !isFromMouse;
         }
 
         // Update hover state.
@@ -2211,7 +2212,7 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
 
                 // Make a slippery entrance into the new window.
                 if (newTouchedWindowHandle->getInfo()->supportsSplitTouch()) {
-                    isSplit = true;
+                    isSplit = !isFromMouse;
                 }
 
                 int32_t targetFlags =
