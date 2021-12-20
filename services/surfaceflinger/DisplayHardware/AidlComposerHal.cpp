@@ -373,10 +373,14 @@ Error AidlComposer::getActiveConfig(Display display, Config* outConfig) {
 Error AidlComposer::getChangedCompositionTypes(
         Display display, std::vector<Layer>* outLayers,
         std::vector<aidl::android::hardware::graphics::composer3::Composition>* outTypes) {
-    std::vector<int64_t> layers;
-    mReader.takeChangedCompositionTypes(translate<int64_t>(display), &layers, outTypes);
+    const auto changedLayers = mReader.takeChangedCompositionTypes(translate<int64_t>(display));
+    outLayers->reserve(changedLayers.size());
+    outTypes->reserve(changedLayers.size());
 
-    *outLayers = translate<Layer>(layers);
+    for (const auto& layer : changedLayers) {
+        outLayers->emplace_back(translate<Layer>(layer.layer));
+        outTypes->emplace_back(layer.composition);
+    }
     return Error::NONE;
 }
 
@@ -429,10 +433,15 @@ Error AidlComposer::getDisplayName(Display display, std::string* outName) {
 Error AidlComposer::getDisplayRequests(Display display, uint32_t* outDisplayRequestMask,
                                        std::vector<Layer>* outLayers,
                                        std::vector<uint32_t>* outLayerRequestMasks) {
-    std::vector<int64_t> layers;
-    mReader.takeDisplayRequests(translate<int64_t>(display), outDisplayRequestMask, &layers,
-                                outLayerRequestMasks);
-    *outLayers = translate<Layer>(layers);
+    const auto displayRequests = mReader.takeDisplayRequests(translate<int64_t>(display));
+    *outDisplayRequestMask = translate<uint32_t>(displayRequests.mask);
+    outLayers->reserve(displayRequests.layerRequests.size());
+    outLayerRequestMasks->reserve(displayRequests.layerRequests.size());
+
+    for (const auto& layer : displayRequests.layerRequests) {
+        outLayers->emplace_back(translate<Layer>(layer.layer));
+        outLayerRequestMasks->emplace_back(translate<uint32_t>(layer.mask));
+    }
     return Error::NONE;
 }
 
@@ -469,9 +478,17 @@ Error AidlComposer::getHdrCapabilities(Display display, std::vector<Hdr>* outTyp
 
 Error AidlComposer::getReleaseFences(Display display, std::vector<Layer>* outLayers,
                                      std::vector<int>* outReleaseFences) {
-    std::vector<int64_t> layers;
-    mReader.takeReleaseFences(translate<int64_t>(display), &layers, outReleaseFences);
-    *outLayers = translate<Layer>(layers);
+    auto fences = mReader.takeReleaseFences(translate<int64_t>(display));
+    outLayers->reserve(fences.size());
+    outReleaseFences->reserve(fences.size());
+
+    for (auto& fence : fences) {
+        outLayers->emplace_back(translate<Layer>(fence.layer));
+        // take ownership
+        const int fenceOwner = fence.fence.get();
+        *fence.fence.getR() = -1;
+        outReleaseFences->emplace_back(fenceOwner);
+    }
     return Error::NONE;
 }
 
@@ -484,8 +501,10 @@ Error AidlComposer::presentDisplay(Display display, int* outPresentFence) {
         return error;
     }
 
-    mReader.takePresentFence(translate<int64_t>(display), outPresentFence);
-
+    auto fence = mReader.takePresentFence(translate<int64_t>(display));
+    // take ownership
+    *outPresentFence = fence.get();
+    *fence.getR() = -1;
     return Error::NONE;
 }
 
@@ -597,13 +616,22 @@ Error AidlComposer::presentOrValidateDisplay(Display display, nsecs_t expectedPr
         return error;
     }
 
-    mReader.takePresentOrValidateStage(translate<int64_t>(display), state);
-
-    if (*state == 1) { // Present succeeded
-        mReader.takePresentFence(translate<int64_t>(display), outPresentFence);
+    const auto result = mReader.takePresentOrValidateStage(translate<int64_t>(display));
+    if (!result.has_value()) {
+        *state = translate<uint32_t>(-1);
+        return Error::NO_RESOURCES;
     }
 
-    if (*state == 0) { // Validate succeeded.
+    *state = translate<uint32_t>(*result);
+
+    if (*result == PresentOrValidate::Result::Presented) {
+        auto fence = mReader.takePresentFence(translate<int64_t>(display));
+        // take ownership
+        *outPresentFence = fence.get();
+        *fence.getR() = -1;
+    }
+
+    if (*result == PresentOrValidate::Result::Validated) {
         mReader.hasChanges(translate<int64_t>(display), outNumTypes, outNumRequests);
     }
 
@@ -711,14 +739,16 @@ Error AidlComposer::execute() {
         return Error::NONE;
     }
 
-    std::vector<CommandResultPayload> results;
-    auto status = mAidlComposerClient->executeCommands(commands, &results);
-    if (!status.isOk()) {
-        ALOGE("executeCommands failed %s", status.getDescription().c_str());
-        return static_cast<Error>(status.getServiceSpecificError());
-    }
+    { // scope for results
+        std::vector<CommandResultPayload> results;
+        auto status = mAidlComposerClient->executeCommands(commands, &results);
+        if (!status.isOk()) {
+            ALOGE("executeCommands failed %s", status.getDescription().c_str());
+            return static_cast<Error>(status.getServiceSpecificError());
+        }
 
-    mReader.parse(results);
+        mReader.parse(std::move(results));
+    }
     const auto commandErrors = mReader.takeErrors();
     Error error = Error::NONE;
     for (const auto& cmdErr : commandErrors) {
@@ -993,9 +1023,10 @@ V2_4::Error AidlComposer::getLayerGenericMetadataKeys(
 Error AidlComposer::getClientTargetProperty(
         Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty,
         float* whitePointNits) {
-    ClientTargetProperty property;
-    mReader.takeClientTargetProperty(translate<int64_t>(display), &property, whitePointNits);
-    *outClientTargetProperty = translate<IComposerClient::ClientTargetProperty>(property);
+    const auto property = mReader.takeClientTargetProperty(translate<int64_t>(display));
+    *outClientTargetProperty =
+            translate<IComposerClient::ClientTargetProperty>(property.clientTargetProperty);
+    *whitePointNits = property.whitePointNits;
     return Error::NONE;
 }
 
