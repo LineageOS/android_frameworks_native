@@ -3697,12 +3697,13 @@ int SurfaceFlinger::flushPendingTransactionQueues(
 
             auto& transaction = transactionQueue.front();
             const auto ready =
-                    transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
-                                                  transaction.isAutoTimestamp,
-                                                  transaction.desiredPresentTime,
-                                                  transaction.originUid, transaction.states,
-                                                  bufferLayersReadyToPresent, transactions.size(),
-                                                  tryApplyUnsignaled);
+                transactionIsReadyToBeApplied(transaction,
+                                              transaction.frameTimelineInfo,
+                                              transaction.isAutoTimestamp,
+                                              transaction.desiredPresentTime,
+                                              transaction.originUid, transaction.states,
+                                              bufferLayersReadyToPresent, transactions.size(),
+                                              tryApplyUnsignaled);
             ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
             if (ready == TransactionReadiness::NotReady) {
                 setTransactionFlags(eTransactionFlushNeeded);
@@ -3779,7 +3780,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                         return TransactionReadiness::NotReady;
                     }
 
-                    return transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
+                    return transactionIsReadyToBeApplied(transaction, transaction.frameTimelineInfo,
                                                          transaction.isAutoTimestamp,
                                                          transaction.desiredPresentTime,
                                                          transaction.originUid, transaction.states,
@@ -3941,7 +3942,7 @@ bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_s
     return true;
 }
 
-auto SurfaceFlinger::transactionIsReadyToBeApplied(
+auto SurfaceFlinger::transactionIsReadyToBeApplied(TransactionState& transaction,
         const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
         uid_t originUid, const Vector<ComposerState>& states,
         const std::unordered_map<
@@ -3970,8 +3971,10 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
     }
 
     bool fenceUnsignaled = false;
+    auto queueProcessTime = systemTime();
     for (const ComposerState& state : states) {
         const layer_state_t& s = state.state;
+
         sp<Layer> layer = nullptr;
         if (s.surface) {
             layer = fromHandle(s.surface).promote();
@@ -4007,6 +4010,15 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
                  s.bufferData->acquireFence->getStatus() == Fence::Status::Unsignaled);
 
         if (fenceUnsignaled && !allowLatchUnsignaled) {
+            if (!transaction.sentFenceTimeoutWarning &&
+                queueProcessTime - transaction.queueTime > std::chrono::nanoseconds(4s).count()) {
+                transaction.sentFenceTimeoutWarning = true;
+                auto listener = s.bufferData->releaseBufferListener;
+                if (listener) {
+                    listener->onTransactionQueueStalled();
+                }
+            }
+
             ATRACE_NAME("fence unsignaled");
             return TransactionReadiness::NotReady;
         }
@@ -4026,6 +4038,8 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
 }
 
 void SurfaceFlinger::queueTransaction(TransactionState& state) {
+    state.queueTime = systemTime();
+
     Mutex::Autolock lock(mQueueLock);
 
     // Generate a CountDownLatch pending state if this is a synchronous transaction.
