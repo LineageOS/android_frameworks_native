@@ -59,14 +59,11 @@ using AidlVsyncPeriodChangeConstraints =
         aidl::android::hardware::graphics::composer3::VsyncPeriodChangeConstraints;
 using AidlVsyncPeriodChangeTimeline =
         aidl::android::hardware::graphics::composer3::VsyncPeriodChangeTimeline;
-using AidlLayerGenericMetadataKey =
-        aidl::android::hardware::graphics::composer3::LayerGenericMetadataKey;
 using AidlDisplayContentSamplingAttributes =
         aidl::android::hardware::graphics::composer3::DisplayContentSamplingAttributes;
 using AidlFormatColorComponent = aidl::android::hardware::graphics::composer3::FormatColorComponent;
 using AidlDisplayConnectionType =
         aidl::android::hardware::graphics::composer3::DisplayConnectionType;
-using AidlIComposerClient = aidl::android::hardware::graphics::composer3::IComposerClient;
 
 using AidlColorTransform = aidl::android::hardware::graphics::common::ColorTransform;
 using AidlDataspace = aidl::android::hardware::graphics::common::Dataspace;
@@ -163,14 +160,6 @@ VsyncPeriodChangeTimeline translate(AidlVsyncPeriodChangeTimeline x) {
             .newVsyncAppliedTimeNanos = x.newVsyncAppliedTimeNanos,
             .refreshRequired = x.refreshRequired,
             .refreshTimeNanos = x.refreshTimeNanos,
-    };
-}
-
-template <>
-IComposerClient::LayerGenericMetadataKey translate(AidlLayerGenericMetadataKey x) {
-    return IComposerClient::LayerGenericMetadataKey{
-            .name = x.name,
-            .mandatory = x.mandatory,
     };
 }
 
@@ -987,24 +976,16 @@ V2_4::Error AidlComposer::setContentType(Display display,
     return V2_4::Error::NONE;
 }
 
-V2_4::Error AidlComposer::setLayerGenericMetadata(Display display, Layer layer,
-                                                  const std::string& key, bool mandatory,
-                                                  const std::vector<uint8_t>& value) {
-    mWriter.setLayerGenericMetadata(translate<int64_t>(display), translate<int64_t>(layer), key,
-                                    mandatory, value);
-    return V2_4::Error::NONE;
+V2_4::Error AidlComposer::setLayerGenericMetadata(Display, Layer, const std::string&, bool,
+                                                  const std::vector<uint8_t>&) {
+    // There are no users for this API. See b/209691612.
+    return V2_4::Error::UNSUPPORTED;
 }
 
 V2_4::Error AidlComposer::getLayerGenericMetadataKeys(
-        std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) {
-    std::vector<AidlLayerGenericMetadataKey> keys;
-    const auto status = mAidlComposerClient->getLayerGenericMetadataKeys(&keys);
-    if (!status.isOk()) {
-        ALOGE("getLayerGenericMetadataKeys failed %s", status.getDescription().c_str());
-        return static_cast<V2_4::Error>(status.getServiceSpecificError());
-    }
-    *outKeys = translate<IComposerClient::LayerGenericMetadataKey>(keys);
-    return V2_4::Error::NONE;
+        std::vector<IComposerClient::LayerGenericMetadataKey>*) {
+    // There are no users for this API. See b/209691612.
+    return V2_4::Error::UNSUPPORTED;
 }
 
 Error AidlComposer::getClientTargetProperty(
