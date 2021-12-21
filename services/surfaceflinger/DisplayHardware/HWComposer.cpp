@@ -673,11 +673,7 @@ status_t HWComposer::setColorTransform(HalDisplayId displayId, const mat4& trans
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
 
     auto& displayData = mDisplayData[displayId];
-    bool isIdentity = transform == mat4();
-    auto error = displayData.hwcDisplay
-                         ->setColorTransform(transform,
-                                             isIdentity ? hal::ColorTransform::IDENTITY
-                                                        : hal::ColorTransform::ARBITRARY_MATRIX);
+    auto error = displayData.hwcDisplay->setColorTransform(transform);
     RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
     return NO_ERROR;
 }

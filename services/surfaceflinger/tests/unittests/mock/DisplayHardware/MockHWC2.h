@@ -68,8 +68,7 @@ public:
                  const android::sp<android::Fence> &, hal::Dataspace),
                 (override));
     MOCK_METHOD(hal::Error, setColorMode, (hal::ColorMode, hal::RenderIntent), (override));
-    MOCK_METHOD(hal::Error, setColorTransform, (const android::mat4 &, hal::ColorTransform),
-                (override));
+    MOCK_METHOD(hal::Error, setColorTransform, (const android::mat4 &), (override));
     MOCK_METHOD(hal::Error, setOutputBuffer,
                 (const android::sp<android::GraphicBuffer> &, const android::sp<android::Fence> &),
                 (override));

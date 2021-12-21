@@ -227,7 +227,7 @@ public:
                           int acquireFence, Dataspace dataspace,
                           const std::vector<IComposerClient::Rect>& damage) override;
     Error setColorMode(Display display, ColorMode mode, RenderIntent renderIntent) override;
-    Error setColorTransform(Display display, const float* matrix, ColorTransform hint) override;
+    Error setColorTransform(Display display, const float* matrix) override;
     Error setOutputBuffer(Display display, const native_handle_t* buffer,
                           int releaseFence) override;
     Error setPowerMode(Display display, IComposerClient::PowerMode mode) override;

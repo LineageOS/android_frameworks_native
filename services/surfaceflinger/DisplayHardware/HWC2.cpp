@@ -436,8 +436,8 @@ Error Display::setColorMode(ColorMode mode, RenderIntent renderIntent)
     return static_cast<Error>(intError);
 }
 
-Error Display::setColorTransform(const android::mat4& matrix, ColorTransform hint) {
-    auto intError = mComposer.setColorTransform(mId, matrix.asArray(), hint);
+Error Display::setColorTransform(const android::mat4& matrix) {
+    auto intError = mComposer.setColorTransform(mId, matrix.asArray());
     return static_cast<Error>(intError);
 }
 

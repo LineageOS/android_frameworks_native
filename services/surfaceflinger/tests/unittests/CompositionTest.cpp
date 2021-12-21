@@ -87,6 +87,11 @@ constexpr int DEFAULT_DISPLAY_MAX_LUMINANCE = 500;
 
 constexpr int DEFAULT_SIDEBAND_STREAM = 51;
 
+MATCHER(IsIdentityMatrix, "") {
+    constexpr auto kIdentity = mat4();
+    return (mat4(arg) == kIdentity);
+}
+
 class CompositionTest : public testing::Test {
 public:
     CompositionTest() {
@@ -325,9 +330,7 @@ struct BaseDisplayVariant {
 
     template <typename Case>
     static void setupCommonCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer,
-                    setColorTransform(HWC_DISPLAY, _, Hwc2::ColorTransform::IDENTITY))
-                .Times(1);
+        EXPECT_CALL(*test->mComposer, setColorTransform(HWC_DISPLAY, IsIdentityMatrix())).Times(1);
         EXPECT_CALL(*test->mComposer, getDisplayRequests(HWC_DISPLAY, _, _, _)).Times(1);
         EXPECT_CALL(*test->mComposer, acceptDisplayChanges(HWC_DISPLAY)).Times(1);
         EXPECT_CALL(*test->mComposer, presentDisplay(HWC_DISPLAY, _)).Times(1);
@@ -448,9 +451,7 @@ struct PoweredOffDisplaySetupVariant : public BaseDisplayVariant<PoweredOffDispl
     template <typename Case>
     static void setupCommonCompositionCallExpectations(CompositionTest* test) {
         // TODO: This seems like an unnecessary call if display is powered off.
-        EXPECT_CALL(*test->mComposer,
-                    setColorTransform(HWC_DISPLAY, _, Hwc2::ColorTransform::IDENTITY))
-                .Times(1);
+        EXPECT_CALL(*test->mComposer, setColorTransform(HWC_DISPLAY, IsIdentityMatrix())).Times(1);
 
         // TODO: This seems like an unnecessary call if display is powered off.
         Case::CompositionType::setupHwcSetCallExpectations(test);

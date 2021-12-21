@@ -139,7 +139,7 @@ public:
                                   int acquireFence, Dataspace dataspace,
                                   const std::vector<IComposerClient::Rect>& damage) = 0;
     virtual Error setColorMode(Display display, ColorMode mode, RenderIntent renderIntent) = 0;
-    virtual Error setColorTransform(Display display, const float* matrix, ColorTransform hint) = 0;
+    virtual Error setColorTransform(Display display, const float* matrix) = 0;
     virtual Error setOutputBuffer(Display display, const native_handle_t* buffer,
                                   int releaseFence) = 0;
     virtual Error setPowerMode(Display display, IComposerClient::PowerMode mode) = 0;

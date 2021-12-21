@@ -537,9 +537,8 @@ Error AidlComposer::setColorMode(Display display, ColorMode mode, RenderIntent r
     return Error::NONE;
 }
 
-Error AidlComposer::setColorTransform(Display display, const float* matrix, ColorTransform hint) {
-    mWriter.setColorTransform(translate<int64_t>(display), matrix,
-                              translate<AidlColorTransform>(hint));
+Error AidlComposer::setColorTransform(Display display, const float* matrix) {
+    mWriter.setColorTransform(translate<int64_t>(display), matrix);
     return Error::NONE;
 }
 

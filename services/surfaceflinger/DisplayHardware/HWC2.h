@@ -128,7 +128,7 @@ public:
     [[clang::warn_unused_result]] virtual hal::Error setColorMode(
             hal::ColorMode mode, hal::RenderIntent renderIntent) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setColorTransform(
-            const android::mat4& matrix, hal::ColorTransform hint) = 0;
+            const android::mat4& matrix) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setOutputBuffer(
             const android::sp<android::GraphicBuffer>& buffer,
             const android::sp<android::Fence>& releaseFence) = 0;
@@ -198,7 +198,7 @@ public:
                                const android::sp<android::Fence>& acquireFence,
                                hal::Dataspace dataspace) override;
     hal::Error setColorMode(hal::ColorMode, hal::RenderIntent) override;
-    hal::Error setColorTransform(const android::mat4& matrix, hal::ColorTransform hint) override;
+    hal::Error setColorTransform(const android::mat4& matrix) override;
     hal::Error setOutputBuffer(const android::sp<android::GraphicBuffer>&,
                                const android::sp<android::Fence>& releaseFence) override;
     hal::Error setPowerMode(hal::PowerMode) override;

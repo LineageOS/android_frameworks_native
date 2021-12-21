@@ -507,9 +507,12 @@ Error HidlComposer::setColorMode(Display display, ColorMode mode, RenderIntent r
     return unwrapRet(ret);
 }
 
-Error HidlComposer::setColorTransform(Display display, const float* matrix, ColorTransform hint) {
+Error HidlComposer::setColorTransform(Display display, const float* matrix) {
     mWriter.selectDisplay(display);
-    mWriter.setColorTransform(matrix, hint);
+    const bool isIdentity = (mat4(matrix) == mat4());
+    mWriter.setColorTransform(matrix,
+                              isIdentity ? ColorTransform::IDENTITY
+                                         : ColorTransform::ARBITRARY_MATRIX);
     return Error::NONE;
 }
 

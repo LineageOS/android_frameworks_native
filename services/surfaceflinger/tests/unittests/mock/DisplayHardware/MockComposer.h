@@ -84,7 +84,7 @@ public:
                  Error(Display, uint32_t, const sp<GraphicBuffer>&, int, Dataspace,
                        const std::vector<IComposerClient::Rect>&));
     MOCK_METHOD3(setColorMode, Error(Display, ColorMode, RenderIntent));
-    MOCK_METHOD3(setColorTransform, Error(Display, const float*, ColorTransform));
+    MOCK_METHOD2(setColorTransform, Error(Display, const float*));
     MOCK_METHOD3(setOutputBuffer, Error(Display, const native_handle_t*, int));
     MOCK_METHOD2(setPowerMode, Error(Display, IComposerClient::PowerMode));
     MOCK_METHOD2(setVsyncEnabled, Error(Display, IComposerClient::Vsync));
