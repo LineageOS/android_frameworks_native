@@ -310,6 +310,9 @@ public:
                                         .idleTimerTimeoutMs = 0,
                                         .supportKernelIdleTimer = false});
 
+    RefreshRateConfigs(const RefreshRateConfigs&) = delete;
+    RefreshRateConfigs& operator=(const RefreshRateConfigs&) = delete;
+
     // Returns whether switching modes (refresh rate or resolution) is possible.
     // TODO(b/158780872): Consider HAL support, and skip frame rate detection if the modes only
     // differ in resolution.
@@ -391,11 +394,8 @@ public:
 
     void dump(std::string& result) const EXCLUDES(mLock);
 
-    RefreshRateConfigs(const RefreshRateConfigs&) = delete;
-    void operator=(const RefreshRateConfigs&) = delete;
-
 private:
-    friend class RefreshRateConfigsTest;
+    friend struct TestableRefreshRateConfigs;
 
     void constructAvailableRefreshRates() REQUIRES(mLock);
 
