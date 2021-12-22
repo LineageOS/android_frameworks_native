@@ -3796,6 +3796,49 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, CanFocusWindowOnUnfocusedDisplay) 
     secondWindowInPrimary->consumeKeyDown(ADISPLAY_ID_DEFAULT);
 }
 
+TEST_F(InputDispatcherFocusOnTwoDisplaysTest, CancelTouch_MultiDisplay) {
+    FakeMonitorReceiver monitorInPrimary =
+            FakeMonitorReceiver(mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
+    FakeMonitorReceiver monitorInSecondary =
+            FakeMonitorReceiver(mDispatcher, "M_2", SECOND_DISPLAY_ID);
+
+    // Test touch down on primary display.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    windowInPrimary->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    monitorInPrimary.consumeMotionDown(ADISPLAY_ID_DEFAULT);
+
+    // Test touch down on second display.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, SECOND_DISPLAY_ID))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    windowInSecondary->consumeMotionDown(SECOND_DISPLAY_ID);
+    monitorInSecondary.consumeMotionDown(SECOND_DISPLAY_ID);
+
+    // Trigger cancel touch.
+    mDispatcher->cancelCurrentTouch();
+    windowInPrimary->consumeMotionCancel(ADISPLAY_ID_DEFAULT);
+    monitorInPrimary.consumeMotionCancel(ADISPLAY_ID_DEFAULT);
+    windowInSecondary->consumeMotionCancel(SECOND_DISPLAY_ID);
+    monitorInSecondary.consumeMotionCancel(SECOND_DISPLAY_ID);
+
+    // Test inject a move motion event, no window/monitor should receive the event.
+    ASSERT_EQ(InputEventInjectionResult::FAILED,
+              injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
+                                ADISPLAY_ID_DEFAULT, {110, 200}))
+            << "Inject motion event should return InputEventInjectionResult::FAILED";
+    windowInPrimary->assertNoEvents();
+    monitorInPrimary.assertNoEvents();
+
+    ASSERT_EQ(InputEventInjectionResult::FAILED,
+              injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
+                                SECOND_DISPLAY_ID, {110, 200}))
+            << "Inject motion event should return InputEventInjectionResult::FAILED";
+    windowInSecondary->assertNoEvents();
+    monitorInSecondary.assertNoEvents();
+}
+
 class InputFilterTest : public InputDispatcherTest {
 protected:
     void testNotifyMotion(int32_t displayId, bool expectToBeFiltered,
