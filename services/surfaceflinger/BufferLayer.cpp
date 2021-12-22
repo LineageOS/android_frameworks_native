@@ -295,6 +295,9 @@ void BufferLayer::preparePerFrameCompositionState() {
         compositionState->compositionType =
                 aidl::android::hardware::graphics::composer3::Composition::SIDEBAND;
         return;
+    } else if ((mDrawingState.flags & layer_state_t::eLayerIsDisplayDecoration) != 0) {
+        compositionState->compositionType =
+                aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION;
     } else {
         // Normal buffer layers
         compositionState->hdrMetadata = mBufferInfo.mHdrMetadata;
