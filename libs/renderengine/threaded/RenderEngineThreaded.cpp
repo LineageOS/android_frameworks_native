@@ -178,6 +178,10 @@ void RenderEngineThreaded::dump(std::string& result) {
 
 void RenderEngineThreaded::genTextures(size_t count, uint32_t* names) {
     ATRACE_CALL();
+    // This is a no-op in SkiaRenderEngine.
+    if (getRenderEngineType() != RenderEngineType::THREADED) {
+        return;
+    }
     std::promise<void> resultPromise;
     std::future<void> resultFuture = resultPromise.get_future();
     {
@@ -194,6 +198,10 @@ void RenderEngineThreaded::genTextures(size_t count, uint32_t* names) {
 
 void RenderEngineThreaded::deleteTextures(size_t count, uint32_t const* names) {
     ATRACE_CALL();
+    // This is a no-op in SkiaRenderEngine.
+    if (getRenderEngineType() != RenderEngineType::THREADED) {
+        return;
+    }
     std::promise<void> resultPromise;
     std::future<void> resultFuture = resultPromise.get_future();
     {
