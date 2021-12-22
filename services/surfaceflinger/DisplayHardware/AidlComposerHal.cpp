@@ -256,6 +256,7 @@ AidlComposer::~AidlComposer() = default;
 bool AidlComposer::isSupported(OptionalFeature feature) const {
     switch (feature) {
         case OptionalFeature::RefreshRateSwitching:
+        case OptionalFeature::ExpectedPresentTime:
             return true;
     }
 }
@@ -536,9 +537,8 @@ Error AidlComposer::setColorMode(Display display, ColorMode mode, RenderIntent r
     return Error::NONE;
 }
 
-Error AidlComposer::setColorTransform(Display display, const float* matrix, ColorTransform hint) {
-    mWriter.setColorTransform(translate<int64_t>(display), matrix,
-                              translate<AidlColorTransform>(hint));
+Error AidlComposer::setColorTransform(Display display, const float* matrix) {
+    mWriter.setColorTransform(translate<int64_t>(display), matrix);
     return Error::NONE;
 }
 
@@ -580,10 +580,11 @@ Error AidlComposer::setClientTargetSlotCount(Display display) {
     return Error::NONE;
 }
 
-Error AidlComposer::validateDisplay(Display display, uint32_t* outNumTypes,
-                                    uint32_t* outNumRequests) {
+Error AidlComposer::validateDisplay(Display display, nsecs_t expectedPresentTime,
+                                    uint32_t* outNumTypes, uint32_t* outNumRequests) {
     ATRACE_NAME("HwcValidateDisplay");
-    mWriter.validateDisplay(translate<int64_t>(display));
+    mWriter.validateDisplay(translate<int64_t>(display),
+                            ClockMonotonicTimestamp{expectedPresentTime});
 
     Error error = execute();
     if (error != Error::NONE) {
@@ -595,11 +596,12 @@ Error AidlComposer::validateDisplay(Display display, uint32_t* outNumTypes,
     return Error::NONE;
 }
 
-Error AidlComposer::presentOrValidateDisplay(Display display, uint32_t* outNumTypes,
-                                             uint32_t* outNumRequests, int* outPresentFence,
-                                             uint32_t* state) {
+Error AidlComposer::presentOrValidateDisplay(Display display, nsecs_t expectedPresentTime,
+                                             uint32_t* outNumTypes, uint32_t* outNumRequests,
+                                             int* outPresentFence, uint32_t* state) {
     ATRACE_NAME("HwcPresentOrValidateDisplay");
-    mWriter.presentOrvalidateDisplay(translate<int64_t>(display));
+    mWriter.presentOrvalidateDisplay(translate<int64_t>(display),
+                                     ClockMonotonicTimestamp{expectedPresentTime});
 
     Error error = execute();
     if (error != Error::NONE) {
