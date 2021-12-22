@@ -146,6 +146,8 @@ public:
     void onWindowInfosChanged(const std::vector<android::gui::WindowInfo>& windowInfos,
                               const std::vector<android::gui::DisplayInfo>& displayInfos);
 
+    void cancelCurrentTouch() override;
+
 private:
     enum class DropReason {
         NOT_DROPPED,

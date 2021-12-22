@@ -211,6 +211,11 @@ public:
      * Called when a display has been removed from the system.
      */
     virtual void displayRemoved(int32_t displayId) = 0;
+
+    /*
+     * Abort the current touch stream.
+     */
+    virtual void cancelCurrentTouch() = 0;
 };
 
 } // namespace android

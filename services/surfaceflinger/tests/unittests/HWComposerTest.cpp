@@ -36,6 +36,7 @@
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/Hal.h"
+#include "DisplayIdentificationTest.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockHWC2.h"
 
@@ -56,6 +57,29 @@ using ::testing::ElementsAreArray;
 using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::StrictMock;
+
+TEST(HWComposerTest, isHeadless) {
+    Hwc2::mock::Composer* mHal = new StrictMock<Hwc2::mock::Composer>();
+    impl::HWComposer hwc{std::unique_ptr<Hwc2::Composer>(mHal)};
+    ASSERT_TRUE(hwc.isHeadless());
+
+    const hal::HWDisplayId hwcId = 1;
+
+    EXPECT_CALL(*mHal, getDisplayIdentificationData(_, _, _))
+            .WillOnce(DoAll(SetArgPointee<2>(getExternalEdid()),
+                            Return(hardware::graphics::composer::V2_1::Error::NONE)));
+
+    EXPECT_CALL(*mHal, setVsyncEnabled(_, _));
+    EXPECT_CALL(*mHal, setClientTargetSlotCount(_));
+
+    auto info = hwc.onHotplug(hwcId, hal::Connection::CONNECTED);
+    ASSERT_TRUE(info);
+    auto displayId = info->id;
+    ASSERT_FALSE(hwc.isHeadless());
+
+    hwc.disconnectDisplay(displayId);
+    ASSERT_TRUE(hwc.isHeadless());
+}
 
 struct MockHWC2ComposerCallback final : StrictMock<HWC2::ComposerCallback> {
     MOCK_METHOD2(onComposerHalHotplug, void(hal::HWDisplayId, hal::Connection));
