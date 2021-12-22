@@ -4718,6 +4718,11 @@ void InputDispatcher::setInputWindowsLocked(
             window->releaseChannel();
         }
 
+        // Ensure all spy windows are trusted overlays
+        LOG_ALWAYS_FATAL_IF(info.isSpy() && !info.trustedOverlay,
+                            "%s has feature SPY, but is not a trusted overlay.",
+                            window->getName().c_str());
+
         // Ensure all stylus interceptors are trusted overlays
         LOG_ALWAYS_FATAL_IF(info.interceptsStylus() && !info.trustedOverlay,
                             "%s has feature INTERCEPTS_STYLUS, but is not a trusted overlay.",

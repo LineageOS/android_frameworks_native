@@ -6300,6 +6300,7 @@ public:
         sp<FakeWindowHandle> spy =
                 new FakeWindowHandle(application, mDispatcher, name.c_str(), ADISPLAY_ID_DEFAULT);
         spy->setInputFeatures(WindowInfo::Feature::SPY);
+        spy->setTrustedOverlay(true);
         spy->addFlags(flags);
         return spy;
     }
@@ -6316,6 +6317,16 @@ public:
 private:
     int mSpyCount{0};
 };
+
+/**
+ * Adding a spy window that is not a trusted overlay causes Dispatcher to abort.
+ */
+TEST_F(InputDispatcherSpyWindowTest, UntrustedSpy_AbortsDispatcher) {
+    auto spy = createSpy(WindowInfo::Flag::NOT_TOUCH_MODAL);
+    spy->setTrustedOverlay(false);
+    ASSERT_DEATH(mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy}}}),
+                 ".* not a trusted overlay");
+}
 
 /**
  * Input injection into a display with a spy window but no foreground windows should succeed.
@@ -6474,28 +6485,6 @@ TEST_F(InputDispatcherSpyWindowTest, WatchOutsideTouches) {
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     window->consumeMotionDown();
     spy->consumeMotionOutside();
-}
-
-/**
- * When configured to block untrusted touches, events will not be dispatched to windows below a spy
- * window if it is not a trusted overly.
- */
-TEST_F(InputDispatcherSpyWindowTest, BlockUntrustedTouches) {
-    mDispatcher->setBlockUntrustedTouchesMode(android::os::BlockUntrustedTouchesMode::BLOCK);
-
-    auto window = createForeground();
-    auto spy = createSpy(WindowInfo::Flag::NOT_TOUCH_MODAL);
-    window->setOwnerInfo(111, 111);
-    spy->setOwnerInfo(222, 222);
-    spy->setTouchOcclusionMode(TouchOcclusionMode::BLOCK_UNTRUSTED);
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy, window}}});
-
-    // Inject an event outside the spy window's frame and touchable region.
-    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
-            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    spy->consumeMotionDown();
-    window->assertNoEvents();
 }
 
 /**
