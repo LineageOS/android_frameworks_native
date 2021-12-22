@@ -66,6 +66,7 @@ cc_library_static {
     host_supported: true,
     srcs: [
         ":guiconstants_aidl",
+        ":inputconstants_aidl",
         "android/gui/DisplayInfo.aidl",
         "android/gui/FocusRequest.aidl",
         "android/gui/InputApplicationInfo.aidl",

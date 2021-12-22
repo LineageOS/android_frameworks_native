@@ -17,6 +17,7 @@
 #pragma once
 
 #include <android/gui/TouchOcclusionMode.h>
+#include <android/os/IInputConstants.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
 #include <ftl/Flags.h>
@@ -131,14 +132,25 @@ struct WindowInfo : public Parcelable {
         ftl_last = FIRST_SYSTEM_WINDOW + 15
     };
 
+    // This is a conversion of os::IInputConstants::InputFeature to an enum backed by an unsigned
+    // type. This indicates that they are flags, so it can be used with ftl/enum.h.
     enum class Feature : uint32_t {
-        DISABLE_TOUCH_PAD_GESTURES = 1u << 0,
-        NO_INPUT_CHANNEL = 1u << 1,
-        DISABLE_USER_ACTIVITY = 1u << 2,
-        DROP_INPUT = 1u << 3,
-        DROP_INPUT_IF_OBSCURED = 1u << 4,
-        SPY = 1u << 5,
-        INTERCEPTS_STYLUS = 1u << 6,
+        // clang-format off
+        DISABLE_TOUCH_PAD_GESTURES =
+                static_cast<uint32_t>(os::IInputConstants::InputFeature::DISABLE_POINTER_GESTURES),
+        NO_INPUT_CHANNEL =
+                static_cast<uint32_t>(os::IInputConstants::InputFeature::NO_INPUT_CHANNEL),
+        DISABLE_USER_ACTIVITY =
+                static_cast<uint32_t>(os::IInputConstants::InputFeature::DISABLE_USER_ACTIVITY),
+        DROP_INPUT =
+                static_cast<uint32_t>(os::IInputConstants::InputFeature::DROP_INPUT),
+        DROP_INPUT_IF_OBSCURED =
+                static_cast<uint32_t>(os::IInputConstants::InputFeature::DROP_INPUT_IF_OBSCURED),
+        SPY =
+                static_cast<uint32_t>(os::IInputConstants::InputFeature::SPY),
+        INTERCEPTS_STYLUS =
+                static_cast<uint32_t>(os::IInputConstants::InputFeature::INTERCEPTS_STYLUS),
+        // clang-format on
     };
 
     /* These values are filled in by the WM and passed through SurfaceFlinger
