@@ -1051,14 +1051,14 @@ sp<WindowInfoHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t displayI
         LOG_ALWAYS_FATAL("Must provide a valid touch state if adding outside targets");
     }
     // Traverse windows from front to back to find touched window.
-    const std::vector<sp<WindowInfoHandle>>& windowHandles = getWindowHandlesLocked(displayId);
+    const auto& windowHandles = getWindowHandlesLocked(displayId);
     for (const sp<WindowInfoHandle>& windowHandle : windowHandles) {
         if (ignoreDragWindow && haveSameToken(windowHandle, mDragState->dragWindow)) {
             continue;
         }
 
         const WindowInfo& info = *windowHandle->getInfo();
-        if (windowAcceptsTouchAt(info, displayId, x, y)) {
+        if (!info.isSpy() && windowAcceptsTouchAt(info, displayId, x, y)) {
             return windowHandle;
         }
 
@@ -1068,6 +1068,27 @@ sp<WindowInfoHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t displayI
         }
     }
     return nullptr;
+}
+
+std::vector<sp<WindowInfoHandle>> InputDispatcher::findTouchedSpyWindowsAtLocked(int32_t displayId,
+                                                                                 int32_t x,
+                                                                                 int32_t y) const {
+    // Traverse windows from front to back and gather the touched spy windows.
+    std::vector<sp<WindowInfoHandle>> spyWindows;
+    const auto& windowHandles = getWindowHandlesLocked(displayId);
+    for (const sp<WindowInfoHandle>& windowHandle : windowHandles) {
+        const WindowInfo& info = *windowHandle->getInfo();
+
+        if (!windowAcceptsTouchAt(info, displayId, x, y)) {
+            continue;
+        }
+        if (!info.isSpy()) {
+            // The first touched non-spy window was found, so return the spy windows touched so far.
+            return spyWindows;
+        }
+        spyWindows.push_back(windowHandle);
+    }
+    return spyWindows;
 }
 
 void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason dropReason) {
@@ -2078,9 +2099,11 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             }
         }
 
-        std::vector<sp<WindowInfoHandle>> newTouchedWindows;
+        std::vector<sp<WindowInfoHandle>> newTouchedWindows =
+                findTouchedSpyWindowsAtLocked(displayId, x, y);
         if (newTouchedWindowHandle != nullptr) {
-            newTouchedWindows.push_back(newTouchedWindowHandle);
+            // Process the foreground window first so that it is the first to receive the event.
+            newTouchedWindows.insert(newTouchedWindows.begin(), newTouchedWindowHandle);
         }
 
         for (const sp<WindowInfoHandle>& windowHandle : newTouchedWindows) {
@@ -2128,8 +2151,10 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             // Set target flags.
             int32_t targetFlags = InputTarget::FLAG_DISPATCH_AS_IS;
 
-            // There should only be one new foreground (non-spy) window at this location.
-            targetFlags |= InputTarget::FLAG_FOREGROUND;
+            if (!info.isSpy()) {
+                // There should only be one new foreground (non-spy) window at this location.
+                targetFlags |= InputTarget::FLAG_FOREGROUND;
+            }
 
             if (isSplit) {
                 targetFlags |= InputTarget::FLAG_SPLIT;
@@ -2268,10 +2293,17 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
     // Check permission to inject into all touched foreground windows and ensure there
     // is at least one touched foreground window.
     {
-        bool haveForegroundWindow = false;
+        bool haveForegroundOrSpyWindow = false;
         for (const TouchedWindow& touchedWindow : tempTouchState.windows) {
-            if (touchedWindow.targetFlags & InputTarget::FLAG_FOREGROUND) {
-                haveForegroundWindow = true;
+            const bool isForeground =
+                    (touchedWindow.targetFlags & InputTarget::FLAG_FOREGROUND) != 0;
+            if (touchedWindow.windowHandle->getInfo()->isSpy()) {
+                haveForegroundOrSpyWindow = true;
+                LOG_ALWAYS_FATAL_IF(isForeground,
+                                    "Spy window cannot be dispatched as a foreground window.");
+            }
+            if (isForeground) {
+                haveForegroundOrSpyWindow = true;
                 if (!checkInjectionPermission(touchedWindow.windowHandle, entry.injectionState)) {
                     injectionResult = InputEventInjectionResult::PERMISSION_DENIED;
                     injectionPermission = INJECTION_PERMISSION_DENIED;
@@ -2280,8 +2312,8 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             }
         }
         bool hasGestureMonitor = !tempTouchState.gestureMonitors.empty();
-        if (!haveForegroundWindow && !hasGestureMonitor) {
-            ALOGI("Dropping event because there is no touched foreground window in display "
+        if (!haveForegroundOrSpyWindow && !hasGestureMonitor) {
+            ALOGI("Dropping event because there is no touched window in display "
                   "%" PRId32 " or gesture monitor to receive it.",
                   displayId);
             injectionResult = InputEventInjectionResult::FAILED;
@@ -5521,58 +5553,78 @@ void InputDispatcher::removeMonitorChannelLocked(
 status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
     { // acquire lock
         std::scoped_lock _l(mLock);
-        std::optional<int32_t> foundDisplayId = findGestureMonitorDisplayByTokenLocked(token);
 
-        if (!foundDisplayId) {
-            ALOGW("Attempted to pilfer pointers from an un-registered monitor or invalid token");
-            return BAD_VALUE;
-        }
-        int32_t displayId = foundDisplayId.value();
-
-        std::unordered_map<int32_t, TouchState>::iterator stateIt =
-                mTouchStatesByDisplay.find(displayId);
-        if (stateIt == mTouchStatesByDisplay.end()) {
-            ALOGW("Failed to pilfer pointers: no pointers on display %" PRId32 ".", displayId);
-            return BAD_VALUE;
-        }
-
-        TouchState& state = stateIt->second;
+        TouchState* statePtr = nullptr;
         std::shared_ptr<InputChannel> requestingChannel;
-        std::optional<int32_t> foundDeviceId;
-        for (const auto& monitor : state.gestureMonitors) {
-            if (monitor.inputChannel->getConnectionToken() == token) {
-                requestingChannel = monitor.inputChannel;
-                foundDeviceId = state.deviceId;
+        int32_t displayId;
+        int32_t deviceId;
+        const std::optional<int32_t> foundGestureMonitorDisplayId =
+                findGestureMonitorDisplayByTokenLocked(token);
+
+        // TODO: Optimize this function for pilfering from windows when removing gesture monitors.
+        if (foundGestureMonitorDisplayId) {
+            // A gesture monitor has requested to pilfer pointers.
+            displayId = *foundGestureMonitorDisplayId;
+            auto stateIt = mTouchStatesByDisplay.find(displayId);
+            if (stateIt == mTouchStatesByDisplay.end()) {
+                ALOGW("Failed to pilfer pointers: no pointers on display %" PRId32 ".", displayId);
+                return BAD_VALUE;
+            }
+            statePtr = &stateIt->second;
+
+            for (const auto& monitor : statePtr->gestureMonitors) {
+                if (monitor.inputChannel->getConnectionToken() == token) {
+                    requestingChannel = monitor.inputChannel;
+                    deviceId = statePtr->deviceId;
+                }
+            }
+        } else {
+            // Check if a window has requested to pilfer pointers.
+            for (auto& [curDisplayId, state] : mTouchStatesByDisplay) {
+                const sp<WindowInfoHandle>& windowHandle = state.getWindow(token);
+                if (windowHandle != nullptr) {
+                    displayId = curDisplayId;
+                    requestingChannel = getInputChannelLocked(token);
+                    deviceId = state.deviceId;
+                    statePtr = &state;
+                    break;
+                }
             }
         }
-        if (!foundDeviceId || !state.down) {
-            ALOGW("Attempted to pilfer points from a monitor without any on-going pointer streams."
+
+        if (requestingChannel == nullptr) {
+            ALOGW("Attempted to pilfer pointers from an un-registered channel or invalid token");
+            return BAD_VALUE;
+        }
+        TouchState& state = *statePtr;
+        if (!state.down) {
+            ALOGW("Attempted to pilfer points from a channel without any on-going pointer streams."
                   " Ignoring.");
             return BAD_VALUE;
         }
-        int32_t deviceId = foundDeviceId.value();
 
         // Send cancel events to all the input channels we're stealing from.
         CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
-                                   "gesture monitor stole pointer stream");
+                                   "input channel stole pointer stream");
         options.deviceId = deviceId;
         options.displayId = displayId;
-        std::string canceledWindows = "[";
+        std::string canceledWindows;
         for (const TouchedWindow& window : state.windows) {
             std::shared_ptr<InputChannel> channel =
                     getInputChannelLocked(window.windowHandle->getToken());
-            if (channel != nullptr) {
+            if (channel != nullptr && channel->getConnectionToken() != token) {
                 synthesizeCancelationEventsForInputChannelLocked(channel, options);
-                canceledWindows += channel->getName() + ", ";
+                canceledWindows += canceledWindows.empty() ? "[" : ", ";
+                canceledWindows += channel->getName();
             }
         }
-        canceledWindows += "]";
-        ALOGI("Monitor %s is stealing touch from %s", requestingChannel->getName().c_str(),
+        canceledWindows += canceledWindows.empty() ? "[]" : "]";
+        ALOGI("Channel %s is stealing touch from %s", requestingChannel->getName().c_str(),
               canceledWindows.c_str());
 
         // Then clear the current touch state so we stop dispatching to them as well.
         state.split = false;
-        state.filterNonMonitors();
+        state.filterWindowsExcept(token);
     }
     return OK;
 }

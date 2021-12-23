@@ -137,6 +137,7 @@ struct WindowInfo : public Parcelable {
         DISABLE_USER_ACTIVITY = 1u << 2,
         DROP_INPUT = 1u << 3,
         DROP_INPUT_IF_OBSCURED = 1u << 4,
+        SPY = 1u << 5,
     };
 
     /* These values are filled in by the WM and passed through SurfaceFlinger
@@ -214,6 +215,8 @@ struct WindowInfo : public Parcelable {
     bool frameContainsPoint(int32_t x, int32_t y) const;
 
     bool supportsSplitTouch() const;
+
+    bool isSpy() const;
 
     bool overlaps(const WindowInfo* other) const;
 

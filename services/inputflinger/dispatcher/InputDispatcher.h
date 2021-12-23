@@ -240,6 +240,11 @@ private:
                                                                  bool ignoreDragWindow = false)
             REQUIRES(mLock);
 
+    std::vector<sp<android::gui::WindowInfoHandle>> findTouchedSpyWindowsAtLocked(int32_t displayId,
+                                                                                  int32_t x,
+                                                                                  int32_t y) const
+            REQUIRES(mLock);
+
     sp<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) const
             REQUIRES(mLock);
 
