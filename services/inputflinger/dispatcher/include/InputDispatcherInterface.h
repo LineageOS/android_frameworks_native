@@ -123,8 +123,10 @@ public:
      * Touch mode is a global state that apps may enter / exit based on specific
      * user interactions with input devices.
      * If true, the device is in touch mode.
+     *
+     * Returns true when changing touch mode state.
      */
-    virtual void setInTouchMode(bool inTouchMode) = 0;
+    virtual bool setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission) = 0;
 
     /**
      * Sets the maximum allowed obscuring opacity by UID to propagate touches.

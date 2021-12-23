@@ -117,7 +117,7 @@ public:
     void setFocusedDisplay(int32_t displayId) override;
     void setInputDispatchMode(bool enabled, bool frozen) override;
     void setInputFilterEnabled(bool enabled) override;
-    void setInTouchMode(bool inTouchMode) override;
+    bool setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission) override;
     void setMaximumObscuringOpacityForTouch(float opacity) override;
     void setBlockUntrustedTouchesMode(android::os::BlockUntrustedTouchesMode mode) override;
 
