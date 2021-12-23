@@ -136,8 +136,6 @@ struct WindowInfo : public Parcelable {
     // type. This indicates that they are flags, so it can be used with ftl/enum.h.
     enum class Feature : uint32_t {
         // clang-format off
-        DISABLE_TOUCH_PAD_GESTURES =
-                static_cast<uint32_t>(os::IInputConstants::InputFeature::DISABLE_POINTER_GESTURES),
         NO_INPUT_CHANNEL =
                 static_cast<uint32_t>(os::IInputConstants::InputFeature::NO_INPUT_CHANNEL),
         DISABLE_USER_ACTIVITY =

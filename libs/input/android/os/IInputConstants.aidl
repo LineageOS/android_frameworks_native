@@ -57,13 +57,6 @@ interface IInputConstants
     @Backing(type="int")
     enum InputFeature {
         /**
-         * When this window has focus, disable touch pad pointer gesture processing.
-         * The window will receive raw position updates from the touch pad instead
-         * of pointer movements and synthetic touch events.
-         */
-        DISABLE_POINTER_GESTURES = 0x00000001,
-
-        /**
          * Does not construct an input channel for this window.  The channel will therefore
          * be incapable of receiving input.
          */
