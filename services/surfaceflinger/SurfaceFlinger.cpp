@@ -364,7 +364,8 @@ bool callingThreadHasInternalSystemWindowAccess() {
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
     const int uid = ipc->getCallingUid();
-    return PermissionCache::checkPermission(sInternalSystemWindow, pid, uid);
+    return uid == AID_GRAPHICS || uid == AID_SYSTEM ||
+        PermissionCache::checkPermission(sInternalSystemWindow, pid, uid);
 }
 
 SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
