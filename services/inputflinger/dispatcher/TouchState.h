@@ -44,14 +44,14 @@ struct TouchState {
     void copyFrom(const TouchState& other);
     void addOrUpdateWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
                            int32_t targetFlags, BitSet32 pointerIds);
-    void addPortalWindow(const sp<android::gui::WindowInfoHandle>& windowHandle);
     void addGestureMonitors(const std::vector<Monitor>& monitors);
     void removeWindowByToken(const sp<IBinder>& token);
     void filterNonAsIsTouchWindows();
-    void filterNonMonitors();
+    void filterWindowsExcept(const sp<IBinder>& token);
     sp<android::gui::WindowInfoHandle> getFirstForegroundWindowHandle() const;
     bool isSlippery() const;
     sp<android::gui::WindowInfoHandle> getWallpaperWindow() const;
+    sp<android::gui::WindowInfoHandle> getWindow(const sp<IBinder>&) const;
 };
 
 } // namespace inputdispatcher

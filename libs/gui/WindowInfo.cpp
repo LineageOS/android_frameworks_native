@@ -43,6 +43,10 @@ bool WindowInfo::supportsSplitTouch() const {
     return flags.test(Flag::SPLIT_TOUCH);
 }
 
+bool WindowInfo::isSpy() const {
+    return inputFeatures.test(Feature::SPY);
+}
+
 bool WindowInfo::overlaps(const WindowInfo* other) const {
     return frameLeft < other->frameRight && frameRight > other->frameLeft &&
             frameTop < other->frameBottom && frameBottom > other->frameTop;
