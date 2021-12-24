@@ -84,13 +84,14 @@ public:
                  Error(Display, uint32_t, const sp<GraphicBuffer>&, int, Dataspace,
                        const std::vector<IComposerClient::Rect>&));
     MOCK_METHOD3(setColorMode, Error(Display, ColorMode, RenderIntent));
-    MOCK_METHOD3(setColorTransform, Error(Display, const float*, ColorTransform));
+    MOCK_METHOD2(setColorTransform, Error(Display, const float*));
     MOCK_METHOD3(setOutputBuffer, Error(Display, const native_handle_t*, int));
     MOCK_METHOD2(setPowerMode, Error(Display, IComposerClient::PowerMode));
     MOCK_METHOD2(setVsyncEnabled, Error(Display, IComposerClient::Vsync));
     MOCK_METHOD1(setClientTargetSlotCount, Error(Display));
-    MOCK_METHOD3(validateDisplay, Error(Display, uint32_t*, uint32_t*));
-    MOCK_METHOD5(presentOrValidateDisplay, Error(Display, uint32_t*, uint32_t*, int*, uint32_t*));
+    MOCK_METHOD4(validateDisplay, Error(Display, nsecs_t, uint32_t*, uint32_t*));
+    MOCK_METHOD6(presentOrValidateDisplay,
+                 Error(Display, nsecs_t, uint32_t*, uint32_t*, int*, uint32_t*));
     MOCK_METHOD4(setCursorPosition, Error(Display, Layer, int32_t, int32_t));
     MOCK_METHOD5(setLayerBuffer, Error(Display, Layer, uint32_t, const sp<GraphicBuffer>&, int));
     MOCK_METHOD3(setLayerSurfaceDamage,

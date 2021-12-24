@@ -68,4 +68,16 @@ __attribute__((weak, warn_unused_result)) const char* AIBinder_getCallingSid() _
  */
 void AIBinder_setMinSchedulerPolicy(AIBinder* binder, int policy, int priority) __INTRODUCED_IN(33);
 
+/**
+ * Allow the binder to inherit realtime scheduling policies from its caller.
+ *
+ * This must be called before the object is sent to another process. Not thread
+ * safe.
+ *
+ * \param binder local server binder to set the policy for
+ * \param inheritRt whether to inherit realtime scheduling policies (default is
+ *     false).
+ */
+void AIBinder_setInheritRt(AIBinder* binder, bool inheritRt) __INTRODUCED_IN(33);
+
 __END_DECLS
