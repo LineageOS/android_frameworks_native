@@ -76,11 +76,11 @@ void SensorsHalDeathReceiver::serviceDied(
     mHidlSensorHalWrapper->prepareForReconnect();
 }
 
-struct SensorsCallback : public ISensorsCallback {
+struct HidlSensorsCallback : public ISensorsCallback {
     using Result = ::android::hardware::sensors::V1_0::Result;
     using SensorInfo = ::android::hardware::sensors::V2_1::SensorInfo;
 
-    SensorsCallback(ISensorHalWrapper::SensorDeviceCallback* sensorDeviceCallback) {
+    HidlSensorsCallback(ISensorHalWrapper::SensorDeviceCallback* sensorDeviceCallback) {
         mSensorDeviceCallback = sensorDeviceCallback;
     }
 
@@ -482,7 +482,7 @@ ISensorHalWrapper::HalConnectionStatus HidlSensorHalWrapper::initializeHidlServi
     CHECK(mSensors != nullptr && mWakeLockQueue != nullptr && mEventQueueFlag != nullptr &&
           mWakeLockQueueFlag != nullptr);
 
-    mCallback = new SensorsCallback(mSensorDeviceCallback);
+    mCallback = sp<HidlSensorsCallback>::make(mSensorDeviceCallback);
     status_t status =
             checkReturnAndGetStatus(mSensors->initialize(*mWakeLockQueue->getDesc(), mCallback));
 
