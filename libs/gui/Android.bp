@@ -136,8 +136,8 @@ cc_library_static {
     ],
 
     aidl: {
-        export_aidl_headers: true
-    }
+        export_aidl_headers: true,
+    },
 }
 
 cc_library_shared {
@@ -248,10 +248,7 @@ cc_library_shared {
         "libpdx_headers",
     ],
 
-    pgo: {
-        sampling: true,
-        profile_file: "libgui/libgui.profdata",
-    },
+    afdo: true,
 
     lto: {
         thin: true,

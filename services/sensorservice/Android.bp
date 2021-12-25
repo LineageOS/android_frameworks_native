@@ -79,10 +79,7 @@ cc_library_shared {
         "libpermission",
     ],
 
-    pgo: {
-        sampling: true,
-        profile_file: "sensorservice/libsensorservice.profdata",
-    },
+    afdo: true,
 }
 
 cc_binary {
