@@ -83,8 +83,7 @@ LayerHistory::~LayerHistory() = default;
 
 void LayerHistory::registerLayer(Layer* layer, LayerVoteType type) {
     std::lock_guard lock(mLock);
-    LOG_ALWAYS_FATAL_IF(findLayer(layer->getSequence()).first !=
-                                LayerHistory::layerStatus::NotFound,
+    LOG_ALWAYS_FATAL_IF(findLayer(layer->getSequence()).first != LayerStatus::NotFound,
                         "%s already registered", layer->getName().c_str());
     auto info = std::make_unique<LayerInfo>(layer->getName(), layer->getOwnerUid(), type);
 
@@ -108,9 +107,9 @@ void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
     auto id = layer->getSequence();
 
     auto [found, layerPair] = findLayer(id);
-    if (found == LayerHistory::layerStatus::NotFound) {
+    if (found == LayerStatus::NotFound) {
         // Offscreen layer
-        ALOGV("LayerHistory::record: %s not registered", layer->getName().c_str());
+        ALOGV("%s: %s not registered", __func__, layer->getName().c_str());
         return;
     }
 
@@ -126,16 +125,15 @@ void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
     info->setLastPresentTime(presentTime, now, updateType, mModeChangePending, layerProps);
 
     // Activate layer if inactive.
-    if (found == LayerHistory::layerStatus::LayerInInactiveMap) {
+    if (found == LayerStatus::LayerInInactiveMap) {
         mActiveLayerInfos.insert(
                 {id, std::make_pair(layerPair->first, std::move(layerPair->second))});
         mInactiveLayerInfos.erase(id);
     }
 }
 
-LayerHistory::Summary LayerHistory::summarize(const RefreshRateConfigs& refreshRateConfigs,
-                                              nsecs_t now) {
-    LayerHistory::Summary summary;
+auto LayerHistory::summarize(const RefreshRateConfigs& configs, nsecs_t now) -> Summary {
+    Summary summary;
 
     std::lock_guard lock(mLock);
 
@@ -148,9 +146,9 @@ LayerHistory::Summary LayerHistory::summarize(const RefreshRateConfigs& refreshR
         ALOGV("%s has priority: %d %s focused", info->getName().c_str(), frameRateSelectionPriority,
               layerFocused ? "" : "not");
 
-        const auto vote = info->getRefreshRateVote(refreshRateConfigs, now);
+        const auto vote = info->getRefreshRateVote(configs, now);
         // Skip NoVote layer as those don't have any requirements
-        if (vote.type == LayerHistory::LayerVoteType::NoVote) {
+        if (vote.type == LayerVoteType::NoVote) {
             continue;
         }
 
@@ -187,7 +185,7 @@ void LayerHistory::partitionLayers(nsecs_t now) {
             it = mInactiveLayerInfos.erase(it);
         } else {
             if (CC_UNLIKELY(mTraceEnabled)) {
-                trace(*info, LayerHistory::LayerVoteType::NoVote, 0);
+                trace(*info, LayerVoteType::NoVote, 0);
             }
             info->onLayerInactive(now);
             it++;
@@ -224,7 +222,7 @@ void LayerHistory::partitionLayers(nsecs_t now) {
             it++;
         } else {
             if (CC_UNLIKELY(mTraceEnabled)) {
-                trace(*info, LayerHistory::LayerVoteType::NoVote, 0);
+                trace(*info, LayerVoteType::NoVote, 0);
             }
             info->onLayerInactive(now);
             // move this to the inactive map
@@ -251,37 +249,23 @@ std::string LayerHistory::dump() const {
 float LayerHistory::getLayerFramerate(nsecs_t now, int32_t id) const {
     std::lock_guard lock(mLock);
     auto [found, layerPair] = findLayer(id);
-    if (found != LayerHistory::layerStatus::NotFound) {
+    if (found != LayerStatus::NotFound) {
         return layerPair->second->getFps(now).getValue();
     }
     return 0.f;
 }
 
-std::pair<LayerHistory::layerStatus, LayerHistory::LayerPair*> LayerHistory::findLayer(int32_t id) {
+auto LayerHistory::findLayer(int32_t id) -> std::pair<LayerStatus, LayerPair*> {
     // the layer could be in either the active or inactive map, try both
     auto it = mActiveLayerInfos.find(id);
     if (it != mActiveLayerInfos.end()) {
-        return std::make_pair(LayerHistory::layerStatus::LayerInActiveMap, &(it->second));
+        return {LayerStatus::LayerInActiveMap, &(it->second)};
     }
     it = mInactiveLayerInfos.find(id);
     if (it != mInactiveLayerInfos.end()) {
-        return std::make_pair(LayerHistory::layerStatus::LayerInInactiveMap, &(it->second));
+        return {LayerStatus::LayerInInactiveMap, &(it->second)};
     }
-    return std::make_pair(LayerHistory::layerStatus::NotFound, nullptr);
-}
-
-std::pair<LayerHistory::layerStatus, const LayerHistory::LayerPair*> LayerHistory::findLayer(
-        int32_t id) const {
-    // the layer could be in either the active or inactive map, try both
-    auto it = mActiveLayerInfos.find(id);
-    if (it != mActiveLayerInfos.end()) {
-        return std::make_pair(LayerHistory::layerStatus::LayerInActiveMap, &(it->second));
-    }
-    it = mInactiveLayerInfos.find(id);
-    if (it != mInactiveLayerInfos.end()) {
-        return std::make_pair(LayerHistory::layerStatus::LayerInInactiveMap, &(it->second));
-    }
-    return std::make_pair(LayerHistory::layerStatus::NotFound, nullptr);
+    return {LayerStatus::NotFound, nullptr};
 }
 
 } // namespace android::scheduler

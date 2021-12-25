@@ -89,7 +89,7 @@ private:
     // worst case time complexity is O(2 * inactive + active)
     void partitionLayers(nsecs_t now) REQUIRES(mLock);
 
-    enum class layerStatus {
+    enum class LayerStatus {
         NotFound,
         LayerInActiveMap,
         LayerInInactiveMap,
@@ -97,9 +97,11 @@ private:
 
     // looks up a layer by sequence id in both layerInfo maps.
     // The first element indicates if and where the item was found
-    std::pair<layerStatus, LayerHistory::LayerPair*> findLayer(int32_t id) REQUIRES(mLock);
-    std::pair<layerStatus, const LayerHistory::LayerPair*> findLayer(int32_t id) const
-            REQUIRES(mLock);
+    std::pair<LayerStatus, LayerPair*> findLayer(int32_t id) REQUIRES(mLock);
+
+    std::pair<LayerStatus, const LayerPair*> findLayer(int32_t id) const REQUIRES(mLock) {
+        return const_cast<LayerHistory*>(this)->findLayer(id);
+    }
 
     mutable std::mutex mLock;
 
