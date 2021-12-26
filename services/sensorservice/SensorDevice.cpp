@@ -24,6 +24,8 @@
 #include <android/util/ProtoOutputStream.h>
 #include <cutils/atomic.h>
 #include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
+#include <hardware/sensors-base.h>
+#include <hardware/sensors.h>
 #include <sensors/convert.h>
 #include <utils/Errors.h>
 #include <utils/Singleton.h>
@@ -354,6 +356,27 @@ ssize_t SensorDevice::poll(sensors_event_t* buffer, size_t count) {
         for (ssize_t i = 0; i < eventsRead; i++) {
             float resolution = getResolutionForSensor(buffer[i].sensor);
             android::SensorDeviceUtils::quantizeSensorEventValues(&buffer[i], resolution);
+
+            if (buffer[i].type == SENSOR_TYPE_DYNAMIC_SENSOR_META) {
+                struct dynamic_sensor_meta_event& dyn = buffer[i].dynamic_sensor_meta;
+                if (dyn.connected) {
+                    std::unique_lock<std::mutex> lock(mDynamicSensorsMutex);
+                    // Give MAX_DYN_SENSOR_WAIT_SEC for onDynamicSensorsConnected to be invoked
+                    // since it can be received out of order from this event due to a bug in the
+                    // HIDL spec that marks it as oneway.
+                    auto it = mConnectedDynamicSensors.find(dyn.handle);
+                    if (it == mConnectedDynamicSensors.end()) {
+                        mDynamicSensorsCv.wait_for(lock, MAX_DYN_SENSOR_WAIT, [&, dyn] {
+                            return mConnectedDynamicSensors.find(dyn.handle) !=
+                                    mConnectedDynamicSensors.end();
+                        });
+                        it = mConnectedDynamicSensors.find(dyn.handle);
+                        CHECK(it != mConnectedDynamicSensors.end());
+                    }
+
+                    dyn.sensor = &it->second;
+                }
+            }
         }
     }
 

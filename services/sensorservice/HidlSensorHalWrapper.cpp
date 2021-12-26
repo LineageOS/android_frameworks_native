@@ -143,18 +143,19 @@ ssize_t HidlSensorHalWrapper::poll(sensors_event_t* buffer, size_t count) {
     bool hidlTransportError = false;
 
     do {
-        auto ret = mSensors->poll(
-                count, [&](auto result, const auto& events, const auto& dynamicSensorsAdded) {
-                    if (result == Result::OK) {
-                        convertToSensorEventsAndQuantize(convertToNewEvents(events),
-                                                         convertToNewSensorInfos(
-                                                                 dynamicSensorsAdded),
-                                                         buffer);
-                        err = (ssize_t)events.size();
-                    } else {
-                        err = statusFromResult(result);
-                    }
-                });
+        auto ret = mSensors->poll(count,
+                                  [&](auto result, const auto& events,
+                                      const auto& dynamicSensorsAdded) {
+                                      if (result == Result::OK) {
+                                          convertToSensorEvents(convertToNewEvents(events),
+                                                                convertToNewSensorInfos(
+                                                                        dynamicSensorsAdded),
+                                                                buffer);
+                                          err = (ssize_t)events.size();
+                                      } else {
+                                          err = statusFromResult(result);
+                                      }
+                                  });
 
         if (ret.isOk()) {
             hidlTransportError = false;
@@ -497,44 +498,17 @@ ISensorHalWrapper::HalConnectionStatus HidlSensorHalWrapper::initializeHidlServi
 
 void HidlSensorHalWrapper::convertToSensorEvent(const Event& src, sensors_event_t* dst) {
     android::hardware::sensors::V2_1::implementation::convertToSensorEvent(src, dst);
-
-    if (src.sensorType == android::hardware::sensors::V2_1::SensorType::DYNAMIC_SENSOR_META) {
-        const hardware::sensors::V1_0::DynamicSensorInfo& dyn = src.u.dynamic;
-
-        dst->dynamic_sensor_meta.connected = dyn.connected;
-        dst->dynamic_sensor_meta.handle = dyn.sensorHandle;
-        if (dyn.connected) {
-            std::unique_lock<std::mutex> lock(mDynamicSensorsMutex);
-            // Give MAX_DYN_SENSOR_WAIT_SEC for onDynamicSensorsConnected to be invoked since it
-            // can be received out of order from this event due to a bug in the HIDL spec that
-            // marks it as oneway.
-            auto it = mConnectedDynamicSensors.find(dyn.sensorHandle);
-            if (it == mConnectedDynamicSensors.end()) {
-                mDynamicSensorsCv.wait_for(lock, MAX_DYN_SENSOR_WAIT, [&, dyn] {
-                    return mConnectedDynamicSensors.find(dyn.sensorHandle) !=
-                            mConnectedDynamicSensors.end();
-                });
-                it = mConnectedDynamicSensors.find(dyn.sensorHandle);
-                CHECK(it != mConnectedDynamicSensors.end());
-            }
-
-            dst->dynamic_sensor_meta.sensor = &it->second;
-
-            memcpy(dst->dynamic_sensor_meta.uuid, dyn.uuid.data(),
-                   sizeof(dst->dynamic_sensor_meta.uuid));
-        }
-    }
 }
 
-void HidlSensorHalWrapper::convertToSensorEventsAndQuantize(
-        const hidl_vec<Event>& src, const hidl_vec<SensorInfo>& dynamicSensorsAdded,
-        sensors_event_t* dst) {
+void HidlSensorHalWrapper::convertToSensorEvents(const hidl_vec<Event>& src,
+                                                 const hidl_vec<SensorInfo>& dynamicSensorsAdded,
+                                                 sensors_event_t* dst) {
     if (dynamicSensorsAdded.size() > 0 && mCallback != nullptr) {
         mCallback->onDynamicSensorsConnected_2_1(dynamicSensorsAdded);
     }
 
     for (size_t i = 0; i < src.size(); ++i) {
-        android::hardware::sensors::V2_1::implementation::convertToSensorEvent(src[i], &dst[i]);
+        convertToSensorEvent(src[i], &dst[i]);
     }
 }
 
