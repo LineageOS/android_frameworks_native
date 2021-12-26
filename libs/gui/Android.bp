@@ -248,10 +248,7 @@ cc_library_shared {
         "libpdx_headers",
     ],
 
-    pgo: {
-        sampling: true,
-        profile_file: "libgui/libgui.profdata",
-    },
+    afdo: true,
 
     lto: {
         thin: true,
