@@ -216,9 +216,6 @@ ssize_t HidlSensorHalWrapper::pollFmq(sensors_event_t* buffer, size_t maxNumEven
 
             for (size_t i = 0; i < eventsToRead; i++) {
                 convertToSensorEvent(mEventBuffer[i], &buffer[i]);
-                android::SensorDeviceUtils::quantizeSensorEventValues(&buffer[i],
-                                                                      getResolutionForSensor(
-                                                                              buffer[i].sensor));
             }
             eventsRead = eventsToRead;
         } else {
@@ -538,25 +535,7 @@ void HidlSensorHalWrapper::convertToSensorEventsAndQuantize(
 
     for (size_t i = 0; i < src.size(); ++i) {
         android::hardware::sensors::V2_1::implementation::convertToSensorEvent(src[i], &dst[i]);
-        android::SensorDeviceUtils::quantizeSensorEventValues(&dst[i],
-                                                              getResolutionForSensor(
-                                                                      dst[i].sensor));
     }
-}
-
-float HidlSensorHalWrapper::getResolutionForSensor(int sensorHandle) {
-    for (size_t i = 0; i < mSensorList.size(); i++) {
-        if (sensorHandle == mSensorList[i].handle) {
-            return mSensorList[i].resolution;
-        }
-    }
-
-    auto it = mConnectedDynamicSensors.find(sensorHandle);
-    if (it != mConnectedDynamicSensors.end()) {
-        return it->second.resolution;
-    }
-
-    return 0;
 }
 
 } // namespace android

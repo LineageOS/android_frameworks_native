@@ -349,6 +349,14 @@ ssize_t SensorDevice::poll(sensors_event_t* buffer, size_t count) {
         ALOGE("Must support polling or FMQ");
         eventsRead = -1;
     }
+
+    if (eventsRead > 0) {
+        for (ssize_t i = 0; i < eventsRead; i++) {
+            float resolution = getResolutionForSensor(buffer[i].sensor);
+            android::SensorDeviceUtils::quantizeSensorEventValues(&buffer[i], resolution);
+        }
+    }
+
     return eventsRead;
 }
 
