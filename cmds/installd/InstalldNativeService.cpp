@@ -1602,6 +1602,7 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     auto data_path = create_data_path(uuid_);
     auto noop = (flags & FLAG_FREE_CACHE_NOOP);
+    auto defy_target = (flags & FLAG_FREE_CACHE_DEFY_TARGET_FREE_BYTES);
 
     int64_t free = data_disk_free(data_path);
     if (free < 0) {
@@ -1610,11 +1611,13 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
 
     int64_t cleared = 0;
     int64_t needed = targetFreeBytes - free;
-    LOG(DEBUG) << "Device " << data_path << " has " << free << " free; requested "
-            << targetFreeBytes << "; needed " << needed;
+    if (!defy_target) {
+        LOG(DEBUG) << "Device " << data_path << " has " << free << " free; requested "
+                << targetFreeBytes << "; needed " << needed;
 
-    if (free >= targetFreeBytes) {
-        return ok();
+        if (free >= targetFreeBytes) {
+            return ok();
+        }
     }
 
     if (flags & FLAG_FREE_CACHE_V2) {
@@ -1739,15 +1742,17 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
                 cleared += item->size;
             }
 
-            // Verify that we're actually done before bailing, since sneaky
-            // apps might be using hardlinks
-            if (needed <= 0) {
-                free = data_disk_free(data_path);
-                needed = targetFreeBytes - free;
+            if (!defy_target) {
+                // Verify that we're actually done before bailing, since sneaky
+                // apps might be using hardlinks
                 if (needed <= 0) {
-                    break;
-                } else {
-                    LOG(WARNING) << "Expected to be done but still need " << needed;
+                    free = data_disk_free(data_path);
+                    needed = targetFreeBytes - free;
+                    if (needed <= 0) {
+                        break;
+                    } else {
+                        LOG(WARNING) << "Expected to be done but still need " << needed;
+                    }
                 }
             }
         }
@@ -1757,12 +1762,16 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
         return error("Legacy cache logic no longer supported");
     }
 
-    free = data_disk_free(data_path);
-    if (free >= targetFreeBytes) {
-        return ok();
+    if (!defy_target) {
+        free = data_disk_free(data_path);
+        if (free >= targetFreeBytes) {
+            return ok();
+        } else {
+            return error(StringPrintf("Failed to free up %" PRId64 " on %s; final free space %" PRId64,
+                    targetFreeBytes, data_path.c_str(), free));
+        }
     } else {
-        return error(StringPrintf("Failed to free up %" PRId64 " on %s; final free space %" PRId64,
-                targetFreeBytes, data_path.c_str(), free));
+        return ok();
     }
 }
 
