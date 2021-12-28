@@ -376,6 +376,11 @@ void convertFromSensorEvent(const sensors_event_t &src, Event *dst) {
     }
 }
 
+void serviceDied(void *cookie) {
+    ALOGW("Sensors HAL died, attempting to reconnect.");
+    ((AidlSensorHalWrapper *)cookie)->prepareForReconnect();
+}
+
 template <typename EnumType>
 constexpr typename std::underlying_type<EnumType>::type asBaseType(EnumType value) {
     return static_cast<typename std::underlying_type<EnumType>::type>(value);
@@ -415,6 +420,11 @@ private:
     ISensorHalWrapper::SensorDeviceCallback *mSensorDeviceCallback;
 };
 
+AidlSensorHalWrapper::AidlSensorHalWrapper()
+      : mEventQueueFlag(nullptr),
+        mWakeLockQueueFlag(nullptr),
+        mDeathRecipient(AIBinder_DeathRecipient_new(serviceDied)) {}
+
 bool AidlSensorHalWrapper::supportsPolling() {
     return false;
 }
@@ -429,8 +439,13 @@ bool AidlSensorHalWrapper::connect(SensorDeviceCallback *callback) {
 
     auto aidlServiceName = std::string() + ISensors::descriptor + "/default";
     if (AServiceManager_isDeclared(aidlServiceName.c_str())) {
+        if (mSensors != nullptr) {
+            AIBinder_unlinkToDeath(mSensors->asBinder().get(), mDeathRecipient.get(), this);
+        }
+
         ndk::SpAIBinder binder(AServiceManager_waitForService(aidlServiceName.c_str()));
         if (binder.get() != nullptr) {
+
             mSensors = ISensors::fromBinder(binder);
             mEventQueue = std::make_unique<AidlMessageQueue<
                     Event, SynchronizedReadWrite>>(MAX_RECEIVE_BUFFER_EVENT_COUNT,
@@ -453,8 +468,9 @@ bool AidlSensorHalWrapper::connect(SensorDeviceCallback *callback) {
 
             mCallback = ndk::SharedRefBase::make<AidlSensorsCallback>(mSensorDeviceCallback);
             mSensors->initialize(mEventQueue->dupeDesc(), mWakeLockQueue->dupeDesc(), mCallback);
+
+            AIBinder_linkToDeath(mSensors->asBinder().get(), mDeathRecipient.get(), this);
         } else {
-            // TODO(b/195593357): Handle AIDL HAL crash
             ALOGE("Could not connect to declared sensors AIDL HAL");
         }
     }

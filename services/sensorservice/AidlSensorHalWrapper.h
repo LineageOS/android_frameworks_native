@@ -27,7 +27,7 @@ namespace android {
 
 class AidlSensorHalWrapper : public ISensorHalWrapper {
 public:
-    AidlSensorHalWrapper() : mEventQueueFlag(nullptr), mWakeLockQueueFlag(nullptr) {}
+    AidlSensorHalWrapper();
 
     ~AidlSensorHalWrapper() override {
         if (mEventQueueFlag != nullptr) {
@@ -88,6 +88,8 @@ private:
     std::array<::aidl::android::hardware::sensors::Event,
                ::android::SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT>
             mEventBuffer;
+
+    ndk::ScopedAIBinder_DeathRecipient mDeathRecipient;
 };
 
 } // namespace android
