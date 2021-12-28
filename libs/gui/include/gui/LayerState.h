@@ -109,6 +109,7 @@ struct layer_state_t {
         // set. This blocks the client until all the buffers have been presented. If the buffers
         // have presentation timestamps, then we may drop buffers.
         eEnableBackpressure = 0x100, // ENABLE_BACKPRESSURE
+        eLayerIsDisplayDecoration = 0x200,  // DISPLAY_DECORATION
     };
 
     enum {
