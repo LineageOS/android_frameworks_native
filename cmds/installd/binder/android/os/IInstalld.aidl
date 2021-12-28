@@ -140,6 +140,8 @@ interface IInstalld {
     const int FLAG_FREE_CACHE_V2 = 0x100;
     const int FLAG_FREE_CACHE_V2_DEFY_QUOTA = 0x200;
     const int FLAG_FREE_CACHE_NOOP = 0x400;
+    // Set below flag to clear cache irrespective of target free bytes required
+    const int FLAG_FREE_CACHE_DEFY_TARGET_FREE_BYTES = 0x800;
 
     const int FLAG_USE_QUOTA = 0x1000;
     const int FLAG_FORCE = 0x2000;
