@@ -42,6 +42,7 @@ constexpr int64_t kTbInBytes = 1024 * kGbInBytes;
 
 #define FLAG_FREE_CACHE_V2 InstalldNativeService::FLAG_FREE_CACHE_V2
 #define FLAG_FREE_CACHE_V2_DEFY_QUOTA InstalldNativeService::FLAG_FREE_CACHE_V2_DEFY_QUOTA
+#define FLAG_FREE_CACHE_DEFY_TARGET_FREE_BYTES InstalldNativeService::FLAG_FREE_CACHE_DEFY_TARGET_FREE_BYTES
 
 int get_property(const char *key, char *value, const char *default_value) {
     return property_get(key, value, default_value);
@@ -175,6 +176,35 @@ TEST_F(CacheTest, FreeCache_NonAggressive) {
     EXPECT_EQ(0, exists("com.example/cache/foo/two"));
 
     service->freeCache(testUuid, kTbInBytes, FLAG_FREE_CACHE_V2);
+
+    EXPECT_EQ(0, exists("com.example/normal"));
+    EXPECT_EQ(-1, exists("com.example/cache/foo/one"));
+    EXPECT_EQ(0, exists("com.example/cache/foo/two"));
+}
+
+TEST_F(CacheTest, FreeCache_DefyTargetFreeBytes) {
+    LOG(INFO) << "FreeCache_DefyTargetFreeBytes";
+
+    mkdir("com.example");
+    touch("com.example/normal", 1 * kMbInBytes, 60);
+    mkdir("com.example/cache");
+    mkdir("com.example/cache/foo");
+    touch("com.example/cache/foo/one", 65 * kMbInBytes, 60);
+    touch("com.example/cache/foo/two", 2 * kMbInBytes, 120);
+
+    EXPECT_EQ(0, exists("com.example/normal"));
+    EXPECT_EQ(0, exists("com.example/cache/foo/one"));
+    EXPECT_EQ(0, exists("com.example/cache/foo/two"));
+
+    service->freeCache(testUuid, kMbInBytes, FLAG_FREE_CACHE_V2
+            | FLAG_FREE_CACHE_DEFY_TARGET_FREE_BYTES);
+
+    EXPECT_EQ(0, exists("com.example/normal"));
+    EXPECT_EQ(-1, exists("com.example/cache/foo/one"));
+    EXPECT_EQ(0, exists("com.example/cache/foo/two"));
+
+    service->freeCache(testUuid, kMbInBytes, FLAG_FREE_CACHE_V2
+            | FLAG_FREE_CACHE_DEFY_TARGET_FREE_BYTES);
 
     EXPECT_EQ(0, exists("com.example/normal"));
     EXPECT_EQ(-1, exists("com.example/cache/foo/one"));
