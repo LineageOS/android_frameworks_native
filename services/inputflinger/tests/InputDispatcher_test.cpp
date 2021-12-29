@@ -1003,6 +1003,7 @@ public:
         mInfo.ownerPid = INJECTOR_PID;
         mInfo.ownerUid = INJECTOR_UID;
         mInfo.displayId = displayId;
+        mInfo.trustedOverlay = false;
     }
 
     sp<FakeWindowHandle> clone(
@@ -1054,7 +1055,9 @@ public:
 
     void setFlags(Flags<WindowInfo::Flag> flags) { mInfo.flags = flags; }
 
-    void setInputFeatures(WindowInfo::Feature features) { mInfo.inputFeatures = features; }
+    void setInputFeatures(Flags<WindowInfo::Feature> features) { mInfo.inputFeatures = features; }
+
+    void setTrustedOverlay(bool trustedOverlay) { mInfo.trustedOverlay = trustedOverlay; }
 
     void setWindowTransform(float dsdx, float dtdx, float dtdy, float dsdy) {
         mInfo.transform.set(dsdx, dtdx, dtdy, dsdy);
@@ -6324,6 +6327,7 @@ public:
         sp<FakeWindowHandle> spy =
                 new FakeWindowHandle(application, mDispatcher, name.c_str(), ADISPLAY_ID_DEFAULT);
         spy->setInputFeatures(WindowInfo::Feature::SPY);
+        spy->setTrustedOverlay(true);
         spy->addFlags(flags);
         return spy;
     }
@@ -6340,6 +6344,16 @@ public:
 private:
     int mSpyCount{0};
 };
+
+/**
+ * Adding a spy window that is not a trusted overlay causes Dispatcher to abort.
+ */
+TEST_F(InputDispatcherSpyWindowTest, UntrustedSpy_AbortsDispatcher) {
+    auto spy = createSpy(WindowInfo::Flag::NOT_TOUCH_MODAL);
+    spy->setTrustedOverlay(false);
+    ASSERT_DEATH(mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy}}}),
+                 ".* not a trusted overlay");
+}
 
 /**
  * Input injection into a display with a spy window but no foreground windows should succeed.
@@ -6501,28 +6515,6 @@ TEST_F(InputDispatcherSpyWindowTest, WatchOutsideTouches) {
 }
 
 /**
- * When configured to block untrusted touches, events will not be dispatched to windows below a spy
- * window if it is not a trusted overly.
- */
-TEST_F(InputDispatcherSpyWindowTest, BlockUntrustedTouches) {
-    mDispatcher->setBlockUntrustedTouchesMode(android::os::BlockUntrustedTouchesMode::BLOCK);
-
-    auto window = createForeground();
-    auto spy = createSpy(WindowInfo::Flag::NOT_TOUCH_MODAL);
-    window->setOwnerInfo(111, 111);
-    spy->setOwnerInfo(222, 222);
-    spy->setTouchOcclusionMode(TouchOcclusionMode::BLOCK_UNTRUSTED);
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy, window}}});
-
-    // Inject an event outside the spy window's frame and touchable region.
-    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
-            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    spy->consumeMotionDown();
-    window->assertNoEvents();
-}
-
-/**
  * A spy window can pilfer pointers. When this happens, touch gestures that are currently sent to
  * any other windows - including other spy windows - will also be cancelled.
  */
@@ -6625,6 +6617,99 @@ TEST_F(InputDispatcherSpyWindowTest, ReceivesSecondPointerAsDown) {
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     window->consumeMotionPointerDown(1 /*pointerIndex*/);
     spyRight->consumeMotionDown();
+}
+
+class InputDispatcherStylusInterceptorTest : public InputDispatcherTest {
+public:
+    std::pair<sp<FakeWindowHandle>, sp<FakeWindowHandle>> setupStylusOverlayScenario() {
+        std::shared_ptr<FakeApplicationHandle> overlayApplication =
+                std::make_shared<FakeApplicationHandle>();
+        sp<FakeWindowHandle> overlay =
+                new FakeWindowHandle(overlayApplication, mDispatcher, "Stylus interceptor window",
+                                     ADISPLAY_ID_DEFAULT);
+        overlay->setFocusable(false);
+        overlay->setOwnerInfo(111, 111);
+        overlay->setFlags(WindowInfo::Flag::NOT_TOUCHABLE | WindowInfo::Flag::SPLIT_TOUCH);
+        overlay->setInputFeatures(WindowInfo::Feature::INTERCEPTS_STYLUS);
+        overlay->setTrustedOverlay(true);
+
+        std::shared_ptr<FakeApplicationHandle> application =
+                std::make_shared<FakeApplicationHandle>();
+        sp<FakeWindowHandle> window =
+                new FakeWindowHandle(application, mDispatcher, "Application window",
+                                     ADISPLAY_ID_DEFAULT);
+        window->setFocusable(true);
+        window->setOwnerInfo(222, 222);
+        window->setFlags(WindowInfo::Flag::SPLIT_TOUCH);
+
+        mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+        mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {overlay, window}}});
+        setFocusedWindow(window);
+        window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
+        return {std::move(overlay), std::move(window)};
+    }
+
+    void sendFingerEvent(int32_t action) {
+        NotifyMotionArgs motionArgs =
+                generateMotionArgs(action, AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_STYLUS,
+                                   ADISPLAY_ID_DEFAULT, {PointF{20, 20}});
+        mDispatcher->notifyMotion(&motionArgs);
+    }
+
+    void sendStylusEvent(int32_t action) {
+        NotifyMotionArgs motionArgs =
+                generateMotionArgs(action, AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_STYLUS,
+                                   ADISPLAY_ID_DEFAULT, {PointF{30, 40}});
+        motionArgs.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+        mDispatcher->notifyMotion(&motionArgs);
+    }
+};
+
+TEST_F(InputDispatcherStylusInterceptorTest, UntrustedOverlay_AbortsDispatcher) {
+    auto [overlay, window] = setupStylusOverlayScenario();
+    overlay->setTrustedOverlay(false);
+    // Configuring an untrusted overlay as a stylus interceptor should cause Dispatcher to abort.
+    ASSERT_DEATH(mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {overlay, window}}}),
+                 ".* not a trusted overlay");
+}
+
+TEST_F(InputDispatcherStylusInterceptorTest, ConsmesOnlyStylusEvents) {
+    auto [overlay, window] = setupStylusOverlayScenario();
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {overlay, window}}});
+
+    sendStylusEvent(AMOTION_EVENT_ACTION_DOWN);
+    overlay->consumeMotionDown();
+    sendStylusEvent(AMOTION_EVENT_ACTION_UP);
+    overlay->consumeMotionUp();
+
+    sendFingerEvent(AMOTION_EVENT_ACTION_DOWN);
+    window->consumeMotionDown();
+    sendFingerEvent(AMOTION_EVENT_ACTION_UP);
+    window->consumeMotionUp();
+
+    overlay->assertNoEvents();
+    window->assertNoEvents();
+}
+
+TEST_F(InputDispatcherStylusInterceptorTest, SpyWindowStylusInterceptor) {
+    auto [overlay, window] = setupStylusOverlayScenario();
+    overlay->setInputFeatures(overlay->getInfo()->inputFeatures | WindowInfo::Feature::SPY);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {overlay, window}}});
+
+    sendStylusEvent(AMOTION_EVENT_ACTION_DOWN);
+    overlay->consumeMotionDown();
+    window->consumeMotionDown();
+    sendStylusEvent(AMOTION_EVENT_ACTION_UP);
+    overlay->consumeMotionUp();
+    window->consumeMotionUp();
+
+    sendFingerEvent(AMOTION_EVENT_ACTION_DOWN);
+    window->consumeMotionDown();
+    sendFingerEvent(AMOTION_EVENT_ACTION_UP);
+    window->consumeMotionUp();
+
+    overlay->assertNoEvents();
+    window->assertNoEvents();
 }
 
 } // namespace android::inputdispatcher
