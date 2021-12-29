@@ -214,7 +214,6 @@ struct WindowInfo : public Parcelable {
     std::string packageName;
     Flags<Feature> inputFeatures;
     int32_t displayId = ADISPLAY_ID_NONE;
-    int32_t portalToDisplayId = ADISPLAY_ID_NONE;
     InputApplicationInfo applicationInfo;
     bool replaceTouchableRegionWithCrop = false;
     wp<IBinder> touchableRegionCropHandle;
