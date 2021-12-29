@@ -140,6 +140,8 @@
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
+#include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
+
 #define MAIN_THREAD ACQUIRE(mStateLock) RELEASE(mStateLock)
 
 #define ON_MAIN_THREAD(expr)                                       \
@@ -159,6 +161,8 @@
 #undef NO_THREAD_SAFETY_ANALYSIS
 #define NO_THREAD_SAFETY_ANALYSIS \
     _Pragma("GCC error \"Prefer MAIN_THREAD macros or {Conditional,Timed,Unnecessary}Lock.\"")
+
+using aidl::android::hardware::graphics::composer3::DisplayCapability;
 
 namespace android {
 
@@ -1096,7 +1100,7 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
 
     info->autoLowLatencyModeSupported =
             getHwComposer().hasDisplayCapability(*displayId,
-                                                 hal::DisplayCapability::AUTO_LOW_LATENCY_MODE);
+                                                 DisplayCapability::AUTO_LOW_LATENCY_MODE);
     std::vector<hal::ContentType> types;
     getHwComposer().getSupportedContentTypes(*displayId, &types);
     info->gameContentTypeSupported = std::any_of(types.begin(), types.end(), [](auto type) {
@@ -1661,8 +1665,7 @@ status_t SurfaceFlinger::getDisplayBrightnessSupport(const sp<IBinder>& displayT
     if (!displayId) {
         return NAME_NOT_FOUND;
     }
-    *outSupport =
-            getHwComposer().hasDisplayCapability(*displayId, hal::DisplayCapability::BRIGHTNESS);
+    *outSupport = getHwComposer().hasDisplayCapability(*displayId, DisplayCapability::BRIGHTNESS);
     return NO_ERROR;
 }
 

@@ -917,15 +917,14 @@ Error AidlComposer::setDisplayBrightness(Display display, float brightness) {
 }
 
 Error AidlComposer::getDisplayCapabilities(Display display,
-                                           std::vector<DisplayCapability>* outCapabilities) {
-    std::vector<AidlDisplayCapability> capabilities;
-    const auto status =
-            mAidlComposerClient->getDisplayCapabilities(translate<int64_t>(display), &capabilities);
+                                           std::vector<AidlDisplayCapability>* outCapabilities) {
+    const auto status = mAidlComposerClient->getDisplayCapabilities(translate<int64_t>(display),
+                                                                    outCapabilities);
     if (!status.isOk()) {
         ALOGE("getDisplayCapabilities failed %s", status.getDescription().c_str());
+        outCapabilities->clear();
         return static_cast<Error>(status.getServiceSpecificError());
     }
-    *outCapabilities = translate<DisplayCapability>(capabilities);
     return Error::NONE;
 }
 

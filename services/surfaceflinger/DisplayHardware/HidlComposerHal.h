@@ -70,7 +70,6 @@ using V2_4::IComposerCallback;
 using V2_4::IComposerClient;
 using V2_4::VsyncPeriodChangeTimeline;
 using V2_4::VsyncPeriodNanos;
-using DisplayCapability = IComposerClient::DisplayCapability;
 using PerFrameMetadata = IComposerClient::PerFrameMetadata;
 using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
 using PerFrameMetadataBlob = IComposerClient::PerFrameMetadataBlob;
@@ -293,8 +292,10 @@ public:
     Error setDisplayBrightness(Display display, float brightness) override;
 
     // Composer HAL 2.4
-    Error getDisplayCapabilities(Display display,
-                                 std::vector<DisplayCapability>* outCapabilities) override;
+    Error getDisplayCapabilities(
+            Display display,
+            std::vector<aidl::android::hardware::graphics::composer3::DisplayCapability>*
+                    outCapabilities) override;
     V2_4::Error getDisplayConnectionType(Display display,
                                          IComposerClient::DisplayConnectionType* outType) override;
     V2_4::Error getDisplayVsyncPeriod(Display display, VsyncPeriodNanos* outVsyncPeriod) override;

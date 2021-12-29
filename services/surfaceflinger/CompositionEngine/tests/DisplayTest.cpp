@@ -634,6 +634,7 @@ TEST_F(DisplayChooseCompositionStrategyTest, normalOperationWithChanges) {
  */
 
 using DisplayGetSkipColorTransformTest = DisplayWithLayersTestCommon;
+using aidl::android::hardware::graphics::composer3::DisplayCapability;
 
 TEST_F(DisplayGetSkipColorTransformTest, checksCapabilityIfGpuDisplay) {
     EXPECT_CALL(mHwComposer, hasCapability(hal::Capability::SKIP_CLIENT_COLOR_TRANSFORM))
@@ -646,7 +647,7 @@ TEST_F(DisplayGetSkipColorTransformTest, checksCapabilityIfGpuDisplay) {
 TEST_F(DisplayGetSkipColorTransformTest, checksDisplayCapability) {
     EXPECT_CALL(mHwComposer,
                 hasDisplayCapability(HalDisplayId(DEFAULT_DISPLAY_ID),
-                                     hal::DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM))
+                                     DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM))
             .WillOnce(Return(true));
     EXPECT_TRUE(mDisplay->getSkipColorTransform());
 }

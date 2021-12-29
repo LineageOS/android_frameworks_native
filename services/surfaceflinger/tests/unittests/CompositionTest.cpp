@@ -324,7 +324,9 @@ struct BaseDisplayVariant {
     template <typename Case>
     static void setupPreconditionCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mComposer, getDisplayCapabilities(HWC_DISPLAY, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hwc2::DisplayCapability>({})),
+                .WillOnce(DoAll(SetArgPointee<1>(
+                                        std::vector<aidl::android::hardware::graphics::composer3::
+                                                            DisplayCapability>({})),
                                 Return(Error::NONE)));
     }
 

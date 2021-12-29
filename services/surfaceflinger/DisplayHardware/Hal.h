@@ -21,6 +21,7 @@
 #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
 
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
+#include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
 #define ERROR_HAS_CHANGES 5
 
@@ -55,7 +56,6 @@ using Connection = IComposerCallback::Connection;
 using ContentType = IComposerClient::ContentType;
 using Capability = IComposer::Capability;
 using ClientTargetProperty = IComposerClient::ClientTargetProperty;
-using DisplayCapability = IComposerClient::DisplayCapability;
 using DisplayRequest = IComposerClient::DisplayRequest;
 using DisplayType = IComposerClient::DisplayType;
 using HWConfigId = V2_1::Config;
