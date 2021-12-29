@@ -292,9 +292,9 @@ bool Display::hasCapability(DisplayCapability capability) const {
         return mDisplayCapabilities->count(capability) > 0;
     }
 
-    ALOGW("Can't query capability %d."
+    ALOGW("Can't query capability %s."
           " Display Capabilities were not queried from HWC yet",
-          static_cast<int>(capability));
+          to_string(capability).c_str());
 
     return false;
 }

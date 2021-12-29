@@ -118,6 +118,29 @@ inline std::string to_string(
     }
 }
 
+inline std::string to_string(
+        aidl::android::hardware::graphics::composer3::DisplayCapability displayCapability) {
+    switch (displayCapability) {
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::INVALID:
+            return "Invalid";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::
+                SKIP_CLIENT_COLOR_TRANSFORM:
+            return "SkipColorTransform";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::DOZE:
+            return "Doze";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::BRIGHTNESS:
+            return "Brightness";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::PROTECTED_CONTENTS:
+            return "ProtectedContents";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::AUTO_LOW_LATENCY_MODE:
+            return "AutoLowLatencyMode";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::SUSPEND:
+            return "Suspend";
+        default:
+            return "Unknown";
+    }
+}
+
 inline std::string to_string(hardware::graphics::composer::hal::V2_4::Error error) {
     // 5 is reserved for historical reason, during validation 5 means has changes.
     if (ERROR_HAS_CHANGES == static_cast<int32_t>(error)) {
