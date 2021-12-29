@@ -685,12 +685,12 @@ void OutputLayer::detectDisallowedCompositionTypeChange(Composition from, Compos
 
         case Composition::DEVICE:
         case Composition::SOLID_COLOR:
-        case Composition::DISPLAY_DECORATION:
             result = (to == Composition::CLIENT);
             break;
 
         case Composition::CURSOR:
         case Composition::SIDEBAND:
+        case Composition::DISPLAY_DECORATION:
             result = (to == Composition::CLIENT || to == Composition::DEVICE);
             break;
     }

@@ -269,6 +269,7 @@ bool validateCompositionDataspace(Dataspace dataspace) {
 enum Permission {
     ACCESS_SURFACE_FLINGER = 0x1,
     ROTATE_SURFACE_FLINGER = 0x2,
+    INTERNAL_SYSTEM_WINDOW = 0x4,
 };
 
 struct IdleTimerConfig {
@@ -316,6 +317,7 @@ const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sControlDisplayBrightness("android.permission.CONTROL_DISPLAY_BRIGHTNESS");
 const String16 sDump("android.permission.DUMP");
 const String16 sCaptureBlackoutContent("android.permission.CAPTURE_BLACKOUT_CONTENT");
+const String16 sInternalSystemWindow("android.permission.INTERNAL_SYSTEM_WINDOW");
 
 const char* KERNEL_IDLE_TIMER_PROP = "graphics.display.kernel_idle_timer.enabled";
 
@@ -356,6 +358,14 @@ bool callingThreadHasRotateSurfaceFlingerAccess() {
     const int uid = ipc->getCallingUid();
     return uid == AID_GRAPHICS || uid == AID_SYSTEM ||
             PermissionCache::checkPermission(sRotateSurfaceFlinger, pid, uid);
+}
+
+bool callingThreadHasInternalSystemWindowAccess() {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+    return uid == AID_GRAPHICS || uid == AID_SYSTEM ||
+        PermissionCache::checkPermission(sInternalSystemWindow, pid, uid);
 }
 
 SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
@@ -3812,6 +3822,10 @@ status_t SurfaceFlinger::setTransactionState(
         permissions |= Permission::ROTATE_SURFACE_FLINGER;
     }
 
+    if (callingThreadHasInternalSystemWindowAccess()) {
+        permissions |= Permission::INTERNAL_SYSTEM_WINDOW;
+    }
+
     if (!(permissions & Permission::ACCESS_SURFACE_FLINGER) &&
         (flags & (eEarlyWakeupStart | eEarlyWakeupEnd))) {
         ALOGE("Only WindowManager is allowed to use eEarlyWakeup[Start|End] flags");
@@ -4149,8 +4163,15 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
             flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eFlagsChanged) {
-        if (layer->setFlags(s.flags, s.mask))
-            flags |= eTraversalNeeded;
+        auto changedFlags = s.flags;
+        if (changedFlags & layer_state_t::eLayerIsDisplayDecoration) {
+            if ((permissions & Permission::INTERNAL_SYSTEM_WINDOW) == 0) {
+                changedFlags &= ~layer_state_t::eLayerIsDisplayDecoration;
+                ALOGE("Attempt to use eLayerIsDisplayDecoration without permission "
+                      "INTERNAL_SYSTEM_WINDOW!");
+            }
+        }
+        if (layer->setFlags(changedFlags, s.mask)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eCornerRadiusChanged) {
         if (layer->setCornerRadius(s.cornerRadius))
