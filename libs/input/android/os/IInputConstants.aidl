@@ -53,4 +53,53 @@ interface IInputConstants
      * set of flags, including in input/Input.h and in android/input.h.
      */
     const int INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT = 0x800;
+
+    @Backing(type="int")
+    enum InputFeature {
+        /**
+         * Does not construct an input channel for this window.  The channel will therefore
+         * be incapable of receiving input.
+         */
+        NO_INPUT_CHANNEL = 0x00000002,
+
+        /**
+         * When this window has focus, does not call user activity for all input events so
+         * the application will have to do it itself.  Should only be used by
+         * the keyguard and phone app.
+         *
+         * Should only be used by the keyguard and phone app.
+         */
+        DISABLE_USER_ACTIVITY = 0x00000004,
+
+        /**
+         * Internal flag used to indicate that input should be dropped on this window.
+         */
+        DROP_INPUT = 0x00000008,
+
+        /**
+         * Internal flag used to indicate that input should be dropped on this window if this window
+         * is obscured.
+         */
+        DROP_INPUT_IF_OBSCURED = 0x00000010,
+
+        /**
+         * An input spy window. This window will receive all pointer events within its touchable
+         * area, but will will not stop events from being sent to other windows below it in z-order.
+         * An input event will be dispatched to all spy windows above the top non-spy window at the
+         * event's coordinates.
+         */
+        SPY = 0x00000020,
+
+        /**
+         * When used with the window flag {@link #FLAG_NOT_TOUCHABLE}, this window will continue
+         * to receive events from a stylus device within its touchable region. All other pointer
+         * events, such as from a mouse or touchscreen, will be dispatched to the windows behind it.
+         *
+         * This input feature has no effect when the window flag {@link #FLAG_NOT_TOUCHABLE} is
+         * not set.
+         *
+         * The window must be a trusted overlay to use this input feature.
+         */
+        INTERCEPTS_STYLUS = 0x00000040,
+    }
 }
