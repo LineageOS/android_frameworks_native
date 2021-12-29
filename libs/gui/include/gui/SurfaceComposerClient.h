@@ -272,6 +272,16 @@ public:
     static status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
                                             float lightPosY, float lightPosZ, float lightRadius);
 
+    /*
+     * Returns whether a display supports DISPLAY_DECORATION layers.
+     *
+     * displayToken
+     *      The token of the display.
+     *
+     * Returns whether a display supports DISPLAY_DECORATION layers.
+     */
+    static bool getDisplayDecorationSupport(const sp<IBinder>& displayToken);
+
     // ------------------------------------------------------------------------
     // surface creation / destruction
 

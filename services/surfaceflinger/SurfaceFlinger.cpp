@@ -1748,6 +1748,23 @@ status_t SurfaceFlinger::notifyPowerBoost(int32_t boostId) {
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getDisplayDecorationSupport(const sp<IBinder>& displayToken,
+                                                     bool* outSupport) const {
+    if (!displayToken || !outSupport) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock lock(mStateLock);
+
+    const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+    if (!displayId) {
+        return NAME_NOT_FOUND;
+    }
+    *outSupport =
+            getHwComposer().hasDisplayCapability(*displayId, DisplayCapability::DISPLAY_DECORATION);
+    return NO_ERROR;
+}
+
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
@@ -5339,6 +5356,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // special permissions.
         case SET_FRAME_RATE:
         case GET_DISPLAY_BRIGHTNESS_SUPPORT:
+        case GET_DISPLAY_DECORATION_SUPPORT:
         // captureLayers and captureDisplay will handle the permission check in the function
         case CAPTURE_LAYERS:
         case CAPTURE_DISPLAY:

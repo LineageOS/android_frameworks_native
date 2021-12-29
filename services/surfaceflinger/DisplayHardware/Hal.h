@@ -136,6 +136,8 @@ inline std::string to_string(
             return "AutoLowLatencyMode";
         case aidl::android::hardware::graphics::composer3::DisplayCapability::SUSPEND:
             return "Suspend";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::DISPLAY_DECORATION:
+            return "DisplayDecoration";
         default:
             return "Unknown";
     }
