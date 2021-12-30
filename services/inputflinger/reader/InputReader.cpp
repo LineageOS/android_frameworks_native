@@ -237,9 +237,7 @@ void InputReader::removeDeviceLocked(nsecs_t when, int32_t eventHubId) {
     auto mapIt = mDeviceToEventHubIdsMap.find(device);
     if (mapIt != mDeviceToEventHubIdsMap.end()) {
         std::vector<int32_t>& eventHubIds = mapIt->second;
-        eventHubIds.erase(std::remove_if(eventHubIds.begin(), eventHubIds.end(),
-                                         [eventHubId](int32_t eId) { return eId == eventHubId; }),
-                          eventHubIds.end());
+        std::erase_if(eventHubIds, [eventHubId](int32_t eId) { return eId == eventHubId; });
         if (eventHubIds.size() == 0) {
             mDeviceToEventHubIdsMap.erase(mapIt);
         }

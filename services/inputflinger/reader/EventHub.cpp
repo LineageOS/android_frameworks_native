@@ -2344,13 +2344,10 @@ void EventHub::closeVideoDeviceByPathLocked(const std::string& devicePath) {
             return;
         }
     }
-    mUnattachedVideoDevices
-            .erase(std::remove_if(mUnattachedVideoDevices.begin(), mUnattachedVideoDevices.end(),
-                                  [&devicePath](
-                                          const std::unique_ptr<TouchVideoDevice>& videoDevice) {
-                                      return videoDevice->getPath() == devicePath;
-                                  }),
-                   mUnattachedVideoDevices.end());
+    std::erase_if(mUnattachedVideoDevices,
+                  [&devicePath](const std::unique_ptr<TouchVideoDevice>& videoDevice) {
+                      return videoDevice->getPath() == devicePath;
+                  });
 }
 
 void EventHub::closeAllDevicesLocked() {

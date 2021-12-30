@@ -24,6 +24,7 @@ package {
 
 cc_defaults {
     name: "inputflinger_defaults",
+    cpp_std: "c++20",
     cflags: [
         "-Wall",
         "-Wextra",
