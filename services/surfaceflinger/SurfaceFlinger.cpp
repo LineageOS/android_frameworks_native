@@ -339,7 +339,6 @@ Dataspace SurfaceFlinger::defaultCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::defaultCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
 Dataspace SurfaceFlinger::wideColorGamutCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::wideColorGamutCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
-bool SurfaceFlinger::enableSdrDimming;
 LatchUnsignaledConfig SurfaceFlinger::enableLatchUnsignaledConfig;
 
 std::string decodeDisplayColorSetting(DisplayColorSetting displayColorSetting) {
@@ -502,9 +501,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     }
 
     mRefreshRateOverlaySpinner = property_get_bool("sf.debug.show_refresh_rate_overlay_spinner", 0);
-
-    // Debug property overrides ro. property
-    enableSdrDimming = property_get_bool("debug.sf.enable_sdr_dimming", enable_sdr_dimming(false));
 
     enableLatchUnsignaledConfig = getLatchUnsignaledConfig();
 
@@ -1694,10 +1690,7 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
                                    Hwc2::Composer::OptionalFeature::DisplayBrightnessCommand);
                    // If we support applying display brightness as a command, then we also support
                    // dimming SDR layers.
-                   // TODO(b/212634488): Once AIDL composer implementations are finalized, remove
-                   // the enableSdrDimming check, as dimming support will be expected for AIDL
-                   // composer.
-                   if (enableSdrDimming && supportsDisplayBrightnessCommand) {
+                   if (supportsDisplayBrightnessCommand) {
                        display->getCompositionDisplay()
                                ->setDisplayBrightness(brightness.sdrWhitePointNits,
                                                       brightness.displayBrightnessNits);
@@ -1709,11 +1702,11 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
                        }
                        return ftl::yield<status_t>(OK);
                    } else {
-                       return getHwComposer().setDisplayBrightness(
-                               display->getPhysicalId(), brightness.displayBrightness,
-                               Hwc2::Composer::DisplayBrightnessOptions{.applyImmediately = true,
-                                                                        .sdrDimmingEnabled =
-                                                                                enableSdrDimming});
+                       return getHwComposer()
+                               .setDisplayBrightness(display->getPhysicalId(),
+                                                     brightness.displayBrightness,
+                                                     Hwc2::Composer::DisplayBrightnessOptions{
+                                                             .applyImmediately = true});
                    }
 
                } else {

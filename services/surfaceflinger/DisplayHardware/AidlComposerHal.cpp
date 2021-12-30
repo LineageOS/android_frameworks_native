@@ -909,16 +909,6 @@ Error AidlComposer::setLayerPerFrameMetadataBlobs(
 
 Error AidlComposer::setDisplayBrightness(Display display, float brightness,
                                          const DisplayBrightnessOptions& options) {
-    if (!options.sdrDimmingEnabled) {
-        const auto status =
-                mAidlComposerClient->setDisplayBrightness(translate<int64_t>(display), brightness);
-        if (!status.isOk()) {
-            ALOGE("setDisplayBrightness failed %s", status.getDescription().c_str());
-            return static_cast<Error>(status.getServiceSpecificError());
-        }
-        return Error::NONE;
-    }
-
     mWriter.setDisplayBrightness(translate<int64_t>(display), brightness);
 
     if (options.applyImmediately) {
