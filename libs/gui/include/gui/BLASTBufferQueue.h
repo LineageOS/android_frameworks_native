@@ -82,6 +82,7 @@ public:
         return mProducer;
     }
     sp<Surface> getSurface(bool includeSurfaceControlHandle);
+    bool isSameSurfaceControl(const sp<SurfaceControl>& surfaceControl) const;
 
     void onBufferFreed(const wp<GraphicBuffer>&/* graphicBuffer*/) override { /* TODO */ }
     void onFrameReplaced(const BufferItem& item) override;
@@ -109,6 +110,7 @@ public:
 
     uint32_t getLastTransformHint() const;
     uint64_t getLastAcquiredFrameNum();
+    void abandon();
 
     virtual ~BLASTBufferQueue();
 
@@ -145,15 +147,15 @@ private:
     std::string mQueuedBufferTrace;
     sp<SurfaceControl> mSurfaceControl;
 
-    std::mutex mMutex;
+    mutable std::mutex mMutex;
     std::condition_variable mCallbackCV;
 
     // BufferQueue internally allows 1 more than
     // the max to be acquired
     int32_t mMaxAcquiredBuffers = 1;
 
-    int32_t mNumFrameAvailable GUARDED_BY(mMutex);
-    int32_t mNumAcquired GUARDED_BY(mMutex);
+    int32_t mNumFrameAvailable GUARDED_BY(mMutex) = 0;
+    int32_t mNumAcquired GUARDED_BY(mMutex) = 0;
 
     // Keep a reference to the submitted buffers so we can release when surfaceflinger drops the
     // buffer or the buffer has been presented and a new buffer is ready to be presented.
