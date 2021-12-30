@@ -378,7 +378,7 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarge
                                           motionEntry.yPrecision, motionEntry.xCursorPosition,
                                           motionEntry.yCursorPosition, motionEntry.downTime,
                                           motionEntry.pointerCount, motionEntry.pointerProperties,
-                                          pointerCoords.data(), 0 /* xOffset */, 0 /* yOffset */);
+                                          pointerCoords.data());
 
     if (motionEntry.injectionState) {
         combinedMotionEntry->injectionState = motionEntry.injectionState;
@@ -506,12 +506,6 @@ bool isConnectionResponsive(const Connection& connection) {
     return true;
 }
 
-vec2 transformWithoutTranslation(const ui::Transform& transform, float x, float y) {
-    const vec2 transformedXy = transform.transform(x, y);
-    const vec2 transformedOrigin = transform.transform(0, 0);
-    return transformedXy - transformedOrigin;
-}
-
 // Returns true if the event type passed as argument represents a user activity.
 bool isUserActivityEvent(const EventEntry& eventEntry) {
     switch (eventEntry.type) {
@@ -530,12 +524,14 @@ bool isUserActivityEvent(const EventEntry& eventEntry) {
 }
 
 // Returns true if the given window can accept pointer events at the given display location.
-bool windowAcceptsTouchAt(const WindowInfo& windowInfo, int32_t displayId, int32_t x, int32_t y) {
+bool windowAcceptsTouchAt(const WindowInfo& windowInfo, int32_t displayId, int32_t x, int32_t y,
+                          bool isStylus) {
     if (windowInfo.displayId != displayId || !windowInfo.visible) {
         return false;
     }
     const auto flags = windowInfo.flags;
-    if (flags.test(WindowInfo::Flag::NOT_TOUCHABLE)) {
+    const bool windowCanInterceptTouch = isStylus && windowInfo.interceptsStylus();
+    if (flags.test(WindowInfo::Flag::NOT_TOUCHABLE) && !windowCanInterceptTouch) {
         return false;
     }
     const bool isModalWindow = !flags.test(WindowInfo::Flag::NOT_FOCUSABLE) &&
@@ -544,6 +540,12 @@ bool windowAcceptsTouchAt(const WindowInfo& windowInfo, int32_t displayId, int32
         return false;
     }
     return true;
+}
+
+bool isPointerFromStylus(const MotionEntry& entry, int32_t pointerIndex) {
+    return isFromSource(entry.source, AINPUT_SOURCE_STYLUS) &&
+            (entry.pointerProperties[pointerIndex].toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS ||
+             entry.pointerProperties[pointerIndex].toolType == AMOTION_EVENT_TOOL_TYPE_ERASER);
 }
 
 } // namespace
@@ -939,8 +941,10 @@ bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEnt
                 motionEntry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X));
         int32_t y = static_cast<int32_t>(
                 motionEntry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y));
+
+        const bool isStylus = isPointerFromStylus(motionEntry, 0 /*pointerIndex*/);
         sp<WindowInfoHandle> touchedWindowHandle =
-                findTouchedWindowAtLocked(displayId, x, y, nullptr);
+                findTouchedWindowAtLocked(displayId, x, y, nullptr, isStylus);
         if (touchedWindowHandle != nullptr &&
             touchedWindowHandle->getApplicationToken() !=
                     mAwaitedFocusedApplication->getApplicationToken()) {
@@ -1045,6 +1049,7 @@ void InputDispatcher::addRecentEventLocked(std::shared_ptr<EventEntry> entry) {
 
 sp<WindowInfoHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t displayId, int32_t x,
                                                                 int32_t y, TouchState* touchState,
+                                                                bool isStylus,
                                                                 bool addOutsideTargets,
                                                                 bool ignoreDragWindow) {
     if (addOutsideTargets && touchState == nullptr) {
@@ -1058,7 +1063,7 @@ sp<WindowInfoHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t displayI
         }
 
         const WindowInfo& info = *windowHandle->getInfo();
-        if (!info.isSpy() && windowAcceptsTouchAt(info, displayId, x, y)) {
+        if (!info.isSpy() && windowAcceptsTouchAt(info, displayId, x, y, isStylus)) {
             return windowHandle;
         }
 
@@ -1070,16 +1075,15 @@ sp<WindowInfoHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t displayI
     return nullptr;
 }
 
-std::vector<sp<WindowInfoHandle>> InputDispatcher::findTouchedSpyWindowsAtLocked(int32_t displayId,
-                                                                                 int32_t x,
-                                                                                 int32_t y) const {
+std::vector<sp<WindowInfoHandle>> InputDispatcher::findTouchedSpyWindowsAtLocked(
+        int32_t displayId, int32_t x, int32_t y, bool isStylus) const {
     // Traverse windows from front to back and gather the touched spy windows.
     std::vector<sp<WindowInfoHandle>> spyWindows;
     const auto& windowHandles = getWindowHandlesLocked(displayId);
     for (const sp<WindowInfoHandle>& windowHandle : windowHandles) {
         const WindowInfo& info = *windowHandle->getInfo();
 
-        if (!windowAcceptsTouchAt(info, displayId, x, y)) {
+        if (!windowAcceptsTouchAt(info, displayId, x, y, isStylus)) {
             continue;
         }
         if (!info.isSpy()) {
@@ -2062,8 +2066,9 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             y = int32_t(entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_Y));
         }
         const bool isDown = maskedAction == AMOTION_EVENT_ACTION_DOWN;
+        const bool isStylus = isPointerFromStylus(entry, pointerIndex);
         newTouchedWindowHandle = findTouchedWindowAtLocked(displayId, x, y, &tempTouchState,
-                                                           isDown /*addOutsideTargets*/);
+                                                           isStylus, isDown /*addOutsideTargets*/);
 
         // Handle the case where we did not find a window.
         if (newTouchedWindowHandle == nullptr) {
@@ -2100,7 +2105,7 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
         }
 
         std::vector<sp<WindowInfoHandle>> newTouchedWindows =
-                findTouchedSpyWindowsAtLocked(displayId, x, y);
+                findTouchedSpyWindowsAtLocked(displayId, x, y, isStylus);
         if (newTouchedWindowHandle != nullptr) {
             // Process the foreground window first so that it is the first to receive the event.
             newTouchedWindows.insert(newTouchedWindows.begin(), newTouchedWindowHandle);
@@ -2213,9 +2218,11 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             const int32_t x = int32_t(entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X));
             const int32_t y = int32_t(entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y));
 
+            const bool isStylus = isPointerFromStylus(entry, 0 /*pointerIndex*/);
             sp<WindowInfoHandle> oldTouchedWindowHandle =
                     tempTouchState.getFirstForegroundWindowHandle();
-            newTouchedWindowHandle = findTouchedWindowAtLocked(displayId, x, y, &tempTouchState);
+            newTouchedWindowHandle =
+                    findTouchedWindowAtLocked(displayId, x, y, &tempTouchState, isStylus);
 
             // Drop touch events if requested by input feature
             if (newTouchedWindowHandle != nullptr &&
@@ -2477,8 +2484,12 @@ Failed:
 }
 
 void InputDispatcher::finishDragAndDrop(int32_t displayId, float x, float y) {
+    // Prevent stylus interceptor windows from affecting drag and drop behavior for now, until we
+    // have an explicit reason to support it.
+    constexpr bool isStylus = false;
+
     const sp<WindowInfoHandle> dropWindow =
-            findTouchedWindowAtLocked(displayId, x, y, nullptr /*touchState*/,
+            findTouchedWindowAtLocked(displayId, x, y, nullptr /*touchState*/, isStylus,
                                       false /*addOutsideTargets*/, true /*ignoreDragWindow*/);
     if (dropWindow) {
         vec2 local = dropWindow->getInfo()->transform.transform(x, y);
@@ -2511,8 +2522,12 @@ void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
             return;
         }
 
+        // Prevent stylus interceptor windows from affecting drag and drop behavior for now, until
+        // we have an explicit reason to support it.
+        constexpr bool isStylus = false;
+
         const sp<WindowInfoHandle> hoverWindowHandle =
-                findTouchedWindowAtLocked(entry.displayId, x, y, nullptr /*touchState*/,
+                findTouchedWindowAtLocked(entry.displayId, x, y, nullptr /*touchState*/, isStylus,
                                           false /*addOutsideTargets*/, true /*ignoreDragWindow*/);
         // enqueue drag exit if needed.
         if (hoverWindowHandle != mDragState->dragHoverWindowHandle &&
@@ -3815,7 +3830,7 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
                                           originalMotionEntry.xCursorPosition,
                                           originalMotionEntry.yCursorPosition,
                                           originalMotionEntry.downTime, splitPointerCount,
-                                          splitPointerProperties, splitPointerCoords, 0, 0);
+                                          splitPointerProperties, splitPointerCoords);
 
     if (originalMotionEntry.injectionState) {
         splitMotionEntry->injectionState = originalMotionEntry.injectionState;
@@ -4041,7 +4056,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
                                               args->xPrecision, args->yPrecision,
                                               args->xCursorPosition, args->yCursorPosition,
                                               args->downTime, args->pointerCount,
-                                              args->pointerProperties, args->pointerCoords, 0, 0);
+                                              args->pointerProperties, args->pointerCoords);
 
         if (args->id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
             IdGenerator::getSource(args->id) == IdGenerator::Source::INPUT_READER &&
@@ -4271,10 +4286,8 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
                                                   motionEvent.getRawXCursorPosition(),
                                                   motionEvent.getRawYCursorPosition(),
                                                   motionEvent.getDownTime(), uint32_t(pointerCount),
-                                                  pointerProperties, samplePointerCoords,
-                                                  motionEvent.getXOffset(),
-                                                  motionEvent.getYOffset());
-            transformMotionEntryForInjectionLocked(*injectedEntry);
+                                                  pointerProperties, samplePointerCoords);
+            transformMotionEntryForInjectionLocked(*injectedEntry, motionEvent.getTransform());
             injectedEntries.push(std::move(injectedEntry));
             for (size_t i = motionEvent.getHistorySize(); i > 0; i--) {
                 sampleEventTimes += 1;
@@ -4293,9 +4306,9 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
                                                       motionEvent.getRawYCursorPosition(),
                                                       motionEvent.getDownTime(),
                                                       uint32_t(pointerCount), pointerProperties,
-                                                      samplePointerCoords, motionEvent.getXOffset(),
-                                                      motionEvent.getYOffset());
-                transformMotionEntryForInjectionLocked(*nextInjectedEntry);
+                                                      samplePointerCoords);
+                transformMotionEntryForInjectionLocked(*nextInjectedEntry,
+                                                       motionEvent.getTransform());
                 injectedEntries.push(std::move(nextInjectedEntry));
             }
             break;
@@ -4459,35 +4472,28 @@ void InputDispatcher::setInjectionResult(EventEntry& entry,
     }
 }
 
-void InputDispatcher::transformMotionEntryForInjectionLocked(MotionEntry& entry) const {
-    const bool isRelativeMouseEvent = isFromSource(entry.source, AINPUT_SOURCE_MOUSE_RELATIVE);
-    if (!isRelativeMouseEvent && !isFromSource(entry.source, AINPUT_SOURCE_CLASS_POINTER)) {
-        return;
-    }
-
+void InputDispatcher::transformMotionEntryForInjectionLocked(
+        MotionEntry& entry, const ui::Transform& injectedTransform) const {
     // Input injection works in the logical display coordinate space, but the input pipeline works
     // display space, so we need to transform the injected events accordingly.
     const auto it = mDisplayInfos.find(entry.displayId);
     if (it == mDisplayInfos.end()) return;
-    const auto& transformToDisplay = it->second.transform.inverse();
+    const auto& transformToDisplay = it->second.transform.inverse() * injectedTransform;
 
     for (uint32_t i = 0; i < entry.pointerCount; i++) {
         PointerCoords& pc = entry.pointerCoords[i];
-        const auto xy = isRelativeMouseEvent
-                ? transformWithoutTranslation(transformToDisplay, pc.getX(), pc.getY())
-                : transformToDisplay.transform(pc.getXYValue());
-        pc.setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
-        pc.setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
+        // Make a copy of the injected coords. We cannot change them in place because some of them
+        // are interdependent (for example, X coordinate might depend on the Y coordinate).
+        PointerCoords injectedCoords = entry.pointerCoords[i];
 
-        // Axes with relative values never represent points on a screen, so they should never have
-        // translation applied. If a device does not report relative values, these values are always
-        // 0, and will remain unaffected by the following operation.
-        const auto rel =
-                transformWithoutTranslation(transformToDisplay,
-                                            pc.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
-                                            pc.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y));
-        pc.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, rel.x);
-        pc.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, rel.y);
+        BitSet64 bits(injectedCoords.bits);
+        while (!bits.isEmpty()) {
+            const auto axis = static_cast<int32_t>(bits.clearFirstMarkedBit());
+            const float value =
+                    MotionEvent::calculateTransformedAxisValue(axis, entry.source,
+                                                               transformToDisplay, injectedCoords);
+            pc.setAxisValue(axis, value);
+        }
     }
 }
 
@@ -4685,15 +4691,27 @@ void InputDispatcher::setInputWindowsLocked(
         ALOGD("setInputWindows displayId=%" PRId32 " %s", displayId, windowList.c_str());
     }
 
-    // Ensure all tokens are null if the window has feature NO_INPUT_CHANNEL
+    // Check preconditions for new input windows
     for (const sp<WindowInfoHandle>& window : windowInfoHandles) {
-        const bool noInputWindow =
-                window->getInfo()->inputFeatures.test(WindowInfo::Feature::NO_INPUT_CHANNEL);
+        const WindowInfo& info = *window->getInfo();
+
+        // Ensure all tokens are null if the window has feature NO_INPUT_CHANNEL
+        const bool noInputWindow = info.inputFeatures.test(WindowInfo::Feature::NO_INPUT_CHANNEL);
         if (noInputWindow && window->getToken() != nullptr) {
             ALOGE("%s has feature NO_INPUT_WINDOW, but a non-null token. Clearing",
                   window->getName().c_str());
             window->releaseChannel();
         }
+
+        // Ensure all spy windows are trusted overlays
+        LOG_ALWAYS_FATAL_IF(info.isSpy() && !info.trustedOverlay,
+                            "%s has feature SPY, but is not a trusted overlay.",
+                            window->getName().c_str());
+
+        // Ensure all stylus interceptors are trusted overlays
+        LOG_ALWAYS_FATAL_IF(info.interceptsStylus() && !info.trustedOverlay,
+                            "%s has feature INTERCEPTS_STYLUS, but is not a trusted overlay.",
+                            window->getName().c_str());
     }
 
     // Copy old handles for release if they are no longer present.

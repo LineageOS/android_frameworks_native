@@ -121,7 +121,10 @@ public:
     MOCK_METHOD3(setLayerPerFrameMetadataBlobs,
                  Error(Display, Layer, const std::vector<IComposerClient::PerFrameMetadataBlob>&));
     MOCK_METHOD2(setDisplayBrightness, Error(Display, float));
-    MOCK_METHOD2(getDisplayCapabilities, Error(Display, std::vector<DisplayCapability>*));
+    MOCK_METHOD2(
+            getDisplayCapabilities,
+            Error(Display,
+                  std::vector<aidl::android::hardware::graphics::composer3::DisplayCapability>*));
     MOCK_METHOD2(getDisplayConnectionType,
                  V2_4::Error(Display, IComposerClient::DisplayConnectionType*));
     MOCK_METHOD3(getSupportedDisplayVsyncPeriods,

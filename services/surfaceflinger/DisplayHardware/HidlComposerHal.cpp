@@ -35,6 +35,8 @@
 #include <algorithm>
 #include <cinttypes>
 
+using aidl::android::hardware::graphics::composer3::DisplayCapability;
+
 namespace android {
 
 using hardware::hidl_handle;
@@ -1020,6 +1022,15 @@ Error HidlComposer::setDisplayBrightness(Display display, float brightness) {
 
 // Composer HAL 2.4
 
+namespace {
+template <typename T>
+void copyCapabilities(const T& tmpCaps, std::vector<DisplayCapability>* outCapabilities) {
+    outCapabilities->resize(tmpCaps.size());
+    std::transform(tmpCaps.begin(), tmpCaps.end(), outCapabilities->begin(),
+                   [](auto cap) { return static_cast<DisplayCapability>(cap); });
+}
+} // anonymous namespace
+
 Error HidlComposer::getDisplayCapabilities(Display display,
                                            std::vector<DisplayCapability>* outCapabilities) {
     if (!mClient_2_3) {
@@ -1034,7 +1045,7 @@ Error HidlComposer::getDisplayCapabilities(Display display,
                                                     if (error != V2_4::Error::NONE) {
                                                         return;
                                                     }
-                                                    *outCapabilities = tmpCaps;
+                                                    copyCapabilities(tmpCaps, outCapabilities);
                                                 });
     } else {
         mClient_2_3
@@ -1044,9 +1055,7 @@ Error HidlComposer::getDisplayCapabilities(Display display,
                         return;
                     }
 
-                    outCapabilities->resize(tmpCaps.size());
-                    std::transform(tmpCaps.begin(), tmpCaps.end(), outCapabilities->begin(),
-                                   [](auto cap) { return static_cast<DisplayCapability>(cap); });
+                    copyCapabilities(tmpCaps, outCapabilities);
                 });
     }
 

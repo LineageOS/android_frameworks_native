@@ -37,6 +37,7 @@
 #include "Hal.h"
 
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
+#include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
 namespace android {
 
@@ -82,7 +83,8 @@ public:
     virtual hal::HWDisplayId getId() const = 0;
     virtual bool isConnected() const = 0;
     virtual void setConnected(bool connected) = 0; // For use by Device only
-    virtual bool hasCapability(hal::DisplayCapability) const = 0;
+    virtual bool hasCapability(
+            aidl::android::hardware::graphics::composer3::DisplayCapability) const = 0;
     virtual bool isVsyncPeriodSwitchSupported() const = 0;
     virtual void onLayerDestroyed(hal::HWLayerId layerId) = 0;
 
@@ -224,7 +226,8 @@ public:
     hal::HWDisplayId getId() const override { return mId; }
     bool isConnected() const override { return mIsConnected; }
     void setConnected(bool connected) override; // For use by Device only
-    bool hasCapability(hal::DisplayCapability) const override EXCLUDES(mDisplayCapabilitiesMutex);
+    bool hasCapability(aidl::android::hardware::graphics::composer3::DisplayCapability)
+            const override EXCLUDES(mDisplayCapabilitiesMutex);
     bool isVsyncPeriodSwitchSupported() const override;
     void onLayerDestroyed(hal::HWLayerId layerId) override;
 
@@ -253,8 +256,9 @@ private:
 
     mutable std::mutex mDisplayCapabilitiesMutex;
     std::once_flag mDisplayCapabilityQueryFlag;
-    std::optional<std::unordered_set<hal::DisplayCapability>> mDisplayCapabilities
-            GUARDED_BY(mDisplayCapabilitiesMutex);
+    std::optional<
+            std::unordered_set<aidl::android::hardware::graphics::composer3::DisplayCapability>>
+            mDisplayCapabilities GUARDED_BY(mDisplayCapabilitiesMutex);
 };
 
 } // namespace impl

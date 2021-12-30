@@ -39,6 +39,8 @@
 
 #include "DisplayHardware/PowerAdvisor.h"
 
+using aidl::android::hardware::graphics::composer3::DisplayCapability;
+
 namespace android::compositionengine::impl {
 
 std::shared_ptr<Display> createDisplay(
@@ -252,7 +254,7 @@ bool Display::getSkipColorTransform() const {
     const auto& hwc = getCompositionEngine().getHwComposer();
     if (const auto halDisplayId = HalDisplayId::tryCast(mId)) {
         return hwc.hasDisplayCapability(*halDisplayId,
-                                        hal::DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM);
+                                        DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM);
     }
 
     return hwc.hasCapability(hal::Capability::SKIP_CLIENT_COLOR_TRANSFORM);
