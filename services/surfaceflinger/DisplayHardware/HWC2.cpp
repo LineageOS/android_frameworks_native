@@ -40,6 +40,7 @@
 #include "ComposerHal.h"
 
 using aidl::android::hardware::graphics::composer3::Composition;
+using aidl::android::hardware::graphics::composer3::DisplayCapability;
 
 namespace android {
 
@@ -285,15 +286,15 @@ Error Display::getConnectionType(ui::DisplayConnectionType* outType) const {
     return Error::NONE;
 }
 
-bool Display::hasCapability(hal::DisplayCapability capability) const {
+bool Display::hasCapability(DisplayCapability capability) const {
     std::scoped_lock lock(mDisplayCapabilitiesMutex);
     if (mDisplayCapabilities) {
         return mDisplayCapabilities->count(capability) > 0;
     }
 
-    ALOGW("Can't query capability %d."
+    ALOGW("Can't query capability %s."
           " Display Capabilities were not queried from HWC yet",
-          static_cast<int>(capability));
+          to_string(capability).c_str());
 
     return false;
 }
@@ -458,14 +459,14 @@ Error Display::setPowerMode(PowerMode mode)
 
     if (mode == PowerMode::ON) {
         std::call_once(mDisplayCapabilityQueryFlag, [this]() {
-            std::vector<Hwc2::DisplayCapability> tmpCapabilities;
+            std::vector<DisplayCapability> tmpCapabilities;
             auto error =
                     static_cast<Error>(mComposer.getDisplayCapabilities(mId, &tmpCapabilities));
             if (error == Error::NONE) {
                 std::scoped_lock lock(mDisplayCapabilitiesMutex);
                 mDisplayCapabilities.emplace();
                 for (auto capability : tmpCapabilities) {
-                    mDisplayCapabilities->emplace(static_cast<DisplayCapability>(capability));
+                    mDisplayCapabilities->emplace(capability);
                 }
             } else if (error == Error::UNSUPPORTED) {
                 std::scoped_lock lock(mDisplayCapabilitiesMutex);

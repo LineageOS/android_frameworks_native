@@ -30,7 +30,9 @@ public:
     MOCK_METHOD(hal::HWDisplayId, getId, (), (const, override));
     MOCK_METHOD(bool, isConnected, (), (const, override));
     MOCK_METHOD(void, setConnected, (bool), (override));
-    MOCK_METHOD(bool, hasCapability, (hal::DisplayCapability), (const, override));
+    MOCK_METHOD(bool, hasCapability,
+                (aidl::android::hardware::graphics::composer3::DisplayCapability),
+                (const, override));
     MOCK_METHOD(bool, isVsyncPeriodSwitchSupported, (), (const, override));
     MOCK_METHOD(void, onLayerDestroyed, (hal::HWLayerId), (override));
 

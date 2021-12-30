@@ -234,16 +234,12 @@ private:
     // to transfer focus to a new application.
     std::shared_ptr<EventEntry> mNextUnblockedEvent GUARDED_BY(mLock);
 
-    sp<android::gui::WindowInfoHandle> findTouchedWindowAtLocked(int32_t displayId, int32_t x,
-                                                                 int32_t y, TouchState* touchState,
-                                                                 bool addOutsideTargets = false,
-                                                                 bool ignoreDragWindow = false)
-            REQUIRES(mLock);
+    sp<android::gui::WindowInfoHandle> findTouchedWindowAtLocked(
+            int32_t displayId, int32_t x, int32_t y, TouchState* touchState, bool isStylus = false,
+            bool addOutsideTargets = false, bool ignoreDragWindow = false) REQUIRES(mLock);
 
-    std::vector<sp<android::gui::WindowInfoHandle>> findTouchedSpyWindowsAtLocked(int32_t displayId,
-                                                                                  int32_t x,
-                                                                                  int32_t y) const
-            REQUIRES(mLock);
+    std::vector<sp<android::gui::WindowInfoHandle>> findTouchedSpyWindowsAtLocked(
+            int32_t displayId, int32_t x, int32_t y, bool isStylus) const REQUIRES(mLock);
 
     sp<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) const
             REQUIRES(mLock);
@@ -287,7 +283,9 @@ private:
     bool hasInjectionPermission(int32_t injectorPid, int32_t injectorUid);
     void setInjectionResult(EventEntry& entry,
                             android::os::InputEventInjectionResult injectionResult);
-    void transformMotionEntryForInjectionLocked(MotionEntry&) const REQUIRES(mLock);
+    void transformMotionEntryForInjectionLocked(MotionEntry&,
+                                                const ui::Transform& injectedTransform) const
+            REQUIRES(mLock);
 
     std::condition_variable mInjectionSyncFinished;
     void incrementPendingForegroundDispatches(EventEntry& entry);

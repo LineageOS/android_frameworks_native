@@ -44,6 +44,7 @@
 #include "Hal.h"
 
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
+#include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
 namespace android {
 
@@ -110,7 +111,9 @@ public:
                                               DisplayIdentificationData* outData) const = 0;
 
     virtual bool hasCapability(hal::Capability) const = 0;
-    virtual bool hasDisplayCapability(HalDisplayId, hal::DisplayCapability) const = 0;
+    virtual bool hasDisplayCapability(
+            HalDisplayId,
+            aidl::android::hardware::graphics::composer3::DisplayCapability) const = 0;
 
     virtual size_t getMaxVirtualDisplayCount() const = 0;
     virtual size_t getMaxVirtualDisplayDimension() const = 0;
@@ -267,7 +270,9 @@ public:
                                       DisplayIdentificationData* outData) const override;
 
     bool hasCapability(hal::Capability) const override;
-    bool hasDisplayCapability(HalDisplayId, hal::DisplayCapability) const override;
+    bool hasDisplayCapability(
+            HalDisplayId,
+            aidl::android::hardware::graphics::composer3::DisplayCapability) const override;
 
     size_t getMaxVirtualDisplayCount() const override;
     size_t getMaxVirtualDisplayDimension() const override;

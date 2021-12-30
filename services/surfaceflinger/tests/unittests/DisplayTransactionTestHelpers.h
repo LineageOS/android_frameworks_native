@@ -66,9 +66,9 @@ using testing::ResultOf;
 using testing::Return;
 using testing::SetArgPointee;
 
+using aidl::android::hardware::graphics::composer3::DisplayCapability;
 using hal::ColorMode;
 using hal::Connection;
-using hal::DisplayCapability;
 using hal::DisplayType;
 using hal::Error;
 using hal::Hdr;

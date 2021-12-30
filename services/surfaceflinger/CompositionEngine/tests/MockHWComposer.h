@@ -43,7 +43,9 @@ public:
     MOCK_CONST_METHOD3(getDisplayIdentificationData,
                        bool(hal::HWDisplayId, uint8_t*, DisplayIdentificationData*));
     MOCK_CONST_METHOD1(hasCapability, bool(hal::Capability));
-    MOCK_CONST_METHOD2(hasDisplayCapability, bool(HalDisplayId, hal::DisplayCapability));
+    MOCK_CONST_METHOD2(hasDisplayCapability,
+                       bool(HalDisplayId,
+                            aidl::android::hardware::graphics::composer3::DisplayCapability));
 
     MOCK_CONST_METHOD0(getMaxVirtualDisplayCount, size_t());
     MOCK_CONST_METHOD0(getMaxVirtualDisplayDimension, size_t());

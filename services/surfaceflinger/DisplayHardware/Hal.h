@@ -21,6 +21,7 @@
 #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
 
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
+#include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
 #define ERROR_HAS_CHANGES 5
 
@@ -55,7 +56,6 @@ using Connection = IComposerCallback::Connection;
 using ContentType = IComposerClient::ContentType;
 using Capability = IComposer::Capability;
 using ClientTargetProperty = IComposerClient::ClientTargetProperty;
-using DisplayCapability = IComposerClient::DisplayCapability;
 using DisplayRequest = IComposerClient::DisplayRequest;
 using DisplayType = IComposerClient::DisplayType;
 using HWConfigId = V2_1::Config;
@@ -113,6 +113,29 @@ inline std::string to_string(
             return "Sideband";
         case aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION:
             return "DisplayDecoration";
+        default:
+            return "Unknown";
+    }
+}
+
+inline std::string to_string(
+        aidl::android::hardware::graphics::composer3::DisplayCapability displayCapability) {
+    switch (displayCapability) {
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::INVALID:
+            return "Invalid";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::
+                SKIP_CLIENT_COLOR_TRANSFORM:
+            return "SkipColorTransform";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::DOZE:
+            return "Doze";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::BRIGHTNESS:
+            return "Brightness";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::PROTECTED_CONTENTS:
+            return "ProtectedContents";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::AUTO_LOW_LATENCY_MODE:
+            return "AutoLowLatencyMode";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::SUSPEND:
+            return "Suspend";
         default:
             return "Unknown";
     }
