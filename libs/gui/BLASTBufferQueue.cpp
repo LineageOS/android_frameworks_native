@@ -164,8 +164,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name)
     mCurrentMaxAcquiredBufferCount = mMaxAcquiredBuffers;
     mNumAcquired = 0;
     mNumFrameAvailable = 0;
-    BQA_LOGV("BLASTBufferQueue created width=%d height=%d format=%d mTransformHint=%d", mSize.width,
-             mSize.height, mFormat, mTransformHint);
+    BQA_LOGV("BLASTBufferQueue created");
 }
 
 BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceControl>& surface,
@@ -182,14 +181,14 @@ BLASTBufferQueue::~BLASTBufferQueue() {
     BQA_LOGE("Applying pending transactions on dtor %d",
              static_cast<uint32_t>(mPendingTransactions.size()));
     SurfaceComposerClient::Transaction t;
-    for (auto& [targetFrameNumber, transaction] : mPendingTransactions) {
-        t.merge(std::move(transaction));
-    }
-    t.apply();
+    mergePendingTransactions(&t, std::numeric_limits<uint64_t>::max() /* frameNumber */);
+    t.setApplyToken(mApplyToken).apply();
 }
 
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height,
                               int32_t format, SurfaceComposerClient::Transaction* outTransaction) {
+    LOG_ALWAYS_FATAL_IF(surface == nullptr, "BLASTBufferQueue: mSurfaceControl must not be NULL");
+
     std::unique_lock _lock{mMutex};
     if (mFormat != format) {
         mFormat = format;
@@ -197,21 +196,20 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
     }
 
     SurfaceComposerClient::Transaction t;
-    const bool setBackpressureFlag = !SurfaceControl::isSameSurface(mSurfaceControl, surface);
+    const bool surfaceControlChanged = !SurfaceControl::isSameSurface(mSurfaceControl, surface);
     bool applyTransaction = false;
 
     // Always update the native object even though they might have the same layer handle, so we can
     // get the updated transform hint from WM.
     mSurfaceControl = surface;
-    if (mSurfaceControl != nullptr) {
-        if (setBackpressureFlag) {
-            t.setFlags(mSurfaceControl, layer_state_t::eEnableBackpressure,
-                       layer_state_t::eEnableBackpressure);
-            applyTransaction = true;
-        }
-        mTransformHint = mSurfaceControl->getTransformHint();
-        mBufferItemConsumer->setTransformHint(mTransformHint);
+    if (surfaceControlChanged) {
+        BQA_LOGD("Updating SurfaceControl without recreating BBQ");
+        t.setFlags(mSurfaceControl, layer_state_t::eEnableBackpressure,
+                   layer_state_t::eEnableBackpressure);
+        applyTransaction = true;
     }
+    mTransformHint = mSurfaceControl->getTransformHint();
+    mBufferItemConsumer->setTransformHint(mTransformHint);
     BQA_LOGV("update width=%d height=%d format=%d mTransformHint=%d", width, height, format,
              mTransformHint);
 
@@ -225,11 +223,9 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
             mSize = mRequestedSize;
             SurfaceComposerClient::Transaction* destFrameTransaction =
                     (outTransaction) ? outTransaction : &t;
-            if (mSurfaceControl != nullptr) {
-                destFrameTransaction->setDestinationFrame(mSurfaceControl,
-                                                          Rect(0, 0, newSize.getWidth(),
-                                                               newSize.getHeight()));
-            }
+            destFrameTransaction->setDestinationFrame(mSurfaceControl,
+                                                      Rect(0, 0, newSize.getWidth(),
+                                                           newSize.getHeight()));
             applyTransaction = true;
         }
     }
@@ -640,7 +636,7 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
 
     // add to shadow queue
     mNumFrameAvailable++;
-    if (mWaitForTransactionCallback && mNumFrameAvailable == 2) {
+    if (mWaitForTransactionCallback && mNumFrameAvailable >= 2) {
         acquireAndReleaseBuffer();
     }
     ATRACE_INT(mQueuedBufferTrace.c_str(),
@@ -717,7 +713,7 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
 // of the buffer, the next acquire may return with NO_BUFFER_AVAILABLE.
 bool BLASTBufferQueue::maxBuffersAcquired(bool includeExtraAcquire) const {
     int maxAcquiredBuffers = mMaxAcquiredBuffers + (includeExtraAcquire ? 2 : 1);
-    return mNumAcquired == maxAcquiredBuffers;
+    return mNumAcquired >= maxAcquiredBuffers;
 }
 
 class BBQSurface : public Surface {
@@ -989,6 +985,56 @@ uint32_t BLASTBufferQueue::getLastTransformHint() const {
 uint64_t BLASTBufferQueue::getLastAcquiredFrameNum() {
     std::unique_lock _lock{mMutex};
     return mLastAcquiredFrameNumber;
+}
+
+void BLASTBufferQueue::abandon() {
+    std::unique_lock _lock{mMutex};
+    // flush out the shadow queue
+    while (mNumFrameAvailable > 0) {
+        acquireAndReleaseBuffer();
+    }
+
+    // Clear submitted buffer states
+    mNumAcquired = 0;
+    mSubmitted.clear();
+    mPendingRelease.clear();
+
+    if (!mPendingTransactions.empty()) {
+        BQA_LOGD("Applying pending transactions on abandon %d",
+                 static_cast<uint32_t>(mPendingTransactions.size()));
+        SurfaceComposerClient::Transaction t;
+        mergePendingTransactions(&t, std::numeric_limits<uint64_t>::max() /* frameNumber */);
+        t.setApplyToken(mApplyToken).apply();
+    }
+
+    // Clear sync states
+    if (mWaitForTransactionCallback) {
+        BQA_LOGD("mWaitForTransactionCallback cleared");
+        mWaitForTransactionCallback = false;
+    }
+
+    if (mSyncTransaction != nullptr) {
+        BQA_LOGD("mSyncTransaction cleared mAcquireSingleBuffer=%s",
+                 mAcquireSingleBuffer ? "true" : "false");
+        mSyncTransaction = nullptr;
+        mAcquireSingleBuffer = false;
+    }
+
+    // abandon buffer queue
+    if (mBufferItemConsumer != nullptr) {
+        mBufferItemConsumer->abandon();
+        mBufferItemConsumer->setFrameAvailableListener(nullptr);
+        mBufferItemConsumer->setBufferFreedListener(nullptr);
+        mBufferItemConsumer->setBlastBufferQueue(nullptr);
+    }
+    mBufferItemConsumer = nullptr;
+    mConsumer = nullptr;
+    mProducer = nullptr;
+}
+
+bool BLASTBufferQueue::isSameSurfaceControl(const sp<SurfaceControl>& surfaceControl) const {
+    std::unique_lock _lock{mMutex};
+    return SurfaceControl::isSameSurface(mSurfaceControl, surfaceControl);
 }
 
 } // namespace android
