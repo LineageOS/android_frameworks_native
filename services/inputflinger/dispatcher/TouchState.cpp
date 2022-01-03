@@ -106,10 +106,8 @@ void TouchState::filterNonAsIsTouchWindows() {
 }
 
 void TouchState::filterWindowsExcept(const sp<IBinder>& token) {
-    auto it = std::remove_if(windows.begin(), windows.end(), [&token](const TouchedWindow& w) {
-        return w.windowHandle->getToken() != token;
-    });
-    windows.erase(it, windows.end());
+    std::erase_if(windows,
+                  [&token](const TouchedWindow& w) { return w.windowHandle->getToken() != token; });
 }
 
 sp<WindowInfoHandle> TouchState::getFirstForegroundWindowHandle() const {
