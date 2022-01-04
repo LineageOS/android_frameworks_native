@@ -140,8 +140,8 @@ class OTAPreoptService {
 
         PrepareEnvironmentVariables();
 
-        if (!EnsureBootImageAndDalvikCache()) {
-            LOG(ERROR) << "Bad boot image.";
+        if (!EnsureDalvikCache()) {
+            LOG(ERROR) << "Bad dalvik cache.";
             return 5;
         }
 
@@ -349,8 +349,8 @@ private:
         }
     }
 
-    // Ensure that we have the right boot image and cache file structures.
-    bool EnsureBootImageAndDalvikCache() const {
+    // Ensure that we have the right cache file structures.
+    bool EnsureDalvikCache() const {
         if (parameters_.instruction_set == nullptr) {
             LOG(ERROR) << "Instruction set missing.";
             return false;
@@ -374,15 +374,6 @@ private:
                 PLOG(ERROR) << "Could not create dalvik-cache isa dir";
                 return false;
             }
-        }
-
-        // Check whether we have a boot image.
-        // TODO: check that the files are correct wrt/ jars.
-        std::string preopted_boot_art_path =
-            StringPrintf("/apex/com.android.art/javalib/%s/boot.art", isa);
-        if (access(preopted_boot_art_path.c_str(), F_OK) != 0) {
-            PLOG(ERROR) << "Bad access() to " << preopted_boot_art_path;
-            return false;
         }
 
         return true;
