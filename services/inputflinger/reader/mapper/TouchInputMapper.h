@@ -243,6 +243,7 @@ protected:
             DIAMETER,
             BOX,
             AREA,
+            ftl_last = AREA
         };
 
         SizeCalibration sizeCalibration;
@@ -731,6 +732,9 @@ private:
 
     void resetExternalStylus();
     void clearStylusDataPendingFlags();
+
+    void initializeOrientedRanges();
+    void initializeSizeRanges();
 
     void sync(nsecs_t when, nsecs_t readTime);
 
