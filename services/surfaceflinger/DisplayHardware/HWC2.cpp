@@ -584,6 +584,21 @@ std::shared_ptr<HWC2::Layer> Display::getLayerById(HWLayerId id) const {
 
 // Layer methods
 
+namespace {
+std::vector<Hwc2::IComposerClient::Rect> convertRegionToHwcRects(const Region& region) {
+    size_t rectCount = 0;
+    Rect const* rectArray = region.getArray(&rectCount);
+
+    std::vector<Hwc2::IComposerClient::Rect> hwcRects;
+    hwcRects.reserve(rectCount);
+    for (size_t rect = 0; rect < rectCount; ++rect) {
+        hwcRects.push_back({rectArray[rect].left, rectArray[rect].top, rectArray[rect].right,
+                            rectArray[rect].bottom});
+    }
+    return hwcRects;
+}
+} // namespace
+
 Layer::~Layer() = default;
 
 namespace impl {
@@ -674,15 +689,7 @@ Error Layer::setSurfaceDamage(const Region& damage)
         intError = mComposer.setLayerSurfaceDamage(mDisplay->getId(), mId,
                                                    std::vector<Hwc2::IComposerClient::Rect>());
     } else {
-        size_t rectCount = 0;
-        auto rectArray = damage.getArray(&rectCount);
-
-        std::vector<Hwc2::IComposerClient::Rect> hwcRects;
-        for (size_t rect = 0; rect < rectCount; ++rect) {
-            hwcRects.push_back({rectArray[rect].left, rectArray[rect].top,
-                    rectArray[rect].right, rectArray[rect].bottom});
-        }
-
+        const auto hwcRects = convertRegionToHwcRects(damage);
         intError = mComposer.setLayerSurfaceDamage(mDisplay->getId(), mId, hwcRects);
     }
 
@@ -870,16 +877,7 @@ Error Layer::setVisibleRegion(const Region& region)
         return Error::NONE;
     }
     mVisibleRegion = region;
-
-    size_t rectCount = 0;
-    auto rectArray = region.getArray(&rectCount);
-
-    std::vector<Hwc2::IComposerClient::Rect> hwcRects;
-    for (size_t rect = 0; rect < rectCount; ++rect) {
-        hwcRects.push_back({rectArray[rect].left, rectArray[rect].top,
-                rectArray[rect].right, rectArray[rect].bottom});
-    }
-
+    const auto hwcRects = convertRegionToHwcRects(region);
     auto intError = mComposer.setLayerVisibleRegion(mDisplay->getId(), mId, hwcRects);
     return static_cast<Error>(intError);
 }
