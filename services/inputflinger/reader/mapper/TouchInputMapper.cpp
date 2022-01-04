@@ -609,6 +609,15 @@ std::optional<DisplayViewport> TouchInputMapper::findViewport() {
     return std::make_optional(newViewport);
 }
 
+int32_t TouchInputMapper::clampResolution(const char* axisName, int32_t resolution) const {
+    if (resolution < 0) {
+        ALOGE("Invalid %s resolution %" PRId32 " for device %s", axisName, resolution,
+              getDeviceName().c_str());
+        return 0;
+    }
+    return resolution;
+}
+
 void TouchInputMapper::initializeSizeRanges() {
     if (mCalibration.sizeCalibration == Calibration::SizeCalibration::NONE) {
         mSizeScale = 0.0f;
@@ -638,9 +647,19 @@ void TouchInputMapper::initializeSizeRanges() {
     mOrientedRanges.touchMajor.flat = 0;
     mOrientedRanges.touchMajor.fuzz = 0;
     mOrientedRanges.touchMajor.resolution = 0;
+    if (mRawPointerAxes.touchMajor.valid) {
+        mRawPointerAxes.touchMajor.resolution =
+                clampResolution("touchMajor", mRawPointerAxes.touchMajor.resolution);
+        mOrientedRanges.touchMajor.resolution = mRawPointerAxes.touchMajor.resolution;
+    }
 
     mOrientedRanges.touchMinor = mOrientedRanges.touchMajor;
     mOrientedRanges.touchMinor.axis = AMOTION_EVENT_AXIS_TOUCH_MINOR;
+    if (mRawPointerAxes.touchMinor.valid) {
+        mRawPointerAxes.touchMinor.resolution =
+                clampResolution("touchMinor", mRawPointerAxes.touchMinor.resolution);
+        mOrientedRanges.touchMinor.resolution = mRawPointerAxes.touchMinor.resolution;
+    }
 
     mOrientedRanges.toolMajor.axis = AMOTION_EVENT_AXIS_TOOL_MAJOR;
     mOrientedRanges.toolMajor.source = mSource;
@@ -649,9 +668,31 @@ void TouchInputMapper::initializeSizeRanges() {
     mOrientedRanges.toolMajor.flat = 0;
     mOrientedRanges.toolMajor.fuzz = 0;
     mOrientedRanges.toolMajor.resolution = 0;
+    if (mRawPointerAxes.toolMajor.valid) {
+        mRawPointerAxes.toolMajor.resolution =
+                clampResolution("toolMajor", mRawPointerAxes.toolMajor.resolution);
+        mOrientedRanges.toolMajor.resolution = mRawPointerAxes.toolMajor.resolution;
+    }
 
     mOrientedRanges.toolMinor = mOrientedRanges.toolMajor;
     mOrientedRanges.toolMinor.axis = AMOTION_EVENT_AXIS_TOOL_MINOR;
+    if (mRawPointerAxes.toolMinor.valid) {
+        mRawPointerAxes.toolMinor.resolution =
+                clampResolution("toolMinor", mRawPointerAxes.toolMinor.resolution);
+        mOrientedRanges.toolMinor.resolution = mRawPointerAxes.toolMinor.resolution;
+    }
+
+    if (mCalibration.sizeCalibration == Calibration::SizeCalibration::GEOMETRIC) {
+        mOrientedRanges.touchMajor.resolution *= mGeometricScale;
+        mOrientedRanges.touchMinor.resolution *= mGeometricScale;
+        mOrientedRanges.toolMajor.resolution *= mGeometricScale;
+        mOrientedRanges.toolMinor.resolution *= mGeometricScale;
+    } else {
+        // Support for other calibrations can be added here.
+        ALOGW("%s calibration is not supported for size ranges at the moment. "
+              "Using raw resolution instead",
+              ftl::enum_string(mCalibration.sizeCalibration).c_str());
+    }
 
     mOrientedRanges.size.axis = AMOTION_EVENT_AXIS_SIZE;
     mOrientedRanges.size.source = mSource;
