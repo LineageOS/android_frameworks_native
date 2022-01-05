@@ -733,6 +733,7 @@ private:
     void resetExternalStylus();
     void clearStylusDataPendingFlags();
 
+    int32_t clampResolution(const char* axisName, int32_t resolution) const;
     void initializeOrientedRanges();
     void initializeSizeRanges();
 

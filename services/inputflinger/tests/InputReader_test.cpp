@@ -106,6 +106,24 @@ static int32_t getInverseRotation(int32_t orientation) {
     }
 }
 
+static void assertAxisResolution(MultiTouchInputMapper& mapper, int axis, float resolution) {
+    InputDeviceInfo info;
+    mapper.populateDeviceInfo(&info);
+
+    const InputDeviceInfo::MotionRange* motionRange =
+            info.getMotionRange(axis, AINPUT_SOURCE_TOUCHSCREEN);
+    ASSERT_NEAR(motionRange->resolution, resolution, EPSILON);
+}
+
+static void assertAxisNotPresent(MultiTouchInputMapper& mapper, int axis) {
+    InputDeviceInfo info;
+    mapper.populateDeviceInfo(&info);
+
+    const InputDeviceInfo::MotionRange* motionRange =
+            info.getMotionRange(axis, AINPUT_SOURCE_TOUCHSCREEN);
+    ASSERT_EQ(nullptr, motionRange);
+}
+
 // --- FakePointerController ---
 
 class FakePointerController : public PointerControllerInterface {
@@ -6488,7 +6506,7 @@ void MultiTouchInputMapperTest::prepareAxes(int axes) {
         mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_WIDTH_MAJOR, RAW_TOOL_MIN, RAW_TOOL_MAX,
                                        0, 0);
         if (axes & MINOR) {
-            mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_WIDTH_MINOR, RAW_TOOL_MAX,
+            mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_WIDTH_MINOR, RAW_TOOL_MIN,
                                            RAW_TOOL_MAX, 0, 0);
         }
     }
@@ -6853,6 +6871,57 @@ TEST_F(MultiTouchInputMapperTest, Process_NormalMultiTouchGesture_WithoutTrackin
     // Should not have sent any more keys or motions.
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasNotCalled());
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+}
+
+TEST_F(MultiTouchInputMapperTest, AxisResolution_IsPopulated) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_POSITION_X, RAW_X_MIN, RAW_X_MAX, /*flat*/ 0,
+                                   /*fuzz*/ 0, /*resolution*/ 10);
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_POSITION_Y, RAW_Y_MIN, RAW_Y_MAX, /*flat*/ 0,
+                                   /*fuzz*/ 0, /*resolution*/ 11);
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_TOUCH_MAJOR, RAW_TOUCH_MIN, RAW_TOUCH_MAX,
+                                   /*flat*/ 0, /*fuzz*/ 0, /*resolution*/ 12);
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_TOUCH_MINOR, RAW_TOUCH_MIN, RAW_TOUCH_MAX,
+                                   /*flat*/ 0, /*fuzz*/ 0, /*resolution*/ 13);
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_WIDTH_MAJOR, RAW_TOOL_MIN, RAW_TOOL_MAX,
+                                   /*flat*/ 0, /*flat*/ 0, /*resolution*/ 14);
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_WIDTH_MINOR, RAW_TOOL_MIN, RAW_TOOL_MAX,
+                                   /*flat*/ 0, /*flat*/ 0, /*resolution*/ 15);
+
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    // X and Y axes
+    assertAxisResolution(mapper, AMOTION_EVENT_AXIS_X, 10 / X_PRECISION);
+    assertAxisResolution(mapper, AMOTION_EVENT_AXIS_Y, 11 / Y_PRECISION);
+    // Touch major and minor
+    assertAxisResolution(mapper, AMOTION_EVENT_AXIS_TOUCH_MAJOR, 12 * GEOMETRIC_SCALE);
+    assertAxisResolution(mapper, AMOTION_EVENT_AXIS_TOUCH_MINOR, 13 * GEOMETRIC_SCALE);
+    // Tool major and minor
+    assertAxisResolution(mapper, AMOTION_EVENT_AXIS_TOOL_MAJOR, 14 * GEOMETRIC_SCALE);
+    assertAxisResolution(mapper, AMOTION_EVENT_AXIS_TOOL_MINOR, 15 * GEOMETRIC_SCALE);
+}
+
+TEST_F(MultiTouchInputMapperTest, TouchMajorAndMinorAxes_DoNotAppearIfNotSupported) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_POSITION_X, RAW_X_MIN, RAW_X_MAX, /*flat*/ 0,
+                                   /*fuzz*/ 0, /*resolution*/ 10);
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_POSITION_Y, RAW_Y_MIN, RAW_Y_MAX, /*flat*/ 0,
+                                   /*fuzz*/ 0, /*resolution*/ 11);
+
+    // We do not add ABS_MT_TOUCH_MAJOR / MINOR or ABS_MT_WIDTH_MAJOR / MINOR axes
+
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    // Touch major and minor
+    assertAxisNotPresent(mapper, AMOTION_EVENT_AXIS_TOUCH_MAJOR);
+    assertAxisNotPresent(mapper, AMOTION_EVENT_AXIS_TOUCH_MINOR);
+    // Tool major and minor
+    assertAxisNotPresent(mapper, AMOTION_EVENT_AXIS_TOOL_MAJOR);
+    assertAxisNotPresent(mapper, AMOTION_EVENT_AXIS_TOOL_MINOR);
 }
 
 TEST_F(MultiTouchInputMapperTest, Process_NormalMultiTouchGesture_WithTrackingIds) {
