@@ -572,6 +572,7 @@ int SensorDevice::getHalDeviceVersion() const {
 }
 
 status_t SensorDevice::flush(void* /*ident*/, int handle) {
+    if (mHalWrapper == nullptr) return NO_INIT;
     return mHalWrapper->flush(handle);
 }
 
@@ -711,6 +712,7 @@ void SensorDevice::disableAllSensors() {
 }
 
 status_t SensorDevice::injectSensorData(const sensors_event_t* injected_sensor_event) {
+    if (mHalWrapper == nullptr) return NO_INIT;
     return mHalWrapper->injectSensorData(injected_sensor_event);
 }
 
@@ -720,6 +722,7 @@ status_t SensorDevice::setMode(uint32_t mode) {
 }
 
 int32_t SensorDevice::registerDirectChannel(const sensors_direct_mem_t* memory) {
+    if (mHalWrapper == nullptr) return NO_INIT;
     Mutex::Autolock _l(mLock);
 
     return mHalWrapper->registerDirectChannel(memory, nullptr);
@@ -731,6 +734,7 @@ void SensorDevice::unregisterDirectChannel(int32_t channelHandle) {
 
 int32_t SensorDevice::configureDirectChannel(int32_t sensorHandle, int32_t channelHandle,
                                              const struct sensors_direct_cfg_t* config) {
+    if (mHalWrapper == nullptr) return NO_INIT;
     Mutex::Autolock _l(mLock);
 
     return mHalWrapper->configureDirectChannel(sensorHandle, channelHandle, config);

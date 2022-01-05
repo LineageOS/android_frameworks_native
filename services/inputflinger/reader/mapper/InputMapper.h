@@ -45,7 +45,7 @@ public:
 
     inline int32_t getDeviceId() { return mDeviceContext.getId(); }
     inline InputDeviceContext& getDeviceContext() { return mDeviceContext; }
-    inline const std::string getDeviceName() { return mDeviceContext.getName(); }
+    inline const std::string getDeviceName() const { return mDeviceContext.getName(); }
     inline InputReaderContext* getContext() { return mDeviceContext.getContext(); }
     inline InputReaderPolicyInterface* getPolicy() { return getContext()->getPolicy(); }
     inline InputListenerInterface& getListener() { return getContext()->getListener(); }

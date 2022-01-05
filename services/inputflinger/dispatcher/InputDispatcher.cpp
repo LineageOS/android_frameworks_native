@@ -91,7 +91,6 @@ constexpr bool DEBUG_FOCUS = false;
 constexpr bool DEBUG_TOUCH_MODE = false;
 
 // Log debug messages about touch occlusion
-// STOPSHIP(b/169067926): Set to false
 constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 
 // Log debug messages about the app switch latency optimization.
