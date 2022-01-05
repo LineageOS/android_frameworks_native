@@ -119,6 +119,7 @@ private:
     // HAL implementations.
     std::mutex mDynamicSensorsMutex;
     std::condition_variable mDynamicSensorsCv;
+    static constexpr std::chrono::seconds MAX_DYN_SENSOR_WAIT{5};
 
     static const nsecs_t MINIMUM_EVENTS_PERIOD = 1000000; // 1000 Hz
     mutable Mutex mLock;                                  // protect mActivationCount[].batchParams
