@@ -481,7 +481,7 @@ void OutputLayer::writeOutputDependentPerFrameStateToHWC(HWC2::Layer* hwcLayer) 
     if (auto error = hwcLayer->setVisibleRegion(visibleRegion); error != hal::Error::NONE) {
         ALOGE("[%s] Failed to set visible region: %s (%d)", getLayerFE().getDebugName(),
               to_string(error).c_str(), static_cast<int32_t>(error));
-        outputDependentState.outputSpaceVisibleRegion.dump(LOG_TAG);
+        visibleRegion.dump(LOG_TAG);
     }
 
     const auto dataspace = outputDependentState.overrideInfo.buffer
