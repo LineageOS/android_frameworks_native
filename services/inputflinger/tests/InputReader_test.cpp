@@ -2330,6 +2330,17 @@ protected:
         mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     }
 
+    void assertReceivedMotion(int32_t action, const std::vector<Point>& points) {
+        NotifyMotionArgs args;
+        ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
+        EXPECT_EQ(action, args.action);
+        ASSERT_EQ(points.size(), args.pointerCount);
+        for (size_t i = 0; i < args.pointerCount; i++) {
+            EXPECT_EQ(points[i].x, args.pointerCoords[i].getX());
+            EXPECT_EQ(points[i].y, args.pointerCoords[i].getY());
+        }
+    }
+
     std::unique_ptr<UinputTouchScreen> mDevice;
 };
 
@@ -2340,16 +2351,19 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessSingleTouch) {
     // ACTION_DOWN
     mDevice->sendTrackingId(FIRST_TRACKING_ID);
     mDevice->sendDown(centerPoint);
+    mDevice->sendSync();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, args.action);
 
     // ACTION_MOVE
     mDevice->sendMove(centerPoint + Point(1, 1));
+    mDevice->sendSync();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
 
     // ACTION_UP
     mDevice->sendUp();
+    mDevice->sendSync();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_UP, args.action);
 }
@@ -2362,6 +2376,7 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessMultiTouch) {
     mDevice->sendSlot(FIRST_SLOT);
     mDevice->sendTrackingId(FIRST_TRACKING_ID);
     mDevice->sendDown(centerPoint);
+    mDevice->sendSync();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, args.action);
 
@@ -2369,25 +2384,127 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessMultiTouch) {
     const Point secondPoint = centerPoint + Point(100, 100);
     mDevice->sendSlot(SECOND_SLOT);
     mDevice->sendTrackingId(SECOND_TRACKING_ID);
-    mDevice->sendDown(secondPoint + Point(1, 1));
+    mDevice->sendDown(secondPoint);
+    mDevice->sendSync();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(ACTION_POINTER_1_DOWN, args.action);
 
     // ACTION_MOVE (Second slot)
-    mDevice->sendMove(secondPoint);
+    mDevice->sendMove(secondPoint + Point(1, 1));
+    mDevice->sendSync();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
 
     // ACTION_POINTER_UP (Second slot)
     mDevice->sendPointerUp();
+    mDevice->sendSync();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(ACTION_POINTER_1_UP, args.action);
 
     // ACTION_UP
     mDevice->sendSlot(FIRST_SLOT);
     mDevice->sendUp();
+    mDevice->sendSync();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_UP, args.action);
+}
+
+/**
+ * What happens when a pointer goes up while another pointer moves in the same frame? Are POINTER_UP
+ * events guaranteed to contain the same data as a preceding MOVE, or can they contain different
+ * data?
+ * In this test, we try to send a change in coordinates in Pointer 0 in the same frame as the
+ * liftoff of Pointer 1. We check that POINTER_UP event is generated first, and the MOVE event
+ * for Pointer 0 only is generated after.
+ * Suppose we are only interested in learning the movement of Pointer 0. If we only observe MOVE
+ * events, we will not miss any information.
+ * Even though the Pointer 1 up event contains updated Pointer 0 coordinates, there is another MOVE
+ * event generated afterwards that contains the newest movement of pointer 0.
+ * This is important for palm rejection. If there is a subsequent InputListener stage that detects
+ * palms, and wants to cancel Pointer 1, then it is safe to simply drop POINTER_1_UP event without
+ * losing information about non-palm pointers.
+ */
+TEST_F(TouchIntegrationTest, MultiTouch_PointerMoveAndSecondPointerUp) {
+    NotifyMotionArgs args;
+    const Point centerPoint = mDevice->getCenterPoint();
+
+    // ACTION_DOWN
+    mDevice->sendSlot(FIRST_SLOT);
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
+    mDevice->sendDown(centerPoint);
+    mDevice->sendSync();
+    assertReceivedMotion(AMOTION_EVENT_ACTION_DOWN, {centerPoint});
+
+    // ACTION_POINTER_DOWN (Second slot)
+    const Point secondPoint = centerPoint + Point(100, 100);
+    mDevice->sendSlot(SECOND_SLOT);
+    mDevice->sendTrackingId(SECOND_TRACKING_ID);
+    mDevice->sendDown(secondPoint);
+    mDevice->sendSync();
+    assertReceivedMotion(ACTION_POINTER_1_DOWN, {centerPoint, secondPoint});
+
+    // ACTION_MOVE (First slot)
+    mDevice->sendSlot(FIRST_SLOT);
+    mDevice->sendMove(centerPoint + Point(5, 5));
+    // ACTION_POINTER_UP (Second slot)
+    mDevice->sendSlot(SECOND_SLOT);
+    mDevice->sendPointerUp();
+    // Send a single sync for the above 2 pointer updates
+    mDevice->sendSync();
+
+    // First, we should get POINTER_UP for the second pointer
+    assertReceivedMotion(ACTION_POINTER_1_UP,
+                         {/*first pointer */ centerPoint + Point(5, 5),
+                          /*second pointer*/ secondPoint});
+
+    // Next, the MOVE event for the first pointer
+    assertReceivedMotion(AMOTION_EVENT_ACTION_MOVE, {centerPoint + Point(5, 5)});
+}
+
+/**
+ * Similar scenario as above. The difference is that when the second pointer goes up, it will first
+ * move, and then it will go up, all in the same frame.
+ * In this scenario, the movement of the second pointer just prior to liftoff is ignored, and never
+ * gets sent to the listener.
+ */
+TEST_F(TouchIntegrationTest, MultiTouch_PointerMoveAndSecondPointerMoveAndUp) {
+    NotifyMotionArgs args;
+    const Point centerPoint = mDevice->getCenterPoint();
+
+    // ACTION_DOWN
+    mDevice->sendSlot(FIRST_SLOT);
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
+    mDevice->sendDown(centerPoint);
+    mDevice->sendSync();
+    assertReceivedMotion(AMOTION_EVENT_ACTION_DOWN, {centerPoint});
+
+    // ACTION_POINTER_DOWN (Second slot)
+    const Point secondPoint = centerPoint + Point(100, 100);
+    mDevice->sendSlot(SECOND_SLOT);
+    mDevice->sendTrackingId(SECOND_TRACKING_ID);
+    mDevice->sendDown(secondPoint);
+    mDevice->sendSync();
+    assertReceivedMotion(ACTION_POINTER_1_DOWN, {centerPoint, secondPoint});
+
+    // ACTION_MOVE (First slot)
+    mDevice->sendSlot(FIRST_SLOT);
+    mDevice->sendMove(centerPoint + Point(5, 5));
+    // ACTION_POINTER_UP (Second slot)
+    mDevice->sendSlot(SECOND_SLOT);
+    mDevice->sendMove(secondPoint + Point(6, 6));
+    mDevice->sendPointerUp();
+    // Send a single sync for the above 2 pointer updates
+    mDevice->sendSync();
+
+    // First, we should get POINTER_UP for the second pointer
+    // The movement of the second pointer during the liftoff frame is ignored.
+    // The coordinates 'secondPoint + Point(6, 6)' are never sent to the listener.
+    assertReceivedMotion(ACTION_POINTER_1_UP,
+                         {/*first pointer */ centerPoint + Point(5, 5),
+                          /*second pointer*/ secondPoint});
+
+    // Next, the MOVE event for the first pointer
+    assertReceivedMotion(AMOTION_EVENT_ACTION_MOVE, {centerPoint + Point(5, 5)});
 }
 
 TEST_F(TouchIntegrationTest, InputEvent_ProcessPalm) {
@@ -2398,6 +2515,7 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessPalm) {
     mDevice->sendSlot(FIRST_SLOT);
     mDevice->sendTrackingId(FIRST_TRACKING_ID);
     mDevice->sendDown(centerPoint);
+    mDevice->sendSync();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, args.action);
 
@@ -2406,11 +2524,13 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessPalm) {
     mDevice->sendSlot(SECOND_SLOT);
     mDevice->sendTrackingId(SECOND_TRACKING_ID);
     mDevice->sendDown(secondPoint);
+    mDevice->sendSync();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(ACTION_POINTER_1_DOWN, args.action);
 
     // ACTION_MOVE (second slot)
     mDevice->sendMove(secondPoint + Point(1, 1));
+    mDevice->sendSync();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
 
@@ -2418,18 +2538,21 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessPalm) {
     // a palm event.
     // Expect to receive the ACTION_POINTER_UP with cancel flag.
     mDevice->sendToolType(MT_TOOL_PALM);
+    mDevice->sendSync();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(ACTION_POINTER_1_UP, args.action);
     ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, args.flags);
 
     // Send up to second slot, expect first slot send moving.
     mDevice->sendPointerUp();
+    mDevice->sendSync();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
 
     // Send ACTION_UP (first slot)
     mDevice->sendSlot(FIRST_SLOT);
     mDevice->sendUp();
+    mDevice->sendSync();
 
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_UP, args.action);
