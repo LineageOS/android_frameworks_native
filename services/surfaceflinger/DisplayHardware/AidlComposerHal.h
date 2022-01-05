@@ -207,7 +207,11 @@ public:
     Error getClientTargetProperty(Display display,
                                   IComposerClient::ClientTargetProperty* outClientTargetProperty,
                                   float* outClientTargetWhitePointNits) override;
+
+    // AIDL Composer HAL
     Error setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) override;
+    Error setLayerBlockingRegion(Display display, Layer layer,
+                                 const std::vector<IComposerClient::Rect>& blocking) override;
 
 private:
     // Many public functions above simply write a command into the command

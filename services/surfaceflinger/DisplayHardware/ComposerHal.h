@@ -237,6 +237,8 @@ public:
 
     // AIDL Composer
     virtual Error setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) = 0;
+    virtual Error setLayerBlockingRegion(Display display, Layer layer,
+                                         const std::vector<IComposerClient::Rect>& blocking) = 0;
 };
 
 } // namespace android::Hwc2

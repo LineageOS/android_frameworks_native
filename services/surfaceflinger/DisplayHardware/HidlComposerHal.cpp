@@ -1208,6 +1208,11 @@ Error HidlComposer::setLayerWhitePointNits(Display, Layer, float) {
     return Error::NONE;
 }
 
+Error HidlComposer::setLayerBlockingRegion(Display, Layer,
+                                           const std::vector<IComposerClient::Rect>&) {
+    return Error::NONE;
+}
+
 CommandReader::~CommandReader() {
     resetData();
 }

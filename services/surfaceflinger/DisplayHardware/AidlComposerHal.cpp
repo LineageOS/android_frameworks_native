@@ -1035,5 +1035,11 @@ Error AidlComposer::setLayerWhitePointNits(Display display, Layer layer, float w
     return Error::NONE;
 }
 
+Error AidlComposer::setLayerBlockingRegion(Display display, Layer layer,
+                                           const std::vector<IComposerClient::Rect>& blocking) {
+    mWriter.setLayerBlockingRegion(translate<int64_t>(display), translate<int64_t>(layer),
+                                   translate<AidlRect>(blocking));
+    return Error::NONE;
+}
 } // namespace Hwc2
 } // namespace android

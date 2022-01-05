@@ -305,6 +305,8 @@ public:
 
     // AIDL HAL
     [[clang::warn_unused_result]] virtual hal::Error setWhitePointNits(float whitePointNits) = 0;
+    [[clang::warn_unused_result]] virtual hal::Error setBlockingRegion(
+            const android::Region& region) = 0;
 };
 
 namespace impl {
@@ -351,6 +353,7 @@ public:
 
     // AIDL HAL
     hal::Error setWhitePointNits(float whitePointNits) override;
+    hal::Error setBlockingRegion(const android::Region& region) override;
 
 private:
     // These are references to data owned by HWC2::Device, which will outlive
@@ -366,6 +369,7 @@ private:
     // multiple times.
     android::Region mVisibleRegion = android::Region::INVALID_REGION;
     android::Region mDamageRegion = android::Region::INVALID_REGION;
+    android::Region mBlockingRegion = android::Region::INVALID_REGION;
     hal::Dataspace mDataSpace = hal::Dataspace::UNKNOWN;
     android::HdrMetadata mHdrMetadata;
     android::mat4 mColorMatrix;

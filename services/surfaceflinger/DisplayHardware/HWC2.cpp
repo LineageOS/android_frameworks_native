@@ -932,6 +932,21 @@ Error Layer::setWhitePointNits(float whitePointNits) {
     return static_cast<Error>(intError);
 }
 
+Error Layer::setBlockingRegion(const Region& region) {
+    if (CC_UNLIKELY(!mDisplay)) {
+        return Error::BAD_DISPLAY;
+    }
+
+    if (region.isRect() && mBlockingRegion.isRect() &&
+        (region.getBounds() == mBlockingRegion.getBounds())) {
+        return Error::NONE;
+    }
+    mBlockingRegion = region;
+    const auto hwcRects = convertRegionToHwcRects(region);
+    const auto intError = mComposer.setLayerBlockingRegion(mDisplay->getId(), mId, hwcRects);
+    return static_cast<Error>(intError);
+}
+
 } // namespace impl
 } // namespace HWC2
 } // namespace android
