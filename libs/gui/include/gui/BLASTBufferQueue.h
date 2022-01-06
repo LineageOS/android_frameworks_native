@@ -95,6 +95,8 @@ public:
             const std::vector<SurfaceControlStats>& stats);
     void releaseBufferCallback(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
                                uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount);
+    void releaseBufferCallbackLocked(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
+                                     uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount);
     void setNextTransaction(SurfaceComposerClient::Transaction *t);
     void mergeWithNextTransaction(SurfaceComposerClient::Transaction* t, uint64_t frameNumber);
     void setTransactionCompleteCallback(uint64_t frameNumber,
@@ -164,6 +166,12 @@ private:
     struct ReleasedBuffer {
         ReleaseCallbackId callbackId;
         sp<Fence> releaseFence;
+        bool operator==(const ReleasedBuffer& rhs) const {
+            // Only compare Id so if we somehow got two callbacks
+            // with different fences we don't decrement mNumAcquired
+            // too far.
+            return rhs.callbackId == callbackId;
+        }
     };
     std::deque<ReleasedBuffer> mPendingRelease GUARDED_BY(mMutex);
 

@@ -296,7 +296,7 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                                       transactionStats.latchTime, surfaceStats.acquireTime,
                                       transactionStats.presentFence,
                                       surfaceStats.previousReleaseFence, surfaceStats.transformHint,
-                                      surfaceStats.eventStats);
+                                      surfaceStats.eventStats, surfaceStats.currentMaxAcquiredBufferCount);
             }
 
             callbackFunction(transactionStats.latchTime, transactionStats.presentFence,
@@ -321,7 +321,7 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                                       transactionStats.latchTime, surfaceStats.acquireTime,
                                       transactionStats.presentFence,
                                       surfaceStats.previousReleaseFence, surfaceStats.transformHint,
-                                      surfaceStats.eventStats);
+                                      surfaceStats.eventStats, surfaceStats.currentMaxAcquiredBufferCount);
                 if (callbacksMap[callbackId].surfaceControls[surfaceStats.surfaceControl]) {
                     callbacksMap[callbackId]
                             .surfaceControls[surfaceStats.surfaceControl]

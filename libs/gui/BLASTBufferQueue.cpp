@@ -350,6 +350,16 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
                     transactionCompleteCallback = std::move(mTransactionCompleteCallback);
                     mTransactionCompleteFrameNumber = 0;
                 }
+                std::vector<ReleaseCallbackId> staleReleases;
+                for (const auto& [key, value]: mSubmitted) {
+                    if (currFrameNumber > key.framenumber) {
+                        staleReleases.push_back(key);
+                    }
+                }
+                for (const auto& staleRelease : staleReleases) {
+                    releaseBufferCallbackLocked(staleRelease, stat.previousReleaseFence ? stat.previousReleaseFence : Fence::NO_FENCE,
+                                                stat.transformHint, stat.currentMaxAcquiredBufferCount);
+                }
             } else {
                 BQA_LOGE("Failed to find matching SurfaceControl in transactionCallback");
             }
@@ -357,6 +367,7 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
             BQA_LOGE("No matching SurfaceControls found: mSurfaceControlsWithPendingCallback was "
                      "empty.");
         }
+
 
         decStrong((void*)transactionCallbackThunk);
     }
@@ -399,8 +410,14 @@ void BLASTBufferQueue::flushShadowQueue() {
 void BLASTBufferQueue::releaseBufferCallback(const ReleaseCallbackId& id,
                                              const sp<Fence>& releaseFence, uint32_t transformHint,
                                              uint32_t currentMaxAcquiredBufferCount) {
-    ATRACE_CALL();
     std::unique_lock _lock{mMutex};
+    releaseBufferCallbackLocked(id, releaseFence, transformHint, currentMaxAcquiredBufferCount);
+}
+
+void BLASTBufferQueue::releaseBufferCallbackLocked(const ReleaseCallbackId& id,
+                                                   const sp<Fence>& releaseFence, uint32_t transformHint,
+                                                   uint32_t currentMaxAcquiredBufferCount) {
+    ATRACE_CALL();
     BQA_LOGV("releaseBufferCallback %s", id.to_string().c_str());
 
     if (mSurfaceControl != nullptr) {
@@ -421,7 +438,10 @@ void BLASTBufferQueue::releaseBufferCallback(const ReleaseCallbackId& id,
 
     const auto numPendingBuffersToHold =
             isEGL ? std::max(0u, mMaxAcquiredBuffers - currentMaxAcquiredBufferCount) : 0;
-    mPendingRelease.emplace_back(ReleasedBuffer{id, releaseFence});
+    auto rb = ReleasedBuffer{id, releaseFence};
+    if (std::find(mPendingRelease.begin(), mPendingRelease.end(), rb) == mPendingRelease.end()) {
+        mPendingRelease.emplace_back(rb);
+    }
 
     // Release all buffers that are beyond the ones that we need to hold
     while (mPendingRelease.size() > numPendingBuffersToHold) {

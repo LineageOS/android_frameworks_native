@@ -135,7 +135,7 @@ private:
         void verifySurfaceControlStats(const SurfaceControlStats& surfaceControlStats,
                                        nsecs_t latchTime) const {
             const auto& [surfaceControl, latch, acquireTime, presentFence, previousReleaseFence,
-                         transformHint, frameEvents] = surfaceControlStats;
+                         transformHint, frameEvents, ignore] = surfaceControlStats;
 
             ASSERT_EQ(acquireTime > 0, mBufferResult == ExpectedResult::Buffer::ACQUIRED)
                     << "bad acquire time";
