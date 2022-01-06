@@ -721,7 +721,6 @@ void SurfaceFlinger::bootFinished() {
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
 
     mFlagManager = std::make_unique<android::FlagManager>();
-    mPowerAdvisor.enablePowerHint(mFlagManager->use_adpf_cpu_hint());
     mFrameTracer->initialize();
     mFrameTimeline->onBootFinished();
 
@@ -751,7 +750,18 @@ void SurfaceFlinger::bootFinished() {
         }
 
         readPersistentProperties();
+        std::optional<pid_t> renderEngineTid = getRenderEngine().getRenderEngineTid();
+        std::vector<int32_t> tidList;
+        tidList.emplace_back(gettid());
+        if (renderEngineTid.has_value()) {
+            tidList.emplace_back(*renderEngineTid);
+        }
         mPowerAdvisor.onBootFinished();
+        mPowerAdvisor.enablePowerHint(mFlagManager->use_adpf_cpu_hint());
+        if (mPowerAdvisor.usePowerHintSession()) {
+            mPowerAdvisor.startPowerHintSession(tidList);
+        }
+
         mBootStage = BootStage::FINISHED;
 
         if (property_get_bool("sf.debug.show_refresh_rate_overlay", false)) {
@@ -1922,6 +1932,13 @@ nsecs_t SurfaceFlinger::calculateExpectedPresentTime(DisplayStatInfo stats) cons
 }
 
 bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expectedVsyncTime) {
+    MainThreadScopedGuard mainThreadGuard(SF_MAIN_THREAD);
+    // we set this once at the beginning of commit to ensure consistency throughout the whole frame
+    mPowerHintSessionData.sessionEnabled = mPowerAdvisor.usePowerHintSession();
+    if (mPowerHintSessionData.sessionEnabled) {
+        mPowerHintSessionData.commitStart = systemTime();
+    }
+
     // calculate the expected present time once and use the cached
     // value throughout this frame to make sure all layers are
     // seeing this same value.
@@ -1935,6 +1952,10 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     const nsecs_t lastScheduledPresentTime = mScheduledPresentTime;
     mScheduledPresentTime = expectedVsyncTime;
 
+    if (mPowerHintSessionData.sessionEnabled) {
+        mPowerAdvisor.setTargetWorkDuration(mExpectedPresentTime -
+                                            mPowerHintSessionData.commitStart);
+    }
     const auto vsyncIn = [&] {
         if (!ATRACE_ENABLED()) return 0.f;
         return (mExpectedPresentTime - systemTime()) / 1e6f;
@@ -2074,6 +2095,10 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
 
 void SurfaceFlinger::composite(nsecs_t frameTime) {
     ATRACE_CALL();
+    MainThreadScopedGuard mainThreadGuard(SF_MAIN_THREAD);
+    if (mPowerHintSessionData.sessionEnabled) {
+        mPowerHintSessionData.compositeStart = systemTime();
+    }
 
     compositionengine::CompositionRefreshArgs refreshArgs;
     const auto& displays = ON_MAIN_THREAD(mDisplays);
@@ -2127,6 +2152,11 @@ void SurfaceFlinger::composite(nsecs_t frameTime) {
     const auto presentTime = systemTime();
 
     mCompositionEngine->present(refreshArgs);
+
+    if (mPowerHintSessionData.sessionEnabled) {
+        mPowerHintSessionData.presentEnd = systemTime();
+    }
+
     mTimeStats->recordFrameDuration(frameTime, systemTime());
 
     mScheduler->onPostComposition(presentTime);
@@ -2173,6 +2203,13 @@ void SurfaceFlinger::composite(nsecs_t frameTime) {
 
     if (mCompositionEngine->needsAnotherUpdate()) {
         scheduleCommit(FrameHint::kNone);
+    }
+
+    // calculate total render time for performance hinting if adpf cpu hint is enabled,
+    if (mPowerHintSessionData.sessionEnabled) {
+        const nsecs_t flingerDuration =
+                (mPowerHintSessionData.presentEnd - mPowerHintSessionData.commitStart);
+        mPowerAdvisor.sendActualWorkDuration(flingerDuration, mPowerHintSessionData.presentEnd);
     }
 }
 
