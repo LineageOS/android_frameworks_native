@@ -17,6 +17,7 @@
 #pragma once
 
 #include <bpf/BpfMap.h>
+#include <stats_pull_atom_callback.h>
 #include <utils/Mutex.h>
 #include <utils/String16.h>
 #include <utils/Vector.h>
@@ -49,6 +50,13 @@ private:
     static bool attachTracepoint(const char* program_path, const char* tracepoint_group,
                                  const char* tracepoint_name);
 
+    // Native atom puller callback registered in statsd.
+    static AStatsManager_PullAtomCallbackReturn pullAtomCallback(int32_t atomTag,
+                                                                 AStatsEventList* data,
+                                                                 void* cookie);
+
+    AStatsManager_PullAtomCallbackReturn pullFrequencyAtoms(AStatsEventList* data);
+
     // Periodically calls |clearMapIfNeeded| to clear the |mGpuWorkMap| map, if
     // needed.
     //
@@ -60,6 +68,14 @@ private:
     // Checks whether the |mGpuWorkMap| map is nearly full and, if so, clears
     // it.
     void clearMapIfNeeded() REQUIRES(mMutex);
+
+    // Clears the |mGpuWorkMap| map.
+    void clearMap() REQUIRES(mMutex);
+
+    // Waits for required permissions to become set. This seems to be needed
+    // because platform service permissions might not be set when a service
+    // first starts. See b/214085769.
+    void waitForPermissions();
 
     // Indicates whether our eBPF components have been initialized.
     std::atomic<bool> mInitialized = false;
@@ -89,6 +105,22 @@ private:
     // The wait duration for the map clearer thread; the thread checks the map
     // every ~1 hour.
     static constexpr uint32_t kMapClearerWaitDurationSeconds = 60 * 60;
+
+    // Whether our |pullAtomCallback| function is registered.
+    bool mStatsdRegistered GUARDED_BY(mMutex) = false;
+
+    // The number of randomly chosen (i.e. sampled) UIDs to log stats for.
+    static constexpr int kNumSampledUids = 10;
+
+    // The previous time point at which |mGpuWorkMap| was cleared.
+    std::chrono::steady_clock::time_point mPreviousMapClearTimePoint GUARDED_BY(mMutex);
+
+    // Permission to register a statsd puller.
+    static constexpr char16_t kPermissionRegisterStatsPullAtom[] =
+            u"android.permission.REGISTER_STATS_PULL_ATOM";
+
+    // Time limit for waiting for permissions.
+    static constexpr int kPermissionsWaitTimeoutSeconds = 30;
 };
 
 } // namespace gpuwork

@@ -26,10 +26,13 @@ cc_library_shared {
     ],
     shared_libs: [
         "libbase",
+        "libbinder",
         "libbpf_bcc",
         "libbpf_android",
         "libcutils",
         "liblog",
+        "libstatslog",
+        "libstatspull",
         "libutils",
     ],
     export_include_dirs: [
@@ -41,6 +44,7 @@ cc_library_shared {
     export_shared_lib_headers: [
         "libbase",
         "libbpf_android",
+        "libstatspull",
     ],
     cppflags: [
         "-Wall",
