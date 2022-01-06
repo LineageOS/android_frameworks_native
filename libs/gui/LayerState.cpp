@@ -677,6 +677,10 @@ status_t LayerCaptureArgs::read(const Parcel& input) {
     return NO_ERROR;
 }
 
+ReleaseCallbackId BufferData::generateReleaseCallbackId() const {
+    return {buffer->getId(), frameNumber};
+}
+
 status_t BufferData::write(Parcel& output) const {
     SAFE_PARCEL(output.writeInt32, flags.get());
 
