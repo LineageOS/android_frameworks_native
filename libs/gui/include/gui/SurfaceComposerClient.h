@@ -416,7 +416,7 @@ public:
 
         void cacheBuffers();
         void registerSurfaceControlForCallback(const sp<SurfaceControl>& sc);
-        void setReleaseBufferCallback(BufferData*, const ReleaseCallbackId&, ReleaseBufferCallback);
+        void setReleaseBufferCallback(BufferData*, ReleaseBufferCallback);
 
     public:
         Transaction();
@@ -490,7 +490,6 @@ public:
         Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
                                const std::optional<sp<Fence>>& fence = std::nullopt,
                                const std::optional<uint64_t>& frameNumber = std::nullopt,
-                               const ReleaseCallbackId& id = ReleaseCallbackId::INVALID_ID,
                                ReleaseBufferCallback callback = nullptr);
         std::optional<BufferData> getAndClearBuffer(const sp<SurfaceControl>& sc);
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
