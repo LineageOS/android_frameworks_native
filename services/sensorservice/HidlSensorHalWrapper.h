@@ -124,12 +124,6 @@ public:
 private:
     sp<::android::hardware::sensors::V2_1::implementation::ISensorsWrapperBase> mSensors;
     sp<::android::hardware::sensors::V2_1::ISensorsCallback> mCallback;
-    std::vector<sensor_t> mSensorList;
-    std::unordered_map<int32_t, sensor_t> mConnectedDynamicSensors;
-
-    std::mutex mDynamicSensorsMutex;
-    std::condition_variable mDynamicSensorsCv;
-    static constexpr std::chrono::seconds MAX_DYN_SENSOR_WAIT{5};
 
     // Keep track of any hidl transport failures
     SensorServiceUtil::RingBuffer<HidlTransportErrorLog> mHidlTransportErrors;
@@ -153,9 +147,9 @@ private:
 
     void convertToSensorEvent(const Event& src, sensors_event_t* dst);
 
-    void convertToSensorEventsAndQuantize(const hardware::hidl_vec<Event>& src,
-                                          const hardware::hidl_vec<SensorInfo>& dynamicSensorsAdded,
-                                          sensors_event_t* dst);
+    void convertToSensorEvents(const hardware::hidl_vec<Event>& src,
+                               const hardware::hidl_vec<SensorInfo>& dynamicSensorsAdded,
+                               sensors_event_t* dst);
 
     bool connectHidlService();
 
@@ -166,8 +160,6 @@ private:
 
     typedef hardware::MessageQueue<uint32_t, hardware::kSynchronizedReadWrite> WakeLockQueue;
     std::unique_ptr<WakeLockQueue> mWakeLockQueue;
-
-    float getResolutionForSensor(int sensorHandle);
 
     hardware::EventFlag* mEventQueueFlag;
     hardware::EventFlag* mWakeLockQueueFlag;
