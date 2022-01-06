@@ -95,4 +95,7 @@ interface IInputConstants
          */
         INTERCEPTS_STYLUS = 0x00000040,
     }
+
+    /* The default pointer acceleration value. */
+    const int DEFAULT_POINTER_ACCELERATION = 3;
 }
