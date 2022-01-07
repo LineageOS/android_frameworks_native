@@ -214,13 +214,27 @@ void convertToSensorEvent(const Event &src, sensors_event_t *dst) {
             dstInfo->type = (int32_t)srcInfo.type;
             dstInfo->serial = srcInfo.serial;
 
-            // TODO(b/195593357): Finish additional info conversion
-            // CHECK_EQ(sizeof(srcInfo.payload.values), sizeof(dstInfo->data_int32));
-
-            // memcpy(dstInfo->data_int32,
-            //        &srcInfo.u,
-            //        sizeof(dstInfo->data_int32));
-
+            switch (srcInfo.payload.getTag()) {
+                case AdditionalInfo::AdditionalInfoPayload::Tag::dataInt32: {
+                    const auto &values =
+                            srcInfo.payload.get<AdditionalInfo::AdditionalInfoPayload::dataInt32>()
+                                    .values;
+                    CHECK_EQ(values.size() * sizeof(int32_t), sizeof(dstInfo->data_int32));
+                    memcpy(dstInfo->data_int32, values.data(), sizeof(dstInfo->data_int32));
+                    break;
+                }
+                case AdditionalInfo::AdditionalInfoPayload::Tag::dataFloat: {
+                    const auto &values =
+                            srcInfo.payload.get<AdditionalInfo::AdditionalInfoPayload::dataFloat>()
+                                    .values;
+                    CHECK_EQ(values.size() * sizeof(float), sizeof(dstInfo->data_float));
+                    memcpy(dstInfo->data_float, values.data(), sizeof(dstInfo->data_float));
+                    break;
+                }
+                default: {
+                    ALOGE("Invalid sensor additional info tag: %d", srcInfo.payload.getTag());
+                }
+            }
             break;
         }
 
@@ -359,7 +373,10 @@ void convertFromSensorEvent(const sensors_event_t &src, Event *dst) {
             info.type = (AdditionalInfo::AdditionalInfoType)srcInfo.type;
             info.serial = srcInfo.serial;
 
-            // TODO(b/195593357): Finish additional info conversion
+            AdditionalInfo::AdditionalInfoPayload::Int32Values data;
+            CHECK_EQ(data.values.size() * sizeof(int32_t), sizeof(srcInfo.data_int32));
+            memcpy(data.values.data(), srcInfo.data_int32, sizeof(srcInfo.data_int32));
+            info.payload.set<AdditionalInfo::AdditionalInfoPayload::Tag::dataInt32>(data);
 
             dst->payload.set<Event::EventPayload::Tag::additional>(info);
             break;
@@ -445,7 +462,6 @@ bool AidlSensorHalWrapper::connect(SensorDeviceCallback *callback) {
 
         ndk::SpAIBinder binder(AServiceManager_waitForService(aidlServiceName.c_str()));
         if (binder.get() != nullptr) {
-
             mSensors = ISensors::fromBinder(binder);
             mEventQueue = std::make_unique<AidlMessageQueue<
                     Event, SynchronizedReadWrite>>(MAX_RECEIVE_BUFFER_EVENT_COUNT,

@@ -1131,16 +1131,15 @@ binder::Status InstalldNativeService::fixupAppData(const std::optional<std::stri
 }
 
 static int32_t copy_directory_recursive(const char* from, const char* to) {
-    char *argv[] = {
-        (char*) kCpPath,
-        (char*) "-F", /* delete any existing destination file first (--remove-destination) */
-        (char*) "-p", /* preserve timestamps, ownership, and permissions */
-        (char*) "-R", /* recurse into subdirectories (DEST must be a directory) */
-        (char*) "-P", /* Do not follow symlinks [default] */
-        (char*) "-d", /* don't dereference symlinks */
-        (char*) from,
-        (char*) to
-    };
+    char* argv[] =
+            {(char*)kCpPath,
+             (char*)"-F", /* delete any existing destination file first (--remove-destination) */
+             (char*)"--preserve=mode,ownership,timestamps,xattr", /* preserve properties */
+             (char*)"-R", /* recurse into subdirectories (DEST must be a directory) */
+             (char*)"-P", /* Do not follow symlinks [default] */
+             (char*)"-d", /* don't dereference symlinks */
+             (char*)from,
+             (char*)to};
 
     LOG(DEBUG) << "Copying " << from << " to " << to;
     return logwrap_fork_execvp(ARRAY_SIZE(argv), argv, nullptr, false, LOG_ALOG, false, nullptr);
