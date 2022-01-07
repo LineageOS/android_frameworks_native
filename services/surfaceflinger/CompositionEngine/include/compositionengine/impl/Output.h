@@ -45,6 +45,7 @@ public:
     void setLayerCachingTexturePoolEnabled(bool) override;
     void setProjection(ui::Rotation orientation, const Rect& layerStackSpaceRect,
                        const Rect& orientedDisplaySpaceRect) override;
+    void setNextBrightness(float brightness) override;
     void setDisplaySize(const ui::Size&) override;
     void setLayerFilter(ui::LayerFilter) override;
     ui::Transform::RotationFlags getTransformHint() const override;

@@ -1679,6 +1679,17 @@ status_t SurfaceFlinger::getDisplayBrightnessSupport(const sp<IBinder>& displayT
     return NO_ERROR;
 }
 
+bool SurfaceFlinger::hasVisibleHdrLayer(const sp<DisplayDevice>& display) {
+    bool hasHdrLayers = false;
+    mDrawingState.traverse([&,
+                            compositionDisplay = display->getCompositionDisplay()](Layer* layer) {
+        hasHdrLayers |= (layer->isVisible() &&
+                         compositionDisplay->includesLayer(layer->getCompositionEngineLayerFE()) &&
+                         isHdrDataspace(layer->getDataSpace()));
+    });
+    return hasHdrLayers;
+}
+
 status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
                                               const gui::DisplayBrightness& brightness) {
     if (!displayToken) {
@@ -1688,13 +1699,33 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
     const char* const whence = __func__;
     return ftl::chain(mScheduler->schedule([=]() MAIN_THREAD {
                if (const auto display = getDisplayDeviceLocked(displayToken)) {
-                   if (enableSdrDimming) {
+                   const bool supportsDisplayBrightnessCommand =
+                           getHwComposer().getComposer()->isSupported(
+                                   Hwc2::Composer::OptionalFeature::DisplayBrightnessCommand);
+                   // If we support applying display brightness as a command, then we also support
+                   // dimming SDR layers.
+                   // TODO(b/212634488): Once AIDL composer implementations are finalized, remove
+                   // the enableSdrDimming check, as dimming support will be expected for AIDL
+                   // composer.
+                   if (enableSdrDimming && supportsDisplayBrightnessCommand) {
                        display->getCompositionDisplay()
                                ->setDisplayBrightness(brightness.sdrWhitePointNits,
                                                       brightness.displayBrightnessNits);
+                       MAIN_THREAD_GUARD(display->stageBrightness(brightness.displayBrightness));
+                       if (hasVisibleHdrLayer(display)) {
+                           scheduleComposite(FrameHint::kNone);
+                       } else {
+                           scheduleCommit(FrameHint::kNone);
+                       }
+                       return ftl::yield<status_t>(OK);
+                   } else {
+                       return getHwComposer().setDisplayBrightness(
+                               display->getPhysicalId(), brightness.displayBrightness,
+                               Hwc2::Composer::DisplayBrightnessOptions{.applyImmediately = true,
+                                                                        .sdrDimmingEnabled =
+                                                                                enableSdrDimming});
                    }
-                   return getHwComposer().setDisplayBrightness(display->getPhysicalId(),
-                                                               brightness.displayBrightness);
+
                } else {
                    ALOGE("%s: Invalid display token %p", whence, displayToken.get());
                    return ftl::yield<status_t>(NAME_NOT_FOUND);
@@ -2106,6 +2137,8 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
 
     updateCursorAsync();
     updateInputFlinger();
+
+    MAIN_THREAD_GUARD(persistDisplayBrightness(mustComposite));
 
     return mustComposite && CC_LIKELY(mBootStage != BootStage::BOOTLOADER);
 }
@@ -3153,6 +3186,34 @@ void SurfaceFlinger::updateInputFlinger() {
     });
 
     mInputWindowCommands.clear();
+}
+
+void SurfaceFlinger::persistDisplayBrightness(bool needsComposite) {
+    const bool supportsDisplayBrightnessCommand = getHwComposer().getComposer()->isSupported(
+            Hwc2::Composer::OptionalFeature::DisplayBrightnessCommand);
+    if (!supportsDisplayBrightnessCommand) {
+        return;
+    }
+
+    const auto& displays = ON_MAIN_THREAD(mDisplays);
+
+    for (const auto& [_, display] : displays) {
+        if (const auto brightness = display->getStagedBrightness(); brightness) {
+            if (!needsComposite) {
+                const status_t error =
+                        getHwComposer()
+                                .setDisplayBrightness(display->getPhysicalId(), *brightness,
+                                                      Hwc2::Composer::DisplayBrightnessOptions{
+                                                              .applyImmediately = true})
+                                .get();
+
+                ALOGE_IF(error != NO_ERROR,
+                         "Error setting display brightness for display %s: %d (%s)",
+                         display->getDebugName().c_str(), error, strerror(error));
+            }
+            display->persistBrightness(needsComposite);
+        }
+    }
 }
 
 void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,

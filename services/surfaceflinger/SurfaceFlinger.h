@@ -676,6 +676,9 @@ private:
     void setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode)
             REQUIRES(mStateLock);
 
+    // Returns true if the display has a visible HDR layer in its layer stack.
+    bool hasVisibleHdrLayer(const sp<DisplayDevice>& display) REQUIRES(mStateLock);
+
     // Sets the desired display mode specs.
     status_t setDesiredDisplayModeSpecsInternal(
             const sp<DisplayDevice>& display,
@@ -692,6 +695,7 @@ private:
     void updateLayerGeometry();
 
     void updateInputFlinger();
+    void persistDisplayBrightness(bool needsComposite) REQUIRES(SF_MAIN_THREAD);
     void buildWindowInfos(std::vector<gui::WindowInfo>& outWindowInfos,
                           std::vector<gui::DisplayInfo>& outDisplayInfos);
     void commitInputWindowCommands() REQUIRES(mStateLock);

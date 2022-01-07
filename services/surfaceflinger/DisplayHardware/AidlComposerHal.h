@@ -180,7 +180,8 @@ public:
     Error setLayerPerFrameMetadataBlobs(
             Display display, Layer layer,
             const std::vector<IComposerClient::PerFrameMetadataBlob>& metadata) override;
-    Error setDisplayBrightness(Display display, float brightness) override;
+    Error setDisplayBrightness(Display display, float brightness,
+                               const DisplayBrightnessOptions& options) override;
 
     // Composer HAL 2.4
     Error getDisplayCapabilities(

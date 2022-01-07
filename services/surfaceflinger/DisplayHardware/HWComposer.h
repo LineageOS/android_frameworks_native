@@ -192,7 +192,9 @@ public:
                                                DisplayedFrameStats* outStats) = 0;
 
     // Sets the brightness of a display.
-    virtual std::future<status_t> setDisplayBrightness(PhysicalDisplayId, float brightness) = 0;
+    virtual std::future<status_t> setDisplayBrightness(
+            PhysicalDisplayId, float brightness,
+            const Hwc2::Composer::DisplayBrightnessOptions&) = 0;
 
     // Events handling ---------------------------------------------------------
 
@@ -340,7 +342,9 @@ public:
                                               uint64_t maxFrames) override;
     status_t getDisplayedContentSample(HalDisplayId, uint64_t maxFrames, uint64_t timestamp,
                                        DisplayedFrameStats* outStats) override;
-    std::future<status_t> setDisplayBrightness(PhysicalDisplayId, float brightness) override;
+    std::future<status_t> setDisplayBrightness(
+            PhysicalDisplayId, float brightness,
+            const Hwc2::Composer::DisplayBrightnessOptions&) override;
 
     // Events handling ---------------------------------------------------------
 

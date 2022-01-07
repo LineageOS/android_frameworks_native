@@ -37,8 +37,6 @@
 #include <iterator>
 #include <set>
 
-#include "ComposerHal.h"
-
 using aidl::android::hardware::graphics::composer3::Composition;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
 
@@ -532,9 +530,10 @@ Error Display::presentOrValidate(nsecs_t expectedPresentTime, uint32_t* outNumTy
     return error;
 }
 
-std::future<Error> Display::setDisplayBrightness(float brightness) {
-    return ftl::defer([composer = &mComposer, id = mId, brightness] {
-        const auto intError = composer->setDisplayBrightness(id, brightness);
+std::future<Error> Display::setDisplayBrightness(
+        float brightness, const Hwc2::Composer::DisplayBrightnessOptions& options) {
+    return ftl::defer([composer = &mComposer, id = mId, brightness, options] {
+        const auto intError = composer->setDisplayBrightness(id, brightness, options);
         return static_cast<Error>(intError);
     });
 }

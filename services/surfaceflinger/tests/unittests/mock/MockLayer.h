@@ -34,6 +34,7 @@ public:
     MOCK_METHOD0(createClone, sp<Layer>());
     MOCK_CONST_METHOD0(getFrameRateForLayerTree, FrameRate());
     MOCK_CONST_METHOD0(getOwnerUid, uid_t());
+    MOCK_CONST_METHOD0(getDataSpace, ui::Dataspace());
 };
 
 } // namespace android::mock
