@@ -61,7 +61,7 @@ struct DozeNotSupportedVariant {
 struct EventThreadBaseSupportedVariant {
     static void setupVsyncAndEventThreadNoCallExpectations(DisplayTransactionTest* test) {
         // The callback should not be notified to toggle VSYNC.
-        EXPECT_CALL(test->mSchedulerCallback, setVsyncEnabled(_)).Times(0);
+        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_)).Times(0);
 
         // The event thread should not be notified.
         EXPECT_CALL(*test->mEventThread, onScreenReleased()).Times(0);
@@ -88,7 +88,7 @@ struct EventThreadNotSupportedVariant : public EventThreadBaseSupportedVariant {
 struct EventThreadIsSupportedVariant : public EventThreadBaseSupportedVariant {
     static void setupAcquireAndEnableVsyncCallExpectations(DisplayTransactionTest* test) {
         // The callback should be notified to enable VSYNC.
-        EXPECT_CALL(test->mSchedulerCallback, setVsyncEnabled(true)).Times(1);
+        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(true)).Times(1);
 
         // The event thread should be notified that the screen was acquired.
         EXPECT_CALL(*test->mEventThread, onScreenAcquired()).Times(1);
@@ -96,7 +96,7 @@ struct EventThreadIsSupportedVariant : public EventThreadBaseSupportedVariant {
 
     static void setupReleaseAndDisableVsyncCallExpectations(DisplayTransactionTest* test) {
         // The callback should be notified to disable VSYNC.
-        EXPECT_CALL(test->mSchedulerCallback, setVsyncEnabled(false)).Times(1);
+        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(false)).Times(1);
 
         // The event thread should not be notified that the screen was released.
         EXPECT_CALL(*test->mEventThread, onScreenReleased()).Times(1);

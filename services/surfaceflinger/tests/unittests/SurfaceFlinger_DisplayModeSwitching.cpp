@@ -42,13 +42,18 @@ public:
 
         mFlinger.onComposerHalHotplug(PrimaryDisplayVariant::HWC_DISPLAY_ID, Connection::CONNECTED);
 
-        mDisplay = PrimaryDisplayVariant::makeFakeExistingDisplayInjector(this)
-                           .setSupportedModes({kDisplayMode60, kDisplayMode90, kDisplayMode120,
-                                               kDisplayMode90DifferentResolution})
-                           .setActiveMode(kDisplayModeId60)
-                           .inject();
+        {
+            DisplayModes modes = {kDisplayMode60, kDisplayMode90, kDisplayMode120,
+                                  kDisplayMode90DifferentResolution};
+            const DisplayModeId activeModeId = kDisplayModeId60;
+            auto configs = std::make_shared<scheduler::RefreshRateConfigs>(modes, activeModeId);
 
-        setupScheduler();
+            mDisplay = PrimaryDisplayVariant::makeFakeExistingDisplayInjector(this)
+                               .setDisplayModes(modes, activeModeId, std::move(configs))
+                               .inject();
+        }
+
+        setupScheduler(mDisplay->holdRefreshRateConfigs());
 
         // isVsyncPeriodSwitchSupported should return true, otherwise the SF's HWC proxy
         // will call setActiveConfig instead of setActiveConfigWithConstraints.
@@ -57,7 +62,7 @@ public:
     }
 
 protected:
-    void setupScheduler();
+    void setupScheduler(std::shared_ptr<scheduler::RefreshRateConfigs>);
     void testChangeRefreshRate(bool isDisplayActive, bool isRefreshRequired);
 
     sp<DisplayDevice> mDisplay;
@@ -108,7 +113,8 @@ protected:
                     .build();
 };
 
-void DisplayModeSwitchingTest::setupScheduler() {
+void DisplayModeSwitchingTest::setupScheduler(
+        std::shared_ptr<scheduler::RefreshRateConfigs> configs) {
     auto eventThread = std::make_unique<mock::EventThread>();
     mAppEventThread = eventThread.get();
     auto sfEventThread = std::make_unique<mock::EventThread>();
@@ -132,8 +138,9 @@ void DisplayModeSwitchingTest::setupScheduler() {
                     Return(TestableSurfaceFlinger::FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
     EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
     mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
-                            std::move(eventThread), std::move(sfEventThread), /*callback*/ nullptr,
-                            /*hasMultipleModes*/ true);
+                            std::move(eventThread), std::move(sfEventThread),
+                            TestableSurfaceFlinger::SchedulerCallbackImpl::kNoOp,
+                            std::move(configs));
 }
 
 TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithRefreshRequired) {
