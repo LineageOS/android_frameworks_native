@@ -37,6 +37,7 @@
 #include "ComposerHal.h"
 #include "Hal.h"
 
+#include <aidl/android/hardware/graphics/composer3/Color.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
@@ -279,7 +280,8 @@ public:
             const android::Region& damage) = 0;
 
     [[clang::warn_unused_result]] virtual hal::Error setBlendMode(hal::BlendMode mode) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setColor(hal::Color color) = 0;
+    [[clang::warn_unused_result]] virtual hal::Error setColor(
+            aidl::android::hardware::graphics::composer3::Color color) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setCompositionType(
             aidl::android::hardware::graphics::composer3::Composition type) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setDataspace(hal::Dataspace dataspace) = 0;
@@ -330,7 +332,7 @@ public:
     hal::Error setSurfaceDamage(const android::Region& damage) override;
 
     hal::Error setBlendMode(hal::BlendMode mode) override;
-    hal::Error setColor(hal::Color color) override;
+    hal::Error setColor(aidl::android::hardware::graphics::composer3::Color color) override;
     hal::Error setCompositionType(
             aidl::android::hardware::graphics::composer3::Composition type) override;
     hal::Error setDataspace(hal::Dataspace dataspace) override;

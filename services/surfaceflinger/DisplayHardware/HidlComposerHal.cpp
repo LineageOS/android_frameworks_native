@@ -626,11 +626,29 @@ Error HidlComposer::setLayerBlendMode(Display display, Layer layer,
     return Error::NONE;
 }
 
-Error HidlComposer::setLayerColor(Display display, Layer layer,
-                                  const IComposerClient::Color& color) {
+static IComposerClient::Color to_hidl_type(
+        aidl::android::hardware::graphics::composer3::Color color) {
+    const auto floatColorToUint8Clamped = [](float val) -> uint8_t {
+        const auto intVal = static_cast<uint64_t>(std::round(255.0f * val));
+        const auto minVal = static_cast<uint64_t>(0);
+        const auto maxVal = static_cast<uint64_t>(255);
+        return std::clamp(intVal, minVal, maxVal);
+    };
+
+    return IComposerClient::Color{
+            floatColorToUint8Clamped(color.r),
+            floatColorToUint8Clamped(color.g),
+            floatColorToUint8Clamped(color.b),
+            floatColorToUint8Clamped(color.a),
+    };
+}
+
+Error HidlComposer::setLayerColor(
+        Display display, Layer layer,
+        const aidl::android::hardware::graphics::composer3::Color& color) {
     mWriter.selectDisplay(display);
     mWriter.selectLayer(layer);
-    mWriter.setLayerColor(color);
+    mWriter.setLayerColor(to_hidl_type(color));
     return Error::NONE;
 }
 

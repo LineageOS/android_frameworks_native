@@ -97,7 +97,8 @@ public:
     MOCK_METHOD3(setLayerSurfaceDamage,
                  Error(Display, Layer, const std::vector<IComposerClient::Rect>&));
     MOCK_METHOD3(setLayerBlendMode, Error(Display, Layer, IComposerClient::BlendMode));
-    MOCK_METHOD3(setLayerColor, Error(Display, Layer, const IComposerClient::Color&));
+    MOCK_METHOD3(setLayerColor,
+                 Error(Display, Layer, const aidl::android::hardware::graphics::composer3::Color&));
     MOCK_METHOD3(setLayerCompositionType,
                  Error(Display, Layer, aidl::android::hardware::graphics::composer3::Composition));
     MOCK_METHOD3(setLayerDataspace, Error(Display, Layer, Dataspace));

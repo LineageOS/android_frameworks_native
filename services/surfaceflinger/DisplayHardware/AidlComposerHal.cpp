@@ -110,16 +110,6 @@ AidlFRect translate(IComposerClient::FRect x) {
 }
 
 template <>
-Color translate(IComposerClient::Color x) {
-    return Color{
-            .r = static_cast<int8_t>(x.r),
-            .g = static_cast<int8_t>(x.g),
-            .b = static_cast<int8_t>(x.b),
-            .a = static_cast<int8_t>(x.a),
-    };
-}
-
-template <>
 AidlPerFrameMetadataBlob translate(IComposerClient::PerFrameMetadataBlob x) {
     AidlPerFrameMetadataBlob blob;
     blob.key = translate<AidlPerFrameMetadataKey>(x.key),
@@ -670,10 +660,8 @@ Error AidlComposer::setLayerBlendMode(Display display, Layer layer,
     return Error::NONE;
 }
 
-Error AidlComposer::setLayerColor(Display display, Layer layer,
-                                  const IComposerClient::Color& color) {
-    mWriter.setLayerColor(translate<int64_t>(display), translate<int64_t>(layer),
-                          translate<Color>(color));
+Error AidlComposer::setLayerColor(Display display, Layer layer, const Color& color) {
+    mWriter.setLayerColor(translate<int64_t>(display), translate<int64_t>(layer), color);
     return Error::NONE;
 }
 

@@ -139,7 +139,7 @@ public:
     Error setLayerSurfaceDamage(Display display, Layer layer,
                                 const std::vector<IComposerClient::Rect>& damage) override;
     Error setLayerBlendMode(Display display, Layer layer, IComposerClient::BlendMode mode) override;
-    Error setLayerColor(Display display, Layer layer, const IComposerClient::Color& color) override;
+    Error setLayerColor(Display display, Layer layer, const Color& color) override;
     Error setLayerCompositionType(
             Display display, Layer layer,
             aidl::android::hardware::graphics::composer3::Composition type) override;

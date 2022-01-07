@@ -37,6 +37,7 @@
 #include <iterator>
 #include <set>
 
+using aidl::android::hardware::graphics::composer3::Color;
 using aidl::android::hardware::graphics::composer3::Composition;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
 
