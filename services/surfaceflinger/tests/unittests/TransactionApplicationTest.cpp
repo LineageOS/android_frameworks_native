@@ -434,9 +434,10 @@ public:
     static ComposerState createComposerState(int layerId, sp<Fence> fence,
                                              uint32_t stateFlags = layer_state_t::eBufferChanged) {
         ComposerState composer_state;
-        composer_state.state.bufferData.acquireFence = std::move(fence);
+        composer_state.state.bufferData = std::make_shared<BufferData>();
+        composer_state.state.bufferData->acquireFence = std::move(fence);
         composer_state.state.layerId = layerId;
-        composer_state.state.bufferData.flags = BufferData::BufferDataChange::fenceChanged;
+        composer_state.state.bufferData->flags = BufferData::BufferDataChange::fenceChanged;
         composer_state.state.flags = stateFlags;
         return composer_state;
     }

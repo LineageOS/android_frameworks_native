@@ -132,14 +132,14 @@ proto::LayerState TransactionProtoParser::toProto(const layer_state_t& layer,
     }
     if (layer.what & layer_state_t::eBufferChanged) {
         proto::LayerState_BufferData* bufferProto = proto.mutable_buffer_data();
-        if (layer.bufferData.buffer) {
-            bufferProto->set_buffer_id(layer.bufferData.buffer->getId());
-            bufferProto->set_width(layer.bufferData.buffer->getWidth());
-            bufferProto->set_height(layer.bufferData.buffer->getHeight());
+        if (layer.bufferData->buffer) {
+            bufferProto->set_buffer_id(layer.bufferData->getId());
+            bufferProto->set_width(layer.bufferData->getWidth());
+            bufferProto->set_height(layer.bufferData->getHeight());
         }
-        bufferProto->set_frame_number(layer.bufferData.frameNumber);
-        bufferProto->set_flags(layer.bufferData.flags.get());
-        bufferProto->set_cached_buffer_id(layer.bufferData.cachedBuffer.id);
+        bufferProto->set_frame_number(layer.bufferData->frameNumber);
+        bufferProto->set_flags(layer.bufferData->flags.get());
+        bufferProto->set_cached_buffer_id(layer.bufferData->cachedBuffer.id);
     }
     if (layer.what & layer_state_t::eSidebandStreamChanged) {
         proto.set_has_sideband_stream(layer.sidebandStream != nullptr);
@@ -405,10 +405,13 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto,
         LayerProtoHelper::readFromProto(proto.crop(), layer.crop);
     }
     if (proto.what() & layer_state_t::eBufferChanged) {
+        if (!layer.bufferData) {
+            layer.bufferData = std::make_shared<BufferData>();
+        }
         const proto::LayerState_BufferData& bufferProto = proto.buffer_data();
-        layer.bufferData.frameNumber = bufferProto.frame_number();
-        layer.bufferData.flags = Flags<BufferData::BufferDataChange>(bufferProto.flags());
-        layer.bufferData.cachedBuffer.id = bufferProto.cached_buffer_id();
+        layer.bufferData->frameNumber = bufferProto.frame_number();
+        layer.bufferData->flags = Flags<BufferData::BufferDataChange>(bufferProto.flags());
+        layer.bufferData->cachedBuffer.id = bufferProto.cached_buffer_id();
     }
 
     if (proto.what() & layer_state_t::eApiChanged) {

@@ -3719,9 +3719,9 @@ bool SurfaceFlinger::checkTransactionCanLatchUnsignaled(const TransactionState& 
     if (transaction.states.size() == 1) {
         const auto& state = transaction.states.begin()->state;
         if ((state.flags & ~layer_state_t::eBufferChanged) == 0 &&
-            state.bufferData.flags.test(BufferData::BufferDataChange::fenceChanged) &&
-            state.bufferData.acquireFence &&
-            state.bufferData.acquireFence->getStatus() == Fence::Status::Unsignaled) {
+            state.bufferData->flags.test(BufferData::BufferDataChange::fenceChanged) &&
+            state.bufferData->acquireFence &&
+            state.bufferData->acquireFence->getStatus() == Fence::Status::Unsignaled) {
             ATRACE_NAME("transactionCanLatchUnsignaled");
             return true;
         }
@@ -3786,10 +3786,10 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
 
     for (const ComposerState& state : states) {
         const layer_state_t& s = state.state;
-        const bool acquireFenceChanged =
-                s.bufferData.flags.test(BufferData::BufferDataChange::fenceChanged);
-        if (acquireFenceChanged && s.bufferData.acquireFence && !allowLatchUnsignaled &&
-            s.bufferData.acquireFence->getStatus() == Fence::Status::Unsignaled) {
+        const bool acquireFenceChanged = s.bufferData &&
+                s.bufferData->flags.test(BufferData::BufferDataChange::fenceChanged);
+        if (acquireFenceChanged && s.bufferData->acquireFence && !allowLatchUnsignaled &&
+            s.bufferData->acquireFence->getStatus() == Fence::Status::Unsignaled) {
             ATRACE_NAME("fence unsignaled");
             return false;
         }
@@ -4420,7 +4420,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
 
     if (what & layer_state_t::eBufferChanged &&
-        layer->setBuffer(s.bufferData, postTime, desiredPresentTime, isAutoTimestamp,
+        layer->setBuffer(*s.bufferData, postTime, desiredPresentTime, isAutoTimestamp,
                          dequeueBufferTimestamp, frameTimelineInfo)) {
         flags |= eTraversalNeeded;
     } else if (frameTimelineInfo.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
