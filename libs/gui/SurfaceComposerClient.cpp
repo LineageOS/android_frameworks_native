@@ -736,10 +736,10 @@ void SurfaceComposerClient::Transaction::releaseBufferIfOverwriting(const layer_
         // if the callback is in process, run on a different thread to avoid any lock contigency
         // issues in the client.
         SurfaceComposerClient::getDefault()
-                ->mReleaseCallbackThread.addReleaseCallback(state.bufferData.releaseCallbackId,
-                                                            fence);
+                ->mReleaseCallbackThread
+                .addReleaseCallback(state.bufferData.generateReleaseCallbackId(), fence);
     } else {
-        listener->onReleaseBuffer(state.bufferData.releaseCallbackId, fence, UINT_MAX);
+        listener->onReleaseBuffer(state.bufferData.generateReleaseCallbackId(), fence, UINT_MAX);
     }
 }
 
@@ -1335,7 +1335,7 @@ std::optional<BufferData> SurfaceComposerClient::Transaction::getAndClearBuffer(
     BufferData bufferData = s->bufferData;
 
     TransactionCompletedListener::getInstance()->removeReleaseBufferCallback(
-            bufferData.releaseCallbackId);
+            bufferData.generateReleaseCallbackId());
     BufferData emptyBufferData;
     s->what &= ~layer_state_t::eBufferChanged;
     s->bufferData = emptyBufferData;
@@ -1347,7 +1347,7 @@ std::optional<BufferData> SurfaceComposerClient::Transaction::getAndClearBuffer(
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffer(
         const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
         const std::optional<sp<Fence>>& fence, const std::optional<uint64_t>& frameNumber,
-        const ReleaseCallbackId& id, ReleaseBufferCallback callback) {
+        ReleaseBufferCallback callback) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
@@ -1371,7 +1371,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
     if (mIsAutoTimestamp) {
         mDesiredPresentTime = systemTime();
     }
-    setReleaseBufferCallback(&bufferData, id, callback);
+    setReleaseBufferCallback(&bufferData, callback);
     s->what |= layer_state_t::eBufferChanged;
     s->bufferData = bufferData;
     registerSurfaceControlForCallback(sc);
@@ -1381,7 +1381,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
 }
 
 void SurfaceComposerClient::Transaction::setReleaseBufferCallback(BufferData* bufferData,
-                                                                  const ReleaseCallbackId& id,
                                                                   ReleaseBufferCallback callback) {
     if (!callback) {
         return;
@@ -1394,9 +1393,8 @@ void SurfaceComposerClient::Transaction::setReleaseBufferCallback(BufferData* bu
     }
 
     bufferData->releaseBufferListener = TransactionCompletedListener::getIInstance();
-    bufferData->releaseCallbackId = id;
     auto listener = TransactionCompletedListener::getInstance();
-    listener->setReleaseBufferCallback(id, callback);
+    listener->setReleaseBufferCallback(bufferData->generateReleaseCallbackId(), callback);
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDataspace(

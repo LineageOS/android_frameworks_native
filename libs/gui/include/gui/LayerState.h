@@ -77,12 +77,6 @@ struct BufferData {
     // buffer id to identify the buffer.
     sp<ITransactionCompletedListener> releaseBufferListener = nullptr;
 
-    // Keeps track of the release callback id associated with the listener. This
-    // is not sent to the server since the id can be reconstructed there. This
-    // is used to remove the old callback from the client process map if it is
-    // overwritten by another setBuffer call.
-    ReleaseCallbackId releaseCallbackId = ReleaseCallbackId::INVALID_ID;
-
     // Stores which endpoint the release information should be sent to. We don't want to send the
     // releaseCallbackId and release fence to all listeners so we store which listener the setBuffer
     // was called with.
@@ -92,6 +86,9 @@ struct BufferData {
 
     client_cache_t cachedBuffer;
 
+    // Generates the release callback id based on the buffer id and frame number.
+    // This is used as an identifier when release callbacks are invoked.
+    ReleaseCallbackId generateReleaseCallbackId() const;
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);
 };

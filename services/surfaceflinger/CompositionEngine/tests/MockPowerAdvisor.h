@@ -39,11 +39,10 @@ public:
     MOCK_METHOD(bool, supportsPowerHintSession, (), (override));
     MOCK_METHOD(bool, isPowerHintSessionRunning, (), (override));
     MOCK_METHOD(void, setTargetWorkDuration, (int64_t targetDurationNanos), (override));
-    MOCK_METHOD(void, setPowerHintSessionThreadIds, (const std::vector<int32_t>& threadIds),
-                (override));
     MOCK_METHOD(void, sendActualWorkDuration, (int64_t actualDurationNanos, nsecs_t timestamp),
                 (override));
     MOCK_METHOD(void, enablePowerHint, (bool enabled), (override));
+    MOCK_METHOD(bool, startPowerHintSession, (const std::vector<int32_t>& threadIds), (override));
 };
 
 } // namespace mock
