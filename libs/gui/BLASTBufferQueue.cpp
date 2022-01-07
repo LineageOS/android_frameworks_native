@@ -117,16 +117,11 @@ void BLASTBufferItemConsumer::getConnectionEvents(uint64_t frameNumber, bool* ne
     if (needsDisconnect != nullptr) *needsDisconnect = disconnect;
 }
 
-void BLASTBufferItemConsumer::setBlastBufferQueue(BLASTBufferQueue* blastbufferqueue) {
-    std::scoped_lock lock(mBufferQueueMutex);
-    mBLASTBufferQueue = blastbufferqueue;
-}
-
 void BLASTBufferItemConsumer::onSidebandStreamChanged() {
-    std::scoped_lock lock(mBufferQueueMutex);
-    if (mBLASTBufferQueue != nullptr) {
+    sp<BLASTBufferQueue> bbq = mBLASTBufferQueue.promote();
+    if (bbq != nullptr) {
         sp<NativeHandle> stream = getSidebandStream();
-        mBLASTBufferQueue->setSidebandStream(stream);
+        bbq->setSidebandStream(stream);
     }
 }
 
@@ -147,7 +142,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     mBufferItemConsumer = new BLASTBufferItemConsumer(mConsumer,
                                                       GraphicBuffer::USAGE_HW_COMPOSER |
                                                               GraphicBuffer::USAGE_HW_TEXTURE,
-                                                      1, false);
+                                                      1, false, this);
     static int32_t id = 0;
     mName = name + "#" + std::to_string(id);
     auto consumerName = mName + "(BLAST Consumer)" + std::to_string(id);
@@ -158,7 +153,6 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     mBufferItemConsumer->setBufferFreedListener(this);
     mBufferItemConsumer->setDefaultBufferSize(mSize.width, mSize.height);
     mBufferItemConsumer->setDefaultBufferFormat(convertBufferFormat(format));
-    mBufferItemConsumer->setBlastBufferQueue(this);
 
     ComposerService::getComposerService()->getMaxAcquiredBufferCount(&mMaxAcquiredBuffers);
     mBufferItemConsumer->setMaxAcquiredBufferCount(mMaxAcquiredBuffers);
@@ -177,7 +171,6 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
 }
 
 BLASTBufferQueue::~BLASTBufferQueue() {
-    mBufferItemConsumer->setBlastBufferQueue(nullptr);
     if (mPendingTransactions.empty()) {
         return;
     }
