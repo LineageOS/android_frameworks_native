@@ -24,8 +24,6 @@
 #include <android-base/stringprintf.h>
 #include <android/os/IInputConstants.h>
 #include <binder/Binder.h>
-#include <binder/IServiceManager.h>
-#include <com/android/internal/compat/IPlatformCompatNative.h>
 #include <ftl/enum.h>
 #include <gui/SurfaceComposerClient.h>
 #include <input/InputDevice.h>
@@ -63,7 +61,6 @@ using android::os::BlockUntrustedTouchesMode;
 using android::os::IInputConstants;
 using android::os::InputEventInjectionResult;
 using android::os::InputEventInjectionSync;
-using com::android::internal::compat::IPlatformCompatNative;
 
 namespace android::inputdispatcher {
 
@@ -411,15 +408,6 @@ bool sharedPointersEqual(const std::shared_ptr<T>& lhs, const std::shared_ptr<T>
     return *lhs == *rhs;
 }
 
-sp<IPlatformCompatNative> getCompatService() {
-    sp<IBinder> service(defaultServiceManager()->getService(String16("platform_compat_native")));
-    if (service == nullptr) {
-        ALOGE("Failed to link to compat service");
-        return nullptr;
-    }
-    return interface_cast<IPlatformCompatNative>(service);
-}
-
 KeyEvent createKeyEvent(const KeyEntry& entry) {
     KeyEvent event;
     event.initialize(entry.id, entry.deviceId, entry.source, entry.displayId, INVALID_HMAC,
@@ -570,8 +558,7 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
         mWindowTokenWithPointerCapture(nullptr),
         mLatencyAggregator(),
-        mLatencyTracker(&mLatencyAggregator),
-        mCompatService(getCompatService()) {
+        mLatencyTracker(&mLatencyAggregator) {
     mLooper = new Looper(false);
     mReporter = createInputReporter();
 
@@ -4812,18 +4799,6 @@ void InputDispatcher::setInputWindowsLocked(
                 ALOGD("Window went away: %s", oldWindowHandle->getName().c_str());
             }
             oldWindowHandle->releaseChannel();
-            // To avoid making too many calls into the compat framework, only
-            // check for window flags when windows are going away.
-            // TODO(b/157929241) : delete this. This is only needed temporarily
-            // in order to gather some data about the flag usage
-            if (oldWindowHandle->getInfo()->flags.test(WindowInfo::Flag::SLIPPERY)) {
-                ALOGW("%s has FLAG_SLIPPERY. Please report this in b/157929241",
-                      oldWindowHandle->getName().c_str());
-                if (mCompatService != nullptr) {
-                    mCompatService->reportChangeByUid(IInputConstants::BLOCK_FLAG_SLIPPERY,
-                                                      oldWindowHandle->getInfo()->ownerUid);
-                }
-            }
         }
     }
 }

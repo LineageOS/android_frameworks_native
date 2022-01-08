@@ -83,7 +83,9 @@ public:
     MOCK_METHOD4(setDisplayContentSamplingEnabled, status_t(HalDisplayId, bool, uint8_t, uint64_t));
     MOCK_METHOD4(getDisplayedContentSample,
                  status_t(HalDisplayId, uint64_t, uint64_t, DisplayedFrameStats*));
-    MOCK_METHOD2(setDisplayBrightness, std::future<status_t>(PhysicalDisplayId, float));
+    MOCK_METHOD3(setDisplayBrightness,
+                 std::future<status_t>(PhysicalDisplayId, float,
+                                       const Hwc2::Composer::DisplayBrightnessOptions&));
     MOCK_METHOD2(getDisplayBrightnessSupport, status_t(PhysicalDisplayId, bool*));
 
     MOCK_METHOD2(onHotplug,

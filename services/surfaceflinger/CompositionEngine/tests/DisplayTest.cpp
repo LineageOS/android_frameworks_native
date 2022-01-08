@@ -37,6 +37,7 @@
 #include "MockHWC2.h"
 #include "MockHWComposer.h"
 #include "MockPowerAdvisor.h"
+#include "ftl/future.h"
 
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 
@@ -48,6 +49,7 @@ namespace {
 namespace hal = android::hardware::graphics::composer::hal;
 
 using testing::_;
+using testing::ByMove;
 using testing::DoAll;
 using testing::Eq;
 using testing::InSequence;
@@ -592,6 +594,38 @@ TEST_F(DisplayChooseCompositionStrategyTest, normalOperation) {
     auto& state = mDisplay->getState();
     EXPECT_FALSE(state.usesClientComposition);
     EXPECT_TRUE(state.usesDeviceComposition);
+}
+
+TEST_F(DisplayChooseCompositionStrategyTest, normalOperationWithDisplayBrightness) {
+    // Since two calls are made to anyLayersRequireClientComposition with different return
+    // values, use a Sequence to control the matching so the values are returned in a known
+    // order.
+    constexpr float kDisplayBrightness = 0.5f;
+    Sequence s;
+    EXPECT_CALL(*mDisplay, anyLayersRequireClientComposition())
+            .InSequence(s)
+            .WillOnce(Return(true));
+    EXPECT_CALL(*mDisplay, anyLayersRequireClientComposition())
+            .InSequence(s)
+            .WillOnce(Return(false));
+    EXPECT_CALL(mHwComposer,
+                setDisplayBrightness(DEFAULT_DISPLAY_ID, kDisplayBrightness,
+                                     Hwc2::Composer::DisplayBrightnessOptions{.applyImmediately =
+                                                                                      false}))
+            .WillOnce(Return(ByMove(ftl::yield<status_t>(NO_ERROR))));
+
+    EXPECT_CALL(mHwComposer,
+                getDeviceCompositionChanges(HalDisplayId(DEFAULT_DISPLAY_ID), true, _, _, _, _))
+            .WillOnce(Return(NO_ERROR));
+    EXPECT_CALL(*mDisplay, allLayersRequireClientComposition()).WillOnce(Return(false));
+
+    mDisplay->setNextBrightness(kDisplayBrightness);
+    mDisplay->chooseCompositionStrategy();
+
+    auto& state = mDisplay->getState();
+    EXPECT_FALSE(state.usesClientComposition);
+    EXPECT_TRUE(state.usesDeviceComposition);
+    EXPECT_FALSE(state.displayBrightness.has_value());
 }
 
 TEST_F(DisplayChooseCompositionStrategyTest, normalOperationWithChanges) {

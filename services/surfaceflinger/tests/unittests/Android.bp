@@ -55,6 +55,7 @@ cc_test {
         "DisplayTransactionTest.cpp",
         "DisplayDevice_GetBestColorModeTest.cpp",
         "DisplayDevice_InitiateModeChange.cpp",
+        "DisplayDevice_SetDisplayBrightnessTest.cpp",
         "DisplayDevice_SetProjectionTest.cpp",
         "EventThreadTest.cpp",
         "FlagManagerTest.cpp",

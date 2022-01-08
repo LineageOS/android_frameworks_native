@@ -882,6 +882,11 @@ public:
         return NO_ERROR;
     }
 
+    status_t getDisplayDecorationSupport(const sp<IBinder>& /*displayToken*/,
+                                         bool* /*outSupport*/) const override {
+        return NO_ERROR;
+    }
+
     status_t setFrameRate(const sp<IGraphicBufferProducer>& /*surface*/, float /*frameRate*/,
                           int8_t /*compatibility*/, int8_t /*changeFrameRateStrategy*/) override {
         return NO_ERROR;

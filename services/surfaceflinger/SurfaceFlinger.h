@@ -594,6 +594,8 @@ private:
     status_t notifyPowerBoost(int32_t boostId) override;
     status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
                                      float lightPosY, float lightPosZ, float lightRadius) override;
+    status_t getDisplayDecorationSupport(const sp<IBinder>& displayToken,
+                                         bool* outSupport) const override;
     status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
                           int8_t compatibility, int8_t changeFrameRateStrategy) override;
 
@@ -674,6 +676,9 @@ private:
     void setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode)
             REQUIRES(mStateLock);
 
+    // Returns true if the display has a visible HDR layer in its layer stack.
+    bool hasVisibleHdrLayer(const sp<DisplayDevice>& display) REQUIRES(mStateLock);
+
     // Sets the desired display mode specs.
     status_t setDesiredDisplayModeSpecsInternal(
             const sp<DisplayDevice>& display,
@@ -690,6 +695,7 @@ private:
     void updateLayerGeometry();
 
     void updateInputFlinger();
+    void persistDisplayBrightness(bool needsComposite) REQUIRES(SF_MAIN_THREAD);
     void buildWindowInfos(std::vector<gui::WindowInfo>& outWindowInfos,
                           std::vector<gui::DisplayInfo>& outDisplayInfos);
     void commitInputWindowCommands() REQUIRES(mStateLock);

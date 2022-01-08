@@ -60,6 +60,7 @@ DisplayTransactionTest::~DisplayTransactionTest() {
     const ::testing::TestInfo* const test_info =
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
+    mFlinger.resetScheduler(nullptr);
 }
 
 void DisplayTransactionTest::injectMockScheduler() {

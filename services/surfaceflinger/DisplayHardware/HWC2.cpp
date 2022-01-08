@@ -37,8 +37,6 @@
 #include <iterator>
 #include <set>
 
-#include "ComposerHal.h"
-
 using aidl::android::hardware::graphics::composer3::Composition;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
 
@@ -532,9 +530,10 @@ Error Display::presentOrValidate(nsecs_t expectedPresentTime, uint32_t* outNumTy
     return error;
 }
 
-std::future<Error> Display::setDisplayBrightness(float brightness) {
-    return ftl::defer([composer = &mComposer, id = mId, brightness] {
-        const auto intError = composer->setDisplayBrightness(id, brightness);
+std::future<Error> Display::setDisplayBrightness(
+        float brightness, const Hwc2::Composer::DisplayBrightnessOptions& options) {
+    return ftl::defer([composer = &mComposer, id = mId, brightness, options] {
+        const auto intError = composer->setDisplayBrightness(id, brightness, options);
         return static_cast<Error>(intError);
     });
 }
@@ -583,6 +582,21 @@ std::shared_ptr<HWC2::Layer> Display::getLayerById(HWLayerId id) const {
 } // namespace impl
 
 // Layer methods
+
+namespace {
+std::vector<Hwc2::IComposerClient::Rect> convertRegionToHwcRects(const Region& region) {
+    size_t rectCount = 0;
+    Rect const* rectArray = region.getArray(&rectCount);
+
+    std::vector<Hwc2::IComposerClient::Rect> hwcRects;
+    hwcRects.reserve(rectCount);
+    for (size_t rect = 0; rect < rectCount; ++rect) {
+        hwcRects.push_back({rectArray[rect].left, rectArray[rect].top, rectArray[rect].right,
+                            rectArray[rect].bottom});
+    }
+    return hwcRects;
+}
+} // namespace
 
 Layer::~Layer() = default;
 
@@ -674,15 +688,7 @@ Error Layer::setSurfaceDamage(const Region& damage)
         intError = mComposer.setLayerSurfaceDamage(mDisplay->getId(), mId,
                                                    std::vector<Hwc2::IComposerClient::Rect>());
     } else {
-        size_t rectCount = 0;
-        auto rectArray = damage.getArray(&rectCount);
-
-        std::vector<Hwc2::IComposerClient::Rect> hwcRects;
-        for (size_t rect = 0; rect < rectCount; ++rect) {
-            hwcRects.push_back({rectArray[rect].left, rectArray[rect].top,
-                    rectArray[rect].right, rectArray[rect].bottom});
-        }
-
+        const auto hwcRects = convertRegionToHwcRects(damage);
         intError = mComposer.setLayerSurfaceDamage(mDisplay->getId(), mId, hwcRects);
     }
 
@@ -870,16 +876,7 @@ Error Layer::setVisibleRegion(const Region& region)
         return Error::NONE;
     }
     mVisibleRegion = region;
-
-    size_t rectCount = 0;
-    auto rectArray = region.getArray(&rectCount);
-
-    std::vector<Hwc2::IComposerClient::Rect> hwcRects;
-    for (size_t rect = 0; rect < rectCount; ++rect) {
-        hwcRects.push_back({rectArray[rect].left, rectArray[rect].top,
-                rectArray[rect].right, rectArray[rect].bottom});
-    }
-
+    const auto hwcRects = convertRegionToHwcRects(region);
     auto intError = mComposer.setLayerVisibleRegion(mDisplay->getId(), mId, hwcRects);
     return static_cast<Error>(intError);
 }

@@ -1134,6 +1134,34 @@ public:
         return NO_ERROR;
     }
 
+    status_t getDisplayDecorationSupport(const sp<IBinder>& displayToken,
+                                         bool* outSupport) const override {
+        Parcel data, reply;
+        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (error != NO_ERROR) {
+            ALOGE("getDisplayDecorationSupport: failed to write interface token: %d", error);
+            return error;
+        }
+        error = data.writeStrongBinder(displayToken);
+        if (error != NO_ERROR) {
+            ALOGE("getDisplayDecorationSupport: failed to write display token: %d", error);
+            return error;
+        }
+        error = remote()->transact(BnSurfaceComposer::GET_DISPLAY_DECORATION_SUPPORT, data, &reply);
+        if (error != NO_ERROR) {
+            ALOGE("getDisplayDecorationSupport: failed to transact: %d", error);
+            return error;
+        }
+        bool support;
+        error = reply.readBool(&support);
+        if (error != NO_ERROR) {
+            ALOGE("getDisplayDecorationSupport: failed to read support: %d", error);
+            return error;
+        }
+        *outSupport = support;
+        return NO_ERROR;
+    }
+
     status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
                           int8_t compatibility, int8_t changeFrameRateStrategy) override {
         Parcel data, reply;
@@ -2015,6 +2043,19 @@ status_t BnSurfaceComposer::onTransact(
             float lightRadius = shadowConfig[10];
             return setGlobalShadowSettings(ambientColor, spotColor, lightPosY, lightPosZ,
                                            lightRadius);
+        }
+        case GET_DISPLAY_DECORATION_SUPPORT: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> displayToken;
+            status_t error = data.readNullableStrongBinder(&displayToken);
+            if (error != NO_ERROR) {
+                ALOGE("getDisplayDecorationSupport: failed to read display token: %d", error);
+                return error;
+            }
+            bool support = false;
+            error = getDisplayDecorationSupport(displayToken, &support);
+            reply->writeBool(support);
+            return error;
         }
         case SET_FRAME_RATE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);

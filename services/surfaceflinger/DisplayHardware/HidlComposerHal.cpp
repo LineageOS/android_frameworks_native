@@ -161,6 +161,7 @@ bool HidlComposer::isSupported(OptionalFeature feature) const {
         case OptionalFeature::RefreshRateSwitching:
             return mClient_2_4 != nullptr;
         case OptionalFeature::ExpectedPresentTime:
+        case OptionalFeature::DisplayBrightnessCommand:
             return false;
     }
 }
@@ -1013,7 +1014,8 @@ Error HidlComposer::setLayerPerFrameMetadataBlobs(
     return Error::NONE;
 }
 
-Error HidlComposer::setDisplayBrightness(Display display, float brightness) {
+Error HidlComposer::setDisplayBrightness(Display display, float brightness,
+                                         const DisplayBrightnessOptions&) {
     if (!mClient_2_3) {
         return Error::UNSUPPORTED;
     }

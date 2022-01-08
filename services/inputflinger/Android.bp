@@ -72,7 +72,6 @@ cc_defaults {
         "libstatssocket",
         "libutils",
         "libui",
-        "lib-platform-compat-native-api",
         "server_configurable_flags",
     ],
     static_libs: [
