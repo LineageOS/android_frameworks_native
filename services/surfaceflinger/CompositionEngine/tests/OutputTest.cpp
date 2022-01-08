@@ -574,6 +574,17 @@ TEST_F(OutputTest, setRenderSurfaceResetsBounds) {
     EXPECT_EQ(Rect(newDisplaySize), mOutput->getState().framebufferSpace.getBoundsAsRect());
 }
 
+/**
+ * Output::setDisplayBrightness()
+ */
+
+TEST_F(OutputTest, setNextBrightness) {
+    constexpr float kDisplayBrightness = 0.5f;
+    mOutput->setNextBrightness(kDisplayBrightness);
+    ASSERT_TRUE(mOutput->getState().displayBrightness.has_value());
+    EXPECT_EQ(kDisplayBrightness, mOutput->getState().displayBrightness);
+}
+
 /*
  * Output::getDirtyRegion()
  */

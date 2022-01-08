@@ -508,6 +508,22 @@ public:
                                              float lightRadius) = 0;
 
     /*
+     * Gets whether a display supports DISPLAY_DECORATION layers.
+     *
+     * displayToken
+     *      The token of the display.
+     * outSupport
+     *      An output parameter for whether the display supports
+     *      DISPLAY_DECORATION layers.
+     *
+     * Returns NO_ERROR upon success. Otherwise,
+     *      NAME_NOT_FOUND if the display is invalid, or
+     *      BAD_VALUE      if the output parameter is invalid.
+     */
+    virtual status_t getDisplayDecorationSupport(const sp<IBinder>& displayToken,
+                                                 bool* outSupport) const = 0;
+
+    /*
      * Sets the intended frame rate for a surface. See ANativeWindow_setFrameRate() for more info.
      */
     virtual status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
@@ -628,6 +644,7 @@ public:
         ADD_WINDOW_INFOS_LISTENER,
         REMOVE_WINDOW_INFOS_LISTENER,
         GET_PRIMARY_PHYSICAL_DISPLAY_ID,
+        GET_DISPLAY_DECORATION_SUPPORT,
         // Always append new enum to the end.
     };
 

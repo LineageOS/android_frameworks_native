@@ -226,6 +226,17 @@ void Display::chooseCompositionStrategy() {
     // Get any composition changes requested by the HWC device, and apply them.
     std::optional<android::HWComposer::DeviceRequestedChanges> changes;
     auto& hwc = getCompositionEngine().getHwComposer();
+    if (const auto physicalDisplayId = PhysicalDisplayId::tryCast(*halDisplayId);
+        physicalDisplayId && getState().displayBrightness) {
+        const status_t result =
+                hwc.setDisplayBrightness(*physicalDisplayId, *getState().displayBrightness,
+                                         Hwc2::Composer::DisplayBrightnessOptions{
+                                                 .applyImmediately = false})
+                        .get();
+        ALOGE_IF(result != NO_ERROR, "setDisplayBrightness failed for %s: %d, (%s)",
+                 getName().c_str(), result, strerror(-result));
+    }
+
     if (status_t result =
                 hwc.getDeviceCompositionChanges(*halDisplayId, anyLayersRequireClientComposition(),
                                                 getState().earliestPresentTime,
@@ -248,6 +259,8 @@ void Display::chooseCompositionStrategy() {
     auto& state = editState();
     state.usesClientComposition = anyLayersRequireClientComposition();
     state.usesDeviceComposition = !allLayersRequireClientComposition();
+    // Clear out the display brightness now that it's been communicated to composer.
+    state.displayBrightness.reset();
 }
 
 bool Display::getSkipColorTransform() const {

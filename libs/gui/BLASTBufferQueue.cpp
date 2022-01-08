@@ -190,13 +190,15 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
 
     SurfaceComposerClient::Transaction t;
     const bool surfaceControlChanged = !SurfaceControl::isSameSurface(mSurfaceControl, surface);
+    if (surfaceControlChanged && mSurfaceControl != nullptr) {
+        BQA_LOGD("Updating SurfaceControl without recreating BBQ");
+    }
     bool applyTransaction = false;
 
     // Always update the native object even though they might have the same layer handle, so we can
     // get the updated transform hint from WM.
     mSurfaceControl = surface;
     if (surfaceControlChanged) {
-        BQA_LOGD("Updating SurfaceControl without recreating BBQ");
         t.setFlags(mSurfaceControl, layer_state_t::eEnableBackpressure,
                    layer_state_t::eEnableBackpressure);
         applyTransaction = true;

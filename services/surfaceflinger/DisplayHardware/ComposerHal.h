@@ -78,6 +78,8 @@ public:
     enum class OptionalFeature {
         RefreshRateSwitching,
         ExpectedPresentTime,
+        // Whether setDisplayBrightness is able to be applied as part of a display command.
+        DisplayBrightnessCommand,
     };
 
     virtual bool isSupported(OptionalFeature) const = 0;
@@ -204,7 +206,22 @@ public:
                                             DisplayedFrameStats* outStats) = 0;
     virtual Error setLayerPerFrameMetadataBlobs(
             Display display, Layer layer, const std::vector<PerFrameMetadataBlob>& metadata) = 0;
-    virtual Error setDisplayBrightness(Display display, float brightness) = 0;
+    // Options for setting the display brightness
+    struct DisplayBrightnessOptions {
+        // If true, then immediately submits a brightness change request to composer. Otherwise,
+        // submission of the brightness change may be deferred until presenting the next frame.
+        // applyImmediately should only be false if OptionalFeature::DisplayBrightnessCommand is
+        // supported.
+        bool applyImmediately = true;
+        bool sdrDimmingEnabled = true;
+
+        bool operator==(const DisplayBrightnessOptions& other) const {
+            return applyImmediately == other.applyImmediately &&
+                    sdrDimmingEnabled == other.sdrDimmingEnabled;
+        }
+    };
+    virtual Error setDisplayBrightness(Display display, float brightness,
+                                       const DisplayBrightnessOptions& options) = 0;
 
     // Composer HAL 2.4
     virtual Error getDisplayCapabilities(

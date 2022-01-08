@@ -34,6 +34,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "ComposerHal.h"
 #include "Hal.h"
 
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
@@ -143,7 +144,7 @@ public:
             nsecs_t expectedPresentTime, uint32_t* outNumTypes, uint32_t* outNumRequests,
             android::sp<android::Fence>* outPresentFence, uint32_t* state) = 0;
     [[clang::warn_unused_result]] virtual std::future<hal::Error> setDisplayBrightness(
-            float brightness) = 0;
+            float brightness, const Hwc2::Composer::DisplayBrightnessOptions& options) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setActiveConfigWithConstraints(
             hal::HWConfigId configId, const hal::VsyncPeriodChangeConstraints& constraints,
             hal::VsyncPeriodChangeTimeline* outTimeline) = 0;
@@ -211,7 +212,8 @@ public:
                                  uint32_t* outNumRequests,
                                  android::sp<android::Fence>* outPresentFence,
                                  uint32_t* state) override;
-    std::future<hal::Error> setDisplayBrightness(float brightness) override;
+    std::future<hal::Error> setDisplayBrightness(
+            float brightness, const Hwc2::Composer::DisplayBrightnessOptions& options) override;
     hal::Error setActiveConfigWithConstraints(hal::HWConfigId configId,
                                               const hal::VsyncPeriodChangeConstraints& constraints,
                                               hal::VsyncPeriodChangeTimeline* outTimeline) override;

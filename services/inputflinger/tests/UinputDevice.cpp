@@ -170,28 +170,27 @@ void UinputTouchScreen::sendDown(const Point& point) {
     injectEvent(EV_KEY, BTN_TOUCH, 1);
     injectEvent(EV_ABS, ABS_MT_POSITION_X, point.x);
     injectEvent(EV_ABS, ABS_MT_POSITION_Y, point.y);
-    injectEvent(EV_SYN, SYN_REPORT, 0);
 }
 
 void UinputTouchScreen::sendMove(const Point& point) {
     injectEvent(EV_ABS, ABS_MT_POSITION_X, point.x);
     injectEvent(EV_ABS, ABS_MT_POSITION_Y, point.y);
-    injectEvent(EV_SYN, SYN_REPORT, 0);
 }
 
 void UinputTouchScreen::sendPointerUp() {
     sendTrackingId(0xffffffff);
-    injectEvent(EV_SYN, SYN_REPORT, 0);
 }
 
 void UinputTouchScreen::sendUp() {
     sendTrackingId(0xffffffff);
     injectEvent(EV_KEY, BTN_TOUCH, 0);
-    injectEvent(EV_SYN, SYN_REPORT, 0);
 }
 
 void UinputTouchScreen::sendToolType(int32_t toolType) {
     injectEvent(EV_ABS, ABS_MT_TOOL_TYPE, toolType);
+}
+
+void UinputTouchScreen::sendSync() {
     injectEvent(EV_SYN, SYN_REPORT, 0);
 }
 

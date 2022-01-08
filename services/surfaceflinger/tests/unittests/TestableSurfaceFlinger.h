@@ -347,6 +347,11 @@ public:
 
     auto notifyPowerBoost(int32_t boostId) { return mFlinger->notifyPowerBoost(boostId); }
 
+    auto setDisplayBrightness(const sp<IBinder>& display,
+                              const gui::DisplayBrightness& brightness) {
+        return mFlinger->setDisplayBrightness(display, brightness);
+    }
+
     // Allow reading display state without locking, as if called on the SF main thread.
     auto setPowerModeInternal(const sp<DisplayDevice>& display,
                               hal::PowerMode mode) NO_THREAD_SAFETY_ANALYSIS {

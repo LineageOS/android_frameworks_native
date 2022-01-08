@@ -173,6 +173,8 @@ public:
     // Sets the projection state to use
     virtual void setProjection(ui::Rotation orientation, const Rect& layerStackSpaceRect,
                                const Rect& orientedDisplaySpaceRect) = 0;
+    // Sets the brightness that will take effect next frame.
+    virtual void setNextBrightness(float brightness) = 0;
     // Sets the bounds to use
     virtual void setDisplaySize(const ui::Size&) = 0;
     // Gets the transform hint used in layers that belong to this output. Used to guide

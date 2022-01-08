@@ -2216,6 +2216,12 @@ status_t SurfaceComposerClient::setGlobalShadowSettings(const half4& ambientColo
                                                                           lightRadius);
 }
 
+bool SurfaceComposerClient::getDisplayDecorationSupport(const sp<IBinder>& displayToken) {
+    bool support = false;
+    ComposerService::getComposerService()->getDisplayDecorationSupport(displayToken, &support);
+    return support;
+}
+
 int SurfaceComposerClient::getGPUContextPriority() {
     return ComposerService::getComposerService()->getGPUContextPriority();
 }
