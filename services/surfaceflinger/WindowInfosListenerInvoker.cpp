@@ -25,24 +25,21 @@ using gui::DisplayInfo;
 using gui::IWindowInfosListener;
 using gui::WindowInfo;
 
-struct WindowInfosReportedListener : gui::BnWindowInfosReportedListener {
-    explicit WindowInfosReportedListener(std::function<void()> listenerCb)
-          : mListenerCb(listenerCb) {}
+struct WindowInfosListenerInvoker::WindowInfosReportedListener
+      : gui::BnWindowInfosReportedListener {
+    explicit WindowInfosReportedListener(WindowInfosListenerInvoker& invoker) : mInvoker(invoker) {}
 
     binder::Status onWindowInfosReported() override {
-        if (mListenerCb != nullptr) {
-            mListenerCb();
-        }
+        mInvoker.windowInfosReported();
         return binder::Status::ok();
     }
 
-    std::function<void()> mListenerCb;
+    WindowInfosListenerInvoker& mInvoker;
 };
 
-WindowInfosListenerInvoker::WindowInfosListenerInvoker(const sp<SurfaceFlinger>& sf) : mSf(sf) {
-    mWindowInfosReportedListener =
-            new WindowInfosReportedListener([&]() { windowInfosReported(); });
-}
+WindowInfosListenerInvoker::WindowInfosListenerInvoker(SurfaceFlinger& flinger)
+      : mFlinger(flinger),
+        mWindowInfosReportedListener(sp<WindowInfosReportedListener>::make(*this)) {}
 
 void WindowInfosListenerInvoker::addWindowInfosListener(
         const sp<IWindowInfosListener>& windowInfosListener) {
@@ -91,7 +88,7 @@ void WindowInfosListenerInvoker::windowInfosChanged(const std::vector<WindowInfo
 void WindowInfosListenerInvoker::windowInfosReported() {
     mCallbacksPending--;
     if (mCallbacksPending == 0) {
-        mSf->windowInfosReported();
+        mFlinger.windowInfosReported();
     }
 }
 

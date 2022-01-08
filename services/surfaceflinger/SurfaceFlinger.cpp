@@ -385,7 +385,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
         mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)),
         mPowerAdvisor(*this),
-        mWindowInfosListenerInvoker(new WindowInfosListenerInvoker(this)) {
+        mWindowInfosListenerInvoker(sp<WindowInfosListenerInvoker>::make(*this)) {
     ALOGI("Using HWComposer service: %s", mHwcServiceName.c_str());
 }
 
