@@ -945,16 +945,10 @@ bool Layer::setBackgroundBlurRadius(int backgroundBlurRadius) {
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
-bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix,
-        bool allowNonRectPreservingTransforms) {
+bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix) {
     ui::Transform t;
     t.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
 
-    if (!allowNonRectPreservingTransforms && !t.preserveRects()) {
-        ALOGW("Attempt to set rotation matrix without permission ACCESS_SURFACE_FLINGER nor "
-              "ROTATE_SURFACE_FLINGER ignored");
-        return false;
-    }
     mDrawingState.sequence++;
     mDrawingState.transform.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
     mDrawingState.modified = true;

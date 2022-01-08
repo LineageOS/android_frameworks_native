@@ -113,6 +113,12 @@ public:
  * Used to communicate layer information between SurfaceFlinger and its clients.
  */
 struct layer_state_t {
+    enum Permission {
+        ACCESS_SURFACE_FLINGER = 0x1,
+        ROTATE_SURFACE_FLINGER = 0x2,
+        INTERNAL_SYSTEM_WINDOW = 0x4,
+    };
+
     enum {
         eLayerHidden = 0x01,         // SURFACE_HIDDEN in SurfaceControl.java
         eLayerOpaque = 0x02,         // SURFACE_OPAQUE
@@ -181,6 +187,7 @@ struct layer_state_t {
     status_t read(const Parcel& input);
     bool hasBufferChanges() const;
     bool hasValidBuffer() const;
+    void sanitize(int32_t permissions);
 
     struct matrix22_t {
         float dsdx{0};
