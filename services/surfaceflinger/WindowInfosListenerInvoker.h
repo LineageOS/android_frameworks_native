@@ -20,10 +20,8 @@
 #include <android/gui/IWindowInfosListener.h>
 #include <android/gui/IWindowInfosReportedListener.h>
 #include <binder/IBinder.h>
+#include <ftl/small_map.h>
 #include <utils/Mutex.h>
-#include <unordered_map>
-
-#include "WpHash.h"
 
 namespace android {
 
@@ -33,7 +31,7 @@ class WindowInfosListenerInvoker : public IBinder::DeathRecipient {
 public:
     explicit WindowInfosListenerInvoker(SurfaceFlinger&);
 
-    void addWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener);
+    void addWindowInfosListener(sp<gui::IWindowInfosListener>);
     void removeWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener);
 
     void windowInfosChanged(const std::vector<gui::WindowInfo>&,
@@ -48,8 +46,11 @@ private:
 
     SurfaceFlinger& mFlinger;
     std::mutex mListenersMutex;
-    std::unordered_map<wp<IBinder>, const sp<gui::IWindowInfosListener>, WpHash>
+
+    static constexpr size_t kStaticCapacity = 3;
+    ftl::SmallMap<wp<IBinder>, const sp<gui::IWindowInfosListener>, kStaticCapacity>
             mWindowInfosListeners GUARDED_BY(mListenersMutex);
+
     sp<gui::IWindowInfosReportedListener> mWindowInfosReportedListener;
     std::atomic<size_t> mCallbacksPending{0};
 };
