@@ -252,6 +252,7 @@ void convertFromSensorEvent(const sensors_event_t &src, Event *dst) {
     *dst = {
             .timestamp = src.timestamp,
             .sensorHandle = src.sensor,
+            .sensorType = (SensorType) src.type,
     };
 
     switch (dst->sensorType) {
