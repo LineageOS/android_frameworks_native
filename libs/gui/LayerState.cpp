@@ -509,6 +509,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eCachedBufferChanged) {
         what |= eCachedBufferChanged;
         cachedBuffer = other.cachedBuffer;
+        releaseBufferEndpoint = other.releaseBufferEndpoint;
     }
     if (other.what & eBackgroundColorChanged) {
         what |= eBackgroundColorChanged;
