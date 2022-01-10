@@ -84,7 +84,7 @@ public:
 
     const std::string getLoadFileName() const;
 
-    /* Combines this key character map with an overlay. */
+    /* Combines this key character map with the provided overlay. */
     void combine(const KeyCharacterMap& overlay);
 
     /* Gets the keyboard type. */
@@ -143,6 +143,8 @@ public:
 #endif
 
     bool operator==(const KeyCharacterMap& other) const;
+
+    bool operator!=(const KeyCharacterMap& other) const;
 
     KeyCharacterMap(const KeyCharacterMap& other);
 
@@ -230,11 +232,12 @@ private:
     KeyedVector<int32_t, Key*> mKeys;
     KeyboardType mType;
     std::string mLoadFileName;
+    bool mLayoutOverlayApplied;
 
     KeyedVector<int32_t, int32_t> mKeysByScanCode;
     KeyedVector<int32_t, int32_t> mKeysByUsageCode;
 
-    KeyCharacterMap();
+    KeyCharacterMap(const std::string& filename);
 
     bool getKey(int32_t keyCode, const Key** outKey) const;
     bool getKeyBehavior(int32_t keyCode, int32_t metaState,
@@ -242,8 +245,6 @@ private:
     static bool matchesMetaState(int32_t eventMetaState, int32_t behaviorMetaState);
 
     bool findKey(char16_t ch, int32_t* outKeyCode, int32_t* outMetaState) const;
-
-    static base::Result<std::shared_ptr<KeyCharacterMap>> load(Tokenizer* tokenizer, Format format);
 
     static void addKey(Vector<KeyEvent>& outEvents,
             int32_t deviceId, int32_t keyCode, int32_t metaState, bool down, nsecs_t time);
@@ -264,6 +265,15 @@ private:
             int32_t deviceId, int32_t metaState, nsecs_t time,
             int32_t keyCode, int32_t keyMetaState,
             int32_t* currentMetaState);
+
+    /* Clears all data stored in this key character map */
+    void clear();
+
+    /* Loads the KeyCharacterMap provided by the tokenizer into this instance. */
+    status_t load(Tokenizer* tokenizer, Format format);
+
+    /* Reloads the data from mLoadFileName and unapplies any overlay. */
+    status_t reloadBaseFromFile();
 };
 
 } // namespace android
