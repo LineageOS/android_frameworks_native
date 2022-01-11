@@ -1227,12 +1227,11 @@ const std::shared_ptr<KeyCharacterMap> EventHub::getKeyCharacterMap(int32_t devi
 bool EventHub::setKeyboardLayoutOverlay(int32_t deviceId, std::shared_ptr<KeyCharacterMap> map) {
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device != nullptr && map != nullptr && device->keyMap.keyCharacterMap != nullptr) {
-        device->keyMap.keyCharacterMap->combine(*map);
-        device->keyMap.keyCharacterMapFile = device->keyMap.keyCharacterMap->getLoadFileName();
-        return true;
+    if (device == nullptr || map == nullptr || device->keyMap.keyCharacterMap == nullptr) {
+        return false;
     }
-    return false;
+    device->keyMap.keyCharacterMap->combine(*map);
+    return true;
 }
 
 static std::string generateDescriptor(InputDeviceIdentifier& identifier) {
