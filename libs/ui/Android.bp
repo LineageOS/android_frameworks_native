@@ -160,6 +160,7 @@ cc_library_shared {
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.allocator@3.0",
         "android.hardware.graphics.allocator@4.0",
+        "android.hardware.graphics.allocator-V1-ndk",
         "android.hardware.graphics.common-V3-ndk",
         "android.hardware.graphics.common@1.2",
         "android.hardware.graphics.mapper@2.0",
@@ -167,6 +168,7 @@ cc_library_shared {
         "android.hardware.graphics.mapper@3.0",
         "android.hardware.graphics.mapper@4.0",
         "libbase",
+        "libbinder_ndk",
         "libcutils",
         "libgralloctypes",
         "libhidlbase",
@@ -183,6 +185,7 @@ cc_library_shared {
     ],
 
     static_libs: [
+        "libaidlcommonsupport",
         "libarect",
         "libgrallocusage",
         "libmath",

@@ -16,6 +16,12 @@
 
 #define LOG_TAG "Gralloc4"
 
+#include <aidl/android/hardware/graphics/allocator/AllocationError.h>
+#include <aidl/android/hardware/graphics/allocator/AllocationResult.h>
+#include <aidl/android/hardware/graphics/common/BufferUsage.h>
+#include <aidlcommonsupport/NativeHandle.h>
+#include <android/binder_enums.h>
+#include <android/binder_manager.h>
 #include <hidl/ServiceManagement.h>
 #include <hwbinder/IPCThreadState.h>
 #include <ui/Gralloc4.h>
@@ -27,6 +33,8 @@
 #include <sync/sync.h>
 #pragma clang diagnostic pop
 
+using aidl::android::hardware::graphics::allocator::AllocationError;
+using aidl::android::hardware::graphics::allocator::AllocationResult;
 using aidl::android::hardware::graphics::common::ExtendableType;
 using aidl::android::hardware::graphics::common::PlaneLayoutComponentType;
 using aidl::android::hardware::graphics::common::StandardMetadataType;
@@ -36,7 +44,10 @@ using android::hardware::graphics::common::V1_2::BufferUsage;
 using android::hardware::graphics::mapper::V4_0::BufferDescriptor;
 using android::hardware::graphics::mapper::V4_0::Error;
 using android::hardware::graphics::mapper::V4_0::IMapper;
+using AidlIAllocator = ::aidl::android::hardware::graphics::allocator::IAllocator;
+using AidlBufferUsage = ::aidl::android::hardware::graphics::common::BufferUsage;
 using AidlDataspace = ::aidl::android::hardware::graphics::common::Dataspace;
+using AidlNativeHandle = ::aidl::android::hardware::common::NativeHandle;
 using BufferDump = android::hardware::graphics::mapper::V4_0::IMapper::BufferDump;
 using MetadataDump = android::hardware::graphics::mapper::V4_0::IMapper::MetadataDump;
 using MetadataType = android::hardware::graphics::mapper::V4_0::IMapper::MetadataType;
@@ -48,6 +59,7 @@ namespace android {
 namespace {
 
 static constexpr Error kTransactionError = Error::NO_RESOURCES;
+static const auto kAidlAllocatorServiceName = AidlIAllocator::descriptor + std::string("/default");
 
 uint64_t getValidUsageBits() {
     static const uint64_t validUsageBits = []() -> uint64_t {
@@ -55,6 +67,17 @@ uint64_t getValidUsageBits() {
         for (const auto bit :
              hardware::hidl_enum_range<hardware::graphics::common::V1_2::BufferUsage>()) {
             bits = bits | bit;
+        }
+        return bits;
+    }();
+    return validUsageBits;
+}
+
+uint64_t getValidUsageBits41() {
+    static const uint64_t validUsageBits = []() -> uint64_t {
+        uint64_t bits = 0;
+        for (const auto bit : ndk::enum_range<AidlBufferUsage>{}) {
+            bits |= static_cast<int64_t>(bit);
         }
         return bits;
     }();
@@ -81,6 +104,21 @@ static inline void sBufferDescriptorInfo(std::string name, uint32_t width, uint3
     outDescriptorInfo->reservedSize = 0;
 }
 
+// See if gralloc "4.1" is available.
+static bool hasIAllocatorAidl() {
+    // Avoid re-querying repeatedly for this information;
+    static bool sHasIAllocatorAidl = []() -> bool {
+        // TODO: Enable after landing sepolicy changes
+        if constexpr ((true)) return false;
+
+        if (__builtin_available(android 31, *)) {
+            return AServiceManager_isDeclared(kAidlAllocatorServiceName.c_str());
+        }
+        return false;
+    }();
+    return sHasIAllocatorAidl;
+}
+
 } // anonymous namespace
 
 void Gralloc4Mapper::preload() {
@@ -105,6 +143,9 @@ bool Gralloc4Mapper::isLoaded() const {
 status_t Gralloc4Mapper::validateBufferDescriptorInfo(
         IMapper::BufferDescriptorInfo* descriptorInfo) const {
     uint64_t validUsageBits = getValidUsageBits();
+    if (hasIAllocatorAidl()) {
+        validUsageBits |= getValidUsageBits41();
+    }
 
     if (descriptorInfo->usage & ~validUsageBits) {
         ALOGE("buffer descriptor contains invalid usage bits 0x%" PRIx64,
@@ -1069,6 +1110,13 @@ Gralloc4Allocator::Gralloc4Allocator(const Gralloc4Mapper& mapper) : mMapper(map
         ALOGW("allocator 4.x is not supported");
         return;
     }
+    if (__builtin_available(android 31, *)) {
+        if (hasIAllocatorAidl()) {
+            mAidlAllocator = AidlIAllocator::fromBinder(ndk::SpAIBinder(
+                    AServiceManager_waitForService(kAidlAllocatorServiceName.c_str())));
+            ALOGE_IF(!mAidlAllocator, "AIDL IAllocator declared but failed to get service");
+        }
+    }
 }
 
 bool Gralloc4Allocator::isLoaded() const {
@@ -1090,6 +1138,52 @@ status_t Gralloc4Allocator::allocate(std::string requestorName, uint32_t width, 
     status_t error = mMapper.createDescriptor(static_cast<void*>(&descriptorInfo),
                                               static_cast<void*>(&descriptor));
     if (error != NO_ERROR) {
+        return error;
+    }
+
+    if (mAidlAllocator) {
+        AllocationResult result;
+        auto status = mAidlAllocator->allocate(descriptor, bufferCount, &result);
+        if (!status.isOk()) {
+            error = status.getExceptionCode();
+            if (error == EX_SERVICE_SPECIFIC) {
+                error = status.getServiceSpecificError();
+            }
+            if (error == OK) {
+                error = UNKNOWN_ERROR;
+            }
+        } else {
+            if (importBuffers) {
+                for (uint32_t i = 0; i < bufferCount; i++) {
+                    error = mMapper.importBuffer(makeFromAidl(result.buffers[i]),
+                                                 &outBufferHandles[i]);
+                    if (error != NO_ERROR) {
+                        for (uint32_t j = 0; j < i; j++) {
+                            mMapper.freeBuffer(outBufferHandles[j]);
+                            outBufferHandles[j] = nullptr;
+                        }
+                        break;
+                    }
+                }
+            } else {
+                for (uint32_t i = 0; i < bufferCount; i++) {
+                    outBufferHandles[i] = dupFromAidl(result.buffers[i]);
+                    if (!outBufferHandles[i]) {
+                        for (uint32_t j = 0; j < i; j++) {
+                            auto buffer = const_cast<native_handle_t*>(outBufferHandles[j]);
+                            native_handle_close(buffer);
+                            native_handle_delete(buffer);
+                            outBufferHandles[j] = nullptr;
+                        }
+                    }
+                }
+            }
+        }
+        *outStride = result.stride;
+        // Release all the resources held by AllocationResult (specifically any remaining FDs)
+        result = {};
+        // make sure the kernel driver sees BC_FREE_BUFFER and closes the fds now
+        hardware::IPCThreadState::self()->flushCommands();
         return error;
     }
 
