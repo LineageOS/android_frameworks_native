@@ -301,6 +301,14 @@ enum {
      * supported and a value of 0 means not supported.
      */
     ASENSOR_TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED = 41,
+    /**
+     * {@link ASENSOR_TYPE_HEADING}
+     * reporting-mode: continuous
+     *
+     * A heading sensor measures the direction in which the device is pointing
+     * relative to true north in degrees.
+     */
+    ASENSOR_TYPE_HEADING = 42,
 };
 
 /**
@@ -563,6 +571,23 @@ typedef struct ALimitedAxesImuUncalibratedEvent {
     };
 } ALimitedAxesImuUncalibratedEvent;
 
+typedef struct AHeadingEvent {
+    /**
+     * The direction in which the device is pointing relative to true north in
+     * degrees. The value must be between 0.0 (inclusive) and 360.0 (exclusive),
+     * with 0 indicating north, 90 east, 180 south, and 270 west.
+     */
+    float heading;
+    /**
+     * Accuracy is defined at 68% confidence. In the case where the underlying
+     * distribution is assumed Gaussian normal, this would be considered one
+     * standard deviation. For example, if the heading returns 60 degrees, and
+     * accuracy returns 10 degrees, then there is a 68 percent probability of
+     * the true heading being between 50 degrees and 70 degrees.
+     */
+    float accuracy;
+} AHeadingEvent;
+
 /**
  * Information that describes a sensor event, refer to
  * <a href="/reference/android/hardware/SensorEvent">SensorEvent</a> for additional
@@ -602,6 +627,7 @@ typedef struct ASensorEvent {
             AHeadTrackerEvent head_tracker;
             ALimitedAxesImuEvent limited_axes_imu;
             ALimitedAxesImuUncalibratedEvent limited_axes_imu_uncalibrated;
+            AHeadingEvent heading;
         };
         union {
             uint64_t        data[8];
