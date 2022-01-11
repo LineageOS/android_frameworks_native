@@ -213,11 +213,9 @@ public:
         // applyImmediately should only be false if OptionalFeature::DisplayBrightnessCommand is
         // supported.
         bool applyImmediately = true;
-        bool sdrDimmingEnabled = true;
 
         bool operator==(const DisplayBrightnessOptions& other) const {
-            return applyImmediately == other.applyImmediately &&
-                    sdrDimmingEnabled == other.sdrDimmingEnabled;
+            return applyImmediately == other.applyImmediately;
         }
     };
     virtual Error setDisplayBrightness(Display display, float brightness,
