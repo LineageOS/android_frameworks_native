@@ -147,15 +147,16 @@
 
 #define MAIN_THREAD ACQUIRE(mStateLock) RELEASE(mStateLock)
 
+// Note: The parentheses around `expr` are needed to deduce an lvalue or rvalue reference.
 #define ON_MAIN_THREAD(expr)                                       \
-    [&] {                                                          \
+    [&]() -> decltype(auto) {                                      \
         LOG_FATAL_IF(std::this_thread::get_id() != mMainThreadId); \
         UnnecessaryLock lock(mStateLock);                          \
         return (expr);                                             \
     }()
 
 #define MAIN_THREAD_GUARD(expr)                                    \
-    [&] {                                                          \
+    [&]() -> decltype(auto) {                                      \
         LOG_FATAL_IF(std::this_thread::get_id() != mMainThreadId); \
         MainThreadScopedGuard lock(SF_MAIN_THREAD);                \
         return (expr);                                             \
@@ -1345,9 +1346,8 @@ void SurfaceFlinger::disableExpensiveRendering() {
     auto future = mScheduler->schedule([=]() MAIN_THREAD {
         ATRACE_CALL();
         if (mPowerAdvisor.isUsingExpensiveRendering()) {
-            const auto& displays = ON_MAIN_THREAD(mDisplays);
-            for (const auto& [_, display] : displays) {
-                const static constexpr auto kDisable = false;
+            for (const auto& [_, display] : mDisplays) {
+                constexpr bool kDisable = false;
                 mPowerAdvisor.setExpensiveRenderingExpected(display->getId(), kDisable);
             }
         }
@@ -3236,9 +3236,7 @@ void SurfaceFlinger::persistDisplayBrightness(bool needsComposite) {
         return;
     }
 
-    const auto& displays = ON_MAIN_THREAD(mDisplays);
-
-    for (const auto& [_, display] : displays) {
+    for (const auto& [_, display] : ON_MAIN_THREAD(mDisplays)) {
         if (const auto brightness = display->getStagedBrightness(); brightness) {
             if (!needsComposite) {
                 const status_t error =
