@@ -124,6 +124,7 @@ public:
     MOCK_METHOD(hal::Error, setLayerGenericMetadata,
                 (const std::string &, bool, const std::vector<uint8_t> &), (override));
     MOCK_METHOD(hal::Error, setWhitePointNits, (float whitePointNits), (override));
+    MOCK_METHOD(hal::Error, setBlockingRegion, (const android::Region &), (override));
 };
 
 } // namespace android::HWC2::mock

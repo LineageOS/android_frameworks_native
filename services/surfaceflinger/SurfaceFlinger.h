@@ -252,10 +252,6 @@ public:
 
     static constexpr SkipInitializationTag SkipInitialization;
 
-    // Whether or not SDR layers should be dimmed to the desired SDR white point instead of
-    // being treated as native display brightness
-    static bool enableSdrDimming;
-
     static LatchUnsignaledConfig enableLatchUnsignaledConfig;
 
     // must be called before clients can connect
