@@ -317,7 +317,11 @@ public:
     Error getClientTargetProperty(Display display,
                                   IComposerClient::ClientTargetProperty* outClientTargetProperty,
                                   float* outWhitePointNits) override;
+
+    // AIDL Composer HAL
     Error setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) override;
+    Error setLayerBlockingRegion(Display display, Layer layer,
+                                 const std::vector<IComposerClient::Rect>& blocking) override;
 
 private:
     class CommandWriter : public CommandWriterBase {

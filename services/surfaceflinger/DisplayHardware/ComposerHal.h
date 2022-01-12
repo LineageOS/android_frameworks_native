@@ -213,11 +213,9 @@ public:
         // applyImmediately should only be false if OptionalFeature::DisplayBrightnessCommand is
         // supported.
         bool applyImmediately = true;
-        bool sdrDimmingEnabled = true;
 
         bool operator==(const DisplayBrightnessOptions& other) const {
-            return applyImmediately == other.applyImmediately &&
-                    sdrDimmingEnabled == other.sdrDimmingEnabled;
+            return applyImmediately == other.applyImmediately;
         }
     };
     virtual Error setDisplayBrightness(Display display, float brightness,
@@ -254,6 +252,8 @@ public:
 
     // AIDL Composer
     virtual Error setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) = 0;
+    virtual Error setLayerBlockingRegion(Display display, Layer layer,
+                                         const std::vector<IComposerClient::Rect>& blocking) = 0;
 };
 
 } // namespace android::Hwc2

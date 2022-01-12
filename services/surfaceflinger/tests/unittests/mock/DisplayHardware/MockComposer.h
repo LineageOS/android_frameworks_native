@@ -145,6 +145,8 @@ public:
     MOCK_METHOD3(getClientTargetProperty,
                  Error(Display, IComposerClient::ClientTargetProperty*, float*));
     MOCK_METHOD3(setLayerWhitePointNits, Error(Display, Layer, float));
+    MOCK_METHOD3(setLayerBlockingRegion,
+                 Error(Display, Layer, const std::vector<IComposerClient::Rect>&));
 };
 
 } // namespace Hwc2::mock
