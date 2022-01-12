@@ -551,10 +551,10 @@ void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
 
 void OutputLayer::writeSolidColorStateToHWC(HWC2::Layer* hwcLayer,
                                             const LayerFECompositionState& outputIndependentState) {
-    hal::Color color = {static_cast<uint8_t>(std::round(255.0f * outputIndependentState.color.r)),
-                        static_cast<uint8_t>(std::round(255.0f * outputIndependentState.color.g)),
-                        static_cast<uint8_t>(std::round(255.0f * outputIndependentState.color.b)),
-                        255};
+    aidl::android::hardware::graphics::composer3::Color color = {outputIndependentState.color.r,
+                                                                 outputIndependentState.color.g,
+                                                                 outputIndependentState.color.b,
+                                                                 1.0f};
 
     if (auto error = hwcLayer->setColor(color); error != hal::Error::NONE) {
         ALOGE("[%s] Failed to set color: %s (%d)", getLayerFE().getDebugName(),

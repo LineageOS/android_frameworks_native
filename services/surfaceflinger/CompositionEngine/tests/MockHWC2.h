@@ -58,7 +58,7 @@ public:
                        const android::sp<android::Fence>&));
     MOCK_METHOD1(setSurfaceDamage, Error(const android::Region&));
     MOCK_METHOD1(setBlendMode, Error(hal::BlendMode));
-    MOCK_METHOD1(setColor, Error(hal::Color));
+    MOCK_METHOD1(setColor, Error(aidl::android::hardware::graphics::composer3::Color));
     MOCK_METHOD1(setCompositionType,
                  Error(aidl::android::hardware::graphics::composer3::Composition));
     MOCK_METHOD1(setDataspace, Error(android::ui::Dataspace));
