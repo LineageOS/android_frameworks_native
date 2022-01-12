@@ -552,7 +552,7 @@ size_t AChoreographerFrameCallbackData_routeGetPreferredFrameTimelineIndex(
         const AChoreographerFrameCallbackData* data) {
     return AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex(data);
 }
-int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId(
+AVsyncId AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId(
         const AChoreographerFrameCallbackData* data, size_t index) {
     return AChoreographerFrameCallbackData_getFrameTimelineVsyncId(data, index);
 }
@@ -644,7 +644,7 @@ size_t AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex(
                         "Data is only valid in callback");
     return frameCallbackData->preferredFrameTimelineIndex;
 }
-int64_t AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
+AVsyncId AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
         const AChoreographerFrameCallbackData* data, size_t index) {
     const ChoreographerFrameCallbackDataImpl* frameCallbackData =
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);
