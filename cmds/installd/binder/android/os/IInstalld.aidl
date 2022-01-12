@@ -20,7 +20,7 @@ package android.os;
 interface IInstalld {
     void createUserData(@nullable @utf8InCpp String uuid, int userId, int userSerial, int flags);
     void destroyUserData(@nullable @utf8InCpp String uuid, int userId, int flags);
-
+    void setFirstBoot();
     android.os.CreateAppDataResult createAppData(in android.os.CreateAppDataArgs args);
     android.os.CreateAppDataResult[] createAppDataBatched(in android.os.CreateAppDataArgs[] args);
 
