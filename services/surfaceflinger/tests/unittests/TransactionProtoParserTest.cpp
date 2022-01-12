@@ -39,6 +39,7 @@ TEST(TransactionProtoParserTest, parse) {
     layer_state_t layer;
     layer.layerId = 6;
     layer.what = std::numeric_limits<uint64_t>::max();
+    layer.what &= ~static_cast<uint64_t>(layer_state_t::eBufferChanged);
     layer.x = 7;
     layer.matrix.dsdx = 15;
 
