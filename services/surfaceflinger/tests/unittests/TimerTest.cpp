@@ -26,11 +26,19 @@ using namespace std::literals;
 
 namespace android::scheduler {
 
+struct TestableTimer : public Timer {
+public:
+    void makeEpollError() {
+        // close the epoll file descriptor to cause an epoll error
+        close(mEpollFd);
+    }
+};
+
 struct TimerTest : testing::Test {
     static constexpr int mIterations = 20;
 
     AsyncCallRecorder<void (*)()> mCallbackRecorder;
-    Timer mTimer;
+    TestableTimer mTimer;
 
     void timerCallback() { mCallbackRecorder.recordCall(); }
 };
@@ -42,4 +50,14 @@ TEST_F(TimerTest, callsCallbackIfScheduledInPast) {
         EXPECT_FALSE(mCallbackRecorder.waitForUnexpectedCall().has_value());
     }
 }
+
+TEST_F(TimerTest, recoversAfterEpollError) {
+    for (int i = 0; i < mIterations; i++) {
+        mTimer.makeEpollError();
+        mTimer.alarmAt(std::bind(&TimerTest::timerCallback, this), systemTime() - 10'000'00);
+        EXPECT_TRUE(mCallbackRecorder.waitForCall().has_value());
+        EXPECT_FALSE(mCallbackRecorder.waitForUnexpectedCall().has_value());
+    }
+}
+
 } // namespace android::scheduler

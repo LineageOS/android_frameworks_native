@@ -36,6 +36,10 @@ public:
     void alarmCancel() final;
     void dump(std::string& result) const final;
 
+protected:
+    // For unit testing
+    int mEpollFd = -1;
+
 private:
     enum class DebugState {
         Reset,
@@ -48,12 +52,12 @@ private:
         ftl_last = Terminated
     };
 
-    void reset();
-    void cleanup();
+    void reset() EXCLUDES(mMutex);
+    void cleanup() REQUIRES(mMutex);
     void setDebugState(DebugState state) EXCLUDES(mMutex);
 
     int mTimerFd = -1;
-    int mEpollFd = -1;
+
     std::array<int, 2> mPipes = {-1, -1};
 
     std::thread mDispatchThread;
@@ -63,6 +67,7 @@ private:
 
     mutable std::mutex mMutex;
     std::function<void()> mCallback GUARDED_BY(mMutex);
+    bool mExpectingCallback GUARDED_BY(mMutex) = false;
     DebugState mDebugState GUARDED_BY(mMutex);
 };
 
