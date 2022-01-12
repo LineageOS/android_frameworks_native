@@ -1609,7 +1609,7 @@ status_t SurfaceFlinger::getCompositionPreference(
 status_t SurfaceFlinger::addRegionSamplingListener(const Rect& samplingArea,
                                                    const sp<IBinder>& stopLayerHandle,
                                                    const sp<IRegionSamplingListener>& listener) {
-    if (!listener || samplingArea == Rect::INVALID_RECT) {
+    if (!listener || samplingArea == Rect::INVALID_RECT || samplingArea.isEmpty()) {
         return BAD_VALUE;
     }
 
