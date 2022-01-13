@@ -153,7 +153,8 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeBool, isTrustedOverlay);
 
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dropInputMode));
-    SAFE_PARCEL(bufferData.write, output);
+    SAFE_PARCEL(output.writeNullableParcelable,
+                bufferData ? std::make_optional<BufferData>(*bufferData) : std::nullopt);
     return NO_ERROR;
 }
 
@@ -263,7 +264,9 @@ status_t layer_state_t::read(const Parcel& input)
     uint32_t mode;
     SAFE_PARCEL(input.readUint32, &mode);
     dropInputMode = static_cast<gui::DropInputMode>(mode);
-    SAFE_PARCEL(bufferData.read, input);
+    std::optional<BufferData> tmpBufferData;
+    SAFE_PARCEL(input.readParcelable, &tmpBufferData);
+    bufferData = tmpBufferData ? std::make_shared<BufferData>(*tmpBufferData) : nullptr;
     return NO_ERROR;
 }
 
@@ -518,7 +521,7 @@ bool layer_state_t::hasBufferChanges() const {
 }
 
 bool layer_state_t::hasValidBuffer() const {
-    return bufferData.buffer || bufferData.cachedBuffer.isValid();
+    return bufferData && (bufferData->buffer || bufferData->cachedBuffer.isValid());
 }
 
 status_t layer_state_t::matrix22_t::write(Parcel& output) const {
@@ -681,64 +684,64 @@ ReleaseCallbackId BufferData::generateReleaseCallbackId() const {
     return {buffer->getId(), frameNumber};
 }
 
-status_t BufferData::write(Parcel& output) const {
-    SAFE_PARCEL(output.writeInt32, flags.get());
+status_t BufferData::writeToParcel(Parcel* output) const {
+    SAFE_PARCEL(output->writeInt32, flags.get());
 
     if (buffer) {
-        SAFE_PARCEL(output.writeBool, true);
-        SAFE_PARCEL(output.write, *buffer);
+        SAFE_PARCEL(output->writeBool, true);
+        SAFE_PARCEL(output->write, *buffer);
     } else {
-        SAFE_PARCEL(output.writeBool, false);
+        SAFE_PARCEL(output->writeBool, false);
     }
 
     if (acquireFence) {
-        SAFE_PARCEL(output.writeBool, true);
-        SAFE_PARCEL(output.write, *acquireFence);
+        SAFE_PARCEL(output->writeBool, true);
+        SAFE_PARCEL(output->write, *acquireFence);
     } else {
-        SAFE_PARCEL(output.writeBool, false);
+        SAFE_PARCEL(output->writeBool, false);
     }
 
-    SAFE_PARCEL(output.writeUint64, frameNumber);
-    SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(releaseBufferListener));
-    SAFE_PARCEL(output.writeStrongBinder, releaseBufferEndpoint);
+    SAFE_PARCEL(output->writeUint64, frameNumber);
+    SAFE_PARCEL(output->writeStrongBinder, IInterface::asBinder(releaseBufferListener));
+    SAFE_PARCEL(output->writeStrongBinder, releaseBufferEndpoint);
 
-    SAFE_PARCEL(output.writeStrongBinder, cachedBuffer.token.promote());
-    SAFE_PARCEL(output.writeUint64, cachedBuffer.id);
+    SAFE_PARCEL(output->writeStrongBinder, cachedBuffer.token.promote());
+    SAFE_PARCEL(output->writeUint64, cachedBuffer.id);
 
     return NO_ERROR;
 }
 
-status_t BufferData::read(const Parcel& input) {
+status_t BufferData::readFromParcel(const Parcel* input) {
     int32_t tmpInt32;
-    SAFE_PARCEL(input.readInt32, &tmpInt32);
+    SAFE_PARCEL(input->readInt32, &tmpInt32);
     flags = Flags<BufferDataChange>(tmpInt32);
 
     bool tmpBool = false;
-    SAFE_PARCEL(input.readBool, &tmpBool);
+    SAFE_PARCEL(input->readBool, &tmpBool);
     if (tmpBool) {
         buffer = new GraphicBuffer();
-        SAFE_PARCEL(input.read, *buffer);
+        SAFE_PARCEL(input->read, *buffer);
     }
 
-    SAFE_PARCEL(input.readBool, &tmpBool);
+    SAFE_PARCEL(input->readBool, &tmpBool);
     if (tmpBool) {
         acquireFence = new Fence();
-        SAFE_PARCEL(input.read, *acquireFence);
+        SAFE_PARCEL(input->read, *acquireFence);
     }
 
-    SAFE_PARCEL(input.readUint64, &frameNumber);
+    SAFE_PARCEL(input->readUint64, &frameNumber);
 
     sp<IBinder> tmpBinder = nullptr;
-    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
+    SAFE_PARCEL(input->readNullableStrongBinder, &tmpBinder);
     if (tmpBinder) {
         releaseBufferListener = checked_interface_cast<ITransactionCompletedListener>(tmpBinder);
     }
-    SAFE_PARCEL(input.readNullableStrongBinder, &releaseBufferEndpoint);
+    SAFE_PARCEL(input->readNullableStrongBinder, &releaseBufferEndpoint);
 
     tmpBinder = nullptr;
-    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
+    SAFE_PARCEL(input->readNullableStrongBinder, &tmpBinder);
     cachedBuffer.token = tmpBinder;
-    SAFE_PARCEL(input.readUint64, &cachedBuffer.id);
+    SAFE_PARCEL(input->readUint64, &cachedBuffer.id);
 
     return NO_ERROR;
 }

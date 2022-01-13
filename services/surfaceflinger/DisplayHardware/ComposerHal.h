@@ -31,6 +31,7 @@
 #include <ui/GraphicBuffer.h>
 #include <utils/StrongPointer.h>
 
+#include <aidl/android/hardware/graphics/composer3/Color.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
@@ -164,8 +165,9 @@ public:
                                         const std::vector<IComposerClient::Rect>& damage) = 0;
     virtual Error setLayerBlendMode(Display display, Layer layer,
                                     IComposerClient::BlendMode mode) = 0;
-    virtual Error setLayerColor(Display display, Layer layer,
-                                const IComposerClient::Color& color) = 0;
+    virtual Error setLayerColor(
+            Display display, Layer layer,
+            const aidl::android::hardware::graphics::composer3::Color& color) = 0;
     virtual Error setLayerCompositionType(
             Display display, Layer layer,
             aidl::android::hardware::graphics::composer3::Composition type) = 0;

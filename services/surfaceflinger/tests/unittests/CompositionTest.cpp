@@ -621,7 +621,8 @@ struct BaseLayerProperties {
             // TODO: use COLOR
             EXPECT_CALL(*test->mComposer,
                         setLayerColor(HWC_DISPLAY, HWC_LAYER,
-                                      IComposerClient::Color({0xff, 0xff, 0xff, 0xff})))
+                                      aidl::android::hardware::graphics::composer3::Color(
+                                              {1.0f, 1.0f, 1.0f, 1.0f})))
                     .Times(1);
         }
     }

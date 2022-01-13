@@ -51,13 +51,25 @@ Timer::~Timer() {
 }
 
 void Timer::reset() {
-    cleanup();
-    mTimerFd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
-    mEpollFd = epoll_create1(EPOLL_CLOEXEC);
-    if (pipe2(mPipes.data(), O_CLOEXEC | O_NONBLOCK)) {
-        ALOGE("could not create TimerDispatch mPipes");
-        return;
-    };
+    std::function<void()> cb;
+    {
+        std::lock_guard lock(mMutex);
+        if (mExpectingCallback && mCallback) {
+            cb = mCallback;
+        }
+
+        cleanup();
+        mTimerFd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
+        mEpollFd = epoll_create1(EPOLL_CLOEXEC);
+        if (pipe2(mPipes.data(), O_CLOEXEC | O_NONBLOCK)) {
+            ALOGE("could not create TimerDispatch mPipes");
+        }
+    }
+    if (cb) {
+        setDebugState(DebugState::InCallback);
+        cb();
+        setDebugState(DebugState::Running);
+    }
     setDebugState(DebugState::Reset);
 }
 
@@ -81,6 +93,8 @@ void Timer::cleanup() {
         close(mPipes[kWritePipe]);
         mPipes[kWritePipe] = -1;
     }
+    mExpectingCallback = false;
+    mCallback = {};
 }
 
 void Timer::endDispatch() {
@@ -99,6 +113,7 @@ void Timer::alarmAt(std::function<void()> const& cb, nsecs_t time) {
             std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
 
     mCallback = cb;
+    mExpectingCallback = true;
 
     struct itimerspec old_timer;
     struct itimerspec new_timer {
@@ -198,6 +213,7 @@ bool Timer::dispatch() {
                 {
                     std::lock_guard lock(mMutex);
                     cb = mCallback;
+                    mExpectingCallback = false;
                 }
                 if (cb) {
                     setDebugState(DebugState::InCallback);

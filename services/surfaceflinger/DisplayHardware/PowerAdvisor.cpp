@@ -295,10 +295,6 @@ public:
         }
 
         mSupportsPowerHint = checkPowerHintSessionSupported();
-
-        if (mSupportsPowerHint) {
-            mPowerHintQueue.reserve(kMaxQueueSize);
-        }
     }
 
     ~AidlPowerHalWrapper() override {
@@ -423,8 +419,9 @@ public:
     }
 
     bool shouldReportActualDurationsNow() {
-        // report if we have never reported before or have exceeded the max queue size
-        if (!mLastActualDurationSent.has_value() || mPowerHintQueue.size() >= kMaxQueueSize) {
+        // report if we have never reported before or are approaching a stale session
+        if (!mLastActualDurationSent.has_value() ||
+            (systemTime() - mLastActualReportTimestamp) > kStaleTimeout.count()) {
             return true;
         }
 
@@ -477,6 +474,7 @@ public:
         // are outlined in shouldReportActualDurationsNow()
         if (shouldReportActualDurationsNow()) {
             ALOGV("Sending hint update batch");
+            mLastActualReportTimestamp = systemTime();
             auto ret = mPowerHintSession->reportActualWorkDuration(mPowerHintQueue);
             if (!ret.isOk()) {
                 ALOGW("Failed to report actual work durations with error: %s",
@@ -506,27 +504,30 @@ private:
     // Queue of actual durations saved to report
     std::vector<WorkDuration> mPowerHintQueue;
     // The latest un-normalized values we have received for target and actual
-    int64_t mTargetDuration = kDefaultTarget;
+    int64_t mTargetDuration = kDefaultTarget.count();
     std::optional<int64_t> mActualDuration;
     // The list of thread ids, stored so we can restart the session from this class if needed
     std::vector<int32_t> mPowerHintThreadIds;
     bool mSupportsPowerHint;
     // Keep track of the last messages sent for rate limiter change detection
     std::optional<int64_t> mLastActualDurationSent;
-    int64_t mLastTargetDurationSent = kDefaultTarget;
+    // timestamp of the last report we sent, used to avoid stale sessions
+    int64_t mLastActualReportTimestamp = 0;
+    int64_t mLastTargetDurationSent = kDefaultTarget.count();
     // Whether to normalize all the actual values as error terms relative to a constant target
     // This saves a binder call by not setting the target, and should not affect the pid values
     static const bool sNormalizeTarget;
     // Whether we should emit ATRACE_INT data for hint sessions
     static const bool sTraceHintSessionData;
-    // Max number of messages allowed in mPowerHintQueue before reporting is forced
-    static constexpr int32_t kMaxQueueSize = 15;
     // Max percent the actual duration can vary without causing a report (eg: 0.1 = 10%)
     static constexpr double kAllowedActualDeviationPercent = 0.1;
     // Max percent the target duration can vary without causing a report (eg: 0.05 = 5%)
     static constexpr double kAllowedTargetDeviationPercent = 0.05;
     // Target used for init and normalization, the actual value does not really matter
-    static constexpr int64_t kDefaultTarget = 50000000;
+    static constexpr const std::chrono::nanoseconds kDefaultTarget = 50ms;
+    // amount of time after the last message was sent before the session goes stale
+    // actually 100ms but we use 80 here to ideally avoid going stale
+    static constexpr const std::chrono::nanoseconds kStaleTimeout = 80ms;
 };
 
 const bool AidlPowerHalWrapper::sTraceHintSessionData =

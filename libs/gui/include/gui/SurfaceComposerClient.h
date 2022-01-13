@@ -501,7 +501,7 @@ public:
                                const std::optional<sp<Fence>>& fence = std::nullopt,
                                const std::optional<uint64_t>& frameNumber = std::nullopt,
                                ReleaseBufferCallback callback = nullptr);
-        std::optional<BufferData> getAndClearBuffer(const sp<SurfaceControl>& sc);
+        std::shared_ptr<BufferData> getAndClearBuffer(const sp<SurfaceControl>& sc);
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
         Transaction& setHdrMetadata(const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata);
         Transaction& setSurfaceDamageRegion(const sp<SurfaceControl>& sc,
