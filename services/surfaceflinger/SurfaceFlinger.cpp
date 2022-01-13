@@ -65,6 +65,7 @@
 #include <private/gui/SyncFeatures.h>
 #include <processgroup/processgroup.h>
 #include <renderengine/RenderEngine.h>
+#include <renderengine/impl/ExternalTexture.h>
 #include <sys/types.h>
 #include <ui/ColorSpace.h>
 #include <ui/DataspaceUtils.h>
@@ -4419,10 +4420,13 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         }
     }
 
-    if (what & layer_state_t::eBufferChanged &&
-        layer->setBuffer(*s.bufferData, postTime, desiredPresentTime, isAutoTimestamp,
-                         dequeueBufferTimestamp, frameTimelineInfo)) {
-        flags |= eTraversalNeeded;
+    if (what & layer_state_t::eBufferChanged) {
+        std::shared_ptr<renderengine::ExternalTexture> buffer =
+                getExternalTextureFromBufferData(*s.bufferData, layer->getDebugName());
+        if (layer->setBuffer(buffer, *s.bufferData, postTime, desiredPresentTime, isAutoTimestamp,
+                             dequeueBufferTimestamp, frameTimelineInfo)) {
+            flags |= eTraversalNeeded;
+        }
     } else if (frameTimelineInfo.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
         layer->setFrameTimelineVsyncForBufferlessTransaction(frameTimelineInfo, postTime);
     }
@@ -6384,9 +6388,10 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::captureScre
     const status_t bufferStatus = buffer->initCheck();
     LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "captureScreenCommon: Buffer failed to allocate: %d",
                         bufferStatus);
-    const auto texture = std::make_shared<
-            renderengine::ExternalTexture>(buffer, getRenderEngine(),
-                                           renderengine::ExternalTexture::Usage::WRITEABLE);
+    const std::shared_ptr<renderengine::ExternalTexture> texture = std::make_shared<
+            renderengine::impl::ExternalTexture>(buffer, getRenderEngine(),
+                                                 renderengine::impl::ExternalTexture::Usage::
+                                                         WRITEABLE);
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, texture,
                                false /* regionSampling */, grayscale, captureListener);
 }
@@ -6463,7 +6468,7 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
                 captureResults.capturedSecureLayers || (layer->isVisible() && layer->isSecure());
     });
 
-    const bool useProtected = buffer->getBuffer()->getUsage() & GRALLOC_USAGE_PROTECTED;
+    const bool useProtected = buffer->getUsage() & GRALLOC_USAGE_PROTECTED;
 
     // We allow the system server to take screenshots of secure layers for
     // use in situations like the Screen-rotation animation and place
@@ -7074,6 +7079,36 @@ status_t SurfaceFlinger::removeWindowInfosListener(
     return NO_ERROR;
 }
 
+std::shared_ptr<renderengine::ExternalTexture> SurfaceFlinger::getExternalTextureFromBufferData(
+        const BufferData& bufferData, const char* layerName) const {
+    bool cacheIdChanged = bufferData.flags.test(BufferData::BufferDataChange::cachedBufferChanged);
+    bool bufferSizeExceedsLimit = false;
+    std::shared_ptr<renderengine::ExternalTexture> buffer = nullptr;
+    if (cacheIdChanged && bufferData.buffer != nullptr) {
+        bufferSizeExceedsLimit = exceedsMaxRenderTargetSize(bufferData.buffer->getWidth(),
+                                                            bufferData.buffer->getHeight());
+        if (!bufferSizeExceedsLimit) {
+            ClientCache::getInstance().add(bufferData.cachedBuffer, bufferData.buffer);
+            buffer = ClientCache::getInstance().get(bufferData.cachedBuffer);
+        }
+    } else if (cacheIdChanged) {
+        buffer = ClientCache::getInstance().get(bufferData.cachedBuffer);
+    } else if (bufferData.buffer != nullptr) {
+        bufferSizeExceedsLimit = exceedsMaxRenderTargetSize(bufferData.buffer->getWidth(),
+                                                            bufferData.buffer->getHeight());
+        if (!bufferSizeExceedsLimit) {
+            buffer = std::make_shared<
+                    renderengine::impl::ExternalTexture>(bufferData.buffer, getRenderEngine(),
+                                                         renderengine::impl::ExternalTexture::
+                                                                 Usage::READABLE);
+        }
+    }
+    ALOGE_IF(bufferSizeExceedsLimit,
+             "Attempted to create an ExternalTexture for layer %s that exceeds render target size "
+             "limit.",
+             layerName);
+    return buffer;
+}
 } // namespace android
 
 #if defined(__gl_h_)

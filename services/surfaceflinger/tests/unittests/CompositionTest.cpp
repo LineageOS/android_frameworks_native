@@ -30,6 +30,7 @@
 #include <gui/IProducerListener.h>
 #include <gui/LayerMetadata.h>
 #include <log/log.h>
+#include <renderengine/mock/FakeExternalTexture.h>
 #include <renderengine/mock/Framebuffer.h>
 #include <renderengine/mock/Image.h>
 #include <renderengine/mock/RenderEngine.h>
@@ -234,15 +235,13 @@ void CompositionTest::captureScreenComposition() {
                                                    CaptureArgs::UNSET_UID, visitor);
     };
 
-    // TODO: Eliminate expensive/real allocation if possible.
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
-    mCaptureScreenBuffer = std::make_shared<
-            renderengine::ExternalTexture>(new GraphicBuffer(renderArea->getReqWidth(),
-                                                             renderArea->getReqHeight(),
-                                                             HAL_PIXEL_FORMAT_RGBA_8888, 1, usage,
-                                                             "screenshot"),
-                                           *mRenderEngine, true);
+    mCaptureScreenBuffer =
+            std::make_shared<renderengine::mock::FakeExternalTexture>(renderArea->getReqWidth(),
+                                                                      renderArea->getReqHeight(),
+                                                                      HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                                                      usage);
 
     auto result = mFlinger.renderScreenImplLocked(*renderArea, traverseLayers, mCaptureScreenBuffer,
                                                   forSystem, regionSampling);

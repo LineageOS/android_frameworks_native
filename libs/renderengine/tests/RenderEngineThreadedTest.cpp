@@ -17,6 +17,7 @@
 #include <cutils/properties.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <renderengine/impl/ExternalTexture.h>
 #include <renderengine/mock/RenderEngine.h>
 #include "../threaded/RenderEngineThreaded.h"
 
@@ -174,9 +175,10 @@ TEST_F(RenderEngineThreadedTest, drawLayers) {
     renderengine::DisplaySettings settings;
     std::vector<renderengine::LayerSettings> layers;
     std::shared_ptr<renderengine::ExternalTexture> buffer = std::make_shared<
-            renderengine::ExternalTexture>(new GraphicBuffer(), *mRenderEngine,
-                                           renderengine::ExternalTexture::Usage::READABLE |
-                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
+            renderengine::impl::
+                    ExternalTexture>(new GraphicBuffer(), *mRenderEngine,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
 
     base::unique_fd bufferFence;
 

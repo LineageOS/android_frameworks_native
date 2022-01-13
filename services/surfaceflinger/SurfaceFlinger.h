@@ -330,6 +330,9 @@ protected:
     virtual void processDisplayAdded(const wp<IBinder>& displayToken, const DisplayDeviceState&)
             REQUIRES(mStateLock);
 
+    virtual std::shared_ptr<renderengine::ExternalTexture> getExternalTextureFromBufferData(
+            const BufferData& bufferData, const char* layerName) const;
+
     // Returns true if any display matches a `bool(const DisplayDevice&)` predicate.
     template <typename Predicate>
     bool hasDisplay(Predicate p) const REQUIRES(mStateLock) {

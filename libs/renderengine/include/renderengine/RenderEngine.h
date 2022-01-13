@@ -76,6 +76,7 @@ class RenderEngineThreaded;
 
 namespace impl {
 class RenderEngine;
+class ExternalTexture;
 }
 
 enum class Protection {
@@ -228,7 +229,7 @@ protected:
     // avoid any thread synchronization that may be required by directly calling postRenderCleanup.
     virtual bool canSkipPostRenderCleanup() const = 0;
 
-    friend class ExternalTexture;
+    friend class impl::ExternalTexture;
     friend class threaded::RenderEngineThreaded;
     friend class RenderEngineTest_cleanupPostRender_cleansUpOnce_Test;
     const RenderEngineType mRenderEngineType;

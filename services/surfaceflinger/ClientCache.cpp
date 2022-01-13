@@ -22,6 +22,7 @@
 #include <cinttypes>
 
 #include <android-base/stringprintf.h>
+#include <renderengine/impl/ExternalTexture.h>
 
 #include "ClientCache.h"
 
@@ -109,8 +110,9 @@ bool ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& bu
                         "Attempted to build the ClientCache before a RenderEngine instance was "
                         "ready!");
     processBuffers[id].buffer = std::make_shared<
-            renderengine::ExternalTexture>(buffer, *mRenderEngine,
-                                           renderengine::ExternalTexture::Usage::READABLE);
+            renderengine::impl::ExternalTexture>(buffer, *mRenderEngine,
+                                                 renderengine::impl::ExternalTexture::Usage::
+                                                         READABLE);
     return true;
 }
 

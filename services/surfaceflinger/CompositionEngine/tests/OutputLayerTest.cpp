@@ -24,6 +24,7 @@
 #include <gtest/gtest.h>
 #include <log/log.h>
 
+#include <renderengine/impl/ExternalTexture.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <ui/PixelFormat.h>
 #include "MockHWC2.h"
@@ -815,10 +816,11 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         auto& overrideInfo = mOutputLayer.editState().overrideInfo;
 
         overrideInfo.buffer = std::make_shared<
-                renderengine::ExternalTexture>(kOverrideBuffer, mRenderEngine,
-                                               renderengine::ExternalTexture::Usage::READABLE |
-                                                       renderengine::ExternalTexture::Usage::
-                                                               WRITEABLE);
+                renderengine::impl::ExternalTexture>(kOverrideBuffer, mRenderEngine,
+                                                     renderengine::impl::ExternalTexture::Usage::
+                                                                     READABLE |
+                                                             renderengine::impl::ExternalTexture::
+                                                                     Usage::WRITEABLE);
         overrideInfo.acquireFence = kOverrideFence;
         overrideInfo.displayFrame = kOverrideDisplayFrame;
         overrideInfo.dataspace = kOverrideDataspace;

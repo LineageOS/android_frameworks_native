@@ -20,6 +20,7 @@
 #define LOG_TAG "Planner"
 
 #include <compositionengine/impl/planner/TexturePool.h>
+#include <renderengine/impl/ExternalTexture.h>
 #include <utils/Log.h>
 
 namespace android::compositionengine::impl::planner {
@@ -82,16 +83,19 @@ void TexturePool::returnTexture(std::shared_ptr<renderengine::ExternalTexture>&&
 std::shared_ptr<renderengine::ExternalTexture> TexturePool::genTexture() {
     LOG_ALWAYS_FATAL_IF(!mSize.isValid(), "Attempted to generate texture with invalid size");
     return std::make_shared<
-            renderengine::ExternalTexture>(sp<GraphicBuffer>::
-                                                   make(mSize.getWidth(), mSize.getHeight(),
-                                                        HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                                        GraphicBuffer::USAGE_HW_RENDER |
-                                                                GraphicBuffer::USAGE_HW_COMPOSER |
-                                                                GraphicBuffer::USAGE_HW_TEXTURE,
-                                                        "Planner"),
-                                           mRenderEngine,
-                                           renderengine::ExternalTexture::Usage::READABLE |
-                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
+            renderengine::impl::
+                    ExternalTexture>(sp<GraphicBuffer>::
+                                             make(static_cast<uint32_t>(mSize.getWidth()),
+                                                  static_cast<uint32_t>(mSize.getHeight()),
+                                                  HAL_PIXEL_FORMAT_RGBA_8888, 1U,
+                                                  static_cast<uint64_t>(
+                                                          GraphicBuffer::USAGE_HW_RENDER |
+                                                          GraphicBuffer::USAGE_HW_COMPOSER |
+                                                          GraphicBuffer::USAGE_HW_TEXTURE),
+                                                  "Planner"),
+                                     mRenderEngine,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
 }
 
 void TexturePool::setEnabled(bool enabled) {
