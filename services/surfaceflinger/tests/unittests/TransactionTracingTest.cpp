@@ -91,10 +91,9 @@ TEST_F(TransactionTracingTest, addTransactions) {
     flush(secondTransactionSetVsyncId);
 
     proto::TransactionTraceFile proto = writeToProto();
-    EXPECT_EQ(proto.entry().size(), 3);
-    // skip starting entry
-    verifyEntry(proto.entry(1), firstTransactionSet, firstTransactionSetVsyncId);
-    verifyEntry(proto.entry(2), secondTransactionSet, secondTransactionSetVsyncId);
+    EXPECT_EQ(proto.entry().size(), 2);
+    verifyEntry(proto.entry(0), firstTransactionSet, firstTransactionSetVsyncId);
+    verifyEntry(proto.entry(1), secondTransactionSet, secondTransactionSetVsyncId);
 }
 
 class TransactionTracingLayerHandlingTest : public TransactionTracingTest {
@@ -274,15 +273,13 @@ protected:
 TEST_F(TransactionTracingMirrorLayerTest, canAddMirrorLayers) {
     proto::TransactionTraceFile proto = writeToProto();
     // We don't have any starting states since no layer was removed from.
-    EXPECT_EQ(proto.entry().size(), 2);
-    EXPECT_EQ(proto.entry(0).transactions().size(), 0);
-    EXPECT_EQ(proto.entry(0).added_layers().size(), 0);
+    EXPECT_EQ(proto.entry().size(), 1);
 
     // Verify the mirror layer was added
-    EXPECT_EQ(proto.entry(1).transactions().size(), 1);
-    EXPECT_EQ(proto.entry(1).added_layers().size(), 2);
-    EXPECT_EQ(proto.entry(1).added_layers(1).layer_id(), mMirrorLayerId);
-    EXPECT_EQ(proto.entry(1).transactions(0).layer_changes().size(), 2);
-    EXPECT_EQ(proto.entry(1).transactions(0).layer_changes(1).z(), 43);
+    EXPECT_EQ(proto.entry(0).transactions().size(), 1);
+    EXPECT_EQ(proto.entry(0).added_layers().size(), 2);
+    EXPECT_EQ(proto.entry(0).added_layers(1).layer_id(), mMirrorLayerId);
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes().size(), 2);
+    EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(1).z(), 43);
 }
 } // namespace android
