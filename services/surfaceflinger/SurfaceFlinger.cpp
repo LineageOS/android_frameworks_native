@@ -2179,6 +2179,11 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     updateCursorAsync();
     updateInputFlinger();
 
+    if (mLayerTracingEnabled && !mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
+        // This will block and tracing should only be enabled for debugging.
+        mLayerTracing.notify(mVisibleRegionsDirty, frameTime);
+    }
+
     MAIN_THREAD_GUARD(persistDisplayBrightness(mustComposite));
 
     return mustComposite && CC_LIKELY(mBootStage != BootStage::BOOTLOADER);
@@ -2280,13 +2285,9 @@ void SurfaceFlinger::composite(nsecs_t frameTime) {
     modulateVsync(&VsyncModulator::onDisplayRefresh, usedGpuComposition);
 
     mLayersWithQueuedFrames.clear();
-    if (mLayerTracingEnabled) {
+    if (mLayerTracingEnabled && mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
         // This will block and should only be used for debugging.
-        if (mVisibleRegionsDirty) {
-            mLayerTracing.notify("visibleRegionsDirty");
-        } else if (mLayerTracing.flagIsSet(LayerTracing::TRACE_BUFFERS)) {
-            mLayerTracing.notify("bufferLatched");
-        }
+        mLayerTracing.notify(mVisibleRegionsDirty, frameTime);
     }
 
     mVisibleRegionsWereDirtyThisFrame = mVisibleRegionsDirty; // Cache value for use in post-comp
@@ -5773,12 +5774,18 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             }
             case 1025: { // Set layer tracing
                 n = data.readInt32();
+                int64_t fixedStartingTime = data.readInt64();
                 bool tracingEnabledChanged;
                 if (n) {
                     ALOGD("LayerTracing enabled");
                     tracingEnabledChanged = mLayerTracing.enable();
                     if (tracingEnabledChanged) {
-                        mScheduler->schedule([&]() MAIN_THREAD { mLayerTracing.notify("start"); })
+                        int64_t startingTime =
+                                (fixedStartingTime) ? fixedStartingTime : systemTime();
+                        mScheduler
+                                ->schedule([&]() MAIN_THREAD {
+                                    mLayerTracing.notify("start", startingTime);
+                                })
                                 .wait();
                     }
                 } else {
