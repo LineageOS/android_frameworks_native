@@ -101,7 +101,9 @@ Layer::Layer(const LayerCreationArgs& args)
     if (args.flags & ISurfaceComposerClient::eSecure) layerFlags |= layer_state_t::eLayerSecure;
     if (args.flags & ISurfaceComposerClient::eSkipScreenshot)
         layerFlags |= layer_state_t::eLayerSkipScreenshot;
-
+    if (args.sequence) {
+        sSequence = *args.sequence + 1;
+    }
     mDrawingState.flags = layerFlags;
     mDrawingState.active_legacy.transform.set(0, 0);
     mDrawingState.crop.makeInvalid();
