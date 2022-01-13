@@ -4571,7 +4571,7 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
                                                 args.name, mirrorFrom->sequence);
     }
     return addClientLayer(args.client, *outHandle, mirrorLayer /* layer */, nullptr /* parent */,
-                          false /* addAsRoot */, nullptr /* outTransformHint */);
+                          false /* addToRoot */, nullptr /* outTransformHint */);
 }
 
 status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
@@ -4611,7 +4611,7 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
         return result;
     }
 
-    bool addToRoot = callingThreadHasUnscopedSurfaceFlingerAccess();
+    bool addToRoot = args.addToRoot && callingThreadHasUnscopedSurfaceFlingerAccess();
     wp<Layer> parent(parentHandle != nullptr ? fromHandle(parentHandle) : parentLayer);
     if (parentHandle != nullptr && parent == nullptr) {
         ALOGE("Invalid parent handle %p.", parentHandle.get());
