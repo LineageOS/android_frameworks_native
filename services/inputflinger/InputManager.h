@@ -33,7 +33,6 @@
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
-#include <utils/Vector.h>
 
 using android::os::BnInputFlinger;
 
