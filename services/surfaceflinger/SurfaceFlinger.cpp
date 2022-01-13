@@ -2136,7 +2136,8 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
 
         bool needsTraversal = false;
         if (clearTransactionFlags(eTransactionFlushNeeded)) {
-            needsTraversal = flushTransactionQueues(vsyncId);
+            needsTraversal |= commitCreatedLayers();
+            needsTraversal |= flushTransactionQueues(vsyncId);
         }
 
         const bool shouldCommit =
@@ -3602,7 +3603,7 @@ bool SurfaceFlinger::latchBuffers() {
 }
 
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
-                                        const sp<Layer>& lbc, const wp<Layer>& parent,
+                                        const sp<Layer>& layer, const wp<Layer>& parent,
                                         bool addToRoot, uint32_t* outTransformHint) {
     if (mNumLayers >= ISurfaceComposer::MAX_LAYERS) {
         ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
@@ -3610,31 +3611,22 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
         return NO_MEMORY;
     }
 
-    setLayerCreatedState(handle, lbc, parent, addToRoot);
+    {
+        std::scoped_lock<std::mutex> lock(mCreatedLayersLock);
+        mCreatedLayers.emplace_back(layer, parent, addToRoot);
+    }
 
-    // Create a transaction includes the initial parent and producer.
-    Vector<ComposerState> states;
-    Vector<DisplayState> displays;
-
-    ComposerState composerState;
-    composerState.state.what = layer_state_t::eLayerCreated;
-    composerState.state.surface = handle;
-    states.add(composerState);
-
-    lbc->updateTransformHint(mActiveDisplayTransformHint);
+    layer->updateTransformHint(mActiveDisplayTransformHint);
     if (outTransformHint) {
         *outTransformHint = mActiveDisplayTransformHint;
     }
     // attach this layer to the client
     if (client != nullptr) {
-        client->attachLayer(handle, lbc);
+        client->attachLayer(handle, layer);
     }
 
-    int64_t transactionId = (((int64_t)mPid) << 32) | mUniqueTransactionId++;
-    return setTransactionState(FrameTimelineInfo{}, states, displays, 0 /* flags */, nullptr,
-                               InputWindowCommands{}, -1 /* desiredPresentTime */,
-                               true /* isAutoTimestamp */, {}, false /* hasListenerCallbacks */, {},
-                               transactionId);
+    setTransactionFlags(eTransactionNeeded);
+    return NO_ERROR;
 }
 
 uint32_t SurfaceFlinger::getTransactionFlags() const {
@@ -4219,15 +4211,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     uint32_t flags = 0;
     sp<Layer> layer = nullptr;
     if (s.surface) {
-        if (what & layer_state_t::eLayerCreated) {
-            layer = handleLayerCreatedLocked(s.surface);
-            if (layer) {
-                flags |= eTransactionNeeded | eTraversalNeeded;
-                mLayersAdded = true;
-            }
-        } else {
-            layer = fromHandle(s.surface).promote();
-        }
+        layer = fromHandle(s.surface).promote();
     } else {
         // The client may provide us a null handle. Treat it as if the layer was removed.
         ALOGW("Attempt to set client state with a null layer handle");
@@ -4638,7 +4622,6 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
         return result;
     }
 
-    setTransactionFlags(eTransactionNeeded);
     *outLayerId = layer->sequence;
     return result;
 }
@@ -7075,53 +7058,19 @@ void TransactionState::traverseStatesWithBuffers(
     }
 }
 
-void SurfaceFlinger::setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
-                                          const wp<Layer> parent, bool addToRoot) {
-    Mutex::Autolock lock(mCreatedLayersLock);
-    mCreatedLayers[handle->localBinder()] =
-            std::make_unique<LayerCreatedState>(layer, parent, addToRoot);
-}
-
-auto SurfaceFlinger::getLayerCreatedState(const sp<IBinder>& handle) {
-    Mutex::Autolock lock(mCreatedLayersLock);
-    BBinder* b = nullptr;
-    if (handle) {
-        b = handle->localBinder();
-    }
-
-    if (b == nullptr) {
-        return std::unique_ptr<LayerCreatedState>(nullptr);
-    }
-
-    auto it = mCreatedLayers.find(b);
-    if (it == mCreatedLayers.end()) {
-        ALOGE("Can't find layer from handle %p", handle.get());
-        return std::unique_ptr<LayerCreatedState>(nullptr);
-    }
-
-    auto state = std::move(it->second);
-    mCreatedLayers.erase(it);
-    return state;
-}
-
-sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
-    const auto& state = getLayerCreatedState(handle);
-    if (!state) {
-        return nullptr;
-    }
-
-    sp<Layer> layer = state->layer.promote();
+void SurfaceFlinger::handleLayerCreatedLocked(const LayerCreatedState& state) {
+    sp<Layer> layer = state.layer.promote();
     if (!layer) {
-        ALOGE("Invalid layer %p", state->layer.unsafe_get());
-        return nullptr;
+        ALOGD("Layer was destroyed soon after creation %p", state.layer.unsafe_get());
+        return;
     }
 
     sp<Layer> parent;
-    bool addToRoot = state->addToRoot;
-    if (state->initialParent != nullptr) {
-        parent = state->initialParent.promote();
+    bool addToRoot = state.addToRoot;
+    if (state.initialParent != nullptr) {
+        parent = state.initialParent.promote();
         if (parent == nullptr) {
-            ALOGE("Invalid parent %p", state->initialParent.unsafe_get());
+            ALOGD("Parent was destroyed soon after creation %p", state.initialParent.unsafe_get());
             addToRoot = false;
         }
     }
@@ -7141,7 +7090,6 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle) {
     layer->updateTransformHint(mActiveDisplayTransformHint);
 
     mInterceptor->saveSurfaceCreation(layer);
-    return layer;
 }
 
 void SurfaceFlinger::sample() {
@@ -7222,6 +7170,26 @@ std::shared_ptr<renderengine::ExternalTexture> SurfaceFlinger::getExternalTextur
              "limit.",
              layerName);
     return buffer;
+}
+
+bool SurfaceFlinger::commitCreatedLayers() {
+    std::vector<LayerCreatedState> createdLayers;
+    {
+        std::scoped_lock<std::mutex> lock(mCreatedLayersLock);
+        createdLayers = std::move(mCreatedLayers);
+        mCreatedLayers.clear();
+        if (createdLayers.size() == 0) {
+            return false;
+        }
+    }
+
+    Mutex::Autolock _l(mStateLock);
+    for (const auto& createdLayer : createdLayers) {
+        handleLayerCreatedLocked(createdLayer);
+    }
+    createdLayers.clear();
+    mLayersAdded = true;
+    return true;
 }
 } // namespace android
 

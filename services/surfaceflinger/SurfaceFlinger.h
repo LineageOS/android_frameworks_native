@@ -1325,7 +1325,7 @@ private:
 
     std::unordered_map<DisplayId, sp<HdrLayerInfoReporter>> mHdrLayerInfoListeners
             GUARDED_BY(mStateLock);
-    mutable Mutex mCreatedLayersLock;
+    mutable std::mutex mCreatedLayersLock;
     struct LayerCreatedState {
         LayerCreatedState(const wp<Layer>& layer, const wp<Layer> parent, bool addToRoot)
               : layer(layer), initialParent(parent), addToRoot(addToRoot) {}
@@ -1341,11 +1341,9 @@ private:
 
     // A temporay pool that store the created layers and will be added to current state in main
     // thread.
-    std::unordered_map<BBinder*, std::unique_ptr<LayerCreatedState>> mCreatedLayers;
-    void setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
-                              const wp<Layer> parent, bool addToRoot);
-    auto getLayerCreatedState(const sp<IBinder>& handle);
-    sp<Layer> handleLayerCreatedLocked(const sp<IBinder>& handle) REQUIRES(mStateLock);
+    std::vector<LayerCreatedState> mCreatedLayers GUARDED_BY(mCreatedLayersLock);
+    bool commitCreatedLayers();
+    void handleLayerCreatedLocked(const LayerCreatedState& state) REQUIRES(mStateLock);
 
     std::atomic<ui::Transform::RotationFlags> mActiveDisplayTransformHint;
 
