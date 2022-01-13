@@ -51,7 +51,6 @@ using V2_4::VsyncPeriodNanos;
 
 using Attribute = IComposerClient::Attribute;
 using BlendMode = IComposerClient::BlendMode;
-using Color = IComposerClient::Color;
 using Connection = IComposerCallback::Connection;
 using ContentType = IComposerClient::ContentType;
 using Capability = IComposer::Capability;

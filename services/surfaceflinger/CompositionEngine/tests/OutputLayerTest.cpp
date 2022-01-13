@@ -864,9 +864,8 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     }
 
     void expectSetColorCall() {
-        const hal::Color color = {static_cast<uint8_t>(std::round(kColor.r * 255)),
-                                  static_cast<uint8_t>(std::round(kColor.g * 255)),
-                                  static_cast<uint8_t>(std::round(kColor.b * 255)), 255};
+        const aidl::android::hardware::graphics::composer3::Color color = {kColor.r, kColor.g,
+                                                                           kColor.b, 1.0f};
 
         EXPECT_CALL(*mHwcLayer, setColor(ColorEq(color))).WillOnce(Return(kError));
     }

@@ -58,7 +58,22 @@ struct client_cache_t {
     bool isValid() const { return token != nullptr; }
 };
 
-struct BufferData {
+class BufferData : public Parcelable {
+public:
+    virtual ~BufferData() = default;
+    virtual bool hasBuffer() const { return buffer != nullptr; }
+    virtual bool hasSameBuffer(const BufferData& other) const {
+        return buffer == other.buffer && frameNumber == other.frameNumber;
+    }
+    virtual uint32_t getWidth() const { return buffer->getWidth(); }
+    virtual uint32_t getHeight() const { return buffer->getHeight(); }
+    Rect getBounds() const {
+        return {0, 0, static_cast<int32_t>(getWidth()), static_cast<int32_t>(getHeight())};
+    }
+    virtual uint64_t getId() const { return buffer->getId(); }
+    virtual PixelFormat getPixelFormat() const { return buffer->getPixelFormat(); }
+    virtual uint64_t getUsage() const { return buffer->getUsage(); }
+
     enum class BufferDataChange : uint32_t {
         fenceChanged = 0x01,
         frameNumberChanged = 0x02,
@@ -89,8 +104,9 @@ struct BufferData {
     // Generates the release callback id based on the buffer id and frame number.
     // This is used as an identifier when release callbacks are invoked.
     ReleaseCallbackId generateReleaseCallbackId() const;
-    status_t write(Parcel& output) const;
-    status_t read(const Parcel& input);
+
+    status_t writeToParcel(Parcel* parcel) const override;
+    status_t readFromParcel(const Parcel* parcel) override;
 };
 
 /*
@@ -204,7 +220,7 @@ struct layer_state_t {
     uint32_t transform;
     bool transformToDisplayInverse;
     Rect crop;
-    BufferData bufferData;
+    std::shared_ptr<BufferData> bufferData = nullptr;
     ui::Dataspace dataspace;
     HdrMetadata hdrMetadata;
     Region surfaceDamageRegion;

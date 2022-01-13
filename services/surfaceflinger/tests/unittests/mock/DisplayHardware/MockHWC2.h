@@ -107,7 +107,8 @@ public:
                 (override));
     MOCK_METHOD(hal::Error, setSurfaceDamage, (const android::Region &), (override));
     MOCK_METHOD(hal::Error, setBlendMode, (hal::BlendMode), (override));
-    MOCK_METHOD(hal::Error, setColor, (hal::Color), (override));
+    MOCK_METHOD(hal::Error, setColor, (aidl::android::hardware::graphics::composer3::Color),
+                (override));
     MOCK_METHOD(hal::Error, setCompositionType,
                 (aidl::android::hardware::graphics::composer3::Composition), (override));
     MOCK_METHOD(hal::Error, setDataspace, (android::ui::Dataspace), (override));
