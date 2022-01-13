@@ -155,6 +155,7 @@ message ActiveBufferProto {
   uint32 height = 2;
   uint32 stride = 3;
   int32 format = 4;
+  uint64 usage = 5;
 }
 
 message BarrierLayerProto {

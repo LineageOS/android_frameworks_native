@@ -2022,9 +2022,9 @@ LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags,
 void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
                                      const DisplayDevice* display) {
     const ui::Transform transform = getTransform();
-    auto buffer = getBuffer();
+    auto buffer = getExternalTexture();
     if (buffer != nullptr) {
-        LayerProtoHelper::writeToProto(buffer,
+        LayerProtoHelper::writeToProto(*buffer,
                                        [&]() { return layerInfo->mutable_active_buffer(); });
         LayerProtoHelper::writeToProtoDeprecated(ui::Transform(getBufferTransform()),
                                                  layerInfo->mutable_buffer_transform());

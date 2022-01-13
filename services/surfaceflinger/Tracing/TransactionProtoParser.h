@@ -34,6 +34,8 @@ struct TracingLayerState : layer_state_t {
     uint64_t bufferId;
     uint32_t bufferHeight;
     uint32_t bufferWidth;
+    int32_t pixelFormat;
+    uint64_t bufferUsage;
     bool hasSidebandStream;
     int32_t parentId;
     int32_t relativeParentId;

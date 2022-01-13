@@ -15,6 +15,7 @@
  */
 
 #include <layerproto/LayerProtoHeader.h>
+#include <renderengine/ExternalTexture.h>
 
 #include <Layer.h>
 #include <gui/WindowInfo.h>
@@ -48,7 +49,7 @@ public:
                                        TransformProto* transformProto);
     static void writeTransformToProto(const ui::Transform& transform,
                                       TransformProto* transformProto);
-    static void writeToProto(const sp<GraphicBuffer>& buffer,
+    static void writeToProto(const renderengine::ExternalTexture& buffer,
                              std::function<ActiveBufferProto*()> getActiveBufferProto);
     static void writeToProto(const gui::WindowInfo& inputInfo,
                              const wp<Layer>& touchableRegionBounds,

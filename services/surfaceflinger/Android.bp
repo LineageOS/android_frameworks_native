@@ -227,7 +227,6 @@ cc_defaults {
         "libcutils",
         "libdisplayservicehidl",
         "libhidlbase",
-        "liblayers_proto",
         "liblog",
         "libprocessgroup",
         "libsync",

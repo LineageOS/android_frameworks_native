@@ -111,6 +111,7 @@ public:
     ui::Dataspace getDataSpace() const override;
 
     sp<GraphicBuffer> getBuffer() const override;
+    const std::shared_ptr<renderengine::ExternalTexture>& getExternalTexture() const override;
 
     ui::Transform::RotationFlags getTransformHint() const override { return mTransformHint; }
 
