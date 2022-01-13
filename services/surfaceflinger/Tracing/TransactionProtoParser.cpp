@@ -305,6 +305,7 @@ TransactionState TransactionProtoParser::fromProto(const proto::TransactionState
     t.states.reserve(static_cast<size_t>(layerCount));
     for (int i = 0; i < layerCount; i++) {
         ComposerState s;
+        s.state.what = 0;
         fromProto(proto.layer_changes(i), getLayerHandle, s.state);
         t.states.add(s);
     }
@@ -326,21 +327,23 @@ void TransactionProtoParser::fromProto(const proto::LayerCreationArgs& proto,
     outArgs.mirrorFromId = proto.mirror_from_id();
 }
 
-void TransactionProtoParser::fromProto(const proto::LayerState& proto,
-                                       LayerIdToHandleFn getLayerHandle,
-                                       TracingLayerState& outState) {
-    fromProto(proto, getLayerHandle, static_cast<layer_state_t&>(outState));
-    if (proto.what() & layer_state_t::eReparent) {
+void TransactionProtoParser::mergeFromProto(const proto::LayerState& proto,
+                                            LayerIdToHandleFn getLayerHandle,
+                                            TracingLayerState& outState) {
+    layer_state_t state;
+    fromProto(proto, getLayerHandle, state);
+    outState.merge(state);
+
+    if (state.what & layer_state_t::eReparent) {
         outState.parentId = proto.parent_id();
-        outState.args.parentId = outState.parentId;
     }
-    if (proto.what() & layer_state_t::eRelativeLayerChanged) {
+    if (state.what & layer_state_t::eRelativeLayerChanged) {
         outState.relativeParentId = proto.relative_parent_id();
     }
-    if (proto.what() & layer_state_t::eInputInfoChanged) {
+    if (state.what & layer_state_t::eInputInfoChanged) {
         outState.inputCropId = proto.window_info_handle().crop_layer_id();
     }
-    if (proto.what() & layer_state_t::eBufferChanged) {
+    if (state.what & layer_state_t::eBufferChanged) {
         const proto::LayerState_BufferData& bufferProto = proto.buffer_data();
         outState.bufferId = bufferProto.buffer_id();
         outState.bufferWidth = bufferProto.width();
@@ -348,7 +351,7 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto,
         outState.pixelFormat = bufferProto.pixel_format();
         outState.bufferUsage = bufferProto.usage();
     }
-    if (proto.what() & layer_state_t::eSidebandStreamChanged) {
+    if (state.what & layer_state_t::eSidebandStreamChanged) {
         outState.hasSidebandStream = proto.has_sideband_stream();
     }
 }

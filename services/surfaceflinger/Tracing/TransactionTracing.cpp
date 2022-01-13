@@ -332,7 +332,7 @@ void TransactionTracing::updateStartingStateLocked(
                 ALOGW("Could not find layer id %d", layerState.layer_id());
                 continue;
             }
-            TransactionProtoParser::fromProto(layerState, nullptr, it->second);
+            TransactionProtoParser::mergeFromProto(layerState, nullptr, it->second);
         }
     }
 
