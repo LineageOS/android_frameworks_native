@@ -67,9 +67,9 @@ size_t AChoreographerFrameCallbackData_routeGetPreferredFrameTimelineIndex(
         const AChoreographerFrameCallbackData* data);
 int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId(
         const AChoreographerFrameCallbackData* data, size_t index);
-int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTime(
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTimeNanos(
         const AChoreographerFrameCallbackData* data, size_t index);
-int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineDeadline(
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineDeadlineNanos(
         const AChoreographerFrameCallbackData* data, size_t index);
 
 } // namespace android

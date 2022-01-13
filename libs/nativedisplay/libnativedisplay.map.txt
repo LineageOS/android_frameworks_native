@@ -12,8 +12,8 @@ LIBNATIVEDISPLAY {
     AChoreographerFrameCallbackData_getFrameTimelinesLength; # apex # introduced=33
     AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex; # apex # introduced=33
     AChoreographerFrameCallbackData_getFrameTimelineVsyncId; # apex # introduced=33
-    AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTime; # apex # introduced=33
-    AChoreographerFrameCallbackData_getFrameTimelineDeadline; # apex # introduced=33
+    AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTimeNanos; # apex # introduced=33
+    AChoreographerFrameCallbackData_getFrameTimelineDeadlineNanos; # apex # introduced=33
     AChoreographer_create; # apex # introduced=30
     AChoreographer_destroy; # apex # introduced=30
     AChoreographer_getFd; # apex # introduced=30
@@ -40,8 +40,8 @@ LIBNATIVEDISPLAY_PLATFORM {
       android::AChoreographerFrameCallbackData_routeGetFrameTimelinesLength*;
       android::AChoreographerFrameCallbackData_routeGetPreferredFrameTimelineIndex*;
       android::AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId*;
-      android::AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTime*;
-      android::AChoreographerFrameCallbackData_routeGetFrameTimelineDeadline*;
+      android::AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTimeNanos*;
+      android::AChoreographerFrameCallbackData_routeGetFrameTimelineDeadlineNanos*;
       android::AChoreographer_signalRefreshRateCallbacks*;
       android::AChoreographer_getFrameInterval*;
       android::ADisplay_acquirePhysicalDisplays*;
