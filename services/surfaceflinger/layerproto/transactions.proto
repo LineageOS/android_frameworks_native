@@ -139,6 +139,7 @@ message LayerState {
         eLayerSkipScreenshot = 0x40;
         eLayerSecure = 0x80;
         eEnableBackpressure = 0x100;
+        eLayerIsDisplayDecoration = 0x200;
     };
     uint32 flags = 9;
     uint32 mask = 10;
