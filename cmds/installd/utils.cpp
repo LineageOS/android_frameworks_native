@@ -194,6 +194,43 @@ std::string create_data_user_de_path(const char* volume_uuid, userid_t userid) {
     return StringPrintf("%s/user_de/%u", data.c_str(), userid);
 }
 
+/**
+ * Create the path name where supplemental data for all apps will be stored.
+ * E.g. /data/misc_ce/0/supplemental
+ */
+std::string create_data_misc_supplemental_path(const char* uuid, bool isCeData, userid_t user) {
+    std::string data(create_data_path(uuid));
+    if (isCeData) {
+        return StringPrintf("%s/misc_ce/%d/supplemental", data.c_str(), user);
+    } else {
+        return StringPrintf("%s/misc_de/%d/supplemental", data.c_str(), user);
+    }
+}
+
+/**
+ * Create the path name where code data for all codes in a particular app will be stored.
+ * E.g. /data/misc_ce/0/supplemental/<app-name>
+ */
+std::string create_data_misc_supplemental_package_path(const char* volume_uuid, bool isCeData,
+                                                       userid_t user, const char* package_name) {
+    check_package_name(package_name);
+    return StringPrintf("%s/%s",
+                        create_data_misc_supplemental_path(volume_uuid, isCeData, user).c_str(),
+                        package_name);
+}
+
+/**
+ * Create the path name where shared code data for a particular app will be stored.
+ * E.g. /data/misc_ce/0/supplemental/<app-name>/shared
+ */
+std::string create_data_misc_supplemental_shared_path(const char* volume_uuid, bool isCeData,
+                                                      userid_t user, const char* package_name) {
+    return StringPrintf("%s/shared",
+                        create_data_misc_supplemental_package_path(volume_uuid, isCeData, user,
+                                                                   package_name)
+                                .c_str());
+}
+
 std::string create_data_misc_ce_rollback_base_path(const char* volume_uuid, userid_t user) {
     return StringPrintf("%s/misc_ce/%u/rollback", create_data_path(volume_uuid).c_str(), user);
 }
