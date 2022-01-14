@@ -81,6 +81,7 @@ public:
         ExpectedPresentTime,
         // Whether setDisplayBrightness is able to be applied as part of a display command.
         DisplayBrightnessCommand,
+        BootDisplayConfig,
     };
 
     virtual bool isSupported(OptionalFeature) const = 0;
@@ -248,6 +249,7 @@ public:
                                                 const std::vector<uint8_t>& value) = 0;
     virtual V2_4::Error getLayerGenericMetadataKeys(
             std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) = 0;
+
     virtual Error getClientTargetProperty(
             Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty,
             float* outWhitePointNits) = 0;
@@ -256,6 +258,9 @@ public:
     virtual Error setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) = 0;
     virtual Error setLayerBlockingRegion(Display display, Layer layer,
                                          const std::vector<IComposerClient::Rect>& blocking) = 0;
+    virtual Error setBootDisplayConfig(Display displayId, Config) = 0;
+    virtual Error clearBootDisplayConfig(Display displayId) = 0;
+    virtual Error getPreferredBootDisplayConfig(Display displayId, Config*) = 0;
 };
 
 } // namespace android::Hwc2

@@ -237,6 +237,7 @@ bool AidlComposer::isSupported(OptionalFeature feature) const {
         case OptionalFeature::RefreshRateSwitching:
         case OptionalFeature::ExpectedPresentTime:
         case OptionalFeature::DisplayBrightnessCommand:
+        case OptionalFeature::BootDisplayConfig:
             return true;
     }
 }
@@ -1007,6 +1008,38 @@ V2_4::Error AidlComposer::getLayerGenericMetadataKeys(
         std::vector<IComposerClient::LayerGenericMetadataKey>*) {
     // There are no users for this API. See b/209691612.
     return V2_4::Error::UNSUPPORTED;
+}
+
+Error AidlComposer::setBootDisplayConfig(Display display, Config config) {
+    const auto status = mAidlComposerClient->setBootDisplayConfig(translate<int64_t>(display),
+                                                                  translate<int32_t>(config));
+    if (!status.isOk()) {
+        ALOGE("setBootDisplayConfig failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    return Error::NONE;
+}
+
+Error AidlComposer::clearBootDisplayConfig(Display display) {
+    const auto status = mAidlComposerClient->clearBootDisplayConfig(translate<int64_t>(display));
+    if (!status.isOk()) {
+        ALOGE("clearBootDisplayConfig failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    return Error::NONE;
+}
+
+Error AidlComposer::getPreferredBootDisplayConfig(Display display, Config* config) {
+    int32_t displayConfig;
+    const auto status =
+            mAidlComposerClient->getPreferredBootDisplayConfig(translate<int64_t>(display),
+                                                               &displayConfig);
+    if (!status.isOk()) {
+        ALOGE("getPreferredBootDisplayConfig failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    *config = translate<uint32_t>(displayConfig);
+    return Error::NONE;
 }
 
 Error AidlComposer::getClientTargetProperty(

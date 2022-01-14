@@ -213,6 +213,9 @@ public:
     Error setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) override;
     Error setLayerBlockingRegion(Display display, Layer layer,
                                  const std::vector<IComposerClient::Rect>& blocking) override;
+    Error setBootDisplayConfig(Display displayId, Config) override;
+    Error clearBootDisplayConfig(Display displayId) override;
+    Error getPreferredBootDisplayConfig(Display displayId, Config*) override;
 
 private:
     // Many public functions above simply write a command into the command
