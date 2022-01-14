@@ -23,7 +23,6 @@
 #include <android/hardware/power/IPowerHintSession.h>
 #include <android/hardware/power/Mode.h>
 #include <powermanager/PowerHalWrapper.h>
-#include <vendor/lineage/power/IPower.h>
 
 namespace android {
 
@@ -38,7 +37,6 @@ public:
     virtual ~HalConnector() = default;
 
     virtual std::unique_ptr<HalWrapper> connect();
-    virtual std::unique_ptr<HalWrapper> connectLineage();
     virtual void reset();
 };
 
@@ -63,7 +61,6 @@ public:
             int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
             int64_t durationNanos) override;
     virtual HalResult<int64_t> getHintSessionPreferredRate() override;
-    virtual HalResult<int> getFeature(vendor::lineage::power::Feature) override;
 
 private:
     std::mutex mConnectedHalMutex;
@@ -72,11 +69,9 @@ private:
     // Shared pointers to keep global pointer and allow local copies to be used in
     // different threads
     std::shared_ptr<HalWrapper> mConnectedHal GUARDED_BY(mConnectedHalMutex) = nullptr;
-    std::shared_ptr<HalWrapper> mConnectedLineageHal GUARDED_BY(mConnectedHalMutex) = nullptr;
     const std::shared_ptr<HalWrapper> mDefaultHal = std::make_shared<EmptyHalWrapper>();
 
     std::shared_ptr<HalWrapper> initHal();
-    std::shared_ptr<HalWrapper> initLineageHal();
     template <typename T>
     HalResult<T> processHalResult(HalResult<T> result, const char* functionName);
 };

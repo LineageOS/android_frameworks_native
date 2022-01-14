@@ -22,10 +22,8 @@
 #include <hardware/power.h>
 #include <hardware_legacy/power.h>
 #include <powermanager/PowerHalLoader.h>
-#include <vendor/lineage/power/IPower.h>
 
 using namespace android::hardware::power;
-namespace LineageAidl = vendor::lineage::power;
 
 namespace android {
 
@@ -57,14 +55,12 @@ std::mutex PowerHalLoader::gHalMutex;
 sp<IPower> PowerHalLoader::gHalAidl = nullptr;
 sp<V1_0::IPower> PowerHalLoader::gHalHidlV1_0 = nullptr;
 sp<V1_1::IPower> PowerHalLoader::gHalHidlV1_1 = nullptr;
-sp<LineageAidl::IPower> PowerHalLoader::gHalLineageAidl = nullptr;
 
 void PowerHalLoader::unloadAll() {
     std::lock_guard<std::mutex> lock(gHalMutex);
     gHalAidl = nullptr;
     gHalHidlV1_0 = nullptr;
     gHalHidlV1_1 = nullptr;
-    gHalLineageAidl = nullptr;
 }
 
 sp<IPower> PowerHalLoader::loadAidl() {
@@ -84,13 +80,6 @@ sp<V1_1::IPower> PowerHalLoader::loadHidlV1_1() {
     static bool gHalExists = true;
     static auto loadFn = []() { return V1_1::IPower::castFrom(loadHidlV1_0Locked()); };
     return loadHal<V1_1::IPower>(gHalExists, gHalHidlV1_1, loadFn, "HIDL v1.1");
-}
-
-sp<LineageAidl::IPower> PowerHalLoader::loadLineageAidl() {
-    std::lock_guard<std::mutex> lock(gHalMutex);
-    static bool gHalExists = true;
-    static auto loadFn = []() { return waitForVintfService<LineageAidl::IPower>(); };
-    return loadHal<LineageAidl::IPower>(gHalExists, gHalLineageAidl, loadFn, "Lineage AIDL");
 }
 
 sp<V1_0::IPower> PowerHalLoader::loadHidlV1_0Locked() {
