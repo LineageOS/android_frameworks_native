@@ -31,10 +31,8 @@
 #include <stdint.h>
 #include <ui/Transform.h>
 #include <utils/BitSet.h>
-#include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
-#include <utils/Vector.h>
 #include <array>
 #include <limits>
 #include <queue>
@@ -88,7 +86,7 @@ enum {
      */
     AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE = 0x40,
 
-#ifdef __linux__
+#if defined(__linux__)
     /**
      * This event was generated or modified by accessibility service.
      */
@@ -799,11 +797,11 @@ public:
 
     // Low-level accessors.
     inline const PointerProperties* getPointerProperties() const {
-        return mPointerProperties.array();
+        return mPointerProperties.data();
     }
     inline const nsecs_t* getSampleEventTimes() const { return mSampleEventTimes.data(); }
     inline const PointerCoords* getSamplePointerCoords() const {
-            return mSamplePointerCoords.array();
+        return mSamplePointerCoords.data();
     }
 
     static const char* getLabel(int32_t axis);
@@ -834,9 +832,9 @@ protected:
     float mRawYCursorPosition;
     ui::Transform mRawTransform;
     nsecs_t mDownTime;
-    Vector<PointerProperties> mPointerProperties;
+    std::vector<PointerProperties> mPointerProperties;
     std::vector<nsecs_t> mSampleEventTimes;
-    Vector<PointerCoords> mSamplePointerCoords;
+    std::vector<PointerCoords> mSamplePointerCoords;
 };
 
 /*
