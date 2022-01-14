@@ -256,6 +256,13 @@ enum {
      * The hinge angle sensor value is returned in degrees.
      */
     ASENSOR_TYPE_HINGE_ANGLE = 36,
+    /**
+     * {@link ASENSOR_TYPE_HEAD_TRACKER}
+     * reporting-mode: continuous
+     *
+     * Measures the orientation and rotational velocity of a user's head.
+     */
+    ASENSOR_TYPE_HEAD_TRACKER = 37,
 };
 
 /**
@@ -440,6 +447,38 @@ typedef struct AAdditionalInfoEvent {
     };
 } AAdditionalInfoEvent;
 
+typedef struct AHeadTrackerEvent {
+    /**
+     * The fields rx, ry, rz are an Euler vector (rotation vector, i.e. a vector
+     * whose direction indicates the axis of rotation and magnitude indicates
+     * the angle to rotate around that axis) representing the transform from
+     * the (arbitrary, possibly slowly drifting) reference frame to the
+     * head frame. Expressed in radians. Magnitude of the vector must be
+     * in the range [0, pi], while the value of individual axes are
+     * in the range [-pi, pi].
+     */
+    float rx;
+    float ry;
+    float rz;
+
+    /**
+     * The fields vx, vy, vz are an Euler vector (rotation vector) representing
+     * the angular velocity of the head (relative to itself), in radians per
+     * second. The direction of this vector indicates the axis of rotation, and
+     * the magnitude indicates the rate of rotation.
+     */
+    float vx;
+    float vy;
+    float vz;
+
+    /**
+     * This value changes each time the reference frame is suddenly and
+     * significantly changed, for example if an orientation filter algorithm
+     * used for determining the orientation has had its state reset.
+     */
+    int32_t discontinuity_count;
+} AHeadTrackerEvent;
+
 /**
  * Information that describes a sensor event, refer to
  * <a href="/reference/android/hardware/SensorEvent">SensorEvent</a> for additional
@@ -476,6 +515,7 @@ typedef struct ASensorEvent {
             AHeartRateEvent heart_rate;
             ADynamicSensorEvent dynamic_sensor_meta;
             AAdditionalInfoEvent additional_info;
+            AHeadTrackerEvent head_tracker;
         };
         union {
             uint64_t        data[8];
