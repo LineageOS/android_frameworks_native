@@ -43,6 +43,9 @@ struct DisplaySettings {
     // Maximum luminance pulled from the display's HDR capabilities.
     float maxLuminance = 1.0f;
 
+    // Current luminance of the display
+    float currentLuminanceNits = -1.f;
+
     // Output dataspace that will be populated if wide color gamut is used, or
     // DataSpace::UNKNOWN otherwise.
     ui::Dataspace outputDataspace = ui::Dataspace::UNKNOWN;

@@ -3069,6 +3069,8 @@ struct OutputComposeSurfacesTest : public testing::Test {
     static constexpr float kDefaultMaxLuminance = 0.9f;
     static constexpr float kDefaultAvgLuminance = 0.7f;
     static constexpr float kDefaultMinLuminance = 0.1f;
+    static constexpr float kUnknownLuminance = -1.f;
+    static constexpr float kDisplayLuminance = 80.f;
     static constexpr float kClientTargetLuminanceNits = 200.f;
 
     static const Rect kDefaultOutputFrame;
@@ -3101,6 +3103,7 @@ const Rect OutputComposeSurfacesTest::kDefaultOutputDestinationClip{1013, 1014, 
 const mat4 OutputComposeSurfacesTest::kDefaultColorTransformMat{mat4() * 0.5f};
 const compositionengine::CompositionRefreshArgs OutputComposeSurfacesTest::kDefaultRefreshArgs;
 const Region OutputComposeSurfacesTest::kDebugRegion{Rect{100, 101, 102, 103}};
+
 const HdrCapabilities OutputComposeSurfacesTest::
         kHdrCapabilities{{},
                          OutputComposeSurfacesTest::kDefaultMaxLuminance,
@@ -3403,6 +3406,14 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
         auto andIfUsesHdr(bool used) {
             EXPECT_CALL(*getInstance()->mDisplayColorProfile, hasWideColorGamut())
                     .WillOnce(Return(used));
+            return nextState<OutputWithDisplayBrightnessNits>();
+        }
+    };
+
+    struct OutputWithDisplayBrightnessNits
+          : public CallOrderStateMachineHelper<TestType, OutputWithDisplayBrightnessNits> {
+        auto withDisplayBrightnessNits(float nits) {
+            getInstance()->mOutput.mState.displayBrightnessNits = nits;
             return nextState<SkipColorTransformState>();
         }
     };
@@ -3434,11 +3445,34 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
 TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposition) {
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
+            .withDisplayBrightnessNits(kUnknownLuminance)
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
-                                            kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
-                                            kDefaultOutputOrientationFlags,
-                                            kClientTargetLuminanceNits})
+            .thenExpectDisplaySettingsUsed({.physicalDisplay = kDefaultOutputDestinationClip,
+                                            .clip = kDefaultOutputViewport,
+                                            .maxLuminance = kDefaultMaxLuminance,
+                                            .currentLuminanceNits = kDefaultMaxLuminance,
+                                            .outputDataspace = kDefaultOutputDataspace,
+                                            .colorTransform = mat4(),
+                                            .orientation = kDefaultOutputOrientationFlags,
+                                            .targetLuminanceNits = kClientTargetLuminanceNits})
+            .execute()
+            .expectAFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
+       forHdrMixedCompositionWithDisplayBrightness) {
+    verify().ifMixedCompositionIs(true)
+            .andIfUsesHdr(true)
+            .withDisplayBrightnessNits(kDisplayLuminance)
+            .andIfSkipColorTransform(false)
+            .thenExpectDisplaySettingsUsed({.physicalDisplay = kDefaultOutputDestinationClip,
+                                            .clip = kDefaultOutputViewport,
+                                            .maxLuminance = kDefaultMaxLuminance,
+                                            .currentLuminanceNits = kDisplayLuminance,
+                                            .outputDataspace = kDefaultOutputDataspace,
+                                            .colorTransform = mat4(),
+                                            .orientation = kDefaultOutputOrientationFlags,
+                                            .targetLuminanceNits = kClientTargetLuminanceNits})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3446,11 +3480,16 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposi
 TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComposition) {
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(false)
+            .withDisplayBrightnessNits(kUnknownLuminance)
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
-                                            kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
-                                            kDefaultOutputOrientationFlags,
-                                            kClientTargetLuminanceNits})
+            .thenExpectDisplaySettingsUsed({.physicalDisplay = kDefaultOutputDestinationClip,
+                                            .clip = kDefaultOutputViewport,
+                                            .maxLuminance = kDefaultMaxLuminance,
+                                            .currentLuminanceNits = kDefaultMaxLuminance,
+                                            .outputDataspace = kDefaultOutputDataspace,
+                                            .colorTransform = mat4(),
+                                            .orientation = kDefaultOutputOrientationFlags,
+                                            .targetLuminanceNits = kClientTargetLuminanceNits})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3458,11 +3497,16 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComp
 TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientComposition) {
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
+            .withDisplayBrightnessNits(kUnknownLuminance)
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed(
-                    {kDefaultOutputDestinationClip, kDefaultOutputViewport, kDefaultMaxLuminance,
-                     kDefaultOutputDataspace, kDefaultColorTransformMat,
-                     kDefaultOutputOrientationFlags, kClientTargetLuminanceNits})
+            .thenExpectDisplaySettingsUsed({.physicalDisplay = kDefaultOutputDestinationClip,
+                                            .clip = kDefaultOutputViewport,
+                                            .maxLuminance = kDefaultMaxLuminance,
+                                            .currentLuminanceNits = kDefaultMaxLuminance,
+                                            .outputDataspace = kDefaultOutputDataspace,
+                                            .colorTransform = kDefaultColorTransformMat,
+                                            .orientation = kDefaultOutputOrientationFlags,
+                                            .targetLuminanceNits = kClientTargetLuminanceNits})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3470,11 +3514,16 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientCo
 TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClientComposition) {
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(false)
+            .withDisplayBrightnessNits(kUnknownLuminance)
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed(
-                    {kDefaultOutputDestinationClip, kDefaultOutputViewport, kDefaultMaxLuminance,
-                     kDefaultOutputDataspace, kDefaultColorTransformMat,
-                     kDefaultOutputOrientationFlags, kClientTargetLuminanceNits})
+            .thenExpectDisplaySettingsUsed({.physicalDisplay = kDefaultOutputDestinationClip,
+                                            .clip = kDefaultOutputViewport,
+                                            .maxLuminance = kDefaultMaxLuminance,
+                                            .currentLuminanceNits = kDefaultMaxLuminance,
+                                            .outputDataspace = kDefaultOutputDataspace,
+                                            .colorTransform = kDefaultColorTransformMat,
+                                            .orientation = kDefaultOutputOrientationFlags,
+                                            .targetLuminanceNits = kClientTargetLuminanceNits})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3483,11 +3532,16 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
        usesExpectedDisplaySettingsForHdrOnlyClientCompositionWithSkipClientTransform) {
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
+            .withDisplayBrightnessNits(kUnknownLuminance)
             .andIfSkipColorTransform(true)
-            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
-                                            kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
-                                            kDefaultOutputOrientationFlags,
-                                            kClientTargetLuminanceNits})
+            .thenExpectDisplaySettingsUsed({.physicalDisplay = kDefaultOutputDestinationClip,
+                                            .clip = kDefaultOutputViewport,
+                                            .maxLuminance = kDefaultMaxLuminance,
+                                            .currentLuminanceNits = kDefaultMaxLuminance,
+                                            .outputDataspace = kDefaultOutputDataspace,
+                                            .colorTransform = mat4(),
+                                            .orientation = kDefaultOutputOrientationFlags,
+                                            .targetLuminanceNits = kClientTargetLuminanceNits})
             .execute()
             .expectAFenceWasReturned();
 }

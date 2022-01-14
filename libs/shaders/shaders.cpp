@@ -463,6 +463,7 @@ std::vector<uint8_t> buildUniformValue(T value) {
 std::vector<tonemap::ShaderUniform> buildLinearEffectUniforms(const LinearEffect& linearEffect,
                                                               const mat4& colorTransform,
                                                               float maxDisplayLuminance,
+                                                              float currentDisplayLuminanceNits,
                                                               float maxLuminance) {
     std::vector<tonemap::ShaderUniform> uniforms;
     if (linearEffect.inputDataspace == linearEffect.outputDataspace) {
@@ -480,6 +481,7 @@ std::vector<tonemap::ShaderUniform> buildLinearEffectUniforms(const LinearEffect
     }
 
     tonemap::Metadata metadata{.displayMaxLuminance = maxDisplayLuminance,
+                               .currentDisplayLuminanceNits = currentDisplayLuminanceNits,
                                // If the input luminance is unknown, use display luminance (aka,
                                // no-op any luminance changes)
                                // This will be the case for eg screenshots in addition to
