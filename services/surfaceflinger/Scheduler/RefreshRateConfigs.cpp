@@ -618,7 +618,7 @@ const RefreshRate* RefreshRateConfigs::getBestRefreshRate(Iter begin, Iter end) 
         const auto [refreshRate, score] = *i;
         ALOGV("%s scores %.2f", refreshRate->getName().c_str(), score);
 
-        ATRACE_INT(refreshRate->getName().c_str(), round<int>(score * 100));
+        ATRACE_INT(refreshRate->getName().c_str(), static_cast<int>(std::round(score * 100)));
 
         if (score > max * (1 + kEpsilon)) {
             max = score;

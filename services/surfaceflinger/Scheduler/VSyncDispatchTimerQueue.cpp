@@ -15,15 +15,19 @@
  */
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
-#include <android-base/stringprintf.h>
-#include <utils/Trace.h>
+
 #include <vector>
+
+#include <android-base/stringprintf.h>
+#include <ftl/concat.h>
+#include <utils/Trace.h>
 
 #include "TimeKeeper.h"
 #include "VSyncDispatchTimerQueue.h"
 #include "VSyncTracker.h"
 
 namespace android::scheduler {
+
 using base::StringAppendF;
 
 namespace {
@@ -222,16 +226,6 @@ void VSyncDispatchTimerQueue::rearmTimer(nsecs_t now) {
     rearmTimerSkippingUpdateFor(now, mCallbacks.end());
 }
 
-void VSyncDispatchTimerQueue::TraceBuffer::note(std::string_view name, nsecs_t alarmIn,
-                                                nsecs_t vsFor) {
-    if (ATRACE_ENABLED()) {
-        snprintf(str_buffer.data(), str_buffer.size(), "%.4s%s%" PRId64 "%s%" PRId64,
-                 name.substr(0, kMaxNamePrint).data(), kTraceNamePrefix, alarmIn,
-                 kTraceNameSeparator, vsFor);
-    }
-    ATRACE_NAME(str_buffer.data());
-}
-
 void VSyncDispatchTimerQueue::rearmTimerSkippingUpdateFor(
         nsecs_t now, CallbackMap::iterator const& skipUpdateIt) {
     std::optional<nsecs_t> min;
@@ -247,16 +241,18 @@ void VSyncDispatchTimerQueue::rearmTimerSkippingUpdateFor(
             callback->update(mTracker, now);
         }
         auto const wakeupTime = *callback->wakeupTime();
-        if (!min || (min && *min > wakeupTime)) {
+        if (!min || *min > wakeupTime) {
             nextWakeupName = callback->name();
             min = wakeupTime;
             targetVsync = callback->targetVsync();
         }
     }
 
-    if (min && (min < mIntendedWakeupTime)) {
-        if (targetVsync && nextWakeupName) {
-            mTraceBuffer.note(*nextWakeupName, *min - now, *targetVsync - now);
+    if (min && min < mIntendedWakeupTime) {
+        if (ATRACE_ENABLED() && nextWakeupName && targetVsync) {
+            ftl::Concat trace(ftl::truncated<5>(*nextWakeupName), " alarm in ", ns2us(*min - now),
+                              "us; VSYNC in ", ns2us(*targetVsync - now), "us");
+            ATRACE_NAME(trace.c_str());
         }
         setTimer(*min, now);
     } else {

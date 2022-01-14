@@ -17,6 +17,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <future>
 #include <memory>
@@ -38,8 +39,36 @@
 #include "MessageQueue.h"
 #include "OneShotTimer.h"
 #include "RefreshRateConfigs.h"
-#include "SchedulerUtils.h"
 #include "VsyncSchedule.h"
+
+namespace android::scheduler {
+
+// Opaque handle to scheduler connection.
+struct ConnectionHandle {
+    using Id = std::uintptr_t;
+    static constexpr Id INVALID_ID = static_cast<Id>(-1);
+
+    Id id = INVALID_ID;
+
+    explicit operator bool() const { return id != INVALID_ID; }
+};
+
+inline bool operator==(ConnectionHandle lhs, ConnectionHandle rhs) {
+    return lhs.id == rhs.id;
+}
+
+} // namespace android::scheduler
+
+namespace std {
+
+template <>
+struct hash<android::scheduler::ConnectionHandle> {
+    size_t operator()(android::scheduler::ConnectionHandle handle) const {
+        return hash<android::scheduler::ConnectionHandle::Id>()(handle.id);
+    }
+};
+
+} // namespace std
 
 namespace android {
 
