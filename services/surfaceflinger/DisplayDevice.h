@@ -41,7 +41,7 @@
 
 #include "MainThreadGuard.h"
 
-#include "DisplayHardware/DisplayIdentification.h"
+#include <ui/DisplayIdentification.h>
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/Hal.h"
 #include "DisplayHardware/PowerAdvisor.h"

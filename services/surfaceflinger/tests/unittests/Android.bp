@@ -50,7 +50,6 @@ cc_test {
         "CachingTest.cpp",
         "CompositionTest.cpp",
         "DispSyncSourceTest.cpp",
-        "DisplayIdentificationTest.cpp",
         "DisplayIdGeneratorTest.cpp",
         "DisplayTransactionTest.cpp",
         "DisplayDevice_GetBestColorModeTest.cpp",
