@@ -26,6 +26,8 @@
 #include <compositionengine/mock/RenderSurface.h>
 #include <ftl/future.h>
 #include <gtest/gtest.h>
+#include <renderengine/ExternalTexture.h>
+#include <renderengine/impl/ExternalTexture.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
@@ -37,7 +39,6 @@
 #include "MockHWC2.h"
 #include "RegionMatcher.h"
 #include "TestUtils.h"
-#include "renderengine/ExternalTexture.h"
 
 namespace android::compositionengine {
 namespace {
@@ -273,9 +274,10 @@ TEST_F(OutputTest, setLayerCachingEnabled_disablesCachingAndResetsOverrideInfo) 
     // Inject some layers
     InjectedLayer layer;
     layer.outputLayerState.overrideInfo.buffer = std::make_shared<
-            renderengine::ExternalTexture>(new GraphicBuffer(), renderEngine,
-                                           renderengine::ExternalTexture::Usage::READABLE |
-                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
+            renderengine::impl::
+                    ExternalTexture>(new GraphicBuffer(), renderEngine,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
     injectOutputLayer(layer);
     // inject a null layer to check for null exceptions
     injectNullOutputLayer();
@@ -967,9 +969,10 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, peekThroughLayerChangesOrder) {
     mOutput->planComposition();
 
     std::shared_ptr<renderengine::ExternalTexture> buffer = std::make_shared<
-            renderengine::ExternalTexture>(new GraphicBuffer(), renderEngine,
-                                           renderengine::ExternalTexture::Usage::READABLE |
-                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
+            renderengine::impl::
+                    ExternalTexture>(new GraphicBuffer(), renderEngine,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
     layer1.outputLayerState.overrideInfo.buffer = buffer;
     layer2.outputLayerState.overrideInfo.buffer = buffer;
     layer1.outputLayerState.overrideInfo.peekThroughLayer = layer3.outputLayer;
@@ -3088,9 +3091,10 @@ struct OutputComposeSurfacesTest : public testing::Test {
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
     StrictMock<OutputPartialMock> mOutput;
     std::shared_ptr<renderengine::ExternalTexture> mOutputBuffer = std::make_shared<
-            renderengine::ExternalTexture>(new GraphicBuffer(), mRenderEngine,
-                                           renderengine::ExternalTexture::Usage::READABLE |
-                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
+            renderengine::impl::
+                    ExternalTexture>(new GraphicBuffer(), mRenderEngine,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
 
     std::optional<base::unique_fd> mReadyFence;
 };
@@ -3324,9 +3328,10 @@ TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChanges) {
             .WillRepeatedly(Return());
 
     const auto otherOutputBuffer = std::make_shared<
-            renderengine::ExternalTexture>(new GraphicBuffer(), mRenderEngine,
-                                           renderengine::ExternalTexture::Usage::READABLE |
-                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
+            renderengine::impl::
+                    ExternalTexture>(new GraphicBuffer(), mRenderEngine,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_))
             .WillOnce(Return(mOutputBuffer))
             .WillOnce(Return(otherOutputBuffer));
