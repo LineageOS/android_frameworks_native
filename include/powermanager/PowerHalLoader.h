@@ -30,7 +30,6 @@ namespace power {
 class PowerHalLoader {
 public:
     static void unloadAll();
-    static void unloadLineage();
     static sp<hardware::power::IPower> loadAidl();
     static sp<hardware::power::V1_0::IPower> loadHidlV1_0();
     static sp<hardware::power::V1_1::IPower> loadHidlV1_1();
@@ -38,11 +37,10 @@ public:
 
 private:
     static std::mutex gHalMutex;
-    static std::mutex gLineageHalMutex;
     static sp<hardware::power::IPower> gHalAidl GUARDED_BY(gHalMutex);
     static sp<hardware::power::V1_0::IPower> gHalHidlV1_0 GUARDED_BY(gHalMutex);
     static sp<hardware::power::V1_1::IPower> gHalHidlV1_1 GUARDED_BY(gHalMutex);
-    static sp<vendor::lineage::power::IPower> gHalLineageAidl GUARDED_BY(gLineageHalMutex);
+    static sp<vendor::lineage::power::IPower> gHalLineageAidl GUARDED_BY(gHalMutex);
 
     static sp<hardware::power::V1_0::IPower> loadHidlV1_0Locked()
             EXCLUSIVE_LOCKS_REQUIRED(gHalMutex);

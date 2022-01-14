@@ -67,13 +67,12 @@ public:
 
 private:
     std::mutex mConnectedHalMutex;
-    std::mutex mConnectedLineageHalMutex;
     std::unique_ptr<HalConnector> mHalConnector;
 
     // Shared pointers to keep global pointer and allow local copies to be used in
     // different threads
     std::shared_ptr<HalWrapper> mConnectedHal GUARDED_BY(mConnectedHalMutex) = nullptr;
-    std::shared_ptr<HalWrapper> mConnectedLineageHal GUARDED_BY(mConnectedLineageHalMutex) = nullptr;
+    std::shared_ptr<HalWrapper> mConnectedLineageHal GUARDED_BY(mConnectedHalMutex) = nullptr;
     const std::shared_ptr<HalWrapper> mDefaultHal = std::make_shared<EmptyHalWrapper>();
 
     std::shared_ptr<HalWrapper> initHal();

@@ -54,7 +54,6 @@ sp<T> loadHal(bool& exists, sp<T>& hal, F& loadFn, const char* halName) {
 // -------------------------------------------------------------------------------------------------
 
 std::mutex PowerHalLoader::gHalMutex;
-std::mutex PowerHalLoader::gLineageHalMutex;
 sp<IPower> PowerHalLoader::gHalAidl = nullptr;
 sp<V1_0::IPower> PowerHalLoader::gHalHidlV1_0 = nullptr;
 sp<V1_1::IPower> PowerHalLoader::gHalHidlV1_1 = nullptr;
@@ -65,10 +64,6 @@ void PowerHalLoader::unloadAll() {
     gHalAidl = nullptr;
     gHalHidlV1_0 = nullptr;
     gHalHidlV1_1 = nullptr;
-}
-
-void PowerHalLoader::unloadLineage() {
-    std::lock_guard<std::mutex> lock(gLineageHalMutex);
     gHalLineageAidl = nullptr;
 }
 
@@ -92,7 +87,7 @@ sp<V1_1::IPower> PowerHalLoader::loadHidlV1_1() {
 }
 
 sp<LineageAidl::IPower> PowerHalLoader::loadLineageAidl() {
-    std::lock_guard<std::mutex> lock(gLineageHalMutex);
+    std::lock_guard<std::mutex> lock(gHalMutex);
     static bool gHalExists = true;
     static auto loadFn = []() { return waitForVintfService<LineageAidl::IPower>(); };
     return loadHal<LineageAidl::IPower>(gHalExists, gHalLineageAidl, loadFn, "Lineage AIDL");
