@@ -556,13 +556,13 @@ int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId(
         const AChoreographerFrameCallbackData* data, size_t index) {
     return AChoreographerFrameCallbackData_getFrameTimelineVsyncId(data, index);
 }
-int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTime(
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTimeNanos(
         const AChoreographerFrameCallbackData* data, size_t index) {
-    return AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTime(data, index);
+    return AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTimeNanos(data, index);
 }
-int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineDeadline(
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineDeadlineNanos(
         const AChoreographerFrameCallbackData* data, size_t index) {
-    return AChoreographerFrameCallbackData_getFrameTimelineDeadline(data, index);
+    return AChoreographerFrameCallbackData_getFrameTimelineDeadlineNanos(data, index);
 }
 
 int64_t AChoreographer_getFrameInterval(const AChoreographer* choreographer) {
@@ -653,7 +653,7 @@ int64_t AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
     LOG_ALWAYS_FATAL_IF(index >= frameCallbackData->frameTimelines.size(), "Index out of bounds");
     return frameCallbackData->frameTimelines[index].id;
 }
-int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTime(
+int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTimeNanos(
         const AChoreographerFrameCallbackData* data, size_t index) {
     const ChoreographerFrameCallbackDataImpl* frameCallbackData =
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);
@@ -662,7 +662,7 @@ int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTime(
     LOG_ALWAYS_FATAL_IF(index >= frameCallbackData->frameTimelines.size(), "Index out of bounds");
     return frameCallbackData->frameTimelines[index].expectedPresentTime;
 }
-int64_t AChoreographerFrameCallbackData_getFrameTimelineDeadline(
+int64_t AChoreographerFrameCallbackData_getFrameTimelineDeadlineNanos(
         const AChoreographerFrameCallbackData* data, size_t index) {
     const ChoreographerFrameCallbackDataImpl* frameCallbackData =
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);
