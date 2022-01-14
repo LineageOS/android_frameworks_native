@@ -143,11 +143,10 @@ public:
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
         EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
 
-        constexpr scheduler::ISchedulerCallback* kCallback = nullptr;
-        constexpr bool kHasMultipleConfigs = true;
         mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
-                                std::move(eventThread), std::move(sfEventThread), kCallback,
-                                kHasMultipleConfigs);
+                                std::move(eventThread), std::move(sfEventThread),
+                                TestableSurfaceFlinger::SchedulerCallbackImpl::kNoOp,
+                                TestableSurfaceFlinger::kTwoDisplayModes);
     }
 
     void setupForceGeometryDirty() {
