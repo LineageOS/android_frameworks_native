@@ -30,7 +30,6 @@
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
 #include "Scheduler/OneShotTimer.h"
-#include "Scheduler/SchedulerUtils.h"
 #include "Scheduler/StrongTyping.h"
 
 namespace android::scheduler {
@@ -348,16 +347,24 @@ public:
 
     bool supportsKernelIdleTimer() const { return mConfig.supportKernelIdleTimer; }
 
-    void setIdleTimerCallbacks(std::function<void()> platformTimerReset,
-                               std::function<void()> platformTimerExpired,
-                               std::function<void()> kernelTimerReset,
-                               std::function<void()> kernelTimerExpired) {
+    struct IdleTimerCallbacks {
+        struct Callbacks {
+            std::function<void()> onReset;
+            std::function<void()> onExpired;
+        };
+
+        Callbacks platform;
+        Callbacks kernel;
+    };
+
+    void setIdleTimerCallbacks(IdleTimerCallbacks callbacks) EXCLUDES(mIdleTimerCallbacksMutex) {
         std::scoped_lock lock(mIdleTimerCallbacksMutex);
-        mIdleTimerCallbacks.emplace();
-        mIdleTimerCallbacks->platform.onReset = std::move(platformTimerReset);
-        mIdleTimerCallbacks->platform.onExpired = std::move(platformTimerExpired);
-        mIdleTimerCallbacks->kernel.onReset = std::move(kernelTimerReset);
-        mIdleTimerCallbacks->kernel.onExpired = std::move(kernelTimerExpired);
+        mIdleTimerCallbacks = std::move(callbacks);
+    }
+
+    void clearIdleTimerCallbacks() EXCLUDES(mIdleTimerCallbacksMutex) {
+        std::scoped_lock lock(mIdleTimerCallbacksMutex);
+        mIdleTimerCallbacks.reset();
     }
 
     void startIdleTimer() {
@@ -380,7 +387,7 @@ public:
             return;
         }
         mIdleTimer->reset();
-    };
+    }
 
     void dump(std::string& result) const EXCLUDES(mLock);
 
@@ -448,6 +455,13 @@ private:
 
     void initializeIdleTimer();
 
+    std::optional<IdleTimerCallbacks::Callbacks> getIdleTimerCallbacks() const
+            REQUIRES(mIdleTimerCallbacksMutex) {
+        if (!mIdleTimerCallbacks) return {};
+        return mConfig.supportKernelIdleTimer ? mIdleTimerCallbacks->kernel
+                                              : mIdleTimerCallbacks->platform;
+    }
+
     // The list of refresh rates, indexed by display modes ID. This may change after this
     // object is initialized.
     AllRefreshRatesMapType mRefreshRates GUARDED_BY(mLock);
@@ -492,21 +506,11 @@ private:
     mutable std::optional<GetBestRefreshRateInvocation> lastBestRefreshRateInvocation
             GUARDED_BY(mLock);
 
-    // Timer that records time between requests for next vsync.
-    std::optional<scheduler::OneShotTimer> mIdleTimer;
-
-    struct IdleTimerCallbacks {
-        struct Callbacks {
-            std::function<void()> onReset;
-            std::function<void()> onExpired;
-        };
-
-        Callbacks platform;
-        Callbacks kernel;
-    };
-
+    // Declare mIdleTimer last to ensure its thread joins before the mutex/callbacks are destroyed.
     std::mutex mIdleTimerCallbacksMutex;
     std::optional<IdleTimerCallbacks> mIdleTimerCallbacks GUARDED_BY(mIdleTimerCallbacksMutex);
+    // Used to detect (lack of) frame activity.
+    std::optional<scheduler::OneShotTimer> mIdleTimer;
 };
 
 } // namespace android::scheduler

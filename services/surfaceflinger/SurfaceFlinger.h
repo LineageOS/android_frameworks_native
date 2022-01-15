@@ -326,6 +326,9 @@ protected:
     virtual void processDisplayAdded(const wp<IBinder>& displayToken, const DisplayDeviceState&)
             REQUIRES(mStateLock);
 
+    virtual std::shared_ptr<renderengine::ExternalTexture> getExternalTextureFromBufferData(
+            const BufferData& bufferData, const char* layerName) const;
+
     // Returns true if any display matches a `bool(const DisplayDevice&)` predicate.
     template <typename Predicate>
     bool hasDisplay(Predicate p) const REQUIRES(mStateLock) {
@@ -531,6 +534,11 @@ private:
     status_t getDisplayNativePrimaries(const sp<IBinder>& displayToken,
                                        ui::DisplayPrimaries&) override;
     status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode) override;
+    status_t getBootDisplayModeSupport(bool* outSupport) const override;
+    status_t setBootDisplayMode(const sp<IBinder>& displayToken, ui::DisplayModeId id) override;
+    status_t clearBootDisplayMode(const sp<IBinder>& displayToken) override;
+    status_t getPreferredBootDisplayMode(const sp<IBinder>& displayToken,
+                                         ui::DisplayModeId* id) override;
     void setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on) override;
     void setGameContentType(const sp<IBinder>& displayToken, bool on) override;
     void setPowerMode(const sp<IBinder>& displayToken, int mode) override;

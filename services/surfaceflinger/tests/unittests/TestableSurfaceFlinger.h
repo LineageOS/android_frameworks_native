@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <algorithm>
+#include <variant>
+
 #include <compositionengine/Display.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
@@ -24,7 +27,6 @@
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/mock/DisplaySurface.h>
 #include <gui/ScreenCaptureResults.h>
-#include <algorithm>
 
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
@@ -45,6 +47,7 @@
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/MockFrameTimeline.h"
 #include "mock/MockFrameTracer.h"
+#include "mock/MockSchedulerCallback.h"
 
 namespace android {
 
@@ -170,7 +173,7 @@ public:
 
 } // namespace surfaceflinger::test
 
-class TestableSurfaceFlinger final : private scheduler::ISchedulerCallback {
+class TestableSurfaceFlinger {
 public:
     using HotplugEvent = SurfaceFlinger::HotplugEvent;
 
@@ -193,42 +196,64 @@ public:
         mFlinger->mCompositionEngine->setTimeStats(timeStats);
     }
 
-    // The ISchedulerCallback argument can be nullptr for a no-op implementation.
+    enum class SchedulerCallbackImpl { kNoOp, kMock };
+
+    static constexpr struct OneDisplayMode {
+    } kOneDisplayMode;
+
+    static constexpr struct TwoDisplayModes {
+    } kTwoDisplayModes;
+
+    using RefreshRateConfigsPtr = std::shared_ptr<scheduler::RefreshRateConfigs>;
+
+    using DisplayModesVariant =
+            std::variant<OneDisplayMode, TwoDisplayModes, RefreshRateConfigsPtr>;
+
     void setupScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
                         std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread,
-                        scheduler::ISchedulerCallback* callback = nullptr,
-                        bool hasMultipleModes = false) {
-        DisplayModes modes{DisplayMode::Builder(0)
-                                   .setId(DisplayModeId(0))
-                                   .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
-                                   .setVsyncPeriod(16'666'667)
-                                   .setGroup(0)
-                                   .build()};
+                        SchedulerCallbackImpl callbackImpl = SchedulerCallbackImpl::kNoOp,
+                        DisplayModesVariant modesVariant = kOneDisplayMode) {
+        RefreshRateConfigsPtr configs;
+        if (std::holds_alternative<RefreshRateConfigsPtr>(modesVariant)) {
+            configs = std::move(std::get<RefreshRateConfigsPtr>(modesVariant));
+        } else {
+            DisplayModes modes = {DisplayMode::Builder(0)
+                                          .setId(DisplayModeId(0))
+                                          .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
+                                          .setVsyncPeriod(16'666'667)
+                                          .setGroup(0)
+                                          .build()};
 
-        if (hasMultipleModes) {
-            modes.emplace_back(DisplayMode::Builder(1)
-                                       .setId(DisplayModeId(1))
-                                       .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
-                                       .setVsyncPeriod(11'111'111)
-                                       .setGroup(0)
-                                       .build());
+            if (std::holds_alternative<TwoDisplayModes>(modesVariant)) {
+                modes.emplace_back(DisplayMode::Builder(1)
+                                           .setId(DisplayModeId(1))
+                                           .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
+                                           .setVsyncPeriod(11'111'111)
+                                           .setGroup(0)
+                                           .build());
+            }
+
+            configs = std::make_shared<scheduler::RefreshRateConfigs>(modes, DisplayModeId(0));
         }
 
-        const auto currMode = DisplayModeId(0);
-        mRefreshRateConfigs = std::make_shared<scheduler::RefreshRateConfigs>(modes, currMode);
-        const auto currFps = mRefreshRateConfigs->getCurrentRefreshRate().getFps();
+        const auto currFps = configs->getCurrentRefreshRate().getFps();
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(currFps);
         mFlinger->mVsyncModulator = sp<scheduler::VsyncModulator>::make(
                 mFlinger->mVsyncConfiguration->getCurrentConfigs());
         mFlinger->mRefreshRateStats =
                 std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mTimeStats, currFps,
-                                                              /*powerMode=*/hal::PowerMode::OFF);
+                                                              hal::PowerMode::OFF);
+
+        using Callback = scheduler::ISchedulerCallback;
+        Callback& callback = callbackImpl == SchedulerCallbackImpl::kNoOp
+                ? static_cast<Callback&>(mNoOpSchedulerCallback)
+                : static_cast<Callback&>(mSchedulerCallback);
 
         mScheduler = new scheduler::TestableScheduler(std::move(vsyncController),
-                                                      std::move(vsyncTracker), mRefreshRateConfigs,
-                                                      *(callback ?: this));
+                                                      std::move(vsyncTracker), std::move(configs),
+                                                      callback);
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
@@ -237,7 +262,8 @@ public:
 
     void resetScheduler(scheduler::Scheduler* scheduler) { mFlinger->mScheduler.reset(scheduler); }
 
-    scheduler::TestableScheduler& mutableScheduler() const { return *mScheduler; }
+    scheduler::TestableScheduler& mutableScheduler() { return *mScheduler; }
+    scheduler::mock::SchedulerCallback& mockSchedulerCallback() { return mSchedulerCallback; }
 
     using CreateBufferQueueFunction = surfaceflinger::test::Factory::CreateBufferQueueFunction;
     void setCreateBufferQueueFunction(CreateBufferQueueFunction f) {
@@ -662,23 +688,6 @@ public:
                 mHwcDisplayId(hwcDisplayId) {
             mCreationArgs.connectionType = connectionType;
             mCreationArgs.isPrimary = isPrimary;
-
-            mCreationArgs.activeModeId = DisplayModeId(0);
-            DisplayModePtr activeMode =
-                    DisplayMode::Builder(FakeHwcDisplayInjector::DEFAULT_ACTIVE_CONFIG)
-                            .setId(mCreationArgs.activeModeId)
-                            .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
-                            .setWidth(FakeHwcDisplayInjector::DEFAULT_WIDTH)
-                            .setHeight(FakeHwcDisplayInjector::DEFAULT_HEIGHT)
-                            .setVsyncPeriod(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD)
-                            .setDpiX(FakeHwcDisplayInjector::DEFAULT_DPI)
-                            .setDpiY(FakeHwcDisplayInjector::DEFAULT_DPI)
-                            .setGroup(0)
-                            .build();
-
-            DisplayModes modes{activeMode};
-            mCreationArgs.supportedModes = modes;
-            mCreationArgs.refreshRateConfigs = flinger.mRefreshRateConfigs;
         }
 
         sp<IBinder> token() const { return mDisplayToken; }
@@ -701,13 +710,16 @@ public:
 
         auto& mutableDisplayDevice() { return mFlinger.mutableDisplays()[mDisplayToken]; }
 
-        auto& setActiveMode(DisplayModeId mode) {
-            mCreationArgs.activeModeId = mode;
-            return *this;
-        }
-
-        auto& setSupportedModes(DisplayModes mode) {
-            mCreationArgs.supportedModes = mode;
+        // If `configs` is nullptr, the injector creates RefreshRateConfigs from the `modes`.
+        // Otherwise, it uses `configs`, which the caller must create using the same `modes`.
+        //
+        // TODO(b/182939859): Once `modes` can be retrieved from RefreshRateConfigs, remove
+        // the `configs` parameter in favor of an alternative setRefreshRateConfigs API.
+        auto& setDisplayModes(DisplayModes modes, DisplayModeId activeModeId,
+                              std::shared_ptr<scheduler::RefreshRateConfigs> configs = nullptr) {
+            mCreationArgs.supportedModes = std::move(modes);
+            mCreationArgs.activeModeId = activeModeId;
+            mCreationArgs.refreshRateConfigs = std::move(configs);
             return *this;
         }
 
@@ -749,39 +761,58 @@ public:
         }
 
         sp<DisplayDevice> inject() NO_THREAD_SAFETY_ANALYSIS {
-            const auto displayId = mCreationArgs.compositionDisplay->getDisplayId();
+            auto& modes = mCreationArgs.supportedModes;
+            auto& activeModeId = mCreationArgs.activeModeId;
+
+            if (!mCreationArgs.refreshRateConfigs) {
+                if (modes.empty()) {
+                    activeModeId = DisplayModeId(0);
+                    modes.emplace_back(
+                            DisplayMode::Builder(FakeHwcDisplayInjector::DEFAULT_ACTIVE_CONFIG)
+                                    .setId(activeModeId)
+                                    .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
+                                    .setWidth(FakeHwcDisplayInjector::DEFAULT_WIDTH)
+                                    .setHeight(FakeHwcDisplayInjector::DEFAULT_HEIGHT)
+                                    .setVsyncPeriod(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD)
+                                    .setDpiX(FakeHwcDisplayInjector::DEFAULT_DPI)
+                                    .setDpiY(FakeHwcDisplayInjector::DEFAULT_DPI)
+                                    .setGroup(0)
+                                    .build());
+                }
+
+                mCreationArgs.refreshRateConfigs =
+                        std::make_shared<scheduler::RefreshRateConfigs>(modes, activeModeId);
+            }
 
             DisplayDeviceState state;
             if (const auto type = mCreationArgs.connectionType) {
+                const auto displayId = mCreationArgs.compositionDisplay->getDisplayId();
                 LOG_ALWAYS_FATAL_IF(!displayId);
                 const auto physicalId = PhysicalDisplayId::tryCast(*displayId);
                 LOG_ALWAYS_FATAL_IF(!physicalId);
                 LOG_ALWAYS_FATAL_IF(!mHwcDisplayId);
 
-                const DisplayModePtr activeModePtr =
-                        *std::find_if(mCreationArgs.supportedModes.begin(),
-                                      mCreationArgs.supportedModes.end(), [&](DisplayModePtr mode) {
-                                          return mode->getId() == mCreationArgs.activeModeId;
-                                      });
+                const auto it = std::find_if(modes.begin(), modes.end(),
+                                             [&activeModeId](const DisplayModePtr& mode) {
+                                                 return mode->getId() == activeModeId;
+                                             });
+                LOG_ALWAYS_FATAL_IF(it == modes.end());
+
                 state.physical = {.id = *physicalId,
                                   .type = *type,
                                   .hwcDisplayId = *mHwcDisplayId,
                                   .deviceProductInfo = {},
-                                  .supportedModes = mCreationArgs.supportedModes,
-                                  .activeMode = activeModePtr};
+                                  .supportedModes = modes,
+                                  .activeMode = *it};
             }
 
             state.isSecure = mCreationArgs.isSecure;
 
-            mCreationArgs.refreshRateConfigs =
-                    std::make_shared<scheduler::RefreshRateConfigs>(mCreationArgs.supportedModes,
-                                                                    mCreationArgs.activeModeId);
-
-            sp<DisplayDevice> device = new DisplayDevice(mCreationArgs);
-            if (!device->isVirtual()) {
-                device->setActiveMode(mCreationArgs.activeModeId);
+            sp<DisplayDevice> display = sp<DisplayDevice>::make(mCreationArgs);
+            if (!display->isVirtual()) {
+                display->setActiveMode(activeModeId);
             }
-            mFlinger.mutableDisplays().emplace(mDisplayToken, device);
+            mFlinger.mutableDisplays().emplace(mDisplayToken, display);
             mFlinger.mutableCurrentState().displays.add(mDisplayToken, state);
             mFlinger.mutableDrawingState().displays.add(mDisplayToken, state);
 
@@ -789,7 +820,7 @@ public:
                 mFlinger.mutablePhysicalDisplayTokens()[physical->id] = mDisplayToken;
             }
 
-            return device;
+            return display;
         }
 
     private:
@@ -800,16 +831,12 @@ public:
     };
 
 private:
-    void scheduleComposite(FrameHint) override {}
-    void setVsyncEnabled(bool) override {}
-    void changeRefreshRate(const RefreshRate&, DisplayModeEvent) override {}
-    void kernelTimerChanged(bool) override {}
-    void triggerOnFrameRateOverridesChanged() {}
-
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(mFactory, SurfaceFlinger::SkipInitialization);
+
+    scheduler::mock::SchedulerCallback mSchedulerCallback;
+    scheduler::mock::NoOpSchedulerCallback mNoOpSchedulerCallback;
     scheduler::TestableScheduler* mScheduler = nullptr;
-    std::shared_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
 };
 
 } // namespace android

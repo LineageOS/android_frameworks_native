@@ -57,7 +57,8 @@ public:
     bool setTransform(uint32_t transform) override;
     bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
     bool setCrop(const Rect& crop) override;
-    bool setBuffer(const BufferData& bufferData, nsecs_t postTime, nsecs_t desiredPresentTime,
+    bool setBuffer(std::shared_ptr<renderengine::ExternalTexture>& /* buffer */,
+                   const BufferData& bufferData, nsecs_t postTime, nsecs_t desiredPresentTime,
                    bool isAutoTimestamp, std::optional<nsecs_t> dequeueTime,
                    const FrameTimelineInfo& info) override;
     bool setDataspace(ui::Dataspace dataspace) override;
@@ -135,9 +136,6 @@ private:
     bool willPresentCurrentTransaction() const;
 
     bool bufferNeedsFiltering() const override;
-
-    std::shared_ptr<renderengine::ExternalTexture> getBufferFromBufferData(
-            const BufferData& bufferData);
 
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     uint64_t mPreviousReleasedFrameNumber = 0;

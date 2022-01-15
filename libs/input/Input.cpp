@@ -456,7 +456,8 @@ void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int3
     mRawTransform = rawTransform;
     mDownTime = downTime;
     mPointerProperties.clear();
-    mPointerProperties.appendArray(pointerProperties, pointerCount);
+    mPointerProperties.insert(mPointerProperties.end(), &pointerProperties[0],
+                              &pointerProperties[pointerCount]);
     mSampleEventTimes.clear();
     mSamplePointerCoords.clear();
     addSample(eventTime, pointerCoords);
@@ -490,8 +491,10 @@ void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
         mSamplePointerCoords.clear();
         size_t pointerCount = other->getPointerCount();
         size_t historySize = other->getHistorySize();
-        mSamplePointerCoords.appendArray(other->mSamplePointerCoords.array()
-                + (historySize * pointerCount), pointerCount);
+        mSamplePointerCoords
+                .insert(mSamplePointerCoords.end(),
+                        &other->mSamplePointerCoords[historySize * pointerCount],
+                        &other->mSamplePointerCoords[historySize * pointerCount + pointerCount]);
     }
 }
 
@@ -499,7 +502,8 @@ void MotionEvent::addSample(
         int64_t eventTime,
         const PointerCoords* pointerCoords) {
     mSampleEventTimes.push_back(eventTime);
-    mSamplePointerCoords.appendArray(pointerCoords, getPointerCount());
+    mSamplePointerCoords.insert(mSamplePointerCoords.end(), &pointerCoords[0],
+                                &pointerCoords[getPointerCount()]);
 }
 
 int MotionEvent::getSurfaceRotation() const {
@@ -569,7 +573,7 @@ float MotionEvent::getHistoricalAxisValue(int32_t axis, size_t pointerIndex,
 ssize_t MotionEvent::findPointerIndex(int32_t pointerId) const {
     size_t pointerCount = mPointerProperties.size();
     for (size_t i = 0; i < pointerCount; i++) {
-        if (mPointerProperties.itemAt(i).id == pointerId) {
+        if (mPointerProperties[i].id == pointerId) {
             return i;
         }
     }
@@ -591,8 +595,7 @@ void MotionEvent::scale(float globalScaleFactor) {
 
     size_t numSamples = mSamplePointerCoords.size();
     for (size_t i = 0; i < numSamples; i++) {
-        mSamplePointerCoords.editItemAt(i).scale(globalScaleFactor, globalScaleFactor,
-                                                 globalScaleFactor);
+        mSamplePointerCoords[i].scale(globalScaleFactor, globalScaleFactor, globalScaleFactor);
     }
 }
 
@@ -686,15 +689,15 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
     mDownTime = parcel->readInt64();
 
     mPointerProperties.clear();
-    mPointerProperties.setCapacity(pointerCount);
+    mPointerProperties.reserve(pointerCount);
     mSampleEventTimes.clear();
     mSampleEventTimes.reserve(sampleCount);
     mSamplePointerCoords.clear();
-    mSamplePointerCoords.setCapacity(sampleCount * pointerCount);
+    mSamplePointerCoords.reserve(sampleCount * pointerCount);
 
     for (size_t i = 0; i < pointerCount; i++) {
-        mPointerProperties.push();
-        PointerProperties& properties = mPointerProperties.editTop();
+        mPointerProperties.push_back({});
+        PointerProperties& properties = mPointerProperties.back();
         properties.id = parcel->readInt32();
         properties.toolType = parcel->readInt32();
     }
@@ -703,8 +706,8 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
         sampleCount--;
         mSampleEventTimes.push_back(parcel->readInt64());
         for (size_t i = 0; i < pointerCount; i++) {
-            mSamplePointerCoords.push();
-            status_t status = mSamplePointerCoords.editTop().readFromParcel(parcel);
+            mSamplePointerCoords.push_back({});
+            status_t status = mSamplePointerCoords.back().readFromParcel(parcel);
             if (status) {
                 return status;
             }
@@ -750,12 +753,12 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
     parcel->writeInt64(mDownTime);
 
     for (size_t i = 0; i < pointerCount; i++) {
-        const PointerProperties& properties = mPointerProperties.itemAt(i);
+        const PointerProperties& properties = mPointerProperties[i];
         parcel->writeInt32(properties.id);
         parcel->writeInt32(properties.toolType);
     }
 
-    const PointerCoords* pc = mSamplePointerCoords.array();
+    const PointerCoords* pc = mSamplePointerCoords.data();
     for (size_t h = 0; h < sampleCount; h++) {
         parcel->writeInt64(mSampleEventTimes[h]);
         for (size_t i = 0; i < pointerCount; i++) {

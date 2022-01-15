@@ -539,6 +539,21 @@ std::future<Error> Display::setDisplayBrightness(
     });
 }
 
+Error Display::setBootDisplayConfig(hal::HWConfigId configId) {
+    auto intError = mComposer.setBootDisplayConfig(mId, configId);
+    return static_cast<Error>(intError);
+}
+
+Error Display::clearBootDisplayConfig() {
+    auto intError = mComposer.clearBootDisplayConfig(mId);
+    return static_cast<Error>(intError);
+}
+
+Error Display::getPreferredBootDisplayConfig(hal::HWConfigId* configId) const {
+    auto intError = mComposer.getPreferredBootDisplayConfig(mId, configId);
+    return static_cast<Error>(intError);
+}
+
 Error Display::setAutoLowLatencyMode(bool on) {
     auto intError = mComposer.setAutoLowLatencyMode(mId, on);
     return static_cast<Error>(intError);

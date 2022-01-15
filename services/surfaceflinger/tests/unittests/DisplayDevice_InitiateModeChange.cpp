@@ -44,8 +44,8 @@ public:
         mFlinger.onComposerHalHotplug(PrimaryDisplayVariant::HWC_DISPLAY_ID, Connection::CONNECTED);
 
         mDisplay = PrimaryDisplayVariant::makeFakeExistingDisplayInjector(this)
-                           .setSupportedModes({kDisplayMode60, kDisplayMode90, kDisplayMode120})
-                           .setActiveMode(kDisplayModeId60)
+                           .setDisplayModes({kDisplayMode60, kDisplayMode90, kDisplayMode120},
+                                            kDisplayModeId60)
                            .inject();
     }
 

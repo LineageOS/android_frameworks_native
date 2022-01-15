@@ -25,16 +25,14 @@
 #include <sys/timerfd.h>
 #include <sys/unistd.h>
 
-#include <android-base/stringprintf.h>
+#include <ftl/concat.h>
 #include <ftl/enum.h>
 #include <log/log.h>
 #include <utils/Trace.h>
 
-#include "SchedulerUtils.h"
 #include "Timer.h"
 
 namespace android::scheduler {
-using base::StringAppendF;
 
 static constexpr size_t kReadPipe = 0;
 static constexpr size_t kWritePipe = 1;
@@ -180,9 +178,6 @@ bool Timer::dispatch() {
     }
 
     uint64_t iteration = 0;
-    char const traceNamePrefix[] = "TimerIteration #";
-    static constexpr size_t maxlen = arrayLen(traceNamePrefix) + max64print;
-    std::array<char, maxlen> str_buffer;
 
     while (true) {
         setDebugState(DebugState::Waiting);
@@ -191,9 +186,8 @@ bool Timer::dispatch() {
 
         setDebugState(DebugState::Running);
         if (ATRACE_ENABLED()) {
-            snprintf(str_buffer.data(), str_buffer.size(), "%s%" PRIu64, traceNamePrefix,
-                     iteration++);
-            ATRACE_NAME(str_buffer.data());
+            ftl::Concat trace("TimerIteration #", iteration++);
+            ATRACE_NAME(trace.c_str());
         }
 
         if (nfds == -1) {
@@ -237,7 +231,9 @@ void Timer::setDebugState(DebugState state) {
 
 void Timer::dump(std::string& result) const {
     std::lock_guard lock(mMutex);
-    StringAppendF(&result, "\t\tDebugState: %s\n", ftl::enum_string(mDebugState).c_str());
+    result.append("\t\tDebugState: ");
+    result.append(ftl::enum_string(mDebugState));
+    result.push_back('\n');
 }
 
 } // namespace android::scheduler

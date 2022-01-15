@@ -19,6 +19,7 @@
 #include "android-base/unique_fd.h"
 #include "renderengine/DisplaySettings.h"
 #include "renderengine/LayerSettings.h"
+#include "renderengine/impl/ExternalTexture.h"
 #include "ui/GraphicBuffer.h"
 #include "ui/GraphicTypes.h"
 #include "ui/PixelFormat.h"
@@ -365,8 +366,8 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
                                   1, usage, "primeShaderCache_dst");
 
         const auto dstTexture =
-                std::make_shared<ExternalTexture>(dstBuffer, *renderengine,
-                                                  ExternalTexture::Usage::WRITEABLE);
+                std::make_shared<impl::ExternalTexture>(dstBuffer, *renderengine,
+                                                        impl::ExternalTexture::Usage::WRITEABLE);
         // This buffer will be the source for the call to drawImageLayers. Draw
         // something to it as a placeholder for what an app draws. We should draw
         // something, but the details are not important. Make use of the shadow layer drawing step
@@ -375,10 +376,10 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
                 new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888,
                                   1, usage, "drawImageLayer_src");
 
-        const auto srcTexture =
-                std::make_shared<ExternalTexture>(srcBuffer, *renderengine,
-                                                  ExternalTexture::Usage::READABLE |
-                                                          ExternalTexture::Usage::WRITEABLE);
+        const auto srcTexture = std::make_shared<
+                impl::ExternalTexture>(srcBuffer, *renderengine,
+                                       impl::ExternalTexture::Usage::READABLE |
+                                               impl::ExternalTexture::Usage::WRITEABLE);
         drawHolePunchLayer(renderengine, display, dstTexture);
         drawSolidLayers(renderengine, display, dstTexture);
 
@@ -398,8 +399,8 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
                 new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888,
                                   1, usageExternal, "primeShaderCache_external");
         const auto externalTexture =
-                std::make_shared<ExternalTexture>(externalBuffer, *renderengine,
-                                                  ExternalTexture::Usage::READABLE);
+                std::make_shared<impl::ExternalTexture>(externalBuffer, *renderengine,
+                                                        impl::ExternalTexture::Usage::READABLE);
         std::vector<const std::shared_ptr<ExternalTexture>> textures =
             {srcTexture, externalTexture};
 
@@ -412,8 +413,8 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
         status_t error = f16ExternalBuffer->initCheck();
         if (!error) {
             const auto f16ExternalTexture =
-                std::make_shared<ExternalTexture>(f16ExternalBuffer, *renderengine,
-                                                  ExternalTexture::Usage::READABLE);
+                    std::make_shared<impl::ExternalTexture>(f16ExternalBuffer, *renderengine,
+                                                            impl::ExternalTexture::Usage::READABLE);
             textures.push_back(f16ExternalTexture);
         }
 

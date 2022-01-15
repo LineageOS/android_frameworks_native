@@ -17,6 +17,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <future>
 #include <memory>
@@ -38,8 +39,36 @@
 #include "MessageQueue.h"
 #include "OneShotTimer.h"
 #include "RefreshRateConfigs.h"
-#include "SchedulerUtils.h"
 #include "VsyncSchedule.h"
+
+namespace android::scheduler {
+
+// Opaque handle to scheduler connection.
+struct ConnectionHandle {
+    using Id = std::uintptr_t;
+    static constexpr Id INVALID_ID = static_cast<Id>(-1);
+
+    Id id = INVALID_ID;
+
+    explicit operator bool() const { return id != INVALID_ID; }
+};
+
+inline bool operator==(ConnectionHandle lhs, ConnectionHandle rhs) {
+    return lhs.id == rhs.id;
+}
+
+} // namespace android::scheduler
+
+namespace std {
+
+template <>
+struct hash<android::scheduler::ConnectionHandle> {
+    size_t operator()(android::scheduler::ConnectionHandle handle) const {
+        return hash<android::scheduler::ConnectionHandle::Id>()(handle.id);
+    }
+};
+
+} // namespace std
 
 namespace android {
 
@@ -74,11 +103,15 @@ class Scheduler : impl::MessageQueue {
 
 public:
     Scheduler(ICompositor&, ISchedulerCallback&, FeatureFlags);
-    ~Scheduler();
+    virtual ~Scheduler();
+
+    void startTimers();
+    void setRefreshRateConfigs(std::shared_ptr<RefreshRateConfigs>)
+            EXCLUDES(mRefreshRateConfigsLock);
+
+    void run();
 
     void createVsyncSchedule(FeatureFlags);
-    void startTimers();
-    void run();
 
     using Impl::initVsync;
     using Impl::setInjector;
@@ -197,36 +230,6 @@ public:
     // Retrieves the overridden refresh rate for a given uid.
     std::optional<Fps> getFrameRateOverride(uid_t uid) const
             EXCLUDES(mRefreshRateConfigsLock, mFrameRateOverridesLock);
-
-    void setRefreshRateConfigs(std::shared_ptr<RefreshRateConfigs> refreshRateConfigs)
-            EXCLUDES(mRefreshRateConfigsLock) {
-        // We need to stop the idle timer on the previous RefreshRateConfigs instance
-        // and cleanup the scheduler's state before we switch to the other RefreshRateConfigs.
-        {
-            std::scoped_lock lock(mRefreshRateConfigsLock);
-            if (mRefreshRateConfigs) mRefreshRateConfigs->stopIdleTimer();
-        }
-        {
-            std::scoped_lock lock(mPolicyLock);
-            mPolicy = {};
-        }
-        {
-            std::scoped_lock lock(mRefreshRateConfigsLock);
-            mRefreshRateConfigs = std::move(refreshRateConfigs);
-            mRefreshRateConfigs->setIdleTimerCallbacks(
-                    [this] { std::invoke(&Scheduler::idleTimerCallback, this, TimerState::Reset); },
-                    [this] {
-                        std::invoke(&Scheduler::idleTimerCallback, this, TimerState::Expired);
-                    },
-                    [this] {
-                        std::invoke(&Scheduler::kernelIdleTimerCallback, this, TimerState::Reset);
-                    },
-                    [this] {
-                        std::invoke(&Scheduler::kernelIdleTimerCallback, this, TimerState::Expired);
-                    });
-            mRefreshRateConfigs->startIdleTimer();
-        }
-    }
 
     nsecs_t getVsyncPeriodFromRefreshRateConfigs() const EXCLUDES(mRefreshRateConfigsLock) {
         std::scoped_lock lock(mRefreshRateConfigsLock);

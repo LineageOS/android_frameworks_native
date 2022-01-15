@@ -77,7 +77,8 @@ void DisplayTransactionTest::injectMockScheduler() {
     mFlinger.setupScheduler(std::unique_ptr<scheduler::VsyncController>(mVsyncController),
                             std::unique_ptr<scheduler::VSyncTracker>(mVSyncTracker),
                             std::unique_ptr<EventThread>(mEventThread),
-                            std::unique_ptr<EventThread>(mSFEventThread), &mSchedulerCallback);
+                            std::unique_ptr<EventThread>(mSFEventThread),
+                            TestableSurfaceFlinger::SchedulerCallbackImpl::kMock);
 }
 
 void DisplayTransactionTest::injectMockComposer(int virtualDisplayCount) {

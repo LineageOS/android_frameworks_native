@@ -2075,6 +2075,25 @@ status_t SurfaceComposerClient::setActiveColorMode(const sp<IBinder>& display,
     return ComposerService::getComposerService()->setActiveColorMode(display, colorMode);
 }
 
+status_t SurfaceComposerClient::getBootDisplayModeSupport(bool* support) {
+    return ComposerService::getComposerService()->getBootDisplayModeSupport(support);
+}
+
+status_t SurfaceComposerClient::setBootDisplayMode(const sp<IBinder>& display,
+                                                   ui::DisplayModeId displayModeId) {
+    return ComposerService::getComposerService()->setBootDisplayMode(display, displayModeId);
+}
+
+status_t SurfaceComposerClient::clearBootDisplayMode(const sp<IBinder>& display) {
+    return ComposerService::getComposerService()->clearBootDisplayMode(display);
+}
+
+status_t SurfaceComposerClient::getPreferredBootDisplayMode(const sp<IBinder>& display,
+                                                            ui::DisplayModeId* displayModeId) {
+    return ComposerService::getComposerService()->getPreferredBootDisplayMode(display,
+                                                                              displayModeId);
+}
+
 void SurfaceComposerClient::setAutoLowLatencyMode(const sp<IBinder>& display, bool on) {
     ComposerService::getComposerService()->setAutoLowLatencyMode(display, on);
 }

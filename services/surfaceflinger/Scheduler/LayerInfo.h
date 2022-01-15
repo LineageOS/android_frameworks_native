@@ -29,7 +29,6 @@
 
 #include "LayerHistory.h"
 #include "RefreshRateConfigs.h"
-#include "SchedulerUtils.h"
 
 namespace android {
 

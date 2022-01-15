@@ -162,6 +162,7 @@ bool HidlComposer::isSupported(OptionalFeature feature) const {
             return mClient_2_4 != nullptr;
         case OptionalFeature::ExpectedPresentTime:
         case OptionalFeature::DisplayBrightnessCommand:
+        case OptionalFeature::BootDisplayConfig:
             return false;
     }
 }
@@ -1214,6 +1215,18 @@ V2_4::Error HidlComposer::getLayerGenericMetadataKeys(
         *outKeys = tmpKeys;
     });
     return error;
+}
+
+Error HidlComposer::setBootDisplayConfig(Display /*displayId*/, Config) {
+    return Error::UNSUPPORTED;
+}
+
+Error HidlComposer::clearBootDisplayConfig(Display /*displayId*/) {
+    return Error::UNSUPPORTED;
+}
+
+Error HidlComposer::getPreferredBootDisplayConfig(Display /*displayId*/, Config*) {
+    return Error::UNSUPPORTED;
 }
 
 Error HidlComposer::getClientTargetProperty(

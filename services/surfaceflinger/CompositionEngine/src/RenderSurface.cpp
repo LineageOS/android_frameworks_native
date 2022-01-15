@@ -28,6 +28,7 @@
 #include <log/log.h>
 #include <renderengine/ExternalTexture.h>
 #include <renderengine/RenderEngine.h>
+#include <renderengine/impl/ExternalTexture.h>
 #include <system/window.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
@@ -182,9 +183,10 @@ std::shared_ptr<renderengine::ExternalTexture> RenderSurface::dequeueBuffer(
         mTexture = texture;
     } else {
         mTexture = std::make_shared<
-                renderengine::ExternalTexture>(GraphicBuffer::from(buffer),
-                                               mCompositionEngine.getRenderEngine(),
-                                               renderengine::ExternalTexture::Usage::WRITEABLE);
+                renderengine::impl::ExternalTexture>(GraphicBuffer::from(buffer),
+                                                     mCompositionEngine.getRenderEngine(),
+                                                     renderengine::impl::ExternalTexture::Usage::
+                                                             WRITEABLE);
     }
     mTextureCache.push_back(mTexture);
     if (mTextureCache.size() > mMaxTextureCacheSize) {
