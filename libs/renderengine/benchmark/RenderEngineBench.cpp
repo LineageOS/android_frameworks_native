@@ -22,6 +22,7 @@
 #include <renderengine/ExternalTexture.h>
 #include <renderengine/LayerSettings.h>
 #include <renderengine/RenderEngine.h>
+#include <renderengine/impl/ExternalTexture.h>
 
 #include <mutex>
 
@@ -115,15 +116,15 @@ static std::shared_ptr<ExternalTexture> allocateBuffer(RenderEngine& re, uint32_
                                                        uint32_t height,
                                                        uint64_t extraUsageFlags = 0,
                                                        std::string name = "output") {
-    return std::make_shared<ExternalTexture>(new GraphicBuffer(width, height,
-                                                               HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                                               GRALLOC_USAGE_HW_RENDER |
-                                                                       GRALLOC_USAGE_HW_TEXTURE |
-                                                                       extraUsageFlags,
-                                                               std::move(name)),
-                                             re,
-                                             ExternalTexture::Usage::READABLE |
-                                                     ExternalTexture::Usage::WRITEABLE);
+    return std::make_shared<
+            impl::ExternalTexture>(new GraphicBuffer(width, height, HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                                     GRALLOC_USAGE_HW_RENDER |
+                                                             GRALLOC_USAGE_HW_TEXTURE |
+                                                             extraUsageFlags,
+                                                     std::move(name)),
+                                   re,
+                                   impl::ExternalTexture::Usage::READABLE |
+                                           impl::ExternalTexture::Usage::WRITEABLE);
 }
 
 static std::shared_ptr<ExternalTexture> copyBuffer(RenderEngine& re,

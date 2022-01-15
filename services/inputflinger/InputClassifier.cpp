@@ -29,8 +29,6 @@
 #endif
 #include <unordered_set>
 
-#include <android/hardware/input/classifier/1.0/IInputClassifier.h>
-
 #define INDENT1 "  "
 #define INDENT2 "    "
 #define INDENT3 "      "

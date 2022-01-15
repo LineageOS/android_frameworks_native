@@ -416,8 +416,10 @@ public:
     // Used only to set BufferStateLayer state
     virtual bool setTransform(uint32_t /*transform*/) { return false; };
     virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
-    virtual bool setBuffer(const BufferData&, nsecs_t /*postTime*/, nsecs_t /*desiredPresentTime*/,
-                           bool /*isAutoTimestamp*/, std::optional<nsecs_t> /* dequeueTime */,
+    virtual bool setBuffer(std::shared_ptr<renderengine::ExternalTexture>& /* buffer */,
+                           const BufferData& /* bufferData */, nsecs_t /* postTime */,
+                           nsecs_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
+                           std::optional<nsecs_t> /* dequeueTime */,
                            const FrameTimelineInfo& /*info*/) {
         return false;
     };

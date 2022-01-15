@@ -618,7 +618,7 @@ const RefreshRate* RefreshRateConfigs::getBestRefreshRate(Iter begin, Iter end) 
         const auto [refreshRate, score] = *i;
         ALOGV("%s scores %.2f", refreshRate->getName().c_str(), score);
 
-        ATRACE_INT(refreshRate->getName().c_str(), round<int>(score * 100));
+        ATRACE_INT(refreshRate->getName().c_str(), static_cast<int>(std::round(score * 100)));
 
         if (score > max * (1 + kEpsilon)) {
             max = score;
@@ -714,20 +714,19 @@ RefreshRateConfigs::RefreshRateConfigs(const DisplayModes& modes, DisplayModeId 
 
 void RefreshRateConfigs::initializeIdleTimer() {
     if (mConfig.idleTimerTimeoutMs > 0) {
-        const auto getCallback = [this]() -> std::optional<IdleTimerCallbacks::Callbacks> {
-            std::scoped_lock lock(mIdleTimerCallbacksMutex);
-            if (!mIdleTimerCallbacks.has_value()) return {};
-            return mConfig.supportKernelIdleTimer ? mIdleTimerCallbacks->kernel
-                                                  : mIdleTimerCallbacks->platform;
-        };
-
         mIdleTimer.emplace(
                 "IdleTimer", std::chrono::milliseconds(mConfig.idleTimerTimeoutMs),
-                [getCallback] {
-                    if (const auto callback = getCallback()) callback->onReset();
+                [this] {
+                    std::scoped_lock lock(mIdleTimerCallbacksMutex);
+                    if (const auto callbacks = getIdleTimerCallbacks()) {
+                        callbacks->onReset();
+                    }
                 },
-                [getCallback] {
-                    if (const auto callback = getCallback()) callback->onExpired();
+                [this] {
+                    std::scoped_lock lock(mIdleTimerCallbacksMutex);
+                    if (const auto callbacks = getIdleTimerCallbacks()) {
+                        callbacks->onExpired();
+                    }
                 });
     }
 }

@@ -26,6 +26,7 @@
 #include <gtest/gtest.h>
 #include <renderengine/ExternalTexture.h>
 #include <renderengine/RenderEngine.h>
+#include <renderengine/impl/ExternalTexture.h>
 #include <sync/sync.h>
 #include <system/graphics-base-v1.0.h>
 #include <tonemap/tonemap.h>
@@ -178,7 +179,7 @@ class RenderEngineTest : public ::testing::TestWithParam<std::shared_ptr<RenderE
 public:
     std::shared_ptr<renderengine::ExternalTexture> allocateDefaultBuffer() {
         return std::make_shared<
-                renderengine::
+                renderengine::impl::
                         ExternalTexture>(new GraphicBuffer(DEFAULT_DISPLAY_WIDTH,
                                                            DEFAULT_DISPLAY_HEIGHT,
                                                            HAL_PIXEL_FORMAT_RGBA_8888, 1,
@@ -188,15 +189,16 @@ public:
                                                                    GRALLOC_USAGE_HW_TEXTURE,
                                                            "output"),
                                          *mRE,
-                                         renderengine::ExternalTexture::Usage::READABLE |
-                                                 renderengine::ExternalTexture::Usage::WRITEABLE);
+                                         renderengine::impl::ExternalTexture::Usage::READABLE |
+                                                 renderengine::impl::ExternalTexture::Usage::
+                                                         WRITEABLE);
     }
 
     // Allocates a 1x1 buffer to fill with a solid color
     std::shared_ptr<renderengine::ExternalTexture> allocateSourceBuffer(uint32_t width,
                                                                         uint32_t height) {
         return std::make_shared<
-                renderengine::
+                renderengine::impl::
                         ExternalTexture>(new GraphicBuffer(width, height,
                                                            HAL_PIXEL_FORMAT_RGBA_8888, 1,
                                                            GRALLOC_USAGE_SW_READ_OFTEN |
@@ -204,8 +206,9 @@ public:
                                                                    GRALLOC_USAGE_HW_TEXTURE,
                                                            "input"),
                                          *mRE,
-                                         renderengine::ExternalTexture::Usage::READABLE |
-                                                 renderengine::ExternalTexture::Usage::WRITEABLE);
+                                         renderengine::impl::ExternalTexture::Usage::READABLE |
+                                                 renderengine::impl::ExternalTexture::Usage::
+                                                         WRITEABLE);
     }
 
     std::shared_ptr<renderengine::ExternalTexture> allocateAndFillSourceBuffer(uint32_t width,
@@ -2439,16 +2442,17 @@ TEST_P(RenderEngineTest, test_tonemapPQMatches) {
     };
 
     auto buf = std::make_shared<
-            renderengine::ExternalTexture>(new GraphicBuffer(kGreyLevels, 1,
-                                                             HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                                             GRALLOC_USAGE_SW_READ_OFTEN |
-                                                                     GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                                                     GRALLOC_USAGE_HW_RENDER |
-                                                                     GRALLOC_USAGE_HW_TEXTURE,
-                                                             "input"),
-                                           *mRE,
-                                           renderengine::ExternalTexture::Usage::READABLE |
-                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
+            renderengine::impl::
+                    ExternalTexture>(new GraphicBuffer(kGreyLevels, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                       1,
+                                                       GRALLOC_USAGE_SW_READ_OFTEN |
+                                                               GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                               GRALLOC_USAGE_HW_RENDER |
+                                                               GRALLOC_USAGE_HW_TEXTURE,
+                                                       "input"),
+                                     *mRE,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
     ASSERT_EQ(0, buf->getBuffer()->initCheck());
 
     {
@@ -2472,16 +2476,17 @@ TEST_P(RenderEngineTest, test_tonemapPQMatches) {
     }
 
     mBuffer = std::make_shared<
-            renderengine::ExternalTexture>(new GraphicBuffer(kGreyLevels, 1,
-                                                             HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                                             GRALLOC_USAGE_SW_READ_OFTEN |
-                                                                     GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                                                     GRALLOC_USAGE_HW_RENDER |
-                                                                     GRALLOC_USAGE_HW_TEXTURE,
-                                                             "output"),
-                                           *mRE,
-                                           renderengine::ExternalTexture::Usage::READABLE |
-                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
+            renderengine::impl::
+                    ExternalTexture>(new GraphicBuffer(kGreyLevels, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                       1,
+                                                       GRALLOC_USAGE_SW_READ_OFTEN |
+                                                               GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                               GRALLOC_USAGE_HW_RENDER |
+                                                               GRALLOC_USAGE_HW_TEXTURE,
+                                                       "output"),
+                                     *mRE,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
     ASSERT_EQ(0, mBuffer->getBuffer()->initCheck());
 
     const renderengine::LayerSettings layer{

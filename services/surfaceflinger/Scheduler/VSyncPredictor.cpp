@@ -18,24 +18,27 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wextra"
 
+#undef LOG_TAG
+#define LOG_TAG "VSyncPredictor"
+
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
-//#define LOG_NDEBUG 0
-#include "VSyncPredictor.h"
+
+#include <algorithm>
+#include <chrono>
+#include <sstream>
+
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
-#include <algorithm>
-#include <chrono>
-#include <sstream>
-#include "RefreshRateConfigs.h"
 
-#undef LOG_TAG
-#define LOG_TAG "VSyncPredictor"
+#include "RefreshRateConfigs.h"
+#include "VSyncPredictor.h"
 
 namespace android::scheduler {
+
 using base::StringAppendF;
 
 static auto constexpr kMaxPercent = 100u;
@@ -121,7 +124,8 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
         mTimestamps[mLastTimestampIndex] = timestamp;
     }
 
-    if (mTimestamps.size() < kMinimumSamplesForPrediction) {
+    const size_t numSamples = mTimestamps.size();
+    if (numSamples < kMinimumSamplesForPrediction) {
         mRateMap[mIdealPeriod] = {mIdealPeriod, 0};
         return true;
     }
@@ -141,36 +145,44 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     //
     // intercept = mean(Y) - slope * mean(X)
     //
-    std::vector<nsecs_t> vsyncTS(mTimestamps.size());
-    std::vector<nsecs_t> ordinals(mTimestamps.size());
+    std::vector<nsecs_t> vsyncTS(numSamples);
+    std::vector<nsecs_t> ordinals(numSamples);
 
-    // normalizing to the oldest timestamp cuts down on error in calculating the intercept.
-    auto const oldest_ts = *std::min_element(mTimestamps.begin(), mTimestamps.end());
+    // Normalizing to the oldest timestamp cuts down on error in calculating the intercept.
+    const auto oldestTS = *std::min_element(mTimestamps.begin(), mTimestamps.end());
     auto it = mRateMap.find(mIdealPeriod);
     auto const currentPeriod = it->second.slope;
-    // TODO (b/144707443): its important that there's some precision in the mean of the ordinals
-    //                     for the intercept calculation, so scale the ordinals by 1000 to continue
-    //                     fixed point calculation. Explore expanding
-    //                     scheduler::utils::calculate_mean to have a fixed point fractional part.
-    static constexpr int64_t kScalingFactor = 1000;
 
-    for (auto i = 0u; i < mTimestamps.size(); i++) {
+    // The mean of the ordinals must be precise for the intercept calculation, so scale them up for
+    // fixed-point arithmetic.
+    constexpr int64_t kScalingFactor = 1000;
+
+    nsecs_t meanTS = 0;
+    nsecs_t meanOrdinal = 0;
+
+    for (size_t i = 0; i < numSamples; i++) {
         traceInt64If("VSP-ts", mTimestamps[i]);
 
-        vsyncTS[i] = mTimestamps[i] - oldest_ts;
-        ordinals[i] = ((vsyncTS[i] + (currentPeriod / 2)) / currentPeriod) * kScalingFactor;
+        const auto timestamp = mTimestamps[i] - oldestTS;
+        vsyncTS[i] = timestamp;
+        meanTS += timestamp;
+
+        const auto ordinal = (vsyncTS[i] + currentPeriod / 2) / currentPeriod * kScalingFactor;
+        ordinals[i] = ordinal;
+        meanOrdinal += ordinal;
     }
 
-    auto meanTS = scheduler::calculate_mean(vsyncTS);
-    auto meanOrdinal = scheduler::calculate_mean(ordinals);
-    for (size_t i = 0; i < vsyncTS.size(); i++) {
+    meanTS /= numSamples;
+    meanOrdinal /= numSamples;
+
+    for (size_t i = 0; i < numSamples; i++) {
         vsyncTS[i] -= meanTS;
         ordinals[i] -= meanOrdinal;
     }
 
-    auto top = 0ll;
-    auto bottom = 0ll;
-    for (size_t i = 0; i < vsyncTS.size(); i++) {
+    nsecs_t top = 0;
+    nsecs_t bottom = 0;
+    for (size_t i = 0; i < numSamples; i++) {
         top += vsyncTS[i] * ordinals[i];
         bottom += ordinals[i] * ordinals[i];
     }

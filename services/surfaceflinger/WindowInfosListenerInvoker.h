@@ -31,7 +31,8 @@ class SurfaceFlinger;
 
 class WindowInfosListenerInvoker : public IBinder::DeathRecipient {
 public:
-    WindowInfosListenerInvoker(const sp<SurfaceFlinger>& sf);
+    explicit WindowInfosListenerInvoker(SurfaceFlinger&);
+
     void addWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener);
     void removeWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener);
 
@@ -42,13 +43,15 @@ protected:
     void binderDied(const wp<IBinder>& who) override;
 
 private:
+    struct WindowInfosReportedListener;
     void windowInfosReported();
 
-    const sp<SurfaceFlinger> mSf;
+    SurfaceFlinger& mFlinger;
     std::mutex mListenersMutex;
     std::unordered_map<wp<IBinder>, const sp<gui::IWindowInfosListener>, WpHash>
             mWindowInfosListeners GUARDED_BY(mListenersMutex);
     sp<gui::IWindowInfosReportedListener> mWindowInfosReportedListener;
     std::atomic<size_t> mCallbacksPending{0};
 };
+
 } // namespace android

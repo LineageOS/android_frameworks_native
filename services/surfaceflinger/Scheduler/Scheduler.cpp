@@ -44,7 +44,6 @@
 #include "EventThread.h"
 #include "InjectVSyncSource.h"
 #include "OneShotTimer.h"
-#include "SchedulerUtils.h"
 #include "SurfaceFlingerProperties.h"
 #include "VSyncPredictor.h"
 #include "VSyncReactor.h"
@@ -61,6 +60,15 @@ namespace android::scheduler {
 
 Scheduler::Scheduler(ICompositor& compositor, ISchedulerCallback& callback, FeatureFlags features)
       : impl::MessageQueue(compositor), mFeatures(features), mSchedulerCallback(callback) {}
+
+Scheduler::~Scheduler() {
+    // Stop timers and wait for their threads to exit.
+    mDisplayPowerTimer.reset();
+    mTouchTimer.reset();
+
+    // Stop idle timer and clear callbacks, as the RefreshRateConfigs may outlive the Scheduler.
+    setRefreshRateConfigs(nullptr);
+}
 
 void Scheduler::startTimers() {
     using namespace sysprop;
@@ -84,11 +92,32 @@ void Scheduler::startTimers() {
     }
 }
 
-Scheduler::~Scheduler() {
-    // Ensure the OneShotTimer threads are joined before we start destroying state.
-    mDisplayPowerTimer.reset();
-    mTouchTimer.reset();
-    mRefreshRateConfigs.reset();
+void Scheduler::setRefreshRateConfigs(std::shared_ptr<RefreshRateConfigs> configs) {
+    {
+        // The current RefreshRateConfigs instance may outlive this call, so unbind its idle timer.
+        std::scoped_lock lock(mRefreshRateConfigsLock);
+        if (mRefreshRateConfigs) {
+            mRefreshRateConfigs->stopIdleTimer();
+            mRefreshRateConfigs->clearIdleTimerCallbacks();
+        }
+    }
+    {
+        // Clear state that depends on the current instance.
+        std::scoped_lock lock(mPolicyLock);
+        mPolicy = {};
+    }
+
+    std::scoped_lock lock(mRefreshRateConfigsLock);
+    mRefreshRateConfigs = std::move(configs);
+    if (!mRefreshRateConfigs) return;
+
+    mRefreshRateConfigs->setIdleTimerCallbacks(
+            {.platform = {.onReset = [this] { idleTimerCallback(TimerState::Reset); },
+                          .onExpired = [this] { idleTimerCallback(TimerState::Expired); }},
+             .kernel = {.onReset = [this] { kernelIdleTimerCallback(TimerState::Reset); },
+                        .onExpired = [this] { kernelIdleTimerCallback(TimerState::Expired); }}});
+
+    mRefreshRateConfigs->startIdleTimer();
 }
 
 void Scheduler::run() {

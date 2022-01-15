@@ -17,7 +17,6 @@
 #pragma once
 
 #include <android-base/thread_annotations.h>
-#include <array>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -25,7 +24,6 @@
 #include <string_view>
 #include <unordered_map>
 
-#include "SchedulerUtils.h"
 #include "VSyncDispatch.h"
 
 namespace android::scheduler {
@@ -152,17 +150,6 @@ private:
 
     CallbackMap mCallbacks GUARDED_BY(mMutex);
     nsecs_t mIntendedWakeupTime GUARDED_BY(mMutex) = kInvalidTime;
-
-    struct TraceBuffer {
-        static constexpr char const kTraceNamePrefix[] = "-alarm in:";
-        static constexpr char const kTraceNameSeparator[] = " for vs:";
-        static constexpr size_t kMaxNamePrint = 4;
-        static constexpr size_t kNumTsPrinted = 2;
-        static constexpr size_t maxlen = kMaxNamePrint + arrayLen(kTraceNamePrefix) +
-                arrayLen(kTraceNameSeparator) - 1 + (kNumTsPrinted * max64print);
-        std::array<char, maxlen> str_buffer;
-        void note(std::string_view name, nsecs_t in, nsecs_t vs);
-    } mTraceBuffer GUARDED_BY(mMutex);
 
     // For debugging purposes
     nsecs_t mLastTimerCallback GUARDED_BY(mMutex) = kInvalidTime;
