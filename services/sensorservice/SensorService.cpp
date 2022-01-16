@@ -1254,6 +1254,11 @@ void SensorService::makeUuidsIntoIdsForSensorList(Vector<Sensor> &sensorList) co
     for (auto &sensor : sensorList) {
         int32_t id = getIdFromUuid(sensor.getUuid());
         sensor.setId(id);
+        // The sensor UUID must always be anonymized here for non privileged clients.
+        // There is no other checks after this point before returning to client process.
+        if (!isAudioServerOrSystemServerUid(IPCThreadState::self()->getCallingUid())) {
+            sensor.anonymizeUuid();
+        }
     }
 }
 
