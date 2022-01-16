@@ -26,6 +26,7 @@
 #include <binder/IUidObserver.h>
 #include <cutils/compiler.h>
 #include <cutils/multiuser.h>
+#include <private/android_filesystem_config.h>
 #include <sensor/ISensorServer.h>
 #include <sensor/ISensorEventConnection.h>
 #include <sensor/Sensor.h>
@@ -446,6 +447,10 @@ private:
     void capRates(userid_t userId);
     // Removes the capped rate on active direct connections (when the mic toggle is flipped to off)
     void uncapRates(userid_t userId);
+
+    static inline bool isAudioServerOrSystemServerUid(uid_t uid) {
+        return multiuser_get_app_id(uid) == AID_SYSTEM || uid == AID_AUDIOSERVER;
+    }
 
     static uint8_t sHmacGlobalKey[128];
     static bool sHmacGlobalKeyIsValid;
