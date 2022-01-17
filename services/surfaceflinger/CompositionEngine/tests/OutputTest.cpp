@@ -3304,6 +3304,9 @@ struct OutputComposeSurfacesTest : public testing::Test {
         MOCK_METHOD2(appendRegionFlashRequests,
                      void(const Region&, std::vector<LayerFE::LayerSettings>&));
         MOCK_METHOD1(setExpensiveRenderingExpected, void(bool));
+        MOCK_METHOD(void, setHintSessionGpuFence, (std::unique_ptr<FenceTime> && gpuFence),
+                    (override));
+        MOCK_METHOD(bool, isPowerHintSessionEnabled, (), (override));
     };
 
     OutputComposeSurfacesTest() {

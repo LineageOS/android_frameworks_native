@@ -89,6 +89,8 @@ public:
     std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(const sp<LayerFE>&) const;
 
 private:
+    bool isPowerHintSessionEnabled() override;
+    void setHintSessionGpuFence(std::unique_ptr<FenceTime>&& gpuFence) override;
     DisplayId mId;
     bool mIsDisconnected = false;
     Hwc2::PowerAdvisor* mPowerAdvisor = nullptr;

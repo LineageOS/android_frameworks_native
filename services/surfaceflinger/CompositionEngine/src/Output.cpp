@@ -1087,6 +1087,10 @@ void Output::finishFrame(const CompositionRefreshArgs& refreshArgs, GpuCompositi
         return;
     }
 
+    if (isPowerHintSessionEnabled()) {
+        // get fence end time to know when gpu is complete in display
+        setHintSessionGpuFence(std::make_unique<FenceTime>(new Fence(dup(optReadyFence->get()))));
+    }
     // swap buffers (presentation)
     mRenderSurface->queueBuffer(std::move(*optReadyFence));
 }
@@ -1388,6 +1392,14 @@ void Output::appendRegionFlashRequests(
 
 void Output::setExpensiveRenderingExpected(bool) {
     // The base class does nothing with this call.
+}
+
+void Output::setHintSessionGpuFence(std::unique_ptr<FenceTime>&&) {
+    // The base class does nothing with this call.
+}
+
+bool Output::isPowerHintSessionEnabled() {
+    return false;
 }
 
 void Output::postFramebuffer() {
