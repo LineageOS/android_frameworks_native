@@ -172,7 +172,7 @@ public:
     std::vector<IComposer::Capability> getCapabilities() override;
     std::string dumpDebugInfo() override;
 
-    void registerCallback(const sp<IComposerCallback>& callback) override;
+    void registerCallback(HWC2::ComposerCallback& callback) override;
 
     // Reset all pending commands in the command buffer. Useful if you want to
     // skip a frame but have already queued some commands.
@@ -333,6 +333,8 @@ private:
         explicit CommandWriter(uint32_t initialMaxSize) : CommandWriterBase(initialMaxSize) {}
         ~CommandWriter() override {}
     };
+
+    void registerCallback(const sp<IComposerCallback>& callback);
 
     // Many public functions above simply write a command into the command
     // queue to batch the calls.  validateDisplay and presentDisplay will call

@@ -105,7 +105,7 @@ public:
 
     virtual ~HWComposer();
 
-    virtual void setCallback(HWC2::ComposerCallback*) = 0;
+    virtual void setCallback(HWC2::ComposerCallback&) = 0;
 
     virtual bool getDisplayIdentificationData(hal::HWDisplayId, uint8_t* outPort,
                                               DisplayIdentificationData* outData) const = 0;
@@ -272,7 +272,7 @@ public:
 
     ~HWComposer() override;
 
-    void setCallback(HWC2::ComposerCallback*) override;
+    void setCallback(HWC2::ComposerCallback&) override;
 
     bool getDisplayIdentificationData(hal::HWDisplayId, uint8_t* outPort,
                                       DisplayIdentificationData* outData) const override;

@@ -631,6 +631,7 @@ private:
     void onComposerHalVsyncPeriodTimingChanged(hal::HWDisplayId,
                                                const hal::VsyncPeriodChangeTimeline&) override;
     void onComposerHalSeamlessPossible(hal::HWDisplayId) override;
+    void onComposerHalVsyncIdle(hal::HWDisplayId) override;
 
     // ICompositor overrides:
 
