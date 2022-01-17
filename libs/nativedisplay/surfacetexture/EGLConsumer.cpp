@@ -593,6 +593,10 @@ status_t EGLConsumer::doGLFenceWaitLocked(SurfaceTexture& st) const {
 }
 
 void EGLConsumer::onFreeBufferLocked(int slotIndex) {
+    if (mEglSlots[slotIndex].mEglImage != nullptr &&
+        mEglSlots[slotIndex].mEglImage == mCurrentTextureImage) {
+        mCurrentTextureImage.clear();
+    }
     mEglSlots[slotIndex].mEglImage.clear();
 }
 
