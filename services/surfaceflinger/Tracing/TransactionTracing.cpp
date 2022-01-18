@@ -23,35 +23,22 @@
 #include <utils/SystemClock.h>
 #include <utils/Trace.h>
 
-#include "RingBuffer.h"
 #include "TransactionTracing.h"
 
 namespace android {
 
 TransactionTracing::TransactionTracing() {
-    mBuffer = std::make_unique<
-            RingBuffer<proto::TransactionTraceFile, proto::TransactionTraceEntry>>();
-}
-
-TransactionTracing::~TransactionTracing() = default;
-
-bool TransactionTracing::enable() {
     std::scoped_lock lock(mTraceLock);
-    if (mEnabled) {
-        return false;
-    }
-    mBuffer->setSize(mBufferSizeInBytes);
+
+    mBuffer.setSize(mBufferSizeInBytes);
     mStartingTimestamp = systemTime();
-    mEnabled = true;
     {
         std::scoped_lock lock(mMainThreadLock);
-        mDone = false;
         mThread = std::thread(&TransactionTracing::loop, this);
     }
-    return true;
 }
 
-bool TransactionTracing::disable() {
+TransactionTracing::~TransactionTracing() {
     std::thread thread;
     {
         std::scoped_lock lock(mMainThreadLock);
@@ -63,43 +50,20 @@ bool TransactionTracing::disable() {
         thread.join();
     }
 
-    std::scoped_lock lock(mTraceLock);
-    if (!mEnabled) {
-        return false;
-    }
-    mEnabled = false;
-
-    writeToFileLocked();
-    mBuffer->reset();
-    mQueuedTransactions.clear();
-    mStartingStates.clear();
-    mLayerHandles.clear();
-    return true;
-}
-
-bool TransactionTracing::isEnabled() const {
-    std::scoped_lock lock(mTraceLock);
-    return mEnabled;
+    writeToFile();
 }
 
 status_t TransactionTracing::writeToFile() {
     std::scoped_lock lock(mTraceLock);
-    if (!mEnabled) {
-        return STATUS_OK;
-    }
-    return writeToFileLocked();
-}
-
-status_t TransactionTracing::writeToFileLocked() {
     proto::TransactionTraceFile fileProto = createTraceFileProto();
     addStartingStateToProtoLocked(fileProto);
-    return mBuffer->writeToFile(fileProto, FILE_NAME);
+    return mBuffer.writeToFile(fileProto, FILE_NAME);
 }
 
 void TransactionTracing::setBufferSize(size_t bufferSizeInBytes) {
     std::scoped_lock lock(mTraceLock);
     mBufferSizeInBytes = bufferSizeInBytes;
-    mBuffer->setSize(mBufferSizeInBytes);
+    mBuffer.setSize(mBufferSizeInBytes);
 }
 
 proto::TransactionTraceFile TransactionTracing::createTraceFileProto() const {
@@ -111,21 +75,16 @@ proto::TransactionTraceFile TransactionTracing::createTraceFileProto() const {
 
 void TransactionTracing::dump(std::string& result) const {
     std::scoped_lock lock(mTraceLock);
-    base::StringAppendF(&result, "Transaction tracing state: %s\n",
-                        mEnabled ? "enabled" : "disabled");
     base::StringAppendF(&result,
                         "  queued transactions=%zu created layers=%zu handles=%zu states=%zu\n",
                         mQueuedTransactions.size(), mCreatedLayers.size(), mLayerHandles.size(),
                         mStartingStates.size());
-    mBuffer->dump(result);
+    mBuffer.dump(result);
 }
 
 void TransactionTracing::addQueuedTransaction(const TransactionState& transaction) {
     std::scoped_lock lock(mTraceLock);
     ATRACE_CALL();
-    if (!mEnabled) {
-        return;
-    }
     mQueuedTransactions[transaction.id] =
             TransactionProtoParser::toProto(transaction,
                                             std::bind(&TransactionTracing::getLayerIdLocked, this,
@@ -206,7 +165,7 @@ void TransactionTracing::addEntry(const std::vector<CommittedTransactions>& comm
         std::string serializedProto;
         entryProto.SerializeToString(&serializedProto);
         entryProto.Clear();
-        std::vector<std::string> entries = mBuffer->emplace(std::move(serializedProto));
+        std::vector<std::string> entries = mBuffer.emplace(std::move(serializedProto));
         removedEntries.reserve(removedEntries.size() + entries.size());
         removedEntries.insert(removedEntries.end(), std::make_move_iterator(entries.begin()),
                               std::make_move_iterator(entries.end()));
@@ -229,10 +188,10 @@ void TransactionTracing::flush(int64_t vsyncId) {
     base::ScopedLockAssertion assumeLocked(mTraceLock);
     mTransactionsAddedToBufferCv.wait(lock, [&]() REQUIRES(mTraceLock) {
         proto::TransactionTraceEntry entry;
-        if (mBuffer->used() > 0) {
-            entry.ParseFromString(mBuffer->back());
+        if (mBuffer.used() > 0) {
+            entry.ParseFromString(mBuffer.back());
         }
-        return mBuffer->used() > 0 && entry.vsync_id() >= vsyncId;
+        return mBuffer.used() > 0 && entry.vsync_id() >= vsyncId;
     });
 }
 
@@ -352,7 +311,7 @@ proto::TransactionTraceFile TransactionTracing::writeToProto() {
     std::scoped_lock<std::mutex> lock(mTraceLock);
     proto::TransactionTraceFile proto = createTraceFileProto();
     addStartingStateToProtoLocked(proto);
-    mBuffer->writeToProto(proto);
+    mBuffer.writeToProto(proto);
     return proto;
 }
 

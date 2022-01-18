@@ -505,10 +505,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     enableLatchUnsignaledConfig = getLatchUnsignaledConfig();
 
-    mTransactionTracingEnabled =
-            !mIsUserBuild && property_get_bool("debug.sf.enable_transaction_tracing", true);
-    if (mTransactionTracingEnabled) {
-        mTransactionTracing.enable();
+    if (!mIsUserBuild && base::GetBoolProperty("debug.sf.enable_transaction_tracing"s, true)) {
+        mTransactionTracing.emplace();
     }
 }
 
@@ -3770,8 +3768,8 @@ bool SurfaceFlinger::applyTransactions(std::vector<TransactionState>& transactio
         }
     }
 
-    if (mTransactionTracingEnabled) {
-        mTransactionTracing.addCommittedTransactions(transactions, vsyncId);
+    if (mTransactionTracing) {
+        mTransactionTracing->addCommittedTransactions(transactions, vsyncId);
     }
     return needsTraversal;
 }
@@ -4031,8 +4029,8 @@ status_t SurfaceFlinger::setTransactionState(
         mBufferCountTracker.increment(state.surface->localBinder());
     });
 
-    if (mTransactionTracingEnabled) {
-        mTransactionTracing.addQueuedTransaction(state);
+    if (mTransactionTracing) {
+        mTransactionTracing->addQueuedTransaction(state);
     }
     queueTransaction(state);
 
@@ -4568,9 +4566,9 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
     }
 
     *outLayerId = mirrorLayer->sequence;
-    if (mTransactionTracingEnabled) {
-        mTransactionTracing.onMirrorLayerAdded((*outHandle)->localBinder(), mirrorLayer->sequence,
-                                               args.name, mirrorFrom->sequence);
+    if (mTransactionTracing) {
+        mTransactionTracing->onMirrorLayerAdded((*outHandle)->localBinder(), mirrorLayer->sequence,
+                                                args.name, mirrorFrom->sequence);
     }
     return addClientLayer(args.client, *outHandle, mirrorLayer /* layer */, nullptr /* parent */,
                           false /* addAsRoot */, nullptr /* outTransformHint */);
@@ -4630,9 +4628,9 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
     if (parentSp != nullptr) {
         parentId = parentSp->getSequence();
     }
-    if (mTransactionTracingEnabled) {
-        mTransactionTracing.onLayerAdded((*outHandle)->localBinder(), layer->sequence, args.name,
-                                         args.flags, parentId);
+    if (mTransactionTracing) {
+        mTransactionTracing->onLayerAdded((*outHandle)->localBinder(), layer->sequence, args.name,
+                                          args.flags, parentId);
     }
 
     result = addClientLayer(args.client, *outHandle, layer, parent, addToRoot, outTransformHint);
@@ -4722,8 +4720,8 @@ void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer) {
     markLayerPendingRemovalLocked(layer);
     mBufferCountTracker.remove(handle);
     layer.clear();
-    if (mTransactionTracingEnabled) {
-        mTransactionTracing.onHandleRemoved(handle);
+    if (mTransactionTracing) {
+        mTransactionTracing->onHandleRemoved(handle);
     }
 }
 
@@ -4958,7 +4956,9 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
 status_t SurfaceFlinger::dumpCritical(int fd, const DumpArgs&, bool asProto) {
     if (asProto) {
         mLayerTracing.writeToFile();
-        mTransactionTracing.writeToFile();
+        if (mTransactionTracing) {
+            mTransactionTracing->writeToFile();
+        }
     }
 
     return doDump(fd, DumpArgs(), asProto);
@@ -5355,9 +5355,15 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
      * Tracing state
      */
     mLayerTracing.dump(result);
-    result.append("\n");
-    mTransactionTracing.dump(result);
-    result.append("\n");
+
+    result.append("\nTransaction tracing: ");
+    if (mTransactionTracing) {
+        result.append("enabled\n");
+        mTransactionTracing->dump(result);
+    } else {
+        result.append("disabled\n");
+    }
+    result.push_back('\n');
 
     /*
      * HWC layer minidump
@@ -6037,15 +6043,17 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 return NO_ERROR;
             }
             case 1041: { // Transaction tracing
-                if (data.readInt32()) {
-                    // Transaction tracing is always running but allow the user to temporarily
-                    // increase the buffer when actively debugging.
-                    mTransactionTracing.setBufferSize(
-                            TransactionTracing::ACTIVE_TRACING_BUFFER_SIZE);
-                } else {
-                    mTransactionTracing.setBufferSize(
-                            TransactionTracing::CONTINUOUS_TRACING_BUFFER_SIZE);
-                    mTransactionTracing.writeToFile();
+                if (mTransactionTracing) {
+                    if (data.readInt32()) {
+                        // Transaction tracing is always running but allow the user to temporarily
+                        // increase the buffer when actively debugging.
+                        mTransactionTracing->setBufferSize(
+                                TransactionTracing::ACTIVE_TRACING_BUFFER_SIZE);
+                    } else {
+                        mTransactionTracing->setBufferSize(
+                                TransactionTracing::CONTINUOUS_TRACING_BUFFER_SIZE);
+                        mTransactionTracing->writeToFile();
+                    }
                 }
                 reply->writeInt32(NO_ERROR);
                 return NO_ERROR;
@@ -6887,8 +6895,8 @@ void SurfaceFlinger::onLayerDestroyed(Layer* layer) {
     if (!layer->isRemovedFromCurrentState()) {
         mScheduler->deregisterLayer(layer);
     }
-    if (mTransactionTracingEnabled) {
-        mTransactionTracing.onLayerRemoved(layer->getSequence());
+    if (mTransactionTracing) {
+        mTransactionTracing->onLayerRemoved(layer->getSequence());
     }
 }
 
