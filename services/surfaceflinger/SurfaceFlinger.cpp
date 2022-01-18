@@ -1112,6 +1112,8 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
         return type == hal::ContentType::GAME;
     });
 
+    info->preferredBootDisplayMode = display->getPreferredBootModeId();
+
     return NO_ERROR;
 }
 
@@ -1449,20 +1451,6 @@ status_t SurfaceFlinger::clearBootDisplayMode(const sp<IBinder>& displayToken) {
     auto future = mScheduler->schedule([=]() MAIN_THREAD -> status_t {
         if (const auto displayId = getPhysicalDisplayIdLocked(displayToken)) {
             return getHwComposer().clearBootDisplayMode(*displayId);
-        } else {
-            ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
-            return BAD_VALUE;
-        }
-    });
-    return future.get();
-}
-
-status_t SurfaceFlinger::getPreferredBootDisplayMode(const sp<IBinder>& displayToken,
-                                                     ui::DisplayModeId* id) {
-    auto future = mScheduler->schedule([=]() MAIN_THREAD mutable -> status_t {
-        if (const auto displayId = getPhysicalDisplayIdLocked(displayToken)) {
-            *id = getHwComposer().getPreferredBootDisplayMode(*displayId);
-            return NO_ERROR;
         } else {
             ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
             return BAD_VALUE;
@@ -5463,7 +5451,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_BOOT_DISPLAY_MODE_SUPPORT:
         case SET_BOOT_DISPLAY_MODE:
         case CLEAR_BOOT_DISPLAY_MODE:
-        case GET_PREFERRED_BOOT_DISPLAY_MODE:
         case GET_AUTO_LOW_LATENCY_MODE_SUPPORT:
         case SET_AUTO_LOW_LATENCY_MODE:
         case GET_GAME_CONTENT_TYPE_SUPPORT:

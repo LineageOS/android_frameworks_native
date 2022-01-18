@@ -537,8 +537,6 @@ private:
     status_t getBootDisplayModeSupport(bool* outSupport) const override;
     status_t setBootDisplayMode(const sp<IBinder>& displayToken, ui::DisplayModeId id) override;
     status_t clearBootDisplayMode(const sp<IBinder>& displayToken) override;
-    status_t getPreferredBootDisplayMode(const sp<IBinder>& displayToken,
-                                         ui::DisplayModeId* id) override;
     void setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on) override;
     void setGameContentType(const sp<IBinder>& displayToken, bool on) override;
     void setPowerMode(const sp<IBinder>& displayToken, int mode) override;

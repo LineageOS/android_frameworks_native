@@ -61,6 +61,7 @@ public:
     bool isSecure() const override;
     bool isVirtual() const override;
     void disconnect() override;
+    int32_t getPreferredBootModeId() const override;
     void createDisplayColorProfile(
             const compositionengine::DisplayColorProfileCreationArgs&) override;
     void createRenderSurface(const compositionengine::RenderSurfaceCreationArgs&) override;
@@ -86,6 +87,7 @@ private:
     DisplayId mId;
     bool mIsDisconnected = false;
     Hwc2::PowerAdvisor* mPowerAdvisor = nullptr;
+    int32_t mPreferredBootDisplayModeId = -1;
 };
 
 // This template factory function standardizes the implementation details of the

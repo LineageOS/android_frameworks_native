@@ -157,6 +157,9 @@ public:
     // respectively if hardware composer doesn't return meaningful values.
     HdrCapabilities getHdrCapabilities() const;
 
+    // Returns the boot display mode preferred by the implementation.
+    ui::DisplayModeId getPreferredBootModeId() const;
+
     // Return true if intent is supported by the display.
     bool hasRenderIntent(ui::RenderIntent intent) const;
 
