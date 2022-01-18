@@ -31,6 +31,7 @@ proto::TransactionState TransactionProtoParser::toProto(const TransactionState& 
     proto.set_vsync_id(t.frameTimelineInfo.vsyncId);
     proto.set_input_event_id(t.frameTimelineInfo.inputEventId);
     proto.set_post_time(t.postTime);
+    proto.set_transaction_id(t.id);
 
     for (auto& layerState : t.states) {
         proto.mutable_layer_changes()->Add(std::move(toProto(layerState.state, getLayerId)));
@@ -52,6 +53,9 @@ proto::TransactionState TransactionProtoParser::toProto(
             bufferProto->set_buffer_id(state.bufferId);
             bufferProto->set_width(state.bufferWidth);
             bufferProto->set_height(state.bufferHeight);
+            bufferProto->set_pixel_format(
+                    static_cast<proto::LayerState_BufferData_PixelFormat>(state.pixelFormat));
+            bufferProto->set_usage(state.bufferUsage);
         }
         layerProto.set_has_sideband_stream(state.hasSidebandStream);
         layerProto.set_layer_id(state.layerId);
@@ -136,6 +140,9 @@ proto::LayerState TransactionProtoParser::toProto(const layer_state_t& layer,
             bufferProto->set_buffer_id(layer.bufferData->getId());
             bufferProto->set_width(layer.bufferData->getWidth());
             bufferProto->set_height(layer.bufferData->getHeight());
+            bufferProto->set_pixel_format(static_cast<proto::LayerState_BufferData_PixelFormat>(
+                    layer.bufferData->getPixelFormat()));
+            bufferProto->set_usage(layer.bufferData->getUsage());
         }
         bufferProto->set_frame_number(layer.bufferData->frameNumber);
         bufferProto->set_flags(layer.bufferData->flags.get());
@@ -169,6 +176,7 @@ proto::LayerState TransactionProtoParser::toProto(const layer_state_t& layer,
                 ? getLayerId(layer.relativeLayerSurfaceControl->getHandle())
                 : -1;
         proto.set_relative_parent_id(layerId);
+        proto.set_z(layer.z);
     }
 
     if (layer.what & layer_state_t::eInputInfoChanged) {
@@ -291,10 +299,13 @@ TransactionState TransactionProtoParser::fromProto(const proto::TransactionState
     t.frameTimelineInfo.vsyncId = proto.vsync_id();
     t.frameTimelineInfo.inputEventId = proto.input_event_id();
     t.postTime = proto.post_time();
+    t.id = proto.transaction_id();
+
     int32_t layerCount = proto.layer_changes_size();
     t.states.reserve(static_cast<size_t>(layerCount));
     for (int i = 0; i < layerCount; i++) {
         ComposerState s;
+        s.state.what = 0;
         fromProto(proto.layer_changes(i), getLayerHandle, s.state);
         t.states.add(s);
     }
@@ -316,27 +327,31 @@ void TransactionProtoParser::fromProto(const proto::LayerCreationArgs& proto,
     outArgs.mirrorFromId = proto.mirror_from_id();
 }
 
-void TransactionProtoParser::fromProto(const proto::LayerState& proto,
-                                       LayerIdToHandleFn getLayerHandle,
-                                       TracingLayerState& outState) {
-    fromProto(proto, getLayerHandle, static_cast<layer_state_t&>(outState));
-    if (proto.what() & layer_state_t::eReparent) {
+void TransactionProtoParser::mergeFromProto(const proto::LayerState& proto,
+                                            LayerIdToHandleFn getLayerHandle,
+                                            TracingLayerState& outState) {
+    layer_state_t state;
+    fromProto(proto, getLayerHandle, state);
+    outState.merge(state);
+
+    if (state.what & layer_state_t::eReparent) {
         outState.parentId = proto.parent_id();
-        outState.args.parentId = outState.parentId;
     }
-    if (proto.what() & layer_state_t::eRelativeLayerChanged) {
+    if (state.what & layer_state_t::eRelativeLayerChanged) {
         outState.relativeParentId = proto.relative_parent_id();
     }
-    if (proto.what() & layer_state_t::eInputInfoChanged) {
+    if (state.what & layer_state_t::eInputInfoChanged) {
         outState.inputCropId = proto.window_info_handle().crop_layer_id();
     }
-    if (proto.what() & layer_state_t::eBufferChanged) {
+    if (state.what & layer_state_t::eBufferChanged) {
         const proto::LayerState_BufferData& bufferProto = proto.buffer_data();
         outState.bufferId = bufferProto.buffer_id();
         outState.bufferWidth = bufferProto.width();
         outState.bufferHeight = bufferProto.height();
+        outState.pixelFormat = bufferProto.pixel_format();
+        outState.bufferUsage = bufferProto.usage();
     }
-    if (proto.what() & layer_state_t::eSidebandStreamChanged) {
+    if (state.what & layer_state_t::eSidebandStreamChanged) {
         outState.hasSidebandStream = proto.has_sideband_stream();
     }
 }
@@ -432,15 +447,24 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto,
 
     if ((proto.what() & layer_state_t::eReparent) && (getLayerHandle != nullptr)) {
         int32_t layerId = proto.parent_id();
-        layer.parentSurfaceControlForChild =
-                new SurfaceControl(SurfaceComposerClient::getDefault(), getLayerHandle(layerId),
-                                   nullptr, layerId);
+        if (layerId == -1) {
+            layer.parentSurfaceControlForChild = nullptr;
+        } else {
+            layer.parentSurfaceControlForChild =
+                    new SurfaceControl(SurfaceComposerClient::getDefault(), getLayerHandle(layerId),
+                                       nullptr, layerId);
+        }
     }
-    if ((proto.what() & layer_state_t::eRelativeLayerChanged) && (getLayerHandle != nullptr)) {
+    if (proto.what() & layer_state_t::eRelativeLayerChanged) {
         int32_t layerId = proto.relative_parent_id();
-        layer.relativeLayerSurfaceControl =
-                new SurfaceControl(SurfaceComposerClient::getDefault(), getLayerHandle(layerId),
-                                   nullptr, layerId);
+        if (layerId == -1) {
+            layer.relativeLayerSurfaceControl = nullptr;
+        } else if (getLayerHandle != nullptr) {
+            layer.relativeLayerSurfaceControl =
+                    new SurfaceControl(SurfaceComposerClient::getDefault(), getLayerHandle(layerId),
+                                       nullptr, layerId);
+        }
+        layer.z = proto.z();
     }
 
     if ((proto.what() & layer_state_t::eInputInfoChanged) && proto.has_window_info_handle()) {

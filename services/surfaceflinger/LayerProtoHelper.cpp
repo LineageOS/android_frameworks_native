@@ -154,16 +154,16 @@ void LayerProtoHelper::writeTransformToProto(const ui::Transform& transform,
     }
 }
 
-void LayerProtoHelper::writeToProto(const sp<GraphicBuffer>& buffer,
+void LayerProtoHelper::writeToProto(const renderengine::ExternalTexture& buffer,
                                     std::function<ActiveBufferProto*()> getActiveBufferProto) {
-    if (buffer->getWidth() != 0 || buffer->getHeight() != 0 || buffer->getStride() != 0 ||
-        buffer->format != 0) {
+    if (buffer.getBuffer()->getWidth() != 0 || buffer.getBuffer()->getHeight() != 0 ||
+        buffer.getBuffer()->getUsage() != 0 || buffer.getBuffer()->getPixelFormat() != 0) {
         // Use a lambda do avoid writing the object header when the object is empty
         ActiveBufferProto* activeBufferProto = getActiveBufferProto();
-        activeBufferProto->set_width(buffer->getWidth());
-        activeBufferProto->set_height(buffer->getHeight());
-        activeBufferProto->set_stride(buffer->getStride());
-        activeBufferProto->set_format(buffer->format);
+        activeBufferProto->set_width(buffer.getBuffer()->getWidth());
+        activeBufferProto->set_height(buffer.getBuffer()->getHeight());
+        activeBufferProto->set_format(buffer.getBuffer()->getPixelFormat());
+        activeBufferProto->set_usage(buffer.getBuffer()->getUsage());
     }
 }
 
