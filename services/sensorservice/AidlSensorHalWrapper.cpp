@@ -238,6 +238,18 @@ void convertToSensorEvent(const Event &src, sensors_event_t *dst) {
             break;
         }
 
+        case SensorType::HEAD_TRACKER: {
+            const auto &ht = src.payload.get<Event::EventPayload::headTracker>();
+            dst->head_tracker.rx = ht.rx;
+            dst->head_tracker.ry = ht.ry;
+            dst->head_tracker.rz = ht.rz;
+            dst->head_tracker.vx = ht.vx;
+            dst->head_tracker.vy = ht.vy;
+            dst->head_tracker.vz = ht.vz;
+            dst->head_tracker.discontinuity_count = ht.discontinuityCount;
+            break;
+        }
+
         default: {
             CHECK_GE((int32_t)src.sensorType, (int32_t)SensorType::DEVICE_PRIVATE_BASE);
 
@@ -380,6 +392,20 @@ void convertFromSensorEvent(const sensors_event_t &src, Event *dst) {
             info.payload.set<AdditionalInfo::AdditionalInfoPayload::Tag::dataInt32>(data);
 
             dst->payload.set<Event::EventPayload::Tag::additional>(info);
+            break;
+        }
+
+        case SensorType::HEAD_TRACKER: {
+            Event::EventPayload::HeadTracker headTracker;
+            headTracker.rx = src.head_tracker.rx;
+            headTracker.ry = src.head_tracker.ry;
+            headTracker.rz = src.head_tracker.rz;
+            headTracker.vx = src.head_tracker.vx;
+            headTracker.vy = src.head_tracker.vy;
+            headTracker.vz = src.head_tracker.vz;
+            headTracker.discontinuityCount = src.head_tracker.discontinuity_count;
+
+            dst->payload.set<Event::EventPayload::Tag::headTracker>(headTracker);
             break;
         }
 
