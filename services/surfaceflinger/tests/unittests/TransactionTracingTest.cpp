@@ -29,53 +29,16 @@ namespace android {
 class TransactionTracingTest : public testing::Test {
 protected:
     static constexpr size_t SMALL_BUFFER_SIZE = 1024;
-    std::unique_ptr<android::TransactionTracing> mTracing;
-    void SetUp() override { mTracing = std::make_unique<android::TransactionTracing>(); }
+    TransactionTracing mTracing;
 
-    void TearDown() override {
-        mTracing->disable();
-        mTracing.reset();
-    }
+    void flush(int64_t vsyncId) { mTracing.flush(vsyncId); }
+    proto::TransactionTraceFile writeToProto() { return mTracing.writeToProto(); }
 
-    auto getCommittedTransactions() {
-        std::scoped_lock<std::mutex> lock(mTracing->mMainThreadLock);
-        return mTracing->mCommittedTransactions;
-    }
-
-    auto getQueuedTransactions() {
-        std::scoped_lock<std::mutex> lock(mTracing->mTraceLock);
-        return mTracing->mQueuedTransactions;
-    }
-
-    auto getUsedBufferSize() {
-        std::scoped_lock<std::mutex> lock(mTracing->mTraceLock);
-        return mTracing->mBuffer->used();
-    }
-
-    auto flush(int64_t vsyncId) { return mTracing->flush(vsyncId); }
-
-    auto bufferFront() {
-        std::scoped_lock<std::mutex> lock(mTracing->mTraceLock);
+    proto::TransactionTraceEntry bufferFront() {
+        std::scoped_lock<std::mutex> lock(mTracing.mTraceLock);
         proto::TransactionTraceEntry entry;
-        entry.ParseFromString(mTracing->mBuffer->front());
+        entry.ParseFromString(mTracing.mBuffer.front());
         return entry;
-    }
-
-    bool threadIsJoinable() {
-        std::scoped_lock lock(mTracing->mMainThreadLock);
-        return mTracing->mThread.joinable();
-    }
-
-    proto::TransactionTraceFile writeToProto() { return mTracing->writeToProto(); }
-
-    auto getCreatedLayers() {
-        std::scoped_lock<std::mutex> lock(mTracing->mTraceLock);
-        return mTracing->mCreatedLayers;
-    }
-
-    auto getStartingStates() {
-        std::scoped_lock<std::mutex> lock(mTracing->mTraceLock);
-        return mTracing->mStartingStates;
     }
 
     void queueAndCommitTransaction(int64_t vsyncId) {
@@ -83,25 +46,15 @@ protected:
         transaction.id = static_cast<uint64_t>(vsyncId * 3);
         transaction.originUid = 1;
         transaction.originPid = 2;
-        mTracing->addQueuedTransaction(transaction);
+        mTracing.addQueuedTransaction(transaction);
         std::vector<TransactionState> transactions;
         transactions.emplace_back(transaction);
-        mTracing->addCommittedTransactions(transactions, vsyncId);
+        mTracing.addCommittedTransactions(transactions, vsyncId);
         flush(vsyncId);
     }
 
-    // Test that we clean up the tracing thread and free any memory allocated.
-    void verifyDisabledTracingState() {
-        EXPECT_FALSE(mTracing->isEnabled());
-        EXPECT_FALSE(threadIsJoinable());
-        EXPECT_EQ(getCommittedTransactions().size(), 0u);
-        EXPECT_EQ(getQueuedTransactions().size(), 0u);
-        EXPECT_EQ(getUsedBufferSize(), 0u);
-        EXPECT_EQ(getStartingStates().size(), 0u);
-    }
-
     void verifyEntry(const proto::TransactionTraceEntry& actualProto,
-                     const std::vector<TransactionState> expectedTransactions,
+                     const std::vector<TransactionState>& expectedTransactions,
                      int64_t expectedVsyncId) {
         EXPECT_EQ(actualProto.vsync_id(), expectedVsyncId);
         EXPECT_EQ(actualProto.transactions().size(),
@@ -113,16 +66,7 @@ protected:
     }
 };
 
-TEST_F(TransactionTracingTest, enable) {
-    EXPECT_FALSE(mTracing->isEnabled());
-    mTracing->enable();
-    EXPECT_TRUE(mTracing->isEnabled());
-    mTracing->disable();
-    verifyDisabledTracingState();
-}
-
 TEST_F(TransactionTracingTest, addTransactions) {
-    mTracing->enable();
     std::vector<TransactionState> transactions;
     transactions.reserve(100);
     for (uint64_t i = 0; i < 100; i++) {
@@ -130,7 +74,7 @@ TEST_F(TransactionTracingTest, addTransactions) {
         transaction.id = i;
         transaction.originPid = static_cast<int32_t>(i);
         transactions.emplace_back(transaction);
-        mTracing->addQueuedTransaction(transaction);
+        mTracing.addQueuedTransaction(transaction);
     }
 
     // Split incoming transactions into two and commit them in reverse order to test out of order
@@ -138,12 +82,12 @@ TEST_F(TransactionTracingTest, addTransactions) {
     std::vector<TransactionState> firstTransactionSet =
             std::vector<TransactionState>(transactions.begin() + 50, transactions.end());
     int64_t firstTransactionSetVsyncId = 42;
-    mTracing->addCommittedTransactions(firstTransactionSet, firstTransactionSetVsyncId);
+    mTracing.addCommittedTransactions(firstTransactionSet, firstTransactionSetVsyncId);
 
     int64_t secondTransactionSetVsyncId = 43;
     std::vector<TransactionState> secondTransactionSet =
             std::vector<TransactionState>(transactions.begin(), transactions.begin() + 50);
-    mTracing->addCommittedTransactions(secondTransactionSet, secondTransactionSetVsyncId);
+    mTracing.addCommittedTransactions(secondTransactionSet, secondTransactionSetVsyncId);
     flush(secondTransactionSetVsyncId);
 
     proto::TransactionTraceFile proto = writeToProto();
@@ -151,24 +95,19 @@ TEST_F(TransactionTracingTest, addTransactions) {
     // skip starting entry
     verifyEntry(proto.entry(1), firstTransactionSet, firstTransactionSetVsyncId);
     verifyEntry(proto.entry(2), secondTransactionSet, secondTransactionSetVsyncId);
-
-    mTracing->disable();
-    verifyDisabledTracingState();
 }
 
 class TransactionTracingLayerHandlingTest : public TransactionTracingTest {
 protected:
     void SetUp() override {
-        TransactionTracingTest::SetUp();
-        mTracing->enable();
         // add layers
-        mTracing->setBufferSize(SMALL_BUFFER_SIZE);
+        mTracing.setBufferSize(SMALL_BUFFER_SIZE);
         const sp<IBinder> fakeLayerHandle = new BBinder();
-        mTracing->onLayerAdded(fakeLayerHandle->localBinder(), mParentLayerId, "parent",
-                               123 /* flags */, -1 /* parentId */);
+        mTracing.onLayerAdded(fakeLayerHandle->localBinder(), mParentLayerId, "parent",
+                              123 /* flags */, -1 /* parentId */);
         const sp<IBinder> fakeChildLayerHandle = new BBinder();
-        mTracing->onLayerAdded(fakeChildLayerHandle->localBinder(), mChildLayerId, "child",
-                               456 /* flags */, mParentLayerId);
+        mTracing.onLayerAdded(fakeChildLayerHandle->localBinder(), mChildLayerId, "child",
+                              456 /* flags */, mParentLayerId);
 
         // add some layer transaction
         {
@@ -184,12 +123,12 @@ protected:
             childState.state.what = layer_state_t::eLayerChanged;
             childState.state.z = 43;
             transaction.states.add(childState);
-            mTracing->addQueuedTransaction(transaction);
+            mTracing.addQueuedTransaction(transaction);
 
             std::vector<TransactionState> transactions;
             transactions.emplace_back(transaction);
             VSYNC_ID_FIRST_LAYER_CHANGE = ++mVsyncId;
-            mTracing->addCommittedTransactions(transactions, VSYNC_ID_FIRST_LAYER_CHANGE);
+            mTracing.addCommittedTransactions(transactions, VSYNC_ID_FIRST_LAYER_CHANGE);
             flush(VSYNC_ID_FIRST_LAYER_CHANGE);
         }
 
@@ -204,29 +143,23 @@ protected:
             layerState.state.z = 41;
             layerState.state.x = 22;
             transaction.states.add(layerState);
-            mTracing->addQueuedTransaction(transaction);
+            mTracing.addQueuedTransaction(transaction);
 
             std::vector<TransactionState> transactions;
             transactions.emplace_back(transaction);
             VSYNC_ID_SECOND_LAYER_CHANGE = ++mVsyncId;
-            mTracing->addCommittedTransactions(transactions, VSYNC_ID_SECOND_LAYER_CHANGE);
+            mTracing.addCommittedTransactions(transactions, VSYNC_ID_SECOND_LAYER_CHANGE);
             flush(VSYNC_ID_SECOND_LAYER_CHANGE);
         }
 
         // remove child layer
-        mTracing->onLayerRemoved(2);
+        mTracing.onLayerRemoved(2);
         VSYNC_ID_CHILD_LAYER_REMOVED = ++mVsyncId;
         queueAndCommitTransaction(VSYNC_ID_CHILD_LAYER_REMOVED);
 
         // remove layer
-        mTracing->onLayerRemoved(1);
+        mTracing.onLayerRemoved(1);
         queueAndCommitTransaction(++mVsyncId);
-    }
-
-    void TearDown() override {
-        mTracing->disable();
-        verifyDisabledTracingState();
-        TransactionTracingTest::TearDown();
     }
 
     int mParentLayerId = 1;
@@ -298,16 +231,14 @@ TEST_F(TransactionTracingLayerHandlingTest, startingStateSurvivesBufferFlush) {
 class TransactionTracingMirrorLayerTest : public TransactionTracingTest {
 protected:
     void SetUp() override {
-        TransactionTracingTest::SetUp();
-        mTracing->enable();
         // add layers
-        mTracing->setBufferSize(SMALL_BUFFER_SIZE);
+        mTracing.setBufferSize(SMALL_BUFFER_SIZE);
         const sp<IBinder> fakeLayerHandle = new BBinder();
-        mTracing->onLayerAdded(fakeLayerHandle->localBinder(), mLayerId, "Test Layer",
-                               123 /* flags */, -1 /* parentId */);
+        mTracing.onLayerAdded(fakeLayerHandle->localBinder(), mLayerId, "Test Layer",
+                              123 /* flags */, -1 /* parentId */);
         const sp<IBinder> fakeMirrorLayerHandle = new BBinder();
-        mTracing->onMirrorLayerAdded(fakeMirrorLayerHandle->localBinder(), mMirrorLayerId, "Mirror",
-                                     mLayerId);
+        mTracing.onMirrorLayerAdded(fakeMirrorLayerHandle->localBinder(), mMirrorLayerId, "Mirror",
+                                    mLayerId);
 
         // add some layer transaction
         {
@@ -323,19 +254,13 @@ protected:
             mirrorState.state.what = layer_state_t::eLayerChanged;
             mirrorState.state.z = 43;
             transaction.states.add(mirrorState);
-            mTracing->addQueuedTransaction(transaction);
+            mTracing.addQueuedTransaction(transaction);
 
             std::vector<TransactionState> transactions;
             transactions.emplace_back(transaction);
-            mTracing->addCommittedTransactions(transactions, ++mVsyncId);
+            mTracing.addCommittedTransactions(transactions, ++mVsyncId);
             flush(mVsyncId);
         }
-    }
-
-    void TearDown() override {
-        mTracing->disable();
-        verifyDisabledTracingState();
-        TransactionTracingTest::TearDown();
     }
 
     int mLayerId = 5;
