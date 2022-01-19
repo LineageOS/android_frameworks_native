@@ -25,17 +25,16 @@
 #include <mutex>
 #include <thread>
 
+#include "RingBuffer.h"
 #include "TransactionProtoParser.h"
 
 using namespace android::surfaceflinger;
 
 namespace android {
 
-template <typename FileProto, typename EntryProto>
-class RingBuffer;
-
 class SurfaceFlinger;
 class TransactionTracingTest;
+
 /*
  * Records all committed transactions into a ring bufffer.
  *
@@ -53,10 +52,6 @@ class TransactionTracing {
 public:
     TransactionTracing();
     ~TransactionTracing();
-
-    bool enable();
-    bool disable();
-    bool isEnabled() const;
 
     void addQueuedTransaction(const TransactionState&);
     void addCommittedTransactions(std::vector<TransactionState>& transactions, int64_t vsyncId);
@@ -78,8 +73,7 @@ private:
     static constexpr auto FILE_NAME = "/data/misc/wmtrace/transactions_trace.winscope";
 
     mutable std::mutex mTraceLock;
-    bool mEnabled GUARDED_BY(mTraceLock) = false;
-    std::unique_ptr<RingBuffer<proto::TransactionTraceFile, proto::TransactionTraceEntry>> mBuffer
+    RingBuffer<proto::TransactionTraceFile, proto::TransactionTraceEntry> mBuffer
             GUARDED_BY(mTraceLock);
     size_t mBufferSizeInBytes GUARDED_BY(mTraceLock) = CONTINUOUS_TRACING_BUFFER_SIZE;
     std::unordered_map<uint64_t, proto::TransactionState> mQueuedTransactions
@@ -116,7 +110,6 @@ private:
     void tryPushToTracingThread() EXCLUDES(mMainThreadLock);
     void addStartingStateToProtoLocked(proto::TransactionTraceFile& proto) REQUIRES(mTraceLock);
     void updateStartingStateLocked(const proto::TransactionTraceEntry& entry) REQUIRES(mTraceLock);
-    status_t writeToFileLocked() REQUIRES(mTraceLock);
 
     // TEST
     // Wait until all the committed transactions for the specified vsync id are added to the buffer.

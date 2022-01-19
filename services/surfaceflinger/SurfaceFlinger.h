@@ -1197,8 +1197,7 @@ private:
     LayerTracing mLayerTracing{*this};
     bool mLayerTracingEnabled = false;
 
-    TransactionTracing mTransactionTracing;
-    bool mTransactionTracingEnabled = false;
+    std::optional<TransactionTracing> mTransactionTracing;
     std::atomic<bool> mTracingEnabledChanged = false;
 
     const std::shared_ptr<TimeStats> mTimeStats;
