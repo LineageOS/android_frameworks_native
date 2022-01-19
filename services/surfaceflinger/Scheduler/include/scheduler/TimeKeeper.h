@@ -16,14 +16,17 @@
 
 #pragma once
 
-#include <utils/Timers.h>
 #include <functional>
+#include <string>
+
+#include <utils/Timers.h>
 
 namespace android::scheduler {
 
 class Clock {
 public:
     virtual ~Clock();
+
     /*
      * Returns the SYSTEM_TIME_MONOTONIC, used by testing infra to stub time.
      */
@@ -31,8 +34,9 @@ public:
 
 protected:
     Clock() = default;
-    Clock(Clock const&) = delete;
-    Clock& operator=(Clock const&) = delete;
+
+    Clock(const Clock&) = delete;
+    Clock& operator=(const Clock&) = delete;
 };
 
 /*
@@ -46,19 +50,20 @@ public:
      * Arms callback to fired when time is current based on CLOCK_MONOTONIC
      * There is only one timer, and subsequent calls will reset the callback function and the time.
      */
-    virtual void alarmAt(std::function<void()> const& callback, nsecs_t time) = 0;
+    virtual void alarmAt(std::function<void()>, nsecs_t time) = 0;
 
     /*
      * Cancels an existing pending callback
      */
     virtual void alarmCancel() = 0;
 
-    virtual void dump(std::string& result) const = 0;
+    virtual void dump(std::string&) const = 0;
 
 protected:
-    TimeKeeper(TimeKeeper const&) = delete;
-    TimeKeeper& operator=(TimeKeeper const&) = delete;
     TimeKeeper() = default;
+
+    TimeKeeper(const TimeKeeper&) = delete;
+    TimeKeeper& operator=(const TimeKeeper&) = delete;
 };
 
 } // namespace android::scheduler
