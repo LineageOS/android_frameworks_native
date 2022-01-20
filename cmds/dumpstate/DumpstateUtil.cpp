@@ -247,7 +247,6 @@ int DumpFileToFd(int out_fd, const std::string& title, const std::string& path) 
             dprintf(out_fd, "*** Error dumping %s (%s): %s\n", path.c_str(), title.c_str(),
                     strerror(err));
         }
-        fsync(out_fd);
         return -1;
     }
     return DumpFileFromFdToFd(title, path, fd.get(), out_fd, PropertiesHelper::IsDryRun());
@@ -295,7 +294,6 @@ int RunCommandToFd(int fd, const std::string& title, const std::vector<std::stri
 
     if (!title.empty()) {
         dprintf(fd, "------ %s (%s) ------\n", title.c_str(), command);
-        fsync(fd);
     }
 
     const std::string& logging_message = options.LoggingMessage();
@@ -314,14 +312,13 @@ int RunCommandToFd(int fd, const std::string& title, const std::vector<std::stri
             // There is no title, but we should still print a dry-run message
             dprintf(fd, "%s: skipped on dry run\n", command_string.c_str());
         }
-        fsync(fd);
         return 0;
     }
 
     const char* path = args[0];
 
     uint64_t start = Nanotime();
-    pid_t pid = fork();
+    pid_t pid = vfork();
 
     /* handle error case */
     if (pid < 0) {
@@ -338,7 +335,7 @@ int RunCommandToFd(int fd, const std::string& title, const std::vector<std::stri
                         strerror(errno));
             }
             MYLOGE("*** could not drop root before running %s: %s\n", command, strerror(errno));
-            return -1;
+            _exit(EXIT_FAILURE);
         }
 
         if (options.ShouldCloseAllFileDescriptorsOnExec()) {
@@ -391,7 +388,6 @@ int RunCommandToFd(int fd, const std::string& title, const std::vector<std::stri
     /* handle parent case */
     int status;
     bool ret = waitpid_with_timeout(pid, options.TimeoutInMs(), &status);
-    fsync(fd);
 
     uint64_t elapsed = Nanotime() - start;
     if (!ret) {
