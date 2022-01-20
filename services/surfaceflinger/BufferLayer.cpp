@@ -820,6 +820,10 @@ bool BufferLayer::bufferNeedsFiltering() const {
     return isFixedSize();
 }
 
+const std::shared_ptr<renderengine::ExternalTexture>& BufferLayer::getExternalTexture() const {
+    return mBufferInfo.mBuffer;
+}
+
 } // namespace android
 
 #if defined(__gl_h_)

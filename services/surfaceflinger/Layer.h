@@ -565,6 +565,9 @@ public:
     virtual uint32_t getBufferTransform() const { return 0; }
 
     virtual sp<GraphicBuffer> getBuffer() const { return nullptr; }
+    virtual const std::shared_ptr<renderengine::ExternalTexture>& getExternalTexture() const {
+        return mDrawingState.buffer;
+    };
 
     virtual ui::Transform::RotationFlags getTransformHint() const { return ui::Transform::ROT_0; }
 

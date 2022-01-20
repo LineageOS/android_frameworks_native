@@ -34,6 +34,8 @@ struct TracingLayerState : layer_state_t {
     uint64_t bufferId;
     uint32_t bufferHeight;
     uint32_t bufferWidth;
+    int32_t pixelFormat;
+    uint64_t bufferUsage;
     bool hasSidebandStream;
     int32_t parentId;
     int32_t relativeParentId;
@@ -58,8 +60,8 @@ public:
     static TransactionState fromProto(const proto::TransactionState&,
                                       LayerIdToHandleFn getLayerHandleFn,
                                       DisplayIdToHandleFn getDisplayHandleFn);
-    static void fromProto(const proto::LayerState&, LayerIdToHandleFn getLayerHandleFn,
-                          TracingLayerState& outState);
+    static void mergeFromProto(const proto::LayerState&, LayerIdToHandleFn getLayerHandleFn,
+                               TracingLayerState& outState);
     static void fromProto(const proto::LayerCreationArgs&, TracingLayerCreationArgs& outArgs);
 
 private:

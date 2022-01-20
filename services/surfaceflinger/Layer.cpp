@@ -101,7 +101,9 @@ Layer::Layer(const LayerCreationArgs& args)
     if (args.flags & ISurfaceComposerClient::eSecure) layerFlags |= layer_state_t::eLayerSecure;
     if (args.flags & ISurfaceComposerClient::eSkipScreenshot)
         layerFlags |= layer_state_t::eLayerSkipScreenshot;
-
+    if (args.sequence) {
+        sSequence = *args.sequence + 1;
+    }
     mDrawingState.flags = layerFlags;
     mDrawingState.active_legacy.transform.set(0, 0);
     mDrawingState.crop.makeInvalid();
@@ -2022,9 +2024,9 @@ LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags,
 void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
                                      const DisplayDevice* display) {
     const ui::Transform transform = getTransform();
-    auto buffer = getBuffer();
+    auto buffer = getExternalTexture();
     if (buffer != nullptr) {
-        LayerProtoHelper::writeToProto(buffer,
+        LayerProtoHelper::writeToProto(*buffer,
                                        [&]() { return layerInfo->mutable_active_buffer(); });
         LayerProtoHelper::writeToProtoDeprecated(ui::Transform(getBufferTransform()),
                                                  layerInfo->mutable_buffer_transform());
