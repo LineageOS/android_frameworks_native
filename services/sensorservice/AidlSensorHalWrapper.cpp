@@ -285,6 +285,11 @@ void convertToSensorEvent(const Event &src, sensors_event_t *dst) {
                     src.payload.get<Event::EventPayload::limitedAxesImuUncal>().zSupported;
             break;
 
+        case SensorType::HEADING:
+            dst->heading.heading = src.payload.get<Event::EventPayload::heading>().heading;
+            dst->heading.accuracy = src.payload.get<Event::EventPayload::heading>().accuracy;
+            break;
+
         default: {
             CHECK_GE((int32_t)src.sensorType, (int32_t)SensorType::DEVICE_PRIVATE_BASE);
 
@@ -470,6 +475,14 @@ void convertFromSensorEvent(const sensors_event_t &src, Event *dst) {
             limitedAxesImuUncal.ySupported = src.limited_axes_imu_uncalibrated.y_supported;
             limitedAxesImuUncal.zSupported = src.limited_axes_imu_uncalibrated.z_supported;
             dst->payload.set<Event::EventPayload::Tag::limitedAxesImuUncal>(limitedAxesImuUncal);
+            break;
+        }
+
+        case SensorType::HEADING: {
+            Event::EventPayload::Heading heading;
+            heading.heading = src.heading.heading;
+            heading.accuracy = src.heading.accuracy;
+            dst->payload.set<Event::EventPayload::heading>(heading);
             break;
         }
 
