@@ -350,13 +350,13 @@ void EventThread::onScreenAcquired() {
     mCondition.notify_all();
 }
 
-void EventThread::onVSyncEvent(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp,
-                               nsecs_t deadlineTimestamp) {
+void EventThread::onVSyncEvent(nsecs_t timestamp, VSyncSource::VSyncData vsyncData) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     LOG_FATAL_IF(!mVSyncState);
     mPendingEvents.push_back(makeVSync(mVSyncState->displayId, timestamp, ++mVSyncState->count,
-                                       expectedVSyncTimestamp, deadlineTimestamp));
+                                       vsyncData.expectedVSyncTimestamp,
+                                       vsyncData.deadlineTimestamp));
     mCondition.notify_all();
 }
 

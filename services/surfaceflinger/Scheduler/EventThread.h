@@ -62,11 +62,16 @@ enum class VSyncRequest {
 
 class VSyncSource {
 public:
+    class VSyncData {
+    public:
+        nsecs_t expectedVSyncTimestamp;
+        nsecs_t deadlineTimestamp;
+    };
+
     class Callback {
     public:
         virtual ~Callback() {}
-        virtual void onVSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp,
-                                  nsecs_t deadlineTimestamp) = 0;
+        virtual void onVSyncEvent(nsecs_t when, VSyncData vsyncData) = 0;
     };
 
     virtual ~VSyncSource() {}
@@ -201,8 +206,7 @@ private:
             REQUIRES(mMutex);
 
     // Implements VSyncSource::Callback
-    void onVSyncEvent(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp,
-                      nsecs_t deadlineTimestamp) override;
+    void onVSyncEvent(nsecs_t timestamp, VSyncSource::VSyncData vsyncData) override;
 
     int64_t generateToken(nsecs_t timestamp, nsecs_t deadlineTimestamp,
                           nsecs_t expectedVSyncTimestamp) const;

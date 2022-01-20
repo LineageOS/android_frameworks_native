@@ -128,13 +128,12 @@ protected:
     void createDispSync();
     void createDispSyncSource();
 
-    void onVSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp,
-                      nsecs_t deadlineTimestamp) override;
+    void onVSyncEvent(nsecs_t when, VSyncSource::VSyncData) override;
 
     std::unique_ptr<MockVSyncDispatch> mVSyncDispatch;
     std::unique_ptr<scheduler::DispSyncSource> mDispSyncSource;
 
-    AsyncCallRecorder<void (*)(nsecs_t, nsecs_t, nsecs_t)> mVSyncEventCallRecorder;
+    AsyncCallRecorder<void (*)(nsecs_t, VSyncSource::VSyncData)> mVSyncEventCallRecorder;
 
     static constexpr std::chrono::nanoseconds mWorkDuration = 20ms;
     static constexpr std::chrono::nanoseconds mReadyDuration = 10ms;
@@ -155,11 +154,10 @@ DispSyncSourceTest::~DispSyncSourceTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-void DispSyncSourceTest::onVSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp,
-                                      nsecs_t deadlineTimestamp) {
+void DispSyncSourceTest::onVSyncEvent(nsecs_t when, VSyncSource::VSyncData vsyncData) {
     ALOGD("onVSyncEvent: %" PRId64, when);
 
-    mVSyncEventCallRecorder.recordCall(when, expectedVSyncTimestamp, deadlineTimestamp);
+    mVSyncEventCallRecorder.recordCall(when, vsyncData);
 }
 
 void DispSyncSourceTest::createDispSync() {
@@ -233,8 +231,10 @@ TEST_F(DispSyncSourceTest, waitForCallbacks) {
         mVSyncDispatch->triggerCallbacks();
         const auto callbackData = mVSyncEventCallRecorder.waitForCall();
         ASSERT_TRUE(callbackData.has_value());
-        const auto [when, expectedVSyncTimestamp, deadlineTimestamp] = callbackData.value();
-        EXPECT_EQ(when, expectedVSyncTimestamp - mWorkDuration.count() - mReadyDuration.count());
+        const auto [when, vsyncData] = callbackData.value();
+        EXPECT_EQ(when,
+                  vsyncData.expectedVSyncTimestamp - mWorkDuration.count() -
+                          mReadyDuration.count());
     }
 }
 
@@ -265,8 +265,10 @@ TEST_F(DispSyncSourceTest, waitForCallbacksWithDurationChange) {
         mVSyncDispatch->triggerCallbacks();
         const auto callbackData = mVSyncEventCallRecorder.waitForCall();
         ASSERT_TRUE(callbackData.has_value());
-        const auto [when, expectedVSyncTimestamp, deadlineTimestamp] = callbackData.value();
-        EXPECT_EQ(when, expectedVSyncTimestamp - mWorkDuration.count() - mReadyDuration.count());
+        const auto [when, vsyncData] = callbackData.value();
+        EXPECT_EQ(when,
+                  vsyncData.expectedVSyncTimestamp - mWorkDuration.count() -
+                          mReadyDuration.count());
     }
 
     const auto newDuration = mWorkDuration / 2;
@@ -286,8 +288,8 @@ TEST_F(DispSyncSourceTest, waitForCallbacksWithDurationChange) {
         mVSyncDispatch->triggerCallbacks();
         const auto callbackData = mVSyncEventCallRecorder.waitForCall();
         ASSERT_TRUE(callbackData.has_value());
-        const auto [when, expectedVSyncTimestamp, deadlineTimestamp] = callbackData.value();
-        EXPECT_EQ(when, expectedVSyncTimestamp - newDuration.count());
+        const auto [when, vsyncData] = callbackData.value();
+        EXPECT_EQ(when, vsyncData.expectedVSyncTimestamp - newDuration.count());
     }
 
     EXPECT_CALL(*mVSyncDispatch, cancel(_)).Times(1);
