@@ -5576,6 +5576,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             }
             return PERMISSION_DENIED;
         }
+        case SET_OVERRIDE_FRAME_RATE:
         case ON_PULL_ATOM: {
             const int uid = IPCThreadState::self()->getCallingUid();
             if (uid == AID_SYSTEM) {
@@ -6980,6 +6981,17 @@ status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface,
         return NO_ERROR;
     }));
 
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::setOverrideFrameRate(uid_t uid, float frameRate) {
+    PhysicalDisplayId displayId = [&]() {
+        Mutex::Autolock lock(mStateLock);
+        return getDefaultDisplayDeviceLocked()->getPhysicalId();
+    }();
+
+    mScheduler->setGameModeRefreshRateForUid(FrameRateOverride{static_cast<uid_t>(uid), frameRate});
+    mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
     return NO_ERROR;
 }
 
