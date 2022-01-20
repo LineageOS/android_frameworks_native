@@ -257,7 +257,7 @@ void EventThreadTest::expectVsyncEventFrameTimelinesCorrect(nsecs_t expectedTime
     ASSERT_TRUE(args.has_value()) << " did not receive an event for timestamp "
                                   << expectedTimestamp;
     const auto& event = std::get<0>(args.value());
-    for (int i = 0; i < DisplayEventReceiver::kFrameTimelinesLength; i++) {
+    for (int i = 0; i < gui::VsyncEventData::kFrameTimelinesLength; i++) {
         auto prediction =
                 mTokenManager->getPredictionsForToken(event.vsync.frameTimelines[i].vsyncId);
         EXPECT_TRUE(prediction.has_value());

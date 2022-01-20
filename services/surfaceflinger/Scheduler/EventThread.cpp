@@ -563,8 +563,8 @@ int64_t EventThread::generateToken(nsecs_t timestamp, nsecs_t deadlineTimestamp,
 
 void EventThread::generateFrameTimeline(DisplayEventReceiver::Event& event) const {
     // Add 1 to ensure the preferredFrameTimelineIndex entry (when multiplier == 0) is included.
-    for (int multiplier = -DisplayEventReceiver::kFrameTimelinesLength + 1, currentIndex = 0;
-         currentIndex < DisplayEventReceiver::kFrameTimelinesLength; multiplier++) {
+    for (int multiplier = -VsyncEventData::kFrameTimelinesLength + 1, currentIndex = 0;
+         currentIndex < VsyncEventData::kFrameTimelinesLength; multiplier++) {
         nsecs_t deadline = event.vsync.deadlineTimestamp + multiplier * event.vsync.frameInterval;
         // Valid possible frame timelines must have future values.
         if (deadline > event.header.timestamp) {

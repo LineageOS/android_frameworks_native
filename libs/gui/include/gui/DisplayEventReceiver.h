@@ -26,6 +26,7 @@
 
 #include <binder/IInterface.h>
 #include <gui/ISurfaceComposer.h>
+#include <gui/VsyncEventData.h>
 
 // ----------------------------------------------------------------------------
 
@@ -34,6 +35,7 @@ namespace android {
 // ----------------------------------------------------------------------------
 
 using gui::IDisplayEventConnection;
+using gui::VsyncEventData;
 
 namespace gui {
 class BitTube;
@@ -49,8 +51,6 @@ static inline constexpr uint32_t fourcc(char c1, char c2, char c3, char c4) {
 // ----------------------------------------------------------------------------
 class DisplayEventReceiver {
 public:
-    // Max amount of frame timelines is arbitrarily set to be reasonable.
-    static constexpr int64_t kFrameTimelinesLength = 7;
 
     enum {
         DISPLAY_EVENT_VSYNC = fourcc('v', 's', 'y', 'n'),
@@ -85,7 +85,7 @@ public:
                 nsecs_t expectedVSyncTimestamp __attribute__((aligned(8)));
                 nsecs_t deadlineTimestamp __attribute__((aligned(8)));
                 int64_t vsyncId;
-            } frameTimelines[kFrameTimelinesLength];
+            } frameTimelines[VsyncEventData::kFrameTimelinesLength];
         };
 
         struct Hotplug {
