@@ -169,6 +169,13 @@ void TransactionTracing::addEntry(const std::vector<CommittedTransactions>& comm
         removedEntries.reserve(removedEntries.size() + entries.size());
         removedEntries.insert(removedEntries.end(), std::make_move_iterator(entries.begin()),
                               std::make_move_iterator(entries.end()));
+
+        entryProto.mutable_removed_layer_handles()->Reserve(
+                static_cast<int32_t>(mRemovedLayerHandles.size()));
+        for (auto& handle : mRemovedLayerHandles) {
+            entryProto.mutable_removed_layer_handles()->Add(handle);
+        }
+        mRemovedLayerHandles.clear();
     }
 
     proto::TransactionTraceEntry removedEntryProto;
@@ -226,7 +233,14 @@ void TransactionTracing::onLayerRemoved(int32_t layerId) {
 
 void TransactionTracing::onHandleRemoved(BBinder* layerHandle) {
     std::scoped_lock lock(mTraceLock);
-    mLayerHandles.erase(layerHandle);
+    auto it = mLayerHandles.find(layerHandle);
+    if (it == mLayerHandles.end()) {
+        ALOGW("handle not found. %p", layerHandle);
+        return;
+    }
+
+    mRemovedLayerHandles.push_back(it->second);
+    mLayerHandles.erase(it);
 }
 
 void TransactionTracing::tryPushToTracingThread() {
@@ -277,7 +291,7 @@ void TransactionTracing::updateStartingStateLocked(
                 ALOGW("Could not find layer id %d", layerState.layer_id());
                 continue;
             }
-            TransactionProtoParser::fromProto(layerState, nullptr, it->second);
+            TransactionProtoParser::mergeFromProto(layerState, nullptr, it->second);
         }
     }
 
