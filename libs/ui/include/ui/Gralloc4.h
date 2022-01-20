@@ -17,6 +17,7 @@
 #ifndef ANDROID_UI_GRALLOC4_H
 #define ANDROID_UI_GRALLOC4_H
 
+#include <aidl/android/hardware/graphics/allocator/IAllocator.h>
 #include <android/hardware/graphics/allocator/4.0/IAllocator.h>
 #include <android/hardware/graphics/common/1.1/types.h>
 #include <android/hardware/graphics/mapper/4.0/IMapper.h>
@@ -204,6 +205,8 @@ public:
 private:
     const Gralloc4Mapper& mMapper;
     sp<hardware::graphics::allocator::V4_0::IAllocator> mAllocator;
+    // Optional "4.1" allocator
+    std::shared_ptr<aidl::android::hardware::graphics::allocator::IAllocator> mAidlAllocator;
 };
 
 } // namespace android
