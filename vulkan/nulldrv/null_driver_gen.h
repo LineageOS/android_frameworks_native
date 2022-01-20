@@ -255,7 +255,7 @@ VKAPI_ATTR void CmdWaitEvents2(VkCommandBuffer commandBuffer, uint32_t eventCoun
 VKAPI_ATTR void CmdPipelineBarrier2(VkCommandBuffer commandBuffer, const VkDependencyInfo* pDependencyInfo);
 VKAPI_ATTR VkResult QueueSubmit2(VkQueue queue, uint32_t submitCount, const VkSubmitInfo2* pSubmits, VkFence fence);
 VKAPI_ATTR void CmdWriteTimestamp2(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 stage, VkQueryPool queryPool, uint32_t query);
-VKAPI_ATTR void CmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfoKHR* pRenderingInfo);
+VKAPI_ATTR void CmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfo* pRenderingInfo);
 VKAPI_ATTR void CmdEndRendering(VkCommandBuffer commandBuffer);
 // clang-format on
 

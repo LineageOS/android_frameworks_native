@@ -620,7 +620,7 @@ VKAPI_ATTR void CmdWaitEvents2(VkCommandBuffer commandBuffer, uint32_t eventCoun
 VKAPI_ATTR void CmdPipelineBarrier2(VkCommandBuffer commandBuffer, const VkDependencyInfo* pDependencyInfo);
 VKAPI_ATTR VkResult QueueSubmit2(VkQueue queue, uint32_t submitCount, const VkSubmitInfo2* pSubmits, VkFence fence);
 VKAPI_ATTR void CmdWriteTimestamp2(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 stage, VkQueryPool queryPool, uint32_t query);
-VKAPI_ATTR void CmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfoKHR* pRenderingInfo);
+VKAPI_ATTR void CmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfo* pRenderingInfo);
 VKAPI_ATTR void CmdEndRendering(VkCommandBuffer commandBuffer);
 
 VKAPI_ATTR VkResult EnumeratePhysicalDevices(VkInstance instance, uint32_t* pPhysicalDeviceCount, VkPhysicalDevice* pPhysicalDevices) {
@@ -1838,7 +1838,7 @@ VKAPI_ATTR void CmdWriteTimestamp2(VkCommandBuffer commandBuffer, VkPipelineStag
     GetData(commandBuffer).dispatch.CmdWriteTimestamp2(commandBuffer, stage, queryPool, query);
 }
 
-VKAPI_ATTR void CmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfoKHR* pRenderingInfo) {
+VKAPI_ATTR void CmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfo* pRenderingInfo) {
     GetData(commandBuffer).dispatch.CmdBeginRendering(commandBuffer, pRenderingInfo);
 }
 
@@ -3007,7 +3007,7 @@ VKAPI_ATTR void vkCmdWriteTimestamp2(VkCommandBuffer commandBuffer, VkPipelineSt
 }
 
 __attribute__((visibility("default")))
-VKAPI_ATTR void vkCmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfoKHR* pRenderingInfo) {
+VKAPI_ATTR void vkCmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfo* pRenderingInfo) {
     vulkan::api::CmdBeginRendering(commandBuffer, pRenderingInfo);
 }
 
