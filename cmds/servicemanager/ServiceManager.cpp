@@ -113,8 +113,8 @@ static bool isVintfDeclared(const std::string& name) {
     if (!found) {
         // Although it is tested, explicitly rebuilding qualified name, in case it
         // becomes something unexpected.
-        LOG(ERROR) << "Could not find " << aname.package << "." << aname.iface << "/"
-                   << aname.instance << " in the VINTF manifest.";
+        LOG(INFO) << "Could not find " << aname.package << "." << aname.iface << "/"
+                  << aname.instance << " in the VINTF manifest.";
     }
 
     return found;
