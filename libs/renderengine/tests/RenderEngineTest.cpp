@@ -218,12 +218,33 @@ public:
         uint8_t* pixels;
         buffer->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
                                   reinterpret_cast<void**>(&pixels));
-        pixels[0] = color.r;
-        pixels[1] = color.g;
-        pixels[2] = color.b;
-        pixels[3] = color.a;
+        for (uint32_t j = 0; j < height; j++) {
+            uint8_t* dst = pixels + (buffer->getBuffer()->getStride() * j * 4);
+            for (uint32_t i = 0; i < width; i++) {
+                dst[0] = color.r;
+                dst[1] = color.g;
+                dst[2] = color.b;
+                dst[3] = color.a;
+                dst += 4;
+            }
+        }
         buffer->getBuffer()->unlock();
         return buffer;
+    }
+
+    std::shared_ptr<renderengine::ExternalTexture> allocateR8Buffer(int width, int height) {
+        auto buffer = new GraphicBuffer(width, height, android::PIXEL_FORMAT_R_8, 1,
+                                        GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                GRALLOC_USAGE_HW_TEXTURE,
+                                        "r8");
+        if (buffer->initCheck() != 0) {
+            // Devices are not required to support R8.
+            return nullptr;
+        }
+        return std::make_shared<
+                renderengine::impl::ExternalTexture>(std::move(buffer), *mRE,
+                                                     renderengine::impl::ExternalTexture::Usage::
+                                                             READABLE);
     }
 
     RenderEngineTest() {
@@ -2540,6 +2561,66 @@ TEST_P(RenderEngineTest, test_tonemapPQMatches) {
     };
 
     expectBufferColor(Rect(kGreyLevels, 1), generator, 2);
+}
+
+TEST_P(RenderEngineTest, r8_behaves_as_mask) {
+    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        return;
+    }
+
+    initializeRenderEngine();
+
+    const auto r8Buffer = allocateR8Buffer(2, 1);
+    if (!r8Buffer) {
+        return;
+    }
+    {
+        uint8_t* pixels;
+        r8Buffer->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                    reinterpret_cast<void**>(&pixels));
+        // This will be drawn on top of a green buffer. We'll verify that 255
+        // results in keeping the original green and 0 results in black.
+        pixels[0] = 0;
+        pixels[1] = 255;
+        r8Buffer->getBuffer()->unlock();
+    }
+
+    const auto rect = Rect(0, 0, 2, 1);
+    const renderengine::DisplaySettings display{
+            .physicalDisplay = rect,
+            .clip = rect,
+            .outputDataspace = ui::Dataspace::SRGB,
+    };
+
+    const auto greenBuffer = allocateAndFillSourceBuffer(2, 1, ubyte4(0, 255, 0, 255));
+    const renderengine::LayerSettings greenLayer{
+            .geometry.boundaries = rect.toFloatRect(),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = greenBuffer,
+                                    },
+                    },
+            .alpha = 1.0f,
+    };
+    const renderengine::LayerSettings r8Layer{
+            .geometry.boundaries = rect.toFloatRect(),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = r8Buffer,
+                                    },
+                    },
+            .alpha = 1.0f,
+    };
+
+    std::vector<renderengine::LayerSettings> layers{greenLayer, r8Layer};
+    invokeDraw(display, layers);
+
+    expectBufferColor(Rect(0, 0, 1, 1), 0,   0, 0, 255);
+    expectBufferColor(Rect(1, 0, 2, 1), 0, 255, 0, 255);
 }
 } // namespace renderengine
 } // namespace android
