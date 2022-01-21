@@ -245,6 +245,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "go_handheld_core_hardware.prebuilt.xml",
+    src: "go_handheld_core_hardware.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "handheld_core_hardware.prebuilt.xml",
     src: "handheld_core_hardware.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
