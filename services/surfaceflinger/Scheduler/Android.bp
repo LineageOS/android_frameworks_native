@@ -16,6 +16,8 @@ cc_defaults {
     ],
     shared_libs: [
         "libbase",
+        "libcutils",
+        "liblog",
         "libutils",
     ],
 }
@@ -26,10 +28,36 @@ cc_library_headers {
     export_include_dirs: ["include"],
 }
 
+// TODO(b/185535769): Remove libsurfaceflinger_unittest's dependency on AsyncCallRecorder.
+cc_library_headers {
+    name: "libscheduler_test_headers",
+    defaults: ["libscheduler_defaults"],
+    export_include_dirs: ["tests"],
+}
+
 cc_library_static {
     name: "libscheduler",
     defaults: ["libscheduler_defaults"],
-    srcs: [],
+    srcs: [
+        "src/Timer.cpp",
+    ],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
+}
+
+cc_test {
+    name: "libscheduler_test",
+    test_suites: ["device-tests"],
+    defaults: ["libscheduler_defaults"],
+    srcs: [
+        "tests/TimerTest.cpp",
+    ],
+    static_libs: [
+        "libgmock",
+        "libgtest",
+        "libscheduler",
+    ],
+    sanitize: {
+        address: true,
+    },
 }

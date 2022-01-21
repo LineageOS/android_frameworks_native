@@ -2094,6 +2094,10 @@ status_t SurfaceComposerClient::getPreferredBootDisplayMode(const sp<IBinder>& d
                                                                               displayModeId);
 }
 
+status_t SurfaceComposerClient::setOverrideFrameRate(uid_t uid, float frameRate) {
+    return ComposerService::getComposerService()->setOverrideFrameRate(uid, frameRate);
+}
+
 void SurfaceComposerClient::setAutoLowLatencyMode(const sp<IBinder>& display, bool on) {
     ComposerService::getComposerService()->setAutoLowLatencyMode(display, on);
 }
