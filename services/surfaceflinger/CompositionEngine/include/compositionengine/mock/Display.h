@@ -22,8 +22,7 @@
 #include <compositionengine/mock/Output.h>
 #include <gmock/gmock.h>
 #include <system/window.h>
-
-#include "DisplayHardware/DisplayIdentification.h"
+#include <ui/DisplayIdentification.h>
 
 namespace android::compositionengine::mock {
 

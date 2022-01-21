@@ -25,7 +25,7 @@
 #include <gui/IGraphicBufferProducer.h>
 #include <ui/DisplayId.h>
 
-#include "DisplayIdentification.h"
+#include <ui/DisplayIdentification.h>
 
 namespace android {
 

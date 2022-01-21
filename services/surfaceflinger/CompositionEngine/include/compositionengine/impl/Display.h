@@ -26,7 +26,8 @@
 #include <ui/PixelFormat.h>
 #include <ui/Size.h>
 
-#include "DisplayHardware/DisplayIdentification.h"
+#include <ui/DisplayIdentification.h>
+
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/PowerAdvisor.h"
 

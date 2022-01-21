@@ -95,6 +95,7 @@
 #include <type_traits>
 #include <unordered_map>
 
+#include <ui/DisplayIdentification.h>
 #include "BackgroundExecutor.h"
 #include "BufferLayer.h"
 #include "BufferQueueLayer.h"
@@ -104,7 +105,6 @@
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/ComposerHal.h"
-#include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/FramebufferSurface.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/Hal.h"
