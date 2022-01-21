@@ -5605,9 +5605,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1041 are currently used for backdoors. The code
+    // Numbers from 1000 to 1042 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1041) {
+    if (code >= 1000 && code <= 1042) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -6058,6 +6058,16 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                                 TransactionTracing::CONTINUOUS_TRACING_BUFFER_SIZE);
                         mTransactionTracing->writeToFile();
                     }
+                }
+                reply->writeInt32(NO_ERROR);
+                return NO_ERROR;
+            }
+            case 1042: { // Write layers trace or transaction trace to file
+                if (mTransactionTracing) {
+                    mTransactionTracing->writeToFile();
+                }
+                if (mLayerTracingEnabled) {
+                    mLayerTracing.writeToFile();
                 }
                 reply->writeInt32(NO_ERROR);
                 return NO_ERROR;
