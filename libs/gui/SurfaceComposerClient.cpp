@@ -296,7 +296,7 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                 surfaceControlStats
                         .emplace_back(callbacksMap[callbackId]
                                               .surfaceControls[surfaceStats.surfaceControl],
-                                      transactionStats.latchTime, surfaceStats.acquireTime,
+                                      transactionStats.latchTime, surfaceStats.acquireTimeOrFence,
                                       transactionStats.presentFence,
                                       surfaceStats.previousReleaseFence, surfaceStats.transformHint,
                                       surfaceStats.eventStats);
@@ -321,7 +321,7 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                 surfaceControlStats
                         .emplace_back(callbacksMap[callbackId]
                                               .surfaceControls[surfaceStats.surfaceControl],
-                                      transactionStats.latchTime, surfaceStats.acquireTime,
+                                      transactionStats.latchTime, surfaceStats.acquireTimeOrFence,
                                       transactionStats.presentFence,
                                       surfaceStats.previousReleaseFence, surfaceStats.transformHint,
                                       surfaceStats.eventStats);
