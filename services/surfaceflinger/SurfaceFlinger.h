@@ -606,6 +606,8 @@ private:
     status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
                                   const FrameTimelineInfo& frameTimelineInfo) override;
 
+    status_t setOverrideFrameRate(uid_t uid, float frameRate) override;
+
     status_t addTransactionTraceListener(
             const sp<gui::ITransactionTraceListener>& listener) override;
 

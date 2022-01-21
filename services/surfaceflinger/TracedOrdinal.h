@@ -15,11 +15,14 @@
  */
 
 #pragma once
-#include <android-base/stringprintf.h>
+
+#include <chrono>
+#include <cmath>
+#include <functional>
+#include <string>
+
 #include <cutils/compiler.h>
 #include <utils/Trace.h>
-#include <cmath>
-#include <string>
 
 namespace std {
 template <class Rep, class Period>
@@ -75,7 +78,7 @@ private:
         }
 
         if (mNameNegative.empty()) {
-            mNameNegative = base::StringPrintf("%sNegative", mName.c_str());
+            mNameNegative = mName + "Negative";
         }
 
         if (!std::signbit(mData)) {

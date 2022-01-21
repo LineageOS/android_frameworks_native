@@ -559,6 +559,13 @@ public:
                                   int8_t compatibility, int8_t changeFrameRateStrategy) = 0;
 
     /*
+     * Set the override frame rate for a specified uid by GameManagerService.
+     * Passing the frame rate and uid to SurfaceFlinger to update the override mapping
+     * in the scheduler.
+     */
+    virtual status_t setOverrideFrameRate(uid_t uid, float frameRate) = 0;
+
+    /*
      * Sets the frame timeline vsync info received from choreographer that corresponds to next
      * buffer submitted on that surface.
      */
@@ -678,6 +685,7 @@ public:
         SET_BOOT_DISPLAY_MODE,
         CLEAR_BOOT_DISPLAY_MODE,
         GET_PREFERRED_BOOT_DISPLAY_MODE,
+        SET_OVERRIDE_FRAME_RATE,
         // Always append new enum to the end.
     };
 
