@@ -19,6 +19,7 @@
 #include <gmock/gmock.h>
 
 #include "DisplayHardware/ComposerHal.h"
+#include "DisplayHardware/HWC2.h"
 
 namespace android {
 
@@ -51,7 +52,7 @@ public:
     MOCK_METHOD(bool, isSupported, (OptionalFeature), (const, override));
     MOCK_METHOD0(getCapabilities, std::vector<IComposer::Capability>());
     MOCK_METHOD0(dumpDebugInfo, std::string());
-    MOCK_METHOD1(registerCallback, void(const sp<IComposerCallback>&));
+    MOCK_METHOD1(registerCallback, void(HWC2::ComposerCallback&));
     MOCK_METHOD0(resetCommands, void());
     MOCK_METHOD0(executeCommands, Error());
     MOCK_METHOD0(getMaxVirtualDisplayCount, uint32_t());
