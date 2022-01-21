@@ -244,7 +244,7 @@ bool clear_primary_reference_profile(const std::string& package_name,
 // The location is the profile name for primary apks or the dex path for secondary dex files.
 bool clear_primary_current_profiles(const std::string& package_name, const std::string& location) {
     bool success = true;
-    // For secondary dex files, we don't really need the user but we use it for sanity checks.
+    // For secondary dex files, we don't really need the user but we use it for validity checks.
     std::vector<userid_t> users = get_known_users(/*volume_uuid*/ nullptr);
     for (auto user : users) {
         success &= clear_current_profile(package_name, location, user, /*is_secondary_dex*/false);
@@ -468,7 +468,7 @@ static void open_profile_files(uid_t uid, const std::string& package_name,
     *reference_profile_fd = open_reference_profile(uid, package_name, location,
             /*read_write*/ true, is_secondary_dex);
 
-    // For secondary dex files, we don't really need the user but we use it for sanity checks.
+    // For secondary dex files, we don't really need the user but we use it for validity checks.
     // Note: the user owning the dex file should be the current user.
     std::vector<userid_t> users;
     if (is_secondary_dex){
