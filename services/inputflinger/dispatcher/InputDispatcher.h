@@ -136,6 +136,7 @@ public:
     status_t pilferPointers(const sp<IBinder>& token) override;
     void requestPointerCapture(const sp<IBinder>& windowToken, bool enabled) override;
     bool flushSensor(int deviceId, InputDeviceSensorType sensorType) override;
+    void setDisplayEligibilityForPointerCapture(int displayId, bool isEligible) override;
 
     std::array<uint8_t, 32> sign(const VerifiedInputEvent& event) const;
 
@@ -419,6 +420,10 @@ private:
     // The window token that has Pointer Capture.
     // This should be in sync with PointerCaptureChangedEvents dispatched to the input channel.
     sp<IBinder> mWindowTokenWithPointerCapture GUARDED_BY(mLock);
+
+    // Displays that are ineligible for pointer capture.
+    // TODO(b/214621487): Remove or move to a display flag.
+    std::vector<int32_t> mIneligibleDisplaysForPointerCapture GUARDED_BY(mLock);
 
     // Disable Pointer Capture as a result of loss of window focus.
     void disablePointerCaptureForcedLocked() REQUIRES(mLock);

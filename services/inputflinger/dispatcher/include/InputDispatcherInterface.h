@@ -201,6 +201,13 @@ public:
      */
     virtual void requestPointerCapture(const sp<IBinder>& windowToken, bool enabled) = 0;
 
+    /**
+     * Sets the eligibility of a given display to enable pointer capture. If a display is marked
+     * ineligible, all attempts to request pointer capture for windows on that display will fail.
+     *  TODO(b/214621487): Remove or move to a display flag.
+     */
+    virtual void setDisplayEligibilityForPointerCapture(int displayId, bool isEligible) = 0;
+
     /* Flush input device motion sensor.
      *
      * Returns true on success.

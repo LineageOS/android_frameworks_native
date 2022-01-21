@@ -5645,11 +5645,30 @@ void InputDispatcher::requestPointerCapture(const sp<IBinder>& windowToken, bool
             return;
         }
 
+        if (enabled) {
+            if (std::find(mIneligibleDisplaysForPointerCapture.begin(),
+                          mIneligibleDisplaysForPointerCapture.end(),
+                          mFocusedDisplayId) != mIneligibleDisplaysForPointerCapture.end()) {
+                ALOGW("Ignoring request to enable Pointer Capture: display is not eligible");
+                return;
+            }
+        }
+
         setPointerCaptureLocked(enabled);
     } // release lock
 
     // Wake the thread to process command entries.
     mLooper->wake();
+}
+
+void InputDispatcher::setDisplayEligibilityForPointerCapture(int32_t displayId, bool isEligible) {
+    { // acquire lock
+        std::scoped_lock _l(mLock);
+        std::erase(mIneligibleDisplaysForPointerCapture, displayId);
+        if (!isEligible) {
+            mIneligibleDisplaysForPointerCapture.push_back(displayId);
+        }
+    } // release lock
 }
 
 std::optional<int32_t> InputDispatcher::findGestureMonitorDisplayByTokenLocked(
@@ -6311,6 +6330,8 @@ void InputDispatcher::displayRemoved(int32_t displayId) {
         // Call focus resolver to clean up stale requests. This must be called after input windows
         // have been removed for the removed display.
         mFocusResolver.displayRemoved(displayId);
+        // Reset pointer capture eligibility, regardless of previous state.
+        std::erase(mIneligibleDisplaysForPointerCapture, displayId);
     } // release lock
 
     // Wake up poll loop since it may need to make new input dispatching choices.
