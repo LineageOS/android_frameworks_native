@@ -313,6 +313,7 @@ static inline void PrintTo(const LayerSettings& settings, ::std::ostream* os) {
     PrintTo(settings.shadow, os);
     *os << "\n    .stretchEffect = ";
     PrintTo(settings.stretchEffect, os);
+    *os << "\n    .whitePointNits = " << settings.whitePointNits;
     *os << "\n}";
 }
 

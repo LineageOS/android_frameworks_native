@@ -22,8 +22,8 @@
 
 #include <utils/Mutex.h>
 
+#include <ui/DisplayIdentification.h>
 #include "../Scheduler/OneShotTimer.h"
-#include "DisplayIdentification.h"
 
 using namespace std::chrono_literals;
 

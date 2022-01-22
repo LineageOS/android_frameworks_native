@@ -22,7 +22,7 @@
 #pragma clang diagnostic ignored "-Wextra"
 
 #include <type_traits>
-#include "DisplayIdentificationTest.h"
+#include "DisplayIdentificationTestHelpers.h"
 
 #include <binder/IPCThreadState.h>
 #include <compositionengine/Display.h>

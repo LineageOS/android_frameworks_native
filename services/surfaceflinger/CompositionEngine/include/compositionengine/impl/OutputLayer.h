@@ -25,7 +25,7 @@
 #include <ui/FloatRect.h>
 #include <ui/Rect.h>
 
-#include "DisplayHardware/DisplayIdentification.h"
+#include <ui/DisplayIdentification.h>
 
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 
