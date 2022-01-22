@@ -26,6 +26,7 @@
 #include <vector>
 
 #include <android-base/thread_annotations.h>
+#include <ui/DisplayIdentification.h>
 #include <ui/FenceTime.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
@@ -38,7 +39,6 @@
 #include <utils/StrongPointer.h>
 #include <utils/Timers.h>
 
-#include "DisplayIdentification.h"
 #include "DisplayMode.h"
 #include "HWC2.h"
 #include "Hal.h"

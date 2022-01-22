@@ -34,7 +34,7 @@
 #include <utils/StrongPointer.h>
 #include <utils/Vector.h>
 
-#include "DisplayHardware/DisplayIdentification.h"
+#include <ui/DisplayIdentification.h>
 
 namespace android {
 

@@ -31,7 +31,6 @@
 
 namespace android {
 
-
 using DisplayIdentificationData = std::vector<uint8_t>;
 
 struct DisplayIdentificationInfo {
@@ -81,5 +80,7 @@ std::optional<DisplayIdentificationInfo> parseDisplayIdentificationData(
 
 PhysicalDisplayId getVirtualDisplayId(uint32_t id);
 
-} // namespace android
+// CityHash64 implementation that only hashes at most the first 16 characters of the given string.
+uint64_t cityHash64Len0To16(std::string_view sv);
 
+} // namespace android

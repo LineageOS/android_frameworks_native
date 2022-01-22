@@ -24,12 +24,12 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "DisplayHardware/DisplayIdentification.h"
-#include "DisplayHardware/Hash.h"
+#include <ui/DisplayIdentification.h>
 
 using ::testing::ElementsAre;
 
 namespace android {
+
 namespace {
 
 const unsigned char kInternalEdid[] =
