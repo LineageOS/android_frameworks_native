@@ -1020,6 +1020,9 @@ status_t SurfaceFlinger::getStaticDisplayInfo(const sp<IBinder>& displayToken,
     info->secure = display->isSecure();
     info->deviceProductInfo = display->getDeviceProductInfo();
 
+    // TODO: Scale this to multiple displays.
+    info->installOrientation = display->isPrimary() ? internalDisplayOrientation : ui::ROTATION_0;
+
     return NO_ERROR;
 }
 
