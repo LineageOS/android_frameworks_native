@@ -72,7 +72,7 @@ enum class Planet : std::uint8_t {
   kNeptune
 };
 
-constexpr Planet kPluto{ftl::enum_cast(Planet::kNeptune) + 1};  // Honorable mention.
+constexpr Planet kPluto{ftl::to_underlying(Planet::kNeptune) + 1};  // Honorable mention.
 
 static_assert(ftl::enum_begin_v<Planet> == Planet::kMercury);
 static_assert(ftl::enum_last_v<Planet> == Planet::kNeptune);
