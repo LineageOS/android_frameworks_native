@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <ftl/array_traits.h>
+#include <ftl/details/array_traits.h>
 #include <ftl/static_vector.h>
 
 #include <algorithm>
@@ -73,7 +73,7 @@ struct is_small_vector;
 //   assert(strings[2] == "???");
 //
 template <typename T, std::size_t N>
-class SmallVector final : ArrayTraits<T>, ArrayComparators<SmallVector> {
+class SmallVector final : details::ArrayTraits<T>, details::ArrayComparators<SmallVector> {
   using Static = StaticVector<T, N>;
   using Dynamic = SmallVector<T, 0>;
 
@@ -266,12 +266,12 @@ class SmallVector final : ArrayTraits<T>, ArrayComparators<SmallVector> {
 
 // Partial specialization without static storage.
 template <typename T>
-class SmallVector<T, 0> final : ArrayTraits<T>,
-                                ArrayIterators<SmallVector<T, 0>, T>,
+class SmallVector<T, 0> final : details::ArrayTraits<T>,
+                                details::ArrayIterators<SmallVector<T, 0>, T>,
                                 std::vector<T> {
-  using ArrayTraits<T>::construct_at;
+  using details::ArrayTraits<T>::construct_at;
 
-  using Iter = ArrayIterators<SmallVector, T>;
+  using Iter = details::ArrayIterators<SmallVector, T>;
   using Impl = std::vector<T>;
 
   friend Iter;

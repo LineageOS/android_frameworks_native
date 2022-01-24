@@ -21,9 +21,9 @@
 #include <new>
 #include <type_traits>
 
-#define FTL_ARRAY_TRAIT(T, U) using U = typename ArrayTraits<T>::U
+#define FTL_ARRAY_TRAIT(T, U) using U = typename details::ArrayTraits<T>::U
 
-namespace android::ftl {
+namespace android::ftl::details {
 
 template <typename T>
 struct ArrayTraits {
@@ -132,4 +132,4 @@ struct ArrayComparators {
   }
 };
 
-}  // namespace android::ftl
+}  // namespace android::ftl::details
