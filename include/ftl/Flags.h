@@ -209,12 +209,12 @@ namespace flag_operators {
 
 template <typename F, typename = std::enable_if_t<ftl::is_scoped_enum_v<F>>>
 inline Flags<F> operator~(F f) {
-    return static_cast<F>(~ftl::enum_cast(f));
+    return static_cast<F>(~ftl::to_underlying(f));
 }
 
 template <typename F, typename = std::enable_if_t<ftl::is_scoped_enum_v<F>>>
 Flags<F> operator|(F lhs, F rhs) {
-    return static_cast<F>(ftl::enum_cast(lhs) | ftl::enum_cast(rhs));
+    return static_cast<F>(ftl::to_underlying(lhs) | ftl::to_underlying(rhs));
 }
 
 } // namespace flag_operators
