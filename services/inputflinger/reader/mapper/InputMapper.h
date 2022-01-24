@@ -45,12 +45,13 @@ public:
 
     inline int32_t getDeviceId() { return mDeviceContext.getId(); }
     inline InputDeviceContext& getDeviceContext() { return mDeviceContext; }
+    inline InputDeviceContext& getDeviceContext() const { return mDeviceContext; };
     inline const std::string getDeviceName() const { return mDeviceContext.getName(); }
     inline InputReaderContext* getContext() { return mDeviceContext.getContext(); }
     inline InputReaderPolicyInterface* getPolicy() { return getContext()->getPolicy(); }
     inline InputListenerInterface& getListener() { return getContext()->getListener(); }
 
-    virtual uint32_t getSources() = 0;
+    virtual uint32_t getSources() const = 0;
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
     virtual void dump(std::string& dump);
     virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
@@ -61,6 +62,8 @@ public:
     virtual int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode);
     virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
     virtual int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode);
+    virtual int32_t getKeyCodeForKeyLocation(int32_t locationKeyCode) const;
+
     virtual bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
                                        const int32_t* keyCodes, uint8_t* outFlags);
     virtual void vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token);

@@ -30,7 +30,7 @@ public:
     explicit ExternalStylusInputMapper(InputDeviceContext& deviceContext);
     virtual ~ExternalStylusInputMapper() = default;
 
-    virtual uint32_t getSources() override;
+    virtual uint32_t getSources() const override;
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
     virtual void dump(std::string& dump) override;
     virtual void configure(nsecs_t when, const InputReaderConfiguration* config,

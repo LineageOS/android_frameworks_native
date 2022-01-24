@@ -25,7 +25,7 @@ JoystickInputMapper::JoystickInputMapper(InputDeviceContext& deviceContext)
 
 JoystickInputMapper::~JoystickInputMapper() {}
 
-uint32_t JoystickInputMapper::getSources() {
+uint32_t JoystickInputMapper::getSources() const {
     return AINPUT_SOURCE_JOYSTICK;
 }
 
