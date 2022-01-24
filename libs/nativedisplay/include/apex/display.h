@@ -107,11 +107,6 @@ void ADisplay_getPreferredWideColorFormat(ADisplay* display, ADataSpace* outData
 int ADisplay_getCurrentConfig(ADisplay* display, ADisplayConfig** outConfig);
 
 /**
- * Queries the density for a given display configuration.
- */
-float ADisplayConfig_getDensity(ADisplayConfig* config);
-
-/**
  * Queries the width in pixels for a given display configuration.
  */
 int32_t ADisplayConfig_getWidth(ADisplayConfig* config);

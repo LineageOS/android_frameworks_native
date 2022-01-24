@@ -50,7 +50,6 @@ LIBNATIVEDISPLAY_PLATFORM {
       android::ADisplay_getDisplayType*;
       android::ADisplay_getPreferredWideColorFormat*;
       android::ADisplay_getCurrentConfig*;
-      android::ADisplayConfig_getDensity*;
       android::ADisplayConfig_getWidth*;
       android::ADisplayConfig_getHeight*;
       android::ADisplayConfig_getFps*;
