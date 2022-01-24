@@ -128,7 +128,9 @@ void TransactionTracing::loop() {
             mCommittedTransactions.clear();
         } // unlock mMainThreadLock
 
-        addEntry(committedTransactions, removedLayers);
+        if (!committedTransactions.empty() || !removedLayers.empty()) {
+            addEntry(committedTransactions, removedLayers);
+        }
     }
 }
 
@@ -275,6 +277,7 @@ int32_t TransactionTracing::getLayerIdLocked(const sp<IBinder>& layerHandle) {
 
 void TransactionTracing::updateStartingStateLocked(
         const proto::TransactionTraceEntry& removedEntry) {
+    mStartingTimestamp = removedEntry.elapsed_realtime_nanos();
     // Keep track of layer starting state so we can reconstruct the layer state as we purge
     // transactions from the buffer.
     for (const proto::LayerCreationArgs& addedLayer : removedEntry.added_layers()) {
@@ -303,12 +306,13 @@ void TransactionTracing::updateStartingStateLocked(
 }
 
 void TransactionTracing::addStartingStateToProtoLocked(proto::TransactionTraceFile& proto) {
-    proto::TransactionTraceEntry* entryProto = proto.add_entry();
-    entryProto->set_elapsed_realtime_nanos(mStartingTimestamp);
-    entryProto->set_vsync_id(0);
     if (mStartingStates.size() == 0) {
         return;
     }
+
+    proto::TransactionTraceEntry* entryProto = proto.add_entry();
+    entryProto->set_elapsed_realtime_nanos(mStartingTimestamp);
+    entryProto->set_vsync_id(0);
 
     entryProto->mutable_added_layers()->Reserve(static_cast<int32_t>(mStartingStates.size()));
     for (auto& [layerId, state] : mStartingStates) {
