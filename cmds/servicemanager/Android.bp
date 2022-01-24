@@ -47,6 +47,14 @@ cc_binary {
 }
 
 cc_binary {
+    name: "servicemanager.microdroid",
+    defaults: ["servicemanager_defaults"],
+    init_rc: ["servicemanager.microdroid.rc"],
+    srcs: ["main.cpp"],
+    bootstrap: true,
+}
+
+cc_binary {
     name: "servicemanager.recovery",
     stem: "servicemanager",
     recovery: true,
