@@ -439,6 +439,8 @@ class FakeEventHub : public EventHubInterface {
         KeyedVector<int32_t, KeyInfo> keysByScanCode;
         KeyedVector<int32_t, KeyInfo> keysByUsageCode;
         KeyedVector<int32_t, bool> leds;
+        // fake mapping which would normally come from keyCharacterMap
+        std::unordered_map<int32_t, int32_t> keyCodeMapping;
         std::unordered_map<int32_t, SensorInfo> sensorsByAbsCode;
         BitArray<MSC_MAX> mscBitmask;
         std::vector<VirtualKeyDefinition> virtualKeys;
@@ -598,6 +600,11 @@ public:
         if (usageCode) {
             device->keysByUsageCode.add(usageCode, info);
         }
+    }
+
+    void addKeyCodeMapping(int32_t deviceId, int32_t fromKeyCode, int32_t toKeyCode) {
+        Device* device = getDevice(deviceId);
+        device->keyCodeMapping.insert_or_assign(fromKeyCode, toKeyCode);
     }
 
     void addLed(int32_t deviceId, int32_t led, bool initialState) {
@@ -863,6 +870,15 @@ private:
         return -1;
     }
 
+    int32_t getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const override {
+        Device* device = getDevice(deviceId);
+        if (!device) {
+            return AKEYCODE_UNKNOWN;
+        }
+        auto it = device->keyCodeMapping.find(locationKeyCode);
+        return it != device->keyCodeMapping.end() ? it->second : locationKeyCode;
+    }
+
     // Return true if the device has non-empty key layout.
     bool markSupportedKeyCodes(int32_t deviceId, size_t numCodes, const int32_t* keyCodes,
                                uint8_t* outFlags) const override {
@@ -1034,6 +1050,8 @@ class FakeInputMapper : public InputMapper {
     KeyedVector<int32_t, int32_t> mKeyCodeStates;
     KeyedVector<int32_t, int32_t> mScanCodeStates;
     KeyedVector<int32_t, int32_t> mSwitchStates;
+    // fake mapping which would normally come from keyCharacterMap
+    std::unordered_map<int32_t, int32_t> mKeyCodeMapping;
     std::vector<int32_t> mSupportedKeyCodes;
 
     std::mutex mLock;
@@ -1122,8 +1140,12 @@ public:
         mSupportedKeyCodes.push_back(keyCode);
     }
 
+    void addKeyCodeMapping(int32_t fromKeyCode, int32_t toKeyCode) {
+        mKeyCodeMapping.insert_or_assign(fromKeyCode, toKeyCode);
+    }
+
 private:
-    uint32_t getSources() override { return mSources; }
+    uint32_t getSources() const override { return mSources; }
 
     void populateDeviceInfo(InputDeviceInfo* deviceInfo) override {
         InputMapper::populateDeviceInfo(deviceInfo);
@@ -1162,6 +1184,11 @@ private:
     int32_t getKeyCodeState(uint32_t, int32_t keyCode) override {
         ssize_t index = mKeyCodeStates.indexOfKey(keyCode);
         return index >= 0 ? mKeyCodeStates.valueAt(index) : AKEY_STATE_UNKNOWN;
+    }
+
+    int32_t getKeyCodeForKeyLocation(int32_t locationKeyCode) const override {
+        auto it = mKeyCodeMapping.find(locationKeyCode);
+        return it != mKeyCodeMapping.end() ? it->second : locationKeyCode;
     }
 
     int32_t getScanCodeState(uint32_t, int32_t scanCode) override {
@@ -1710,6 +1737,37 @@ TEST_F(InputReaderTest, GetKeyCodeState_ForwardsRequestsToMappers) {
     ASSERT_EQ(AKEY_STATE_DOWN, mReader->getKeyCodeState(-1,
             AINPUT_SOURCE_KEYBOARD | AINPUT_SOURCE_TRACKBALL, AKEYCODE_A))
             << "Should return value provided by mapper when device id is < 0 and one of the devices supports some of the sources.";
+}
+
+TEST_F(InputReaderTest, GetKeyCodeForKeyLocation_ForwardsRequestsToMappers) {
+    constexpr int32_t deviceId = END_RESERVED_ID + 1000;
+    constexpr int32_t eventHubId = 1;
+    FakeInputMapper& mapper = addDeviceWithFakeInputMapper(deviceId, eventHubId, "keyboard",
+                                                           InputDeviceClass::KEYBOARD,
+                                                           AINPUT_SOURCE_KEYBOARD, nullptr);
+    mapper.addKeyCodeMapping(AKEYCODE_Y, AKEYCODE_Z);
+
+    ASSERT_EQ(AKEYCODE_UNKNOWN, mReader->getKeyCodeForKeyLocation(0, AKEYCODE_Y))
+            << "Should return unknown when the device with the specified id is not found.";
+
+    ASSERT_EQ(AKEYCODE_Z, mReader->getKeyCodeForKeyLocation(deviceId, AKEYCODE_Y))
+            << "Should return correct mapping when device id is valid and mapping exists.";
+
+    ASSERT_EQ(AKEYCODE_A, mReader->getKeyCodeForKeyLocation(deviceId, AKEYCODE_A))
+            << "Should return the location key code when device id is valid and there's no "
+               "mapping.";
+}
+
+TEST_F(InputReaderTest, GetKeyCodeForKeyLocation_NoKeyboardMapper) {
+    constexpr int32_t deviceId = END_RESERVED_ID + 1000;
+    constexpr int32_t eventHubId = 1;
+    FakeInputMapper& mapper = addDeviceWithFakeInputMapper(deviceId, eventHubId, "joystick",
+                                                           InputDeviceClass::JOYSTICK,
+                                                           AINPUT_SOURCE_GAMEPAD, nullptr);
+    mapper.addKeyCodeMapping(AKEYCODE_Y, AKEYCODE_Z);
+
+    ASSERT_EQ(AKEYCODE_UNKNOWN, mReader->getKeyCodeForKeyLocation(deviceId, AKEYCODE_Y))
+            << "Should return unknown when the device id is valid but there is no keyboard mapper";
 }
 
 TEST_F(InputReaderTest, GetScanCodeState_ForwardsRequestsToMappers) {
@@ -3607,6 +3665,19 @@ TEST_F(KeyboardInputMapperTest, GetKeyCodeState) {
 
     mFakeEventHub->setKeyCodeState(EVENTHUB_ID, AKEYCODE_A, 0);
     ASSERT_EQ(0, mapper.getKeyCodeState(AINPUT_SOURCE_ANY, AKEYCODE_A));
+}
+
+TEST_F(KeyboardInputMapperTest, GetKeyCodeForKeyLocation) {
+    KeyboardInputMapper& mapper =
+            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+                                                       AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+
+    mFakeEventHub->addKeyCodeMapping(EVENTHUB_ID, AKEYCODE_Y, AKEYCODE_Z);
+    ASSERT_EQ(AKEYCODE_Z, mapper.getKeyCodeForKeyLocation(AKEYCODE_Y))
+            << "If a mapping is available, the result is equal to the mapping";
+
+    ASSERT_EQ(AKEYCODE_A, mapper.getKeyCodeForKeyLocation(AKEYCODE_A))
+            << "If no mapping is available, the result is the key location";
 }
 
 TEST_F(KeyboardInputMapperTest, GetScanCodeState) {

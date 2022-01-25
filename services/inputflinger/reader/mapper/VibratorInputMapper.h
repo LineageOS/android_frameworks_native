@@ -26,7 +26,7 @@ public:
     explicit VibratorInputMapper(InputDeviceContext& deviceContext);
     virtual ~VibratorInputMapper();
 
-    virtual uint32_t getSources() override;
+    virtual uint32_t getSources() const override;
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
     virtual void process(const RawEvent* rawEvent) override;
 

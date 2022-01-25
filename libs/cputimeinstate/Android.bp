@@ -14,6 +14,7 @@ cc_library {
         "libbase",
         "libbpf_bcc",
         "libbpf_android",
+        "libbpf_minimal",
         "liblog",
         "libnetdutils"
     ],
@@ -33,6 +34,7 @@ cc_test {
         "libbase",
         "libbpf_bcc",
         "libbpf_android",
+        "libbpf_minimal",
         "libtimeinstate",
         "libnetdutils",
     ],

@@ -87,6 +87,8 @@ public:
     virtual int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask,
             int32_t sw) = 0;
 
+    virtual int32_t getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const = 0;
+
     /* Toggle Caps Lock */
     virtual void toggleCapsLockState(int32_t deviceId) = 0;
 

@@ -66,7 +66,7 @@ CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext)
 
 CursorInputMapper::~CursorInputMapper() {}
 
-uint32_t CursorInputMapper::getSources() {
+uint32_t CursorInputMapper::getSources() const {
     return mSource;
 }
 

@@ -136,7 +136,7 @@ struct layer_state_t {
         eLayerStackChanged = 0x00000080,
         /* unused 0x00000400, */
         eShadowRadiusChanged = 0x00000800,
-        eLayerCreated = 0x00001000,
+        /* unused 0x00001000, */
         eBufferCropChanged = 0x00002000,
         eRelativeLayerChanged = 0x00004000,
         eReparent = 0x00008000,

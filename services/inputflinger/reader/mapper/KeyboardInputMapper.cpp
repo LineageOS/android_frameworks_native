@@ -95,7 +95,7 @@ KeyboardInputMapper::KeyboardInputMapper(InputDeviceContext& deviceContext, uint
 
 KeyboardInputMapper::~KeyboardInputMapper() {}
 
-uint32_t KeyboardInputMapper::getSources() {
+uint32_t KeyboardInputMapper::getSources() const {
     return mSource;
 }
 
@@ -373,6 +373,10 @@ int32_t KeyboardInputMapper::getKeyCodeState(uint32_t sourceMask, int32_t keyCod
 
 int32_t KeyboardInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCode) {
     return getDeviceContext().getScanCodeState(scanCode);
+}
+
+int32_t KeyboardInputMapper::getKeyCodeForKeyLocation(int32_t locationKeyCode) const {
+    return getDeviceContext().getKeyCodeForKeyLocation(locationKeyCode);
 }
 
 bool KeyboardInputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
