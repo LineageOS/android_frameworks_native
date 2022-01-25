@@ -178,7 +178,9 @@ class StaticVector final : details::ArrayTraits<T>,
   template <typename U, std::size_t Size, std::size_t... Sizes, typename... Types>
   StaticVector(InitializerList<U, std::index_sequence<Size, Sizes...>, Types...>&& list)
       : StaticVector(std::index_sequence<0, 0, Size>{}, std::make_index_sequence<Size>{},
-                     std::index_sequence<Sizes...>{}, list.tuple) {}
+                     std::index_sequence<Sizes...>{}, list.tuple) {
+    static_assert(sizeof...(Sizes) < N, "Too many elements");
+  }
 
   ~StaticVector() { std::destroy(begin(), end()); }
 
