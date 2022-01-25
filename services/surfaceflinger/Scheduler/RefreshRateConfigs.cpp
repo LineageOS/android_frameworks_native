@@ -134,26 +134,9 @@ bool RefreshRateConfigs::isVoteAllowed(const LayerRequirement& layer,
     return true;
 }
 
-float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& layer,
-                                                    const RefreshRate& refreshRate,
-                                                    bool isSeamlessSwitch) const {
-    if (!isVoteAllowed(layer, refreshRate)) {
-        return 0;
-    }
-
+float RefreshRateConfigs::calculateNonExactMatchingLayerScoreLocked(
+        const LayerRequirement& layer, const RefreshRate& refreshRate) const {
     constexpr float kScoreForFractionalPairs = .8f;
-
-    // Slightly prefer seamless switches.
-    constexpr float kSeamedSwitchPenalty = 0.95f;
-    const float seamlessness = isSeamlessSwitch ? 1.0f : kSeamedSwitchPenalty;
-
-    // If the layer wants Max, give higher score to the higher refresh rate
-    if (layer.vote == LayerVoteType::Max) {
-        const auto ratio = refreshRate.getFps().getValue() /
-                mAppRequestRefreshRates.back()->getFps().getValue();
-        // use ratio^2 to get a lower score the more we get further from peak
-        return ratio * ratio;
-    }
 
     const auto displayPeriod = refreshRate.getVsyncPeriod();
     const auto layerPeriod = layer.desiredRefreshRate.getPeriodNsecs();
@@ -179,7 +162,7 @@ float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& laye
     if (layer.vote == LayerVoteType::ExplicitExactOrMultiple ||
         layer.vote == LayerVoteType::Heuristic) {
         if (isFractionalPairOrMultiple(refreshRate.getFps(), layer.desiredRefreshRate)) {
-            return kScoreForFractionalPairs * seamlessness;
+            return kScoreForFractionalPairs;
         }
 
         // Calculate how many display vsyncs we need to present a single frame for this
@@ -189,7 +172,7 @@ float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& laye
         static constexpr size_t MAX_FRAMES_TO_FIT = 10; // Stop calculating when score < 0.1
         if (displayFramesRemainder == 0) {
             // Layer desired refresh rate matches the display rate.
-            return 1.0f * seamlessness;
+            return 1.0f;
         }
 
         if (displayFramesQuotient == 0) {
@@ -207,7 +190,29 @@ float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& laye
             iter++;
         }
 
-        return (1.0f / iter) * seamlessness;
+        return (1.0f / iter);
+    }
+
+    return 0;
+}
+
+float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& layer,
+                                                    const RefreshRate& refreshRate,
+                                                    bool isSeamlessSwitch) const {
+    if (!isVoteAllowed(layer, refreshRate)) {
+        return 0;
+    }
+
+    // Slightly prefer seamless switches.
+    constexpr float kSeamedSwitchPenalty = 0.95f;
+    const float seamlessness = isSeamlessSwitch ? 1.0f : kSeamedSwitchPenalty;
+
+    // If the layer wants Max, give higher score to the higher refresh rate
+    if (layer.vote == LayerVoteType::Max) {
+        const auto ratio = refreshRate.getFps().getValue() /
+                mAppRequestRefreshRates.back()->getFps().getValue();
+        // use ratio^2 to get a lower score the more we get further from peak
+        return ratio * ratio;
     }
 
     if (layer.vote == LayerVoteType::ExplicitExact) {
@@ -222,7 +227,18 @@ float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& laye
         return divider == 1;
     }
 
-    return 0;
+    // If the layer frame rate is a divider of the refresh rate it should score
+    // the highest score.
+    if (getFrameRateDivider(refreshRate.getFps(), layer.desiredRefreshRate) > 0) {
+        return 1.0f * seamlessness;
+    }
+
+    // The layer frame rate is not a divider of the refresh rate,
+    // there is a small penalty attached to the score to favor the frame rates
+    // the exactly matches the display refresh rate or a multiple.
+    constexpr float kNonExactMatchingPenalty = 0.99f;
+    return calculateNonExactMatchingLayerScoreLocked(layer, refreshRate) * seamlessness *
+            kNonExactMatchingPenalty;
 }
 
 struct RefreshRateScore {
