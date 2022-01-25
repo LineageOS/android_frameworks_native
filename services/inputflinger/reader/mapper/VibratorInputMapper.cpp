@@ -25,7 +25,7 @@ VibratorInputMapper::VibratorInputMapper(InputDeviceContext& deviceContext)
 
 VibratorInputMapper::~VibratorInputMapper() {}
 
-uint32_t VibratorInputMapper::getSources() {
+uint32_t VibratorInputMapper::getSources() const {
     return 0;
 }
 

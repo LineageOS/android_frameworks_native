@@ -98,6 +98,7 @@ struct LayerCreationArgs {
     uid_t callingUid;
     uint32_t textureName;
     std::optional<uint32_t> sequence = std::nullopt;
+    bool addToRoot = true;
 };
 
 class Layer : public virtual RefBase, compositionengine::LayerFE {

@@ -39,6 +39,12 @@ struct AChoreographer;
  */
 typedef struct AChoreographer AChoreographer;
 
+
+/**
+ * The identifier of a frame timeline.
+ */
+typedef int64_t AVsyncId;
+
 struct AChoreographerFrameCallbackData;
 /**
  * Opaque type that provides access to an AChoreographerFrameCallbackData object.
@@ -203,7 +209,7 @@ size_t AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex(
 /**
  * The vsync ID token used to map Choreographer data.
  */
-int64_t AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
+AVsyncId AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
         const AChoreographerFrameCallbackData* data, size_t index) __INTRODUCED_IN(33);
 
 /**

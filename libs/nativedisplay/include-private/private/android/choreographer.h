@@ -65,7 +65,7 @@ size_t AChoreographerFrameCallbackData_routeGetFrameTimelinesLength(
         const AChoreographerFrameCallbackData* data);
 size_t AChoreographerFrameCallbackData_routeGetPreferredFrameTimelineIndex(
         const AChoreographerFrameCallbackData* data);
-int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId(
+AVsyncId AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId(
         const AChoreographerFrameCallbackData* data, size_t index);
 int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTimeNanos(
         const AChoreographerFrameCallbackData* data, size_t index);

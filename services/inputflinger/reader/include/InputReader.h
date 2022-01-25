@@ -69,6 +69,8 @@ public:
     int32_t getKeyCodeState(int32_t deviceId, uint32_t sourceMask, int32_t keyCode) override;
     int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask, int32_t sw) override;
 
+    int32_t getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const override;
+
     void toggleCapsLockState(int32_t deviceId) override;
 
     bool hasKeys(int32_t deviceId, uint32_t sourceMask, size_t numCodes, const int32_t* keyCodes,
@@ -239,7 +241,7 @@ private:
                                      const int32_t* keyCodes, uint8_t* outFlags) REQUIRES(mLock);
 
     // find an InputDevice from an InputDevice id
-    InputDevice* findInputDeviceLocked(int32_t deviceId) REQUIRES(mLock);
+    InputDevice* findInputDeviceLocked(int32_t deviceId) const REQUIRES(mLock);
 };
 
 } // namespace android

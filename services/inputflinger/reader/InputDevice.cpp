@@ -475,6 +475,23 @@ bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
     return result;
 }
 
+int32_t InputDevice::getKeyCodeForKeyLocation(int32_t locationKeyCode) const {
+    std::optional<int32_t> result = first_in_mappers<int32_t>(
+            [locationKeyCode](const InputMapper& mapper) -> std::optional<int32_t> const {
+                if (sourcesMatchMask(mapper.getSources(), AINPUT_SOURCE_KEYBOARD)) {
+                    return std::make_optional(mapper.getKeyCodeForKeyLocation(locationKeyCode));
+                }
+                return std::nullopt;
+            });
+    if (!result) {
+        ALOGE("Failed to get key code for key location: No matching InputMapper with source mask "
+              "KEYBOARD found. The provided input device with id %d has sources %s.",
+              getId(), inputEventSourceToString(getSources()).c_str());
+        return AKEYCODE_UNKNOWN;
+    }
+    return *result;
+}
+
 void InputDevice::vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token) {
     for_each_mapper([sequence, repeat, token](InputMapper& mapper) {
         mapper.vibrate(sequence, repeat, token);

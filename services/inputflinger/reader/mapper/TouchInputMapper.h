@@ -138,7 +138,7 @@ public:
     explicit TouchInputMapper(InputDeviceContext& deviceContext);
     ~TouchInputMapper() override;
 
-    uint32_t getSources() override;
+    uint32_t getSources() const override;
     void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
     void dump(std::string& dump) override;
     void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes) override;
