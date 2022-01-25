@@ -70,8 +70,7 @@ public:
     bool addFrameEvent(const sp<Fence>& acquireFence, nsecs_t postedTime,
                        nsecs_t requestedPresentTime) override;
     bool setPosition(float /*x*/, float /*y*/) override;
-    bool setMatrix(const layer_state_t::matrix22_t& /*matrix*/,
-                   bool /*allowNonRectPreservingTransforms*/);
+    bool setMatrix(const layer_state_t::matrix22_t& /*matrix*/);
 
     // Override to ignore legacy layer state properties that are not used by BufferStateLayer
     bool setSize(uint32_t /*w*/, uint32_t /*h*/) override { return false; }

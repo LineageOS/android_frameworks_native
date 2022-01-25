@@ -729,7 +729,7 @@ private:
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
 
-    uint32_t setClientStateLocked(const FrameTimelineInfo&, const ComposerState&,
+    uint32_t setClientStateLocked(const FrameTimelineInfo&, ComposerState&,
                                   int64_t desiredPresentTime, bool isAutoTimestamp,
                                   int64_t postTime, uint32_t permissions) REQUIRES(mStateLock);
 
