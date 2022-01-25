@@ -100,6 +100,7 @@ std::string buildLinearEffectSkSL(const LinearEffect& linearEffect);
 std::vector<tonemap::ShaderUniform> buildLinearEffectUniforms(const LinearEffect& linearEffect,
                                                               const mat4& colorTransform,
                                                               float maxDisplayLuminance,
+                                                              float currentDisplayLuminanceNits,
                                                               float maxLuminance);
 
 } // namespace android::shaders
