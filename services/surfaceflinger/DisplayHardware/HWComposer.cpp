@@ -74,63 +74,6 @@
 namespace hal = android::hardware::graphics::composer::hal;
 
 namespace android {
-namespace {
-
-using android::hardware::Return;
-using android::hardware::Void;
-using android::HWC2::ComposerCallback;
-
-class ComposerCallbackBridge : public hal::IComposerCallback {
-public:
-    ComposerCallbackBridge(ComposerCallback* callback, bool vsyncSwitchingSupported)
-          : mCallback(callback), mVsyncSwitchingSupported(vsyncSwitchingSupported) {}
-
-    Return<void> onHotplug(hal::HWDisplayId display, hal::Connection connection) override {
-        mCallback->onComposerHalHotplug(display, connection);
-        return Void();
-    }
-
-    Return<void> onRefresh(hal::HWDisplayId display) override {
-        mCallback->onComposerHalRefresh(display);
-        return Void();
-    }
-
-    Return<void> onVsync(hal::HWDisplayId display, int64_t timestamp) override {
-        if (!mVsyncSwitchingSupported) {
-            mCallback->onComposerHalVsync(display, timestamp, std::nullopt);
-        } else {
-            ALOGW("Unexpected onVsync callback on composer >= 2.4, ignoring.");
-        }
-        return Void();
-    }
-
-    Return<void> onVsync_2_4(hal::HWDisplayId display, int64_t timestamp,
-                             hal::VsyncPeriodNanos vsyncPeriodNanos) override {
-        if (mVsyncSwitchingSupported) {
-            mCallback->onComposerHalVsync(display, timestamp, vsyncPeriodNanos);
-        } else {
-            ALOGW("Unexpected onVsync_2_4 callback on composer <= 2.3, ignoring.");
-        }
-        return Void();
-    }
-
-    Return<void> onVsyncPeriodTimingChanged(
-            hal::HWDisplayId display, const hal::VsyncPeriodChangeTimeline& timeline) override {
-        mCallback->onComposerHalVsyncPeriodTimingChanged(display, timeline);
-        return Void();
-    }
-
-    Return<void> onSeamlessPossible(hal::HWDisplayId display) override {
-        mCallback->onComposerHalSeamlessPossible(display);
-        return Void();
-    }
-
-private:
-    ComposerCallback* const mCallback;
-    const bool mVsyncSwitchingSupported;
-};
-
-} // namespace
 
 HWComposer::~HWComposer() = default;
 
@@ -149,7 +92,7 @@ HWComposer::~HWComposer() {
     mDisplayData.clear();
 }
 
-void HWComposer::setCallback(HWC2::ComposerCallback* callback) {
+void HWComposer::setCallback(HWC2::ComposerCallback& callback) {
     loadCapabilities();
     loadLayerMetadataSupport();
 
@@ -159,10 +102,7 @@ void HWComposer::setCallback(HWC2::ComposerCallback* callback) {
     }
     mRegisteredCallback = true;
 
-    const bool vsyncSwitchingSupported =
-            mComposer->isSupported(Hwc2::Composer::OptionalFeature::RefreshRateSwitching);
-    mComposer->registerCallback(
-            sp<ComposerCallbackBridge>::make(callback, vsyncSwitchingSupported));
+    mComposer->registerCallback(callback);
 }
 
 bool HWComposer::getDisplayIdentificationData(hal::HWDisplayId hwcDisplayId, uint8_t* outPort,

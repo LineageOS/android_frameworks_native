@@ -89,6 +89,7 @@ struct MockHWC2ComposerCallback final : StrictMock<HWC2::ComposerCallback> {
     MOCK_METHOD2(onComposerHalVsyncPeriodTimingChanged,
                  void(hal::HWDisplayId, const hal::VsyncPeriodChangeTimeline&));
     MOCK_METHOD1(onComposerHalSeamlessPossible, void(hal::HWDisplayId));
+    MOCK_METHOD1(onComposerHalVsyncIdle, void(hal::HWDisplayId));
 };
 
 struct HWComposerSetCallbackTest : testing::Test {
@@ -110,11 +111,9 @@ TEST_F(HWComposerSetCallbackTest, loadsLayerMetadataSupport) {
                             }),
                             Return(hardware::graphics::composer::V2_4::Error::NONE)));
     EXPECT_CALL(*mHal, registerCallback(_));
-    EXPECT_CALL(*mHal, isSupported(Hwc2::Composer::OptionalFeature::RefreshRateSwitching))
-            .WillOnce(Return(false));
 
     impl::HWComposer hwc{std::unique_ptr<Hwc2::Composer>(mHal)};
-    hwc.setCallback(&mCallback);
+    hwc.setCallback(mCallback);
 
     const auto& supported = hwc.getSupportedLayerGenericMetadata();
     EXPECT_EQ(2u, supported.size());
@@ -129,11 +128,9 @@ TEST_F(HWComposerSetCallbackTest, handlesUnsupportedCallToGetLayerGenericMetadat
     EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
             .WillOnce(Return(hardware::graphics::composer::V2_4::Error::UNSUPPORTED));
     EXPECT_CALL(*mHal, registerCallback(_));
-    EXPECT_CALL(*mHal, isSupported(Hwc2::Composer::OptionalFeature::RefreshRateSwitching))
-            .WillOnce(Return(false));
 
     impl::HWComposer hwc{std::unique_ptr<Hwc2::Composer>(mHal)};
-    hwc.setCallback(&mCallback);
+    hwc.setCallback(mCallback);
 
     const auto& supported = hwc.getSupportedLayerGenericMetadata();
     EXPECT_EQ(0u, supported.size());

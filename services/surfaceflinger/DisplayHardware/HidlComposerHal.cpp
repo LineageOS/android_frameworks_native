@@ -30,6 +30,7 @@
 #include <hidl/HidlTransportUtils.h>
 #include <log/log.h>
 #include <utils/Trace.h>
+#include "HWC2.h"
 #include "Hal.h"
 
 #include <algorithm>
@@ -44,6 +45,63 @@ using hardware::hidl_vec;
 using hardware::Return;
 
 namespace Hwc2 {
+namespace {
+
+using android::hardware::Return;
+using android::hardware::Void;
+using android::HWC2::ComposerCallback;
+
+class ComposerCallbackBridge : public IComposerCallback {
+public:
+    ComposerCallbackBridge(ComposerCallback& callback, bool vsyncSwitchingSupported)
+          : mCallback(callback), mVsyncSwitchingSupported(vsyncSwitchingSupported) {}
+
+    Return<void> onHotplug(Display display, Connection connection) override {
+        mCallback.onComposerHalHotplug(display, connection);
+        return Void();
+    }
+
+    Return<void> onRefresh(Display display) override {
+        mCallback.onComposerHalRefresh(display);
+        return Void();
+    }
+
+    Return<void> onVsync(Display display, int64_t timestamp) override {
+        if (!mVsyncSwitchingSupported) {
+            mCallback.onComposerHalVsync(display, timestamp, std::nullopt);
+        } else {
+            ALOGW("Unexpected onVsync callback on composer >= 2.4, ignoring.");
+        }
+        return Void();
+    }
+
+    Return<void> onVsync_2_4(Display display, int64_t timestamp,
+                             VsyncPeriodNanos vsyncPeriodNanos) override {
+        if (mVsyncSwitchingSupported) {
+            mCallback.onComposerHalVsync(display, timestamp, vsyncPeriodNanos);
+        } else {
+            ALOGW("Unexpected onVsync_2_4 callback on composer <= 2.3, ignoring.");
+        }
+        return Void();
+    }
+
+    Return<void> onVsyncPeriodTimingChanged(Display display,
+                                            const VsyncPeriodChangeTimeline& timeline) override {
+        mCallback.onComposerHalVsyncPeriodTimingChanged(display, timeline);
+        return Void();
+    }
+
+    Return<void> onSeamlessPossible(Display display) override {
+        mCallback.onComposerHalSeamlessPossible(display);
+        return Void();
+    }
+
+private:
+    ComposerCallback& mCallback;
+    const bool mVsyncSwitchingSupported;
+};
+
+} // namespace
 
 HidlComposer::~HidlComposer() = default;
 
@@ -1244,6 +1302,13 @@ Error HidlComposer::setLayerWhitePointNits(Display, Layer, float) {
 Error HidlComposer::setLayerBlockingRegion(Display, Layer,
                                            const std::vector<IComposerClient::Rect>&) {
     return Error::NONE;
+}
+
+void HidlComposer::registerCallback(ComposerCallback& callback) {
+    const bool vsyncSwitchingSupported =
+            isSupported(Hwc2::Composer::OptionalFeature::RefreshRateSwitching);
+
+    registerCallback(sp<ComposerCallbackBridge>::make(callback, vsyncSwitchingSupported));
 }
 
 CommandReader::~CommandReader() {

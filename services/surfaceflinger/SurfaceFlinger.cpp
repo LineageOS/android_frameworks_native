@@ -849,7 +849,7 @@ void SurfaceFlinger::init() {
 
     mCompositionEngine->setTimeStats(mTimeStats);
     mCompositionEngine->setHwComposer(getFactory().createHWComposer(mHwcServiceName));
-    mCompositionEngine->getHwComposer().setCallback(this);
+    mCompositionEngine->getHwComposer().setCallback(*this);
     ClientCache::getInstance().setRenderEngine(&getRenderEngine());
 
     if (base::GetBoolProperty("debug.sf.enable_hwc_vds"s, false)) {
@@ -1960,6 +1960,11 @@ void SurfaceFlinger::onComposerHalSeamlessPossible(hal::HWDisplayId) {
 void SurfaceFlinger::onComposerHalRefresh(hal::HWDisplayId) {
     Mutex::Autolock lock(mStateLock);
     scheduleComposite(FrameHint::kNone);
+}
+
+void SurfaceFlinger::onComposerHalVsyncIdle(hal::HWDisplayId) {
+    // TODO(b/198106220): force enable HWVsync to avoid drift problem during
+    // idle.
 }
 
 void SurfaceFlinger::setVsyncEnabled(bool enabled) {
