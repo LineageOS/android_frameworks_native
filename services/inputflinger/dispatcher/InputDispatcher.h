@@ -420,6 +420,9 @@ private:
     std::string getApplicationWindowLabel(const sp<InputApplicationHandle>& applicationHandle,
                                           const sp<InputWindowHandle>& windowHandle);
 
+    bool shouldDropInput(const EventEntry& entry, const sp<InputWindowHandle>& windowHandle) const
+            REQUIRES(mLock);
+
     // Manage the dispatch cycle for a single connection.
     // These methods are deliberately not Interruptible because doing all of the work
     // with the mutex held makes it easier to ensure that connection invariants are maintained.
