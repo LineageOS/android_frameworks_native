@@ -785,6 +785,8 @@ public:
 
     void setFocus(bool hasFocus) { mInfo.hasFocus = hasFocus; }
 
+    void setInputFeatures(int32_t inputFeatures) { mInfo.inputFeatures = inputFeatures; }
+
     void setDispatchingTimeout(std::chrono::nanoseconds timeout) {
         mInfo.dispatchingTimeout = timeout.count();
     }
@@ -902,6 +904,8 @@ public:
         mInfo.ownerPid = ownerPid;
         mInfo.ownerUid = ownerUid;
     }
+
+    void setFlags(int32_t layoutParamsFlags) { mInfo.layoutParamsFlags = layoutParamsFlags; }
 
 private:
     const std::string mName;
@@ -3110,6 +3114,44 @@ TEST_F(InputDispatcherMultiWindowAnr, SplitTouch_SingleWindowAnr) {
     ASSERT_TRUE(mDispatcher->waitForIdle());
     mUnfocusedWindow->assertNoEvents();
     mFocusedWindow->assertNoEvents();
+}
+
+class InputDispatcherDropInputFeatureTest : public InputDispatcherTest {};
+
+TEST_F(InputDispatcherDropInputFeatureTest, WindowDropsInput) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
+    window->setInputFeatures(InputWindowInfo::INPUT_FEATURE_DROP_INPUT);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+    window->setFocus(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
+
+    // With the flag set, window should not get any input
+    NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyKey(&keyArgs);
+    window->assertNoEvents();
+
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+    window->assertNoEvents();
+
+    // With the flag cleared, the window should get input
+    window->setInputFeatures(0);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyKey(&keyArgs);
+    window->consumeKeyUp(ADISPLAY_ID_DEFAULT);
+
+    motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                    ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    window->assertNoEvents();
 }
 
 } // namespace android::inputdispatcher
