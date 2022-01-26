@@ -183,7 +183,6 @@ protected:
     RefreshRate mExpected120Config = {HWC_CONFIG_ID_120, mConfig120, Fps(120),
                                       RefreshRate::ConstructorTag(0)};
 
-private:
     DisplayModePtr createDisplayMode(DisplayModeId modeId, int32_t group, int64_t vsyncPeriod,
                                      ui::Size resolution = ui::Size());
 };
@@ -2175,6 +2174,44 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_FractionalRefreshRates_ExactAn
 
     EXPECT_EQ(mExpected60Config,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+}
+
+// b/190578904
+TEST_F(RefreshRateConfigsTest, getBestRefreshRate_deviceWithCloseRefreshRates) {
+    constexpr int kMinRefreshRate = 10;
+    constexpr int kMaxRefreshRate = 240;
+
+    DisplayModes displayModes;
+    for (int fps = kMinRefreshRate; fps < kMaxRefreshRate; fps++) {
+        constexpr int32_t kGroup = 0;
+        const auto refreshRate = Fps(static_cast<float>(fps));
+        displayModes.push_back(
+                createDisplayMode(DisplayModeId(fps), kGroup, refreshRate.getPeriodNsecs()));
+    }
+
+    const RefreshRateConfigs::GlobalSignals globalSignals = {.touch = false, .idle = false};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(displayModes,
+                                                 /*currentConfigId=*/displayModes[0]->getId());
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    const auto testRefreshRate = [&](Fps fps, LayerVoteType vote) {
+        layers[0].desiredRefreshRate = fps;
+        layers[0].vote = vote;
+        EXPECT_EQ(fps.getIntValue(),
+                  refreshRateConfigs->getBestRefreshRate(layers, globalSignals)
+                          .getFps()
+                          .getIntValue())
+                << "Failed for " << RefreshRateConfigs::layerVoteTypeString(vote);
+    };
+
+    for (int fps = kMinRefreshRate; fps < kMaxRefreshRate; fps++) {
+        const auto refreshRate = Fps(static_cast<float>(fps));
+        testRefreshRate(refreshRate, LayerVoteType::Heuristic);
+        testRefreshRate(refreshRate, LayerVoteType::ExplicitDefault);
+        testRefreshRate(refreshRate, LayerVoteType::ExplicitExactOrMultiple);
+        testRefreshRate(refreshRate, LayerVoteType::ExplicitExact);
+    }
 }
 
 TEST_F(RefreshRateConfigsTest, testComparisonOperator) {
