@@ -252,6 +252,13 @@ void InputDeviceInfo::addLightInfo(const InputDeviceLightInfo& info) {
     mLights.insert_or_assign(info.id, info);
 }
 
+void InputDeviceInfo::setKeyboardType(int32_t keyboardType) {
+    static_assert(AINPUT_KEYBOARD_TYPE_NONE < AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC);
+    static_assert(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC < AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    // There can be multiple subdevices with different keyboard types, set it to the highest type
+    mKeyboardType = std::max(mKeyboardType, keyboardType);
+}
+
 std::vector<InputDeviceSensorInfo> InputDeviceInfo::getSensors() {
     std::vector<InputDeviceSensorInfo> infos;
     infos.reserve(mSensors.size());

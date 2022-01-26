@@ -877,6 +877,7 @@ enum {
  * Keyboard types.
  *
  * Refer to the documentation on android.view.InputDevice for more details.
+ * Note: When adding a new keyboard type here InputDeviceInfo::setKeyboardType needs to be updated.
  */
 enum {
     /** none */
