@@ -235,7 +235,7 @@ float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& laye
     // The layer frame rate is not a divider of the refresh rate,
     // there is a small penalty attached to the score to favor the frame rates
     // the exactly matches the display refresh rate or a multiple.
-    constexpr float kNonExactMatchingPenalty = 0.99f;
+    constexpr float kNonExactMatchingPenalty = 0.95f;
     return calculateNonExactMatchingLayerScoreLocked(layer, refreshRate) * seamlessness *
             kNonExactMatchingPenalty;
 }

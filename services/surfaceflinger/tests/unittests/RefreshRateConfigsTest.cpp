@@ -2214,6 +2214,39 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_deviceWithCloseRefreshRates) {
     }
 }
 
+// b/190578904
+TEST_F(RefreshRateConfigsTest, getBestRefreshRate_conflictingVotes) {
+    const DisplayModes displayModes = {
+            createDisplayMode(DisplayModeId(0), 0, Fps(43.0f).getPeriodNsecs()),
+            createDisplayMode(DisplayModeId(1), 0, Fps(53.0f).getPeriodNsecs()),
+            createDisplayMode(DisplayModeId(2), 0, Fps(55.0f).getPeriodNsecs()),
+            createDisplayMode(DisplayModeId(3), 0, Fps(60.0f).getPeriodNsecs()),
+    };
+
+    const RefreshRateConfigs::GlobalSignals globalSignals = {.touch = false, .idle = false};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(displayModes,
+                                                 /*currentConfigId=*/displayModes[0]->getId());
+
+    const auto layers = std::vector<LayerRequirement>{
+            LayerRequirement{
+                    .vote = LayerVoteType::ExplicitDefault,
+                    .desiredRefreshRate = Fps(43.0f),
+                    .seamlessness = Seamlessness::SeamedAndSeamless,
+                    .weight = 0.41f,
+            },
+            LayerRequirement{
+                    .vote = LayerVoteType::ExplicitExactOrMultiple,
+                    .desiredRefreshRate = Fps(53.0f),
+                    .seamlessness = Seamlessness::SeamedAndSeamless,
+                    .weight = 0.41f,
+            },
+    };
+
+    EXPECT_EQ(53,
+              refreshRateConfigs->getBestRefreshRate(layers, globalSignals).getFps().getIntValue());
+}
+
 TEST_F(RefreshRateConfigsTest, testComparisonOperator) {
     EXPECT_TRUE(mExpected60Config < mExpected90Config);
     EXPECT_FALSE(mExpected60Config < mExpected60Config);
