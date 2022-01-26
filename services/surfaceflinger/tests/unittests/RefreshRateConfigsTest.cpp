@@ -98,9 +98,15 @@ protected:
     static inline const DisplayModeId HWC_CONFIG_ID_30 = DisplayModeId(4);
     static inline const DisplayModeId HWC_CONFIG_ID_25 = DisplayModeId(5);
     static inline const DisplayModeId HWC_CONFIG_ID_50 = DisplayModeId(6);
+    static inline const DisplayModeId HWC_CONFIG_ID_24 = DisplayModeId(7);
+    static inline const DisplayModeId HWC_CONFIG_ID_24_FRAC = DisplayModeId(8);
+    static inline const DisplayModeId HWC_CONFIG_ID_30_FRAC = DisplayModeId(9);
+    static inline const DisplayModeId HWC_CONFIG_ID_60_FRAC = DisplayModeId(10);
 
     // Test configs
     DisplayModePtr mConfig60 = createDisplayMode(HWC_CONFIG_ID_60, 0, Fps(60.0f).getPeriodNsecs());
+    DisplayModePtr mConfig60Frac =
+            createDisplayMode(HWC_CONFIG_ID_60_FRAC, 0, Fps(59.94f).getPeriodNsecs());
     DisplayModePtr mConfig90 = createDisplayMode(HWC_CONFIG_ID_90, 0, Fps(90.0f).getPeriodNsecs());
     DisplayModePtr mConfig90DifferentGroup =
             createDisplayMode(HWC_CONFIG_ID_90, 1, Fps(90.0f).getPeriodNsecs());
@@ -116,9 +122,15 @@ protected:
     DisplayModePtr mConfig30 = createDisplayMode(HWC_CONFIG_ID_30, 0, Fps(30.0f).getPeriodNsecs());
     DisplayModePtr mConfig30DifferentGroup =
             createDisplayMode(HWC_CONFIG_ID_30, 1, Fps(30.0f).getPeriodNsecs());
+    DisplayModePtr mConfig30Frac =
+            createDisplayMode(HWC_CONFIG_ID_30_FRAC, 0, Fps(29.97f).getPeriodNsecs());
+    DisplayModePtr mConfig25 = createDisplayMode(HWC_CONFIG_ID_25, 0, Fps(25.0f).getPeriodNsecs());
     DisplayModePtr mConfig25DifferentGroup =
             createDisplayMode(HWC_CONFIG_ID_25, 1, Fps(25.0f).getPeriodNsecs());
     DisplayModePtr mConfig50 = createDisplayMode(HWC_CONFIG_ID_50, 0, Fps(50.0f).getPeriodNsecs());
+    DisplayModePtr mConfig24 = createDisplayMode(HWC_CONFIG_ID_24, 0, Fps(24.0f).getPeriodNsecs());
+    DisplayModePtr mConfig24Frac =
+            createDisplayMode(HWC_CONFIG_ID_24_FRAC, 0, Fps(23.976f).getPeriodNsecs());
 
     // Test device configurations
     // The positions of the configs in the arrays below MUST match their IDs. For example,
@@ -145,6 +157,11 @@ protected:
                                        mConfig50};
     DisplayModes m60_120Device = {mConfig60, mConfig120};
 
+    // This is a typical TV configuration.
+    DisplayModes m24_25_30_50_60WithFracDevice = {mConfig24, mConfig24Frac, mConfig25,
+                                                  mConfig30, mConfig30Frac, mConfig50,
+                                                  mConfig60, mConfig60Frac};
+
     // Expected RefreshRate objects
     RefreshRate mExpected60Config = {mConfig60, RefreshRate::ConstructorTag(0)};
     RefreshRate mExpectedAlmost60Config = {createDisplayMode(HWC_CONFIG_ID_60, 0, 16666665),
@@ -158,7 +175,6 @@ protected:
     RefreshRate mExpected30Config = {mConfig30, RefreshRate::ConstructorTag(0)};
     RefreshRate mExpected120Config = {mConfig120, RefreshRate::ConstructorTag(0)};
 
-private:
     DisplayModePtr createDisplayMode(DisplayModeId modeId, int32_t group, int64_t vsyncPeriod,
                                      ui::Size resolution = ui::Size());
 };
@@ -1230,7 +1246,109 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_ExplicitDefault) {
         const auto& refreshRate =
                 refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false});
         EXPECT_TRUE(refreshRate.getFps().equalsWithMargin(Fps(test.second)))
-                << "Expecting " << test.first << "fps => " << test.second << "Hz";
+                << "Expecting " << test.first << "fps => " << test.second << "Hz"
+                << " but it was " << refreshRate.getFps();
+    }
+}
+
+TEST_F(RefreshRateConfigsTest,
+       getBestRefreshRate_ExplicitExactOrMultiple_WithFractionalRefreshRates) {
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    auto& lr = layers[0];
+
+    // Test that 23.976 will choose 24 if 23.976 is not supported
+    {
+        android::DisplayModes modes = {mConfig24,     mConfig25, mConfig30,
+                                       mConfig30Frac, mConfig60, mConfig60Frac};
+        auto refreshRateConfigs =
+                std::make_unique<RefreshRateConfigs>(modes, /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+        lr.vote = LayerVoteType::ExplicitExactOrMultiple;
+        lr.desiredRefreshRate = Fps(23.976f);
+        lr.name = "ExplicitExactOrMultiple 23.976 fps";
+        EXPECT_EQ(HWC_CONFIG_ID_24,
+                  refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                          .getModeId());
+    }
+
+    // Test that 24 will choose 23.976 if 24 is not supported
+    {
+        android::DisplayModes modes = {mConfig24Frac, mConfig25, mConfig30,
+                                       mConfig30Frac, mConfig60, mConfig60Frac};
+        auto refreshRateConfigs =
+                std::make_unique<RefreshRateConfigs>(modes, /*currentConfigId=*/HWC_CONFIG_ID_60);
+        lr.desiredRefreshRate = Fps(24.f);
+        lr.name = "ExplicitExactOrMultiple 24 fps";
+        EXPECT_EQ(HWC_CONFIG_ID_24_FRAC,
+                  refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                          .getModeId());
+    }
+
+    // Test that 29.97 will prefer 59.94 over 60 and 30
+    {
+        android::DisplayModes modes = {mConfig24, mConfig24Frac, mConfig25,
+                                       mConfig30, mConfig60,     mConfig60Frac};
+        auto refreshRateConfigs =
+                std::make_unique<RefreshRateConfigs>(modes, /*currentConfigId=*/HWC_CONFIG_ID_60);
+        lr.desiredRefreshRate = Fps(29.97f);
+        lr.name = "ExplicitExactOrMultiple 29.97f fps";
+        EXPECT_EQ(HWC_CONFIG_ID_60_FRAC,
+                  refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                          .getModeId());
+    }
+}
+
+TEST_F(RefreshRateConfigsTest, getBestRefreshRate_ExplicitExact_WithFractionalRefreshRates) {
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    auto& lr = layers[0];
+
+    // Test that voting for supported refresh rate will select this refresh rate
+    {
+        auto refreshRateConfigs =
+                std::make_unique<RefreshRateConfigs>(m24_25_30_50_60WithFracDevice,
+                                                     /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+        for (auto desiredRefreshRate : {23.976f, 24.f, 25.f, 29.97f, 30.f, 50.f, 59.94f, 60.f}) {
+            lr.vote = LayerVoteType::ExplicitExact;
+            lr.desiredRefreshRate = Fps(desiredRefreshRate);
+            std::stringstream ss;
+            ss << "ExplicitExact " << desiredRefreshRate << " fps";
+            lr.name = ss.str();
+
+            auto selecteRefreshRate =
+                    refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false});
+
+            EXPECT_TRUE(selecteRefreshRate.getFps().equalsWithMargin(lr.desiredRefreshRate))
+                    << "Expecting " << lr.desiredRefreshRate << " but it was "
+                    << selecteRefreshRate.getFps();
+        }
+    }
+
+    // Test that 23.976 will choose 24 if 23.976 is not supported
+    {
+        android::DisplayModes modes = {mConfig24,     mConfig25, mConfig30,
+                                       mConfig30Frac, mConfig60, mConfig60Frac};
+        auto refreshRateConfigs =
+                std::make_unique<RefreshRateConfigs>(modes, /*currentConfigId=*/HWC_CONFIG_ID_60);
+        lr.vote = LayerVoteType::ExplicitExact;
+        lr.desiredRefreshRate = Fps(23.976f);
+        lr.name = "ExplicitExact 23.976 fps";
+        EXPECT_EQ(HWC_CONFIG_ID_24,
+                  refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                          .getModeId());
+    }
+
+    // Test that 24 will choose 23.976 if 24 is not supported
+    {
+        android::DisplayModes modes = {mConfig24Frac, mConfig25, mConfig30,
+                                       mConfig30Frac, mConfig60, mConfig60Frac};
+        auto refreshRateConfigs =
+                std::make_unique<RefreshRateConfigs>(modes, /*currentConfigId=*/HWC_CONFIG_ID_60);
+        lr.desiredRefreshRate = Fps(24.f);
+        lr.name = "ExplicitExact 24 fps";
+        EXPECT_EQ(HWC_CONFIG_ID_24_FRAC,
+                  refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                          .getModeId());
     }
 }
 
@@ -2028,6 +2146,100 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_ExplicitExactTouchBoost) {
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = true, .idle = false}));
 }
 
+TEST_F(RefreshRateConfigsTest, getBestRefreshRate_FractionalRefreshRates_ExactAndDefault) {
+    RefreshRateConfigs::Config config = {.enableFrameRateOverride = true};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m24_25_30_50_60WithFracDevice,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60, config);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 0.5f},
+                                                LayerRequirement{.weight = 0.5f}};
+    auto& explicitDefaultLayer = layers[0];
+    auto& explicitExactOrMultipleLayer = layers[1];
+
+    explicitExactOrMultipleLayer.vote = LayerVoteType::ExplicitExactOrMultiple;
+    explicitExactOrMultipleLayer.name = "ExplicitExactOrMultiple";
+    explicitExactOrMultipleLayer.desiredRefreshRate = Fps(60);
+
+    explicitDefaultLayer.vote = LayerVoteType::ExplicitDefault;
+    explicitDefaultLayer.name = "ExplicitDefault";
+    explicitDefaultLayer.desiredRefreshRate = Fps(59.94f);
+
+    EXPECT_EQ(mExpected60Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+}
+
+// b/190578904
+TEST_F(RefreshRateConfigsTest, getBestRefreshRate_deviceWithCloseRefreshRates) {
+    constexpr int kMinRefreshRate = 10;
+    constexpr int kMaxRefreshRate = 240;
+
+    DisplayModes displayModes;
+    for (int fps = kMinRefreshRate; fps < kMaxRefreshRate; fps++) {
+        constexpr int32_t kGroup = 0;
+        const auto refreshRate = Fps(static_cast<float>(fps));
+        displayModes.push_back(
+                createDisplayMode(DisplayModeId(fps), kGroup, refreshRate.getPeriodNsecs()));
+    }
+
+    const RefreshRateConfigs::GlobalSignals globalSignals = {.touch = false, .idle = false};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(displayModes,
+                                                 /*currentConfigId=*/displayModes[0]->getId());
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    const auto testRefreshRate = [&](Fps fps, LayerVoteType vote) {
+        layers[0].desiredRefreshRate = fps;
+        layers[0].vote = vote;
+        EXPECT_EQ(fps.getIntValue(),
+                  refreshRateConfigs->getBestRefreshRate(layers, globalSignals)
+                          .getFps()
+                          .getIntValue())
+                << "Failed for " << RefreshRateConfigs::layerVoteTypeString(vote);
+    };
+
+    for (int fps = kMinRefreshRate; fps < kMaxRefreshRate; fps++) {
+        const auto refreshRate = Fps(static_cast<float>(fps));
+        testRefreshRate(refreshRate, LayerVoteType::Heuristic);
+        testRefreshRate(refreshRate, LayerVoteType::ExplicitDefault);
+        testRefreshRate(refreshRate, LayerVoteType::ExplicitExactOrMultiple);
+        testRefreshRate(refreshRate, LayerVoteType::ExplicitExact);
+    }
+}
+
+// b/190578904
+TEST_F(RefreshRateConfigsTest, getBestRefreshRate_conflictingVotes) {
+    const DisplayModes displayModes = {
+            createDisplayMode(DisplayModeId(0), 0, Fps(43.0f).getPeriodNsecs()),
+            createDisplayMode(DisplayModeId(1), 0, Fps(53.0f).getPeriodNsecs()),
+            createDisplayMode(DisplayModeId(2), 0, Fps(55.0f).getPeriodNsecs()),
+            createDisplayMode(DisplayModeId(3), 0, Fps(60.0f).getPeriodNsecs()),
+    };
+
+    const RefreshRateConfigs::GlobalSignals globalSignals = {.touch = false, .idle = false};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(displayModes,
+                                                 /*currentConfigId=*/displayModes[0]->getId());
+
+    const auto layers = std::vector<LayerRequirement>{
+            LayerRequirement{
+                    .vote = LayerVoteType::ExplicitDefault,
+                    .desiredRefreshRate = Fps(43.0f),
+                    .seamlessness = Seamlessness::SeamedAndSeamless,
+                    .weight = 0.41f,
+            },
+            LayerRequirement{
+                    .vote = LayerVoteType::ExplicitExactOrMultiple,
+                    .desiredRefreshRate = Fps(53.0f),
+                    .seamlessness = Seamlessness::SeamedAndSeamless,
+                    .weight = 0.41f,
+            },
+    };
+
+    EXPECT_EQ(53,
+              refreshRateConfigs->getBestRefreshRate(layers, globalSignals).getFps().getIntValue());
+}
+
 TEST_F(RefreshRateConfigsTest, testComparisonOperator) {
     EXPECT_TRUE(mExpected60Config < mExpected90Config);
     EXPECT_FALSE(mExpected60Config < mExpected60Config);
@@ -2121,6 +2333,33 @@ TEST_F(RefreshRateConfigsTest, getFrameRateDivider) {
     EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivider(Fps(24.f), Fps(23.976f)));
     EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivider(Fps(30.f), Fps(29.97f)));
     EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivider(Fps(60.f), Fps(59.94f)));
+}
+
+TEST_F(RefreshRateConfigsTest, isFractionalPairOrMultiple) {
+    EXPECT_TRUE(RefreshRateConfigs::isFractionalPairOrMultiple(Fps(23.976f), Fps(24.f)));
+    EXPECT_TRUE(RefreshRateConfigs::isFractionalPairOrMultiple(Fps(24.f), Fps(23.976f)));
+
+    EXPECT_TRUE(RefreshRateConfigs::isFractionalPairOrMultiple(Fps(29.97f), Fps(30.f)));
+    EXPECT_TRUE(RefreshRateConfigs::isFractionalPairOrMultiple(Fps(30.f), Fps(29.97f)));
+
+    EXPECT_TRUE(RefreshRateConfigs::isFractionalPairOrMultiple(Fps(59.94f), Fps(60.f)));
+    EXPECT_TRUE(RefreshRateConfigs::isFractionalPairOrMultiple(Fps(60.f), Fps(59.94f)));
+
+    EXPECT_TRUE(RefreshRateConfigs::isFractionalPairOrMultiple(Fps(29.97f), Fps(60.f)));
+    EXPECT_TRUE(RefreshRateConfigs::isFractionalPairOrMultiple(Fps(60.f), Fps(29.97f)));
+
+    EXPECT_TRUE(RefreshRateConfigs::isFractionalPairOrMultiple(Fps(59.94f), Fps(30.f)));
+    EXPECT_TRUE(RefreshRateConfigs::isFractionalPairOrMultiple(Fps(30.f), Fps(59.94f)));
+
+    const std::vector<float> refreshRates = {23.976f, 24.f, 25.f, 29.97f, 30.f, 50.f, 59.94f, 60.f};
+    for (auto refreshRate : refreshRates) {
+        EXPECT_FALSE(
+                RefreshRateConfigs::isFractionalPairOrMultiple(Fps(refreshRate), Fps(refreshRate)));
+    }
+
+    EXPECT_FALSE(RefreshRateConfigs::isFractionalPairOrMultiple(Fps(24.f), Fps(25.f)));
+    EXPECT_FALSE(RefreshRateConfigs::isFractionalPairOrMultiple(Fps(23.978f), Fps(25.f)));
+    EXPECT_FALSE(RefreshRateConfigs::isFractionalPairOrMultiple(Fps(29.97f), Fps(59.94f)));
 }
 
 TEST_F(RefreshRateConfigsTest, getFrameRateOverrides_noLayers) {
