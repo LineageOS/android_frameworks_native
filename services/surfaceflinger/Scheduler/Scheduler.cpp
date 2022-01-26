@@ -262,8 +262,12 @@ void Scheduler::onScreenReleased(ConnectionHandle handle) {
 }
 
 void Scheduler::onFrameRateOverridesChanged(ConnectionHandle handle, PhysicalDisplayId displayId) {
+    const auto refreshRateConfigs = holdRefreshRateConfigs();
+    const bool supportsFrameRateOverrideByContent =
+            refreshRateConfigs->supportsFrameRateOverrideByContent();
+
     std::vector<FrameRateOverride> overrides =
-            mFrameRateOverrideMappings.getAllFrameRateOverrides();
+            mFrameRateOverrideMappings.getAllFrameRateOverrides(supportsFrameRateOverrideByContent);
 
     android::EventThread* thread;
     {
@@ -681,10 +685,10 @@ void Scheduler::dumpVsync(std::string& out) const {
 
 bool Scheduler::updateFrameRateOverrides(GlobalSignals consideredSignals, Fps displayRefreshRate) {
     const auto refreshRateConfigs = holdRefreshRateConfigs();
-    if (!refreshRateConfigs->supportsFrameRateOverrideByContent()) {
-        return false;
-    }
 
+    // we always update mFrameRateOverridesByContent here
+    // supportsFrameRateOverridesByContent will be checked
+    // when getting FrameRateOverrides from mFrameRateOverrideMappings
     if (!consideredSignals.idle) {
         const auto frameRateOverrides =
                 refreshRateConfigs->getFrameRateOverrides(mPolicy.contentRequirements,

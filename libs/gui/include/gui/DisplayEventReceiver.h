@@ -177,6 +177,11 @@ private:
     std::unique_ptr<gui::BitTube> mDataChannel;
 };
 
+inline bool operator==(DisplayEventReceiver::Event::FrameRateOverride lhs,
+                       DisplayEventReceiver::Event::FrameRateOverride rhs) {
+    return (lhs.uid == rhs.uid) && std::abs(lhs.frameRateHz - rhs.frameRateHz) < 0.001f;
+}
+
 // ----------------------------------------------------------------------------
 }; // namespace android
 
