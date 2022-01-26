@@ -269,15 +269,14 @@ private:
 
     void setVsyncPeriod(nsecs_t period);
 
-    // This function checks whether individual features that are affecting the refresh rate
-    // selection were initialized, prioritizes them, and calculates the DisplayModeId
-    // for the suggested refresh rate.
-    DisplayModePtr calculateRefreshRateModeId(
-            RefreshRateConfigs::GlobalSignals* consideredSignals = nullptr) REQUIRES(mPolicyLock);
+    using GlobalSignals = RefreshRateConfigs::GlobalSignals;
+
+    // Returns the display mode that fulfills the policy, and the signals that were considered.
+    std::pair<DisplayModePtr, GlobalSignals> chooseDisplayMode() REQUIRES(mPolicyLock);
+
+    bool updateFrameRateOverrides(GlobalSignals, Fps displayRefreshRate) REQUIRES(mPolicyLock);
 
     void dispatchCachedReportedMode() REQUIRES(mPolicyLock) EXCLUDES(mRefreshRateConfigsLock);
-    bool updateFrameRateOverrides(RefreshRateConfigs::GlobalSignals, Fps displayRefreshRate)
-            REQUIRES(mPolicyLock);
 
     impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const
             EXCLUDES(mRefreshRateConfigsLock);
