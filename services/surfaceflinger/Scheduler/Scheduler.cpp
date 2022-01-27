@@ -537,18 +537,19 @@ void Scheduler::chooseRefreshRateForContent() {
 
     ATRACE_CALL();
 
-    const auto refreshRateConfigs = holdRefreshRateConfigs();
-    scheduler::LayerHistory::Summary summary =
-            mLayerHistory.summarize(*refreshRateConfigs, systemTime());
-    scheduler::RefreshRateConfigs::GlobalSignals consideredSignals;
     DisplayModePtr newMode;
+    GlobalSignals consideredSignals;
+
     bool frameRateChanged;
     bool frameRateOverridesChanged;
+
+    const auto refreshRateConfigs = holdRefreshRateConfigs();
+    LayerHistory::Summary summary = mLayerHistory.summarize(*refreshRateConfigs, systemTime());
     {
         std::lock_guard<std::mutex> lock(mPolicyLock);
-        mPolicy.contentRequirements = summary;
+        mPolicy.contentRequirements = std::move(summary);
 
-        newMode = calculateRefreshRateModeId(&consideredSignals);
+        std::tie(newMode, consideredSignals) = chooseDisplayMode();
         frameRateOverridesChanged = updateFrameRateOverrides(consideredSignals, newMode->getFps());
 
         if (mPolicy.mode == newMode) {
@@ -678,8 +679,7 @@ void Scheduler::dumpVsync(std::string& out) const {
     mVsyncSchedule->dump(out);
 }
 
-bool Scheduler::updateFrameRateOverrides(
-        scheduler::RefreshRateConfigs::GlobalSignals consideredSignals, Fps displayRefreshRate) {
+bool Scheduler::updateFrameRateOverrides(GlobalSignals consideredSignals, Fps displayRefreshRate) {
     const auto refreshRateConfigs = holdRefreshRateConfigs();
     if (!refreshRateConfigs->supportsFrameRateOverrideByContent()) {
         return false;
@@ -697,9 +697,11 @@ bool Scheduler::updateFrameRateOverrides(
 template <class T>
 bool Scheduler::handleTimerStateChanged(T* currentState, T newState) {
     DisplayModePtr newMode;
+    GlobalSignals consideredSignals;
+
     bool refreshRateChanged = false;
     bool frameRateOverridesChanged;
-    scheduler::RefreshRateConfigs::GlobalSignals consideredSignals;
+
     const auto refreshRateConfigs = holdRefreshRateConfigs();
     {
         std::lock_guard<std::mutex> lock(mPolicyLock);
@@ -707,7 +709,7 @@ bool Scheduler::handleTimerStateChanged(T* currentState, T newState) {
             return false;
         }
         *currentState = newState;
-        newMode = calculateRefreshRateModeId(&consideredSignals);
+        std::tie(newMode, consideredSignals) = chooseDisplayMode();
         frameRateOverridesChanged = updateFrameRateOverrides(consideredSignals, newMode->getFps());
         if (mPolicy.mode == newMode) {
             // We don't need to change the display mode, but we might need to send an event
@@ -733,33 +735,33 @@ bool Scheduler::handleTimerStateChanged(T* currentState, T newState) {
     return consideredSignals.touch;
 }
 
-DisplayModePtr Scheduler::calculateRefreshRateModeId(
-        scheduler::RefreshRateConfigs::GlobalSignals* consideredSignals) {
+auto Scheduler::chooseDisplayMode() -> std::pair<DisplayModePtr, GlobalSignals> {
     ATRACE_CALL();
-    if (consideredSignals) *consideredSignals = {};
 
-    const auto refreshRateConfigs = holdRefreshRateConfigs();
+    const auto configs = holdRefreshRateConfigs();
+
     // If Display Power is not in normal operation we want to be in performance mode. When coming
     // back to normal mode, a grace period is given with DisplayPowerTimer.
     if (mDisplayPowerTimer &&
         (!mPolicy.isDisplayPowerStateNormal || mPolicy.displayPowerTimer == TimerState::Reset)) {
-        return refreshRateConfigs->getMaxRefreshRateByPolicy().getMode();
+        constexpr GlobalSignals kNoSignals;
+        return {configs->getMaxRefreshRateByPolicy().getMode(), kNoSignals};
     }
 
-    const bool touchActive = mTouchTimer && mPolicy.touch == TouchState::Active;
-    const bool idle = mPolicy.idleTimer == TimerState::Expired;
+    const GlobalSignals signals{.touch = mTouchTimer && mPolicy.touch == TouchState::Active,
+                                .idle = mPolicy.idleTimer == TimerState::Expired};
 
-    return refreshRateConfigs
-            ->getBestRefreshRate(mPolicy.contentRequirements, {.touch = touchActive, .idle = idle},
-                                 consideredSignals)
-            .getMode();
+    const auto [refreshRate, consideredSignals] =
+            configs->getBestRefreshRate(mPolicy.contentRequirements, signals);
+
+    return {refreshRate.getMode(), consideredSignals};
 }
 
 DisplayModePtr Scheduler::getPreferredDisplayMode() {
     std::lock_guard<std::mutex> lock(mPolicyLock);
-    // Make sure that the default mode ID is first updated, before returned.
+    // Make sure the stored mode is up to date.
     if (mPolicy.mode) {
-        mPolicy.mode = calculateRefreshRateModeId();
+        mPolicy.mode = chooseDisplayMode().first;
     }
     return mPolicy.mode;
 }

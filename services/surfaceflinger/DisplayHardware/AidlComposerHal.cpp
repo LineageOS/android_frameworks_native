@@ -30,6 +30,8 @@
 #include <algorithm>
 #include <cinttypes>
 
+#include "HWC2.h"
+
 namespace android {
 
 using hardware::hidl_handle;
@@ -169,40 +171,47 @@ mat4 makeMat4(std::vector<float> in) {
 
 class AidlIComposerCallbackWrapper : public BnComposerCallback {
 public:
-    AidlIComposerCallbackWrapper(sp<V2_4::IComposerCallback> callback)
-          : mCallback(std::move(callback)) {}
+    AidlIComposerCallbackWrapper(HWC2::ComposerCallback& callback) : mCallback(callback) {}
 
     ::ndk::ScopedAStatus onHotplug(int64_t in_display, bool in_connected) override {
         const auto connection = in_connected ? V2_4::IComposerCallback::Connection::CONNECTED
                                              : V2_4::IComposerCallback::Connection::DISCONNECTED;
-        mCallback->onHotplug(translate<Display>(in_display), connection);
+        mCallback.onComposerHalHotplug(translate<Display>(in_display), connection);
         return ::ndk::ScopedAStatus::ok();
     }
 
     ::ndk::ScopedAStatus onRefresh(int64_t in_display) override {
-        mCallback->onRefresh(translate<Display>(in_display));
+        mCallback.onComposerHalRefresh(translate<Display>(in_display));
         return ::ndk::ScopedAStatus::ok();
     }
+
     ::ndk::ScopedAStatus onSeamlessPossible(int64_t in_display) override {
-        mCallback->onSeamlessPossible(translate<Display>(in_display));
+        mCallback.onComposerHalSeamlessPossible(translate<Display>(in_display));
         return ::ndk::ScopedAStatus::ok();
     }
+
     ::ndk::ScopedAStatus onVsync(int64_t in_display, int64_t in_timestamp,
                                  int32_t in_vsyncPeriodNanos) override {
-        mCallback->onVsync_2_4(translate<Display>(in_display), in_timestamp,
-                               static_cast<uint32_t>(in_vsyncPeriodNanos));
+        mCallback.onComposerHalVsync(translate<Display>(in_display), in_timestamp,
+                                     static_cast<uint32_t>(in_vsyncPeriodNanos));
         return ::ndk::ScopedAStatus::ok();
     }
+
     ::ndk::ScopedAStatus onVsyncPeriodTimingChanged(
             int64_t in_display, const AidlVsyncPeriodChangeTimeline& in_updatedTimeline) override {
-        mCallback->onVsyncPeriodTimingChanged(translate<Display>(in_display),
-                                              translate<V2_4::VsyncPeriodChangeTimeline>(
-                                                      in_updatedTimeline));
+        mCallback.onComposerHalVsyncPeriodTimingChanged(translate<Display>(in_display),
+                                                        translate<V2_4::VsyncPeriodChangeTimeline>(
+                                                                in_updatedTimeline));
+        return ::ndk::ScopedAStatus::ok();
+    }
+
+    ::ndk::ScopedAStatus onVsyncIdle(int64_t in_display) override {
+        mCallback.onComposerHalVsyncIdle(translate<Display>(in_display));
         return ::ndk::ScopedAStatus::ok();
     }
 
 private:
-    sp<V2_4::IComposerCallback> mCallback;
+    HWC2::ComposerCallback& mCallback;
 };
 
 std::string AidlComposer::instance(const std::string& serviceName) {
@@ -262,10 +271,11 @@ std::string AidlComposer::dumpDebugInfo() {
     return info;
 }
 
-void AidlComposer::registerCallback(const sp<IComposerCallback>& callback) {
+void AidlComposer::registerCallback(HWC2::ComposerCallback& callback) {
     if (mAidlComposerCallback) {
         ALOGE("Callback already registered");
     }
+
     mAidlComposerCallback = ndk::SharedRefBase::make<AidlIComposerCallbackWrapper>(callback);
     AIBinder_setMinSchedulerPolicy(mAidlComposerCallback->asBinder().get(), SCHED_FIFO, 2);
 

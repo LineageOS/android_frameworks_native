@@ -42,7 +42,11 @@ struct ShaderUniform {
 // This metadata should not be used for manipulating the source code of the shader program directly,
 // as otherwise caching by other system of these shaders may break.
 struct Metadata {
+    // The maximum luminance of the display in nits
     float displayMaxLuminance = 0.0;
+    // The current luminance of the display in nits
+    float currentDisplayLuminanceNits = 0.0;
+    // The maximum luminance of the content in nits
     float contentMaxLuminance = 0.0;
 };
 

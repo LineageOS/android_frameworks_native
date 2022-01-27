@@ -72,6 +72,7 @@ struct ComposerCallback {
     virtual void onComposerHalVsyncPeriodTimingChanged(hal::HWDisplayId,
                                                        const hal::VsyncPeriodChangeTimeline&) = 0;
     virtual void onComposerHalSeamlessPossible(hal::HWDisplayId) = 0;
+    virtual void onComposerHalVsyncIdle(hal::HWDisplayId) = 0;
 
 protected:
     ~ComposerCallback() = default;

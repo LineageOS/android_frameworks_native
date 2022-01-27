@@ -1473,7 +1473,7 @@ VkResult EnumerateInstanceVersion(uint32_t* pApiVersion) {
     if (!EnsureInitialized())
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    *pApiVersion = VK_API_VERSION_1_1;
+    *pApiVersion = VK_API_VERSION_1_3;
     return VK_SUCCESS;
 }
 

@@ -271,12 +271,6 @@ bool validateCompositionDataspace(Dataspace dataspace) {
 }
 
 
-enum Permission {
-    ACCESS_SURFACE_FLINGER = 0x1,
-    ROTATE_SURFACE_FLINGER = 0x2,
-    INTERNAL_SYSTEM_WINDOW = 0x4,
-};
-
 struct IdleTimerConfig {
     int32_t timeoutMs;
     bool supportKernelIdleTimer;
@@ -855,7 +849,7 @@ void SurfaceFlinger::init() {
 
     mCompositionEngine->setTimeStats(mTimeStats);
     mCompositionEngine->setHwComposer(getFactory().createHWComposer(mHwcServiceName));
-    mCompositionEngine->getHwComposer().setCallback(this);
+    mCompositionEngine->getHwComposer().setCallback(*this);
     ClientCache::getInstance().setRenderEngine(&getRenderEngine());
 
     if (base::GetBoolProperty("debug.sf.enable_hwc_vds"s, false)) {
@@ -1966,6 +1960,11 @@ void SurfaceFlinger::onComposerHalSeamlessPossible(hal::HWDisplayId) {
 void SurfaceFlinger::onComposerHalRefresh(hal::HWDisplayId) {
     Mutex::Autolock lock(mStateLock);
     scheduleComposite(FrameHint::kNone);
+}
+
+void SurfaceFlinger::onComposerHalVsyncIdle(hal::HWDisplayId) {
+    // TODO(b/198106220): force enable HWVsync to avoid drift problem during
+    // idle.
 }
 
 void SurfaceFlinger::setVsyncEnabled(bool enabled) {
@@ -3988,19 +3987,20 @@ status_t SurfaceFlinger::setTransactionState(
     ATRACE_CALL();
 
     uint32_t permissions =
-            callingThreadHasUnscopedSurfaceFlingerAccess() ? Permission::ACCESS_SURFACE_FLINGER : 0;
+        callingThreadHasUnscopedSurfaceFlingerAccess() ?
+        layer_state_t::Permission::ACCESS_SURFACE_FLINGER : 0;
     // Avoid checking for rotation permissions if the caller already has ACCESS_SURFACE_FLINGER
     // permissions.
-    if ((permissions & Permission::ACCESS_SURFACE_FLINGER) ||
+    if ((permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER) ||
         callingThreadHasRotateSurfaceFlingerAccess()) {
-        permissions |= Permission::ROTATE_SURFACE_FLINGER;
+        permissions |= layer_state_t::Permission::ROTATE_SURFACE_FLINGER;
     }
 
     if (callingThreadHasInternalSystemWindowAccess()) {
-        permissions |= Permission::INTERNAL_SYSTEM_WINDOW;
+        permissions |= layer_state_t::Permission::INTERNAL_SYSTEM_WINDOW;
     }
 
-    if (!(permissions & Permission::ACCESS_SURFACE_FLINGER) &&
+    if (!(permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER) &&
         (flags & (eEarlyWakeupStart | eEarlyWakeupEnd))) {
         ALOGE("Only WindowManager is allowed to use eEarlyWakeup[Start|End] flags");
         flags &= ~(eEarlyWakeupStart | eEarlyWakeupEnd);
@@ -4062,7 +4062,8 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
 
     uint32_t clientStateFlags = 0;
     for (const ComposerState& state : states) {
-        clientStateFlags |= setClientStateLocked(frameTimelineInfo, state, desiredPresentTime,
+        ComposerState stateCopy = state;
+        clientStateFlags |= setClientStateLocked(frameTimelineInfo, stateCopy, desiredPresentTime,
                                                  isAutoTimestamp, postTime, permissions);
         if ((flags & eAnimation) && state.state.surface) {
             if (const auto layer = fromHandle(state.state.surface).promote()) {
@@ -4076,7 +4077,7 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
 
     transactionFlags |= clientStateFlags;
 
-    if (permissions & Permission::ACCESS_SURFACE_FLINGER) {
+    if (permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER) {
         transactionFlags |= addInputWindowCommands(inputWindowCommands);
     } else if (!inputWindowCommands.empty()) {
         ALOGE("Only privileged callers are allowed to send input commands.");
@@ -4187,11 +4188,11 @@ bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermis
 }
 
 uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTimelineInfo,
-                                              const ComposerState& composerState,
+                                              ComposerState& composerState,
                                               int64_t desiredPresentTime, bool isAutoTimestamp,
                                               int64_t postTime, uint32_t permissions) {
-    const layer_state_t& s = composerState.state;
-    const bool privileged = permissions & Permission::ACCESS_SURFACE_FLINGER;
+    layer_state_t& s = composerState.state;
+    s.sanitize(permissions);
 
     std::vector<ListenerCallbacks> filteredListeners;
     for (auto& listener : s.listeners) {
@@ -4301,43 +4302,14 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         }
     }
     if (what & layer_state_t::eMatrixChanged) {
-        // TODO: b/109894387
-        //
-        // SurfaceFlinger's renderer is not prepared to handle cropping in the face of arbitrary
-        // rotation. To see the problem observe that if we have a square parent, and a child
-        // of the same size, then we rotate the child 45 degrees around it's center, the child
-        // must now be cropped to a non rectangular 8 sided region.
-        //
-        // Of course we can fix this in the future. For now, we are lucky, SurfaceControl is
-        // private API, and arbitrary rotation is used in limited use cases, for instance:
-        // - WindowManager only uses rotation in one case, which is on a top level layer in which
-        //   cropping is not an issue.
-        // - Launcher, as a privileged app, uses this to transition an application to PiP
-        //   (picture-in-picture) mode.
-        //
-        // However given that abuse of rotation matrices could lead to surfaces extending outside
-        // of cropped areas, we need to prevent non-root clients without permission
-        // ACCESS_SURFACE_FLINGER nor ROTATE_SURFACE_FLINGER
-        // (a.k.a. everyone except WindowManager / tests / Launcher) from setting non rectangle
-        // preserving transformations.
-        const bool allowNonRectPreservingTransforms =
-                permissions & Permission::ROTATE_SURFACE_FLINGER;
-        if (layer->setMatrix(s.matrix, allowNonRectPreservingTransforms)) flags |= eTraversalNeeded;
+        if (layer->setMatrix(s.matrix)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eTransparentRegionChanged) {
         if (layer->setTransparentRegionHint(s.transparentRegion))
             flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eFlagsChanged) {
-        auto changedFlags = s.flags;
-        if (changedFlags & layer_state_t::eLayerIsDisplayDecoration) {
-            if ((permissions & Permission::INTERNAL_SYSTEM_WINDOW) == 0) {
-                changedFlags &= ~layer_state_t::eLayerIsDisplayDecoration;
-                ALOGE("Attempt to use eLayerIsDisplayDecoration without permission "
-                      "INTERNAL_SYSTEM_WINDOW!");
-            }
-        }
-        if (layer->setFlags(changedFlags, s.mask)) flags |= eTraversalNeeded;
+        if (layer->setFlags(s.flags, s.mask)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eCornerRadiusChanged) {
         if (layer->setCornerRadius(s.cornerRadius))
@@ -4395,12 +4367,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         if (layer->setSidebandStream(s.sidebandStream)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eInputInfoChanged) {
-        if (privileged) {
-            layer->setInputInfo(*s.windowInfoHandle->getInfo());
-            flags |= eTraversalNeeded;
-        } else {
-            ALOGE("Attempt to update WindowInfo without permission ACCESS_SURFACE_FLINGER");
-        }
+        layer->setInputInfo(*s.windowInfoHandle->getInfo());
+        flags |= eTraversalNeeded;
     }
     std::optional<nsecs_t> dequeueBufferTimestamp;
     if (what & layer_state_t::eMetadataChanged) {
@@ -4424,22 +4392,19 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         if (layer->setShadowRadius(s.shadowRadius)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eFrameRateSelectionPriority) {
-        if (privileged && layer->setFrameRateSelectionPriority(s.frameRateSelectionPriority)) {
+        if (layer->setFrameRateSelectionPriority(s.frameRateSelectionPriority)) {
             flags |= eTraversalNeeded;
         }
     }
     if (what & layer_state_t::eFrameRateChanged) {
-        if (ValidateFrameRate(s.frameRate, s.frameRateCompatibility, s.changeFrameRateStrategy,
-                              "SurfaceFlinger::setClientStateLocked", privileged)) {
-            const auto compatibility =
-                    Layer::FrameRate::convertCompatibility(s.frameRateCompatibility);
-            const auto strategy =
-                    Layer::FrameRate::convertChangeFrameRateStrategy(s.changeFrameRateStrategy);
+        const auto compatibility =
+            Layer::FrameRate::convertCompatibility(s.frameRateCompatibility);
+        const auto strategy =
+            Layer::FrameRate::convertChangeFrameRateStrategy(s.changeFrameRateStrategy);
 
-            if (layer->setFrameRate(
-                        Layer::FrameRate(Fps::fromValue(s.frameRate), compatibility, strategy))) {
-                flags |= eTraversalNeeded;
-            }
+        if (layer->setFrameRate(
+                Layer::FrameRate(Fps::fromValue(s.frameRate), compatibility, strategy))) {
+          flags |= eTraversalNeeded;
         }
     }
     if (what & layer_state_t::eFixedTransformHintChanged) {
@@ -4451,12 +4416,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         layer->setAutoRefresh(s.autoRefresh);
     }
     if (what & layer_state_t::eTrustedOverlayChanged) {
-        if (privileged) {
-            if (layer->setTrustedOverlay(s.isTrustedOverlay)) {
-                flags |= eTraversalNeeded;
-            }
-        } else {
-            ALOGE("Attempt to set trusted overlay without permission ACCESS_SURFACE_FLINGER");
+        if (layer->setTrustedOverlay(s.isTrustedOverlay)) {
+            flags |= eTraversalNeeded;
         }
     }
     if (what & layer_state_t::eStretchChanged) {
@@ -4475,13 +4436,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         }
     }
     if (what & layer_state_t::eDropInputModeChanged) {
-        if (privileged) {
-            if (layer->setDropInputMode(s.dropInputMode)) {
-                flags |= eTraversalNeeded;
-                mInputInfoChanged = true;
-            }
-        } else {
-            ALOGE("Attempt to update DropInputMode without permission ACCESS_SURFACE_FLINGER");
+        if (layer->setDropInputMode(s.dropInputMode)) {
+            flags |= eTraversalNeeded;
+            mInputInfoChanged = true;
         }
     }
     // This has to happen after we reparent children because when we reparent to null we remove

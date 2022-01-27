@@ -11,20 +11,27 @@ LIBVULKAN {
     vkBindImageMemory;
     vkBindImageMemory2; # introduced=28
     vkCmdBeginQuery;
+    vkCmdBeginRendering; # introduced=33
     vkCmdBeginRenderPass;
     vkCmdBeginRenderPass2; # introduced=31
     vkCmdBindDescriptorSets;
     vkCmdBindIndexBuffer;
     vkCmdBindPipeline;
     vkCmdBindVertexBuffers;
+    vkCmdBindVertexBuffers2; #introduced=33
     vkCmdBlitImage;
+    vkCmdBlitImage2; #introduced=33
     vkCmdClearAttachments;
     vkCmdClearColorImage;
     vkCmdClearDepthStencilImage;
     vkCmdCopyBuffer;
+    vkCmdCopyBuffer2; #introduced=33
     vkCmdCopyBufferToImage;
+    vkCmdCopyBufferToImage2; #introduced=33
     vkCmdCopyImage;
+    vkCmdCopyImage2; #introduced=33
     vkCmdCopyImageToBuffer;
+    vkCmdCopyImageToBuffer2; #introduced=33
     vkCmdCopyQueryPoolResults;
     vkCmdDispatch;
     vkCmdDispatchBase; # introduced=28
@@ -36,6 +43,7 @@ LIBVULKAN {
     vkCmdDrawIndirect;
     vkCmdDrawIndirectCount; # introduced=31
     vkCmdEndQuery;
+    vkCmdEndRendering; #introduced=33
     vkCmdEndRenderPass;
     vkCmdEndRenderPass2; # introduced=31
     vkCmdExecuteCommands;
@@ -43,24 +51,44 @@ LIBVULKAN {
     vkCmdNextSubpass;
     vkCmdNextSubpass2; # introduced=31
     vkCmdPipelineBarrier;
+    vkCmdPipelineBarrier2; #introduced=33
     vkCmdPushConstants;
     vkCmdResetEvent;
+    vkCmdResetEvent2; #introduced=33
     vkCmdResetQueryPool;
     vkCmdResolveImage;
+    vkCmdResolveImage2; #introduced=33
     vkCmdSetBlendConstants;
+    vkCmdSetCullMode; #introduced=33
     vkCmdSetDepthBias;
+    vkCmdSetDepthBiasEnable; #introduced=33
     vkCmdSetDepthBounds;
+    vkCmdSetDepthBoundsTestEnable; #introduced=33
+    vkCmdSetDepthCompareOp; #introduced=33
+    vkCmdSetDepthTestEnable; #introduced=33
+    vkCmdSetDepthWriteEnable; #introduced=33
     vkCmdSetDeviceMask; # introduced=28
     vkCmdSetEvent;
+    vkCmdSetEvent2; #introduced=33
+    vkCmdSetFrontFace; #introduced=33
     vkCmdSetLineWidth;
+    vkCmdSetPrimitiveRestartEnable; #introduced=33
+    vkCmdSetPrimitiveTopology; #introduced=33
+    vkCmdSetRasterizerDiscardEnable; #introduced=33
     vkCmdSetScissor;
+    vkCmdSetScissorWithCount; #introduced=33
     vkCmdSetStencilCompareMask;
+    vkCmdSetStencilOp; #introduced=33
     vkCmdSetStencilReference;
+    vkCmdSetStencilTestEnable; #introduced=33
     vkCmdSetStencilWriteMask;
     vkCmdSetViewport;
+    vkCmdSetViewportWithCount; #introduced=33
     vkCmdUpdateBuffer;
     vkCmdWaitEvents;
+    vkCmdWaitEvents2; #introduced=33
     vkCmdWriteTimestamp;
+    vkCmdWriteTimestamp2; #introduced=33
     vkCreateAndroidSurfaceKHR;
     vkCreateBuffer;
     vkCreateBufferView;
@@ -79,6 +107,7 @@ LIBVULKAN {
     vkCreateInstance;
     vkCreatePipelineCache;
     vkCreatePipelineLayout;
+    vkCreatePrivateDataSlot; #introduced=33
     vkCreateQueryPool;
     vkCreateRenderPass;
     vkCreateRenderPass2; # introduced=31
@@ -103,6 +132,7 @@ LIBVULKAN {
     vkDestroyPipeline;
     vkDestroyPipelineCache;
     vkDestroyPipelineLayout;
+    vkDestroyPrivateDataSlot; #introduced=33
     vkDestroyQueryPool;
     vkDestroyRenderPass;
     vkDestroySampler;
@@ -130,9 +160,12 @@ LIBVULKAN {
     vkGetBufferMemoryRequirements2; # introduced=28
     vkGetBufferOpaqueCaptureAddress; # introduced=31
     vkGetDescriptorSetLayoutSupport; # introduced=28
+    vkGetDeviceBufferMemoryRequirements; #introduced=33
     vkGetDeviceGroupPeerMemoryFeatures; # introduced=28
     vkGetDeviceGroupPresentCapabilitiesKHR; # introduced=28
     vkGetDeviceGroupSurfacePresentModesKHR; # introduced=28
+    vkGetDeviceImageMemoryRequirements; #introduced=33
+    vkGetDeviceImageSparseMemoryRequirements; #introduced=33
     vkGetDeviceMemoryCommitment;
     vkGetDeviceMemoryOpaqueCaptureAddress; # introduced=31
     vkGetDeviceProcAddr;
@@ -169,7 +202,9 @@ LIBVULKAN {
     vkGetPhysicalDeviceSurfaceFormatsKHR;
     vkGetPhysicalDeviceSurfacePresentModesKHR;
     vkGetPhysicalDeviceSurfaceSupportKHR;
+    vkGetPhysicalDeviceToolProperties; #introduced=33
     vkGetPipelineCacheData;
+    vkGetPrivateData; #introduced=33
     vkGetQueryPoolResults;
     vkGetRenderAreaGranularity;
     vkGetSemaphoreCounterValue; # introduced=31
@@ -180,6 +215,7 @@ LIBVULKAN {
     vkQueueBindSparse;
     vkQueuePresentKHR;
     vkQueueSubmit;
+    vkQueueSubmit2; #introduced=33
     vkQueueWaitIdle;
     vkResetCommandBuffer;
     vkResetCommandPool;
@@ -188,6 +224,7 @@ LIBVULKAN {
     vkResetFences;
     vkResetQueryPool; # introduced=31
     vkSetEvent;
+    vkSetPrivateData; # introduced=33
     vkSignalSemaphore; # introduced=31
     vkTrimCommandPool; # introduced=28
     vkUnmapMemory;

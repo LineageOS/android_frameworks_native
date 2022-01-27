@@ -235,7 +235,7 @@ public:
     void addBatteryInfo(const InputDeviceBatteryInfo& info);
     void addLightInfo(const InputDeviceLightInfo& info);
 
-    inline void setKeyboardType(int32_t keyboardType) { mKeyboardType = keyboardType; }
+    void setKeyboardType(int32_t keyboardType);
     inline int32_t getKeyboardType() const { return mKeyboardType; }
 
     inline void setKeyCharacterMap(const std::shared_ptr<KeyCharacterMap> value) {
