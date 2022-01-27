@@ -316,8 +316,7 @@ bool BufferStateLayer::updateGeometry() {
     return assignTransform(&mDrawingState.transform, t);
 }
 
-bool BufferStateLayer::setMatrix(const layer_state_t::matrix22_t& matrix,
-                                 bool allowNonRectPreservingTransforms) {
+bool BufferStateLayer::setMatrix(const layer_state_t::matrix22_t& matrix) {
     if (mRequestedTransform.dsdx() == matrix.dsdx && mRequestedTransform.dtdy() == matrix.dtdy &&
         mRequestedTransform.dtdx() == matrix.dtdx && mRequestedTransform.dsdy() == matrix.dsdy) {
         return false;
@@ -325,12 +324,6 @@ bool BufferStateLayer::setMatrix(const layer_state_t::matrix22_t& matrix,
 
     ui::Transform t;
     t.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
-
-    if (!allowNonRectPreservingTransforms && !t.preserveRects()) {
-        ALOGW("Attempt to set rotation matrix without permission ACCESS_SURFACE_FLINGER nor "
-              "ROTATE_SURFACE_FLINGER ignored");
-        return false;
-    }
 
     mRequestedTransform.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
 

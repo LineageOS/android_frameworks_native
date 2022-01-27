@@ -656,6 +656,7 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
                                  parameters.layerDimmingRatio, 1.f));
         return createLinearEffectShader(parameters.shader, effect, runtimeEffect, colorTransform,
                                         parameters.display.maxLuminance,
+                                        parameters.display.currentLuminanceNits,
                                         parameters.layer.source.buffer.maxLuminanceNits);
     }
     return parameters.shader;
