@@ -44,6 +44,7 @@ namespace android::fuzz {
 
 using namespace android::hardware::graphics::common;
 using namespace android::hardware::graphics::composer;
+namespace aidl = aidl::android::hardware::graphics::composer3;
 namespace hal = android::hardware::graphics::composer::hal;
 using Config = hal::V2_1::Config;
 using Display = hal::V2_1::Display;
@@ -58,10 +59,11 @@ static constexpr hal::Transform kTransforms[] = {hal::Transform::FLIP_H, hal::Tr
                                                  hal::Transform::ROT_90, hal::Transform::ROT_180,
                                                  hal::Transform::ROT_270};
 
-static constexpr hal::Capability kCapability[] = {hal::Capability::INVALID,
-                                                  hal::Capability::SIDEBAND_STREAM,
-                                                  hal::Capability::SKIP_CLIENT_COLOR_TRANSFORM,
-                                                  hal::Capability::PRESENT_FENCE_IS_NOT_RELIABLE};
+static constexpr aidl::Capability kCapability[] = {aidl::Capability::INVALID,
+                                                   aidl::Capability::SIDEBAND_STREAM,
+                                                   aidl::Capability::SKIP_CLIENT_COLOR_TRANSFORM,
+                                                   aidl::Capability::PRESENT_FENCE_IS_NOT_RELIABLE,
+                                                   aidl::Capability::SKIP_VALIDATE};
 
 static constexpr hal::BlendMode kBlendModes[] = {hal::BlendMode::INVALID, hal::BlendMode::NONE,
                                                  hal::BlendMode::PREMULTIPLIED,

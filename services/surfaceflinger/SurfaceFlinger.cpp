@@ -163,6 +163,7 @@
 #define NO_THREAD_SAFETY_ANALYSIS \
     _Pragma("GCC error \"Prefer MAIN_THREAD macros or {Conditional,Timed,Unnecessary}Lock.\"")
 
+using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
 
 namespace android {
@@ -891,7 +892,7 @@ void SurfaceFlinger::init() {
     // Inform native graphics APIs whether the present timestamp is supported:
 
     const bool presentFenceReliable =
-            !getHwComposer().hasCapability(hal::Capability::PRESENT_FENCE_IS_NOT_RELIABLE);
+            !getHwComposer().hasCapability(Capability::PRESENT_FENCE_IS_NOT_RELIABLE);
     mStartPropertySetThread = getFactory().createStartPropertySetThread(presentFenceReliable);
 
     if (mStartPropertySetThread->Start() != NO_ERROR) {
@@ -955,7 +956,7 @@ status_t SurfaceFlinger::getSupportedFrameTimestamps(
     };
     ConditionalLock _l(mStateLock,
             std::this_thread::get_id() != mMainThreadId);
-    if (!getHwComposer().hasCapability(hal::Capability::PRESENT_FENCE_IS_NOT_RELIABLE)) {
+    if (!getHwComposer().hasCapability(Capability::PRESENT_FENCE_IS_NOT_RELIABLE)) {
         outSupported->push_back(FrameEvent::DISPLAY_PRESENT);
     }
     return NO_ERROR;
@@ -3377,7 +3378,7 @@ void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
         features |= Feature::kTracePredictedVsync;
     }
     if (!base::GetBoolProperty("debug.sf.vsync_reactor_ignore_present_fences"s, false) &&
-        !getHwComposer().hasCapability(hal::Capability::PRESENT_FENCE_IS_NOT_RELIABLE)) {
+        !getHwComposer().hasCapability(Capability::PRESENT_FENCE_IS_NOT_RELIABLE)) {
         features |= Feature::kPresentFences;
     }
 

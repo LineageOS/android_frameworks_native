@@ -251,14 +251,14 @@ bool AidlComposer::isSupported(OptionalFeature feature) const {
     }
 }
 
-std::vector<IComposer::Capability> AidlComposer::getCapabilities() {
+std::vector<Capability> AidlComposer::getCapabilities() {
     std::vector<Capability> capabilities;
     const auto status = mAidlComposer->getCapabilities(&capabilities);
     if (!status.isOk()) {
         ALOGE("getCapabilities failed %s", status.getDescription().c_str());
         return {};
     }
-    return translate<IComposer::Capability>(capabilities);
+    return capabilities;
 }
 
 std::string AidlComposer::dumpDebugInfo() {
