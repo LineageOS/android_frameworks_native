@@ -558,7 +558,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     MotionEvent event;
     PointerProperties pointerProperties[MAX_POINTERS + 1];
     PointerCoords pointerCoords[MAX_POINTERS + 1];
-    for (int i = 0; i <= MAX_POINTERS; i++) {
+    for (size_t i = 0; i <= MAX_POINTERS; i++) {
         pointerProperties[i].clear();
         pointerProperties[i].id = i;
         pointerCoords[i].clear();

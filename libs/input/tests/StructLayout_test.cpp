@@ -115,12 +115,9 @@ void TestHeaderSize() {
     static_assert(sizeof(InputMessage::Header) == 8);
 }
 
-/**
- * We cannot use the Body::size() method here because it is not static for
- * the Motion type, where "pointerCount" variable affects the size and can change at runtime.
- */
 void TestBodySize() {
     static_assert(sizeof(InputMessage::Body::Key) == 96);
+    static_assert(sizeof(InputMessage::Body::Motion::Pointer) == 136);
     static_assert(sizeof(InputMessage::Body::Motion) ==
                   offsetof(InputMessage::Body::Motion, pointers) +
                           sizeof(InputMessage::Body::Motion::Pointer) * MAX_POINTERS);
@@ -132,6 +129,38 @@ void TestBodySize() {
     // Timeline
     static_assert(GraphicsTimeline::SIZE == 2);
     static_assert(sizeof(InputMessage::Body::Timeline) == 24);
+
+    /**
+     * We cannot use the Body::size() method here because it is not static for
+     * the Motion type, where "pointerCount" variable affects the size and can change at runtime.
+     */
+    static_assert(sizeof(InputMessage::Body) ==
+                  offsetof(InputMessage::Body::Motion, pointers) +
+                          sizeof(InputMessage::Body::Motion::Pointer) * MAX_POINTERS);
+    static_assert(sizeof(InputMessage::Body) == 160 + 136 * 16);
+    static_assert(sizeof(InputMessage::Body) == 2336);
+}
+
+/**
+ * In general, we are sending a variable-length message across the socket, because the number of
+ * pointers varies. When we receive the message, we still need to allocate enough memory for the
+ * entire InputMessage struct. This size is, therefore, the worst case scenario. However, it is
+ * still helpful to compute to get an idea of the sizes that are involved.
+ */
+void TestWorstCaseInputMessageSize() {
+    static_assert(sizeof(InputMessage) == /*header*/ 8 + /*body*/ 2336);
+    static_assert(sizeof(InputMessage) == 2344);
+}
+
+/**
+ * Assuming a single pointer, how big is the message that we are sending across the socket?
+ */
+void CalculateSinglePointerInputMessageSize() {
+    constexpr size_t pointerCount = 1;
+    constexpr size_t bodySize = offsetof(InputMessage::Body::Motion, pointers) +
+            sizeof(InputMessage::Body::Motion::Pointer) * pointerCount;
+    static_assert(bodySize == 160 + 136);
+    static_assert(bodySize == 296); // For the total message size, add the small header
 }
 
 // --- VerifiedInputEvent ---

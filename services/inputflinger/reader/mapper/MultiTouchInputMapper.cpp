@@ -282,7 +282,7 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
 
         if (outCount >= MAX_POINTERS) {
             if (DEBUG_POINTERS) {
-                ALOGD("MultiTouch device %s emitted more than maximum of %d pointers; "
+                ALOGD("MultiTouch device %s emitted more than maximum of %zu pointers; "
                       "ignoring the rest.",
                       getDeviceName().c_str(), MAX_POINTERS);
             }
