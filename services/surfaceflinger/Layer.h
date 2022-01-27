@@ -1055,6 +1055,8 @@ private:
     bool setFrameRateForLayerTree(FrameRate);
     void setZOrderRelativeOf(const wp<Layer>& relativeOf);
     bool isTrustedOverlay() const;
+    gui::DropInputMode getDropInputMode() const;
+    void handleDropInputMode(InputWindowInfo& info) const;
 
     // Find the root of the cloned hierarchy, this means the first non cloned parent.
     // This will return null if first non cloned parent is not found.
