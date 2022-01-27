@@ -119,6 +119,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.treeHasFrameRateVote = false;
     mCurrentState.fixedTransformHint = ui::Transform::ROT_INVALID;
     mCurrentState.isTrustedOverlay = false;
+    mCurrentState.dropInputMode = gui::DropInputMode::NONE;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
@@ -2663,6 +2664,16 @@ Layer::FrameRateCompatibility Layer::FrameRate::convertCompatibility(int8_t comp
     }
 }
 
+bool Layer::setDropInputMode(gui::DropInputMode mode) {
+    if (mCurrentState.dropInputMode == mode) {
+        return false;
+    }
+    mCurrentState.dropInputMode = mode;
+    mCurrentState.modified = true;
+    mCurrentState.inputInfoChanged = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
 // ---------------------------------------------------------------------------
 
 }; // namespace android

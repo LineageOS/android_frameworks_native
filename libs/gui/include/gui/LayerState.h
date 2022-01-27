@@ -25,6 +25,7 @@
 #include <gui/ITransactionCompletedListener.h>
 #include <math/mat4.h>
 
+#include <android/gui/DropInputMode.h>
 #ifndef NO_INPUT
 #include <input/InputWindow.h>
 #endif
@@ -106,6 +107,7 @@ struct layer_state_t {
         eProducerDisconnect = 0x100'00000000,
         eFixedTransformHintChanged = 0x200'00000000,
         eTrustedOverlayChanged = 0x400'00000000,
+        eDropInputModeChanged = 0x8000'00000000,
     };
 
     layer_state_t()
@@ -141,7 +143,8 @@ struct layer_state_t {
             frameRate(0.0f),
             frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
             fixedTransformHint(ui::Transform::ROT_INVALID),
-            isTrustedOverlay(false) {
+            isTrustedOverlay(false),
+            dropInputMode(gui::DropInputMode::NONE) {
         matrix.dsdx = matrix.dtdy = 1.0f;
         matrix.dsdy = matrix.dtdx = 0.0f;
         hdrMetadata.validTypes = 0;
@@ -243,6 +246,9 @@ struct layer_state_t {
     // An inherited state that indicates that this surface control and its children
     // should be trusted for input occlusion detection purposes
     bool isTrustedOverlay;
+
+    // Force inputflinger to drop all input events for the layer and its children.
+    gui::DropInputMode dropInputMode;
 };
 
 struct ComposerState {

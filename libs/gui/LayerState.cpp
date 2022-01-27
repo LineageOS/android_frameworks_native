@@ -118,7 +118,7 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeByte(frameRateCompatibility);
     output.writeUint32(fixedTransformHint);
     output.writeBool(isTrustedOverlay);
-
+    output.writeUint32(static_cast<uint32_t>(dropInputMode));
     return NO_ERROR;
 }
 
@@ -204,6 +204,9 @@ status_t layer_state_t::read(const Parcel& input)
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(input.readUint32());
     isTrustedOverlay = input.readBool();
 
+    uint32_t mode;
+    mode = input.readUint32();
+    dropInputMode = static_cast<gui::DropInputMode>(mode);
     return NO_ERROR;
 }
 
@@ -446,6 +449,10 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eTrustedOverlayChanged) {
         what |= eTrustedOverlayChanged;
         isTrustedOverlay = other.isTrustedOverlay;
+    }
+    if (other.what & eDropInputModeChanged) {
+        what |= eDropInputModeChanged;
+        dropInputMode = other.dropInputMode;
     }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "

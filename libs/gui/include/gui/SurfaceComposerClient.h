@@ -531,7 +531,8 @@ public:
 
         // Sets that this surface control and its children are trusted overlays for input
         Transaction& setTrustedOverlay(const sp<SurfaceControl>& sc, bool isTrustedOverlay);
-        
+
+        Transaction& setDropInputMode(const sp<SurfaceControl>& sc, gui::DropInputMode mode);
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
 
