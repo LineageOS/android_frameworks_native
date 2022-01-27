@@ -401,6 +401,19 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
     return true;
 }
 
+namespace {
+bool isDisplayDecoration(const CachedSet& cachedSet) {
+    return cachedSet.getLayerCount() == 1 &&
+            cachedSet.getFirstLayer()
+                    .getState()
+                    ->getOutputLayer()
+                    ->getLayerFE()
+                    .getCompositionState()
+                    ->compositionType ==
+            aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION;
+}
+} // namespace
+
 std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
     ATRACE_CALL();
     std::vector<Run> runs;
@@ -424,7 +437,7 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
         }
 
         if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur) &&
-            !currentSet->hasUnsupportedDataspace()) {
+            !currentSet->hasUnsupportedDataspace() && !isDisplayDecoration(*currentSet)) {
             if (isPartOfRun) {
                 builder.increment();
             } else {
