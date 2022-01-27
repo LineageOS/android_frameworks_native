@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <android/gui/DropInputMode.h>
 #include <compositionengine/LayerFE.h>
 #include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposerClient.h>
@@ -282,6 +283,8 @@ public:
 
         // Whether or not this layer is a trusted overlay for input
         bool isTrustedOverlay;
+
+        gui::DropInputMode dropInputMode;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -410,6 +413,8 @@ public:
     bool setShadowRadius(float shadowRadius);
     virtual bool setFrameRateSelectionPriority(int32_t priority);
     virtual bool setFixedTransformHint(ui::Transform::RotationFlags fixedTransformHint);
+    bool setDropInputMode(gui::DropInputMode);
+
     //  If the variable is not set on the layer, it traverses up the tree to inherit the frame
     //  rate priority from its parent.
     virtual int32_t getFrameRateSelectionPriority() const;
