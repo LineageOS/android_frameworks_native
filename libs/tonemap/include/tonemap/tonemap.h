@@ -44,8 +44,6 @@ struct ShaderUniform {
 struct Metadata {
     // The maximum luminance of the display in nits
     float displayMaxLuminance = 0.0;
-    // The current luminance of the display in nits
-    float currentDisplayLuminanceNits = 0.0;
     // The maximum luminance of the content in nits
     float contentMaxLuminance = 0.0;
 };

@@ -61,11 +61,23 @@ TEST_F(TonemapTest, generateShaderSkSLUniforms_containsDefaultUniforms) {
     EXPECT_GT(contentLumFloat, 0);
 }
 
-TEST_F(TonemapTest, generateTonemapGainShaderSkSL_containsEntryPoint) {
+TEST_F(TonemapTest, generateTonemapGainShaderSkSL_containsEntryPointForPQ) {
     const auto shader =
             tonemap::getToneMapper()
                     ->generateTonemapGainShaderSkSL(aidl::android::hardware::graphics::common::
                                                             Dataspace::BT2020_ITU_PQ,
+                                                    aidl::android::hardware::graphics::common::
+                                                            Dataspace::DISPLAY_P3);
+
+    // Other tests such as librenderengine_test will plug in the shader to check compilation.
+    EXPECT_THAT(shader, HasSubstr("float libtonemap_LookupTonemapGain(vec3 linearRGB, vec3 xyz)"));
+}
+
+TEST_F(TonemapTest, generateTonemapGainShaderSkSL_containsEntryPointForHLG) {
+    const auto shader =
+            tonemap::getToneMapper()
+                    ->generateTonemapGainShaderSkSL(aidl::android::hardware::graphics::common::
+                                                            Dataspace::BT2020_ITU_HLG,
                                                     aidl::android::hardware::graphics::common::
                                                             Dataspace::DISPLAY_P3);
 
