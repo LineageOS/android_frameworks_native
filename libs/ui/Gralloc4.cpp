@@ -41,6 +41,7 @@ using aidl::android::hardware::graphics::common::StandardMetadataType;
 using android::hardware::hidl_vec;
 using android::hardware::graphics::allocator::V4_0::IAllocator;
 using android::hardware::graphics::common::V1_2::BufferUsage;
+using android::hardware::graphics::common::V1_2::PixelFormat;
 using android::hardware::graphics::mapper::V4_0::BufferDescriptor;
 using android::hardware::graphics::mapper::V4_0::Error;
 using android::hardware::graphics::mapper::V4_0::IMapper;
@@ -120,6 +121,16 @@ static status_t validateBufferDescriptorInfo(IMapper::BufferDescriptorInfo* desc
               descriptorInfo->usage & ~validUsageBits);
         return BAD_VALUE;
     }
+
+    // Combinations that are only allowed with gralloc 4.1.
+    // Previous grallocs must be protected from this.
+    if (!hasIAllocatorAidl() &&
+            descriptorInfo->format != hardware::graphics::common::V1_2::PixelFormat::BLOB &&
+            descriptorInfo->usage & BufferUsage::GPU_DATA_BUFFER) {
+        ALOGE("non-BLOB pixel format with GPU_DATA_BUFFER usage is not supported prior to gralloc 4.1");
+        return BAD_VALUE;
+    }
+
     return NO_ERROR;
 }
 
