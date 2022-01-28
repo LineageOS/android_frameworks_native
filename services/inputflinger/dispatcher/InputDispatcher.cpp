@@ -215,7 +215,7 @@ bool validateMotionEvent(int32_t action, int32_t actionButton, size_t pointerCou
         return false;
     }
     if (pointerCount < 1 || pointerCount > MAX_POINTERS) {
-        ALOGE("Motion event has invalid pointer count %zu; value must be between 1 and %d.",
+        ALOGE("Motion event has invalid pointer count %zu; value must be between 1 and %zu.",
               pointerCount, MAX_POINTERS);
         return false;
     }
