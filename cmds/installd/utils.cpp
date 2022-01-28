@@ -829,7 +829,7 @@ void remove_path_xattr(const std::string& path, const char* inode_xattr) {
  * to top level directories (i.e. have "..").
  */
 static int validate_path(const std::string& dir, const std::string& path, int maxSubdirs) {
-    // Argument sanity checking
+    // Argument check
     if (dir.find('/') != 0 || dir.rfind('/') != dir.size() - 1
             || dir.find("..") != std::string::npos) {
         LOG(ERROR) << "Invalid directory " << dir;
