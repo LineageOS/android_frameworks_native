@@ -164,7 +164,7 @@ enum {
  * (We want at least 10 but some touch controllers obstensibly configured for 10 pointers
  * will occasionally emit 11.  There is not much harm making this constant bigger.)
  */
-#define MAX_POINTERS 16
+static constexpr size_t MAX_POINTERS = 16;
 
 /*
  * Maximum number of samples supported per motion event.
