@@ -52,7 +52,8 @@ bool WindowInfo::interceptsStylus() const {
 }
 
 bool WindowInfo::overlaps(const WindowInfo* other) const {
-    return frameLeft < other->frameRight && frameRight > other->frameLeft &&
+    const bool nonEmpty = (frameRight - frameLeft > 0) || (frameBottom - frameTop > 0);
+    return nonEmpty && frameLeft < other->frameRight && frameRight > other->frameLeft &&
             frameTop < other->frameBottom && frameBottom > other->frameTop;
 }
 
