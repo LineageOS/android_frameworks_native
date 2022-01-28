@@ -108,9 +108,6 @@ static inline void sBufferDescriptorInfo(std::string name, uint32_t width, uint3
 static bool hasIAllocatorAidl() {
     // Avoid re-querying repeatedly for this information;
     static bool sHasIAllocatorAidl = []() -> bool {
-        // TODO: Enable after landing sepolicy changes
-        if constexpr ((true)) return false;
-
         if (__builtin_available(android 31, *)) {
             return AServiceManager_isDeclared(kAidlAllocatorServiceName.c_str());
         }
