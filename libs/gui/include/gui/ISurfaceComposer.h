@@ -235,12 +235,6 @@ public:
     virtual status_t clearBootDisplayMode(const sp<IBinder>& display) = 0;
 
     /**
-     * Gets the display mode in which the device boots if there is no user-preferred display mode.
-     */
-    virtual status_t getPreferredBootDisplayMode(const sp<IBinder>& display,
-                                                 ui::DisplayModeId*) = 0;
-
-    /**
      * Gets whether boot time display mode operations are supported on the device.
      *
      * outSupport
@@ -684,7 +678,6 @@ public:
         GET_BOOT_DISPLAY_MODE_SUPPORT,
         SET_BOOT_DISPLAY_MODE,
         CLEAR_BOOT_DISPLAY_MODE,
-        GET_PREFERRED_BOOT_DISPLAY_MODE,
         SET_OVERRIDE_FRAME_RATE,
         // Always append new enum to the end.
     };

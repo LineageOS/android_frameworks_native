@@ -164,6 +164,7 @@ struct DisplayTestCommon : public testing::Test {
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
         EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
         EXPECT_CALL(mRenderEngine, isProtected()).WillRepeatedly(Return(false));
+        EXPECT_CALL(mHwComposer, getBootDisplayModeSupport()).WillRepeatedly(Return(false));
     }
 
     DisplayCreationArgs getDisplayCreationArgsForPhysicalDisplay() {
@@ -971,7 +972,8 @@ struct DisplayFunctionalTest : public testing::Test {
 
     DisplayFunctionalTest() {
         EXPECT_CALL(mCompositionEngine, getHwComposer()).WillRepeatedly(ReturnRef(mHwComposer));
-
+        mDisplay = createDisplay();
+        mRenderSurface = createRenderSurface();
         mDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
     }
 
@@ -980,24 +982,29 @@ struct DisplayFunctionalTest : public testing::Test {
     NiceMock<mock::CompositionEngine> mCompositionEngine;
     sp<mock::NativeWindow> mNativeWindow = new NiceMock<mock::NativeWindow>();
     sp<mock::DisplaySurface> mDisplaySurface = new NiceMock<mock::DisplaySurface>();
+    std::shared_ptr<Display> mDisplay;
+    impl::RenderSurface* mRenderSurface;
 
-    std::shared_ptr<Display> mDisplay = impl::createDisplayTemplated<
-            Display>(mCompositionEngine,
-                     DisplayCreationArgsBuilder()
-                             .setId(DEFAULT_DISPLAY_ID)
-                             .setPixels(DEFAULT_RESOLUTION)
-                             .setIsSecure(true)
-                             .setPowerAdvisor(&mPowerAdvisor)
-                             .build());
+    std::shared_ptr<Display> createDisplay() {
+        return impl::createDisplayTemplated<Display>(mCompositionEngine,
+                                                     DisplayCreationArgsBuilder()
+                                                             .setId(DEFAULT_DISPLAY_ID)
+                                                             .setPixels(DEFAULT_RESOLUTION)
+                                                             .setIsSecure(true)
+                                                             .setPowerAdvisor(&mPowerAdvisor)
+                                                             .build());
+        ;
+    }
 
-    impl::RenderSurface* mRenderSurface =
-            new impl::RenderSurface{mCompositionEngine, *mDisplay,
-                                    RenderSurfaceCreationArgsBuilder()
-                                            .setDisplayWidth(DEFAULT_RESOLUTION.width)
-                                            .setDisplayHeight(DEFAULT_RESOLUTION.height)
-                                            .setNativeWindow(mNativeWindow)
-                                            .setDisplaySurface(mDisplaySurface)
-                                            .build()};
+    impl::RenderSurface* createRenderSurface() {
+        return new impl::RenderSurface{mCompositionEngine, *mDisplay,
+                                       RenderSurfaceCreationArgsBuilder()
+                                               .setDisplayWidth(DEFAULT_RESOLUTION.width)
+                                               .setDisplayHeight(DEFAULT_RESOLUTION.height)
+                                               .setNativeWindow(mNativeWindow)
+                                               .setDisplaySurface(mDisplaySurface)
+                                               .build()};
+    }
 };
 
 TEST_F(DisplayFunctionalTest, postFramebufferCriticalCallsAreOrdered) {
