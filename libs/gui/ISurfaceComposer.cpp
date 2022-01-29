@@ -495,27 +495,6 @@ public:
         return result;
     }
 
-    status_t getPreferredBootDisplayMode(const sp<IBinder>& display,
-                                         ui::DisplayModeId* displayModeId) override {
-        Parcel data, reply;
-        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (result != NO_ERROR) {
-            ALOGE("getPreferredBootDisplayMode failed to writeInterfaceToken: %d", result);
-            return result;
-        }
-        result = data.writeStrongBinder(display);
-        if (result != NO_ERROR) {
-            ALOGE("getPreferredBootDisplayMode failed to writeStrongBinder: %d", result);
-            return result;
-        }
-        result = remote()->transact(BnSurfaceComposer::GET_PREFERRED_BOOT_DISPLAY_MODE, data,
-                                    &reply);
-        if (result == NO_ERROR) {
-            reply.writeInt32(*displayModeId);
-        }
-        return result;
-    }
-
     void setAutoLowLatencyMode(const sp<IBinder>& display, bool on) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
@@ -1658,21 +1637,6 @@ status_t BnSurfaceComposer::onTransact(
                 return result;
             }
             return clearBootDisplayMode(display);
-        }
-        case GET_PREFERRED_BOOT_DISPLAY_MODE: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> display = nullptr;
-            status_t result = data.readStrongBinder(&display);
-            if (result != NO_ERROR) {
-                ALOGE("getPreferredBootDisplayMode failed to readStrongBinder: %d", result);
-                return result;
-            }
-            ui::DisplayModeId displayModeId;
-            result = getPreferredBootDisplayMode(display, &displayModeId);
-            if (result == NO_ERROR) {
-                reply->writeInt32(displayModeId);
-            }
-            return result;
         }
         case SET_AUTO_LOW_LATENCY_MODE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);

@@ -174,8 +174,7 @@ public:
     static status_t setBootDisplayMode(const sp<IBinder>& display, ui::DisplayModeId);
     // Clears the user-preferred display mode
     static status_t clearBootDisplayMode(const sp<IBinder>& display);
-    // Gets the display mode in which the device boots if there is no user-preferred display mode
-    static status_t getPreferredBootDisplayMode(const sp<IBinder>& display, ui::DisplayModeId*);
+
     // Sets the frame rate of a particular app (uid). This is currently called
     // by GameManager.
     static status_t setOverrideFrameRate(uid_t uid, float frameRate);

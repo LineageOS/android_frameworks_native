@@ -309,14 +309,14 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
                 const auto& displayPort = ports.find(inputPort);
                 if (displayPort != ports.end()) {
                     mAssociatedDisplayPort = std::make_optional(displayPort->second);
+                } else {
+                    const std::unordered_map<std::string, std::string>& displayUniqueIds =
+                            config->uniqueIdAssociations;
+                    const auto& displayUniqueId = displayUniqueIds.find(inputPort);
+                    if (displayUniqueId != displayUniqueIds.end()) {
+                        mAssociatedDisplayUniqueId = displayUniqueId->second;
+                    }
                 }
-            }
-            const std::string& inputDeviceName = mIdentifier.name;
-            const std::unordered_map<std::string, std::string>& names =
-                    config->uniqueIdAssociations;
-            const auto& displayUniqueId = names.find(inputDeviceName);
-            if (displayUniqueId != names.end()) {
-                mAssociatedDisplayUniqueId = displayUniqueId->second;
             }
 
             // If the device was explicitly disabled by the user, it would be present in the
@@ -338,7 +338,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
                 if (!mAssociatedViewport) {
                     ALOGW("Input device %s should be associated with display %s but the "
                           "corresponding viewport cannot be found",
-                          inputDeviceName.c_str(), mAssociatedDisplayUniqueId->c_str());
+                          getName().c_str(), mAssociatedDisplayUniqueId->c_str());
                     enabled = false;
                 }
             }

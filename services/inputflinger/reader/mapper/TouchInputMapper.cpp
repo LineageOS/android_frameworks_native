@@ -565,6 +565,12 @@ std::optional<DisplayViewport> TouchInputMapper::findViewport() {
             return getDeviceContext().getAssociatedViewport();
         }
 
+        const std::optional<std::string> associatedDisplayUniqueId =
+                getDeviceContext().getAssociatedDisplayUniqueId();
+        if (associatedDisplayUniqueId) {
+            return getDeviceContext().getAssociatedViewport();
+        }
+
         if (mDeviceMode == DeviceMode::POINTER) {
             std::optional<DisplayViewport> viewport =
                     mConfig.getDisplayViewportById(mConfig.defaultPointerDisplayId);

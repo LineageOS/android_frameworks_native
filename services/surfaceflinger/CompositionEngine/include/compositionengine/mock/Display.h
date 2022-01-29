@@ -34,6 +34,7 @@ public:
     MOCK_CONST_METHOD0(getId, DisplayId());
     MOCK_CONST_METHOD0(isSecure, bool());
     MOCK_CONST_METHOD0(isVirtual, bool());
+    MOCK_CONST_METHOD0(getPreferredBootModeId, int32_t());
 
     MOCK_METHOD0(disconnect, void());
 

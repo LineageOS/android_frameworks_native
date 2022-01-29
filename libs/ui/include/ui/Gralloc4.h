@@ -155,10 +155,6 @@ public:
 private:
     friend class GraphicBufferAllocator;
 
-    // Determines whether the passed info is compatible with the mapper.
-    status_t validateBufferDescriptorInfo(
-            hardware::graphics::mapper::V4_0::IMapper::BufferDescriptorInfo* descriptorInfo) const;
-
     template <class T>
     using DecodeFunction = status_t (*)(const hardware::hidl_vec<uint8_t>& input, T* output);
 

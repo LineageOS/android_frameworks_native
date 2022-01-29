@@ -92,10 +92,12 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
     }
 
     mCompositionDisplay->createDisplayColorProfile(
-            compositionengine::DisplayColorProfileCreationArgs{args.hasWideColorGamut,
-                                                               std::move(args.hdrCapabilities),
-                                                               args.supportedPerFrameMetadata,
-                                                               args.hwcColorModes});
+            compositionengine::DisplayColorProfileCreationArgsBuilder()
+                    .setHasWideColorGamut(args.hasWideColorGamut)
+                    .setHdrCapabilities(std::move(args.hdrCapabilities))
+                    .setSupportedPerFrameMetadata(args.supportedPerFrameMetadata)
+                    .setHwcColorModes(std::move(args.hwcColorModes))
+                    .Build());
 
     if (!mCompositionDisplay->isValid()) {
         ALOGE("Composition Display did not validate!");
@@ -452,6 +454,10 @@ HdrCapabilities DisplayDevice::getHdrCapabilities() const {
     return HdrCapabilities(hdrTypes, capabilities.getDesiredMaxLuminance(),
                            capabilities.getDesiredMaxAverageLuminance(),
                            capabilities.getDesiredMinLuminance());
+}
+
+ui::DisplayModeId DisplayDevice::getPreferredBootModeId() const {
+    return mCompositionDisplay->getPreferredBootModeId();
 }
 
 void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinnner) {
