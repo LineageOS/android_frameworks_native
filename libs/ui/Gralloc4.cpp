@@ -41,6 +41,7 @@ using aidl::android::hardware::graphics::common::StandardMetadataType;
 using android::hardware::hidl_vec;
 using android::hardware::graphics::allocator::V4_0::IAllocator;
 using android::hardware::graphics::common::V1_2::BufferUsage;
+using android::hardware::graphics::common::V1_2::PixelFormat;
 using android::hardware::graphics::mapper::V4_0::BufferDescriptor;
 using android::hardware::graphics::mapper::V4_0::Error;
 using android::hardware::graphics::mapper::V4_0::IMapper;
@@ -92,17 +93,6 @@ static inline IMapper::Rect sGralloc4Rect(const Rect& rect) {
     outRect.height = rect.height();
     return outRect;
 }
-static inline void sBufferDescriptorInfo(std::string name, uint32_t width, uint32_t height,
-                                         PixelFormat format, uint32_t layerCount, uint64_t usage,
-                                         IMapper::BufferDescriptorInfo* outDescriptorInfo) {
-    outDescriptorInfo->name = name;
-    outDescriptorInfo->width = width;
-    outDescriptorInfo->height = height;
-    outDescriptorInfo->layerCount = layerCount;
-    outDescriptorInfo->format = static_cast<hardware::graphics::common::V1_2::PixelFormat>(format);
-    outDescriptorInfo->usage = usage;
-    outDescriptorInfo->reservedSize = 0;
-}
 
 // See if gralloc "4.1" is available.
 static bool hasIAllocatorAidl() {
@@ -117,6 +107,46 @@ static bool hasIAllocatorAidl() {
         return false;
     }();
     return sHasIAllocatorAidl;
+}
+
+// Determines whether the passed info is compatible with the mapper.
+static status_t validateBufferDescriptorInfo(IMapper::BufferDescriptorInfo* descriptorInfo) {
+    uint64_t validUsageBits = getValidUsageBits();
+    if (hasIAllocatorAidl()) {
+        validUsageBits |= getValidUsageBits41();
+    }
+
+    if (descriptorInfo->usage & ~validUsageBits) {
+        ALOGE("buffer descriptor contains invalid usage bits 0x%" PRIx64,
+              descriptorInfo->usage & ~validUsageBits);
+        return BAD_VALUE;
+    }
+
+    // Combinations that are only allowed with gralloc 4.1.
+    // Previous grallocs must be protected from this.
+    if (!hasIAllocatorAidl() &&
+            descriptorInfo->format != hardware::graphics::common::V1_2::PixelFormat::BLOB &&
+            descriptorInfo->usage & BufferUsage::GPU_DATA_BUFFER) {
+        ALOGE("non-BLOB pixel format with GPU_DATA_BUFFER usage is not supported prior to gralloc 4.1");
+        return BAD_VALUE;
+    }
+
+    return NO_ERROR;
+}
+
+static inline status_t sBufferDescriptorInfo(std::string name, uint32_t width, uint32_t height,
+                                             PixelFormat format, uint32_t layerCount,
+                                             uint64_t usage,
+                                             IMapper::BufferDescriptorInfo* outDescriptorInfo) {
+    outDescriptorInfo->name = name;
+    outDescriptorInfo->width = width;
+    outDescriptorInfo->height = height;
+    outDescriptorInfo->layerCount = layerCount;
+    outDescriptorInfo->format = static_cast<hardware::graphics::common::V1_2::PixelFormat>(format);
+    outDescriptorInfo->usage = usage;
+    outDescriptorInfo->reservedSize = 0;
+
+    return validateBufferDescriptorInfo(outDescriptorInfo);
 }
 
 } // anonymous namespace
@@ -138,21 +168,6 @@ Gralloc4Mapper::Gralloc4Mapper() {
 
 bool Gralloc4Mapper::isLoaded() const {
     return mMapper != nullptr;
-}
-
-status_t Gralloc4Mapper::validateBufferDescriptorInfo(
-        IMapper::BufferDescriptorInfo* descriptorInfo) const {
-    uint64_t validUsageBits = getValidUsageBits();
-    if (hasIAllocatorAidl()) {
-        validUsageBits |= getValidUsageBits41();
-    }
-
-    if (descriptorInfo->usage & ~validUsageBits) {
-        ALOGE("buffer descriptor contains invalid usage bits 0x%" PRIx64,
-              descriptorInfo->usage & ~validUsageBits);
-        return BAD_VALUE;
-    }
-    return NO_ERROR;
 }
 
 status_t Gralloc4Mapper::createDescriptor(void* bufferDescriptorInfo,
@@ -207,8 +222,10 @@ status_t Gralloc4Mapper::validateBufferSize(buffer_handle_t bufferHandle, uint32
                                             uint32_t layerCount, uint64_t usage,
                                             uint32_t stride) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
-    sBufferDescriptorInfo("validateBufferSize", width, height, format, layerCount, usage,
-                          &descriptorInfo);
+    if (auto error = sBufferDescriptorInfo("validateBufferSize", width, height, format, layerCount,
+                                           usage, &descriptorInfo) != OK) {
+        return error;
+    }
 
     auto buffer = const_cast<native_handle_t*>(bufferHandle);
     auto ret = mMapper->validateBufferSize(buffer, descriptorInfo, stride);
@@ -427,7 +444,7 @@ int Gralloc4Mapper::unlock(buffer_handle_t bufferHandle) const {
             if (fd >= 0) {
                 releaseFence = fd;
             } else {
-                ALOGD("failed to dup unlock release fence");
+                ALOGW("failed to dup unlock release fence");
                 sync_wait(fenceHandle->data[0], -1);
             }
         }
@@ -448,7 +465,12 @@ status_t Gralloc4Mapper::isSupported(uint32_t width, uint32_t height, PixelForma
                                      uint32_t layerCount, uint64_t usage,
                                      bool* outSupported) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
-    sBufferDescriptorInfo("isSupported", width, height, format, layerCount, usage, &descriptorInfo);
+    if (auto error = sBufferDescriptorInfo("isSupported", width, height, format, layerCount, usage,
+                                           &descriptorInfo) != OK) {
+        // Usage isn't known to the HAL or otherwise failed validation.
+        *outSupported = false;
+        return OK;
+    }
 
     Error error;
     auto ret = mMapper->isSupported(descriptorInfo,
@@ -691,7 +713,10 @@ status_t Gralloc4Mapper::getDefault(uint32_t width, uint32_t height, PixelFormat
     }
 
     IMapper::BufferDescriptorInfo descriptorInfo;
-    sBufferDescriptorInfo("getDefault", width, height, format, layerCount, usage, &descriptorInfo);
+    if (auto error = sBufferDescriptorInfo("getDefault", width, height, format, layerCount, usage,
+                                           &descriptorInfo) != OK) {
+        return error;
+    }
 
     hidl_vec<uint8_t> vec;
     Error error;
@@ -1133,7 +1158,10 @@ status_t Gralloc4Allocator::allocate(std::string requestorName, uint32_t width, 
                                      uint64_t usage, uint32_t bufferCount, uint32_t* outStride,
                                      buffer_handle_t* outBufferHandles, bool importBuffers) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
-    sBufferDescriptorInfo(requestorName, width, height, format, layerCount, usage, &descriptorInfo);
+    if (auto error = sBufferDescriptorInfo(requestorName, width, height, format, layerCount, usage,
+                                           &descriptorInfo) != OK) {
+        return error;
+    }
 
     BufferDescriptor descriptor;
     status_t error = mMapper.createDescriptor(static_cast<void*>(&descriptorInfo),

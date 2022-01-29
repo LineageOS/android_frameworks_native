@@ -61,6 +61,9 @@ public:
     inline std::optional<uint8_t> getAssociatedDisplayPort() const {
         return mAssociatedDisplayPort;
     }
+    inline std::optional<std::string> getAssociatedDisplayUniqueId() const {
+        return mAssociatedDisplayUniqueId;
+    }
     inline std::optional<DisplayViewport> getAssociatedViewport() const {
         return mAssociatedViewport;
     }
@@ -385,6 +388,9 @@ public:
     inline bool isExternal() { return mDevice.isExternal(); }
     inline std::optional<uint8_t> getAssociatedDisplayPort() const {
         return mDevice.getAssociatedDisplayPort();
+    }
+    inline std::optional<std::string> getAssociatedDisplayUniqueId() const {
+        return mDevice.getAssociatedDisplayUniqueId();
     }
     inline std::optional<DisplayViewport> getAssociatedViewport() const {
         return mDevice.getAssociatedViewport();

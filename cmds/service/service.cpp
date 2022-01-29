@@ -21,6 +21,7 @@
 #include <cutils/ashmem.h>
 
 #include <getopt.h>
+#include <libgen.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

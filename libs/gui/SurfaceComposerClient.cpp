@@ -2094,12 +2094,6 @@ status_t SurfaceComposerClient::clearBootDisplayMode(const sp<IBinder>& display)
     return ComposerService::getComposerService()->clearBootDisplayMode(display);
 }
 
-status_t SurfaceComposerClient::getPreferredBootDisplayMode(const sp<IBinder>& display,
-                                                            ui::DisplayModeId* displayModeId) {
-    return ComposerService::getComposerService()->getPreferredBootDisplayMode(display,
-                                                                              displayModeId);
-}
-
 status_t SurfaceComposerClient::setOverrideFrameRate(uid_t uid, float frameRate) {
     return ComposerService::getComposerService()->setOverrideFrameRate(uid, frameRate);
 }

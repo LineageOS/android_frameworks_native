@@ -509,10 +509,6 @@ bool AHardwareBuffer_isValidDescription(const AHardwareBuffer_Desc* desc, bool l
             ALOGE_IF(log, "AHARDWAREBUFFER_USAGE_SENSOR_DIRECT_DATA requires AHARDWAREBUFFER_FORMAT_BLOB");
             return false;
         }
-        if (desc->usage & AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER) {
-            ALOGE_IF(log, "AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER requires AHARDWAREBUFFER_FORMAT_BLOB");
-            return false;
-        }
     }
 
     if ((desc->usage & (AHARDWAREBUFFER_USAGE_CPU_READ_MASK | AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK)) &&

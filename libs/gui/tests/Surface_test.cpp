@@ -762,10 +762,6 @@ public:
         return NO_ERROR;
     }
     status_t clearBootDisplayMode(const sp<IBinder>& /*display*/) override { return NO_ERROR; }
-    status_t getPreferredBootDisplayMode(const sp<IBinder>& /*display*/,
-                                         ui::DisplayModeId* /*id*/) override {
-        return NO_ERROR;
-    }
     void setAutoLowLatencyMode(const sp<IBinder>& /*display*/, bool /*on*/) override {}
     void setGameContentType(const sp<IBinder>& /*display*/, bool /*on*/) override {}
 

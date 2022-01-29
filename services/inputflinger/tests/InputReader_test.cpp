@@ -2862,7 +2862,7 @@ TEST_F(InputDeviceTest, Configure_AssignsDisplayUniqueId) {
     // Device should be disabled because it is associated with a specific display, but the
     // corresponding display is not found.
     const std::string DISPLAY_UNIQUE_ID = "displayUniqueId";
-    mFakePolicy->addInputUniqueIdAssociation(DEVICE_NAME, DISPLAY_UNIQUE_ID);
+    mFakePolicy->addInputUniqueIdAssociation(DEVICE_LOCATION, DISPLAY_UNIQUE_ID);
     mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
                        InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     ASSERT_FALSE(mDevice->isEnabled());
@@ -2885,6 +2885,21 @@ TEST_F(InputDeviceTest, Configure_AssignsDisplayUniqueId) {
     mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
                        InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     ASSERT_FALSE(mDevice->isEnabled());
+}
+
+TEST_F(InputDeviceTest, Configure_UniqueId_CorrectlyMatches) {
+    mFakePolicy->clearViewports();
+    mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD);
+    mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0);
+
+    const std::string DISPLAY_UNIQUE_ID = "displayUniqueId";
+    mFakePolicy->addInputUniqueIdAssociation(DEVICE_LOCATION, DISPLAY_UNIQUE_ID);
+    mFakePolicy->addDisplayViewport(SECONDARY_DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                    DISPLAY_ORIENTATION_0, /* isActive= */ true, DISPLAY_UNIQUE_ID,
+                                    NO_PORT, ViewportType::INTERNAL);
+    mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                       InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    ASSERT_EQ(DISPLAY_UNIQUE_ID, mDevice->getAssociatedDisplayUniqueId());
 }
 
 // --- InputMapperTest ---
