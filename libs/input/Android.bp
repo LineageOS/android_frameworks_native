@@ -35,7 +35,6 @@ filegroup {
 
 cc_library {
     name: "libinput",
-    cpp_std: "c++20",
     host_supported: true,
     cflags: [
         "-Wall",

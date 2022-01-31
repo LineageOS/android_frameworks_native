@@ -58,8 +58,7 @@ cc_test {
         ],
     },
     static_libs: [
-        "libc++fs",
-        "libinput",
+        "libc++fs"
     ],
     require_root: true,
     test_suites: ["device-tests"],
