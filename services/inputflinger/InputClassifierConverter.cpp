@@ -325,11 +325,6 @@ static std::vector<common::V1_0::VideoFrame> convertVideoFrames(
     return out;
 }
 
-static uint8_t getActionIndex(int32_t action) {
-    return (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >>
-            AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
-}
-
 static void getHidlPropertiesAndCoords(const NotifyMotionArgs& args,
         std::vector<common::V1_0::PointerProperties>* outPointerProperties,
         std::vector<common::V1_0::PointerCoords>* outPointerCoords) {
@@ -360,7 +355,7 @@ common::V1_0::MotionEvent notifyMotionArgsToHalMotionEvent(const NotifyMotionArg
     event.eventTime = args.eventTime;
     event.deviceTimestamp = 0;
     event.action = getAction(args.action & AMOTION_EVENT_ACTION_MASK);
-    event.actionIndex = getActionIndex(args.action);
+    event.actionIndex = MotionEvent::getActionIndex(args.action);
     event.actionButton = getActionButton(args.actionButton);
     event.flags = getFlags(args.flags);
     event.policyFlags = getPolicyFlags(args.policyFlags);

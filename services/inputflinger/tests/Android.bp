@@ -49,6 +49,7 @@ cc_test {
         "LatencyTracker_test.cpp",
         "TestInputListener.cpp",
         "UinputDevice.cpp",
+        "UnwantedInteractionBlocker_test.cpp",
     ],
     aidl: {
         include_dirs: [
