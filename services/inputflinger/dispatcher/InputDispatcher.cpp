@@ -509,9 +509,8 @@ bool windowAcceptsTouchAt(const WindowInfo& windowInfo, int32_t displayId, int32
     if (inputConfig.test(WindowInfo::InputConfig::NOT_TOUCHABLE) && !windowCanInterceptTouch) {
         return false;
     }
-    const bool isModalWindow = !inputConfig.test(WindowInfo::InputConfig::NOT_FOCUSABLE) &&
-            !inputConfig.test(WindowInfo::InputConfig::NOT_TOUCH_MODAL);
-    if (!isModalWindow && !windowInfo.touchableRegionContainsPoint(x, y)) {
+    if (!inputConfig.test(WindowInfo::InputConfig::TOUCH_MODAL) &&
+        !windowInfo.touchableRegionContainsPoint(x, y)) {
         return false;
     }
     return true;
