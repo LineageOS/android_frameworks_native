@@ -175,12 +175,12 @@ void LayerProtoHelper::writeToProto(
     }
 
     InputWindowInfoProto* proto = getInputWindowInfoProto();
-    proto->set_layout_params_flags(inputInfo.flags.get());
+    proto->set_layout_params_flags(inputInfo.layoutParamsFlags.get());
     using U = std::underlying_type_t<WindowInfo::Type>;
     // TODO(b/129481165): This static assert can be safely removed once conversion warnings
     // are re-enabled.
     static_assert(std::is_same_v<U, int32_t>);
-    proto->set_layout_params_type(static_cast<U>(inputInfo.type));
+    proto->set_layout_params_type(static_cast<U>(inputInfo.layoutParamsType));
 
     LayerProtoHelper::writeToProto({inputInfo.frameLeft, inputInfo.frameTop, inputInfo.frameRight,
                                     inputInfo.frameBottom},
@@ -189,9 +189,10 @@ void LayerProtoHelper::writeToProto(
                                    [&]() { return proto->mutable_touchable_region(); });
 
     proto->set_surface_inset(inputInfo.surfaceInset);
-    proto->set_visible(inputInfo.visible);
-    proto->set_focusable(inputInfo.focusable);
-    proto->set_has_wallpaper(inputInfo.hasWallpaper);
+    using InputConfig = gui::WindowInfo::InputConfig;
+    proto->set_visible(!inputInfo.inputConfig.test(InputConfig::NOT_VISIBLE));
+    proto->set_focusable(!inputInfo.inputConfig.test(InputConfig::NOT_FOCUSABLE));
+    proto->set_has_wallpaper(inputInfo.inputConfig.test(InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER));
 
     proto->set_global_scale_factor(inputInfo.globalScaleFactor);
     LayerProtoHelper::writeToProtoDeprecated(inputInfo.transform, proto->mutable_transform());

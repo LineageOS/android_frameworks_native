@@ -183,13 +183,16 @@ proto::LayerState TransactionProtoParser::toProto(const layer_state_t& layer,
         if (layer.windowInfoHandle) {
             const gui::WindowInfo* inputInfo = layer.windowInfoHandle->getInfo();
             proto::LayerState_WindowInfo* windowInfoProto = proto.mutable_window_info_handle();
-            windowInfoProto->set_layout_params_flags(inputInfo->flags.get());
-            windowInfoProto->set_layout_params_type(static_cast<int32_t>(inputInfo->type));
+            windowInfoProto->set_layout_params_flags(inputInfo->layoutParamsFlags.get());
+            windowInfoProto->set_layout_params_type(
+                    static_cast<int32_t>(inputInfo->layoutParamsType));
             LayerProtoHelper::writeToProto(inputInfo->touchableRegion,
                                            windowInfoProto->mutable_touchable_region());
             windowInfoProto->set_surface_inset(inputInfo->surfaceInset);
-            windowInfoProto->set_focusable(inputInfo->focusable);
-            windowInfoProto->set_has_wallpaper(inputInfo->hasWallpaper);
+            windowInfoProto->set_focusable(
+                    !inputInfo->inputConfig.test(gui::WindowInfo::InputConfig::NOT_FOCUSABLE));
+            windowInfoProto->set_has_wallpaper(inputInfo->inputConfig.test(
+                    gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER));
             windowInfoProto->set_global_scale_factor(inputInfo->globalScaleFactor);
             proto::LayerState_Transform* transformProto = windowInfoProto->mutable_transform();
             transformProto->set_dsdx(inputInfo->transform.dsdx());
@@ -471,13 +474,17 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto,
         gui::WindowInfo inputInfo;
         const proto::LayerState_WindowInfo& windowInfoProto = proto.window_info_handle();
 
-        inputInfo.flags = static_cast<gui::WindowInfo::Flag>(windowInfoProto.layout_params_flags());
-        inputInfo.type = static_cast<gui::WindowInfo::Type>(windowInfoProto.layout_params_type());
+        inputInfo.layoutParamsFlags =
+                static_cast<gui::WindowInfo::Flag>(windowInfoProto.layout_params_flags());
+        inputInfo.layoutParamsType =
+                static_cast<gui::WindowInfo::Type>(windowInfoProto.layout_params_type());
         LayerProtoHelper::readFromProto(windowInfoProto.touchable_region(),
                                         inputInfo.touchableRegion);
         inputInfo.surfaceInset = windowInfoProto.surface_inset();
-        inputInfo.focusable = windowInfoProto.focusable();
-        inputInfo.hasWallpaper = windowInfoProto.has_wallpaper();
+        inputInfo.setInputConfig(gui::WindowInfo::InputConfig::NOT_FOCUSABLE,
+                                 !windowInfoProto.focusable());
+        inputInfo.setInputConfig(gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER,
+                                 windowInfoProto.has_wallpaper());
         inputInfo.globalScaleFactor = windowInfoProto.global_scale_factor();
         const proto::LayerState_Transform& transformProto = windowInfoProto.transform();
         inputInfo.transform.set(transformProto.dsdx(), transformProto.dtdx(), transformProto.dtdy(),
