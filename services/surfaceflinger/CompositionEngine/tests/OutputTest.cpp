@@ -1291,7 +1291,7 @@ struct OutputEnsureOutputLayerIfVisibleTest : public testing::Test {
         mLayer.layerFEState.contentDirty = true;
         mLayer.layerFEState.geomLayerBounds = FloatRect{0, 0, 100, 200};
         mLayer.layerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
-        mLayer.layerFEState.transparentRegionHint = Region(Rect(0, 0, 100, 100));
+        mLayer.layerFEState.transparentRegionHint = kTransparentRegionHint;
 
         mLayer.outputLayerState.visibleRegion = Region(Rect(0, 0, 50, 200));
         mLayer.outputLayerState.coveredRegion = Region(Rect(50, 0, 100, 200));
@@ -1309,6 +1309,7 @@ struct OutputEnsureOutputLayerIfVisibleTest : public testing::Test {
     static const Region kRightHalfBoundsNoRotation;
     static const Region kLowerHalfBoundsNoRotation;
     static const Region kFullBounds90Rotation;
+    static const Region kTransparentRegionHint;
 
     StrictMock<OutputPartialMock> mOutput;
     LayerFESet mGeomSnapshots;
@@ -1326,6 +1327,8 @@ const Region OutputEnsureOutputLayerIfVisibleTest::kLowerHalfBoundsNoRotation =
         Region(Rect(50, 0, 100, 200));
 const Region OutputEnsureOutputLayerIfVisibleTest::kFullBounds90Rotation =
         Region(Rect(0, 0, 200, 100));
+const Region OutputEnsureOutputLayerIfVisibleTest::kTransparentRegionHint =
+        Region(Rect(0, 0, 100, 100));
 
 TEST_F(OutputEnsureOutputLayerIfVisibleTest, performsGeomLatchBeforeCheckingIfLayerIncluded) {
     EXPECT_CALL(mOutput, includesLayer(sp<LayerFE>(mLayer.layerFE))).WillOnce(Return(false));
@@ -1747,6 +1750,33 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesNotSoEarlyOutifLayerWithShadow
     mCoverageState.aboveOpaqueLayers = Region(Rect(40, 40, 160, 260));
 
     ensureOutputLayerIfVisible();
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, displayDecorSetsBlockingFromTransparentRegion) {
+    mLayer.layerFEState.isOpaque = false;
+    mLayer.layerFEState.contentDirty = true;
+    mLayer.layerFEState.compositionType =
+            aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION;
+
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(std::nullopt), Eq(mLayer.layerFE)))
+            .WillOnce(Return(&mLayer.outputLayer));
+    ensureOutputLayerIfVisible();
+
+    EXPECT_THAT(mLayer.outputLayerState.outputSpaceBlockingRegionHint,
+                RegionEq(kTransparentRegionHint));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, normalLayersDoNotSetBlockingRegion) {
+    mLayer.layerFEState.isOpaque = false;
+    mLayer.layerFEState.contentDirty = true;
+
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(std::nullopt), Eq(mLayer.layerFE)))
+            .WillOnce(Return(&mLayer.outputLayer));
+    ensureOutputLayerIfVisible();
+
+    EXPECT_THAT(mLayer.outputLayerState.outputSpaceBlockingRegionHint, RegionEq(Region()));
 }
 
 /*

@@ -846,7 +846,8 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
                                    ui::Dataspace dataspace = kDataspace,
                                    const Region& visibleRegion = kOutputSpaceVisibleRegion,
                                    const Region& surfaceDamage = kSurfaceDamage,
-                                   float whitePointNits = kWhitePointNits) {
+                                   float whitePointNits = kWhitePointNits,
+                                   const Region& blockingRegion = Region()) {
         EXPECT_CALL(*mHwcLayer, setVisibleRegion(RegionEq(visibleRegion))).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setDataspace(dataspace)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setWhitePointNits(whitePointNits)).WillOnce(Return(kError));
@@ -855,6 +856,8 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
                                          ? hal::Error::UNSUPPORTED
                                          : hal::Error::NONE));
         EXPECT_CALL(*mHwcLayer, setSurfaceDamage(RegionEq(surfaceDamage))).WillOnce(Return(kError));
+        EXPECT_CALL(*mHwcLayer, setBlockingRegion(RegionEq(blockingRegion)))
+                .WillOnce(Return(kError));
     }
 
     void expectSetCompositionTypeCall(Composition compositionType) {
@@ -1276,6 +1279,23 @@ TEST_F(OutputLayerWriteStateToHWCTest, roundedCornersPeekingThroughAllowsDeviceC
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/
                                  true);
     EXPECT_EQ(Composition::DEVICE, mOutputLayer.getState().hwc->hwcCompositionType);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, setBlockingRegion) {
+    mLayerFEState.compositionType = Composition::DISPLAY_DECORATION;
+    const auto blockingRegion = Region(Rect(0, 0, 1000, 1000));
+    mOutputLayer.editState().outputSpaceBlockingRegionHint = blockingRegion;
+
+    expectGeometryCommonCalls();
+    expectPerFrameCommonCalls(SimulateUnsupported::None, kDataspace, kOutputSpaceVisibleRegion,
+                              kSurfaceDamage, kWhitePointNits, blockingRegion);
+    expectSetHdrMetadataAndBufferCalls();
+    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
+    expectSetCompositionTypeCall(Composition::DISPLAY_DECORATION);
+
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
+                                 /*zIsOverridden*/ false, /*isPeekingThrough*/
+                                 false);
 }
 
 /*
