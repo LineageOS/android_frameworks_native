@@ -98,9 +98,6 @@ static inline IMapper::Rect sGralloc4Rect(const Rect& rect) {
 static bool hasIAllocatorAidl() {
     // Avoid re-querying repeatedly for this information;
     static bool sHasIAllocatorAidl = []() -> bool {
-        // TODO: Enable after landing sepolicy changes
-        if constexpr ((true)) return false;
-
         if (__builtin_available(android 31, *)) {
             return AServiceManager_isDeclared(kAidlAllocatorServiceName.c_str());
         }
