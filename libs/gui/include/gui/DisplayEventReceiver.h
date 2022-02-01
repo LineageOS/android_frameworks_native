@@ -172,6 +172,11 @@ public:
      */
     status_t requestNextVsync();
 
+    /**
+     * getLatestVsyncEventData() gets the latest vsync event data.
+     */
+    status_t getLatestVsyncEventData(VsyncEventData* outVsyncEventData) const;
+
 private:
     sp<IDisplayEventConnection> mEventConnection;
     std::unique_ptr<gui::BitTube> mDataChannel;

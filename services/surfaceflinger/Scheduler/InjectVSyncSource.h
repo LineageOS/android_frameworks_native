@@ -46,6 +46,7 @@ public:
     const char* getName() const override { return "inject"; }
     void setVSyncEnabled(bool) override {}
     void setDuration(std::chrono::nanoseconds, std::chrono::nanoseconds) override {}
+    VSyncData getLatestVSyncData() const override { return {}; }
     void dump(std::string&) const override {}
 
 private:
