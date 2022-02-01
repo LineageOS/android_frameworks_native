@@ -327,6 +327,10 @@ public:
     Error setBootDisplayConfig(Display displayId, Config) override;
     Error clearBootDisplayConfig(Display displayId) override;
     Error getPreferredBootDisplayConfig(Display displayId, Config*) override;
+    Error getDisplayDecorationSupport(
+            Display display,
+            std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    support) override;
 
 private:
     class CommandWriter : public CommandWriterBase {

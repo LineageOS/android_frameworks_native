@@ -95,6 +95,10 @@ public:
     MOCK_METHOD(hal::Error, setContentType, (hal::ContentType), (override));
     MOCK_METHOD(hal::Error, getClientTargetProperty, (hal::ClientTargetProperty *, float *),
                 (override));
+    MOCK_METHOD(
+            hal::Error, getDisplayDecorationSupport,
+            (std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport> *),
+            (override));
 };
 
 class Layer : public HWC2::Layer {

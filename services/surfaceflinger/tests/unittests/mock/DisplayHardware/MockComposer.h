@@ -43,6 +43,8 @@ using android::hardware::graphics::composer::V2_1::Layer;
 using android::hardware::graphics::composer::V2_4::IComposerCallback;
 using android::hardware::graphics::composer::V2_4::IComposerClient;
 
+using aidl::android::hardware::graphics::common::DisplayDecorationSupport;
+
 class Composer : public Hwc2::Composer {
 public:
     using Display = android::hardware::graphics::composer::V2_1::Display;
@@ -153,6 +155,8 @@ public:
     MOCK_METHOD3(setLayerWhitePointNits, Error(Display, Layer, float));
     MOCK_METHOD3(setLayerBlockingRegion,
                  Error(Display, Layer, const std::vector<IComposerClient::Rect>&));
+    MOCK_METHOD2(getDisplayDecorationSupport,
+                 Error(Display, std::optional<DisplayDecorationSupport>*));
 };
 
 } // namespace Hwc2::mock

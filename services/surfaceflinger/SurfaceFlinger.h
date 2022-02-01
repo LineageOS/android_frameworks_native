@@ -85,6 +85,8 @@
 #include <unordered_set>
 #include <utility>
 
+#include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+
 using namespace android::surfaceflinger;
 
 namespace android {
@@ -596,8 +598,10 @@ private:
     status_t notifyPowerBoost(int32_t boostId) override;
     status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
                                      float lightPosY, float lightPosZ, float lightRadius) override;
-    status_t getDisplayDecorationSupport(const sp<IBinder>& displayToken,
-                                         bool* outSupport) const override;
+    status_t getDisplayDecorationSupport(
+            const sp<IBinder>& displayToken,
+            std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    outSupport) const override;
     status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
                           int8_t compatibility, int8_t changeFrameRateStrategy) override;
 

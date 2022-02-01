@@ -52,6 +52,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+
 namespace android {
 
 struct client_cache_t;
@@ -533,15 +535,17 @@ public:
      * displayToken
      *      The token of the display.
      * outSupport
-     *      An output parameter for whether the display supports
+     *      An output parameter for whether/how the display supports
      *      DISPLAY_DECORATION layers.
      *
      * Returns NO_ERROR upon success. Otherwise,
      *      NAME_NOT_FOUND if the display is invalid, or
      *      BAD_VALUE      if the output parameter is invalid.
      */
-    virtual status_t getDisplayDecorationSupport(const sp<IBinder>& displayToken,
-                                                 bool* outSupport) const = 0;
+    virtual status_t getDisplayDecorationSupport(
+            const sp<IBinder>& displayToken,
+            std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    outSupport) const = 0;
 
     /*
      * Sets the intended frame rate for a surface. See ANativeWindow_setFrameRate() for more info.
