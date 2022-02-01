@@ -108,7 +108,7 @@ public:
                           hal::VsyncPeriodChangeTimeline*));
     MOCK_METHOD2(setBootDisplayMode, status_t(PhysicalDisplayId, hal::HWConfigId));
     MOCK_METHOD1(clearBootDisplayMode, status_t(PhysicalDisplayId));
-    MOCK_METHOD1(getPreferredBootDisplayMode, hal::HWConfigId(PhysicalDisplayId));
+    MOCK_METHOD1(getPreferredBootDisplayMode, std::optional<hal::HWConfigId>(PhysicalDisplayId));
     MOCK_METHOD0(getBootDisplayModeSupport, bool());
     MOCK_METHOD2(setAutoLowLatencyMode, status_t(PhysicalDisplayId, bool));
     MOCK_METHOD2(getSupportedContentTypes,
