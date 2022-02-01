@@ -45,4 +45,5 @@ cc_test {
         "-Wextra",
     ],
     require_root: true,
+    test_suites: ["general-tests"],
 }
