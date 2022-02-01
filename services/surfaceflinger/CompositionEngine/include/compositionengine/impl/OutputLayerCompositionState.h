@@ -90,6 +90,10 @@ struct OutputLayerCompositionState {
     // The dataspace for this layer
     ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
 
+    // A hint to the HWC that this region is transparent and may be skipped in
+    // order to save power.
+    Region outputSpaceBlockingRegionHint;
+
     // Overrides the buffer, acquire fence, and display frame stored in LayerFECompositionState
     struct {
         std::shared_ptr<renderengine::ExternalTexture> buffer = nullptr;

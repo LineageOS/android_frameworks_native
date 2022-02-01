@@ -132,9 +132,13 @@ nsecs_t Fence::getSignalTime() const {
         ALOGE("sync_file_info returned NULL for fd %d", mFenceFd.get());
         return SIGNAL_TIME_INVALID;
     }
+
     if (finfo->status != 1) {
+        const auto status = finfo->status;
+        ALOGE_IF(status < 0, "%s: sync_file_info contains an error: <%d> for fd: <%d>", __func__,
+                 status, mFenceFd.get());
         sync_file_info_free(finfo);
-        return SIGNAL_TIME_PENDING;
+        return status < 0 ? SIGNAL_TIME_INVALID : SIGNAL_TIME_PENDING;
     }
 
     uint64_t timestamp = 0;
