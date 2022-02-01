@@ -484,6 +484,14 @@ void OutputLayer::writeOutputDependentPerFrameStateToHWC(HWC2::Layer* hwcLayer) 
         visibleRegion.dump(LOG_TAG);
     }
 
+    if (auto error =
+                hwcLayer->setBlockingRegion(outputDependentState.outputSpaceBlockingRegionHint);
+        error != hal::Error::NONE) {
+        ALOGE("[%s] Failed to set blocking region: %s (%d)", getLayerFE().getDebugName(),
+              to_string(error).c_str(), static_cast<int32_t>(error));
+        outputDependentState.outputSpaceBlockingRegionHint.dump(LOG_TAG);
+    }
+
     const auto dataspace = outputDependentState.overrideInfo.buffer
             ? outputDependentState.overrideInfo.dataspace
             : outputDependentState.dataspace;

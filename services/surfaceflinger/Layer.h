@@ -1093,7 +1093,7 @@ private:
     void fillTouchOcclusionMode(gui::WindowInfo& info);
 
     // Fills in the frame and transform info for the gui::WindowInfo.
-    void fillInputFrameInfo(gui::WindowInfo&, const ui::Transform& displayTransform);
+    void fillInputFrameInfo(gui::WindowInfo&, const ui::Transform& screenToDisplay);
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling, which is
