@@ -18,7 +18,7 @@
 <permissions>
     <feature name="android.hardware.telephony" />
     <feature name="android.software.telecom" />
-    <feature name="android.hardware.telephony.radio" />
+    <feature name="android.hardware.telephony.radio.access" />
     <feature name="android.hardware.telephony.subscription" />
     <feature name="android.hardware.telephony.gsm" />
     <feature name="android.hardware.telephony.calling" />
