@@ -371,14 +371,10 @@ static const CommandOptions AS_ROOT_20 = CommandOptions::WithTimeout(20).AsRoot(
 /*
  * Returns a vector of dump fds under |dir_path| with a given |file_prefix|.
  * The returned vector is sorted by the mtimes of the dumps with descending
- * order. If |limit_by_mtime| is set, the vector only contains files that
- * were written in the last 30 minutes.
+ * order.
  */
 static std::vector<DumpData> GetDumpFds(const std::string& dir_path,
-                                        const std::string& file_prefix,
-                                        bool limit_by_mtime) {
-    const time_t thirty_minutes_ago = ds.now_ - 60 * 30;
-
+                                        const std::string& file_prefix) {
     std::unique_ptr<DIR, decltype(&closedir)> dump_dir(opendir(dir_path.c_str()), closedir);
 
     if (dump_dir == nullptr) {
@@ -412,11 +408,6 @@ static std::vector<DumpData> GetDumpFds(const std::string& dir_path,
             continue;
         }
 
-        if (limit_by_mtime && st.st_mtime < thirty_minutes_ago) {
-            MYLOGI("Excluding stale dump file: %s\n", abs_path.c_str());
-            continue;
-        }
-
         dump_data.emplace_back(DumpData{abs_path, std::move(fd), st.st_mtime});
     }
     if (!dump_data.empty()) {
@@ -447,7 +438,7 @@ static bool AddDumps(const std::vector<DumpData>::const_iterator start,
                    strerror(errno));
         }
 
-        if (ds.IsZipping() && add_to_zip) {
+        if (add_to_zip) {
             if (ds.AddZipEntryFromFd(ZIP_ROOT_DIR + name, fd, /* timeout = */ 0ms) != OK) {
                 MYLOGE("Unable to add %s to zip file, addZipEntryFromFd failed\n", name.c_str());
             }
@@ -486,7 +477,6 @@ void do_mountinfo(int pid, const char* name __attribute__((unused))) {
 }
 
 void add_mountinfo() {
-    if (!ds.IsZipping()) return;
     std::string title = "MOUNT INFO";
     mount_points.clear();
     DurationReporter duration_reporter(title, true);
@@ -823,11 +813,6 @@ static const std::set<std::string> PROBLEMATIC_FILE_EXTENSIONS = {
 
 status_t Dumpstate::AddZipEntryFromFd(const std::string& entry_name, int fd,
                                       std::chrono::milliseconds timeout = 0ms) {
-    if (!IsZipping()) {
-        MYLOGD("Not adding zip entry %s from fd because it's not a zipped bugreport\n",
-               entry_name.c_str());
-        return INVALID_OPERATION;
-    }
     std::string valid_name = entry_name;
 
     // Rename extension if necessary.
@@ -928,21 +913,12 @@ static int _add_file_from_fd(const char* title __attribute__((unused)), const ch
 }
 
 void Dumpstate::AddDir(const std::string& dir, bool recursive) {
-    if (!IsZipping()) {
-        MYLOGD("Not adding dir %s because it's not a zipped bugreport\n", dir.c_str());
-        return;
-    }
     MYLOGD("Adding dir %s (recursive: %d)\n", dir.c_str(), recursive);
     DurationReporter duration_reporter(dir, true);
     dump_files("", dir.c_str(), recursive ? skip_none : is_dir, _add_file_from_fd);
 }
 
 bool Dumpstate::AddTextZipEntry(const std::string& entry_name, const std::string& content) {
-    if (!IsZipping()) {
-        MYLOGD("Not adding text zip entry %s because it's not a zipped bugreport\n",
-               entry_name.c_str());
-        return false;
-    }
     MYLOGD("Adding zip text entry %s\n", entry_name.c_str());
     int32_t err = zip_writer_->StartEntryWithTime(entry_name.c_str(), ZipWriter::kCompress, ds.now_);
     if (err != 0) {
@@ -1035,10 +1011,6 @@ static void DoLogcat() {
 }
 
 static void DumpIncidentReport() {
-    if (!ds.IsZipping()) {
-        MYLOGD("Not dumping incident report because it's not a zipped bugreport\n");
-        return;
-    }
     const std::string path = ds.bugreport_internal_dir_ + "/tmp_incident_report";
     auto fd = android::base::unique_fd(TEMP_FAILURE_RETRY(open(path.c_str(),
                 O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
@@ -1064,10 +1036,6 @@ static void MaybeAddSystemTraceToZip() {
     // This function copies into the .zip the system trace that was snapshotted
     // by the early call to MaybeSnapshotSystemTrace(), if any background
     // tracing was happening.
-    if (!ds.IsZipping()) {
-        MYLOGD("Not dumping system trace because it's not a zipped bugreport\n");
-        return;
-    }
     if (!ds.has_system_trace_) {
         // No background trace was happening at the time dumpstate was invoked.
         return;
@@ -1079,10 +1047,6 @@ static void MaybeAddSystemTraceToZip() {
 }
 
 static void DumpVisibleWindowViews() {
-    if (!ds.IsZipping()) {
-        MYLOGD("Not dumping visible views because it's not a zipped bugreport\n");
-        return;
-    }
     DurationReporter duration_reporter("VISIBLE WINDOW VIEWS");
     const std::string path = ds.bugreport_internal_dir_ + "/tmp_visible_window_views";
     auto fd = android::base::unique_fd(TEMP_FAILURE_RETRY(open(path.c_str(),
@@ -1163,7 +1127,7 @@ static void AddAnrTraceDir(const bool add_to_zip, const std::string& anr_traces_
 }
 
 static void AddAnrTraceFiles() {
-    const bool add_to_zip = ds.IsZipping() && ds.version_ == VERSION_SPLIT_ANR;
+    const bool add_to_zip = ds.version_ == VERSION_SPLIT_ANR;
 
     std::string anr_traces_dir = "/data/anr";
 
@@ -1303,10 +1267,6 @@ static Dumpstate::RunStatus RunDumpsysTextNormalPriority(const std::string& titl
 static Dumpstate::RunStatus RunDumpsysProto(const std::string& title, int priority,
                                             std::chrono::milliseconds timeout,
                                             std::chrono::milliseconds service_timeout) {
-    if (!ds.IsZipping()) {
-        MYLOGD("Not dumping %s because it's not a zipped bugreport\n", title.c_str());
-        return Dumpstate::RunStatus::OK;
-    }
     sp<android::IServiceManager> sm = defaultServiceManager();
     Dumpsys dumpsys(sm.get());
     Vector<String16> args;
@@ -1386,12 +1346,6 @@ static Dumpstate::RunStatus RunDumpsysNormal() {
  * if it's not running in the parallel task.
  */
 static void DumpHals(int out_fd = STDOUT_FILENO) {
-    if (!ds.IsZipping()) {
-        RunCommand("HARDWARE HALS", {"lshal", "--all", "--types=all", "--debug"},
-                   CommandOptions::WithTimeout(60).AsRootIfAvailable().Build(),
-                   false, out_fd);
-        return;
-    }
     RunCommand("HARDWARE HALS", {"lshal", "--all", "--types=all"},
                CommandOptions::WithTimeout(10).AsRootIfAvailable().Build(),
                false, out_fd);
@@ -1846,8 +1800,8 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
 
     /* Run some operations that require root. */
     if (!PropertiesHelper::IsDryRun()) {
-        ds.tombstone_data_ = GetDumpFds(TOMBSTONE_DIR, TOMBSTONE_FILE_PREFIX, !ds.IsZipping());
-        ds.anr_data_ = GetDumpFds(ANR_DIR, ANR_FILE_PREFIX, !ds.IsZipping());
+        ds.tombstone_data_ = GetDumpFds(TOMBSTONE_DIR, TOMBSTONE_FILE_PREFIX);
+        ds.anr_data_ = GetDumpFds(ANR_DIR, ANR_FILE_PREFIX);
     }
 
     ds.AddDir(RECOVERY_DIR, true);
@@ -2393,11 +2347,6 @@ void Dumpstate::DumpstateBoard(int out_fd) {
     dprintf(out_fd, "========================================================\n");
     dprintf(out_fd, "== Board\n");
     dprintf(out_fd, "========================================================\n");
-
-    if (!IsZipping()) {
-        MYLOGD("Not dumping board info because it's not a zipped bugreport\n");
-        return;
-    }
 
     /*
      * mount debugfs for non-user builds with ro.product.debugfs_restrictions.enabled
@@ -3567,10 +3516,6 @@ void Progress::Dump(int fd, const std::string& prefix) const {
     dprintf(fd, "%saverage_max: %d\n", pr, average_max_);
 }
 
-bool Dumpstate::IsZipping() const {
-    return zip_writer_ != nullptr;
-}
-
 std::string Dumpstate::GetPath(const std::string& suffix) const {
     return GetPath(bugreport_internal_dir_, suffix);
 }
@@ -4216,10 +4161,6 @@ void dump_frozen_cgroupfs(const char *dir, int level,
 }
 
 void dump_frozen_cgroupfs() {
-    if (!ds.IsZipping()) {
-        MYLOGD("Not adding cgroupfs because it's not a zipped bugreport\n");
-        return;
-    }
     MYLOGD("Adding frozen processes from %s\n", CGROUPFS_DIR);
     DurationReporter duration_reporter("FROZEN CGROUPFS");
     if (PropertiesHelper::IsDryRun()) return;
