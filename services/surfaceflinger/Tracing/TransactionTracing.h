@@ -84,6 +84,7 @@ private:
             GUARDED_BY(mTraceLock);
     std::vector<int32_t /* layerId */> mRemovedLayerHandles GUARDED_BY(mTraceLock);
     std::map<int32_t /* layerId */, TracingLayerState> mStartingStates GUARDED_BY(mTraceLock);
+    TransactionProtoParser mProtoParser GUARDED_BY(mTraceLock);
 
     // We do not want main thread to block so main thread will try to acquire mMainThreadLock,
     // otherwise will push data to temporary container.

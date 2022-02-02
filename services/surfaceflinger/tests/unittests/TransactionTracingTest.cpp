@@ -178,8 +178,8 @@ TEST_F(TransactionTracingLayerHandlingTest, addStartingState) {
     // verify we can still retrieve the layer change from the first entry containing starting
     // states.
     EXPECT_GT(proto.entry().size(), 0);
-    EXPECT_GT(proto.entry(0).transactions().size(), 0);
-    EXPECT_GT(proto.entry(0).added_layers().size(), 0);
+    EXPECT_EQ(proto.entry(0).transactions().size(), 1);
+    EXPECT_EQ(proto.entry(0).added_layers().size(), 2);
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes().size(), 2);
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).layer_id(), mParentLayerId);
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).z(), 42);
