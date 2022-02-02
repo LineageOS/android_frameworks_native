@@ -47,6 +47,7 @@ public:
     virtual int getContextPriority() override { return 0; }
     virtual void assertShadersCompiled(int numShaders) {}
     virtual int reportShadersCompiled() { return 0; }
+    virtual void setEnableTracing(bool tracingEnabled) override;
 
 protected:
     virtual void mapExternalTextureBuffer(const sp<GraphicBuffer>& /*buffer*/,

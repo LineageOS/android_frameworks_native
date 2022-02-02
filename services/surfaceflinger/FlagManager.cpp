@@ -19,8 +19,10 @@
 #include <SurfaceFlingerProperties.sysprop.h>
 #include <android-base/parsebool.h>
 #include <android-base/parseint.h>
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <log/log.h>
+#include <renderengine/RenderEngine.h>
 #include <server_configurable_flags/get_flags.h>
 #include <cinttypes>
 
@@ -34,6 +36,7 @@ void FlagManager::dump(std::string& result) const {
     base::StringAppendF(&result, "FlagManager values: \n");
     base::StringAppendF(&result, "demo_flag: %" PRId64 "\n", demo_flag());
     base::StringAppendF(&result, "use_adpf_cpu_hint: %s\n", use_adpf_cpu_hint() ? "true" : "false");
+    base::StringAppendF(&result, "use_skia_tracing: %s\n", use_skia_tracing() ? "true" : "false");
 }
 
 namespace {
@@ -95,6 +98,13 @@ int64_t FlagManager::demo_flag() const {
 bool FlagManager::use_adpf_cpu_hint() const {
     std::optional<bool> sysPropVal = std::nullopt;
     return getValue("AdpfFeature__adpf_cpu_hint", sysPropVal, false);
+}
+
+bool FlagManager::use_skia_tracing() const {
+    ALOGD("use_skia_tracing ?");
+    std::optional<bool> sysPropVal =
+            doParse<bool>(base::GetProperty(PROPERTY_SKIA_ATRACE_ENABLED, "").c_str());
+    return getValue("SkiaTracingFeature__use_skia_tracing", sysPropVal, false);
 }
 
 } // namespace android
