@@ -18,13 +18,13 @@
 #define _UI_INPUT_CLASSIFIER_H
 
 #include <android-base/thread_annotations.h>
+#include <future>
 #include <thread>
 #include <unordered_map>
 
+#include <aidl/android/hardware/input/processor/IInputProcessor.h>
 #include "BlockingQueue.h"
 #include "InputListener.h"
-#include <android/hardware/input/classifier/1.0/IInputClassifier.h>
-
 namespace android {
 
 enum class ClassifierEventType : uint8_t {
@@ -102,6 +102,19 @@ public:
 
 // --- Implementations ---
 
+class ScopedDeathRecipient {
+public:
+    explicit ScopedDeathRecipient(AIBinder_DeathRecipient_onBinderDied onBinderDied, void* cookie);
+    ScopedDeathRecipient(const ScopedDeathRecipient&) = delete;
+    ScopedDeathRecipient& operator=(ScopedDeathRecipient const&) = delete;
+    void linkToDeath(AIBinder* binder);
+    ~ScopedDeathRecipient();
+
+private:
+    AIBinder_DeathRecipient* mRecipient;
+    void* mCookie;
+};
+
 /**
  * Implementation of MotionClassifierInterface that calls the InputClassifier HAL
  * in order to determine the classification for the current gesture.
@@ -121,7 +134,7 @@ public:
      * This function should be called asynchronously, because getService takes a long time.
      */
     static std::unique_ptr<MotionClassifierInterface> create(
-            sp<android::hardware::hidl_death_recipient> deathRecipient);
+            std::shared_ptr<aidl::android::hardware::input::processor::IInputProcessor> service);
 
     ~MotionClassifier();
 
@@ -143,7 +156,7 @@ public:
 private:
     friend class MotionClassifierTest; // to create MotionClassifier with a test HAL implementation
     explicit MotionClassifier(
-            sp<android::hardware::input::classifier::V1_0::IInputClassifier> service);
+            std::shared_ptr<aidl::android::hardware::input::processor::IInputProcessor> service);
 
     // The events that need to be sent to the HAL.
     BlockingQueue<ClassifierEvent> mEvents;
@@ -162,14 +175,14 @@ private:
      */
     void processEvents();
     /**
-     * Access to the InputClassifier HAL. May be null if init() hasn't completed yet.
+     * Access to the InputProcessor HAL. May be null if init() hasn't completed yet.
      * When init() successfully completes, mService is guaranteed to remain non-null and to not
      * change its value until MotionClassifier is destroyed.
      * This variable is *not* guarded by mLock in the InputClassifier thread, because
      * that thread knows exactly when this variable is initialized.
      * When accessed in any other thread, mService is checked for nullness with a lock.
      */
-    sp<android::hardware::input::classifier::V1_0::IInputClassifier> mService;
+    std::shared_ptr<aidl::android::hardware::input::processor::IInputProcessor> mService;
     std::mutex mLock;
     /**
      * Per-device input classifications. Should only be accessed using the
@@ -224,21 +237,21 @@ class InputClassifier : public InputClassifierInterface {
 public:
     explicit InputClassifier(InputListenerInterface& listener);
 
-    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
-    virtual void notifyKey(const NotifyKeyArgs* args) override;
-    virtual void notifyMotion(const NotifyMotionArgs* args) override;
-    virtual void notifySwitch(const NotifySwitchArgs* args) override;
-    virtual void notifySensor(const NotifySensorArgs* args) override;
-    virtual void notifyVibratorState(const NotifyVibratorStateArgs* args) override;
-    virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
+    void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
+    void notifyKey(const NotifyKeyArgs* args) override;
+    void notifyMotion(const NotifyMotionArgs* args) override;
+    void notifySwitch(const NotifySwitchArgs* args) override;
+    void notifySensor(const NotifySensorArgs* args) override;
+    void notifyVibratorState(const NotifyVibratorStateArgs* args) override;
+    void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 
-    virtual void dump(std::string& dump) override;
+    void dump(std::string& dump) override;
 
     ~InputClassifier();
 
     // Called from InputManager
-    virtual void setMotionClassifierEnabled(bool enabled) override;
+    void setMotionClassifierEnabled(bool enabled) override;
 
 private:
     // Protect access to mMotionClassifier, since it may become null via a hidl callback
@@ -247,7 +260,8 @@ private:
     InputListenerInterface& mListener;
 
     std::unique_ptr<MotionClassifierInterface> mMotionClassifier GUARDED_BY(mLock);
-    std::thread mInitializeMotionClassifierThread;
+    std::future<void> mInitializeMotionClassifier GUARDED_BY(mLock);
+
     /**
      * Set the value of mMotionClassifier.
      * This is called from 2 different threads:
@@ -255,25 +269,12 @@ private:
      * 2) A binder thread of the HalDeathRecipient, which is created when HAL dies. This would cause
      *    mMotionClassifier to become nullptr.
      */
-    void setMotionClassifier(std::unique_ptr<MotionClassifierInterface> motionClassifier);
+    void setMotionClassifierLocked(std::unique_ptr<MotionClassifierInterface> motionClassifier)
+            REQUIRES(mLock);
 
-    /**
-     * The deathRecipient will call setMotionClassifier(null) when the HAL dies.
-     */
-    class HalDeathRecipient : public android::hardware::hidl_death_recipient {
-    public:
-        explicit HalDeathRecipient(InputClassifier& parent);
-        virtual void serviceDied(uint64_t cookie,
-                                 const wp<android::hidl::base::V1_0::IBase>& who) override;
+    static void onBinderDied(void* cookie);
 
-    private:
-        InputClassifier& mParent;
-    };
-    // We retain a reference to death recipient, because the death recipient will be calling
-    // ~MotionClassifier if the HAL dies.
-    // If we don't retain a reference, and MotionClassifier is the only owner of the death
-    // recipient, the serviceDied call will cause death recipient to call its own destructor.
-    sp<HalDeathRecipient> mHalDeathRecipient;
+    std::unique_ptr<ScopedDeathRecipient> mHalDeathRecipient GUARDED_BY(mLock);
 };
 
 } // namespace android

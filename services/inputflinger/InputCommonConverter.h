@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_CLASSIFIER_CONVERTER_H
-#define _UI_INPUT_CLASSIFIER_CONVERTER_H
+#pragma once
 
+#include <aidl/android/hardware/input/common/Axis.h>
+#include <aidl/android/hardware/input/common/MotionEvent.h>
 #include "InputListener.h"
-#include <android/hardware/input/common/1.0/types.h>
-
 
 namespace android {
 
 /**
- * Convert from framework's NotifyMotionArgs to hidl's common::V1_0::MotionEvent
+ * Convert from framework's NotifyMotionArgs to hidl's common::MotionEvent
  */
-::android::hardware::input::common::V1_0::MotionEvent notifyMotionArgsToHalMotionEvent(
+::aidl::android::hardware::input::common::MotionEvent notifyMotionArgsToHalMotionEvent(
         const NotifyMotionArgs& args);
 
 } // namespace android
-
-#endif // _UI_INPUT_CLASSIFIER_CONVERTER_H

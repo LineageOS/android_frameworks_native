@@ -20,12 +20,14 @@
 
 #include "TestInputListener.h"
 
-#include <android/hardware/input/classifier/1.0/IInputClassifier.h>
+#include <aidl/android/hardware/input/processor/BnInputProcessor.h>
+#include <aidl/android/hardware/input/processor/IInputProcessor.h>
+#include <android/binder_manager.h>
+#include <android/binder_process.h>
 
-using namespace android::hardware::input;
-using android::hardware::Return;
-using android::hardware::Void;
-using android::hardware::input::common::V1_0::Classification;
+using namespace aidl::android::hardware::input;
+using aidl::android::hardware::input::common::Classification;
+using aidl::android::hardware::input::processor::IInputProcessor;
 
 namespace android {
 
@@ -154,22 +156,17 @@ TEST_F(InputClassifierTest, SetMotionClassifier_Multiple) {
 /**
  * A minimal implementation of IInputClassifier.
  */
-struct TestHal : public android::hardware::input::classifier::V1_0::IInputClassifier {
-    Return<Classification> classify(
-            const android::hardware::input::common::V1_0::MotionEvent& event) override {
-        return Classification::NONE;
-    };
-    Return<void> reset() override { return Void(); };
-    Return<void> resetDevice(int32_t deviceId) override { return Void(); };
-};
-
-/**
- * An entity that will be subscribed to the HAL death.
- */
-class TestDeathRecipient : public android::hardware::hidl_death_recipient {
-public:
-    virtual void serviceDied(uint64_t cookie,
-                             const wp<android::hidl::base::V1_0::IBase>& who) override{};
+class TestHal : public aidl::android::hardware::input::processor::BnInputProcessor {
+    ::ndk::ScopedAStatus classify(
+            const ::aidl::android::hardware::input::common::MotionEvent& in_event,
+            ::aidl::android::hardware::input::common::Classification* _aidl_return) override {
+        *_aidl_return = Classification::NONE;
+        return ndk::ScopedAStatus::ok();
+    }
+    ::ndk::ScopedAStatus reset() override { return ndk::ScopedAStatus::ok(); }
+    ::ndk::ScopedAStatus resetDevice(int32_t in_deviceId) override {
+        return ndk::ScopedAStatus::ok();
+    }
 };
 
 // --- MotionClassifierTest ---
@@ -178,15 +175,9 @@ class MotionClassifierTest : public testing::Test {
 protected:
     std::unique_ptr<MotionClassifierInterface> mMotionClassifier;
 
-    virtual void SetUp() override {
-        mMotionClassifier = MotionClassifier::create(new TestDeathRecipient());
-        if (mMotionClassifier == nullptr) {
-            // If the device running this test does not have IInputClassifier service,
-            // use the test HAL instead.
-            // Using 'new' to access non-public constructor
-            mMotionClassifier =
-                    std::unique_ptr<MotionClassifier>(new MotionClassifier(new TestHal()));
-        }
+    void SetUp() override {
+        std::shared_ptr<IInputProcessor> service = ndk::SharedRefBase::make<TestHal>();
+        mMotionClassifier = MotionClassifier::create(std::move(service));
     }
 };
 
