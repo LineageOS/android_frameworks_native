@@ -21,6 +21,7 @@
 #include "InputManager.h"
 #include "InputDispatcherFactory.h"
 #include "InputReaderFactory.h"
+#include "UnwantedInteractionBlocker.h"
 
 #include <binder/IPCThreadState.h>
 
@@ -54,12 +55,17 @@ static int32_t exceptionCodeFromStatusT(status_t status) {
     }
 }
 
+/**
+ * The event flow is via the "InputListener" interface, as follows:
+ * InputReader -> UnwantedInteractionBlocker -> InputClassifier -> InputDispatcher
+ */
 InputManager::InputManager(
         const sp<InputReaderPolicyInterface>& readerPolicy,
         const sp<InputDispatcherPolicyInterface>& dispatcherPolicy) {
     mDispatcher = createInputDispatcher(dispatcherPolicy);
     mClassifier = std::make_unique<InputClassifier>(*mDispatcher);
-    mReader = createInputReader(readerPolicy, *mClassifier);
+    mUnwantedInteractionBlocker = std::make_unique<UnwantedInteractionBlocker>(*mClassifier);
+    mReader = createInputReader(readerPolicy, *mUnwantedInteractionBlocker);
 }
 
 InputManager::~InputManager() {
@@ -104,6 +110,10 @@ status_t InputManager::stop() {
 
 InputReaderInterface& InputManager::getReader() {
     return *mReader;
+}
+
+UnwantedInteractionBlockerInterface& InputManager::getUnwantedInteractionBlocker() {
+    return *mUnwantedInteractionBlocker;
 }
 
 InputClassifierInterface& InputManager::getClassifier() {
