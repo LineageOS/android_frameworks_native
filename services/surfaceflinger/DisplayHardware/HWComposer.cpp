@@ -772,18 +772,16 @@ status_t HWComposer::clearBootDisplayMode(PhysicalDisplayId displayId) {
     return NO_ERROR;
 }
 
-hal::HWConfigId HWComposer::getPreferredBootDisplayMode(PhysicalDisplayId displayId) {
-    RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
-    hal::HWConfigId displayModeId = -1;
+std::optional<hal::HWConfigId> HWComposer::getPreferredBootDisplayMode(
+        PhysicalDisplayId displayId) {
+    RETURN_IF_INVALID_DISPLAY(displayId, std::nullopt);
+    hal::HWConfigId displayModeId;
     const auto error =
             mDisplayData[displayId].hwcDisplay->getPreferredBootDisplayConfig(&displayModeId);
-    if (error == hal::Error::UNSUPPORTED) {
-        RETURN_IF_HWC_ERROR(error, displayId, INVALID_OPERATION);
+    if (error != hal::Error::NONE) {
+        LOG_DISPLAY_ERROR(displayId, to_string(error).c_str());
+        return std::nullopt;
     }
-    if (error == hal::Error::BAD_PARAMETER) {
-        RETURN_IF_HWC_ERROR(error, displayId, BAD_VALUE);
-    }
-    RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
     return displayModeId;
 }
 
