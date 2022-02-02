@@ -188,6 +188,25 @@ bool NotifyMotionArgs::operator==(const NotifyMotionArgs& rhs) const {
     return true;
 }
 
+std::string NotifyMotionArgs::dump() const {
+    std::string coords;
+    for (uint32_t i = 0; i < pointerCount; i++) {
+        if (!coords.empty()) {
+            coords += ", ";
+        }
+        coords += StringPrintf("{%" PRIu32 ": ", i);
+        coords +=
+                StringPrintf("id=%" PRIu32 " x=%.1f y=%.1f, pressure=%.1f", pointerProperties[i].id,
+                             pointerCoords[i].getX(), pointerCoords[i].getY(),
+                             pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE));
+        coords += "}";
+    }
+    return StringPrintf("NotifyMotionArgs(id=%" PRId32 ", eventTime=%" PRId64 ", deviceId=%" PRId32
+                        ", source=%s, action=%s, pointerCount=%" PRIu32 " pointers=%s)",
+                        id, eventTime, deviceId, inputEventSourceToString(source).c_str(),
+                        MotionEvent::actionToString(action).c_str(), pointerCount, coords.c_str());
+}
+
 void NotifyMotionArgs::notify(InputListenerInterface& listener) const {
     listener.notifyMotion(this);
 }
