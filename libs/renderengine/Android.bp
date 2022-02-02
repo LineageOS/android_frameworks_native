@@ -122,6 +122,9 @@ cc_library_static {
         ":librenderengine_threaded_sources",
         ":librenderengine_skia_sources",
     ],
+    header_libs: [
+        "libtonemap_headers",
+    ],
     include_dirs: [
         "external/skia/src/gpu",
     ],
