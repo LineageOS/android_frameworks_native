@@ -53,6 +53,11 @@ public:
 
     std::optional<IServiceManager::ConnectionInfo> getConnectionInfo(const String16& name) override;
 
+    status_t registerForNotifications(const String16& name,
+                                      const sp<LocalRegistrationCallback>& callback) override;
+
+    status_t unregisterForNotifications(const String16& name,
+                                        const sp<LocalRegistrationCallback>& callback) override;
 private:
     std::map<String16, sp<IBinder>> mNameToService;
 };
