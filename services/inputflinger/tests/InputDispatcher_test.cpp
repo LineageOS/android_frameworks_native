@@ -17,6 +17,7 @@
 #include "../dispatcher/InputDispatcher.h"
 
 #include <android-base/properties.h>
+#include <android-base/silent_death_test.h>
 #include <android-base/stringprintf.h>
 #include <android-base/thread_annotations.h>
 #include <binder/Binder.h>
@@ -6345,10 +6346,13 @@ private:
     int mSpyCount{0};
 };
 
+using InputDispatcherSpyWindowDeathTest = InputDispatcherSpyWindowTest;
 /**
  * Adding a spy window that is not a trusted overlay causes Dispatcher to abort.
  */
-TEST_F(InputDispatcherSpyWindowTest, UntrustedSpy_AbortsDispatcher) {
+TEST_F(InputDispatcherSpyWindowDeathTest, UntrustedSpy_AbortsDispatcher) {
+    ScopedSilentDeath _silentDeath;
+
     auto spy = createSpy(WindowInfo::Flag::NOT_TOUCH_MODAL);
     spy->setTrustedOverlay(false);
     ASSERT_DEATH(mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy}}}),
@@ -6665,7 +6669,11 @@ public:
     }
 };
 
-TEST_F(InputDispatcherStylusInterceptorTest, UntrustedOverlay_AbortsDispatcher) {
+using InputDispatcherStylusInterceptorDeathTest = InputDispatcherStylusInterceptorTest;
+
+TEST_F(InputDispatcherStylusInterceptorDeathTest, UntrustedOverlay_AbortsDispatcher) {
+    ScopedSilentDeath _silentDeath;
+
     auto [overlay, window] = setupStylusOverlayScenario();
     overlay->setTrustedOverlay(false);
     // Configuring an untrusted overlay as a stylus interceptor should cause Dispatcher to abort.
