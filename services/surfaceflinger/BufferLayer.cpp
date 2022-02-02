@@ -327,7 +327,7 @@ void BufferLayer::preparePerFrameCompositionState() {
                 : Hwc2::IComposerClient::Composition::DEVICE;
     }
 
-    compositionState->buffer = mBufferInfo.mBuffer->getBuffer();
+    compositionState->buffer = getBuffer();
     compositionState->bufferSlot = (mBufferInfo.mBufferSlot == BufferQueue::INVALID_BUFFER_SLOT)
             ? 0
             : mBufferInfo.mBufferSlot;
