@@ -275,17 +275,16 @@ void EventThreadTest::expectVsyncEventFrameTimelinesCorrect(nsecs_t expectedTime
                       event.vsync.frameTimelines[i - 1].expectedVSyncTimestamp)
                     << "Expected vsync timestamp out of order for frame timeline " << i;
         }
-        if (event.vsync.frameTimelines[i].deadlineTimestamp == preferredDeadline) {
-            EXPECT_EQ(i, event.vsync.preferredFrameTimelineIndex)
-                    << "Preferred frame timeline index should be " << i;
-            // For the platform-preferred frame timeline, the vsync ID is 0 because the first frame
-            // timeline is made before the rest.
-            EXPECT_EQ(0, event.vsync.frameTimelines[i].vsyncId)
-                    << "Vsync ID incorrect for frame timeline " << i;
-        } else {
-            // Vsync ID 0 is used for the preferred frame timeline.
-            EXPECT_EQ(i + 1, event.vsync.frameTimelines[i].vsyncId)
-                    << "Vsync ID incorrect for frame timeline " << i;
+
+        // Vsync ID order lines up with registration into test token manager.
+        EXPECT_EQ(i, event.vsync.frameTimelines[i].vsyncId)
+                << "Vsync ID incorrect for frame timeline " << i;
+        if (i == event.vsync.preferredFrameTimelineIndex) {
+            EXPECT_EQ(event.vsync.frameTimelines[i].deadlineTimestamp, preferredDeadline)
+                    << "Preferred deadline timestamp incorrect" << i;
+            EXPECT_EQ(event.vsync.frameTimelines[i].expectedVSyncTimestamp,
+                      event.vsync.expectedVSyncTimestamp)
+                    << "Preferred expected vsync timestamp incorrect" << i;
         }
     }
 }
