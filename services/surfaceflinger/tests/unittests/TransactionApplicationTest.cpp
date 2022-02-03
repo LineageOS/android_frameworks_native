@@ -89,10 +89,10 @@ public:
 
     mock::VsyncController* mVsyncController = new mock::VsyncController();
     mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker();
-    mock::MockFence* mFenceUnsignaled = new mock::MockFence();
-    mock::MockFence* mFenceSignaled = new mock::MockFence();
-    mock::MockFence* mFenceUnsignaled2 = new mock::MockFence();
-    mock::MockFence* mFenceSignaled2 = new mock::MockFence();
+    sp<mock::MockFence> mFenceUnsignaled = sp<mock::MockFence>::make();
+    sp<mock::MockFence> mFenceSignaled = sp<mock::MockFence>::make();
+    sp<mock::MockFence> mFenceUnsignaled2 = sp<mock::MockFence>::make();
+    sp<mock::MockFence> mFenceSignaled2 = sp<mock::MockFence>::make();
 
     struct TransactionInfo {
         Vector<ComposerState> states;
