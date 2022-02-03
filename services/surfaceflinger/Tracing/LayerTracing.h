@@ -43,7 +43,7 @@ public:
     LayerTracing(SurfaceFlinger& flinger);
     ~LayerTracing();
     bool enable();
-    bool disable();
+    bool disable(std::string filename = FILE_NAME);
     bool isEnabled() const;
     status_t writeToFile();
     LayersTraceFileProto createTraceFileProto() const;

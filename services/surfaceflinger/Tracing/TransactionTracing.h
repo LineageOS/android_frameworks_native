@@ -55,7 +55,7 @@ public:
 
     void addQueuedTransaction(const TransactionState&);
     void addCommittedTransactions(std::vector<TransactionState>& transactions, int64_t vsyncId);
-    status_t writeToFile();
+    status_t writeToFile(std::string filename = FILE_NAME);
     void setBufferSize(size_t bufferSizeInBytes);
     void onLayerAdded(BBinder* layerHandle, int layerId, const std::string& name, uint32_t flags,
                       int parentId);

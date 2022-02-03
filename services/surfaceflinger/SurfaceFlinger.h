@@ -177,6 +177,11 @@ struct SurfaceFlingerBE {
     std::atomic<nsecs_t> mLastSwapTime = 0;
 };
 
+struct SCOPED_CAPABILITY UnnecessaryLock {
+    explicit UnnecessaryLock(Mutex& mutex) ACQUIRE(mutex) {}
+    ~UnnecessaryLock() RELEASE() {}
+};
+
 class SurfaceFlinger : public BnSurfaceComposer,
                        public PriorityDumper,
                        private IBinder::DeathRecipient,

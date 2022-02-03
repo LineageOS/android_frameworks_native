@@ -99,11 +99,11 @@ TransactionTracing::~TransactionTracing() {
     writeToFile();
 }
 
-status_t TransactionTracing::writeToFile() {
+status_t TransactionTracing::writeToFile(std::string filename) {
     std::scoped_lock lock(mTraceLock);
     proto::TransactionTraceFile fileProto = createTraceFileProto();
     addStartingStateToProtoLocked(fileProto);
-    return mBuffer.writeToFile(fileProto, FILE_NAME);
+    return mBuffer.writeToFile(fileProto, filename);
 }
 
 void TransactionTracing::setBufferSize(size_t bufferSizeInBytes) {
