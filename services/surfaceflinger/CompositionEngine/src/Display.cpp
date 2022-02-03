@@ -59,9 +59,13 @@ void Display::setConfiguration(const compositionengine::DisplayCreationArgs& arg
     setName(args.name);
     bool isBootModeSupported = getCompositionEngine().getHwComposer().getBootDisplayModeSupport();
     const auto physicalId = PhysicalDisplayId::tryCast(mId);
-    if (physicalId && isBootModeSupported) {
-        mPreferredBootDisplayModeId = static_cast<int32_t>(
-                getCompositionEngine().getHwComposer().getPreferredBootDisplayMode(*physicalId));
+    if (!physicalId || !isBootModeSupported) {
+        return;
+    }
+    std::optional<hal::HWConfigId> preferredBootModeId =
+            getCompositionEngine().getHwComposer().getPreferredBootDisplayMode(*physicalId);
+    if (preferredBootModeId.has_value()) {
+        mPreferredBootDisplayModeId = static_cast<int32_t>(preferredBootModeId.value());
     }
 }
 
