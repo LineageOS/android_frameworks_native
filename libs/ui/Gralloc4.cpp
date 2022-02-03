@@ -62,6 +62,9 @@ namespace {
 static constexpr Error kTransactionError = Error::NO_RESOURCES;
 static const auto kAidlAllocatorServiceName = AidlIAllocator::descriptor + std::string("/default");
 
+// TODO(b/72323293, b/72703005): Remove these invalid bits from callers
+static constexpr uint64_t kRemovedUsageBits = static_cast<uint64_t>((1 << 10) | (1 << 13));
+
 uint64_t getValidUsageBits() {
     static const uint64_t validUsageBits = []() -> uint64_t {
         uint64_t bits = 0;
@@ -71,7 +74,7 @@ uint64_t getValidUsageBits() {
         }
         return bits;
     }();
-    return validUsageBits;
+    return validUsageBits | kRemovedUsageBits;
 }
 
 uint64_t getValidUsageBits41() {
