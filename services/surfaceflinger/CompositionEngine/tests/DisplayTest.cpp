@@ -74,7 +74,7 @@ struct Layer {
         EXPECT_CALL(*outputLayer, getHwcLayer()).WillRepeatedly(Return(&hwc2Layer));
     }
 
-    sp<mock::LayerFE> layerFE = new StrictMock<mock::LayerFE>();
+    sp<StrictMock<mock::LayerFE>> layerFE = sp<StrictMock<mock::LayerFE>>::make();
     StrictMock<mock::OutputLayer>* outputLayer = new StrictMock<mock::OutputLayer>();
     StrictMock<HWC2::mock::Layer> hwc2Layer;
 };
@@ -85,7 +85,7 @@ struct LayerNoHWC2Layer {
         EXPECT_CALL(*outputLayer, getHwcLayer()).WillRepeatedly(Return(nullptr));
     }
 
-    sp<mock::LayerFE> layerFE = new StrictMock<mock::LayerFE>();
+    sp<StrictMock<mock::LayerFE>> layerFE = sp<StrictMock<mock::LayerFE>>::make();
     StrictMock<mock::OutputLayer>* outputLayer = new StrictMock<mock::OutputLayer>();
 };
 
@@ -468,7 +468,7 @@ TEST_F(DisplayCreateRenderSurfaceTest, setsRenderSurface) {
 using DisplayCreateOutputLayerTest = FullDisplayImplTestCommon;
 
 TEST_F(DisplayCreateOutputLayerTest, setsHwcLayer) {
-    sp<mock::LayerFE> layerFE = new StrictMock<mock::LayerFE>();
+    sp<StrictMock<mock::LayerFE>> layerFE = sp<StrictMock<mock::LayerFE>>::make();
     auto hwcLayer = std::make_shared<StrictMock<HWC2::mock::Layer>>();
 
     EXPECT_CALL(mHwComposer, createLayer(HalDisplayId(DEFAULT_DISPLAY_ID)))
