@@ -498,8 +498,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     mRefreshRateOverlaySpinner = property_get_bool("sf.debug.show_refresh_rate_overlay_spinner", 0);
 
-    enableLatchUnsignaledConfig = getLatchUnsignaledConfig();
-
     if (!mIsUserBuild && base::GetBoolProperty("debug.sf.enable_transaction_tracing"s, true)) {
         mTransactionTracing.emplace();
     }
@@ -508,11 +506,13 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
     if (base::GetBoolProperty("debug.sf.latch_unsignaled"s, false)) {
         return LatchUnsignaledConfig::Always;
-    } else if (base::GetBoolProperty("debug.sf.auto_latch_unsignaled"s, false)) {
-        return LatchUnsignaledConfig::Auto;
-    } else {
-        return LatchUnsignaledConfig::Disabled;
     }
+
+    if (base::GetBoolProperty("debug.sf.auto_latch_unsignaled"s, false)) {
+        return LatchUnsignaledConfig::AutoSingleLayer;
+    }
+
+    return LatchUnsignaledConfig::Disabled;
 }
 
 SurfaceFlinger::~SurfaceFlinger() = default;
@@ -852,6 +852,8 @@ void SurfaceFlinger::init() {
     mCompositionEngine->setHwComposer(getFactory().createHWComposer(mHwcServiceName));
     mCompositionEngine->getHwComposer().setCallback(*this);
     ClientCache::getInstance().setRenderEngine(&getRenderEngine());
+
+    enableLatchUnsignaledConfig = getLatchUnsignaledConfig();
 
     if (base::GetBoolProperty("debug.sf.enable_hwc_vds"s, false)) {
         enableHalVirtualDisplays(true);
@@ -3640,6 +3642,19 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule 
     return old;
 }
 
+bool SurfaceFlinger::stopTransactionProcessing(
+        const std::unordered_set<sp<IBinder>, SpHash<IBinder>>&
+                applyTokensWithUnsignaledTransactions) const {
+    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::AutoSingleLayer) {
+        // if we are in LatchUnsignaledConfig::AutoSingleLayer
+        // then we should have only one applyToken for processing.
+        // so we can stop further transactions on this applyToken.
+        return !applyTokensWithUnsignaledTransactions.empty();
+    }
+
+    return false;
+}
+
 bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
     // to prevent onHandleDestroyed from being called while the lock is held,
     // we must keep a copy of the transactions (specifically the composer
@@ -3647,44 +3662,42 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
     std::vector<TransactionState> transactions;
     // Layer handles that have transactions with buffers that are ready to be applied.
     std::unordered_set<sp<IBinder>, SpHash<IBinder>> bufferLayersReadyToPresent;
+    std::unordered_set<sp<IBinder>, SpHash<IBinder>> applyTokensWithUnsignaledTransactions;
     {
         Mutex::Autolock _l(mStateLock);
         {
             Mutex::Autolock _l(mQueueLock);
-            // allowLatchUnsignaled acts as a filter condition when latch unsignaled is either auto
-            // or always. auto: in this case we let buffer latch unsignaled if we have only one
-            // applyToken and if only first transaction is latch unsignaled. If more than one
-            // applyToken we don't latch unsignaled.
-            bool allowLatchUnsignaled = allowedLatchUnsignaled();
-            bool isFirstUnsignaledTransactionApplied = false;
             // Collect transactions from pending transaction queue.
             auto it = mPendingTransactionQueues.begin();
             while (it != mPendingTransactionQueues.end()) {
                 auto& [applyToken, transactionQueue] = *it;
                 while (!transactionQueue.empty()) {
+                    if (stopTransactionProcessing(applyTokensWithUnsignaledTransactions)) {
+                        break;
+                    }
+
                     auto& transaction = transactionQueue.front();
-                    if (!transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
-                                                       transaction.isAutoTimestamp,
-                                                       transaction.desiredPresentTime,
-                                                       transaction.originUid, transaction.states,
-                                                       bufferLayersReadyToPresent,
-                                                       allowLatchUnsignaled)) {
+                    const auto ready =
+                            transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
+                                                          transaction.isAutoTimestamp,
+                                                          transaction.desiredPresentTime,
+                                                          transaction.originUid, transaction.states,
+                                                          bufferLayersReadyToPresent,
+                                                          transactions.size());
+                    if (ready == TransactionReadiness::NotReady) {
                         setTransactionFlags(eTransactionFlushNeeded);
                         break;
                     }
                     transaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
                         bufferLayersReadyToPresent.insert(state.surface);
                     });
+                    const bool appliedUnsignaled = (ready == TransactionReadiness::ReadyUnsignaled);
+                    if (appliedUnsignaled) {
+                        applyTokensWithUnsignaledTransactions.insert(transaction.applyToken);
+                    }
+
                     transactions.emplace_back(std::move(transaction));
                     transactionQueue.pop();
-                    if (allowLatchUnsignaled &&
-                        enableLatchUnsignaledConfig == LatchUnsignaledConfig::Auto) {
-                        // if allowLatchUnsignaled && we are in LatchUnsignaledConfig::Auto
-                        // then we should have only one applyToken for processing.
-                        // so we can stop further transactions on this applyToken.
-                        isFirstUnsignaledTransactionApplied = true;
-                        break;
-                    }
                 }
 
                 if (transactionQueue.empty()) {
@@ -3702,25 +3715,34 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
             // Case 3: others are the transactions that are ready to apply.
             while (!mTransactionQueue.empty()) {
                 auto& transaction = mTransactionQueue.front();
-                bool pendingTransactions = mPendingTransactionQueues.find(transaction.applyToken) !=
+                const bool pendingTransactions =
+                        mPendingTransactionQueues.find(transaction.applyToken) !=
                         mPendingTransactionQueues.end();
-                if (isFirstUnsignaledTransactionApplied || pendingTransactions ||
-                    !transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
-                                                   transaction.isAutoTimestamp,
-                                                   transaction.desiredPresentTime,
-                                                   transaction.originUid, transaction.states,
-                                                   bufferLayersReadyToPresent,
-                                                   allowLatchUnsignaled)) {
+                const auto ready = [&]() REQUIRES(mStateLock) {
+                    if (pendingTransactions ||
+                        stopTransactionProcessing(applyTokensWithUnsignaledTransactions)) {
+                        return TransactionReadiness::NotReady;
+                    }
+
+                    return transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
+                                                         transaction.isAutoTimestamp,
+                                                         transaction.desiredPresentTime,
+                                                         transaction.originUid, transaction.states,
+                                                         bufferLayersReadyToPresent,
+                                                         transactions.size());
+                }();
+
+                if (ready == TransactionReadiness::NotReady) {
                     mPendingTransactionQueues[transaction.applyToken].push(std::move(transaction));
                 } else {
                     transaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
                         bufferLayersReadyToPresent.insert(state.surface);
                     });
-                    transactions.emplace_back(std::move(transaction));
-                    if (allowLatchUnsignaled &&
-                        enableLatchUnsignaledConfig == LatchUnsignaledConfig::Auto) {
-                        isFirstUnsignaledTransactionApplied = true;
+                    const bool appliedUnsignaled = (ready == TransactionReadiness::ReadyUnsignaled);
+                    if (appliedUnsignaled) {
+                        applyTokensWithUnsignaledTransactions.insert(transaction.applyToken);
                     }
+                    transactions.emplace_back(std::move(transaction));
                 }
                 mTransactionQueue.pop_front();
                 ATRACE_INT("TransactionQueue", mTransactionQueue.size());
@@ -3757,62 +3779,6 @@ bool SurfaceFlinger::applyTransactions(std::vector<TransactionState>& transactio
     return needsTraversal;
 }
 
-bool SurfaceFlinger::allowedLatchUnsignaled() {
-    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::Disabled) {
-        return false;
-    }
-    // Always mode matches the current latch unsignaled behavior.
-    // This behavior is currently used by the partners and we would like
-    // to keep it until we are completely migrated to Auto mode successfully
-    // and we we have our fallback based implementation in place.
-    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::Always) {
-        return true;
-    }
-
-    //  if enableLatchUnsignaledConfig == LatchUnsignaledConfig::Auto
-    //  we don't latch unsignaled if more than one applyToken, as it can backpressure
-    //  the other transactions.
-    if (mPendingTransactionQueues.size() > 1) {
-        return false;
-    }
-    std::optional<sp<IBinder>> applyToken = std::nullopt;
-    bool isPendingTransactionQueuesItem = false;
-    if (!mPendingTransactionQueues.empty()) {
-        applyToken = mPendingTransactionQueues.begin()->first;
-        isPendingTransactionQueuesItem = true;
-    }
-
-    for (const auto& item : mTransactionQueue) {
-        if (!applyToken.has_value()) {
-            applyToken = item.applyToken;
-        } else if (applyToken.has_value() && applyToken != item.applyToken) {
-            return false;
-        }
-    }
-
-    if (isPendingTransactionQueuesItem) {
-        return checkTransactionCanLatchUnsignaled(
-                mPendingTransactionQueues.begin()->second.front());
-    } else if (applyToken.has_value()) {
-        return checkTransactionCanLatchUnsignaled((mTransactionQueue.front()));
-    }
-    return false;
-}
-
-bool SurfaceFlinger::checkTransactionCanLatchUnsignaled(const TransactionState& transaction) {
-    if (transaction.states.size() == 1) {
-        const auto& state = transaction.states.begin()->state;
-        if ((state.flags & ~layer_state_t::eBufferChanged) == 0 &&
-            state.bufferData->flags.test(BufferData::BufferDataChange::fenceChanged) &&
-            state.bufferData->acquireFence &&
-            state.bufferData->acquireFence->getStatus() == Fence::Status::Unsignaled) {
-            ATRACE_NAME("transactionCanLatchUnsignaled");
-            return true;
-        }
-    }
-    return false;
-}
-
 bool SurfaceFlinger::transactionFlushNeeded() {
     Mutex::Autolock _l(mQueueLock);
     return !mPendingTransactionQueues.empty() || !mTransactionQueue.empty();
@@ -3839,12 +3805,46 @@ bool SurfaceFlinger::frameIsEarly(nsecs_t expectedPresentTime, int64_t vsyncId) 
     return prediction->presentTime >= expectedPresentTime &&
             prediction->presentTime - expectedPresentTime >= earlyLatchVsyncThreshold;
 }
+bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t& state,
+                                           size_t numStates, size_t totalTXapplied) {
+    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::Disabled) {
+        ALOGV("%s: false (LatchUnsignaledConfig::Disabled)", __func__);
+        return false;
+    }
 
-bool SurfaceFlinger::transactionIsReadyToBeApplied(
+    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::Always) {
+        ALOGV("%s: true (LatchUnsignaledConfig::Always)", __func__);
+        return true;
+    }
+
+    // We only want to latch unsignaled when a single layer is updated in this
+    // transaction (i.e. not a blast sync transaction).
+    if (numStates != 1) {
+        ALOGV("%s: false (numStates=%zu)", __func__, numStates);
+        return false;
+    }
+
+    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::AutoSingleLayer &&
+        totalTXapplied > 0) {
+        ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; totalTXapplied=%zu)", __func__,
+              totalTXapplied);
+        return false;
+    }
+
+    if (!layer->simpleBufferUpdate(state)) {
+        ALOGV("%s: false (!simpleBufferUpdate)", __func__);
+        return false;
+    }
+
+    ALOGV("%s: true", __func__);
+    return true;
+}
+
+auto SurfaceFlinger::transactionIsReadyToBeApplied(
         const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
         uid_t originUid, const Vector<ComposerState>& states,
         const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
-        bool allowLatchUnsignaled) const {
+        size_t totalTXapplied) const -> TransactionReadiness {
     ATRACE_FORMAT("transactionIsReadyToBeApplied vsyncId: %" PRId64, info.vsyncId);
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
@@ -3852,31 +3852,24 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
     if (!isAutoTimestamp && desiredPresentTime >= expectedPresentTime &&
         desiredPresentTime < expectedPresentTime + s2ns(1)) {
         ATRACE_NAME("not current");
-        return false;
+        return TransactionReadiness::NotReady;
     }
 
     if (!mScheduler->isVsyncValid(expectedPresentTime, originUid)) {
         ATRACE_NAME("!isVsyncValid");
-        return false;
+        return TransactionReadiness::NotReady;
     }
 
     // If the client didn't specify desiredPresentTime, use the vsyncId to determine the expected
     // present time of this transaction.
     if (isAutoTimestamp && frameIsEarly(expectedPresentTime, info.vsyncId)) {
         ATRACE_NAME("frameIsEarly");
-        return false;
+        return TransactionReadiness::NotReady;
     }
 
+    bool fenceUnsignaled = false;
     for (const ComposerState& state : states) {
         const layer_state_t& s = state.state;
-        const bool acquireFenceChanged = s.bufferData &&
-                s.bufferData->flags.test(BufferData::BufferDataChange::fenceChanged);
-        if (acquireFenceChanged && s.bufferData->acquireFence && !allowLatchUnsignaled &&
-            s.bufferData->acquireFence->getStatus() == Fence::Status::Unsignaled) {
-            ATRACE_NAME("fence unsignaled");
-            return false;
-        }
-
         sp<Layer> layer = nullptr;
         if (s.surface) {
             layer = fromHandle(s.surface).promote();
@@ -3890,6 +3883,22 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
 
         ATRACE_NAME(layer->getName().c_str());
 
+        const bool allowLatchUnsignaled =
+                shouldLatchUnsignaled(layer, s, states.size(), totalTXapplied);
+        ATRACE_INT("allowLatchUnsignaled", allowLatchUnsignaled);
+
+        const bool acquireFenceChanged = s.bufferData &&
+                s.bufferData->flags.test(BufferData::BufferDataChange::fenceChanged) &&
+                s.bufferData->acquireFence;
+        fenceUnsignaled = fenceUnsignaled ||
+                (acquireFenceChanged &&
+                 s.bufferData->acquireFence->getStatus() == Fence::Status::Unsignaled);
+
+        if (fenceUnsignaled && !allowLatchUnsignaled) {
+            ATRACE_NAME("fence unsignaled");
+            return TransactionReadiness::NotReady;
+        }
+
         if (s.hasBufferChanges()) {
             // If backpressure is enabled and we already have a buffer to commit, keep the
             // transaction in the queue.
@@ -3897,11 +3906,11 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
                     bufferLayersReadyToPresent.find(s.surface) != bufferLayersReadyToPresent.end();
             if (layer->backpressureEnabled() && hasPendingBuffer && isAutoTimestamp) {
                 ATRACE_NAME("hasPendingBuffer");
-                return false;
+                return TransactionReadiness::NotReady;
             }
         }
     }
-    return true;
+    return fenceUnsignaled ? TransactionReadiness::ReadyUnsignaled : TransactionReadiness::Ready;
 }
 
 void SurfaceFlinger::queueTransaction(TransactionState& state) {

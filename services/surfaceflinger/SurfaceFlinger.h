@@ -137,7 +137,20 @@ enum {
     eTransactionMask = 0x1f,
 };
 
-enum class LatchUnsignaledConfig { Always, Auto, Disabled };
+// Latch Unsignaled buffer behaviours
+enum class LatchUnsignaledConfig {
+    // All buffers are latched signaled.
+    Disabled,
+
+    // Latch unsignaled is permitted when a single layer is updated in a frame,
+    // and the update includes just a buffer update (i.e. no sync transactions
+    // or geometry changes).
+    AutoSingleLayer,
+
+    // All buffers are latched unsignaled. This behaviour is discouraged as it
+    // can break sync transactions, stall the display and cause undesired side effects.
+    Always,
+};
 
 using DisplayColorSetting = compositionengine::OutputColorSetting;
 
@@ -749,16 +762,21 @@ private:
     uint32_t setTransactionFlags(uint32_t mask, TransactionSchedule,
                                  const sp<IBinder>& applyToken = {});
     void commitOffscreenLayers();
-    bool transactionIsReadyToBeApplied(
+    enum class TransactionReadiness {
+        NotReady,
+        Ready,
+        ReadyUnsignaled,
+    };
+    TransactionReadiness transactionIsReadyToBeApplied(
             const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
             uid_t originUid, const Vector<ComposerState>& states,
             const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
-            bool allowLatchUnsignaled) const REQUIRES(mStateLock);
+            size_t totalTXapplied) const REQUIRES(mStateLock);
     static LatchUnsignaledConfig getLatchUnsignaledConfig();
-    bool latchUnsignaledIsAllowed(std::vector<TransactionState>& transactions) REQUIRES(mStateLock);
-    bool allowedLatchUnsignaled() REQUIRES(mQueueLock, mStateLock);
-    bool checkTransactionCanLatchUnsignaled(const TransactionState& transaction)
-            REQUIRES(mStateLock);
+    static bool shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t&,
+                                      size_t numStates, size_t totalTXapplied);
+    bool stopTransactionProcessing(const std::unordered_set<sp<IBinder>, SpHash<IBinder>>&
+                                           applyTokensWithUnsignaledTransactions) const;
     bool applyTransactions(std::vector<TransactionState>& transactions, int64_t vsyncId)
             REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
