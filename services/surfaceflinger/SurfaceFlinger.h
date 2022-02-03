@@ -1375,6 +1375,8 @@ private:
         nsecs_t compositeStart;
         nsecs_t presentEnd;
     } mPowerHintSessionData GUARDED_BY(SF_MAIN_THREAD);
+
+    nsecs_t mAnimationTransactionTimeout = s2ns(5);
 };
 
 } // namespace android

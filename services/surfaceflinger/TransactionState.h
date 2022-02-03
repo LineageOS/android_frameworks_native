@@ -93,7 +93,7 @@ public:
     }
 
     // Return true if triggered.
-    bool wait_until(const std::chrono::seconds& timeout) const {
+    bool wait_until(const std::chrono::nanoseconds& timeout) const {
         std::unique_lock<std::mutex> lock(mMutex);
         const auto untilTime = std::chrono::system_clock::now() + timeout;
         while (mFlags != 0) {
