@@ -306,7 +306,7 @@ void BufferLayer::preparePerFrameCompositionState() {
                 : aidl::android::hardware::graphics::composer3::Composition::DEVICE;
     }
 
-    compositionState->buffer = mBufferInfo.mBuffer->getBuffer();
+    compositionState->buffer = getBuffer();
     compositionState->bufferSlot = (mBufferInfo.mBufferSlot == BufferQueue::INVALID_BUFFER_SLOT)
             ? 0
             : mBufferInfo.mBufferSlot;

@@ -260,7 +260,7 @@ public:
     virtual bool getBootDisplayModeSupport() = 0;
     virtual status_t setBootDisplayMode(PhysicalDisplayId, hal::HWConfigId) = 0;
     virtual status_t clearBootDisplayMode(PhysicalDisplayId) = 0;
-    virtual hal::HWConfigId getPreferredBootDisplayMode(PhysicalDisplayId) = 0;
+    virtual std::optional<hal::HWConfigId> getPreferredBootDisplayMode(PhysicalDisplayId) = 0;
 };
 
 namespace impl {
@@ -391,7 +391,7 @@ public:
     bool getBootDisplayModeSupport() override;
     status_t setBootDisplayMode(PhysicalDisplayId, hal::HWConfigId) override;
     status_t clearBootDisplayMode(PhysicalDisplayId) override;
-    hal::HWConfigId getPreferredBootDisplayMode(PhysicalDisplayId) override;
+    std::optional<hal::HWConfigId> getPreferredBootDisplayMode(PhysicalDisplayId) override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;
