@@ -548,6 +548,7 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         mAppSwitchSawKeyDown(false),
         mAppSwitchDueTime(LONG_LONG_MAX),
         mNextUnblockedEvent(nullptr),
+        mMonitorDispatchingTimeout(DEFAULT_INPUT_DISPATCHING_TIMEOUT),
         mDispatchEnabled(false),
         mDispatchFrozen(false),
         mInputFilterEnabled(false),
@@ -707,8 +708,13 @@ nsecs_t InputDispatcher::processAnrsLocked() {
     return LONG_LONG_MIN;
 }
 
-std::chrono::nanoseconds InputDispatcher::getDispatchingTimeoutLocked(const sp<IBinder>& token) {
-    sp<WindowInfoHandle> window = getWindowHandleLocked(token);
+std::chrono::nanoseconds InputDispatcher::getDispatchingTimeoutLocked(
+        const sp<Connection>& connection) {
+    if (connection->monitor) {
+        return mMonitorDispatchingTimeout;
+    }
+    const sp<WindowInfoHandle> window =
+            getWindowHandleLocked(connection->inputChannel->getConnectionToken());
     if (window != nullptr) {
         return window->getDispatchingTimeout(DEFAULT_INPUT_DISPATCHING_TIMEOUT);
     }
@@ -3205,8 +3211,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
     while (connection->status == Connection::Status::NORMAL && !connection->outboundQueue.empty()) {
         DispatchEntry* dispatchEntry = connection->outboundQueue.front();
         dispatchEntry->deliveryTime = currentTime;
-        const std::chrono::nanoseconds timeout =
-                getDispatchingTimeoutLocked(connection->inputChannel->getConnectionToken());
+        const std::chrono::nanoseconds timeout = getDispatchingTimeoutLocked(connection);
         dispatchEntry->timeoutTime = currentTime + timeout.count();
 
         // Publish the event.
@@ -6398,6 +6403,11 @@ void InputDispatcher::cancelCurrentTouch() {
     }
     // Wake up poll loop since there might be work to do.
     mLooper->wake();
+}
+
+void InputDispatcher::setMonitorDispatchingTimeoutForTest(std::chrono::nanoseconds timeout) {
+    std::scoped_lock _l(mLock);
+    mMonitorDispatchingTimeout = timeout;
 }
 
 } // namespace android::inputdispatcher

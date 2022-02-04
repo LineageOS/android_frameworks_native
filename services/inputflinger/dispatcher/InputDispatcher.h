@@ -148,6 +148,9 @@ public:
 
     void cancelCurrentTouch() override;
 
+    // Public to allow tests to verify that a Monitor can get ANR.
+    void setMonitorDispatchingTimeoutForTest(std::chrono::nanoseconds timeout);
+
 private:
     enum class DropReason {
         NOT_DROPPED,
@@ -324,8 +327,12 @@ private:
     bool runCommandsLockedInterruptable() REQUIRES(mLock);
     void postCommandLocked(Command&& command) REQUIRES(mLock);
 
+    // The dispatching timeout to use for Monitors.
+    std::chrono::nanoseconds mMonitorDispatchingTimeout GUARDED_BY(mLock);
+
     nsecs_t processAnrsLocked() REQUIRES(mLock);
-    std::chrono::nanoseconds getDispatchingTimeoutLocked(const sp<IBinder>& token) REQUIRES(mLock);
+    std::chrono::nanoseconds getDispatchingTimeoutLocked(const sp<Connection>& connection)
+            REQUIRES(mLock);
 
     // Input filter processing.
     bool shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args) REQUIRES(mLock);
