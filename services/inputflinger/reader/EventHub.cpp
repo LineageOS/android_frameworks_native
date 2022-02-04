@@ -2354,6 +2354,40 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
     // Load the configuration file for the device.
     device->loadConfigurationLocked();
 
+<<<<<<< HEAD   (4249f5 surfaceflinger: Allow ZOrder override for UDFPS dim layer)
+=======
+    bool hasBattery = false;
+    bool hasLights = false;
+    // Check the sysfs root path
+    std::optional<std::filesystem::path> sysfsRootPath = getSysfsRootPath(devicePath.c_str());
+    if (sysfsRootPath.has_value()) {
+        std::shared_ptr<AssociatedDevice> associatedDevice;
+        for (const auto& [id, dev] : mDevices) {
+            if (device->identifier.descriptor == dev->identifier.descriptor &&
+                !dev->associatedDevice) {
+                associatedDevice = dev->associatedDevice;
+            }
+        }
+        if (!associatedDevice) {
+            associatedDevice = std::make_shared<AssociatedDevice>(sysfsRootPath.value());
+        }
+        hasBattery = associatedDevice->configureBatteryLocked();
+        hasLights = associatedDevice->configureLightsLocked();
+
+        device->associatedDevice = associatedDevice;
+    }
+
+    // Disable device if device config property set
+    bool deviceDisabled = false;
+    if (device->configuration &&
+        device->configuration->tryGetProperty(String8("device.disabled"), deviceDisabled)) {
+        if (deviceDisabled) {
+            device->disable();
+            ALOGV("Disabling device with id %d\n", device->id);
+        }
+    }
+
+>>>>>>> CHANGE (94dd1b inputflinger: allow disabling input devices via idc)
     // Figure out the kinds of events the device reports.
     device->readDeviceBitMask(EVIOCGBIT(EV_KEY, 0), device->keyBitmask);
     device->readDeviceBitMask(EVIOCGBIT(EV_ABS, 0), device->absBitmask);
