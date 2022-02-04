@@ -3563,11 +3563,9 @@ bool SurfaceFlinger::latchBuffers() {
         for (const auto& layer : mLayersWithQueuedFrames) {
             if (layer->latchBuffer(visibleRegions, latchTime, expectedPresentTime)) {
                 mLayersPendingRefresh.push_back(layer);
-            }
-            layer->useSurfaceDamage();
-            if (layer->isBufferLatched()) {
                 newDataLatched = true;
             }
+            layer->useSurfaceDamage();
         }
     }
 

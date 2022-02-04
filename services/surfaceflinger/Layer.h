@@ -549,8 +549,6 @@ public:
         return false;
     }
 
-    virtual bool isBufferLatched() const { return false; }
-
     virtual void latchAndReleaseBuffer() {}
 
     /*
