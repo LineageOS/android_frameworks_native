@@ -67,6 +67,9 @@ size_t eventSizeBySensorType(int type) {
         case SENSOR_TYPE_HEAD_TRACKER:
             return 7;
 
+        case SENSOR_TYPE_HEADING:
+            return 2;
+
         default:
             return 3;
     }
