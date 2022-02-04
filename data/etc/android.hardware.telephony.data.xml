@@ -17,7 +17,7 @@
 <!-- This is the standard set of features for devices to support Telephony Data API. -->
 <permissions>
     <feature name="android.hardware.telephony" />
-    <feature name="android.hardware.telephony.radio" />
+    <feature name="android.hardware.telephony.radio.access" />
     <feature name="android.hardware.telephony.subscription" />
     <feature name="android.hardware.telephony.data" />
 </permissions>
