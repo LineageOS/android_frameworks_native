@@ -100,6 +100,7 @@ SensorManager::SensorManager(const String16& opPackageName)
 
 SensorManager::~SensorManager() {
     free(mSensorList);
+    free(mDynamicSensorList);
 }
 
 status_t SensorManager::waitForSensorService(sp<ISensorServer> *server) {
@@ -130,6 +131,9 @@ void SensorManager::sensorManagerDied() {
     free(mSensorList);
     mSensorList = nullptr;
     mSensors.clear();
+    free(mDynamicSensorList);
+    mDynamicSensorList = nullptr;
+    mDynamicSensors.clear();
 }
 
 status_t SensorManager::assertStateLocked() {
@@ -195,6 +199,35 @@ ssize_t SensorManager::getDynamicSensorList(Vector<Sensor> & dynamicSensors) {
     size_t count = dynamicSensors.size();
 
     return static_cast<ssize_t>(count);
+}
+
+ssize_t SensorManager::getDynamicSensorList(Sensor const* const** list) {
+    Mutex::Autolock _l(mLock);
+    status_t err = assertStateLocked();
+    if (err < 0) {
+        return static_cast<ssize_t>(err);
+    }
+
+    free(mDynamicSensorList);
+    mDynamicSensorList = nullptr;
+    mDynamicSensors = mSensorServer->getDynamicSensorList(mOpPackageName);
+    size_t dynamicCount = mDynamicSensors.size();
+    if (dynamicCount > 0) {
+        mDynamicSensorList = static_cast<Sensor const**>(
+                malloc(dynamicCount * sizeof(Sensor*)));
+        if (mDynamicSensorList == nullptr) {
+          ALOGE("Failed to allocate dynamic sensor list for %zu sensors.",
+                dynamicCount);
+          return static_cast<ssize_t>(NO_MEMORY);
+        }
+
+        for (size_t i = 0; i < dynamicCount; i++) {
+            mDynamicSensorList[i] = mDynamicSensors.array() + i;
+        }
+    }
+
+    *list = mDynamicSensorList;
+    return static_cast<ssize_t>(mDynamicSensors.size());
 }
 
 Sensor const* SensorManager::getDefaultSensor(int type)
