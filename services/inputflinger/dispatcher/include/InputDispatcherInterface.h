@@ -169,16 +169,14 @@ public:
             const std::string& name) = 0;
 
     /**
-     * Creates an input channel to be used to monitor input events.
+     * Creates an input channel to be used to monitor all input events on a display.
      *
      * Each monitor must target a specific display and will only receive input events sent to that
-     * display. If the monitor is a gesture monitor, it will only receive pointer events on the
-     * targeted display.
+     * display.
      *
      * This method may be called on any thread (usually by the input manager).
      */
     virtual base::Result<std::unique_ptr<InputChannel>> createInputMonitor(int32_t displayId,
-                                                                           bool gestureMonitor,
                                                                            const std::string& name,
                                                                            int32_t pid) = 0;
 

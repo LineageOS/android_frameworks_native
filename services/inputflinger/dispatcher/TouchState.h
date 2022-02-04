@@ -36,15 +36,12 @@ struct TouchState {
     int32_t displayId; // id to the display that currently has a touch, others are rejected
     std::vector<TouchedWindow> windows;
 
-    std::vector<Monitor> gestureMonitors;
-
     TouchState();
     ~TouchState();
     void reset();
     void copyFrom(const TouchState& other);
     void addOrUpdateWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
                            int32_t targetFlags, BitSet32 pointerIds);
-    void addGestureMonitors(const std::vector<Monitor>& monitors);
     void removeWindowByToken(const sp<IBinder>& token);
     void filterNonAsIsTouchWindows();
     void filterWindowsExcept(const sp<IBinder>& token);
