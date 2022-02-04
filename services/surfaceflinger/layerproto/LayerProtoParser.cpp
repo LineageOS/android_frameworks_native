@@ -305,7 +305,7 @@ std::string LayerProtoParser::Layer::to_string() const {
                   zOrderRelativeOf == nullptr ? "none" : zOrderRelativeOf->name.c_str());
     StringAppendF(&result, "      activeBuffer=%s,", activeBuffer.to_string().c_str());
     StringAppendF(&result, " tr=%s", bufferTransform.to_string().c_str());
-    StringAppendF(&result, " queued-frames=%d, mRefreshPending=%d,", queuedFrames, refreshPending);
+    StringAppendF(&result, " queued-frames=%d", queuedFrames);
     StringAppendF(&result, " metadata={");
     bool first = true;
     for (const auto& entry : metadata.mMap) {
