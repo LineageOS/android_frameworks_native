@@ -164,18 +164,17 @@ struct WindowInfo : public Parcelable {
         NOT_VISIBLE                  = 1 << 0,
         NOT_FOCUSABLE                = 1 << 1,
         NOT_TOUCHABLE                = 1 << 2,
-        TOUCH_MODAL                  = 1 << 3,
-        PREVENT_SPLITTING            = 1 << 4,
-        DUPLICATE_TOUCH_TO_WALLPAPER = 1 << 5,
-        IS_WALLPAPER                 = 1 << 6,
-        PAUSE_DISPATCHING            = 1 << 7,
+        PREVENT_SPLITTING            = 1 << 3,
+        DUPLICATE_TOUCH_TO_WALLPAPER = 1 << 4,
+        IS_WALLPAPER                 = 1 << 5,
+        PAUSE_DISPATCHING            = 1 << 6,
         // This flag is set when the window is of a trusted type that is allowed to silently
         // overlay other windows for the purpose of implementing the secure views feature.
         // Trusted overlays, such as IME windows, can partly obscure other windows without causing
         // motion events to be delivered to them with AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED.
-        TRUSTED_OVERLAY              = 1 << 8,
-        WATCH_OUTSIDE_TOUCH          = 1 << 9,
-        SLIPPERY                     = 1 << 10,
+        TRUSTED_OVERLAY              = 1 << 7,
+        WATCH_OUTSIDE_TOUCH          = 1 << 8,
+        SLIPPERY                     = 1 << 9,
         // clang-format on
     };
 

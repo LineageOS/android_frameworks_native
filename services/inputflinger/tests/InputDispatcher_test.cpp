@@ -1032,10 +1032,6 @@ public:
         mInfo.setInputConfig(WindowInfo::InputConfig::PAUSE_DISPATCHING, paused);
     }
 
-    void setTouchModal(bool touchModal) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::TOUCH_MODAL, touchModal);
-    }
-
     void setPreventSplitting(bool preventSplitting) {
         mInfo.setInputConfig(WindowInfo::InputConfig::PREVENT_SPLITTING, preventSplitting);
     }
@@ -6406,27 +6402,6 @@ TEST_F(InputDispatcherSpyWindowTest, TouchableRegion) {
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                {5, 10}))
-            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    window->consumeMotionDown();
-    spy->consumeMotionDown();
-}
-
-/**
- * A spy window that is a modal window will receive gestures outside of its frame and touchable
- * region.
- */
-TEST_F(InputDispatcherSpyWindowTest, ModalWindow) {
-    auto window = createForeground();
-    auto spy = createSpy();
-    // Our current policy dictates that modal windows must be focusable.
-    spy->setFocusable(true);
-    spy->setTouchModal(true);
-    spy->setFrame(Rect{0, 0, 20, 20});
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy, window}}});
-
-    // Inject an event outside the spy window's frame and touchable region.
-    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     window->consumeMotionDown();
     spy->consumeMotionDown();

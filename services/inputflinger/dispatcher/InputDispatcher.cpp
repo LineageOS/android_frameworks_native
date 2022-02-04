@@ -509,8 +509,7 @@ bool windowAcceptsTouchAt(const WindowInfo& windowInfo, int32_t displayId, int32
     if (inputConfig.test(WindowInfo::InputConfig::NOT_TOUCHABLE) && !windowCanInterceptTouch) {
         return false;
     }
-    if (!inputConfig.test(WindowInfo::InputConfig::TOUCH_MODAL) &&
-        !windowInfo.touchableRegionContainsPoint(x, y)) {
+    if (!windowInfo.touchableRegionContainsPoint(x, y)) {
         return false;
     }
     return true;
