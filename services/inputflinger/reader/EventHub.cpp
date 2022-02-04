@@ -1305,6 +1305,16 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
     // Load the configuration file for the device.
     loadConfigurationLocked(device);
 
+    // Disable device if device config property set
+    bool deviceDisabled = false;
+    if (device->configuration &&
+        device->configuration->tryGetProperty(String8("device.disabled"), deviceDisabled)) {
+        if (deviceDisabled) {
+            device->disable();
+            ALOGV("Disabling device with id %d\n", device->id);
+        }
+    }
+
     // Figure out the kinds of events the device reports.
     ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(device->keyBitmask)), device->keyBitmask);
     ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(device->absBitmask)), device->absBitmask);
