@@ -137,7 +137,7 @@ constexpr std::chrono::nanoseconds KEY_WAITING_FOR_EVENTS_TIMEOUT = 500ms;
 // Number of recent events to keep for debugging purposes.
 constexpr size_t RECENT_QUEUE_MAX_SIZE = 10;
 
-// Event log tags. See EventLogTags.logtags for reference
+// Event log tags. See EventLogTags.logtags for reference.
 constexpr int LOGTAG_INPUT_INTERACTION = 62000;
 constexpr int LOGTAG_INPUT_FOCUS = 62001;
 constexpr int LOGTAG_INPUT_CANCEL = 62003;
@@ -4903,23 +4903,42 @@ void InputDispatcher::setInputFilterEnabled(bool enabled) {
     mLooper->wake();
 }
 
-void InputDispatcher::setInTouchMode(bool inTouchMode) {
+bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid,
+                                     bool hasPermission) {
     bool needWake = false;
     {
         std::scoped_lock lock(mLock);
         if (mInTouchMode == inTouchMode) {
-            return;
+            return false;
         }
         if (DEBUG_TOUCH_MODE) {
-            ALOGD("Request to change touch mode from %s to %s", toString(mInTouchMode),
-                  toString(inTouchMode));
-            // TODO(b/198487159): Also print the current last interacted apps.
+            ALOGD("Request to change touch mode from %s to %s (calling pid=%d, uid=%d, "
+                  "hasPermission=%s)",
+                  toString(mInTouchMode), toString(inTouchMode), pid, uid, toString(hasPermission));
+        }
+        if (!hasPermission) {
+            const sp<IBinder> focusedToken =
+                    mFocusResolver.getFocusedWindowToken(mFocusedDisplayId);
+
+            //  TODO(b/198487159): if no window is currently focused, then we need to check the last
+            //      interacted window (within 1 second timeout). We should allow touch mode change
+            //      if the last interacted window owner's pid/uid match the calling ones.
+            if (focusedToken == nullptr) {
+                return false;
+            }
+            const sp<WindowInfoHandle> windowHandle = getWindowHandleLocked(focusedToken);
+            if (windowHandle == nullptr) {
+                return false;
+            }
+            const WindowInfo* windowInfo = windowHandle->getInfo();
+            if (pid != windowInfo->ownerPid || uid != windowInfo->ownerUid) {
+                return false;
+            }
         }
 
         // TODO(b/198499018): Store touch mode per display.
         mInTouchMode = inTouchMode;
 
-        // TODO(b/198487159): Enforce that only last interacted apps can change touch mode.
         auto entry = std::make_unique<TouchModeEntry>(mIdGenerator.nextId(), now(), inTouchMode);
         needWake = enqueueInboundEventLocked(std::move(entry));
     } // release lock
@@ -4927,6 +4946,7 @@ void InputDispatcher::setInTouchMode(bool inTouchMode) {
     if (needWake) {
         mLooper->wake();
     }
+    return true;
 }
 
 void InputDispatcher::setMaximumObscuringOpacityForTouch(float opacity) {
