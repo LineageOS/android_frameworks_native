@@ -9,12 +9,11 @@ package {
 
 cc_fuzz {
     name: "libgralloctypes_fuzzer",
-    defaults: ["libbinder_ndk_host_user"],
     host_supported: true,
     target: {
         darwin: {
             enabled: false,
-        }
+        },
     },
 
     fuzz_config: {
