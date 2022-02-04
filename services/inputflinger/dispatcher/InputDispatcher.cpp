@@ -1987,7 +1987,7 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
     TouchState tempTouchState;
     if (const auto it = mTouchStatesByDisplay.find(displayId); it != mTouchStatesByDisplay.end()) {
         oldState = &(it->second);
-        tempTouchState.copyFrom(*oldState);
+        tempTouchState = *oldState;
     }
 
     bool isSplit = tempTouchState.split;
@@ -5510,9 +5510,9 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
     ALOGI("Channel %s is stealing touch from %s", requestingChannel->getName().c_str(),
           canceledWindows.c_str());
 
-    // Then clear the current touch state so we stop dispatching to them as well.
-    state.split = false;
+    // Prevent the gesture from being sent to any other windows.
     state.filterWindowsExcept(token);
+    state.preventNewTargets = true;
     return OK;
 }
 
