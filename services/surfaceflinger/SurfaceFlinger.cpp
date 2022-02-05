@@ -3913,7 +3913,8 @@ void SurfaceFlinger::queueTransaction(TransactionState& state) {
     // been applied by SF
     if (state.flags & eAnimation) {
         while (itr != mPendingTransactionQueues.end()) {
-            status_t err = mTransactionQueueCV.waitRelative(mQueueLock, s2ns(5));
+            status_t err =
+                    mTransactionQueueCV.waitRelative(mQueueLock, mAnimationTransactionTimeout);
             if (CC_UNLIKELY(err != NO_ERROR)) {
                 ALOGW_IF(err == TIMED_OUT,
                          "setTransactionState timed out "
@@ -3949,7 +3950,8 @@ void SurfaceFlinger::waitForSynchronousTransaction(
     // applyTransactionState is called on the main SF thread.  While a given process may wish
     // to wait on synchronous transactions, the main SF thread should apply the transaction and
     // set the value to notify this after committed.
-    if (!transactionCommittedSignal.wait_until(std::chrono::seconds(5))) {
+    if (!transactionCommittedSignal.wait_until(
+                std::chrono::nanoseconds(mAnimationTransactionTimeout))) {
         ALOGE("setTransactionState timed out!");
     }
 }
