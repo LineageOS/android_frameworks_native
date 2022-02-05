@@ -30,6 +30,7 @@
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <cutils/properties.h>
 #include <ftl/future.h>
+#include <gui/SpHash.h>
 #include <gui/SyncScreenCaptureListener.h>
 #include <renderengine/impl/ExternalTexture.h>
 #include <ui/DisplayStatInfo.h>
@@ -46,10 +47,7 @@
 namespace android {
 using namespace std::chrono_literals;
 
-template <typename T>
-struct SpHash {
-    size_t operator()(const sp<T>& p) const { return std::hash<T*>()(p.get()); }
-};
+using gui::SpHash;
 
 constexpr auto lumaSamplingStepTag = "LumaSamplingStep";
 enum class samplingStep {
