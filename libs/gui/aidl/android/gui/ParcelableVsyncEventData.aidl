@@ -16,4 +16,4 @@
 
 package android.gui;
 
-parcelable VsyncEventData cpp_header "gui/VsyncEventData.h";
+parcelable ParcelableVsyncEventData cpp_header "gui/VsyncEventData.h";

@@ -229,7 +229,7 @@ TEST_F(DispSyncSourceTest, waitForCallbacks) {
         ASSERT_TRUE(callbackData.has_value());
         const auto [when, vsyncData] = callbackData.value();
         EXPECT_EQ(when,
-                  vsyncData.expectedVSyncTimestamp - mWorkDuration.count() -
+                  vsyncData.expectedPresentationTime - mWorkDuration.count() -
                           mReadyDuration.count());
     }
 }
@@ -261,7 +261,7 @@ TEST_F(DispSyncSourceTest, waitForCallbacksWithDurationChange) {
         ASSERT_TRUE(callbackData.has_value());
         const auto [when, vsyncData] = callbackData.value();
         EXPECT_EQ(when,
-                  vsyncData.expectedVSyncTimestamp - mWorkDuration.count() -
+                  vsyncData.expectedPresentationTime - mWorkDuration.count() -
                           mReadyDuration.count());
     }
 
@@ -283,7 +283,7 @@ TEST_F(DispSyncSourceTest, waitForCallbacksWithDurationChange) {
         const auto callbackData = mVSyncEventCallRecorder.waitForCall();
         ASSERT_TRUE(callbackData.has_value());
         const auto [when, vsyncData] = callbackData.value();
-        EXPECT_EQ(when, vsyncData.expectedVSyncTimestamp - newDuration.count());
+        EXPECT_EQ(when, vsyncData.expectedPresentationTime - newDuration.count());
     }
 
     EXPECT_CALL(*mVSyncDispatch, cancel(_)).Times(1);
@@ -307,9 +307,9 @@ TEST_F(DispSyncSourceTest, getLatestVsyncData) {
 
     const auto vsyncData = mDispSyncSource->getLatestVSyncData();
     ASSERT_GT(vsyncData.deadlineTimestamp, now);
-    ASSERT_GT(vsyncData.expectedVSyncTimestamp, vsyncData.deadlineTimestamp);
+    ASSERT_GT(vsyncData.expectedPresentationTime, vsyncData.deadlineTimestamp);
     EXPECT_EQ(vsyncData.deadlineTimestamp,
-              vsyncData.expectedVSyncTimestamp - vsyncInternalDuration);
+              vsyncData.expectedPresentationTime - vsyncInternalDuration);
 }
 
 } // namespace
