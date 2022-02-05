@@ -23,7 +23,6 @@ package {
 
 cc_library {
     name: "libgralloctypes",
-    defaults: ["libbinder_ndk_host_user"],
     cflags: [
         "-Wall",
         "-Werror",

@@ -38,6 +38,7 @@
 #include "BatteryService.h"
 #include "CorrectedGyroSensor.h"
 #include "GravitySensor.h"
+#include "LimitedAxesImuSensor.h"
 #include "LinearAccelerationSensor.h"
 #include "OrientationSensor.h"
 #include "RotationVectorSensor.h"
@@ -100,6 +101,33 @@ static const String16 sAccessHighSensorSamplingRatePermission(
 static const String16 sDumpPermission("android.permission.DUMP");
 static const String16 sLocationHardwarePermission("android.permission.LOCATION_HARDWARE");
 static const String16 sManageSensorsPermission("android.permission.MANAGE_SENSORS");
+
+static bool isAutomotive() {
+    sp<IServiceManager> serviceManager = defaultServiceManager();
+    if (serviceManager.get() == nullptr) {
+        ALOGE("%s: unable to access native ServiceManager", __func__);
+        return false;
+    }
+
+    sp<content::pm::IPackageManagerNative> packageManager;
+    sp<IBinder> binder = serviceManager->waitForService(String16("package_native"));
+    packageManager = interface_cast<content::pm::IPackageManagerNative>(binder);
+    if (packageManager == nullptr) {
+        ALOGE("%s: unable to access native PackageManager", __func__);
+        return false;
+    }
+
+    bool isAutomotive = false;
+    binder::Status status =
+        packageManager->hasSystemFeature(String16("android.hardware.type.automotive"), 0,
+                                         &isAutomotive);
+    if (!status.isOk()) {
+        ALOGE("%s: hasSystemFeature failed: %s", __func__, status.exceptionMessage().c_str());
+        return false;
+    }
+
+    return isAutomotive;
+}
 
 SensorService::SensorService()
     : mInitCheck(NO_INIT), mSocketBufferSize(SOCKET_BUFFER_SIZE_NON_BATCHED),
@@ -165,6 +193,8 @@ void SensorService::onFirstRef() {
         ssize_t count = dev.getSensorList(&list);
         if (count > 0) {
             bool hasGyro = false, hasAccel = false, hasMag = false;
+            bool hasGyroUncalibrated = false;
+            bool hasAccelUncalibrated = false;
             uint32_t virtualSensorsNeeds =
                     (1<<SENSOR_TYPE_GRAVITY) |
                     (1<<SENSOR_TYPE_LINEAR_ACCELERATION) |
@@ -179,12 +209,17 @@ void SensorService::onFirstRef() {
                     case SENSOR_TYPE_ACCELEROMETER:
                         hasAccel = true;
                         break;
+                    case SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED:
+                        hasAccelUncalibrated = true;
+                        break;
                     case SENSOR_TYPE_MAGNETIC_FIELD:
                         hasMag = true;
                         break;
                     case SENSOR_TYPE_GYROSCOPE:
-                    case SENSOR_TYPE_GYROSCOPE_UNCALIBRATED:
                         hasGyro = true;
+                        break;
+                    case SENSOR_TYPE_GYROSCOPE_UNCALIBRATED:
+                        hasGyroUncalibrated = true;
                         break;
                     case SENSOR_TYPE_GRAVITY:
                     case SENSOR_TYPE_LINEAR_ACCELERATION:
@@ -216,7 +251,7 @@ void SensorService::onFirstRef() {
             // registered)
             SensorFusion::getInstance();
 
-            if (hasGyro && hasAccel && hasMag) {
+            if ((hasGyro || hasGyroUncalibrated) && hasAccel && hasMag) {
                 // Add Android virtual sensors if they're not already
                 // available in the HAL
                 bool needRotationVector =
@@ -230,7 +265,7 @@ void SensorService::onFirstRef() {
                 registerSensor( new GyroDriftSensor(), true, true);
             }
 
-            if (hasAccel && hasGyro) {
+            if (hasAccel && (hasGyro || hasGyroUncalibrated)) {
                 bool needGravitySensor = (virtualSensorsNeeds & (1<<SENSOR_TYPE_GRAVITY)) != 0;
                 registerSensor(new GravitySensor(list, count), !needGravitySensor, true);
 
@@ -248,6 +283,30 @@ void SensorService::onFirstRef() {
                 bool needGeoMagRotationVector =
                         (virtualSensorsNeeds & (1<<SENSOR_TYPE_GEOMAGNETIC_ROTATION_VECTOR)) != 0;
                 registerSensor(new GeoMagRotationVectorSensor(), !needGeoMagRotationVector, true);
+            }
+
+            if (isAutomotive()) {
+                if (hasAccel) {
+                   registerSensor(new LimitedAxesImuSensor(list, count, SENSOR_TYPE_ACCELEROMETER),
+                                  /*isDebug=*/false, /*isVirtual=*/true);
+               }
+
+               if (hasGyro) {
+                   registerSensor(new LimitedAxesImuSensor(list, count, SENSOR_TYPE_GYROSCOPE),
+                                  /*isDebug=*/false, /*isVirtual=*/true);
+               }
+
+               if (hasAccelUncalibrated) {
+                   registerSensor(new LimitedAxesImuSensor(list, count,
+                                                           SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED),
+                                  /*isDebug=*/false, /*isVirtual=*/true);
+               }
+
+               if (hasGyroUncalibrated) {
+                   registerSensor(new LimitedAxesImuSensor(list, count,
+                                                           SENSOR_TYPE_GYROSCOPE_UNCALIBRATED),
+                                  /*isDebug=*/false, /*isVirtual=*/true);
+               }
             }
 
             // Check if the device really supports batching by looking at the FIFO event
