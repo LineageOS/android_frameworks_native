@@ -263,6 +263,52 @@ enum {
      * Measures the orientation and rotational velocity of a user's head.
      */
     ASENSOR_TYPE_HEAD_TRACKER = 37,
+    /**
+     * {@link ASENSOR_TYPE_ACCELEROMETER_LIMITED_AXES}
+     * reporting-mode: continuous
+     *
+     * The first three values are in SI units (m/s^2) and measure the acceleration of the device
+     * minus the force of gravity. The last three values indicate which acceleration axes are
+     * supported. A value of 1.0 means supported and a value of 0 means not supported.
+     */
+    ASENSOR_TYPE_ACCELEROMETER_LIMITED_AXES = 38,
+    /**
+     * {@link ASENSOR_TYPE_GYROSCOPE_LIMITED_AXES}
+     * reporting-mode: continuous
+     *
+     * The first three values are in radians/second and measure the rate of rotation around the X,
+     * Y and Z axis. The last three values indicate which rotation axes are supported. A value of
+     * 1.0 means supported and a value of 0 means not supported.
+     */
+    ASENSOR_TYPE_GYROSCOPE_LIMITED_AXES = 39,
+    /**
+     * {@link ASENSOR_TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED}
+     * reporting-mode: continuous
+     *
+     * The first three values are in SI units (m/s^2) and measure the acceleration of the device
+     * minus the force of gravity. The middle three values represent the estimated bias for each
+     * axis. The last three values indicate which acceleration axes are supported. A value of 1.0
+     * means supported and a value of 0 means not supported.
+     */
+    ASENSOR_TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED = 40,
+    /**
+     * {@link ASENSOR_TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED}
+     * reporting-mode: continuous
+     *
+     * The first three values are in radians/second and measure the rate of rotation around the X,
+     * Y and Z axis. The middle three values represent the estimated drift around each axis in
+     * rad/s. The last three values indicate which rotation axes are supported. A value of 1.0 means
+     * supported and a value of 0 means not supported.
+     */
+    ASENSOR_TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED = 41,
+    /**
+     * {@link ASENSOR_TYPE_HEADING}
+     * reporting-mode: continuous
+     *
+     * A heading sensor measures the direction in which the device is pointing
+     * relative to true north in degrees.
+     */
+    ASENSOR_TYPE_HEADING = 42,
 };
 
 /**
@@ -479,6 +525,69 @@ typedef struct AHeadTrackerEvent {
     int32_t discontinuity_count;
 } AHeadTrackerEvent;
 
+typedef struct ALimitedAxesImuEvent {
+    union {
+        float calib[3];
+        struct {
+            float x;
+            float y;
+            float z;
+        };
+    };
+    union {
+        float supported[3];
+        struct {
+            float x_supported;
+            float y_supported;
+            float z_supported;
+        };
+    };
+} ALimitedAxesImuEvent;
+
+typedef struct ALimitedAxesImuUncalibratedEvent {
+    union {
+        float uncalib[3];
+        struct {
+            float x_uncalib;
+            float y_uncalib;
+            float z_uncalib;
+        };
+    };
+    union {
+        float bias[3];
+        struct {
+            float x_bias;
+            float y_bias;
+            float z_bias;
+        };
+    };
+    union {
+        float supported[3];
+        struct {
+            float x_supported;
+            float y_supported;
+            float z_supported;
+        };
+    };
+} ALimitedAxesImuUncalibratedEvent;
+
+typedef struct AHeadingEvent {
+    /**
+     * The direction in which the device is pointing relative to true north in
+     * degrees. The value must be between 0.0 (inclusive) and 360.0 (exclusive),
+     * with 0 indicating north, 90 east, 180 south, and 270 west.
+     */
+    float heading;
+    /**
+     * Accuracy is defined at 68% confidence. In the case where the underlying
+     * distribution is assumed Gaussian normal, this would be considered one
+     * standard deviation. For example, if the heading returns 60 degrees, and
+     * accuracy returns 10 degrees, then there is a 68 percent probability of
+     * the true heading being between 50 degrees and 70 degrees.
+     */
+    float accuracy;
+} AHeadingEvent;
+
 /**
  * Information that describes a sensor event, refer to
  * <a href="/reference/android/hardware/SensorEvent">SensorEvent</a> for additional
@@ -516,6 +625,9 @@ typedef struct ASensorEvent {
             ADynamicSensorEvent dynamic_sensor_meta;
             AAdditionalInfoEvent additional_info;
             AHeadTrackerEvent head_tracker;
+            ALimitedAxesImuEvent limited_axes_imu;
+            ALimitedAxesImuUncalibratedEvent limited_axes_imu_uncalibrated;
+            AHeadingEvent heading;
         };
         union {
             uint64_t        data[8];

@@ -1398,7 +1398,6 @@ LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
         }
     }
     info.mNumQueuedFrames = getQueuedFrameCount();
-    info.mRefreshPending = isBufferLatched();
     info.mIsOpaque = isOpaque(ds);
     info.mContentDirty = contentDirty;
     info.mStretchEffect = getStretchEffect();
@@ -2029,7 +2028,6 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
     layerInfo->set_is_protected(isProtected());
     layerInfo->set_dataspace(dataspaceDetails(static_cast<android_dataspace>(getDataSpace())));
     layerInfo->set_queued_frames(getQueuedFrameCount());
-    layerInfo->set_refresh_pending(isBufferLatched());
     layerInfo->set_curr_frame(mCurrentFrameNumber);
     layerInfo->set_effective_scaling_mode(getEffectiveScalingMode());
 

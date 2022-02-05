@@ -106,7 +106,7 @@ struct InjectedLayer {
     }
 
     mock::OutputLayer* outputLayer = {new StrictMock<mock::OutputLayer>};
-    sp<StrictMock<mock::LayerFE>> layerFE = new StrictMock<mock::LayerFE>();
+    sp<StrictMock<mock::LayerFE>> layerFE = sp<StrictMock<mock::LayerFE>>::make();
     LayerFECompositionState layerFEState;
     impl::OutputLayerCompositionState outputLayerState;
 };
@@ -123,7 +123,7 @@ struct NonInjectedLayer {
     }
 
     mock::OutputLayer outputLayer;
-    sp<StrictMock<mock::LayerFE>> layerFE = new StrictMock<mock::LayerFE>();
+    sp<StrictMock<mock::LayerFE>> layerFE = sp<StrictMock<mock::LayerFE>>::make();
     LayerFECompositionState layerFEState;
     impl::OutputLayerCompositionState outputLayerState;
 };
@@ -722,9 +722,9 @@ TEST_F(OutputTest, getOutputLayerForLayerWorks) {
 using OutputSetReleasedLayersTest = OutputTest;
 
 TEST_F(OutputSetReleasedLayersTest, setReleasedLayersTakesGivenLayers) {
-    sp<StrictMock<mock::LayerFE>> layer1FE{new StrictMock<mock::LayerFE>()};
-    sp<StrictMock<mock::LayerFE>> layer2FE{new StrictMock<mock::LayerFE>()};
-    sp<StrictMock<mock::LayerFE>> layer3FE{new StrictMock<mock::LayerFE>()};
+    sp<StrictMock<mock::LayerFE>> layer1FE = sp<StrictMock<mock::LayerFE>>::make();
+    sp<StrictMock<mock::LayerFE>> layer2FE = sp<StrictMock<mock::LayerFE>>::make();
+    sp<StrictMock<mock::LayerFE>> layer3FE = sp<StrictMock<mock::LayerFE>>::make();
 
     Output::ReleasedLayers layers;
     layers.push_back(layer1FE);
@@ -1209,7 +1209,7 @@ struct OutputCollectVisibleLayersTest : public testing::Test {
 
         StrictMock<mock::OutputLayer> outputLayer;
         impl::OutputLayerCompositionState outputLayerState;
-        sp<StrictMock<mock::LayerFE>> layerFE{new StrictMock<mock::LayerFE>()};
+        sp<StrictMock<mock::LayerFE>> layerFE = sp<StrictMock<mock::LayerFE>>::make();
     };
 
     OutputCollectVisibleLayersTest() {
@@ -2987,9 +2987,9 @@ TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
 
     // Load up the released layers with some mock instances
-    sp<StrictMock<mock::LayerFE>> releasedLayer1{new StrictMock<mock::LayerFE>()};
-    sp<StrictMock<mock::LayerFE>> releasedLayer2{new StrictMock<mock::LayerFE>()};
-    sp<StrictMock<mock::LayerFE>> releasedLayer3{new StrictMock<mock::LayerFE>()};
+    sp<StrictMock<mock::LayerFE>> releasedLayer1 = sp<StrictMock<mock::LayerFE>>::make();
+    sp<StrictMock<mock::LayerFE>> releasedLayer2 = sp<StrictMock<mock::LayerFE>>::make();
+    sp<StrictMock<mock::LayerFE>> releasedLayer3 = sp<StrictMock<mock::LayerFE>>::make();
     Output::ReleasedLayers layers;
     layers.push_back(releasedLayer1);
     layers.push_back(releasedLayer2);

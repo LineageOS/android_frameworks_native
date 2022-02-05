@@ -117,7 +117,7 @@ public:
     void setFocusedDisplay(int32_t displayId) override;
     void setInputDispatchMode(bool enabled, bool frozen) override;
     void setInputFilterEnabled(bool enabled) override;
-    void setInTouchMode(bool inTouchMode) override;
+    bool setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission) override;
     void setMaximumObscuringOpacityForTouch(float opacity) override;
     void setBlockUntrustedTouchesMode(android::os::BlockUntrustedTouchesMode mode) override;
 
@@ -129,7 +129,6 @@ public:
             const std::string& name) override;
     void setFocusedWindow(const android::gui::FocusRequest&) override;
     base::Result<std::unique_ptr<InputChannel>> createInputMonitor(int32_t displayId,
-                                                                   bool isGestureMonitor,
                                                                    const std::string& name,
                                                                    int32_t pid) override;
     status_t removeInputChannel(const sp<IBinder>& connectionToken) override;
@@ -260,20 +259,11 @@ private:
     std::unordered_map<sp<IBinder>, sp<Connection>, StrongPointerHash<IBinder>> mConnectionsByToken
             GUARDED_BY(mLock);
 
-    // Finds the display ID of the gesture monitor identified by the provided token.
-    std::optional<int32_t> findGestureMonitorDisplayByTokenLocked(const sp<IBinder>& token)
-            REQUIRES(mLock);
     // Find a monitor pid by the provided token.
     std::optional<int32_t> findMonitorPidByTokenLocked(const sp<IBinder>& token) REQUIRES(mLock);
 
     // Input channels that will receive a copy of all input events sent to the provided display.
     std::unordered_map<int32_t, std::vector<Monitor>> mGlobalMonitorsByDisplay GUARDED_BY(mLock);
-
-    // Input channels that will receive pointer events that start within the corresponding display.
-    // These are a bit special when compared to global monitors since they'll cause gesture streams
-    // to continue even when there isn't a touched window,and have the ability to steal the rest of
-    // the pointer stream in order to claim it for a system gesture.
-    std::unordered_map<int32_t, std::vector<Monitor>> mGestureMonitorsByDisplay GUARDED_BY(mLock);
 
     const HmacKeyManager mHmacKeyManager;
     const std::array<uint8_t, 32> getSignature(const MotionEntry& motionEntry,
@@ -530,7 +520,6 @@ private:
     sp<android::gui::WindowInfoHandle> mLastHoverWindowHandle GUARDED_BY(mLock);
 
     void cancelEventsForAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
-    nsecs_t getTimeSpentWaitingForApplicationLocked(nsecs_t currentTime) REQUIRES(mLock);
     // If a focused application changes, we should stop counting down the "no focused window" time,
     // because we will have no way of knowing when the previous application actually added a window.
     // This also means that we will miss cases like pulling down notification shade when the
@@ -551,8 +540,6 @@ private:
     void addWindowTargetLocked(const sp<android::gui::WindowInfoHandle>& windowHandle,
                                int32_t targetFlags, BitSet32 pointerIds,
                                std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
-    void addMonitoringTargetLocked(const Monitor& monitor, int32_t displayId,
-                                   std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
     void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId)
             REQUIRES(mLock);
     void pokeUserActivityLocked(const EventEntry& eventEntry) REQUIRES(mLock);
@@ -618,9 +605,6 @@ private:
             REQUIRES(mLock);
     void synthesizeCancelationEventsForMonitorsLocked(const CancelationOptions& options)
             REQUIRES(mLock);
-    void synthesizeCancelationEventsForMonitorsLocked(
-            const CancelationOptions& options,
-            std::unordered_map<int32_t, std::vector<Monitor>>& monitorsByDisplay) REQUIRES(mLock);
     void synthesizeCancelationEventsForInputChannelLocked(
             const std::shared_ptr<InputChannel>& channel, const CancelationOptions& options)
             REQUIRES(mLock);
@@ -646,9 +630,6 @@ private:
 
     // Registration.
     void removeMonitorChannelLocked(const sp<IBinder>& connectionToken) REQUIRES(mLock);
-    void removeMonitorChannelLocked(
-            const sp<IBinder>& connectionToken,
-            std::unordered_map<int32_t, std::vector<Monitor>>& monitorsByDisplay) REQUIRES(mLock);
     status_t removeInputChannelLocked(const sp<IBinder>& connectionToken, bool notify)
             REQUIRES(mLock);
 

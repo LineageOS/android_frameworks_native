@@ -119,6 +119,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.sensor.dynamic.head_tracker.prebuilt.xml",
+    src: "android.hardware.sensor.dynamic.head_tracker.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.sensor.gyroscope.prebuilt.xml",
     src: "android.hardware.sensor.gyroscope.xml",
     defaults: ["frameworks_native_data_etc_defaults"],

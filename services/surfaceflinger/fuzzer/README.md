@@ -2,6 +2,7 @@
 ## Table of contents
 + [SurfaceFlinger](#SurfaceFlinger)
 + [DisplayHardware](#DisplayHardware)
++ [Scheduler](#Scheduler)
 
 # <a name="SurfaceFlinger"></a> Fuzzer for SurfaceFlinger
 
@@ -50,4 +51,22 @@ You can find the possible values in the fuzzer's source code.
 ```
   $ adb sync data
   $ adb shell /data/fuzz/arm64/surfaceflinger_displayhardware_fuzzer/surfaceflinger_displayhardware_fuzzer
+```
+
+# <a name="Scheduler"></a> Fuzzer for Scheduler
+
+Scheduler supports the following parameters:
+1. VSync Periods (parameter name: `lowFpsPeriod`)
+
+You can find the possible values in the fuzzer's source code.
+
+#### Steps to run
+1. Build the fuzzer
+```
+  $ mm -j$(nproc) surfaceflinger_scheduler_fuzzer
+```
+2. To run on device
+```
+  $ adb sync data
+  $ adb shell /data/fuzz/arm64/surfaceflinger_scheduler_fuzzer/surfaceflinger_scheduler_fuzzer
 ```

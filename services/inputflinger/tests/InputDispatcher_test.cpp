@@ -1127,6 +1127,16 @@ public:
                      expectedFlags);
     }
 
+    void consumeMotionOutsideWithZeroedCoords(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
+                                              int32_t expectedFlags = 0) {
+        InputEvent* event = consume();
+        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType());
+        const MotionEvent& motionEvent = static_cast<MotionEvent&>(*event);
+        EXPECT_EQ(AMOTION_EVENT_ACTION_OUTSIDE, motionEvent.getActionMasked());
+        EXPECT_EQ(0.f, motionEvent.getRawPointerCoords(0)->getX());
+        EXPECT_EQ(0.f, motionEvent.getRawPointerCoords(0)->getY());
+    }
+
     void consumeFocusEvent(bool hasFocus, bool inTouchMode = true) {
         ASSERT_NE(mInputReceiver, nullptr)
                 << "Cannot consume events from a window with no receiver";
@@ -2769,8 +2779,7 @@ public:
     FakeMonitorReceiver(const std::unique_ptr<InputDispatcher>& dispatcher, const std::string name,
                         int32_t displayId) {
         base::Result<std::unique_ptr<InputChannel>> channel =
-                dispatcher->createInputMonitor(displayId, false /*isGestureMonitor*/, name,
-                                               MONITOR_PID);
+                dispatcher->createInputMonitor(displayId, name, MONITOR_PID);
         mInputReceiver = std::make_unique<FakeInputReceiver>(std::move(*channel), name);
     }
 
@@ -2988,6 +2997,7 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
+    const WindowInfo& windowInfo = *window->getInfo();
 
     // Set focused application.
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
@@ -3004,7 +3014,8 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
     window->consumeFocusEvent(false /*hasFocus*/, true /*inTouchMode*/);
 
     SCOPED_TRACE("Disable touch mode");
-    mDispatcher->setInTouchMode(false);
+    mDispatcher->setInTouchMode(false, windowInfo.ownerPid, windowInfo.ownerUid,
+                                /* hasPermission */ true);
     window->consumeTouchModeEvent(false);
     window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
@@ -3017,7 +3028,8 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
     window->consumeFocusEvent(false /*hasFocus*/, false /*inTouchMode*/);
 
     SCOPED_TRACE("Enable touch mode again");
-    mDispatcher->setInTouchMode(true);
+    mDispatcher->setInTouchMode(true, windowInfo.ownerPid, windowInfo.ownerUid,
+                                /* hasPermission */ true);
     window->consumeTouchModeEvent(true);
     window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
@@ -5613,11 +5625,7 @@ TEST_F(InputDispatcherUntrustedTouchesTest, OutsideEvent_HasZeroCoordinates) {
 
     touch();
 
-    InputEvent* event = w->consume();
-    ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType());
-    MotionEvent& motionEvent = static_cast<MotionEvent&>(*event);
-    EXPECT_EQ(0.0f, motionEvent.getRawPointerCoords(0)->getX());
-    EXPECT_EQ(0.0f, motionEvent.getRawPointerCoords(0)->getY());
+    w->consumeMotionOutsideWithZeroedCoords();
 }
 
 TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithOpacityBelowThreshold_AllowsTouch) {
@@ -6226,19 +6234,23 @@ protected:
         mWindow->consumeFocusEvent(true);
     }
 
-    void changeAndVerifyTouchMode(bool inTouchMode) {
-        mDispatcher->setInTouchMode(inTouchMode);
+    void changeAndVerifyTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission) {
+        mDispatcher->setInTouchMode(inTouchMode, pid, uid, hasPermission);
         mWindow->consumeTouchModeEvent(inTouchMode);
         mSecondWindow->consumeTouchModeEvent(inTouchMode);
     }
 };
 
 TEST_F(InputDispatcherTouchModeChangedTests, ChangeTouchModeOnFocusedWindow) {
-    changeAndVerifyTouchMode(!InputDispatcher::kDefaultInTouchMode);
+    const WindowInfo& windowInfo = *mWindow->getInfo();
+    changeAndVerifyTouchMode(!InputDispatcher::kDefaultInTouchMode, windowInfo.ownerPid,
+                             windowInfo.ownerUid, /* hasPermission */ false);
 }
 
 TEST_F(InputDispatcherTouchModeChangedTests, EventIsNotGeneratedIfNotChangingTouchMode) {
-    mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode);
+    const WindowInfo& windowInfo = *mWindow->getInfo();
+    mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode, windowInfo.ownerPid,
+                                windowInfo.ownerUid, /* hasPermission */ true);
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
 }
@@ -6428,20 +6440,23 @@ TEST_F(InputDispatcherSpyWindowTest, ModalWindow) {
 
 /**
  * A spy window can listen for touches outside its touchable region using the WATCH_OUTSIDE_TOUCHES
- * flag.
+ * flag, but it will get zero-ed out coordinates if the foreground has a different owner.
  */
 TEST_F(InputDispatcherSpyWindowTest, WatchOutsideTouches) {
     auto window = createForeground();
+    window->setOwnerInfo(12, 34);
     auto spy = createSpy(WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::WATCH_OUTSIDE_TOUCH);
+    spy->setOwnerInfo(56, 78);
     spy->setFrame(Rect{0, 0, 20, 20});
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy, window}}});
 
     // Inject an event outside the spy window's frame and touchable region.
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {100, 200}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     window->consumeMotionDown();
-    spy->consumeMotionOutside();
+    spy->consumeMotionOutsideWithZeroedCoords();
 }
 
 /**
@@ -6789,5 +6804,8 @@ TEST_F(InputDispatcherStylusInterceptorTest, SpyWindowStylusInterceptor) {
     overlay->assertNoEvents();
     window->assertNoEvents();
 }
+
+// TODO(b/198487159): Add permission tests for touch mode switch once the validation is put in
+//     place.
 
 } // namespace android::inputdispatcher

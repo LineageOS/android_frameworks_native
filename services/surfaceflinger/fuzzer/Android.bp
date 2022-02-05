@@ -92,3 +92,13 @@ cc_fuzz {
         "android.hardware.graphics.composer@2.4-hal",
     ],
 }
+
+cc_fuzz {
+    name: "surfaceflinger_scheduler_fuzzer",
+    defaults: [
+        "surfaceflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "surfaceflinger_scheduler_fuzzer.cpp",
+    ],
+}

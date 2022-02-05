@@ -250,6 +250,46 @@ void convertToSensorEvent(const Event &src, sensors_event_t *dst) {
             break;
         }
 
+        case SensorType::ACCELEROMETER_LIMITED_AXES:
+        case SensorType::GYROSCOPE_LIMITED_AXES:
+            dst->limited_axes_imu.x = src.payload.get<Event::EventPayload::limitedAxesImu>().x;
+            dst->limited_axes_imu.y = src.payload.get<Event::EventPayload::limitedAxesImu>().y;
+            dst->limited_axes_imu.z = src.payload.get<Event::EventPayload::limitedAxesImu>().z;
+            dst->limited_axes_imu.x_supported =
+                    src.payload.get<Event::EventPayload::limitedAxesImu>().xSupported;
+            dst->limited_axes_imu.y_supported =
+                    src.payload.get<Event::EventPayload::limitedAxesImu>().ySupported;
+            dst->limited_axes_imu.z_supported =
+                    src.payload.get<Event::EventPayload::limitedAxesImu>().zSupported;
+            break;
+
+        case SensorType::ACCELEROMETER_LIMITED_AXES_UNCALIBRATED:
+        case SensorType::GYROSCOPE_LIMITED_AXES_UNCALIBRATED:
+            dst->limited_axes_imu_uncalibrated.x_uncalib =
+                    src.payload.get<Event::EventPayload::limitedAxesImuUncal>().x;
+            dst->limited_axes_imu_uncalibrated.y_uncalib =
+                    src.payload.get<Event::EventPayload::limitedAxesImuUncal>().y;
+            dst->limited_axes_imu_uncalibrated.z_uncalib =
+                    src.payload.get<Event::EventPayload::limitedAxesImuUncal>().z;
+            dst->limited_axes_imu_uncalibrated.x_bias =
+                    src.payload.get<Event::EventPayload::limitedAxesImuUncal>().xBias;
+            dst->limited_axes_imu_uncalibrated.y_bias =
+                    src.payload.get<Event::EventPayload::limitedAxesImuUncal>().yBias;
+            dst->limited_axes_imu_uncalibrated.z_bias =
+                    src.payload.get<Event::EventPayload::limitedAxesImuUncal>().zBias;
+            dst->limited_axes_imu_uncalibrated.x_supported =
+                    src.payload.get<Event::EventPayload::limitedAxesImuUncal>().xSupported;
+            dst->limited_axes_imu_uncalibrated.y_supported =
+                    src.payload.get<Event::EventPayload::limitedAxesImuUncal>().ySupported;
+            dst->limited_axes_imu_uncalibrated.z_supported =
+                    src.payload.get<Event::EventPayload::limitedAxesImuUncal>().zSupported;
+            break;
+
+        case SensorType::HEADING:
+            dst->heading.heading = src.payload.get<Event::EventPayload::heading>().heading;
+            dst->heading.accuracy = src.payload.get<Event::EventPayload::heading>().accuracy;
+            break;
+
         default: {
             CHECK_GE((int32_t)src.sensorType, (int32_t)SensorType::DEVICE_PRIVATE_BASE);
 
@@ -264,7 +304,7 @@ void convertFromSensorEvent(const sensors_event_t &src, Event *dst) {
     *dst = {
             .timestamp = src.timestamp,
             .sensorHandle = src.sensor,
-            .sensorType = (SensorType) src.type,
+            .sensorType = (SensorType)src.type,
     };
 
     switch (dst->sensorType) {
@@ -406,6 +446,43 @@ void convertFromSensorEvent(const sensors_event_t &src, Event *dst) {
             headTracker.discontinuityCount = src.head_tracker.discontinuity_count;
 
             dst->payload.set<Event::EventPayload::Tag::headTracker>(headTracker);
+            break;
+        }
+
+        case SensorType::ACCELEROMETER_LIMITED_AXES:
+        case SensorType::GYROSCOPE_LIMITED_AXES: {
+            Event::EventPayload::LimitedAxesImu limitedAxesImu;
+            limitedAxesImu.x = src.limited_axes_imu.x;
+            limitedAxesImu.y = src.limited_axes_imu.y;
+            limitedAxesImu.z = src.limited_axes_imu.z;
+            limitedAxesImu.xSupported = src.limited_axes_imu.x_supported;
+            limitedAxesImu.ySupported = src.limited_axes_imu.y_supported;
+            limitedAxesImu.zSupported = src.limited_axes_imu.z_supported;
+            dst->payload.set<Event::EventPayload::Tag::limitedAxesImu>(limitedAxesImu);
+            break;
+        }
+
+        case SensorType::ACCELEROMETER_LIMITED_AXES_UNCALIBRATED:
+        case SensorType::GYROSCOPE_LIMITED_AXES_UNCALIBRATED: {
+            Event::EventPayload::LimitedAxesImuUncal limitedAxesImuUncal;
+            limitedAxesImuUncal.x = src.limited_axes_imu_uncalibrated.x_uncalib;
+            limitedAxesImuUncal.y = src.limited_axes_imu_uncalibrated.y_uncalib;
+            limitedAxesImuUncal.z = src.limited_axes_imu_uncalibrated.z_uncalib;
+            limitedAxesImuUncal.xBias = src.limited_axes_imu_uncalibrated.x_bias;
+            limitedAxesImuUncal.yBias = src.limited_axes_imu_uncalibrated.y_bias;
+            limitedAxesImuUncal.zBias = src.limited_axes_imu_uncalibrated.z_bias;
+            limitedAxesImuUncal.xSupported = src.limited_axes_imu_uncalibrated.x_supported;
+            limitedAxesImuUncal.ySupported = src.limited_axes_imu_uncalibrated.y_supported;
+            limitedAxesImuUncal.zSupported = src.limited_axes_imu_uncalibrated.z_supported;
+            dst->payload.set<Event::EventPayload::Tag::limitedAxesImuUncal>(limitedAxesImuUncal);
+            break;
+        }
+
+        case SensorType::HEADING: {
+            Event::EventPayload::Heading heading;
+            heading.heading = src.heading.heading;
+            heading.accuracy = src.heading.accuracy;
+            dst->payload.set<Event::EventPayload::heading>(heading);
             break;
         }
 

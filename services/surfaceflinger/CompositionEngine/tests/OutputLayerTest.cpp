@@ -109,8 +109,8 @@ struct OutputLayerTest : public testing::Test {
     }
 
     compositionengine::mock::Output mOutput;
-    sp<compositionengine::mock::LayerFE> mLayerFE{
-            new StrictMock<compositionengine::mock::LayerFE>()};
+    sp<StrictMock<compositionengine::mock::LayerFE>> mLayerFE =
+            sp<StrictMock<compositionengine::mock::LayerFE>>::make();
     OutputLayer mOutputLayer{mOutput, mLayerFE};
 
     LayerFECompositionState mLayerFEState;

@@ -280,6 +280,26 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
         mStringType = SENSOR_STRING_TYPE_HEAD_TRACKER;
         mFlags |= SENSOR_FLAG_CONTINUOUS_MODE;
         break;
+    case SENSOR_TYPE_ACCELEROMETER_LIMITED_AXES:
+        mStringType = SENSOR_STRING_TYPE_ACCELEROMETER_LIMITED_AXES;
+        mFlags |= SENSOR_FLAG_CONTINUOUS_MODE;
+        break;
+    case SENSOR_TYPE_GYROSCOPE_LIMITED_AXES:
+        mStringType = SENSOR_STRING_TYPE_GYROSCOPE_LIMITED_AXES;
+        mFlags |= SENSOR_FLAG_CONTINUOUS_MODE;
+        break;
+    case SENSOR_TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED:
+        mStringType = SENSOR_STRING_TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED;
+        mFlags |= SENSOR_FLAG_CONTINUOUS_MODE;
+        break;
+    case SENSOR_TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED:
+        mStringType = SENSOR_STRING_TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED;
+        mFlags |= SENSOR_FLAG_CONTINUOUS_MODE;
+        break;
+    case SENSOR_TYPE_HEADING:
+        mStringType = SENSOR_STRING_TYPE_HEADING;
+        mFlags |= SENSOR_FLAG_CONTINUOUS_MODE;
+        break;
     default:
         // Only pipe the stringType, requiredPermission and flags for custom sensors.
         if (halVersion > SENSORS_DEVICE_API_VERSION_1_0 && hwSensor.stringType) {
