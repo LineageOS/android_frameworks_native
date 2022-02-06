@@ -89,10 +89,10 @@ public:
 
     mock::VsyncController* mVsyncController = new mock::VsyncController();
     mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker();
-    mock::MockFence* mFenceUnsignaled = new mock::MockFence();
-    mock::MockFence* mFenceSignaled = new mock::MockFence();
-    mock::MockFence* mFenceUnsignaled2 = new mock::MockFence();
-    mock::MockFence* mFenceSignaled2 = new mock::MockFence();
+    sp<mock::MockFence> mFenceUnsignaled = sp<mock::MockFence>::make();
+    sp<mock::MockFence> mFenceSignaled = sp<mock::MockFence>::make();
+    sp<mock::MockFence> mFenceUnsignaled2 = sp<mock::MockFence>::make();
+    sp<mock::MockFence> mFenceSignaled2 = sp<mock::MockFence>::make();
 
     struct TransactionInfo {
         Vector<ComposerState> states;
@@ -159,9 +159,9 @@ public:
         // completed.  If this is animation, it should not time out waiting.
         nsecs_t returnedTime = systemTime();
         if (flags & ISurfaceComposer::eSynchronous || syncInputWindows) {
-            EXPECT_GE(returnedTime, applicationTime + s2ns(5));
+            EXPECT_GE(returnedTime, applicationTime + mFlinger.getAnimationTransactionTimeout());
         } else {
-            EXPECT_LE(returnedTime, applicationTime + s2ns(5));
+            EXPECT_LE(returnedTime, applicationTime + mFlinger.getAnimationTransactionTimeout());
         }
         // Each transaction should have been placed on the transaction queue
         auto transactionQueue = mFlinger.getTransactionQueue();
@@ -188,9 +188,11 @@ public:
 
         nsecs_t returnedTime = systemTime();
         if ((flags & ISurfaceComposer::eSynchronous) || syncInputWindows) {
-            EXPECT_GE(systemTime(), applicationSentTime + s2ns(5));
+            EXPECT_GE(systemTime(),
+                      applicationSentTime + mFlinger.getAnimationTransactionTimeout());
         } else {
-            EXPECT_LE(returnedTime, applicationSentTime + s2ns(5));
+            EXPECT_LE(returnedTime,
+                      applicationSentTime + mFlinger.getAnimationTransactionTimeout());
         }
         // This transaction should have been placed on the transaction queue
         auto transactionQueue = mFlinger.getTransactionQueue();
@@ -228,7 +230,7 @@ public:
         // This thread should not have been blocked by the above transaction
         // (5s is the timeout period that applyTransactionState waits for SF to
         // commit the transaction)
-        EXPECT_LE(systemTime(), applicationSentTime + s2ns(5));
+        EXPECT_LE(systemTime(), applicationSentTime + mFlinger.getAnimationTransactionTimeout());
         // transaction that would goes to pending transaciton queue.
         mFlinger.flushTransactionQueues();
 
@@ -246,9 +248,11 @@ public:
         // the transaction should be placed on the pending queue
         if (flags & (ISurfaceComposer::eAnimation | ISurfaceComposer::eSynchronous) ||
             syncInputWindows) {
-            EXPECT_GE(systemTime(), applicationSentTime + s2ns(5));
+            EXPECT_GE(systemTime(),
+                      applicationSentTime + mFlinger.getAnimationTransactionTimeout());
         } else {
-            EXPECT_LE(systemTime(), applicationSentTime + s2ns(5));
+            EXPECT_LE(systemTime(),
+                      applicationSentTime + mFlinger.getAnimationTransactionTimeout());
         }
 
         // transaction that would goes to pending transaciton queue.

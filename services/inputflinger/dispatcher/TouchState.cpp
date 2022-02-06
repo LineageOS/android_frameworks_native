@@ -25,27 +25,8 @@ using android::gui::WindowInfoHandle;
 
 namespace android::inputdispatcher {
 
-TouchState::TouchState()
-      : down(false), split(false), deviceId(-1), source(0), displayId(ADISPLAY_ID_NONE) {}
-
-TouchState::~TouchState() {}
-
 void TouchState::reset() {
-    down = false;
-    split = false;
-    deviceId = -1;
-    source = 0;
-    displayId = ADISPLAY_ID_NONE;
-    windows.clear();
-}
-
-void TouchState::copyFrom(const TouchState& other) {
-    down = other.down;
-    split = other.split;
-    deviceId = other.deviceId;
-    source = other.source;
-    displayId = other.displayId;
-    windows = other.windows;
+    *this = TouchState();
 }
 
 void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle, int32_t targetFlags,
@@ -65,6 +46,8 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle, int
             return;
         }
     }
+
+    if (preventNewTargets) return; // Don't add new TouchedWindows.
 
     TouchedWindow touchedWindow;
     touchedWindow.windowHandle = windowHandle;

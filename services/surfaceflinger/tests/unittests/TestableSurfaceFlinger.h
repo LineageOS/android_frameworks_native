@@ -177,6 +177,11 @@ class TestableSurfaceFlinger {
 public:
     using HotplugEvent = SurfaceFlinger::HotplugEvent;
 
+    TestableSurfaceFlinger()
+          : mFlinger(sp<SurfaceFlinger>::make(mFactory, SurfaceFlinger::SkipInitialization)) {
+        mFlinger->mAnimationTransactionTimeout = ms2ns(10);
+    }
+
     SurfaceFlinger* flinger() { return mFlinger.get(); }
     scheduler::TestableScheduler* scheduler() { return mScheduler; }
 
@@ -464,6 +469,10 @@ public:
 
     mock::FrameTracer* getFrameTracer() const {
         return static_cast<mock::FrameTracer*>(mFlinger->mFrameTracer.get());
+    }
+
+    nsecs_t getAnimationTransactionTimeout() const {
+        return mFlinger->mAnimationTransactionTimeout;
     }
 
     /* ------------------------------------------------------------------------
