@@ -69,7 +69,7 @@ bool WindowInfo::operator==(const WindowInfo& info) const {
             info.hasWallpaper == hasWallpaper && info.paused == paused &&
             info.ownerPid == ownerPid && info.ownerUid == ownerUid &&
             info.packageName == packageName && info.inputFeatures == inputFeatures &&
-            info.displayId == displayId && info.portalToDisplayId == portalToDisplayId &&
+            info.displayId == displayId &&
             info.replaceTouchableRegionWithCrop == replaceTouchableRegionWithCrop &&
             info.applicationInfo == applicationInfo;
 }
@@ -116,7 +116,6 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeUtf8AsUtf16(packageName) ?:
         parcel->writeInt32(inputFeatures.get()) ?:
         parcel->writeInt32(displayId) ?:
-        parcel->writeInt32(portalToDisplayId) ?:
         applicationInfo.writeToParcel(parcel) ?:
         parcel->write(touchableRegion) ?:
         parcel->writeBool(replaceTouchableRegionWithCrop) ?:
@@ -180,7 +179,6 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
     inputFeatures = Flags<Feature>(parcel->readInt32());
     // clang-format off
     status = parcel->readInt32(&displayId) ?:
-        parcel->readInt32(&portalToDisplayId) ?:
         applicationInfo.readFromParcel(parcel) ?:
         parcel->read(touchableRegion) ?:
         parcel->readBool(&replaceTouchableRegionWithCrop);

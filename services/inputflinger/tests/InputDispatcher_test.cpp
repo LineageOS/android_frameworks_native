@@ -6518,32 +6518,29 @@ TEST_F(InputDispatcherSpyWindowTest, CanPilferAfterWindowIsRemovedMidStream) {
 }
 
 /**
- * After a spy window pilfers pointers, new pointers that go down should not go to any foreground
- * windows.
+ * After a spy window pilfers pointers, new pointers that go down in its bounds should be sent to
+ * the spy, but not to any other windows.
  */
-TEST_F(InputDispatcherSpyWindowTest, NoSplitAfterPilfer) {
-    // Create a touch modal spy that spies on the entire display.
-    auto spy = createSpy(static_cast<WindowInfo::Flag>(0));
-
-    // Create a non touch modal window that supports split touch.
+TEST_F(InputDispatcherSpyWindowTest, ContinuesToReceiveGestureAfterPilfer) {
+    auto spy = createSpy(WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::SPLIT_TOUCH);
     auto window = createForeground();
-    window->setFrame(Rect(0, 0, 100, 100));
     window->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::SPLIT_TOUCH);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy, window}}});
 
-    // First finger down, no window touched.
+    // First finger down on the window and the spy.
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                {100, 200}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    spy->consumeMotionDown(ADISPLAY_ID_DEFAULT);
-    window->assertNoEvents();
+    spy->consumeMotionDown();
+    window->consumeMotionDown();
 
-    // Spy window pilfer the pointers.
+    // Spy window pilfers the pointers.
     EXPECT_EQ(OK, mDispatcher->pilferPointers(spy->getToken()));
+    window->consumeMotionCancel();
 
-    // Second finger down on window, the window should not receive touch down.
+    // Second finger down on the window and spy, but the window should not receive the pointer down.
     const MotionEvent secondFingerDownEvent =
             MotionEventBuilder(AMOTION_EVENT_ACTION_POINTER_DOWN |
                                        (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
@@ -6560,10 +6557,28 @@ TEST_F(InputDispatcherSpyWindowTest, NoSplitAfterPilfer) {
                                 InputEventInjectionSync::WAIT_FOR_RESULT))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
 
+    spy->consumeMotionPointerDown(1 /*pointerIndex*/);
+
+    // Third finger goes down outside all windows, so injection should fail.
+    const MotionEvent thirdFingerDownEvent =
+            MotionEventBuilder(AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                       (2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                               AINPUT_SOURCE_TOUCHSCREEN)
+                    .displayId(ADISPLAY_ID_DEFAULT)
+                    .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
+                    .pointer(PointerBuilder(/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                     .x(100)
+                                     .y(200))
+                    .pointer(PointerBuilder(/* id */ 1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/* id */ 2, AMOTION_EVENT_TOOL_TYPE_FINGER).x(-5).y(-5))
+                    .build();
+    ASSERT_EQ(InputEventInjectionResult::FAILED,
+              injectMotionEvent(mDispatcher, thirdFingerDownEvent, INJECT_EVENT_TIMEOUT,
+                                InputEventInjectionSync::WAIT_FOR_RESULT))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    spy->assertNoEvents();
     window->assertNoEvents();
-    // Since we no longer allow splitting, the spy will not receive new pointers.
-    // TODO(b/217376964): Add a way for the pilfering window to receive the rest of the gesture.
-    spy->consumeMotionMove();
 }
 
 /**

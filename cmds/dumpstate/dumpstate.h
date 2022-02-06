@@ -214,9 +214,6 @@ class Dumpstate {
 
     static Dumpstate& GetInstance();
 
-    /* Checkes whether dumpstate is generating a zipped bugreport. */
-    bool IsZipping() const;
-
     /* Initialize dumpstate fields before starting bugreport generation */
     void Initialize();
 
