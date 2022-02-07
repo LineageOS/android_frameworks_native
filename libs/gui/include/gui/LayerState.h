@@ -26,6 +26,7 @@
 #include <gui/ITransactionCompletedListener.h>
 #include <math/mat4.h>
 
+#include <android/gui/DropInputMode.h>
 #ifndef NO_INPUT
 #include <android/FocusRequest.h>
 #include <input/InputWindow.h>
@@ -116,6 +117,7 @@ struct layer_state_t {
         eFixedTransformHintChanged = 0x200'00000000,
         eFrameNumberChanged = 0x400'00000000,
         eBlurRegionsChanged = 0x800'00000000,
+        eDropInputModeChanged = 0x8000'00000000,
         eAutoRefreshChanged = 0x1000'00000000,
         eStretchChanged = 0x2000'00000000,
         eTrustedOverlayChanged = 0x4000'00000000,
@@ -232,6 +234,9 @@ struct layer_state_t {
 
     // Stretch effect to be applied to this layer
     StretchEffect stretchEffect;
+
+    // Force inputflinger to drop all input events for the layer and its children.
+    gui::DropInputMode dropInputMode;
 
     Rect bufferCrop;
     Rect destinationFrame;

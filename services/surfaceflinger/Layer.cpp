@@ -133,6 +133,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mDrawingState.fixedTransformHint = ui::Transform::ROT_INVALID;
     mDrawingState.frameTimelineInfo = {};
     mDrawingState.postTime = -1;
+    mDrawingState.dropInputMode = gui::DropInputMode::NONE;
     mDrawingState.destinationFrame.makeInvalid();
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
@@ -2178,6 +2179,35 @@ ui::Transform Layer::getInputTransform() const {
     return getTransform();
 }
 
+gui::DropInputMode Layer::getDropInputMode() const {
+    gui::DropInputMode mode = mDrawingState.dropInputMode;
+    if (mode == gui::DropInputMode::ALL) {
+        return mode;
+    }
+    sp<Layer> parent = mDrawingParent.promote();
+    if (parent) {
+        gui::DropInputMode parentMode = parent->getDropInputMode();
+        if (parentMode != gui::DropInputMode::NONE) {
+            return parentMode;
+        }
+    }
+    return mode;
+}
+
+void Layer::handleDropInputMode(InputWindowInfo& info) const {
+    if (mDrawingState.inputInfo.inputFeatures.test(InputWindowInfo::Feature::NO_INPUT_CHANNEL)) {
+        return;
+    }
+
+    // Check if we need to drop input unconditionally
+    gui::DropInputMode dropInputMode = getDropInputMode();
+    if (dropInputMode == gui::DropInputMode::ALL) {
+        info.inputFeatures |= InputWindowInfo::Feature::DROP_INPUT;
+        ALOGV("Dropping input for %s as requested by policy.", getDebugName());
+        return;
+    }
+}
+
 Rect Layer::getInputBounds() const {
     return getCroppedBufferSize(getDrawingState());
 }
@@ -2325,6 +2355,7 @@ InputWindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     info.visible = hasInputInfo() ? canReceiveInput() : isVisible();
     info.alpha = getAlpha();
     fillTouchOcclusionMode(info);
+    handleDropInputMode(info);
 
     auto cropLayer = mDrawingState.touchableRegionCrop.promote();
     if (info.replaceTouchableRegionWithCrop) {
@@ -2531,6 +2562,17 @@ Layer::FrameRateCompatibility Layer::FrameRate::convertCompatibility(int8_t comp
             LOG_ALWAYS_FATAL("Invalid frame rate compatibility value %d", compatibility);
             return FrameRateCompatibility::Default;
     }
+}
+
+bool Layer::setDropInputMode(gui::DropInputMode mode) {
+    if (mDrawingState.dropInputMode == mode) {
+        return false;
+    }
+    mDrawingState.dropInputMode = mode;
+    mDrawingState.modified = true;
+    mFlinger->mInputInfoChanged = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
 }
 
 scheduler::Seamlessness Layer::FrameRate::convertChangeFrameRateStrategy(int8_t strategy) {

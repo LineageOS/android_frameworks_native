@@ -128,6 +128,7 @@ struct InputWindowInfo : public Parcelable {
         DISABLE_TOUCH_PAD_GESTURES = 0x00000001,
         NO_INPUT_CHANNEL = 0x00000002,
         DISABLE_USER_ACTIVITY = 0x00000004,
+        DROP_INPUT = 0x00000008,
     };
 
     /* These values are filled in by the WM and passed through SurfaceFlinger

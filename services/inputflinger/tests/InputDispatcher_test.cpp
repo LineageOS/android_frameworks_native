@@ -5305,4 +5305,44 @@ TEST_F(InputDispatcherDragTests, DragAndDrop_InvalidWindow) {
     mSecondWindow->assertNoEvents();
 }
 
+class InputDispatcherDropInputFeatureTest : public InputDispatcherTest {};
+
+TEST_F(InputDispatcherDropInputFeatureTest, WindowDropsInput) {
+    std::shared_ptr<FakeApplicationHandle> app = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(app, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
+    window->setInputFeatures(InputWindowInfo::Feature::DROP_INPUT);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, app);
+    window->setFocusable(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
+    window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
+
+    // With the flag set, window should not get any input
+    NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyKey(&keyArgs);
+    window->assertNoEvents();
+
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+    window->assertNoEvents();
+
+    // With the flag cleared, the window should get input
+    window->setInputFeatures(static_cast<InputWindowInfo::Feature>(0));
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyKey(&keyArgs);
+    window->consumeKeyUp(ADISPLAY_ID_DEFAULT);
+
+    motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                    ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    window->assertNoEvents();
+}
+
 } // namespace android::inputdispatcher
