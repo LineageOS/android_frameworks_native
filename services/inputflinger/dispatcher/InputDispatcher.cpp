@@ -1815,6 +1815,11 @@ InputEventInjectionResult InputDispatcher::findFocusedWindowTargetsLocked(
         return InputEventInjectionResult::FAILED;
     }
 
+    // Drop key events if requested by input feature
+    if (focusedWindowHandle != nullptr && shouldDropInput(entry, focusedWindowHandle)) {
+        return InputEventInjectionResult::FAILED;
+    }
+
     // Compatibility behavior: raise ANR if there is a focused application, but no focused window.
     // Only start counting when we have a focused event to dispatch. The ANR is canceled if we
     // start interacting with another application via touch (app switch). This code can be removed
@@ -2040,6 +2045,11 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             }
         }
 
+        // Drop touch events if requested by input feature
+        if (newTouchedWindowHandle != nullptr && shouldDropInput(entry, newTouchedWindowHandle)) {
+            newTouchedWindowHandle = nullptr;
+        }
+
         // Drop events that can't be trusted due to occlusion
         if (newTouchedWindowHandle != nullptr &&
             mBlockUntrustedTouchesMode != BlockUntrustedTouchesMode::DISABLED) {
@@ -2126,6 +2136,13 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             sp<InputWindowHandle> oldTouchedWindowHandle =
                     tempTouchState.getFirstForegroundWindowHandle();
             newTouchedWindowHandle = findTouchedWindowAtLocked(displayId, x, y, &tempTouchState);
+
+            // Drop touch events if requested by input feature
+            if (newTouchedWindowHandle != nullptr &&
+                shouldDropInput(entry, newTouchedWindowHandle)) {
+                newTouchedWindowHandle = nullptr;
+            }
+
             if (oldTouchedWindowHandle != newTouchedWindowHandle &&
                 oldTouchedWindowHandle != nullptr && newTouchedWindowHandle != nullptr) {
                 if (DEBUG_FOCUS) {
@@ -6126,6 +6143,19 @@ bool InputDispatcher::waitForIdle() {
     mLooper->wake();
     std::cv_status result = mDispatcherEnteredIdle.wait_for(lock, TIMEOUT);
     return result == std::cv_status::no_timeout;
+}
+
+bool InputDispatcher::shouldDropInput(const EventEntry& entry,
+                                      const sp<InputWindowHandle>& windowHandle) const {
+    if (windowHandle->getInfo()->inputFeatures.test(InputWindowInfo::Feature::DROP_INPUT)) {
+        ALOGW("Dropping %s event targeting %s as requested by inputFeatures={%s} on display "
+              "%" PRId32 ".",
+              entry.getDescription().c_str(), windowHandle->getName().c_str(),
+              windowHandle->getInfo()->inputFeatures.string().c_str(),
+              windowHandle->getInfo()->displayId);
+        return true;
+    }
+    return false;
 }
 
 /**
