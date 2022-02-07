@@ -4170,6 +4170,15 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             ALOGE("Attempt to set trusted overlay without permission ACCESS_SURFACE_FLINGER");
         }
     }
+    if (what & layer_state_t::eDropInputModeChanged) {
+        if (privileged) {
+            if (layer->setDropInputMode(s.dropInputMode)) {
+                flags |= eTraversalNeeded;
+            }
+        } else {
+            ALOGE("Attempt to update InputPolicyFlags without permission ACCESS_SURFACE_FLINGER");
+        }
+    }
     if (what & layer_state_t::eStretchChanged) {
         if (layer->setStretchEffect(s.stretchEffect)) {
             flags |= eTraversalNeeded;
