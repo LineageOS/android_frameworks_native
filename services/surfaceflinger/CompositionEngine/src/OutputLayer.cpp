@@ -324,9 +324,14 @@ void OutputLayer::updateCompositionState(
 
     // For hdr content, treat the white point as the display brightness - HDR content should not be
     // boosted or dimmed.
-    if (isHdrDataspace(state.dataspace)) {
+    if (isHdrDataspace(state.dataspace) ||
+        getOutput().getState().displayBrightnessNits == getOutput().getState().sdrWhitePointNits) {
+        state.dimmingRatio = 1.f;
         state.whitePointNits = getOutput().getState().displayBrightnessNits;
     } else {
+        state.dimmingRatio = std::clamp(getOutput().getState().sdrWhitePointNits /
+                                                getOutput().getState().displayBrightnessNits,
+                                        0.f, 1.f);
         state.whitePointNits = getOutput().getState().sdrWhitePointNits;
     }
 
@@ -502,13 +507,12 @@ void OutputLayer::writeOutputDependentPerFrameStateToHWC(HWC2::Layer* hwcLayer) 
     }
 
     // Don't dim cached layers
-    const auto whitePointNits = outputDependentState.overrideInfo.buffer
-            ? getOutput().getState().displayBrightnessNits
-            : outputDependentState.whitePointNits;
+    const auto dimmingRatio =
+            outputDependentState.overrideInfo.buffer ? 1.f : outputDependentState.dimmingRatio;
 
-    if (auto error = hwcLayer->setWhitePointNits(whitePointNits); error != hal::Error::NONE) {
-        ALOGE("[%s] Failed to set white point %f: %s (%d)", getLayerFE().getDebugName(),
-              whitePointNits, to_string(error).c_str(), static_cast<int32_t>(error));
+    if (auto error = hwcLayer->setBrightness(dimmingRatio); error != hal::Error::NONE) {
+        ALOGE("[%s] Failed to set brightness %f: %s (%d)", getLayerFE().getDebugName(),
+              dimmingRatio, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 }
 

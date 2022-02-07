@@ -211,7 +211,7 @@ public:
                                   float* outClientTargetWhitePointNits) override;
 
     // AIDL Composer HAL
-    Error setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) override;
+    Error setLayerBrightness(Display display, Layer layer, float brightness) override;
     Error setLayerBlockingRegion(Display display, Layer layer,
                                  const std::vector<IComposerClient::Rect>& blocking) override;
     Error setBootDisplayConfig(Display displayId, Config) override;

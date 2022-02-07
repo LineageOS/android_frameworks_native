@@ -1261,6 +1261,7 @@ private:
     ui::Dataspace mDefaultCompositionDataspace;
     ui::Dataspace mWideColorGamutCompositionDataspace;
     ui::Dataspace mColorSpaceAgnosticDataspace;
+    float mDimmingRatio = -1.f;
 
     SurfaceFlingerBE mBE;
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;

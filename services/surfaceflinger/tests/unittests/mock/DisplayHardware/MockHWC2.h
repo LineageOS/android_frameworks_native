@@ -127,7 +127,7 @@ public:
     MOCK_METHOD(hal::Error, setColorTransform, (const android::mat4 &), (override));
     MOCK_METHOD(hal::Error, setLayerGenericMetadata,
                 (const std::string &, bool, const std::vector<uint8_t> &), (override));
-    MOCK_METHOD(hal::Error, setWhitePointNits, (float whitePointNits), (override));
+    MOCK_METHOD(hal::Error, setBrightness, (float), (override));
     MOCK_METHOD(hal::Error, setBlockingRegion, (const android::Region &), (override));
 };
 

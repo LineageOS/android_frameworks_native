@@ -940,12 +940,12 @@ Error Layer::setLayerGenericMetadata(const std::string& name, bool mandatory,
 }
 
 // AIDL HAL
-Error Layer::setWhitePointNits(float whitePointNits) {
+Error Layer::setBrightness(float brightness) {
     if (CC_UNLIKELY(!mDisplay)) {
         return Error::BAD_DISPLAY;
     }
 
-    auto intError = mComposer.setLayerWhitePointNits(mDisplay->getId(), mId, whitePointNits);
+    auto intError = mComposer.setLayerBrightness(mDisplay->getId(), mId, brightness);
     return static_cast<Error>(intError);
 }
 
