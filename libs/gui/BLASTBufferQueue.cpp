@@ -28,6 +28,7 @@
 #include <gui/GLConsumer.h>
 #include <gui/IProducerListener.h>
 #include <gui/Surface.h>
+#include <gui/TraceUtils.h>
 #include <utils/Singleton.h>
 #include <utils/Trace.h>
 
@@ -56,6 +57,10 @@ namespace android {
 //              mName.c_str(), mNumFrameAvailable, mNumAcquired, ##__VA_ARGS__)
 #define BQA_LOGE(x, ...) \
     ALOGE("[%s](f:%u,a:%u) " x, mName.c_str(), mNumFrameAvailable, mNumAcquired, ##__VA_ARGS__)
+
+#define BBQ_TRACE(x, ...)                                                                  \
+    ATRACE_FORMAT("%s - %s(f:%u,a:%u)" x, __FUNCTION__, mName.c_str(), mNumFrameAvailable, \
+                  mNumAcquired, ##__VA_ARGS__)
 
 void BLASTBufferItemConsumer::onDisconnect() {
     Mutex::Autolock lock(mMutex);
@@ -254,7 +259,7 @@ void BLASTBufferQueue::transactionCommittedCallback(nsecs_t /*latchTime*/,
                                                     const std::vector<SurfaceControlStats>& stats) {
     {
         std::unique_lock _lock{mMutex};
-        ATRACE_CALL();
+        BBQ_TRACE();
         BQA_LOGV("transactionCommittedCallback");
         if (!mSurfaceControlsWithPendingCallback.empty()) {
             sp<SurfaceControl> pendingSC = mSurfaceControlsWithPendingCallback.front();
@@ -304,7 +309,7 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
                                            const std::vector<SurfaceControlStats>& stats) {
     {
         std::unique_lock _lock{mMutex};
-        ATRACE_CALL();
+        BBQ_TRACE();
         BQA_LOGV("transactionCallback");
 
         if (!mSurfaceControlsWithPendingCallback.empty()) {
@@ -367,7 +372,7 @@ void BLASTBufferQueue::flushShadowQueue() {
 void BLASTBufferQueue::releaseBufferCallback(
         const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
         std::optional<uint32_t> currentMaxAcquiredBufferCount) {
-    ATRACE_CALL();
+    BBQ_TRACE();
     std::unique_lock _lock{mMutex};
     BQA_LOGV("releaseBufferCallback %s", id.to_string().c_str());
 
@@ -415,6 +420,7 @@ void BLASTBufferQueue::releaseBuffer(const ReleaseCallbackId& callbackId,
         return;
     }
     mNumAcquired--;
+    BBQ_TRACE("frame=%" PRIu64, callbackId.framenumber);
     BQA_LOGV("released %s", callbackId.to_string().c_str());
     mBufferItemConsumer->releaseBuffer(it->second, releaseFence);
     mSubmitted.erase(it);
@@ -422,7 +428,6 @@ void BLASTBufferQueue::releaseBuffer(const ReleaseCallbackId& callbackId,
 
 void BLASTBufferQueue::acquireNextBufferLocked(
         const std::optional<SurfaceComposerClient::Transaction*> transaction) {
-    ATRACE_CALL();
     // If the next transaction is set, we want to guarantee the our acquire will not fail, so don't
     // include the extra buffer when checking if we can acquire the next buffer.
     const bool includeExtraAcquire = !transaction;
@@ -456,8 +461,10 @@ void BLASTBufferQueue::acquireNextBufferLocked(
         BQA_LOGE("Failed to acquire a buffer, err=%s", statusToString(status).c_str());
         return;
     }
+
     auto buffer = bufferItem.mGraphicBuffer;
     mNumFrameAvailable--;
+    BBQ_TRACE("frame=%" PRIu64, bufferItem.mFrameNumber);
 
     if (buffer == nullptr) {
         mBufferItemConsumer->releaseBuffer(bufferItem, Fence::NO_FENCE);
@@ -600,7 +607,7 @@ void BLASTBufferQueue::flushAndWaitForFreeBuffer(std::unique_lock<std::mutex>& l
 }
 
 void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
-    ATRACE_CALL();
+    BBQ_TRACE();
     std::unique_lock _lock{mMutex};
 
     const bool syncTransactionSet = mSyncTransaction != nullptr;
@@ -674,6 +681,7 @@ void BLASTBufferQueue::onFrameCancelled(const uint64_t bufferId) {
 
 void BLASTBufferQueue::setSyncTransaction(SurfaceComposerClient::Transaction* t,
                                           bool acquireSingleBuffer) {
+    BBQ_TRACE();
     std::lock_guard _lock{mMutex};
     mSyncTransaction = t;
     mAcquireSingleBuffer = mSyncTransaction ? acquireSingleBuffer : true;
