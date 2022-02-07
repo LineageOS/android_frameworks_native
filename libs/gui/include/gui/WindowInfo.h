@@ -17,7 +17,7 @@
 #pragma once
 
 #include <android/gui/TouchOcclusionMode.h>
-#include <android/os/IInputConstants.h>
+#include <android/os/InputConfig.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
 #include <ftl/Flags.h>
@@ -132,49 +132,45 @@ struct WindowInfo : public Parcelable {
         ftl_last = FIRST_SYSTEM_WINDOW + 15
     };
 
-    // This is a conversion of os::IInputConstants::InputFeature to an enum backed by an unsigned
-    // type. This indicates that they are flags, so it can be used with ftl/enum.h.
-    enum class Feature : uint32_t {
-        // clang-format off
-        NO_INPUT_CHANNEL =
-                static_cast<uint32_t>(os::IInputConstants::InputFeature::NO_INPUT_CHANNEL),
-        DISABLE_USER_ACTIVITY =
-                static_cast<uint32_t>(os::IInputConstants::InputFeature::DISABLE_USER_ACTIVITY),
-        DROP_INPUT =
-                static_cast<uint32_t>(os::IInputConstants::InputFeature::DROP_INPUT),
-        DROP_INPUT_IF_OBSCURED =
-                static_cast<uint32_t>(os::IInputConstants::InputFeature::DROP_INPUT_IF_OBSCURED),
-        SPY =
-                static_cast<uint32_t>(os::IInputConstants::InputFeature::SPY),
-        INTERCEPTS_STYLUS =
-                static_cast<uint32_t>(os::IInputConstants::InputFeature::INTERCEPTS_STYLUS),
-        // clang-format on
-    };
-
     // Flags used to determine configuration of this input window.
-    // Input windows can be configured with two sets of flags: InputFeature (WindowInfo::Feature
-    // defined above), and InputConfig. When adding a new configuration for an input window:
-    //   - If you are adding a new flag that's visible and accessible to apps, it should be added
-    //   as an InputFeature.
-    //   - If you are adding an internal behaviour that is used within the system or shell and is
-    //   not exposed to apps, it should be added as an InputConfig.
+    // This is a conversion of os::InputConfig to an enum backed by an unsigned
+    // type. This indicates that they are flags, so it can be used with ftl/enum.h.
     enum class InputConfig : uint32_t {
         // clang-format off
-        NONE                         = 0,
-        NOT_VISIBLE                  = 1 << 0,
-        NOT_FOCUSABLE                = 1 << 1,
-        NOT_TOUCHABLE                = 1 << 2,
-        PREVENT_SPLITTING            = 1 << 3,
-        DUPLICATE_TOUCH_TO_WALLPAPER = 1 << 4,
-        IS_WALLPAPER                 = 1 << 5,
-        PAUSE_DISPATCHING            = 1 << 6,
-        // This flag is set when the window is of a trusted type that is allowed to silently
-        // overlay other windows for the purpose of implementing the secure views feature.
-        // Trusted overlays, such as IME windows, can partly obscure other windows without causing
-        // motion events to be delivered to them with AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED.
-        TRUSTED_OVERLAY              = 1 << 7,
-        WATCH_OUTSIDE_TOUCH          = 1 << 8,
-        SLIPPERY                     = 1 << 9,
+        DEFAULT =
+                static_cast<uint32_t>(os::InputConfig::DEFAULT),
+        NO_INPUT_CHANNEL =
+                static_cast<uint32_t>(os::InputConfig::NO_INPUT_CHANNEL),
+        NOT_VISIBLE =
+                static_cast<uint32_t>(os::InputConfig::NOT_VISIBLE),
+        NOT_FOCUSABLE =
+                static_cast<uint32_t>(os::InputConfig::NOT_FOCUSABLE),
+        NOT_TOUCHABLE =
+                static_cast<uint32_t>(os::InputConfig::NOT_TOUCHABLE),
+        PREVENT_SPLITTING =
+                static_cast<uint32_t>(os::InputConfig::PREVENT_SPLITTING),
+        DUPLICATE_TOUCH_TO_WALLPAPER =
+                static_cast<uint32_t>(os::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER),
+        IS_WALLPAPER =
+                static_cast<uint32_t>(os::InputConfig::IS_WALLPAPER),
+        PAUSE_DISPATCHING =
+                static_cast<uint32_t>(os::InputConfig::PAUSE_DISPATCHING),
+        TRUSTED_OVERLAY =
+                static_cast<uint32_t>(os::InputConfig::TRUSTED_OVERLAY),
+        WATCH_OUTSIDE_TOUCH =
+                static_cast<uint32_t>(os::InputConfig::WATCH_OUTSIDE_TOUCH),
+        SLIPPERY =
+                static_cast<uint32_t>(os::InputConfig::SLIPPERY),
+        DISABLE_USER_ACTIVITY =
+                static_cast<uint32_t>(os::InputConfig::DISABLE_USER_ACTIVITY),
+        DROP_INPUT =
+                static_cast<uint32_t>(os::InputConfig::DROP_INPUT),
+        DROP_INPUT_IF_OBSCURED =
+                static_cast<uint32_t>(os::InputConfig::DROP_INPUT_IF_OBSCURED),
+        SPY =
+                static_cast<uint32_t>(os::InputConfig::SPY),
+        INTERCEPTS_STYLUS =
+                static_cast<uint32_t>(os::InputConfig::INTERCEPTS_STYLUS),
         // clang-format on
     };
 
@@ -228,7 +224,6 @@ struct WindowInfo : public Parcelable {
     int32_t ownerPid = -1;
     int32_t ownerUid = -1;
     std::string packageName;
-    Flags<Feature> inputFeatures;
     Flags<InputConfig> inputConfig;
     int32_t displayId = ADISPLAY_ID_NONE;
     InputApplicationInfo applicationInfo;

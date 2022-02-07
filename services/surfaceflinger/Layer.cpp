@@ -2251,14 +2251,14 @@ gui::DropInputMode Layer::getDropInputMode() const {
 }
 
 void Layer::handleDropInputMode(gui::WindowInfo& info) const {
-    if (mDrawingState.inputInfo.inputFeatures.test(WindowInfo::Feature::NO_INPUT_CHANNEL)) {
+    if (mDrawingState.inputInfo.inputConfig.test(WindowInfo::InputConfig::NO_INPUT_CHANNEL)) {
         return;
     }
 
     // Check if we need to drop input unconditionally
     gui::DropInputMode dropInputMode = getDropInputMode();
     if (dropInputMode == gui::DropInputMode::ALL) {
-        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT;
+        info.inputConfig |= WindowInfo::InputConfig::DROP_INPUT;
         ALOGV("Dropping input for %s as requested by policy.", getDebugName());
         return;
     }
@@ -2271,7 +2271,7 @@ void Layer::handleDropInputMode(gui::WindowInfo& info) const {
     // Check if the parent has set an alpha on the layer
     sp<Layer> parent = mDrawingParent.promote();
     if (parent && parent->getAlpha() != 1.0_hf) {
-        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT;
+        info.inputConfig |= WindowInfo::InputConfig::DROP_INPUT;
         ALOGV("Dropping input for %s as requested by policy because alpha=%f", getDebugName(),
               static_cast<float>(getAlpha()));
     }
@@ -2279,7 +2279,7 @@ void Layer::handleDropInputMode(gui::WindowInfo& info) const {
     // Check if the parent has cropped the buffer
     Rect bufferSize = getCroppedBufferSize(getDrawingState());
     if (!bufferSize.isValid()) {
-        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT_IF_OBSCURED;
+        info.inputConfig |= WindowInfo::InputConfig::DROP_INPUT_IF_OBSCURED;
         return;
     }
 
@@ -2291,7 +2291,7 @@ void Layer::handleDropInputMode(gui::WindowInfo& info) const {
     bool croppedByParent = bufferInScreenSpace != Rect{mScreenBounds};
 
     if (croppedByParent) {
-        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT;
+        info.inputConfig |= WindowInfo::InputConfig::DROP_INPUT;
         ALOGV("Dropping input for %s as requested by policy because buffer is cropped by parent",
               getDebugName());
     } else {
@@ -2299,7 +2299,7 @@ void Layer::handleDropInputMode(gui::WindowInfo& info) const {
         // input if the window is obscured. This check should be done in surfaceflinger but the
         // logic currently resides in inputflinger. So pass the if_obscured check to input to only
         // drop input events if the window is obscured.
-        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT_IF_OBSCURED;
+        info.inputConfig |= WindowInfo::InputConfig::DROP_INPUT_IF_OBSCURED;
     }
 }
 
@@ -2308,7 +2308,7 @@ WindowInfo Layer::fillInputInfo(const ui::Transform& displayTransform, bool disp
         mDrawingState.inputInfo.name = getName();
         mDrawingState.inputInfo.ownerUid = mOwnerUid;
         mDrawingState.inputInfo.ownerPid = mOwnerPid;
-        mDrawingState.inputInfo.inputFeatures = WindowInfo::Feature::NO_INPUT_CHANNEL;
+        mDrawingState.inputInfo.inputConfig |= WindowInfo::InputConfig::NO_INPUT_CHANNEL;
         mDrawingState.inputInfo.displayId = getLayerStack().id;
     }
 
@@ -2336,7 +2336,7 @@ WindowInfo Layer::fillInputInfo(const ui::Transform& displayTransform, bool disp
     // If the window will be blacked out on a display because the display does not have the secure
     // flag and the layer has the secure flag set, then drop input.
     if (!displayIsSecure && isSecure()) {
-        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT;
+        info.inputConfig |= WindowInfo::InputConfig::DROP_INPUT;
     }
 
     auto cropLayer = mDrawingState.touchableRegionCrop.promote();
