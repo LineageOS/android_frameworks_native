@@ -2179,6 +2179,35 @@ ui::Transform Layer::getInputTransform() const {
     return getTransform();
 }
 
+gui::DropInputMode Layer::getDropInputMode() const {
+    gui::DropInputMode mode = mDrawingState.dropInputMode;
+    if (mode == gui::DropInputMode::ALL) {
+        return mode;
+    }
+    sp<Layer> parent = mDrawingParent.promote();
+    if (parent) {
+        gui::DropInputMode parentMode = parent->getDropInputMode();
+        if (parentMode != gui::DropInputMode::NONE) {
+            return parentMode;
+        }
+    }
+    return mode;
+}
+
+void Layer::handleDropInputMode(InputWindowInfo& info) const {
+    if (mDrawingState.inputInfo.inputFeatures.test(InputWindowInfo::Feature::NO_INPUT_CHANNEL)) {
+        return;
+    }
+
+    // Check if we need to drop input unconditionally
+    gui::DropInputMode dropInputMode = getDropInputMode();
+    if (dropInputMode == gui::DropInputMode::ALL) {
+        info.inputFeatures |= InputWindowInfo::Feature::DROP_INPUT;
+        ALOGV("Dropping input for %s as requested by policy.", getDebugName());
+        return;
+    }
+}
+
 Rect Layer::getInputBounds() const {
     return getCroppedBufferSize(getDrawingState());
 }
@@ -2326,6 +2355,7 @@ InputWindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     info.visible = hasInputInfo() ? canReceiveInput() : isVisible();
     info.alpha = getAlpha();
     fillTouchOcclusionMode(info);
+    handleDropInputMode(info);
 
     auto cropLayer = mDrawingState.touchableRegionCrop.promote();
     if (info.replaceTouchableRegionWithCrop) {
