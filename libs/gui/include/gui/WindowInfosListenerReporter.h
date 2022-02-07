@@ -20,6 +20,7 @@
 #include <android/gui/IWindowInfosReportedListener.h>
 #include <binder/IBinder.h>
 #include <gui/ISurfaceComposer.h>
+#include <gui/SpHash.h>
 #include <gui/WindowInfosListener.h>
 #include <unordered_set>
 
@@ -41,8 +42,7 @@ public:
 
 private:
     std::mutex mListenersMutex;
-    std::unordered_set<sp<gui::WindowInfosListener>,
-                       ISurfaceComposer::SpHash<gui::WindowInfosListener>>
+    std::unordered_set<sp<gui::WindowInfosListener>, SpHash<gui::WindowInfosListener>>
             mWindowInfosListeners GUARDED_BY(mListenersMutex);
 };
 } // namespace android
