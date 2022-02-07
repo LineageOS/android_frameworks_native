@@ -133,6 +133,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mDrawingState.fixedTransformHint = ui::Transform::ROT_INVALID;
     mDrawingState.frameTimelineInfo = {};
     mDrawingState.postTime = -1;
+    mDrawingState.dropInputMode = gui::DropInputMode::NONE;
     mDrawingState.destinationFrame.makeInvalid();
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
@@ -2531,6 +2532,17 @@ Layer::FrameRateCompatibility Layer::FrameRate::convertCompatibility(int8_t comp
             LOG_ALWAYS_FATAL("Invalid frame rate compatibility value %d", compatibility);
             return FrameRateCompatibility::Default;
     }
+}
+
+bool Layer::setDropInputMode(gui::DropInputMode mode) {
+    if (mDrawingState.dropInputMode == mode) {
+        return false;
+    }
+    mDrawingState.dropInputMode = mode;
+    mDrawingState.modified = true;
+    mFlinger->mInputInfoChanged = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
 }
 
 scheduler::Seamlessness Layer::FrameRate::convertChangeFrameRateStrategy(int8_t strategy) {
