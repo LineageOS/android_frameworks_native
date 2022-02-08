@@ -2388,6 +2388,36 @@ bool Layer::isRemovedFromCurrentState() const  {
     return mRemovedFromCurrentState;
 }
 
+gui::DropInputMode Layer::getDropInputMode() const {
+    gui::DropInputMode mode = mDrawingState.dropInputMode;
+    if (mode == gui::DropInputMode::ALL) {
+        return mode;
+    }
+    sp<Layer> parent = mDrawingParent.promote();
+    if (parent) {
+        gui::DropInputMode parentMode = parent->getDropInputMode();
+        if (parentMode != gui::DropInputMode::NONE) {
+            return parentMode;
+        }
+    }
+    return mode;
+}
+
+void Layer::handleDropInputMode(InputWindowInfo& info) const {
+    if ((mDrawingState.inputInfo.inputFeatures & InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL) ==
+        InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL) {
+        return;
+    }
+
+    // Check if we need to drop input unconditionally
+    gui::DropInputMode dropInputMode = getDropInputMode();
+    if (dropInputMode == gui::DropInputMode::ALL) {
+        info.inputFeatures |= InputWindowInfo::INPUT_FEATURE_DROP_INPUT;
+        ALOGV("Dropping input for %s as requested by policy.", getDebugName());
+        return;
+    }
+}
+
 InputWindowInfo Layer::fillInputInfo() {
     if (!hasInputInfo()) {
         mDrawingState.inputInfo.name = getName();
@@ -2461,6 +2491,7 @@ InputWindowInfo Layer::fillInputInfo() {
     // InputDispatcher, and obviously if they aren't visible they can't occlude
     // anything.
     info.visible = hasInputInfo() ? canReceiveInput() : isVisible();
+    handleDropInputMode(info);
 
     auto cropLayer = mDrawingState.touchableRegionCrop.promote();
     if (info.replaceTouchableRegionWithCrop) {
