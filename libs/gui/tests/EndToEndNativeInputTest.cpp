@@ -24,6 +24,7 @@
 
 #include <memory>
 
+#include <android/keycodes.h>
 #include <android/native_window.h>
 
 #include <binder/Binder.h>
@@ -113,8 +114,8 @@ public:
         return std::make_unique<InputSurface>(surfaceControl, width, height);
     }
 
-    InputEvent* consumeEvent() {
-        waitForEventAvailable();
+    InputEvent *consumeEvent(int timeoutMs = 3000) {
+        waitForEventAvailable(timeoutMs);
 
         InputEvent *ev;
         uint32_t seqId;
@@ -153,6 +154,24 @@ public:
         EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
     }
 
+    void expectKey(uint32_t keycode) {
+        InputEvent *ev = consumeEvent();
+        ASSERT_NE(ev, nullptr);
+        ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, ev->getType());
+        KeyEvent *keyEvent = static_cast<KeyEvent *>(ev);
+        EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, keyEvent->getAction());
+        EXPECT_EQ(keycode, keyEvent->getKeyCode());
+        EXPECT_EQ(0, keyEvent->getFlags() & VERIFIED_KEY_EVENT_FLAGS);
+
+        ev = consumeEvent();
+        ASSERT_NE(ev, nullptr);
+        ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, ev->getType());
+        keyEvent = static_cast<KeyEvent *>(ev);
+        EXPECT_EQ(AMOTION_EVENT_ACTION_UP, keyEvent->getAction());
+        EXPECT_EQ(keycode, keyEvent->getKeyCode());
+        EXPECT_EQ(0, keyEvent->getFlags() & VERIFIED_KEY_EVENT_FLAGS);
+    }
+
     ~InputSurface() {
         mInputFlinger->unregisterInputChannel(mServerChannel);
     }
@@ -176,12 +195,12 @@ public:
     }
 
 private:
-    void waitForEventAvailable() {
+    void waitForEventAvailable(int timeoutMs) {
         struct pollfd fd;
 
         fd.fd = mClientChannel->getFd();
         fd.events = POLLIN;
-        poll(&fd, 1, 3000);
+        poll(&fd, 1, timeoutMs);
     }
 
     void populateInputInfo(int width, int height) {
@@ -274,6 +293,14 @@ void injectTap(int x, int y) {
     asprintf(&buf2, "%d", y);
     if (fork() == 0) {
         execlp("input", "input", "tap", buf1, buf2, NULL);
+    }
+}
+
+void injectKey(uint32_t keycode) {
+    char *buf1;
+    asprintf(&buf1, "%d", keycode);
+    if (fork() == 0) {
+        execlp("input", "input", "keyevent", buf1, NULL);
     }
 }
 
@@ -561,5 +588,19 @@ TEST_F(InputSurfacesTest, input_ignores_cursor_layer) {
     injectTap(11, 11);
     surface->expectTap(1, 1);
 }
+
+TEST_F(InputSurfacesTest, drop_input_policy) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->doTransaction(
+            [&](auto &t, auto &sc) { t.setDropInputMode(sc, gui::DropInputMode::ALL); });
+    surface->showAt(100, 100);
+    surface->assertFocusChange(true);
+
+    injectTap(101, 101);
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
+
+    injectKey(AKEYCODE_V);
+    EXPECT_EQ(surface->consumeEvent(100), nullptr);
 }
 }
+} // namespace android
