@@ -3734,7 +3734,7 @@ bool SurfaceFlinger::applyTransactions(std::vector<TransactionState>& transactio
                                        int64_t vsyncId) {
     bool needsTraversal = false;
     // Now apply all transactions.
-    for (const auto& transaction : transactions) {
+    for (auto& transaction : transactions) {
         needsTraversal |=
                 applyTransactionState(transaction.frameTimelineInfo, transaction.states,
                                       transaction.displays, transaction.flags,
@@ -4027,7 +4027,7 @@ status_t SurfaceFlinger::setTransactionState(
 }
 
 bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelineInfo,
-                                           const Vector<ComposerState>& states,
+                                           Vector<ComposerState>& states,
                                            const Vector<DisplayState>& displays, uint32_t flags,
                                            const InputWindowCommands& inputWindowCommands,
                                            const int64_t desiredPresentTime, bool isAutoTimestamp,
@@ -4049,9 +4049,9 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     }
 
     uint32_t clientStateFlags = 0;
-    for (const ComposerState& state : states) {
-        ComposerState stateCopy = state;
-        clientStateFlags |= setClientStateLocked(frameTimelineInfo, stateCopy, desiredPresentTime,
+    for (int i = 0; i < states.size(); i++) {
+        ComposerState& state = states.editItemAt(i);
+        clientStateFlags |= setClientStateLocked(frameTimelineInfo, state, desiredPresentTime,
                                                  isAutoTimestamp, postTime, permissions);
         if ((flags & eAnimation) && state.state.surface) {
             if (const auto layer = fromHandle(state.state.surface).promote()) {
