@@ -63,8 +63,7 @@ private:
     FuzzedDataProvider mFdp;
 
 protected:
-    void onVSyncEvent(nsecs_t /* when */, nsecs_t /* expectedVSyncTimestamp */,
-                      nsecs_t /* deadlineTimestamp */) {}
+    void onVSyncEvent(nsecs_t /* when */, VSyncSource::VSyncData) {}
 };
 
 PhysicalDisplayId SchedulerFuzzer::getPhysicalDisplayId() {

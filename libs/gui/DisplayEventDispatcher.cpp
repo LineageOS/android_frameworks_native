@@ -148,14 +148,13 @@ int DisplayEventDispatcher::handleEvent(int, int events, void*) {
 
 void DisplayEventDispatcher::populateFrameTimelines(const DisplayEventReceiver::Event& event,
                                                     VsyncEventData* outVsyncEventData) const {
-    for (size_t i = 0; i < DisplayEventReceiver::kFrameTimelinesLength; i++) {
+    for (size_t i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
         DisplayEventReceiver::Event::VSync::FrameTimeline receiverTimeline =
                 event.vsync.frameTimelines[i];
-        outVsyncEventData->frameTimelines[i] = {.id = receiverTimeline.vsyncId,
-                                                .deadlineTimestamp =
-                                                        receiverTimeline.deadlineTimestamp,
-                                                .expectedPresentTime =
-                                                        receiverTimeline.expectedVSyncTimestamp};
+        outVsyncEventData->frameTimelines[i] =
+                VsyncEventData::FrameTimeline(receiverTimeline.vsyncId,
+                                              receiverTimeline.deadlineTimestamp,
+                                              receiverTimeline.expectedVSyncTimestamp);
     }
 }
 

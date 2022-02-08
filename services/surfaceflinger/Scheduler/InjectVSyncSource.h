@@ -39,7 +39,7 @@ public:
                            nsecs_t deadlineTimestamp) {
         std::lock_guard<std::mutex> lock(mCallbackMutex);
         if (mCallback) {
-            mCallback->onVSyncEvent(when, expectedVSyncTimestamp, deadlineTimestamp);
+            mCallback->onVSyncEvent(when, {expectedVSyncTimestamp, deadlineTimestamp});
         }
     }
 

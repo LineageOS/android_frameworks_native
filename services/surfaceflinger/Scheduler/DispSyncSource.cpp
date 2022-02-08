@@ -180,7 +180,7 @@ void DispSyncSource::onVsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime
     }
 
     if (callback != nullptr) {
-        callback->onVSyncEvent(targetWakeupTime, vsyncTime, readyTime);
+        callback->onVSyncEvent(targetWakeupTime, {vsyncTime, readyTime});
     }
 }
 
