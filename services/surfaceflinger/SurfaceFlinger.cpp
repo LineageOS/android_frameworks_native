@@ -5507,7 +5507,13 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             }
             return PERMISSION_DENIED;
         }
-        case SET_OVERRIDE_FRAME_RATE:
+        case SET_OVERRIDE_FRAME_RATE: {
+            const int uid = IPCThreadState::self()->getCallingUid();
+            if (uid == AID_ROOT || uid == AID_SYSTEM) {
+                return OK;
+            }
+            return PERMISSION_DENIED;
+        }
         case ON_PULL_ATOM: {
             const int uid = IPCThreadState::self()->getCallingUid();
             if (uid == AID_SYSTEM) {
