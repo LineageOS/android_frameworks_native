@@ -1087,7 +1087,7 @@ static void DumpDynamicPartitionInfo() {
     RunCommand("DEVICE-MAPPER", {"gsid", "dump-device-mapper"});
 }
 
-static void AddAnrTraceDir(const bool add_to_zip, const std::string& anr_traces_dir) {
+static void AddAnrTraceDir(const std::string& anr_traces_dir) {
     MYLOGD("AddAnrTraceDir(): dump_traces_file=%s, anr_traces_dir=%s\n", dump_traces_path,
            anr_traces_dir.c_str());
 
@@ -1095,13 +1095,9 @@ static void AddAnrTraceDir(const bool add_to_zip, const std::string& anr_traces_
     // (created with mkostemp or similar) that contains dumps taken earlier
     // on in the process.
     if (dump_traces_path != nullptr) {
-        if (add_to_zip) {
-            ds.AddZipEntry(ZIP_ROOT_DIR + anr_traces_dir + "/traces-just-now.txt", dump_traces_path);
-        } else {
-            MYLOGD("Dumping current ANR traces (%s) to the main bugreport entry\n",
-                   dump_traces_path);
-            ds.DumpFile("VM TRACES JUST NOW", dump_traces_path);
-        }
+        MYLOGD("Dumping current ANR traces (%s) to the main bugreport entry\n",
+                dump_traces_path);
+        ds.DumpFile("VM TRACES JUST NOW", dump_traces_path);
 
         const int ret = unlink(dump_traces_path);
         if (ret == -1) {
@@ -1112,14 +1108,12 @@ static void AddAnrTraceDir(const bool add_to_zip, const std::string& anr_traces_
 
     // Add a specific message for the first ANR Dump.
     if (ds.anr_data_.size() > 0) {
+        // The "last" ANR will always be present in the body of the main entry.
         AddDumps(ds.anr_data_.begin(), ds.anr_data_.begin() + 1,
-                 "VM TRACES AT LAST ANR", add_to_zip);
+                 "VM TRACES AT LAST ANR", false /* add_to_zip */);
 
-        // The "last" ANR will always be included as separate entry in the zip file. In addition,
-        // it will be present in the body of the main entry if |add_to_zip| == false.
-        //
         // Historical ANRs are always included as separate entries in the bugreport zip file.
-        AddDumps(ds.anr_data_.begin() + ((add_to_zip) ? 1 : 0), ds.anr_data_.end(),
+        AddDumps(ds.anr_data_.begin(), ds.anr_data_.end(),
                  "HISTORICAL ANR", true /* add_to_zip */);
     } else {
         printf("*** NO ANRs to dump in %s\n\n", ANR_DIR.c_str());
@@ -1127,11 +1121,9 @@ static void AddAnrTraceDir(const bool add_to_zip, const std::string& anr_traces_
 }
 
 static void AddAnrTraceFiles() {
-    const bool add_to_zip = ds.version_ == VERSION_SPLIT_ANR;
-
     std::string anr_traces_dir = "/data/anr";
 
-    AddAnrTraceDir(add_to_zip, anr_traces_dir);
+    AddAnrTraceDir(anr_traces_dir);
 
     RunCommand("ANR FILES", {"ls", "-lt", ANR_DIR});
 
@@ -2906,10 +2898,9 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         version_ = VERSION_CURRENT;
     }
 
-    if (version_ != VERSION_CURRENT && version_ != VERSION_SPLIT_ANR) {
-        MYLOGE("invalid version requested ('%s'); suppported values are: ('%s', '%s', '%s')\n",
-               version_.c_str(), VERSION_DEFAULT.c_str(), VERSION_CURRENT.c_str(),
-               VERSION_SPLIT_ANR.c_str());
+    if (version_ != VERSION_CURRENT) {
+        MYLOGE("invalid version requested ('%s'); supported values are: ('%s', '%s')\n",
+               version_.c_str(), VERSION_DEFAULT.c_str(), VERSION_CURRENT.c_str());
         return RunStatus::INVALID_INPUT;
     }
 
