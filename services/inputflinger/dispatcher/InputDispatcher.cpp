@@ -4920,7 +4920,7 @@ bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid,
             const sp<IBinder> focusedToken =
                     mFocusResolver.getFocusedWindowToken(mFocusedDisplayId);
 
-            //  TODO(b/198487159): if no window is currently focused, then we need to check the last
+            //  TODO(b/218541064): if no window is currently focused, then we need to check the last
             //      interacted window (within 1 second timeout). We should allow touch mode change
             //      if the last interacted window owner's pid/uid match the calling ones.
             if (focusedToken == nullptr) {
