@@ -38,7 +38,7 @@ static sk_sp<SkRuntimeEffect> createMixEffect() {
         uniform float mixFactor;
 
         half4 main(float2 xy) {
-            return half4(mix(originalInput.eval(xy), blurredInput.eval(xy), mixFactor));
+            return half4(mix(originalInput.eval(xy), blurredInput.eval(xy), mixFactor)).rgb1;
         }
     )");
 
@@ -103,7 +103,7 @@ void BlurFilter::drawBlurRegion(SkCanvas* canvas, const SkRRect& effectRegion,
                                   inputMatrix);
         blurBuilder.uniform("mixFactor") = blurRadius / mMaxCrossFadeRadius;
 
-        paint.setShader(blurBuilder.makeShader(nullptr, true));
+        paint.setShader(blurBuilder.makeShader());
     } else {
         paint.setShader(blurShader);
     }

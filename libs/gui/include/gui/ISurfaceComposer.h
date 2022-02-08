@@ -30,6 +30,7 @@
 #include <ftl/Flags.h>
 #include <gui/FrameTimelineInfo.h>
 #include <gui/ITransactionCompletedListener.h>
+#include <gui/SpHash.h>
 #include <math/vec4.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -70,6 +71,7 @@ enum class FrameEvent;
 using gui::IDisplayEventConnection;
 using gui::IRegionSamplingListener;
 using gui::IScreenCaptureListener;
+using gui::SpHash;
 
 namespace ui {
 
@@ -117,11 +119,6 @@ public:
     };
 
     using EventRegistrationFlags = Flags<EventRegistration>;
-
-    template <typename T>
-    struct SpHash {
-        size_t operator()(const sp<T>& k) const { return std::hash<T*>()(k.get()); }
-    };
 
     /*
      * Create a connection with SurfaceFlinger.

@@ -68,8 +68,7 @@ status_t WindowInfosListenerReporter::removeWindowInfosListener(
 binder::Status WindowInfosListenerReporter::onWindowInfosChanged(
         const std::vector<WindowInfo>& windowInfos, const std::vector<DisplayInfo>& displayInfos,
         const sp<IWindowInfosReportedListener>& windowInfosReportedListener) {
-    std::unordered_set<sp<WindowInfosListener>, ISurfaceComposer::SpHash<WindowInfosListener>>
-            windowInfosListeners;
+    std::unordered_set<sp<WindowInfosListener>, SpHash<WindowInfosListener>> windowInfosListeners;
 
     {
         std::scoped_lock lock(mListenersMutex);

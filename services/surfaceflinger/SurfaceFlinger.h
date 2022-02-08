@@ -752,8 +752,7 @@ private:
     bool transactionIsReadyToBeApplied(
             const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
             uid_t originUid, const Vector<ComposerState>& states,
-            const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>&
-                    bufferLayersReadyToPresent,
+            const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
             bool allowLatchUnsignaled) const REQUIRES(mStateLock);
     static LatchUnsignaledConfig getLatchUnsignaledConfig();
     bool latchUnsignaledIsAllowed(std::vector<TransactionState>& transactions) REQUIRES(mStateLock);
@@ -1155,7 +1154,7 @@ private:
 
     // Tracks layers that have pending frames which are candidates for being
     // latched.
-    std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> mLayersWithQueuedFrames;
+    std::unordered_set<sp<Layer>, SpHash<Layer>> mLayersWithQueuedFrames;
     // Tracks layers that need to update a display's dirty region.
     std::vector<sp<Layer>> mLayersPendingRefresh;
     std::array<FenceWithFenceTime, 2> mPreviousPresentFences;

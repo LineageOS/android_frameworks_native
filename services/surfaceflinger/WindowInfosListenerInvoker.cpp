@@ -67,8 +67,7 @@ void WindowInfosListenerInvoker::binderDied(const wp<IBinder>& who) {
 void WindowInfosListenerInvoker::windowInfosChanged(const std::vector<WindowInfo>& windowInfos,
                                                     const std::vector<DisplayInfo>& displayInfos,
                                                     bool shouldSync) {
-    std::unordered_set<sp<IWindowInfosListener>, ISurfaceComposer::SpHash<IWindowInfosListener>>
-            windowInfosListeners;
+    std::unordered_set<sp<IWindowInfosListener>, SpHash<IWindowInfosListener>> windowInfosListeners;
 
     {
         std::scoped_lock lock(mListenersMutex);
