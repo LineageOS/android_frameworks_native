@@ -3645,7 +3645,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
     // states) around outside the scope of the lock
     std::vector<TransactionState> transactions;
     // Layer handles that have transactions with buffers that are ready to be applied.
-    std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> bufferLayersReadyToPresent;
+    std::unordered_set<sp<IBinder>, SpHash<IBinder>> bufferLayersReadyToPresent;
     {
         Mutex::Autolock _l(mStateLock);
         {
@@ -3842,8 +3842,7 @@ bool SurfaceFlinger::frameIsEarly(nsecs_t expectedPresentTime, int64_t vsyncId) 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(
         const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
         uid_t originUid, const Vector<ComposerState>& states,
-        const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>&
-                bufferLayersReadyToPresent,
+        const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
         bool allowLatchUnsignaled) const {
     ATRACE_FORMAT("transactionIsReadyToBeApplied vsyncId: %" PRId64, info.vsyncId);
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
@@ -6291,7 +6290,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     ui::Size reqSize;
     sp<Layer> parent;
     Rect crop(args.sourceCrop);
-    std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> excludeLayers;
+    std::unordered_set<sp<Layer>, SpHash<Layer>> excludeLayers;
     ui::Dataspace dataspace;
 
     // Call this before holding mStateLock to avoid any deadlocking.

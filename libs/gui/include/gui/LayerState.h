@@ -31,6 +31,7 @@
 
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerMetadata.h>
+#include <gui/SpHash.h>
 #include <gui/SurfaceControl.h>
 #include <gui/WindowInfo.h>
 #include <math/vec3.h>
@@ -412,7 +413,7 @@ struct DisplayCaptureArgs : CaptureArgs {
 
 struct LayerCaptureArgs : CaptureArgs {
     sp<IBinder> layerHandle;
-    std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> excludeHandles;
+    std::unordered_set<sp<IBinder>, SpHash<IBinder>> excludeHandles;
     bool childrenOnly{false};
 
     status_t write(Parcel& output) const override;
