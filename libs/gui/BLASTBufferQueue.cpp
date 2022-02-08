@@ -834,6 +834,14 @@ void BLASTBufferQueue::mergePendingTransactions(SurfaceComposerClient::Transacti
                                mPendingTransactions.end());
 }
 
+SurfaceComposerClient::Transaction* BLASTBufferQueue::gatherPendingTransactions(
+        uint64_t frameNumber) {
+    std::lock_guard _lock{mMutex};
+    SurfaceComposerClient::Transaction* t = new SurfaceComposerClient::Transaction();
+    mergePendingTransactions(t, frameNumber);
+    return t;
+}
+
 // Maintains a single worker thread per process that services a list of runnables.
 class AsyncWorker : public Singleton<AsyncWorker> {
 private:
