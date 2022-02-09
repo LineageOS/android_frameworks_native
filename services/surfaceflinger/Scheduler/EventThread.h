@@ -45,6 +45,8 @@ namespace frametimeline {
 class TokenManager;
 } // namespace frametimeline
 
+using gui::VsyncEventData;
+
 // ---------------------------------------------------------------------------
 
 using ResyncCallback = std::function<void()>;
@@ -81,6 +83,7 @@ public:
     virtual void setCallback(Callback* callback) = 0;
     virtual void setDuration(std::chrono::nanoseconds workDuration,
                              std::chrono::nanoseconds readyDuration) = 0;
+    virtual VSyncData getLatestVSyncData() const = 0;
 
     virtual void dump(std::string& result) const = 0;
 };
@@ -96,6 +99,7 @@ public:
     binder::Status stealReceiveChannel(gui::BitTube* outChannel) override;
     binder::Status setVsyncRate(int rate) override;
     binder::Status requestNextVsync() override; // asynchronous
+    binder::Status getLatestVsyncEventData(VsyncEventData* outVsyncEventData) override;
 
     // Called in response to requestNextVsync.
     const ResyncCallback resyncCallback;
@@ -145,6 +149,8 @@ public:
     virtual void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) = 0;
     // Requests the next vsync. If resetIdleTimer is set to true, it resets the idle timer.
     virtual void requestNextVsync(const sp<EventThreadConnection>& connection) = 0;
+    virtual VsyncEventData getLatestVsyncEventData(
+            const sp<EventThreadConnection>& connection) const = 0;
 
     // Retrieves the number of event connections tracked by this EventThread.
     virtual size_t getEventThreadConnectionCount() = 0;
@@ -169,6 +175,8 @@ public:
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) override;
     void requestNextVsync(const sp<EventThreadConnection>& connection) override;
+    VsyncEventData getLatestVsyncEventData(
+            const sp<EventThreadConnection>& connection) const override;
 
     // called before the screen is turned off from main thread
     void onScreenReleased() override;
@@ -211,6 +219,15 @@ private:
     int64_t generateToken(nsecs_t timestamp, nsecs_t deadlineTimestamp,
                           nsecs_t expectedVSyncTimestamp) const;
     void generateFrameTimeline(DisplayEventReceiver::Event& event) const;
+    void generateFrameTimeline(VsyncEventData& out, const nsecs_t frameInterval,
+                               const nsecs_t timestamp) const;
+    void generateFrameTimeline(
+            nsecs_t frameInterval, nsecs_t timestamp, nsecs_t preferredExpectedVSyncTimestamp,
+            nsecs_t preferredDeadlineTimestamp,
+            std::function<void(int64_t index)> setPreferredFrameTimelineIndex,
+            std::function<void(int64_t index, int64_t vsyncId, nsecs_t expectedVSyncTimestamp,
+                               nsecs_t deadlineTimestamp)>
+                    setFrameTimeline) const;
 
     const std::unique_ptr<VSyncSource> mVSyncSource GUARDED_BY(mMutex);
     frametimeline::TokenManager* const mTokenManager;

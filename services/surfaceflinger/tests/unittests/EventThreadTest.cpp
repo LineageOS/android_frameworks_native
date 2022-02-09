@@ -59,6 +59,7 @@ public:
                  void(std::chrono::nanoseconds workDuration,
                       std::chrono::nanoseconds readyDuration));
     MOCK_METHOD1(pauseVsyncCallback, void(bool));
+    MOCK_METHOD(VSyncSource::VSyncData, getLatestVSyncData, (), (const, override));
     MOCK_CONST_METHOD1(dump, void(std::string&));
 };
 
@@ -257,7 +258,7 @@ void EventThreadTest::expectVsyncEventFrameTimelinesCorrect(nsecs_t expectedTime
     ASSERT_TRUE(args.has_value()) << " did not receive an event for timestamp "
                                   << expectedTimestamp;
     const auto& event = std::get<0>(args.value());
-    for (int i = 0; i < gui::VsyncEventData::kFrameTimelinesLength; i++) {
+    for (int i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
         auto prediction =
                 mTokenManager->getPredictionsForToken(event.vsync.frameTimelines[i].vsyncId);
         EXPECT_TRUE(prediction.has_value());
@@ -332,6 +333,8 @@ void EventThreadTest::expectUidFrameRateMappingEventReceivedByConnection(
 
 namespace {
 
+using namespace testing;
+
 /* ------------------------------------------------------------------------
  * Test cases
  */
@@ -397,6 +400,52 @@ TEST_F(EventThreadTest, requestNextVsyncEventFrameTimelinesCorrect) {
     mCallback->onVSyncEvent(123, {456, 789});
     expectInterceptCallReceived(123);
     expectVsyncEventFrameTimelinesCorrect(123, 789);
+}
+
+TEST_F(EventThreadTest, getLatestVsyncEventData) {
+    const nsecs_t now = systemTime();
+    const nsecs_t preferredDeadline = now + 10000000;
+    const nsecs_t preferredExpectedVSyncTimestamp = now + 20000000;
+    const VSyncSource::VSyncData preferredData = {preferredExpectedVSyncTimestamp,
+                                                  preferredDeadline};
+    EXPECT_CALL(*mVSyncSource, getLatestVSyncData()).WillOnce(Return(preferredData));
+
+    VsyncEventData vsyncEventData = mThread->getLatestVsyncEventData(mConnection);
+    EXPECT_GT(vsyncEventData.frameTimelines[0].deadlineTimestamp, now)
+            << "Deadline timestamp should be greater than frame time";
+    for (size_t i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
+        auto prediction =
+                mTokenManager->getPredictionsForToken(vsyncEventData.frameTimelines[i].id);
+        EXPECT_TRUE(prediction.has_value());
+        EXPECT_EQ(prediction.value().endTime, vsyncEventData.frameTimelines[i].deadlineTimestamp)
+                << "Deadline timestamp does not match cached value";
+        EXPECT_EQ(prediction.value().presentTime,
+                  vsyncEventData.frameTimelines[i].expectedPresentTime)
+                << "Expected vsync timestamp does not match cached value";
+        EXPECT_GT(vsyncEventData.frameTimelines[i].expectedPresentTime,
+                  vsyncEventData.frameTimelines[i].deadlineTimestamp)
+                << "Expected vsync timestamp should be greater than deadline";
+
+        if (i > 0) {
+            EXPECT_GT(vsyncEventData.frameTimelines[i].deadlineTimestamp,
+                      vsyncEventData.frameTimelines[i - 1].deadlineTimestamp)
+                    << "Deadline timestamp out of order for frame timeline " << i;
+            EXPECT_GT(vsyncEventData.frameTimelines[i].expectedPresentTime,
+                      vsyncEventData.frameTimelines[i - 1].expectedPresentTime)
+                    << "Expected vsync timestamp out of order for frame timeline " << i;
+        }
+
+        // Vsync ID order lines up with registration into test token manager.
+        EXPECT_EQ(i, vsyncEventData.frameTimelines[i].id)
+                << "Vsync ID incorrect for frame timeline " << i;
+        if (i == vsyncEventData.preferredFrameTimelineIndex) {
+            EXPECT_EQ(vsyncEventData.frameTimelines[i].deadlineTimestamp, preferredDeadline)
+                    << "Preferred deadline timestamp incorrect" << i;
+            EXPECT_EQ(vsyncEventData.frameTimelines[i].expectedPresentTime,
+                      preferredExpectedVSyncTimestamp)
+                    << "Preferred expected vsync timestamp incorrect" << i;
+        }
+    }
 }
 
 TEST_F(EventThreadTest, setVsyncRateZeroPostsNoVSyncEventsToThatConnection) {

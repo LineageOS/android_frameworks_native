@@ -103,6 +103,8 @@ public:
     void setDuration(std::chrono::nanoseconds /* workDuration */,
                      std::chrono::nanoseconds /* readyDuration */) override {}
 
+    VSyncData getLatestVSyncData() const override { return {}; }
+
     void dump(std::string& /* result */) const override {}
 };
 

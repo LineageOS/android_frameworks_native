@@ -17,6 +17,7 @@
 package android.gui;
 
 import android.gui.BitTube;
+import android.gui.VsyncEventData;
 
 /** @hide */
 interface IDisplayEventConnection {
@@ -38,4 +39,9 @@ interface IDisplayEventConnection {
      * requestNextVsync() schedules the next vsync event. It has no effect if the vsync rate is > 0.
      */
     oneway void requestNextVsync(); // Asynchronous
+
+    /*
+     * getLatestVsyncEventData() gets the latest vsync event data.
+     */
+    VsyncEventData getLatestVsyncEventData();
 }
