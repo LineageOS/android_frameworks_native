@@ -235,6 +235,12 @@ cc_library_shared {
         "libui_headers",
     ],
     min_sdk_version: "29",
+    // TODO(b/214400477) to remove use of GraphicBuffer
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media.swcodec",
+        "test_com.android.media.swcodec",
+    ],
 
     afdo: true,
 }
@@ -258,6 +264,11 @@ cc_library_headers {
         "libmath_headers",
     ],
     min_sdk_version: "29",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media.swcodec",
+        "test_com.android.media.swcodec",
+    ],
 }
 
 // defaults to enable VALIDATE_REGIONS traces

@@ -37,6 +37,12 @@ cc_library_headers {
         "android.hardware.graphics.bufferqueue@2.0",
     ],
     min_sdk_version: "29",
+    // TODO(b/218719284) can media use be constrained to libgui_bufferqueue_static?
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media.swcodec",
+        "test_com.android.media.swcodec",
+    ],
 }
 
 cc_library_headers {
