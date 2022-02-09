@@ -39,6 +39,7 @@
 
 #include "DisplayHardware/PowerAdvisor.h"
 
+using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
 
 namespace android::compositionengine::impl {
@@ -284,7 +285,7 @@ bool Display::getSkipColorTransform() const {
                                         DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM);
     }
 
-    return hwc.hasCapability(hal::Capability::SKIP_CLIENT_COLOR_TRANSFORM);
+    return hwc.hasCapability(Capability::SKIP_CLIENT_COLOR_TRANSFORM);
 }
 
 bool Display::anyLayersRequireClientComposition() const {
