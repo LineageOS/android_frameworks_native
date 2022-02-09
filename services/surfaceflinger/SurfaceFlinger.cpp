@@ -713,6 +713,7 @@ void SurfaceFlinger::bootFinished() {
     mFlagManager = std::make_unique<android::FlagManager>();
     mFrameTracer->initialize();
     mFrameTimeline->onBootFinished();
+    getRenderEngine().setEnableTracing(mFlagManager->use_skia_tracing());
 
     // wait patiently for the window manager death
     const String16 name("window");

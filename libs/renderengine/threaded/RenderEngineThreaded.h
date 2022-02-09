@@ -67,6 +67,7 @@ public:
     bool supportsBackgroundBlur() override;
     void onActiveDisplaySizeChanged(ui::Size size) override;
     std::optional<pid_t> getRenderEngineTid() const override;
+    void setEnableTracing(bool tracingEnabled) override;
 
 protected:
     void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable) override;
