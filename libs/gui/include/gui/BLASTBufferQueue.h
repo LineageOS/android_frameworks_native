@@ -98,6 +98,7 @@ public:
     void setSyncTransaction(SurfaceComposerClient::Transaction* t, bool acquireSingleBuffer = true);
     void mergeWithNextTransaction(SurfaceComposerClient::Transaction* t, uint64_t frameNumber);
     void applyPendingTransactions(uint64_t frameNumber);
+    SurfaceComposerClient::Transaction* gatherPendingTransactions(uint64_t frameNumber);
 
     void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format,
                 SurfaceComposerClient::Transaction* outTransaction = nullptr);
