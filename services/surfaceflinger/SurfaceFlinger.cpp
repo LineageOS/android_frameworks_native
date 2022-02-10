@@ -163,6 +163,7 @@
 #define NO_THREAD_SAFETY_ANALYSIS \
     _Pragma("GCC error \"Prefer MAIN_THREAD macros or {Conditional,Timed,Unnecessary}Lock.\"")
 
+using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
 
 namespace android {
@@ -712,6 +713,7 @@ void SurfaceFlinger::bootFinished() {
     mFlagManager = std::make_unique<android::FlagManager>();
     mFrameTracer->initialize();
     mFrameTimeline->onBootFinished();
+    getRenderEngine().setEnableTracing(mFlagManager->use_skia_tracing());
 
     // wait patiently for the window manager death
     const String16 name("window");
@@ -891,7 +893,7 @@ void SurfaceFlinger::init() {
     // Inform native graphics APIs whether the present timestamp is supported:
 
     const bool presentFenceReliable =
-            !getHwComposer().hasCapability(hal::Capability::PRESENT_FENCE_IS_NOT_RELIABLE);
+            !getHwComposer().hasCapability(Capability::PRESENT_FENCE_IS_NOT_RELIABLE);
     mStartPropertySetThread = getFactory().createStartPropertySetThread(presentFenceReliable);
 
     if (mStartPropertySetThread->Start() != NO_ERROR) {
@@ -955,7 +957,7 @@ status_t SurfaceFlinger::getSupportedFrameTimestamps(
     };
     ConditionalLock _l(mStateLock,
             std::this_thread::get_id() != mMainThreadId);
-    if (!getHwComposer().hasCapability(hal::Capability::PRESENT_FENCE_IS_NOT_RELIABLE)) {
+    if (!getHwComposer().hasCapability(Capability::PRESENT_FENCE_IS_NOT_RELIABLE)) {
         outSupported->push_back(FrameEvent::DISPLAY_PRESENT);
     }
     return NO_ERROR;
@@ -3377,7 +3379,7 @@ void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
         features |= Feature::kTracePredictedVsync;
     }
     if (!base::GetBoolProperty("debug.sf.vsync_reactor_ignore_present_fences"s, false) &&
-        !getHwComposer().hasCapability(hal::Capability::PRESENT_FENCE_IS_NOT_RELIABLE)) {
+        !getHwComposer().hasCapability(Capability::PRESENT_FENCE_IS_NOT_RELIABLE)) {
         features |= Feature::kPresentFences;
     }
 
@@ -3734,7 +3736,7 @@ bool SurfaceFlinger::applyTransactions(std::vector<TransactionState>& transactio
                                        int64_t vsyncId) {
     bool needsTraversal = false;
     // Now apply all transactions.
-    for (const auto& transaction : transactions) {
+    for (auto& transaction : transactions) {
         needsTraversal |=
                 applyTransactionState(transaction.frameTimelineInfo, transaction.states,
                                       transaction.displays, transaction.flags,
@@ -4027,7 +4029,7 @@ status_t SurfaceFlinger::setTransactionState(
 }
 
 bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelineInfo,
-                                           const Vector<ComposerState>& states,
+                                           Vector<ComposerState>& states,
                                            const Vector<DisplayState>& displays, uint32_t flags,
                                            const InputWindowCommands& inputWindowCommands,
                                            const int64_t desiredPresentTime, bool isAutoTimestamp,
@@ -4049,9 +4051,9 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     }
 
     uint32_t clientStateFlags = 0;
-    for (const ComposerState& state : states) {
-        ComposerState stateCopy = state;
-        clientStateFlags |= setClientStateLocked(frameTimelineInfo, stateCopy, desiredPresentTime,
+    for (int i = 0; i < states.size(); i++) {
+        ComposerState& state = states.editItemAt(i);
+        clientStateFlags |= setClientStateLocked(frameTimelineInfo, state, desiredPresentTime,
                                                  isAutoTimestamp, postTime, permissions);
         if ((flags & eAnimation) && state.state.surface) {
             if (const auto layer = fromHandle(state.state.surface).promote()) {
@@ -5507,7 +5509,13 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             }
             return PERMISSION_DENIED;
         }
-        case SET_OVERRIDE_FRAME_RATE:
+        case SET_OVERRIDE_FRAME_RATE: {
+            const int uid = IPCThreadState::self()->getCallingUid();
+            if (uid == AID_ROOT || uid == AID_SYSTEM) {
+                return OK;
+            }
+            return PERMISSION_DENIED;
+        }
         case ON_PULL_ATOM: {
             const int uid = IPCThreadState::self()->getCallingUid();
             if (uid == AID_SYSTEM) {

@@ -698,9 +698,6 @@ binder::Status InstalldNativeService::createAppDataLocked(
         if (!status.isOk()) {
             return status;
         }
-        if (previousUid != uid) {
-            chown_app_profile_dir(packageName, appId, userId);
-        }
 
         // Remember inode numbers of cache directories so that we can clear
         // contents while CE storage is locked
@@ -725,6 +722,9 @@ binder::Status InstalldNativeService::createAppDataLocked(
         auto status = createAppDataDirs(path, uid, &previousUid, cacheGid, seInfo, targetMode);
         if (!status.isOk()) {
             return status;
+        }
+        if (previousUid != uid) {
+            chown_app_profile_dir(packageName, appId, userId);
         }
 
         if (!prepare_app_profile_dir(packageName, appId, userId)) {

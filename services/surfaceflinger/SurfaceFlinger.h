@@ -714,7 +714,7 @@ private:
     /*
      * Transactions
      */
-    bool applyTransactionState(const FrameTimelineInfo& info, const Vector<ComposerState>& state,
+    bool applyTransactionState(const FrameTimelineInfo& info, Vector<ComposerState>& state,
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
                                const int64_t desiredPresentTime, bool isAutoTimestamp,

@@ -23,6 +23,7 @@
 #include <mutex>
 
 #include "EventThread.h"
+#include "VSyncTracker.h"
 #include "VsyncController.h"
 
 namespace android::scheduler {
@@ -114,7 +115,7 @@ private:
     std::chrono::nanoseconds mLastCallTime GUARDED_BY(mMutex) = 0ns;
 };
 
-DispSyncSource::DispSyncSource(scheduler::VSyncDispatch& vSyncDispatch,
+DispSyncSource::DispSyncSource(VSyncDispatch& vSyncDispatch, VSyncTracker& vSyncTracker,
                                std::chrono::nanoseconds workDuration,
                                std::chrono::nanoseconds readyDuration, bool traceVsync,
                                const char* name)
@@ -122,6 +123,7 @@ DispSyncSource::DispSyncSource(scheduler::VSyncDispatch& vSyncDispatch,
         mValue(base::StringPrintf("VSYNC-%s", name), 0),
         mTraceVsync(traceVsync),
         mVsyncOnLabel(base::StringPrintf("VsyncOn-%s", name)),
+        mVSyncTracker(vSyncTracker),
         mWorkDuration(base::StringPrintf("VsyncWorkDuration-%s", name), workDuration),
         mReadyDuration(readyDuration) {
     mCallbackRepeater =
@@ -180,8 +182,16 @@ void DispSyncSource::onVsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime
     }
 
     if (callback != nullptr) {
-        callback->onVSyncEvent(targetWakeupTime, vsyncTime, readyTime);
+        callback->onVSyncEvent(targetWakeupTime, {vsyncTime, readyTime});
     }
+}
+
+VSyncSource::VSyncData DispSyncSource::getLatestVSyncData() const {
+    std::lock_guard lock(mVsyncMutex);
+    nsecs_t expectedPresentTime = mVSyncTracker.nextAnticipatedVSyncTimeFrom(
+            systemTime() + mWorkDuration.get().count() + mReadyDuration.count());
+    nsecs_t deadline = expectedPresentTime - mWorkDuration.get().count() - mReadyDuration.count();
+    return {expectedPresentTime, deadline};
 }
 
 void DispSyncSource::dump(std::string& result) const {

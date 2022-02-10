@@ -31,6 +31,7 @@
 #include <ui/GraphicBuffer.h>
 #include <utils/StrongPointer.h>
 
+#include <aidl/android/hardware/graphics/composer3/Capability.h>
 #include <aidl/android/hardware/graphics/composer3/Color.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
@@ -93,7 +94,8 @@ public:
 
     virtual bool isSupported(OptionalFeature) const = 0;
 
-    virtual std::vector<IComposer::Capability> getCapabilities() = 0;
+    virtual std::vector<aidl::android::hardware::graphics::composer3::Capability>
+    getCapabilities() = 0;
     virtual std::string dumpDebugInfo() = 0;
 
     virtual void registerCallback(HWC2::ComposerCallback& callback) = 0;

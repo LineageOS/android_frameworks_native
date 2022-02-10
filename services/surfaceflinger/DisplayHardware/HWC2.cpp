@@ -39,6 +39,7 @@
 
 using aidl::android::hardware::graphics::composer3::Color;
 using aidl::android::hardware::graphics::composer3::Composition;
+using AidlCapability = aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
 
 namespace android {
@@ -73,7 +74,7 @@ Display::~Display() = default;
 namespace impl {
 
 Display::Display(android::Hwc2::Composer& composer,
-                 const std::unordered_set<Capability>& capabilities, HWDisplayId id,
+                 const std::unordered_set<AidlCapability>& capabilities, HWDisplayId id,
                  DisplayType type)
       : mComposer(composer), mCapabilities(capabilities), mId(id), mType(type) {
     ALOGV("Created display %" PRIu64, id);
@@ -470,7 +471,7 @@ Error Display::setPowerMode(PowerMode mode)
             } else if (error == Error::UNSUPPORTED) {
                 std::scoped_lock lock(mDisplayCapabilitiesMutex);
                 mDisplayCapabilities.emplace();
-                if (mCapabilities.count(Capability::SKIP_CLIENT_COLOR_TRANSFORM)) {
+                if (mCapabilities.count(AidlCapability::SKIP_CLIENT_COLOR_TRANSFORM)) {
                     mDisplayCapabilities->emplace(DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM);
                 }
                 bool dozeSupport = false;
@@ -618,8 +619,9 @@ Layer::~Layer() = default;
 
 namespace impl {
 
-Layer::Layer(android::Hwc2::Composer& composer, const std::unordered_set<Capability>& capabilities,
-             HWC2::Display& display, HWLayerId layerId)
+Layer::Layer(android::Hwc2::Composer& composer,
+             const std::unordered_set<AidlCapability>& capabilities, HWC2::Display& display,
+             HWLayerId layerId)
       : mComposer(composer),
         mCapabilities(capabilities),
         mDisplay(&display),
@@ -849,7 +851,7 @@ Error Layer::setSidebandStream(const native_handle_t* stream)
         return Error::BAD_DISPLAY;
     }
 
-    if (mCapabilities.count(Capability::SIDEBAND_STREAM) == 0) {
+    if (mCapabilities.count(AidlCapability::SIDEBAND_STREAM) == 0) {
         ALOGE("Attempted to call setSidebandStream without checking that the "
                 "device supports sideband streams");
         return Error::UNSUPPORTED;

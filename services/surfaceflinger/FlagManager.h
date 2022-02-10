@@ -33,6 +33,8 @@ public:
 
     bool use_adpf_cpu_hint() const;
 
+    bool use_skia_tracing() const;
+
 private:
     friend class FlagManagerTest;
 

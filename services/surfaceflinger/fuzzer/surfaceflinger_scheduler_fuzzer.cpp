@@ -63,8 +63,7 @@ private:
     FuzzedDataProvider mFdp;
 
 protected:
-    void onVSyncEvent(nsecs_t /* when */, nsecs_t /* expectedVSyncTimestamp */,
-                      nsecs_t /* deadlineTimestamp */) {}
+    void onVSyncEvent(nsecs_t /* when */, VSyncSource::VSyncData) {}
 };
 
 PhysicalDisplayId SchedulerFuzzer::getPhysicalDisplayId() {
@@ -101,8 +100,9 @@ void SchedulerFuzzer::fuzzEventThread() {
 void SchedulerFuzzer::fuzzDispSyncSource() {
     std::unique_ptr<FuzzImplVSyncDispatch> vSyncDispatch =
             std::make_unique<FuzzImplVSyncDispatch>();
+    std::unique_ptr<FuzzImplVSyncTracker> vSyncTracker = std::make_unique<FuzzImplVSyncTracker>();
     std::unique_ptr<scheduler::DispSyncSource> dispSyncSource = std::make_unique<
-            scheduler::DispSyncSource>(*vSyncDispatch,
+            scheduler::DispSyncSource>(*vSyncDispatch, *vSyncTracker,
                                        (std::chrono::nanoseconds)
                                                mFdp.ConsumeIntegral<uint64_t>() /*workDuration*/,
                                        (std::chrono::nanoseconds)mFdp.ConsumeIntegral<uint64_t>()

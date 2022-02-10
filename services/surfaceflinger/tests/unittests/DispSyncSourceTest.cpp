@@ -28,6 +28,7 @@
 #include "AsyncCallRecorder.h"
 #include "Scheduler/DispSyncSource.h"
 #include "Scheduler/VSyncDispatch.h"
+#include "mock/MockVSyncTracker.h"
 
 namespace android {
 namespace {
@@ -125,16 +126,16 @@ protected:
     DispSyncSourceTest();
     ~DispSyncSourceTest() override;
 
-    void createDispSync();
+    void SetUp() override;
     void createDispSyncSource();
 
-    void onVSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp,
-                      nsecs_t deadlineTimestamp) override;
+    void onVSyncEvent(nsecs_t when, VSyncSource::VSyncData) override;
 
     std::unique_ptr<MockVSyncDispatch> mVSyncDispatch;
+    std::unique_ptr<mock::VSyncTracker> mVSyncTracker;
     std::unique_ptr<scheduler::DispSyncSource> mDispSyncSource;
 
-    AsyncCallRecorder<void (*)(nsecs_t, nsecs_t, nsecs_t)> mVSyncEventCallRecorder;
+    AsyncCallRecorder<void (*)(nsecs_t, VSyncSource::VSyncData)> mVSyncEventCallRecorder;
 
     static constexpr std::chrono::nanoseconds mWorkDuration = 20ms;
     static constexpr std::chrono::nanoseconds mReadyDuration = 10ms;
@@ -155,21 +156,21 @@ DispSyncSourceTest::~DispSyncSourceTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-void DispSyncSourceTest::onVSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp,
-                                      nsecs_t deadlineTimestamp) {
-    ALOGD("onVSyncEvent: %" PRId64, when);
-
-    mVSyncEventCallRecorder.recordCall(when, expectedVSyncTimestamp, deadlineTimestamp);
+void DispSyncSourceTest::SetUp() {
+    mVSyncDispatch = std::make_unique<MockVSyncDispatch>();
+    mVSyncTracker = std::make_unique<mock::VSyncTracker>();
 }
 
-void DispSyncSourceTest::createDispSync() {
-    mVSyncDispatch = std::make_unique<MockVSyncDispatch>();
+void DispSyncSourceTest::onVSyncEvent(nsecs_t when, VSyncSource::VSyncData vsyncData) {
+    ALOGD("onVSyncEvent: %" PRId64, when);
+
+    mVSyncEventCallRecorder.recordCall(when, vsyncData);
 }
 
 void DispSyncSourceTest::createDispSyncSource() {
-    mDispSyncSource =
-            std::make_unique<scheduler::DispSyncSource>(*mVSyncDispatch, mWorkDuration,
-                                                        mReadyDuration, true, mName.c_str());
+    mDispSyncSource = std::make_unique<scheduler::DispSyncSource>(*mVSyncDispatch, *mVSyncTracker,
+                                                                  mWorkDuration, mReadyDuration,
+                                                                  true, mName.c_str());
     mDispSyncSource->setCallback(this);
 }
 
@@ -178,13 +179,10 @@ void DispSyncSourceTest::createDispSyncSource() {
  */
 
 TEST_F(DispSyncSourceTest, createDispSync) {
-    createDispSync();
     EXPECT_TRUE(mVSyncDispatch);
 }
 
 TEST_F(DispSyncSourceTest, createDispSyncSource) {
-    createDispSync();
-
     InSequence seq;
     EXPECT_CALL(*mVSyncDispatch, registerCallback(_, mName)).WillOnce(Return(mFakeToken));
     EXPECT_CALL(*mVSyncDispatch, cancel(mFakeToken))
@@ -196,8 +194,6 @@ TEST_F(DispSyncSourceTest, createDispSyncSource) {
 }
 
 TEST_F(DispSyncSourceTest, noCallbackAfterInit) {
-    createDispSync();
-
     InSequence seq;
     EXPECT_CALL(*mVSyncDispatch, registerCallback(_, mName)).Times(1);
     EXPECT_CALL(*mVSyncDispatch, cancel(_)).Times(1);
@@ -212,8 +208,6 @@ TEST_F(DispSyncSourceTest, noCallbackAfterInit) {
 }
 
 TEST_F(DispSyncSourceTest, waitForCallbacks) {
-    createDispSync();
-
     InSequence seq;
     EXPECT_CALL(*mVSyncDispatch, registerCallback(_, mName)).Times(1);
     EXPECT_CALL(*mVSyncDispatch,
@@ -233,14 +227,14 @@ TEST_F(DispSyncSourceTest, waitForCallbacks) {
         mVSyncDispatch->triggerCallbacks();
         const auto callbackData = mVSyncEventCallRecorder.waitForCall();
         ASSERT_TRUE(callbackData.has_value());
-        const auto [when, expectedVSyncTimestamp, deadlineTimestamp] = callbackData.value();
-        EXPECT_EQ(when, expectedVSyncTimestamp - mWorkDuration.count() - mReadyDuration.count());
+        const auto [when, vsyncData] = callbackData.value();
+        EXPECT_EQ(when,
+                  vsyncData.expectedVSyncTimestamp - mWorkDuration.count() -
+                          mReadyDuration.count());
     }
 }
 
 TEST_F(DispSyncSourceTest, waitForCallbacksWithDurationChange) {
-    createDispSync();
-
     InSequence seq;
     EXPECT_CALL(*mVSyncDispatch, registerCallback(_, mName)).Times(1);
     EXPECT_CALL(*mVSyncDispatch,
@@ -265,8 +259,10 @@ TEST_F(DispSyncSourceTest, waitForCallbacksWithDurationChange) {
         mVSyncDispatch->triggerCallbacks();
         const auto callbackData = mVSyncEventCallRecorder.waitForCall();
         ASSERT_TRUE(callbackData.has_value());
-        const auto [when, expectedVSyncTimestamp, deadlineTimestamp] = callbackData.value();
-        EXPECT_EQ(when, expectedVSyncTimestamp - mWorkDuration.count() - mReadyDuration.count());
+        const auto [when, vsyncData] = callbackData.value();
+        EXPECT_EQ(when,
+                  vsyncData.expectedVSyncTimestamp - mWorkDuration.count() -
+                          mReadyDuration.count());
     }
 
     const auto newDuration = mWorkDuration / 2;
@@ -286,12 +282,34 @@ TEST_F(DispSyncSourceTest, waitForCallbacksWithDurationChange) {
         mVSyncDispatch->triggerCallbacks();
         const auto callbackData = mVSyncEventCallRecorder.waitForCall();
         ASSERT_TRUE(callbackData.has_value());
-        const auto [when, expectedVSyncTimestamp, deadlineTimestamp] = callbackData.value();
-        EXPECT_EQ(when, expectedVSyncTimestamp - newDuration.count());
+        const auto [when, vsyncData] = callbackData.value();
+        EXPECT_EQ(when, vsyncData.expectedVSyncTimestamp - newDuration.count());
     }
 
     EXPECT_CALL(*mVSyncDispatch, cancel(_)).Times(1);
     EXPECT_CALL(*mVSyncDispatch, unregisterCallback(_)).Times(1);
+}
+
+TEST_F(DispSyncSourceTest, getLatestVsyncData) {
+    const nsecs_t now = systemTime();
+    const nsecs_t vsyncInternalDuration = mWorkDuration.count() + mReadyDuration.count();
+    EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_))
+            .WillOnce(Return(now + vsyncInternalDuration + 1));
+    {
+        InSequence seq;
+        EXPECT_CALL(*mVSyncDispatch, registerCallback(_, mName)).Times(1);
+        EXPECT_CALL(*mVSyncDispatch, cancel(_)).Times(1);
+        EXPECT_CALL(*mVSyncDispatch, unregisterCallback(_)).Times(1);
+    }
+
+    createDispSyncSource();
+    EXPECT_TRUE(mDispSyncSource);
+
+    const auto vsyncData = mDispSyncSource->getLatestVSyncData();
+    ASSERT_GT(vsyncData.deadlineTimestamp, now);
+    ASSERT_GT(vsyncData.expectedVSyncTimestamp, vsyncData.deadlineTimestamp);
+    EXPECT_EQ(vsyncData.deadlineTimestamp,
+              vsyncData.expectedVSyncTimestamp - vsyncInternalDuration);
 }
 
 } // namespace

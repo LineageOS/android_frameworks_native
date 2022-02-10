@@ -169,7 +169,8 @@ public:
 
     bool isSupported(OptionalFeature) const;
 
-    std::vector<IComposer::Capability> getCapabilities() override;
+    std::vector<aidl::android::hardware::graphics::composer3::Capability> getCapabilities()
+            override;
     std::string dumpDebugInfo() override;
 
     void registerCallback(HWC2::ComposerCallback& callback) override;

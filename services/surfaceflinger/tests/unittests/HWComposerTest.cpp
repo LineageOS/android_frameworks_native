@@ -48,6 +48,7 @@ namespace {
 
 namespace V2_1 = hardware::graphics::composer::V2_1;
 namespace V2_4 = hardware::graphics::composer::V2_4;
+namespace aidl = aidl::android::hardware::graphics::composer3;
 
 using Hwc2::Config;
 
@@ -103,7 +104,7 @@ TEST_F(HWComposerSetCallbackTest, loadsLayerMetadataSupport) {
     const std::string kMetadata2Name = "com.example.metadata.2";
     constexpr bool kMetadata2Mandatory = true;
 
-    EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<hal::Capability>{}));
+    EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<aidl::Capability>{}));
     EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
             .WillOnce(DoAll(SetArgPointee<0>(std::vector<hal::LayerGenericMetadataKey>{
                                     {kMetadata1Name, kMetadata1Mandatory},
@@ -124,7 +125,7 @@ TEST_F(HWComposerSetCallbackTest, loadsLayerMetadataSupport) {
 }
 
 TEST_F(HWComposerSetCallbackTest, handlesUnsupportedCallToGetLayerGenericMetadataKeys) {
-    EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<hal::Capability>{}));
+    EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<aidl::Capability>{}));
     EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
             .WillOnce(Return(hardware::graphics::composer::V2_4::Error::UNSUPPORTED));
     EXPECT_CALL(*mHal, registerCallback(_));
@@ -140,7 +141,7 @@ struct HWComposerLayerTest : public testing::Test {
     static constexpr hal::HWDisplayId kDisplayId = static_cast<hal::HWDisplayId>(1001);
     static constexpr hal::HWLayerId kLayerId = static_cast<hal::HWLayerId>(1002);
 
-    HWComposerLayerTest(const std::unordered_set<hal::Capability>& capabilities)
+    HWComposerLayerTest(const std::unordered_set<aidl::Capability>& capabilities)
           : mCapabilies(capabilities) {
         EXPECT_CALL(mDisplay, getId()).WillRepeatedly(Return(kDisplayId));
     }
@@ -151,7 +152,7 @@ struct HWComposerLayerTest : public testing::Test {
     }
 
     std::unique_ptr<Hwc2::mock::Composer> mHal{new StrictMock<Hwc2::mock::Composer>()};
-    const std::unordered_set<hal::Capability> mCapabilies;
+    const std::unordered_set<aidl::Capability> mCapabilies;
     StrictMock<HWC2::mock::Display> mDisplay;
     HWC2::impl::Layer mLayer{*mHal, mCapabilies, mDisplay, kLayerId};
 };

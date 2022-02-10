@@ -32,10 +32,10 @@ cc_test {
         "GpuMemTracerTest.cpp",
         "GpuStatsTest.cpp",
     ],
+    header_libs: ["bpf_headers"],
     shared_libs: [
         "libbase",
         "libbpf_bcc",
-        "libbpf_android",
         "libcutils",
         "libgfxstats",
         "libgpumem",

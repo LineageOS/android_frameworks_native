@@ -198,6 +198,7 @@ cc_library_shared {
         "SurfaceComposerClient.cpp",
         "SyncFeatures.cpp",
         "TransactionTracing.cpp",
+        "VsyncEventData.cpp",
         "view/Surface.cpp",
         "WindowInfosListenerReporter.cpp",
         "bufferqueue/1.0/B2HProducerListener.cpp",
