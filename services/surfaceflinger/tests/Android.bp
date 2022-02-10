@@ -26,6 +26,7 @@ cc_test {
     defaults: ["surfaceflinger_defaults"],
     test_suites: ["device-tests"],
     srcs: [
+        "BootDisplayMode_test.cpp",
         "BufferGenerator.cpp",
         "CommonTypes_test.cpp",
         "Credentials_test.cpp",
