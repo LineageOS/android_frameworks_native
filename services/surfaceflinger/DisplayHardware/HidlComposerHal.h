@@ -318,7 +318,7 @@ public:
             std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) override;
     Error getClientTargetProperty(Display display,
                                   IComposerClient::ClientTargetProperty* outClientTargetProperty,
-                                  float* outWhitePointNits) override;
+                                  float* outBrightness) override;
 
     // AIDL Composer HAL
     Error setLayerBrightness(Display display, Layer layer, float brightness) override;

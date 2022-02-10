@@ -130,8 +130,8 @@ struct OutputCompositionState {
     // SDR white point
     float sdrWhitePointNits{-1.f};
 
-    // White point of the client target
-    float clientTargetWhitePointNits{-1.f};
+    // Brightness of the client target, normalized to display brightness
+    float clientTargetBrightness{1.f};
 
     // Display brightness that will take effect this frame.
     // This is slightly distinct from nits, in that nits cannot be passed to hw composer.

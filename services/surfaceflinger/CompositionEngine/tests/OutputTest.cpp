@@ -3067,7 +3067,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
         mOutput.mState.usesDeviceComposition = false;
         mOutput.mState.reusedClientComposition = false;
         mOutput.mState.flipClientTarget = false;
-        mOutput.mState.clientTargetWhitePointNits = kClientTargetLuminanceNits;
+        mOutput.mState.clientTargetBrightness = kClientTargetBrightness;
 
         EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
@@ -3103,8 +3103,9 @@ struct OutputComposeSurfacesTest : public testing::Test {
     static constexpr float kDefaultAvgLuminance = 0.7f;
     static constexpr float kDefaultMinLuminance = 0.1f;
     static constexpr float kUnknownLuminance = -1.f;
-    static constexpr float kDisplayLuminance = 80.f;
+    static constexpr float kDisplayLuminance = 400.f;
     static constexpr float kClientTargetLuminanceNits = 200.f;
+    static constexpr float kClientTargetBrightness = 0.5f;
 
     static const Rect kDefaultOutputFrame;
     static const Rect kDefaultOutputViewport;
