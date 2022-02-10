@@ -43,6 +43,7 @@
 #include "HWC2.h"
 #include "Hal.h"
 
+#include <aidl/android/hardware/graphics/composer3/Capability.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
@@ -110,7 +111,7 @@ public:
     virtual bool getDisplayIdentificationData(hal::HWDisplayId, uint8_t* outPort,
                                               DisplayIdentificationData* outData) const = 0;
 
-    virtual bool hasCapability(hal::Capability) const = 0;
+    virtual bool hasCapability(aidl::android::hardware::graphics::composer3::Capability) const = 0;
     virtual bool hasDisplayCapability(
             HalDisplayId,
             aidl::android::hardware::graphics::composer3::DisplayCapability) const = 0;
@@ -277,7 +278,7 @@ public:
     bool getDisplayIdentificationData(hal::HWDisplayId, uint8_t* outPort,
                                       DisplayIdentificationData* outData) const override;
 
-    bool hasCapability(hal::Capability) const override;
+    bool hasCapability(aidl::android::hardware::graphics::composer3::Capability) const override;
     bool hasDisplayCapability(
             HalDisplayId,
             aidl::android::hardware::graphics::composer3::DisplayCapability) const override;
@@ -447,7 +448,7 @@ private:
     std::unordered_map<HalDisplayId, DisplayData> mDisplayData;
 
     std::unique_ptr<android::Hwc2::Composer> mComposer;
-    std::unordered_set<hal::Capability> mCapabilities;
+    std::unordered_set<aidl::android::hardware::graphics::composer3::Capability> mCapabilities;
     std::unordered_map<std::string, bool> mSupportedLayerGenericMetadata;
     bool mRegisteredCallback = false;
 

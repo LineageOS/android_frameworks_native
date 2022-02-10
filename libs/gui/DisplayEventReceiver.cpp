@@ -20,6 +20,7 @@
 
 #include <gui/DisplayEventReceiver.h>
 #include <gui/ISurfaceComposer.h>
+#include <gui/VsyncEventData.h>
 
 #include <private/gui/ComposerService.h>
 
@@ -74,6 +75,20 @@ status_t DisplayEventReceiver::setVsyncRate(uint32_t count) {
 status_t DisplayEventReceiver::requestNextVsync() {
     if (mEventConnection != nullptr) {
         mEventConnection->requestNextVsync();
+        return NO_ERROR;
+    }
+    return NO_INIT;
+}
+
+status_t DisplayEventReceiver::getLatestVsyncEventData(VsyncEventData* outVsyncEventData) const {
+    if (mEventConnection != nullptr) {
+        VsyncEventData vsyncEventData;
+        auto status = mEventConnection->getLatestVsyncEventData(&vsyncEventData);
+        if (!status.isOk()) {
+            ALOGE("Failed to get latest vsync event data: %s", status.exceptionMessage().c_str());
+            return status.transactionError();
+        }
+        *outVsyncEventData = vsyncEventData;
         return NO_ERROR;
     }
     return NO_INIT;

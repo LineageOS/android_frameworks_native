@@ -73,6 +73,7 @@ inline const char* toString(bool value) {
 } // namespace
 
 namespace android {
+using gui::VsyncEventData;
 
 struct FrameCallback {
     AChoreographer_frameCallback callback;
@@ -102,8 +103,7 @@ class Choreographer;
 struct ChoreographerFrameCallbackDataImpl {
     int64_t frameTimeNanos{0};
 
-    std::array<VsyncEventData::FrameTimeline, DisplayEventReceiver::kFrameTimelinesLength>
-            frameTimelines;
+    std::array<VsyncEventData::FrameTimeline, VsyncEventData::kFrameTimelinesLength> frameTimelines;
 
     size_t preferredFrameTimelineIndex;
 

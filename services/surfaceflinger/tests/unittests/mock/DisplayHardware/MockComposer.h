@@ -50,7 +50,8 @@ public:
     ~Composer() override;
 
     MOCK_METHOD(bool, isSupported, (OptionalFeature), (const, override));
-    MOCK_METHOD0(getCapabilities, std::vector<IComposer::Capability>());
+    MOCK_METHOD0(getCapabilities,
+                 std::vector<aidl::android::hardware::graphics::composer3::Capability>());
     MOCK_METHOD0(dumpDebugInfo, std::string());
     MOCK_METHOD1(registerCallback, void(HWC2::ComposerCallback&));
     MOCK_METHOD0(resetCommands, void());

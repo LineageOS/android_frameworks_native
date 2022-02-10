@@ -37,6 +37,7 @@
 #include "ComposerHal.h"
 #include "Hal.h"
 
+#include <aidl/android/hardware/graphics/composer3/Capability.h>
 #include <aidl/android/hardware/graphics/composer3/Color.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
@@ -169,8 +170,9 @@ class Layer;
 
 class Display : public HWC2::Display {
 public:
-    Display(android::Hwc2::Composer&, const std::unordered_set<hal::Capability>&, hal::HWDisplayId,
-            hal::DisplayType);
+    Display(android::Hwc2::Composer&,
+            const std::unordered_set<aidl::android::hardware::graphics::composer3::Capability>&,
+            hal::HWDisplayId, hal::DisplayType);
     ~Display() override;
 
     // Required by HWC2
@@ -257,7 +259,8 @@ private:
     // this HWC2::Display, so these references are guaranteed to be valid for
     // the lifetime of this object.
     android::Hwc2::Composer& mComposer;
-    const std::unordered_set<hal::Capability>& mCapabilities;
+    const std::unordered_set<aidl::android::hardware::graphics::composer3::Capability>&
+            mCapabilities;
 
     const hal::HWDisplayId mId;
     hal::DisplayType mType;
@@ -329,8 +332,9 @@ namespace impl {
 class Layer : public HWC2::Layer {
 public:
     Layer(android::Hwc2::Composer& composer,
-          const std::unordered_set<hal::Capability>& capabilities, HWC2::Display& display,
-          hal::HWLayerId layerId);
+          const std::unordered_set<aidl::android::hardware::graphics::composer3::Capability>&
+                  capabilities,
+          HWC2::Display& display, hal::HWLayerId layerId);
     ~Layer() override;
 
     void onOwningDisplayDestroyed();
@@ -373,7 +377,8 @@ private:
     // this HWC2::Layer, so these references are guaranteed to be valid for
     // the lifetime of this object.
     android::Hwc2::Composer& mComposer;
-    const std::unordered_set<hal::Capability>& mCapabilities;
+    const std::unordered_set<aidl::android::hardware::graphics::composer3::Capability>&
+            mCapabilities;
 
     HWC2::Display* mDisplay;
     hal::HWLayerId mId;

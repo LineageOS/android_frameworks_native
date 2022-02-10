@@ -526,9 +526,11 @@ public:
      * preconditions and assert post-conditions.
      */
     struct HWC2Display : public HWC2::impl::Display {
-        HWC2Display(Hwc2::Composer& composer,
-                    const std::unordered_set<hal::Capability>& capabilities, hal::HWDisplayId id,
-                    hal::DisplayType type)
+        HWC2Display(
+                Hwc2::Composer& composer,
+                const std::unordered_set<aidl::android::hardware::graphics::composer3::Capability>&
+                        capabilities,
+                hal::HWDisplayId id, hal::DisplayType type)
               : HWC2::impl::Display(composer, capabilities, id, type) {}
         ~HWC2Display() {
             // Prevents a call to disable vsyncs.
@@ -589,7 +591,9 @@ public:
             return *this;
         }
 
-        auto& setCapabilities(const std::unordered_set<hal::Capability>* capabilities) {
+        auto& setCapabilities(
+                const std::unordered_set<aidl::android::hardware::graphics::composer3::Capability>*
+                        capabilities) {
             mCapabilities = capabilities;
             return *this;
         }
@@ -605,7 +609,9 @@ public:
             using ::testing::Return;
             using ::testing::SetArgPointee;
 
-            static const std::unordered_set<hal::Capability> defaultCapabilities;
+            static const std::unordered_set<
+                    aidl::android::hardware::graphics::composer3::Capability>
+                    defaultCapabilities;
             if (mCapabilities == nullptr) mCapabilities = &defaultCapabilities;
 
             // Caution - Make sure that any values passed by reference here do
@@ -682,7 +688,8 @@ public:
         int32_t mConfigGroup = DEFAULT_CONFIG_GROUP;
         hal::HWConfigId mActiveConfig = DEFAULT_ACTIVE_CONFIG;
         hal::PowerMode mPowerMode = DEFAULT_POWER_MODE;
-        const std::unordered_set<hal::Capability>* mCapabilities = nullptr;
+        const std::unordered_set<aidl::android::hardware::graphics::composer3::Capability>*
+                mCapabilities = nullptr;
     };
 
     class FakeDisplayDeviceInjector {

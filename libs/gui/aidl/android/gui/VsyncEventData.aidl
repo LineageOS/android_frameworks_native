@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The Android Open Source Project
+ * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,6 @@
  * limitations under the License.
  */
 
-#undef LOG_TAG
-#define LOG_TAG "RenderEngine"
-#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+package android.gui;
 
-#include "SkiaRenderEngine.h"
-
-#include <src/core/SkTraceEventCommon.h>
-
-namespace android {
-namespace renderengine {
-namespace skia {
-SkiaRenderEngine::SkiaRenderEngine(RenderEngineType type) : RenderEngine(type) {}
-
-void SkiaRenderEngine::setEnableTracing(bool tracingEnabled) {
-    SkAndroidFrameworkTraceUtil::setEnableTracing(tracingEnabled);
-}
-} // namespace skia
-} // namespace renderengine
-} // namespace android
+parcelable VsyncEventData cpp_header "gui/VsyncEventData.h";

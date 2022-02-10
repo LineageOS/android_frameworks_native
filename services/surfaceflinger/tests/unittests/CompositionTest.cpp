@@ -61,6 +61,8 @@ using hal::IComposerClient;
 using hal::PowerMode;
 using hal::Transform;
 
+using aidl::android::hardware::graphics::composer3::Capability;
+
 using testing::_;
 using testing::AtLeast;
 using testing::DoAll;
@@ -169,7 +171,7 @@ public:
     template <typename Case>
     void captureScreenComposition();
 
-    std::unordered_set<hal::Capability> mDefaultCapabilities = {hal::Capability::SIDEBAND_STREAM};
+    std::unordered_set<Capability> mDefaultCapabilities = {Capability::SIDEBAND_STREAM};
 
     bool mDisplayOff = false;
     TestableSurfaceFlinger mFlinger;

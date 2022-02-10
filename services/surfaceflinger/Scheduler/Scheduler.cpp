@@ -134,7 +134,8 @@ void Scheduler::createVsyncSchedule(FeatureFlags features) {
 std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(
         const char* name, std::chrono::nanoseconds workDuration,
         std::chrono::nanoseconds readyDuration, bool traceVsync) {
-    return std::make_unique<scheduler::DispSyncSource>(getVsyncDispatch(), workDuration,
+    return std::make_unique<scheduler::DispSyncSource>(mVsyncSchedule->getDispatch(),
+                                                       mVsyncSchedule->getTracker(), workDuration,
                                                        readyDuration, traceVsync, name);
 }
 

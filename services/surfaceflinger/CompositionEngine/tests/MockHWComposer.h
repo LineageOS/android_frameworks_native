@@ -42,7 +42,8 @@ public:
     MOCK_METHOD1(setCallback, void(HWC2::ComposerCallback&));
     MOCK_CONST_METHOD3(getDisplayIdentificationData,
                        bool(hal::HWDisplayId, uint8_t*, DisplayIdentificationData*));
-    MOCK_CONST_METHOD1(hasCapability, bool(hal::Capability));
+    MOCK_CONST_METHOD1(hasCapability,
+                       bool(aidl::android::hardware::graphics::composer3::Capability));
     MOCK_CONST_METHOD2(hasDisplayCapability,
                        bool(HalDisplayId,
                             aidl::android::hardware::graphics::composer3::DisplayCapability));

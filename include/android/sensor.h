@@ -743,9 +743,34 @@ ASensorManager* ASensorManager_getInstance() __DEPRECATED_IN(26);
 ASensorManager* ASensorManager_getInstanceForPackage(const char* packageName) __INTRODUCED_IN(26);
 
 /**
- * Returns the list of available sensors.
+ * Returns the list of available sensors. The returned list is owned by the
+ * sensor manager and will not change between calls to this function.
+ *
+ * \param manager the {@link ASensorManager} instance obtained from
+ *                {@link ASensorManager_getInstanceForPackage}.
+ * \param list    the returned list of sensors.
+ * \return positive number of returned sensors or negative error code.
+ *         BAD_VALUE: manager is NULL.
  */
 int ASensorManager_getSensorList(ASensorManager* manager, ASensorList* list);
+
+/**
+ * Returns the list of available dynamic sensors. If there are no dynamic
+ * sensors available, returns nullptr in list.
+ *
+ * Each time this is called, the previously returned list is deallocated and
+ * must no longer be used.
+ *
+ * Available since API level 33.
+ *
+ * \param manager the {@link ASensorManager} instance obtained from
+ *                {@link ASensorManager_getInstanceForPackage}.
+ * \param list    the returned list of dynamic sensors.
+ * \return positive number of returned sensors or negative error code.
+ *         BAD_VALUE: manager is NULL.
+ */
+ssize_t ASensorManager_getDynamicSensorList(
+        ASensorManager* manager, ASensorList* list) __INTRODUCED_IN(33);
 
 /**
  * Returns the default sensor for the given type, or NULL if no sensor
