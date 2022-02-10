@@ -141,6 +141,7 @@
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
+#include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
 #define MAIN_THREAD ACQUIRE(mStateLock) RELEASE(mStateLock)
@@ -163,6 +164,7 @@
 #define NO_THREAD_SAFETY_ANALYSIS \
     _Pragma("GCC error \"Prefer MAIN_THREAD macros or {Conditional,Timed,Unnecessary}Lock.\"")
 
+using aidl::android::hardware::graphics::common::DisplayDecorationSupport;
 using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
 
@@ -1814,8 +1816,9 @@ status_t SurfaceFlinger::notifyPowerBoost(int32_t boostId) {
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::getDisplayDecorationSupport(const sp<IBinder>& displayToken,
-                                                     bool* outSupport) const {
+status_t SurfaceFlinger::getDisplayDecorationSupport(
+        const sp<IBinder>& displayToken,
+        std::optional<DisplayDecorationSupport>* outSupport) const {
     if (!displayToken || !outSupport) {
         return BAD_VALUE;
     }
@@ -1826,8 +1829,7 @@ status_t SurfaceFlinger::getDisplayDecorationSupport(const sp<IBinder>& displayT
     if (!displayId) {
         return NAME_NOT_FOUND;
     }
-    *outSupport =
-            getHwComposer().hasDisplayCapability(*displayId, DisplayCapability::DISPLAY_DECORATION);
+    getHwComposer().getDisplayDecorationSupport(*displayId, outSupport);
     return NO_ERROR;
 }
 

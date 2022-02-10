@@ -37,6 +37,7 @@
 #include "ComposerHal.h"
 #include "Hal.h"
 
+#include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
 #include <aidl/android/hardware/graphics/composer3/Capability.h>
 #include <aidl/android/hardware/graphics/composer3/Color.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
@@ -162,6 +163,9 @@ public:
     [[clang::warn_unused_result]] virtual hal::Error setContentType(hal::ContentType) = 0;
     [[clang::warn_unused_result]] virtual hal::Error getClientTargetProperty(
             hal::ClientTargetProperty* outClientTargetProperty, float* outWhitePointNits) = 0;
+    [[clang::warn_unused_result]] virtual hal::Error getDisplayDecorationSupport(
+            std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    support) = 0;
 };
 
 namespace impl {
@@ -235,6 +239,9 @@ public:
     hal::Error setContentType(hal::ContentType) override;
     hal::Error getClientTargetProperty(hal::ClientTargetProperty* outClientTargetProperty,
                                        float* outWhitePointNits) override;
+    hal::Error getDisplayDecorationSupport(
+            std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    support) override;
 
     // Other Display methods
     hal::HWDisplayId getId() const override { return mId; }

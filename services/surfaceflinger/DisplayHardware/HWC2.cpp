@@ -581,6 +581,13 @@ Error Display::getClientTargetProperty(ClientTargetProperty* outClientTargetProp
     return static_cast<Error>(error);
 }
 
+Error Display::getDisplayDecorationSupport(
+        std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                support) {
+    const auto error = mComposer.getDisplayDecorationSupport(mId, support);
+    return static_cast<Error>(error);
+}
+
 // For use by Device
 
 void Display::setConnected(bool connected) {

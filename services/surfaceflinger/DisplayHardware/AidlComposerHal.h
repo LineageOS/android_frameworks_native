@@ -45,6 +45,7 @@
 
 namespace android::Hwc2 {
 
+using aidl::android::hardware::graphics::common::DisplayDecorationSupport;
 using aidl::android::hardware::graphics::composer3::ComposerClientReader;
 using aidl::android::hardware::graphics::composer3::ComposerClientWriter;
 
@@ -217,6 +218,8 @@ public:
     Error setBootDisplayConfig(Display displayId, Config) override;
     Error clearBootDisplayConfig(Display displayId) override;
     Error getPreferredBootDisplayConfig(Display displayId, Config*) override;
+    Error getDisplayDecorationSupport(Display display,
+                                      std::optional<DisplayDecorationSupport>* support) override;
 
 private:
     // Many public functions above simply write a command into the command

@@ -47,6 +47,8 @@
 #include <gui/WindowInfosListenerReporter.h>
 #include <math/vec3.h>
 
+#include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+
 namespace android {
 
 class HdrCapabilities;
@@ -285,14 +287,16 @@ public:
                                             float lightPosY, float lightPosZ, float lightRadius);
 
     /*
-     * Returns whether a display supports DISPLAY_DECORATION layers.
+     * Returns whether and how a display supports DISPLAY_DECORATION layers.
      *
      * displayToken
      *      The token of the display.
      *
-     * Returns whether a display supports DISPLAY_DECORATION layers.
+     * Returns how a display supports DISPLAY_DECORATION layers, or nullopt if
+     * it does not.
      */
-    static bool getDisplayDecorationSupport(const sp<IBinder>& displayToken);
+    static std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>
+    getDisplayDecorationSupport(const sp<IBinder>& displayToken);
 
     // ------------------------------------------------------------------------
     // surface creation / destruction

@@ -43,6 +43,7 @@
 #include "HWC2.h"
 #include "Hal.h"
 
+#include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
 #include <aidl/android/hardware/graphics/composer3/Capability.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
@@ -262,6 +263,10 @@ public:
     virtual status_t setBootDisplayMode(PhysicalDisplayId, hal::HWConfigId) = 0;
     virtual status_t clearBootDisplayMode(PhysicalDisplayId) = 0;
     virtual std::optional<hal::HWConfigId> getPreferredBootDisplayMode(PhysicalDisplayId) = 0;
+    virtual status_t getDisplayDecorationSupport(
+            PhysicalDisplayId,
+            std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    support) = 0;
 };
 
 namespace impl {
@@ -393,6 +398,10 @@ public:
     status_t setBootDisplayMode(PhysicalDisplayId, hal::HWConfigId) override;
     status_t clearBootDisplayMode(PhysicalDisplayId) override;
     std::optional<hal::HWConfigId> getPreferredBootDisplayMode(PhysicalDisplayId) override;
+    status_t getDisplayDecorationSupport(
+            PhysicalDisplayId,
+            std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    support) override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;
