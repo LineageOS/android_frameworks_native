@@ -416,8 +416,14 @@ bool BufferStateLayer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>&
             ? bufferData.acquireFence
             : Fence::NO_FENCE;
     mDrawingState.acquireFenceTime = std::make_unique<FenceTime>(mDrawingState.acquireFence);
-    // The acquire fences of BufferStateLayers have already signaled before they are set
-    mCallbackHandleAcquireTime = mDrawingState.acquireFenceTime->getSignalTime();
+    if (mDrawingState.acquireFenceTime->getSignalTime() == Fence::SIGNAL_TIME_PENDING) {
+        // We latched this buffer unsiganled, so we need to pass the acquire fence
+        // on the callback instead of just the acquire time, since it's unknown at
+        // this point.
+        mCallbackHandleAcquireTimeOrFence = mDrawingState.acquireFence;
+    } else {
+        mCallbackHandleAcquireTimeOrFence = mDrawingState.acquireFenceTime->getSignalTime();
+    }
 
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -527,7 +533,7 @@ bool BufferStateLayer::setTransactionCompletedListeners(
         // If this layer will be presented in this frame
         if (willPresent) {
             // If this transaction set an acquire fence on this layer, set its acquire time
-            handle->acquireTime = mCallbackHandleAcquireTime;
+            handle->acquireTimeOrFence = mCallbackHandleAcquireTimeOrFence;
             handle->frameNumber = mDrawingState.frameNumber;
 
             // Store so latched time and release fence can be set
@@ -540,7 +546,7 @@ bool BufferStateLayer::setTransactionCompletedListeners(
     }
 
     mReleasePreviousBuffer = false;
-    mCallbackHandleAcquireTime = -1;
+    mCallbackHandleAcquireTimeOrFence = -1;
 
     return willPresent;
 }

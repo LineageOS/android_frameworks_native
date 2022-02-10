@@ -60,12 +60,13 @@ class Region;
 using gui::IRegionSamplingListener;
 
 struct SurfaceControlStats {
-    SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime, nsecs_t acquireTime,
+    SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime,
+                        std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence,
                         const sp<Fence>& presentFence, const sp<Fence>& prevReleaseFence,
                         uint32_t hint, FrameEventHistoryStats eventStats)
           : surfaceControl(sc),
             latchTime(latchTime),
-            acquireTime(acquireTime),
+            acquireTimeOrFence(std::move(acquireTimeOrFence)),
             presentFence(presentFence),
             previousReleaseFence(prevReleaseFence),
             transformHint(hint),
@@ -73,7 +74,7 @@ struct SurfaceControlStats {
 
     sp<SurfaceControl> surfaceControl;
     nsecs_t latchTime = -1;
-    nsecs_t acquireTime = -1;
+    std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence = -1;
     sp<Fence> presentFence;
     sp<Fence> previousReleaseFence;
     uint32_t transformHint = 0;
