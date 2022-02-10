@@ -6225,33 +6225,57 @@ protected:
         mApp = std::make_shared<FakeApplicationHandle>();
         mWindow = new FakeWindowHandle(mApp, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
         mWindow->setFocusable(true);
+        setFocusedWindow(mWindow);
         mSecondWindow = new FakeWindowHandle(mApp, mDispatcher, "TestWindow2", ADISPLAY_ID_DEFAULT);
         mSecondWindow->setFocusable(true);
 
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApp);
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow, mSecondWindow}}});
-
-        setFocusedWindow(mWindow);
         mWindow->consumeFocusEvent(true);
+
+        // Set initial touch mode to InputDispatcher::kDefaultInTouchMode.
+        mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode, INJECTOR_PID,
+                                    INJECTOR_UID, /* hasPermission */ true);
     }
 
     void changeAndVerifyTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission) {
-        mDispatcher->setInTouchMode(inTouchMode, pid, uid, hasPermission);
+        ASSERT_TRUE(mDispatcher->setInTouchMode(inTouchMode, pid, uid, hasPermission));
         mWindow->consumeTouchModeEvent(inTouchMode);
         mSecondWindow->consumeTouchModeEvent(inTouchMode);
     }
 };
 
-TEST_F(InputDispatcherTouchModeChangedTests, ChangeTouchModeOnFocusedWindow) {
+TEST_F(InputDispatcherTouchModeChangedTests, FocusedWindowCanChangeTouchMode) {
     const WindowInfo& windowInfo = *mWindow->getInfo();
     changeAndVerifyTouchMode(!InputDispatcher::kDefaultInTouchMode, windowInfo.ownerPid,
                              windowInfo.ownerUid, /* hasPermission */ false);
 }
 
+TEST_F(InputDispatcherTouchModeChangedTests, NonFocusedWindowOwnerCannotChangeTouchMode) {
+    const WindowInfo& windowInfo = *mWindow->getInfo();
+    int32_t ownerPid = windowInfo.ownerPid;
+    int32_t ownerUid = windowInfo.ownerUid;
+    mWindow->setOwnerInfo(/* pid */ -1, /* uid */ -1);
+    ASSERT_FALSE(mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode, ownerPid,
+                                             ownerUid, /* hasPermission */ false));
+    mWindow->assertNoEvents();
+    mSecondWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTouchModeChangedTests, NonWindowOwnerMayChangeTouchModeOnPermissionGranted) {
+    const WindowInfo& windowInfo = *mWindow->getInfo();
+    int32_t ownerPid = windowInfo.ownerPid;
+    int32_t ownerUid = windowInfo.ownerUid;
+    mWindow->setOwnerInfo(/* pid */ -1, /* uid */ -1);
+    changeAndVerifyTouchMode(!InputDispatcher::kDefaultInTouchMode, ownerPid, ownerUid,
+                             /* hasPermission */ true);
+}
+
 TEST_F(InputDispatcherTouchModeChangedTests, EventIsNotGeneratedIfNotChangingTouchMode) {
     const WindowInfo& windowInfo = *mWindow->getInfo();
-    mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode, windowInfo.ownerPid,
-                                windowInfo.ownerUid, /* hasPermission */ true);
+    ASSERT_FALSE(mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode,
+                                             windowInfo.ownerPid, windowInfo.ownerUid,
+                                             /* hasPermission */ true));
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
 }
@@ -6820,8 +6844,5 @@ TEST_F(InputDispatcherStylusInterceptorTest, SpyWindowStylusInterceptor) {
     overlay->assertNoEvents();
     window->assertNoEvents();
 }
-
-// TODO(b/198487159): Add permission tests for touch mode switch once the validation is put in
-//     place.
 
 } // namespace android::inputdispatcher
