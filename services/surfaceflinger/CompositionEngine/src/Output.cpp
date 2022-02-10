@@ -1076,7 +1076,8 @@ std::optional<base::unique_fd> Output::composeSurfaces(
             : mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
     clientCompositionDisplay.maxLuminance =
             mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
-    clientCompositionDisplay.targetLuminanceNits = outputState.clientTargetWhitePointNits;
+    clientCompositionDisplay.targetLuminanceNits =
+            outputState.clientTargetBrightness * outputState.displayBrightnessNits;
 
     // Compute the global color transform matrix.
     clientCompositionDisplay.colorTransform = outputState.colorTransformMatrix;
