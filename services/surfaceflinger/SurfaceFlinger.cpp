@@ -2358,9 +2358,11 @@ void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
     // something (such as user input) to an accurate diasplay time.
     // Snapping also allows an app to precisely calculate
     // mVsyncConfiguration->getCurrentConfigs().late.sf with (presentLatency % interval).
-    nsecs_t bias = stats.vsyncPeriod / 2;
-    int64_t extraVsyncs = (compositeToPresentLatency - idealLatency + bias) / stats.vsyncPeriod;
-    nsecs_t snappedCompositeToPresentLatency =
+    const nsecs_t bias = stats.vsyncPeriod / 2;
+    const int64_t extraVsyncs = (stats.vsyncPeriod) > 0 ?
+        ((compositeToPresentLatency - idealLatency + bias) / stats.vsyncPeriod) :
+        0;
+    const nsecs_t snappedCompositeToPresentLatency =
             (extraVsyncs > 0) ? idealLatency + (extraVsyncs * stats.vsyncPeriod) : idealLatency;
 
     std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
