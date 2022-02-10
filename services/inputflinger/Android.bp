@@ -57,7 +57,7 @@ filegroup {
     name: "libinputflinger_sources",
     srcs: [
         "InputClassifier.cpp",
-        "InputClassifierConverter.cpp",
+        "InputCommonConverter.cpp",
         "UnwantedInteractionBlocker.cpp",
         "InputManager.cpp",
     ],
@@ -67,9 +67,10 @@ cc_defaults {
     name: "libinputflinger_defaults",
     srcs: [":libinputflinger_sources"],
     shared_libs: [
-        "android.hardware.input.classifier@1.0",
+        "android.hardware.input.processor-V1-ndk",
         "libbase",
         "libbinder",
+        "libbinder_ndk",
         "libchrome",
         "libcrypto",
         "libcutils",
