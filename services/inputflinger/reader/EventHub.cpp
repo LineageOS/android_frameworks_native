@@ -685,7 +685,7 @@ EventHub::EventHub(void)
     mEpollFd = epoll_create1(EPOLL_CLOEXEC);
     LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance: %s", strerror(errno));
 
-    mINotifyFd = inotify_init();
+    mINotifyFd = inotify_init1(IN_CLOEXEC);
 
     std::error_code errorCode;
     bool isDeviceInotifyAdded = false;
@@ -713,7 +713,7 @@ EventHub::EventHub(void)
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not add INotify to epoll instance.  errno=%d", errno);
 
     int wakeFds[2];
-    result = pipe(wakeFds);
+    result = pipe2(wakeFds, O_CLOEXEC);
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not create wake pipe.  errno=%d", errno);
 
     mWakeReadPipeFd = wakeFds[0];

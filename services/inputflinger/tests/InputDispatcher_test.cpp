@@ -21,6 +21,7 @@
 #include <android-base/stringprintf.h>
 #include <android-base/thread_annotations.h>
 #include <binder/Binder.h>
+#include <fcntl.h>
 #include <gtest/gtest.h>
 #include <input/Input.h>
 #include <linux/input.h>
@@ -6331,7 +6332,7 @@ TEST_F(InputDispatcherSpyWindowTest, ReceivesInputInOrder) {
     const std::vector<sp<FakeWindowHandle>> channels{spy1, spy2, window, spy3};
     const size_t numChannels = channels.size();
 
-    base::unique_fd epollFd(epoll_create1(0 /*flags*/));
+    base::unique_fd epollFd(epoll_create1(EPOLL_CLOEXEC));
     if (!epollFd.ok()) {
         FAIL() << "Failed to create epoll fd";
     }
