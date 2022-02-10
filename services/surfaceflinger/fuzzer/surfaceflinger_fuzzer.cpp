@@ -25,7 +25,7 @@ namespace android::fuzz {
 
 static constexpr LatchUnsignaledConfig kLatchUnsignaledConfig[] = {
         LatchUnsignaledConfig::Always,
-        LatchUnsignaledConfig::Auto,
+        LatchUnsignaledConfig::AutoSingleLayer,
         LatchUnsignaledConfig::Disabled,
 };
 

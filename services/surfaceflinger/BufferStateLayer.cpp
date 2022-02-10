@@ -918,4 +918,183 @@ Rect BufferStateLayer::getInputBounds() const {
     return mDrawingState.transform.transform(bufferBounds);
 }
 
+bool BufferStateLayer::simpleBufferUpdate(const layer_state_t& s) const {
+    const uint64_t requiredFlags = layer_state_t::eBufferChanged;
+
+    const uint64_t deniedFlags = layer_state_t::eProducerDisconnect | layer_state_t::eLayerChanged |
+            layer_state_t::eRelativeLayerChanged | layer_state_t::eTransparentRegionChanged |
+            layer_state_t::eFlagsChanged | layer_state_t::eBlurRegionsChanged |
+            layer_state_t::eLayerStackChanged | layer_state_t::eAutoRefreshChanged |
+            layer_state_t::eReparent;
+
+    const uint64_t allowedFlags = layer_state_t::eHasListenerCallbacksChanged |
+            layer_state_t::eFrameRateSelectionPriority | layer_state_t::eFrameRateChanged |
+            layer_state_t::eSurfaceDamageRegionChanged | layer_state_t::eApiChanged |
+            layer_state_t::eMetadataChanged | layer_state_t::eDropInputModeChanged |
+            layer_state_t::eInputInfoChanged;
+
+    if ((s.what & requiredFlags) != requiredFlags) {
+        ALOGV("%s: false [missing required flags 0x%" PRIx64 "]", __func__,
+              (s.what | requiredFlags) & ~s.what);
+        return false;
+    }
+
+    if (s.what & deniedFlags) {
+        ALOGV("%s: false [has denied flags 0x%" PRIx64 "]", __func__, s.what & deniedFlags);
+        return false;
+    }
+
+    if (s.what & allowedFlags) {
+        ALOGV("%s: [has allowed flags 0x%" PRIx64 "]", __func__, s.what & allowedFlags);
+    }
+
+    if (s.what & layer_state_t::ePositionChanged) {
+        if (mRequestedTransform.tx() != s.x || mRequestedTransform.ty() != s.y) {
+            ALOGV("%s: false [ePositionChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eAlphaChanged) {
+        if (mDrawingState.color.a != s.alpha) {
+            ALOGV("%s: false [eAlphaChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eColorTransformChanged) {
+        if (mDrawingState.colorTransform != s.colorTransform) {
+            ALOGV("%s: false [eColorTransformChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eBackgroundColorChanged) {
+        if (mDrawingState.bgColorLayer || s.bgColorAlpha != 0) {
+            ALOGV("%s: false [eBackgroundColorChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eMatrixChanged) {
+        if (mRequestedTransform.dsdx() != s.matrix.dsdx ||
+            mRequestedTransform.dtdy() != s.matrix.dtdy ||
+            mRequestedTransform.dtdx() != s.matrix.dtdx ||
+            mRequestedTransform.dsdy() != s.matrix.dsdy) {
+            ALOGV("%s: false [eMatrixChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eCornerRadiusChanged) {
+        if (mDrawingState.cornerRadius != s.cornerRadius) {
+            ALOGV("%s: false [eCornerRadiusChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eBackgroundBlurRadiusChanged) {
+        if (mDrawingState.backgroundBlurRadius != static_cast<int>(s.backgroundBlurRadius)) {
+            ALOGV("%s: false [eBackgroundBlurRadiusChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eTransformChanged) {
+        if (mDrawingState.bufferTransform != s.transform) {
+            ALOGV("%s: false [eTransformChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eTransformToDisplayInverseChanged) {
+        if (mDrawingState.transformToDisplayInverse != s.transformToDisplayInverse) {
+            ALOGV("%s: false [eTransformToDisplayInverseChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eCropChanged) {
+        if (mDrawingState.crop != s.crop) {
+            ALOGV("%s: false [eCropChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eDataspaceChanged) {
+        if (mDrawingState.dataspace != s.dataspace) {
+            ALOGV("%s: false [eDataspaceChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eHdrMetadataChanged) {
+        if (mDrawingState.hdrMetadata != s.hdrMetadata) {
+            ALOGV("%s: false [eHdrMetadataChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eSidebandStreamChanged) {
+        if (mDrawingState.sidebandStream != s.sidebandStream) {
+            ALOGV("%s: false [eSidebandStreamChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eColorSpaceAgnosticChanged) {
+        if (mDrawingState.colorSpaceAgnostic != s.colorSpaceAgnostic) {
+            ALOGV("%s: false [eColorSpaceAgnosticChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eShadowRadiusChanged) {
+        if (mDrawingState.shadowRadius != s.shadowRadius) {
+            ALOGV("%s: false [eShadowRadiusChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eFixedTransformHintChanged) {
+        if (mDrawingState.fixedTransformHint != s.fixedTransformHint) {
+            ALOGV("%s: false [eFixedTransformHintChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eTrustedOverlayChanged) {
+        if (mDrawingState.isTrustedOverlay != s.isTrustedOverlay) {
+            ALOGV("%s: false [eTrustedOverlayChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eStretchChanged) {
+        StretchEffect temp = s.stretchEffect;
+        temp.sanitize();
+        if (mDrawingState.stretchEffect != temp) {
+            ALOGV("%s: false [eStretchChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eBufferCropChanged) {
+        if (mDrawingState.bufferCrop != s.bufferCrop) {
+            ALOGV("%s: false [eBufferCropChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eDestinationFrameChanged) {
+        if (mDrawingState.destinationFrame != s.destinationFrame) {
+            ALOGV("%s: false [eDestinationFrameChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    ALOGV("%s: true", __func__);
+    return true;
+}
+
 } // namespace android

@@ -136,6 +136,8 @@ private:
 
     bool bufferNeedsFiltering() const override;
 
+    bool simpleBufferUpdate(const layer_state_t& s) const override;
+
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     uint64_t mPreviousReleasedFrameNumber = 0;
 
