@@ -188,6 +188,8 @@ public:
 
     binder::Status migrateLegacyObbData();
 
+    binder::Status cleanupDeletedDirs(const std::optional<std::string>& uuid);
+
 private:
     std::recursive_mutex mLock;
     std::unordered_map<userid_t, std::weak_ptr<std::shared_mutex>> mUserIdLock;
