@@ -73,7 +73,7 @@ class BLASTBufferQueue
     : public ConsumerBase::FrameAvailableListener, public BufferItemConsumer::BufferFreedListener
 {
 public:
-    BLASTBufferQueue(const std::string& name);
+    BLASTBufferQueue(const std::string& name, bool updateDestinationFrame = true);
     BLASTBufferQueue(const std::string& name, const sp<SurfaceControl>& surface, int width,
                      int height, int32_t format);
 
@@ -100,8 +100,7 @@ public:
     void applyPendingTransactions(uint64_t frameNumber);
     SurfaceComposerClient::Transaction* gatherPendingTransactions(uint64_t frameNumber);
 
-    void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format,
-                SurfaceComposerClient::Transaction* outTransaction = nullptr);
+    void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format);
 
     status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
     status_t setFrameTimelineInfo(const FrameTimelineInfo& info);
@@ -218,11 +217,6 @@ private:
     std::vector<std::tuple<uint64_t /* framenumber */, SurfaceComposerClient::Transaction>>
             mPendingTransactions GUARDED_BY(mMutex);
 
-    // Last requested auto refresh state set by the producer. The state indicates that the consumer
-    // should acquire the next frame as soon as it can and not wait for a frame to become available.
-    // This is only relevant for shared buffer mode.
-    bool mAutoRefresh GUARDED_BY(mMutex) = false;
-
     std::queue<FrameTimelineInfo> mNextFrameTimelineInfoQueue GUARDED_BY(mMutex);
 
     // Tracks the last acquired frame number
@@ -250,6 +244,12 @@ private:
     // Flag to determine if syncTransaction should only acquire a single buffer and then clear or
     // continue to acquire buffers until explicitly cleared
     bool mAcquireSingleBuffer GUARDED_BY(mMutex) = true;
+
+    // True if BBQ will update the destination frame used to scale the buffer to the requested size.
+    // If false, the caller is responsible for updating the destination frame on the BBQ
+    // surfacecontol. This is useful if the caller wants to synchronize the buffer scale with
+    // additional scales in the hierarchy.
+    bool mUpdateDestinationFrame GUARDED_BY(mMutex) = true;
 };
 
 } // namespace android

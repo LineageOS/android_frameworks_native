@@ -2142,6 +2142,9 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
             (*protoMap)[entry.first] = std::string(entry.second.cbegin(), entry.second.cend());
         }
     }
+
+    LayerProtoHelper::writeToProto(state.destinationFrame,
+                                   [&]() { return layerInfo->mutable_destination_frame(); });
 }
 
 bool Layer::isRemovedFromCurrentState() const  {

@@ -271,7 +271,8 @@ static bool assignTransform(ui::Transform* dst, ui::Transform& from) {
 // Translate destination frame into scale and position. If a destination frame is not set, use the
 // provided scale and position
 bool BufferStateLayer::updateGeometry() {
-    if (mDrawingState.destinationFrame.isEmpty()) {
+    if ((mDrawingState.flags & layer_state_t::eIgnoreDestinationFrame) ||
+        mDrawingState.destinationFrame.isEmpty()) {
         // If destination frame is not set, use the requested transform set via
         // BufferStateLayer::setPosition and BufferStateLayer::setMatrix.
         return assignTransform(&mDrawingState.transform, mRequestedTransform);
