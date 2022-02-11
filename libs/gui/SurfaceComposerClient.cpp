@@ -52,6 +52,7 @@
 
 namespace android {
 
+using aidl::android::hardware::graphics::common::DisplayDecorationSupport;
 using gui::FocusRequest;
 using gui::IRegionSamplingListener;
 using gui::WindowInfo;
@@ -296,7 +297,7 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                 surfaceControlStats
                         .emplace_back(callbacksMap[callbackId]
                                               .surfaceControls[surfaceStats.surfaceControl],
-                                      transactionStats.latchTime, surfaceStats.acquireTime,
+                                      transactionStats.latchTime, surfaceStats.acquireTimeOrFence,
                                       transactionStats.presentFence,
                                       surfaceStats.previousReleaseFence, surfaceStats.transformHint,
                                       surfaceStats.eventStats);
@@ -321,7 +322,7 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                 surfaceControlStats
                         .emplace_back(callbacksMap[callbackId]
                                               .surfaceControls[surfaceStats.surfaceControl],
-                                      transactionStats.latchTime, surfaceStats.acquireTime,
+                                      transactionStats.latchTime, surfaceStats.acquireTimeOrFence,
                                       transactionStats.presentFence,
                                       surfaceStats.previousReleaseFence, surfaceStats.transformHint,
                                       surfaceStats.eventStats);
@@ -2239,8 +2240,9 @@ status_t SurfaceComposerClient::setGlobalShadowSettings(const half4& ambientColo
                                                                           lightRadius);
 }
 
-bool SurfaceComposerClient::getDisplayDecorationSupport(const sp<IBinder>& displayToken) {
-    bool support = false;
+std::optional<DisplayDecorationSupport> SurfaceComposerClient::getDisplayDecorationSupport(
+        const sp<IBinder>& displayToken) {
+    std::optional<DisplayDecorationSupport> support;
     ComposerService::getComposerService()->getDisplayDecorationSupport(displayToken, &support);
     return support;
 }

@@ -136,6 +136,8 @@ private:
 
     bool bufferNeedsFiltering() const override;
 
+    bool simpleBufferUpdate(const layer_state_t& s) const override;
+
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     uint64_t mPreviousReleasedFrameNumber = 0;
 
@@ -143,7 +145,7 @@ private:
 
     // Stores the last set acquire fence signal time used to populate the callback handle's acquire
     // time.
-    nsecs_t mCallbackHandleAcquireTime = -1;
+    std::variant<nsecs_t, sp<Fence>> mCallbackHandleAcquireTimeOrFence = -1;
 
     std::deque<std::shared_ptr<android::frametimeline::SurfaceFrame>> mPendingJankClassifications;
     // An upper bound on the number of SurfaceFrames in the pending classifications deque.

@@ -47,7 +47,7 @@ public:
     std::string name;
     sp<Fence> previousReleaseFence;
     std::vector<std::shared_future<renderengine::RenderEngineResult>> previousReleaseFences;
-    nsecs_t acquireTime = -1;
+    std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence = -1;
     nsecs_t latchTime = -1;
     uint32_t transformHint = 0;
     uint32_t currentMaxAcquiredBufferCount = 0;

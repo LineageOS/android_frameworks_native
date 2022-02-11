@@ -47,6 +47,7 @@ using namespace std::chrono_literals;
 // retrieve wide-color and hdr settings from configstore
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using aidl::android::hardware::graphics::common::DisplayDecorationSupport;
 using gui::IDisplayEventConnection;
 using gui::IRegionSamplingListener;
 using ui::ColorMode;
@@ -889,8 +890,9 @@ public:
         return NO_ERROR;
     }
 
-    status_t getDisplayDecorationSupport(const sp<IBinder>& /*displayToken*/,
-                                         bool* /*outSupport*/) const override {
+    status_t getDisplayDecorationSupport(
+            const sp<IBinder>& /*displayToken*/,
+            std::optional<DisplayDecorationSupport>* /*outSupport*/) const override {
         return NO_ERROR;
     }
 

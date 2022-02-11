@@ -1074,5 +1074,17 @@ Error AidlComposer::setLayerBlockingRegion(Display display, Layer layer,
                                    translate<AidlRect>(blocking));
     return Error::NONE;
 }
+
+Error AidlComposer::getDisplayDecorationSupport(Display display,
+                                                std::optional<DisplayDecorationSupport>* support) {
+    const auto status =
+            mAidlComposerClient->getDisplayDecorationSupport(translate<int64_t>(display), support);
+    if (!status.isOk()) {
+        ALOGE("getDisplayDecorationSupport failed %s", status.getDescription().c_str());
+        support->reset();
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    return Error::NONE;
+}
 } // namespace Hwc2
 } // namespace android
