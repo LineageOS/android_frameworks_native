@@ -167,7 +167,7 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
                                           handle->gpuCompositionDoneFence->getSnapshot().fence,
                                           handle->compositorTiming, handle->refreshStartTime,
                                           handle->dequeueReadyTime);
-        transactionStats->surfaceStats.emplace_back(surfaceControl, handle->acquireTime,
+        transactionStats->surfaceStats.emplace_back(surfaceControl, handle->acquireTimeOrFence,
                                                     handle->previousReleaseFence,
                                                     handle->transformHint,
                                                     handle->currentMaxAcquiredBufferCount,

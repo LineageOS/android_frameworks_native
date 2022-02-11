@@ -47,6 +47,11 @@ cc_library_headers {
     // TODO(b/153609531): remove when no longer needed.
     native_bridge_supported: true,
     min_sdk_version: "29",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media.swcodec",
+        "test_com.android.media.swcodec",
+    ],
     host_supported: true,
 }
 
@@ -64,7 +69,7 @@ cc_library {
         symbol_file: "libnativewindow.map.txt",
         unversioned: true,
         override_export_include_dirs: [
-            "include"
+            "include",
         ],
     },
     export_include_dirs: [

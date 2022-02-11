@@ -897,6 +897,8 @@ public:
     virtual std::string getPendingBufferCounterName() { return ""; }
     virtual bool updateGeometry() { return false; }
 
+    virtual bool simpleBufferUpdate(const layer_state_t&) const { return false; }
+
 protected:
     friend class impl::SurfaceInterceptor;
 

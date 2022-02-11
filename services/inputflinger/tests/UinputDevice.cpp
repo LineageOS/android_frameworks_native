@@ -17,6 +17,7 @@
 #include "UinputDevice.h"
 
 #include <android-base/stringprintf.h>
+#include <fcntl.h>
 
 namespace android {
 
@@ -32,7 +33,7 @@ UinputDevice::~UinputDevice() {
 }
 
 void UinputDevice::init() {
-    mDeviceFd = android::base::unique_fd(open("/dev/uinput", O_WRONLY | O_NONBLOCK));
+    mDeviceFd = android::base::unique_fd(open("/dev/uinput", O_WRONLY | O_NONBLOCK | O_CLOEXEC));
     if (mDeviceFd < 0) {
         FAIL() << "Can't open /dev/uinput :" << strerror(errno);
     }

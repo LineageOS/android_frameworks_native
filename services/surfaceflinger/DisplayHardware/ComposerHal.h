@@ -31,11 +31,14 @@
 #include <ui/GraphicBuffer.h>
 #include <utils/StrongPointer.h>
 
+#include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
 #include <aidl/android/hardware/graphics/composer3/Capability.h>
 #include <aidl/android/hardware/graphics/composer3/Color.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 #include <aidl/android/hardware/graphics/composer3/IComposerCallback.h>
+
+#include <optional>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
@@ -267,6 +270,10 @@ public:
     virtual Error setBootDisplayConfig(Display displayId, Config) = 0;
     virtual Error clearBootDisplayConfig(Display displayId) = 0;
     virtual Error getPreferredBootDisplayConfig(Display displayId, Config*) = 0;
+    virtual Error getDisplayDecorationSupport(
+            Display display,
+            std::optional<::aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    support) = 0;
 };
 
 } // namespace Hwc2

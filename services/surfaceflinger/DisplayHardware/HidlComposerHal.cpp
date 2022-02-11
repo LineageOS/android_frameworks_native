@@ -1312,6 +1312,14 @@ Error HidlComposer::setLayerBlockingRegion(Display, Layer,
     return Error::NONE;
 }
 
+Error HidlComposer::getDisplayDecorationSupport(
+        Display,
+        std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                support) {
+    support->reset();
+    return Error::UNSUPPORTED;
+}
+
 void HidlComposer::registerCallback(ComposerCallback& callback) {
     const bool vsyncSwitchingSupported =
             isSupported(Hwc2::Composer::OptionalFeature::RefreshRateSwitching);

@@ -33,8 +33,6 @@
 namespace android {
 
 using gui::FocusRequest;
-using gui::WindowInfo;
-using gui::WindowInfoHandle;
 
 static int32_t exceptionCodeFromStatusT(status_t status) {
     switch (status) {

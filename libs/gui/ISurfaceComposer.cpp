@@ -42,6 +42,8 @@
 
 // ---------------------------------------------------------------------------
 
+using namespace aidl::android::hardware::graphics;
+
 namespace android {
 
 using gui::IDisplayEventConnection;
@@ -1201,8 +1203,9 @@ public:
         return NO_ERROR;
     }
 
-    status_t getDisplayDecorationSupport(const sp<IBinder>& displayToken,
-                                         bool* outSupport) const override {
+    status_t getDisplayDecorationSupport(
+            const sp<IBinder>& displayToken,
+            std::optional<common::DisplayDecorationSupport>* outSupport) const override {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
@@ -1225,7 +1228,26 @@ public:
             ALOGE("getDisplayDecorationSupport: failed to read support: %d", error);
             return error;
         }
-        *outSupport = support;
+
+        if (support) {
+            int32_t format, alphaInterpretation;
+            error = reply.readInt32(&format);
+            if (error != NO_ERROR) {
+                ALOGE("getDisplayDecorationSupport: failed to read format: %d", error);
+                return error;
+            }
+            error = reply.readInt32(&alphaInterpretation);
+            if (error != NO_ERROR) {
+                ALOGE("getDisplayDecorationSupport: failed to read alphaInterpretation: %d", error);
+                return error;
+            }
+            outSupport->emplace();
+            outSupport->value().format = static_cast<common::PixelFormat>(format);
+            outSupport->value().alphaInterpretation =
+                    static_cast<common::AlphaInterpretation>(alphaInterpretation);
+        } else {
+            outSupport->reset();
+        }
         return NO_ERROR;
     }
 
@@ -2164,14 +2186,18 @@ status_t BnSurfaceComposer::onTransact(
         case GET_DISPLAY_DECORATION_SUPPORT: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> displayToken;
-            status_t error = data.readNullableStrongBinder(&displayToken);
+            SAFE_PARCEL(data.readNullableStrongBinder, &displayToken);
+            std::optional<common::DisplayDecorationSupport> support;
+            auto error = getDisplayDecorationSupport(displayToken, &support);
             if (error != NO_ERROR) {
-                ALOGE("getDisplayDecorationSupport: failed to read display token: %d", error);
+                ALOGE("getDisplayDecorationSupport failed with error %d", error);
                 return error;
             }
-            bool support = false;
-            error = getDisplayDecorationSupport(displayToken, &support);
-            reply->writeBool(support);
+            reply->writeBool(support.has_value());
+            if (support) {
+                reply->writeInt32(static_cast<int32_t>(support.value().format));
+                reply->writeInt32(static_cast<int32_t>(support.value().alphaInterpretation));
+            }
             return error;
         }
         case SET_FRAME_RATE: {

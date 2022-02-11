@@ -129,6 +129,10 @@ public:
                 (const, override));
     MOCK_METHOD(std::optional<hal::HWDisplayId>, fromPhysicalDisplayId, (PhysicalDisplayId),
                 (const, override));
+    MOCK_METHOD2(getDisplayDecorationSupport,
+                 status_t(PhysicalDisplayId,
+                          std::optional<aidl::android::hardware::graphics::common::
+                                                DisplayDecorationSupport>* support));
 };
 
 } // namespace mock

@@ -47,6 +47,8 @@
 #include <gui/WindowInfosListenerReporter.h>
 #include <math/vec3.h>
 
+#include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+
 namespace android {
 
 class HdrCapabilities;
@@ -58,12 +60,13 @@ class Region;
 using gui::IRegionSamplingListener;
 
 struct SurfaceControlStats {
-    SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime, nsecs_t acquireTime,
+    SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime,
+                        std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence,
                         const sp<Fence>& presentFence, const sp<Fence>& prevReleaseFence,
                         uint32_t hint, FrameEventHistoryStats eventStats)
           : surfaceControl(sc),
             latchTime(latchTime),
-            acquireTime(acquireTime),
+            acquireTimeOrFence(std::move(acquireTimeOrFence)),
             presentFence(presentFence),
             previousReleaseFence(prevReleaseFence),
             transformHint(hint),
@@ -71,7 +74,7 @@ struct SurfaceControlStats {
 
     sp<SurfaceControl> surfaceControl;
     nsecs_t latchTime = -1;
-    nsecs_t acquireTime = -1;
+    std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence = -1;
     sp<Fence> presentFence;
     sp<Fence> previousReleaseFence;
     uint32_t transformHint = 0;
@@ -285,14 +288,16 @@ public:
                                             float lightPosY, float lightPosZ, float lightRadius);
 
     /*
-     * Returns whether a display supports DISPLAY_DECORATION layers.
+     * Returns whether and how a display supports DISPLAY_DECORATION layers.
      *
      * displayToken
      *      The token of the display.
      *
-     * Returns whether a display supports DISPLAY_DECORATION layers.
+     * Returns how a display supports DISPLAY_DECORATION layers, or nullopt if
+     * it does not.
      */
-    static bool getDisplayDecorationSupport(const sp<IBinder>& displayToken);
+    static std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>
+    getDisplayDecorationSupport(const sp<IBinder>& displayToken);
 
     // ------------------------------------------------------------------------
     // surface creation / destruction

@@ -44,6 +44,7 @@ struct HdrMetadata : public LightFlattenable<HdrMetadata> {
     status_t unflatten(void const* buffer, size_t size);
 
     bool operator==(const HdrMetadata& rhs) const;
+    bool operator!=(const HdrMetadata& rhs) const { return !(*this == rhs); }
 };
 
 } // namespace android
