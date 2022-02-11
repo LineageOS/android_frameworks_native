@@ -164,10 +164,6 @@ public:
             const std::string& outputPath);
     binder::Status deleteOdex(const std::string& apkPath, const std::string& instructionSet,
             const std::optional<std::string>& outputPath, int64_t* _aidl_return);
-    binder::Status installApkVerity(const std::string& filePath,
-            android::base::unique_fd verityInput, int32_t contentSize);
-    binder::Status assertFsverityRootHashMatches(const std::string& filePath,
-            const std::vector<uint8_t>& expectedHash);
     binder::Status reconcileSecondaryDexFile(const std::string& dexPath,
         const std::string& packageName, int32_t uid, const std::vector<std::string>& isa,
         const std::optional<std::string>& volumeUuid, int32_t storage_flag, bool* _aidl_return);
