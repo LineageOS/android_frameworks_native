@@ -93,7 +93,6 @@ class FpsReporter;
 class TunnelModeEnabledReporter;
 class HdrLayerInfoReporter;
 class HWComposer;
-struct SetInputWindowsListener;
 class IGraphicBufferProducer;
 class Layer;
 class MessageBase;
@@ -102,6 +101,7 @@ class RegionSamplingThread;
 class RenderArea;
 class TimeStats;
 class FrameTracer;
+class WindowInfosListenerInvoker;
 
 using gui::ScreenCaptureResults;
 
@@ -332,11 +332,12 @@ public:
     // If set, disables reusing client composition buffers. This can be set by
     // debug.sf.disable_client_composition_cache
     bool mDisableClientCompositionCache = false;
-    void setInputWindowsFinished();
+    void windowInfosReported();
 
     // Disables expensive rendering for all displays
     // This is scheduled on the main thread
     void disableExpensiveRendering();
+    FloatRect getMaxDisplayBounds();
 
 protected:
     // We're reference counted, never destroy SurfaceFlinger directly
@@ -350,12 +351,14 @@ protected:
             REQUIRES(mStateLock);
     virtual void commitTransactionLocked();
 
-    // Used internally by computeLayerBounds() to gets the clip rectangle to use for the
-    // root layers on a particular display in layer-coordinate space. The
-    // layers (and effectively their children) will be clipped against this
-    // rectangle. The base behavior is to clip to the visible region of the
-    // display.
-    virtual FloatRect getLayerClipBoundsForDisplay(const DisplayDevice&) const;
+    virtual void processDisplayAdded(const wp<IBinder>& displayToken, const DisplayDeviceState&)
+            REQUIRES(mStateLock);
+
+    // Returns true if any display matches a `bool(const DisplayDevice&)` predicate.
+    template <typename Predicate>
+    bool hasDisplay(Predicate p) const REQUIRES(mStateLock) {
+        return static_cast<bool>(findDisplay(p));
+    }
 
 private:
     friend class BufferLayer;
@@ -455,14 +458,7 @@ private:
                 mCounterByLayerHandle GUARDED_BY(mLock);
     };
 
-    struct ActiveModeInfo {
-        DisplayModeId modeId;
-        Scheduler::ModeEvent event = Scheduler::ModeEvent::None;
-
-        bool operator!=(const ActiveModeInfo& other) const {
-            return modeId != other.modeId || event != other.event;
-        }
-    };
+    using ActiveModeInfo = DisplayDevice::ActiveModeInfo;
 
     enum class BootStage {
         BOOTLOADER,
@@ -593,7 +589,7 @@ private:
               typename Handler = VsyncModulator::VsyncConfigOpt (VsyncModulator::*)(Args...)>
     void modulateVsync(Handler handler, Args... args) {
         if (const auto config = (*mVsyncModulator.*handler)(args...)) {
-            const auto vsyncPeriod = mRefreshRateConfigs->getCurrentRefreshRate().getVsyncPeriod();
+            const auto vsyncPeriod = mScheduler->getVsyncPeriodFromRefreshRateConfigs();
             setVsyncConfig(*config, vsyncPeriod);
         }
     }
@@ -612,8 +608,12 @@ private:
     sp<ISurfaceComposerClient> createConnection() override;
     sp<IBinder> createDisplay(const String8& displayName, bool secure) override;
     void destroyDisplay(const sp<IBinder>& displayToken) override;
-    std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override;
+    std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override EXCLUDES(mStateLock) {
+        Mutex::Autolock lock(mStateLock);
+        return getPhysicalDisplayIdsLocked();
+    }
     status_t getPrimaryPhysicalDisplayId(PhysicalDisplayId*) const override EXCLUDES(mStateLock);
+
     sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const override;
     status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
                                  const Vector<ComposerState>& state,
@@ -721,6 +721,11 @@ private:
 
     status_t getMaxAcquiredBufferCount(int* buffers) const override;
 
+    status_t addWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& windowInfosListener) const override;
+    status_t removeWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& windowInfosListener) const override;
+
     // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
 
@@ -751,12 +756,10 @@ private:
     // Called when the frame rate override list changed to trigger an event.
     void triggerOnFrameRateOverridesChanged() override;
     // Toggles the kernel idle timer on or off depending the policy decisions around refresh rates.
-    void toggleKernelIdleTimer();
+    void toggleKernelIdleTimer() REQUIRES(mStateLock);
     // Keeps track of whether the kernel idle timer is currently enabled, so we don't have to
     // make calls to sys prop each time.
     bool mKernelIdleTimerEnabled = false;
-    // Keeps track of whether the kernel timer is supported on the SF side.
-    bool mSupportKernelIdleTimer = false;
     // Show spinner with refresh rate overlay
     bool mRefreshRateOverlaySpinner = false;
 
@@ -780,9 +783,9 @@ private:
     // Calls to setActiveMode on the main thread if there is a pending mode change
     // that needs to be applied.
     void performSetActiveMode() REQUIRES(mStateLock);
-    void clearDesiredActiveModeState() REQUIRES(mStateLock) EXCLUDES(mActiveModeLock);
+    void clearDesiredActiveModeState(const sp<DisplayDevice>&) REQUIRES(mStateLock);
     // Called when active mode is no longer is progress
-    void desiredActiveModeChangeDone() REQUIRES(mStateLock);
+    void desiredActiveModeChangeDone(const sp<DisplayDevice>&) REQUIRES(mStateLock);
     // Called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode)
             REQUIRES(mStateLock);
@@ -811,11 +814,11 @@ private:
     void handleTransactionLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
 
     void updateInputFlinger();
-    void updateInputWindowInfo();
+    void notifyWindowInfos();
     void commitInputWindowCommands() REQUIRES(mStateLock);
     void updateCursorAsync();
 
-    void initScheduler(const DisplayDeviceState&) REQUIRES(mStateLock);
+    void initScheduler(const sp<DisplayDevice>& display) REQUIRES(mStateLock);
     void updatePhaseConfiguration(const Fps&) REQUIRES(mStateLock);
     void setVsyncConfig(const VsyncModulator::VsyncConfig&, nsecs_t vsyncPeriod);
 
@@ -931,8 +934,9 @@ private:
 
     void readPersistentProperties();
 
-    size_t getMaxTextureSize() const;
-    size_t getMaxViewportDims() const;
+    bool exceedsMaxRenderTargetSize(uint32_t width, uint32_t height) const {
+        return width > mMaxRenderTargetSize || height > mMaxRenderTargetSize;
+    }
 
     int getMaxAcquiredBufferCountForCurrentRefreshRate(uid_t uid) const;
 
@@ -954,6 +958,10 @@ private:
 
     sp<const DisplayDevice> getDisplayDeviceLocked(PhysicalDisplayId id) const
             REQUIRES(mStateLock) {
+        return const_cast<SurfaceFlinger*>(this)->getDisplayDeviceLocked(id);
+    }
+
+    sp<DisplayDevice> getDisplayDeviceLocked(PhysicalDisplayId id) REQUIRES(mStateLock) {
         if (const auto token = getPhysicalDisplayTokenLocked(id)) {
             return getDisplayDeviceLocked(token);
         }
@@ -965,13 +973,18 @@ private:
     }
 
     sp<DisplayDevice> getDefaultDisplayDeviceLocked() REQUIRES(mStateLock) {
+        if (const auto display = getDisplayDeviceLocked(mActiveDisplayToken)) {
+            return display;
+        }
+        // The active display is outdated, fall back to the internal display
+        mActiveDisplayToken.clear();
         if (const auto token = getInternalDisplayTokenLocked()) {
             return getDisplayDeviceLocked(token);
         }
         return nullptr;
     }
 
-    sp<const DisplayDevice> getDefaultDisplayDevice() EXCLUDES(mStateLock) {
+    sp<const DisplayDevice> getDefaultDisplayDevice() const EXCLUDES(mStateLock) {
         Mutex::Autolock lock(mStateLock);
         return getDefaultDisplayDeviceLocked();
     }
@@ -990,9 +1003,17 @@ private:
         return findDisplay([id](const auto& display) { return display.getId() == id; });
     }
 
+    std::vector<PhysicalDisplayId> getPhysicalDisplayIdsLocked() const REQUIRES(mStateLock);
+
     // mark a region of a layer stack dirty. this updates the dirty
     // region of all screens presenting this layer stack.
     void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
+
+    sp<DisplayDevice> getDisplayWithInputByLayer(Layer* layer) const REQUIRES(mStateLock);
+
+    bool isDisplayActiveLocked(const sp<const DisplayDevice>& display) const REQUIRES(mStateLock) {
+        return display->getDisplayToken() == mActiveDisplayToken;
+    }
 
     /*
      * H/W composer
@@ -1031,8 +1052,6 @@ private:
             const sp<compositionengine::DisplaySurface>& displaySurface,
             const sp<IGraphicBufferProducer>& producer) REQUIRES(mStateLock);
     void processDisplayChangesLocked() REQUIRES(mStateLock);
-    void processDisplayAdded(const wp<IBinder>& displayToken, const DisplayDeviceState&)
-            REQUIRES(mStateLock);
     void processDisplayRemoved(const wp<IBinder>& displayToken) REQUIRES(mStateLock);
     void processDisplayChanged(const wp<IBinder>& displayToken,
                                const DisplayDeviceState& currentState,
@@ -1046,11 +1065,14 @@ private:
      */
     nsecs_t getVsyncPeriodFromHWC() const REQUIRES(mStateLock);
 
+    void setHWCVsyncEnabled(PhysicalDisplayId id, hal::Vsync enabled) {
+        mLastHWCVsyncState = enabled;
+        getHwComposer().setVsyncEnabled(id, enabled);
+    }
+
     // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
     void changeRefreshRateLocked(const RefreshRate&, Scheduler::ModeEvent) REQUIRES(mStateLock);
-
-    bool isDisplayModeAllowed(DisplayModeId) const REQUIRES(mStateLock);
 
     struct FenceWithFenceTime {
         sp<Fence> fence = Fence::NO_FENCE;
@@ -1112,9 +1134,12 @@ private:
     void enableHalVirtualDisplays(bool);
 
     // Virtual display lifecycle for ID generation and HAL allocation.
-    VirtualDisplayId acquireVirtualDisplay(ui::Size, ui::PixelFormat, ui::LayerStack)
-            REQUIRES(mStateLock);
+    VirtualDisplayId acquireVirtualDisplay(ui::Size, ui::PixelFormat) REQUIRES(mStateLock);
     void releaseVirtualDisplay(VirtualDisplayId);
+
+    void onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay) REQUIRES(mStateLock);
+
+    void onActiveDisplaySizeChanged(const sp<DisplayDevice>& activeDisplay);
 
     /*
      * Debugging & dumpsys
@@ -1143,6 +1168,8 @@ private:
     LayersProto dumpDrawingStateProto(uint32_t traceFlags) const;
     void dumpOffscreenLayersProto(LayersProto& layersProto,
                                   uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
+    void dumpDisplayProto(LayersTraceProto& layersTraceProto) const;
+
     // Dumps state from HW Composer
     void dumpHwc(std::string& result) const;
     LayersProto dumpProtoFromMainThread(uint32_t traceFlags = SurfaceTracing::TRACE_ALL)
@@ -1181,19 +1208,15 @@ private:
     /*
      * Misc
      */
-
-    std::optional<ActiveModeInfo> getDesiredActiveMode() EXCLUDES(mActiveModeLock) {
-        std::lock_guard<std::mutex> lock(mActiveModeLock);
-        if (mDesiredActiveModeChanged) return mDesiredActiveMode;
-        return std::nullopt;
-    }
-
     std::vector<ui::ColorMode> getDisplayColorModes(PhysicalDisplayId displayId)
             REQUIRES(mStateLock);
 
     static int calculateMaxAcquiredBufferCount(Fps refreshRate,
                                                std::chrono::nanoseconds presentLatency);
     int getMaxAcquiredBufferCountForRefreshRate(Fps refreshRate) const;
+
+    void updateInternalDisplayVsyncLocked(const sp<DisplayDevice>& activeDisplay)
+            REQUIRES(mStateLock);
 
     sp<StartPropertySetThread> mStartPropertySetThread;
     surfaceflinger::Factory& mFactory;
@@ -1379,6 +1402,9 @@ private:
 
     SurfaceFlingerBE mBE;
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
+    // mMaxRenderTargetSize is only set once in init() so it doesn't need to be protected by
+    // any mutex.
+    size_t mMaxRenderTargetSize{1};
 
     const std::string mHwcServiceName;
 
@@ -1397,24 +1423,14 @@ private:
     // Optional to defer construction until PhaseConfiguration is created.
     sp<VsyncModulator> mVsyncModulator;
 
-    std::unique_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
 
     std::atomic<nsecs_t> mExpectedPresentTime = 0;
     nsecs_t mScheduledPresentTime = 0;
     hal::Vsync mHWCVsyncPendingState = hal::Vsync::DISABLE;
-
-    std::mutex mActiveModeLock;
-    // This bit is set once we start setting the mode. We read from this bit during the
-    // process. If at the end, this bit is different than mDesiredActiveMode, we restart
-    // the process.
-    ActiveModeInfo mUpcomingActiveMode; // Always read and written on the main thread.
-    // This bit can be set at any point in time when the system wants the new mode.
-    ActiveModeInfo mDesiredActiveMode GUARDED_BY(mActiveModeLock);
+    hal::Vsync mLastHWCVsyncState = hal::Vsync::DISABLE;
 
     // below flags are set by main thread only
-    TracedOrdinal<bool> mDesiredActiveModeChanged
-            GUARDED_BY(mActiveModeLock) = {"DesiredActiveModeChanged", false};
     bool mSetActiveModePending = false;
 
     bool mLumaSampling = true;
@@ -1430,15 +1446,12 @@ private:
     // Should only be accessed by the main thread.
     InputWindowCommands mInputWindowCommands;
 
-    sp<SetInputWindowsListener> mSetInputWindowsListener;
-
     Hwc2::impl::PowerAdvisor mPowerAdvisor;
 
     // This should only be accessed on the main thread.
     nsecs_t mFrameStartTime = 0;
 
-    void enableRefreshRateOverlay(bool enable);
-    std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay GUARDED_BY(mStateLock);
+    void enableRefreshRateOverlay(bool enable) REQUIRES(mStateLock);
 
     // Flag used to set override desired display mode from backdoor
     bool mDebugDisplayModeSetByBackdoor = false;
@@ -1489,10 +1502,21 @@ private:
     auto getLayerCreatedState(const sp<IBinder>& handle);
     sp<Layer> handleLayerCreatedLocked(const sp<IBinder>& handle) REQUIRES(mStateLock);
 
-    std::atomic<ui::Transform::RotationFlags> mDefaultDisplayTransformHint;
+    std::atomic<ui::Transform::RotationFlags> mActiveDisplayTransformHint;
 
     void scheduleRegionSamplingThread();
     void notifyRegionSamplingThread();
+
+    bool isRefreshRateOverlayEnabled() const REQUIRES(mStateLock) {
+        return std::any_of(mDisplays.begin(), mDisplays.end(),
+                           [](std::pair<wp<IBinder>, sp<DisplayDevice>> display) {
+                               return display.second->isRefreshRateOverlayEnabled();
+                           });
+    }
+
+    wp<IBinder> mActiveDisplayToken GUARDED_BY(mStateLock);
+
+    const sp<WindowInfosListenerInvoker> mWindowInfosListenerInvoker;
 };
 
 } // namespace android

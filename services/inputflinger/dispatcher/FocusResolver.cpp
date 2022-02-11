@@ -27,11 +27,14 @@ static constexpr bool DEBUG_FOCUS = false;
 
 #include <android-base/stringprintf.h>
 #include <binder/Binder.h>
-#include <input/InputWindow.h>
-#include <input/NamedEnum.h>
+#include <ftl/NamedEnum.h>
+#include <gui/WindowInfo.h>
 #include <log/log.h>
 
 #include "FocusResolver.h"
+
+using android::gui::FocusRequest;
+using android::gui::WindowInfoHandle;
 
 namespace android::inputdispatcher {
 
@@ -52,7 +55,7 @@ std::optional<FocusRequest> FocusResolver::getFocusRequest(int32_t displayId) {
  * we will check if the previous focus request is eligible to receive focus.
  */
 std::optional<FocusResolver::FocusChanges> FocusResolver::setInputWindows(
-        int32_t displayId, const std::vector<sp<InputWindowHandle>>& windows) {
+        int32_t displayId, const std::vector<sp<WindowInfoHandle>>& windows) {
     std::string removeFocusReason;
 
     // Check if the currently focused window is still focusable.
@@ -87,7 +90,7 @@ std::optional<FocusResolver::FocusChanges> FocusResolver::setInputWindows(
 }
 
 std::optional<FocusResolver::FocusChanges> FocusResolver::setFocusedWindow(
-        const FocusRequest& request, const std::vector<sp<InputWindowHandle>>& windows) {
+        const FocusRequest& request, const std::vector<sp<WindowInfoHandle>>& windows) {
     const int32_t displayId = request.displayId;
     const sp<IBinder> currentFocus = getFocusedWindowToken(displayId);
     if (currentFocus == request.token) {
@@ -136,11 +139,11 @@ std::optional<FocusResolver::FocusChanges> FocusResolver::setFocusedWindow(
 }
 
 FocusResolver::Focusability FocusResolver::isTokenFocusable(
-        const sp<IBinder>& token, const std::vector<sp<InputWindowHandle>>& windows) {
+        const sp<IBinder>& token, const std::vector<sp<WindowInfoHandle>>& windows) {
     bool allWindowsAreFocusable = true;
     bool visibleWindowFound = false;
     bool windowFound = false;
-    for (const sp<InputWindowHandle>& window : windows) {
+    for (const sp<WindowInfoHandle>& window : windows) {
         if (window->getToken() != token) {
             continue;
         }

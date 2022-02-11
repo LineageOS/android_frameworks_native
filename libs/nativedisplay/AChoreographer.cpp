@@ -20,7 +20,6 @@
 #include <android-base/thread_annotations.h>
 #include <gui/DisplayEventDispatcher.h>
 #include <gui/ISurfaceComposer.h>
-#include <gui/SurfaceComposerClient.h>
 #include <jni.h>
 #include <private/android/choreographer.h>
 #include <utils/Looper.h>

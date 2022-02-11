@@ -18,8 +18,11 @@
 
 #include <android/os/IInputConstants.h>
 #include <binder/Binder.h>
+#include <gui/constants.h>
 #include "../dispatcher/InputDispatcher.h"
 
+using android::gui::WindowInfo;
+using android::gui::WindowInfoHandle;
 using android::os::IInputConstants;
 using android::os::InputEventInjectionResult;
 using android::os::InputEventInjectionSync;
@@ -173,7 +176,7 @@ protected:
     PreallocatedInputEventFactory mEventFactory;
 };
 
-class FakeWindowHandle : public InputWindowHandle, public FakeInputReceiver {
+class FakeWindowHandle : public WindowInfoHandle, public FakeInputReceiver {
 public:
     static const int32_t WIDTH = 200;
     static const int32_t HEIGHT = 200;
@@ -182,13 +185,14 @@ public:
                      const sp<InputDispatcher>& dispatcher, const std::string name)
           : FakeInputReceiver(dispatcher, name), mFrame(Rect(0, 0, WIDTH, HEIGHT)) {
         inputApplicationHandle->updateInfo();
+        updateInfo();
         mInfo.applicationInfo = *inputApplicationHandle->getInfo();
     }
 
-    virtual bool updateInfo() override {
+    void updateInfo() {
         mInfo.token = mClientChannel->getConnectionToken();
         mInfo.name = "FakeWindowHandle";
-        mInfo.type = InputWindowInfo::Type::APPLICATION;
+        mInfo.type = WindowInfo::Type::APPLICATION;
         mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
         mInfo.frameLeft = mFrame.left;
         mInfo.frameTop = mFrame.top;
@@ -204,8 +208,6 @@ public:
         mInfo.ownerPid = INJECTOR_PID;
         mInfo.ownerUid = INJECTOR_UID;
         mInfo.displayId = ADISPLAY_ID_DEFAULT;
-
-        return true;
     }
 
 protected:
@@ -234,8 +236,8 @@ static MotionEvent generateMotionEvent() {
                      /* edgeFlags */ 0, AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
                      identityTransform, /* xPrecision */ 0,
                      /* yPrecision */ 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, currentTime, currentTime,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ui::Transform::ROT_0,
+                     INVALID_DISPLAY_SIZE, INVALID_DISPLAY_SIZE, currentTime, currentTime,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     return event;
 }

@@ -614,6 +614,8 @@ ssize_t SensorDevice::pollFmq(sensors_event_t* buffer, size_t maxNumEventsToRead
 
 Return<void> SensorDevice::onDynamicSensorsConnected(
         const hidl_vec<SensorInfo> &dynamicSensorsAdded) {
+    std::unique_lock<std::mutex> lock(mDynamicSensorsMutex);
+
     // Allocate a sensor_t structure for each dynamic sensor added and insert
     // it into the dictionary of connected dynamic sensors keyed by handle.
     for (size_t i = 0; i < dynamicSensorsAdded.size(); ++i) {
@@ -628,6 +630,8 @@ Return<void> SensorDevice::onDynamicSensorsConnected(
         mConnectedDynamicSensors.insert(
                 std::make_pair(sensor->handle, sensor));
     }
+
+    mDynamicSensorsCv.notify_all();
 
     return Return<void>();
 }
@@ -1174,8 +1178,20 @@ void SensorDevice::convertToSensorEvent(
         dst->dynamic_sensor_meta.connected = dyn.connected;
         dst->dynamic_sensor_meta.handle = dyn.sensorHandle;
         if (dyn.connected) {
+            std::unique_lock<std::mutex> lock(mDynamicSensorsMutex);
+            // Give MAX_DYN_SENSOR_WAIT_SEC for onDynamicSensorsConnected to be invoked since it
+            // can be received out of order from this event due to a bug in the HIDL spec that
+            // marks it as oneway.
             auto it = mConnectedDynamicSensors.find(dyn.sensorHandle);
-            CHECK(it != mConnectedDynamicSensors.end());
+            if (it == mConnectedDynamicSensors.end()) {
+                mDynamicSensorsCv.wait_for(lock, MAX_DYN_SENSOR_WAIT,
+                        [&, dyn]{
+                            return mConnectedDynamicSensors.find(dyn.sensorHandle)
+                                    != mConnectedDynamicSensors.end();
+                });
+                it = mConnectedDynamicSensors.find(dyn.sensorHandle);
+                CHECK(it != mConnectedDynamicSensors.end());
+            }
 
             dst->dynamic_sensor_meta.sensor = it->second;
 

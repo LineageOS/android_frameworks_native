@@ -24,14 +24,22 @@
 
 namespace android::compositionengine::impl::planner {
 
+void TexturePool::allocatePool() {
+    mPool.clear();
+    if (mEnabled && mSize.isValid()) {
+        mPool.resize(kMinPoolSize);
+        std::generate_n(mPool.begin(), kMinPoolSize, [&]() {
+            return Entry{genTexture(), nullptr};
+        });
+    }
+}
+
 void TexturePool::setDisplaySize(ui::Size size) {
     if (mSize == size) {
         return;
     }
     mSize = size;
-    mPool.clear();
-    mPool.resize(kMinPoolSize);
-    std::generate_n(mPool.begin(), kMinPoolSize, [&]() { return Entry{genTexture(), nullptr}; });
+    allocatePool();
 }
 
 std::shared_ptr<TexturePool::AutoTexture> TexturePool::borrowTexture() {
@@ -46,7 +54,12 @@ std::shared_ptr<TexturePool::AutoTexture> TexturePool::borrowTexture() {
 
 void TexturePool::returnTexture(std::shared_ptr<renderengine::ExternalTexture>&& texture,
                                 const sp<Fence>& fence) {
-    // Drop the texture on the floor if the pool is no longer tracking textures of the same size.
+    // Drop the texture on the floor if the pool is not enabled
+    if (!mEnabled) {
+        return;
+    }
+
+    // Or the texture on the floor if the pool is no longer tracking textures of the same size.
     if (static_cast<int32_t>(texture->getBuffer()->getWidth()) != mSize.getWidth() ||
         static_cast<int32_t>(texture->getBuffer()->getHeight()) != mSize.getHeight()) {
         ALOGV("Deallocating texture from Planner's pool - display size changed (previous: (%dx%d), "
@@ -79,6 +92,17 @@ std::shared_ptr<renderengine::ExternalTexture> TexturePool::genTexture() {
                                            mRenderEngine,
                                            renderengine::ExternalTexture::Usage::READABLE |
                                                    renderengine::ExternalTexture::Usage::WRITEABLE);
+}
+
+void TexturePool::setEnabled(bool enabled) {
+    mEnabled = enabled;
+    allocatePool();
+}
+
+void TexturePool::dump(std::string& out) const {
+    base::StringAppendF(&out,
+                        "TexturePool (%s) has %zu buffers of size [%" PRId32 ", %" PRId32 "]\n",
+                        mEnabled ? "enabled" : "disabled", mPool.size(), mSize.width, mSize.height);
 }
 
 } // namespace android::compositionengine::impl::planner

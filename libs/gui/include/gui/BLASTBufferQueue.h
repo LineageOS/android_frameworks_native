@@ -53,7 +53,6 @@ public:
                                CompositorTiming compositorTiming, nsecs_t latchTime,
                                nsecs_t dequeueReadyTime) REQUIRES(mMutex);
     void getConnectionEvents(uint64_t frameNumber, bool* needsDisconnect);
-    void setBlastBufferQueue(BLASTBufferQueue* blastbufferqueue) REQUIRES(mMutex);
 
 protected:
     void onSidebandStreamChanged() override REQUIRES(mMutex);
@@ -74,6 +73,7 @@ class BLASTBufferQueue
     : public ConsumerBase::FrameAvailableListener, public BufferItemConsumer::BufferFreedListener
 {
 public:
+    BLASTBufferQueue(const std::string& name);
     BLASTBufferQueue(const std::string& name, const sp<SurfaceControl>& surface, int width,
                      int height, int32_t format);
 
@@ -88,10 +88,14 @@ public:
     void onFrameDequeued(const uint64_t) override;
     void onFrameCancelled(const uint64_t) override;
 
+    void transactionCommittedCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
+                                      const std::vector<SurfaceControlStats>& stats);
     void transactionCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
             const std::vector<SurfaceControlStats>& stats);
     void releaseBufferCallback(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
                                uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount);
+    void releaseBufferCallbackLocked(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
+                                     uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount);
     void setNextTransaction(SurfaceComposerClient::Transaction *t);
     void mergeWithNextTransaction(SurfaceComposerClient::Transaction* t, uint64_t frameNumber);
     void setTransactionCompleteCallback(uint64_t frameNumber,
@@ -99,7 +103,6 @@ public:
 
     void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format,
                 SurfaceComposerClient::Transaction* outTransaction = nullptr);
-    void flushShadowQueue() {}
 
     status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
     status_t setFrameTimelineInfo(const FrameTimelineInfo& info);
@@ -107,6 +110,9 @@ public:
     void setSidebandStream(const sp<NativeHandle>& stream);
 
     uint32_t getLastTransformHint() const;
+    void flushShadowQueue();
+
+    uint64_t getLastAcquiredFrameNum();
 
     virtual ~BLASTBufferQueue();
 
@@ -119,12 +125,16 @@ private:
     void createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
                            sp<IGraphicBufferConsumer>* outConsumer);
 
-    void processNextBufferLocked(bool useNextTransaction) REQUIRES(mMutex);
+    void acquireNextBufferLocked(
+            const std::optional<SurfaceComposerClient::Transaction*> transaction) REQUIRES(mMutex);
     Rect computeCrop(const BufferItem& item) REQUIRES(mMutex);
     // Return true if we need to reject the buffer based on the scaling mode and the buffer size.
     bool rejectBuffer(const BufferItem& item) REQUIRES(mMutex);
     bool maxBuffersAcquired(bool includeExtraAcquire) const REQUIRES(mMutex);
     static PixelFormat convertBufferFormat(PixelFormat& format);
+
+    void flushShadowQueueLocked() REQUIRES(mMutex);
+    void acquireAndReleaseBuffer() REQUIRES(mMutex);
 
     std::string mName;
     // Represents the queued buffer count from buffer queue,
@@ -155,6 +165,12 @@ private:
     struct ReleasedBuffer {
         ReleaseCallbackId callbackId;
         sp<Fence> releaseFence;
+        bool operator==(const ReleasedBuffer& rhs) const {
+            // Only compare Id so if we somehow got two callbacks
+            // with different fences we don't decrement mNumAcquired
+            // too far.
+            return rhs.callbackId == callbackId;
+        }
     };
     std::deque<ReleasedBuffer> mPendingRelease GUARDED_BY(mMutex);
 
@@ -233,6 +249,9 @@ private:
     // Keep track of SurfaceControls that have submitted a transaction and BBQ is waiting on a
     // callback for them.
     std::queue<sp<SurfaceControl>> mSurfaceControlsWithPendingCallback GUARDED_BY(mMutex);
+
+    uint32_t mCurrentMaxAcquiredBufferCount;
+    bool mWaitForTransactionCallback = false;
 };
 
 } // namespace android

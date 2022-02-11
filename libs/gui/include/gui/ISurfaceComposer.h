@@ -22,11 +22,12 @@
 #include <android/gui/IScreenCaptureListener.h>
 #include <android/gui/ITransactionTraceListener.h>
 #include <android/gui/ITunnelModeEnabledListener.h>
+#include <android/gui/IWindowInfosListener.h>
 #include <binder/IBinder.h>
 #include <binder/IInterface.h>
+#include <ftl/Flags.h>
 #include <gui/FrameTimelineInfo.h>
 #include <gui/ITransactionCompletedListener.h>
-#include <input/Flags.h>
 #include <math/vec4.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -554,6 +555,11 @@ public:
      * in MIN_UNDEQUEUED_BUFFERS.
      */
     virtual status_t getMaxAcquiredBufferCount(int* buffers) const = 0;
+
+    virtual status_t addWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& windowInfosListener) const = 0;
+    virtual status_t removeWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& windowInfosListener) const = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -626,6 +632,8 @@ public:
         ON_PULL_ATOM,
         ADD_TUNNEL_MODE_ENABLED_LISTENER,
         REMOVE_TUNNEL_MODE_ENABLED_LISTENER,
+        ADD_WINDOW_INFOS_LISTENER,
+        REMOVE_WINDOW_INFOS_LISTENER,
         GET_PRIMARY_PHYSICAL_DISPLAY_ID,
         // Always append new enum to the end.
     };

@@ -161,6 +161,7 @@ void SurfaceInterceptor::addInitialDisplayStateLocked(Increment* increment,
 
     addDisplaySurfaceLocked(transaction, display.sequenceId, display.surface);
     addDisplayLayerStackLocked(transaction, display.sequenceId, display.layerStack);
+    addDisplayFlagsLocked(transaction, display.sequenceId, display.flags);
     addDisplaySizeLocked(transaction, display.sequenceId, display.width, display.height);
     addDisplayProjectionLocked(transaction, display.sequenceId, toRotationInt(display.orientation),
                                display.layerStackSpaceRect, display.orientedDisplaySpaceRect);
@@ -481,6 +482,9 @@ void SurfaceInterceptor::addDisplayChangesLocked(Transaction* transaction,
     if (state.what & DisplayState::eLayerStackChanged) {
         addDisplayLayerStackLocked(transaction, sequenceId, state.layerStack);
     }
+    if (state.what & DisplayState::eFlagsChanged) {
+        addDisplayFlagsLocked(transaction, sequenceId, state.flags);
+    }
     if (state.what & DisplayState::eDisplaySizeChanged) {
         addDisplaySizeLocked(transaction, sequenceId, state.width, state.height);
     }
@@ -570,6 +574,13 @@ void SurfaceInterceptor::addDisplayLayerStackLocked(Transaction* transaction,
     DisplayChange* dispChange(createDisplayChangeLocked(transaction, sequenceId));
     LayerStackChange* layerStackChange(dispChange->mutable_layer_stack());
     layerStackChange->set_layer_stack(layerStack);
+}
+
+void SurfaceInterceptor::addDisplayFlagsLocked(Transaction* transaction, int32_t sequenceId,
+                                               uint32_t flags) {
+    DisplayChange* dispChange(createDisplayChangeLocked(transaction, sequenceId));
+    DisplayFlagsChange* flagsChange(dispChange->mutable_flags());
+    flagsChange->set_flags(flags);
 }
 
 void SurfaceInterceptor::addDisplaySizeLocked(Transaction* transaction, int32_t sequenceId,

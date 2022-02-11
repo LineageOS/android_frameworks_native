@@ -25,6 +25,7 @@
 
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
+#include <gui/constants.h>
 #include <input/Input.h>
 #include <input/InputDevice.h>
 #include <input/InputEventLabels.h>
@@ -66,23 +67,15 @@ float transformAngle(const ui::Transform& transform, float angleRadians) {
     transformedPoint.y -= origin.y;
 
     // Derive the transformed vector's clockwise angle from vertical.
-    float result = atan2f(transformedPoint.x, -transformedPoint.y);
-    if (result < -M_PI_2) {
-        result += M_PI;
-    } else if (result > M_PI_2) {
-        result -= M_PI;
-    }
-    return result;
+    // The return value of atan2f is in range [-pi, pi] which conforms to the orientation API.
+    return atan2f(transformedPoint.x, -transformedPoint.y);
 }
 
-// Rotates the given point to the transform's orientation. If the display width and height are
+// Rotates the given point to the specified orientation. If the display width and height are
 // provided, the point is rotated in the screen space. Otherwise, the point is rotated about the
 // origin. This helper is used to avoid the extra overhead of creating new Transforms.
-vec2 rotatePoint(const ui::Transform& transform, float x, float y, int32_t displayWidth = 0,
+vec2 rotatePoint(uint32_t orientation, float x, float y, int32_t displayWidth = 0,
                  int32_t displayHeight = 0) {
-    // 0x7 encapsulates all 3 rotations (see ui::Transform::RotationFlags)
-    static const int ALL_ROTATIONS_MASK = 0x7;
-    const uint32_t orientation = (transform.getOrientation() & ALL_ROTATIONS_MASK);
     if (orientation == ui::Transform::ROT_0) {
         return {x, y};
     }
@@ -99,6 +92,19 @@ vec2 rotatePoint(const ui::Transform& transform, float x, float y, int32_t displ
         xy.y = displayWidth - x;
     }
     return xy;
+}
+
+vec2 applyTransformWithoutTranslation(const ui::Transform& transform, float x, float y) {
+    const vec2 transformedXy = transform.transform(x, y);
+    const vec2 transformedOrigin = transform.transform(0, 0);
+    return transformedXy - transformedOrigin;
+}
+
+bool shouldDisregardWindowTranslation(uint32_t source) {
+    // Pointer events are the only type of events that refer to absolute coordinates on the display,
+    // so we should apply the entire window transform. For other types of events, we should make
+    // sure to not apply the window translation/offset.
+    return (source & AINPUT_SOURCE_CLASS_POINTER) == 0;
 }
 
 } // namespace
@@ -315,6 +321,8 @@ void PointerCoords::scale(float globalScaleFactor, float windowXScale, float win
     scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOUCH_MINOR, globalScaleFactor);
     scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOOL_MAJOR, globalScaleFactor);
     scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOOL_MINOR, globalScaleFactor);
+    scaleAxisValue(*this, AMOTION_EVENT_AXIS_RELATIVE_X, windowXScale);
+    scaleAxisValue(*this, AMOTION_EVENT_AXIS_RELATIVE_Y, windowYScale);
 }
 
 void PointerCoords::scale(float globalScaleFactor) {
@@ -383,6 +391,15 @@ void PointerCoords::transform(const ui::Transform& transform) {
     setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
     setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
 
+    if (BitSet64::hasBit(bits, AMOTION_EVENT_AXIS_RELATIVE_X) ||
+        BitSet64::hasBit(bits, AMOTION_EVENT_AXIS_RELATIVE_Y)) {
+        const ui::Transform rotation(transform.getOrientation());
+        const vec2 relativeXy = rotation.transform(getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
+                                                   getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y));
+        setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, relativeXy.x);
+        setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, relativeXy.y);
+    }
+
     if (BitSet64::hasBit(bits, AMOTION_EVENT_AXIS_ORIENTATION)) {
         const float val = getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
         setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, transformAngle(transform, val));
@@ -410,9 +427,9 @@ void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int3
                              int32_t buttonState, MotionClassification classification,
                              const ui::Transform& transform, float xPrecision, float yPrecision,
                              float rawXCursorPosition, float rawYCursorPosition,
-                             int32_t displayWidth, int32_t displayHeight, nsecs_t downTime,
-                             nsecs_t eventTime, size_t pointerCount,
-                             const PointerProperties* pointerProperties,
+                             uint32_t displayOrientation, int32_t displayWidth,
+                             int32_t displayHeight, nsecs_t downTime, nsecs_t eventTime,
+                             size_t pointerCount, const PointerProperties* pointerProperties,
                              const PointerCoords* pointerCoords) {
     InputEvent::initialize(id, deviceId, source, displayId, hmac);
     mAction = action;
@@ -427,6 +444,7 @@ void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int3
     mYPrecision = yPrecision;
     mRawXCursorPosition = rawXCursorPosition;
     mRawYCursorPosition = rawYCursorPosition;
+    mDisplayOrientation = displayOrientation;
     mDisplayWidth = displayWidth;
     mDisplayHeight = displayHeight;
     mDownTime = downTime;
@@ -452,6 +470,7 @@ void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
     mYPrecision = other->mYPrecision;
     mRawXCursorPosition = other->mRawXCursorPosition;
     mRawYCursorPosition = other->mRawYCursorPosition;
+    mDisplayOrientation = other->mDisplayOrientation;
     mDisplayWidth = other->mDisplayWidth;
     mDisplayHeight = other->mDisplayHeight;
     mDownTime = other->mDownTime;
@@ -521,23 +540,46 @@ float MotionEvent::getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
     if (axis == AMOTION_EVENT_AXIS_X || axis == AMOTION_EVENT_AXIS_Y) {
         // For compatibility, convert raw coordinates into "oriented screen space". Once app
         // developers are educated about getRaw, we can consider removing this.
-        const vec2 xy = rotatePoint(mTransform, coords->getX(), coords->getY(), mDisplayWidth,
-                                    mDisplayHeight);
+        const vec2 xy = shouldDisregardWindowTranslation(mSource)
+                ? rotatePoint(mDisplayOrientation, coords->getX(), coords->getY())
+                : rotatePoint(mDisplayOrientation, coords->getX(), coords->getY(), mDisplayWidth,
+                              mDisplayHeight);
         static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
         return xy[axis];
+    }
+
+    if (axis == AMOTION_EVENT_AXIS_RELATIVE_X || axis == AMOTION_EVENT_AXIS_RELATIVE_Y) {
+        // For compatibility, since we convert raw coordinates into "oriented screen space", we
+        // need to convert the relative axes into the same orientation for consistency.
+        const vec2 relativeXy = rotatePoint(mDisplayOrientation,
+                                            coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
+                                            coords->getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y));
+        return axis == AMOTION_EVENT_AXIS_RELATIVE_X ? relativeXy.x : relativeXy.y;
     }
 
     return coords->getAxisValue(axis);
 }
 
 float MotionEvent::getHistoricalAxisValue(int32_t axis, size_t pointerIndex,
-        size_t historicalIndex) const {
+                                          size_t historicalIndex) const {
     const PointerCoords* coords = getHistoricalRawPointerCoords(pointerIndex, historicalIndex);
 
     if (axis == AMOTION_EVENT_AXIS_X || axis == AMOTION_EVENT_AXIS_Y) {
-        const vec2 xy = mTransform.transform(coords->getXYValue());
+        const vec2 xy = shouldDisregardWindowTranslation(mSource)
+                ? applyTransformWithoutTranslation(mTransform, coords->getX(), coords->getY())
+                : mTransform.transform(coords->getXYValue());
         static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
         return xy[axis];
+    }
+
+    if (axis == AMOTION_EVENT_AXIS_RELATIVE_X || axis == AMOTION_EVENT_AXIS_RELATIVE_Y) {
+        const vec2 relativeXy =
+                applyTransformWithoutTranslation(mTransform,
+                                                 coords->getAxisValue(
+                                                         AMOTION_EVENT_AXIS_RELATIVE_X),
+                                                 coords->getAxisValue(
+                                                         AMOTION_EVENT_AXIS_RELATIVE_Y));
+        return axis == AMOTION_EVENT_AXIS_RELATIVE_X ? relativeXy.x : relativeXy.y;
     }
 
     return coords->getAxisValue(axis);
@@ -595,6 +637,13 @@ void MotionEvent::applyTransform(const std::array<float, 9>& matrix) {
     // Apply the transformation to all samples.
     std::for_each(mSamplePointerCoords.begin(), mSamplePointerCoords.end(),
                   [&transform](PointerCoords& c) { c.transform(transform); });
+
+    if (mRawXCursorPosition != AMOTION_EVENT_INVALID_CURSOR_POSITION &&
+        mRawYCursorPosition != AMOTION_EVENT_INVALID_CURSOR_POSITION) {
+        const vec2 cursor = transform.transform(mRawXCursorPosition, mRawYCursorPosition);
+        mRawXCursorPosition = cursor.x;
+        mRawYCursorPosition = cursor.y;
+    }
 }
 
 #ifdef __linux__
@@ -655,6 +704,7 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
     mYPrecision = parcel->readFloat();
     mRawXCursorPosition = parcel->readFloat();
     mRawYCursorPosition = parcel->readFloat();
+    mDisplayOrientation = parcel->readUint32();
     mDisplayWidth = parcel->readInt32();
     mDisplayHeight = parcel->readInt32();
     mDownTime = parcel->readInt64();
@@ -716,6 +766,7 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
     parcel->writeFloat(mYPrecision);
     parcel->writeFloat(mRawXCursorPosition);
     parcel->writeFloat(mRawYCursorPosition);
+    parcel->writeUint32(mDisplayOrientation);
     parcel->writeInt32(mDisplayWidth);
     parcel->writeInt32(mDisplayHeight);
     parcel->writeInt64(mDownTime);

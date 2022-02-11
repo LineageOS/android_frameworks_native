@@ -515,13 +515,10 @@ void BufferQueueLayer::onFirstRef() {
 }
 
 status_t BufferQueueLayer::setDefaultBufferProperties(uint32_t w, uint32_t h, PixelFormat format) {
-    uint32_t const maxSurfaceDims =
-          std::min(mFlinger->getMaxTextureSize(), mFlinger->getMaxViewportDims());
-
     // never allow a surface larger than what our underlying GL implementation
     // can handle.
-    if ((uint32_t(w) > maxSurfaceDims) || (uint32_t(h) > maxSurfaceDims)) {
-        ALOGE("dimensions too large %u x %u", uint32_t(w), uint32_t(h));
+    if (mFlinger->exceedsMaxRenderTargetSize(w, h)) {
+        ALOGE("dimensions too large %" PRIu32 " x %" PRIu32, w, h);
         return BAD_VALUE;
     }
 

@@ -17,11 +17,12 @@
 
 #pragma once
 
+#include <android/gui/DropInputMode.h>
 #include <compositionengine/LayerFE.h>
 #include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
-#include <input/InputWindow.h>
+#include <gui/WindowInfo.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <math/vec4.h>
 #include <renderengine/Mesh.h>
@@ -186,7 +187,7 @@ public:
         float cornerRadius;
         int backgroundBlurRadius;
 
-        InputWindowInfo inputInfo;
+        gui::WindowInfo inputInfo;
         wp<Layer> touchableRegionCrop;
 
         // dataspace is only used by BufferStateLayer and EffectLayer
@@ -280,6 +281,10 @@ public:
 
         Rect bufferCrop;
         Rect destinationFrame;
+
+        sp<IBinder> releaseBufferEndpoint;
+
+        gui::DropInputMode dropInputMode;
     };
 
     /*
@@ -422,7 +427,8 @@ public:
                            const client_cache_t& /*clientCacheId*/, uint64_t /* frameNumber */,
                            std::optional<nsecs_t> /* dequeueTime */,
                            const FrameTimelineInfo& /*info*/,
-                           const sp<ITransactionCompletedListener>& /* releaseBufferListener */) {
+                           const sp<ITransactionCompletedListener>& /* releaseBufferListener */,
+                           const sp<IBinder>& /* releaseBufferEndpoint */) {
         return false;
     };
     virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
@@ -444,6 +450,8 @@ public:
     virtual bool setFrameRateSelectionPriority(int32_t priority);
     virtual bool setFixedTransformHint(ui::Transform::RotationFlags fixedTransformHint);
     virtual void setAutoRefresh(bool /* autoRefresh */) {}
+    bool setDropInputMode(gui::DropInputMode);
+
     //  If the variable is not set on the layer, it traverses up the tree to inherit the frame
     //  rate priority from its parent.
     virtual int32_t getFrameRateSelectionPriority() const;
@@ -603,10 +611,8 @@ public:
     virtual bool getTransformToDisplayInverse() const { return false; }
 
     // Returns how rounded corners should be drawn for this layer.
-    // This will traverse the hierarchy until it reaches its root, finding topmost rounded
-    // corner definition and converting it into current layer's coordinates.
-    // As of now, only 1 corner radius per display list is supported. Subsequent ones will be
-    // ignored.
+    // A layer can override its parent's rounded corner settings if the parent's rounded
+    // corner crop does not intersect with its own rounded corner crop.
     virtual RoundedCornerState getRoundedCornerState() const;
 
     bool hasRoundedCorners() const override { return getRoundedCornerState().radius > .0f; }
@@ -695,7 +701,7 @@ public:
     void writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet,
                                  uint32_t traceFlags = SurfaceTracing::TRACE_ALL);
 
-    InputWindowInfo::Type getWindowType() const { return mWindowType; }
+    gui::WindowInfo::Type getWindowType() const { return mWindowType; }
 
     bool getPrimaryDisplayOnly() const;
 
@@ -846,9 +852,9 @@ public:
     sp<IBinder> getHandle();
     const std::string& getName() const { return mName; }
     bool getPremultipledAlpha() const;
-    void setInputInfo(const InputWindowInfo& info);
+    void setInputInfo(const gui::WindowInfo& info);
 
-    InputWindowInfo fillInputInfo(const sp<DisplayDevice>& display);
+    gui::WindowInfo fillInputInfo(const sp<DisplayDevice>& display);
     /**
      * Returns whether this layer has an explicitly set input-info.
      */
@@ -923,6 +929,7 @@ protected:
     bool isClone() { return mClonedFrom != nullptr; }
     bool isClonedFromAlive() { return getClonedFrom() != nullptr; }
 
+    void cloneDrawingState(const Layer* from);
     void updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
     void updateClonedChildren(const sp<Layer>& mirrorRoot,
                               std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
@@ -1013,7 +1020,7 @@ protected:
     wp<Layer> mDrawingParent;
 
     // Window types from WindowManager.LayoutParams
-    const InputWindowInfo::Type mWindowType;
+    const gui::WindowInfo::Type mWindowType;
 
     // The owner of the layer. If created from a non system process, it will be the calling uid.
     // If created from a system process, the value can be passed in.
@@ -1056,6 +1063,8 @@ private:
     bool setFrameRateForLayerTree(FrameRate);
     void setZOrderRelativeOf(const wp<Layer>& relativeOf);
     bool isTrustedOverlay() const;
+    gui::DropInputMode getDropInputMode() const;
+    void handleDropInputMode(gui::WindowInfo& info) const;
 
     // Find the root of the cloned hierarchy, this means the first non cloned parent.
     // This will return null if first non cloned parent is not found.
@@ -1067,10 +1076,10 @@ private:
 
     // Fills in the touch occlusion mode of the first parent (including this layer) that
     // hasInputInfo() or no-op if no such parent is found.
-    void fillTouchOcclusionMode(InputWindowInfo& info);
+    void fillTouchOcclusionMode(gui::WindowInfo& info);
 
-    // Fills in the frame and transform info for the InputWindowInfo
-    void fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhysicalDisplay);
+    // Fills in the frame and transform info for the gui::WindowInfo
+    void fillInputFrameInfo(gui::WindowInfo& info, const ui::Transform& toNonRotatedDisplay);
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling, which is

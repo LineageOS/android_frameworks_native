@@ -19,10 +19,10 @@
 #include <stdlib.h>
 
 #include <android/keycodes.h>
+#include <ftl/NamedEnum.h>
 #include <input/InputEventLabels.h>
 #include <input/KeyLayoutMap.h>
 #include <input/Keyboard.h>
-#include <input/NamedEnum.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include <utils/Timers.h>
