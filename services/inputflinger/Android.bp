@@ -58,6 +58,7 @@ filegroup {
     srcs: [
         "InputClassifier.cpp",
         "InputCommonConverter.cpp",
+        "PreferStylusOverTouchBlocker.cpp",
         "UnwantedInteractionBlocker.cpp",
         "InputManager.cpp",
     ],
