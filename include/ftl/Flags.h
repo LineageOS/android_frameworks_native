@@ -120,10 +120,10 @@ public:
     }
 
     /* Tests whether any of the given flags are set */
-    bool any(Flags<F> f) { return (mFlags & f.mFlags) != 0; }
+    bool any(Flags<F> f) const { return (mFlags & f.mFlags) != 0; }
 
     /* Tests whether all of the given flags are set */
-    bool all(Flags<F> f) { return (mFlags & f.mFlags) == f.mFlags; }
+    bool all(Flags<F> f) const { return (mFlags & f.mFlags) == f.mFlags; }
 
     Flags<F> operator|(Flags<F> rhs) const { return static_cast<F>(mFlags | rhs.mFlags); }
     Flags<F>& operator|=(Flags<F> rhs) {
@@ -151,6 +151,10 @@ public:
     Flags<F>& operator=(const Flags<F>& rhs) {
         mFlags = rhs.mFlags;
         return *this;
+    }
+
+    inline Flags<F>& clear(Flags<F> f = static_cast<F>(~static_cast<U>(0))) {
+        return *this &= ~f;
     }
 
     Iterator begin() const { return Iterator(*this); }
