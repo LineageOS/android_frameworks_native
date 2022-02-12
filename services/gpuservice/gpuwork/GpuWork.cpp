@@ -24,7 +24,6 @@
 #include <binder/PermissionCache.h>
 #include <bpf/WaitForProgsLoaded.h>
 #include <libbpf.h>
-#include <libbpf_android.h>
 #include <log/log.h>
 #include <random>
 #include <stats_event.h>
