@@ -35,7 +35,9 @@ using gui::FocusRequest;
 using gui::WindowInfoHandle;
 
 layer_state_t::layer_state_t()
-      : what(0),
+      : surface(nullptr),
+        layerId(-1),
+        what(0),
         x(0),
         y(0),
         z(0),
@@ -153,8 +155,12 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeBool, isTrustedOverlay);
 
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dropInputMode));
-    SAFE_PARCEL(output.writeNullableParcelable,
-                bufferData ? std::make_optional<BufferData>(*bufferData) : std::nullopt);
+
+    const bool hasBufferData = (bufferData != nullptr);
+    SAFE_PARCEL(output.writeBool, hasBufferData);
+    if (hasBufferData) {
+        SAFE_PARCEL(output.writeParcelable, *bufferData);
+    }
     return NO_ERROR;
 }
 
@@ -264,9 +270,15 @@ status_t layer_state_t::read(const Parcel& input)
     uint32_t mode;
     SAFE_PARCEL(input.readUint32, &mode);
     dropInputMode = static_cast<gui::DropInputMode>(mode);
-    std::optional<BufferData> tmpBufferData;
-    SAFE_PARCEL(input.readParcelable, &tmpBufferData);
-    bufferData = tmpBufferData ? std::make_shared<BufferData>(*tmpBufferData) : nullptr;
+
+    bool hasBufferData;
+    SAFE_PARCEL(input.readBool, &hasBufferData);
+    if (hasBufferData) {
+        bufferData = std::make_shared<BufferData>();
+        SAFE_PARCEL(input.readParcelable, bufferData.get());
+    } else {
+        bufferData = nullptr;
+    }
     return NO_ERROR;
 }
 
