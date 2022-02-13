@@ -67,7 +67,7 @@ public:
         // -rw-r--r--
         const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
         if (!android::base::WriteStringToFile(output, filename, mode, getuid(), getgid(), true)) {
-            ALOGE("Could not save the proto file.");
+            ALOGE("Could not save the proto file %s", filename.c_str());
             return PERMISSION_DENIED;
         }
         return NO_ERROR;

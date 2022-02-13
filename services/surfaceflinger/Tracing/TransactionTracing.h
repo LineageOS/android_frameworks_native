@@ -55,7 +55,7 @@ public:
 
     void addQueuedTransaction(const TransactionState&);
     void addCommittedTransactions(std::vector<TransactionState>& transactions, int64_t vsyncId);
-    status_t writeToFile();
+    status_t writeToFile(std::string filename = FILE_NAME);
     void setBufferSize(size_t bufferSizeInBytes);
     void onLayerAdded(BBinder* layerHandle, int layerId, const std::string& name, uint32_t flags,
                       int parentId);
@@ -84,6 +84,7 @@ private:
             GUARDED_BY(mTraceLock);
     std::vector<int32_t /* layerId */> mRemovedLayerHandles GUARDED_BY(mTraceLock);
     std::map<int32_t /* layerId */, TracingLayerState> mStartingStates GUARDED_BY(mTraceLock);
+    TransactionProtoParser mProtoParser GUARDED_BY(mTraceLock);
 
     // We do not want main thread to block so main thread will try to acquire mMainThreadLock,
     // otherwise will push data to temporary container.

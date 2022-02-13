@@ -1993,29 +1993,31 @@ void Layer::setInputInfo(const WindowInfo& info) {
     setTransactionFlags(eTransactionNeeded);
 }
 
-LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags,
-                                const DisplayDevice* display) {
+LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags) {
     LayerProto* layerProto = layersProto.add_layers();
-    writeToProtoDrawingState(layerProto, traceFlags, display);
+    writeToProtoDrawingState(layerProto);
     writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
 
     if (traceFlags & LayerTracing::TRACE_COMPOSITION) {
         // Only populate for the primary display.
+        UnnecessaryLock assumeLocked(mFlinger->mStateLock); // called from the main thread.
+        const auto display = mFlinger->getDefaultDisplayDeviceLocked();
         if (display) {
             const auto compositionType = getCompositionType(*display);
             layerProto->set_hwc_composition_type(static_cast<HwcCompositionType>(compositionType));
+            LayerProtoHelper::writeToProto(getVisibleRegion(display.get()),
+                                           [&]() { return layerProto->mutable_visible_region(); });
         }
     }
 
     for (const sp<Layer>& layer : mDrawingChildren) {
-        layer->writeToProto(layersProto, traceFlags, display);
+        layer->writeToProto(layersProto, traceFlags);
     }
 
     return layerProto;
 }
 
-void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
-                                     const DisplayDevice* display) {
+void Layer::writeToProtoDrawingState(LayerProto* layerInfo) {
     const ui::Transform transform = getTransform();
     auto buffer = getExternalTexture();
     if (buffer != nullptr) {
@@ -2039,10 +2041,6 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
     LayerProtoHelper::writePositionToProto(transform.tx(), transform.ty(),
                                            [&]() { return layerInfo->mutable_position(); });
     LayerProtoHelper::writeToProto(mBounds, [&]() { return layerInfo->mutable_bounds(); });
-    if (traceFlags & LayerTracing::TRACE_COMPOSITION) {
-        LayerProtoHelper::writeToProto(getVisibleRegion(display),
-                                       [&]() { return layerInfo->mutable_visible_region(); });
-    }
     LayerProtoHelper::writeToProto(surfaceDamageRegion,
                                    [&]() { return layerInfo->mutable_damage_region(); });
 
