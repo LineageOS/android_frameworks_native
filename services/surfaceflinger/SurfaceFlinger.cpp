@@ -250,11 +250,6 @@ struct SCOPED_CAPABILITY TimedLock {
     const status_t status;
 };
 
-struct SCOPED_CAPABILITY UnnecessaryLock {
-    explicit UnnecessaryLock(Mutex& mutex) ACQUIRE(mutex) {}
-    ~UnnecessaryLock() RELEASE() {}
-};
-
 // TODO(b/141333600): Consolidate with DisplayMode::Builder::getDefaultDensity.
 constexpr float FALLBACK_DENSITY = ACONFIGURATION_DENSITY_TV;
 
@@ -5102,11 +5097,9 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
 }
 
 LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
-    const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
-
     LayersProto layersProto;
     for (const sp<Layer>& layer : mDrawingState.layersSortedByZ) {
-        layer->writeToProto(layersProto, traceFlags, display.get());
+        layer->writeToProto(layersProto, traceFlags);
     }
 
     return layersProto;
@@ -5147,8 +5140,7 @@ void SurfaceFlinger::dumpOffscreenLayersProto(LayersProto& layersProto, uint32_t
         rootProto->add_children(offscreenLayer->sequence);
 
         // Add layer
-        LayerProto* layerProto =
-                offscreenLayer->writeToProto(layersProto, traceFlags, nullptr /*device*/);
+        LayerProto* layerProto = offscreenLayer->writeToProto(layersProto, traceFlags);
         layerProto->set_parent(offscreenRootLayerId);
     }
 }
@@ -5743,9 +5735,9 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             }
             case 1025: { // Set layer tracing
                 n = data.readInt32();
-                int64_t fixedStartingTime = data.readInt64();
                 bool tracingEnabledChanged;
-                if (n) {
+                if (n == 1) {
+                    int64_t fixedStartingTime = data.readInt64();
                     ALOGD("LayerTracing enabled");
                     tracingEnabledChanged = mLayerTracing.enable();
                     if (tracingEnabledChanged) {
@@ -5757,6 +5749,10 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                                 })
                                 .wait();
                     }
+                } else if (n == 2) {
+                    std::string filename = std::string(data.readCString());
+                    ALOGD("LayerTracing disabled. Trace wrote to %s", filename.c_str());
+                    tracingEnabledChanged = mLayerTracing.disable(filename.c_str());
                 } else {
                     ALOGD("LayerTracing disabled");
                     tracingEnabledChanged = mLayerTracing.disable();
@@ -6009,9 +6005,9 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                         mTransactionTracing->setBufferSize(
                                 TransactionTracing::ACTIVE_TRACING_BUFFER_SIZE);
                     } else {
+                        mTransactionTracing->writeToFile();
                         mTransactionTracing->setBufferSize(
                                 TransactionTracing::CONTINUOUS_TRACING_BUFFER_SIZE);
-                        mTransactionTracing->writeToFile();
                     }
                 }
                 reply->writeInt32(NO_ERROR);

@@ -43,33 +43,77 @@ struct TracingLayerState : layer_state_t {
     TracingLayerCreationArgs args;
 };
 
-class TransactionProtoParser {
+// Class which exposes buffer properties from BufferData without holding on to the actual buffer
+// handle.
+class BufferDataStub : public BufferData {
 public:
-    typedef std::function<sp<IBinder>(int32_t)> LayerIdToHandleFn;
-    typedef std::function<sp<IBinder>(int32_t)> DisplayIdToHandleFn;
-    typedef std::function<int32_t(const sp<IBinder>&)> LayerHandleToIdFn;
-    typedef std::function<int32_t(const sp<IBinder>&)> DisplayHandleToIdFn;
-
-    static proto::TransactionState toProto(const TransactionState&, LayerHandleToIdFn getLayerIdFn,
-                                           DisplayHandleToIdFn getDisplayIdFn);
-    static proto::TransactionState toProto(
-            const std::map<int32_t /* layerId */, TracingLayerState>&);
-
-    static proto::LayerCreationArgs toProto(const TracingLayerCreationArgs& args);
-
-    static TransactionState fromProto(const proto::TransactionState&,
-                                      LayerIdToHandleFn getLayerHandleFn,
-                                      DisplayIdToHandleFn getDisplayHandleFn);
-    static void mergeFromProto(const proto::LayerState&, LayerIdToHandleFn getLayerHandleFn,
-                               TracingLayerState& outState);
-    static void fromProto(const proto::LayerCreationArgs&, TracingLayerCreationArgs& outArgs);
+    BufferDataStub(uint64_t bufferId, uint32_t width, uint32_t height, int32_t pixelFormat,
+                   uint64_t outUsage)
+          : mBufferId(bufferId),
+            mWidth(width),
+            mHeight(height),
+            mPixelFormat(pixelFormat),
+            mOutUsage(outUsage) {}
+    bool hasBuffer() const override { return mBufferId != 0; }
+    bool hasSameBuffer(const BufferData& other) const override {
+        return getId() == other.getId() && frameNumber == other.frameNumber;
+    }
+    uint32_t getWidth() const override { return mWidth; }
+    uint32_t getHeight() const override { return mHeight; }
+    uint64_t getId() const override { return mBufferId; }
+    PixelFormat getPixelFormat() const override { return mPixelFormat; }
+    uint64_t getUsage() const override { return mOutUsage; }
 
 private:
-    static proto::LayerState toProto(const layer_state_t&, LayerHandleToIdFn getLayerId);
-    static proto::DisplayState toProto(const DisplayState&, DisplayHandleToIdFn getDisplayId);
-    static void fromProto(const proto::LayerState&, LayerIdToHandleFn getLayerHandle,
-                          layer_state_t& out);
-    static DisplayState fromProto(const proto::DisplayState&, DisplayIdToHandleFn getDisplayHandle);
+    uint64_t mBufferId;
+    uint32_t mWidth;
+    uint32_t mHeight;
+    int32_t mPixelFormat;
+    uint64_t mOutUsage;
+};
+
+class TransactionProtoParser {
+public:
+    // Utility class to map handles to ids and buffers to buffer properties without pulling
+    // in SurfaceFlinger dependencies.
+    class FlingerDataMapper {
+    public:
+        virtual ~FlingerDataMapper() = default;
+        virtual sp<IBinder> getLayerHandle(int32_t /* layerId */) const { return nullptr; }
+        virtual int32_t getLayerId(const sp<IBinder>& /* layerHandle */) const { return -1; }
+        virtual sp<IBinder> getDisplayHandle(int32_t /* displayId */) const { return nullptr; }
+        virtual int32_t getDisplayId(const sp<IBinder>& /* displayHandle */) const { return -1; }
+        virtual std::shared_ptr<BufferData> getGraphicData(uint64_t bufferId, uint32_t width,
+                                                           uint32_t height, int32_t pixelFormat,
+                                                           uint64_t usage) const {
+            return std::make_shared<BufferDataStub>(bufferId, width, height, pixelFormat, usage);
+        }
+        virtual void getGraphicBufferPropertiesFromCache(client_cache_t /* cachedBuffer */,
+                                                         uint64_t* /* outBufferId */,
+                                                         uint32_t* /* outWidth */,
+                                                         uint32_t* /* outHeight */,
+                                                         int32_t* /* outPixelFormat */,
+                                                         uint64_t* /* outUsage */) const {}
+    };
+
+    TransactionProtoParser(std::unique_ptr<FlingerDataMapper> provider)
+          : mMapper(std::move(provider)) {}
+
+    proto::TransactionState toProto(const TransactionState&);
+    proto::TransactionState toProto(const std::map<int32_t /* layerId */, TracingLayerState>&);
+    proto::LayerCreationArgs toProto(const TracingLayerCreationArgs& args);
+
+    TransactionState fromProto(const proto::TransactionState&);
+    void mergeFromProto(const proto::LayerState&, TracingLayerState& outState);
+    void fromProto(const proto::LayerCreationArgs&, TracingLayerCreationArgs& outArgs);
+
+private:
+    proto::LayerState toProto(const layer_state_t&);
+    proto::DisplayState toProto(const DisplayState&);
+    void fromProto(const proto::LayerState&, layer_state_t& out);
+    DisplayState fromProto(const proto::DisplayState&);
+
+    std::unique_ptr<FlingerDataMapper> mMapper;
 };
 
 } // namespace android::surfaceflinger

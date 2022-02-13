@@ -45,14 +45,14 @@ bool LayerTracing::enable() {
     return true;
 }
 
-bool LayerTracing::disable() {
+bool LayerTracing::disable(std::string filename) {
     std::scoped_lock lock(mTraceLock);
     if (!mEnabled) {
         return false;
     }
     mEnabled = false;
     LayersTraceFileProto fileProto = createTraceFileProto();
-    mBuffer->writeToFile(fileProto, FILE_NAME);
+    mBuffer->writeToFile(fileProto, filename);
     mBuffer->reset();
     return true;
 }
