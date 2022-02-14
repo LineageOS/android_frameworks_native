@@ -1582,7 +1582,6 @@ static Dumpstate::RunStatus dumpstate() {
     DumpFile("BUDDYINFO", "/proc/buddyinfo");
     DumpExternalFragmentationInfo();
 
-    DumpFile("KERNEL WAKE SOURCES", "/d/wakeup_sources");
     DumpFile("KERNEL CPUFREQ", "/sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state");
 
     RunCommand("PROCESSES AND THREADS",
