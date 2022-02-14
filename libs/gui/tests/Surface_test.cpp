@@ -260,9 +260,7 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersDontSucceed) {
     sp<ANativeWindow> anw(mSurface);
 
     // Verify the screenshot works with no protected buffers.
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-
-    const sp<IBinder> display = sf->getInternalDisplayToken();
+    const sp<IBinder> display = ComposerServiceAIDL::getInstance().getInternalDisplayToken();
     ASSERT_FALSE(display == nullptr);
 
     DisplayCaptureArgs captureArgs;
@@ -696,12 +694,6 @@ public:
             ISurfaceComposer::VsyncSource, ISurfaceComposer::EventRegistrationFlags) override {
         return nullptr;
     }
-    sp<IBinder> createDisplay(const String8& /*displayName*/,
-            bool /*secure*/) override { return nullptr; }
-    void destroyDisplay(const sp<IBinder>& /*display */) override {}
-    std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override { return {}; }
-    status_t getPrimaryPhysicalDisplayId(PhysicalDisplayId*) const override { return NO_ERROR; }
-    sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId) const override { return nullptr; }
     status_t setTransactionState(const FrameTimelineInfo& /*frameTimelineInfo*/,
                                  const Vector<ComposerState>& /*state*/,
                                  const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
