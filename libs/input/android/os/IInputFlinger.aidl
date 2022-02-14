@@ -16,20 +16,13 @@
 
 package android.os;
 
-import android.FocusRequest;
 import android.InputChannel;
-import android.InputWindowInfo;
-import android.os.ISetInputWindowsListener;
+import android.gui.FocusRequest;
+import android.gui.WindowInfo;
 
 /** @hide */
 interface IInputFlinger
 {
-    // SurfaceFlinger is the caller of this method, it uses the listener callback to ensure the
-    // ordering when needed.
-    // SurfaceFlinger calls this only every VSync, so overflow of binder's oneway buffer
-    // shouldn't be a concern.
-    oneway void setInputWindows(in InputWindowInfo[] inputHandles,
-            in @nullable ISetInputWindowsListener setInputWindowsListener);
     InputChannel createInputChannel(in @utf8InCpp String name);
     void removeInputChannel(in IBinder connectionToken);
     /**

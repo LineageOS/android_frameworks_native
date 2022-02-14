@@ -71,7 +71,6 @@
 #include "SurfaceFlinger.h"
 #include "TimeStats/TimeStats.h"
 #include "TunnelModeEnabledReporter.h"
-#include "input/InputWindow.h"
 
 #define DEBUG_RESIZE 0
 
@@ -83,6 +82,7 @@ constexpr int kDumpTableRowLength = 159;
 using base::StringAppendF;
 using namespace android::flag_operators;
 using PresentState = frametimeline::SurfaceFrame::PresentState;
+using gui::WindowInfo;
 
 std::atomic<int32_t> Layer::sSequence{1};
 
@@ -90,8 +90,8 @@ Layer::Layer(const LayerCreationArgs& args)
       : mFlinger(args.flinger),
         mName(args.name),
         mClientRef(args.client),
-        mWindowType(static_cast<InputWindowInfo::Type>(
-                args.metadata.getInt32(METADATA_WINDOW_TYPE, 0))) {
+        mWindowType(
+                static_cast<WindowInfo::Type>(args.metadata.getInt32(METADATA_WINDOW_TYPE, 0))) {
     uint32_t layerFlags = 0;
     if (args.flags & ISurfaceComposerClient::eHidden) layerFlags |= layer_state_t::eLayerHidden;
     if (args.flags & ISurfaceComposerClient::eOpaque) layerFlags |= layer_state_t::eLayerOpaque;
@@ -135,6 +135,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mDrawingState.postTime = -1;
     mDrawingState.destinationFrame.makeInvalid();
     mDrawingState.isTrustedOverlay = false;
+    mDrawingState.dropInputMode = gui::DropInputMode::NONE;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
@@ -421,8 +422,6 @@ void Layer::prepareBasicGeometryCompositionState() {
 
     compositionState->blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
     compositionState->alpha = alpha;
-    compositionState->backgroundBlurRadius = drawingState.backgroundBlurRadius;
-    compositionState->blurRegions = drawingState.blurRegions;
     compositionState->stretchEffect = getStretchEffect();
 }
 
@@ -498,6 +497,9 @@ void Layer::preparePerFrameCompositionState() {
         compositionState->stretchEffect.hasEffect()) {
         compositionState->forceClientComposition = true;
     }
+    // If there are no visible region changes, we still need to update blur parameters.
+    compositionState->blurRegions = drawingState.blurRegions;
+    compositionState->backgroundBlurRadius = drawingState.backgroundBlurRadius;
 }
 
 void Layer::prepareCursorCompositionState() {
@@ -938,8 +940,11 @@ bool Layer::setCornerRadius(float cornerRadius) {
 
 bool Layer::setBackgroundBlurRadius(int backgroundBlurRadius) {
     if (mDrawingState.backgroundBlurRadius == backgroundBlurRadius) return false;
-
-    mDrawingState.sequence++;
+    // If we start or stop drawing blur then the layer's visibility state may change so increment
+    // the magic sequence number.
+    if (mDrawingState.backgroundBlurRadius == 0 || backgroundBlurRadius == 0) {
+        mDrawingState.sequence++;
+    }
     mDrawingState.backgroundBlurRadius = backgroundBlurRadius;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -972,6 +977,11 @@ bool Layer::setTransparentRegionHint(const Region& transparent) {
 }
 
 bool Layer::setBlurRegions(const std::vector<BlurRegion>& blurRegions) {
+    // If we start or stop drawing blur then the layer's visibility state may change so increment
+    // the magic sequence number.
+    if (mDrawingState.blurRegions.size() == 0 || blurRegions.size() == 0) {
+        mDrawingState.sequence++;
+    }
     mDrawingState.blurRegions = blurRegions;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -1916,27 +1926,49 @@ const std::vector<BlurRegion> Layer::getBlurRegions() const {
 }
 
 Layer::RoundedCornerState Layer::getRoundedCornerState() const {
-    const auto& p = mDrawingParent.promote();
-    if (p != nullptr) {
-        RoundedCornerState parentState = p->getRoundedCornerState();
-        if (parentState.radius > 0) {
+    // Get parent settings
+    RoundedCornerState parentSettings;
+    const auto& parent = mDrawingParent.promote();
+    if (parent != nullptr) {
+        parentSettings = parent->getRoundedCornerState();
+        if (parentSettings.radius > 0) {
             ui::Transform t = getActiveTransform(getDrawingState());
             t = t.inverse();
-            parentState.cropRect = t.transform(parentState.cropRect);
+            parentSettings.cropRect = t.transform(parentSettings.cropRect);
             // The rounded corners shader only accepts 1 corner radius for performance reasons,
             // but a transform matrix can define horizontal and vertical scales.
             // Let's take the average between both of them and pass into the shader, practically we
             // never do this type of transformation on windows anyway.
             auto scaleX = sqrtf(t[0][0] * t[0][0] + t[0][1] * t[0][1]);
             auto scaleY = sqrtf(t[1][0] * t[1][0] + t[1][1] * t[1][1]);
-            parentState.radius *= (scaleX + scaleY) / 2.0f;
-            return parentState;
+            parentSettings.radius *= (scaleX + scaleY) / 2.0f;
         }
     }
+
+    // Get layer settings
+    Rect layerCropRect = getCroppedBufferSize(getDrawingState());
     const float radius = getDrawingState().cornerRadius;
-    return radius > 0 && getCroppedBufferSize(getDrawingState()).isValid()
-            ? RoundedCornerState(getCroppedBufferSize(getDrawingState()).toFloatRect(), radius)
-            : RoundedCornerState();
+    RoundedCornerState layerSettings(layerCropRect.toFloatRect(), radius);
+    const bool layerSettingsValid = layerSettings.radius > 0 && layerCropRect.isValid();
+
+    if (layerSettingsValid && parentSettings.radius > 0) {
+        // If the parent and the layer have rounded corner settings, use the parent settings if the
+        // parent crop is entirely inside the layer crop.
+        // This has limitations and cause rendering artifacts. See b/200300845 for correct fix.
+        if (parentSettings.cropRect.left > layerCropRect.left &&
+            parentSettings.cropRect.top > layerCropRect.top &&
+            parentSettings.cropRect.right < layerCropRect.right &&
+            parentSettings.cropRect.bottom < layerCropRect.bottom) {
+            return parentSettings;
+        } else {
+            return layerSettings;
+        }
+    } else if (layerSettingsValid) {
+        return layerSettings;
+    } else if (parentSettings.radius > 0) {
+        return parentSettings;
+    }
+    return {};
 }
 
 void Layer::prepareShadowClientComposition(LayerFE::LayerSettings& caster,
@@ -1982,7 +2014,7 @@ void Layer::commitChildList() {
 }
 
 
-void Layer::setInputInfo(const InputWindowInfo& info) {
+void Layer::setInputInfo(const WindowInfo& info) {
     mDrawingState.inputInfo = info;
     mDrawingState.touchableRegionCrop = fromHandle(info.touchableRegionCropHandle.promote());
     mDrawingState.modified = true;
@@ -2021,8 +2053,8 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
         if (buffer != nullptr) {
             LayerProtoHelper::writeToProto(buffer,
                                            [&]() { return layerInfo->mutable_active_buffer(); });
-            LayerProtoHelper::writeToProto(ui::Transform(getBufferTransform()),
-                                           layerInfo->mutable_buffer_transform());
+            LayerProtoHelper::writeToProtoDeprecated(ui::Transform(getBufferTransform()),
+                                                     layerInfo->mutable_buffer_transform());
         }
         layerInfo->set_invalidate(contentDirty);
         layerInfo->set_is_protected(isProtected());
@@ -2032,10 +2064,11 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
         layerInfo->set_curr_frame(mCurrentFrameNumber);
         layerInfo->set_effective_scaling_mode(getEffectiveScalingMode());
 
+        layerInfo->set_requested_corner_radius(getDrawingState().cornerRadius);
         layerInfo->set_corner_radius(getRoundedCornerState().radius);
         layerInfo->set_background_blur_radius(getBackgroundBlurRadius());
         layerInfo->set_is_trusted_overlay(isTrustedOverlay());
-        LayerProtoHelper::writeToProto(transform, layerInfo->mutable_transform());
+        LayerProtoHelper::writeToProtoDeprecated(transform, layerInfo->mutable_transform());
         LayerProtoHelper::writePositionToProto(transform.tx(), transform.ty(),
                                                [&]() { return layerInfo->mutable_position(); });
         LayerProtoHelper::writeToProto(mBounds, [&]() { return layerInfo->mutable_bounds(); });
@@ -2110,8 +2143,8 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
                                        [&]() { return layerInfo->mutable_requested_color(); });
         layerInfo->set_flags(state.flags);
 
-        LayerProtoHelper::writeToProto(requestedTransform,
-                                       layerInfo->mutable_requested_transform());
+        LayerProtoHelper::writeToProtoDeprecated(requestedTransform,
+                                                 layerInfo->mutable_requested_transform());
 
         auto parent = useDrawing ? mDrawingParent.promote() : mCurrentParent.promote();
         if (parent != nullptr) {
@@ -2133,7 +2166,7 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
     }
 
     if (traceFlags & SurfaceTracing::TRACE_INPUT) {
-        InputWindowInfo info;
+        WindowInfo info;
         if (useDrawing) {
             info = fillInputInfo({nullptr});
         } else {
@@ -2164,7 +2197,7 @@ Rect Layer::getInputBounds() const {
     return getCroppedBufferSize(getDrawingState());
 }
 
-void Layer::fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhysicalDisplay) {
+void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& toNonRotatedDisplay) {
     // Transform layer size to screen space and inset it by surface insets.
     // If this is a portal window, set the touchableRegion to the layerBounds.
     Rect layerBounds = info.portalToDisplayId == ADISPLAY_ID_NONE
@@ -2181,16 +2214,18 @@ void Layer::fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhy
         info.frameRight = 0;
         info.frameBottom = 0;
         info.transform.reset();
+        info.touchableRegion = Region();
+        info.flags = WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::NOT_FOCUSABLE;
         return;
     }
 
     ui::Transform layerToDisplay = getInputTransform();
-    // Transform that takes window coordinates to unrotated display coordinates
-    ui::Transform t = toPhysicalDisplay * layerToDisplay;
+    // Transform that takes window coordinates to non-rotated display coordinates
+    ui::Transform t = toNonRotatedDisplay * layerToDisplay;
     int32_t xSurfaceInset = info.surfaceInset;
     int32_t ySurfaceInset = info.surfaceInset;
-    // Bring screenBounds into unrotated space
-    Rect screenBounds = toPhysicalDisplay.transform(Rect{mScreenBounds});
+    // Bring screenBounds into non-rotated space
+    Rect screenBounds = toNonRotatedDisplay.transform(Rect{mScreenBounds});
 
     const float xScale = t.getScaleX();
     const float yScale = t.getScaleY();
@@ -2259,7 +2294,7 @@ void Layer::fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhy
     info.touchableRegion = inputTransform.transform(info.touchableRegion);
 }
 
-void Layer::fillTouchOcclusionMode(InputWindowInfo& info) {
+void Layer::fillTouchOcclusionMode(WindowInfo& info) {
     sp<Layer> p = this;
     while (p != nullptr && !p->hasInputInfo()) {
         p = p->mDrawingParent.promote();
@@ -2269,32 +2304,115 @@ void Layer::fillTouchOcclusionMode(InputWindowInfo& info) {
     }
 }
 
-InputWindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
+gui::DropInputMode Layer::getDropInputMode() const {
+    gui::DropInputMode mode = mDrawingState.dropInputMode;
+    if (mode == gui::DropInputMode::ALL) {
+        return mode;
+    }
+    sp<Layer> parent = mDrawingParent.promote();
+    if (parent) {
+        gui::DropInputMode parentMode = parent->getDropInputMode();
+        if (parentMode != gui::DropInputMode::NONE) {
+            return parentMode;
+        }
+    }
+    return mode;
+}
+
+void Layer::handleDropInputMode(gui::WindowInfo& info) const {
+    if (mDrawingState.inputInfo.inputFeatures.test(WindowInfo::Feature::NO_INPUT_CHANNEL)) {
+        return;
+    }
+
+    // Check if we need to drop input unconditionally
+    gui::DropInputMode dropInputMode = getDropInputMode();
+    if (dropInputMode == gui::DropInputMode::ALL) {
+        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT;
+        ALOGV("Dropping input for %s as requested by policy.", getDebugName());
+        return;
+    }
+
+    // Check if we need to check if the window is obscured by parent
+    if (dropInputMode != gui::DropInputMode::OBSCURED) {
+        return;
+    }
+
+    // Check if the parent has set an alpha on the layer
+    sp<Layer> parent = mDrawingParent.promote();
+    if (parent && parent->getAlpha() != 1.0_hf) {
+        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT;
+        ALOGV("Dropping input for %s as requested by policy because alpha=%f", getDebugName(),
+              static_cast<float>(getAlpha()));
+    }
+
+    // Check if the parent has cropped the buffer
+    Rect bufferSize = getCroppedBufferSize(getDrawingState());
+    if (!bufferSize.isValid()) {
+        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT_IF_OBSCURED;
+        return;
+    }
+
+    // Screenbounds are the layer bounds cropped by parents, transformed to screenspace.
+    // To check if the layer has been cropped, we take the buffer bounds, apply the local
+    // layer crop and apply the same set of transforms to move to screenspace. If the bounds
+    // match then the layer has not been cropped by its parents.
+    Rect bufferInScreenSpace(getTransform().transform(bufferSize));
+    bool croppedByParent = bufferInScreenSpace != Rect{mScreenBounds};
+
+    if (croppedByParent) {
+        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT;
+        ALOGV("Dropping input for %s as requested by policy because buffer is cropped by parent",
+              getDebugName());
+    } else {
+        // If the layer is not obscured by its parents (by setting an alpha or crop), then only drop
+        // input if the window is obscured. This check should be done in surfaceflinger but the
+        // logic currently resides in inputflinger. So pass the if_obscured check to input to only
+        // drop input events if the window is obscured.
+        info.inputFeatures |= WindowInfo::Feature::DROP_INPUT_IF_OBSCURED;
+    }
+}
+
+WindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     if (!hasInputInfo()) {
         mDrawingState.inputInfo.name = getName();
         mDrawingState.inputInfo.ownerUid = mOwnerUid;
         mDrawingState.inputInfo.ownerPid = mOwnerPid;
-        mDrawingState.inputInfo.inputFeatures = InputWindowInfo::Feature::NO_INPUT_CHANNEL;
-        mDrawingState.inputInfo.flags = InputWindowInfo::Flag::NOT_TOUCH_MODAL;
+        mDrawingState.inputInfo.inputFeatures = WindowInfo::Feature::NO_INPUT_CHANNEL;
+        mDrawingState.inputInfo.flags = WindowInfo::Flag::NOT_TOUCH_MODAL;
         mDrawingState.inputInfo.displayId = getLayerStack();
     }
 
-    InputWindowInfo info = mDrawingState.inputInfo;
+    WindowInfo info = mDrawingState.inputInfo;
     info.id = sequence;
+    info.displayId = getLayerStack();
 
-    if (info.displayId == ADISPLAY_ID_NONE) {
-        info.displayId = getLayerStack();
-    }
-
-    // Transform that goes from "logical(rotated)" display to physical/unrotated display.
-    // This is for when inputflinger operates in physical display-space.
-    ui::Transform toPhysicalDisplay;
+    // Transform that goes from "logical(rotated)" display to the non-rotated display.
+    ui::Transform toNonRotatedDisplay;
     if (display) {
-        toPhysicalDisplay = display->getTransform();
-        info.displayWidth = display->getWidth();
-        info.displayHeight = display->getHeight();
+        // The physical orientation is set when the orientation of the display panel is different
+        // than the default orientation of the device. We do not need to expose the physical
+        // orientation of the panel outside of SurfaceFlinger.
+        const ui::Rotation inversePhysicalOrientation =
+                ui::ROTATION_0 - display->getPhysicalOrientation();
+        auto width = display->getWidth();
+        auto height = display->getHeight();
+        if (inversePhysicalOrientation == ui::ROTATION_90 ||
+            inversePhysicalOrientation == ui::ROTATION_270) {
+            std::swap(width, height);
+        }
+        const auto rotationFlags = ui::Transform::toRotationFlags(inversePhysicalOrientation);
+        const ui::Transform undoPhysicalOrientation(rotationFlags, width, height);
+        toNonRotatedDisplay = undoPhysicalOrientation * display->getTransform();
+
+        // Send the inverse of the display orientation so that input can transform points back to
+        // the rotated display space.
+        const ui::Rotation inverseOrientation = ui::ROTATION_0 - display->getOrientation();
+        info.displayOrientation = ui::Transform::toRotationFlags(inverseOrientation);
+
+        info.displayWidth = width;
+        info.displayHeight = height;
     }
-    fillInputFrameInfo(info, toPhysicalDisplay);
+    fillInputFrameInfo(info, toNonRotatedDisplay);
 
     // For compatibility reasons we let layers which can receive input
     // receive input before they have actually submitted a buffer. Because
@@ -2307,18 +2425,19 @@ InputWindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     info.visible = hasInputInfo() ? canReceiveInput() : isVisible();
     info.alpha = getAlpha();
     fillTouchOcclusionMode(info);
+    handleDropInputMode(info);
 
     auto cropLayer = mDrawingState.touchableRegionCrop.promote();
     if (info.replaceTouchableRegionWithCrop) {
         if (cropLayer == nullptr) {
-            info.touchableRegion = Region(toPhysicalDisplay.transform(Rect{mScreenBounds}));
+            info.touchableRegion = Region(toNonRotatedDisplay.transform(Rect{mScreenBounds}));
         } else {
             info.touchableRegion =
-                    Region(toPhysicalDisplay.transform(Rect{cropLayer->mScreenBounds}));
+                    Region(toNonRotatedDisplay.transform(Rect{cropLayer->mScreenBounds}));
         }
     } else if (cropLayer != nullptr) {
         info.touchableRegion = info.touchableRegion.intersect(
-                toPhysicalDisplay.transform(Rect{cropLayer->mScreenBounds}));
+                toNonRotatedDisplay.transform(Rect{cropLayer->mScreenBounds}));
     }
 
     // Inherit the trusted state from the parent hierarchy, but don't clobber the trusted state
@@ -2331,7 +2450,7 @@ InputWindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     if (isClone()) {
         sp<Layer> clonedRoot = getClonedRoot();
         if (clonedRoot != nullptr) {
-            Rect rect = toPhysicalDisplay.transform(Rect{clonedRoot->mScreenBounds});
+            Rect rect = toNonRotatedDisplay.transform(Rect{clonedRoot->mScreenBounds});
             info.touchableRegion = info.touchableRegion.intersect(rect);
         }
     }
@@ -2369,8 +2488,7 @@ Region Layer::getVisibleRegion(const DisplayDevice* display) const {
 }
 
 void Layer::setInitialValuesForClone(const sp<Layer>& clonedFrom) {
-    // copy drawing state from cloned layer
-    mDrawingState = clonedFrom->mDrawingState;
+    cloneDrawingState(clonedFrom.get());
     mClonedFrom = clonedFrom;
 }
 
@@ -2405,7 +2523,7 @@ void Layer::updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayer
     // since we may be able to pull out other children that are still alive.
     if (isClonedFromAlive()) {
         sp<Layer> clonedFrom = getClonedFrom();
-        mDrawingState = clonedFrom->mDrawingState;
+        cloneDrawingState(clonedFrom.get());
         clonedLayersMap.emplace(clonedFrom, this);
     }
 
@@ -2458,7 +2576,7 @@ void Layer::updateClonedInputInfo(const std::map<sp<Layer>, sp<Layer>>& clonedLa
     }
     // Cloned layers shouldn't handle watch outside since their z order is not determined by
     // WM or the client.
-    mDrawingState.inputInfo.flags &= ~InputWindowInfo::Flag::WATCH_OUTSIDE_TOUCH;
+    mDrawingState.inputInfo.flags &= ~WindowInfo::Flag::WATCH_OUTSIDE_TOUCH;
 }
 
 void Layer::updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap) {
@@ -2558,6 +2676,21 @@ wp<Layer> Layer::fromHandle(const sp<IBinder>& handleBinder) {
     // We can safely cast this binder since its local and we verified its interface descriptor.
     sp<Handle> handle = static_cast<Handle*>(handleBinder.get());
     return handle->owner;
+}
+
+bool Layer::setDropInputMode(gui::DropInputMode mode) {
+    if (mDrawingState.dropInputMode == mode) {
+        return false;
+    }
+    mDrawingState.dropInputMode = mode;
+    return true;
+}
+
+void Layer::cloneDrawingState(const Layer* from) {
+    mDrawingState = from->mDrawingState;
+    // Skip callback info since they are not applicable for cloned layers.
+    mDrawingState.releaseBufferListener = nullptr;
+    mDrawingState.callbackHandles = {};
 }
 
 // ---------------------------------------------------------------------------

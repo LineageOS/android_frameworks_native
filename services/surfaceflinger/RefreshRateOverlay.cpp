@@ -175,10 +175,14 @@ std::vector<sp<GraphicBuffer>> RefreshRateOverlay::SevenSegmentDrawer::drawNumbe
     return buffers;
 }
 
-RefreshRateOverlay::RefreshRateOverlay(SurfaceFlinger& flinger, bool showSpinner)
-      : mFlinger(flinger), mClient(new Client(&mFlinger)), mShowSpinner(showSpinner) {
+RefreshRateOverlay::RefreshRateOverlay(SurfaceFlinger& flinger, uint32_t lowFps, uint32_t highFps,
+                                       bool showSpinner)
+      : mFlinger(flinger),
+        mClient(new Client(&mFlinger)),
+        mShowSpinner(showSpinner),
+        mLowFps(lowFps),
+        mHighFps(highFps) {
     createLayer();
-    reset();
 }
 
 bool RefreshRateOverlay::createLayer() {
@@ -194,7 +198,6 @@ bool RefreshRateOverlay::createLayer() {
         return false;
     }
 
-    Mutex::Autolock _l(mFlinger.mStateLock);
     mLayer = mClient->getLayerUser(mIBinder);
     mLayer->setFrameRate(Layer::FrameRate(Fps(0.0f), Layer::FrameRateCompatibility::NoVote));
     mLayer->setIsAtRoot(true);
@@ -241,8 +244,11 @@ RefreshRateOverlay::getOrCreateBuffers(uint32_t fps) {
 }
 
 void RefreshRateOverlay::setViewport(ui::Size viewport) {
-    Rect frame((3 * viewport.width) >> 4, viewport.height >> 5);
-    frame.offsetBy(viewport.width >> 5, viewport.height >> 4);
+    constexpr int32_t kMaxWidth = 1000;
+    const auto width = std::min(kMaxWidth, std::min(viewport.width, viewport.height));
+    const auto height = 2 * width;
+    Rect frame((3 * width) >> 4, height >> 5);
+    frame.offsetBy(width >> 5, height >> 4);
 
     layer_state_t::matrix22_t matrix;
     matrix.dsdx = frame.getWidth() / static_cast<float>(SevenSegmentDrawer::getWidth());
@@ -254,13 +260,18 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }
 
+void RefreshRateOverlay::setLayerStack(uint32_t stack) {
+    mLayer->setLayerStack(stack);
+    mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
+}
+
 void RefreshRateOverlay::changeRefreshRate(const Fps& fps) {
     mCurrentFps = fps.getIntValue();
     auto buffer = getOrCreateBuffers(*mCurrentFps)[mFrame];
     mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, true, {},
                       mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */),
                       std::nullopt /* dequeueTime */, FrameTimelineInfo{},
-                      nullptr /* releaseBufferListener */);
+                      nullptr /* releaseBufferListener */, nullptr /* releaseBufferEndpoint */);
 
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }
@@ -274,16 +285,9 @@ void RefreshRateOverlay::onInvalidate() {
     mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, true, {},
                       mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */),
                       std::nullopt /* dequeueTime */, FrameTimelineInfo{},
-                      nullptr /* releaseBufferListener */);
+                      nullptr /* releaseBufferListener */, nullptr /* releaseBufferEndpoint */);
 
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
-}
-
-void RefreshRateOverlay::reset() {
-    mBufferCache.clear();
-    const auto range = mFlinger.mRefreshRateConfigs->getSupportedRefreshRateRange();
-    mLowFps = range.min.getIntValue();
-    mHighFps = range.max.getIntValue();
 }
 
 } // namespace android

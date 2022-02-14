@@ -43,6 +43,7 @@ cc_test {
         "SurfaceTextureMultiContextGL_test.cpp",
         "Surface_test.cpp",
         "TextureRenderer.cpp",
+        "WindowInfo_test.cpp",
     ],
 
     shared_libs: [

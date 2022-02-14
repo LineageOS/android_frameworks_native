@@ -23,6 +23,7 @@
 #include <android-base/stringprintf.h>
 #include <attestation/HmacKeyManager.h>
 #include <gtest/gtest.h>
+#include <gui/constants.h>
 #include <input/VelocityTracker.h>
 
 using namespace std::chrono_literals;
@@ -183,8 +184,8 @@ static std::vector<MotionEvent> createMotionEventStream(
                          AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
                          MotionClassification::NONE, identityTransform, 0 /*xPrecision*/,
                          0 /*yPrecision*/, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                         AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                         AMOTION_EVENT_INVALID_DISPLAY_SIZE, 0 /*downTime*/,
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION, ui::Transform::ROT_0,
+                         INVALID_DISPLAY_SIZE, INVALID_DISPLAY_SIZE, 0 /*downTime*/,
                          entry.eventTime.count(), pointerCount, properties, coords);
 
         events.emplace_back(event);

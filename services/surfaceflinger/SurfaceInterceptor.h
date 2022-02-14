@@ -48,7 +48,7 @@ using SurfaceChange = surfaceflinger::SurfaceChange;
 using Increment = surfaceflinger::Increment;
 using DisplayChange = surfaceflinger::DisplayChange;
 
-constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/transaction_trace.pb";
+constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/transaction_trace.winscope";
 
 class SurfaceInterceptor : public IBinder::DeathRecipient {
 public:
@@ -185,6 +185,7 @@ private:
             const sp<const IGraphicBufferProducer>& surface);
     void addDisplayLayerStackLocked(Transaction* transaction, int32_t sequenceId,
             uint32_t layerStack);
+    void addDisplayFlagsLocked(Transaction* transaction, int32_t sequenceId, uint32_t flags);
     void addDisplaySizeLocked(Transaction* transaction, int32_t sequenceId, uint32_t w,
             uint32_t h);
     void addDisplayProjectionLocked(Transaction* transaction, int32_t sequenceId,

@@ -118,12 +118,12 @@ DisplayEventReceiver::Event makeVSync(PhysicalDisplayId displayId, nsecs_t times
     return event;
 }
 
-DisplayEventReceiver::Event makeModeChanged(PhysicalDisplayId displayId, DisplayModeId modeId,
-                                            nsecs_t vsyncPeriod) {
+DisplayEventReceiver::Event makeModeChanged(DisplayModePtr mode) {
     DisplayEventReceiver::Event event;
-    event.header = {DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE, displayId, systemTime()};
-    event.modeChange.modeId = modeId.value();
-    event.modeChange.vsyncPeriod = vsyncPeriod;
+    event.header = {DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE, mode->getPhysicalDisplayId(),
+                    systemTime()};
+    event.modeChange.modeId = mode->getId().value();
+    event.modeChange.vsyncPeriod = mode->getVsyncPeriod();
     return event;
 }
 
@@ -375,11 +375,10 @@ void EventThread::onHotplugReceived(PhysicalDisplayId displayId, bool connected)
     mCondition.notify_all();
 }
 
-void EventThread::onModeChanged(PhysicalDisplayId displayId, DisplayModeId modeId,
-                                nsecs_t vsyncPeriod) {
+void EventThread::onModeChanged(DisplayModePtr mode) {
     std::lock_guard<std::mutex> lock(mMutex);
 
-    mPendingEvents.push_back(makeModeChanged(displayId, modeId, vsyncPeriod));
+    mPendingEvents.push_back(makeModeChanged(mode));
     mCondition.notify_all();
 }
 

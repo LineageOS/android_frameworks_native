@@ -79,8 +79,8 @@ public:
     virtual std::unique_ptr<MessageQueue> createMessageQueue() = 0;
     virtual std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
             Fps currentRefreshRate) = 0;
-    virtual std::unique_ptr<Scheduler> createScheduler(const scheduler::RefreshRateConfigs&,
-                                                       ISchedulerCallback&) = 0;
+    virtual std::unique_ptr<Scheduler> createScheduler(
+            const std::shared_ptr<scheduler::RefreshRateConfigs>&, ISchedulerCallback&) = 0;
     virtual sp<SurfaceInterceptor> createSurfaceInterceptor() = 0;
 
     virtual sp<StartPropertySetThread> createStartPropertySetThread(
