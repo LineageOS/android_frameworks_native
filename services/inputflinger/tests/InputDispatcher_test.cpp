@@ -1000,11 +1000,7 @@ public:
         mInfo.ownerPid = INJECTOR_PID;
         mInfo.ownerUid = INJECTOR_UID;
         mInfo.displayId = displayId;
-        setVisible(true);
-        setFocusable(false);
-        setDupTouchToWallpaper(false);
-        setPaused(false);
-        setTrustedOverlay(false);
+        mInfo.inputConfig = WindowInfo::InputConfig::NONE;
     }
 
     sp<FakeWindowHandle> clone(
@@ -1036,12 +1032,8 @@ public:
         mInfo.setInputConfig(WindowInfo::InputConfig::PAUSE_DISPATCHING, paused);
     }
 
-    void setTouchModal(bool touchModal) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::NOT_TOUCH_MODAL, !touchModal);
-    }
-
-    void setSplitTouch(bool splitTouch) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::SPLIT_TOUCH, splitTouch);
+    void setPreventSplitting(bool preventSplitting) {
+        mInfo.setInputConfig(WindowInfo::InputConfig::PREVENT_SPLITTING, preventSplitting);
     }
 
     void setSlippery(bool slippery) {
@@ -1567,19 +1559,15 @@ TEST_F(InputDispatcherTest, WhenDisplayNotSpecified_InjectMotionToDefaultDisplay
 }
 
 /**
- * Calling setInputWindows once with FLAG_NOT_TOUCH_MODAL should not cause any issues.
- * To ensure that window receives only events that were directly inside of it, add
- * FLAG_NOT_TOUCH_MODAL. This will enforce using the touchableRegion of the input
- * when finding touched windows.
+ * Calling setInputWindows once should not cause any issues.
  * This test serves as a sanity check for the next test, where setInputWindows is
  * called twice.
  */
-TEST_F(InputDispatcherTest, SetInputWindowOnce_SingleWindowTouch) {
+TEST_F(InputDispatcherTest, SetInputWindowOnceWithSingleTouchWindow) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
     window->setFrame(Rect(0, 0, 100, 100));
-    window->setTouchModal(false);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -1593,16 +1581,12 @@ TEST_F(InputDispatcherTest, SetInputWindowOnce_SingleWindowTouch) {
 
 /**
  * Calling setInputWindows twice, with the same info, should not cause any issues.
- * To ensure that window receives only events that were directly inside of it, add
- * FLAG_NOT_TOUCH_MODAL. This will enforce using the touchableRegion of the input
- * when finding touched windows.
  */
 TEST_F(InputDispatcherTest, SetInputWindowTwice_SingleWindowTouch) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
     window->setFrame(Rect(0, 0, 100, 100));
-    window->setTouchModal(false);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
@@ -1790,15 +1774,11 @@ TEST_F(InputDispatcherTest, TwoWindows_SplitWallpaperTouch) {
     sp<FakeWindowHandle> leftWindow =
             new FakeWindowHandle(application, mDispatcher, "Left", ADISPLAY_ID_DEFAULT);
     leftWindow->setFrame(Rect(0, 0, 200, 200));
-    leftWindow->setTouchModal(false);
-    leftWindow->setSplitTouch(true);
     leftWindow->setDupTouchToWallpaper(true);
 
     sp<FakeWindowHandle> rightWindow =
             new FakeWindowHandle(application, mDispatcher, "Right", ADISPLAY_ID_DEFAULT);
     rightWindow->setFrame(Rect(200, 0, 400, 200));
-    rightWindow->setTouchModal(false);
-    rightWindow->setSplitTouch(true);
     rightWindow->setDupTouchToWallpaper(true);
 
     sp<FakeWindowHandle> wallpaperWindow =
@@ -1878,11 +1858,9 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
     sp<FakeWindowHandle> windowLeft =
             new FakeWindowHandle(application, mDispatcher, "Left", ADISPLAY_ID_DEFAULT);
     windowLeft->setFrame(Rect(0, 0, 600, 800));
-    windowLeft->setTouchModal(false);
     sp<FakeWindowHandle> windowRight =
             new FakeWindowHandle(application, mDispatcher, "Right", ADISPLAY_ID_DEFAULT);
     windowRight->setFrame(Rect(600, 0, 1200, 800));
-    windowRight->setTouchModal(false);
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
@@ -1989,7 +1967,6 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
     window->setFrame(Rect(0, 0, 1200, 800));
-    window->setTouchModal(false);
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
@@ -2071,11 +2048,9 @@ TEST_F(InputDispatcherTest, DispatchMouseEventsUnderCursor) {
     sp<FakeWindowHandle> windowLeft =
             new FakeWindowHandle(application, mDispatcher, "Left", ADISPLAY_ID_DEFAULT);
     windowLeft->setFrame(Rect(0, 0, 600, 800));
-    windowLeft->setTouchModal(false);
     sp<FakeWindowHandle> windowRight =
             new FakeWindowHandle(application, mDispatcher, "Right", ADISPLAY_ID_DEFAULT);
     windowRight->setFrame(Rect(600, 0, 1200, 800));
-    windowRight->setTouchModal(false);
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
@@ -2181,14 +2156,12 @@ public:
         // Add two windows to the display. Their frames are represented in the display space.
         sp<FakeWindowHandle> firstWindow =
                 new FakeWindowHandle(application, mDispatcher, "First Window", ADISPLAY_ID_DEFAULT);
-        firstWindow->setTouchModal(false);
         firstWindow->setFrame(Rect(0, 0, 100, 200), displayTransform);
         addWindow(firstWindow);
 
         sp<FakeWindowHandle> secondWindow =
                 new FakeWindowHandle(application, mDispatcher, "Second Window",
                                      ADISPLAY_ID_DEFAULT);
-        secondWindow->setTouchModal(false);
         secondWindow->setFrame(Rect(100, 200, 200, 400), displayTransform);
         addWindow(secondWindow);
         return {std::move(firstWindow), std::move(secondWindow)};
@@ -2331,8 +2304,10 @@ TEST_P(TransferTouchFixture, TransferTouch_TwoPointersNonSplitTouch) {
     // Create a couple of windows
     sp<FakeWindowHandle> firstWindow =
             new FakeWindowHandle(application, mDispatcher, "First Window", ADISPLAY_ID_DEFAULT);
+    firstWindow->setPreventSplitting(true);
     sp<FakeWindowHandle> secondWindow =
             new FakeWindowHandle(application, mDispatcher, "Second Window", ADISPLAY_ID_DEFAULT);
+    secondWindow->setPreventSplitting(true);
 
     // Add the windows to the dispatcher
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {firstWindow, secondWindow}}});
@@ -2405,19 +2380,13 @@ INSTANTIATE_TEST_SUITE_P(TransferFunctionTests, TransferTouchFixture,
 TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointersSplitTouch) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
 
-    // Create a non touch modal window that supports split touch
     sp<FakeWindowHandle> firstWindow =
             new FakeWindowHandle(application, mDispatcher, "First Window", ADISPLAY_ID_DEFAULT);
     firstWindow->setFrame(Rect(0, 0, 600, 400));
-    firstWindow->setTouchModal(false);
-    firstWindow->setSplitTouch(true);
 
-    // Create a non touch modal window that supports split touch
     sp<FakeWindowHandle> secondWindow =
             new FakeWindowHandle(application, mDispatcher, "Second Window", ADISPLAY_ID_DEFAULT);
     secondWindow->setFrame(Rect(0, 400, 600, 800));
-    secondWindow->setTouchModal(false);
-    secondWindow->setSplitTouch(true);
 
     // Add the windows to the dispatcher
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {firstWindow, secondWindow}}});
@@ -2479,19 +2448,13 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointersSplitTouch) {
 TEST_F(InputDispatcherTest, TransferTouch_TwoPointersSplitTouch) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
 
-    // Create a non touch modal window that supports split touch
     sp<FakeWindowHandle> firstWindow =
             new FakeWindowHandle(application, mDispatcher, "First Window", ADISPLAY_ID_DEFAULT);
     firstWindow->setFrame(Rect(0, 0, 600, 400));
-    firstWindow->setTouchModal(false);
-    firstWindow->setSplitTouch(true);
 
-    // Create a non touch modal window that supports split touch
     sp<FakeWindowHandle> secondWindow =
             new FakeWindowHandle(application, mDispatcher, "Second Window", ADISPLAY_ID_DEFAULT);
     secondWindow->setFrame(Rect(0, 400, 600, 800));
-    secondWindow->setTouchModal(false);
-    secondWindow->setSplitTouch(true);
 
     // Add the windows to the dispatcher
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {firstWindow, secondWindow}}});
@@ -2556,26 +2519,21 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_CloneSurface) {
     sp<FakeWindowHandle> firstWindowInPrimary =
             new FakeWindowHandle(application, mDispatcher, "D_1_W1", ADISPLAY_ID_DEFAULT);
     firstWindowInPrimary->setFrame(Rect(0, 0, 100, 100));
-    firstWindowInPrimary->setTouchModal(false);
     sp<FakeWindowHandle> secondWindowInPrimary =
             new FakeWindowHandle(application, mDispatcher, "D_1_W2", ADISPLAY_ID_DEFAULT);
     secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
-    secondWindowInPrimary->setTouchModal(false);
 
     sp<FakeWindowHandle> mirrorWindowInPrimary =
             firstWindowInPrimary->clone(application, mDispatcher, ADISPLAY_ID_DEFAULT);
     mirrorWindowInPrimary->setFrame(Rect(0, 100, 100, 200));
-    mirrorWindowInPrimary->setTouchModal(false);
 
     sp<FakeWindowHandle> firstWindowInSecondary =
             firstWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
     firstWindowInSecondary->setFrame(Rect(0, 0, 100, 100));
-    firstWindowInSecondary->setTouchModal(false);
 
     sp<FakeWindowHandle> secondWindowInSecondary =
             secondWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
     secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
-    secondWindowInPrimary->setTouchModal(false);
 
     // Update window info, let it find window handle of second display first.
     mDispatcher->setInputWindows(
@@ -2620,26 +2578,21 @@ TEST_F(InputDispatcherTest, TransferTouch_CloneSurface) {
     sp<FakeWindowHandle> firstWindowInPrimary =
             new FakeWindowHandle(application, mDispatcher, "D_1_W1", ADISPLAY_ID_DEFAULT);
     firstWindowInPrimary->setFrame(Rect(0, 0, 100, 100));
-    firstWindowInPrimary->setTouchModal(false);
     sp<FakeWindowHandle> secondWindowInPrimary =
             new FakeWindowHandle(application, mDispatcher, "D_1_W2", ADISPLAY_ID_DEFAULT);
     secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
-    secondWindowInPrimary->setTouchModal(false);
 
     sp<FakeWindowHandle> mirrorWindowInPrimary =
             firstWindowInPrimary->clone(application, mDispatcher, ADISPLAY_ID_DEFAULT);
     mirrorWindowInPrimary->setFrame(Rect(0, 100, 100, 200));
-    mirrorWindowInPrimary->setTouchModal(false);
 
     sp<FakeWindowHandle> firstWindowInSecondary =
             firstWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
     firstWindowInSecondary->setFrame(Rect(0, 0, 100, 100));
-    firstWindowInSecondary->setTouchModal(false);
 
     sp<FakeWindowHandle> secondWindowInSecondary =
             secondWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
     secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
-    secondWindowInPrimary->setTouchModal(false);
 
     // Update window info, let it find window handle of second display first.
     mDispatcher->setInputWindows(
@@ -2733,19 +2686,13 @@ TEST_F(InputDispatcherTest, UnfocusedWindow_ReceivesMotionsButNotKeys) {
 TEST_F(InputDispatcherTest, PointerCancel_SendCancelWhenSplitTouch) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
 
-    // Create first non touch modal window that supports split touch
     sp<FakeWindowHandle> firstWindow =
             new FakeWindowHandle(application, mDispatcher, "First Window", ADISPLAY_ID_DEFAULT);
     firstWindow->setFrame(Rect(0, 0, 600, 400));
-    firstWindow->setTouchModal(false);
-    firstWindow->setSplitTouch(true);
 
-    // Create second non touch modal window that supports split touch
     sp<FakeWindowHandle> secondWindow =
             new FakeWindowHandle(application, mDispatcher, "Second Window", ADISPLAY_ID_DEFAULT);
     secondWindow->setFrame(Rect(0, 400, 600, 800));
-    secondWindow->setTouchModal(false);
-    secondWindow->setSplitTouch(true);
 
     // Add the windows to the dispatcher
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {firstWindow, secondWindow}}});
@@ -3265,9 +3212,9 @@ TEST_F(InputDispatcherTest, SetFocusedWindow_DropRequestNoFocusableWindow) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
+    window->setFocusable(false);
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
-    // Window is not focusable.
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     setFocusedWindow(window);
 
@@ -3275,7 +3222,7 @@ TEST_F(InputDispatcherTest, SetFocusedWindow_DropRequestNoFocusableWindow) {
     ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, injectKeyDown(mDispatcher))
             << "Inject key event should return InputEventInjectionResult::TIMED_OUT";
 
-    // window is invalid, so it should not receive any input event.
+    // window is not focusable, so it should not receive any input event.
     window->assertNoEvents();
 }
 
@@ -3412,7 +3359,6 @@ TEST_F(InputDispatcherTest, SlipperyWindow_SetsFlagPartiallyObscured) {
 
     sp<FakeWindowHandle> slipperyExitWindow =
             new FakeWindowHandle(application, mDispatcher, "Top", ADISPLAY_ID_DEFAULT);
-    slipperyExitWindow->setTouchModal(false);
     slipperyExitWindow->setSlippery(true);
     // Make sure this one overlaps the bottom window
     slipperyExitWindow->setFrame(Rect(25, 25, 75, 75));
@@ -4019,14 +3965,10 @@ class InputDispatcherOnPointerDownOutsideFocus : public InputDispatcherTest {
         mUnfocusedWindow =
                 new FakeWindowHandle(application, mDispatcher, "Top", ADISPLAY_ID_DEFAULT);
         mUnfocusedWindow->setFrame(Rect(0, 0, 30, 30));
-        // Adding FLAG_NOT_TOUCH_MODAL to ensure taps outside this window are not sent to this
-        // window.
-        mUnfocusedWindow->setTouchModal(false);
 
         mFocusedWindow =
                 new FakeWindowHandle(application, mDispatcher, "Second", ADISPLAY_ID_DEFAULT);
         mFocusedWindow->setFrame(Rect(50, 50, 100, 100));
-        mFocusedWindow->setTouchModal(false);
 
         // Set focused application.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
@@ -4133,16 +4075,10 @@ class InputDispatcherMultiWindowSameTokenTests : public InputDispatcherTest {
                 std::make_shared<FakeApplicationHandle>();
         mWindow1 = new FakeWindowHandle(application, mDispatcher, "Fake Window 1",
                                         ADISPLAY_ID_DEFAULT);
-        // Adding FLAG_NOT_TOUCH_MODAL otherwise all taps will go to the top most window.
-        // We also need FLAG_SPLIT_TOUCH or we won't be able to get touches for both windows.
-        mWindow1->setTouchModal(false);
-        mWindow1->setSplitTouch(true);
         mWindow1->setFrame(Rect(0, 0, 100, 100));
 
         mWindow2 = new FakeWindowHandle(application, mDispatcher, "Fake Window 2",
                                         ADISPLAY_ID_DEFAULT, mWindow1->getToken());
-        mWindow2->setTouchModal(false);
-        mWindow2->setSplitTouch(true);
         mWindow2->setFrame(Rect(100, 100, 200, 200));
 
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow1, mWindow2}}});
@@ -4339,9 +4275,6 @@ class InputDispatcherSingleWindowAnr : public InputDispatcherTest {
         mWindow->setFrame(Rect(0, 0, 30, 30));
         mWindow->setDispatchingTimeout(30ms);
         mWindow->setFocusable(true);
-        // Adding FLAG_NOT_TOUCH_MODAL to ensure taps outside this window are not sent to this
-        // window.
-        mWindow->setTouchModal(false);
 
         // Set focused application.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApplication);
@@ -4789,19 +4722,13 @@ class InputDispatcherMultiWindowAnr : public InputDispatcherTest {
         mUnfocusedWindow =
                 new FakeWindowHandle(mApplication, mDispatcher, "Unfocused", ADISPLAY_ID_DEFAULT);
         mUnfocusedWindow->setFrame(Rect(0, 0, 30, 30));
-        // Adding FLAG_NOT_TOUCH_MODAL to ensure taps outside this window are not sent to this
-        // window.
         // Adding FLAG_WATCH_OUTSIDE_TOUCH to receive ACTION_OUTSIDE when another window is tapped
-        mUnfocusedWindow->setTouchModal(false);
-        mUnfocusedWindow->setSplitTouch(true);
         mUnfocusedWindow->setWatchOutsideTouch(true);
 
         mFocusedWindow =
                 new FakeWindowHandle(mApplication, mDispatcher, "Focused", ADISPLAY_ID_DEFAULT);
         mFocusedWindow->setDispatchingTimeout(30ms);
         mFocusedWindow->setFrame(Rect(50, 50, 100, 100));
-        mFocusedWindow->setTouchModal(false);
-        mFocusedWindow->setSplitTouch(true);
 
         // Set focused application.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApplication);
@@ -5910,11 +5837,9 @@ protected:
         mApp = std::make_shared<FakeApplicationHandle>();
         mWindow = new FakeWindowHandle(mApp, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
         mWindow->setFrame(Rect(0, 0, 100, 100));
-        mWindow->setTouchModal(false);
 
         mSecondWindow = new FakeWindowHandle(mApp, mDispatcher, "TestWindow2", ADISPLAY_ID_DEFAULT);
         mSecondWindow->setFrame(Rect(100, 0, 200, 100));
-        mSecondWindow->setTouchModal(false);
 
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApp);
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow, mSecondWindow}}});
@@ -6330,7 +6255,6 @@ public:
                 new FakeWindowHandle(application, mDispatcher, name.c_str(), ADISPLAY_ID_DEFAULT);
         spy->setInputFeatures(WindowInfo::Feature::SPY);
         spy->setTrustedOverlay(true);
-        spy->setTouchModal(false);
         return spy;
     }
 
@@ -6340,8 +6264,6 @@ public:
         sp<FakeWindowHandle> window =
                 new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
         window->setFocusable(true);
-        window->setTouchModal(false);
-        window->setSplitTouch(true);
         return window;
     }
 
@@ -6486,27 +6408,6 @@ TEST_F(InputDispatcherSpyWindowTest, TouchableRegion) {
 }
 
 /**
- * A spy window that is a modal window will receive gestures outside of its frame and touchable
- * region.
- */
-TEST_F(InputDispatcherSpyWindowTest, ModalWindow) {
-    auto window = createForeground();
-    auto spy = createSpy();
-    // Our current policy dictates that modal windows must be focusable.
-    spy->setFocusable(true);
-    spy->setTouchModal(true);
-    spy->setFrame(Rect{0, 0, 20, 20});
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy, window}}});
-
-    // Inject an event outside the spy window's frame and touchable region.
-    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
-            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    window->consumeMotionDown();
-    spy->consumeMotionDown();
-}
-
-/**
  * A spy window can listen for touches outside its touchable region using the WATCH_OUTSIDE_TOUCHES
  * flag, but it will get zero-ed out coordinates if the foreground has a different owner.
  */
@@ -6515,7 +6416,6 @@ TEST_F(InputDispatcherSpyWindowTest, WatchOutsideTouches) {
     window->setOwnerInfo(12, 34);
     auto spy = createSpy();
     spy->setWatchOutsideTouch(true);
-    spy->setTouchModal(false);
     spy->setOwnerInfo(56, 78);
     spy->setFrame(Rect{0, 0, 20, 20});
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy, window}}});
@@ -6593,7 +6493,6 @@ TEST_F(InputDispatcherSpyWindowTest, CanPilferAfterWindowIsRemovedMidStream) {
  */
 TEST_F(InputDispatcherSpyWindowTest, ContinuesToReceiveGestureAfterPilfer) {
     auto spy = createSpy();
-    spy->setTouchModal(false);
     auto window = createForeground();
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy, window}}});
@@ -6728,14 +6627,11 @@ TEST_F(InputDispatcherSpyWindowTest, ReceivesSecondPointerAsDown) {
  * windows should be allowed to control split touch.
  */
 TEST_F(InputDispatcherSpyWindowTest, SplitIfNoForegroundWindowTouched) {
-    // Create a touch modal spy that spies on the entire display.
-    // This spy window does not set split touch. However, we still expect to split touches
+    // This spy window prevents touch splitting. However, we still expect to split touches
     // because a foreground window has not disabled splitting.
     auto spy = createSpy();
-    spy->setTouchModal(true);
-    spy->setSplitTouch(false);
+    spy->setPreventSplitting(true);
 
-    // Create a non touch modal window that supports split touch.
     auto window = createForeground();
     window->setFrame(Rect(0, 0, 100, 100));
 
@@ -6805,7 +6701,6 @@ public:
         overlay->setFocusable(false);
         overlay->setOwnerInfo(111, 111);
         overlay->setTouchable(false);
-        overlay->setSplitTouch(true);
         overlay->setInputFeatures(WindowInfo::Feature::INTERCEPTS_STYLUS);
         overlay->setTrustedOverlay(true);
 
@@ -6816,7 +6711,6 @@ public:
                                      ADISPLAY_ID_DEFAULT);
         window->setFocusable(true);
         window->setOwnerInfo(222, 222);
-        window->setSplitTouch(true);
 
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {overlay, window}}});
