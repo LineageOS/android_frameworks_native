@@ -17,6 +17,8 @@
 package android.gui;
 
 import android.gui.DisplayCaptureArgs;
+import android.gui.DisplayBrightness;
+import android.gui.IHdrLayerInfoListener;
 import android.gui.LayerCaptureArgs;
 import android.gui.IScreenCaptureListener;
 
@@ -44,6 +46,47 @@ interface ISurfaceComposer {
      */
     @nullable IBinder getPhysicalDisplayToken(long displayId);
 
+    /* set display power mode. depending on the mode, it can either trigger
+     * screen on, off or low power mode and wait for it to complete.
+     * requires ACCESS_SURFACE_FLINGER permission.
+     */
+    void setPowerMode(IBinder display, int mode);
+
+    /**
+     * Clears the user-preferred display mode. The device should now boot in system preferred
+     * display mode.
+     */
+    void clearBootDisplayMode(IBinder display);
+
+    /**
+     * Gets whether boot time display mode operations are supported on the device.
+     *
+     * outSupport
+     *      An output parameter for whether boot time display mode operations are supported.
+     *
+     * Returns NO_ERROR upon success. Otherwise,
+     *      NAME_NOT_FOUND if the display is invalid, or
+     *      BAD_VALUE      if the output parameter is invalid.
+     */
+    // TODO(b/213909104) : Add unit tests to verify surface flinger boot time APIs
+    boolean getBootDisplayModeSupport();
+
+    /**
+     * Switches Auto Low Latency Mode on/off on the connected display, if it is
+     * available. This should only be called if the display supports Auto Low
+     * Latency Mode as reported in #getDynamicDisplayInfo.
+     * For more information, see the HDMI 2.1 specification.
+     */
+    void setAutoLowLatencyMode(IBinder display, boolean on);
+
+    /**
+     * This will start sending infoframes to the connected display with
+     * ContentType=Game (if on=true). This should only be called if the display
+     * Game Content Type as reported in #getDynamicDisplayInfo.
+     * For more information, see the HDMI 1.4 specification.
+     */
+    void setGameContentType(IBinder display, boolean on);
+
     /**
      * Capture the specified screen. This requires READ_FRAME_BUFFER
      * permission.  This function will fail if there is a secure window on
@@ -61,4 +104,67 @@ interface ISurfaceComposer {
      * is a secure window on screen
      */
     void captureLayers(in LayerCaptureArgs args, IScreenCaptureListener listener);
+
+    /*
+     * Queries whether the given display is a wide color display.
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    boolean isWideColorDisplay(IBinder token);
+
+    /*
+     * Gets whether brightness operations are supported on a display.
+     *
+     * displayToken
+     *      The token of the display.
+     * outSupport
+     *      An output parameter for whether brightness operations are supported.
+     *
+     * Returns NO_ERROR upon success. Otherwise,
+     *      NAME_NOT_FOUND if the display is invalid, or
+     *      BAD_VALUE      if the output parameter is invalid.
+     */
+    boolean getDisplayBrightnessSupport(IBinder displayToken);
+
+    /*
+     * Sets the brightness of a display.
+     *
+     * displayToken
+     *      The token of the display whose brightness is set.
+     * brightness
+     *      The DisplayBrightness info to set on the desired display.
+     *
+     * Returns NO_ERROR upon success. Otherwise,
+     *      NAME_NOT_FOUND    if the display is invalid, or
+     *      BAD_VALUE         if the brightness is invalid, or
+     *      INVALID_OPERATION if brightness operations are not supported.
+     */
+    void setDisplayBrightness(IBinder displayToken, in DisplayBrightness brightness);
+
+    /*
+     * Adds a listener that receives HDR layer information. This is used in combination
+     * with setDisplayBrightness to adjust the display brightness depending on factors such
+     * as whether or not HDR is in use.
+     *
+     * Returns NO_ERROR upon success or NAME_NOT_FOUND if the display is invalid.
+     */
+    void addHdrLayerInfoListener(IBinder displayToken, IHdrLayerInfoListener listener);
+
+    /*
+     * Removes a listener that was added with addHdrLayerInfoListener.
+     *
+     * Returns NO_ERROR upon success, NAME_NOT_FOUND if the display is invalid, and BAD_VALUE if
+     *     the listener wasn't registered.
+     *
+     */
+    void removeHdrLayerInfoListener(IBinder displayToken, IHdrLayerInfoListener listener);
+
+    /*
+     * Sends a power boost to the composer. This function is asynchronous.
+     *
+     * boostId
+     *      boost id according to android::hardware::power::Boost
+     *
+     * Returns NO_ERROR upon success.
+     */
+    void notifyPowerBoost(int boostId);
 }
