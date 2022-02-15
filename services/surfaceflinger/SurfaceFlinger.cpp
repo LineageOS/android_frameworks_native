@@ -3673,6 +3673,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                 auto& [applyToken, transactionQueue] = *it;
                 while (!transactionQueue.empty()) {
                     if (stopTransactionProcessing(applyTokensWithUnsignaledTransactions)) {
+                        ATRACE_NAME("stopTransactionProcessing");
                         break;
                     }
 
@@ -3684,6 +3685,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                                                           transaction.originUid, transaction.states,
                                                           bufferLayersReadyToPresent,
                                                           transactions.size());
+                    ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
                     if (ready == TransactionReadiness::NotReady) {
                         setTransactionFlags(eTransactionFlushNeeded);
                         break;
@@ -3721,6 +3723,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                 const auto ready = [&]() REQUIRES(mStateLock) {
                     if (pendingTransactions ||
                         stopTransactionProcessing(applyTokensWithUnsignaledTransactions)) {
+                        ATRACE_NAME("pendingTransactions || stopTransactionProcessing");
                         return TransactionReadiness::NotReady;
                     }
 
@@ -3731,7 +3734,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                                                          bufferLayersReadyToPresent,
                                                          transactions.size());
                 }();
-
+                ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
                 if (ready == TransactionReadiness::NotReady) {
                     mPendingTransactionQueues[transaction.applyToken].push(std::move(transaction));
                 } else {
@@ -3892,11 +3895,10 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
             continue;
         }
 
-        ATRACE_NAME(layer->getName().c_str());
-
         const bool allowLatchUnsignaled =
                 shouldLatchUnsignaled(layer, s, states.size(), totalTXapplied);
-        ATRACE_INT("allowLatchUnsignaled", allowLatchUnsignaled);
+        ATRACE_FORMAT("%s allowLatchUnsignaled=%s", layer->getName().c_str(),
+                      allowLatchUnsignaled ? "true" : "false");
 
         const bool acquireFenceChanged = s.bufferData &&
                 s.bufferData->flags.test(BufferData::BufferDataChange::fenceChanged) &&
