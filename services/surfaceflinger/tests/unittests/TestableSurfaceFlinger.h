@@ -270,6 +270,8 @@ public:
     scheduler::TestableScheduler& mutableScheduler() { return *mScheduler; }
     scheduler::mock::SchedulerCallback& mockSchedulerCallback() { return mSchedulerCallback; }
 
+    auto& mutableVsyncModulator() { return mFlinger->mVsyncModulator; }
+
     using CreateBufferQueueFunction = surfaceflinger::test::Factory::CreateBufferQueueFunction;
     void setCreateBufferQueueFunction(CreateBufferQueueFunction f) {
         mFactory.mCreateBufferQueue = f;
