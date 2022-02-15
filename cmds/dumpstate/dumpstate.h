@@ -642,6 +642,9 @@ void do_dmesg();
 /* Prints the contents of all the routing tables, both IPv4 and IPv6. */
 void dump_route_tables();
 
+/* Dump subdirectories of cgroupfs if the corresponding process is frozen */
+void dump_frozen_cgroupfs();
+
 /* Play a sound via Stagefright */
 void play_sound(const char *path);
 
