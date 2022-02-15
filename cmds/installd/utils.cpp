@@ -652,7 +652,7 @@ static auto open_dir(const char* dir) {
     return std::unique_ptr<DIR, DirCloser>(::opendir(dir));
 }
 
-void find_and_delete_renamed_deleted_dirs_under_path(const std::string& pathname) {
+void cleanup_invalid_package_dirs_under_path(const std::string& pathname) {
     auto dir = open_dir(pathname.c_str());
     if (!dir) {
         return;
@@ -668,14 +668,21 @@ void find_and_delete_renamed_deleted_dirs_under_path(const std::string& pathname
         if (de->d_type != DT_DIR) {
             continue;
         }
-        const char* name = de->d_name;
-        if (is_renamed_deleted_dir({name})) {
-            LOG(INFO) << "Deleting renamed data directory: " << name;
+
+        std::string name{de->d_name};
+        // always skip "." and ".."
+        if (name == "." || name == "..") {
+            continue;
+        }
+
+        if (is_renamed_deleted_dir(name) || !is_valid_filename(name) ||
+            !is_valid_package_name(name)) {
+            ALOGI("Deleting renamed or invalid data directory: %s\n", name.c_str());
             // Deleting the content.
-            delete_dir_contents_fd(dfd, name);
+            delete_dir_contents_fd(dfd, name.c_str());
             // Deleting the directory
-            if (unlinkat(dfd, name, AT_REMOVEDIR) < 0) {
-                ALOGE("Couldn't unlinkat %s: %s\n", name, strerror(errno));
+            if (unlinkat(dfd, name.c_str(), AT_REMOVEDIR) < 0) {
+                ALOGE("Couldn't unlinkat %s: %s\n", name.c_str(), strerror(errno));
             }
         }
     }
