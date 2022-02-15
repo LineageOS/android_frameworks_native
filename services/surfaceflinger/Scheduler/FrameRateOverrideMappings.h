@@ -32,7 +32,8 @@ public:
     std::optional<Fps> getFrameRateOverrideForUid(uid_t uid,
                                                   bool supportsFrameRateOverrideByContent) const
             EXCLUDES(mFrameRateOverridesLock);
-    std::vector<FrameRateOverride> getAllFrameRateOverrides() EXCLUDES(mFrameRateOverridesLock);
+    std::vector<FrameRateOverride> getAllFrameRateOverrides(bool supportsFrameRateOverrideByContent)
+            EXCLUDES(mFrameRateOverridesLock);
     void dump(std::string& result) const;
     bool updateFrameRateOverridesByContent(const UidToFrameRateOverride& frameRateOverrides)
             EXCLUDES(mFrameRateOverridesLock);

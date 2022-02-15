@@ -80,6 +80,7 @@ cc_test {
         "FpsReporterTest.cpp",
         "FpsTest.cpp",
         "FramebufferSurfaceTest.cpp",
+        "FrameRateOverrideMappingsTest.cpp",
         "FrameTimelineTest.cpp",
         "GameModeTest.cpp",
         "HWComposerTest.cpp",
