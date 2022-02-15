@@ -148,11 +148,11 @@ FocusResolver::Focusability FocusResolver::isTokenFocusable(
             continue;
         }
         windowFound = true;
-        if (window->getInfo()->visible) {
+        if (!window->getInfo()->inputConfig.test(gui::WindowInfo::InputConfig::NOT_VISIBLE)) {
             // Check if at least a single window is visible.
             visibleWindowFound = true;
         }
-        if (!window->getInfo()->focusable) {
+        if (window->getInfo()->inputConfig.test(gui::WindowInfo::InputConfig::NOT_FOCUSABLE)) {
             // Check if all windows with the window token are focusable.
             allWindowsAreFocusable = false;
             break;
