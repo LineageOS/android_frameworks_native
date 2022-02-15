@@ -782,8 +782,8 @@ private:
             const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
             size_t totalTXapplied) const REQUIRES(mStateLock);
     static LatchUnsignaledConfig getLatchUnsignaledConfig();
-    static bool shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t&,
-                                      size_t numStates, size_t totalTXapplied);
+    bool shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t&, size_t numStates,
+                               size_t totalTXapplied) const;
     bool stopTransactionProcessing(const std::unordered_set<sp<IBinder>, SpHash<IBinder>>&
                                            applyTokensWithUnsignaledTransactions) const;
     bool applyTransactions(std::vector<TransactionState>& transactions, int64_t vsyncId)
