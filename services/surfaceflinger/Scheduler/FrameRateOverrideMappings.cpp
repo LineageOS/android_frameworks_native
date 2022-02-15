@@ -51,7 +51,8 @@ std::optional<Fps> FrameRateOverrideMappings::getFrameRateOverrideForUid(
     return std::nullopt;
 }
 
-std::vector<FrameRateOverride> FrameRateOverrideMappings::getAllFrameRateOverrides() {
+std::vector<FrameRateOverride> FrameRateOverrideMappings::getAllFrameRateOverrides(
+        bool supportsFrameRateOverrideByContent) {
     std::lock_guard lock(mFrameRateOverridesLock);
     std::vector<FrameRateOverride> overrides;
     overrides.reserve(std::max({mFrameRateOverridesFromGameManager.size(),
@@ -67,6 +68,11 @@ std::vector<FrameRateOverride> FrameRateOverrideMappings::getAllFrameRateOverrid
             overrides.emplace_back(FrameRateOverride{uid, frameRate.getValue()});
         }
     }
+
+    if (!supportsFrameRateOverrideByContent) {
+        return overrides;
+    }
+
     for (const auto& [uid, frameRate] : mFrameRateOverridesByContent) {
         if (std::find_if(overrides.begin(), overrides.end(),
                          [uid = uid](auto i) { return i.uid == uid; }) == overrides.end()) {
