@@ -39,6 +39,7 @@ TEST(TransactionProtoParserTest, parse) {
     layer_state_t layer;
     layer.layerId = 6;
     layer.what = std::numeric_limits<uint64_t>::max();
+    layer.what &= ~static_cast<uint64_t>(layer_state_t::eBufferChanged);
     layer.x = 7;
     layer.matrix.dsdx = 15;
 
@@ -69,23 +70,32 @@ TEST(TransactionProtoParserTest, parse) {
         t1.displays.add(display);
     }
 
-    TransactionProtoParser::LayerHandleToIdFn getLayerIdFn = [&](const sp<IBinder>& handle) {
-        return (handle == layerHandle) ? 42 : -1;
-    };
-    TransactionProtoParser::DisplayHandleToIdFn getDisplayIdFn = [&](const sp<IBinder>& handle) {
-        return (handle == displayHandle) ? 43 : -1;
-    };
-    TransactionProtoParser::LayerIdToHandleFn getLayerHandleFn = [&](int32_t id) {
-        return (id == 42) ? layerHandle : nullptr;
-    };
-    TransactionProtoParser::DisplayIdToHandleFn getDisplayHandleFn = [&](int32_t id) {
-        return (id == 43) ? displayHandle : nullptr;
+    class TestMapper : public TransactionProtoParser::FlingerDataMapper {
+    public:
+        sp<IBinder> layerHandle;
+        sp<IBinder> displayHandle;
+
+        TestMapper(sp<IBinder> layerHandle, sp<IBinder> displayHandle)
+              : layerHandle(layerHandle), displayHandle(displayHandle) {}
+
+        sp<IBinder> getLayerHandle(int32_t id) const override {
+            return (id == 42) ? layerHandle : nullptr;
+        }
+        int32_t getLayerId(const sp<IBinder>& handle) const override {
+            return (handle == layerHandle) ? 42 : -1;
+        }
+        sp<IBinder> getDisplayHandle(int32_t id) const {
+            return (id == 43) ? displayHandle : nullptr;
+        }
+        int32_t getDisplayId(const sp<IBinder>& handle) const {
+            return (handle == displayHandle) ? 43 : -1;
+        }
     };
 
-    proto::TransactionState proto =
-            TransactionProtoParser::toProto(t1, getLayerIdFn, getDisplayIdFn);
-    TransactionState t2 =
-            TransactionProtoParser::fromProto(proto, getLayerHandleFn, getDisplayHandleFn);
+    TransactionProtoParser parser(std::make_unique<TestMapper>(layerHandle, displayHandle));
+
+    proto::TransactionState proto = parser.toProto(t1);
+    TransactionState t2 = parser.fromProto(proto);
 
     ASSERT_EQ(t1.originPid, t2.originPid);
     ASSERT_EQ(t1.originUid, t2.originUid);

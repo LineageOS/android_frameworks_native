@@ -30,6 +30,8 @@
 #include <algorithm>
 #include <cinttypes>
 
+#include "HWC2.h"
+
 namespace android {
 
 using hardware::hidl_handle;
@@ -59,14 +61,11 @@ using AidlVsyncPeriodChangeConstraints =
         aidl::android::hardware::graphics::composer3::VsyncPeriodChangeConstraints;
 using AidlVsyncPeriodChangeTimeline =
         aidl::android::hardware::graphics::composer3::VsyncPeriodChangeTimeline;
-using AidlLayerGenericMetadataKey =
-        aidl::android::hardware::graphics::composer3::LayerGenericMetadataKey;
 using AidlDisplayContentSamplingAttributes =
         aidl::android::hardware::graphics::composer3::DisplayContentSamplingAttributes;
 using AidlFormatColorComponent = aidl::android::hardware::graphics::composer3::FormatColorComponent;
 using AidlDisplayConnectionType =
         aidl::android::hardware::graphics::composer3::DisplayConnectionType;
-using AidlIComposerClient = aidl::android::hardware::graphics::composer3::IComposerClient;
 
 using AidlColorTransform = aidl::android::hardware::graphics::common::ColorTransform;
 using AidlDataspace = aidl::android::hardware::graphics::common::Dataspace;
@@ -109,16 +108,6 @@ AidlFRect translate(IComposerClient::FRect x) {
             .top = x.top,
             .right = x.right,
             .bottom = x.bottom,
-    };
-}
-
-template <>
-Color translate(IComposerClient::Color x) {
-    return Color{
-            .r = static_cast<int8_t>(x.r),
-            .g = static_cast<int8_t>(x.g),
-            .b = static_cast<int8_t>(x.b),
-            .a = static_cast<int8_t>(x.a),
     };
 }
 
@@ -167,14 +156,6 @@ VsyncPeriodChangeTimeline translate(AidlVsyncPeriodChangeTimeline x) {
 }
 
 template <>
-IComposerClient::LayerGenericMetadataKey translate(AidlLayerGenericMetadataKey x) {
-    return IComposerClient::LayerGenericMetadataKey{
-            .name = x.name,
-            .mandatory = x.mandatory,
-    };
-}
-
-template <>
 IComposerClient::ClientTargetProperty translate(ClientTargetProperty x) {
     return IComposerClient::ClientTargetProperty{
             .pixelFormat = translate<PixelFormat>(x.pixelFormat),
@@ -190,40 +171,47 @@ mat4 makeMat4(std::vector<float> in) {
 
 class AidlIComposerCallbackWrapper : public BnComposerCallback {
 public:
-    AidlIComposerCallbackWrapper(sp<V2_4::IComposerCallback> callback)
-          : mCallback(std::move(callback)) {}
+    AidlIComposerCallbackWrapper(HWC2::ComposerCallback& callback) : mCallback(callback) {}
 
     ::ndk::ScopedAStatus onHotplug(int64_t in_display, bool in_connected) override {
         const auto connection = in_connected ? V2_4::IComposerCallback::Connection::CONNECTED
                                              : V2_4::IComposerCallback::Connection::DISCONNECTED;
-        mCallback->onHotplug(translate<Display>(in_display), connection);
+        mCallback.onComposerHalHotplug(translate<Display>(in_display), connection);
         return ::ndk::ScopedAStatus::ok();
     }
 
     ::ndk::ScopedAStatus onRefresh(int64_t in_display) override {
-        mCallback->onRefresh(translate<Display>(in_display));
+        mCallback.onComposerHalRefresh(translate<Display>(in_display));
         return ::ndk::ScopedAStatus::ok();
     }
+
     ::ndk::ScopedAStatus onSeamlessPossible(int64_t in_display) override {
-        mCallback->onSeamlessPossible(translate<Display>(in_display));
+        mCallback.onComposerHalSeamlessPossible(translate<Display>(in_display));
         return ::ndk::ScopedAStatus::ok();
     }
+
     ::ndk::ScopedAStatus onVsync(int64_t in_display, int64_t in_timestamp,
                                  int32_t in_vsyncPeriodNanos) override {
-        mCallback->onVsync_2_4(translate<Display>(in_display), in_timestamp,
-                               static_cast<uint32_t>(in_vsyncPeriodNanos));
+        mCallback.onComposerHalVsync(translate<Display>(in_display), in_timestamp,
+                                     static_cast<uint32_t>(in_vsyncPeriodNanos));
         return ::ndk::ScopedAStatus::ok();
     }
+
     ::ndk::ScopedAStatus onVsyncPeriodTimingChanged(
             int64_t in_display, const AidlVsyncPeriodChangeTimeline& in_updatedTimeline) override {
-        mCallback->onVsyncPeriodTimingChanged(translate<Display>(in_display),
-                                              translate<V2_4::VsyncPeriodChangeTimeline>(
-                                                      in_updatedTimeline));
+        mCallback.onComposerHalVsyncPeriodTimingChanged(translate<Display>(in_display),
+                                                        translate<V2_4::VsyncPeriodChangeTimeline>(
+                                                                in_updatedTimeline));
+        return ::ndk::ScopedAStatus::ok();
+    }
+
+    ::ndk::ScopedAStatus onVsyncIdle(int64_t in_display) override {
+        mCallback.onComposerHalVsyncIdle(translate<Display>(in_display));
         return ::ndk::ScopedAStatus::ok();
     }
 
 private:
-    sp<V2_4::IComposerCallback> mCallback;
+    HWC2::ComposerCallback& mCallback;
 };
 
 std::string AidlComposer::instance(const std::string& serviceName) {
@@ -253,14 +241,24 @@ AidlComposer::AidlComposer(const std::string& serviceName) {
 
 AidlComposer::~AidlComposer() = default;
 
-std::vector<IComposer::Capability> AidlComposer::getCapabilities() {
+bool AidlComposer::isSupported(OptionalFeature feature) const {
+    switch (feature) {
+        case OptionalFeature::RefreshRateSwitching:
+        case OptionalFeature::ExpectedPresentTime:
+        case OptionalFeature::DisplayBrightnessCommand:
+        case OptionalFeature::BootDisplayConfig:
+            return true;
+    }
+}
+
+std::vector<Capability> AidlComposer::getCapabilities() {
     std::vector<Capability> capabilities;
     const auto status = mAidlComposer->getCapabilities(&capabilities);
     if (!status.isOk()) {
         ALOGE("getCapabilities failed %s", status.getDescription().c_str());
         return {};
     }
-    return translate<IComposer::Capability>(capabilities);
+    return capabilities;
 }
 
 std::string AidlComposer::dumpDebugInfo() {
@@ -273,10 +271,11 @@ std::string AidlComposer::dumpDebugInfo() {
     return info;
 }
 
-void AidlComposer::registerCallback(const sp<IComposerCallback>& callback) {
+void AidlComposer::registerCallback(HWC2::ComposerCallback& callback) {
     if (mAidlComposerCallback) {
         ALOGE("Callback already registered");
     }
+
     mAidlComposerCallback = ndk::SharedRefBase::make<AidlIComposerCallbackWrapper>(callback);
     AIBinder_setMinSchedulerPolicy(mAidlComposerCallback->asBinder().get(), SCHED_FIFO, 2);
 
@@ -376,10 +375,14 @@ Error AidlComposer::getActiveConfig(Display display, Config* outConfig) {
 Error AidlComposer::getChangedCompositionTypes(
         Display display, std::vector<Layer>* outLayers,
         std::vector<aidl::android::hardware::graphics::composer3::Composition>* outTypes) {
-    std::vector<int64_t> layers;
-    mReader.takeChangedCompositionTypes(translate<int64_t>(display), &layers, outTypes);
+    const auto changedLayers = mReader.takeChangedCompositionTypes(translate<int64_t>(display));
+    outLayers->reserve(changedLayers.size());
+    outTypes->reserve(changedLayers.size());
 
-    *outLayers = translate<Layer>(layers);
+    for (const auto& layer : changedLayers) {
+        outLayers->emplace_back(translate<Layer>(layer.layer));
+        outTypes->emplace_back(layer.composition);
+    }
     return Error::NONE;
 }
 
@@ -432,10 +435,15 @@ Error AidlComposer::getDisplayName(Display display, std::string* outName) {
 Error AidlComposer::getDisplayRequests(Display display, uint32_t* outDisplayRequestMask,
                                        std::vector<Layer>* outLayers,
                                        std::vector<uint32_t>* outLayerRequestMasks) {
-    std::vector<int64_t> layers;
-    mReader.takeDisplayRequests(translate<int64_t>(display), outDisplayRequestMask, &layers,
-                                outLayerRequestMasks);
-    *outLayers = translate<Layer>(layers);
+    const auto displayRequests = mReader.takeDisplayRequests(translate<int64_t>(display));
+    *outDisplayRequestMask = translate<uint32_t>(displayRequests.mask);
+    outLayers->reserve(displayRequests.layerRequests.size());
+    outLayerRequestMasks->reserve(displayRequests.layerRequests.size());
+
+    for (const auto& layer : displayRequests.layerRequests) {
+        outLayers->emplace_back(translate<Layer>(layer.layer));
+        outLayerRequestMasks->emplace_back(translate<uint32_t>(layer.mask));
+    }
     return Error::NONE;
 }
 
@@ -472,9 +480,17 @@ Error AidlComposer::getHdrCapabilities(Display display, std::vector<Hdr>* outTyp
 
 Error AidlComposer::getReleaseFences(Display display, std::vector<Layer>* outLayers,
                                      std::vector<int>* outReleaseFences) {
-    std::vector<int64_t> layers;
-    mReader.takeReleaseFences(translate<int64_t>(display), &layers, outReleaseFences);
-    *outLayers = translate<Layer>(layers);
+    auto fences = mReader.takeReleaseFences(translate<int64_t>(display));
+    outLayers->reserve(fences.size());
+    outReleaseFences->reserve(fences.size());
+
+    for (auto& fence : fences) {
+        outLayers->emplace_back(translate<Layer>(fence.layer));
+        // take ownership
+        const int fenceOwner = fence.fence.get();
+        *fence.fence.getR() = -1;
+        outReleaseFences->emplace_back(fenceOwner);
+    }
     return Error::NONE;
 }
 
@@ -487,8 +503,10 @@ Error AidlComposer::presentDisplay(Display display, int* outPresentFence) {
         return error;
     }
 
-    mReader.takePresentFence(translate<int64_t>(display), outPresentFence);
-
+    auto fence = mReader.takePresentFence(translate<int64_t>(display));
+    // take ownership
+    *outPresentFence = fence.get();
+    *fence.getR() = -1;
     return Error::NONE;
 }
 
@@ -529,9 +547,8 @@ Error AidlComposer::setColorMode(Display display, ColorMode mode, RenderIntent r
     return Error::NONE;
 }
 
-Error AidlComposer::setColorTransform(Display display, const float* matrix, ColorTransform hint) {
-    mWriter.setColorTransform(translate<int64_t>(display), matrix,
-                              translate<AidlColorTransform>(hint));
+Error AidlComposer::setColorTransform(Display display, const float* matrix) {
+    mWriter.setColorTransform(translate<int64_t>(display), matrix);
     return Error::NONE;
 }
 
@@ -573,10 +590,11 @@ Error AidlComposer::setClientTargetSlotCount(Display display) {
     return Error::NONE;
 }
 
-Error AidlComposer::validateDisplay(Display display, uint32_t* outNumTypes,
-                                    uint32_t* outNumRequests) {
+Error AidlComposer::validateDisplay(Display display, nsecs_t expectedPresentTime,
+                                    uint32_t* outNumTypes, uint32_t* outNumRequests) {
     ATRACE_NAME("HwcValidateDisplay");
-    mWriter.validateDisplay(translate<int64_t>(display));
+    mWriter.validateDisplay(translate<int64_t>(display),
+                            ClockMonotonicTimestamp{expectedPresentTime});
 
     Error error = execute();
     if (error != Error::NONE) {
@@ -588,24 +606,34 @@ Error AidlComposer::validateDisplay(Display display, uint32_t* outNumTypes,
     return Error::NONE;
 }
 
-Error AidlComposer::presentOrValidateDisplay(Display display, uint32_t* outNumTypes,
-                                             uint32_t* outNumRequests, int* outPresentFence,
-                                             uint32_t* state) {
+Error AidlComposer::presentOrValidateDisplay(Display display, nsecs_t expectedPresentTime,
+                                             uint32_t* outNumTypes, uint32_t* outNumRequests,
+                                             int* outPresentFence, uint32_t* state) {
     ATRACE_NAME("HwcPresentOrValidateDisplay");
-    mWriter.presentOrvalidateDisplay(translate<int64_t>(display));
+    mWriter.presentOrvalidateDisplay(translate<int64_t>(display),
+                                     ClockMonotonicTimestamp{expectedPresentTime});
 
     Error error = execute();
     if (error != Error::NONE) {
         return error;
     }
 
-    mReader.takePresentOrValidateStage(translate<int64_t>(display), state);
-
-    if (*state == 1) { // Present succeeded
-        mReader.takePresentFence(translate<int64_t>(display), outPresentFence);
+    const auto result = mReader.takePresentOrValidateStage(translate<int64_t>(display));
+    if (!result.has_value()) {
+        *state = translate<uint32_t>(-1);
+        return Error::NO_RESOURCES;
     }
 
-    if (*state == 0) { // Validate succeeded.
+    *state = translate<uint32_t>(*result);
+
+    if (*result == PresentOrValidate::Result::Presented) {
+        auto fence = mReader.takePresentFence(translate<int64_t>(display));
+        // take ownership
+        *outPresentFence = fence.get();
+        *fence.getR() = -1;
+    }
+
+    if (*result == PresentOrValidate::Result::Validated) {
         mReader.hasChanges(translate<int64_t>(display), outNumTypes, outNumRequests);
     }
 
@@ -643,10 +671,8 @@ Error AidlComposer::setLayerBlendMode(Display display, Layer layer,
     return Error::NONE;
 }
 
-Error AidlComposer::setLayerColor(Display display, Layer layer,
-                                  const IComposerClient::Color& color) {
-    mWriter.setLayerColor(translate<int64_t>(display), translate<int64_t>(layer),
-                          translate<Color>(color));
+Error AidlComposer::setLayerColor(Display display, Layer layer, const Color& color) {
+    mWriter.setLayerColor(translate<int64_t>(display), translate<int64_t>(layer), color);
     return Error::NONE;
 }
 
@@ -713,14 +739,16 @@ Error AidlComposer::execute() {
         return Error::NONE;
     }
 
-    std::vector<CommandResultPayload> results;
-    auto status = mAidlComposerClient->executeCommands(commands, &results);
-    if (!status.isOk()) {
-        ALOGE("executeCommands failed %s", status.getDescription().c_str());
-        return static_cast<Error>(status.getServiceSpecificError());
-    }
+    { // scope for results
+        std::vector<CommandResultPayload> results;
+        auto status = mAidlComposerClient->executeCommands(commands, &results);
+        if (!status.isOk()) {
+            ALOGE("executeCommands failed %s", status.getDescription().c_str());
+            return static_cast<Error>(status.getServiceSpecificError());
+        }
 
-    mReader.parse(results);
+        mReader.parse(std::move(results));
+    }
     const auto commandErrors = mReader.takeErrors();
     Error error = Error::NONE;
     for (const auto& cmdErr : commandErrors) {
@@ -878,26 +906,26 @@ Error AidlComposer::setLayerPerFrameMetadataBlobs(
     return Error::NONE;
 }
 
-Error AidlComposer::setDisplayBrightness(Display display, float brightness) {
-    const auto status =
-            mAidlComposerClient->setDisplayBrightness(translate<int64_t>(display), brightness);
-    if (!status.isOk()) {
-        ALOGE("setDisplayBrightness failed %s", status.getDescription().c_str());
-        return static_cast<Error>(status.getServiceSpecificError());
+Error AidlComposer::setDisplayBrightness(Display display, float brightness,
+                                         const DisplayBrightnessOptions& options) {
+    mWriter.setDisplayBrightness(translate<int64_t>(display), brightness);
+
+    if (options.applyImmediately) {
+        return execute();
     }
+
     return Error::NONE;
 }
 
 Error AidlComposer::getDisplayCapabilities(Display display,
-                                           std::vector<DisplayCapability>* outCapabilities) {
-    std::vector<AidlDisplayCapability> capabilities;
-    const auto status =
-            mAidlComposerClient->getDisplayCapabilities(translate<int64_t>(display), &capabilities);
+                                           std::vector<AidlDisplayCapability>* outCapabilities) {
+    const auto status = mAidlComposerClient->getDisplayCapabilities(translate<int64_t>(display),
+                                                                    outCapabilities);
     if (!status.isOk()) {
         ALOGE("getDisplayCapabilities failed %s", status.getDescription().c_str());
+        outCapabilities->clear();
         return static_cast<Error>(status.getServiceSpecificError());
     }
-    *outCapabilities = translate<DisplayCapability>(capabilities);
     return Error::NONE;
 }
 
@@ -980,32 +1008,57 @@ V2_4::Error AidlComposer::setContentType(Display display,
     return V2_4::Error::NONE;
 }
 
-V2_4::Error AidlComposer::setLayerGenericMetadata(Display display, Layer layer,
-                                                  const std::string& key, bool mandatory,
-                                                  const std::vector<uint8_t>& value) {
-    mWriter.setLayerGenericMetadata(translate<int64_t>(display), translate<int64_t>(layer), key,
-                                    mandatory, value);
-    return V2_4::Error::NONE;
+V2_4::Error AidlComposer::setLayerGenericMetadata(Display, Layer, const std::string&, bool,
+                                                  const std::vector<uint8_t>&) {
+    // There are no users for this API. See b/209691612.
+    return V2_4::Error::UNSUPPORTED;
 }
 
 V2_4::Error AidlComposer::getLayerGenericMetadataKeys(
-        std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) {
-    std::vector<AidlLayerGenericMetadataKey> keys;
-    const auto status = mAidlComposerClient->getLayerGenericMetadataKeys(&keys);
+        std::vector<IComposerClient::LayerGenericMetadataKey>*) {
+    // There are no users for this API. See b/209691612.
+    return V2_4::Error::UNSUPPORTED;
+}
+
+Error AidlComposer::setBootDisplayConfig(Display display, Config config) {
+    const auto status = mAidlComposerClient->setBootDisplayConfig(translate<int64_t>(display),
+                                                                  translate<int32_t>(config));
     if (!status.isOk()) {
-        ALOGE("getLayerGenericMetadataKeys failed %s", status.getDescription().c_str());
-        return static_cast<V2_4::Error>(status.getServiceSpecificError());
+        ALOGE("setBootDisplayConfig failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
     }
-    *outKeys = translate<IComposerClient::LayerGenericMetadataKey>(keys);
-    return V2_4::Error::NONE;
+    return Error::NONE;
+}
+
+Error AidlComposer::clearBootDisplayConfig(Display display) {
+    const auto status = mAidlComposerClient->clearBootDisplayConfig(translate<int64_t>(display));
+    if (!status.isOk()) {
+        ALOGE("clearBootDisplayConfig failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    return Error::NONE;
+}
+
+Error AidlComposer::getPreferredBootDisplayConfig(Display display, Config* config) {
+    int32_t displayConfig;
+    const auto status =
+            mAidlComposerClient->getPreferredBootDisplayConfig(translate<int64_t>(display),
+                                                               &displayConfig);
+    if (!status.isOk()) {
+        ALOGE("getPreferredBootDisplayConfig failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    *config = translate<uint32_t>(displayConfig);
+    return Error::NONE;
 }
 
 Error AidlComposer::getClientTargetProperty(
         Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty,
         float* whitePointNits) {
-    ClientTargetProperty property;
-    mReader.takeClientTargetProperty(translate<int64_t>(display), &property, whitePointNits);
-    *outClientTargetProperty = translate<IComposerClient::ClientTargetProperty>(property);
+    const auto property = mReader.takeClientTargetProperty(translate<int64_t>(display));
+    *outClientTargetProperty =
+            translate<IComposerClient::ClientTargetProperty>(property.clientTargetProperty);
+    *whitePointNits = property.whitePointNits;
     return Error::NONE;
 }
 
@@ -1015,5 +1068,23 @@ Error AidlComposer::setLayerWhitePointNits(Display display, Layer layer, float w
     return Error::NONE;
 }
 
+Error AidlComposer::setLayerBlockingRegion(Display display, Layer layer,
+                                           const std::vector<IComposerClient::Rect>& blocking) {
+    mWriter.setLayerBlockingRegion(translate<int64_t>(display), translate<int64_t>(layer),
+                                   translate<AidlRect>(blocking));
+    return Error::NONE;
+}
+
+Error AidlComposer::getDisplayDecorationSupport(Display display,
+                                                std::optional<DisplayDecorationSupport>* support) {
+    const auto status =
+            mAidlComposerClient->getDisplayDecorationSupport(translate<int64_t>(display), support);
+    if (!status.isOk()) {
+        ALOGE("getDisplayDecorationSupport failed %s", status.getDescription().c_str());
+        support->reset();
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    return Error::NONE;
+}
 } // namespace Hwc2
 } // namespace android

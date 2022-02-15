@@ -25,15 +25,14 @@ JoystickInputMapper::JoystickInputMapper(InputDeviceContext& deviceContext)
 
 JoystickInputMapper::~JoystickInputMapper() {}
 
-uint32_t JoystickInputMapper::getSources() {
+uint32_t JoystickInputMapper::getSources() const {
     return AINPUT_SOURCE_JOYSTICK;
 }
 
 void JoystickInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     InputMapper::populateDeviceInfo(info);
 
-    for (std::pair<const int32_t, Axis>& pair : mAxes) {
-        const Axis& axis = pair.second;
+    for (const auto& [_, axis] : mAxes) {
         addMotionRange(axis.axisInfo.axis, axis, info);
 
         if (axis.axisInfo.mode == AxisInfo::MODE_SPLIT) {

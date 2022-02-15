@@ -15,10 +15,10 @@
  */
 
 #include <scheduler/Fps.h>
+#include <scheduler/Timer.h>
 
 #include "VsyncSchedule.h"
 
-#include "Timer.h"
 #include "VSyncDispatchTimerQueue.h"
 #include "VSyncPredictor.h"
 #include "VSyncReactor.h"

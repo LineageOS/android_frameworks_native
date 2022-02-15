@@ -61,6 +61,9 @@ public:
     inline std::optional<uint8_t> getAssociatedDisplayPort() const {
         return mAssociatedDisplayPort;
     }
+    inline std::optional<std::string> getAssociatedDisplayUniqueId() const {
+        return mAssociatedDisplayUniqueId;
+    }
     inline std::optional<DisplayViewport> getAssociatedViewport() const {
         return mAssociatedViewport;
     }
@@ -84,6 +87,7 @@ public:
     int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode);
     int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
     int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode);
+    int32_t getKeyCodeForKeyLocation(int32_t locationKeyCode) const;
     bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes, const int32_t* keyCodes,
                                uint8_t* outFlags);
     void vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token);
@@ -216,7 +220,8 @@ private:
     // return the first value returned by a function over every mapper.
     // if all mappers return nullopt, return nullopt.
     template <typename T>
-    inline std::optional<T> first_in_mappers(std::function<std::optional<T>(InputMapper&)> f) {
+    inline std::optional<T> first_in_mappers(
+            std::function<std::optional<T>(InputMapper&)> f) const {
         for (auto& deviceEntry : mDevices) {
             auto& devicePair = deviceEntry.second;
             auto& mappers = devicePair.second;
@@ -312,6 +317,9 @@ public:
     inline int32_t getKeyCodeState(int32_t keyCode) const {
         return mEventHub->getKeyCodeState(mId, keyCode);
     }
+    inline int32_t getKeyCodeForKeyLocation(int32_t locationKeyCode) const {
+        return mEventHub->getKeyCodeForKeyLocation(mId, locationKeyCode);
+    }
     inline int32_t getSwitchState(int32_t sw) const { return mEventHub->getSwitchState(mId, sw); }
     inline status_t getAbsoluteAxisValue(int32_t code, int32_t* outValue) const {
         return mEventHub->getAbsoluteAxisValue(mId, code, outValue);
@@ -380,6 +388,9 @@ public:
     inline bool isExternal() { return mDevice.isExternal(); }
     inline std::optional<uint8_t> getAssociatedDisplayPort() const {
         return mDevice.getAssociatedDisplayPort();
+    }
+    inline std::optional<std::string> getAssociatedDisplayUniqueId() const {
+        return mDevice.getAssociatedDisplayUniqueId();
     }
     inline std::optional<DisplayViewport> getAssociatedViewport() const {
         return mDevice.getAssociatedViewport();

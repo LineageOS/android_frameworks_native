@@ -164,7 +164,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
     const bool blackOutLayer = (isProtected() && !targetSettings.supportsProtectedContent) ||
             ((isSecure() || isProtected()) && !targetSettings.isSecure);
     const bool bufferCanBeUsedAsHwTexture =
-            mBufferInfo.mBuffer->getBuffer()->getUsage() & GraphicBuffer::USAGE_HW_TEXTURE;
+            mBufferInfo.mBuffer->getUsage() & GraphicBuffer::USAGE_HW_TEXTURE;
     compositionengine::LayerFE::LayerSettings& layer = *result;
     if (blackOutLayer || !bufferCanBeUsedAsHwTexture) {
         ALOGE_IF(!bufferCanBeUsedAsHwTexture, "%s is blacked out as buffer is not gpu readable",
@@ -201,7 +201,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
     }
     layer.source.buffer.maxLuminanceNits = maxLuminance;
     layer.frameNumber = mCurrentFrameNumber;
-    layer.bufferId = mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getBuffer()->getId() : 0;
+    layer.bufferId = mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getId() : 0;
 
     const bool useFiltering =
             targetSettings.needsFiltering || mNeedsFiltering || bufferNeedsFiltering();
@@ -295,6 +295,9 @@ void BufferLayer::preparePerFrameCompositionState() {
         compositionState->compositionType =
                 aidl::android::hardware::graphics::composer3::Composition::SIDEBAND;
         return;
+    } else if ((mDrawingState.flags & layer_state_t::eLayerIsDisplayDecoration) != 0) {
+        compositionState->compositionType =
+                aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION;
     } else {
         // Normal buffer layers
         compositionState->hdrMetadata = mBufferInfo.mHdrMetadata;
@@ -303,7 +306,7 @@ void BufferLayer::preparePerFrameCompositionState() {
                 : aidl::android::hardware::graphics::composer3::Composition::DEVICE;
     }
 
-    compositionState->buffer = mBufferInfo.mBuffer->getBuffer();
+    compositionState->buffer = getBuffer();
     compositionState->bufferSlot = (mBufferInfo.mBufferSlot == BufferQueue::INVALID_BUFFER_SLOT)
             ? 0
             : mBufferInfo.mBufferSlot;
@@ -316,7 +319,6 @@ bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {
         Mutex::Autolock lock(mFrameEventHistoryMutex);
         mFrameEventHistory.addPreComposition(mCurrentFrameNumber, refreshStartTime);
     }
-    mRefreshPending = false;
     return hasReadyFrame();
 }
 namespace {
@@ -433,7 +435,7 @@ void BufferLayer::onPostComposition(const DisplayDevice* display,
 
 void BufferLayer::gatherBufferInfo() {
     mBufferInfo.mPixelFormat =
-            !mBufferInfo.mBuffer ? PIXEL_FORMAT_NONE : mBufferInfo.mBuffer->getBuffer()->format;
+            !mBufferInfo.mBuffer ? PIXEL_FORMAT_NONE : mBufferInfo.mBuffer->getPixelFormat();
     mBufferInfo.mFrameLatencyNeeded = true;
 }
 
@@ -471,19 +473,6 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
         return refreshRequired;
     }
 
-    if (!hasReadyFrame()) {
-        return false;
-    }
-
-    // if we've already called updateTexImage() without going through
-    // a composition step, we have to skip this layer at this point
-    // because we cannot call updateTeximage() without a corresponding
-    // compositionComplete() call.
-    // we'll trigger an update in onPreComposition().
-    if (mRefreshPending) {
-        return false;
-    }
-
     // If the head buffer's acquire fence hasn't signaled yet, return and
     // try again later
     if (!fenceHasSignaled()) {
@@ -515,7 +504,6 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
 
     gatherBufferInfo();
 
-    mRefreshPending = true;
     if (oldBufferInfo.mBuffer == nullptr) {
         // the first time we receive a buffer, we need to trigger a
         // geometry invalidation.
@@ -530,10 +518,10 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
     }
 
     if (oldBufferInfo.mBuffer != nullptr) {
-        uint32_t bufWidth = mBufferInfo.mBuffer->getBuffer()->getWidth();
-        uint32_t bufHeight = mBufferInfo.mBuffer->getBuffer()->getHeight();
-        if (bufWidth != uint32_t(oldBufferInfo.mBuffer->getBuffer()->width) ||
-            bufHeight != uint32_t(oldBufferInfo.mBuffer->getBuffer()->height)) {
+        uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+        uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
+        if (bufWidth != oldBufferInfo.mBuffer->getWidth() ||
+            bufHeight != oldBufferInfo.mBuffer->getHeight()) {
             recomputeVisibleRegions = true;
         }
     }
@@ -555,7 +543,7 @@ uint32_t BufferLayer::getEffectiveScalingMode() const {
 
 bool BufferLayer::isProtected() const {
     return (mBufferInfo.mBuffer != nullptr) &&
-            (mBufferInfo.mBuffer->getBuffer()->getUsage() & GRALLOC_USAGE_PROTECTED);
+            (mBufferInfo.mBuffer->getUsage() & GRALLOC_USAGE_PROTECTED);
 }
 
 // As documented in libhardware header, formats in the range
@@ -635,8 +623,8 @@ Rect BufferLayer::getBufferSize(const State& s) const {
         return Rect::INVALID_RECT;
     }
 
-    uint32_t bufWidth = mBufferInfo.mBuffer->getBuffer()->getWidth();
-    uint32_t bufHeight = mBufferInfo.mBuffer->getBuffer()->getHeight();
+    uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+    uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
 
     // Undo any transformations on the buffer and return the result.
     if (mBufferInfo.mTransform & ui::Transform::ROT_90) {
@@ -667,8 +655,8 @@ FloatRect BufferLayer::computeSourceBounds(const FloatRect& parentBounds) const 
         return parentBounds;
     }
 
-    uint32_t bufWidth = mBufferInfo.mBuffer->getBuffer()->getWidth();
-    uint32_t bufHeight = mBufferInfo.mBuffer->getBuffer()->getHeight();
+    uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+    uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
 
     // Undo any transformations on the buffer and return the result.
     if (mBufferInfo.mTransform & ui::Transform::ROT_90) {
@@ -686,7 +674,6 @@ FloatRect BufferLayer::computeSourceBounds(const FloatRect& parentBounds) const 
 }
 
 void BufferLayer::latchAndReleaseBuffer() {
-    mRefreshPending = false;
     if (hasReadyFrame()) {
         bool ignored = false;
         latchBuffer(ignored, systemTime(), 0 /* expectedPresentTime */);
@@ -710,7 +697,7 @@ Rect BufferLayer::getBufferCrop() const {
         return mBufferInfo.mCrop;
     } else if (mBufferInfo.mBuffer != nullptr) {
         // otherwise we use the whole buffer
-        return mBufferInfo.mBuffer->getBuffer()->getBounds();
+        return mBufferInfo.mBuffer->getBounds();
     } else {
         // if we don't have a buffer yet, we use an empty/invalid crop
         return Rect();
@@ -815,6 +802,10 @@ void BufferLayer::setTransformHint(ui::Transform::RotationFlags displayTransform
 
 bool BufferLayer::bufferNeedsFiltering() const {
     return isFixedSize();
+}
+
+const std::shared_ptr<renderengine::ExternalTexture>& BufferLayer::getExternalTexture() const {
+    return mBufferInfo.mBuffer;
 }
 
 } // namespace android

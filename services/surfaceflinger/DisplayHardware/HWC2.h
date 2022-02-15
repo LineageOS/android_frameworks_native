@@ -34,9 +34,14 @@
 #include <unordered_set>
 #include <vector>
 
+#include "ComposerHal.h"
 #include "Hal.h"
 
+#include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+#include <aidl/android/hardware/graphics/composer3/Capability.h>
+#include <aidl/android/hardware/graphics/composer3/Color.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
+#include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
 namespace android {
 
@@ -69,6 +74,7 @@ struct ComposerCallback {
     virtual void onComposerHalVsyncPeriodTimingChanged(hal::HWDisplayId,
                                                        const hal::VsyncPeriodChangeTimeline&) = 0;
     virtual void onComposerHalSeamlessPossible(hal::HWDisplayId) = 0;
+    virtual void onComposerHalVsyncIdle(hal::HWDisplayId) = 0;
 
 protected:
     ~ComposerCallback() = default;
@@ -82,7 +88,8 @@ public:
     virtual hal::HWDisplayId getId() const = 0;
     virtual bool isConnected() const = 0;
     virtual void setConnected(bool connected) = 0; // For use by Device only
-    virtual bool hasCapability(hal::DisplayCapability) const = 0;
+    virtual bool hasCapability(
+            aidl::android::hardware::graphics::composer3::DisplayCapability) const = 0;
     virtual bool isVsyncPeriodSwitchSupported() const = 0;
     virtual void onLayerDestroyed(hal::HWLayerId layerId) = 0;
 
@@ -128,28 +135,37 @@ public:
     [[clang::warn_unused_result]] virtual hal::Error setColorMode(
             hal::ColorMode mode, hal::RenderIntent renderIntent) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setColorTransform(
-            const android::mat4& matrix, hal::ColorTransform hint) = 0;
+            const android::mat4& matrix) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setOutputBuffer(
             const android::sp<android::GraphicBuffer>& buffer,
             const android::sp<android::Fence>& releaseFence) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setPowerMode(hal::PowerMode mode) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setVsyncEnabled(hal::Vsync enabled) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error validate(uint32_t* outNumTypes,
+    [[clang::warn_unused_result]] virtual hal::Error validate(nsecs_t expectedPresentTime,
+                                                              uint32_t* outNumTypes,
                                                               uint32_t* outNumRequests) = 0;
     [[clang::warn_unused_result]] virtual hal::Error presentOrValidate(
-            uint32_t* outNumTypes, uint32_t* outNumRequests,
+            nsecs_t expectedPresentTime, uint32_t* outNumTypes, uint32_t* outNumRequests,
             android::sp<android::Fence>* outPresentFence, uint32_t* state) = 0;
     [[clang::warn_unused_result]] virtual std::future<hal::Error> setDisplayBrightness(
-            float brightness) = 0;
+            float brightness, const Hwc2::Composer::DisplayBrightnessOptions& options) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setActiveConfigWithConstraints(
             hal::HWConfigId configId, const hal::VsyncPeriodChangeConstraints& constraints,
             hal::VsyncPeriodChangeTimeline* outTimeline) = 0;
+    [[clang::warn_unused_result]] virtual hal::Error setBootDisplayConfig(
+            hal::HWConfigId configId) = 0;
+    [[clang::warn_unused_result]] virtual hal::Error clearBootDisplayConfig() = 0;
+    [[clang::warn_unused_result]] virtual hal::Error getPreferredBootDisplayConfig(
+            hal::HWConfigId* configId) const = 0;
     [[clang::warn_unused_result]] virtual hal::Error setAutoLowLatencyMode(bool on) = 0;
     [[clang::warn_unused_result]] virtual hal::Error getSupportedContentTypes(
             std::vector<hal::ContentType>*) const = 0;
     [[clang::warn_unused_result]] virtual hal::Error setContentType(hal::ContentType) = 0;
     [[clang::warn_unused_result]] virtual hal::Error getClientTargetProperty(
             hal::ClientTargetProperty* outClientTargetProperty, float* outWhitePointNits) = 0;
+    [[clang::warn_unused_result]] virtual hal::Error getDisplayDecorationSupport(
+            std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    support) = 0;
 };
 
 namespace impl {
@@ -158,8 +174,9 @@ class Layer;
 
 class Display : public HWC2::Display {
 public:
-    Display(android::Hwc2::Composer&, const std::unordered_set<hal::Capability>&, hal::HWDisplayId,
-            hal::DisplayType);
+    Display(android::Hwc2::Composer&,
+            const std::unordered_set<aidl::android::hardware::graphics::composer3::Capability>&,
+            hal::HWDisplayId, hal::DisplayType);
     ~Display() override;
 
     // Required by HWC2
@@ -197,31 +214,41 @@ public:
                                const android::sp<android::Fence>& acquireFence,
                                hal::Dataspace dataspace) override;
     hal::Error setColorMode(hal::ColorMode, hal::RenderIntent) override;
-    hal::Error setColorTransform(const android::mat4& matrix, hal::ColorTransform hint) override;
+    hal::Error setColorTransform(const android::mat4& matrix) override;
     hal::Error setOutputBuffer(const android::sp<android::GraphicBuffer>&,
                                const android::sp<android::Fence>& releaseFence) override;
     hal::Error setPowerMode(hal::PowerMode) override;
     hal::Error setVsyncEnabled(hal::Vsync enabled) override;
-    hal::Error validate(uint32_t* outNumTypes, uint32_t* outNumRequests) override;
-    hal::Error presentOrValidate(uint32_t* outNumTypes, uint32_t* outNumRequests,
+    hal::Error validate(nsecs_t expectedPresentTime, uint32_t* outNumTypes,
+                        uint32_t* outNumRequests) override;
+    hal::Error presentOrValidate(nsecs_t expectedPresentTime, uint32_t* outNumTypes,
+                                 uint32_t* outNumRequests,
                                  android::sp<android::Fence>* outPresentFence,
                                  uint32_t* state) override;
-    std::future<hal::Error> setDisplayBrightness(float brightness) override;
+    std::future<hal::Error> setDisplayBrightness(
+            float brightness, const Hwc2::Composer::DisplayBrightnessOptions& options) override;
     hal::Error setActiveConfigWithConstraints(hal::HWConfigId configId,
                                               const hal::VsyncPeriodChangeConstraints& constraints,
                                               hal::VsyncPeriodChangeTimeline* outTimeline) override;
+    hal::Error setBootDisplayConfig(hal::HWConfigId configId) override;
+    hal::Error clearBootDisplayConfig() override;
+    hal::Error getPreferredBootDisplayConfig(hal::HWConfigId* configId) const override;
     hal::Error setAutoLowLatencyMode(bool on) override;
     hal::Error getSupportedContentTypes(
             std::vector<hal::ContentType>* outSupportedContentTypes) const override;
     hal::Error setContentType(hal::ContentType) override;
     hal::Error getClientTargetProperty(hal::ClientTargetProperty* outClientTargetProperty,
                                        float* outWhitePointNits) override;
+    hal::Error getDisplayDecorationSupport(
+            std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    support) override;
 
     // Other Display methods
     hal::HWDisplayId getId() const override { return mId; }
     bool isConnected() const override { return mIsConnected; }
     void setConnected(bool connected) override; // For use by Device only
-    bool hasCapability(hal::DisplayCapability) const override EXCLUDES(mDisplayCapabilitiesMutex);
+    bool hasCapability(aidl::android::hardware::graphics::composer3::DisplayCapability)
+            const override EXCLUDES(mDisplayCapabilitiesMutex);
     bool isVsyncPeriodSwitchSupported() const override;
     void onLayerDestroyed(hal::HWLayerId layerId) override;
 
@@ -239,7 +266,8 @@ private:
     // this HWC2::Display, so these references are guaranteed to be valid for
     // the lifetime of this object.
     android::Hwc2::Composer& mComposer;
-    const std::unordered_set<hal::Capability>& mCapabilities;
+    const std::unordered_set<aidl::android::hardware::graphics::composer3::Capability>&
+            mCapabilities;
 
     const hal::HWDisplayId mId;
     hal::DisplayType mType;
@@ -250,8 +278,9 @@ private:
 
     mutable std::mutex mDisplayCapabilitiesMutex;
     std::once_flag mDisplayCapabilityQueryFlag;
-    std::optional<std::unordered_set<hal::DisplayCapability>> mDisplayCapabilities
-            GUARDED_BY(mDisplayCapabilitiesMutex);
+    std::optional<
+            std::unordered_set<aidl::android::hardware::graphics::composer3::DisplayCapability>>
+            mDisplayCapabilities GUARDED_BY(mDisplayCapabilitiesMutex);
 };
 
 } // namespace impl
@@ -270,7 +299,8 @@ public:
             const android::Region& damage) = 0;
 
     [[clang::warn_unused_result]] virtual hal::Error setBlendMode(hal::BlendMode mode) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setColor(hal::Color color) = 0;
+    [[clang::warn_unused_result]] virtual hal::Error setColor(
+            aidl::android::hardware::graphics::composer3::Color color) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setCompositionType(
             aidl::android::hardware::graphics::composer3::Composition type) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setDataspace(hal::Dataspace dataspace) = 0;
@@ -298,6 +328,8 @@ public:
 
     // AIDL HAL
     [[clang::warn_unused_result]] virtual hal::Error setWhitePointNits(float whitePointNits) = 0;
+    [[clang::warn_unused_result]] virtual hal::Error setBlockingRegion(
+            const android::Region& region) = 0;
 };
 
 namespace impl {
@@ -307,8 +339,9 @@ namespace impl {
 class Layer : public HWC2::Layer {
 public:
     Layer(android::Hwc2::Composer& composer,
-          const std::unordered_set<hal::Capability>& capabilities, HWC2::Display& display,
-          hal::HWLayerId layerId);
+          const std::unordered_set<aidl::android::hardware::graphics::composer3::Capability>&
+                  capabilities,
+          HWC2::Display& display, hal::HWLayerId layerId);
     ~Layer() override;
 
     void onOwningDisplayDestroyed();
@@ -321,7 +354,7 @@ public:
     hal::Error setSurfaceDamage(const android::Region& damage) override;
 
     hal::Error setBlendMode(hal::BlendMode mode) override;
-    hal::Error setColor(hal::Color color) override;
+    hal::Error setColor(aidl::android::hardware::graphics::composer3::Color color) override;
     hal::Error setCompositionType(
             aidl::android::hardware::graphics::composer3::Composition type) override;
     hal::Error setDataspace(hal::Dataspace dataspace) override;
@@ -344,13 +377,15 @@ public:
 
     // AIDL HAL
     hal::Error setWhitePointNits(float whitePointNits) override;
+    hal::Error setBlockingRegion(const android::Region& region) override;
 
 private:
     // These are references to data owned by HWC2::Device, which will outlive
     // this HWC2::Layer, so these references are guaranteed to be valid for
     // the lifetime of this object.
     android::Hwc2::Composer& mComposer;
-    const std::unordered_set<hal::Capability>& mCapabilities;
+    const std::unordered_set<aidl::android::hardware::graphics::composer3::Capability>&
+            mCapabilities;
 
     HWC2::Display* mDisplay;
     hal::HWLayerId mId;
@@ -359,6 +394,7 @@ private:
     // multiple times.
     android::Region mVisibleRegion = android::Region::INVALID_REGION;
     android::Region mDamageRegion = android::Region::INVALID_REGION;
+    android::Region mBlockingRegion = android::Region::INVALID_REGION;
     hal::Dataspace mDataSpace = hal::Dataspace::UNKNOWN;
     android::HdrMetadata mHdrMetadata;
     android::mat4 mColorMatrix;

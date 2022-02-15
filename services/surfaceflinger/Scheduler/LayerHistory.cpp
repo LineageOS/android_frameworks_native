@@ -33,7 +33,6 @@
 
 #include "../Layer.h"
 #include "LayerInfo.h"
-#include "SchedulerUtils.h"
 
 namespace android::scheduler {
 

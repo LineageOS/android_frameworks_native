@@ -72,13 +72,6 @@ public:
         EXPECT_CALL(*mVSyncTracker, currentPeriod())
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
 
-        EXPECT_CALL(*mFenceUnsignaled, getStatus())
-                .WillRepeatedly(Return(Fence::Status::Unsignaled));
-        EXPECT_CALL(*mFenceUnsignaled2, getStatus())
-                .WillRepeatedly(Return(Fence::Status::Unsignaled));
-        EXPECT_CALL(*mFenceSignaled, getStatus()).WillRepeatedly(Return(Fence::Status::Signaled));
-        EXPECT_CALL(*mFenceSignaled2, getStatus()).WillRepeatedly(Return(Fence::Status::Signaled));
-
         mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
         mFlinger.setupScheduler(std::unique_ptr<mock::VsyncController>(mVsyncController),
                                 std::unique_ptr<mock::VSyncTracker>(mVSyncTracker),
@@ -89,10 +82,6 @@ public:
 
     mock::VsyncController* mVsyncController = new mock::VsyncController();
     mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker();
-    mock::MockFence* mFenceUnsignaled = new mock::MockFence();
-    mock::MockFence* mFenceSignaled = new mock::MockFence();
-    mock::MockFence* mFenceUnsignaled2 = new mock::MockFence();
-    mock::MockFence* mFenceSignaled2 = new mock::MockFence();
 
     struct TransactionInfo {
         Vector<ComposerState> states;
@@ -129,15 +118,6 @@ public:
         transaction.frameTimelineInfo = frameTimelineInfo;
     }
 
-    void setupSingleWithComposer(TransactionInfo& transaction, uint32_t flags,
-                                 bool syncInputWindows, int64_t desiredPresentTime,
-                                 bool isAutoTimestamp, const FrameTimelineInfo& frameTimelineInfo,
-                                 const Vector<ComposerState>* states) {
-        setupSingle(transaction, flags, syncInputWindows, desiredPresentTime, isAutoTimestamp,
-                    frameTimelineInfo);
-        transaction.states = *states;
-    }
-
     void NotPlacedOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
         EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
@@ -159,9 +139,9 @@ public:
         // completed.  If this is animation, it should not time out waiting.
         nsecs_t returnedTime = systemTime();
         if (flags & ISurfaceComposer::eSynchronous || syncInputWindows) {
-            EXPECT_GE(returnedTime, applicationTime + s2ns(5));
+            EXPECT_GE(returnedTime, applicationTime + mFlinger.getAnimationTransactionTimeout());
         } else {
-            EXPECT_LE(returnedTime, applicationTime + s2ns(5));
+            EXPECT_LE(returnedTime, applicationTime + mFlinger.getAnimationTransactionTimeout());
         }
         // Each transaction should have been placed on the transaction queue
         auto transactionQueue = mFlinger.getTransactionQueue();
@@ -188,9 +168,11 @@ public:
 
         nsecs_t returnedTime = systemTime();
         if ((flags & ISurfaceComposer::eSynchronous) || syncInputWindows) {
-            EXPECT_GE(systemTime(), applicationSentTime + s2ns(5));
+            EXPECT_GE(systemTime(),
+                      applicationSentTime + mFlinger.getAnimationTransactionTimeout());
         } else {
-            EXPECT_LE(returnedTime, applicationSentTime + s2ns(5));
+            EXPECT_LE(returnedTime,
+                      applicationSentTime + mFlinger.getAnimationTransactionTimeout());
         }
         // This transaction should have been placed on the transaction queue
         auto transactionQueue = mFlinger.getTransactionQueue();
@@ -228,7 +210,7 @@ public:
         // This thread should not have been blocked by the above transaction
         // (5s is the timeout period that applyTransactionState waits for SF to
         // commit the transaction)
-        EXPECT_LE(systemTime(), applicationSentTime + s2ns(5));
+        EXPECT_LE(systemTime(), applicationSentTime + mFlinger.getAnimationTransactionTimeout());
         // transaction that would goes to pending transaciton queue.
         mFlinger.flushTransactionQueues();
 
@@ -246,9 +228,11 @@ public:
         // the transaction should be placed on the pending queue
         if (flags & (ISurfaceComposer::eAnimation | ISurfaceComposer::eSynchronous) ||
             syncInputWindows) {
-            EXPECT_GE(systemTime(), applicationSentTime + s2ns(5));
+            EXPECT_GE(systemTime(),
+                      applicationSentTime + mFlinger.getAnimationTransactionTimeout());
         } else {
-            EXPECT_LE(systemTime(), applicationSentTime + s2ns(5));
+            EXPECT_LE(systemTime(),
+                      applicationSentTime + mFlinger.getAnimationTransactionTimeout());
         }
 
         // transaction that would goes to pending transaciton queue.
@@ -257,188 +241,6 @@ public:
         // check that the transaction was applied.
         auto transactionQueue = mFlinger.getPendingTransactionQueue();
         EXPECT_EQ(0u, transactionQueue.size());
-    }
-
-    void Flush_removesUnsignaledFromTheQueue(Vector<ComposerState> state1,
-                                             Vector<ComposerState> state2,
-                                             bool updateApplyToken = true) {
-        ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-
-        TransactionInfo transactionA;
-        setupSingleWithComposer(transactionA, ISurfaceComposer::eSynchronous,
-                                /*syncInputWindows*/ false,
-                                /*desiredPresentTime*/ systemTime(), /*isAutoTimestamp*/ true,
-                                FrameTimelineInfo{}, &state1);
-
-        mFlinger.setTransactionState(transactionA.frameTimelineInfo, transactionA.states,
-                                     transactionA.displays, transactionA.flags,
-                                     transactionA.applyToken, transactionA.inputWindowCommands,
-                                     transactionA.desiredPresentTime, transactionA.isAutoTimestamp,
-                                     transactionA.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
-                                     transactionA.id);
-
-        TransactionInfo transactionB;
-        if (updateApplyToken) {
-            transactionB.applyToken = sp<IBinder>();
-        }
-        setupSingleWithComposer(transactionB, ISurfaceComposer::eSynchronous,
-                                /*syncInputWindows*/ false,
-                                /*desiredPresentTime*/ systemTime(), /*isAutoTimestamp*/ true,
-                                FrameTimelineInfo{}, &state2);
-        mFlinger.setTransactionState(transactionB.frameTimelineInfo, transactionB.states,
-                                     transactionB.displays, transactionB.flags,
-                                     transactionB.applyToken, transactionB.inputWindowCommands,
-                                     transactionB.desiredPresentTime, transactionB.isAutoTimestamp,
-                                     transactionB.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
-                                     transactionB.id);
-
-        mFlinger.flushTransactionQueues();
-        EXPECT_EQ(0u, mFlinger.getPendingTransactionQueue().size());
-        EXPECT_EQ(0u, mFlinger.getTransactionQueue().size());
-        EXPECT_EQ(2ul, mFlinger.getTransactionCommittedSignals().size());
-    }
-
-    void Flush_removesFromTheQueue(const Vector<ComposerState>& state) {
-        ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-        EXPECT_EQ(0u, mFlinger.getPendingTransactionQueue().size());
-
-        TransactionInfo transaction;
-        setupSingleWithComposer(transaction, ISurfaceComposer::eSynchronous,
-                                /*syncInputWindows*/ false,
-                                /*desiredPresentTime*/ systemTime(), /*isAutoTimestamp*/ true,
-                                FrameTimelineInfo{}, &state);
-
-        mFlinger.setTransactionState(transaction.frameTimelineInfo, transaction.states,
-                                     transaction.displays, transaction.flags,
-                                     transaction.applyToken, transaction.inputWindowCommands,
-                                     transaction.desiredPresentTime, transaction.isAutoTimestamp,
-                                     transaction.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
-                                     transaction.id);
-
-        mFlinger.flushTransactionQueues();
-        EXPECT_EQ(0u, mFlinger.getPendingTransactionQueue().size());
-        EXPECT_EQ(0u, mFlinger.getTransactionQueue().size());
-        EXPECT_EQ(1u, mFlinger.getTransactionCommittedSignals().size());
-    }
-
-    void Flush_keepsInTheQueue(const Vector<ComposerState>& state) {
-        ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-        EXPECT_EQ(0u, mFlinger.getPendingTransactionQueue().size());
-
-        TransactionInfo transaction;
-        setupSingleWithComposer(transaction, ISurfaceComposer::eSynchronous,
-                                /*syncInputWindows*/ false,
-                                /*desiredPresentTime*/ systemTime(), /*isAutoTimestamp*/ true,
-                                FrameTimelineInfo{}, &state);
-
-        mFlinger.setTransactionState(transaction.frameTimelineInfo, transaction.states,
-                                     transaction.displays, transaction.flags,
-                                     transaction.applyToken, transaction.inputWindowCommands,
-                                     transaction.desiredPresentTime, transaction.isAutoTimestamp,
-                                     transaction.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
-                                     transaction.id);
-
-        mFlinger.flushTransactionQueues();
-        EXPECT_EQ(1u, mFlinger.getPendingTransactionQueue().size());
-        EXPECT_EQ(0u, mFlinger.getTransactionQueue().size());
-        EXPECT_EQ(0ul, mFlinger.getTransactionCommittedSignals().size());
-    }
-
-    void Flush_KeepsUnsignaledInTheQueue(const Vector<ComposerState>& state1,
-                                         const Vector<ComposerState>& state2,
-                                         bool updateApplyToken = true,
-                                         uint32_t pendingTransactionQueueSize = 1u) {
-        EXPECT_EQ(0u, mFlinger.getPendingTransactionQueue().size());
-        ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-        auto time = systemTime();
-        TransactionInfo transactionA;
-        TransactionInfo transactionB;
-        setupSingleWithComposer(transactionA, ISurfaceComposer::eSynchronous,
-                                /*syncInputWindows*/ false,
-                                /*desiredPresentTime*/ time, /*isAutoTimestamp*/ true,
-                                FrameTimelineInfo{}, &state1);
-        setupSingleWithComposer(transactionB, ISurfaceComposer::eSynchronous,
-                                /*syncInputWindows*/ false,
-                                /*desiredPresentTime*/ time, /*isAutoTimestamp*/ true,
-                                FrameTimelineInfo{}, &state2);
-        mFlinger.setTransactionState(transactionA.frameTimelineInfo, transactionA.states,
-                                     transactionA.displays, transactionA.flags,
-                                     transactionA.applyToken, transactionA.inputWindowCommands,
-                                     transactionA.desiredPresentTime, transactionA.isAutoTimestamp,
-                                     transactionA.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
-                                     transactionA.id);
-        if (updateApplyToken) {
-            transactionB.applyToken = sp<IBinder>();
-        }
-        mFlinger.setTransactionState(transactionB.frameTimelineInfo, transactionB.states,
-                                     transactionB.displays, transactionB.flags,
-                                     transactionB.applyToken, transactionB.inputWindowCommands,
-                                     transactionB.desiredPresentTime, transactionB.isAutoTimestamp,
-                                     transactionB.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
-                                     transactionB.id);
-
-        mFlinger.flushTransactionQueues();
-        EXPECT_EQ(pendingTransactionQueueSize, mFlinger.getPendingTransactionQueue().size());
-        EXPECT_EQ(0u, mFlinger.getTransactionQueue().size());
-    }
-
-    void Flush_removesSignaledFromTheQueue(const Vector<ComposerState>& state1,
-                                           const Vector<ComposerState>& state2) {
-        ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
-        EXPECT_EQ(0u, mFlinger.getPendingTransactionQueue().size());
-
-        auto time = systemTime();
-        TransactionInfo transactionA;
-        TransactionInfo transactionB;
-        setupSingleWithComposer(transactionA, ISurfaceComposer::eSynchronous,
-                                /*syncInputWindows*/ false,
-                                /*desiredPresentTime*/ time, /*isAutoTimestamp*/ true,
-                                FrameTimelineInfo{}, &state1);
-        setupSingleWithComposer(transactionB, ISurfaceComposer::eSynchronous,
-                                /*syncInputWindows*/ false,
-                                /*desiredPresentTime*/ time, /*isAutoTimestamp*/ true,
-                                FrameTimelineInfo{}, &state2);
-        mFlinger.setTransactionState(transactionA.frameTimelineInfo, transactionA.states,
-                                     transactionA.displays, transactionA.flags,
-                                     transactionA.applyToken, transactionA.inputWindowCommands,
-                                     transactionA.desiredPresentTime, transactionA.isAutoTimestamp,
-                                     transactionA.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
-                                     transactionA.id);
-        mFlinger.setTransactionState(transactionB.frameTimelineInfo, transactionB.states,
-                                     transactionB.displays, transactionB.flags,
-                                     transactionB.applyToken, transactionB.inputWindowCommands,
-                                     transactionB.desiredPresentTime, transactionB.isAutoTimestamp,
-                                     transactionB.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
-                                     transactionB.id);
-
-        mFlinger.flushTransactionQueues();
-        EXPECT_EQ(0u, mFlinger.getPendingTransactionQueue().size());
-        EXPECT_EQ(0u, mFlinger.getTransactionQueue().size());
-        EXPECT_EQ(2ul, mFlinger.getTransactionCommittedSignals().size());
-    }
-
-    static Vector<ComposerState> createComposerStateVector(const ComposerState& state1,
-                                                           const ComposerState& state2) {
-        Vector<ComposerState> states;
-        states.push_back(state1);
-        states.push_back(state2);
-        return states;
-    }
-
-    static Vector<ComposerState> createComposerStateVector(const ComposerState& state) {
-        Vector<ComposerState> states;
-        states.push_back(state);
-        return states;
-    }
-
-    static ComposerState createComposerState(int layerId, sp<Fence> fence,
-                                             uint32_t stateFlags = layer_state_t::eBufferChanged) {
-        ComposerState composer_state;
-        composer_state.state.bufferData.acquireFence = std::move(fence);
-        composer_state.state.layerId = layerId;
-        composer_state.state.bufferData.flags = BufferData::BufferDataChange::fenceChanged;
-        composer_state.state.flags = stateFlags;
-        return composer_state;
     }
 
     bool mHasListenerCallbacks = false;
@@ -524,215 +326,677 @@ TEST_F(TransactionApplicationTest, FromHandle) {
     EXPECT_EQ(nullptr, ret.promote().get());
 }
 
-TEST_F(TransactionApplicationTest, Flush_RemovesSingleSignaledFromTheQueue_LatchUnsignaled_Auto) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Auto;
-    Flush_removesFromTheQueue(
-            createComposerStateVector(createComposerState(/*layerId*/ 1, mFenceSignaled)));
+class LatchUnsignaledTest : public TransactionApplicationTest {
+public:
+    void TearDown() override {
+        // Clear all transaction queues to release all transactions we sent
+        // in the tests. Otherwise, gmock complains about memory leaks.
+        mFlinger.getTransactionQueue().clear();
+        mFlinger.getPendingTransactionQueue().clear();
+        mFlinger.getTransactionCommittedSignals().clear();
+        mFlinger.commitTransactionsLocked(eTransactionMask);
+        mFlinger.mutableCurrentState().layersSortedByZ.clear();
+        mFlinger.mutableDrawingState().layersSortedByZ.clear();
+    }
+
+    static sp<Fence> fence(Fence::Status status) {
+        const auto fence = sp<mock::MockFence>::make();
+        EXPECT_CALL(*fence, getStatus()).WillRepeatedly(Return(status));
+        return fence;
+    }
+
+    ComposerState createComposerState(int layerId, sp<Fence> fence, uint64_t what) {
+        ComposerState state;
+        state.state.bufferData = std::make_shared<BufferData>();
+        state.state.bufferData->acquireFence = std::move(fence);
+        state.state.layerId = layerId;
+        state.state.surface =
+                sp<BufferStateLayer>::make(
+                        LayerCreationArgs(mFlinger.flinger(), nullptr, "TestLayer", 0, {}))
+                        ->getHandle();
+        state.state.bufferData->flags = BufferData::BufferDataChange::fenceChanged;
+
+        state.state.what = what;
+        if (what & layer_state_t::eCropChanged) {
+            state.state.crop = Rect(1, 2, 3, 4);
+        }
+        return state;
+    }
+
+    TransactionInfo createTransactionInfo(const sp<IBinder>& applyToken,
+                                          const std::vector<ComposerState>& states) {
+        TransactionInfo transaction;
+        const uint32_t kFlags = ISurfaceComposer::eSynchronous;
+        const bool kSyncInputWindows = false;
+        const nsecs_t kDesiredPresentTime = systemTime();
+        const bool kIsAutoTimestamp = true;
+        const auto kFrameTimelineInfo = FrameTimelineInfo{};
+
+        setupSingle(transaction, kFlags, kSyncInputWindows, kDesiredPresentTime, kIsAutoTimestamp,
+                    kFrameTimelineInfo);
+        transaction.applyToken = applyToken;
+        for (const auto& state : states) {
+            transaction.states.push_back(state);
+        }
+
+        return transaction;
+    }
+
+    void setTransactionStates(const std::vector<TransactionInfo>& transactions,
+                              size_t expectedTransactionsApplied,
+                              size_t expectedTransactionsPending) {
+        EXPECT_EQ(0u, mFlinger.getTransactionQueue().size());
+        EXPECT_EQ(0u, mFlinger.getPendingTransactionQueue().size());
+
+        for (const auto& transaction : transactions) {
+            mFlinger.setTransactionState(transaction.frameTimelineInfo, transaction.states,
+                                         transaction.displays, transaction.flags,
+                                         transaction.applyToken, transaction.inputWindowCommands,
+                                         transaction.desiredPresentTime,
+                                         transaction.isAutoTimestamp, transaction.uncacheBuffer,
+                                         mHasListenerCallbacks, mCallbacks, transaction.id);
+        }
+        mFlinger.flushTransactionQueues();
+        EXPECT_EQ(0u, mFlinger.getTransactionQueue().size());
+        EXPECT_EQ(expectedTransactionsPending, mFlinger.getPendingTransactionQueue().size());
+        EXPECT_EQ(expectedTransactionsApplied, mFlinger.getTransactionCommittedSignals().size());
+    }
+};
+
+class LatchUnsignaledAutoSingleLayerTest : public LatchUnsignaledTest {
+public:
+    void SetUp() override {
+        LatchUnsignaledTest::SetUp();
+        SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::AutoSingleLayer;
+    }
+};
+
+TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_RemovesSingleSignaledFromTheQueue) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsApplied = 1u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto signaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {createComposerState(kLayerId, fence(Fence::Status::Signaled),
+                                                       layer_state_t::eBufferChanged)});
+    setTransactionStates({signaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_RemovesSingleUnSignaledFromTheQueue_LatchUnsignaled_Auto) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Auto;
-    Flush_removesFromTheQueue(
-            createComposerStateVector(createComposerState(/*layerId*/ 1, mFenceUnsignaled)));
+TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_RemovesSingleUnSignaledFromTheQueue) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsApplied = 1u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest,
-       Flush_KeepsUnSignaledInTheQueue_NonBufferCropChange_LatchUnsignaled_Auto) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Auto;
-    Flush_keepsInTheQueue(createComposerStateVector(
-            createComposerState(/*layerId*/ 1, mFenceUnsignaled, layer_state_t::eCropChanged)));
+TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_KeepsUnSignaledInTheQueue_NonBufferCropChange) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsApplied = 0u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eCropChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest,
-       Flush_KeepsUnSignaledInTheQueue_NonBufferChangeClubed_LatchUnsignaled_Auto) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Auto;
-    Flush_keepsInTheQueue(createComposerStateVector(
-            createComposerState(/*layerId*/ 1, mFenceUnsignaled,
-                                layer_state_t::eCropChanged | layer_state_t::eBufferChanged)));
+TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_KeepsUnSignaledInTheQueue_NonBufferChangeClubed) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsApplied = 0u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eCropChanged |
+                                                                      layer_state_t::
+                                                                              eBufferChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest,
-       Flush_KeepsInTheQueueSameApplyTokenMultiState_LatchUnsignaled_Auto) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Auto;
-    Flush_keepsInTheQueue(
-            createComposerStateVector(createComposerState(/*layerId*/ 1, mFenceUnsignaled),
-                                      createComposerState(/*layerId*/ 1, mFenceSignaled)));
+TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_KeepsInTheQueueSameApplyTokenMultiState) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsApplied = 0u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto mixedTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                          createComposerState(kLayerId,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({mixedTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_KeepsInTheQueue_MultipleStateTransaction_Auto) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Auto;
-    Flush_keepsInTheQueue(
-            createComposerStateVector(createComposerState(/*layerId*/ 1, mFenceUnsignaled),
-                                      createComposerState(/*layerId*/ 2, mFenceSignaled)));
+TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_KeepsInTheQueue_MultipleStateTransaction) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 0u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto mixedTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({mixedTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_RemovesSignaledFromTheQueue_LatchUnsignaled_Auto) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Auto;
-    Flush_removesSignaledFromTheQueue(createComposerStateVector(
-                                              createComposerState(/*layerId*/ 1, mFenceSignaled)),
-                                      createComposerStateVector(
-                                              createComposerState(/*layerId*/ 2, mFenceSignaled2)));
+TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_RemovesSignaledFromTheQueue) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 2u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto signaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    const auto signaledTransaction2 =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({signaledTransaction, signaledTransaction2}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_RemoveSignaledWithUnsignaledIntact_LatchUnsignaled_Auto) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Auto;
-    Flush_KeepsUnsignaledInTheQueue(createComposerStateVector(
-                                            createComposerState(/*layerId*/ 1, mFenceSignaled)),
-                                    createComposerStateVector(
-                                            createComposerState(/*layerId*/ 2, mFenceUnsignaled)));
-    EXPECT_EQ(1ul, mFlinger.getTransactionCommittedSignals().size());
+TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_RemoveSignaledWithUnsignaledIntact) {
+    const sp<IBinder> kApplyToken1 =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const sp<IBinder> kApplyToken2 = sp<BBinder>::make();
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 1u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto signaledTransaction =
+            createTransactionInfo(kApplyToken1,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken2,
+                                  {
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({signaledTransaction, unsignaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest,
-       Flush_KeepsTransactionInTheQueueSameApplyToken_LatchUnsignaled_Auto) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Auto;
-    Flush_KeepsUnsignaledInTheQueue(createComposerStateVector(
-                                            createComposerState(/*layerId*/ 1, mFenceUnsignaled)),
-                                    createComposerStateVector(
-                                            createComposerState(/*layerId*/ 2, mFenceSignaled)),
-                                    /*updateApplyToken*/ false);
-    EXPECT_EQ(1ul, mFlinger.getTransactionCommittedSignals().size());
+TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_KeepsTransactionInTheQueueSameApplyToken) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 1u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    const auto signaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction, signaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_KeepsTransactionInTheQueue_LatchUnsignaled_Auto) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Auto;
-    Flush_KeepsUnsignaledInTheQueue(createComposerStateVector(
-                                            createComposerState(/*layerId*/ 1, mFenceUnsignaled)),
-                                    createComposerStateVector(
-                                            createComposerState(/*layerId*/ 2, mFenceUnsignaled)),
-                                    /*updateApplyToken*/ true,
-                                    /*pendingTransactionQueueSize*/ 2u);
-    EXPECT_EQ(0ul, mFlinger.getTransactionCommittedSignals().size());
+TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_KeepsTransactionInTheQueue) {
+    const sp<IBinder> kApplyToken1 =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const sp<IBinder> kApplyToken2 = sp<BBinder>::make();
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 1u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken1,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    const auto unsignaledTransaction2 =
+            createTransactionInfo(kApplyToken2,
+                                  {
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction, unsignaledTransaction2},
+                         kExpectedTransactionsApplied, kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_RemovesSignaledFromTheQueue_LatchUnsignaled_Disabled) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Disabled;
-    Flush_removesFromTheQueue(
-            createComposerStateVector(createComposerState(/*layerId*/ 1, mFenceSignaled)));
+class LatchUnsignaledDisabledTest : public LatchUnsignaledTest {
+public:
+    void SetUp() override {
+        LatchUnsignaledTest::SetUp();
+        SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Disabled;
+    }
+};
+
+TEST_F(LatchUnsignaledDisabledTest, Flush_RemovesSignaledFromTheQueue) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsApplied = 1u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto signaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {createComposerState(kLayerId, fence(Fence::Status::Signaled),
+                                                       layer_state_t::eBufferChanged)});
+    setTransactionStates({signaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_KeepsInTheQueue_LatchUnsignaled_Disabled) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Disabled;
-    Flush_keepsInTheQueue(
-            createComposerStateVector(createComposerState(/*layerId*/ 1, mFenceUnsignaled)));
+TEST_F(LatchUnsignaledDisabledTest, Flush_KeepsInTheQueue) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsApplied = 0u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_KeepsInTheQueueSameLayerId_LatchUnsignaled_Disabled) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Disabled;
-    Flush_keepsInTheQueue(
-            createComposerStateVector(createComposerState(/*layerId*/ 1, mFenceUnsignaled),
-                                      createComposerState(/*layerId*/ 1, mFenceUnsignaled)));
+TEST_F(LatchUnsignaledDisabledTest, Flush_KeepsInTheQueueSameLayerId) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsApplied = 0u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                          createComposerState(kLayerId,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_KeepsInTheQueueDifferentLayerId_LatchUnsignaled_Disabled) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Disabled;
-    Flush_keepsInTheQueue(
-            createComposerStateVector(createComposerState(/*layerId*/ 1, mFenceUnsignaled),
-                                      createComposerState(/*layerId*/ 2, mFenceUnsignaled)));
+TEST_F(LatchUnsignaledDisabledTest, Flush_KeepsInTheQueueDifferentLayerId) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 0u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_RemovesSignaledFromTheQueue_LatchUnSignaled_Disabled) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Disabled;
-    Flush_removesSignaledFromTheQueue(createComposerStateVector(
-                                              createComposerState(/*layerId*/ 1, mFenceSignaled)),
-                                      createComposerStateVector(
-                                              createComposerState(/*layerId*/ 2, mFenceSignaled2)));
+TEST_F(LatchUnsignaledDisabledTest, Flush_RemovesSignaledFromTheQueue_MultipleLayers) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 2u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto signaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    const auto signaledTransaction2 =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({signaledTransaction, signaledTransaction2}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest,
-       Flush_KeepInTheQueueDifferentApplyToken_LatchUnsignaled_Disabled) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Disabled;
-    Flush_KeepsUnsignaledInTheQueue(createComposerStateVector(
-                                            createComposerState(/*layerId*/ 1, mFenceUnsignaled)),
-                                    createComposerStateVector(
-                                            createComposerState(/*layerId*/ 2, mFenceSignaled)));
-    EXPECT_EQ(1ul, mFlinger.getTransactionCommittedSignals().size());
+TEST_F(LatchUnsignaledDisabledTest, Flush_KeepInTheQueueDifferentApplyToken) {
+    const sp<IBinder> kApplyToken1 =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const sp<IBinder> kApplyToken2 = sp<BBinder>::make();
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 1u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken1,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    const auto signaledTransaction =
+            createTransactionInfo(kApplyToken2,
+                                  {
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction, signaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_KeepInTheQueueSameApplyToken_LatchUnsignaled_Disabled) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Disabled;
-    Flush_KeepsUnsignaledInTheQueue(createComposerStateVector(
-                                            createComposerState(/*layerId*/ 1, mFenceSignaled)),
-                                    createComposerStateVector(
-                                            createComposerState(/*layerId*/ 2, mFenceUnsignaled)),
-                                    /*updateApplyToken*/ false);
-    EXPECT_EQ(1ul, mFlinger.getTransactionCommittedSignals().size());
+TEST_F(LatchUnsignaledDisabledTest, Flush_KeepInTheQueueSameApplyToken) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 1u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto signaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({signaledTransaction, unsignaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_KeepInTheUnsignaledTheQueue_LatchUnsignaled_Disabled) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Disabled;
-    Flush_KeepsUnsignaledInTheQueue(createComposerStateVector(
-                                            createComposerState(/*layerId*/ 1, mFenceUnsignaled)),
-                                    createComposerStateVector(
-                                            createComposerState(/*layerId*/ 2, mFenceUnsignaled)),
-                                    /*updateApplyToken*/ false);
-    EXPECT_EQ(0ul, mFlinger.getTransactionCommittedSignals().size());
+TEST_F(LatchUnsignaledDisabledTest, Flush_KeepInTheUnsignaledTheQueue) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 0u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    const auto unsignaledTransaction2 =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction, unsignaledTransaction2},
+                         kExpectedTransactionsApplied, kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_RemovesSignaledFromTheQueue_LatchUnsignaled_Always) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Always;
-    Flush_removesFromTheQueue(
-            createComposerStateVector(createComposerState(/*layerId*/ 1, mFenceSignaled)));
+class LatchUnsignaledAlwaysTest : public LatchUnsignaledTest {
+public:
+    void SetUp() override {
+        LatchUnsignaledTest::SetUp();
+        SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Always;
+    }
+};
+
+TEST_F(LatchUnsignaledAlwaysTest, Flush_RemovesSignaledFromTheQueue) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsApplied = 1u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto signaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {createComposerState(kLayerId, fence(Fence::Status::Signaled),
+                                                       layer_state_t::eBufferChanged)});
+    setTransactionStates({signaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_RemovesFromTheQueue_LatchUnsignaled_Always) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Always;
-    Flush_removesFromTheQueue(
-            createComposerStateVector(createComposerState(/*layerId*/ 1, mFenceUnsignaled)));
+TEST_F(LatchUnsignaledAlwaysTest, Flush_RemovesFromTheQueue) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsApplied = 1u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {createComposerState(kLayerId, fence(Fence::Status::Unsignaled),
+                                                       layer_state_t::eBufferChanged)});
+    setTransactionStates({unsignaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_RemovesFromTheQueueSameLayerId_LatchUnsignaled_Always) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Always;
-    Flush_removesFromTheQueue(
-            createComposerStateVector(createComposerState(/*layerId*/ 1, mFenceUnsignaled),
-                                      createComposerState(/*layerId*/ 1, mFenceSignaled)));
+TEST_F(LatchUnsignaledAlwaysTest, Flush_RemovesFromTheQueueSameLayerId) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsApplied = 1u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto mixedTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {createComposerState(kLayerId, fence(Fence::Status::Unsignaled),
+                                                       layer_state_t::eBufferChanged),
+                                   createComposerState(kLayerId, fence(Fence::Status::Signaled),
+                                                       layer_state_t::eBufferChanged)});
+    setTransactionStates({mixedTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest,
-       Flush_RemovesFromTheQueueDifferentLayerId_LatchUnsignaled_Always) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Always;
-    Flush_removesFromTheQueue(
-            createComposerStateVector(createComposerState(/*layerId*/ 1, mFenceUnsignaled),
-                                      createComposerState(/*layerId*/ 2, mFenceSignaled)));
+TEST_F(LatchUnsignaledAlwaysTest, Flush_RemovesFromTheQueueDifferentLayerId) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 1u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto mixedTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {createComposerState(kLayerId1, fence(Fence::Status::Unsignaled),
+                                                       layer_state_t::eBufferChanged),
+                                   createComposerState(kLayerId2, fence(Fence::Status::Signaled),
+                                                       layer_state_t::eBufferChanged)});
+    setTransactionStates({mixedTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_RemovesSignaledFromTheQueue_LatchUnSignaled_Always) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Always;
-    Flush_removesSignaledFromTheQueue(createComposerStateVector(
-                                              createComposerState(/*layerId*/ 1, mFenceSignaled)),
-                                      createComposerStateVector(
-                                              createComposerState(/*layerId*/ 2, mFenceSignaled2)));
+TEST_F(LatchUnsignaledAlwaysTest, Flush_RemovesSignaledFromTheQueue_MultipleLayers) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 2u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto signaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    const auto signaledTransaction2 =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({signaledTransaction, signaledTransaction2}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest,
-       Flush_RemovesFromTheQueueDifferentApplyToken_LatchUnsignaled_Always) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Always;
-    Flush_removesUnsignaledFromTheQueue(createComposerStateVector(
-                                                createComposerState(/*layerId*/ 1, mFenceSignaled)),
-                                        createComposerStateVector(
-                                                createComposerState(/*layerId*/ 2,
-                                                                    mFenceUnsignaled)));
+TEST_F(LatchUnsignaledAlwaysTest, Flush_RemovesFromTheQueueDifferentApplyToken) {
+    const sp<IBinder> kApplyToken1 =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const sp<IBinder> kApplyToken2 = sp<BBinder>::make();
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 2u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto signaledTransaction =
+            createTransactionInfo(kApplyToken1,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken2,
+                                  {
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({signaledTransaction, unsignaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest,
-       Flush_RemovesUnsignaledFromTheQueueSameApplyToken_LatchUnsignaled_Always) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Always;
-    Flush_removesUnsignaledFromTheQueue(createComposerStateVector(
-                                                createComposerState(/*layerId*/ 1,
-                                                                    mFenceUnsignaled)),
-                                        createComposerStateVector(
-                                                createComposerState(/*layerId*/ 2, mFenceSignaled)),
-                                        /*updateApplyToken*/ false);
+TEST_F(LatchUnsignaledAlwaysTest, Flush_RemovesUnsignaledFromTheQueueSameApplyToken) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 2u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    const auto signaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Signaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction, signaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
-TEST_F(TransactionApplicationTest, Flush_RemovesUnsignaledFromTheQueue_LatchUnsignaled_Always) {
-    SurfaceFlinger::enableLatchUnsignaledConfig = LatchUnsignaledConfig::Always;
-    Flush_removesUnsignaledFromTheQueue(createComposerStateVector(
-                                                createComposerState(/*layerId*/ 1,
-                                                                    mFenceUnsignaled)),
-                                        createComposerStateVector(
-                                                createComposerState(/*layerId*/ 2,
-                                                                    mFenceUnsignaled)));
+TEST_F(LatchUnsignaledAlwaysTest, Flush_RemovesUnsignaledFromTheQueue) {
+    const sp<IBinder> kApplyToken1 =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const sp<IBinder> kApplyToken2 = sp<BBinder>::make();
+    const auto kLayerId1 = 1;
+    const auto kLayerId2 = 2;
+    const auto kExpectedTransactionsApplied = 2u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken1,
+                                  {
+                                          createComposerState(kLayerId1,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    const auto unsignaledTransaction2 =
+            createTransactionInfo(kApplyToken2,
+                                  {
+                                          createComposerState(kLayerId2,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction, unsignaledTransaction2},
+                         kExpectedTransactionsApplied, kExpectedTransactionsPending);
 }
 
 } // namespace android

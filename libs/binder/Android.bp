@@ -202,7 +202,6 @@ cc_library {
     sanitize: {
         misc_undefined: ["integer"],
     },
-    min_sdk_version: "30",
 
     tidy: true,
     tidy_flags: [
@@ -225,10 +224,7 @@ cc_library {
         "portability*",
     ],
 
-    pgo: {
-        sampling: true,
-        profile_file: "libbinder/libbinder.profdata",
-    },
+    afdo: true,
 }
 
 cc_defaults {
@@ -333,7 +329,6 @@ aidl_interface {
 cc_library {
     name: "libbinder_rpc_unstable",
     srcs: ["libbinder_rpc_unstable.cpp"],
-    defaults: ["libbinder_ndk_host_user"],
     shared_libs: [
         "libbase",
         "libbinder",

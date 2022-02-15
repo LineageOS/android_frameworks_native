@@ -178,7 +178,7 @@ TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext)
 
 TouchInputMapper::~TouchInputMapper() {}
 
-uint32_t TouchInputMapper::getSources() {
+uint32_t TouchInputMapper::getSources() const {
     return mSource;
 }
 
@@ -565,6 +565,12 @@ std::optional<DisplayViewport> TouchInputMapper::findViewport() {
             return getDeviceContext().getAssociatedViewport();
         }
 
+        const std::optional<std::string> associatedDisplayUniqueId =
+                getDeviceContext().getAssociatedDisplayUniqueId();
+        if (associatedDisplayUniqueId) {
+            return getDeviceContext().getAssociatedViewport();
+        }
+
         if (mDeviceMode == DeviceMode::POINTER) {
             std::optional<DisplayViewport> viewport =
                     mConfig.getDisplayViewportById(mConfig.defaultPointerDisplayId);
@@ -607,6 +613,270 @@ std::optional<DisplayViewport> TouchInputMapper::findViewport() {
     int32_t rawHeight = mRawPointerAxes.getRawHeight();
     newViewport.setNonDisplayViewport(rawWidth, rawHeight);
     return std::make_optional(newViewport);
+}
+
+int32_t TouchInputMapper::clampResolution(const char* axisName, int32_t resolution) const {
+    if (resolution < 0) {
+        ALOGE("Invalid %s resolution %" PRId32 " for device %s", axisName, resolution,
+              getDeviceName().c_str());
+        return 0;
+    }
+    return resolution;
+}
+
+void TouchInputMapper::initializeSizeRanges() {
+    if (mCalibration.sizeCalibration == Calibration::SizeCalibration::NONE) {
+        mSizeScale = 0.0f;
+        return;
+    }
+
+    // Size of diagonal axis.
+    const float diagonalSize = hypotf(mDisplayWidth, mDisplayHeight);
+
+    // Size factors.
+    if (mRawPointerAxes.touchMajor.valid && mRawPointerAxes.touchMajor.maxValue != 0) {
+        mSizeScale = 1.0f / mRawPointerAxes.touchMajor.maxValue;
+    } else if (mRawPointerAxes.toolMajor.valid && mRawPointerAxes.toolMajor.maxValue != 0) {
+        mSizeScale = 1.0f / mRawPointerAxes.toolMajor.maxValue;
+    } else {
+        mSizeScale = 0.0f;
+    }
+
+    mOrientedRanges.haveTouchSize = true;
+    mOrientedRanges.haveToolSize = true;
+    mOrientedRanges.haveSize = true;
+
+    mOrientedRanges.touchMajor.axis = AMOTION_EVENT_AXIS_TOUCH_MAJOR;
+    mOrientedRanges.touchMajor.source = mSource;
+    mOrientedRanges.touchMajor.min = 0;
+    mOrientedRanges.touchMajor.max = diagonalSize;
+    mOrientedRanges.touchMajor.flat = 0;
+    mOrientedRanges.touchMajor.fuzz = 0;
+    mOrientedRanges.touchMajor.resolution = 0;
+    if (mRawPointerAxes.touchMajor.valid) {
+        mRawPointerAxes.touchMajor.resolution =
+                clampResolution("touchMajor", mRawPointerAxes.touchMajor.resolution);
+        mOrientedRanges.touchMajor.resolution = mRawPointerAxes.touchMajor.resolution;
+    }
+
+    mOrientedRanges.touchMinor = mOrientedRanges.touchMajor;
+    mOrientedRanges.touchMinor.axis = AMOTION_EVENT_AXIS_TOUCH_MINOR;
+    if (mRawPointerAxes.touchMinor.valid) {
+        mRawPointerAxes.touchMinor.resolution =
+                clampResolution("touchMinor", mRawPointerAxes.touchMinor.resolution);
+        mOrientedRanges.touchMinor.resolution = mRawPointerAxes.touchMinor.resolution;
+    }
+
+    mOrientedRanges.toolMajor.axis = AMOTION_EVENT_AXIS_TOOL_MAJOR;
+    mOrientedRanges.toolMajor.source = mSource;
+    mOrientedRanges.toolMajor.min = 0;
+    mOrientedRanges.toolMajor.max = diagonalSize;
+    mOrientedRanges.toolMajor.flat = 0;
+    mOrientedRanges.toolMajor.fuzz = 0;
+    mOrientedRanges.toolMajor.resolution = 0;
+    if (mRawPointerAxes.toolMajor.valid) {
+        mRawPointerAxes.toolMajor.resolution =
+                clampResolution("toolMajor", mRawPointerAxes.toolMajor.resolution);
+        mOrientedRanges.toolMajor.resolution = mRawPointerAxes.toolMajor.resolution;
+    }
+
+    mOrientedRanges.toolMinor = mOrientedRanges.toolMajor;
+    mOrientedRanges.toolMinor.axis = AMOTION_EVENT_AXIS_TOOL_MINOR;
+    if (mRawPointerAxes.toolMinor.valid) {
+        mRawPointerAxes.toolMinor.resolution =
+                clampResolution("toolMinor", mRawPointerAxes.toolMinor.resolution);
+        mOrientedRanges.toolMinor.resolution = mRawPointerAxes.toolMinor.resolution;
+    }
+
+    if (mCalibration.sizeCalibration == Calibration::SizeCalibration::GEOMETRIC) {
+        mOrientedRanges.touchMajor.resolution *= mGeometricScale;
+        mOrientedRanges.touchMinor.resolution *= mGeometricScale;
+        mOrientedRanges.toolMajor.resolution *= mGeometricScale;
+        mOrientedRanges.toolMinor.resolution *= mGeometricScale;
+    } else {
+        // Support for other calibrations can be added here.
+        ALOGW("%s calibration is not supported for size ranges at the moment. "
+              "Using raw resolution instead",
+              ftl::enum_string(mCalibration.sizeCalibration).c_str());
+    }
+
+    mOrientedRanges.size.axis = AMOTION_EVENT_AXIS_SIZE;
+    mOrientedRanges.size.source = mSource;
+    mOrientedRanges.size.min = 0;
+    mOrientedRanges.size.max = 1.0;
+    mOrientedRanges.size.flat = 0;
+    mOrientedRanges.size.fuzz = 0;
+    mOrientedRanges.size.resolution = 0;
+}
+
+void TouchInputMapper::initializeOrientedRanges() {
+    // Configure X and Y factors.
+    mXScale = float(mDisplayWidth) / mRawPointerAxes.getRawWidth();
+    mYScale = float(mDisplayHeight) / mRawPointerAxes.getRawHeight();
+    mXPrecision = 1.0f / mXScale;
+    mYPrecision = 1.0f / mYScale;
+
+    mOrientedRanges.x.axis = AMOTION_EVENT_AXIS_X;
+    mOrientedRanges.x.source = mSource;
+    mOrientedRanges.y.axis = AMOTION_EVENT_AXIS_Y;
+    mOrientedRanges.y.source = mSource;
+
+    // Scale factor for terms that are not oriented in a particular axis.
+    // If the pixels are square then xScale == yScale otherwise we fake it
+    // by choosing an average.
+    mGeometricScale = avg(mXScale, mYScale);
+
+    initializeSizeRanges();
+
+    // Pressure factors.
+    mPressureScale = 0;
+    float pressureMax = 1.0;
+    if (mCalibration.pressureCalibration == Calibration::PressureCalibration::PHYSICAL ||
+        mCalibration.pressureCalibration == Calibration::PressureCalibration::AMPLITUDE) {
+        if (mCalibration.havePressureScale) {
+            mPressureScale = mCalibration.pressureScale;
+            pressureMax = mPressureScale * mRawPointerAxes.pressure.maxValue;
+        } else if (mRawPointerAxes.pressure.valid && mRawPointerAxes.pressure.maxValue != 0) {
+            mPressureScale = 1.0f / mRawPointerAxes.pressure.maxValue;
+        }
+    }
+
+    mOrientedRanges.pressure.axis = AMOTION_EVENT_AXIS_PRESSURE;
+    mOrientedRanges.pressure.source = mSource;
+    mOrientedRanges.pressure.min = 0;
+    mOrientedRanges.pressure.max = pressureMax;
+    mOrientedRanges.pressure.flat = 0;
+    mOrientedRanges.pressure.fuzz = 0;
+    mOrientedRanges.pressure.resolution = 0;
+
+    // Tilt
+    mTiltXCenter = 0;
+    mTiltXScale = 0;
+    mTiltYCenter = 0;
+    mTiltYScale = 0;
+    mHaveTilt = mRawPointerAxes.tiltX.valid && mRawPointerAxes.tiltY.valid;
+    if (mHaveTilt) {
+        mTiltXCenter = avg(mRawPointerAxes.tiltX.minValue, mRawPointerAxes.tiltX.maxValue);
+        mTiltYCenter = avg(mRawPointerAxes.tiltY.minValue, mRawPointerAxes.tiltY.maxValue);
+        mTiltXScale = M_PI / 180;
+        mTiltYScale = M_PI / 180;
+
+        if (mRawPointerAxes.tiltX.resolution) {
+            mTiltXScale = 1.0 / mRawPointerAxes.tiltX.resolution;
+        }
+        if (mRawPointerAxes.tiltY.resolution) {
+            mTiltYScale = 1.0 / mRawPointerAxes.tiltY.resolution;
+        }
+
+        mOrientedRanges.haveTilt = true;
+
+        mOrientedRanges.tilt.axis = AMOTION_EVENT_AXIS_TILT;
+        mOrientedRanges.tilt.source = mSource;
+        mOrientedRanges.tilt.min = 0;
+        mOrientedRanges.tilt.max = M_PI_2;
+        mOrientedRanges.tilt.flat = 0;
+        mOrientedRanges.tilt.fuzz = 0;
+        mOrientedRanges.tilt.resolution = 0;
+    }
+
+    // Orientation
+    mOrientationScale = 0;
+    if (mHaveTilt) {
+        mOrientedRanges.haveOrientation = true;
+
+        mOrientedRanges.orientation.axis = AMOTION_EVENT_AXIS_ORIENTATION;
+        mOrientedRanges.orientation.source = mSource;
+        mOrientedRanges.orientation.min = -M_PI;
+        mOrientedRanges.orientation.max = M_PI;
+        mOrientedRanges.orientation.flat = 0;
+        mOrientedRanges.orientation.fuzz = 0;
+        mOrientedRanges.orientation.resolution = 0;
+    } else if (mCalibration.orientationCalibration != Calibration::OrientationCalibration::NONE) {
+        if (mCalibration.orientationCalibration ==
+            Calibration::OrientationCalibration::INTERPOLATED) {
+            if (mRawPointerAxes.orientation.valid) {
+                if (mRawPointerAxes.orientation.maxValue > 0) {
+                    mOrientationScale = M_PI_2 / mRawPointerAxes.orientation.maxValue;
+                } else if (mRawPointerAxes.orientation.minValue < 0) {
+                    mOrientationScale = -M_PI_2 / mRawPointerAxes.orientation.minValue;
+                } else {
+                    mOrientationScale = 0;
+                }
+            }
+        }
+
+        mOrientedRanges.haveOrientation = true;
+
+        mOrientedRanges.orientation.axis = AMOTION_EVENT_AXIS_ORIENTATION;
+        mOrientedRanges.orientation.source = mSource;
+        mOrientedRanges.orientation.min = -M_PI_2;
+        mOrientedRanges.orientation.max = M_PI_2;
+        mOrientedRanges.orientation.flat = 0;
+        mOrientedRanges.orientation.fuzz = 0;
+        mOrientedRanges.orientation.resolution = 0;
+    }
+
+    // Distance
+    mDistanceScale = 0;
+    if (mCalibration.distanceCalibration != Calibration::DistanceCalibration::NONE) {
+        if (mCalibration.distanceCalibration == Calibration::DistanceCalibration::SCALED) {
+            if (mCalibration.haveDistanceScale) {
+                mDistanceScale = mCalibration.distanceScale;
+            } else {
+                mDistanceScale = 1.0f;
+            }
+        }
+
+        mOrientedRanges.haveDistance = true;
+
+        mOrientedRanges.distance.axis = AMOTION_EVENT_AXIS_DISTANCE;
+        mOrientedRanges.distance.source = mSource;
+        mOrientedRanges.distance.min = mRawPointerAxes.distance.minValue * mDistanceScale;
+        mOrientedRanges.distance.max = mRawPointerAxes.distance.maxValue * mDistanceScale;
+        mOrientedRanges.distance.flat = 0;
+        mOrientedRanges.distance.fuzz = mRawPointerAxes.distance.fuzz * mDistanceScale;
+        mOrientedRanges.distance.resolution = 0;
+    }
+
+    // Compute oriented precision, scales and ranges.
+    // Note that the maximum value reported is an inclusive maximum value so it is one
+    // unit less than the total width or height of the display.
+    switch (mInputDeviceOrientation) {
+        case DISPLAY_ORIENTATION_90:
+        case DISPLAY_ORIENTATION_270:
+            mOrientedXPrecision = mYPrecision;
+            mOrientedYPrecision = mXPrecision;
+
+            mOrientedRanges.x.min = 0;
+            mOrientedRanges.x.max = mDisplayHeight - 1;
+            mOrientedRanges.x.flat = 0;
+            mOrientedRanges.x.fuzz = 0;
+            mOrientedRanges.x.resolution = mRawPointerAxes.y.resolution * mYScale;
+
+            mOrientedRanges.y.min = 0;
+            mOrientedRanges.y.max = mDisplayWidth - 1;
+            mOrientedRanges.y.flat = 0;
+            mOrientedRanges.y.fuzz = 0;
+            mOrientedRanges.y.resolution = mRawPointerAxes.x.resolution * mXScale;
+            break;
+
+        default:
+            mOrientedXPrecision = mXPrecision;
+            mOrientedYPrecision = mYPrecision;
+
+            mOrientedRanges.x.min = 0;
+            mOrientedRanges.x.max = mDisplayWidth - 1;
+            mOrientedRanges.x.flat = 0;
+            mOrientedRanges.x.fuzz = 0;
+            mOrientedRanges.x.resolution = mRawPointerAxes.x.resolution * mXScale;
+
+            mOrientedRanges.y.min = 0;
+            mOrientedRanges.y.max = mDisplayHeight - 1;
+            mOrientedRanges.y.flat = 0;
+            mOrientedRanges.y.fuzz = 0;
+            mOrientedRanges.y.resolution = mRawPointerAxes.y.resolution * mYScale;
+            break;
+    }
 }
 
 void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) {
@@ -795,224 +1065,9 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
               getDeviceId(), getDeviceName().c_str(), mDisplayWidth, mDisplayHeight,
               mInputDeviceOrientation, mDeviceMode, mViewport.displayId);
 
-        // Configure X and Y factors.
-        mXScale = float(mDisplayWidth) / rawWidth;
-        mYScale = float(mDisplayHeight) / rawHeight;
-        mXPrecision = 1.0f / mXScale;
-        mYPrecision = 1.0f / mYScale;
-
-        mOrientedRanges.x.axis = AMOTION_EVENT_AXIS_X;
-        mOrientedRanges.x.source = mSource;
-        mOrientedRanges.y.axis = AMOTION_EVENT_AXIS_Y;
-        mOrientedRanges.y.source = mSource;
-
         configureVirtualKeys();
 
-        // Scale factor for terms that are not oriented in a particular axis.
-        // If the pixels are square then xScale == yScale otherwise we fake it
-        // by choosing an average.
-        mGeometricScale = avg(mXScale, mYScale);
-
-        // Size of diagonal axis.
-        float diagonalSize = hypotf(mDisplayWidth, mDisplayHeight);
-
-        // Size factors.
-        if (mCalibration.sizeCalibration != Calibration::SizeCalibration::NONE) {
-            if (mRawPointerAxes.touchMajor.valid && mRawPointerAxes.touchMajor.maxValue != 0) {
-                mSizeScale = 1.0f / mRawPointerAxes.touchMajor.maxValue;
-            } else if (mRawPointerAxes.toolMajor.valid && mRawPointerAxes.toolMajor.maxValue != 0) {
-                mSizeScale = 1.0f / mRawPointerAxes.toolMajor.maxValue;
-            } else {
-                mSizeScale = 0.0f;
-            }
-
-            mOrientedRanges.haveTouchSize = true;
-            mOrientedRanges.haveToolSize = true;
-            mOrientedRanges.haveSize = true;
-
-            mOrientedRanges.touchMajor.axis = AMOTION_EVENT_AXIS_TOUCH_MAJOR;
-            mOrientedRanges.touchMajor.source = mSource;
-            mOrientedRanges.touchMajor.min = 0;
-            mOrientedRanges.touchMajor.max = diagonalSize;
-            mOrientedRanges.touchMajor.flat = 0;
-            mOrientedRanges.touchMajor.fuzz = 0;
-            mOrientedRanges.touchMajor.resolution = 0;
-
-            mOrientedRanges.touchMinor = mOrientedRanges.touchMajor;
-            mOrientedRanges.touchMinor.axis = AMOTION_EVENT_AXIS_TOUCH_MINOR;
-
-            mOrientedRanges.toolMajor.axis = AMOTION_EVENT_AXIS_TOOL_MAJOR;
-            mOrientedRanges.toolMajor.source = mSource;
-            mOrientedRanges.toolMajor.min = 0;
-            mOrientedRanges.toolMajor.max = diagonalSize;
-            mOrientedRanges.toolMajor.flat = 0;
-            mOrientedRanges.toolMajor.fuzz = 0;
-            mOrientedRanges.toolMajor.resolution = 0;
-
-            mOrientedRanges.toolMinor = mOrientedRanges.toolMajor;
-            mOrientedRanges.toolMinor.axis = AMOTION_EVENT_AXIS_TOOL_MINOR;
-
-            mOrientedRanges.size.axis = AMOTION_EVENT_AXIS_SIZE;
-            mOrientedRanges.size.source = mSource;
-            mOrientedRanges.size.min = 0;
-            mOrientedRanges.size.max = 1.0;
-            mOrientedRanges.size.flat = 0;
-            mOrientedRanges.size.fuzz = 0;
-            mOrientedRanges.size.resolution = 0;
-        } else {
-            mSizeScale = 0.0f;
-        }
-
-        // Pressure factors.
-        mPressureScale = 0;
-        float pressureMax = 1.0;
-        if (mCalibration.pressureCalibration == Calibration::PressureCalibration::PHYSICAL ||
-            mCalibration.pressureCalibration == Calibration::PressureCalibration::AMPLITUDE) {
-            if (mCalibration.havePressureScale) {
-                mPressureScale = mCalibration.pressureScale;
-                pressureMax = mPressureScale * mRawPointerAxes.pressure.maxValue;
-            } else if (mRawPointerAxes.pressure.valid && mRawPointerAxes.pressure.maxValue != 0) {
-                mPressureScale = 1.0f / mRawPointerAxes.pressure.maxValue;
-            }
-        }
-
-        mOrientedRanges.pressure.axis = AMOTION_EVENT_AXIS_PRESSURE;
-        mOrientedRanges.pressure.source = mSource;
-        mOrientedRanges.pressure.min = 0;
-        mOrientedRanges.pressure.max = pressureMax;
-        mOrientedRanges.pressure.flat = 0;
-        mOrientedRanges.pressure.fuzz = 0;
-        mOrientedRanges.pressure.resolution = 0;
-
-        // Tilt
-        mTiltXCenter = 0;
-        mTiltXScale = 0;
-        mTiltYCenter = 0;
-        mTiltYScale = 0;
-        mHaveTilt = mRawPointerAxes.tiltX.valid && mRawPointerAxes.tiltY.valid;
-        if (mHaveTilt) {
-            mTiltXCenter = avg(mRawPointerAxes.tiltX.minValue, mRawPointerAxes.tiltX.maxValue);
-            mTiltYCenter = avg(mRawPointerAxes.tiltY.minValue, mRawPointerAxes.tiltY.maxValue);
-            mTiltXScale = M_PI / 180;
-            mTiltYScale = M_PI / 180;
-
-            if (mRawPointerAxes.tiltX.resolution) {
-                mTiltXScale = 1.0 / mRawPointerAxes.tiltX.resolution;
-            }
-            if (mRawPointerAxes.tiltY.resolution) {
-                mTiltYScale = 1.0 / mRawPointerAxes.tiltY.resolution;
-            }
-
-            mOrientedRanges.haveTilt = true;
-
-            mOrientedRanges.tilt.axis = AMOTION_EVENT_AXIS_TILT;
-            mOrientedRanges.tilt.source = mSource;
-            mOrientedRanges.tilt.min = 0;
-            mOrientedRanges.tilt.max = M_PI_2;
-            mOrientedRanges.tilt.flat = 0;
-            mOrientedRanges.tilt.fuzz = 0;
-            mOrientedRanges.tilt.resolution = 0;
-        }
-
-        // Orientation
-        mOrientationScale = 0;
-        if (mHaveTilt) {
-            mOrientedRanges.haveOrientation = true;
-
-            mOrientedRanges.orientation.axis = AMOTION_EVENT_AXIS_ORIENTATION;
-            mOrientedRanges.orientation.source = mSource;
-            mOrientedRanges.orientation.min = -M_PI;
-            mOrientedRanges.orientation.max = M_PI;
-            mOrientedRanges.orientation.flat = 0;
-            mOrientedRanges.orientation.fuzz = 0;
-            mOrientedRanges.orientation.resolution = 0;
-        } else if (mCalibration.orientationCalibration !=
-                   Calibration::OrientationCalibration::NONE) {
-            if (mCalibration.orientationCalibration ==
-                Calibration::OrientationCalibration::INTERPOLATED) {
-                if (mRawPointerAxes.orientation.valid) {
-                    if (mRawPointerAxes.orientation.maxValue > 0) {
-                        mOrientationScale = M_PI_2 / mRawPointerAxes.orientation.maxValue;
-                    } else if (mRawPointerAxes.orientation.minValue < 0) {
-                        mOrientationScale = -M_PI_2 / mRawPointerAxes.orientation.minValue;
-                    } else {
-                        mOrientationScale = 0;
-                    }
-                }
-            }
-
-            mOrientedRanges.haveOrientation = true;
-
-            mOrientedRanges.orientation.axis = AMOTION_EVENT_AXIS_ORIENTATION;
-            mOrientedRanges.orientation.source = mSource;
-            mOrientedRanges.orientation.min = -M_PI_2;
-            mOrientedRanges.orientation.max = M_PI_2;
-            mOrientedRanges.orientation.flat = 0;
-            mOrientedRanges.orientation.fuzz = 0;
-            mOrientedRanges.orientation.resolution = 0;
-        }
-
-        // Distance
-        mDistanceScale = 0;
-        if (mCalibration.distanceCalibration != Calibration::DistanceCalibration::NONE) {
-            if (mCalibration.distanceCalibration == Calibration::DistanceCalibration::SCALED) {
-                if (mCalibration.haveDistanceScale) {
-                    mDistanceScale = mCalibration.distanceScale;
-                } else {
-                    mDistanceScale = 1.0f;
-                }
-            }
-
-            mOrientedRanges.haveDistance = true;
-
-            mOrientedRanges.distance.axis = AMOTION_EVENT_AXIS_DISTANCE;
-            mOrientedRanges.distance.source = mSource;
-            mOrientedRanges.distance.min = mRawPointerAxes.distance.minValue * mDistanceScale;
-            mOrientedRanges.distance.max = mRawPointerAxes.distance.maxValue * mDistanceScale;
-            mOrientedRanges.distance.flat = 0;
-            mOrientedRanges.distance.fuzz = mRawPointerAxes.distance.fuzz * mDistanceScale;
-            mOrientedRanges.distance.resolution = 0;
-        }
-
-        // Compute oriented precision, scales and ranges.
-        // Note that the maximum value reported is an inclusive maximum value so it is one
-        // unit less than the total width or height of the display.
-        switch (mInputDeviceOrientation) {
-            case DISPLAY_ORIENTATION_90:
-            case DISPLAY_ORIENTATION_270:
-                mOrientedXPrecision = mYPrecision;
-                mOrientedYPrecision = mXPrecision;
-
-                mOrientedRanges.x.min = 0;
-                mOrientedRanges.x.max = mDisplayHeight - 1;
-                mOrientedRanges.x.flat = 0;
-                mOrientedRanges.x.fuzz = 0;
-                mOrientedRanges.x.resolution = mRawPointerAxes.y.resolution * mYScale;
-
-                mOrientedRanges.y.min = 0;
-                mOrientedRanges.y.max = mDisplayWidth - 1;
-                mOrientedRanges.y.flat = 0;
-                mOrientedRanges.y.fuzz = 0;
-                mOrientedRanges.y.resolution = mRawPointerAxes.x.resolution * mXScale;
-                break;
-
-            default:
-                mOrientedXPrecision = mXPrecision;
-                mOrientedYPrecision = mYPrecision;
-
-                mOrientedRanges.x.min = 0;
-                mOrientedRanges.x.max = mDisplayWidth - 1;
-                mOrientedRanges.x.flat = 0;
-                mOrientedRanges.x.fuzz = 0;
-                mOrientedRanges.x.resolution = mRawPointerAxes.x.resolution * mXScale;
-
-                mOrientedRanges.y.min = 0;
-                mOrientedRanges.y.max = mDisplayHeight - 1;
-                mOrientedRanges.y.flat = 0;
-                mOrientedRanges.y.fuzz = 0;
-                mOrientedRanges.y.resolution = mRawPointerAxes.y.resolution * mYScale;
-                break;
-        }
+        initializeOrientedRanges();
 
         // Location
         updateAffineTransformation();
@@ -1267,26 +1322,8 @@ void TouchInputMapper::resolveCalibration() {
 void TouchInputMapper::dumpCalibration(std::string& dump) {
     dump += INDENT3 "Calibration:\n";
 
-    // Size
-    switch (mCalibration.sizeCalibration) {
-        case Calibration::SizeCalibration::NONE:
-            dump += INDENT4 "touch.size.calibration: none\n";
-            break;
-        case Calibration::SizeCalibration::GEOMETRIC:
-            dump += INDENT4 "touch.size.calibration: geometric\n";
-            break;
-        case Calibration::SizeCalibration::DIAMETER:
-            dump += INDENT4 "touch.size.calibration: diameter\n";
-            break;
-        case Calibration::SizeCalibration::BOX:
-            dump += INDENT4 "touch.size.calibration: box\n";
-            break;
-        case Calibration::SizeCalibration::AREA:
-            dump += INDENT4 "touch.size.calibration: area\n";
-            break;
-        default:
-            ALOG_ASSERT(false);
-    }
+    dump += INDENT4 "touch.size.calibration: ";
+    dump += ftl::enum_string(mCalibration.sizeCalibration) + "\n";
 
     if (mCalibration.haveSizeScale) {
         dump += StringPrintf(INDENT4 "touch.size.scale: %0.3f\n", mCalibration.sizeScale);

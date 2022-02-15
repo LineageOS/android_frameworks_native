@@ -31,9 +31,11 @@
 #include <gui/SyncScreenCaptureListener.h>
 #include <inttypes.h>
 #include <private/gui/ComposerService.h>
+#include <sys/types.h>
 #include <ui/BufferQueueDefs.h>
 #include <ui/DisplayMode.h>
 #include <ui/Rect.h>
+#include <utils/Errors.h>
 #include <utils/String8.h>
 
 #include <limits>
@@ -45,6 +47,7 @@ using namespace std::chrono_literals;
 // retrieve wide-color and hdr settings from configstore
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using aidl::android::hardware::graphics::common::DisplayDecorationSupport;
 using gui::IDisplayEventConnection;
 using gui::IRegionSamplingListener;
 using ui::ColorMode;
@@ -755,6 +758,11 @@ public:
     }
     status_t setActiveColorMode(const sp<IBinder>& /*display*/,
         ColorMode /*colorMode*/) override { return NO_ERROR; }
+    status_t getBootDisplayModeSupport(bool* /*outSupport*/) const override { return NO_ERROR; }
+    status_t setBootDisplayMode(const sp<IBinder>& /*display*/, ui::DisplayModeId /*id*/) override {
+        return NO_ERROR;
+    }
+    status_t clearBootDisplayMode(const sp<IBinder>& /*display*/) override { return NO_ERROR; }
     void setAutoLowLatencyMode(const sp<IBinder>& /*display*/, bool /*on*/) override {}
     void setGameContentType(const sp<IBinder>& /*display*/, bool /*on*/) override {}
 
@@ -882,6 +890,12 @@ public:
         return NO_ERROR;
     }
 
+    status_t getDisplayDecorationSupport(
+            const sp<IBinder>& /*displayToken*/,
+            std::optional<DisplayDecorationSupport>* /*outSupport*/) const override {
+        return NO_ERROR;
+    }
+
     status_t setFrameRate(const sp<IGraphicBufferProducer>& /*surface*/, float /*frameRate*/,
                           int8_t /*compatibility*/, int8_t /*changeFrameRateStrategy*/) override {
         return NO_ERROR;
@@ -910,6 +924,8 @@ public:
             const sp<gui::IWindowInfosListener>& /*windowInfosListener*/) const override {
         return NO_ERROR;
     }
+
+    status_t setOverrideFrameRate(uid_t /*uid*/, float /*frameRate*/) override { return NO_ERROR; }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }

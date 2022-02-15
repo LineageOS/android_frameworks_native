@@ -20,6 +20,7 @@
 
 #include <gui/DisplayEventReceiver.h>
 #include <gui/ISurfaceComposer.h>
+#include <gui/VsyncEventData.h>
 
 #include <private/gui/ComposerService.h>
 
@@ -39,7 +40,13 @@ DisplayEventReceiver::DisplayEventReceiver(
         mEventConnection = sf->createDisplayEventConnection(vsyncSource, eventRegistration);
         if (mEventConnection != nullptr) {
             mDataChannel = std::make_unique<gui::BitTube>();
-            mEventConnection->stealReceiveChannel(mDataChannel.get());
+            const auto status = mEventConnection->stealReceiveChannel(mDataChannel.get());
+            if (!status.isOk()) {
+                ALOGE("stealReceiveChannel failed: %s", status.toString8().c_str());
+                mInitError = std::make_optional<status_t>(status.transactionError());
+                mDataChannel.reset();
+                mEventConnection.clear();
+            }
         }
     }
 }
@@ -50,12 +57,11 @@ DisplayEventReceiver::~DisplayEventReceiver() {
 status_t DisplayEventReceiver::initCheck() const {
     if (mDataChannel != nullptr)
         return NO_ERROR;
-    return NO_INIT;
+    return mInitError.has_value() ? mInitError.value() : NO_INIT;
 }
 
 int DisplayEventReceiver::getFd() const {
-    if (mDataChannel == nullptr)
-        return NO_INIT;
+    if (mDataChannel == nullptr) return mInitError.has_value() ? mInitError.value() : NO_INIT;
 
     return mDataChannel->getFd();
 }
@@ -68,12 +74,26 @@ status_t DisplayEventReceiver::setVsyncRate(uint32_t count) {
         mEventConnection->setVsyncRate(count);
         return NO_ERROR;
     }
-    return NO_INIT;
+    return mInitError.has_value() ? mInitError.value() : NO_INIT;
 }
 
 status_t DisplayEventReceiver::requestNextVsync() {
     if (mEventConnection != nullptr) {
         mEventConnection->requestNextVsync();
+        return NO_ERROR;
+    }
+    return mInitError.has_value() ? mInitError.value() : NO_INIT;
+}
+
+status_t DisplayEventReceiver::getLatestVsyncEventData(VsyncEventData* outVsyncEventData) const {
+    if (mEventConnection != nullptr) {
+        VsyncEventData vsyncEventData;
+        auto status = mEventConnection->getLatestVsyncEventData(&vsyncEventData);
+        if (!status.isOk()) {
+            ALOGE("Failed to get latest vsync event data: %s", status.exceptionMessage().c_str());
+            return status.transactionError();
+        }
+        *outVsyncEventData = vsyncEventData;
         return NO_ERROR;
     }
     return NO_INIT;

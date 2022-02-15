@@ -25,17 +25,16 @@
 #include <mutex>
 #include <thread>
 
+#include "RingBuffer.h"
 #include "TransactionProtoParser.h"
 
 using namespace android::surfaceflinger;
 
 namespace android {
 
-template <typename FileProto, typename EntryProto>
-class RingBuffer;
-
 class SurfaceFlinger;
 class TransactionTracingTest;
+
 /*
  * Records all committed transactions into a ring bufffer.
  *
@@ -54,13 +53,9 @@ public:
     TransactionTracing();
     ~TransactionTracing();
 
-    bool enable();
-    bool disable();
-    bool isEnabled() const;
-
     void addQueuedTransaction(const TransactionState&);
     void addCommittedTransactions(std::vector<TransactionState>& transactions, int64_t vsyncId);
-    status_t writeToFile();
+    status_t writeToFile(std::string filename = FILE_NAME);
     void setBufferSize(size_t bufferSizeInBytes);
     void onLayerAdded(BBinder* layerHandle, int layerId, const std::string& name, uint32_t flags,
                       int parentId);
@@ -78,8 +73,7 @@ private:
     static constexpr auto FILE_NAME = "/data/misc/wmtrace/transactions_trace.winscope";
 
     mutable std::mutex mTraceLock;
-    bool mEnabled GUARDED_BY(mTraceLock) = false;
-    std::unique_ptr<RingBuffer<proto::TransactionTraceFile, proto::TransactionTraceEntry>> mBuffer
+    RingBuffer<proto::TransactionTraceFile, proto::TransactionTraceEntry> mBuffer
             GUARDED_BY(mTraceLock);
     size_t mBufferSizeInBytes GUARDED_BY(mTraceLock) = CONTINUOUS_TRACING_BUFFER_SIZE;
     std::unordered_map<uint64_t, proto::TransactionState> mQueuedTransactions
@@ -88,7 +82,9 @@ private:
     std::vector<proto::LayerCreationArgs> mCreatedLayers GUARDED_BY(mTraceLock);
     std::unordered_map<BBinder* /* layerHandle */, int32_t /* layerId */> mLayerHandles
             GUARDED_BY(mTraceLock);
+    std::vector<int32_t /* layerId */> mRemovedLayerHandles GUARDED_BY(mTraceLock);
     std::map<int32_t /* layerId */, TracingLayerState> mStartingStates GUARDED_BY(mTraceLock);
+    TransactionProtoParser mProtoParser GUARDED_BY(mTraceLock);
 
     // We do not want main thread to block so main thread will try to acquire mMainThreadLock,
     // otherwise will push data to temporary container.
@@ -116,7 +112,6 @@ private:
     void tryPushToTracingThread() EXCLUDES(mMainThreadLock);
     void addStartingStateToProtoLocked(proto::TransactionTraceFile& proto) REQUIRES(mTraceLock);
     void updateStartingStateLocked(const proto::TransactionTraceEntry& entry) REQUIRES(mTraceLock);
-    status_t writeToFileLocked() REQUIRES(mTraceLock);
 
     // TEST
     // Wait until all the committed transactions for the specified vsync id are added to the buffer.

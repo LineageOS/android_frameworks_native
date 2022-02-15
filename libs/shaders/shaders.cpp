@@ -18,6 +18,7 @@
 
 #include <tonemap/tonemap.h>
 
+#include <cmath>
 #include <optional>
 
 #include <math/mat4.h>
@@ -26,12 +27,13 @@
 
 namespace android::shaders {
 
-static aidl::android::hardware::graphics::common::Dataspace toAidlDataspace(
-        ui::Dataspace dataspace) {
+namespace {
+
+aidl::android::hardware::graphics::common::Dataspace toAidlDataspace(ui::Dataspace dataspace) {
     return static_cast<aidl::android::hardware::graphics::common::Dataspace>(dataspace);
 }
 
-static void generateEOTF(ui::Dataspace dataspace, std::string& shader) {
+void generateEOTF(ui::Dataspace dataspace, std::string& shader) {
     switch (dataspace & HAL_DATASPACE_TRANSFER_MASK) {
         case HAL_DATASPACE_TRANSFER_ST2084:
             shader.append(R"(
@@ -156,7 +158,7 @@ static void generateEOTF(ui::Dataspace dataspace, std::string& shader) {
     }
 }
 
-static void generateXYZTransforms(std::string& shader) {
+void generateXYZTransforms(std::string& shader) {
     shader.append(R"(
         uniform float4x4 in_rgbToXyz;
         uniform float4x4 in_xyzToRgb;
@@ -171,8 +173,8 @@ static void generateXYZTransforms(std::string& shader) {
 }
 
 // Conversion from relative light to absolute light (maps from [0, 1] to [0, maxNits])
-static void generateLuminanceScalesForOOTF(ui::Dataspace inputDataspace,
-                                           ui::Dataspace outputDataspace, std::string& shader) {
+void generateLuminanceScalesForOOTF(ui::Dataspace inputDataspace, ui::Dataspace outputDataspace,
+                                    std::string& shader) {
     switch (inputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
         case HAL_DATASPACE_TRANSFER_ST2084:
             shader.append(R"(
@@ -183,8 +185,9 @@ static void generateLuminanceScalesForOOTF(ui::Dataspace inputDataspace,
             break;
         case HAL_DATASPACE_TRANSFER_HLG:
             shader.append(R"(
+                    uniform float in_hlgGamma;
                     float3 ScaleLuminance(float3 xyz) {
-                        return xyz * 1000.0 * pow(xyz.y, 0.2);
+                        return xyz * 1000.0 * pow(xyz.y, in_hlgGamma - 1);
                     }
                 )");
             break;
@@ -225,8 +228,10 @@ static void generateLuminanceNormalizationForOOTF(ui::Dataspace outputDataspace,
             break;
         case HAL_DATASPACE_TRANSFER_HLG:
             shader.append(R"(
+                    uniform float in_hlgGamma;
                     float3 NormalizeLuminance(float3 xyz) {
-                        return xyz / 1000.0 * pow(xyz.y / 1000.0, -0.2 / 1.2);
+                        return xyz / 1000.0 *
+                                pow(xyz.y / 1000.0, (1 - in_hlgGamma) / (in_hlgGamma));
                     }
                 )");
             break;
@@ -240,8 +245,8 @@ static void generateLuminanceNormalizationForOOTF(ui::Dataspace outputDataspace,
     }
 }
 
-static void generateOOTF(ui::Dataspace inputDataspace, ui::Dataspace outputDataspace,
-                         std::string& shader) {
+void generateOOTF(ui::Dataspace inputDataspace, ui::Dataspace outputDataspace,
+                  std::string& shader) {
     shader.append(tonemap::getToneMapper()
                           ->generateTonemapGainShaderSkSL(toAidlDataspace(inputDataspace),
                                                           toAidlDataspace(outputDataspace))
@@ -262,7 +267,7 @@ static void generateOOTF(ui::Dataspace inputDataspace, ui::Dataspace outputDatas
         )");
 }
 
-static void generateOETF(ui::Dataspace dataspace, std::string& shader) {
+void generateOETF(ui::Dataspace dataspace, std::string& shader) {
     switch (dataspace & HAL_DATASPACE_TRANSFER_MASK) {
         case HAL_DATASPACE_TRANSFER_ST2084:
             shader.append(R"(
@@ -384,7 +389,7 @@ static void generateOETF(ui::Dataspace dataspace, std::string& shader) {
     }
 }
 
-static void generateEffectiveOOTF(bool undoPremultipliedAlpha, std::string& shader) {
+void generateEffectiveOOTF(bool undoPremultipliedAlpha, std::string& shader) {
     shader.append(R"(
         uniform shader child;
         half4 main(float2 xy) {
@@ -412,7 +417,7 @@ static void generateEffectiveOOTF(bool undoPremultipliedAlpha, std::string& shad
 }
 
 // please keep in sync with toSkColorSpace function in renderengine/skia/ColorSpaces.cpp
-static ColorSpace toColorSpace(ui::Dataspace dataspace) {
+ColorSpace toColorSpace(ui::Dataspace dataspace) {
     switch (dataspace & HAL_DATASPACE_STANDARD_MASK) {
         case HAL_DATASPACE_STANDARD_BT709:
             return ColorSpace::sRGB();
@@ -438,6 +443,21 @@ static ColorSpace toColorSpace(ui::Dataspace dataspace) {
     }
 }
 
+template <typename T, std::enable_if_t<std::is_trivially_copyable<T>::value, bool> = true>
+std::vector<uint8_t> buildUniformValue(T value) {
+    std::vector<uint8_t> result;
+    result.resize(sizeof(value));
+    std::memcpy(result.data(), &value, sizeof(value));
+    return result;
+}
+
+// Refer to BT2100-2
+float computeHlgGamma(float currentDisplayBrightnessNits) {
+    return 1.2 + 0.42 * std::log10(currentDisplayBrightnessNits / 1000);
+}
+
+} // namespace
+
 std::string buildLinearEffectSkSL(const LinearEffect& linearEffect) {
     std::string shaderString;
     generateEOTF(linearEffect.fakeInputDataspace == ui::Dataspace::UNKNOWN
@@ -451,18 +471,11 @@ std::string buildLinearEffectSkSL(const LinearEffect& linearEffect) {
     return shaderString;
 }
 
-template <typename T, std::enable_if_t<std::is_trivially_copyable<T>::value, bool> = true>
-std::vector<uint8_t> buildUniformValue(T value) {
-    std::vector<uint8_t> result;
-    result.resize(sizeof(value));
-    std::memcpy(result.data(), &value, sizeof(value));
-    return result;
-}
-
 // Generates a list of uniforms to set on the LinearEffect shader above.
 std::vector<tonemap::ShaderUniform> buildLinearEffectUniforms(const LinearEffect& linearEffect,
                                                               const mat4& colorTransform,
                                                               float maxDisplayLuminance,
+                                                              float currentDisplayLuminanceNits,
                                                               float maxLuminance) {
     std::vector<tonemap::ShaderUniform> uniforms;
     if (linearEffect.inputDataspace == linearEffect.outputDataspace) {
@@ -477,6 +490,12 @@ std::vector<tonemap::ShaderUniform> buildLinearEffectUniforms(const LinearEffect
         uniforms.push_back({.name = "in_xyzToRgb",
                             .value = buildUniformValue<mat4>(
                                     colorTransform * mat4(outputColorSpace.getXYZtoRGB()))});
+    }
+
+    if ((linearEffect.inputDataspace & HAL_DATASPACE_TRANSFER_MASK) == HAL_DATASPACE_TRANSFER_HLG) {
+        uniforms.push_back(
+                {.name = "in_hlgGamma",
+                 .value = buildUniformValue<float>(computeHlgGamma(currentDisplayLuminanceNits))});
     }
 
     tonemap::Metadata metadata{.displayMaxLuminance = maxDisplayLuminance,

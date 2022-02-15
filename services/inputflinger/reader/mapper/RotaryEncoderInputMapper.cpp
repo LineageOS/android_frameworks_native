@@ -31,7 +31,7 @@ RotaryEncoderInputMapper::RotaryEncoderInputMapper(InputDeviceContext& deviceCon
 
 RotaryEncoderInputMapper::~RotaryEncoderInputMapper() {}
 
-uint32_t RotaryEncoderInputMapper::getSources() {
+uint32_t RotaryEncoderInputMapper::getSources() const {
     return mSource;
 }
 

@@ -25,6 +25,7 @@
 
 #include <binder/IBinder.h>
 
+#include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Singleton.h>
 #include <utils/SortedVector.h>
@@ -46,6 +47,8 @@
 #include <gui/WindowInfosListenerReporter.h>
 #include <math/vec3.h>
 
+#include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+
 namespace android {
 
 class HdrCapabilities;
@@ -57,12 +60,13 @@ class Region;
 using gui::IRegionSamplingListener;
 
 struct SurfaceControlStats {
-    SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime, nsecs_t acquireTime,
+    SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime,
+                        std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence,
                         const sp<Fence>& presentFence, const sp<Fence>& prevReleaseFence,
                         uint32_t hint, FrameEventHistoryStats eventStats)
           : surfaceControl(sc),
             latchTime(latchTime),
-            acquireTime(acquireTime),
+            acquireTimeOrFence(std::move(acquireTimeOrFence)),
             presentFence(presentFence),
             previousReleaseFence(prevReleaseFence),
             transformHint(hint),
@@ -70,7 +74,7 @@ struct SurfaceControlStats {
 
     sp<SurfaceControl> surfaceControl;
     nsecs_t latchTime = -1;
-    nsecs_t acquireTime = -1;
+    std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence = -1;
     sp<Fence> presentFence;
     sp<Fence> previousReleaseFence;
     uint32_t transformHint = 0;
@@ -166,6 +170,17 @@ public:
     // Sets the active color mode for the given display
     static status_t setActiveColorMode(const sp<IBinder>& display,
             ui::ColorMode colorMode);
+
+    // Gets if boot display mode operations are supported on a device
+    static status_t getBootDisplayModeSupport(bool* support);
+    // Sets the user-preferred display mode that a device should boot in
+    static status_t setBootDisplayMode(const sp<IBinder>& display, ui::DisplayModeId);
+    // Clears the user-preferred display mode
+    static status_t clearBootDisplayMode(const sp<IBinder>& display);
+
+    // Sets the frame rate of a particular app (uid). This is currently called
+    // by GameManager.
+    static status_t setOverrideFrameRate(uid_t uid, float frameRate);
 
     // Switches on/off Auto Low Latency Mode on the connected display. This should only be
     // called if the connected display supports Auto Low Latency Mode as reported by
@@ -271,6 +286,18 @@ public:
      */
     static status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
                                             float lightPosY, float lightPosZ, float lightRadius);
+
+    /*
+     * Returns whether and how a display supports DISPLAY_DECORATION layers.
+     *
+     * displayToken
+     *      The token of the display.
+     *
+     * Returns how a display supports DISPLAY_DECORATION layers, or nullopt if
+     * it does not.
+     */
+    static std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>
+    getDisplayDecorationSupport(const sp<IBinder>& displayToken);
 
     // ------------------------------------------------------------------------
     // surface creation / destruction
@@ -416,7 +443,7 @@ public:
 
         void cacheBuffers();
         void registerSurfaceControlForCallback(const sp<SurfaceControl>& sc);
-        void setReleaseBufferCallback(BufferData*, const ReleaseCallbackId&, ReleaseBufferCallback);
+        void setReleaseBufferCallback(BufferData*, ReleaseBufferCallback);
 
     public:
         Transaction();
@@ -490,9 +517,8 @@ public:
         Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
                                const std::optional<sp<Fence>>& fence = std::nullopt,
                                const std::optional<uint64_t>& frameNumber = std::nullopt,
-                               const ReleaseCallbackId& id = ReleaseCallbackId::INVALID_ID,
                                ReleaseBufferCallback callback = nullptr);
-        std::optional<BufferData> getAndClearBuffer(const sp<SurfaceControl>& sc);
+        std::shared_ptr<BufferData> getAndClearBuffer(const sp<SurfaceControl>& sc);
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
         Transaction& setHdrMetadata(const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata);
         Transaction& setSurfaceDamageRegion(const sp<SurfaceControl>& sc,
@@ -602,6 +628,14 @@ public:
         void setAnimationTransaction();
         void setEarlyWakeupStart();
         void setEarlyWakeupEnd();
+
+        /**
+         * Strip the transaction of all permissioned requests, required when
+         * accepting transactions across process boundaries.
+         *
+         * TODO (b/213644870): Remove all permissioned things from Transaction
+         */
+        void sanitize();
     };
 
     status_t clearLayerFrameStats(const sp<IBinder>& token) const;

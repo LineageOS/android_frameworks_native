@@ -17,6 +17,7 @@
 #pragma once
 
 #include <android/gui/TouchOcclusionMode.h>
+#include <android/os/IInputConstants.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
 #include <ftl/Flags.h>
@@ -131,12 +132,23 @@ struct WindowInfo : public Parcelable {
         ftl_last = FIRST_SYSTEM_WINDOW + 15
     };
 
+    // This is a conversion of os::IInputConstants::InputFeature to an enum backed by an unsigned
+    // type. This indicates that they are flags, so it can be used with ftl/enum.h.
     enum class Feature : uint32_t {
-        DISABLE_TOUCH_PAD_GESTURES = 1u << 0,
-        NO_INPUT_CHANNEL = 1u << 1,
-        DISABLE_USER_ACTIVITY = 1u << 2,
-        DROP_INPUT = 1u << 3,
-        DROP_INPUT_IF_OBSCURED = 1u << 4,
+        // clang-format off
+        NO_INPUT_CHANNEL =
+                static_cast<uint32_t>(os::IInputConstants::InputFeature::NO_INPUT_CHANNEL),
+        DISABLE_USER_ACTIVITY =
+                static_cast<uint32_t>(os::IInputConstants::InputFeature::DISABLE_USER_ACTIVITY),
+        DROP_INPUT =
+                static_cast<uint32_t>(os::IInputConstants::InputFeature::DROP_INPUT),
+        DROP_INPUT_IF_OBSCURED =
+                static_cast<uint32_t>(os::IInputConstants::InputFeature::DROP_INPUT_IF_OBSCURED),
+        SPY =
+                static_cast<uint32_t>(os::IInputConstants::InputFeature::SPY),
+        INTERCEPTS_STYLUS =
+                static_cast<uint32_t>(os::IInputConstants::InputFeature::INTERCEPTS_STYLUS),
+        // clang-format on
     };
 
     /* These values are filled in by the WM and passed through SurfaceFlinger
@@ -202,7 +214,6 @@ struct WindowInfo : public Parcelable {
     std::string packageName;
     Flags<Feature> inputFeatures;
     int32_t displayId = ADISPLAY_ID_NONE;
-    int32_t portalToDisplayId = ADISPLAY_ID_NONE;
     InputApplicationInfo applicationInfo;
     bool replaceTouchableRegionWithCrop = false;
     wp<IBinder> touchableRegionCropHandle;
@@ -214,6 +225,10 @@ struct WindowInfo : public Parcelable {
     bool frameContainsPoint(int32_t x, int32_t y) const;
 
     bool supportsSplitTouch() const;
+
+    bool isSpy() const;
+
+    bool interceptsStylus() const;
 
     bool overlaps(const WindowInfo* other) const;
 

@@ -685,7 +685,7 @@ EventHub::EventHub(void)
     mEpollFd = epoll_create1(EPOLL_CLOEXEC);
     LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance: %s", strerror(errno));
 
-    mINotifyFd = inotify_init();
+    mINotifyFd = inotify_init1(IN_CLOEXEC);
 
     std::error_code errorCode;
     bool isDeviceInotifyAdded = false;
@@ -713,7 +713,7 @@ EventHub::EventHub(void)
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not add INotify to epoll instance.  errno=%d", errno);
 
     int wakeFds[2];
-    result = pipe(wakeFds);
+    result = pipe2(wakeFds, O_CLOEXEC);
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not create wake pipe.  errno=%d", errno);
 
     mWakeReadPipeFd = wakeFds[0];
@@ -878,6 +878,42 @@ int32_t EventHub::getKeyCodeState(int32_t deviceId, int32_t keyCode) const {
         }
     }
     return AKEY_STATE_UNKNOWN;
+}
+
+int32_t EventHub::getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const {
+    std::scoped_lock _l(mLock);
+
+    Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr || !device->hasValidFd() || device->keyMap.keyCharacterMap == nullptr ||
+        device->keyMap.keyLayoutMap == nullptr) {
+        return AKEYCODE_UNKNOWN;
+    }
+    std::vector<int32_t> scanCodes;
+    device->keyMap.keyLayoutMap->findScanCodesForKey(locationKeyCode, &scanCodes);
+    if (scanCodes.empty()) {
+        ALOGW("Failed to get key code for key location: no scan code maps to key code %d for input"
+              "device %d",
+              locationKeyCode, deviceId);
+        return AKEYCODE_UNKNOWN;
+    }
+    if (scanCodes.size() > 1) {
+        ALOGW("Multiple scan codes map to the same key code %d, returning only the first match",
+              locationKeyCode);
+    }
+    int32_t outKeyCode;
+    status_t mapKeyRes =
+            device->getKeyCharacterMap()->mapKey(scanCodes[0], 0 /*usageCode*/, &outKeyCode);
+    switch (mapKeyRes) {
+        case OK:
+            return outKeyCode;
+        case NAME_NOT_FOUND:
+            // key character map doesn't re-map this scanCode, hence the keyCode remains the same
+            return locationKeyCode;
+        default:
+            ALOGW("Failed to get key code for key location: Key character map returned error %s",
+                  statusToString(mapKeyRes).c_str());
+            return AKEYCODE_UNKNOWN;
+    }
 }
 
 int32_t EventHub::getSwitchState(int32_t deviceId, int32_t sw) const {
@@ -1262,12 +1298,11 @@ const std::shared_ptr<KeyCharacterMap> EventHub::getKeyCharacterMap(int32_t devi
 bool EventHub::setKeyboardLayoutOverlay(int32_t deviceId, std::shared_ptr<KeyCharacterMap> map) {
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device != nullptr && map != nullptr && device->keyMap.keyCharacterMap != nullptr) {
-        device->keyMap.keyCharacterMap->combine(*map);
-        device->keyMap.keyCharacterMapFile = device->keyMap.keyCharacterMap->getLoadFileName();
-        return true;
+    if (device == nullptr || map == nullptr || device->keyMap.keyCharacterMap == nullptr) {
+        return false;
     }
-    return false;
+    device->keyMap.keyCharacterMap->combine(*map);
+    return true;
 }
 
 static std::string generateDescriptor(InputDeviceIdentifier& identifier) {
@@ -2344,13 +2379,10 @@ void EventHub::closeVideoDeviceByPathLocked(const std::string& devicePath) {
             return;
         }
     }
-    mUnattachedVideoDevices
-            .erase(std::remove_if(mUnattachedVideoDevices.begin(), mUnattachedVideoDevices.end(),
-                                  [&devicePath](
-                                          const std::unique_ptr<TouchVideoDevice>& videoDevice) {
-                                      return videoDevice->getPath() == devicePath;
-                                  }),
-                   mUnattachedVideoDevices.end());
+    std::erase_if(mUnattachedVideoDevices,
+                  [&devicePath](const std::unique_ptr<TouchVideoDevice>& videoDevice) {
+                      return videoDevice->getPath() == devicePath;
+                  });
 }
 
 void EventHub::closeAllDevicesLocked() {

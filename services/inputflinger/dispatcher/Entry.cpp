@@ -214,7 +214,7 @@ MotionEntry::MotionEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32
                          int32_t edgeFlags, float xPrecision, float yPrecision,
                          float xCursorPosition, float yCursorPosition, nsecs_t downTime,
                          uint32_t pointerCount, const PointerProperties* pointerProperties,
-                         const PointerCoords* pointerCoords, float xOffset, float yOffset)
+                         const PointerCoords* pointerCoords)
       : EventEntry(id, Type::MOTION, eventTime, policyFlags),
         deviceId(deviceId),
         source(source),
@@ -235,9 +235,6 @@ MotionEntry::MotionEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32
     for (uint32_t i = 0; i < pointerCount; i++) {
         this->pointerProperties[i].copyFrom(pointerProperties[i]);
         this->pointerCoords[i].copyFrom(pointerCoords[i]);
-        if (xOffset || yOffset) {
-            this->pointerCoords[i].applyOffset(xOffset, yOffset);
-        }
     }
 }
 

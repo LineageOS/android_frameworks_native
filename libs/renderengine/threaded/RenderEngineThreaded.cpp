@@ -178,6 +178,10 @@ void RenderEngineThreaded::dump(std::string& result) {
 
 void RenderEngineThreaded::genTextures(size_t count, uint32_t* names) {
     ATRACE_CALL();
+    // This is a no-op in SkiaRenderEngine.
+    if (getRenderEngineType() != RenderEngineType::THREADED) {
+        return;
+    }
     std::promise<void> resultPromise;
     std::future<void> resultFuture = resultPromise.get_future();
     {
@@ -194,6 +198,10 @@ void RenderEngineThreaded::genTextures(size_t count, uint32_t* names) {
 
 void RenderEngineThreaded::deleteTextures(size_t count, uint32_t const* names) {
     ATRACE_CALL();
+    // This is a no-op in SkiaRenderEngine.
+    if (getRenderEngineType() != RenderEngineType::THREADED) {
+        return;
+    }
     std::promise<void> resultPromise;
     std::future<void> resultFuture = resultPromise.get_future();
     {
@@ -381,6 +389,32 @@ void RenderEngineThreaded::onActiveDisplaySizeChanged(ui::Size size) {
     mCondition.notify_one();
 }
 
+std::optional<pid_t> RenderEngineThreaded::getRenderEngineTid() const {
+    std::promise<pid_t> tidPromise;
+    std::future<pid_t> tidFuture = tidPromise.get_future();
+    {
+        std::lock_guard lock(mThreadMutex);
+        mFunctionCalls.push([&tidPromise](renderengine::RenderEngine& instance) {
+            tidPromise.set_value(gettid());
+        });
+    }
+
+    mCondition.notify_one();
+    return std::make_optional(tidFuture.get());
+}
+
+void RenderEngineThreaded::setEnableTracing(bool tracingEnabled) {
+    // This function is designed so it can run asynchronously, so we do not need to wait
+    // for the futures.
+    {
+        std::lock_guard lock(mThreadMutex);
+        mFunctionCalls.push([tracingEnabled](renderengine::RenderEngine& instance) {
+            ATRACE_NAME("REThreaded::setEnableTracing");
+            instance.setEnableTracing(tracingEnabled);
+        });
+    }
+    mCondition.notify_one();
+}
 } // namespace threaded
 } // namespace renderengine
 } // namespace android

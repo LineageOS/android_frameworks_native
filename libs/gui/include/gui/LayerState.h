@@ -31,6 +31,7 @@
 
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerMetadata.h>
+#include <gui/SpHash.h>
 #include <gui/SurfaceControl.h>
 #include <gui/WindowInfo.h>
 #include <math/vec3.h>
@@ -58,7 +59,22 @@ struct client_cache_t {
     bool isValid() const { return token != nullptr; }
 };
 
-struct BufferData {
+class BufferData : public Parcelable {
+public:
+    virtual ~BufferData() = default;
+    virtual bool hasBuffer() const { return buffer != nullptr; }
+    virtual bool hasSameBuffer(const BufferData& other) const {
+        return buffer == other.buffer && frameNumber == other.frameNumber;
+    }
+    virtual uint32_t getWidth() const { return buffer->getWidth(); }
+    virtual uint32_t getHeight() const { return buffer->getHeight(); }
+    Rect getBounds() const {
+        return {0, 0, static_cast<int32_t>(getWidth()), static_cast<int32_t>(getHeight())};
+    }
+    virtual uint64_t getId() const { return buffer->getId(); }
+    virtual PixelFormat getPixelFormat() const { return buffer->getPixelFormat(); }
+    virtual uint64_t getUsage() const { return buffer->getUsage(); }
+
     enum class BufferDataChange : uint32_t {
         fenceChanged = 0x01,
         frameNumberChanged = 0x02,
@@ -77,12 +93,6 @@ struct BufferData {
     // buffer id to identify the buffer.
     sp<ITransactionCompletedListener> releaseBufferListener = nullptr;
 
-    // Keeps track of the release callback id associated with the listener. This
-    // is not sent to the server since the id can be reconstructed there. This
-    // is used to remove the old callback from the client process map if it is
-    // overwritten by another setBuffer call.
-    ReleaseCallbackId releaseCallbackId = ReleaseCallbackId::INVALID_ID;
-
     // Stores which endpoint the release information should be sent to. We don't want to send the
     // releaseCallbackId and release fence to all listeners so we store which listener the setBuffer
     // was called with.
@@ -92,14 +102,24 @@ struct BufferData {
 
     client_cache_t cachedBuffer;
 
-    status_t write(Parcel& output) const;
-    status_t read(const Parcel& input);
+    // Generates the release callback id based on the buffer id and frame number.
+    // This is used as an identifier when release callbacks are invoked.
+    ReleaseCallbackId generateReleaseCallbackId() const;
+
+    status_t writeToParcel(Parcel* parcel) const override;
+    status_t readFromParcel(const Parcel* parcel) override;
 };
 
 /*
  * Used to communicate layer information between SurfaceFlinger and its clients.
  */
 struct layer_state_t {
+    enum Permission {
+        ACCESS_SURFACE_FLINGER = 0x1,
+        ROTATE_SURFACE_FLINGER = 0x2,
+        INTERNAL_SYSTEM_WINDOW = 0x4,
+    };
+
     enum {
         eLayerHidden = 0x01,         // SURFACE_HIDDEN in SurfaceControl.java
         eLayerOpaque = 0x02,         // SURFACE_OPAQUE
@@ -109,6 +129,7 @@ struct layer_state_t {
         // set. This blocks the client until all the buffers have been presented. If the buffers
         // have presentation timestamps, then we may drop buffers.
         eEnableBackpressure = 0x100, // ENABLE_BACKPRESSURE
+        eLayerIsDisplayDecoration = 0x200,  // DISPLAY_DECORATION
     };
 
     enum {
@@ -122,7 +143,7 @@ struct layer_state_t {
         eLayerStackChanged = 0x00000080,
         /* unused 0x00000400, */
         eShadowRadiusChanged = 0x00000800,
-        eLayerCreated = 0x00001000,
+        /* unused 0x00001000, */
         eBufferCropChanged = 0x00002000,
         eRelativeLayerChanged = 0x00004000,
         eReparent = 0x00008000,
@@ -167,6 +188,7 @@ struct layer_state_t {
     status_t read(const Parcel& input);
     bool hasBufferChanges() const;
     bool hasValidBuffer() const;
+    void sanitize(int32_t permissions);
 
     struct matrix22_t {
         float dsdx{0};
@@ -206,7 +228,7 @@ struct layer_state_t {
     uint32_t transform;
     bool transformToDisplayInverse;
     Rect crop;
-    BufferData bufferData;
+    std::shared_ptr<BufferData> bufferData = nullptr;
     ui::Dataspace dataspace;
     HdrMetadata hdrMetadata;
     Region surfaceDamageRegion;
@@ -391,7 +413,7 @@ struct DisplayCaptureArgs : CaptureArgs {
 
 struct LayerCaptureArgs : CaptureArgs {
     sp<IBinder> layerHandle;
-    std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> excludeHandles;
+    std::unordered_set<sp<IBinder>, SpHash<IBinder>> excludeHandles;
     bool childrenOnly{false};
 
     status_t write(Parcel& output) const override;

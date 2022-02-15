@@ -84,4 +84,14 @@ std::optional<IServiceManager::ConnectionInfo> ServiceManager::getConnectionInfo
     return std::nullopt;
 }
 
+status_t ServiceManager::registerForNotifications(const String16&,
+                                                  const sp<LocalRegistrationCallback>&) {
+    return INVALID_OPERATION;
+}
+
+status_t ServiceManager::unregisterForNotifications(const String16&,
+                                                const sp<LocalRegistrationCallback>&) {
+    return INVALID_OPERATION;
+}
+
 }  // namespace android

@@ -28,8 +28,8 @@
 #pragma clang diagnostic ignored "-Wconversion"
 #pragma clang diagnostic ignored "-Wextra"
 
+#include <ui/DisplayIdentification.h>
 #include "DisplayHardware/ComposerHal.h"
-#include "DisplayHardware/DisplayIdentification.h"
 
 #include "LayerFE.h"
 

@@ -12,12 +12,14 @@ cc_library {
     srcs: ["cputimeinstate.cpp"],
     shared_libs: [
         "libbase",
-        "libbpf",
-        "libbpf_android",
+        "libbpf_bcc",
+        "libbpf_minimal",
         "liblog",
-        "libnetdutils"
     ],
-    header_libs: ["bpf_prog_headers"],
+    header_libs: [
+        "bpf_prog_headers",
+        "bpf_headers",
+    ],
     cflags: [
         "-Werror",
         "-Wall",
@@ -31,16 +33,19 @@ cc_test {
     srcs: ["testtimeinstate.cpp"],
     shared_libs: [
         "libbase",
-        "libbpf",
-        "libbpf_android",
+        "libbpf_bcc",
+        "libbpf_minimal",
         "libtimeinstate",
-        "libnetdutils",
     ],
-    header_libs: ["bpf_prog_headers"],
+    header_libs: [
+        "bpf_prog_headers",
+        "bpf_headers",
+    ],
     cflags: [
         "-Werror",
         "-Wall",
         "-Wextra",
     ],
     require_root: true,
+    test_suites: ["general-tests"],
 }

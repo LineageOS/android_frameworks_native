@@ -35,7 +35,7 @@ struct NoOpSchedulerCallback final : ISchedulerCallback {
     void setVsyncEnabled(bool) override {}
     void changeRefreshRate(const RefreshRate&, DisplayModeEvent) override {}
     void kernelTimerChanged(bool) override {}
-    void triggerOnFrameRateOverridesChanged() {}
+    void triggerOnFrameRateOverridesChanged() override {}
 };
 
 } // namespace android::scheduler::mock

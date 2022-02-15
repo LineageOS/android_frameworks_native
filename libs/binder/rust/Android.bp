@@ -32,7 +32,7 @@ rust_library {
         "com.android.uwb",
         "com.android.virt",
     ],
-    min_sdk_version: "current",
+    min_sdk_version: "Tiramisu",
 }
 
 rust_library {
@@ -44,6 +44,7 @@ rust_library {
         "libtokio",
     ],
     host_supported: true,
+    vendor_available: true,
     target: {
         darwin: {
             enabled: false,
@@ -52,8 +53,10 @@ rust_library {
     apex_available: [
         "//apex_available:platform",
         "com.android.compos",
+        "com.android.uwb",
         "com.android.virt",
     ],
+    min_sdk_version: "Tiramisu",
 }
 
 rust_library {
@@ -79,7 +82,7 @@ rust_library {
         "com.android.uwb",
         "com.android.virt",
     ],
-    min_sdk_version: "current",
+    min_sdk_version: "Tiramisu",
     lints: "none",
     clippy_lints: "none",
 }
@@ -127,14 +130,6 @@ rust_bindgen {
     // Currently necessary for host builds
     // TODO(b/31559095): bionic on host should define this
     target: {
-        host: {
-            cflags: [
-                "-D__INTRODUCED_IN(n)=",
-                "-D__assert(a,b,c)=",
-                // We want all the APIs to be available on the host.
-                "-D__ANDROID_API__=10000",
-            ],
-        },
         darwin: {
             enabled: false,
         },
@@ -145,7 +140,7 @@ rust_bindgen {
         "com.android.uwb",
         "com.android.virt",
     ],
-    min_sdk_version: "current",
+    min_sdk_version: "Tiramisu",
 }
 
 // TODO(b/184872979): remove once the Rust API is created.
@@ -162,7 +157,7 @@ rust_bindgen {
         "com.android.uwb",
         "com.android.virt",
     ],
-    min_sdk_version: "current",
+    min_sdk_version: "Tiramisu",
 }
 
 rust_test {

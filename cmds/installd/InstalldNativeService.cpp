@@ -103,11 +103,6 @@ static constexpr const char* PKG_LIB_POSTFIX = "/lib";
 static constexpr const char* CACHE_DIR_POSTFIX = "/cache";
 static constexpr const char* CODE_CACHE_DIR_POSTFIX = "/code_cache";
 
-// fsverity assumes the page size is always 4096. If not, the feature can not be
-// enabled.
-static constexpr int kVerityPageSize = 4096;
-static constexpr size_t kSha256Size = 32;
-static constexpr const char* kPropApkVerityMode = "ro.apk_verity.mode";
 static constexpr const char* kFuseProp = "persist.sys.fuse";
 
 /**
@@ -258,12 +253,6 @@ binder::Status checkArgumentPath(const std::optional<std::string>& path) {
     binder::Status status = checkArgumentPath((path));      \
     if (!status.isOk()) {                                   \
         return status;                                      \
-    }                                                       \
-}
-
-#define ASSERT_PAGE_SIZE_4K() {                             \
-    if (getpagesize() != kVerityPageSize) {                 \
-        return error("FSVerity only supports 4K pages");     \
     }                                                       \
 }
 
@@ -419,10 +408,17 @@ static int restorecon_app_data_lazy(const std::string& path, const std::string& 
     int res = 0;
     char* before = nullptr;
     char* after = nullptr;
+    if (!existing) {
+        if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid,
+                SELINUX_ANDROID_RESTORECON_RECURSE) < 0) {
+            PLOG(ERROR) << "Failed recursive restorecon for " << path;
+            goto fail;
+        }
+        return res;
+    }
 
     // Note that SELINUX_ANDROID_RESTORECON_DATADATA flag is set by
     // libselinux. Not needed here.
-
     if (lgetfilecon(path.c_str(), &before) < 0) {
         PLOG(ERROR) << "Failed before getfilecon for " << path;
         goto fail;
@@ -457,12 +453,6 @@ done:
     free(before);
     free(after);
     return res;
-}
-
-static int restorecon_app_data_lazy(const std::string& parent, const char* name,
-        const std::string& seInfo, uid_t uid, bool existing) {
-    return restorecon_app_data_lazy(StringPrintf("%s/%s", parent.c_str(), name), seInfo, uid,
-            existing);
 }
 
 static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t uid) {
@@ -610,8 +600,14 @@ static binder::Status createAppDataDirs(const std::string& path,
         int32_t uid, int32_t* previousUid, int32_t cacheGid,
         const std::string& seInfo, mode_t targetMode) {
     struct stat st{};
-    bool existing = (stat(path.c_str(), &st) == 0);
-    if (existing) {
+    bool parent_dir_exists = (stat(path.c_str(), &st) == 0);
+
+    auto cache_path = StringPrintf("%s/%s", path.c_str(), "cache");
+    auto code_cache_path = StringPrintf("%s/%s", path.c_str(), "code_cache");
+    bool cache_exists = (access(cache_path.c_str(), F_OK) == 0);
+    bool code_cache_exists = (access(code_cache_path.c_str(), F_OK) == 0);
+
+    if (parent_dir_exists) {
         if (*previousUid < 0) {
             // If previousAppId is -1 in CreateAppDataArgs, we will assume the current owner
             // of the directory as previousUid. This is required because it is not always possible
@@ -625,6 +621,7 @@ static binder::Status createAppDataDirs(const std::string& path,
         }
     }
 
+    // Prepare only the parent app directory
     if (prepare_app_dir(path, targetMode, uid) ||
             prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid) ||
             prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid)) {
@@ -632,12 +629,23 @@ static binder::Status createAppDataDirs(const std::string& path,
     }
 
     // Consider restorecon over contents if label changed
-    if (restorecon_app_data_lazy(path, seInfo, uid, existing) ||
-            restorecon_app_data_lazy(path, "cache", seInfo, uid, existing) ||
-            restorecon_app_data_lazy(path, "code_cache", seInfo, uid, existing)) {
+    if (restorecon_app_data_lazy(path, seInfo, uid, parent_dir_exists)) {
         return error("Failed to restorecon " + path);
     }
 
+    // If the parent dir exists, the restorecon would already have been done
+    // as a part of the recursive restorecon above
+    if (parent_dir_exists && !cache_exists
+            && restorecon_app_data_lazy(cache_path, seInfo, uid, false)) {
+        return error("Failed to restorecon " + cache_path);
+    }
+
+    // If the parent dir exists, the restorecon would already have been done
+    // as a part of the recursive restorecon above
+    if (parent_dir_exists && !code_cache_exists
+            && restorecon_app_data_lazy(code_cache_path, seInfo, uid, false)) {
+        return error("Failed to restorecon " + code_cache_path);
+    }
     return ok();
 }
 
@@ -679,9 +687,6 @@ binder::Status InstalldNativeService::createAppDataLocked(
         if (!status.isOk()) {
             return status;
         }
-        if (previousUid != uid) {
-            chown_app_profile_dir(packageName, appId, userId);
-        }
 
         // Remember inode numbers of cache directories so that we can clear
         // contents while CE storage is locked
@@ -706,6 +711,9 @@ binder::Status InstalldNativeService::createAppDataLocked(
         auto status = createAppDataDirs(path, uid, &previousUid, cacheGid, seInfo, targetMode);
         if (!status.isOk()) {
             return status;
+        }
+        if (previousUid != uid) {
+            chown_app_profile_dir(packageName, appId, userId);
         }
 
         if (!prepare_app_profile_dir(packageName, appId, userId)) {
@@ -949,13 +957,13 @@ binder::Status InstalldNativeService::destroyAppData(const std::optional<std::st
     binder::Status res = ok();
     if (flags & FLAG_STORAGE_CE) {
         auto path = create_data_user_ce_package_path(uuid_, userId, pkgname, ceDataInode);
-        if (delete_dir_contents_and_dir(path) != 0) {
+        if (rename_delete_dir_contents_and_dir(path) != 0) {
             res = error("Failed to delete " + path);
         }
     }
     if (flags & FLAG_STORAGE_DE) {
         auto path = create_data_user_de_package_path(uuid_, userId, pkgname);
-        if (delete_dir_contents_and_dir(path) != 0) {
+        if (rename_delete_dir_contents_and_dir(path) != 0) {
             res = error("Failed to delete " + path);
         }
         if ((flags & FLAG_CLEAR_APP_DATA_KEEP_ART_PROFILES) == 0) {
@@ -986,16 +994,15 @@ binder::Status InstalldNativeService::destroyAppData(const std::optional<std::st
             }
 
             auto path = StringPrintf("%s/Android/data/%s", extPath.c_str(), pkgname);
-            if (delete_dir_contents_and_dir(path, true) != 0) {
+            if (rename_delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete contents of " + path);
             }
-
             path = StringPrintf("%s/Android/media/%s", extPath.c_str(), pkgname);
-            if (delete_dir_contents_and_dir(path, true) != 0) {
+            if (rename_delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete contents of " + path);
             }
             path = StringPrintf("%s/Android/obb/%s", extPath.c_str(), pkgname);
-            if (delete_dir_contents_and_dir(path, true) != 0) {
+            if (rename_delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete contents of " + path);
             }
         }
@@ -1112,16 +1119,15 @@ binder::Status InstalldNativeService::fixupAppData(const std::optional<std::stri
 }
 
 static int32_t copy_directory_recursive(const char* from, const char* to) {
-    char *argv[] = {
-        (char*) kCpPath,
-        (char*) "-F", /* delete any existing destination file first (--remove-destination) */
-        (char*) "-p", /* preserve timestamps, ownership, and permissions */
-        (char*) "-R", /* recurse into subdirectories (DEST must be a directory) */
-        (char*) "-P", /* Do not follow symlinks [default] */
-        (char*) "-d", /* don't dereference symlinks */
-        (char*) from,
-        (char*) to
-    };
+    char* argv[] =
+            {(char*)kCpPath,
+             (char*)"-F", /* delete any existing destination file first (--remove-destination) */
+             (char*)"--preserve=mode,ownership,timestamps,xattr", /* preserve properties */
+             (char*)"-R", /* recurse into subdirectories (DEST must be a directory) */
+             (char*)"-P", /* Do not follow symlinks [default] */
+             (char*)"-d", /* don't dereference symlinks */
+             (char*)from,
+             (char*)to};
 
     LOG(DEBUG) << "Copying " << from << " to " << to;
     return logwrap_fork_execvp(ARRAY_SIZE(argv), argv, nullptr, false, LOG_ALOG, false, nullptr);
@@ -1544,27 +1550,27 @@ binder::Status InstalldNativeService::destroyUserData(const std::optional<std::s
     binder::Status res = ok();
     if (flags & FLAG_STORAGE_DE) {
         auto path = create_data_user_de_path(uuid_, userId);
-        if (delete_dir_contents_and_dir(path, true) != 0) {
+        if (rename_delete_dir_contents_and_dir(path, true) != 0) {
             res = error("Failed to delete " + path);
         }
         if (uuid_ == nullptr) {
             path = create_data_misc_legacy_path(userId);
-            if (delete_dir_contents_and_dir(path, true) != 0) {
+            if (rename_delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete " + path);
             }
             path = create_primary_cur_profile_dir_path(userId);
-            if (delete_dir_contents_and_dir(path, true) != 0) {
+            if (rename_delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete " + path);
             }
         }
     }
     if (flags & FLAG_STORAGE_CE) {
         auto path = create_data_user_ce_path(uuid_, userId);
-        if (delete_dir_contents_and_dir(path, true) != 0) {
+        if (rename_delete_dir_contents_and_dir(path, true) != 0) {
             res = error("Failed to delete " + path);
         }
         path = findDataMediaPath(uuid, userId);
-        if (delete_dir_contents_and_dir(path, true) != 0) {
+        if (rename_delete_dir_contents_and_dir(path, true) != 0) {
             res = error("Failed to delete " + path);
         }
     }
@@ -1583,6 +1589,7 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     auto data_path = create_data_path(uuid_);
     auto noop = (flags & FLAG_FREE_CACHE_NOOP);
+    auto defy_target = (flags & FLAG_FREE_CACHE_DEFY_TARGET_FREE_BYTES);
 
     int64_t free = data_disk_free(data_path);
     if (free < 0) {
@@ -1591,11 +1598,13 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
 
     int64_t cleared = 0;
     int64_t needed = targetFreeBytes - free;
-    LOG(DEBUG) << "Device " << data_path << " has " << free << " free; requested "
-            << targetFreeBytes << "; needed " << needed;
+    if (!defy_target) {
+        LOG(DEBUG) << "Device " << data_path << " has " << free << " free; requested "
+                << targetFreeBytes << "; needed " << needed;
 
-    if (free >= targetFreeBytes) {
-        return ok();
+        if (free >= targetFreeBytes) {
+            return ok();
+        }
     }
 
     if (flags & FLAG_FREE_CACHE_V2) {
@@ -1720,15 +1729,17 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
                 cleared += item->size;
             }
 
-            // Verify that we're actually done before bailing, since sneaky
-            // apps might be using hardlinks
-            if (needed <= 0) {
-                free = data_disk_free(data_path);
-                needed = targetFreeBytes - free;
+            if (!defy_target) {
+                // Verify that we're actually done before bailing, since sneaky
+                // apps might be using hardlinks
                 if (needed <= 0) {
-                    break;
-                } else {
-                    LOG(WARNING) << "Expected to be done but still need " << needed;
+                    free = data_disk_free(data_path);
+                    needed = targetFreeBytes - free;
+                    if (needed <= 0) {
+                        break;
+                    } else {
+                        LOG(WARNING) << "Expected to be done but still need " << needed;
+                    }
                 }
             }
         }
@@ -1738,12 +1749,16 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
         return error("Legacy cache logic no longer supported");
     }
 
-    free = data_disk_free(data_path);
-    if (free >= targetFreeBytes) {
-        return ok();
+    if (!defy_target) {
+        free = data_disk_free(data_path);
+        if (free >= targetFreeBytes) {
+            return ok();
+        } else {
+            return error(StringPrintf("Failed to free up %" PRId64 " on %s; final free space %" PRId64,
+                    targetFreeBytes, data_path.c_str(), free));
+        }
     } else {
-        return error(StringPrintf("Failed to free up %" PRId64 " on %s; final free space %" PRId64,
-                targetFreeBytes, data_path.c_str(), free));
+        return ok();
     }
 }
 
@@ -2863,7 +2878,6 @@ binder::Status InstalldNativeService::createOatDir(const std::string& packageNam
 binder::Status InstalldNativeService::rmPackageDir(const std::string& packageName,
                                                    const std::string& packageDir) {
     ENFORCE_UID(AID_SYSTEM);
-    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     CHECK_ARGUMENT_PATH(packageDir);
     LOCK_PACKAGE();
 
@@ -2944,147 +2958,6 @@ binder::Status InstalldNativeService::deleteOdex(const std::string& packageName,
 
     *_aidl_return = delete_odex(apk_path, instruction_set, oat_dir);
     return *_aidl_return == -1 ? error() : ok();
-}
-
-// This kernel feature is experimental.
-// TODO: remove local definition once upstreamed
-#ifndef FS_IOC_ENABLE_VERITY
-
-#define FS_IOC_ENABLE_VERITY           _IO('f', 133)
-#define FS_IOC_SET_VERITY_MEASUREMENT  _IOW('f', 134, struct fsverity_measurement)
-
-#define FS_VERITY_ALG_SHA256           1
-
-struct fsverity_measurement {
-    __u16 digest_algorithm;
-    __u16 digest_size;
-    __u32 reserved1;
-    __u64 reserved2[3];
-    __u8 digest[];
-};
-
-#endif
-
-binder::Status InstalldNativeService::installApkVerity(const std::string& packageName,
-                                                       const std::string& filePath,
-                                                       android::base::unique_fd verityInputAshmem,
-                                                       int32_t contentSize) {
-    ENFORCE_UID(AID_SYSTEM);
-    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    CHECK_ARGUMENT_PATH(filePath);
-    LOCK_PACKAGE();
-
-    if (!android::base::GetBoolProperty(kPropApkVerityMode, false)) {
-        return ok();
-    }
-#ifndef NDEBUG
-    ASSERT_PAGE_SIZE_4K();
-#endif
-    // TODO: also check fsverity support in the current file system if compiled with DEBUG.
-    // TODO: change ashmem to some temporary file to support huge apk.
-    if (!ashmem_valid(verityInputAshmem.get())) {
-        return error("FD is not an ashmem");
-    }
-
-    // 1. Seek to the next page boundary beyond the end of the file.
-    ::android::base::unique_fd wfd(open(filePath.c_str(), O_WRONLY));
-    if (wfd.get() < 0) {
-        return error("Failed to open " + filePath);
-    }
-    struct stat st;
-    if (fstat(wfd.get(), &st) < 0) {
-        return error("Failed to stat " + filePath);
-    }
-    // fsverity starts from the block boundary.
-    off_t padding = kVerityPageSize - st.st_size % kVerityPageSize;
-    if (padding == kVerityPageSize) {
-        padding = 0;
-    }
-    if (lseek(wfd.get(), st.st_size + padding, SEEK_SET) < 0) {
-        return error("Failed to lseek " + filePath);
-    }
-
-    // 2. Write everything in the ashmem to the file.  Note that allocated
-    //    ashmem size is multiple of page size, which is different from the
-    //    actual content size.
-    int shmSize = ashmem_get_size_region(verityInputAshmem.get());
-    if (shmSize < 0) {
-        return error("Failed to get ashmem size: " + std::to_string(shmSize));
-    }
-    if (contentSize < 0) {
-        return error("Invalid content size: " + std::to_string(contentSize));
-    }
-    if (contentSize > shmSize) {
-        return error("Content size overflow: " + std::to_string(contentSize) + " > " +
-                     std::to_string(shmSize));
-    }
-    auto data = std::unique_ptr<void, std::function<void (void *)>>(
-        mmap(nullptr, contentSize, PROT_READ, MAP_SHARED, verityInputAshmem.get(), 0),
-        [contentSize] (void* ptr) {
-          if (ptr != MAP_FAILED) {
-            munmap(ptr, contentSize);
-          }
-        });
-
-    if (data.get() == MAP_FAILED) {
-        return error("Failed to mmap the ashmem");
-    }
-    char* cursor = reinterpret_cast<char*>(data.get());
-    int remaining = contentSize;
-    while (remaining > 0) {
-        int ret = TEMP_FAILURE_RETRY(write(wfd.get(), cursor, remaining));
-        if (ret < 0) {
-            return error("Failed to write to " + filePath + " (" + std::to_string(remaining) +
-                         + "/" + std::to_string(contentSize) + ")");
-        }
-        cursor += ret;
-        remaining -= ret;
-    }
-    wfd.reset();
-
-    // 3. Enable fsverity (needs readonly fd. Once it's done, the file becomes immutable.
-    ::android::base::unique_fd rfd(open(filePath.c_str(), O_RDONLY));
-    if (ioctl(rfd.get(), FS_IOC_ENABLE_VERITY, nullptr) < 0) {
-        return error("Failed to enable fsverity on " + filePath);
-    }
-    return ok();
-}
-
-binder::Status InstalldNativeService::assertFsverityRootHashMatches(
-        const std::string& packageName, const std::string& filePath,
-        const std::vector<uint8_t>& expectedHash) {
-    ENFORCE_UID(AID_SYSTEM);
-    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    CHECK_ARGUMENT_PATH(filePath);
-    LOCK_PACKAGE();
-
-    if (!android::base::GetBoolProperty(kPropApkVerityMode, false)) {
-        return ok();
-    }
-    // TODO: also check fsverity support in the current file system if compiled with DEBUG.
-    if (expectedHash.size() != kSha256Size) {
-        return error("verity hash size should be " + std::to_string(kSha256Size) + " but is " +
-                     std::to_string(expectedHash.size()));
-    }
-
-    ::android::base::unique_fd fd(open(filePath.c_str(), O_RDONLY));
-    if (fd.get() < 0) {
-        return error("Failed to open " + filePath + ": " + strerror(errno));
-    }
-
-    unsigned int buffer_size = sizeof(fsverity_measurement) + kSha256Size;
-    std::vector<char> buffer(buffer_size, 0);
-
-    fsverity_measurement* config = reinterpret_cast<fsverity_measurement*>(buffer.data());
-    config->digest_algorithm = FS_VERITY_ALG_SHA256;
-    config->digest_size = kSha256Size;
-    memcpy(config->digest, expectedHash.data(), kSha256Size);
-    if (ioctl(fd.get(), FS_IOC_SET_VERITY_MEASUREMENT, config) < 0) {
-        // This includes an expected failure case with no FSVerity setup. It normally happens when
-        // the apk does not contains the Merkle tree root hash.
-        return error("Failed to measure fsverity on " + filePath + ": " + strerror(errno));
-    }
-    return ok();  // hashes match
 }
 
 binder::Status InstalldNativeService::reconcileSecondaryDexFile(
@@ -3313,6 +3186,19 @@ binder::Status InstalldNativeService::migrateLegacyObbData() {
         LOG(ERROR) << "Unable to migrate legacy obb data";
     }
 
+    return ok();
+}
+
+binder::Status InstalldNativeService::cleanupDeletedDirs(const std::optional<std::string>& uuid) {
+    const char* uuid_cstr = uuid ? uuid->c_str() : nullptr;
+    const auto users = get_known_users(uuid_cstr);
+    for (auto userId : users) {
+        auto ce_path = create_data_user_ce_path(uuid_cstr, userId);
+        auto de_path = create_data_user_de_path(uuid_cstr, userId);
+
+        find_and_delete_renamed_deleted_dirs_under_path(ce_path);
+        find_and_delete_renamed_deleted_dirs_under_path(de_path);
+    }
     return ok();
 }
 

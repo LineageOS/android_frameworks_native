@@ -17,44 +17,9 @@
 #include <gui/DisplayEventReceiver.h>
 #include <utils/Log.h>
 #include <utils/Looper.h>
-#include <array>
 
 namespace android {
 using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
-
-struct VsyncEventData {
-    // The Vsync Id corresponsing to this vsync event. This will be used to
-    // populate ISurfaceComposer::setFrameTimelineVsync and
-    // SurfaceComposerClient::setFrameTimelineVsync
-    int64_t id = FrameTimelineInfo::INVALID_VSYNC_ID;
-
-    // The deadline in CLOCK_MONOTONIC that the app needs to complete its
-    // frame by (both on the CPU and the GPU)
-    int64_t deadlineTimestamp = std::numeric_limits<int64_t>::max();
-
-    // The current frame interval in ns when this frame was scheduled.
-    int64_t frameInterval = 0;
-
-    struct FrameTimeline {
-        // The Vsync Id corresponsing to this vsync event. This will be used to
-        // populate ISurfaceComposer::setFrameTimelineVsync and
-        // SurfaceComposerClient::setFrameTimelineVsync
-        int64_t id = FrameTimelineInfo::INVALID_VSYNC_ID;
-
-        // The deadline in CLOCK_MONOTONIC that the app needs to complete its
-        // frame by (both on the CPU and the GPU)
-        int64_t deadlineTimestamp = std::numeric_limits<int64_t>::max();
-
-        // The anticipated Vsync present time.
-        int64_t expectedPresentTime = 0;
-    };
-
-    // Sorted possible frame timelines.
-    std::array<FrameTimeline, DisplayEventReceiver::kFrameTimelinesLength> frameTimelines;
-
-    // Index into the frameTimelines that represents the platform's preferred frame timeline.
-    size_t preferredFrameTimelineIndex = std::numeric_limits<size_t>::max();
-};
 
 class DisplayEventDispatcher : public LooperCallback {
 public:

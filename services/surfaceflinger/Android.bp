@@ -118,17 +118,11 @@ cc_defaults {
 cc_defaults {
     name: "libsurfaceflinger_production_defaults",
     defaults: ["libsurfaceflinger_defaults"],
-    cflags: [
-        "-fvisibility=hidden",
-    ],
     lto: {
         thin: true,
     },
     whole_program_vtables: true, // Requires ThinLTO
-    pgo: {
-        sampling: true,
-        profile_file: "surfaceflinger/surfaceflinger.profdata",
-    },
+    afdo: true,
     // TODO(b/131771163): Fix broken fuzzer support with LTO.
     sanitize: {
         fuzzer: false,
@@ -158,9 +152,7 @@ filegroup {
         "DisplayHardware/AidlComposerHal.cpp",
         "DisplayHardware/HidlComposerHal.cpp",
         "DisplayHardware/ComposerHal.cpp",
-        "DisplayHardware/DisplayIdentification.cpp",
         "DisplayHardware/FramebufferSurface.cpp",
-        "DisplayHardware/Hash.cpp",
         "DisplayHardware/HWC2.cpp",
         "DisplayHardware/HWComposer.cpp",
         "DisplayHardware/PowerAdvisor.cpp",
@@ -186,14 +178,13 @@ filegroup {
         "RenderArea.cpp",
         "Scheduler/DispSyncSource.cpp",
         "Scheduler/EventThread.cpp",
+        "Scheduler/FrameRateOverrideMappings.cpp",
         "Scheduler/OneShotTimer.cpp",
         "Scheduler/LayerHistory.cpp",
         "Scheduler/LayerInfo.cpp",
         "Scheduler/MessageQueue.cpp",
         "Scheduler/RefreshRateConfigs.cpp",
         "Scheduler/Scheduler.cpp",
-        "Scheduler/SchedulerUtils.cpp",
-        "Scheduler/Timer.cpp",
         "Scheduler/VSyncDispatchTimerQueue.cpp",
         "Scheduler/VSyncPredictor.cpp",
         "Scheduler/VSyncReactor.cpp",
@@ -231,7 +222,6 @@ cc_defaults {
         "libcutils",
         "libdisplayservicehidl",
         "libhidlbase",
-        "liblayers_proto",
         "liblog",
         "libprocessgroup",
         "libsync",

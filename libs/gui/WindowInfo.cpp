@@ -43,8 +43,17 @@ bool WindowInfo::supportsSplitTouch() const {
     return flags.test(Flag::SPLIT_TOUCH);
 }
 
+bool WindowInfo::isSpy() const {
+    return inputFeatures.test(Feature::SPY);
+}
+
+bool WindowInfo::interceptsStylus() const {
+    return inputFeatures.test(Feature::INTERCEPTS_STYLUS);
+}
+
 bool WindowInfo::overlaps(const WindowInfo* other) const {
-    return frameLeft < other->frameRight && frameRight > other->frameLeft &&
+    const bool nonEmpty = (frameRight - frameLeft > 0) || (frameBottom - frameTop > 0);
+    return nonEmpty && frameLeft < other->frameRight && frameRight > other->frameLeft &&
             frameTop < other->frameBottom && frameBottom > other->frameTop;
 }
 
@@ -60,7 +69,7 @@ bool WindowInfo::operator==(const WindowInfo& info) const {
             info.hasWallpaper == hasWallpaper && info.paused == paused &&
             info.ownerPid == ownerPid && info.ownerUid == ownerUid &&
             info.packageName == packageName && info.inputFeatures == inputFeatures &&
-            info.displayId == displayId && info.portalToDisplayId == portalToDisplayId &&
+            info.displayId == displayId &&
             info.replaceTouchableRegionWithCrop == replaceTouchableRegionWithCrop &&
             info.applicationInfo == applicationInfo;
 }
@@ -107,7 +116,6 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeUtf8AsUtf16(packageName) ?:
         parcel->writeInt32(inputFeatures.get()) ?:
         parcel->writeInt32(displayId) ?:
-        parcel->writeInt32(portalToDisplayId) ?:
         applicationInfo.writeToParcel(parcel) ?:
         parcel->write(touchableRegion) ?:
         parcel->writeBool(replaceTouchableRegionWithCrop) ?:
@@ -171,7 +179,6 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
     inputFeatures = Flags<Feature>(parcel->readInt32());
     // clang-format off
     status = parcel->readInt32(&displayId) ?:
-        parcel->readInt32(&portalToDisplayId) ?:
         applicationInfo.readFromParcel(parcel) ?:
         parcel->read(touchableRegion) ?:
         parcel->readBool(&replaceTouchableRegionWithCrop);

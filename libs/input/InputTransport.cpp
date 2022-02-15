@@ -1318,10 +1318,6 @@ status_t InputConsumer::sendUnchainedFinishedSignal(uint32_t seq, bool handled) 
     return result;
 }
 
-bool InputConsumer::hasDeferredEvent() const {
-    return mMsgDeferred;
-}
-
 bool InputConsumer::hasPendingBatch() const {
     return !mBatches.empty();
 }

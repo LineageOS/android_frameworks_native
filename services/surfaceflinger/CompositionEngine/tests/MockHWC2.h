@@ -58,7 +58,7 @@ public:
                        const android::sp<android::Fence>&));
     MOCK_METHOD1(setSurfaceDamage, Error(const android::Region&));
     MOCK_METHOD1(setBlendMode, Error(hal::BlendMode));
-    MOCK_METHOD1(setColor, Error(hal::Color));
+    MOCK_METHOD1(setColor, Error(aidl::android::hardware::graphics::composer3::Color));
     MOCK_METHOD1(setCompositionType,
                  Error(aidl::android::hardware::graphics::composer3::Composition));
     MOCK_METHOD1(setDataspace, Error(android::ui::Dataspace));
@@ -75,6 +75,7 @@ public:
     MOCK_METHOD3(setLayerGenericMetadata,
                  Error(const std::string&, bool, const std::vector<uint8_t>&));
     MOCK_METHOD1(setWhitePointNits, Error(float));
+    MOCK_METHOD1(setBlockingRegion, Error(const android::Region&));
 };
 
 } // namespace mock

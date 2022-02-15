@@ -26,6 +26,7 @@
 #include <gtest/gtest.h>
 #include <renderengine/ExternalTexture.h>
 #include <renderengine/RenderEngine.h>
+#include <renderengine/impl/ExternalTexture.h>
 #include <sync/sync.h>
 #include <system/graphics-base-v1.0.h>
 #include <tonemap/tonemap.h>
@@ -47,6 +48,50 @@ constexpr bool WRITE_BUFFER_TO_FILE_ON_FAILURE = false;
 
 namespace android {
 namespace renderengine {
+
+namespace {
+
+double EOTF_PQ(double channel) {
+    float m1 = (2610.0 / 4096.0) / 4.0;
+    float m2 = (2523.0 / 4096.0) * 128.0;
+    float c1 = (3424.0 / 4096.0);
+    float c2 = (2413.0 / 4096.0) * 32.0;
+    float c3 = (2392.0 / 4096.0) * 32.0;
+
+    float tmp = std::pow(std::clamp(channel, 0.0, 1.0), 1.0 / m2);
+    tmp = std::fmax(tmp - c1, 0.0) / (c2 - c3 * tmp);
+    return std::pow(tmp, 1.0 / m1);
+}
+
+vec3 EOTF_PQ(vec3 color) {
+    return vec3(EOTF_PQ(color.r), EOTF_PQ(color.g), EOTF_PQ(color.b));
+}
+
+double EOTF_HLG(double channel) {
+    const float a = 0.17883277;
+    const float b = 0.28466892;
+    const float c = 0.55991073;
+    return channel <= 0.5 ? channel * channel / 3.0 : (exp((channel - c) / a) + b) / 12.0;
+}
+
+vec3 EOTF_HLG(vec3 color) {
+    return vec3(EOTF_HLG(color.r), EOTF_HLG(color.g), EOTF_HLG(color.b));
+}
+
+double OETF_sRGB(double channel) {
+    return channel <= 0.0031308 ? channel * 12.92 : (pow(channel, 1.0 / 2.4) * 1.055) - 0.055;
+}
+
+int sign(float in) {
+    return in >= 0.0 ? 1 : -1;
+}
+
+vec3 OETF_sRGB(vec3 linear) {
+    return vec3(sign(linear.r) * OETF_sRGB(linear.r), sign(linear.g) * OETF_sRGB(linear.g),
+                sign(linear.b) * OETF_sRGB(linear.b));
+}
+
+} // namespace
 
 class RenderEngineFactory {
 public:
@@ -178,7 +223,7 @@ class RenderEngineTest : public ::testing::TestWithParam<std::shared_ptr<RenderE
 public:
     std::shared_ptr<renderengine::ExternalTexture> allocateDefaultBuffer() {
         return std::make_shared<
-                renderengine::
+                renderengine::impl::
                         ExternalTexture>(new GraphicBuffer(DEFAULT_DISPLAY_WIDTH,
                                                            DEFAULT_DISPLAY_HEIGHT,
                                                            HAL_PIXEL_FORMAT_RGBA_8888, 1,
@@ -188,15 +233,16 @@ public:
                                                                    GRALLOC_USAGE_HW_TEXTURE,
                                                            "output"),
                                          *mRE,
-                                         renderengine::ExternalTexture::Usage::READABLE |
-                                                 renderengine::ExternalTexture::Usage::WRITEABLE);
+                                         renderengine::impl::ExternalTexture::Usage::READABLE |
+                                                 renderengine::impl::ExternalTexture::Usage::
+                                                         WRITEABLE);
     }
 
     // Allocates a 1x1 buffer to fill with a solid color
     std::shared_ptr<renderengine::ExternalTexture> allocateSourceBuffer(uint32_t width,
                                                                         uint32_t height) {
         return std::make_shared<
-                renderengine::
+                renderengine::impl::
                         ExternalTexture>(new GraphicBuffer(width, height,
                                                            HAL_PIXEL_FORMAT_RGBA_8888, 1,
                                                            GRALLOC_USAGE_SW_READ_OFTEN |
@@ -204,8 +250,9 @@ public:
                                                                    GRALLOC_USAGE_HW_TEXTURE,
                                                            "input"),
                                          *mRE,
-                                         renderengine::ExternalTexture::Usage::READABLE |
-                                                 renderengine::ExternalTexture::Usage::WRITEABLE);
+                                         renderengine::impl::ExternalTexture::Usage::READABLE |
+                                                 renderengine::impl::ExternalTexture::Usage::
+                                                         WRITEABLE);
     }
 
     std::shared_ptr<renderengine::ExternalTexture> allocateAndFillSourceBuffer(uint32_t width,
@@ -215,12 +262,33 @@ public:
         uint8_t* pixels;
         buffer->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
                                   reinterpret_cast<void**>(&pixels));
-        pixels[0] = color.r;
-        pixels[1] = color.g;
-        pixels[2] = color.b;
-        pixels[3] = color.a;
+        for (uint32_t j = 0; j < height; j++) {
+            uint8_t* dst = pixels + (buffer->getBuffer()->getStride() * j * 4);
+            for (uint32_t i = 0; i < width; i++) {
+                dst[0] = color.r;
+                dst[1] = color.g;
+                dst[2] = color.b;
+                dst[3] = color.a;
+                dst += 4;
+            }
+        }
         buffer->getBuffer()->unlock();
         return buffer;
+    }
+
+    std::shared_ptr<renderengine::ExternalTexture> allocateR8Buffer(int width, int height) {
+        auto buffer = new GraphicBuffer(width, height, android::PIXEL_FORMAT_R_8, 1,
+                                        GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                GRALLOC_USAGE_HW_TEXTURE,
+                                        "r8");
+        if (buffer->initCheck() != 0) {
+            // Devices are not required to support R8.
+            return nullptr;
+        }
+        return std::make_shared<
+                renderengine::impl::ExternalTexture>(std::move(buffer), *mRE,
+                                                     renderengine::impl::ExternalTexture::Usage::
+                                                             READABLE);
     }
 
     RenderEngineTest() {
@@ -573,6 +641,12 @@ public:
     void drawShadowWithoutCaster(const FloatRect& castingBounds,
                                  const renderengine::ShadowSettings& shadow,
                                  const ubyte4& backgroundColor);
+
+    // Tonemaps grey values from sourceDataspace -> Display P3 and checks that GPU and CPU
+    // implementations are identical Also implicitly checks that the injected tonemap shader
+    // compiles
+    void tonemap(ui::Dataspace sourceDataspace, std::function<vec3(vec3)> eotf,
+                 std::function<vec3(vec3, float)> scaleOotf);
 
     void initializeRenderEngine();
 
@@ -1392,6 +1466,119 @@ void RenderEngineTest::drawShadowWithoutCaster(const FloatRect& castingBounds,
     layers.push_back(shadowLayer);
 
     invokeDraw(settings, layers);
+}
+
+void RenderEngineTest::tonemap(ui::Dataspace sourceDataspace, std::function<vec3(vec3)> eotf,
+                               std::function<vec3(vec3, float)> scaleOotf) {
+    constexpr int32_t kGreyLevels = 256;
+
+    const auto rect = Rect(0, 0, kGreyLevels, 1);
+
+    constexpr float kMaxLuminance = 750.f;
+    constexpr float kCurrentLuminanceNits = 500.f;
+    const renderengine::DisplaySettings display{
+            .physicalDisplay = rect,
+            .clip = rect,
+            .maxLuminance = kMaxLuminance,
+            .currentLuminanceNits = kCurrentLuminanceNits,
+            .outputDataspace = ui::Dataspace::DISPLAY_P3,
+    };
+
+    auto buf = std::make_shared<
+            renderengine::impl::
+                    ExternalTexture>(new GraphicBuffer(kGreyLevels, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                       1,
+                                                       GRALLOC_USAGE_SW_READ_OFTEN |
+                                                               GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                               GRALLOC_USAGE_HW_RENDER |
+                                                               GRALLOC_USAGE_HW_TEXTURE,
+                                                       "input"),
+                                     *mRE,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
+    ASSERT_EQ(0, buf->getBuffer()->initCheck());
+    {
+        uint8_t* pixels;
+        buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                               reinterpret_cast<void**>(&pixels));
+
+        uint8_t color = 0;
+        for (int32_t j = 0; j < buf->getBuffer()->getHeight(); j++) {
+            uint8_t* dest = pixels + (buf->getBuffer()->getStride() * j * 4);
+            for (int32_t i = 0; i < buf->getBuffer()->getWidth(); i++) {
+                dest[0] = color;
+                dest[1] = color;
+                dest[2] = color;
+                dest[3] = 255;
+                color++;
+                dest += 4;
+            }
+        }
+        buf->getBuffer()->unlock();
+    }
+
+    mBuffer = std::make_shared<
+            renderengine::impl::
+                    ExternalTexture>(new GraphicBuffer(kGreyLevels, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                       1,
+                                                       GRALLOC_USAGE_SW_READ_OFTEN |
+                                                               GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                               GRALLOC_USAGE_HW_RENDER |
+                                                               GRALLOC_USAGE_HW_TEXTURE,
+                                                       "output"),
+                                     *mRE,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
+    ASSERT_EQ(0, mBuffer->getBuffer()->initCheck());
+
+    const renderengine::LayerSettings layer{.geometry.boundaries = rect.toFloatRect(),
+                                            .source =
+                                                    renderengine::PixelSource{
+                                                            .buffer =
+                                                                    renderengine::Buffer{
+                                                                            .buffer =
+                                                                                    std::move(buf),
+                                                                            .usePremultipliedAlpha =
+                                                                                    true,
+                                                                    },
+                                                    },
+                                            .alpha = 1.0f,
+                                            .sourceDataspace = sourceDataspace};
+
+    std::vector<renderengine::LayerSettings> layers{layer};
+    invokeDraw(display, layers);
+
+    ColorSpace displayP3 = ColorSpace::DisplayP3();
+    ColorSpace bt2020 = ColorSpace::BT2020();
+
+    tonemap::Metadata metadata{.displayMaxLuminance = 750.0f};
+
+    auto generator = [=](Point location) {
+        const double normColor = static_cast<double>(location.x) / (kGreyLevels - 1);
+        const vec3 rgb = vec3(normColor, normColor, normColor);
+
+        const vec3 linearRGB = eotf(rgb);
+
+        const vec3 xyz = bt2020.getRGBtoXYZ() * linearRGB;
+
+        const vec3 scaledXYZ = scaleOotf(xyz, kCurrentLuminanceNits);
+        const double gain =
+                tonemap::getToneMapper()
+                        ->lookupTonemapGain(static_cast<aidl::android::hardware::graphics::common::
+                                                                Dataspace>(sourceDataspace),
+                                            static_cast<aidl::android::hardware::graphics::common::
+                                                                Dataspace>(
+                                                    ui::Dataspace::DISPLAY_P3),
+                                            scaleOotf(linearRGB, kCurrentLuminanceNits), scaledXYZ,
+                                            metadata);
+        const vec3 normalizedXYZ = scaledXYZ * gain / metadata.displayMaxLuminance;
+
+        const vec3 targetRGB = OETF_sRGB(displayP3.getXYZtoRGB() * normalizedXYZ) * 255;
+        return ubyte4(static_cast<uint8_t>(targetRGB.r), static_cast<uint8_t>(targetRGB.g),
+                      static_cast<uint8_t>(targetRGB.b), 255);
+    };
+
+    expectBufferColor(Rect(kGreyLevels, 1), generator, 2);
 }
 
 INSTANTIATE_TEST_SUITE_P(PerRenderEngineType, RenderEngineTest,
@@ -2388,153 +2575,107 @@ TEST_P(RenderEngineTest, test_isOpaque) {
     }
 }
 
-double EOTF_PQ(double channel) {
-    float m1 = (2610.0 / 4096.0) / 4.0;
-    float m2 = (2523.0 / 4096.0) * 128.0;
-    float c1 = (3424.0 / 4096.0);
-    float c2 = (2413.0 / 4096.0) * 32.0;
-    float c3 = (2392.0 / 4096.0) * 32.0;
-
-    float tmp = std::pow(std::clamp(channel, 0.0, 1.0), 1.0 / m2);
-    tmp = std::fmax(tmp - c1, 0.0) / (c2 - c3 * tmp);
-    return std::pow(tmp, 1.0 / m1);
-}
-
-vec3 EOTF_PQ(vec3 color) {
-    return vec3(EOTF_PQ(color.r), EOTF_PQ(color.g), EOTF_PQ(color.b));
-}
-
-double OETF_sRGB(double channel) {
-    return channel <= 0.0031308 ? channel * 12.92 : (pow(channel, 1.0 / 2.4) * 1.055) - 0.055;
-}
-
-int sign(float in) {
-    return in >= 0.0 ? 1 : -1;
-}
-
-vec3 OETF_sRGB(vec3 linear) {
-    return vec3(sign(linear.r) * OETF_sRGB(linear.r), sign(linear.g) * OETF_sRGB(linear.g),
-                sign(linear.b) * OETF_sRGB(linear.b));
-}
-
 TEST_P(RenderEngineTest, test_tonemapPQMatches) {
     if (!GetParam()->useColorManagement()) {
-        return;
+        GTEST_SKIP();
     }
 
+    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        GTEST_SKIP();
+    }
+
+    initializeRenderEngine();
+
+    tonemap(
+            static_cast<ui::Dataspace>(HAL_DATASPACE_STANDARD_BT2020 |
+                                       HAL_DATASPACE_TRANSFER_ST2084 | HAL_DATASPACE_RANGE_FULL),
+            [](vec3 color) { return EOTF_PQ(color); },
+            [](vec3 color, float) {
+                static constexpr float kMaxPQLuminance = 10000.f;
+                return color * kMaxPQLuminance;
+            });
+}
+
+TEST_P(RenderEngineTest, test_tonemapHLGMatches) {
+    if (!GetParam()->useColorManagement()) {
+        GTEST_SKIP();
+    }
+
+    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        GTEST_SKIP();
+    }
+
+    initializeRenderEngine();
+
+    tonemap(
+            static_cast<ui::Dataspace>(HAL_DATASPACE_STANDARD_BT2020 | HAL_DATASPACE_TRANSFER_HLG |
+                                       HAL_DATASPACE_RANGE_FULL),
+            [](vec3 color) { return EOTF_HLG(color); },
+            [](vec3 color, float currentLuminaceNits) {
+                static constexpr float kMaxHLGLuminance = 1000.f;
+                static const float kHLGGamma = 1.2 + 0.42 * std::log10(currentLuminaceNits / 1000);
+                return color * kMaxHLGLuminance * std::pow(color.y, kHLGGamma - 1);
+            });
+}
+
+TEST_P(RenderEngineTest, r8_behaves_as_mask) {
     if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
         return;
     }
 
     initializeRenderEngine();
 
-    constexpr int32_t kGreyLevels = 256;
+    const auto r8Buffer = allocateR8Buffer(2, 1);
+    if (!r8Buffer) {
+        return;
+    }
+    {
+        uint8_t* pixels;
+        r8Buffer->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                    reinterpret_cast<void**>(&pixels));
+        // This will be drawn on top of a green buffer. We'll verify that 255
+        // results in keeping the original green and 0 results in black.
+        pixels[0] = 0;
+        pixels[1] = 255;
+        r8Buffer->getBuffer()->unlock();
+    }
 
-    const auto rect = Rect(0, 0, kGreyLevels, 1);
+    const auto rect = Rect(0, 0, 2, 1);
     const renderengine::DisplaySettings display{
             .physicalDisplay = rect,
             .clip = rect,
-            .maxLuminance = 750.0f,
-            .outputDataspace = ui::Dataspace::DISPLAY_P3,
+            .outputDataspace = ui::Dataspace::SRGB,
     };
 
-    auto buf = std::make_shared<
-            renderengine::ExternalTexture>(new GraphicBuffer(kGreyLevels, 1,
-                                                             HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                                             GRALLOC_USAGE_SW_READ_OFTEN |
-                                                                     GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                                                     GRALLOC_USAGE_HW_RENDER |
-                                                                     GRALLOC_USAGE_HW_TEXTURE,
-                                                             "input"),
-                                           *mRE,
-                                           renderengine::ExternalTexture::Usage::READABLE |
-                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
-    ASSERT_EQ(0, buf->getBuffer()->initCheck());
-
-    {
-        uint8_t* pixels;
-        buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
-                               reinterpret_cast<void**>(&pixels));
-
-        uint8_t color = 0;
-        for (int32_t j = 0; j < buf->getBuffer()->getHeight(); j++) {
-            uint8_t* dest = pixels + (buf->getBuffer()->getStride() * j * 4);
-            for (int32_t i = 0; i < buf->getBuffer()->getWidth(); i++) {
-                dest[0] = color;
-                dest[1] = color;
-                dest[2] = color;
-                dest[3] = 255;
-                color++;
-                dest += 4;
-            }
-        }
-        buf->getBuffer()->unlock();
-    }
-
-    mBuffer = std::make_shared<
-            renderengine::ExternalTexture>(new GraphicBuffer(kGreyLevels, 1,
-                                                             HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                                             GRALLOC_USAGE_SW_READ_OFTEN |
-                                                                     GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                                                     GRALLOC_USAGE_HW_RENDER |
-                                                                     GRALLOC_USAGE_HW_TEXTURE,
-                                                             "output"),
-                                           *mRE,
-                                           renderengine::ExternalTexture::Usage::READABLE |
-                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
-    ASSERT_EQ(0, mBuffer->getBuffer()->initCheck());
-
-    const renderengine::LayerSettings layer{
+    const auto greenBuffer = allocateAndFillSourceBuffer(2, 1, ubyte4(0, 255, 0, 255));
+    const renderengine::LayerSettings greenLayer{
             .geometry.boundaries = rect.toFloatRect(),
             .source =
                     renderengine::PixelSource{
                             .buffer =
                                     renderengine::Buffer{
-                                            .buffer = std::move(buf),
-                                            .usePremultipliedAlpha = true,
+                                            .buffer = greenBuffer,
                                     },
                     },
             .alpha = 1.0f,
-            .sourceDataspace = static_cast<ui::Dataspace>(HAL_DATASPACE_STANDARD_BT2020 |
-                                                          HAL_DATASPACE_TRANSFER_ST2084 |
-                                                          HAL_DATASPACE_RANGE_FULL),
+    };
+    const renderengine::LayerSettings r8Layer{
+            .geometry.boundaries = rect.toFloatRect(),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = r8Buffer,
+                                    },
+                    },
+            .alpha = 1.0f,
     };
 
-    std::vector<renderengine::LayerSettings> layers{layer};
+    std::vector<renderengine::LayerSettings> layers{greenLayer, r8Layer};
     invokeDraw(display, layers);
 
-    ColorSpace displayP3 = ColorSpace::DisplayP3();
-    ColorSpace bt2020 = ColorSpace::BT2020();
-
-    tonemap::Metadata metadata{.displayMaxLuminance = 750.0f};
-
-    auto generator = [=](Point location) {
-        const double normColor = static_cast<double>(location.x) / (kGreyLevels - 1);
-        const vec3 rgb = vec3(normColor, normColor, normColor);
-
-        const vec3 linearRGB = EOTF_PQ(rgb);
-
-        static constexpr float kMaxPQLuminance = 10000.f;
-        const vec3 xyz = bt2020.getRGBtoXYZ() * linearRGB * kMaxPQLuminance;
-        const double gain =
-                tonemap::getToneMapper()
-                        ->lookupTonemapGain(static_cast<aidl::android::hardware::graphics::common::
-                                                                Dataspace>(
-                                                    HAL_DATASPACE_STANDARD_BT2020 |
-                                                    HAL_DATASPACE_TRANSFER_ST2084 |
-                                                    HAL_DATASPACE_RANGE_FULL),
-                                            static_cast<aidl::android::hardware::graphics::common::
-                                                                Dataspace>(
-                                                    ui::Dataspace::DISPLAY_P3),
-                                            linearRGB * 10000.0, xyz, metadata);
-        const vec3 scaledXYZ = xyz * gain / metadata.displayMaxLuminance;
-
-        const vec3 targetRGB = OETF_sRGB(displayP3.getXYZtoRGB() * scaledXYZ) * 255;
-        return ubyte4(static_cast<uint8_t>(targetRGB.r), static_cast<uint8_t>(targetRGB.g),
-                      static_cast<uint8_t>(targetRGB.b), 255);
-    };
-
-    expectBufferColor(Rect(kGreyLevels, 1), generator, 2);
+    expectBufferColor(Rect(0, 0, 1, 1), 0,   0, 0, 255);
+    expectBufferColor(Rect(1, 0, 2, 1), 0, 255, 0, 255);
 }
 } // namespace renderengine
 } // namespace android

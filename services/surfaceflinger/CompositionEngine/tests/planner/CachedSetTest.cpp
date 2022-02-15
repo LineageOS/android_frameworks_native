@@ -22,6 +22,7 @@
 #include <gmock/gmock-actions.h>
 #include <gtest/gtest.h>
 #include <renderengine/ExternalTexture.h>
+#include <renderengine/mock/FakeExternalTexture.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <ui/GraphicTypes.h>
 #include <utils/Errors.h>
@@ -702,9 +703,11 @@ TEST_F(CachedSetTest, addHolePunch) {
     std::vector<compositionengine::LayerFE::LayerSettings> clientCompList3;
     clientCompList3.push_back({});
 
-    clientCompList3[0].source.buffer.buffer = std::make_shared<
-            renderengine::ExternalTexture>(sp<GraphicBuffer>::make(), mRenderEngine,
-                                           renderengine::ExternalTexture::READABLE);
+    clientCompList3[0].source.buffer.buffer =
+            std::make_shared<renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                                      1ULL /* bufferId */,
+                                                                      HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                      0ULL /*usage*/);
 
     EXPECT_CALL(*layerFE1, prepareClientCompositionList(_)).WillOnce(Return(clientCompList1));
     EXPECT_CALL(*layerFE2, prepareClientCompositionList(_)).WillOnce(Return(clientCompList2));
@@ -901,9 +904,11 @@ TEST_F(CachedSetTest, addBlur) {
     std::vector<compositionengine::LayerFE::LayerSettings> clientCompList3;
     clientCompList3.push_back({});
 
-    clientCompList3[0].source.buffer.buffer = std::make_shared<
-            renderengine::ExternalTexture>(sp<GraphicBuffer>::make(), mRenderEngine,
-                                           renderengine::ExternalTexture::READABLE);
+    clientCompList3[0].source.buffer.buffer =
+            std::make_shared<renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                                      1ULL /* bufferId */,
+                                                                      HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                      0ULL /*usage*/);
 
     EXPECT_CALL(*layerFE1,
                 prepareClientCompositionList(ClientCompositionTargetSettingsBlurSettingsEq(

@@ -88,9 +88,6 @@ public:
     // to figure out if the content or size of a surface has changed.
     bool latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
                      nsecs_t expectedPresentTime) override;
-
-    bool isBufferLatched() const override { return mRefreshPending; }
-
     bool hasReadyFrame() const override;
 
     // Returns the current scaling mode
@@ -111,6 +108,7 @@ public:
     ui::Dataspace getDataSpace() const override;
 
     sp<GraphicBuffer> getBuffer() const override;
+    const std::shared_ptr<renderengine::ExternalTexture>& getExternalTexture() const override;
 
     ui::Transform::RotationFlags getTransformHint() const override { return mTransformHint; }
 
@@ -157,9 +155,6 @@ protected:
 
     // from graphics API
     const uint32_t mTextureName;
-
-    bool mRefreshPending{false};
-
     ui::Dataspace translateDataspace(ui::Dataspace dataspace);
     void setInitialValuesForClone(const sp<Layer>& clonedFrom);
     void updateCloneBufferInfo() override;

@@ -73,6 +73,7 @@ inline const char* toString(bool value) {
 } // namespace
 
 namespace android {
+using gui::VsyncEventData;
 
 struct FrameCallback {
     AChoreographer_frameCallback callback;
@@ -102,8 +103,7 @@ class Choreographer;
 struct ChoreographerFrameCallbackDataImpl {
     int64_t frameTimeNanos{0};
 
-    std::array<VsyncEventData::FrameTimeline, DisplayEventReceiver::kFrameTimelinesLength>
-            frameTimelines;
+    std::array<VsyncEventData::FrameTimeline, VsyncEventData::kFrameTimelinesLength> frameTimelines;
 
     size_t preferredFrameTimelineIndex;
 
@@ -552,17 +552,17 @@ size_t AChoreographerFrameCallbackData_routeGetPreferredFrameTimelineIndex(
         const AChoreographerFrameCallbackData* data) {
     return AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex(data);
 }
-int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId(
+AVsyncId AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId(
         const AChoreographerFrameCallbackData* data, size_t index) {
     return AChoreographerFrameCallbackData_getFrameTimelineVsyncId(data, index);
 }
-int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTime(
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTimeNanos(
         const AChoreographerFrameCallbackData* data, size_t index) {
-    return AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTime(data, index);
+    return AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTimeNanos(data, index);
 }
-int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineDeadline(
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineDeadlineNanos(
         const AChoreographerFrameCallbackData* data, size_t index) {
-    return AChoreographerFrameCallbackData_getFrameTimelineDeadline(data, index);
+    return AChoreographerFrameCallbackData_getFrameTimelineDeadlineNanos(data, index);
 }
 
 int64_t AChoreographer_getFrameInterval(const AChoreographer* choreographer) {
@@ -644,7 +644,7 @@ size_t AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex(
                         "Data is only valid in callback");
     return frameCallbackData->preferredFrameTimelineIndex;
 }
-int64_t AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
+AVsyncId AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
         const AChoreographerFrameCallbackData* data, size_t index) {
     const ChoreographerFrameCallbackDataImpl* frameCallbackData =
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);
@@ -653,7 +653,7 @@ int64_t AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
     LOG_ALWAYS_FATAL_IF(index >= frameCallbackData->frameTimelines.size(), "Index out of bounds");
     return frameCallbackData->frameTimelines[index].id;
 }
-int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTime(
+int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTimeNanos(
         const AChoreographerFrameCallbackData* data, size_t index) {
     const ChoreographerFrameCallbackDataImpl* frameCallbackData =
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);
@@ -662,7 +662,7 @@ int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTime(
     LOG_ALWAYS_FATAL_IF(index >= frameCallbackData->frameTimelines.size(), "Index out of bounds");
     return frameCallbackData->frameTimelines[index].expectedPresentTime;
 }
-int64_t AChoreographerFrameCallbackData_getFrameTimelineDeadline(
+int64_t AChoreographerFrameCallbackData_getFrameTimelineDeadlineNanos(
         const AChoreographerFrameCallbackData* data, size_t index) {
     const ChoreographerFrameCallbackDataImpl* frameCallbackData =
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);

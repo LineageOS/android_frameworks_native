@@ -19,6 +19,7 @@
 #include <optional>
 
 #include <ui/DeviceProductInfo.h>
+#include <ui/Rotation.h>
 #include <utils/Flattenable.h>
 
 namespace android::ui {
@@ -31,6 +32,7 @@ struct StaticDisplayInfo : LightFlattenable<StaticDisplayInfo> {
     float density = 0.f;
     bool secure = false;
     std::optional<DeviceProductInfo> deviceProductInfo;
+    Rotation installOrientation = ROTATION_0;
 
     bool isFixedSize() const { return false; }
     size_t getFlattenedSize() const;

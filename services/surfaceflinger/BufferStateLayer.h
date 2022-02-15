@@ -57,7 +57,8 @@ public:
     bool setTransform(uint32_t transform) override;
     bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
     bool setCrop(const Rect& crop) override;
-    bool setBuffer(const BufferData& bufferData, nsecs_t postTime, nsecs_t desiredPresentTime,
+    bool setBuffer(std::shared_ptr<renderengine::ExternalTexture>& /* buffer */,
+                   const BufferData& bufferData, nsecs_t postTime, nsecs_t desiredPresentTime,
                    bool isAutoTimestamp, std::optional<nsecs_t> dequeueTime,
                    const FrameTimelineInfo& info) override;
     bool setDataspace(ui::Dataspace dataspace) override;
@@ -69,8 +70,7 @@ public:
     bool addFrameEvent(const sp<Fence>& acquireFence, nsecs_t postedTime,
                        nsecs_t requestedPresentTime) override;
     bool setPosition(float /*x*/, float /*y*/) override;
-    bool setMatrix(const layer_state_t::matrix22_t& /*matrix*/,
-                   bool /*allowNonRectPreservingTransforms*/);
+    bool setMatrix(const layer_state_t::matrix22_t& /*matrix*/);
 
     // Override to ignore legacy layer state properties that are not used by BufferStateLayer
     bool setSize(uint32_t /*w*/, uint32_t /*h*/) override { return false; }
@@ -136,8 +136,7 @@ private:
 
     bool bufferNeedsFiltering() const override;
 
-    std::shared_ptr<renderengine::ExternalTexture> getBufferFromBufferData(
-            const BufferData& bufferData);
+    bool simpleBufferUpdate(const layer_state_t& s) const override;
 
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     uint64_t mPreviousReleasedFrameNumber = 0;
@@ -146,7 +145,7 @@ private:
 
     // Stores the last set acquire fence signal time used to populate the callback handle's acquire
     // time.
-    nsecs_t mCallbackHandleAcquireTime = -1;
+    std::variant<nsecs_t, sp<Fence>> mCallbackHandleAcquireTimeOrFence = -1;
 
     std::deque<std::shared_ptr<android::frametimeline::SurfaceFrame>> mPendingJankClassifications;
     // An upper bound on the number of SurfaceFrames in the pending classifications deque.

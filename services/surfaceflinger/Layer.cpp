@@ -101,7 +101,9 @@ Layer::Layer(const LayerCreationArgs& args)
     if (args.flags & ISurfaceComposerClient::eSecure) layerFlags |= layer_state_t::eLayerSecure;
     if (args.flags & ISurfaceComposerClient::eSkipScreenshot)
         layerFlags |= layer_state_t::eLayerSkipScreenshot;
-
+    if (args.sequence) {
+        sSequence = *args.sequence + 1;
+    }
     mDrawingState.flags = layerFlags;
     mDrawingState.active_legacy.transform.set(0, 0);
     mDrawingState.crop.makeInvalid();
@@ -943,16 +945,10 @@ bool Layer::setBackgroundBlurRadius(int backgroundBlurRadius) {
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
-bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix,
-        bool allowNonRectPreservingTransforms) {
+bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix) {
     ui::Transform t;
     t.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
 
-    if (!allowNonRectPreservingTransforms && !t.preserveRects()) {
-        ALOGW("Attempt to set rotation matrix without permission ACCESS_SURFACE_FLINGER nor "
-              "ROTATE_SURFACE_FLINGER ignored");
-        return false;
-    }
     mDrawingState.sequence++;
     mDrawingState.transform.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
     mDrawingState.modified = true;
@@ -1263,6 +1259,7 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForTransac
                                                                  getSequence(), mName,
                                                                  mTransactionName,
                                                                  /*isBuffer*/ false, getGameMode());
+    surfaceFrame->setActualStartTime(info.startTimeNanos);
     // For Transactions, the post time is considered to be both queue and acquire fence time.
     surfaceFrame->setActualQueueTime(postTime);
     surfaceFrame->setAcquireFenceTime(postTime);
@@ -1280,6 +1277,7 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
             mFlinger->mFrameTimeline->createSurfaceFrameForToken(info, mOwnerPid, mOwnerUid,
                                                                  getSequence(), mName, debugName,
                                                                  /*isBuffer*/ true, getGameMode());
+    surfaceFrame->setActualStartTime(info.startTimeNanos);
     // For buffers, acquire fence time will set during latch.
     surfaceFrame->setActualQueueTime(queueTime);
     const auto fps = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
@@ -1400,7 +1398,6 @@ LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
         }
     }
     info.mNumQueuedFrames = getQueuedFrameCount();
-    info.mRefreshPending = isBufferLatched();
     info.mIsOpaque = isOpaque(ds);
     info.mContentDirty = contentDirty;
     info.mStretchEffect = getStretchEffect();
@@ -1996,33 +1993,35 @@ void Layer::setInputInfo(const WindowInfo& info) {
     setTransactionFlags(eTransactionNeeded);
 }
 
-LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags,
-                                const DisplayDevice* display) {
+LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags) {
     LayerProto* layerProto = layersProto.add_layers();
-    writeToProtoDrawingState(layerProto, traceFlags, display);
+    writeToProtoDrawingState(layerProto);
     writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
 
     if (traceFlags & LayerTracing::TRACE_COMPOSITION) {
         // Only populate for the primary display.
+        UnnecessaryLock assumeLocked(mFlinger->mStateLock); // called from the main thread.
+        const auto display = mFlinger->getDefaultDisplayDeviceLocked();
         if (display) {
             const auto compositionType = getCompositionType(*display);
             layerProto->set_hwc_composition_type(static_cast<HwcCompositionType>(compositionType));
+            LayerProtoHelper::writeToProto(getVisibleRegion(display.get()),
+                                           [&]() { return layerProto->mutable_visible_region(); });
         }
     }
 
     for (const sp<Layer>& layer : mDrawingChildren) {
-        layer->writeToProto(layersProto, traceFlags, display);
+        layer->writeToProto(layersProto, traceFlags);
     }
 
     return layerProto;
 }
 
-void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
-                                     const DisplayDevice* display) {
+void Layer::writeToProtoDrawingState(LayerProto* layerInfo) {
     const ui::Transform transform = getTransform();
-    auto buffer = getBuffer();
+    auto buffer = getExternalTexture();
     if (buffer != nullptr) {
-        LayerProtoHelper::writeToProto(buffer,
+        LayerProtoHelper::writeToProto(*buffer,
                                        [&]() { return layerInfo->mutable_active_buffer(); });
         LayerProtoHelper::writeToProtoDeprecated(ui::Transform(getBufferTransform()),
                                                  layerInfo->mutable_buffer_transform());
@@ -2031,7 +2030,6 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
     layerInfo->set_is_protected(isProtected());
     layerInfo->set_dataspace(dataspaceDetails(static_cast<android_dataspace>(getDataSpace())));
     layerInfo->set_queued_frames(getQueuedFrameCount());
-    layerInfo->set_refresh_pending(isBufferLatched());
     layerInfo->set_curr_frame(mCurrentFrameNumber);
     layerInfo->set_effective_scaling_mode(getEffectiveScalingMode());
 
@@ -2043,10 +2041,6 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
     LayerProtoHelper::writePositionToProto(transform.tx(), transform.ty(),
                                            [&]() { return layerInfo->mutable_position(); });
     LayerProtoHelper::writeToProto(mBounds, [&]() { return layerInfo->mutable_bounds(); });
-    if (traceFlags & LayerTracing::TRACE_COMPOSITION) {
-        LayerProtoHelper::writeToProto(getVisibleRegion(display),
-                                       [&]() { return layerInfo->mutable_visible_region(); });
-    }
     LayerProtoHelper::writeToProto(surfaceDamageRegion,
                                    [&]() { return layerInfo->mutable_damage_region(); });
 
@@ -2162,101 +2156,71 @@ Rect Layer::getInputBounds() const {
     return getCroppedBufferSize(getDrawingState());
 }
 
-void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& displayTransform) {
-    // Transform layer size to screen space and inset it by surface insets.
-    // If this is a portal window, set the touchableRegion to the layerBounds.
-    Rect layerBounds = info.portalToDisplayId == ADISPLAY_ID_NONE
-            ? getInputBounds()
-            : info.touchableRegion.getBounds();
-    if (!layerBounds.isValid()) {
-        layerBounds = getInputBounds();
-    }
-
-    if (!layerBounds.isValid()) {
-        // If the layer bounds is empty, set the frame to empty and clear the transform
-        info.frameLeft = 0;
-        info.frameTop = 0;
-        info.frameRight = 0;
-        info.frameBottom = 0;
-        info.transform.reset();
-        info.touchableRegion = Region();
+void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& screenToDisplay) {
+    Rect tmpBounds = getInputBounds();
+    if (!tmpBounds.isValid()) {
         info.flags = WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::NOT_FOCUSABLE;
-        return;
+        info.focusable = false;
+        info.touchableRegion.clear();
+        // A layer could have invalid input bounds and still expect to receive touch input if it has
+        // replaceTouchableRegionWithCrop. For that case, the input transform needs to be calculated
+        // correctly to determine the coordinate space for input events. Use an empty rect so that
+        // the layer will receive input in its own layer space.
+        tmpBounds = Rect::EMPTY_RECT;
     }
 
-    const ui::Transform layerTransform = getInputTransform();
-    // Transform that takes window coordinates to non-rotated display coordinates
-    ui::Transform t = displayTransform * layerTransform;
-    int32_t xSurfaceInset = info.surfaceInset;
-    int32_t ySurfaceInset = info.surfaceInset;
-    // Bring screenBounds into non-unrotated space
-    Rect screenBounds = displayTransform.transform(Rect{mScreenBounds});
+    // InputDispatcher works in the display device's coordinate space. Here, we calculate the
+    // frame and transform used for the layer, which determines the bounds and the coordinate space
+    // within which the layer will receive input.
+    //
+    // The coordinate space within which each of the bounds are specified is explicitly documented
+    // in the variable name. For example "inputBoundsInLayer" is specified in layer space. A
+    // Transform converts one coordinate space to another, which is apparent in its naming. For
+    // example, "layerToDisplay" transforms layer space to display space.
+    //
+    // Coordinate space definitions:
+    //   - display: The display device's coordinate space. Correlates to pixels on the display.
+    //   - screen: The post-rotation coordinate space for the display, a.k.a. logical display space.
+    //   - layer: The coordinate space of this layer.
+    //   - input: The coordinate space in which this layer will receive input events. This could be
+    //            different than layer space if a surfaceInset is used, which changes the origin
+    //            of the input space.
+    const FloatRect inputBoundsInLayer = tmpBounds.toFloatRect();
 
-    const float xScale = t.getScaleX();
-    const float yScale = t.getScaleY();
-    if (xScale != 1.0f || yScale != 1.0f) {
-        xSurfaceInset = std::round(xSurfaceInset * xScale);
-        ySurfaceInset = std::round(ySurfaceInset * yScale);
-    }
+    // Clamp surface inset to the input bounds.
+    const auto surfaceInset = static_cast<float>(info.surfaceInset);
+    const float xSurfaceInset =
+            std::max(0.f, std::min(surfaceInset, inputBoundsInLayer.getWidth() / 2.f));
+    const float ySurfaceInset =
+            std::max(0.f, std::min(surfaceInset, inputBoundsInLayer.getHeight() / 2.f));
 
-    // Transform the layer bounds from layer coordinate space to display coordinate space.
-    Rect transformedLayerBounds = t.transform(layerBounds);
+    // Apply the insets to the input bounds.
+    const FloatRect insetBoundsInLayer(inputBoundsInLayer.left + xSurfaceInset,
+                                       inputBoundsInLayer.top + ySurfaceInset,
+                                       inputBoundsInLayer.right - xSurfaceInset,
+                                       inputBoundsInLayer.bottom - ySurfaceInset);
 
-    // clamp inset to layer bounds
-    xSurfaceInset = (xSurfaceInset >= 0)
-            ? std::min(xSurfaceInset, transformedLayerBounds.getWidth() / 2)
-            : 0;
-    ySurfaceInset = (ySurfaceInset >= 0)
-            ? std::min(ySurfaceInset, transformedLayerBounds.getHeight() / 2)
-            : 0;
+    // Crop the input bounds to ensure it is within the parent's bounds.
+    const FloatRect croppedInsetBoundsInLayer = mBounds.intersect(insetBoundsInLayer);
 
-    // inset while protecting from overflow TODO(b/161235021): What is going wrong
-    // in the overflow scenario?
-    {
-    int32_t tmp;
-    if (!__builtin_add_overflow(transformedLayerBounds.left, xSurfaceInset, &tmp))
-        transformedLayerBounds.left = tmp;
-    if (!__builtin_sub_overflow(transformedLayerBounds.right, xSurfaceInset, &tmp))
-        transformedLayerBounds.right = tmp;
-    if (!__builtin_add_overflow(transformedLayerBounds.top, ySurfaceInset, &tmp))
-        transformedLayerBounds.top = tmp;
-    if (!__builtin_sub_overflow(transformedLayerBounds.bottom, ySurfaceInset, &tmp))
-        transformedLayerBounds.bottom = tmp;
-    }
+    const ui::Transform layerToScreen = getInputTransform();
+    const ui::Transform layerToDisplay = screenToDisplay * layerToScreen;
 
-    // Compute the correct transform to send to input. This will allow it to transform the
-    // input coordinates from display space into window space. Therefore, it needs to use the
-    // final layer frame to create the inverse transform. Since surface insets are added later,
-    // along with the overflow, the best way to ensure we get the correct transform is to use
-    // the final frame calculated.
-    // 1. Take the original transform set on the window and get the inverse transform. This is
-    //    used to get the final bounds in display space (ignorning the transform). Apply the
-    //    inverse transform on the layerBounds to get the untransformed frame (in layer space)
-    // 2. Take the top and left of the untransformed frame to get the real position on screen.
-    //    Apply the layer transform on top/left so it includes any scale or rotation. These will
-    //    be the new translation values for the transform.
-    // 3. Update the translation of the original transform to the new translation values.
-    // 4. Send the inverse transform to input so the coordinates can be transformed back into
-    //    window space.
-    ui::Transform inverseTransform = t.inverse();
-    Rect nonTransformedBounds = inverseTransform.transform(transformedLayerBounds);
-    vec2 translation = t.transform(nonTransformedBounds.left, nonTransformedBounds.top);
-    ui::Transform inputTransform(t);
-    inputTransform.set(translation.x, translation.y);
-    info.transform = inputTransform.inverse();
+    const Rect roundedFrameInDisplay{layerToDisplay.transform(croppedInsetBoundsInLayer)};
+    info.frameLeft = roundedFrameInDisplay.left;
+    info.frameTop = roundedFrameInDisplay.top;
+    info.frameRight = roundedFrameInDisplay.right;
+    info.frameBottom = roundedFrameInDisplay.bottom;
 
-    // We need to send the layer bounds cropped to the screenbounds since the layer can be cropped.
-    // The frame should be the area the user sees on screen since it's used for occlusion
-    // detection.
-    transformedLayerBounds.intersect(screenBounds, &transformedLayerBounds);
-    info.frameLeft = transformedLayerBounds.left;
-    info.frameTop = transformedLayerBounds.top;
-    info.frameRight = transformedLayerBounds.right;
-    info.frameBottom = transformedLayerBounds.bottom;
+    ui::Transform inputToLayer;
+    inputToLayer.set(insetBoundsInLayer.left, insetBoundsInLayer.top);
+    const ui::Transform inputToDisplay = layerToDisplay * inputToLayer;
 
-    // Position the touchable region relative to frame screen location and restrict it to frame
-    // bounds.
-    info.touchableRegion = inputTransform.transform(info.touchableRegion);
+    // InputDispatcher expects a display-to-input transform.
+    info.transform = inputToDisplay.inverse();
+
+    // The touchable region is specified in the input coordinate space. Change it to display space.
+    info.touchableRegion = inputToDisplay.transform(info.touchableRegion);
 }
 
 void Layer::fillTouchOcclusionMode(WindowInfo& info) {

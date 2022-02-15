@@ -16,11 +16,12 @@
 
 #pragma once
 
-#include <android-base/thread_annotations.h>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
-#include "SchedulerUtils.h"
+
+#include <android-base/thread_annotations.h>
+
 #include "VSyncTracker.h"
 
 namespace android::scheduler {

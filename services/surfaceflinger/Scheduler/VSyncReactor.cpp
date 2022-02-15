@@ -18,21 +18,22 @@
 #undef LOG_TAG
 #define LOG_TAG "VSyncReactor"
 //#define LOG_NDEBUG 0
-#include "VSyncReactor.h"
+
 #include <cutils/properties.h>
 #include <log/log.h>
 #include <utils/Trace.h>
+
 #include "../TracedOrdinal.h"
-#include "TimeKeeper.h"
 #include "VSyncDispatch.h"
+#include "VSyncReactor.h"
 #include "VSyncTracker.h"
 
 namespace android::scheduler {
+
 using base::StringAppendF;
 
 VsyncController::~VsyncController() = default;
 
-Clock::~Clock() = default;
 nsecs_t SystemClock::now() const {
     return systemTime(SYSTEM_TIME_MONOTONIC);
 }

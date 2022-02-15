@@ -237,9 +237,7 @@ void InputReader::removeDeviceLocked(nsecs_t when, int32_t eventHubId) {
     auto mapIt = mDeviceToEventHubIdsMap.find(device);
     if (mapIt != mDeviceToEventHubIdsMap.end()) {
         std::vector<int32_t>& eventHubIds = mapIt->second;
-        eventHubIds.erase(std::remove_if(eventHubIds.begin(), eventHubIds.end(),
-                                         [eventHubId](int32_t eId) { return eId == eventHubId; }),
-                          eventHubIds.end());
+        std::erase_if(eventHubIds, [eventHubId](int32_t eId) { return eId == eventHubId; });
         if (eventHubIds.size() == 0) {
             mDeviceToEventHubIdsMap.erase(mapIt);
         }
@@ -305,7 +303,7 @@ void InputReader::processEventsForDeviceLocked(int32_t eventHubId, const RawEven
     device->process(rawEvents, count);
 }
 
-InputDevice* InputReader::findInputDeviceLocked(int32_t deviceId) {
+InputDevice* InputReader::findInputDeviceLocked(int32_t deviceId) const {
     auto deviceIt =
             std::find_if(mDevices.begin(), mDevices.end(), [deviceId](const auto& devicePair) {
                 return devicePair.second->getId() == deviceId;
@@ -589,6 +587,18 @@ bool InputReader::markSupportedKeyCodesLocked(int32_t deviceId, uint32_t sourceM
         }
     }
     return result;
+}
+
+int32_t InputReader::getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device == nullptr) {
+        ALOGW("Failed to get key code for key location: Input device with id %d not found",
+              deviceId);
+        return AKEYCODE_UNKNOWN;
+    }
+    return device->getKeyCodeForKeyLocation(locationKeyCode);
 }
 
 void InputReader::requestRefreshConfiguration(uint32_t changes) {

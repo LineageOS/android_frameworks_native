@@ -49,6 +49,7 @@ cc_test {
         "LatencyTracker_test.cpp",
         "TestInputListener.cpp",
         "UinputDevice.cpp",
+        "UnwantedInteractionBlocker_test.cpp",
     ],
     aidl: {
         include_dirs: [
@@ -57,7 +58,7 @@ cc_test {
         ],
     },
     static_libs: [
-        "libc++fs"
+        "libc++fs",
     ],
     require_root: true,
     test_suites: ["device-tests"],

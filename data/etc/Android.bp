@@ -119,6 +119,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.sensor.dynamic.head_tracker.prebuilt.xml",
+    src: "android.hardware.sensor.dynamic.head_tracker.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.sensor.gyroscope.prebuilt.xml",
     src: "android.hardware.sensor.gyroscope.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
@@ -191,6 +197,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.wifi.direct.prebuilt.xml",
+    src: "android.hardware.wifi.direct.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.wifi.passpoint.prebuilt.xml",
     src: "android.hardware.wifi.passpoint.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
@@ -235,6 +247,12 @@ prebuilt_etc {
 prebuilt_etc {
     name: "aosp_excluded_hardware.prebuilt.xml",
     src: "aosp_excluded_hardware.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "go_handheld_core_hardware.prebuilt.xml",
+    src: "go_handheld_core_hardware.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 

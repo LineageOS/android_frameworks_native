@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <ftl/array_traits.h>
+#include <ftl/details/array_traits.h>
 #include <ftl/initializer_list.h>
 
 #include <algorithm>
@@ -73,14 +73,14 @@ constexpr struct IteratorRangeTag {
 //   assert(strings[2] == "???");
 //
 template <typename T, std::size_t N>
-class StaticVector final : ArrayTraits<T>,
-                           ArrayIterators<StaticVector<T, N>, T>,
-                           ArrayComparators<StaticVector> {
+class StaticVector final : details::ArrayTraits<T>,
+                           details::ArrayIterators<StaticVector<T, N>, T>,
+                           details::ArrayComparators<StaticVector> {
   static_assert(N > 0);
 
-  using ArrayTraits<T>::construct_at;
+  using details::ArrayTraits<T>::construct_at;
 
-  using Iter = ArrayIterators<StaticVector, T>;
+  using Iter = details::ArrayIterators<StaticVector, T>;
   friend Iter;
 
   // There is ambiguity when constructing from two iterator-like elements like pointers:

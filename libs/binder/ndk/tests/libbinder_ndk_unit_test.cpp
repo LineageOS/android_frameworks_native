@@ -505,6 +505,31 @@ class MyTestFoo : public IFoo {
     }
 };
 
+TEST(NdkBinder, SetInheritRt) {
+    // functional test in binderLibTest
+    sp<IFoo> foo = sp<MyTestFoo>::make();
+    AIBinder* binder = foo->getBinder();
+
+    // does not abort
+    AIBinder_setInheritRt(binder, true);
+    AIBinder_setInheritRt(binder, false);
+    AIBinder_setInheritRt(binder, true);
+
+    AIBinder_decStrong(binder);
+}
+
+TEST(NdkBinder, SetInheritRtNonLocal) {
+    AIBinder* binder = AServiceManager_getService(kExistingNonNdkService);
+    ASSERT_NE(binder, nullptr);
+
+    ASSERT_TRUE(AIBinder_isRemote(binder));
+
+    EXPECT_DEATH(AIBinder_setInheritRt(binder, true), "");
+    EXPECT_DEATH(AIBinder_setInheritRt(binder, false), "");
+
+    AIBinder_decStrong(binder);
+}
+
 TEST(NdkBinder, AddNullService) {
     EXPECT_EQ(EX_ILLEGAL_ARGUMENT, AServiceManager_addService(nullptr, "any-service-name"));
 }
@@ -725,6 +750,29 @@ TEST(NdkBinder, UseHandleShellCommand) {
 
 TEST(NdkBinder, GetClassInterfaceDescriptor) {
     ASSERT_STREQ(IFoo::kIFooDescriptor, AIBinder_Class_getDescriptor(IFoo::kClass));
+}
+
+static void addOne(int* to) {
+    if (!to) return;
+    ++(*to);
+}
+struct FakeResource : public ndk::impl::ScopedAResource<int*, addOne, nullptr> {
+    explicit FakeResource(int* a) : ScopedAResource(a) {}
+};
+
+TEST(NdkBinder_ScopedAResource, GetDelete) {
+    int deleteCount = 0;
+    { FakeResource resource(&deleteCount); }
+    EXPECT_EQ(deleteCount, 1);
+}
+
+TEST(NdkBinder_ScopedAResource, Release) {
+    int deleteCount = 0;
+    {
+        FakeResource resource(&deleteCount);
+        (void)resource.release();
+    }
+    EXPECT_EQ(deleteCount, 0);
 }
 
 int main(int argc, char* argv[]) {

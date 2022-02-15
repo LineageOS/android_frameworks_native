@@ -30,6 +30,7 @@
 #include <gui/IProducerListener.h>
 #include <gui/LayerMetadata.h>
 #include <log/log.h>
+#include <renderengine/mock/FakeExternalTexture.h>
 #include <renderengine/mock/Framebuffer.h>
 #include <renderengine/mock/Image.h>
 #include <renderengine/mock/RenderEngine.h>
@@ -60,6 +61,8 @@ using hal::IComposerClient;
 using hal::PowerMode;
 using hal::Transform;
 
+using aidl::android::hardware::graphics::composer3::Capability;
+
 using testing::_;
 using testing::AtLeast;
 using testing::DoAll;
@@ -86,6 +89,11 @@ constexpr ui::LayerStack LAYER_STACK{7000u};
 constexpr int DEFAULT_DISPLAY_MAX_LUMINANCE = 500;
 
 constexpr int DEFAULT_SIDEBAND_STREAM = 51;
+
+MATCHER(IsIdentityMatrix, "") {
+    constexpr auto kIdentity = mat4();
+    return (mat4(arg) == kIdentity);
+}
 
 class CompositionTest : public testing::Test {
 public:
@@ -138,11 +146,10 @@ public:
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
         EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
 
-        constexpr scheduler::ISchedulerCallback* kCallback = nullptr;
-        constexpr bool kHasMultipleConfigs = true;
         mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
-                                std::move(eventThread), std::move(sfEventThread), kCallback,
-                                kHasMultipleConfigs);
+                                std::move(eventThread), std::move(sfEventThread),
+                                TestableSurfaceFlinger::SchedulerCallbackImpl::kNoOp,
+                                TestableSurfaceFlinger::kTwoDisplayModes);
     }
 
     void setupForceGeometryDirty() {
@@ -164,7 +171,7 @@ public:
     template <typename Case>
     void captureScreenComposition();
 
-    std::unordered_set<hal::Capability> mDefaultCapabilities = {hal::Capability::SIDEBAND_STREAM};
+    std::unordered_set<Capability> mDefaultCapabilities = {Capability::SIDEBAND_STREAM};
 
     bool mDisplayOff = false;
     TestableSurfaceFlinger mFlinger;
@@ -229,15 +236,13 @@ void CompositionTest::captureScreenComposition() {
                                                    CaptureArgs::UNSET_UID, visitor);
     };
 
-    // TODO: Eliminate expensive/real allocation if possible.
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
-    mCaptureScreenBuffer = std::make_shared<
-            renderengine::ExternalTexture>(new GraphicBuffer(renderArea->getReqWidth(),
-                                                             renderArea->getReqHeight(),
-                                                             HAL_PIXEL_FORMAT_RGBA_8888, 1, usage,
-                                                             "screenshot"),
-                                           *mRenderEngine, true);
+    mCaptureScreenBuffer =
+            std::make_shared<renderengine::mock::FakeExternalTexture>(renderArea->getReqWidth(),
+                                                                      renderArea->getReqHeight(),
+                                                                      HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                                                      usage);
 
     auto result = mFlinger.renderScreenImplLocked(*renderArea, traverseLayers, mCaptureScreenBuffer,
                                                   forSystem, regionSampling);
@@ -319,15 +324,15 @@ struct BaseDisplayVariant {
     template <typename Case>
     static void setupPreconditionCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mComposer, getDisplayCapabilities(HWC_DISPLAY, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hwc2::DisplayCapability>({})),
+                .WillOnce(DoAll(SetArgPointee<1>(
+                                        std::vector<aidl::android::hardware::graphics::composer3::
+                                                            DisplayCapability>({})),
                                 Return(Error::NONE)));
     }
 
     template <typename Case>
     static void setupCommonCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer,
-                    setColorTransform(HWC_DISPLAY, _, Hwc2::ColorTransform::IDENTITY))
-                .Times(1);
+        EXPECT_CALL(*test->mComposer, setColorTransform(HWC_DISPLAY, IsIdentityMatrix())).Times(1);
         EXPECT_CALL(*test->mComposer, getDisplayRequests(HWC_DISPLAY, _, _, _)).Times(1);
         EXPECT_CALL(*test->mComposer, acceptDisplayChanges(HWC_DISPLAY)).Times(1);
         EXPECT_CALL(*test->mComposer, presentDisplay(HWC_DISPLAY, _)).Times(1);
@@ -367,7 +372,8 @@ struct BaseDisplayVariant {
     }
 
     static void setupHwcCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _)).Times(1);
+        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _, _))
+                .Times(1);
 
         EXPECT_CALL(*test->mDisplaySurface,
                     prepareFrame(compositionengine::DisplaySurface::CompositionType::Hwc))
@@ -375,11 +381,12 @@ struct BaseDisplayVariant {
     }
 
     static void setupHwcClientCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _)).Times(1);
+        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _, _))
+                .Times(1);
     }
 
     static void setupHwcForcedClientCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer, validateDisplay(HWC_DISPLAY, _, _)).Times(1);
+        EXPECT_CALL(*test->mComposer, validateDisplay(HWC_DISPLAY, _, _, _)).Times(1);
     }
 
     static void setupRECompositionCallExpectations(CompositionTest* test) {
@@ -446,9 +453,7 @@ struct PoweredOffDisplaySetupVariant : public BaseDisplayVariant<PoweredOffDispl
     template <typename Case>
     static void setupCommonCompositionCallExpectations(CompositionTest* test) {
         // TODO: This seems like an unnecessary call if display is powered off.
-        EXPECT_CALL(*test->mComposer,
-                    setColorTransform(HWC_DISPLAY, _, Hwc2::ColorTransform::IDENTITY))
-                .Times(1);
+        EXPECT_CALL(*test->mComposer, setColorTransform(HWC_DISPLAY, IsIdentityMatrix())).Times(1);
 
         // TODO: This seems like an unnecessary call if display is powered off.
         Case::CompositionType::setupHwcSetCallExpectations(test);
@@ -616,7 +621,8 @@ struct BaseLayerProperties {
             // TODO: use COLOR
             EXPECT_CALL(*test->mComposer,
                         setLayerColor(HWC_DISPLAY, HWC_LAYER,
-                                      IComposerClient::Color({0xff, 0xff, 0xff, 0xff})))
+                                      aidl::android::hardware::graphics::composer3::Color(
+                                              {1.0f, 1.0f, 1.0f, 1.0f})))
                     .Times(1);
         }
     }

@@ -138,7 +138,7 @@ public:
     explicit TouchInputMapper(InputDeviceContext& deviceContext);
     ~TouchInputMapper() override;
 
-    uint32_t getSources() override;
+    uint32_t getSources() const override;
     void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
     void dump(std::string& dump) override;
     void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes) override;
@@ -243,6 +243,7 @@ protected:
             DIAMETER,
             BOX,
             AREA,
+            ftl_last = AREA
         };
 
         SizeCalibration sizeCalibration;
@@ -731,6 +732,10 @@ private:
 
     void resetExternalStylus();
     void clearStylusDataPendingFlags();
+
+    int32_t clampResolution(const char* axisName, int32_t resolution) const;
+    void initializeOrientedRanges();
+    void initializeSizeRanges();
 
     void sync(nsecs_t when, nsecs_t readTime);
 

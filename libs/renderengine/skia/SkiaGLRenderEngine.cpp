@@ -656,6 +656,7 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
                                  parameters.layerDimmingRatio, 1.f));
         return createLinearEffectShader(parameters.shader, effect, runtimeEffect, colorTransform,
                                         parameters.display.maxLuminance,
+                                        parameters.display.currentLuminanceNits,
                                         parameters.layer.source.buffer.maxLuminanceNits);
     }
     return parameters.shader;
@@ -1103,6 +1104,15 @@ void SkiaGLRenderEngine::drawLayersInternal(
                 paint.setDither(true);
             }
             paint.setAlphaf(layer.alpha);
+
+            if (imageTextureRef->colorType() == kAlpha_8_SkColorType) {
+                LOG_ALWAYS_FATAL_IF(layer.disableBlending, "Cannot disableBlending with A8");
+                float matrix[] = { 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0,
+                                   0, 0, 0, -1, 1 };
+                paint.setColorFilter(SkColorFilters::Matrix(matrix));
+            }
         } else {
             ATRACE_NAME("DrawColor");
             const auto color = layer.source.solidColor;
@@ -1124,7 +1134,11 @@ void SkiaGLRenderEngine::drawLayersInternal(
             paint.setBlendMode(SkBlendMode::kSrc);
         }
 
-        paint.setColorFilter(displayColorTransform);
+        // A color filter will have been set for an A8 buffer. Do not replace
+        // it with the displayColorTransform, which shouldn't affect A8.
+        if (!paint.getColorFilter()) {
+            paint.setColorFilter(displayColorTransform);
+        }
 
         if (!roundRectClip.isEmpty()) {
             canvas->clipRRect(roundRectClip, true);

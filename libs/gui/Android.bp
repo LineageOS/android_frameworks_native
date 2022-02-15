@@ -37,6 +37,12 @@ cc_library_headers {
         "android.hardware.graphics.bufferqueue@2.0",
     ],
     min_sdk_version: "29",
+    // TODO(b/218719284) can media use be constrained to libgui_bufferqueue_static?
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media.swcodec",
+        "test_com.android.media.swcodec",
+    ],
 }
 
 cc_library_headers {
@@ -66,6 +72,7 @@ cc_library_static {
     host_supported: true,
     srcs: [
         ":guiconstants_aidl",
+        ":inputconstants_aidl",
         "android/gui/DisplayInfo.aidl",
         "android/gui/FocusRequest.aidl",
         "android/gui/InputApplicationInfo.aidl",
@@ -197,6 +204,7 @@ cc_library_shared {
         "SurfaceComposerClient.cpp",
         "SyncFeatures.cpp",
         "TransactionTracing.cpp",
+        "VsyncEventData.cpp",
         "view/Surface.cpp",
         "WindowInfosListenerReporter.cpp",
         "bufferqueue/1.0/B2HProducerListener.cpp",
@@ -248,10 +256,7 @@ cc_library_shared {
         "libpdx_headers",
     ],
 
-    pgo: {
-        sampling: true,
-        profile_file: "libgui/libgui.profdata",
-    },
+    afdo: true,
 
     lto: {
         thin: true,
@@ -340,6 +345,7 @@ cc_defaults {
         "android.hardware.graphics.bufferqueue@2.0",
         "android.hardware.graphics.common@1.1",
         "android.hardware.graphics.common@1.2",
+        "android.hardware.graphics.common-V3-ndk",
         "android.hidl.token@1.0-utils",
         "libbase",
         "libcutils",

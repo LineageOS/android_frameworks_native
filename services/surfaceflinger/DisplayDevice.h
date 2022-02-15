@@ -41,7 +41,7 @@
 
 #include "MainThreadGuard.h"
 
-#include "DisplayHardware/DisplayIdentification.h"
+#include <ui/DisplayIdentification.h>
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/Hal.h"
 #include "DisplayHardware/PowerAdvisor.h"
@@ -99,6 +99,9 @@ public:
     void setLayerStack(ui::LayerStack);
     void setDisplaySize(int width, int height);
     void setProjection(ui::Rotation orientation, Rect viewport, Rect frame);
+    void stageBrightness(float brightness) REQUIRES(SF_MAIN_THREAD);
+    void persistBrightness(bool needsComposite) REQUIRES(SF_MAIN_THREAD);
+    bool isBrightnessStale() const REQUIRES(SF_MAIN_THREAD);
     void setFlags(uint32_t flags);
 
     ui::Rotation getPhysicalOrientation() const { return mPhysicalOrientation; }
@@ -106,6 +109,7 @@ public:
 
     static ui::Transform::RotationFlags getPrimaryDisplayRotationFlags();
 
+    std::optional<float> getStagedBrightness() const REQUIRES(SF_MAIN_THREAD);
     ui::Transform::RotationFlags getTransformHint() const;
     const ui::Transform& getTransform() const;
     const Rect& getLayerStackSpaceRect() const;
@@ -152,6 +156,9 @@ public:
     // luminance will be set to sDefaultMinLumiance and sDefaultMaxLumiance
     // respectively if hardware composer doesn't return meaningful values.
     HdrCapabilities getHdrCapabilities() const;
+
+    // Returns the boot display mode preferred by the implementation.
+    ui::DisplayModeId getPreferredBootModeId() const;
 
     // Return true if intent is supported by the display.
     bool hasRenderIntent(ui::RenderIntent intent) const;
@@ -271,6 +278,8 @@ private:
     hardware::graphics::composer::hal::PowerMode mPowerMode =
             hardware::graphics::composer::hal::PowerMode::OFF;
     DisplayModePtr mActiveMode;
+    std::optional<float> mStagedBrightness = std::nullopt;
+    float mBrightness = -1.f;
     const DisplayModes mSupportedModes;
 
     std::atomic<nsecs_t> mLastHwVsync = 0;

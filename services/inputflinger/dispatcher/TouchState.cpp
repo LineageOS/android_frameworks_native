@@ -25,29 +25,8 @@ using android::gui::WindowInfoHandle;
 
 namespace android::inputdispatcher {
 
-TouchState::TouchState()
-      : down(false), split(false), deviceId(-1), source(0), displayId(ADISPLAY_ID_NONE) {}
-
-TouchState::~TouchState() {}
-
 void TouchState::reset() {
-    down = false;
-    split = false;
-    deviceId = -1;
-    source = 0;
-    displayId = ADISPLAY_ID_NONE;
-    windows.clear();
-    gestureMonitors.clear();
-}
-
-void TouchState::copyFrom(const TouchState& other) {
-    down = other.down;
-    split = other.split;
-    deviceId = other.deviceId;
-    source = other.source;
-    displayId = other.displayId;
-    windows = other.windows;
-    gestureMonitors = other.gestureMonitors;
+    *this = TouchState();
 }
 
 void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle, int32_t targetFlags,
@@ -68,18 +47,13 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle, int
         }
     }
 
+    if (preventNewTargets) return; // Don't add new TouchedWindows.
+
     TouchedWindow touchedWindow;
     touchedWindow.windowHandle = windowHandle;
     touchedWindow.targetFlags = targetFlags;
     touchedWindow.pointerIds = pointerIds;
     windows.push_back(touchedWindow);
-}
-
-void TouchState::addGestureMonitors(const std::vector<Monitor>& newMonitors) {
-    const size_t newSize = gestureMonitors.size() + newMonitors.size();
-    gestureMonitors.reserve(newSize);
-    gestureMonitors.insert(std::end(gestureMonitors), std::begin(newMonitors),
-                           std::end(newMonitors));
 }
 
 void TouchState::removeWindowByToken(const sp<IBinder>& token) {
@@ -105,8 +79,9 @@ void TouchState::filterNonAsIsTouchWindows() {
     }
 }
 
-void TouchState::filterNonMonitors() {
-    windows.clear();
+void TouchState::filterWindowsExcept(const sp<IBinder>& token) {
+    std::erase_if(windows,
+                  [&token](const TouchedWindow& w) { return w.windowHandle->getToken() != token; });
 }
 
 sp<WindowInfoHandle> TouchState::getFirstForegroundWindowHandle() const {
@@ -139,6 +114,16 @@ sp<WindowInfoHandle> TouchState::getWallpaperWindow() const {
         const TouchedWindow& window = windows[i];
         if (window.windowHandle->getInfo()->type == WindowInfo::Type::WALLPAPER) {
             return window.windowHandle;
+        }
+    }
+    return nullptr;
+}
+
+sp<WindowInfoHandle> TouchState::getWindow(const sp<IBinder>& token) const {
+    for (const TouchedWindow& touchedWindow : windows) {
+        const auto& windowHandle = touchedWindow.windowHandle;
+        if (windowHandle->getToken() == token) {
+            return windowHandle;
         }
     }
     return nullptr;

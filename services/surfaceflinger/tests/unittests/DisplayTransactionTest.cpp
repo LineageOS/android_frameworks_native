@@ -60,6 +60,7 @@ DisplayTransactionTest::~DisplayTransactionTest() {
     const ::testing::TestInfo* const test_info =
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
+    mFlinger.resetScheduler(nullptr);
 }
 
 void DisplayTransactionTest::injectMockScheduler() {
@@ -76,7 +77,8 @@ void DisplayTransactionTest::injectMockScheduler() {
     mFlinger.setupScheduler(std::unique_ptr<scheduler::VsyncController>(mVsyncController),
                             std::unique_ptr<scheduler::VSyncTracker>(mVSyncTracker),
                             std::unique_ptr<EventThread>(mEventThread),
-                            std::unique_ptr<EventThread>(mSFEventThread), &mSchedulerCallback);
+                            std::unique_ptr<EventThread>(mSFEventThread),
+                            TestableSurfaceFlinger::SchedulerCallbackImpl::kMock);
 }
 
 void DisplayTransactionTest::injectMockComposer(int virtualDisplayCount) {

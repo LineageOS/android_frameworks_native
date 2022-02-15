@@ -34,17 +34,20 @@
 
 #include <aidl/android/hardware/graphics/composer3/IComposer.h>
 #include <aidl/android/hardware/graphics/composer3/IComposerClient.h>
-#include <android/hardware/graphics/composer3/command-buffer.h>
+#include <android/hardware/graphics/composer3/ComposerClientReader.h>
+#include <android/hardware/graphics/composer3/ComposerClientWriter.h>
 
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
+#include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
 namespace android::Hwc2 {
 
-using AidlCommandWriterBase = aidl::android::hardware::graphics::composer3::CommandWriterBase;
-using AidlCommandReaderBase = aidl::android::hardware::graphics::composer3::CommandReaderBase;
+using aidl::android::hardware::graphics::common::DisplayDecorationSupport;
+using aidl::android::hardware::graphics::composer3::ComposerClientReader;
+using aidl::android::hardware::graphics::composer3::ComposerClientWriter;
 
 class AidlIComposerCallbackWrapper;
 
@@ -56,10 +59,13 @@ public:
     explicit AidlComposer(const std::string& serviceName);
     ~AidlComposer() override;
 
-    std::vector<IComposer::Capability> getCapabilities() override;
+    bool isSupported(OptionalFeature) const;
+
+    std::vector<aidl::android::hardware::graphics::composer3::Capability> getCapabilities()
+            override;
     std::string dumpDebugInfo() override;
 
-    void registerCallback(const sp<IComposerCallback>& callback) override;
+    void registerCallback(HWC2::ComposerCallback& callback) override;
 
     // Reset all pending commands in the command buffer. Useful if you want to
     // skip a frame but have already queued some commands.
@@ -113,7 +119,7 @@ public:
                           int acquireFence, Dataspace dataspace,
                           const std::vector<IComposerClient::Rect>& damage) override;
     Error setColorMode(Display display, ColorMode mode, RenderIntent renderIntent) override;
-    Error setColorTransform(Display display, const float* matrix, ColorTransform hint) override;
+    Error setColorTransform(Display display, const float* matrix) override;
     Error setOutputBuffer(Display display, const native_handle_t* buffer,
                           int releaseFence) override;
     Error setPowerMode(Display display, IComposerClient::PowerMode mode) override;
@@ -121,10 +127,11 @@ public:
 
     Error setClientTargetSlotCount(Display display) override;
 
-    Error validateDisplay(Display display, uint32_t* outNumTypes,
+    Error validateDisplay(Display display, nsecs_t expectedPresentTime, uint32_t* outNumTypes,
                           uint32_t* outNumRequests) override;
 
-    Error presentOrValidateDisplay(Display display, uint32_t* outNumTypes, uint32_t* outNumRequests,
+    Error presentOrValidateDisplay(Display display, nsecs_t expectedPresentTime,
+                                   uint32_t* outNumTypes, uint32_t* outNumRequests,
                                    int* outPresentFence, uint32_t* state) override;
 
     Error setCursorPosition(Display display, Layer layer, int32_t x, int32_t y) override;
@@ -134,7 +141,7 @@ public:
     Error setLayerSurfaceDamage(Display display, Layer layer,
                                 const std::vector<IComposerClient::Rect>& damage) override;
     Error setLayerBlendMode(Display display, Layer layer, IComposerClient::BlendMode mode) override;
-    Error setLayerColor(Display display, Layer layer, const IComposerClient::Color& color) override;
+    Error setLayerColor(Display display, Layer layer, const Color& color) override;
     Error setLayerCompositionType(
             Display display, Layer layer,
             aidl::android::hardware::graphics::composer3::Composition type) override;
@@ -175,12 +182,14 @@ public:
     Error setLayerPerFrameMetadataBlobs(
             Display display, Layer layer,
             const std::vector<IComposerClient::PerFrameMetadataBlob>& metadata) override;
-    Error setDisplayBrightness(Display display, float brightness) override;
+    Error setDisplayBrightness(Display display, float brightness,
+                               const DisplayBrightnessOptions& options) override;
 
     // Composer HAL 2.4
-    bool isVsyncPeriodSwitchSupported() override { return true; }
-    Error getDisplayCapabilities(Display display,
-                                 std::vector<DisplayCapability>* outCapabilities) override;
+    Error getDisplayCapabilities(
+            Display display,
+            std::vector<aidl::android::hardware::graphics::composer3::DisplayCapability>*
+                    outCapabilities) override;
     V2_4::Error getDisplayConnectionType(Display display,
                                          IComposerClient::DisplayConnectionType* outType) override;
     V2_4::Error getDisplayVsyncPeriod(Display display, VsyncPeriodNanos* outVsyncPeriod) override;
@@ -201,7 +210,16 @@ public:
     Error getClientTargetProperty(Display display,
                                   IComposerClient::ClientTargetProperty* outClientTargetProperty,
                                   float* outClientTargetWhitePointNits) override;
+
+    // AIDL Composer HAL
     Error setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) override;
+    Error setLayerBlockingRegion(Display display, Layer layer,
+                                 const std::vector<IComposerClient::Rect>& blocking) override;
+    Error setBootDisplayConfig(Display displayId, Config) override;
+    Error clearBootDisplayConfig(Display displayId) override;
+    Error getPreferredBootDisplayConfig(Display displayId, Config*) override;
+    Error getDisplayDecorationSupport(Display display,
+                                      std::optional<DisplayDecorationSupport>* support) override;
 
 private:
     // Many public functions above simply write a command into the command
@@ -219,8 +237,8 @@ private:
     // 1. Tightly coupling this cache to the max size of BufferQueue
     // 2. Adding an additional slot for the layer caching feature in SurfaceFlinger (see: Planner.h)
     static const constexpr uint32_t kMaxLayerBufferCount = BufferQueue::NUM_BUFFER_SLOTS + 1;
-    AidlCommandWriterBase mWriter;
-    AidlCommandReaderBase mReader;
+    ComposerClientWriter mWriter;
+    ComposerClientReader mReader;
 
     // Aidl interface
     using AidlIComposer = aidl::android::hardware::graphics::composer3::IComposer;

@@ -20,6 +20,7 @@
 #include <numeric>
 #include <optional>
 #include <type_traits>
+#include <utility>
 
 #include <android-base/stringprintf.h>
 #include <gui/DisplayEventReceiver.h>
@@ -30,7 +31,6 @@
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
 #include "Scheduler/OneShotTimer.h"
-#include "Scheduler/SchedulerUtils.h"
 #include "Scheduler/StrongTyping.h"
 
 namespace android::scheduler {
@@ -250,11 +250,10 @@ public:
         }
     };
 
-    // Returns the refresh rate that best fits the given layers. outSignalsConsidered returns
-    // whether the refresh rate was chosen based on touch boost and/or idle timer.
-    RefreshRate getBestRefreshRate(const std::vector<LayerRequirement>&, GlobalSignals,
-                                   GlobalSignals* outSignalsConsidered = nullptr) const
-            EXCLUDES(mLock);
+    // Returns the refresh rate that best fits the given layers, and whether the refresh rate was
+    // chosen based on touch boost and/or idle timer.
+    std::pair<RefreshRate, GlobalSignals> getBestRefreshRate(const std::vector<LayerRequirement>&,
+                                                             GlobalSignals) const EXCLUDES(mLock);
 
     FpsRange getSupportedRefreshRateRange() const EXCLUDES(mLock) {
         std::lock_guard lock(mLock);
@@ -311,6 +310,9 @@ public:
                                         .idleTimerTimeoutMs = 0,
                                         .supportKernelIdleTimer = false});
 
+    RefreshRateConfigs(const RefreshRateConfigs&) = delete;
+    RefreshRateConfigs& operator=(const RefreshRateConfigs&) = delete;
+
     // Returns whether switching modes (refresh rate or resolution) is possible.
     // TODO(b/158780872): Consider HAL support, and skip frame rate detection if the modes only
     // differ in resolution.
@@ -328,7 +330,7 @@ public:
     // refresh rates.
     KernelIdleTimerAction getIdleTimerAction() const;
 
-    bool supportsFrameRateOverride() const { return mSupportsFrameRateOverride; }
+    bool supportsFrameRateOverrideByContent() const { return mSupportsFrameRateOverrideByContent; }
 
     // Return the display refresh rate divider to match the layer
     // frame rate, or 0 if the display refresh rate is not a multiple of the
@@ -348,16 +350,24 @@ public:
 
     bool supportsKernelIdleTimer() const { return mConfig.supportKernelIdleTimer; }
 
-    void setIdleTimerCallbacks(std::function<void()> platformTimerReset,
-                               std::function<void()> platformTimerExpired,
-                               std::function<void()> kernelTimerReset,
-                               std::function<void()> kernelTimerExpired) {
+    struct IdleTimerCallbacks {
+        struct Callbacks {
+            std::function<void()> onReset;
+            std::function<void()> onExpired;
+        };
+
+        Callbacks platform;
+        Callbacks kernel;
+    };
+
+    void setIdleTimerCallbacks(IdleTimerCallbacks callbacks) EXCLUDES(mIdleTimerCallbacksMutex) {
         std::scoped_lock lock(mIdleTimerCallbacksMutex);
-        mIdleTimerCallbacks.emplace();
-        mIdleTimerCallbacks->platform.onReset = std::move(platformTimerReset);
-        mIdleTimerCallbacks->platform.onExpired = std::move(platformTimerExpired);
-        mIdleTimerCallbacks->kernel.onReset = std::move(kernelTimerReset);
-        mIdleTimerCallbacks->kernel.onExpired = std::move(kernelTimerExpired);
+        mIdleTimerCallbacks = std::move(callbacks);
+    }
+
+    void clearIdleTimerCallbacks() EXCLUDES(mIdleTimerCallbacksMutex) {
+        std::scoped_lock lock(mIdleTimerCallbacksMutex);
+        mIdleTimerCallbacks.reset();
     }
 
     void startIdleTimer() {
@@ -380,15 +390,12 @@ public:
             return;
         }
         mIdleTimer->reset();
-    };
+    }
 
     void dump(std::string& result) const EXCLUDES(mLock);
 
-    RefreshRateConfigs(const RefreshRateConfigs&) = delete;
-    void operator=(const RefreshRateConfigs&) = delete;
-
 private:
-    friend class RefreshRateConfigsTest;
+    friend struct TestableRefreshRateConfigs;
 
     void constructAvailableRefreshRates() REQUIRES(mLock);
 
@@ -396,13 +403,8 @@ private:
             const std::function<bool(const RefreshRate&)>& shouldAddRefreshRate,
             std::vector<const RefreshRate*>* outRefreshRates) REQUIRES(mLock);
 
-    std::optional<RefreshRate> getCachedBestRefreshRate(const std::vector<LayerRequirement>&,
-                                                        GlobalSignals,
-                                                        GlobalSignals* outSignalsConsidered) const
-            REQUIRES(mLock);
-
-    RefreshRate getBestRefreshRateLocked(const std::vector<LayerRequirement>&, GlobalSignals,
-                                         GlobalSignals* outSignalsConsidered) const REQUIRES(mLock);
+    std::pair<RefreshRate, GlobalSignals> getBestRefreshRateLocked(
+            const std::vector<LayerRequirement>&, GlobalSignals) const REQUIRES(mLock);
 
     // Returns the refresh rate with the highest score in the collection specified from begin
     // to end. If there are more than one with the same highest refresh rate, the first one is
@@ -448,6 +450,13 @@ private:
 
     void initializeIdleTimer();
 
+    std::optional<IdleTimerCallbacks::Callbacks> getIdleTimerCallbacks() const
+            REQUIRES(mIdleTimerCallbacksMutex) {
+        if (!mIdleTimerCallbacks) return {};
+        return mConfig.supportKernelIdleTimer ? mIdleTimerCallbacks->kernel
+                                              : mIdleTimerCallbacks->platform;
+    }
+
     // The list of refresh rates, indexed by display modes ID. This may change after this
     // object is initialized.
     AllRefreshRatesMapType mRefreshRates GUARDED_BY(mLock);
@@ -481,32 +490,19 @@ private:
     const std::vector<Fps> mKnownFrameRates;
 
     const Config mConfig;
-    bool mSupportsFrameRateOverride;
+    bool mSupportsFrameRateOverrideByContent;
 
-    struct GetBestRefreshRateInvocation {
-        std::vector<LayerRequirement> layerRequirements;
-        GlobalSignals globalSignals;
-        GlobalSignals outSignalsConsidered;
-        RefreshRate resultingBestRefreshRate;
+    struct GetBestRefreshRateCache {
+        std::pair<std::vector<LayerRequirement>, GlobalSignals> arguments;
+        std::pair<RefreshRate, GlobalSignals> result;
     };
-    mutable std::optional<GetBestRefreshRateInvocation> lastBestRefreshRateInvocation
-            GUARDED_BY(mLock);
+    mutable std::optional<GetBestRefreshRateCache> mGetBestRefreshRateCache GUARDED_BY(mLock);
 
-    // Timer that records time between requests for next vsync.
-    std::optional<scheduler::OneShotTimer> mIdleTimer;
-
-    struct IdleTimerCallbacks {
-        struct Callbacks {
-            std::function<void()> onReset;
-            std::function<void()> onExpired;
-        };
-
-        Callbacks platform;
-        Callbacks kernel;
-    };
-
+    // Declare mIdleTimer last to ensure its thread joins before the mutex/callbacks are destroyed.
     std::mutex mIdleTimerCallbacksMutex;
     std::optional<IdleTimerCallbacks> mIdleTimerCallbacks GUARDED_BY(mIdleTimerCallbacksMutex);
+    // Used to detect (lack of) frame activity.
+    std::optional<scheduler::OneShotTimer> mIdleTimer;
 };
 
 } // namespace android::scheduler

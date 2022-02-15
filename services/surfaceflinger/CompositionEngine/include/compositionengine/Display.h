@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <optional>
 
-#include "DisplayHardware/DisplayIdentification.h"
+#include <ui/DisplayIdentification.h>
 
 #include <compositionengine/Output.h>
 
@@ -55,6 +55,9 @@ public:
     // Creates a cache to cache duplicate client composition requests and skip
     // similar requests if needed.
     virtual void createClientCompositionCache(uint32_t cacheSize) = 0;
+
+    // Returns the boot display mode preferred by HWC.
+    virtual int32_t getPreferredBootModeId() const = 0;
 
 protected:
     ~Display() = default;

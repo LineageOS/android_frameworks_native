@@ -121,6 +121,9 @@ struct OutputCompositionState {
     // to prevent an early presentation of a frame.
     std::shared_ptr<FenceTime> previousPresentFence;
 
+    // The expected time for the next present
+    nsecs_t expectedPresentTime{0};
+
     // Current display brightness
     float displayBrightnessNits{-1.f};
 
@@ -129,6 +132,10 @@ struct OutputCompositionState {
 
     // White point of the client target
     float clientTargetWhitePointNits{-1.f};
+
+    // Display brightness that will take effect this frame.
+    // This is slightly distinct from nits, in that nits cannot be passed to hw composer.
+    std::optional<float> displayBrightness = std::nullopt;
 
     // Debugging
     void dump(std::string& result) const;

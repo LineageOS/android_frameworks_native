@@ -123,8 +123,10 @@ public:
      * Touch mode is a global state that apps may enter / exit based on specific
      * user interactions with input devices.
      * If true, the device is in touch mode.
+     *
+     * Returns true when changing touch mode state.
      */
-    virtual void setInTouchMode(bool inTouchMode) = 0;
+    virtual bool setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission) = 0;
 
     /**
      * Sets the maximum allowed obscuring opacity by UID to propagate touches.
@@ -169,16 +171,14 @@ public:
             const std::string& name) = 0;
 
     /**
-     * Creates an input channel to be used to monitor input events.
+     * Creates an input channel to be used to monitor all input events on a display.
      *
      * Each monitor must target a specific display and will only receive input events sent to that
-     * display. If the monitor is a gesture monitor, it will only receive pointer events on the
-     * targeted display.
+     * display.
      *
      * This method may be called on any thread (usually by the input manager).
      */
     virtual base::Result<std::unique_ptr<InputChannel>> createInputMonitor(int32_t displayId,
-                                                                           bool gestureMonitor,
                                                                            const std::string& name,
                                                                            int32_t pid) = 0;
 
@@ -201,6 +201,13 @@ public:
      */
     virtual void requestPointerCapture(const sp<IBinder>& windowToken, bool enabled) = 0;
 
+    /**
+     * Sets the eligibility of a given display to enable pointer capture. If a display is marked
+     * ineligible, all attempts to request pointer capture for windows on that display will fail.
+     *  TODO(b/214621487): Remove or move to a display flag.
+     */
+    virtual void setDisplayEligibilityForPointerCapture(int displayId, bool isEligible) = 0;
+
     /* Flush input device motion sensor.
      *
      * Returns true on success.
@@ -211,6 +218,11 @@ public:
      * Called when a display has been removed from the system.
      */
     virtual void displayRemoved(int32_t displayId) = 0;
+
+    /*
+     * Abort the current touch stream.
+     */
+    virtual void cancelCurrentTouch() = 0;
 };
 
 } // namespace android

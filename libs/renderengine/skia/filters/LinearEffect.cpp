@@ -44,20 +44,21 @@ sk_sp<SkShader> createLinearEffectShader(sk_sp<SkShader> shader,
                                          const shaders::LinearEffect& linearEffect,
                                          sk_sp<SkRuntimeEffect> runtimeEffect,
                                          const mat4& colorTransform, float maxDisplayLuminance,
-                                         float maxLuminance) {
+                                         float currentDisplayLuminanceNits, float maxLuminance) {
     ATRACE_CALL();
     SkRuntimeShaderBuilder effectBuilder(runtimeEffect);
 
     effectBuilder.child("child") = shader;
 
-    const auto uniforms = shaders::buildLinearEffectUniforms(linearEffect, colorTransform,
-                                                             maxDisplayLuminance, maxLuminance);
+    const auto uniforms =
+            shaders::buildLinearEffectUniforms(linearEffect, colorTransform, maxDisplayLuminance,
+                                               currentDisplayLuminanceNits, maxLuminance);
 
     for (const auto& uniform : uniforms) {
         effectBuilder.uniform(uniform.name.c_str()).set(uniform.value.data(), uniform.value.size());
     }
 
-    return effectBuilder.makeShader(nullptr, false);
+    return effectBuilder.makeShader();
 }
 
 } // namespace skia

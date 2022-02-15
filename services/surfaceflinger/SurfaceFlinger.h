@@ -85,6 +85,8 @@
 #include <unordered_set>
 #include <utility>
 
+#include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+
 using namespace android::surfaceflinger;
 
 namespace android {
@@ -137,7 +139,20 @@ enum {
     eTransactionMask = 0x1f,
 };
 
-enum class LatchUnsignaledConfig { Always, Auto, Disabled };
+// Latch Unsignaled buffer behaviours
+enum class LatchUnsignaledConfig {
+    // All buffers are latched signaled.
+    Disabled,
+
+    // Latch unsignaled is permitted when a single layer is updated in a frame,
+    // and the update includes just a buffer update (i.e. no sync transactions
+    // or geometry changes).
+    AutoSingleLayer,
+
+    // All buffers are latched unsignaled. This behaviour is discouraged as it
+    // can break sync transactions, stall the display and cause undesired side effects.
+    Always,
+};
 
 using DisplayColorSetting = compositionengine::OutputColorSetting;
 
@@ -160,6 +175,11 @@ struct SurfaceFlingerBE {
     nsecs_t mFrameBuckets[NUM_BUCKETS] = {};
     nsecs_t mTotalTime = 0;
     std::atomic<nsecs_t> mLastSwapTime = 0;
+};
+
+struct SCOPED_CAPABILITY UnnecessaryLock {
+    explicit UnnecessaryLock(Mutex& mutex) ACQUIRE(mutex) {}
+    ~UnnecessaryLock() RELEASE() {}
 };
 
 class SurfaceFlinger : public BnSurfaceComposer,
@@ -252,10 +272,6 @@ public:
 
     static constexpr SkipInitializationTag SkipInitialization;
 
-    // Whether or not SDR layers should be dimmed to the desired SDR white point instead of
-    // being treated as native display brightness
-    static bool enableSdrDimming;
-
     static LatchUnsignaledConfig enableLatchUnsignaledConfig;
 
     // must be called before clients can connect
@@ -329,6 +345,9 @@ protected:
 
     virtual void processDisplayAdded(const wp<IBinder>& displayToken, const DisplayDeviceState&)
             REQUIRES(mStateLock);
+
+    virtual std::shared_ptr<renderengine::ExternalTexture> getExternalTextureFromBufferData(
+            const BufferData& bufferData, const char* layerName) const;
 
     // Returns true if any display matches a `bool(const DisplayDevice&)` predicate.
     template <typename Predicate>
@@ -535,6 +554,9 @@ private:
     status_t getDisplayNativePrimaries(const sp<IBinder>& displayToken,
                                        ui::DisplayPrimaries&) override;
     status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode) override;
+    status_t getBootDisplayModeSupport(bool* outSupport) const override;
+    status_t setBootDisplayMode(const sp<IBinder>& displayToken, ui::DisplayModeId id) override;
+    status_t clearBootDisplayMode(const sp<IBinder>& displayToken) override;
     void setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on) override;
     void setGameContentType(const sp<IBinder>& displayToken, bool on) override;
     void setPowerMode(const sp<IBinder>& displayToken, int mode) override;
@@ -594,11 +616,17 @@ private:
     status_t notifyPowerBoost(int32_t boostId) override;
     status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
                                      float lightPosY, float lightPosZ, float lightRadius) override;
+    status_t getDisplayDecorationSupport(
+            const sp<IBinder>& displayToken,
+            std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    outSupport) const override;
     status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
                           int8_t compatibility, int8_t changeFrameRateStrategy) override;
 
     status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
                                   const FrameTimelineInfo& frameTimelineInfo) override;
+
+    status_t setOverrideFrameRate(uid_t uid, float frameRate) override;
 
     status_t addTransactionTraceListener(
             const sp<gui::ITransactionTraceListener>& listener) override;
@@ -623,6 +651,7 @@ private:
     void onComposerHalVsyncPeriodTimingChanged(hal::HWDisplayId,
                                                const hal::VsyncPeriodChangeTimeline&) override;
     void onComposerHalSeamlessPossible(hal::HWDisplayId) override;
+    void onComposerHalVsyncIdle(hal::HWDisplayId) override;
 
     // ICompositor overrides:
 
@@ -674,6 +703,9 @@ private:
     void setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode)
             REQUIRES(mStateLock);
 
+    // Returns true if the display has a visible HDR layer in its layer stack.
+    bool hasVisibleHdrLayer(const sp<DisplayDevice>& display) REQUIRES(mStateLock);
+
     // Sets the desired display mode specs.
     status_t setDesiredDisplayModeSpecsInternal(
             const sp<DisplayDevice>& display,
@@ -690,6 +722,7 @@ private:
     void updateLayerGeometry();
 
     void updateInputFlinger();
+    void persistDisplayBrightness(bool needsComposite) REQUIRES(SF_MAIN_THREAD);
     void buildWindowInfos(std::vector<gui::WindowInfo>& outWindowInfos,
                           std::vector<gui::DisplayInfo>& outDisplayInfos);
     void commitInputWindowCommands() REQUIRES(mStateLock);
@@ -703,7 +736,7 @@ private:
     /*
      * Transactions
      */
-    bool applyTransactionState(const FrameTimelineInfo& info, const Vector<ComposerState>& state,
+    bool applyTransactionState(const FrameTimelineInfo& info, Vector<ComposerState>& state,
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
                                const int64_t desiredPresentTime, bool isAutoTimestamp,
@@ -717,7 +750,7 @@ private:
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
 
-    uint32_t setClientStateLocked(const FrameTimelineInfo&, const ComposerState&,
+    uint32_t setClientStateLocked(const FrameTimelineInfo&, ComposerState&,
                                   int64_t desiredPresentTime, bool isAutoTimestamp,
                                   int64_t postTime, uint32_t permissions) REQUIRES(mStateLock);
 
@@ -738,17 +771,21 @@ private:
     uint32_t setTransactionFlags(uint32_t mask, TransactionSchedule,
                                  const sp<IBinder>& applyToken = {});
     void commitOffscreenLayers();
-    bool transactionIsReadyToBeApplied(
+    enum class TransactionReadiness {
+        NotReady,
+        Ready,
+        ReadyUnsignaled,
+    };
+    TransactionReadiness transactionIsReadyToBeApplied(
             const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
             uid_t originUid, const Vector<ComposerState>& states,
-            const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>&
-                    bufferLayersReadyToPresent,
-            bool allowLatchUnsignaled) const REQUIRES(mStateLock);
+            const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
+            size_t totalTXapplied) const REQUIRES(mStateLock);
     static LatchUnsignaledConfig getLatchUnsignaledConfig();
-    bool latchUnsignaledIsAllowed(std::vector<TransactionState>& transactions) REQUIRES(mStateLock);
-    bool allowedLatchUnsignaled() REQUIRES(mQueueLock, mStateLock);
-    bool checkTransactionCanLatchUnsignaled(const TransactionState& transaction)
-            REQUIRES(mStateLock);
+    static bool shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t&,
+                                      size_t numStates, size_t totalTXapplied);
+    bool stopTransactionProcessing(const std::unordered_set<sp<IBinder>, SpHash<IBinder>>&
+                                           applyTokensWithUnsignaledTransactions) const;
     bool applyTransactions(std::vector<TransactionState>& transactions, int64_t vsyncId)
             REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
@@ -1144,7 +1181,7 @@ private:
 
     // Tracks layers that have pending frames which are candidates for being
     // latched.
-    std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> mLayersWithQueuedFrames;
+    std::unordered_set<sp<Layer>, SpHash<Layer>> mLayersWithQueuedFrames;
     // Tracks layers that need to update a display's dirty region.
     std::vector<sp<Layer>> mLayersPendingRefresh;
     std::array<FenceWithFenceTime, 2> mPreviousPresentFences;
@@ -1187,8 +1224,7 @@ private:
     LayerTracing mLayerTracing{*this};
     bool mLayerTracingEnabled = false;
 
-    TransactionTracing mTransactionTracing;
-    bool mTransactionTracingEnabled = false;
+    std::optional<TransactionTracing> mTransactionTracing;
     std::atomic<bool> mTracingEnabledChanged = false;
 
     const std::shared_ptr<TimeStats> mTimeStats;
@@ -1316,7 +1352,7 @@ private:
 
     std::unordered_map<DisplayId, sp<HdrLayerInfoReporter>> mHdrLayerInfoListeners
             GUARDED_BY(mStateLock);
-    mutable Mutex mCreatedLayersLock;
+    mutable std::mutex mCreatedLayersLock;
     struct LayerCreatedState {
         LayerCreatedState(const wp<Layer>& layer, const wp<Layer> parent, bool addToRoot)
               : layer(layer), initialParent(parent), addToRoot(addToRoot) {}
@@ -1332,11 +1368,9 @@ private:
 
     // A temporay pool that store the created layers and will be added to current state in main
     // thread.
-    std::unordered_map<BBinder*, std::unique_ptr<LayerCreatedState>> mCreatedLayers;
-    void setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
-                              const wp<Layer> parent, bool addToRoot);
-    auto getLayerCreatedState(const sp<IBinder>& handle);
-    sp<Layer> handleLayerCreatedLocked(const sp<IBinder>& handle) REQUIRES(mStateLock);
+    std::vector<LayerCreatedState> mCreatedLayers GUARDED_BY(mCreatedLayersLock);
+    bool commitCreatedLayers();
+    void handleLayerCreatedLocked(const LayerCreatedState& state) REQUIRES(mStateLock);
 
     std::atomic<ui::Transform::RotationFlags> mActiveDisplayTransformHint;
 
@@ -1357,6 +1391,15 @@ private:
     float getLayerFramerate(nsecs_t now, int32_t id) const {
         return mScheduler->getLayerFramerate(now, id);
     }
+
+    struct {
+        bool sessionEnabled = false;
+        nsecs_t commitStart;
+        nsecs_t compositeStart;
+        nsecs_t presentEnd;
+    } mPowerHintSessionData GUARDED_BY(SF_MAIN_THREAD);
+
+    nsecs_t mAnimationTransactionTimeout = s2ns(5);
 };
 
 } // namespace android

@@ -407,7 +407,6 @@ public:
             )");
         switch (sourceDataspaceInt & kTransferMask) {
             case kTransferST2084:
-            case kTransferHLG:
                 switch (destinationDataspaceInt & kTransferMask) {
                     case kTransferST2084:
                         program.append(R"(
@@ -428,39 +427,22 @@ public:
                         break;
 
                     default:
-                        switch (sourceDataspaceInt & kTransferMask) {
-                            case kTransferST2084:
-                                program.append(R"(
-                                        float libtonemap_OETFTone(float channel) {
-                                            channel = channel / 10000.0;
-                                            float m1 = (2610.0 / 4096.0) / 4.0;
-                                            float m2 = (2523.0 / 4096.0) * 128.0;
-                                            float c1 = (3424.0 / 4096.0);
-                                            float c2 = (2413.0 / 4096.0) * 32.0;
-                                            float c3 = (2392.0 / 4096.0) * 32.0;
-
-                                            float tmp = pow(channel, float(m1));
-                                            tmp = (c1 + c2 * tmp) / (1.0 + c3 * tmp);
-                                            return pow(tmp, float(m2));
-                                        }
-                                    )");
-                                break;
-                            case kTransferHLG:
-                                program.append(R"(
-                                        float libtonemap_OETFTone(float channel) {
-                                            channel = channel / 1000.0;
-                                            const float a = 0.17883277;
-                                            const float b = 0.28466892;
-                                            const float c = 0.55991073;
-                                            return channel <= 1.0 / 12.0 ? sqrt(3.0 * channel) :
-                                                    a * log(12.0 * channel - b) + c;
-                                        }
-                                    )");
-                                break;
-                        }
                         // Here we're mapping from HDR to SDR content, so interpolate using a
                         // Hermitian polynomial onto the smaller luminance range.
                         program.append(R"(
+                                float libtonemap_OETFTone(float channel) {
+                                    channel = channel / 10000.0;
+                                    float m1 = (2610.0 / 4096.0) / 4.0;
+                                    float m2 = (2523.0 / 4096.0) * 128.0;
+                                    float c1 = (3424.0 / 4096.0);
+                                    float c2 = (2413.0 / 4096.0) * 32.0;
+                                    float c3 = (2392.0 / 4096.0) * 32.0;
+
+                                    float tmp = pow(channel, float(m1));
+                                    tmp = (c1 + c2 * tmp) / (1.0 + c3 * tmp);
+                                    return pow(tmp, float(m2));
+                                }
+
                                 float libtonemap_ToneMapTargetNits(float maxRGB) {
                                     float maxInLumi = in_libtonemap_inputMaxLuminance;
                                     float maxOutLumi = in_libtonemap_displayMaxLuminance;
@@ -504,6 +486,30 @@ public:
 
                                     return nits;
                                 }
+                                )");
+                        break;
+                }
+                break;
+            case kTransferHLG:
+                switch (destinationDataspaceInt & kTransferMask) {
+                    // HLG -> HDR does not tone-map at all
+                    case kTransferST2084:
+                    case kTransferHLG:
+                        program.append(R"(
+                                    float libtonemap_ToneMapTargetNits(float maxRGB) {
+                                        return maxRGB;
+                                    }
+                                )");
+                        break;
+                    default:
+                        // libshaders follows BT2100 OOTF, but with a nominal peak display luminance
+                        // of 1000 nits. Renormalize to max display luminance if we're tone-mapping
+                        // down to SDR, as libshaders normalizes all SDR output from [0,
+                        // maxDisplayLumins] -> [0, 1]
+                        program.append(R"(
+                                    float libtonemap_ToneMapTargetNits(float maxRGB) {
+                                        return maxRGB * in_libtonemap_displayMaxLuminance / 1000.0;
+                                    }
                                 )");
                         break;
                 }
@@ -558,7 +564,6 @@ public:
         double targetNits = 0.0;
         switch (sourceDataspaceInt & kTransferMask) {
             case kTransferST2084:
-            case kTransferHLG:
                 switch (destinationDataspaceInt & kTransferMask) {
                     case kTransferST2084:
                         targetNits = maxRGB;
@@ -587,19 +592,9 @@ public:
                         double x2 = x1 + (x3 - x1) * 4.0 / 17.0;
                         double y2 = maxOutLumi * 0.9;
 
-                        double greyNorm1 = 0.0;
-                        double greyNorm2 = 0.0;
-                        double greyNorm3 = 0.0;
-
-                        if ((sourceDataspaceInt & kTransferMask) == kTransferST2084) {
-                            greyNorm1 = OETF_ST2084(x1);
-                            greyNorm2 = OETF_ST2084(x2);
-                            greyNorm3 = OETF_ST2084(x3);
-                        } else if ((sourceDataspaceInt & kTransferMask) == kTransferHLG) {
-                            greyNorm1 = OETF_HLG(x1);
-                            greyNorm2 = OETF_HLG(x2);
-                            greyNorm3 = OETF_HLG(x3);
-                        }
+                        const double greyNorm1 = OETF_ST2084(x1);
+                        const double greyNorm2 = OETF_ST2084(x2);
+                        const double greyNorm3 = OETF_ST2084(x3);
 
                         double slope2 = (y2 - y1) / (greyNorm2 - greyNorm1);
                         double slope3 = (y3 - y2) / (greyNorm3 - greyNorm2);
@@ -613,12 +608,7 @@ public:
                             break;
                         }
 
-                        double greyNits = 0.0;
-                        if ((sourceDataspaceInt & kTransferMask) == kTransferST2084) {
-                            greyNits = OETF_ST2084(targetNits);
-                        } else if ((sourceDataspaceInt & kTransferMask) == kTransferHLG) {
-                            greyNits = OETF_HLG(targetNits);
-                        }
+                        const double greyNits = OETF_ST2084(targetNits);
 
                         if (greyNits <= greyNorm2) {
                             targetNits = (greyNits - greyNorm2) * slope2 + y2;
@@ -630,14 +620,19 @@ public:
                         break;
                 }
                 break;
-            default:
+            case kTransferHLG:
                 switch (destinationDataspaceInt & kTransferMask) {
                     case kTransferST2084:
                     case kTransferHLG:
-                    default:
                         targetNits = maxRGB;
                         break;
+                    default:
+                        targetNits = maxRGB * metadata.displayMaxLuminance / 1000.0;
+                        break;
                 }
+                break;
+            default:
+                targetNits = maxRGB;
                 break;
         }
 

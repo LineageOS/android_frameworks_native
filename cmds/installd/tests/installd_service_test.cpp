@@ -75,6 +75,7 @@ std::string get_package_name(uid_t uid) {
 namespace installd {
 
 constexpr const char* kTestUuid = "TEST";
+constexpr const char* kTestPath = "/data/local/tmp/user/0";
 
 #define FLAG_FORCE InstalldNativeService::FLAG_FORCE
 
@@ -97,7 +98,7 @@ bool create_cache_path(char path[PKG_PATH_MAX], const char *src, const char *ins
 }
 
 static std::string get_full_path(const char* path) {
-    return StringPrintf("/data/local/tmp/user/0/%s", path);
+    return StringPrintf("%s/%s", kTestPath, path);
 }
 
 static void mkdir(const char* path, uid_t owner, gid_t group, mode_t mode) {
@@ -107,12 +108,16 @@ static void mkdir(const char* path, uid_t owner, gid_t group, mode_t mode) {
     EXPECT_EQ(::chmod(fullPath.c_str(), mode), 0);
 }
 
-static void touch(const char* path, uid_t owner, gid_t group, mode_t mode) {
+static int create(const char* path, uid_t owner, gid_t group, mode_t mode) {
     int fd = ::open(get_full_path(path).c_str(), O_RDWR | O_CREAT, mode);
     EXPECT_NE(fd, -1);
     EXPECT_EQ(::fchown(fd, owner, group), 0);
     EXPECT_EQ(::fchmod(fd, mode), 0);
-    EXPECT_EQ(::close(fd), 0);
+    return fd;
+}
+
+static void touch(const char* path, uid_t owner, gid_t group, mode_t mode) {
+    EXPECT_EQ(::close(create(path, owner, group, mode)), 0);
 }
 
 static int stat_gid(const char* path) {
@@ -125,6 +130,35 @@ static int stat_mode(const char* path) {
     struct stat buf;
     EXPECT_EQ(::stat(get_full_path(path).c_str(), &buf), 0);
     return buf.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID);
+}
+
+static bool exists(const char* path) {
+    return ::access(get_full_path(path).c_str(), F_OK) == 0;
+}
+
+template <class Pred>
+static bool find_file(const char* path, Pred&& pred) {
+    bool result = false;
+    auto d = opendir(path);
+    if (d == nullptr) {
+        return result;
+    }
+    struct dirent* de;
+    while ((de = readdir(d))) {
+        const char* name = de->d_name;
+        if (pred(name, de->d_type == DT_DIR)) {
+            result = true;
+            break;
+        }
+    }
+    closedir(d);
+    return result;
+}
+
+static bool exists_renamed_deleted_dir() {
+    return find_file(kTestPath, [](std::string_view name, bool is_dir) {
+        return is_dir && is_renamed_deleted_dir(name);
+    });
 }
 
 class ServiceTest : public testing::Test {
@@ -191,6 +225,134 @@ TEST_F(ServiceTest, FixupAppData_Moved) {
     EXPECT_EQ(10000, stat_gid("com.example/foo/file"));
     EXPECT_EQ(10000, stat_gid("com.example/bar"));
     EXPECT_EQ(10000, stat_gid("com.example/bar/file"));
+}
+
+TEST_F(ServiceTest, DestroyUserData) {
+    LOG(INFO) << "DestroyUserData";
+
+    mkdir("com.example", 10000, 10000, 0700);
+    mkdir("com.example/foo", 10000, 10000, 0700);
+    touch("com.example/foo/file", 10000, 20000, 0700);
+    mkdir("com.example/bar", 10000, 20000, 0700);
+    touch("com.example/bar/file", 10000, 20000, 0700);
+
+    EXPECT_TRUE(exists("com.example/foo"));
+    EXPECT_TRUE(exists("com.example/foo/file"));
+    EXPECT_TRUE(exists("com.example/bar"));
+    EXPECT_TRUE(exists("com.example/bar/file"));
+
+    service->destroyUserData(testUuid, 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE);
+
+    EXPECT_FALSE(exists("com.example/foo"));
+    EXPECT_FALSE(exists("com.example/foo/file"));
+    EXPECT_FALSE(exists("com.example/bar"));
+    EXPECT_FALSE(exists("com.example/bar/file"));
+
+    EXPECT_FALSE(exists_renamed_deleted_dir());
+}
+
+TEST_F(ServiceTest, DestroyAppData) {
+    LOG(INFO) << "DestroyAppData";
+
+    mkdir("com.example", 10000, 10000, 0700);
+    mkdir("com.example/foo", 10000, 10000, 0700);
+    touch("com.example/foo/file", 10000, 20000, 0700);
+    mkdir("com.example/bar", 10000, 20000, 0700);
+    touch("com.example/bar/file", 10000, 20000, 0700);
+
+    EXPECT_TRUE(exists("com.example/foo"));
+    EXPECT_TRUE(exists("com.example/foo/file"));
+    EXPECT_TRUE(exists("com.example/bar"));
+    EXPECT_TRUE(exists("com.example/bar/file"));
+
+    service->destroyAppData(testUuid, "com.example", 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE, 0);
+
+    EXPECT_FALSE(exists("com.example/foo"));
+    EXPECT_FALSE(exists("com.example/foo/file"));
+    EXPECT_FALSE(exists("com.example/bar"));
+    EXPECT_FALSE(exists("com.example/bar/file"));
+
+    EXPECT_FALSE(exists_renamed_deleted_dir());
+}
+
+TEST_F(ServiceTest, CleanupDeletedDirs) {
+    LOG(INFO) << "CleanupDeletedDirs";
+
+    mkdir("5b14b6458a44==deleted==", 10000, 10000, 0700);
+    mkdir("5b14b6458a44==deleted==/foo", 10000, 10000, 0700);
+    touch("5b14b6458a44==deleted==/foo/file", 10000, 20000, 0700);
+    mkdir("5b14b6458a44==deleted==/bar", 10000, 20000, 0700);
+    touch("5b14b6458a44==deleted==/bar/file", 10000, 20000, 0700);
+
+    auto fd = create("5b14b6458a44==deleted==/bar/opened_file", 10000, 20000, 0700);
+
+    mkdir("5b14b6458a44==NOTdeleted==", 10000, 10000, 0700);
+    mkdir("5b14b6458a44==NOTdeleted==/foo", 10000, 10000, 0700);
+    touch("5b14b6458a44==NOTdeleted==/foo/file", 10000, 20000, 0700);
+    mkdir("5b14b6458a44==NOTdeleted==/bar", 10000, 20000, 0700);
+    touch("5b14b6458a44==NOTdeleted==/bar/file", 10000, 20000, 0700);
+
+    mkdir("com.example", 10000, 10000, 0700);
+    mkdir("com.example/foo", 10000, 10000, 0700);
+    touch("com.example/foo/file", 10000, 20000, 0700);
+    mkdir("com.example/bar", 10000, 20000, 0700);
+    touch("com.example/bar/file", 10000, 20000, 0700);
+
+    mkdir("==deleted==", 10000, 10000, 0700);
+    mkdir("==deleted==/foo", 10000, 10000, 0700);
+    touch("==deleted==/foo/file", 10000, 20000, 0700);
+    mkdir("==deleted==/bar", 10000, 20000, 0700);
+    touch("==deleted==/bar/file", 10000, 20000, 0700);
+
+    EXPECT_TRUE(exists("5b14b6458a44==deleted==/foo"));
+    EXPECT_TRUE(exists("5b14b6458a44==deleted==/foo/file"));
+    EXPECT_TRUE(exists("5b14b6458a44==deleted==/bar"));
+    EXPECT_TRUE(exists("5b14b6458a44==deleted==/bar/file"));
+    EXPECT_TRUE(exists("5b14b6458a44==deleted==/bar/opened_file"));
+
+    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/foo"));
+    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/foo/file"));
+    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/bar"));
+    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/bar/file"));
+
+    EXPECT_TRUE(exists("com.example/foo"));
+    EXPECT_TRUE(exists("com.example/foo/file"));
+    EXPECT_TRUE(exists("com.example/bar"));
+    EXPECT_TRUE(exists("com.example/bar/file"));
+
+    EXPECT_TRUE(exists("==deleted==/foo"));
+    EXPECT_TRUE(exists("==deleted==/foo/file"));
+    EXPECT_TRUE(exists("==deleted==/bar"));
+    EXPECT_TRUE(exists("==deleted==/bar/file"));
+
+    EXPECT_TRUE(exists_renamed_deleted_dir());
+
+    service->cleanupDeletedDirs(testUuid);
+
+    EXPECT_EQ(::close(fd), 0);
+
+    EXPECT_FALSE(exists("5b14b6458a44==deleted==/foo"));
+    EXPECT_FALSE(exists("5b14b6458a44==deleted==/foo/file"));
+    EXPECT_FALSE(exists("5b14b6458a44==deleted==/bar"));
+    EXPECT_FALSE(exists("5b14b6458a44==deleted==/bar/file"));
+    EXPECT_FALSE(exists("5b14b6458a44==deleted==/bar/opened_file"));
+
+    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/foo"));
+    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/foo/file"));
+    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/bar"));
+    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/bar/file"));
+
+    EXPECT_TRUE(exists("com.example/foo"));
+    EXPECT_TRUE(exists("com.example/foo/file"));
+    EXPECT_TRUE(exists("com.example/bar"));
+    EXPECT_TRUE(exists("com.example/bar/file"));
+
+    EXPECT_FALSE(exists("==deleted==/foo"));
+    EXPECT_FALSE(exists("==deleted==/foo/file"));
+    EXPECT_FALSE(exists("==deleted==/bar"));
+    EXPECT_FALSE(exists("==deleted==/bar/file"));
+
+    EXPECT_FALSE(exists_renamed_deleted_dir());
 }
 
 TEST_F(ServiceTest, HashSecondaryDex) {

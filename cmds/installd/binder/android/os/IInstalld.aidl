@@ -97,10 +97,6 @@ interface IInstalld {
             @utf8InCpp String instructionSet, @utf8InCpp String outputPath);
     long deleteOdex(@utf8InCpp String packageName, @utf8InCpp String apkPath,
             @utf8InCpp String instructionSet, @nullable @utf8InCpp String outputPath);
-    void installApkVerity(@utf8InCpp String packageName, @utf8InCpp String filePath,
-            in FileDescriptor verityInput, int contentSize);
-    void assertFsverityRootHashMatches(@utf8InCpp String packageName, @utf8InCpp String filePath,
-            in byte[] expectedHash);
 
     boolean reconcileSecondaryDexFile(@utf8InCpp String dexPath, @utf8InCpp String pkgName,
         int uid, in @utf8InCpp String[] isas, @nullable @utf8InCpp String volume_uuid,
@@ -130,6 +126,8 @@ interface IInstalld {
 
     void migrateLegacyObbData();
 
+    void cleanupDeletedDirs(@nullable @utf8InCpp String uuid);
+
     const int FLAG_STORAGE_DE = 0x1;
     const int FLAG_STORAGE_CE = 0x2;
     const int FLAG_STORAGE_EXTERNAL = 0x4;
@@ -140,6 +138,8 @@ interface IInstalld {
     const int FLAG_FREE_CACHE_V2 = 0x100;
     const int FLAG_FREE_CACHE_V2_DEFY_QUOTA = 0x200;
     const int FLAG_FREE_CACHE_NOOP = 0x400;
+    // Set below flag to clear cache irrespective of target free bytes required
+    const int FLAG_FREE_CACHE_DEFY_TARGET_FREE_BYTES = 0x800;
 
     const int FLAG_USE_QUOTA = 0x1000;
     const int FLAG_FORCE = 0x2000;

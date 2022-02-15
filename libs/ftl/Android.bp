@@ -16,6 +16,7 @@ cc_test {
     srcs: [
         "Flags_test.cpp",
         "cast_test.cpp",
+        "concat_test.cpp",
         "enum_test.cpp",
         "future_test.cpp",
         "small_map_test.cpp",

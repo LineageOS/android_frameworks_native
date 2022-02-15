@@ -22,6 +22,7 @@
 #include <gui/SurfaceComposerClient.h>
 #include <log/log.h>
 #include <renderengine/ExternalTexture.h>
+#include <renderengine/mock/FakeExternalTexture.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <utils/String8.h>
 
@@ -101,9 +102,8 @@ public:
         sp<BufferStateLayer> layer = createBufferStateLayer();
 
         sp<Fence> fence(new Fence());
-        const auto buffer = new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0);
         int32_t layerId = layer->getSequence();
-        uint64_t bufferId = buffer->getId();
+        uint64_t bufferId = 42;
         uint64_t frameNumber = 5;
         nsecs_t dequeueTime = 10;
         nsecs_t postTime = 20;
@@ -115,13 +115,16 @@ public:
                     traceTimestamp(layerId, bufferId, frameNumber, postTime,
                                    FrameTracer::FrameEvent::QUEUE, /*duration*/ 0));
         BufferData bufferData;
-        bufferData.buffer = buffer;
         bufferData.acquireFence = fence;
         bufferData.frameNumber = frameNumber;
         bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
         bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
-        layer->setBuffer(bufferData, postTime, /*desiredPresentTime*/ 30, false, dequeueTime,
-                         FrameTimelineInfo{});
+        std::shared_ptr<renderengine::ExternalTexture> externalTexture = std::make_shared<
+                renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/, bufferId,
+                                                         HAL_PIXEL_FORMAT_RGBA_8888,
+                                                         0ULL /*usage*/);
+        layer->setBuffer(externalTexture, bufferData, postTime, /*desiredPresentTime*/ 30, false,
+                         dequeueTime, FrameTimelineInfo{});
 
         commitTransaction(layer.get());
         bool computeVisisbleRegions;

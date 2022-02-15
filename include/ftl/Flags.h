@@ -120,10 +120,10 @@ public:
     }
 
     /* Tests whether any of the given flags are set */
-    bool any(Flags<F> f) { return (mFlags & f.mFlags) != 0; }
+    bool any(Flags<F> f) const { return (mFlags & f.mFlags) != 0; }
 
     /* Tests whether all of the given flags are set */
-    bool all(Flags<F> f) { return (mFlags & f.mFlags) == f.mFlags; }
+    bool all(Flags<F> f) const { return (mFlags & f.mFlags) == f.mFlags; }
 
     Flags<F> operator|(Flags<F> rhs) const { return static_cast<F>(mFlags | rhs.mFlags); }
     Flags<F>& operator|=(Flags<F> rhs) {
@@ -151,6 +151,10 @@ public:
     Flags<F>& operator=(const Flags<F>& rhs) {
         mFlags = rhs.mFlags;
         return *this;
+    }
+
+    inline Flags<F>& clear(Flags<F> f = static_cast<F>(~static_cast<U>(0))) {
+        return *this &= ~f;
     }
 
     Iterator begin() const { return Iterator(*this); }
@@ -209,12 +213,12 @@ namespace flag_operators {
 
 template <typename F, typename = std::enable_if_t<ftl::is_scoped_enum_v<F>>>
 inline Flags<F> operator~(F f) {
-    return static_cast<F>(~ftl::enum_cast(f));
+    return static_cast<F>(~ftl::to_underlying(f));
 }
 
 template <typename F, typename = std::enable_if_t<ftl::is_scoped_enum_v<F>>>
 Flags<F> operator|(F lhs, F rhs) {
-    return static_cast<F>(ftl::enum_cast(lhs) | ftl::enum_cast(rhs));
+    return static_cast<F>(ftl::to_underlying(lhs) | ftl::to_underlying(rhs));
 }
 
 } // namespace flag_operators

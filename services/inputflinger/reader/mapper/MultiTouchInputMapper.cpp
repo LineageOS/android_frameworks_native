@@ -18,6 +18,8 @@
 
 #include "MultiTouchInputMapper.h"
 
+#include <android/sysprop/InputProperties.sysprop.h>
+
 namespace android {
 
 // --- Constants ---
@@ -282,7 +284,7 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
 
         if (outCount >= MAX_POINTERS) {
             if (DEBUG_POINTERS) {
-                ALOGD("MultiTouch device %s emitted more than maximum of %d pointers; "
+                ALOGD("MultiTouch device %s emitted more than maximum of %zu pointers; "
                       "ignoring the rest.",
                       getDeviceName().c_str(), MAX_POINTERS);
             }
@@ -308,6 +310,10 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
             if (outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
                 outPointer.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
             }
+        }
+        if (shouldSimulateStylusWithTouch() &&
+            outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_FINGER) {
+            outPointer.toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
         }
 
         bool isHovering = mTouchButtonAccumulator.getToolType() != AMOTION_EVENT_TOOL_TYPE_MOUSE &&
@@ -385,7 +391,15 @@ void MultiTouchInputMapper::configureRawPointerAxes() {
 }
 
 bool MultiTouchInputMapper::hasStylus() const {
-    return mMultiTouchMotionAccumulator.hasStylus() || mTouchButtonAccumulator.hasStylus();
+    return mMultiTouchMotionAccumulator.hasStylus() || mTouchButtonAccumulator.hasStylus() ||
+            shouldSimulateStylusWithTouch();
+}
+
+bool MultiTouchInputMapper::shouldSimulateStylusWithTouch() const {
+    static const bool SIMULATE_STYLUS_WITH_TOUCH =
+            sysprop::InputProperties::simulate_stylus_with_touch().value_or(false);
+    return SIMULATE_STYLUS_WITH_TOUCH &&
+            mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN;
 }
 
 } // namespace android

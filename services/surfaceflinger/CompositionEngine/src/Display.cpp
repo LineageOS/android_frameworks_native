@@ -39,6 +39,9 @@
 
 #include "DisplayHardware/PowerAdvisor.h"
 
+using aidl::android::hardware::graphics::composer3::Capability;
+using aidl::android::hardware::graphics::composer3::DisplayCapability;
+
 namespace android::compositionengine::impl {
 
 std::shared_ptr<Display> createDisplay(
@@ -55,6 +58,16 @@ void Display::setConfiguration(const compositionengine::DisplayCreationArgs& arg
     editState().isSecure = args.isSecure;
     editState().displaySpace.setBounds(args.pixels);
     setName(args.name);
+    bool isBootModeSupported = getCompositionEngine().getHwComposer().getBootDisplayModeSupport();
+    const auto physicalId = PhysicalDisplayId::tryCast(mId);
+    if (!physicalId || !isBootModeSupported) {
+        return;
+    }
+    std::optional<hal::HWConfigId> preferredBootModeId =
+            getCompositionEngine().getHwComposer().getPreferredBootDisplayMode(*physicalId);
+    if (preferredBootModeId.has_value()) {
+        mPreferredBootDisplayModeId = static_cast<int32_t>(preferredBootModeId.value());
+    }
 }
 
 bool Display::isValid() const {
@@ -75,6 +88,10 @@ bool Display::isVirtual() const {
 
 std::optional<DisplayId> Display::getDisplayId() const {
     return mId;
+}
+
+int32_t Display::getPreferredBootModeId() const {
+    return mPreferredBootDisplayModeId;
 }
 
 void Display::disconnect() {
@@ -224,10 +241,22 @@ void Display::chooseCompositionStrategy() {
     // Get any composition changes requested by the HWC device, and apply them.
     std::optional<android::HWComposer::DeviceRequestedChanges> changes;
     auto& hwc = getCompositionEngine().getHwComposer();
+    if (const auto physicalDisplayId = PhysicalDisplayId::tryCast(*halDisplayId);
+        physicalDisplayId && getState().displayBrightness) {
+        const status_t result =
+                hwc.setDisplayBrightness(*physicalDisplayId, *getState().displayBrightness,
+                                         Hwc2::Composer::DisplayBrightnessOptions{
+                                                 .applyImmediately = false})
+                        .get();
+        ALOGE_IF(result != NO_ERROR, "setDisplayBrightness failed for %s: %d, (%s)",
+                 getName().c_str(), result, strerror(-result));
+    }
+
     if (status_t result =
                 hwc.getDeviceCompositionChanges(*halDisplayId, anyLayersRequireClientComposition(),
                                                 getState().earliestPresentTime,
-                                                getState().previousPresentFence, &changes);
+                                                getState().previousPresentFence,
+                                                getState().expectedPresentTime, &changes);
         result != NO_ERROR) {
         ALOGE("chooseCompositionStrategy failed for %s: %d (%s)", getName().c_str(), result,
               strerror(-result));
@@ -245,16 +274,18 @@ void Display::chooseCompositionStrategy() {
     auto& state = editState();
     state.usesClientComposition = anyLayersRequireClientComposition();
     state.usesDeviceComposition = !allLayersRequireClientComposition();
+    // Clear out the display brightness now that it's been communicated to composer.
+    state.displayBrightness.reset();
 }
 
 bool Display::getSkipColorTransform() const {
     const auto& hwc = getCompositionEngine().getHwComposer();
     if (const auto halDisplayId = HalDisplayId::tryCast(mId)) {
         return hwc.hasDisplayCapability(*halDisplayId,
-                                        hal::DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM);
+                                        DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM);
     }
 
-    return hwc.hasCapability(hal::Capability::SKIP_CLIENT_COLOR_TRANSFORM);
+    return hwc.hasCapability(Capability::SKIP_CLIENT_COLOR_TRANSFORM);
 }
 
 bool Display::anyLayersRequireClientComposition() const {

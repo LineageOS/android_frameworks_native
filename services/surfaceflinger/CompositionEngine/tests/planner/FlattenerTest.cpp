@@ -23,6 +23,7 @@
 #include <gtest/gtest.h>
 #include <renderengine/ExternalTexture.h>
 #include <renderengine/LayerSettings.h>
+#include <renderengine/impl/ExternalTexture.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <chrono>
 
@@ -639,9 +640,10 @@ TEST_F(FlattenerTest, flattenLayers_pip) {
             LayerFE::LayerSettings{},
     };
     clientCompositionList[0].source.buffer.buffer = std::make_shared<
-            renderengine::ExternalTexture>(mTestLayers[2]->layerFECompositionState.buffer,
-                                           mRenderEngine,
-                                           renderengine::ExternalTexture::Usage::READABLE);
+            renderengine::impl::ExternalTexture>(mTestLayers[2]->layerFECompositionState.buffer,
+                                                 mRenderEngine,
+                                                 renderengine::impl::ExternalTexture::Usage::
+                                                         READABLE);
     EXPECT_CALL(*mTestLayers[2]->layerFE, prepareClientCompositionList(_))
             .WillOnce(Return(clientCompositionList));
 
@@ -711,9 +713,10 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleLayer) {
             LayerFE::LayerSettings{},
     };
     clientCompositionList[0].source.buffer.buffer = std::make_shared<
-            renderengine::ExternalTexture>(mTestLayers[1]->layerFECompositionState.buffer,
-                                           mRenderEngine,
-                                           renderengine::ExternalTexture::Usage::READABLE);
+            renderengine::impl::ExternalTexture>(mTestLayers[1]->layerFECompositionState.buffer,
+                                                 mRenderEngine,
+                                                 renderengine::impl::ExternalTexture::Usage::
+                                                         READABLE);
     EXPECT_CALL(*mTestLayers[1]->layerFE, prepareClientCompositionList(_))
             .WillOnce(Return(clientCompositionList));
 
@@ -781,9 +784,10 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleColorLayer) {
             LayerFE::LayerSettings{},
     };
     clientCompositionList[0].source.buffer.buffer = std::make_shared<
-            renderengine::ExternalTexture>(mTestLayers[1]->layerFECompositionState.buffer,
-                                           mRenderEngine,
-                                           renderengine::ExternalTexture::Usage::READABLE);
+            renderengine::impl::ExternalTexture>(mTestLayers[1]->layerFECompositionState.buffer,
+                                                 mRenderEngine,
+                                                 renderengine::impl::ExternalTexture::Usage::
+                                                         READABLE);
     EXPECT_CALL(*mTestLayers[1]->layerFE, prepareClientCompositionList(_))
             .WillOnce(Return(clientCompositionList));
 
@@ -1331,6 +1335,57 @@ TEST_F(FlattenerTest, flattenLayers_skipsColorLayers) {
     EXPECT_EQ(nullptr, overrideBuffer2);
     EXPECT_EQ(overrideBuffer3, overrideBuffer4);
     EXPECT_NE(nullptr, overrideBuffer4);
+}
+
+TEST_F(FlattenerTest, flattenLayers_skips_DISPLAY_DECORATION) {
+    auto& layerState1 = mTestLayers[0]->layerState;
+    const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
+
+    auto& layerState2 = mTestLayers[1]->layerState;
+    const auto& overrideBuffer2 = layerState2->getOutputLayer()->getState().overrideInfo.buffer;
+
+    // The third layer uses DISPLAY_DECORATION, which should never be cached.
+    auto& layerState3 = mTestLayers[2]->layerState;
+    const auto& overrideBuffer3 = layerState3->getOutputLayer()->getState().overrideInfo.buffer;
+    mTestLayers[2]->layerFECompositionState.compositionType =
+            aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION;
+    mTestLayers[2]->layerState->update(&mTestLayers[2]->outputLayer);
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerState2.get(),
+            layerState3.get(),
+    };
+
+    initializeFlattener(layers);
+
+    mTime += 200ms;
+    initializeOverrideBuffer(layers);
+    EXPECT_EQ(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+
+    // This will render a CachedSet.
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+            .WillOnce(Return(ByMove(
+                    futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
+    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+
+    // We've rendered a CachedSet, but we haven't merged it in.
+    EXPECT_EQ(nullptr, overrideBuffer1);
+    EXPECT_EQ(nullptr, overrideBuffer2);
+    EXPECT_EQ(nullptr, overrideBuffer3);
+
+    // This time we merge the CachedSet in, so we have a new hash, and we should
+    // only have two sets.
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    initializeOverrideBuffer(layers);
+    EXPECT_NE(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+
+    EXPECT_NE(nullptr, overrideBuffer1);
+    EXPECT_EQ(overrideBuffer1, overrideBuffer2);
+    EXPECT_EQ(nullptr, overrideBuffer3);
 }
 
 } // namespace

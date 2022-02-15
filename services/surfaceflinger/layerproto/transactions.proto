@@ -46,6 +46,7 @@ message TransactionTraceEntry {
     repeated int32 removed_layers = 5;
     repeated DisplayState added_displays = 6;
     repeated int32 removed_displays = 7;
+    repeated int32 removed_layer_handles = 8;
 }
 
 message LayerCreationArgs {
@@ -62,8 +63,9 @@ message TransactionState {
     int64 vsync_id = 3;
     int32 input_event_id = 4;
     int64 post_time = 5;
-    repeated LayerState layer_changes = 6;
-    repeated DisplayState display_changes = 7;
+    uint64 transaction_id = 6;
+    repeated LayerState layer_changes = 7;
+    repeated DisplayState display_changes = 8;
 }
 
 // Keep insync with layer_state_t
@@ -78,28 +80,34 @@ message LayerState {
         eLayerChanged = 0x00000002;
         eSizeChanged = 0x00000004;
         eAlphaChanged = 0x00000008;
+
         eMatrixChanged = 0x00000010;
         eTransparentRegionChanged = 0x00000020;
         eFlagsChanged = 0x00000040;
         eLayerStackChanged = 0x00000080;
+
         eReleaseBufferListenerChanged = 0x00000400;
         eShadowRadiusChanged = 0x00000800;
-        eLayerCreated = 0x00001000;
+
         eBufferCropChanged = 0x00002000;
         eRelativeLayerChanged = 0x00004000;
         eReparent = 0x00008000;
+
         eColorChanged = 0x00010000;
         eDestroySurface = 0x00020000;
         eTransformChanged = 0x00040000;
         eTransformToDisplayInverseChanged = 0x00080000;
+
         eCropChanged = 0x00100000;
         eBufferChanged = 0x00200000;
         eAcquireFenceChanged = 0x00400000;
         eDataspaceChanged = 0x00800000;
+
         eHdrMetadataChanged = 0x01000000;
         eSurfaceDamageRegionChanged = 0x02000000;
         eApiChanged = 0x04000000;
         eSidebandStreamChanged = 0x08000000;
+
         eColorTransformChanged = 0x10000000;
         eHasListenerCallbacksChanged = 0x20000000;
         eInputInfoChanged = 0x40000000;
@@ -139,6 +147,7 @@ message LayerState {
         eLayerSkipScreenshot = 0x40;
         eLayerSecure = 0x80;
         eEnableBackpressure = 0x100;
+        eLayerIsDisplayDecoration = 0x200;
     };
     uint32 flags = 9;
     uint32 mask = 10;
@@ -181,6 +190,26 @@ message LayerState {
         }
         uint32 flags = 5;
         uint64 cached_buffer_id = 6;
+
+        enum PixelFormat {
+            PIXEL_FORMAT_UNKNOWN = 0;
+            PIXEL_FORMAT_CUSTOM = -4;
+            PIXEL_FORMAT_TRANSLUCENT = -3;
+            PIXEL_FORMAT_TRANSPARENT = -2;
+            PIXEL_FORMAT_OPAQUE = -1;
+            PIXEL_FORMAT_RGBA_8888 = 1;
+            PIXEL_FORMAT_RGBX_8888 = 2;
+            PIXEL_FORMAT_RGB_888 = 3;
+            PIXEL_FORMAT_RGB_565 = 4;
+            PIXEL_FORMAT_BGRA_8888 = 5;
+            PIXEL_FORMAT_RGBA_5551 = 6;
+            PIXEL_FORMAT_RGBA_4444 = 7;
+            PIXEL_FORMAT_RGBA_FP16 = 22;
+            PIXEL_FORMAT_RGBA_1010102 = 43;
+            PIXEL_FORMAT_R_8 = 0x38;
+        }
+        PixelFormat pixel_format = 7;
+        uint64 usage = 8;
     }
     BufferData buffer_data = 22;
     int32 api = 23;

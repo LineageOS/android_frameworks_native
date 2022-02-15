@@ -1069,6 +1069,94 @@ TEST_F(BLASTBufferQueueTest, SetSyncTransactionAcquireMultipleBuffers) {
             checkScreenCapture(255, 0, 0, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
 
+// This test will currently fail because the old surfacecontrol will steal the last presented buffer
+// until the old surface control is destroyed. This is not necessarily a bug but to document a
+// limitation with the update API and to test any changes to make the api more robust. The current
+// approach for the client is to recreate the blastbufferqueue when the surfacecontrol updates.
+TEST_F(BLASTBufferQueueTest, DISABLED_DisconnectProducerTest) {
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+    std::vector<sp<SurfaceControl>> surfaceControls;
+    sp<IGraphicBufferProducer> igbProducer;
+    for (int i = 0; i < 10; i++) {
+        sp<SurfaceControl> sc =
+                mClient->createSurface(String8("TestSurface"), mDisplayWidth, mDisplayHeight,
+                                       PIXEL_FORMAT_RGBA_8888,
+                                       ISurfaceComposerClient::eFXSurfaceBufferState,
+                                       /*parent*/ nullptr);
+        Transaction()
+                .setLayerStack(mSurfaceControl, ui::DEFAULT_LAYER_STACK)
+                .setLayer(mSurfaceControl, std::numeric_limits<int32_t>::max())
+                .show(mSurfaceControl)
+                .setDataspace(mSurfaceControl, ui::Dataspace::V0_SRGB)
+                .apply(true);
+        surfaceControls.push_back(sc);
+        adapter.update(sc, mDisplayWidth, mDisplayHeight);
+
+        setUpProducer(adapter, igbProducer);
+        Transaction next;
+        queueBuffer(igbProducer, 0, 255, 0, 0);
+        queueBuffer(igbProducer, 0, 0, 255, 0);
+        adapter.setSyncTransaction(&next, false);
+        queueBuffer(igbProducer, 255, 0, 0, 0);
+
+        CallbackHelper transactionCallback;
+        next.addTransactionCompletedCallback(transactionCallback.function,
+                                             transactionCallback.getContext())
+                .apply();
+
+        CallbackData callbackData;
+        transactionCallback.getCallbackData(&callbackData);
+        // capture screen and verify that it is red
+        ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+        ASSERT_NO_FATAL_FAILURE(
+                checkScreenCapture(255, 0, 0,
+                                   {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
+        igbProducer->disconnect(NATIVE_WINDOW_API_CPU);
+    }
+}
+
+// See DISABLED_DisconnectProducerTest
+TEST_F(BLASTBufferQueueTest, DISABLED_UpdateSurfaceControlTest) {
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+    std::vector<sp<SurfaceControl>> surfaceControls;
+    sp<IGraphicBufferProducer> igbProducer;
+    for (int i = 0; i < 10; i++) {
+        sp<SurfaceControl> sc =
+                mClient->createSurface(String8("TestSurface"), mDisplayWidth, mDisplayHeight,
+                                       PIXEL_FORMAT_RGBA_8888,
+                                       ISurfaceComposerClient::eFXSurfaceBufferState,
+                                       /*parent*/ nullptr);
+        Transaction()
+                .setLayerStack(mSurfaceControl, ui::DEFAULT_LAYER_STACK)
+                .setLayer(mSurfaceControl, std::numeric_limits<int32_t>::max())
+                .show(mSurfaceControl)
+                .setDataspace(mSurfaceControl, ui::Dataspace::V0_SRGB)
+                .apply(true);
+        surfaceControls.push_back(sc);
+        adapter.update(sc, mDisplayWidth, mDisplayHeight);
+        setUpProducer(adapter, igbProducer);
+
+        Transaction next;
+        queueBuffer(igbProducer, 0, 255, 0, 0);
+        queueBuffer(igbProducer, 0, 0, 255, 0);
+        adapter.setSyncTransaction(&next, false);
+        queueBuffer(igbProducer, 255, 0, 0, 0);
+
+        CallbackHelper transactionCallback;
+        next.addTransactionCompletedCallback(transactionCallback.function,
+                                             transactionCallback.getContext())
+                .apply();
+
+        CallbackData callbackData;
+        transactionCallback.getCallbackData(&callbackData);
+        // capture screen and verify that it is red
+        ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+        ASSERT_NO_FATAL_FAILURE(
+                checkScreenCapture(255, 0, 0,
+                                   {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
+    }
+}
+
 class TestProducerListener : public BnProducerListener {
 public:
     sp<IGraphicBufferProducer> mIgbp;

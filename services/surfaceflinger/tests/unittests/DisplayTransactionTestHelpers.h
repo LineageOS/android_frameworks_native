@@ -22,7 +22,7 @@
 #pragma clang diagnostic ignored "-Wextra"
 
 #include <type_traits>
-#include "DisplayIdentificationTest.h"
+#include "DisplayIdentificationTestHelpers.h"
 
 #include <binder/IPCThreadState.h>
 #include <compositionengine/Display.h>
@@ -48,7 +48,6 @@
 #include "mock/DisplayHardware/MockPowerAdvisor.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockNativeWindowSurface.h"
-#include "mock/MockSchedulerCallback.h"
 #include "mock/MockSurfaceInterceptor.h"
 #include "mock/MockVsyncController.h"
 #include "mock/system/window/MockNativeWindow.h"
@@ -66,9 +65,9 @@ using testing::ResultOf;
 using testing::Return;
 using testing::SetArgPointee;
 
+using aidl::android::hardware::graphics::composer3::DisplayCapability;
 using hal::ColorMode;
 using hal::Connection;
-using hal::DisplayCapability;
 using hal::DisplayType;
 using hal::Error;
 using hal::Hdr;
@@ -121,7 +120,6 @@ public:
 
     mock::VsyncController* mVsyncController = new mock::VsyncController;
     mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker;
-    scheduler::mock::SchedulerCallback mSchedulerCallback;
     mock::EventThread* mEventThread = new mock::EventThread;
     mock::EventThread* mSFEventThread = new mock::EventThread;
 

@@ -31,10 +31,8 @@
 #include <stdint.h>
 #include <ui/Transform.h>
 #include <utils/BitSet.h>
-#include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
-#include <utils/Vector.h>
 #include <array>
 #include <limits>
 #include <queue>
@@ -88,7 +86,7 @@ enum {
      */
     AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE = 0x40,
 
-#ifdef __linux__
+#if defined(__linux__)
     /**
      * This event was generated or modified by accessibility service.
      */
@@ -166,7 +164,7 @@ enum {
  * (We want at least 10 but some touch controllers obstensibly configured for 10 pointers
  * will occasionally emit 11.  There is not much harm making this constant bigger.)
  */
-#define MAX_POINTERS 16
+static constexpr size_t MAX_POINTERS = 16;
 
 /*
  * Maximum number of samples supported per motion event.
@@ -382,7 +380,6 @@ struct PointerCoords {
     // window scale. The global scale will be applied to TOUCH/TOOL_MAJOR/MINOR
     // axes, however the window scaling will not.
     void scale(float globalScale, float windowXScale, float windowYScale);
-    void applyOffset(float xOffset, float yOffset);
 
     void transform(const ui::Transform& transform);
 
@@ -537,7 +534,7 @@ public:
 
     inline int32_t getActionMasked() const { return getActionMasked(mAction); }
 
-    static int32_t getActionIndex(int32_t action) {
+    static uint8_t getActionIndex(int32_t action) {
         return (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >>
                 AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
     }
@@ -572,7 +569,7 @@ public:
 
     inline float getYOffset() const { return mTransform.ty(); }
 
-    inline ui::Transform getTransform() const { return mTransform; }
+    inline const ui::Transform& getTransform() const { return mTransform; }
 
     int getSurfaceRotation() const;
 
@@ -590,7 +587,7 @@ public:
 
     void setCursorPosition(float x, float y);
 
-    ui::Transform getRawTransform() const { return mRawTransform; }
+    inline const ui::Transform& getRawTransform() const { return mRawTransform; }
 
     static inline bool isValidCursorPosition(float x, float y) { return !isnan(x) && !isnan(y); }
 
@@ -800,11 +797,11 @@ public:
 
     // Low-level accessors.
     inline const PointerProperties* getPointerProperties() const {
-        return mPointerProperties.array();
+        return mPointerProperties.data();
     }
     inline const nsecs_t* getSampleEventTimes() const { return mSampleEventTimes.data(); }
     inline const PointerCoords* getSamplePointerCoords() const {
-            return mSamplePointerCoords.array();
+        return mSamplePointerCoords.data();
     }
 
     static const char* getLabel(int32_t axis);
@@ -835,9 +832,9 @@ protected:
     float mRawYCursorPosition;
     ui::Transform mRawTransform;
     nsecs_t mDownTime;
-    Vector<PointerProperties> mPointerProperties;
+    std::vector<PointerProperties> mPointerProperties;
     std::vector<nsecs_t> mSampleEventTimes;
-    Vector<PointerCoords> mSamplePointerCoords;
+    std::vector<PointerCoords> mSamplePointerCoords;
 };
 
 /*

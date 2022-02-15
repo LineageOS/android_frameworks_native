@@ -70,7 +70,6 @@ using V2_4::IComposerCallback;
 using V2_4::IComposerClient;
 using V2_4::VsyncPeriodChangeTimeline;
 using V2_4::VsyncPeriodNanos;
-using DisplayCapability = IComposerClient::DisplayCapability;
 using PerFrameMetadata = IComposerClient::PerFrameMetadata;
 using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
 using PerFrameMetadataBlob = IComposerClient::PerFrameMetadataBlob;
@@ -168,10 +167,13 @@ public:
     explicit HidlComposer(const std::string& serviceName);
     ~HidlComposer() override;
 
-    std::vector<IComposer::Capability> getCapabilities() override;
+    bool isSupported(OptionalFeature) const;
+
+    std::vector<aidl::android::hardware::graphics::composer3::Capability> getCapabilities()
+            override;
     std::string dumpDebugInfo() override;
 
-    void registerCallback(const sp<IComposerCallback>& callback) override;
+    void registerCallback(HWC2::ComposerCallback& callback) override;
 
     // Reset all pending commands in the command buffer. Useful if you want to
     // skip a frame but have already queued some commands.
@@ -225,7 +227,7 @@ public:
                           int acquireFence, Dataspace dataspace,
                           const std::vector<IComposerClient::Rect>& damage) override;
     Error setColorMode(Display display, ColorMode mode, RenderIntent renderIntent) override;
-    Error setColorTransform(Display display, const float* matrix, ColorTransform hint) override;
+    Error setColorTransform(Display display, const float* matrix) override;
     Error setOutputBuffer(Display display, const native_handle_t* buffer,
                           int releaseFence) override;
     Error setPowerMode(Display display, IComposerClient::PowerMode mode) override;
@@ -233,10 +235,11 @@ public:
 
     Error setClientTargetSlotCount(Display display) override;
 
-    Error validateDisplay(Display display, uint32_t* outNumTypes,
+    Error validateDisplay(Display display, nsecs_t expectedPresentTime, uint32_t* outNumTypes,
                           uint32_t* outNumRequests) override;
 
-    Error presentOrValidateDisplay(Display display, uint32_t* outNumTypes, uint32_t* outNumRequests,
+    Error presentOrValidateDisplay(Display display, nsecs_t expectedPresentTime,
+                                   uint32_t* outNumTypes, uint32_t* outNumRequests,
                                    int* outPresentFence, uint32_t* state) override;
 
     Error setCursorPosition(Display display, Layer layer, int32_t x, int32_t y) override;
@@ -246,7 +249,8 @@ public:
     Error setLayerSurfaceDamage(Display display, Layer layer,
                                 const std::vector<IComposerClient::Rect>& damage) override;
     Error setLayerBlendMode(Display display, Layer layer, IComposerClient::BlendMode mode) override;
-    Error setLayerColor(Display display, Layer layer, const IComposerClient::Color& color) override;
+    Error setLayerColor(Display display, Layer layer,
+                        const aidl::android::hardware::graphics::composer3::Color& color) override;
     Error setLayerCompositionType(
             Display display, Layer layer,
             aidl::android::hardware::graphics::composer3::Composition type) override;
@@ -287,12 +291,14 @@ public:
     Error setLayerPerFrameMetadataBlobs(
             Display display, Layer layer,
             const std::vector<IComposerClient::PerFrameMetadataBlob>& metadata) override;
-    Error setDisplayBrightness(Display display, float brightness) override;
+    Error setDisplayBrightness(Display display, float brightness,
+                               const DisplayBrightnessOptions& options) override;
 
     // Composer HAL 2.4
-    bool isVsyncPeriodSwitchSupported() override { return mClient_2_4 != nullptr; }
-    Error getDisplayCapabilities(Display display,
-                                 std::vector<DisplayCapability>* outCapabilities) override;
+    Error getDisplayCapabilities(
+            Display display,
+            std::vector<aidl::android::hardware::graphics::composer3::DisplayCapability>*
+                    outCapabilities) override;
     V2_4::Error getDisplayConnectionType(Display display,
                                          IComposerClient::DisplayConnectionType* outType) override;
     V2_4::Error getDisplayVsyncPeriod(Display display, VsyncPeriodNanos* outVsyncPeriod) override;
@@ -313,7 +319,18 @@ public:
     Error getClientTargetProperty(Display display,
                                   IComposerClient::ClientTargetProperty* outClientTargetProperty,
                                   float* outWhitePointNits) override;
+
+    // AIDL Composer HAL
     Error setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) override;
+    Error setLayerBlockingRegion(Display display, Layer layer,
+                                 const std::vector<IComposerClient::Rect>& blocking) override;
+    Error setBootDisplayConfig(Display displayId, Config) override;
+    Error clearBootDisplayConfig(Display displayId) override;
+    Error getPreferredBootDisplayConfig(Display displayId, Config*) override;
+    Error getDisplayDecorationSupport(
+            Display display,
+            std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    support) override;
 
 private:
     class CommandWriter : public CommandWriterBase {
@@ -321,6 +338,8 @@ private:
         explicit CommandWriter(uint32_t initialMaxSize) : CommandWriterBase(initialMaxSize) {}
         ~CommandWriter() override {}
     };
+
+    void registerCallback(const sp<IComposerCallback>& callback);
 
     // Many public functions above simply write a command into the command
     // queue to batch the calls.  validateDisplay and presentDisplay will call

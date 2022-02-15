@@ -87,11 +87,13 @@ inline constexpr bool is_scoped_enum_v = is_scoped_enum<T>::value;
 
 // Shorthand for casting an enumerator to its integral value.
 //
+// TODO: Replace with std::to_underlying in C++23.
+//
 //   enum class E { A, B, C };
-//   static_assert(ftl::enum_cast(E::B) == 1);
+//   static_assert(ftl::to_underlying(E::B) == 1);
 //
 template <typename E>
-constexpr auto enum_cast(E v) {
+constexpr auto to_underlying(E v) {
   return static_cast<std::underlying_type_t<E>>(v);
 }
 
@@ -137,19 +139,19 @@ struct enum_end {
 
 template <typename E>
 struct enum_end<E, std::void_t<decltype(E::ftl_last)>> {
-  static constexpr E value = E{enum_cast(E::ftl_last) + 1};
+  static constexpr E value = E{to_underlying(E::ftl_last) + 1};
 };
 
 template <typename E>
 inline constexpr E enum_end_v = enum_end<E>::value;
 
 template <typename E>
-inline constexpr E enum_last_v = E{enum_cast(enum_end_v<E>) - 1};
+inline constexpr E enum_last_v = E{to_underlying(enum_end_v<E>) - 1};
 
 template <typename E>
 struct enum_size {
-  static constexpr auto kBegin = enum_cast(enum_begin_v<E>);
-  static constexpr auto kEnd = enum_cast(enum_end_v<E>);
+  static constexpr auto kBegin = to_underlying(enum_begin_v<E>);
+  static constexpr auto kEnd = to_underlying(enum_end_v<E>);
   static_assert(kBegin < kEnd, "Invalid range");
 
   static constexpr std::size_t value = kEnd - kBegin;
@@ -174,7 +176,7 @@ struct EnumRange;
 
 template <typename E, template <E> class F, typename T, T... Vs>
 struct EnumRange<E, F, std::integer_sequence<T, Vs...>> {
-  static constexpr auto kBegin = enum_cast(enum_begin_v<E>);
+  static constexpr auto kBegin = to_underlying(enum_begin_v<E>);
   static constexpr auto kSize = enum_size_v<E>;
 
   using R = decltype(F<E{}>::value);
@@ -194,7 +196,7 @@ struct FlagName {
   using E = decltype(I);
   using U = std::underlying_type_t<E>;
 
-  static constexpr E V{U{1} << enum_cast(I)};
+  static constexpr E V{U{1} << to_underlying(I)};
   static constexpr auto value = ftl_enum<E, V>();
 };
 
@@ -237,10 +239,10 @@ constexpr std::string_view enum_name() {
 //
 template <typename E>
 constexpr std::optional<std::string_view> enum_name(E v) {
-  const auto value = enum_cast(v);
+  const auto value = to_underlying(v);
 
-  constexpr auto kBegin = enum_cast(enum_begin_v<E>);
-  constexpr auto kLast = enum_cast(enum_last_v<E>);
+  constexpr auto kBegin = to_underlying(enum_begin_v<E>);
+  constexpr auto kLast = to_underlying(enum_last_v<E>);
   if (value < kBegin || value > kLast) return {};
 
   constexpr auto kRange = details::EnumRange<E, details::EnumName>{};
@@ -256,7 +258,7 @@ constexpr std::optional<std::string_view> enum_name(E v) {
 //
 template <typename E>
 constexpr std::optional<std::string_view> flag_name(E v) {
-  const auto value = enum_cast(v);
+  const auto value = to_underlying(v);
 
   // TODO: Replace with std::popcount and std::countr_zero in C++20.
   if (__builtin_popcountl(value) != 1) return {};
@@ -277,7 +279,7 @@ inline std::string enum_string(E v) {
   if (const auto name = enum_name(v)) {
     return std::string(*name);
   }
-  return to_string(enum_cast(v));
+  return to_string(to_underlying(v));
 }
 
 // Returns a stringified flag enumerator, or its integral value if not named.
@@ -293,7 +295,7 @@ inline std::string flag_string(E v) {
     return std::string(*name);
   }
   constexpr auto radix = sizeof(E) == 1 ? Radix::kBin : Radix::kHex;
-  return to_string(enum_cast(v), radix);
+  return to_string(to_underlying(v), radix);
 }
 
 }  // namespace android::ftl

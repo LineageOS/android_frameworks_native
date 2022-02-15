@@ -25,7 +25,7 @@ SwitchInputMapper::SwitchInputMapper(InputDeviceContext& deviceContext)
 
 SwitchInputMapper::~SwitchInputMapper() {}
 
-uint32_t SwitchInputMapper::getSources() {
+uint32_t SwitchInputMapper::getSources() const {
     return AINPUT_SOURCE_SWITCH;
 }
 

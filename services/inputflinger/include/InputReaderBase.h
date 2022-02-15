@@ -17,6 +17,7 @@
 #ifndef _UI_INPUT_READER_BASE_H
 #define _UI_INPUT_READER_BASE_H
 
+#include <android/os/IInputConstants.h>
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
 #include <input/InputDevice.h>
@@ -86,6 +87,8 @@ public:
             int32_t keyCode) = 0;
     virtual int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask,
             int32_t sw) = 0;
+
+    virtual int32_t getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const = 0;
 
     /* Toggle Caps Lock */
     virtual void toggleCapsLockState(int32_t deviceId) = 0;
@@ -286,7 +289,10 @@ struct InputReaderConfiguration {
 
     InputReaderConfiguration()
           : virtualKeyQuietTime(0),
-            pointerVelocityControlParameters(1.0f, 500.0f, 3000.0f, 3.0f),
+            pointerVelocityControlParameters(1.0f, 500.0f, 3000.0f,
+                                             static_cast<float>(
+                                                     android::os::IInputConstants::
+                                                             DEFAULT_POINTER_ACCELERATION)),
             wheelVelocityControlParameters(1.0f, 15.0f, 50.0f, 4.0f),
             pointerGesturesEnabled(true),
             pointerGestureQuietInterval(100 * 1000000LL),            // 100 ms

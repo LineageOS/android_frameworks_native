@@ -176,6 +176,11 @@ void ProcessState::startThreadPool()
 {
     AutoMutex _l(mLock);
     if (!mThreadPoolStarted) {
+        if (mMaxThreads == 0) {
+            ALOGW("Extra binder thread started, but 0 threads requested. Do not use "
+                  "*startThreadPool when zero threads are requested.");
+        }
+
         mThreadPoolStarted = true;
         spawnPooledThread(true);
     }
@@ -315,11 +320,6 @@ sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
                 //
                 // Note that this is not race-free if the context manager
                 // dies while this code runs.
-                //
-                // TODO: add a driver API to wait for context manager, or
-                // stop special casing handle 0 for context manager and add
-                // a driver API to get a handle to the context manager with
-                // proper reference counting.
 
                 IPCThreadState* ipc = IPCThreadState::self();
 
@@ -368,7 +368,7 @@ String8 ProcessState::makeBinderThreadName() {
     int32_t s = android_atomic_add(1, &mThreadPoolSeq);
     pid_t pid = getpid();
     String8 name;
-    name.appendFormat("Binder:%d_%X", pid, s);
+    name.appendFormat("%d_%X:%s", pid, s, mDriverName.c_str());
     return name;
 }
 

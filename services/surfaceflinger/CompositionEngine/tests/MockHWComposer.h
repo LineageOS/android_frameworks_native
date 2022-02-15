@@ -39,11 +39,14 @@ public:
     HWComposer();
     ~HWComposer() override;
 
-    MOCK_METHOD1(setCallback, void(HWC2::ComposerCallback*));
+    MOCK_METHOD1(setCallback, void(HWC2::ComposerCallback&));
     MOCK_CONST_METHOD3(getDisplayIdentificationData,
                        bool(hal::HWDisplayId, uint8_t*, DisplayIdentificationData*));
-    MOCK_CONST_METHOD1(hasCapability, bool(hal::Capability));
-    MOCK_CONST_METHOD2(hasDisplayCapability, bool(HalDisplayId, hal::DisplayCapability));
+    MOCK_CONST_METHOD1(hasCapability,
+                       bool(aidl::android::hardware::graphics::composer3::Capability));
+    MOCK_CONST_METHOD2(hasDisplayCapability,
+                       bool(HalDisplayId,
+                            aidl::android::hardware::graphics::composer3::DisplayCapability));
 
     MOCK_CONST_METHOD0(getMaxVirtualDisplayCount, size_t());
     MOCK_CONST_METHOD0(getMaxVirtualDisplayDimension, size_t());
@@ -51,9 +54,9 @@ public:
     MOCK_METHOD2(allocatePhysicalDisplay, void(hal::HWDisplayId, PhysicalDisplayId));
 
     MOCK_METHOD1(createLayer, std::shared_ptr<HWC2::Layer>(HalDisplayId));
-    MOCK_METHOD5(getDeviceCompositionChanges,
+    MOCK_METHOD6(getDeviceCompositionChanges,
                  status_t(HalDisplayId, bool, std::chrono::steady_clock::time_point,
-                          const std::shared_ptr<FenceTime>&,
+                          const std::shared_ptr<FenceTime>&, nsecs_t,
                           std::optional<android::HWComposer::DeviceRequestedChanges>*));
     MOCK_METHOD5(setClientTarget,
                  status_t(HalDisplayId, uint32_t, const sp<Fence>&, const sp<GraphicBuffer>&,
@@ -81,7 +84,9 @@ public:
     MOCK_METHOD4(setDisplayContentSamplingEnabled, status_t(HalDisplayId, bool, uint8_t, uint64_t));
     MOCK_METHOD4(getDisplayedContentSample,
                  status_t(HalDisplayId, uint64_t, uint64_t, DisplayedFrameStats*));
-    MOCK_METHOD2(setDisplayBrightness, std::future<status_t>(PhysicalDisplayId, float));
+    MOCK_METHOD3(setDisplayBrightness,
+                 std::future<status_t>(PhysicalDisplayId, float,
+                                       const Hwc2::Composer::DisplayBrightnessOptions&));
     MOCK_METHOD2(getDisplayBrightnessSupport, status_t(PhysicalDisplayId, bool*));
 
     MOCK_METHOD2(onHotplug,
@@ -102,6 +107,10 @@ public:
                  status_t(PhysicalDisplayId, hal::HWConfigId,
                           const hal::VsyncPeriodChangeConstraints&,
                           hal::VsyncPeriodChangeTimeline*));
+    MOCK_METHOD2(setBootDisplayMode, status_t(PhysicalDisplayId, hal::HWConfigId));
+    MOCK_METHOD1(clearBootDisplayMode, status_t(PhysicalDisplayId));
+    MOCK_METHOD1(getPreferredBootDisplayMode, std::optional<hal::HWConfigId>(PhysicalDisplayId));
+    MOCK_METHOD0(getBootDisplayModeSupport, bool());
     MOCK_METHOD2(setAutoLowLatencyMode, status_t(PhysicalDisplayId, bool));
     MOCK_METHOD2(getSupportedContentTypes,
                  status_t(PhysicalDisplayId, std::vector<hal::ContentType>*));
@@ -120,6 +129,10 @@ public:
                 (const, override));
     MOCK_METHOD(std::optional<hal::HWDisplayId>, fromPhysicalDisplayId, (PhysicalDisplayId),
                 (const, override));
+    MOCK_METHOD2(getDisplayDecorationSupport,
+                 status_t(PhysicalDisplayId,
+                          std::optional<aidl::android::hardware::graphics::common::
+                                                DisplayDecorationSupport>* support));
 };
 
 } // namespace mock

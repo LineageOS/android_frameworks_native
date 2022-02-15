@@ -30,10 +30,14 @@
 #include <hidl/HidlTransportUtils.h>
 #include <log/log.h>
 #include <utils/Trace.h>
+#include "HWC2.h"
 #include "Hal.h"
 
 #include <algorithm>
 #include <cinttypes>
+
+using aidl::android::hardware::graphics::composer3::Capability;
+using aidl::android::hardware::graphics::composer3::DisplayCapability;
 
 namespace android {
 
@@ -42,6 +46,63 @@ using hardware::hidl_vec;
 using hardware::Return;
 
 namespace Hwc2 {
+namespace {
+
+using android::hardware::Return;
+using android::hardware::Void;
+using android::HWC2::ComposerCallback;
+
+class ComposerCallbackBridge : public IComposerCallback {
+public:
+    ComposerCallbackBridge(ComposerCallback& callback, bool vsyncSwitchingSupported)
+          : mCallback(callback), mVsyncSwitchingSupported(vsyncSwitchingSupported) {}
+
+    Return<void> onHotplug(Display display, Connection connection) override {
+        mCallback.onComposerHalHotplug(display, connection);
+        return Void();
+    }
+
+    Return<void> onRefresh(Display display) override {
+        mCallback.onComposerHalRefresh(display);
+        return Void();
+    }
+
+    Return<void> onVsync(Display display, int64_t timestamp) override {
+        if (!mVsyncSwitchingSupported) {
+            mCallback.onComposerHalVsync(display, timestamp, std::nullopt);
+        } else {
+            ALOGW("Unexpected onVsync callback on composer >= 2.4, ignoring.");
+        }
+        return Void();
+    }
+
+    Return<void> onVsync_2_4(Display display, int64_t timestamp,
+                             VsyncPeriodNanos vsyncPeriodNanos) override {
+        if (mVsyncSwitchingSupported) {
+            mCallback.onComposerHalVsync(display, timestamp, vsyncPeriodNanos);
+        } else {
+            ALOGW("Unexpected onVsync_2_4 callback on composer <= 2.3, ignoring.");
+        }
+        return Void();
+    }
+
+    Return<void> onVsyncPeriodTimingChanged(Display display,
+                                            const VsyncPeriodChangeTimeline& timeline) override {
+        mCallback.onComposerHalVsyncPeriodTimingChanged(display, timeline);
+        return Void();
+    }
+
+    Return<void> onSeamlessPossible(Display display) override {
+        mCallback.onComposerHalSeamlessPossible(display);
+        return Void();
+    }
+
+private:
+    ComposerCallback& mCallback;
+    const bool mVsyncSwitchingSupported;
+};
+
+} // namespace
 
 HidlComposer::~HidlComposer() = default;
 
@@ -108,6 +169,20 @@ Error unwrapRet(Return<Error>& ret) {
     return unwrapRet(ret, kDefaultError);
 }
 
+template <typename To, typename From>
+To translate(From x) {
+    return static_cast<To>(x);
+}
+
+template <typename To, typename From>
+std::vector<To> translate(const hidl_vec<From>& in) {
+    std::vector<To> out;
+    out.reserve(in.size());
+    std::transform(in.begin(), in.end(), std::back_inserter(out),
+                   [](From x) { return translate<To>(x); });
+    return out;
+}
+
 } // anonymous namespace
 
 HidlComposer::HidlComposer(const std::string& serviceName) : mWriter(kWriterInitialSize) {
@@ -154,10 +229,22 @@ HidlComposer::HidlComposer(const std::string& serviceName) : mWriter(kWriterInit
     }
 }
 
-std::vector<IComposer::Capability> HidlComposer::getCapabilities() {
-    std::vector<IComposer::Capability> capabilities;
-    mComposer->getCapabilities(
-            [&](const auto& tmpCapabilities) { capabilities = tmpCapabilities; });
+bool HidlComposer::isSupported(OptionalFeature feature) const {
+    switch (feature) {
+        case OptionalFeature::RefreshRateSwitching:
+            return mClient_2_4 != nullptr;
+        case OptionalFeature::ExpectedPresentTime:
+        case OptionalFeature::DisplayBrightnessCommand:
+        case OptionalFeature::BootDisplayConfig:
+            return false;
+    }
+}
+
+std::vector<Capability> HidlComposer::getCapabilities() {
+    std::vector<Capability> capabilities;
+    mComposer->getCapabilities([&](const auto& tmpCapabilities) {
+        capabilities = translate<Capability>(tmpCapabilities);
+    });
     return capabilities;
 }
 
@@ -498,9 +585,12 @@ Error HidlComposer::setColorMode(Display display, ColorMode mode, RenderIntent r
     return unwrapRet(ret);
 }
 
-Error HidlComposer::setColorTransform(Display display, const float* matrix, ColorTransform hint) {
+Error HidlComposer::setColorTransform(Display display, const float* matrix) {
     mWriter.selectDisplay(display);
-    mWriter.setColorTransform(matrix, hint);
+    const bool isIdentity = (mat4(matrix) == mat4());
+    mWriter.setColorTransform(matrix,
+                              isIdentity ? ColorTransform::IDENTITY
+                                         : ColorTransform::ARBITRARY_MATRIX);
     return Error::NONE;
 }
 
@@ -533,8 +623,8 @@ Error HidlComposer::setClientTargetSlotCount(Display display) {
     return unwrapRet(ret);
 }
 
-Error HidlComposer::validateDisplay(Display display, uint32_t* outNumTypes,
-                                    uint32_t* outNumRequests) {
+Error HidlComposer::validateDisplay(Display display, nsecs_t /*expectedPresentTime*/,
+                                    uint32_t* outNumTypes, uint32_t* outNumRequests) {
     ATRACE_NAME("HwcValidateDisplay");
     mWriter.selectDisplay(display);
     mWriter.validateDisplay();
@@ -549,9 +639,9 @@ Error HidlComposer::validateDisplay(Display display, uint32_t* outNumTypes,
     return Error::NONE;
 }
 
-Error HidlComposer::presentOrValidateDisplay(Display display, uint32_t* outNumTypes,
-                                             uint32_t* outNumRequests, int* outPresentFence,
-                                             uint32_t* state) {
+Error HidlComposer::presentOrValidateDisplay(Display display, nsecs_t /*expectedPresentTime*/,
+                                             uint32_t* outNumTypes, uint32_t* outNumRequests,
+                                             int* outPresentFence, uint32_t* state) {
     ATRACE_NAME("HwcPresentOrValidateDisplay");
     mWriter.selectDisplay(display);
     mWriter.presentOrvalidateDisplay();
@@ -611,11 +701,29 @@ Error HidlComposer::setLayerBlendMode(Display display, Layer layer,
     return Error::NONE;
 }
 
-Error HidlComposer::setLayerColor(Display display, Layer layer,
-                                  const IComposerClient::Color& color) {
+static IComposerClient::Color to_hidl_type(
+        aidl::android::hardware::graphics::composer3::Color color) {
+    const auto floatColorToUint8Clamped = [](float val) -> uint8_t {
+        const auto intVal = static_cast<uint64_t>(std::round(255.0f * val));
+        const auto minVal = static_cast<uint64_t>(0);
+        const auto maxVal = static_cast<uint64_t>(255);
+        return std::clamp(intVal, minVal, maxVal);
+    };
+
+    return IComposerClient::Color{
+            floatColorToUint8Clamped(color.r),
+            floatColorToUint8Clamped(color.g),
+            floatColorToUint8Clamped(color.b),
+            floatColorToUint8Clamped(color.a),
+    };
+}
+
+Error HidlComposer::setLayerColor(
+        Display display, Layer layer,
+        const aidl::android::hardware::graphics::composer3::Color& color) {
     mWriter.selectDisplay(display);
     mWriter.selectLayer(layer);
-    mWriter.setLayerColor(color);
+    mWriter.setLayerColor(to_hidl_type(color));
     return Error::NONE;
 }
 
@@ -999,7 +1107,8 @@ Error HidlComposer::setLayerPerFrameMetadataBlobs(
     return Error::NONE;
 }
 
-Error HidlComposer::setDisplayBrightness(Display display, float brightness) {
+Error HidlComposer::setDisplayBrightness(Display display, float brightness,
+                                         const DisplayBrightnessOptions&) {
     if (!mClient_2_3) {
         return Error::UNSUPPORTED;
     }
@@ -1022,7 +1131,8 @@ Error HidlComposer::getDisplayCapabilities(Display display,
                                                     if (error != V2_4::Error::NONE) {
                                                         return;
                                                     }
-                                                    *outCapabilities = tmpCaps;
+                                                    *outCapabilities =
+                                                            translate<DisplayCapability>(tmpCaps);
                                                 });
     } else {
         mClient_2_3
@@ -1032,9 +1142,7 @@ Error HidlComposer::getDisplayCapabilities(Display display,
                         return;
                     }
 
-                    outCapabilities->resize(tmpCaps.size());
-                    std::transform(tmpCaps.begin(), tmpCaps.end(), outCapabilities->begin(),
-                                   [](auto cap) { return static_cast<DisplayCapability>(cap); });
+                    *outCapabilities = translate<DisplayCapability>(tmpCaps);
                 });
     }
 
@@ -1175,6 +1283,18 @@ V2_4::Error HidlComposer::getLayerGenericMetadataKeys(
     return error;
 }
 
+Error HidlComposer::setBootDisplayConfig(Display /*displayId*/, Config) {
+    return Error::UNSUPPORTED;
+}
+
+Error HidlComposer::clearBootDisplayConfig(Display /*displayId*/) {
+    return Error::UNSUPPORTED;
+}
+
+Error HidlComposer::getPreferredBootDisplayConfig(Display /*displayId*/, Config*) {
+    return Error::UNSUPPORTED;
+}
+
 Error HidlComposer::getClientTargetProperty(
         Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty,
         float* outWhitePointNits) {
@@ -1185,6 +1305,26 @@ Error HidlComposer::getClientTargetProperty(
 
 Error HidlComposer::setLayerWhitePointNits(Display, Layer, float) {
     return Error::NONE;
+}
+
+Error HidlComposer::setLayerBlockingRegion(Display, Layer,
+                                           const std::vector<IComposerClient::Rect>&) {
+    return Error::NONE;
+}
+
+Error HidlComposer::getDisplayDecorationSupport(
+        Display,
+        std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                support) {
+    support->reset();
+    return Error::UNSUPPORTED;
+}
+
+void HidlComposer::registerCallback(ComposerCallback& callback) {
+    const bool vsyncSwitchingSupported =
+            isSupported(Hwc2::Composer::OptionalFeature::RefreshRateSwitching);
+
+    registerCallback(sp<ComposerCallbackBridge>::make(callback, vsyncSwitchingSupported));
 }
 
 CommandReader::~CommandReader() {

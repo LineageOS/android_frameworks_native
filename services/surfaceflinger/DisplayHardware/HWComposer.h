@@ -26,6 +26,7 @@
 #include <vector>
 
 #include <android-base/thread_annotations.h>
+#include <ui/DisplayIdentification.h>
 #include <ui/FenceTime.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
@@ -38,12 +39,14 @@
 #include <utils/StrongPointer.h>
 #include <utils/Timers.h>
 
-#include "DisplayIdentification.h"
 #include "DisplayMode.h"
 #include "HWC2.h"
 #include "Hal.h"
 
+#include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+#include <aidl/android/hardware/graphics/composer3/Capability.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
+#include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
 namespace android {
 
@@ -104,13 +107,15 @@ public:
 
     virtual ~HWComposer();
 
-    virtual void setCallback(HWC2::ComposerCallback*) = 0;
+    virtual void setCallback(HWC2::ComposerCallback&) = 0;
 
     virtual bool getDisplayIdentificationData(hal::HWDisplayId, uint8_t* outPort,
                                               DisplayIdentificationData* outData) const = 0;
 
-    virtual bool hasCapability(hal::Capability) const = 0;
-    virtual bool hasDisplayCapability(HalDisplayId, hal::DisplayCapability) const = 0;
+    virtual bool hasCapability(aidl::android::hardware::graphics::composer3::Capability) const = 0;
+    virtual bool hasDisplayCapability(
+            HalDisplayId,
+            aidl::android::hardware::graphics::composer3::DisplayCapability) const = 0;
 
     virtual size_t getMaxVirtualDisplayCount() const = 0;
     virtual size_t getMaxVirtualDisplayDimension() const = 0;
@@ -134,7 +139,7 @@ public:
     virtual status_t getDeviceCompositionChanges(
             HalDisplayId, bool frameUsesClientComposition,
             std::chrono::steady_clock::time_point earliestPresentTime,
-            const std::shared_ptr<FenceTime>& previousPresentFence,
+            const std::shared_ptr<FenceTime>& previousPresentFence, nsecs_t expectedPresentTime,
             std::optional<DeviceRequestedChanges>* outChanges) = 0;
 
     virtual status_t setClientTarget(HalDisplayId, uint32_t slot, const sp<Fence>& acquireFence,
@@ -189,7 +194,9 @@ public:
                                                DisplayedFrameStats* outStats) = 0;
 
     // Sets the brightness of a display.
-    virtual std::future<status_t> setDisplayBrightness(PhysicalDisplayId, float brightness) = 0;
+    virtual std::future<status_t> setDisplayBrightness(
+            PhysicalDisplayId, float brightness,
+            const Hwc2::Composer::DisplayBrightnessOptions&) = 0;
 
     // Events handling ---------------------------------------------------------
 
@@ -236,9 +243,12 @@ public:
 
     virtual Hwc2::Composer* getComposer() const = 0;
 
-    // Returns the first display connected at boot. It cannot be disconnected, which implies an
-    // internal connection type. Its connection via HWComposer::onHotplug, which in practice is
-    // immediately after HWComposer construction, must occur before any call to this function.
+    // Returns the first display connected at boot. Its connection via HWComposer::onHotplug,
+    // which in practice is immediately after HWComposer construction, must occur before any
+    // call to this function.
+    // The primary display can be temporarily disconnected from the perspective
+    // of this class. Callers must not call getPrimaryHwcDisplayId() or getPrimaryDisplayId()
+    // if isHeadless().
     //
     // TODO(b/182939859): Remove special cases for primary display.
     virtual hal::HWDisplayId getPrimaryHwcDisplayId() const = 0;
@@ -247,6 +257,16 @@ public:
 
     virtual std::optional<PhysicalDisplayId> toPhysicalDisplayId(hal::HWDisplayId) const = 0;
     virtual std::optional<hal::HWDisplayId> fromPhysicalDisplayId(PhysicalDisplayId) const = 0;
+
+    // Composer 3.0
+    virtual bool getBootDisplayModeSupport() = 0;
+    virtual status_t setBootDisplayMode(PhysicalDisplayId, hal::HWConfigId) = 0;
+    virtual status_t clearBootDisplayMode(PhysicalDisplayId) = 0;
+    virtual std::optional<hal::HWConfigId> getPreferredBootDisplayMode(PhysicalDisplayId) = 0;
+    virtual status_t getDisplayDecorationSupport(
+            PhysicalDisplayId,
+            std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    support) = 0;
 };
 
 namespace impl {
@@ -258,13 +278,15 @@ public:
 
     ~HWComposer() override;
 
-    void setCallback(HWC2::ComposerCallback*) override;
+    void setCallback(HWC2::ComposerCallback&) override;
 
     bool getDisplayIdentificationData(hal::HWDisplayId, uint8_t* outPort,
                                       DisplayIdentificationData* outData) const override;
 
-    bool hasCapability(hal::Capability) const override;
-    bool hasDisplayCapability(HalDisplayId, hal::DisplayCapability) const override;
+    bool hasCapability(aidl::android::hardware::graphics::composer3::Capability) const override;
+    bool hasDisplayCapability(
+            HalDisplayId,
+            aidl::android::hardware::graphics::composer3::DisplayCapability) const override;
 
     size_t getMaxVirtualDisplayCount() const override;
     size_t getMaxVirtualDisplayDimension() const override;
@@ -280,7 +302,7 @@ public:
     status_t getDeviceCompositionChanges(
             HalDisplayId, bool frameUsesClientComposition,
             std::chrono::steady_clock::time_point earliestPresentTime,
-            const std::shared_ptr<FenceTime>& previousPresentFence,
+            const std::shared_ptr<FenceTime>& previousPresentFence, nsecs_t expectedPresentTime,
             std::optional<DeviceRequestedChanges>* outChanges) override;
 
     status_t setClientTarget(HalDisplayId, uint32_t slot, const sp<Fence>& acquireFence,
@@ -332,7 +354,9 @@ public:
                                               uint64_t maxFrames) override;
     status_t getDisplayedContentSample(HalDisplayId, uint64_t maxFrames, uint64_t timestamp,
                                        DisplayedFrameStats* outStats) override;
-    std::future<status_t> setDisplayBrightness(PhysicalDisplayId, float brightness) override;
+    std::future<status_t> setDisplayBrightness(
+            PhysicalDisplayId, float brightness,
+            const Hwc2::Composer::DisplayBrightnessOptions&) override;
 
     // Events handling ---------------------------------------------------------
 
@@ -368,6 +392,16 @@ public:
     status_t setContentType(PhysicalDisplayId, hal::ContentType) override;
 
     const std::unordered_map<std::string, bool>& getSupportedLayerGenericMetadata() const override;
+
+    // Composer 3.0
+    bool getBootDisplayModeSupport() override;
+    status_t setBootDisplayMode(PhysicalDisplayId, hal::HWConfigId) override;
+    status_t clearBootDisplayMode(PhysicalDisplayId) override;
+    std::optional<hal::HWConfigId> getPreferredBootDisplayMode(PhysicalDisplayId) override;
+    status_t getDisplayDecorationSupport(
+            PhysicalDisplayId,
+            std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                    support) override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;
@@ -423,7 +457,7 @@ private:
     std::unordered_map<HalDisplayId, DisplayData> mDisplayData;
 
     std::unique_ptr<android::Hwc2::Composer> mComposer;
-    std::unordered_set<hal::Capability> mCapabilities;
+    std::unordered_set<aidl::android::hardware::graphics::composer3::Capability> mCapabilities;
     std::unordered_map<std::string, bool> mSupportedLayerGenericMetadata;
     bool mRegisteredCallback = false;
 

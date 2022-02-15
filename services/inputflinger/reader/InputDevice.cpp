@@ -309,14 +309,14 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
                 const auto& displayPort = ports.find(inputPort);
                 if (displayPort != ports.end()) {
                     mAssociatedDisplayPort = std::make_optional(displayPort->second);
+                } else {
+                    const std::unordered_map<std::string, std::string>& displayUniqueIds =
+                            config->uniqueIdAssociations;
+                    const auto& displayUniqueId = displayUniqueIds.find(inputPort);
+                    if (displayUniqueId != displayUniqueIds.end()) {
+                        mAssociatedDisplayUniqueId = displayUniqueId->second;
+                    }
                 }
-            }
-            const std::string& inputDeviceName = mIdentifier.name;
-            const std::unordered_map<std::string, std::string>& names =
-                    config->uniqueIdAssociations;
-            const auto& displayUniqueId = names.find(inputDeviceName);
-            if (displayUniqueId != names.end()) {
-                mAssociatedDisplayUniqueId = displayUniqueId->second;
             }
 
             // If the device was explicitly disabled by the user, it would be present in the
@@ -338,7 +338,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
                 if (!mAssociatedViewport) {
                     ALOGW("Input device %s should be associated with display %s but the "
                           "corresponding viewport cannot be found",
-                          inputDeviceName.c_str(), mAssociatedDisplayUniqueId->c_str());
+                          getName().c_str(), mAssociatedDisplayUniqueId->c_str());
                     enabled = false;
                 }
             }
@@ -473,6 +473,23 @@ bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
         }
     });
     return result;
+}
+
+int32_t InputDevice::getKeyCodeForKeyLocation(int32_t locationKeyCode) const {
+    std::optional<int32_t> result = first_in_mappers<int32_t>(
+            [locationKeyCode](const InputMapper& mapper) -> std::optional<int32_t> const {
+                if (sourcesMatchMask(mapper.getSources(), AINPUT_SOURCE_KEYBOARD)) {
+                    return std::make_optional(mapper.getKeyCodeForKeyLocation(locationKeyCode));
+                }
+                return std::nullopt;
+            });
+    if (!result) {
+        ALOGE("Failed to get key code for key location: No matching InputMapper with source mask "
+              "KEYBOARD found. The provided input device with id %d has sources %s.",
+              getId(), inputEventSourceToString(getSources()).c_str());
+        return AKEYCODE_UNKNOWN;
+    }
+    return *result;
 }
 
 void InputDevice::vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token) {

@@ -15,6 +15,9 @@
       "name": "inputflinger_tests"
     },
     {
+      "name": "libpalmrejection_test"
+    },
+    {
       "name": "InputTests"
     },
     {

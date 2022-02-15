@@ -306,6 +306,7 @@ public:
     virtual int32_t getSwitchState(int32_t deviceId, int32_t sw) const = 0;
     virtual status_t getAbsoluteAxisValue(int32_t deviceId, int32_t axis,
                                           int32_t* outValue) const = 0;
+    virtual int32_t getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const = 0;
 
     /*
      * Examine key input devices for specific framework keycode support
@@ -482,6 +483,8 @@ public:
     int32_t getScanCodeState(int32_t deviceId, int32_t scanCode) const override final;
     int32_t getKeyCodeState(int32_t deviceId, int32_t keyCode) const override final;
     int32_t getSwitchState(int32_t deviceId, int32_t sw) const override final;
+    int32_t getKeyCodeForKeyLocation(int32_t deviceId,
+                                     int32_t locationKeyCode) const override final;
     status_t getAbsoluteAxisValue(int32_t deviceId, int32_t axis,
                                   int32_t* outValue) const override final;
 

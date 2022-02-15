@@ -45,14 +45,14 @@ bool LayerTracing::enable() {
     return true;
 }
 
-bool LayerTracing::disable() {
+bool LayerTracing::disable(std::string filename) {
     std::scoped_lock lock(mTraceLock);
     if (!mEnabled) {
         return false;
     }
     mEnabled = false;
     LayersTraceFileProto fileProto = createTraceFileProto();
-    mBuffer->writeToFile(fileProto, FILE_NAME);
+    mBuffer->writeToFile(fileProto, filename);
     mBuffer->reset();
     return true;
 }
@@ -98,16 +98,20 @@ void LayerTracing::dump(std::string& result) const {
     mBuffer->dump(result);
 }
 
-void LayerTracing::notify(const char* where) {
-    ATRACE_CALL();
+void LayerTracing::notify(bool visibleRegionDirty, int64_t time) {
     std::scoped_lock lock(mTraceLock);
     if (!mEnabled) {
         return;
     }
 
+    if (!visibleRegionDirty && !flagIsSet(LayerTracing::TRACE_BUFFERS)) {
+        return;
+    }
+
     ATRACE_CALL();
     LayersTraceProto entry;
-    entry.set_elapsed_realtime_nanos(elapsedRealtimeNano());
+    entry.set_elapsed_realtime_nanos(time);
+    const char* where = visibleRegionDirty ? "visibleRegionsDirty" : "bufferLatched";
     entry.set_where(where);
     LayersProto layers(mFlinger.dumpDrawingStateProto(mFlags));
 

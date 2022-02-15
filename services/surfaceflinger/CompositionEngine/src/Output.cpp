@@ -50,6 +50,8 @@
 
 #include "TracedOrdinal.h"
 
+using aidl::android::hardware::graphics::composer3::Composition;
+
 namespace android::compositionengine {
 
 Output::~Output() = default;
@@ -195,6 +197,10 @@ void Output::setProjection(ui::Rotation orientation, const Rect& layerStackSpace
     outputState.transform = outputState.layerStackSpace.getTransform(outputState.displaySpace);
     outputState.needsFiltering = outputState.transform.needsBilinearFiltering();
     dirtyEntireOutput();
+}
+
+void Output::setNextBrightness(float brightness) {
+    editState().displayBrightness = brightness;
 }
 
 void Output::setDisplaySize(const ui::Size& size) {
@@ -525,11 +531,18 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
 
     /*
      * transparentRegion: area of a surface that is hinted to be completely
-     * transparent. This is only used to tell when the layer has no visible non-
-     * transparent regions and can be removed from the layer list. It does not
-     * affect the visibleRegion of this layer or any layers beneath it. The hint
-     * may not be correct if apps don't respect the SurfaceView restrictions
-     * (which, sadly, some don't).
+     * transparent.
+     * This is used to tell when the layer has no visible non-transparent
+     * regions and can be removed from the layer list. It does not affect the
+     * visibleRegion of this layer or any layers beneath it. The hint may not
+     * be correct if apps don't respect the SurfaceView restrictions (which,
+     * sadly, some don't).
+     *
+     * In addition, it is used on DISPLAY_DECORATION layers to specify the
+     * blockingRegion, allowing the DPU to skip it to save power. Once we have
+     * hardware that supports a blockingRegion on frames with AFBC, it may be
+     * useful to use this for other layers, too, so long as we can prevent
+     * regressions on b/7179570.
      */
     Region transparentRegion;
 
@@ -670,6 +683,9 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
     outputLayerState.outputSpaceVisibleRegion = outputState.transform.transform(
             visibleNonShadowRegion.intersect(outputState.layerStackSpace.getContent()));
     outputLayerState.shadowRegion = shadowRegion;
+    outputLayerState.outputSpaceBlockingRegionHint =
+            layerFEState->compositionType == Composition::DISPLAY_DECORATION ? transparentRegion
+                                                                             : Region();
 }
 
 void Output::setReleasedLayers(const compositionengine::CompositionRefreshArgs&) {
@@ -728,6 +744,7 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
 
     editState().earliestPresentTime = refreshArgs.earliestPresentTime;
     editState().previousPresentFence = refreshArgs.previousPresentFence;
+    editState().expectedPresentTime = refreshArgs.expectedPresentTime;
 
     compositionengine::OutputLayer* peekThroughLayer = nullptr;
     sp<GraphicBuffer> previousOverride = nullptr;
@@ -1054,9 +1071,11 @@ std::optional<base::unique_fd> Output::composeSurfaces(
 
     // If we have a valid current display brightness use that, otherwise fall back to the
     // display's max desired
-    clientCompositionDisplay.maxLuminance = outputState.displayBrightnessNits > 0.f
+    clientCompositionDisplay.currentLuminanceNits = outputState.displayBrightnessNits > 0.f
             ? outputState.displayBrightnessNits
             : mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
+    clientCompositionDisplay.maxLuminance =
+            mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
     clientCompositionDisplay.targetLuminanceNits = outputState.clientTargetWhitePointNits;
 
     // Compute the global color transform matrix.
