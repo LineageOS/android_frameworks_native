@@ -145,12 +145,14 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
         return status;
     }
 
-    layoutParamsFlags = Flags<Flag>(parcel->readInt32());
-    layoutParamsType = static_cast<Type>(parcel->readInt32());
     float dsdx, dtdx, tx, dtdy, dsdy, ty;
-    int32_t touchOcclusionModeInt;
+    int32_t lpFlags, lpType, touchOcclusionModeInt, inputConfigInt;
+    sp<IBinder> touchableRegionCropHandleSp;
+
     // clang-format off
-    status = parcel->readInt32(&frameLeft) ?:
+    status = parcel->readInt32(&lpFlags) ?:
+        parcel->readInt32(&lpType) ?:
+        parcel->readInt32(&frameLeft) ?:
         parcel->readInt32(&frameTop) ?:
         parcel->readInt32(&frameRight) ?:
         parcel->readInt32(&frameBottom) ?:
@@ -166,32 +168,28 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
         parcel->readInt32(&touchOcclusionModeInt) ?:
         parcel->readInt32(&ownerPid) ?:
         parcel->readInt32(&ownerUid) ?:
-        parcel->readUtf8FromUtf16(&packageName);
-    // clang-format on
-
-    if (status != OK) {
-        return status;
-    }
-
-    touchOcclusionMode = static_cast<TouchOcclusionMode>(touchOcclusionModeInt);
-
-    inputConfig = Flags<InputConfig>(parcel->readInt32());
-    // clang-format off
-    status = parcel->readInt32(&displayId) ?:
+        parcel->readUtf8FromUtf16(&packageName) ?:
+        parcel->readInt32(&inputConfigInt) ?:
+        parcel->readInt32(&displayId) ?:
         applicationInfo.readFromParcel(parcel) ?:
         parcel->read(touchableRegion) ?:
-        parcel->readBool(&replaceTouchableRegionWithCrop);
+        parcel->readBool(&replaceTouchableRegionWithCrop) ?:
+        parcel->readNullableStrongBinder(&touchableRegionCropHandleSp) ?:
+        parcel->readNullableStrongBinder(&windowToken);
     // clang-format on
 
     if (status != OK) {
         return status;
     }
 
-    touchableRegionCropHandle = parcel->readStrongBinder();
+    layoutParamsFlags = Flags<Flag>(lpFlags);
+    layoutParamsType = static_cast<Type>(lpType);
     transform.set({dsdx, dtdx, tx, dtdy, dsdy, ty, 0, 0, 1});
+    touchOcclusionMode = static_cast<TouchOcclusionMode>(touchOcclusionModeInt);
+    inputConfig = Flags<InputConfig>(inputConfigInt);
+    touchableRegionCropHandle = touchableRegionCropHandleSp;
 
-    status = parcel->readNullableStrongBinder(&windowToken);
-    return status;
+    return OK;
 }
 
 // --- WindowInfoHandle ---
