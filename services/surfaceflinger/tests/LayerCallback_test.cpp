@@ -141,11 +141,12 @@ public:
                 continue;
             }
 
-            vsync = {event.vsync.vsyncId, event.vsync.expectedVSyncTimestamp};
+            vsync = {event.vsync.vsyncData.preferredVsyncId(),
+                     event.vsync.vsyncData.preferredExpectedPresentationTime()};
         }
 
         EXPECT_GE(vsync.vsyncId, 1);
-        EXPECT_GT(event.vsync.expectedVSyncTimestamp, systemTime());
+        EXPECT_GT(vsync.expectedPresentTime, systemTime());
 
         return vsync;
     }

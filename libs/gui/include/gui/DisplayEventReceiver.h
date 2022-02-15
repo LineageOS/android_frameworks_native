@@ -35,6 +35,7 @@ namespace android {
 // ----------------------------------------------------------------------------
 
 using gui::IDisplayEventConnection;
+using gui::ParcelableVsyncEventData;
 using gui::VsyncEventData;
 
 namespace gui {
@@ -76,16 +77,7 @@ public:
 
         struct VSync {
             uint32_t count;
-            nsecs_t expectedVSyncTimestamp __attribute__((aligned(8)));
-            nsecs_t deadlineTimestamp __attribute__((aligned(8)));
-            nsecs_t frameInterval __attribute__((aligned(8)));
-            int64_t vsyncId;
-            size_t preferredFrameTimelineIndex __attribute__((aligned(8)));
-            struct FrameTimeline {
-                nsecs_t expectedVSyncTimestamp __attribute__((aligned(8)));
-                nsecs_t deadlineTimestamp __attribute__((aligned(8)));
-                int64_t vsyncId;
-            } frameTimelines[VsyncEventData::kFrameTimelinesLength];
+            VsyncEventData vsyncData;
         };
 
         struct Hotplug {
@@ -175,7 +167,7 @@ public:
     /**
      * getLatestVsyncEventData() gets the latest vsync event data.
      */
-    status_t getLatestVsyncEventData(VsyncEventData* outVsyncEventData) const;
+    status_t getLatestVsyncEventData(ParcelableVsyncEventData* outVsyncEventData) const;
 
 private:
     sp<IDisplayEventConnection> mEventConnection;
