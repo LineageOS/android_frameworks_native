@@ -492,13 +492,18 @@ std::string SurfaceFrame::miniDump() const {
 
 void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& refreshRate,
                                       nsecs_t& deadlineDelta) {
-    if (mPredictionState == PredictionState::Expired ||
-        mActuals.presentTime == Fence::SIGNAL_TIME_INVALID) {
+    if (mActuals.presentTime == Fence::SIGNAL_TIME_INVALID) {
         // Cannot do any classification for invalid present time.
-        // For prediction expired case, we do not know what happened here to classify this
-        // correctly. This could potentially be AppDeadlineMissed but that's assuming no app will
-        // request frames 120ms apart.
         mJankType = JankType::Unknown;
+        deadlineDelta = -1;
+        return;
+    }
+
+    if (mPredictionState == PredictionState::Expired) {
+        // We classify prediction expired as AppDeadlineMissed as the
+        // TokenManager::kMaxTokens we store is large enough to account for a
+        // reasonable app, so prediction expire would mean a huge scheduling delay.
+        mJankType = JankType::AppDeadlineMissed;
         deadlineDelta = -1;
         return;
     }
