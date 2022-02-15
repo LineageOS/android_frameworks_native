@@ -3281,15 +3281,15 @@ void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
             continue;
         }
 
-        // There is more than one display for the layerStack. In this case, the display that is
-        // configured to receive input takes precedence.
+        // There is more than one display for the layerStack. In this case, the first display that
+        // is configured to receive input takes precedence.
         auto& details = it->second;
-        if (!display->receivesInput()) {
+        if (details.receivesInput) {
+            ALOGW_IF(display->receivesInput(),
+                     "Multiple displays claim to accept input for the same layer stack: %u",
+                     layerStackId);
             continue;
         }
-        ALOGE_IF(details.receivesInput,
-                 "Multiple displays claim to accept input for the same layer stack: %u",
-                 layerStackId);
         details.receivesInput = display->receivesInput();
         details.isSecure = display->isSecure();
         details.transform = std::move(transform);
