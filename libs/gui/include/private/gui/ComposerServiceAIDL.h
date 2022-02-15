@@ -68,7 +68,8 @@ public:
         if (!displayId) return nullptr;
         sp<IBinder> display;
         binder::Status status =
-                mComposerService->getPhysicalDisplayToken(displayId->value, &display);
+                mComposerService->getPhysicalDisplayToken(static_cast<int64_t>(displayId->value),
+                                                          &display);
         return status.isOk() ? display : nullptr;
     }
 };
