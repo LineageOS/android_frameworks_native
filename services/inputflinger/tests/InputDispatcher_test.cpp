@@ -65,6 +65,8 @@ static const int32_t INJECTOR_UID = 1001;
 // An arbitrary pid of the gesture monitor window
 static constexpr int32_t MONITOR_PID = 2001;
 
+static constexpr std::chrono::duration STALE_EVENT_TIMEOUT = 1000ms;
+
 struct PointF {
     float x;
     float y;
@@ -489,7 +491,7 @@ protected:
 
     void SetUp() override {
         mFakePolicy = new FakeInputDispatcherPolicy();
-        mDispatcher = std::make_unique<InputDispatcher>(mFakePolicy);
+        mDispatcher = std::make_unique<InputDispatcher>(mFakePolicy, STALE_EVENT_TIMEOUT);
         mDispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
         // Start InputDispatcher thread
         ASSERT_EQ(OK, mDispatcher->start());
@@ -4449,6 +4451,38 @@ TEST_F(InputDispatcherSingleWindowAnr, FocusedApplication_NoFocusedWindow) {
     const std::chrono::duration timeout = mApplication->getDispatchingTimeout(DISPATCHING_TIMEOUT);
     mFakePolicy->assertNotifyNoFocusedWindowAnrWasCalled(timeout, mApplication);
     ASSERT_TRUE(mDispatcher->waitForIdle());
+}
+
+/**
+ * Make sure the stale key is dropped before causing an ANR. So even if there's no focused window,
+ * there will not be an ANR.
+ */
+TEST_F(InputDispatcherSingleWindowAnr, StaleKeyEventDoesNotAnr) {
+    mWindow->setFocusable(false);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
+    mWindow->consumeFocusEvent(false);
+
+    KeyEvent event;
+    const nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC) -
+            std::chrono::nanoseconds(STALE_EVENT_TIMEOUT).count();
+
+    // Define a valid key down event that is stale (too old).
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
+                     INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, /* flags */ 0, AKEYCODE_A, KEY_A,
+                     AMETA_NONE, 1 /*repeatCount*/, eventTime, eventTime);
+
+    const int32_t policyFlags = POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER;
+
+    InputEventInjectionResult result =
+            mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
+                                          InputEventInjectionSync::WAIT_FOR_RESULT,
+                                          INJECT_EVENT_TIMEOUT, policyFlags);
+    ASSERT_EQ(InputEventInjectionResult::FAILED, result)
+            << "Injection should fail because the event is stale";
+
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    mFakePolicy->assertNotifyAnrWasNotCalled();
+    mWindow->assertNoEvents();
 }
 
 // We have a focused application, but no focused window
