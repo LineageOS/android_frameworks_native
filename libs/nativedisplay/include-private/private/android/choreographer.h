@@ -50,9 +50,8 @@ void AChoreographer_routePostFrameCallback64(AChoreographer* choreographer,
 void AChoreographer_routePostFrameCallbackDelayed64(AChoreographer* choreographer,
                                                     AChoreographer_frameCallback64 callback,
                                                     void* data, uint32_t delayMillis);
-void AChoreographer_routePostExtendedFrameCallback(AChoreographer* choreographer,
-                                                   AChoreographer_extendedFrameCallback callback,
-                                                   void* data);
+void AChoreographer_routePostVsyncCallback(AChoreographer* choreographer,
+                                           AChoreographer_vsyncCallback callback, void* data);
 void AChoreographer_routeRegisterRefreshRateCallback(AChoreographer* choreographer,
                                                      AChoreographer_refreshRateCallback callback,
                                                      void* data);
@@ -67,7 +66,7 @@ size_t AChoreographerFrameCallbackData_routeGetPreferredFrameTimelineIndex(
         const AChoreographerFrameCallbackData* data);
 AVsyncId AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId(
         const AChoreographerFrameCallbackData* data, size_t index);
-int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTimeNanos(
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentationTimeNanos(
         const AChoreographerFrameCallbackData* data, size_t index);
 int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineDeadlineNanos(
         const AChoreographerFrameCallbackData* data, size_t index);
