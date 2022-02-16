@@ -1732,11 +1732,15 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
                    // If we support applying display brightness as a command, then we also support
                    // dimming SDR layers.
                    if (supportsDisplayBrightnessCommand) {
-                       display->getCompositionDisplay()
-                               ->setDisplayBrightness(brightness.sdrWhitePointNits,
-                                                      brightness.displayBrightnessNits);
+                       auto compositionDisplay = display->getCompositionDisplay();
+                       float currentDimmingRatio =
+                               compositionDisplay->editState().sdrWhitePointNits /
+                               compositionDisplay->editState().displayBrightnessNits;
+                       compositionDisplay->setDisplayBrightness(brightness.sdrWhitePointNits,
+                                                                brightness.displayBrightnessNits);
                        MAIN_THREAD_GUARD(display->stageBrightness(brightness.displayBrightness));
-                       if (hasVisibleHdrLayer(display)) {
+                       if (brightness.sdrWhitePointNits / brightness.displayBrightnessNits !=
+                           currentDimmingRatio) {
                            scheduleComposite(FrameHint::kNone);
                        } else {
                            scheduleCommit(FrameHint::kNone);

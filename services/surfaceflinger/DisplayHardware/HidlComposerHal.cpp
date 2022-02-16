@@ -1303,7 +1303,7 @@ Error HidlComposer::getClientTargetProperty(
     return Error::NONE;
 }
 
-Error HidlComposer::setLayerWhitePointNits(Display, Layer, float) {
+Error HidlComposer::setLayerBrightness(Display, Layer, float) {
     return Error::NONE;
 }
 

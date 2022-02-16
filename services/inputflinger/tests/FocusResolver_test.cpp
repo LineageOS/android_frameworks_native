@@ -37,12 +37,16 @@ public:
                      bool visible) {
         mInfo.token = token;
         mInfo.name = name;
-        mInfo.visible = visible;
-        mInfo.focusable = focusable;
+        setFocusable(focusable);
+        setVisible(visible);
     }
 
-    void setFocusable(bool focusable) { mInfo.focusable = focusable; }
-    void setVisible(bool visible) { mInfo.visible = visible; }
+    void setFocusable(bool focusable) {
+        mInfo.setInputConfig(gui::WindowInfo::InputConfig::NOT_FOCUSABLE, !focusable);
+    }
+    void setVisible(bool visible) {
+        mInfo.setInputConfig(gui::WindowInfo::InputConfig::NOT_VISIBLE, !visible);
+    }
 };
 
 TEST(FocusResolverTest, SetFocusedWindow) {

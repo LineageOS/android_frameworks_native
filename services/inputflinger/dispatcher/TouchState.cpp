@@ -100,7 +100,8 @@ bool TouchState::isSlippery() const {
     for (const TouchedWindow& window : windows) {
         if (window.targetFlags & InputTarget::FLAG_FOREGROUND) {
             if (haveSlipperyForegroundWindow ||
-                !window.windowHandle->getInfo()->flags.test(WindowInfo::Flag::SLIPPERY)) {
+                !window.windowHandle->getInfo()->inputConfig.test(
+                        WindowInfo::InputConfig::SLIPPERY)) {
                 return false;
             }
             haveSlipperyForegroundWindow = true;
@@ -112,7 +113,8 @@ bool TouchState::isSlippery() const {
 sp<WindowInfoHandle> TouchState::getWallpaperWindow() const {
     for (size_t i = 0; i < windows.size(); i++) {
         const TouchedWindow& window = windows[i];
-        if (window.windowHandle->getInfo()->type == WindowInfo::Type::WALLPAPER) {
+        if (window.windowHandle->getInfo()->inputConfig.test(
+                    gui::WindowInfo::InputConfig::IS_WALLPAPER)) {
             return window.windowHandle;
         }
     }

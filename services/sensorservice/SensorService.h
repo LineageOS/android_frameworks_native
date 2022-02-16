@@ -289,22 +289,32 @@ private:
     class SensorPrivacyPolicy : public hardware::BnSensorPrivacyListener {
         public:
             explicit SensorPrivacyPolicy(wp<SensorService> service)
-                    : mService(service), mIsIndividualMic(false), mUserId(0) {}
+                    : mService(service) {}
             void registerSelf();
             void unregisterSelf();
 
-            status_t registerSelfForIndividual(int userId);
-
             bool isSensorPrivacyEnabled();
 
-            binder::Status onSensorPrivacyChanged(bool enabled);
+            binder::Status onSensorPrivacyChanged(int toggleType, int sensor,
+                                                  bool enabled);
+
+        protected:
+            std::atomic_bool mSensorPrivacyEnabled;
+            wp<SensorService> mService;
 
         private:
-            wp<SensorService> mService;
             Mutex mSensorPrivacyLock;
-            std::atomic_bool mSensorPrivacyEnabled;
-            bool mIsIndividualMic;
-            userid_t mUserId;
+    };
+
+    class MicrophonePrivacyPolicy : public SensorPrivacyPolicy {
+        public:
+            explicit MicrophonePrivacyPolicy(wp<SensorService> service)
+                    : SensorPrivacyPolicy(service) {}
+            void registerSelf();
+            void unregisterSelf();
+
+            binder::Status onSensorPrivacyChanged(int toggleType, int sensor,
+                                                  bool enabled);
     };
 
     // A class automatically clearing and restoring binder caller identity inside
@@ -444,9 +454,9 @@ private:
     void enableAllSensorsLocked(ConnectionSafeAutolock* connLock);
 
     // Caps active direct connections (when the mic toggle is flipped to on)
-    void capRates(userid_t userId);
+    void capRates();
     // Removes the capped rate on active direct connections (when the mic toggle is flipped to off)
-    void uncapRates(userid_t userId);
+    void uncapRates();
 
     static inline bool isAudioServerOrSystemServerUid(uid_t uid) {
         return multiuser_get_app_id(uid) == AID_SYSTEM || uid == AID_AUDIOSERVER;
@@ -497,10 +507,7 @@ private:
     static Mutex sPackageTargetVersionLock;
     static String16 sSensorInterfaceDescriptorPrefix;
 
-    // Map from user to SensorPrivacyPolicy
-    std::map<userid_t, sp<SensorPrivacyPolicy>> mMicSensorPrivacyPolicies;
-    // Checks if the mic sensor privacy is enabled for the uid
-    bool isMicSensorPrivacyEnabledForUid(uid_t uid);
+    sp<MicrophonePrivacyPolicy> mMicSensorPrivacyPolicy;
 
     // Keeps track of the handles of all proximity sensors in the system.
     std::vector<int32_t> mProxSensorHandles;
