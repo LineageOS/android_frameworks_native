@@ -68,4 +68,14 @@ TEST(FpsTest, getIntValue) {
     EXPECT_EQ(31, (30.5_Hz).getIntValue());
 }
 
+TEST(FpsTest, range) {
+    const auto fps = Fps::fromPeriodNsecs(16'666'665);
+
+    EXPECT_TRUE((FpsRange{60.000004_Hz, 60.000004_Hz}.includes(fps)));
+    EXPECT_TRUE((FpsRange{59_Hz, 60.1_Hz}.includes(fps)));
+    EXPECT_FALSE((FpsRange{75_Hz, 90_Hz}.includes(fps)));
+    EXPECT_FALSE((FpsRange{60.0011_Hz, 90_Hz}.includes(fps)));
+    EXPECT_FALSE((FpsRange{50_Hz, 59.998_Hz}.includes(fps)));
+}
+
 } // namespace android
