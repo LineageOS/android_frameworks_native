@@ -151,6 +151,33 @@ struct WindowInfo : public Parcelable {
         // clang-format on
     };
 
+    // Flags used to determine configuration of this input window.
+    // Input windows can be configured with two sets of flags: InputFeature (WindowInfo::Feature
+    // defined above), and InputConfig. When adding a new configuration for an input window:
+    //   - If you are adding a new flag that's visible and accessible to apps, it should be added
+    //   as an InputFeature.
+    //   - If you are adding an internal behaviour that is used within the system or shell and is
+    //   not exposed to apps, it should be added as an InputConfig.
+    enum class InputConfig : uint32_t {
+        // clang-format off
+        NONE                         = 0,
+        NOT_VISIBLE                  = 1 << 0,
+        NOT_FOCUSABLE                = 1 << 1,
+        NOT_TOUCHABLE                = 1 << 2,
+        PREVENT_SPLITTING            = 1 << 3,
+        DUPLICATE_TOUCH_TO_WALLPAPER = 1 << 4,
+        IS_WALLPAPER                 = 1 << 5,
+        PAUSE_DISPATCHING            = 1 << 6,
+        // This flag is set when the window is of a trusted type that is allowed to silently
+        // overlay other windows for the purpose of implementing the secure views feature.
+        // Trusted overlays, such as IME windows, can partly obscure other windows without causing
+        // motion events to be delivered to them with AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED.
+        TRUSTED_OVERLAY              = 1 << 7,
+        WATCH_OUTSIDE_TOUCH          = 1 << 8,
+        SLIPPERY                     = 1 << 9,
+        // clang-format on
+    };
+
     /* These values are filled in by the WM and passed through SurfaceFlinger
      * unless specified otherwise.
      */
@@ -164,8 +191,6 @@ struct WindowInfo : public Parcelable {
     // This uniquely identifies the input window.
     int32_t id = -1;
     std::string name;
-    Flags<Flag> flags;
-    Type type = Type::UNKNOWN;
     std::chrono::nanoseconds dispatchingTimeout = std::chrono::seconds(5);
 
     /* These values are filled in by SurfaceFlinger. */
@@ -198,25 +223,23 @@ struct WindowInfo : public Parcelable {
      * to absolute coordinates by SurfaceFlinger once the frame is computed.
      */
     Region touchableRegion;
-    bool visible = false;
-    bool focusable = false;
-    bool hasWallpaper = false;
-    bool paused = false;
-    /* This flag is set when the window is of a trusted type that is allowed to silently
-     * overlay other windows for the purpose of implementing the secure views feature.
-     * Trusted overlays, such as IME windows, can partly obscure other windows without causing
-     * motion events to be delivered to them with AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED.
-     */
-    bool trustedOverlay = false;
+
     TouchOcclusionMode touchOcclusionMode = TouchOcclusionMode::BLOCK_UNTRUSTED;
     int32_t ownerPid = -1;
     int32_t ownerUid = -1;
     std::string packageName;
     Flags<Feature> inputFeatures;
+    Flags<InputConfig> inputConfig;
     int32_t displayId = ADISPLAY_ID_NONE;
     InputApplicationInfo applicationInfo;
     bool replaceTouchableRegionWithCrop = false;
     wp<IBinder> touchableRegionCropHandle;
+
+    // The window's layout params flags and type set by WM.
+    Type layoutParamsType = Type::UNKNOWN;
+    Flags<Flag> layoutParamsFlags;
+
+    void setInputConfig(Flags<InputConfig> config, bool value);
 
     void addTouchableRegion(const Rect& region);
 

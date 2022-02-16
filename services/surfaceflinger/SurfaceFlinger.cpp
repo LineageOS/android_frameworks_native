@@ -505,7 +505,7 @@ LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
         return LatchUnsignaledConfig::Always;
     }
 
-    if (base::GetBoolProperty("debug.sf.auto_latch_unsignaled"s, false)) {
+    if (base::GetBoolProperty("debug.sf.auto_latch_unsignaled"s, true)) {
         return LatchUnsignaledConfig::AutoSingleLayer;
     }
 
@@ -1732,11 +1732,15 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
                    // If we support applying display brightness as a command, then we also support
                    // dimming SDR layers.
                    if (supportsDisplayBrightnessCommand) {
-                       display->getCompositionDisplay()
-                               ->setDisplayBrightness(brightness.sdrWhitePointNits,
-                                                      brightness.displayBrightnessNits);
+                       auto compositionDisplay = display->getCompositionDisplay();
+                       float currentDimmingRatio =
+                               compositionDisplay->editState().sdrWhitePointNits /
+                               compositionDisplay->editState().displayBrightnessNits;
+                       compositionDisplay->setDisplayBrightness(brightness.sdrWhitePointNits,
+                                                                brightness.displayBrightnessNits);
                        MAIN_THREAD_GUARD(display->stageBrightness(brightness.displayBrightness));
-                       if (hasVisibleHdrLayer(display)) {
+                       if (brightness.sdrWhitePointNits / brightness.displayBrightnessNits !=
+                           currentDimmingRatio) {
                            scheduleComposite(FrameHint::kNone);
                        } else {
                            scheduleCommit(FrameHint::kNone);
@@ -3277,15 +3281,15 @@ void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
             continue;
         }
 
-        // There is more than one display for the layerStack. In this case, the display that is
-        // configured to receive input takes precedence.
+        // There is more than one display for the layerStack. In this case, the first display that
+        // is configured to receive input takes precedence.
         auto& details = it->second;
-        if (!display->receivesInput()) {
+        if (details.receivesInput) {
+            ALOGW_IF(display->receivesInput(),
+                     "Multiple displays claim to accept input for the same layer stack: %u",
+                     layerStackId);
             continue;
         }
-        ALOGE_IF(details.receivesInput,
-                 "Multiple displays claim to accept input for the same layer stack: %u",
-                 layerStackId);
         details.receivesInput = display->receivesInput();
         details.isSecure = display->isSecure();
         details.transform = std::move(transform);
@@ -3673,6 +3677,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                 auto& [applyToken, transactionQueue] = *it;
                 while (!transactionQueue.empty()) {
                     if (stopTransactionProcessing(applyTokensWithUnsignaledTransactions)) {
+                        ATRACE_NAME("stopTransactionProcessing");
                         break;
                     }
 
@@ -3684,6 +3689,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                                                           transaction.originUid, transaction.states,
                                                           bufferLayersReadyToPresent,
                                                           transactions.size());
+                    ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
                     if (ready == TransactionReadiness::NotReady) {
                         setTransactionFlags(eTransactionFlushNeeded);
                         break;
@@ -3721,6 +3727,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                 const auto ready = [&]() REQUIRES(mStateLock) {
                     if (pendingTransactions ||
                         stopTransactionProcessing(applyTokensWithUnsignaledTransactions)) {
+                        ATRACE_NAME("pendingTransactions || stopTransactionProcessing");
                         return TransactionReadiness::NotReady;
                     }
 
@@ -3731,7 +3738,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                                                          bufferLayersReadyToPresent,
                                                          transactions.size());
                 }();
-
+                ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
                 if (ready == TransactionReadiness::NotReady) {
                     mPendingTransactionQueues[transaction.applyToken].push(std::move(transaction));
                 } else {
@@ -3806,7 +3813,7 @@ bool SurfaceFlinger::frameIsEarly(nsecs_t expectedPresentTime, int64_t vsyncId) 
             prediction->presentTime - expectedPresentTime >= earlyLatchVsyncThreshold;
 }
 bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t& state,
-                                           size_t numStates, size_t totalTXapplied) {
+                                           size_t numStates, size_t totalTXapplied) const {
     if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::Disabled) {
         ALOGV("%s: false (LatchUnsignaledConfig::Disabled)", __func__);
         return false;
@@ -3824,11 +3831,22 @@ bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_s
         return false;
     }
 
-    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::AutoSingleLayer &&
-        totalTXapplied > 0) {
-        ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; totalTXapplied=%zu)", __func__,
-              totalTXapplied);
-        return false;
+    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::AutoSingleLayer) {
+        if (totalTXapplied > 0) {
+            ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; totalTXapplied=%zu)",
+                  __func__, totalTXapplied);
+            return false;
+        }
+
+        // We don't want to latch unsignaled if are in early / client composition
+        // as it leads to jank due to RenderEngine waiting for unsignaled buffer
+        // or window animations being slow.
+        const auto isDefaultVsyncConfig = mVsyncModulator->isVsyncConfigDefault();
+        if (!isDefaultVsyncConfig) {
+            ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; !isDefaultVsyncConfig)",
+                  __func__);
+            return false;
+        }
     }
 
     if (!layer->simpleBufferUpdate(state)) {
@@ -3881,11 +3899,10 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
             continue;
         }
 
-        ATRACE_NAME(layer->getName().c_str());
-
         const bool allowLatchUnsignaled =
                 shouldLatchUnsignaled(layer, s, states.size(), totalTXapplied);
-        ATRACE_INT("allowLatchUnsignaled", allowLatchUnsignaled);
+        ATRACE_FORMAT("%s allowLatchUnsignaled=%s", layer->getName().c_str(),
+                      allowLatchUnsignaled ? "true" : "false");
 
         const bool acquireFenceChanged = s.bufferData &&
                 s.bufferData->flags.test(BufferData::BufferDataChange::fenceChanged) &&

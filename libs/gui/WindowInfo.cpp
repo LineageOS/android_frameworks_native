@@ -18,7 +18,6 @@
 #define LOG_TAG "WindowInfo"
 #define LOG_NDEBUG 0
 
-#include <android-base/stringprintf.h>
 #include <binder/Parcel.h>
 #include <gui/WindowInfo.h>
 
@@ -27,6 +26,14 @@
 namespace android::gui {
 
 // --- WindowInfo ---
+void WindowInfo::setInputConfig(Flags<InputConfig> config, bool value) {
+    if (value) {
+        inputConfig |= config;
+        return;
+    }
+    inputConfig &= ~config;
+}
+
 void WindowInfo::addTouchableRegion(const Rect& region) {
     touchableRegion.orSelf(region);
 }
@@ -40,7 +47,7 @@ bool WindowInfo::frameContainsPoint(int32_t x, int32_t y) const {
 }
 
 bool WindowInfo::supportsSplitTouch() const {
-    return flags.test(Flag::SPLIT_TOUCH);
+    return !inputConfig.test(InputConfig::PREVENT_SPLITTING);
 }
 
 bool WindowInfo::isSpy() const {
@@ -58,20 +65,19 @@ bool WindowInfo::overlaps(const WindowInfo* other) const {
 }
 
 bool WindowInfo::operator==(const WindowInfo& info) const {
-    return info.token == token && info.id == id && info.name == name && info.flags == flags &&
-            info.type == type && info.dispatchingTimeout == dispatchingTimeout &&
-            info.frameLeft == frameLeft && info.frameTop == frameTop &&
-            info.frameRight == frameRight && info.frameBottom == frameBottom &&
-            info.surfaceInset == surfaceInset && info.globalScaleFactor == globalScaleFactor &&
-            info.transform == transform && info.touchableRegion.hasSameRects(touchableRegion) &&
-            info.visible == visible && info.trustedOverlay == trustedOverlay &&
-            info.focusable == focusable && info.touchOcclusionMode == touchOcclusionMode &&
-            info.hasWallpaper == hasWallpaper && info.paused == paused &&
-            info.ownerPid == ownerPid && info.ownerUid == ownerUid &&
-            info.packageName == packageName && info.inputFeatures == inputFeatures &&
+    return info.token == token && info.id == id && info.name == name &&
+            info.dispatchingTimeout == dispatchingTimeout && info.frameLeft == frameLeft &&
+            info.frameTop == frameTop && info.frameRight == frameRight &&
+            info.frameBottom == frameBottom && info.surfaceInset == surfaceInset &&
+            info.globalScaleFactor == globalScaleFactor && info.transform == transform &&
+            info.touchableRegion.hasSameRects(touchableRegion) &&
+            info.touchOcclusionMode == touchOcclusionMode && info.ownerPid == ownerPid &&
+            info.ownerUid == ownerUid && info.packageName == packageName &&
+            info.inputFeatures == inputFeatures && info.inputConfig == inputConfig &&
             info.displayId == displayId &&
             info.replaceTouchableRegionWithCrop == replaceTouchableRegionWithCrop &&
-            info.applicationInfo == applicationInfo;
+            info.applicationInfo == applicationInfo && info.layoutParamsType == layoutParamsType &&
+            info.layoutParamsFlags == layoutParamsFlags;
 }
 
 status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
@@ -85,13 +91,18 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
     }
     parcel->writeInt32(1);
 
+    // Ensure that the size of the flags that we use is 32 bits for writing into the parcel.
+    static_assert(sizeof(inputFeatures) == 4u);
+    static_assert(sizeof(inputConfig) == 4u);
+
     // clang-format off
     status_t status = parcel->writeStrongBinder(token) ?:
         parcel->writeInt64(dispatchingTimeout.count()) ?:
         parcel->writeInt32(id) ?:
         parcel->writeUtf8AsUtf16(name) ?:
-        parcel->writeInt32(flags.get()) ?:
-        parcel->writeInt32(static_cast<std::underlying_type_t<WindowInfo::Type>>(type)) ?:
+        parcel->writeInt32(layoutParamsFlags.get()) ?:
+        parcel->writeInt32(
+                static_cast<std::underlying_type_t<WindowInfo::Type>>(layoutParamsType)) ?:
         parcel->writeInt32(frameLeft) ?:
         parcel->writeInt32(frameTop) ?:
         parcel->writeInt32(frameRight) ?:
@@ -105,16 +116,12 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeFloat(transform.dtdy()) ?:
         parcel->writeFloat(transform.dsdy()) ?:
         parcel->writeFloat(transform.ty()) ?:
-        parcel->writeBool(visible) ?:
-        parcel->writeBool(focusable) ?:
-        parcel->writeBool(hasWallpaper) ?:
-        parcel->writeBool(paused) ?:
-        parcel->writeBool(trustedOverlay) ?:
         parcel->writeInt32(static_cast<int32_t>(touchOcclusionMode)) ?:
         parcel->writeInt32(ownerPid) ?:
         parcel->writeInt32(ownerUid) ?:
         parcel->writeUtf8AsUtf16(packageName) ?:
         parcel->writeInt32(inputFeatures.get()) ?:
+        parcel->writeInt32(inputConfig.get()) ?:
         parcel->writeInt32(displayId) ?:
         applicationInfo.writeToParcel(parcel) ?:
         parcel->write(touchableRegion) ?:
@@ -141,8 +148,8 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
         return status;
     }
 
-    flags = Flags<Flag>(parcel->readInt32());
-    type = static_cast<Type>(parcel->readInt32());
+    layoutParamsFlags = Flags<Flag>(parcel->readInt32());
+    layoutParamsType = static_cast<Type>(parcel->readInt32());
     float dsdx, dtdx, tx, dtdy, dsdy, ty;
     int32_t touchOcclusionModeInt;
     // clang-format off
@@ -159,11 +166,6 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
         parcel->readFloat(&dtdy) ?:
         parcel->readFloat(&dsdy) ?:
         parcel->readFloat(&ty) ?:
-        parcel->readBool(&visible) ?:
-        parcel->readBool(&focusable) ?:
-        parcel->readBool(&hasWallpaper) ?:
-        parcel->readBool(&paused) ?:
-        parcel->readBool(&trustedOverlay) ?:
         parcel->readInt32(&touchOcclusionModeInt) ?:
         parcel->readInt32(&ownerPid) ?:
         parcel->readInt32(&ownerUid) ?:
@@ -177,6 +179,7 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
     touchOcclusionMode = static_cast<TouchOcclusionMode>(touchOcclusionModeInt);
 
     inputFeatures = Flags<Feature>(parcel->readInt32());
+    inputConfig = Flags<InputConfig>(parcel->readInt32());
     // clang-format off
     status = parcel->readInt32(&displayId) ?:
         applicationInfo.readFromParcel(parcel) ?:

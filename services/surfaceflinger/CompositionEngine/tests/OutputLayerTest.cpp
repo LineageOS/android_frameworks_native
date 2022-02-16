@@ -751,6 +751,8 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static constexpr bool kLayerGenericMetadata2Mandatory = true;
     static constexpr float kWhitePointNits = 200.f;
     static constexpr float kDisplayBrightnessNits = 400.f;
+    static constexpr float kLayerBrightness = kWhitePointNits / kDisplayBrightnessNits;
+    static constexpr float kFullLayerBrightness = 1.f;
 
     static const half4 kColor;
     static const Rect kDisplayFrame;
@@ -782,6 +784,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         outputLayerState.outputSpaceVisibleRegion = kOutputSpaceVisibleRegion;
         outputLayerState.dataspace = kDataspace;
         outputLayerState.whitePointNits = kWhitePointNits;
+        outputLayerState.dimmingRatio = kLayerBrightness;
 
         mLayerFEState.blendMode = kBlendMode;
         mLayerFEState.alpha = kAlpha;
@@ -846,11 +849,11 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
                                    ui::Dataspace dataspace = kDataspace,
                                    const Region& visibleRegion = kOutputSpaceVisibleRegion,
                                    const Region& surfaceDamage = kSurfaceDamage,
-                                   float whitePointNits = kWhitePointNits,
+                                   float brightness = kLayerBrightness,
                                    const Region& blockingRegion = Region()) {
         EXPECT_CALL(*mHwcLayer, setVisibleRegion(RegionEq(visibleRegion))).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setDataspace(dataspace)).WillOnce(Return(kError));
-        EXPECT_CALL(*mHwcLayer, setWhitePointNits(whitePointNits)).WillOnce(Return(kError));
+        EXPECT_CALL(*mHwcLayer, setBrightness(brightness)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setColorTransform(kColorTransform))
                 .WillOnce(Return(unsupported == SimulateUnsupported::ColorTransform
                                          ? hal::Error::UNSUPPORTED
@@ -1114,7 +1117,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, overriddenSkipLayerDoesNotSendBuffer) {
     expectGeometryCommonCalls(kOverrideDisplayFrame, kOverrideSourceCrop, kOverrideBufferTransform,
                               kOverrideBlendMode, kSkipAlpha);
     expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace, kOverrideVisibleRegion,
-                              kOverrideSurfaceDamage, kDisplayBrightnessNits);
+                              kOverrideSurfaceDamage, kFullLayerBrightness);
     expectSetHdrMetadataAndBufferCalls();
     expectSetCompositionTypeCall(Composition::DEVICE);
     EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
@@ -1130,7 +1133,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, overriddenSkipLayerForSolidColorDoesNotSe
     expectGeometryCommonCalls(kOverrideDisplayFrame, kOverrideSourceCrop, kOverrideBufferTransform,
                               kOverrideBlendMode, kSkipAlpha);
     expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace, kOverrideVisibleRegion,
-                              kOverrideSurfaceDamage, kDisplayBrightnessNits);
+                              kOverrideSurfaceDamage, kFullLayerBrightness);
     expectSetHdrMetadataAndBufferCalls();
     expectSetCompositionTypeCall(Composition::DEVICE);
     EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
@@ -1146,7 +1149,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoIfPresent) {
     expectGeometryCommonCalls(kOverrideDisplayFrame, kOverrideSourceCrop, kOverrideBufferTransform,
                               kOverrideBlendMode, kOverrideAlpha);
     expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace, kOverrideVisibleRegion,
-                              kOverrideSurfaceDamage, kDisplayBrightnessNits);
+                              kOverrideSurfaceDamage, kFullLayerBrightness);
     expectSetHdrMetadataAndBufferCalls(kOverrideHwcSlot, kOverrideBuffer, kOverrideFence);
     expectSetCompositionTypeCall(Composition::DEVICE);
     EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
@@ -1162,7 +1165,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoForSolidColorIfPresen
     expectGeometryCommonCalls(kOverrideDisplayFrame, kOverrideSourceCrop, kOverrideBufferTransform,
                               kOverrideBlendMode, kOverrideAlpha);
     expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace, kOverrideVisibleRegion,
-                              kOverrideSurfaceDamage, kDisplayBrightnessNits);
+                              kOverrideSurfaceDamage, kFullLayerBrightness);
     expectSetHdrMetadataAndBufferCalls(kOverrideHwcSlot, kOverrideBuffer, kOverrideFence);
     expectSetCompositionTypeCall(Composition::DEVICE);
     EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
@@ -1288,7 +1291,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, setBlockingRegion) {
 
     expectGeometryCommonCalls();
     expectPerFrameCommonCalls(SimulateUnsupported::None, kDataspace, kOutputSpaceVisibleRegion,
-                              kSurfaceDamage, kWhitePointNits, blockingRegion);
+                              kSurfaceDamage, kLayerBrightness, blockingRegion);
     expectSetHdrMetadataAndBufferCalls();
     EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
     expectSetCompositionTypeCall(Composition::DISPLAY_DECORATION);

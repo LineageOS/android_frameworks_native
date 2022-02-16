@@ -631,6 +631,28 @@ TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_KeepsTransactionInTheQueue) {
                          kExpectedTransactionsApplied, kExpectedTransactionsPending);
 }
 
+TEST_F(LatchUnsignaledAutoSingleLayerTest, DontLatchUnsignaledWhenEarlyOffset) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsApplied = 0u;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+
+    // Get VsyncModulator out of the default config
+    static_cast<void>(mFlinger.mutableVsyncModulator()->onRefreshRateChangeInitiated());
+
+    setTransactionStates({unsignaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
+}
+
 class LatchUnsignaledDisabledTest : public LatchUnsignaledTest {
 public:
     void SetUp() override {
@@ -997,6 +1019,28 @@ TEST_F(LatchUnsignaledAlwaysTest, Flush_RemovesUnsignaledFromTheQueue) {
                                   });
     setTransactionStates({unsignaledTransaction, unsignaledTransaction2},
                          kExpectedTransactionsApplied, kExpectedTransactionsPending);
+}
+
+TEST_F(LatchUnsignaledAlwaysTest, LatchUnsignaledWhenEarlyOffset) {
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsApplied = 1u;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eBufferChanged),
+                                  });
+
+    // Get VsyncModulator out of the default config
+    static_cast<void>(mFlinger.mutableVsyncModulator()->onRefreshRateChangeInitiated());
+
+    setTransactionStates({unsignaledTransaction}, kExpectedTransactionsApplied,
+                         kExpectedTransactionsPending);
 }
 
 } // namespace android

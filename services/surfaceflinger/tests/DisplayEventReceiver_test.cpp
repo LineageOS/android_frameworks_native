@@ -28,23 +28,24 @@ public:
 
 TEST_F(DisplayEventReceiverTest, getLatestVsyncEventData) {
     const nsecs_t now = systemTime();
-    VsyncEventData vsyncEventData;
-    EXPECT_EQ(NO_ERROR, mDisplayEventReceiver.getLatestVsyncEventData(&vsyncEventData));
+    ParcelableVsyncEventData parcelableVsyncEventData;
+    EXPECT_EQ(NO_ERROR, mDisplayEventReceiver.getLatestVsyncEventData(&parcelableVsyncEventData));
 
+    const VsyncEventData& vsyncEventData = parcelableVsyncEventData.vsync;
     EXPECT_NE(std::numeric_limits<size_t>::max(), vsyncEventData.preferredFrameTimelineIndex);
     EXPECT_GT(vsyncEventData.frameTimelines[0].deadlineTimestamp, now)
             << "Deadline timestamp should be greater than frame time";
-    for (size_t i = 0; i < vsyncEventData.frameTimelines.size(); i++) {
-        EXPECT_NE(FrameTimelineInfo::INVALID_VSYNC_ID, vsyncEventData.frameTimelines[i].id);
-        EXPECT_GT(vsyncEventData.frameTimelines[i].expectedPresentTime,
+    for (size_t i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
+        EXPECT_NE(FrameTimelineInfo::INVALID_VSYNC_ID, vsyncEventData.frameTimelines[i].vsyncId);
+        EXPECT_GT(vsyncEventData.frameTimelines[i].expectedPresentationTime,
                   vsyncEventData.frameTimelines[i].deadlineTimestamp)
                 << "Expected vsync timestamp should be greater than deadline";
         if (i > 0) {
             EXPECT_GT(vsyncEventData.frameTimelines[i].deadlineTimestamp,
                       vsyncEventData.frameTimelines[i - 1].deadlineTimestamp)
                     << "Deadline timestamp out of order for frame timeline " << i;
-            EXPECT_GT(vsyncEventData.frameTimelines[i].expectedPresentTime,
-                      vsyncEventData.frameTimelines[i - 1].expectedPresentTime)
+            EXPECT_GT(vsyncEventData.frameTimelines[i].expectedPresentationTime,
+                      vsyncEventData.frameTimelines[i - 1].expectedPresentationTime)
                     << "Expected vsync timestamp out of order for frame timeline " << i;
         }
     }

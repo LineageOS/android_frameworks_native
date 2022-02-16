@@ -275,8 +275,8 @@ TEST_F(ServiceTest, DestroyAppData) {
     EXPECT_FALSE(exists_renamed_deleted_dir());
 }
 
-TEST_F(ServiceTest, CleanupDeletedDirs) {
-    LOG(INFO) << "CleanupDeletedDirs";
+TEST_F(ServiceTest, CleanupInvalidPackageDirs) {
+    LOG(INFO) << "CleanupInvalidPackageDirs";
 
     mkdir("5b14b6458a44==deleted==", 10000, 10000, 0700);
     mkdir("5b14b6458a44==deleted==/foo", 10000, 10000, 0700);
@@ -286,11 +286,11 @@ TEST_F(ServiceTest, CleanupDeletedDirs) {
 
     auto fd = create("5b14b6458a44==deleted==/bar/opened_file", 10000, 20000, 0700);
 
-    mkdir("5b14b6458a44==NOTdeleted==", 10000, 10000, 0700);
-    mkdir("5b14b6458a44==NOTdeleted==/foo", 10000, 10000, 0700);
-    touch("5b14b6458a44==NOTdeleted==/foo/file", 10000, 20000, 0700);
-    mkdir("5b14b6458a44==NOTdeleted==/bar", 10000, 20000, 0700);
-    touch("5b14b6458a44==NOTdeleted==/bar/file", 10000, 20000, 0700);
+    mkdir("b14b6458a44NOTdeleted", 10000, 10000, 0700);
+    mkdir("b14b6458a44NOTdeleted/foo", 10000, 10000, 0700);
+    touch("b14b6458a44NOTdeleted/foo/file", 10000, 20000, 0700);
+    mkdir("b14b6458a44NOTdeleted/bar", 10000, 20000, 0700);
+    touch("b14b6458a44NOTdeleted/bar/file", 10000, 20000, 0700);
 
     mkdir("com.example", 10000, 10000, 0700);
     mkdir("com.example/foo", 10000, 10000, 0700);
@@ -310,10 +310,10 @@ TEST_F(ServiceTest, CleanupDeletedDirs) {
     EXPECT_TRUE(exists("5b14b6458a44==deleted==/bar/file"));
     EXPECT_TRUE(exists("5b14b6458a44==deleted==/bar/opened_file"));
 
-    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/foo"));
-    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/foo/file"));
-    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/bar"));
-    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/bar/file"));
+    EXPECT_TRUE(exists("b14b6458a44NOTdeleted/foo"));
+    EXPECT_TRUE(exists("b14b6458a44NOTdeleted/foo/file"));
+    EXPECT_TRUE(exists("b14b6458a44NOTdeleted/bar"));
+    EXPECT_TRUE(exists("b14b6458a44NOTdeleted/bar/file"));
 
     EXPECT_TRUE(exists("com.example/foo"));
     EXPECT_TRUE(exists("com.example/foo/file"));
@@ -327,7 +327,7 @@ TEST_F(ServiceTest, CleanupDeletedDirs) {
 
     EXPECT_TRUE(exists_renamed_deleted_dir());
 
-    service->cleanupDeletedDirs(testUuid);
+    service->cleanupInvalidPackageDirs(testUuid, 0, FLAG_STORAGE_CE | FLAG_STORAGE_DE);
 
     EXPECT_EQ(::close(fd), 0);
 
@@ -337,10 +337,10 @@ TEST_F(ServiceTest, CleanupDeletedDirs) {
     EXPECT_FALSE(exists("5b14b6458a44==deleted==/bar/file"));
     EXPECT_FALSE(exists("5b14b6458a44==deleted==/bar/opened_file"));
 
-    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/foo"));
-    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/foo/file"));
-    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/bar"));
-    EXPECT_TRUE(exists("5b14b6458a44==NOTdeleted==/bar/file"));
+    EXPECT_TRUE(exists("b14b6458a44NOTdeleted/foo"));
+    EXPECT_TRUE(exists("b14b6458a44NOTdeleted/foo/file"));
+    EXPECT_TRUE(exists("b14b6458a44NOTdeleted/bar"));
+    EXPECT_TRUE(exists("b14b6458a44NOTdeleted/bar/file"));
 
     EXPECT_TRUE(exists("com.example/foo"));
     EXPECT_TRUE(exists("com.example/foo/file"));
