@@ -300,20 +300,19 @@ status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, cons
             if (!gralloc4::isStandardPlaneLayoutComponentType(planeLayoutComponent.type)) {
                 continue;
             }
-            if (0 != planeLayoutComponent.offsetInBits % 8) {
-                unlock(bufferHandle);
-                return BAD_VALUE;
-            }
 
-            uint8_t* tmpData = static_cast<uint8_t*>(data) + planeLayout.offsetInBytes +
-                    (planeLayoutComponent.offsetInBits / 8);
+            uint8_t* tmpData = static_cast<uint8_t*>(data) + planeLayout.offsetInBytes;
+
+            // Note that `offsetInBits` may not be a multiple of 8 for packed formats (e.g. P010)
+            // but we still want to point to the start of the first byte.
+            tmpData += (planeLayoutComponent.offsetInBits / 8);
+
             uint64_t sampleIncrementInBytes;
 
             auto type = static_cast<PlaneLayoutComponentType>(planeLayoutComponent.type.value);
             switch (type) {
                 case PlaneLayoutComponentType::Y:
-                    if ((ycbcr.y != nullptr) || (planeLayoutComponent.sizeInBits != 8) ||
-                        (planeLayout.sampleIncrementInBits != 8)) {
+                    if ((ycbcr.y != nullptr) || (planeLayout.sampleIncrementInBits % 8 != 0)) {
                         unlock(bufferHandle);
                         return BAD_VALUE;
                     }
@@ -329,7 +328,8 @@ status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, cons
                     }
 
                     sampleIncrementInBytes = planeLayout.sampleIncrementInBits / 8;
-                    if ((sampleIncrementInBytes != 1) && (sampleIncrementInBytes != 2)) {
+                    if ((sampleIncrementInBytes != 1) && (sampleIncrementInBytes != 2) &&
+                        (sampleIncrementInBytes != 4)) {
                         unlock(bufferHandle);
                         return BAD_VALUE;
                     }
