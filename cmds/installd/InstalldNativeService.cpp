@@ -994,15 +994,15 @@ binder::Status InstalldNativeService::destroyAppData(const std::optional<std::st
             }
 
             auto path = StringPrintf("%s/Android/data/%s", extPath.c_str(), pkgname);
-            if (rename_delete_dir_contents_and_dir(path, true) != 0) {
+            if (delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete contents of " + path);
             }
             path = StringPrintf("%s/Android/media/%s", extPath.c_str(), pkgname);
-            if (rename_delete_dir_contents_and_dir(path, true) != 0) {
+            if (delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete contents of " + path);
             }
             path = StringPrintf("%s/Android/obb/%s", extPath.c_str(), pkgname);
-            if (rename_delete_dir_contents_and_dir(path, true) != 0) {
+            if (delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete contents of " + path);
             }
         }
@@ -1550,27 +1550,27 @@ binder::Status InstalldNativeService::destroyUserData(const std::optional<std::s
     binder::Status res = ok();
     if (flags & FLAG_STORAGE_DE) {
         auto path = create_data_user_de_path(uuid_, userId);
-        if (rename_delete_dir_contents_and_dir(path, true) != 0) {
+        if (delete_dir_contents_and_dir(path, true) != 0) {
             res = error("Failed to delete " + path);
         }
         if (uuid_ == nullptr) {
             path = create_data_misc_legacy_path(userId);
-            if (rename_delete_dir_contents_and_dir(path, true) != 0) {
+            if (delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete " + path);
             }
             path = create_primary_cur_profile_dir_path(userId);
-            if (rename_delete_dir_contents_and_dir(path, true) != 0) {
+            if (delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete " + path);
             }
         }
     }
     if (flags & FLAG_STORAGE_CE) {
         auto path = create_data_user_ce_path(uuid_, userId);
-        if (rename_delete_dir_contents_and_dir(path, true) != 0) {
+        if (delete_dir_contents_and_dir(path, true) != 0) {
             res = error("Failed to delete " + path);
         }
         path = findDataMediaPath(uuid, userId);
-        if (rename_delete_dir_contents_and_dir(path, true) != 0) {
+        if (delete_dir_contents_and_dir(path, true) != 0) {
             res = error("Failed to delete " + path);
         }
     }
