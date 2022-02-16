@@ -120,6 +120,7 @@ using android::os::dumpstate::DumpFileToFd;
 using android::os::dumpstate::DumpPool;
 using android::os::dumpstate::PropertiesHelper;
 using android::os::dumpstate::TaskQueue;
+using android::os::dumpstate::WaitForTask;
 
 // Keep in sync with
 // frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java
@@ -218,9 +219,9 @@ static const std::string ANR_FILE_PREFIX = "anr_";
     RUN_SLOW_FUNCTION_AND_LOG(log_title, func_ptr, __VA_ARGS__);               \
     RETURN_IF_USER_DENIED_CONSENT();
 
-#define WAIT_TASK_WITH_CONSENT_CHECK(task_name, pool_ptr) \
+#define WAIT_TASK_WITH_CONSENT_CHECK(future) \
     RETURN_IF_USER_DENIED_CONSENT();                      \
-    pool_ptr->waitForTask(task_name);                     \
+    WaitForTask(future);                     \
     RETURN_IF_USER_DENIED_CONSENT();
 
 static const char* WAKE_LOCK_NAME = "dumpstate_wakelock";
@@ -1549,15 +1550,18 @@ static Dumpstate::RunStatus dumpstate() {
     DurationReporter duration_reporter("DUMPSTATE");
 
     // Enqueue slow functions into the thread pool, if the parallel run is enabled.
+    std::future<std::string> dump_hals, dump_incident_report, dump_board, dump_checkins;
     if (ds.dump_pool_) {
         // Pool was shutdown in DumpstateDefaultAfterCritical method in order to
         // drop root user. Restarts it with two threads for the parallel run.
         ds.dump_pool_->start(/* thread_counts = */2);
 
-        ds.dump_pool_->enqueueTaskWithFd(DUMP_HALS_TASK, &DumpHals, _1);
-        ds.dump_pool_->enqueueTask(DUMP_INCIDENT_REPORT_TASK, &DumpIncidentReport);
-        ds.dump_pool_->enqueueTaskWithFd(DUMP_BOARD_TASK, &Dumpstate::DumpstateBoard, &ds, _1);
-        ds.dump_pool_->enqueueTaskWithFd(DUMP_CHECKINS_TASK, &DumpCheckins, _1);
+        dump_hals = ds.dump_pool_->enqueueTaskWithFd(DUMP_HALS_TASK, &DumpHals, _1);
+        dump_incident_report = ds.dump_pool_->enqueueTask(
+            DUMP_INCIDENT_REPORT_TASK, &DumpIncidentReport);
+        dump_board = ds.dump_pool_->enqueueTaskWithFd(
+            DUMP_BOARD_TASK, &Dumpstate::DumpstateBoard, &ds, _1);
+        dump_checkins = ds.dump_pool_->enqueueTaskWithFd(DUMP_CHECKINS_TASK, &DumpCheckins, _1);
     }
 
     // Dump various things. Note that anything that takes "long" (i.e. several seconds) should
@@ -1591,7 +1595,7 @@ static Dumpstate::RunStatus dumpstate() {
                                          CommandOptions::AS_ROOT);
 
     if (ds.dump_pool_) {
-        WAIT_TASK_WITH_CONSENT_CHECK(DUMP_HALS_TASK, ds.dump_pool_);
+        WAIT_TASK_WITH_CONSENT_CHECK(std::move(dump_hals));
     } else {
         RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_HALS_TASK, DumpHals);
     }
@@ -1688,7 +1692,7 @@ static Dumpstate::RunStatus dumpstate() {
     ds.AddDir(SNAPSHOTCTL_LOG_DIR, false);
 
     if (ds.dump_pool_) {
-        WAIT_TASK_WITH_CONSENT_CHECK(DUMP_BOARD_TASK, ds.dump_pool_);
+        WAIT_TASK_WITH_CONSENT_CHECK(std::move(dump_board));
     } else {
         RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_BOARD_TASK, ds.DumpstateBoard);
     }
@@ -1717,7 +1721,7 @@ static Dumpstate::RunStatus dumpstate() {
     ds.AddDir("/data/misc/bluetooth/logs", true);
 
     if (ds.dump_pool_) {
-        WAIT_TASK_WITH_CONSENT_CHECK(DUMP_CHECKINS_TASK, ds.dump_pool_);
+        WAIT_TASK_WITH_CONSENT_CHECK(std::move(dump_checkins));
     } else {
         RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_CHECKINS_TASK, DumpCheckins);
     }
@@ -1751,7 +1755,7 @@ static Dumpstate::RunStatus dumpstate() {
     dump_frozen_cgroupfs();
 
     if (ds.dump_pool_) {
-        WAIT_TASK_WITH_CONSENT_CHECK(DUMP_INCIDENT_REPORT_TASK, ds.dump_pool_);
+        WAIT_TASK_WITH_CONSENT_CHECK(std::move(dump_incident_report));
     } else {
         RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_INCIDENT_REPORT_TASK,
                 DumpIncidentReport);
@@ -1776,6 +1780,7 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     time_t logcat_ts = time(nullptr);
 
     /* collect stack traces from Dalvik and native processes (needs root) */
+    std::future<std::string> dump_traces;
     if (dump_pool_) {
         RETURN_IF_USER_DENIED_CONSENT();
         // One thread is enough since we only need to enqueue DumpTraces here.
@@ -1783,7 +1788,8 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
 
         // DumpTraces takes long time, post it to the another thread in the
         // pool, if pool is available
-        dump_pool_->enqueueTask(DUMP_TRACES_TASK, &Dumpstate::DumpTraces, &ds, &dump_traces_path);
+        dump_traces = dump_pool_->enqueueTask(
+            DUMP_TRACES_TASK, &Dumpstate::DumpTraces, &ds, &dump_traces_path);
     } else {
         RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_TRACES_TASK, ds.DumpTraces,
                 &dump_traces_path);
@@ -1832,12 +1838,11 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
 
     if (dump_pool_) {
         RETURN_IF_USER_DENIED_CONSENT();
-        dump_pool_->waitForTask(DUMP_TRACES_TASK);
+        WaitForTask(std::move(dump_traces));
 
-        // Current running thread in the pool is the root user also. Shutdown
-        // the pool and restart later to ensure all threads in the pool could
-        // drop the root user.
-        dump_pool_->shutdown();
+        // Current running thread in the pool is the root user also. Delete
+        // the pool and make a new one later to ensure none of threads in the pool are root.
+        dump_pool_ = std::make_unique<DumpPool>(bugreport_internal_dir_);
     }
     if (!DropRootUser()) {
         return Dumpstate::RunStatus::ERROR;
@@ -1868,8 +1873,9 @@ static void DumpstateRadioCommon(bool include_sensitive_info = true) {
     } else {
         // DumpHals takes long time, post it to the another thread in the pool,
         // if pool is available.
+        std::future<std::string> dump_hals;
         if (ds.dump_pool_) {
-            ds.dump_pool_->enqueueTaskWithFd(DUMP_HALS_TASK, &DumpHals, _1);
+            dump_hals = ds.dump_pool_->enqueueTaskWithFd(DUMP_HALS_TASK, &DumpHals, _1);
         }
         // Contains various system properties and process startup info.
         do_dmesg();
@@ -1879,7 +1885,7 @@ static void DumpstateRadioCommon(bool include_sensitive_info = true) {
         DoKmsg();
         // DumpHals contains unrelated hardware info (camera, NFC, biometrics, ...).
         if (ds.dump_pool_) {
-            ds.dump_pool_->waitForTask(DUMP_HALS_TASK);
+            WaitForTask(std::move(dump_hals));
         } else {
             RUN_SLOW_FUNCTION_AND_LOG(DUMP_HALS_TASK, DumpHals);
         }
@@ -1913,12 +1919,14 @@ static void DumpstateTelephonyOnly(const std::string& calling_package) {
 
     // Starts thread pool after the root user is dropped, and two additional threads
     // are created for DumpHals in the DumpstateRadioCommon and DumpstateBoard.
+    std::future<std::string> dump_board;
     if (ds.dump_pool_) {
         ds.dump_pool_->start(/*thread_counts =*/2);
 
         // DumpstateBoard takes long time, post it to the another thread in the pool,
         // if pool is available.
-        ds.dump_pool_->enqueueTaskWithFd(DUMP_BOARD_TASK, &Dumpstate::DumpstateBoard, &ds, _1);
+        dump_board = ds.dump_pool_->enqueueTaskWithFd(
+            DUMP_BOARD_TASK, &Dumpstate::DumpstateBoard, &ds, _1);
     }
 
     DumpstateRadioCommon(include_sensitive_info);
@@ -2001,7 +2009,7 @@ static void DumpstateTelephonyOnly(const std::string& calling_package) {
     printf("========================================================\n");
 
     if (ds.dump_pool_) {
-        ds.dump_pool_->waitForTask(DUMP_BOARD_TASK);
+        WaitForTask(std::move(dump_board));
     } else {
         RUN_SLOW_FUNCTION_AND_LOG(DUMP_BOARD_TASK, ds.DumpstateBoard);
     }
@@ -3225,8 +3233,7 @@ void Dumpstate::EnableParallelRunIfNeeded() {
 
 void Dumpstate::ShutdownDumpPool() {
     if (dump_pool_) {
-        dump_pool_->shutdown();
-        dump_pool_ = nullptr;
+        dump_pool_.reset();
     }
     if (zip_entry_tasks_) {
         zip_entry_tasks_->run(/* do_cancel = */true);
