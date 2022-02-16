@@ -327,7 +327,7 @@ public:
             const std::string& name, bool mandatory, const std::vector<uint8_t>& value) = 0;
 
     // AIDL HAL
-    [[clang::warn_unused_result]] virtual hal::Error setWhitePointNits(float whitePointNits) = 0;
+    [[clang::warn_unused_result]] virtual hal::Error setBrightness(float brightness) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setBlockingRegion(
             const android::Region& region) = 0;
 };
@@ -376,7 +376,7 @@ public:
                                        const std::vector<uint8_t>& value) override;
 
     // AIDL HAL
-    hal::Error setWhitePointNits(float whitePointNits) override;
+    hal::Error setBrightness(float brightness) override;
     hal::Error setBlockingRegion(const android::Region& region) override;
 
 private:

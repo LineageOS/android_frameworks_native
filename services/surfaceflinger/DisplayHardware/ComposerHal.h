@@ -264,7 +264,7 @@ public:
             float* outWhitePointNits) = 0;
 
     // AIDL Composer
-    virtual Error setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) = 0;
+    virtual Error setLayerBrightness(Display display, Layer layer, float brightness) = 0;
     virtual Error setLayerBlockingRegion(Display display, Layer layer,
                                          const std::vector<IComposerClient::Rect>& blocking) = 0;
     virtual Error setBootDisplayConfig(Display displayId, Config) = 0;

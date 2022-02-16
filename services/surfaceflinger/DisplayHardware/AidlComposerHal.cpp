@@ -1062,9 +1062,8 @@ Error AidlComposer::getClientTargetProperty(
     return Error::NONE;
 }
 
-Error AidlComposer::setLayerWhitePointNits(Display display, Layer layer, float whitePointNits) {
-    mWriter.setLayerWhitePointNits(translate<int64_t>(display), translate<int64_t>(layer),
-                                   whitePointNits);
+Error AidlComposer::setLayerBrightness(Display display, Layer layer, float brightness) {
+    mWriter.setLayerBrightness(translate<int64_t>(display), translate<int64_t>(layer), brightness);
     return Error::NONE;
 }
 
