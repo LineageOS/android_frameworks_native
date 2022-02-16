@@ -30,12 +30,4 @@ cc_test {
         "-Wextra",
         "-Wpedantic",
     ],
-
-    header_libs: [
-        "libbase_headers",
-    ],
-
-    shared_libs: [
-        "libbase",
-    ],
 }
