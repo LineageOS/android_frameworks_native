@@ -1720,14 +1720,13 @@ TEST_F(DumpPoolTest, EnqueueTaskWithFd) {
         dprintf(out_fd, "C");
     };
     setLogDuration(/* log_duration = */false);
-    dump_pool_->enqueueTaskWithFd(/* task_name = */"1", dump_func_1, std::placeholders::_1);
-    dump_pool_->enqueueTaskWithFd(/* task_name = */"2", dump_func_2, std::placeholders::_1);
-    dump_pool_->enqueueTaskWithFd(/* task_name = */"3", dump_func_3, std::placeholders::_1);
+    auto t1 = dump_pool_->enqueueTaskWithFd("", dump_func_1, std::placeholders::_1);
+    auto t2 = dump_pool_->enqueueTaskWithFd("", dump_func_2, std::placeholders::_1);
+    auto t3 = dump_pool_->enqueueTaskWithFd("", dump_func_3, std::placeholders::_1);
 
-    dump_pool_->waitForTask("1", "", out_fd_.get());
-    dump_pool_->waitForTask("2", "", out_fd_.get());
-    dump_pool_->waitForTask("3", "", out_fd_.get());
-    dump_pool_->shutdown();
+    WaitForTask(std::move(t1), "", out_fd_.get());
+    WaitForTask(std::move(t2), "", out_fd_.get());
+    WaitForTask(std::move(t3), "", out_fd_.get());
 
     std::string result;
     ReadFileToString(out_path_, &result);
@@ -1741,35 +1740,13 @@ TEST_F(DumpPoolTest, EnqueueTask_withDurationLog) {
         run_1 = true;
     };
 
-    dump_pool_->enqueueTask(/* task_name = */"1", dump_func_1);
-    dump_pool_->waitForTask("1", "", out_fd_.get());
-    dump_pool_->shutdown();
+    auto t1 = dump_pool_->enqueueTask(/* duration_title = */"1", dump_func_1);
+    WaitForTask(std::move(t1), "", out_fd_.get());
 
     std::string result;
     ReadFileToString(out_path_, &result);
     EXPECT_TRUE(run_1);
     EXPECT_THAT(result, StrEq("------ 0.000s was the duration of '1' ------\n"));
-    EXPECT_THAT(getTempFileCounts(kTestDataPath), Eq(0));
-}
-
-TEST_F(DumpPoolTest, Shutdown_withoutCrash) {
-    bool run_1 = false;
-    auto dump_func_1 = [&]() {
-        run_1 = true;
-    };
-    auto dump_func = []() {
-        sleep(1);
-    };
-
-    dump_pool_->start(/* thread_counts = */1);
-    dump_pool_->enqueueTask(/* task_name = */"1", dump_func_1);
-    dump_pool_->enqueueTask(/* task_name = */"2", dump_func);
-    dump_pool_->enqueueTask(/* task_name = */"3", dump_func);
-    dump_pool_->enqueueTask(/* task_name = */"4", dump_func);
-    dump_pool_->waitForTask("1", "", out_fd_.get());
-    dump_pool_->shutdown();
-
-    EXPECT_TRUE(run_1);
     EXPECT_THAT(getTempFileCounts(kTestDataPath), Eq(0));
 }
 
