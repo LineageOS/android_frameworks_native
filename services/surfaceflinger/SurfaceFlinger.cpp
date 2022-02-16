@@ -50,6 +50,7 @@
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
 #include <ftl/future.h>
+#include <ftl/small_map.h>
 #include <gui/BufferQueue.h>
 #include <gui/DebugEGLImageTracker.h>
 #include <gui/IProducerListener.h>
@@ -3258,60 +3259,48 @@ void SurfaceFlinger::persistDisplayBrightness(bool needsComposite) {
 
 void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
                                       std::vector<DisplayInfo>& outDisplayInfos) {
-    struct Details {
-        Details(bool receivesInput, bool isSecure, const ui::Transform& transform,
-                const DisplayInfo& info)
-              : receivesInput(receivesInput),
-                isSecure(isSecure),
-                transform(std::move(transform)),
-                info(std::move(info)) {}
-        bool receivesInput;
-        bool isSecure;
-        ui::Transform transform;
-        DisplayInfo info;
-    };
-    std::unordered_map<uint32_t /*layerStackId*/, Details> inputDisplayDetails;
+    ftl::SmallMap<ui::LayerStack, DisplayDevice::InputInfo, 4> displayInputInfos;
+
     for (const auto& [_, display] : ON_MAIN_THREAD(mDisplays)) {
-        const uint32_t layerStackId = display->getLayerStack().id;
-        const auto& [info, transform] = display->getInputInfo();
-        const auto& [it, emplaced] =
-                inputDisplayDetails.try_emplace(layerStackId, display->receivesInput(),
-                                                display->isSecure(), transform, info);
+        const auto layerStack = display->getLayerStack();
+        const auto info = display->getInputInfo();
+
+        const auto [it, emplaced] = displayInputInfos.try_emplace(layerStack, info);
         if (emplaced) {
             continue;
         }
 
-        // There is more than one display for the layerStack. In this case, the first display that
-        // is configured to receive input takes precedence.
-        auto& details = it->second;
-        if (details.receivesInput) {
+        // If the layer stack is mirrored on multiple displays, the first display that is configured
+        // to receive input takes precedence.
+        auto& otherInfo = it->second;
+        if (otherInfo.receivesInput) {
             ALOGW_IF(display->receivesInput(),
                      "Multiple displays claim to accept input for the same layer stack: %u",
-                     layerStackId);
-            continue;
+                     layerStack.id);
+        } else {
+            otherInfo = info;
         }
-        details.receivesInput = display->receivesInput();
-        details.isSecure = display->isSecure();
-        details.transform = std::move(transform);
-        details.info = std::move(info);
     }
+
+    static size_t sNumWindowInfos = 0;
+    outWindowInfos.reserve(sNumWindowInfos);
+    sNumWindowInfos = 0;
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (!layer->needsInputInfo()) return;
 
-        const uint32_t layerStackId = layer->getLayerStack().id;
-        const auto it = inputDisplayDetails.find(layerStackId);
-        if (it == inputDisplayDetails.end()) {
-            // Do not create WindowInfos for windows on displays that cannot receive input.
-            return;
+        // Do not create WindowInfos for windows on displays that cannot receive input.
+        if (const auto opt = displayInputInfos.get(layer->getLayerStack())) {
+            const auto& info = opt->get();
+            outWindowInfos.push_back(layer->fillInputInfo(info.transform, info.isSecure));
         }
-
-        const auto& details = it->second;
-        outWindowInfos.push_back(layer->fillInputInfo(details.transform, details.isSecure));
     });
 
-    for (const auto& [_, details] : inputDisplayDetails) {
-        outDisplayInfos.push_back(std::move(details.info));
+    sNumWindowInfos = outWindowInfos.size();
+
+    outDisplayInfos.reserve(displayInputInfos.size());
+    for (const auto& [_, info] : displayInputInfos) {
+        outDisplayInfos.push_back(info.info);
     }
 }
 
