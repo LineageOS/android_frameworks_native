@@ -27,6 +27,7 @@
 #include <android-base/properties.h>
 #include <android/configuration.h>
 #include <android/gui/IDisplayEventConnection.h>
+#include <android/gui/StaticDisplayInfo.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/types.h>
@@ -5559,7 +5560,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_ACTIVE_DISPLAY_MODE:
         case GET_DISPLAY_COLOR_MODES:
         case GET_DISPLAY_NATIVE_PRIMARIES:
-        case GET_STATIC_DISPLAY_INFO:
         case GET_DYNAMIC_DISPLAY_INFO:
         case GET_DISPLAY_MODES:
         case GET_SUPPORTED_FRAME_TIMESTAMPS:
@@ -5633,6 +5633,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_POWER_MODE:
         case GET_DISPLAY_STATE:
         case GET_DISPLAY_STATS:
+        case GET_STATIC_DISPLAY_INFO:
         case CLEAR_BOOT_DISPLAY_MODE:
         case GET_BOOT_DISPLAY_MODE_SUPPORT:
         case SET_AUTO_LOW_LATENCY_MODE:
@@ -7431,6 +7432,47 @@ binder::Status SurfaceComposerAIDL::getDisplayState(const sp<IBinder>& display,
         outState->orientation = static_cast<gui::Rotation>(state.orientation);
         outState->layerStackSpaceRect.width = state.layerStackSpaceRect.width;
         outState->layerStackSpaceRect.height = state.layerStackSpaceRect.height;
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getStaticDisplayInfo(const sp<IBinder>& display,
+                                                         gui::StaticDisplayInfo* outInfo) {
+    using Tag = gui::DeviceProductInfo::ManufactureOrModelDate::Tag;
+    ui::StaticDisplayInfo info;
+    status_t status = mFlinger->getStaticDisplayInfo(display, &info);
+    if (status == NO_ERROR) {
+        // convert ui::StaticDisplayInfo to gui::StaticDisplayInfo
+        outInfo->connectionType = static_cast<gui::DisplayConnectionType>(info.connectionType);
+        outInfo->density = info.density;
+        outInfo->secure = info.secure;
+        outInfo->installOrientation = static_cast<gui::Rotation>(info.installOrientation);
+
+        gui::DeviceProductInfo dinfo;
+        std::optional<DeviceProductInfo> dpi = info.deviceProductInfo;
+        dinfo.name = std::move(dpi->name);
+        dinfo.manufacturerPnpId =
+                std::vector<uint8_t>(dpi->manufacturerPnpId.begin(), dpi->manufacturerPnpId.end());
+        dinfo.productId = dpi->productId;
+        if (const auto* model =
+                    std::get_if<DeviceProductInfo::ModelYear>(&dpi->manufactureOrModelDate)) {
+            gui::DeviceProductInfo::ModelYear modelYear;
+            modelYear.year = model->year;
+            dinfo.manufactureOrModelDate.set<Tag::modelYear>(modelYear);
+        } else if (const auto* manufacture = std::get_if<DeviceProductInfo::ManufactureYear>(
+                           &dpi->manufactureOrModelDate)) {
+            gui::DeviceProductInfo::ManufactureYear date;
+            date.modelYear.year = manufacture->year;
+            dinfo.manufactureOrModelDate.set<Tag::manufactureYear>(date);
+        } else if (const auto* manufacture = std::get_if<DeviceProductInfo::ManufactureWeekAndYear>(
+                           &dpi->manufactureOrModelDate)) {
+            gui::DeviceProductInfo::ManufactureWeekAndYear date;
+            date.manufactureYear.modelYear.year = manufacture->year;
+            date.week = manufacture->week;
+            dinfo.manufactureOrModelDate.set<Tag::manufactureWeekAndYear>(date);
+        }
+
+        outInfo->deviceProductInfo = dinfo;
     }
     return binder::Status::fromStatusT(status);
 }

@@ -733,9 +733,6 @@ public:
         return NO_ERROR;
     }
 
-    status_t getStaticDisplayInfo(const sp<IBinder>& /*display*/, ui::StaticDisplayInfo*) override {
-        return NO_ERROR;
-    }
     status_t getDynamicDisplayInfo(const sp<IBinder>& /*display*/,
                                    ui::DynamicDisplayInfo*) override {
         return NO_ERROR;
@@ -926,6 +923,11 @@ public:
 
     binder::Status getDisplayState(const sp<IBinder>& /*display*/,
                                    gui::DisplayState* /*outState*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getStaticDisplayInfo(const sp<IBinder>& /*display*/,
+                                        gui::StaticDisplayInfo* /*outInfo*/) override {
         return binder::Status::ok();
     }
 

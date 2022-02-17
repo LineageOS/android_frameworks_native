@@ -20,13 +20,13 @@ import android.gui.DisplayCaptureArgs;
 import android.gui.DisplayBrightness;
 import android.gui.DisplayState;
 import android.gui.DisplayStatInfo;
+import android.gui.StaticDisplayInfo;
 import android.gui.IHdrLayerInfoListener;
 import android.gui.LayerCaptureArgs;
 import android.gui.IScreenCaptureListener;
 
 /** @hide */
 interface ISurfaceComposer {
-
     /* create a virtual display
      * requires ACCESS_SURFACE_FLINGER permission.
      */
@@ -63,6 +63,11 @@ interface ISurfaceComposer {
      * Get transactional state of given display.
      */
     DisplayState getDisplayState(IBinder display);
+
+    /**
+     * Gets immutable information about given physical display.
+     */
+    StaticDisplayInfo getStaticDisplayInfo(IBinder display);
 
     /**
      * Clears the user-preferred display mode. The device should now boot in system preferred
