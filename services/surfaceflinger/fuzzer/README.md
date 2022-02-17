@@ -3,6 +3,7 @@
 + [SurfaceFlinger](#SurfaceFlinger)
 + [DisplayHardware](#DisplayHardware)
 + [Scheduler](#Scheduler)
++ [Layer](#Layer)
 
 # <a name="SurfaceFlinger"></a> Fuzzer for SurfaceFlinger
 
@@ -69,4 +70,26 @@ You can find the possible values in the fuzzer's source code.
 ```
   $ adb sync data
   $ adb shell /data/fuzz/arm64/surfaceflinger_scheduler_fuzzer/surfaceflinger_scheduler_fuzzer
+```
+
+# <a name="Layer"></a> Fuzzer for Layer
+
+Layer supports the following parameters:
+1. Display Connection Types (parameter name: `fakeDisplay`)
+2. State Sets (parameter name: `traverseInZOrder`)
+3. State Subsets (parameter name: `prepareCompositionState`)
+4. Disconnect modes (parameter name: `disconnect`)
+5. Data Spaces (parameter name: `setDataspace`)
+
+You can find the possible values in the fuzzer's source code.
+
+#### Steps to run
+1. Build the fuzzer
+```
+  $ mm -j$(nproc) surfaceflinger_layer_fuzzer
+```
+2. Run on device
+```
+  $ adb sync data
+  $ adb shell /data/fuzz/arm64/surfaceflinger_layer_fuzzer/surfaceflinger_layer_fuzzer
 ```

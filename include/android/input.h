@@ -808,6 +808,33 @@ enum {
 };
 
 /**
+ * Constants that identify different gesture classification types.
+ */
+enum {
+    /**
+     * Classification constant: None.
+     *
+     * No additional information is available about the current motion event stream.
+     */
+    AMOTION_EVENT_CLASSIFICATION_NONE = 0,
+    /**
+     * Classification constant: Ambiguous gesture.
+     *
+     * The user's intent with respect to the current event stream is not yet determined.
+     * Gestural actions, such as scrolling, should be inhibited until the classification resolves
+     * to another value or the event stream ends.
+     */
+    AMOTION_EVENT_CLASSIFICATION_AMBIGUOUS_GESTURE = 1,
+    /**
+     * Classification constant: Deep press.
+     *
+     * The current event stream represents the user intentionally pressing harder on the screen.
+     * This classification type should be used to accelerate the long press behaviour.
+     */
+    AMOTION_EVENT_CLASSIFICATION_DEEP_PRESS = 2,
+};
+
+/**
  * Input source masks.
  *
  * Refer to the documentation on android.view.InputDevice for more details about input sources
@@ -1325,6 +1352,23 @@ float AMotionEvent_getHistoricalOrientation(const AInputEvent* motion_event, siz
  */
 float AMotionEvent_getHistoricalAxisValue(const AInputEvent* motion_event,
         int32_t axis, size_t pointer_index, size_t history_index);
+
+/**
+ * Get the action button for the motion event. Returns a valid action button when the
+ * event is associated with a button press or button release action. For other actions
+ * the return value is undefined.
+ */
+int32_t AMotionEvent_getActionButton(const AInputEvent* motion_event);
+
+/**
+ * Returns the classification for the current gesture.
+ * The classification may change as more events become available for the same gesture.
+ *
+ * @see #AMOTION_EVENT_CLASSIFICATION_NONE
+ * @see #AMOTION_EVENT_CLASSIFICATION_AMBIGUOUS_GESTURE
+ * @see #AMOTION_EVENT_CLASSIFICATION_DEEP_PRESS
+*/
+int32_t AMotionEvent_getClassification(const AInputEvent* motion_event);
 
 /**
  * Creates a native AInputEvent* object that is a copy of the specified Java
