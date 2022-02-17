@@ -46,29 +46,27 @@ public:
     private:
         friend class MultiTouchMotionAccumulator;
 
-        bool mInUse;
-        bool mHaveAbsMTTouchMinor;
-        bool mHaveAbsMTWidthMinor;
-        bool mHaveAbsMTToolType;
+        bool mInUse = false;
+        bool mHaveAbsMTTouchMinor = false;
+        bool mHaveAbsMTWidthMinor = false;
+        bool mHaveAbsMTToolType = false;
 
-        int32_t mAbsMTPositionX;
-        int32_t mAbsMTPositionY;
-        int32_t mAbsMTTouchMajor;
-        int32_t mAbsMTTouchMinor;
-        int32_t mAbsMTWidthMajor;
-        int32_t mAbsMTWidthMinor;
-        int32_t mAbsMTOrientation;
-        int32_t mAbsMTTrackingId;
-        int32_t mAbsMTPressure;
-        int32_t mAbsMTDistance;
-        int32_t mAbsMTToolType;
+        int32_t mAbsMTPositionX = 0;
+        int32_t mAbsMTPositionY = 0;
+        int32_t mAbsMTTouchMajor = 0;
+        int32_t mAbsMTTouchMinor = 0;
+        int32_t mAbsMTWidthMajor = 0;
+        int32_t mAbsMTWidthMinor = 0;
+        int32_t mAbsMTOrientation = 0;
+        int32_t mAbsMTTrackingId = -1;
+        int32_t mAbsMTPressure = 0;
+        int32_t mAbsMTDistance = 0;
+        int32_t mAbsMTToolType = 0;
 
-        Slot();
-        void clear();
+        void clear() { *this = Slot(); }
     };
 
     MultiTouchMotionAccumulator();
-    ~MultiTouchMotionAccumulator();
 
     void configure(InputDeviceContext& deviceContext, size_t slotCount, bool usingSlotsProtocol);
     void reset(InputDeviceContext& deviceContext);
@@ -76,13 +74,15 @@ public:
     void finishSync();
     bool hasStylus() const;
 
-    inline size_t getSlotCount() const { return mSlotCount; }
-    inline const Slot* getSlot(size_t index) const { return &mSlots[index]; }
+    inline size_t getSlotCount() const { return mSlots.size(); }
+    inline const Slot& getSlot(size_t index) const {
+        LOG_ALWAYS_FATAL_IF(index < 0 || index >= mSlots.size(), "Invalid index: %zu", index);
+        return mSlots[index];
+    }
 
 private:
     int32_t mCurrentSlot;
-    Slot* mSlots;
-    size_t mSlotCount;
+    std::vector<Slot> mSlots;
     bool mUsingSlotsProtocol;
     bool mHaveStylus;
 
