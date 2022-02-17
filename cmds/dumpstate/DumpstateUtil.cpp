@@ -48,11 +48,26 @@ static bool waitpid_with_timeout(pid_t pid, int timeout_ms, int* status) {
     sigemptyset(&child_mask);
     sigaddset(&child_mask, SIGCHLD);
 
+    // block SIGCHLD before we check if a process has exited
     if (sigprocmask(SIG_BLOCK, &child_mask, &old_mask) == -1) {
         printf("*** sigprocmask failed: %s\n", strerror(errno));
         return false;
     }
 
+    // if the child has exited already, handle and reset signals before leaving
+    pid_t child_pid = waitpid(pid, status, WNOHANG);
+    if (child_pid != pid) {
+        if (child_pid > 0) {
+            printf("*** Waiting for pid %d, got pid %d instead\n", pid, child_pid);
+            sigprocmask(SIG_SETMASK, &old_mask, nullptr);
+            return false;
+        }
+    } else {
+        sigprocmask(SIG_SETMASK, &old_mask, nullptr);
+        return true;
+    }
+
+    // wait for a SIGCHLD
     timespec ts;
     ts.tv_sec = MSEC_TO_SEC(timeout_ms);
     ts.tv_nsec = (timeout_ms % 1000) * 1000000;
@@ -76,7 +91,7 @@ static bool waitpid_with_timeout(pid_t pid, int timeout_ms, int* status) {
         return false;
     }
 
-    pid_t child_pid = waitpid(pid, status, WNOHANG);
+    child_pid = waitpid(pid, status, WNOHANG);
     if (child_pid != pid) {
         if (child_pid != -1) {
             printf("*** Waiting for pid %d, got pid %d instead\n", pid, child_pid);
