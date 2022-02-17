@@ -257,11 +257,13 @@ private:
 
             bool isUidActive(uid_t uid);
 
-            void onUidGone(uid_t uid, bool disabled);
-            void onUidActive(uid_t uid);
-            void onUidIdle(uid_t uid, bool disabled);
+            void onUidGone(uid_t uid, bool disabled) override;
+            void onUidActive(uid_t uid) override;
+            void onUidIdle(uid_t uid, bool disabled) override;
             void onUidStateChanged(uid_t uid __unused, int32_t procState __unused,
-                                   int64_t procStateSeq __unused, int32_t capability __unused) {}
+                                   int64_t procStateSeq __unused,
+                                   int32_t capability __unused) override {}
+            void onUidProcAdjChanged(uid_t uid __unused) override {}
 
             void addOverrideUid(uid_t uid, bool active);
             void removeOverrideUid(uid_t uid);
