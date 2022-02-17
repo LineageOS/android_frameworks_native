@@ -3487,7 +3487,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposi
                                             .maxLuminance = kDefaultMaxLuminance,
                                             .currentLuminanceNits = kDefaultMaxLuminance,
                                             .outputDataspace = kDefaultOutputDataspace,
-                                            .colorTransform = mat4(),
+                                            .colorTransform = kDefaultColorTransformMat,
+                                            .deviceHandlesColorTransform = true,
                                             .orientation = kDefaultOutputOrientationFlags,
                                             .targetLuminanceNits = kClientTargetLuminanceNits})
             .execute()
@@ -3505,7 +3506,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
                                             .maxLuminance = kDefaultMaxLuminance,
                                             .currentLuminanceNits = kDisplayLuminance,
                                             .outputDataspace = kDefaultOutputDataspace,
-                                            .colorTransform = mat4(),
+                                            .colorTransform = kDefaultColorTransformMat,
+                                            .deviceHandlesColorTransform = true,
                                             .orientation = kDefaultOutputOrientationFlags,
                                             .targetLuminanceNits = kClientTargetLuminanceNits})
             .execute()
@@ -3522,7 +3524,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComp
                                             .maxLuminance = kDefaultMaxLuminance,
                                             .currentLuminanceNits = kDefaultMaxLuminance,
                                             .outputDataspace = kDefaultOutputDataspace,
-                                            .colorTransform = mat4(),
+                                            .colorTransform = kDefaultColorTransformMat,
+                                            .deviceHandlesColorTransform = true,
                                             .orientation = kDefaultOutputOrientationFlags,
                                             .targetLuminanceNits = kClientTargetLuminanceNits})
             .execute()
@@ -3540,6 +3543,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientCo
                                             .currentLuminanceNits = kDefaultMaxLuminance,
                                             .outputDataspace = kDefaultOutputDataspace,
                                             .colorTransform = kDefaultColorTransformMat,
+                                            .deviceHandlesColorTransform = false,
                                             .orientation = kDefaultOutputOrientationFlags,
                                             .targetLuminanceNits = kClientTargetLuminanceNits})
             .execute()
@@ -3557,6 +3561,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClien
                                             .currentLuminanceNits = kDefaultMaxLuminance,
                                             .outputDataspace = kDefaultOutputDataspace,
                                             .colorTransform = kDefaultColorTransformMat,
+                                            .deviceHandlesColorTransform = false,
                                             .orientation = kDefaultOutputOrientationFlags,
                                             .targetLuminanceNits = kClientTargetLuminanceNits})
             .execute()
@@ -3574,7 +3579,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
                                             .maxLuminance = kDefaultMaxLuminance,
                                             .currentLuminanceNits = kDefaultMaxLuminance,
                                             .outputDataspace = kDefaultOutputDataspace,
-                                            .colorTransform = mat4(),
+                                            .colorTransform = kDefaultColorTransformMat,
+                                            .deviceHandlesColorTransform = true,
                                             .orientation = kDefaultOutputOrientationFlags,
                                             .targetLuminanceNits = kClientTargetLuminanceNits})
             .execute()

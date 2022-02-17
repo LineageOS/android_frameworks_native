@@ -1079,9 +1079,9 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     clientCompositionDisplay.targetLuminanceNits = outputState.clientTargetWhitePointNits;
 
     // Compute the global color transform matrix.
-    if (!outputState.usesDeviceComposition && !getSkipColorTransform()) {
-        clientCompositionDisplay.colorTransform = outputState.colorTransformMatrix;
-    }
+    clientCompositionDisplay.colorTransform = outputState.colorTransformMatrix;
+    clientCompositionDisplay.deviceHandlesColorTransform =
+            outputState.usesDeviceComposition || getSkipColorTransform();
 
     // Generate the client composition requests for the layers on this output.
     std::vector<LayerFE*> clientCompositionLayersFE;

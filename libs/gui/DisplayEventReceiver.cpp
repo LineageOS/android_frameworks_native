@@ -85,15 +85,14 @@ status_t DisplayEventReceiver::requestNextVsync() {
     return mInitError.has_value() ? mInitError.value() : NO_INIT;
 }
 
-status_t DisplayEventReceiver::getLatestVsyncEventData(VsyncEventData* outVsyncEventData) const {
+status_t DisplayEventReceiver::getLatestVsyncEventData(
+        ParcelableVsyncEventData* outVsyncEventData) const {
     if (mEventConnection != nullptr) {
-        VsyncEventData vsyncEventData;
-        auto status = mEventConnection->getLatestVsyncEventData(&vsyncEventData);
+        auto status = mEventConnection->getLatestVsyncEventData(outVsyncEventData);
         if (!status.isOk()) {
             ALOGE("Failed to get latest vsync event data: %s", status.exceptionMessage().c_str());
             return status.transactionError();
         }
-        *outVsyncEventData = vsyncEventData;
         return NO_ERROR;
     }
     return NO_INIT;

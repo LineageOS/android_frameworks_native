@@ -97,7 +97,7 @@ protected:
     void setDefaultLayerVote(Layer* layer,
                              LayerHistory::LayerVoteType vote) NO_THREAD_SAFETY_ANALYSIS {
         auto [found, layerPair] = history().findLayer(layer->getSequence());
-        if (found != LayerHistory::layerStatus::NotFound) {
+        if (found != LayerHistory::LayerStatus::NotFound) {
             layerPair->second->setDefaultLayerVote(vote);
         }
     }

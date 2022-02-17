@@ -22,53 +22,36 @@
 
 namespace android {
 
+using gui::ParcelableVsyncEventData;
 using gui::VsyncEventData;
 using FrameTimeline = gui::VsyncEventData::FrameTimeline;
 
 namespace test {
 
-TEST(VsyncEventData, Parcelling) {
-    VsyncEventData data;
-    data.id = 123;
-    data.deadlineTimestamp = 456;
-    data.frameInterval = 789;
-    data.preferredFrameTimelineIndex = 1;
-    FrameTimeline timeline0 = FrameTimeline(1, 2, 3);
-    FrameTimeline timeline1 = FrameTimeline(4, 5, 6);
-    data.frameTimelines[0] = timeline0;
-    data.frameTimelines[1] = timeline1;
+TEST(ParcelableVsyncEventData, Parcelling) {
+    ParcelableVsyncEventData data;
+    data.vsync.frameInterval = 789;
+    data.vsync.preferredFrameTimelineIndex = 1;
+    FrameTimeline timeline0 = FrameTimeline{1, 2, 3};
+    FrameTimeline timeline1 = FrameTimeline{4, 5, 6};
+    data.vsync.frameTimelines[0] = timeline0;
+    data.vsync.frameTimelines[1] = timeline1;
 
     Parcel p;
     data.writeToParcel(&p);
     p.setDataPosition(0);
 
-    VsyncEventData data2;
+    ParcelableVsyncEventData data2;
     data2.readFromParcel(&p);
-    ASSERT_EQ(data.id, data2.id);
-    ASSERT_EQ(data.deadlineTimestamp, data2.deadlineTimestamp);
-    ASSERT_EQ(data.frameInterval, data2.frameInterval);
-    ASSERT_EQ(data.preferredFrameTimelineIndex, data2.preferredFrameTimelineIndex);
-    for (int i = 0; i < data.frameTimelines.size(); i++) {
-        ASSERT_EQ(data.frameTimelines[i].id, data2.frameTimelines[i].id);
-        ASSERT_EQ(data.frameTimelines[i].deadlineTimestamp,
-                  data2.frameTimelines[i].deadlineTimestamp);
-        ASSERT_EQ(data.frameTimelines[i].expectedPresentTime,
-                  data2.frameTimelines[i].expectedPresentTime);
+    ASSERT_EQ(data.vsync.frameInterval, data2.vsync.frameInterval);
+    ASSERT_EQ(data.vsync.preferredFrameTimelineIndex, data2.vsync.preferredFrameTimelineIndex);
+    for (int i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
+        ASSERT_EQ(data.vsync.frameTimelines[i].vsyncId, data2.vsync.frameTimelines[i].vsyncId);
+        ASSERT_EQ(data.vsync.frameTimelines[i].deadlineTimestamp,
+                  data2.vsync.frameTimelines[i].deadlineTimestamp);
+        ASSERT_EQ(data.vsync.frameTimelines[i].expectedPresentationTime,
+                  data2.vsync.frameTimelines[i].expectedPresentationTime);
     }
-}
-
-TEST(FrameTimeline, Parcelling) {
-    FrameTimeline timeline = FrameTimeline(1, 2, 3);
-
-    Parcel p;
-    timeline.writeToParcel(&p);
-    p.setDataPosition(0);
-
-    FrameTimeline timeline2;
-    timeline2.readFromParcel(&p);
-    ASSERT_EQ(timeline.id, timeline2.id);
-    ASSERT_EQ(timeline.deadlineTimestamp, timeline2.deadlineTimestamp);
-    ASSERT_EQ(timeline.expectedPresentTime, timeline2.expectedPresentTime);
 }
 
 } // namespace test

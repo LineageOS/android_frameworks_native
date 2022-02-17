@@ -54,6 +54,10 @@ struct DisplaySettings {
     // dataspace, in non-linear space.
     mat4 colorTransform = mat4();
 
+    // If true, and colorTransform is non-identity, most client draw calls can
+    // ignore it. Some draws (e.g. screen decorations) may need it, though.
+    bool deviceHandlesColorTransform = false;
+
     // An additional orientation flag to be applied after clipping the output.
     // By way of example, this may be used for supporting fullscreen screenshot
     // capture of a device in landscape while the buffer is in portrait

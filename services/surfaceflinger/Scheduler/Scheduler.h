@@ -263,13 +263,16 @@ private:
     void touchTimerCallback(TimerState);
     void displayPowerTimerCallback(TimerState);
 
-    // handles various timer features to change the refresh rate.
-    template <class T>
-    bool handleTimerStateChanged(T* currentState, T newState);
-
     void setVsyncPeriod(nsecs_t period);
 
     using GlobalSignals = RefreshRateConfigs::GlobalSignals;
+
+    struct Policy;
+
+    // Sets the S state of the policy to the T value under mPolicyLock, and chooses a display mode
+    // that fulfills the new policy if the state changed. Returns the signals that were considered.
+    template <typename S, typename T>
+    GlobalSignals applyPolicy(S Policy::*, T&&) EXCLUDES(mPolicyLock);
 
     // Returns the display mode that fulfills the policy, and the signals that were considered.
     std::pair<DisplayModePtr, GlobalSignals> chooseDisplayMode() REQUIRES(mPolicyLock);
@@ -323,7 +326,7 @@ private:
 
     mutable std::mutex mPolicyLock;
 
-    struct {
+    struct Policy {
         // Policy for choosing the display mode.
         LayerHistory::Summary contentRequirements;
         TimerState idleTimer = TimerState::Reset;

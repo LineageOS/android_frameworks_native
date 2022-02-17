@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include "WindowInfosListenerInvoker.h"
+#include <ftl/small_vector.h>
 #include <gui/ISurfaceComposer.h>
-#include <unordered_set>
+
 #include "SurfaceFlinger.h"
+#include "WindowInfosListenerInvoker.h"
 
 namespace android {
 
@@ -41,18 +42,17 @@ WindowInfosListenerInvoker::WindowInfosListenerInvoker(SurfaceFlinger& flinger)
       : mFlinger(flinger),
         mWindowInfosReportedListener(sp<WindowInfosReportedListener>::make(*this)) {}
 
-void WindowInfosListenerInvoker::addWindowInfosListener(
-        const sp<IWindowInfosListener>& windowInfosListener) {
-    sp<IBinder> asBinder = IInterface::asBinder(windowInfosListener);
-
+void WindowInfosListenerInvoker::addWindowInfosListener(sp<IWindowInfosListener> listener) {
+    sp<IBinder> asBinder = IInterface::asBinder(listener);
     asBinder->linkToDeath(this);
+
     std::scoped_lock lock(mListenersMutex);
-    mWindowInfosListeners.emplace(asBinder, windowInfosListener);
+    mWindowInfosListeners.try_emplace(asBinder, std::move(listener));
 }
 
 void WindowInfosListenerInvoker::removeWindowInfosListener(
-        const sp<IWindowInfosListener>& windowInfosListener) {
-    sp<IBinder> asBinder = IInterface::asBinder(windowInfosListener);
+        const sp<IWindowInfosListener>& listener) {
+    sp<IBinder> asBinder = IInterface::asBinder(listener);
 
     std::scoped_lock lock(mListenersMutex);
     asBinder->unlinkToDeath(this);
@@ -67,12 +67,11 @@ void WindowInfosListenerInvoker::binderDied(const wp<IBinder>& who) {
 void WindowInfosListenerInvoker::windowInfosChanged(const std::vector<WindowInfo>& windowInfos,
                                                     const std::vector<DisplayInfo>& displayInfos,
                                                     bool shouldSync) {
-    std::unordered_set<sp<IWindowInfosListener>, SpHash<IWindowInfosListener>> windowInfosListeners;
-
+    ftl::SmallVector<const sp<IWindowInfosListener>, kStaticCapacity> windowInfosListeners;
     {
         std::scoped_lock lock(mListenersMutex);
         for (const auto& [_, listener] : mWindowInfosListeners) {
-            windowInfosListeners.insert(listener);
+            windowInfosListeners.push_back(listener);
         }
     }
 

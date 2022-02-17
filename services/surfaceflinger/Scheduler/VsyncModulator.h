@@ -109,11 +109,16 @@ public:
 
     [[nodiscard]] VsyncConfigOpt onDisplayRefresh(bool usedGpuComposition);
 
+    [[nodiscard]] bool isVsyncConfigDefault() const;
+
 protected:
     // Called from unit tests as well
     void binderDied(const wp<IBinder>&) override EXCLUDES(mMutex);
 
 private:
+    enum class VsyncConfigType { Early, EarlyGpu, Late };
+
+    VsyncConfigType getNextVsyncConfigType() const REQUIRES(mMutex);
     const VsyncConfig& getNextVsyncConfig() const REQUIRES(mMutex);
     [[nodiscard]] VsyncConfig updateVsyncConfig() EXCLUDES(mMutex);
     [[nodiscard]] VsyncConfig updateVsyncConfigLocked() REQUIRES(mMutex);

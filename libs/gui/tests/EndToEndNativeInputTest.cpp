@@ -268,9 +268,6 @@ private:
         mInputInfo.name = "Test info";
         mInputInfo.dispatchingTimeout = 5s;
         mInputInfo.globalScaleFactor = 1.0;
-        mInputInfo.setInputConfig(WindowInfo::InputConfig::NOT_TOUCH_MODAL, true);
-        mInputInfo.setInputConfig(WindowInfo::InputConfig::NOT_VISIBLE, false);
-
         mInputInfo.touchableRegion.orSelf(Rect(0, 0, width, height));
 
         InputApplicationInfo aInfo;

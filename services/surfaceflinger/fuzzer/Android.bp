@@ -111,3 +111,19 @@ cc_fuzz {
         "surfaceflinger_scheduler_fuzzer.cpp",
     ],
 }
+
+cc_fuzz {
+    name: "surfaceflinger_layer_fuzzer",
+    defaults: [
+        "surfaceflinger_fuzz_defaults",
+    ],
+    header_libs: [
+        "libgui_headers",
+    ],
+    static_libs: [
+        "librenderengine",
+    ],
+    srcs: [
+        "surfaceflinger_layer_fuzzer.cpp",
+    ],
+}

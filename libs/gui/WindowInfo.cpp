@@ -47,7 +47,7 @@ bool WindowInfo::frameContainsPoint(int32_t x, int32_t y) const {
 }
 
 bool WindowInfo::supportsSplitTouch() const {
-    return inputConfig.test(InputConfig::SPLIT_TOUCH);
+    return !inputConfig.test(InputConfig::PREVENT_SPLITTING);
 }
 
 bool WindowInfo::isSpy() const {

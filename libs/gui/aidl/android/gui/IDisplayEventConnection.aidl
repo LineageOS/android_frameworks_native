@@ -17,7 +17,7 @@
 package android.gui;
 
 import android.gui.BitTube;
-import android.gui.VsyncEventData;
+import android.gui.ParcelableVsyncEventData;
 
 /** @hide */
 interface IDisplayEventConnection {
@@ -43,5 +43,5 @@ interface IDisplayEventConnection {
     /*
      * getLatestVsyncEventData() gets the latest vsync event data.
      */
-    VsyncEventData getLatestVsyncEventData();
+    ParcelableVsyncEventData getLatestVsyncEventData();
 }
