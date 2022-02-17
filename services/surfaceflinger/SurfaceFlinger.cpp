@@ -50,6 +50,7 @@
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
 #include <ftl/future.h>
+#include <ftl/small_map.h>
 #include <gui/BufferQueue.h>
 #include <gui/DebugEGLImageTracker.h>
 #include <gui/IProducerListener.h>
@@ -505,7 +506,7 @@ LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
         return LatchUnsignaledConfig::Always;
     }
 
-    if (base::GetBoolProperty("debug.sf.auto_latch_unsignaled"s, false)) {
+    if (base::GetBoolProperty("debug.sf.auto_latch_unsignaled"s, true)) {
         return LatchUnsignaledConfig::AutoSingleLayer;
     }
 
@@ -3258,60 +3259,48 @@ void SurfaceFlinger::persistDisplayBrightness(bool needsComposite) {
 
 void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
                                       std::vector<DisplayInfo>& outDisplayInfos) {
-    struct Details {
-        Details(bool receivesInput, bool isSecure, const ui::Transform& transform,
-                const DisplayInfo& info)
-              : receivesInput(receivesInput),
-                isSecure(isSecure),
-                transform(std::move(transform)),
-                info(std::move(info)) {}
-        bool receivesInput;
-        bool isSecure;
-        ui::Transform transform;
-        DisplayInfo info;
-    };
-    std::unordered_map<uint32_t /*layerStackId*/, Details> inputDisplayDetails;
+    ftl::SmallMap<ui::LayerStack, DisplayDevice::InputInfo, 4> displayInputInfos;
+
     for (const auto& [_, display] : ON_MAIN_THREAD(mDisplays)) {
-        const uint32_t layerStackId = display->getLayerStack().id;
-        const auto& [info, transform] = display->getInputInfo();
-        const auto& [it, emplaced] =
-                inputDisplayDetails.try_emplace(layerStackId, display->receivesInput(),
-                                                display->isSecure(), transform, info);
+        const auto layerStack = display->getLayerStack();
+        const auto info = display->getInputInfo();
+
+        const auto [it, emplaced] = displayInputInfos.try_emplace(layerStack, info);
         if (emplaced) {
             continue;
         }
 
-        // There is more than one display for the layerStack. In this case, the display that is
-        // configured to receive input takes precedence.
-        auto& details = it->second;
-        if (!display->receivesInput()) {
-            continue;
+        // If the layer stack is mirrored on multiple displays, the first display that is configured
+        // to receive input takes precedence.
+        auto& otherInfo = it->second;
+        if (otherInfo.receivesInput) {
+            ALOGW_IF(display->receivesInput(),
+                     "Multiple displays claim to accept input for the same layer stack: %u",
+                     layerStack.id);
+        } else {
+            otherInfo = info;
         }
-        ALOGE_IF(details.receivesInput,
-                 "Multiple displays claim to accept input for the same layer stack: %u",
-                 layerStackId);
-        details.receivesInput = display->receivesInput();
-        details.isSecure = display->isSecure();
-        details.transform = std::move(transform);
-        details.info = std::move(info);
     }
+
+    static size_t sNumWindowInfos = 0;
+    outWindowInfos.reserve(sNumWindowInfos);
+    sNumWindowInfos = 0;
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (!layer->needsInputInfo()) return;
 
-        const uint32_t layerStackId = layer->getLayerStack().id;
-        const auto it = inputDisplayDetails.find(layerStackId);
-        if (it == inputDisplayDetails.end()) {
-            // Do not create WindowInfos for windows on displays that cannot receive input.
-            return;
+        // Do not create WindowInfos for windows on displays that cannot receive input.
+        if (const auto opt = displayInputInfos.get(layer->getLayerStack())) {
+            const auto& info = opt->get();
+            outWindowInfos.push_back(layer->fillInputInfo(info.transform, info.isSecure));
         }
-
-        const auto& details = it->second;
-        outWindowInfos.push_back(layer->fillInputInfo(details.transform, details.isSecure));
     });
 
-    for (const auto& [_, details] : inputDisplayDetails) {
-        outDisplayInfos.push_back(std::move(details.info));
+    sNumWindowInfos = outWindowInfos.size();
+
+    outDisplayInfos.reserve(displayInputInfos.size());
+    for (const auto& [_, info] : displayInputInfos) {
+        outDisplayInfos.push_back(info.info);
     }
 }
 
@@ -3677,6 +3666,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                 auto& [applyToken, transactionQueue] = *it;
                 while (!transactionQueue.empty()) {
                     if (stopTransactionProcessing(applyTokensWithUnsignaledTransactions)) {
+                        ATRACE_NAME("stopTransactionProcessing");
                         break;
                     }
 
@@ -3688,6 +3678,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                                                           transaction.originUid, transaction.states,
                                                           bufferLayersReadyToPresent,
                                                           transactions.size());
+                    ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
                     if (ready == TransactionReadiness::NotReady) {
                         setTransactionFlags(eTransactionFlushNeeded);
                         break;
@@ -3725,6 +3716,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                 const auto ready = [&]() REQUIRES(mStateLock) {
                     if (pendingTransactions ||
                         stopTransactionProcessing(applyTokensWithUnsignaledTransactions)) {
+                        ATRACE_NAME("pendingTransactions || stopTransactionProcessing");
                         return TransactionReadiness::NotReady;
                     }
 
@@ -3735,7 +3727,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                                                          bufferLayersReadyToPresent,
                                                          transactions.size());
                 }();
-
+                ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
                 if (ready == TransactionReadiness::NotReady) {
                     mPendingTransactionQueues[transaction.applyToken].push(std::move(transaction));
                 } else {
@@ -3810,7 +3802,7 @@ bool SurfaceFlinger::frameIsEarly(nsecs_t expectedPresentTime, int64_t vsyncId) 
             prediction->presentTime - expectedPresentTime >= earlyLatchVsyncThreshold;
 }
 bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t& state,
-                                           size_t numStates, size_t totalTXapplied) {
+                                           size_t numStates, size_t totalTXapplied) const {
     if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::Disabled) {
         ALOGV("%s: false (LatchUnsignaledConfig::Disabled)", __func__);
         return false;
@@ -3828,11 +3820,22 @@ bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_s
         return false;
     }
 
-    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::AutoSingleLayer &&
-        totalTXapplied > 0) {
-        ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; totalTXapplied=%zu)", __func__,
-              totalTXapplied);
-        return false;
+    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::AutoSingleLayer) {
+        if (totalTXapplied > 0) {
+            ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; totalTXapplied=%zu)",
+                  __func__, totalTXapplied);
+            return false;
+        }
+
+        // We don't want to latch unsignaled if are in early / client composition
+        // as it leads to jank due to RenderEngine waiting for unsignaled buffer
+        // or window animations being slow.
+        const auto isDefaultVsyncConfig = mVsyncModulator->isVsyncConfigDefault();
+        if (!isDefaultVsyncConfig) {
+            ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; !isDefaultVsyncConfig)",
+                  __func__);
+            return false;
+        }
     }
 
     if (!layer->simpleBufferUpdate(state)) {
@@ -3885,11 +3888,10 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
             continue;
         }
 
-        ATRACE_NAME(layer->getName().c_str());
-
         const bool allowLatchUnsignaled =
                 shouldLatchUnsignaled(layer, s, states.size(), totalTXapplied);
-        ATRACE_INT("allowLatchUnsignaled", allowLatchUnsignaled);
+        ATRACE_FORMAT("%s allowLatchUnsignaled=%s", layer->getName().c_str(),
+                      allowLatchUnsignaled ? "true" : "false");
 
         const bool acquireFenceChanged = s.bufferData &&
                 s.bufferData->flags.test(BufferData::BufferDataChange::fenceChanged) &&

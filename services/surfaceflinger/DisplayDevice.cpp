@@ -141,7 +141,7 @@ uint32_t DisplayDevice::getPageFlipCount() const {
     return mCompositionDisplay->getRenderSurface()->getPageFlipCount();
 }
 
-std::pair<gui::DisplayInfo, ui::Transform> DisplayDevice::getInputInfo() const {
+auto DisplayDevice::getInputInfo() const -> InputInfo {
     gui::DisplayInfo info;
     info.displayId = getLayerStack().id;
 
@@ -166,10 +166,13 @@ std::pair<gui::DisplayInfo, ui::Transform> DisplayDevice::getInputInfo() const {
 
     info.logicalWidth = getLayerStackSpaceRect().width();
     info.logicalHeight = getLayerStackSpaceRect().height();
-    return {info, displayTransform};
+
+    return {.info = info,
+            .transform = displayTransform,
+            .receivesInput = receivesInput(),
+            .isSecure = isSecure()};
 }
 
-// ----------------------------------------------------------------------------
 void DisplayDevice::setPowerMode(hal::PowerMode mode) {
     mPowerMode = mode;
     getCompositionDisplay()->setCompositionEnabled(mPowerMode != hal::PowerMode::OFF);

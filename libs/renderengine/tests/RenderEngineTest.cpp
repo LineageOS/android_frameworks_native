@@ -2627,6 +2627,7 @@ TEST_P(RenderEngineTest, r8_behaves_as_mask) {
 
     const auto r8Buffer = allocateR8Buffer(2, 1);
     if (!r8Buffer) {
+        GTEST_SKIP() << "Test is only necessary on devices that support r8";
         return;
     }
     {
@@ -2676,6 +2677,144 @@ TEST_P(RenderEngineTest, r8_behaves_as_mask) {
 
     expectBufferColor(Rect(0, 0, 1, 1), 0,   0, 0, 255);
     expectBufferColor(Rect(1, 0, 2, 1), 0, 255, 0, 255);
+}
+
+TEST_P(RenderEngineTest, r8_respects_color_transform) {
+    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        return;
+    }
+
+    initializeRenderEngine();
+
+    const auto r8Buffer = allocateR8Buffer(2, 1);
+    if (!r8Buffer) {
+        GTEST_SKIP() << "Test is only necessary on devices that support r8";
+        return;
+    }
+    {
+        uint8_t* pixels;
+        r8Buffer->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                    reinterpret_cast<void**>(&pixels));
+        pixels[0] = 0;
+        pixels[1] = 255;
+        r8Buffer->getBuffer()->unlock();
+    }
+
+    const auto rect = Rect(0, 0, 2, 1);
+    const renderengine::DisplaySettings display{
+            .physicalDisplay = rect,
+            .clip = rect,
+            .outputDataspace = ui::Dataspace::SRGB,
+            // Verify that the R8 layer respects the color transform when
+            // deviceHandlesColorTransform is false. This transform converts
+            // pure red to pure green. That will occur when the R8 buffer is
+            // 255. When the R8 buffer is 0, it will still change to black, as
+            // with r8_behaves_as_mask.
+            .colorTransform = mat4(0, 1, 0, 0,
+                                   0, 0, 0, 0,
+                                   0, 0, 1, 0,
+                                   0, 0, 0, 1),
+            .deviceHandlesColorTransform = false,
+    };
+
+    const auto redBuffer = allocateAndFillSourceBuffer(2, 1, ubyte4(255, 0, 0, 255));
+    const renderengine::LayerSettings redLayer{
+            .geometry.boundaries = rect.toFloatRect(),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = redBuffer,
+                                    },
+                    },
+            .alpha = 1.0f,
+    };
+    const renderengine::LayerSettings r8Layer{
+            .geometry.boundaries = rect.toFloatRect(),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = r8Buffer,
+                                    },
+                    },
+            .alpha = 1.0f,
+    };
+
+    std::vector<renderengine::LayerSettings> layers{redLayer, r8Layer};
+    invokeDraw(display, layers);
+
+    expectBufferColor(Rect(0, 0, 1, 1), 0,   0, 0, 255);
+    expectBufferColor(Rect(1, 0, 2, 1), 0, 255, 0, 255);
+}
+
+TEST_P(RenderEngineTest, r8_respects_color_transform_when_device_handles) {
+    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        return;
+    }
+
+    initializeRenderEngine();
+
+    const auto r8Buffer = allocateR8Buffer(2, 1);
+    if (!r8Buffer) {
+        GTEST_SKIP() << "Test is only necessary on devices that support r8";
+        return;
+    }
+    {
+        uint8_t* pixels;
+        r8Buffer->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                    reinterpret_cast<void**>(&pixels));
+        pixels[0] = 0;
+        pixels[1] = 255;
+        r8Buffer->getBuffer()->unlock();
+    }
+
+    const auto rect = Rect(0, 0, 2, 1);
+    const renderengine::DisplaySettings display{
+            .physicalDisplay = rect,
+            .clip = rect,
+            .outputDataspace = ui::Dataspace::SRGB,
+            // If deviceHandlesColorTransform is true, pixels where the A8
+            // buffer is opaque are unaffected. If the colorTransform is
+            // invertible, pixels where the A8 buffer are transparent have the
+            // inverse applied to them so that the DPU will convert them back to
+            // black. Test with an arbitrary, invertible matrix.
+            .colorTransform = mat4(1, 0, 0, 2,
+                                   3, 1, 2, 5,
+                                   0, 5, 3, 0,
+                                   0, 1, 0, 2),
+            .deviceHandlesColorTransform = true,
+    };
+
+    const auto redBuffer = allocateAndFillSourceBuffer(2, 1, ubyte4(255, 0, 0, 255));
+    const renderengine::LayerSettings redLayer{
+            .geometry.boundaries = rect.toFloatRect(),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = redBuffer,
+                                    },
+                    },
+            .alpha = 1.0f,
+    };
+    const renderengine::LayerSettings r8Layer{
+            .geometry.boundaries = rect.toFloatRect(),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = r8Buffer,
+                                    },
+                    },
+            .alpha = 1.0f,
+    };
+
+    std::vector<renderengine::LayerSettings> layers{redLayer, r8Layer};
+    invokeDraw(display, layers);
+
+    expectBufferColor(Rect(1, 0, 2, 1), 255, 0, 0, 255); // Still red.
+    expectBufferColor(Rect(0, 0, 1, 1), 0,  70, 0, 255);
 }
 } // namespace renderengine
 } // namespace android

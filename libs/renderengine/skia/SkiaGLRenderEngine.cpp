@@ -792,7 +792,7 @@ void SkiaGLRenderEngine::drawLayersInternal(
 
     // setup color filter if necessary
     sk_sp<SkColorFilter> displayColorTransform;
-    if (display.colorTransform != mat4()) {
+    if (display.colorTransform != mat4() && !display.deviceHandlesColorTransform) {
         displayColorTransform = SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform));
     }
     const bool ctModifiesAlpha =
@@ -1107,11 +1107,37 @@ void SkiaGLRenderEngine::drawLayersInternal(
 
             if (imageTextureRef->colorType() == kAlpha_8_SkColorType) {
                 LOG_ALWAYS_FATAL_IF(layer.disableBlending, "Cannot disableBlending with A8");
-                float matrix[] = { 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0,
-                                   0, 0, 0, -1, 1 };
-                paint.setColorFilter(SkColorFilters::Matrix(matrix));
+
+                // SysUI creates the alpha layer as a coverage layer, which is
+                // appropriate for the DPU. Use a color matrix to convert it to
+                // a mask.
+                // TODO (b/219525258): Handle input as a mask.
+                //
+                // The color matrix will convert A8 pixels with no alpha to
+                // black, as described by this vector. If the display handles
+                // the color transform, we need to invert it to find the color
+                // that will result in black after the DPU applies the transform.
+                SkV4 black{0.0f, 0.0f, 0.0f, 1.0f}; // r, g, b, a
+                if (display.colorTransform != mat4() && display.deviceHandlesColorTransform) {
+                    SkM44 colorSpaceMatrix = getSkM44(display.colorTransform);
+                    if (colorSpaceMatrix.invert(&colorSpaceMatrix)) {
+                        black = colorSpaceMatrix * black;
+                    } else {
+                        // We'll just have to use 0,0,0 as black, which should
+                        // be close to correct.
+                        ALOGI("Could not invert colorTransform!");
+                    }
+                }
+                SkColorMatrix colorMatrix(0, 0, 0, 0, black[0],
+                                          0, 0, 0, 0, black[1],
+                                          0, 0, 0, 0, black[2],
+                                          0, 0, 0, -1, 1);
+                if (display.colorTransform != mat4() && !display.deviceHandlesColorTransform) {
+                    // On the other hand, if the device doesn't handle it, we
+                    // have to apply it ourselves.
+                    colorMatrix.postConcat(toSkColorMatrix(display.colorTransform));
+                }
+                paint.setColorFilter(SkColorFilters::Matrix(colorMatrix));
             }
         } else {
             ATRACE_NAME("DrawColor");
@@ -1134,8 +1160,8 @@ void SkiaGLRenderEngine::drawLayersInternal(
             paint.setBlendMode(SkBlendMode::kSrc);
         }
 
-        // A color filter will have been set for an A8 buffer. Do not replace
-        // it with the displayColorTransform, which shouldn't affect A8.
+        // An A8 buffer will already have the proper color filter attached to
+        // its paint, including the displayColorTransform as needed.
         if (!paint.getColorFilter()) {
             paint.setColorFilter(displayColorTransform);
         }

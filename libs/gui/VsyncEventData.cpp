@@ -23,52 +23,46 @@
 
 namespace android::gui {
 
-status_t VsyncEventData::readFromParcel(const Parcel* parcel) {
+int64_t VsyncEventData::preferredVsyncId() const {
+    return frameTimelines[preferredFrameTimelineIndex].vsyncId;
+}
+
+int64_t VsyncEventData::preferredDeadlineTimestamp() const {
+    return frameTimelines[preferredFrameTimelineIndex].deadlineTimestamp;
+}
+
+int64_t VsyncEventData::preferredExpectedPresentationTime() const {
+    return frameTimelines[preferredFrameTimelineIndex].expectedPresentationTime;
+}
+
+status_t ParcelableVsyncEventData::readFromParcel(const Parcel* parcel) {
     if (parcel == nullptr) {
         ALOGE("%s: Null parcel", __func__);
         return BAD_VALUE;
     }
 
-    SAFE_PARCEL(parcel->readInt64, &id)
-    SAFE_PARCEL(parcel->readInt64, &deadlineTimestamp);
-    SAFE_PARCEL(parcel->readInt64, &frameInterval);
+    SAFE_PARCEL(parcel->readInt64, &vsync.frameInterval);
 
     uint64_t uintPreferredFrameTimelineIndex;
     SAFE_PARCEL(parcel->readUint64, &uintPreferredFrameTimelineIndex);
-    preferredFrameTimelineIndex = static_cast<size_t>(uintPreferredFrameTimelineIndex);
+    vsync.preferredFrameTimelineIndex = static_cast<size_t>(uintPreferredFrameTimelineIndex);
 
-    std::vector<FrameTimeline> timelines;
-    SAFE_PARCEL(parcel->readParcelableVector, &timelines);
-    std::copy_n(timelines.begin(), timelines.size(), frameTimelines.begin());
-
-    return OK;
-}
-status_t VsyncEventData::writeToParcel(Parcel* parcel) const {
-    SAFE_PARCEL(parcel->writeInt64, id)
-    SAFE_PARCEL(parcel->writeInt64, deadlineTimestamp);
-    SAFE_PARCEL(parcel->writeInt64, frameInterval);
-    SAFE_PARCEL(parcel->writeUint64, preferredFrameTimelineIndex);
-    SAFE_PARCEL(parcel->writeParcelableVector,
-                std::vector(frameTimelines.begin(), frameTimelines.end()));
-
-    return OK;
-}
-status_t VsyncEventData::FrameTimeline::readFromParcel(const Parcel* parcel) {
-    if (parcel == nullptr) {
-        ALOGE("%s: Null parcel", __func__);
-        return BAD_VALUE;
+    for (int i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
+        SAFE_PARCEL(parcel->readInt64, &vsync.frameTimelines[i].vsyncId);
+        SAFE_PARCEL(parcel->readInt64, &vsync.frameTimelines[i].deadlineTimestamp);
+        SAFE_PARCEL(parcel->readInt64, &vsync.frameTimelines[i].expectedPresentationTime);
     }
 
-    SAFE_PARCEL(parcel->readInt64, &id)
-    SAFE_PARCEL(parcel->readInt64, &deadlineTimestamp);
-    SAFE_PARCEL(parcel->readInt64, &expectedPresentTime);
-
     return OK;
 }
-status_t VsyncEventData::FrameTimeline::writeToParcel(Parcel* parcel) const {
-    SAFE_PARCEL(parcel->writeInt64, id);
-    SAFE_PARCEL(parcel->writeInt64, deadlineTimestamp);
-    SAFE_PARCEL(parcel->writeInt64, expectedPresentTime);
+status_t ParcelableVsyncEventData::writeToParcel(Parcel* parcel) const {
+    SAFE_PARCEL(parcel->writeInt64, vsync.frameInterval);
+    SAFE_PARCEL(parcel->writeUint64, vsync.preferredFrameTimelineIndex);
+    for (int i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
+        SAFE_PARCEL(parcel->writeInt64, vsync.frameTimelines[i].vsyncId);
+        SAFE_PARCEL(parcel->writeInt64, vsync.frameTimelines[i].deadlineTimestamp);
+        SAFE_PARCEL(parcel->writeInt64, vsync.frameTimelines[i].expectedPresentationTime);
+    }
 
     return OK;
 }

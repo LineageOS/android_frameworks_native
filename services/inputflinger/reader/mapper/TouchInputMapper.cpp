@@ -550,18 +550,15 @@ bool TouchInputMapper::hasExternalStylus() const {
 
 /**
  * Determine which DisplayViewport to use.
- * 1. If display port is specified, return the matching viewport. If matching viewport not
- * found, then return.
+ * 1. If a device has associated display, get the matching viewport.
  * 2. Always use the suggested viewport from WindowManagerService for pointers.
- * 3. If a device has associated display, get the matching viewport by either unique id or by
- * the display type (internal or external).
+ * 3. Get the matching viewport by either unique id in idc file or by the display type
+ * (internal or external).
  * 4. Otherwise, use a non-display viewport.
  */
 std::optional<DisplayViewport> TouchInputMapper::findViewport() {
     if (mParameters.hasAssociatedDisplay && mDeviceMode != DeviceMode::UNSCALED) {
-        const std::optional<uint8_t> displayPort = getDeviceContext().getAssociatedDisplayPort();
-        if (displayPort) {
-            // Find the viewport that contains the same port
+        if (getDeviceContext().getAssociatedViewport()) {
             return getDeviceContext().getAssociatedViewport();
         }
 

@@ -335,12 +335,15 @@ void JoystickInputMapper::sync(nsecs_t when, nsecs_t readTime, bool force) {
     // button will likely wake the device.
     // TODO: Use the input device configuration to control this behavior more finely.
     uint32_t policyFlags = 0;
+    int32_t displayId = ADISPLAY_ID_NONE;
+    if (getDeviceContext().getAssociatedViewport()) {
+        displayId = getDeviceContext().getAssociatedViewport()->displayId;
+    }
 
     NotifyMotionArgs args(getContext()->getNextId(), when, readTime, getDeviceId(),
-                          AINPUT_SOURCE_JOYSTICK, ADISPLAY_ID_NONE, policyFlags,
-                          AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, buttonState,
-                          MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
-                          &pointerProperties, &pointerCoords, 0, 0,
+                          AINPUT_SOURCE_JOYSTICK, displayId, policyFlags, AMOTION_EVENT_ACTION_MOVE,
+                          0, 0, metaState, buttonState, MotionClassification::NONE,
+                          AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties, &pointerCoords, 0, 0,
                           AMOTION_EVENT_INVALID_CURSOR_POSITION,
                           AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {});
     getListener().notifyMotion(&args);

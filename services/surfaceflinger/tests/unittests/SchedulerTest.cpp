@@ -228,7 +228,8 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
     mScheduler->setRefreshRateConfigs(
             std::make_shared<RefreshRateConfigs>(DisplayModes{mode60, mode120}, mode60->getId()));
 
-    sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+    EXPECT_CALL(*layer, isVisible()).WillOnce(Return(true));
 
     mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
 
@@ -239,6 +240,10 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
     mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
 
     EXPECT_CALL(mSchedulerCallback, changeRefreshRate(Is120Hz(), _)).Times(1);
+    mScheduler->chooseRefreshRateForContent();
+
+    // No-op if layer requirements have not changed.
+    EXPECT_CALL(mSchedulerCallback, changeRefreshRate(_, _)).Times(0);
     mScheduler->chooseRefreshRateForContent();
 }
 

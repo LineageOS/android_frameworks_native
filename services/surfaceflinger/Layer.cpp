@@ -2159,8 +2159,7 @@ Rect Layer::getInputBounds() const {
 void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& screenToDisplay) {
     Rect tmpBounds = getInputBounds();
     if (!tmpBounds.isValid()) {
-        info.inputConfig |=
-                WindowInfo::InputConfig::NOT_TOUCH_MODAL | WindowInfo::InputConfig::NOT_FOCUSABLE;
+        info.setInputConfig(WindowInfo::InputConfig::NOT_FOCUSABLE, true);
         info.touchableRegion.clear();
         // A layer could have invalid input bounds and still expect to receive touch input if it has
         // replaceTouchableRegionWithCrop. For that case, the input transform needs to be calculated
@@ -2307,7 +2306,6 @@ WindowInfo Layer::fillInputInfo(const ui::Transform& displayTransform, bool disp
         mDrawingState.inputInfo.ownerUid = mOwnerUid;
         mDrawingState.inputInfo.ownerPid = mOwnerPid;
         mDrawingState.inputInfo.inputFeatures = WindowInfo::Feature::NO_INPUT_CHANNEL;
-        mDrawingState.inputInfo.inputConfig |= WindowInfo::InputConfig::NOT_TOUCH_MODAL;
         mDrawingState.inputInfo.displayId = getLayerStack().id;
     }
 

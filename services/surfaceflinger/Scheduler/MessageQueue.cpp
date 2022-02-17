@@ -191,7 +191,8 @@ void MessageQueue::injectorCallback() {
         for (int i = 0; i < n; i++) {
             if (buffer[i].header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC) {
                 auto& vsync = buffer[i].vsync;
-                mHandler->dispatchFrame(vsync.vsyncId, vsync.expectedVSyncTimestamp);
+                mHandler->dispatchFrame(vsync.vsyncData.preferredVsyncId(),
+                                        vsync.vsyncData.preferredExpectedPresentationTime());
                 break;
             }
         }
