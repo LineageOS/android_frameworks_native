@@ -1793,8 +1793,8 @@ static Dumpstate::RunStatus dumpstate() {
     // Add linker configuration directory
     ds.AddDir(LINKERCONFIG_DIR, true);
 
-    /* Dump cgroupfs */
-    ds.AddDir(CGROUPFS_DIR, true);
+    /* Dump frozen cgroupfs */
+    dump_frozen_cgroupfs();
 
     if (ds.dump_pool_) {
         WAIT_TASK_WITH_CONSENT_CHECK(DUMP_INCIDENT_REPORT_TASK, ds.dump_pool_);
@@ -4005,6 +4005,63 @@ void dump_route_tables() {
         RunCommand("ROUTE TABLE IPv6", {"ip", "-6", "route", "show", "table", table});
     }
     fclose(fp);
+}
+
+void dump_frozen_cgroupfs(const char *dir, int level,
+        int (*dump_from_fd)(const char* title, const char* path, int fd)) {
+    DIR *dirp;
+    struct dirent *d;
+    char *newpath = nullptr;
+
+    dirp = opendir(dir);
+    if (dirp == nullptr) {
+        MYLOGE("%s: %s\n", dir, strerror(errno));
+        return;
+    }
+
+    for (; ((d = readdir(dirp))); free(newpath), newpath = nullptr) {
+        if ((d->d_name[0] == '.')
+         && (((d->d_name[1] == '.') && (d->d_name[2] == '\0'))
+          || (d->d_name[1] == '\0'))) {
+            continue;
+        }
+        if (d->d_type == DT_DIR) {
+            asprintf(&newpath, "%s/%s/", dir, d->d_name);
+            if (!newpath) {
+                continue;
+            }
+            if (level == 0 && !strncmp(d->d_name, "uid_", 4)) {
+                dump_frozen_cgroupfs(newpath, 1, dump_from_fd);
+            } else if (level == 1 && !strncmp(d->d_name, "pid_", 4)) {
+                char *freezer = nullptr;
+                asprintf(&freezer, "%s/%s", newpath, "cgroup.freeze");
+                if (freezer) {
+                    FILE* fp = fopen(freezer, "r");
+                    if (fp != NULL) {
+                        int frozen;
+                        fscanf(fp, "%d", &frozen);
+                        if (frozen > 0) {
+                            dump_files("", newpath, skip_none, dump_from_fd);
+                        }
+                        fclose(fp);
+                    }
+                    free(freezer);
+                }
+            }
+        }
+    }
+    closedir(dirp);
+}
+
+void dump_frozen_cgroupfs() {
+    if (!ds.IsZipping()) {
+        MYLOGD("Not adding cgroupfs because it's not a zipped bugreport\n");
+        return;
+    }
+    MYLOGD("Adding frozen processes from %s\n", CGROUPFS_DIR);
+    DurationReporter duration_reporter("FROZEN CGROUPFS");
+    if (PropertiesHelper::IsDryRun()) return;
+    dump_frozen_cgroupfs(CGROUPFS_DIR, 0, _add_file_from_fd);
 }
 
 void Dumpstate::UpdateProgress(int32_t delta_sec) {
