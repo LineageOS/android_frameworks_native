@@ -10,7 +10,6 @@ package {
 cc_defaults {
     name: "installd_defaults",
 
-    cpp_std: "c++2a",
     cflags: [
         "-Wall",
         "-Werror",
@@ -42,7 +41,6 @@ cc_defaults {
         "libbinder",
         "libcrypto",
         "libcutils",
-        "libext2_uuid",
         "liblog",
         "liblogwrap",
         "libprocessgroup",
@@ -53,6 +51,7 @@ cc_defaults {
     ],
     static_libs: [
         "libasync_safe",
+        "libext2_uuid",
     ],
     export_shared_lib_headers: [
         "libbinder",
@@ -241,8 +240,6 @@ cc_library_static {
 
 cc_binary {
     name: "otapreopt",
-
-    cpp_std: "c++2a",
     cflags: [
         "-Wall",
         "-Werror",
@@ -266,13 +263,13 @@ cc_binary {
         "libasync_safe",
         "libdiskusage",
         "libotapreoptparameters",
+        "libext2_uuid",
     ],
 
     shared_libs: [
         "libbase",
         "libcrypto",
         "libcutils",
-        "libext2_uuid",
         "liblog",
         "liblogwrap",
         "libprocessgroup",
