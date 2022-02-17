@@ -78,7 +78,7 @@ using gui::VsyncEventData;
 struct FrameCallback {
     AChoreographer_frameCallback callback;
     AChoreographer_frameCallback64 callback64;
-    AChoreographer_extendedFrameCallback extendedCallback;
+    AChoreographer_vsyncCallback vsyncCallback;
     void* data;
     nsecs_t dueTime;
 
@@ -121,7 +121,7 @@ public:
     explicit Choreographer(const sp<Looper>& looper) EXCLUDES(gChoreographers.lock);
     void postFrameCallbackDelayed(AChoreographer_frameCallback cb,
                                   AChoreographer_frameCallback64 cb64,
-                                  AChoreographer_extendedFrameCallback extendedCallback, void* data,
+                                  AChoreographer_vsyncCallback vsyncCallback, void* data,
                                   nsecs_t delay);
     void registerRefreshRateCallback(AChoreographer_refreshRateCallback cb, void* data)
             EXCLUDES(gChoreographers.lock);
@@ -230,10 +230,10 @@ Choreographer::~Choreographer() {
 
 void Choreographer::postFrameCallbackDelayed(AChoreographer_frameCallback cb,
                                              AChoreographer_frameCallback64 cb64,
-                                             AChoreographer_extendedFrameCallback extendedCallback,
-                                             void* data, nsecs_t delay) {
+                                             AChoreographer_vsyncCallback vsyncCallback, void* data,
+                                             nsecs_t delay) {
     nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
-    FrameCallback callback{cb, cb64, extendedCallback, data, now + delay};
+    FrameCallback callback{cb, cb64, vsyncCallback, data, now + delay};
     {
         std::lock_guard<std::mutex> _l{mLock};
         mFrameCallbacks.push(callback);
@@ -389,13 +389,13 @@ void Choreographer::dispatchVsync(nsecs_t timestamp, PhysicalDisplayId, uint32_t
     }
     mLastVsyncEventData = vsyncEventData;
     for (const auto& cb : callbacks) {
-        if (cb.extendedCallback != nullptr) {
+        if (cb.vsyncCallback != nullptr) {
             const ChoreographerFrameCallbackDataImpl frameCallbackData =
                     createFrameCallbackData(timestamp);
             mInCallback = true;
-            cb.extendedCallback(reinterpret_cast<const AChoreographerFrameCallbackData*>(
-                                        &frameCallbackData),
-                                cb.data);
+            cb.vsyncCallback(reinterpret_cast<const AChoreographerFrameCallbackData*>(
+                                     &frameCallbackData),
+                             cb.data);
             mInCallback = false;
         } else if (cb.callback64 != nullptr) {
             cb.callback64(timestamp, cb.data);
@@ -522,10 +522,9 @@ void AChoreographer_routePostFrameCallbackDelayed64(AChoreographer* choreographe
                                                     void* data, uint32_t delayMillis) {
     return AChoreographer_postFrameCallbackDelayed64(choreographer, callback, data, delayMillis);
 }
-void AChoreographer_routePostExtendedFrameCallback(AChoreographer* choreographer,
-                                                   AChoreographer_extendedFrameCallback callback,
-                                                   void* data) {
-    return AChoreographer_postExtendedFrameCallback(choreographer, callback, data);
+void AChoreographer_routePostVsyncCallback(AChoreographer* choreographer,
+                                           AChoreographer_vsyncCallback callback, void* data) {
+    return AChoreographer_postVsyncCallback(choreographer, callback, data);
 }
 void AChoreographer_routeRegisterRefreshRateCallback(AChoreographer* choreographer,
                                                      AChoreographer_refreshRateCallback callback,
@@ -553,9 +552,10 @@ AVsyncId AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId(
         const AChoreographerFrameCallbackData* data, size_t index) {
     return AChoreographerFrameCallbackData_getFrameTimelineVsyncId(data, index);
 }
-int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTimeNanos(
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentationTimeNanos(
         const AChoreographerFrameCallbackData* data, size_t index) {
-    return AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTimeNanos(data, index);
+    return AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentationTimeNanos(data,
+                                                                                         index);
 }
 int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineDeadlineNanos(
         const AChoreographerFrameCallbackData* data, size_t index) {
@@ -589,9 +589,8 @@ void AChoreographer_postFrameCallbackDelayed(AChoreographer* choreographer,
     AChoreographer_to_Choreographer(choreographer)
             ->postFrameCallbackDelayed(callback, nullptr, nullptr, data, ms2ns(delayMillis));
 }
-void AChoreographer_postExtendedFrameCallback(AChoreographer* choreographer,
-                                              AChoreographer_extendedFrameCallback callback,
-                                              void* data) {
+void AChoreographer_postVsyncCallback(AChoreographer* choreographer,
+                                      AChoreographer_vsyncCallback callback, void* data) {
     AChoreographer_to_Choreographer(choreographer)
             ->postFrameCallbackDelayed(nullptr, nullptr, callback, data, 0);
 }
@@ -650,7 +649,7 @@ AVsyncId AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
     LOG_ALWAYS_FATAL_IF(index >= VsyncEventData::kFrameTimelinesLength, "Index out of bounds");
     return frameCallbackData->vsyncEventData.frameTimelines[index].vsyncId;
 }
-int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTimeNanos(
+int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentationTimeNanos(
         const AChoreographerFrameCallbackData* data, size_t index) {
     const ChoreographerFrameCallbackDataImpl* frameCallbackData =
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);

@@ -76,7 +76,7 @@ typedef void (*AChoreographer_frameCallback64)(int64_t frameTimeNanos, void* dat
  * It's passed the frame data that should not outlive the callback, as well as the data pointer
  * provided by the application that registered a callback.
  */
-typedef void (*AChoreographer_extendedFrameCallback)(
+typedef void (*AChoreographer_vsyncCallback)(
         const AChoreographerFrameCallbackData* callbackData, void* data);
 
 /**
@@ -134,8 +134,8 @@ void AChoreographer_postFrameCallbackDelayed64(AChoreographer* choreographer,
  * Posts a callback to run on the next frame. The data pointer provided will
  * be passed to the callback function when it's called.
  */
-void AChoreographer_postExtendedFrameCallback(AChoreographer* choreographer,
-                                        AChoreographer_extendedFrameCallback callback, void* data)
+void AChoreographer_postVsyncCallback(AChoreographer* choreographer,
+                                        AChoreographer_vsyncCallback callback, void* data)
         __INTRODUCED_IN(33);
 
 /**
@@ -215,7 +215,7 @@ AVsyncId AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
 /**
  * The time in nanoseconds which the frame at given index is expected to be presented.
  */
-int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTimeNanos(
+int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentationTimeNanos(
         const AChoreographerFrameCallbackData* data, size_t index) __INTRODUCED_IN(33);
 
 /**
