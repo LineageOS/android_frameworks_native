@@ -65,6 +65,9 @@ template <typename K, typename V, std::size_t N, typename KeyEqual = std::equal_
 class SmallMap final {
   using Map = SmallVector<std::pair<const K, V>, N>;
 
+  template <typename, typename, std::size_t, typename>
+  friend class SmallMap;
+
  public:
   using key_type = K;
   using mapped_type = V;
@@ -99,6 +102,10 @@ class SmallMap final {
       : map_(std::move(list)) {
     deduplicate();
   }
+
+  // Copies or moves key-value pairs from a convertible map.
+  template <typename Q, typename W, std::size_t M, typename E>
+  SmallMap(SmallMap<Q, W, M, E> other) : map_(std::move(other.map_)) {}
 
   size_type max_size() const { return map_.max_size(); }
   size_type size() const { return map_.size(); }
