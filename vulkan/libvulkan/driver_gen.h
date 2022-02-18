@@ -41,6 +41,7 @@ struct ProcHook {
         EXT_hdr_metadata,
         EXT_swapchain_colorspace,
         GOOGLE_display_timing,
+        GOOGLE_surfaceless_query,
         KHR_android_surface,
         KHR_get_surface_capabilities2,
         KHR_incremental_present,
