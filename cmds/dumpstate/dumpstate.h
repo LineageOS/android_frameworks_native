@@ -478,7 +478,7 @@ class Dumpstate {
     // This is useful for debugging.
     std::string log_path_;
 
-    // Full path of the bugreport file, be it zip or text, inside bugreport_internal_dir_.
+    // Full path of the bugreport zip file inside bugreport_internal_dir_.
     std::string path_;
 
     // Full path of the file containing the screenshot (when requested).

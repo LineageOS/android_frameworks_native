@@ -96,6 +96,33 @@ TEST(SmallMap, Construct) {
   }
 }
 
+TEST(SmallMap, Assign) {
+  {
+    // Same types; smaller capacity.
+    SmallMap map1 = ftl::init::map<char, std::string>('k', "kilo")('M', "mega")('G', "giga");
+    const SmallMap map2 = ftl::init::map('T', "tera"s)('P', "peta"s);
+
+    map1 = map2;
+    EXPECT_EQ(map1, map2);
+  }
+  {
+    // Convertible types; same capacity.
+    SmallMap map1 = ftl::init::map<char, std::string>('M', "mega")('G', "giga");
+    const SmallMap map2 = ftl::init::map('T', "tera")('P', "peta");
+
+    map1 = map2;
+    EXPECT_EQ(map1, map2);
+  }
+  {
+    // Convertible types; zero capacity.
+    SmallMap<char, std::string, 0> map1 = ftl::init::map('M', "mega")('G', "giga");
+    const SmallMap<char, std::string, 0> map2 = ftl::init::map('T', "tera")('P', "peta");
+
+    map1 = map2;
+    EXPECT_EQ(map1, map2);
+  }
+}
+
 TEST(SmallMap, UniqueKeys) {
   {
     // Duplicate mappings are discarded.

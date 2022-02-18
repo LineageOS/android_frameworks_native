@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cmath>
+#include <limits>
 #include <ostream>
 #include <string>
 #include <type_traits>
@@ -58,6 +59,13 @@ private:
 
     float mFrequency = 0.f;
     nsecs_t mPeriod = 0;
+};
+
+struct FpsRange {
+    Fps min = Fps::fromValue(0.f);
+    Fps max = Fps::fromValue(std::numeric_limits<float>::max());
+
+    bool includes(Fps) const;
 };
 
 static_assert(std::is_trivially_copyable_v<Fps>);
@@ -111,7 +119,20 @@ inline bool operator>=(Fps lhs, Fps rhs) {
     return !isApproxLess(lhs, rhs);
 }
 
+inline bool operator==(FpsRange lhs, FpsRange rhs) {
+    return isApproxEqual(lhs.min, rhs.min) && isApproxEqual(lhs.max, rhs.max);
+}
+
+inline bool operator!=(FpsRange lhs, FpsRange rhs) {
+    return !(lhs == rhs);
+}
+
 } // namespace fps_approx_ops
+
+inline bool FpsRange::includes(Fps fps) const {
+    using fps_approx_ops::operator<=;
+    return min <= fps && fps <= max;
+}
 
 struct FpsApproxEqual {
     bool operator()(Fps lhs, Fps rhs) const { return isApproxEqual(lhs, rhs); }
@@ -123,6 +144,11 @@ inline std::string to_string(Fps fps) {
 
 inline std::ostream& operator<<(std::ostream& stream, Fps fps) {
     return stream << to_string(fps);
+}
+
+inline std::string to_string(FpsRange range) {
+    const auto [min, max] = range;
+    return base::StringPrintf("[%s, %s]", to_string(min).c_str(), to_string(max).c_str());
 }
 
 } // namespace android

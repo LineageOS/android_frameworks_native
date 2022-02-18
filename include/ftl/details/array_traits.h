@@ -42,7 +42,7 @@ struct ArrayTraits {
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   template <typename... Args>
-  static pointer construct_at(const_iterator it, Args&&... args) {
+  static constexpr pointer construct_at(const_iterator it, Args&&... args) {
     void* const ptr = const_cast<void*>(static_cast<const void*>(it));
     if constexpr (std::is_constructible_v<value_type, Args...>) {
       // TODO: Replace with std::construct_at in C++20.
@@ -50,6 +50,42 @@ struct ArrayTraits {
     } else {
       // Fall back to list initialization.
       return new (ptr) value_type{std::forward<Args>(args)...};
+    }
+  }
+
+  // TODO: Make constexpr in C++20.
+  template <typename... Args>
+  static reference replace_at(const_iterator it, Args&&... args) {
+    value_type element{std::forward<Args>(args)...};
+    return replace_at(it, std::move(element));
+  }
+
+  // TODO: Make constexpr in C++20.
+  static reference replace_at(const_iterator it, value_type&& value) {
+    std::destroy_at(it);
+    // This is only safe because exceptions are disabled.
+    return *construct_at(it, std::move(value));
+  }
+
+  // TODO: Make constexpr in C++20.
+  static void in_place_swap(reference a, reference b) {
+    value_type c{std::move(a)};
+    replace_at(&a, std::move(b));
+    replace_at(&b, std::move(c));
+  }
+
+  // TODO: Make constexpr in C++20.
+  static void in_place_swap_ranges(iterator first1, iterator last1, iterator first2) {
+    while (first1 != last1) {
+      in_place_swap(*first1++, *first2++);
+    }
+  }
+
+  // TODO: Replace with std::uninitialized_copy in C++20.
+  template <typename Iterator>
+  static void uninitialized_copy(Iterator first, Iterator last, const_iterator out) {
+    while (first != last) {
+      construct_at(out++, *first++);
     }
   }
 };
@@ -101,33 +137,33 @@ class ArrayIterators {
 // TODO: Replace with operator<=> in C++20.
 template <template <typename, std::size_t> class Array>
 struct ArrayComparators {
-  template <typename T, std::size_t N, std::size_t M>
-  friend bool operator==(const Array<T, N>& lhs, const Array<T, M>& rhs) {
+  template <typename T, typename U, std::size_t N, std::size_t M>
+  friend bool operator==(const Array<T, N>& lhs, const Array<U, M>& rhs) {
     return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin());
   }
 
-  template <typename T, std::size_t N, std::size_t M>
-  friend bool operator<(const Array<T, N>& lhs, const Array<T, M>& rhs) {
+  template <typename T, typename U, std::size_t N, std::size_t M>
+  friend bool operator<(const Array<T, N>& lhs, const Array<U, M>& rhs) {
     return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
   }
 
-  template <typename T, std::size_t N, std::size_t M>
-  friend bool operator>(const Array<T, N>& lhs, const Array<T, M>& rhs) {
+  template <typename T, typename U, std::size_t N, std::size_t M>
+  friend bool operator>(const Array<T, N>& lhs, const Array<U, M>& rhs) {
     return rhs < lhs;
   }
 
-  template <typename T, std::size_t N, std::size_t M>
-  friend bool operator!=(const Array<T, N>& lhs, const Array<T, M>& rhs) {
+  template <typename T, typename U, std::size_t N, std::size_t M>
+  friend bool operator!=(const Array<T, N>& lhs, const Array<U, M>& rhs) {
     return !(lhs == rhs);
   }
 
-  template <typename T, std::size_t N, std::size_t M>
-  friend bool operator>=(const Array<T, N>& lhs, const Array<T, M>& rhs) {
+  template <typename T, typename U, std::size_t N, std::size_t M>
+  friend bool operator>=(const Array<T, N>& lhs, const Array<U, M>& rhs) {
     return !(lhs < rhs);
   }
 
-  template <typename T, std::size_t N, std::size_t M>
-  friend bool operator<=(const Array<T, N>& lhs, const Array<T, M>& rhs) {
+  template <typename T, typename U, std::size_t N, std::size_t M>
+  friend bool operator<=(const Array<T, N>& lhs, const Array<U, M>& rhs) {
     return !(lhs > rhs);
   }
 };
