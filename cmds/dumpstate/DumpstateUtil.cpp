@@ -48,11 +48,26 @@ static bool waitpid_with_timeout(pid_t pid, int timeout_ms, int* status) {
     sigemptyset(&child_mask);
     sigaddset(&child_mask, SIGCHLD);
 
+    // block SIGCHLD before we check if a process has exited
     if (sigprocmask(SIG_BLOCK, &child_mask, &old_mask) == -1) {
         printf("*** sigprocmask failed: %s\n", strerror(errno));
         return false;
     }
 
+    // if the child has exited already, handle and reset signals before leaving
+    pid_t child_pid = waitpid(pid, status, WNOHANG);
+    if (child_pid != pid) {
+        if (child_pid > 0) {
+            printf("*** Waiting for pid %d, got pid %d instead\n", pid, child_pid);
+            sigprocmask(SIG_SETMASK, &old_mask, nullptr);
+            return false;
+        }
+    } else {
+        sigprocmask(SIG_SETMASK, &old_mask, nullptr);
+        return true;
+    }
+
+    // wait for a SIGCHLD
     timespec ts;
     ts.tv_sec = MSEC_TO_SEC(timeout_ms);
     ts.tv_nsec = (timeout_ms % 1000) * 1000000;
@@ -76,7 +91,7 @@ static bool waitpid_with_timeout(pid_t pid, int timeout_ms, int* status) {
         return false;
     }
 
-    pid_t child_pid = waitpid(pid, status, WNOHANG);
+    child_pid = waitpid(pid, status, WNOHANG);
     if (child_pid != pid) {
         if (child_pid != -1) {
             printf("*** Waiting for pid %d, got pid %d instead\n", pid, child_pid);
@@ -232,7 +247,6 @@ int DumpFileToFd(int out_fd, const std::string& title, const std::string& path) 
             dprintf(out_fd, "*** Error dumping %s (%s): %s\n", path.c_str(), title.c_str(),
                     strerror(err));
         }
-        fsync(out_fd);
         return -1;
     }
     return DumpFileFromFdToFd(title, path, fd.get(), out_fd, PropertiesHelper::IsDryRun());
@@ -280,7 +294,6 @@ int RunCommandToFd(int fd, const std::string& title, const std::vector<std::stri
 
     if (!title.empty()) {
         dprintf(fd, "------ %s (%s) ------\n", title.c_str(), command);
-        fsync(fd);
     }
 
     const std::string& logging_message = options.LoggingMessage();
@@ -299,14 +312,13 @@ int RunCommandToFd(int fd, const std::string& title, const std::vector<std::stri
             // There is no title, but we should still print a dry-run message
             dprintf(fd, "%s: skipped on dry run\n", command_string.c_str());
         }
-        fsync(fd);
         return 0;
     }
 
     const char* path = args[0];
 
     uint64_t start = Nanotime();
-    pid_t pid = fork();
+    pid_t pid = vfork();
 
     /* handle error case */
     if (pid < 0) {
@@ -323,7 +335,7 @@ int RunCommandToFd(int fd, const std::string& title, const std::vector<std::stri
                         strerror(errno));
             }
             MYLOGE("*** could not drop root before running %s: %s\n", command, strerror(errno));
-            return -1;
+            _exit(EXIT_FAILURE);
         }
 
         if (options.ShouldCloseAllFileDescriptorsOnExec()) {
@@ -376,7 +388,6 @@ int RunCommandToFd(int fd, const std::string& title, const std::vector<std::stri
     /* handle parent case */
     int status;
     bool ret = waitpid_with_timeout(pid, options.TimeoutInMs(), &status);
-    fsync(fd);
 
     uint64_t elapsed = Nanotime() - start;
     if (!ret) {
