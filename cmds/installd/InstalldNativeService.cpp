@@ -722,7 +722,9 @@ binder::Status InstalldNativeService::createAppDataLocked(
         }
     }
 
-    {
+    // TODO(b/220095381): Due to boot time regression, we have omitted call to
+    // createAppDirectoryForSupplementalData from here temporarily (unless it's for testing)
+    if (uuid_ != nullptr && strcmp(uuid_, "TEST") == 0) {
         auto status = createAppDirectoryForSupplementalData(uuid, packageName, userId, appId,
                                                             previousAppId, seInfo, flags);
         if (!status.isOk()) {
