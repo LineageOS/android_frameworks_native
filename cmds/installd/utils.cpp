@@ -674,8 +674,12 @@ static int rename_delete_dir_contents(const std::string& pathname,
     return delete_dir_contents(temp_dir_path.c_str(), 1, exclusion_predicate, ignore_if_missing);
 }
 
-bool is_renamed_deleted_dir(std::string_view path) {
-    return path.ends_with(deletedSuffix);
+bool is_renamed_deleted_dir(const std::string& path) {
+    if (path.size() < deletedSuffix.size()) {
+        return false;
+    }
+    std::string_view pathSuffix{path.c_str() + path.size() - deletedSuffix.size()};
+    return pathSuffix == deletedSuffix;
 }
 
 int rename_delete_dir_contents_and_dir(const std::string& pathname, bool ignore_if_missing) {

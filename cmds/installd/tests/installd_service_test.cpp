@@ -162,7 +162,7 @@ static bool find_file(const char* path, Pred&& pred) {
 }
 
 static bool exists_renamed_deleted_dir() {
-    return find_file(kTestPath, [](std::string_view name, bool is_dir) {
+    return find_file(kTestPath, [](const std::string& name, bool is_dir) {
         return is_dir && is_renamed_deleted_dir(name);
     });
 }
