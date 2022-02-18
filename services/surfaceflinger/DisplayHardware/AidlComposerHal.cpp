@@ -115,7 +115,7 @@ template <>
 AidlPerFrameMetadataBlob translate(IComposerClient::PerFrameMetadataBlob x) {
     AidlPerFrameMetadataBlob blob;
     blob.key = translate<AidlPerFrameMetadataKey>(x.key),
-    std::copy(blob.blob.begin(), blob.blob.end(), x.blob.begin());
+    std::copy(x.blob.begin(), x.blob.end(), std::inserter(blob.blob, blob.blob.end()));
     return blob;
 }
 
