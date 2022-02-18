@@ -834,17 +834,6 @@ TEST_F(RefreshRateConfigsTest, twoModes_getBestRefreshRate_Explicit) {
     EXPECT_EQ(asRefreshRate(kMode90), configs.getBestRefreshRate(layers));
 }
 
-TEST_F(RefreshRateConfigsTest, testInPolicy) {
-    const auto refreshRate =
-            asRefreshRate(createDisplayMode(kModeId60, Fps::fromPeriodNsecs(16'666'665)));
-
-    EXPECT_TRUE(refreshRate.inPolicy(60.000004_Hz, 60.000004_Hz));
-    EXPECT_TRUE(refreshRate.inPolicy(59_Hz, 60.1_Hz));
-    EXPECT_FALSE(refreshRate.inPolicy(75_Hz, 90_Hz));
-    EXPECT_FALSE(refreshRate.inPolicy(60.0011_Hz, 90_Hz));
-    EXPECT_FALSE(refreshRate.inPolicy(50_Hz, 59.998_Hz));
-}
-
 TEST_F(RefreshRateConfigsTest, getBestRefreshRate_75HzContent) {
     TestableRefreshRateConfigs configs(kModes_60_90, kModeId60);
 
