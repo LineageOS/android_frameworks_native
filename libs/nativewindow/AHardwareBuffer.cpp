@@ -588,6 +588,8 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
             "HAL and AHardwareBuffer pixel format don't match");
     static_assert(HAL_PIXEL_FORMAT_YCBCR_422_I == AHARDWAREBUFFER_FORMAT_YCbCr_422_I,
             "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_YCBCR_P010 == AHARDWAREBUFFER_FORMAT_YCbCr_P010,
+            "HAL and AHardwareBuffer pixel format don't match");
 
     switch (format) {
         case AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM:
@@ -617,6 +619,7 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
         case AHARDWAREBUFFER_FORMAT_YCbCr_422_SP:
         case AHARDWAREBUFFER_FORMAT_YCrCb_420_SP:
         case AHARDWAREBUFFER_FORMAT_YCbCr_422_I:
+        case AHARDWAREBUFFER_FORMAT_YCbCr_P010:
             return true;
 
         default:
@@ -633,6 +636,7 @@ bool AHardwareBuffer_formatIsYuv(uint32_t format) {
         case AHARDWAREBUFFER_FORMAT_YCbCr_422_SP:
         case AHARDWAREBUFFER_FORMAT_YCrCb_420_SP:
         case AHARDWAREBUFFER_FORMAT_YCbCr_422_I:
+        case AHARDWAREBUFFER_FORMAT_YCbCr_P010:
             return true;
         default:
             return false;
