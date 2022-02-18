@@ -39,6 +39,9 @@ constexpr struct IteratorRangeTag {
 // adheres to standard containers, except the unstable_erase operation that does not preserve order,
 // and the replace operation that destructively emplaces.
 //
+// Unlike std::vector, T does not require copy/move assignment, so may be an object with const data
+// members, or be const itself.
+//
 // StaticVector<T, 1> is analogous to an iterable std::optional.
 // StaticVector<T, 0> is an error.
 //
@@ -78,7 +81,14 @@ class StaticVector final : details::ArrayTraits<T>,
                            details::ArrayComparators<StaticVector> {
   static_assert(N > 0);
 
+  // For constructor that moves from a smaller convertible vector.
+  template <typename, std::size_t>
+  friend class StaticVector;
+
   using details::ArrayTraits<T>::construct_at;
+  using details::ArrayTraits<T>::replace_at;
+  using details::ArrayTraits<T>::in_place_swap_ranges;
+  using details::ArrayTraits<T>::uninitialized_copy;
 
   using Iter = details::ArrayIterators<StaticVector, T>;
   friend Iter;
@@ -117,14 +127,18 @@ class StaticVector final : details::ArrayTraits<T>,
   StaticVector(StaticVector&& other) { swap<true>(other); }
 
   // Copies at most N elements from a smaller convertible vector.
-  template <typename U, std::size_t M, typename = std::enable_if_t<M <= N>>
+  template <typename U, std::size_t M>
   StaticVector(const StaticVector<U, M>& other)
-      : StaticVector(kIteratorRange, other.begin(), other.end()) {}
+      : StaticVector(kIteratorRange, other.begin(), other.end()) {
+    static_assert(N >= M, "Insufficient capacity");
+  }
 
-  // Copies at most N elements from an array.
+  // Copies at most N elements from a smaller convertible array.
   template <typename U, std::size_t M>
   explicit StaticVector(U (&array)[M])
-      : StaticVector(kIteratorRange, std::begin(array), std::end(array)) {}
+      : StaticVector(kIteratorRange, std::begin(array), std::end(array)) {
+    static_assert(N >= M, "Insufficient capacity");
+  }
 
   // Copies at most N elements from the range [first, last).
   //
@@ -139,7 +153,18 @@ class StaticVector final : details::ArrayTraits<T>,
   template <typename Iterator>
   StaticVector(IteratorRangeTag, Iterator first, Iterator last)
       : size_(std::min(max_size(), static_cast<size_type>(std::distance(first, last)))) {
-    std::uninitialized_copy(first, first + size_, begin());
+    uninitialized_copy(first, first + size_, begin());
+  }
+
+  // Moves at most N elements from a smaller convertible vector.
+  template <typename U, std::size_t M>
+  StaticVector(StaticVector<U, M>&& other) {
+    static_assert(N >= M, "Insufficient capacity");
+
+    // Same logic as swap<true>, though M need not be equal to N.
+    std::uninitialized_move(other.begin(), other.end(), begin());
+    std::destroy(other.begin(), other.end());
+    std::swap(size_, other.size_);
   }
 
   // Constructs at most N elements. The template arguments T and N are inferred using the
@@ -178,7 +203,9 @@ class StaticVector final : details::ArrayTraits<T>,
   template <typename U, std::size_t Size, std::size_t... Sizes, typename... Types>
   StaticVector(InitializerList<U, std::index_sequence<Size, Sizes...>, Types...>&& list)
       : StaticVector(std::index_sequence<0, 0, Size>{}, std::make_index_sequence<Size>{},
-                     std::index_sequence<Sizes...>{}, list.tuple) {}
+                     std::index_sequence<Sizes...>{}, list.tuple) {
+    static_assert(sizeof...(Sizes) < N, "Too many elements");
+  }
 
   ~StaticVector() { std::destroy(begin(), end()); }
 
@@ -238,10 +265,7 @@ class StaticVector final : details::ArrayTraits<T>,
   //
   template <typename... Args>
   reference replace(const_iterator it, Args&&... args) {
-    value_type element{std::forward<Args>(args)...};
-    std::destroy_at(it);
-    // This is only safe because exceptions are disabled.
-    return *construct_at(it, std::move(element));
+    return replace_at(it, std::forward<Args>(args)...);
   }
 
   // Appends an element, and returns an iterator to it. If the vector is full, the element is not
@@ -380,7 +404,7 @@ void StaticVector<T, N>::swap(StaticVector& other) {
     }
 
     // Swap elements [0, min).
-    std::swap_ranges(begin(), begin() + min, other.begin());
+    in_place_swap_ranges(begin(), begin() + min, other.begin());
 
     // No elements to move if sizes are equal.
     if (min == max) return;

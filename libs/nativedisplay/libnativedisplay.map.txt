@@ -7,12 +7,12 @@ LIBNATIVEDISPLAY {
     AChoreographer_postFrameCallbackDelayed64; # apex # introduced=30
     AChoreographer_registerRefreshRateCallback; # apex # introduced=30
     AChoreographer_unregisterRefreshRateCallback; # apex # introduced=30
-    AChoreographer_postExtendedFrameCallback; # apex # introduced=33
+    AChoreographer_postVsyncCallback; # apex # introduced=33
     AChoreographerFrameCallbackData_getFrameTimeNanos; # apex # introduced=33
     AChoreographerFrameCallbackData_getFrameTimelinesLength; # apex # introduced=33
     AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex; # apex # introduced=33
     AChoreographerFrameCallbackData_getFrameTimelineVsyncId; # apex # introduced=33
-    AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentTimeNanos; # apex # introduced=33
+    AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentationTimeNanos; # apex # introduced=33
     AChoreographerFrameCallbackData_getFrameTimelineDeadlineNanos; # apex # introduced=33
     AChoreographer_create; # apex # introduced=30
     AChoreographer_destroy; # apex # introduced=30
@@ -35,12 +35,12 @@ LIBNATIVEDISPLAY_PLATFORM {
       android::AChoreographer_routePostFrameCallbackDelayed64*;
       android::AChoreographer_routeRegisterRefreshRateCallback*;
       android::AChoreographer_routeUnregisterRefreshRateCallback*;
-      android::AChoreographer_routePostExtendedFrameCallback*;
+      android::AChoreographer_routePostVsyncCallback*;
       android::AChoreographerFrameCallbackData_routeGetFrameTimeNanos*;
       android::AChoreographerFrameCallbackData_routeGetFrameTimelinesLength*;
       android::AChoreographerFrameCallbackData_routeGetPreferredFrameTimelineIndex*;
       android::AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId*;
-      android::AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentTimeNanos*;
+      android::AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentationTimeNanos*;
       android::AChoreographerFrameCallbackData_routeGetFrameTimelineDeadlineNanos*;
       android::AChoreographer_signalRefreshRateCallbacks*;
       android::AChoreographer_getFrameInterval*;

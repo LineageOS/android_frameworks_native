@@ -22,7 +22,6 @@
 #include <type_traits>
 #include <utility>
 
-#include <android-base/stringprintf.h>
 #include <gui/DisplayEventReceiver.h>
 
 #include <scheduler/Fps.h>
@@ -101,21 +100,6 @@ public:
     using AllRefreshRatesMapType =
             std::unordered_map<DisplayModeId, std::unique_ptr<const RefreshRate>>;
 
-    struct FpsRange {
-        Fps min = Fps::fromValue(0.f);
-        Fps max = Fps::fromValue(std::numeric_limits<float>::max());
-
-        bool operator==(const FpsRange& other) const {
-            return isApproxEqual(min, other.min) && isApproxEqual(max, other.max);
-        }
-
-        bool operator!=(const FpsRange& other) const { return !(*this == other); }
-
-        std::string toString() const {
-            return base::StringPrintf("[%s %s]", to_string(min).c_str(), to_string(max).c_str());
-        }
-    };
-
     struct Policy {
     private:
         static constexpr int kAllowGroupSwitchingDefault = false;
@@ -140,24 +124,24 @@ public:
 
         Policy() = default;
 
-        Policy(DisplayModeId defaultMode, const FpsRange& range)
+        Policy(DisplayModeId defaultMode, FpsRange range)
               : Policy(defaultMode, kAllowGroupSwitchingDefault, range, range) {}
 
-        Policy(DisplayModeId defaultMode, bool allowGroupSwitching, const FpsRange& range)
+        Policy(DisplayModeId defaultMode, bool allowGroupSwitching, FpsRange range)
               : Policy(defaultMode, allowGroupSwitching, range, range) {}
 
-        Policy(DisplayModeId defaultMode, const FpsRange& primaryRange,
-               const FpsRange& appRequestRange)
+        Policy(DisplayModeId defaultMode, FpsRange primaryRange, FpsRange appRequestRange)
               : Policy(defaultMode, kAllowGroupSwitchingDefault, primaryRange, appRequestRange) {}
 
-        Policy(DisplayModeId defaultMode, bool allowGroupSwitching, const FpsRange& primaryRange,
-               const FpsRange& appRequestRange)
+        Policy(DisplayModeId defaultMode, bool allowGroupSwitching, FpsRange primaryRange,
+               FpsRange appRequestRange)
               : defaultMode(defaultMode),
                 allowGroupSwitching(allowGroupSwitching),
                 primaryRange(primaryRange),
                 appRequestRange(appRequestRange) {}
 
         bool operator==(const Policy& other) const {
+            using namespace fps_approx_ops;
             return defaultMode == other.defaultMode && primaryRange == other.primaryRange &&
                     appRequestRange == other.appRequestRange &&
                     allowGroupSwitching == other.allowGroupSwitching;

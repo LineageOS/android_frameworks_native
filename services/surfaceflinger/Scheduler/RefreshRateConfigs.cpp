@@ -69,11 +69,6 @@ std::vector<Fps> constructKnownFrameRates(const DisplayModes& modes) {
 using AllRefreshRatesMapType = RefreshRateConfigs::AllRefreshRatesMapType;
 using RefreshRate = RefreshRateConfigs::RefreshRate;
 
-bool RefreshRate::inPolicy(Fps minRefreshRate, Fps maxRefreshRate) const {
-    using fps_approx_ops::operator<=;
-    return minRefreshRate <= getFps() && getFps() <= maxRefreshRate;
-}
-
 std::string RefreshRate::toString() const {
     return base::StringPrintf("{id=%d, hwcId=%d, fps=%.2f, width=%d, height=%d group=%d}",
                               getModeId().value(), mode->getHwcId(), getFps().getValue(),
@@ -84,7 +79,7 @@ std::string RefreshRateConfigs::Policy::toString() const {
     return base::StringPrintf("default mode ID: %d, allowGroupSwitching = %d"
                               ", primary range: %s, app request range: %s",
                               defaultMode.value(), allowGroupSwitching,
-                              primaryRange.toString().c_str(), appRequestRange.toString().c_str());
+                              to_string(primaryRange).c_str(), to_string(appRequestRange).c_str());
 }
 
 std::pair<nsecs_t, nsecs_t> RefreshRateConfigs::getDisplayFrames(nsecs_t layerPeriod,
@@ -396,8 +391,9 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
                 continue;
             }
 
-            bool inPrimaryRange = scores[i].refreshRate->inPolicy(policy->primaryRange.min,
-                                                                  policy->primaryRange.max);
+            const bool inPrimaryRange =
+                    policy->primaryRange.includes(scores[i].refreshRate->getFps());
+
             if ((primaryRangeIsSingleRate || !inPrimaryRange) &&
                 !(layer.focused &&
                   (layer.vote == LayerVoteType::ExplicitDefault ||
@@ -746,7 +742,7 @@ bool RefreshRateConfigs::isPolicyValidLocked(const Policy& policy) const {
         return false;
     }
     const RefreshRate& refreshRate = *iter->second;
-    if (!refreshRate.inPolicy(policy.primaryRange.min, policy.primaryRange.max)) {
+    if (!policy.primaryRange.includes(refreshRate.getFps())) {
         ALOGE("Default mode is not in the primary range.");
         return false;
     }
@@ -843,7 +839,7 @@ void RefreshRateConfigs::constructAvailableRefreshRates() {
     ALOGV("constructAvailableRefreshRates: %s ", policy->toString().c_str());
 
     auto filterRefreshRates =
-            [&](Fps min, Fps max, const char* listName,
+            [&](FpsRange range, const char* rangeName,
                 std::vector<const RefreshRate*>* outRefreshRates) REQUIRES(mLock) {
                 getSortedRefreshRateListLocked(
                         [&](const RefreshRate& refreshRate) REQUIRES(mLock) {
@@ -855,13 +851,13 @@ void RefreshRateConfigs::constructAvailableRefreshRates() {
                                     mode->getDpiY() == defaultMode->getDpiY() &&
                                     (policy->allowGroupSwitching ||
                                      mode->getGroup() == defaultMode->getGroup()) &&
-                                    refreshRate.inPolicy(min, max);
+                                    range.includes(mode->getFps());
                         },
                         outRefreshRates);
 
-                LOG_ALWAYS_FATAL_IF(outRefreshRates->empty(),
-                                    "No matching modes for %s range: min=%s max=%s", listName,
-                                    to_string(min).c_str(), to_string(max).c_str());
+                LOG_ALWAYS_FATAL_IF(outRefreshRates->empty(), "No matching modes for %s range %s",
+                                    rangeName, to_string(range).c_str());
+
                 auto stringifyRefreshRates = [&]() -> std::string {
                     std::string str;
                     for (auto refreshRate : *outRefreshRates) {
@@ -869,13 +865,11 @@ void RefreshRateConfigs::constructAvailableRefreshRates() {
                     }
                     return str;
                 };
-                ALOGV("%s refresh rates: %s", listName, stringifyRefreshRates().c_str());
+                ALOGV("%s refresh rates: %s", rangeName, stringifyRefreshRates().c_str());
             };
 
-    filterRefreshRates(policy->primaryRange.min, policy->primaryRange.max, "primary",
-                       &mPrimaryRefreshRates);
-    filterRefreshRates(policy->appRequestRange.min, policy->appRequestRange.max, "app request",
-                       &mAppRequestRefreshRates);
+    filterRefreshRates(policy->primaryRange, "primary", &mPrimaryRefreshRates);
+    filterRefreshRates(policy->appRequestRange, "app request", &mAppRequestRefreshRates);
 }
 
 Fps RefreshRateConfigs::findClosestKnownFrameRate(Fps frameRate) const {
