@@ -1440,8 +1440,15 @@ status_t SurfaceFlinger::getBootDisplayModeSupport(bool* outSupport) const {
 
 status_t SurfaceFlinger::setBootDisplayMode(const sp<IBinder>& displayToken, ui::DisplayModeId id) {
     auto future = mScheduler->schedule([=]() MAIN_THREAD -> status_t {
-        if (const auto displayId = getPhysicalDisplayIdLocked(displayToken)) {
-            return getHwComposer().setBootDisplayMode(*displayId, id);
+        if (const auto displayDevice = getDisplayDeviceLocked(displayToken)) {
+            const auto mode = displayDevice->getMode(DisplayModeId{id});
+            if (mode == nullptr) {
+                ALOGE("%s: invalid display mode (%d)", __FUNCTION__, id);
+                return BAD_VALUE;
+            }
+
+            return getHwComposer().setBootDisplayMode(displayDevice->getPhysicalId(),
+                                                      mode->getHwcId());
         } else {
             ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
             return BAD_VALUE;

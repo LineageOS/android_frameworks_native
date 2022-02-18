@@ -66,7 +66,7 @@ void Display::setConfiguration(const compositionengine::DisplayCreationArgs& arg
     std::optional<hal::HWConfigId> preferredBootModeId =
             getCompositionEngine().getHwComposer().getPreferredBootDisplayMode(*physicalId);
     if (preferredBootModeId.has_value()) {
-        mPreferredBootDisplayModeId = static_cast<int32_t>(preferredBootModeId.value());
+        mPreferredBootHwcConfigId = static_cast<int32_t>(preferredBootModeId.value());
     }
 }
 
@@ -90,8 +90,8 @@ std::optional<DisplayId> Display::getDisplayId() const {
     return mId;
 }
 
-int32_t Display::getPreferredBootModeId() const {
-    return mPreferredBootDisplayModeId;
+int32_t Display::getPreferredBootHwcConfigId() const {
+    return mPreferredBootHwcConfigId;
 }
 
 void Display::disconnect() {
