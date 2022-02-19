@@ -31,23 +31,15 @@ static constexpr size_t MAX_SLOTS = 32;
 
 MultiTouchMotionAccumulator::MultiTouchMotionAccumulator()
       : mCurrentSlot(-1),
-        mSlots(nullptr),
-        mSlotCount(0),
         mUsingSlotsProtocol(false),
         mHaveStylus(false) {}
 
-MultiTouchMotionAccumulator::~MultiTouchMotionAccumulator() {
-    delete[] mSlots;
-}
-
 void MultiTouchMotionAccumulator::configure(InputDeviceContext& deviceContext, size_t slotCount,
                                             bool usingSlotsProtocol) {
-    mSlotCount = slotCount;
     mUsingSlotsProtocol = usingSlotsProtocol;
     mHaveStylus = deviceContext.hasAbsoluteAxis(ABS_MT_TOOL_TYPE);
 
-    delete[] mSlots;
-    mSlots = new Slot[slotCount];
+    mSlots = std::vector<Slot>(slotCount);
 }
 
 void MultiTouchMotionAccumulator::reset(InputDeviceContext& deviceContext) {
@@ -76,10 +68,8 @@ void MultiTouchMotionAccumulator::reset(InputDeviceContext& deviceContext) {
 }
 
 void MultiTouchMotionAccumulator::clearSlots(int32_t initialSlot) {
-    if (mSlots) {
-        for (size_t i = 0; i < mSlotCount; i++) {
-            mSlots[i].clear();
-        }
+    for (Slot& slot : mSlots) {
+        slot.clear();
     }
     mCurrentSlot = initialSlot;
 }
@@ -96,68 +86,68 @@ void MultiTouchMotionAccumulator::process(const RawEvent* rawEvent) {
             mCurrentSlot = 0;
         }
 
-        if (mCurrentSlot < 0 || size_t(mCurrentSlot) >= mSlotCount) {
+        if (mCurrentSlot < 0 || size_t(mCurrentSlot) >= mSlots.size()) {
             if (DEBUG_POINTERS) {
                 if (newSlot) {
                     ALOGW("MultiTouch device emitted invalid slot index %d but it "
                           "should be between 0 and %zd; ignoring this slot.",
-                          mCurrentSlot, mSlotCount - 1);
+                          mCurrentSlot, mSlots.size() - 1);
                 }
             }
         } else {
-            Slot* slot = &mSlots[mCurrentSlot];
+            Slot& slot = mSlots[mCurrentSlot];
             // If mUsingSlotsProtocol is true, it means the raw pointer has axis info of
             // ABS_MT_TRACKING_ID and ABS_MT_SLOT, so driver should send a valid trackingId while
             // updating the slot.
             if (!mUsingSlotsProtocol) {
-                slot->mInUse = true;
+                slot.mInUse = true;
             }
 
             switch (rawEvent->code) {
                 case ABS_MT_POSITION_X:
-                    slot->mAbsMTPositionX = rawEvent->value;
-                    warnIfNotInUse(*rawEvent, *slot);
+                    slot.mAbsMTPositionX = rawEvent->value;
+                    warnIfNotInUse(*rawEvent, slot);
                     break;
                 case ABS_MT_POSITION_Y:
-                    slot->mAbsMTPositionY = rawEvent->value;
-                    warnIfNotInUse(*rawEvent, *slot);
+                    slot.mAbsMTPositionY = rawEvent->value;
+                    warnIfNotInUse(*rawEvent, slot);
                     break;
                 case ABS_MT_TOUCH_MAJOR:
-                    slot->mAbsMTTouchMajor = rawEvent->value;
+                    slot.mAbsMTTouchMajor = rawEvent->value;
                     break;
                 case ABS_MT_TOUCH_MINOR:
-                    slot->mAbsMTTouchMinor = rawEvent->value;
-                    slot->mHaveAbsMTTouchMinor = true;
+                    slot.mAbsMTTouchMinor = rawEvent->value;
+                    slot.mHaveAbsMTTouchMinor = true;
                     break;
                 case ABS_MT_WIDTH_MAJOR:
-                    slot->mAbsMTWidthMajor = rawEvent->value;
+                    slot.mAbsMTWidthMajor = rawEvent->value;
                     break;
                 case ABS_MT_WIDTH_MINOR:
-                    slot->mAbsMTWidthMinor = rawEvent->value;
-                    slot->mHaveAbsMTWidthMinor = true;
+                    slot.mAbsMTWidthMinor = rawEvent->value;
+                    slot.mHaveAbsMTWidthMinor = true;
                     break;
                 case ABS_MT_ORIENTATION:
-                    slot->mAbsMTOrientation = rawEvent->value;
+                    slot.mAbsMTOrientation = rawEvent->value;
                     break;
                 case ABS_MT_TRACKING_ID:
                     if (mUsingSlotsProtocol && rawEvent->value < 0) {
                         // The slot is no longer in use but it retains its previous contents,
                         // which may be reused for subsequent touches.
-                        slot->mInUse = false;
+                        slot.mInUse = false;
                     } else {
-                        slot->mInUse = true;
-                        slot->mAbsMTTrackingId = rawEvent->value;
+                        slot.mInUse = true;
+                        slot.mAbsMTTrackingId = rawEvent->value;
                     }
                     break;
                 case ABS_MT_PRESSURE:
-                    slot->mAbsMTPressure = rawEvent->value;
+                    slot.mAbsMTPressure = rawEvent->value;
                     break;
                 case ABS_MT_DISTANCE:
-                    slot->mAbsMTDistance = rawEvent->value;
+                    slot.mAbsMTDistance = rawEvent->value;
                     break;
                 case ABS_MT_TOOL_TYPE:
-                    slot->mAbsMTToolType = rawEvent->value;
-                    slot->mHaveAbsMTToolType = true;
+                    slot.mAbsMTToolType = rawEvent->value;
+                    slot.mHaveAbsMTToolType = true;
                     break;
             }
         }
@@ -185,28 +175,6 @@ void MultiTouchMotionAccumulator::warnIfNotInUse(const RawEvent& event, const Sl
 }
 
 // --- MultiTouchMotionAccumulator::Slot ---
-
-MultiTouchMotionAccumulator::Slot::Slot() {
-    clear();
-}
-
-void MultiTouchMotionAccumulator::Slot::clear() {
-    mInUse = false;
-    mHaveAbsMTTouchMinor = false;
-    mHaveAbsMTWidthMinor = false;
-    mHaveAbsMTToolType = false;
-    mAbsMTPositionX = 0;
-    mAbsMTPositionY = 0;
-    mAbsMTTouchMajor = 0;
-    mAbsMTTouchMinor = 0;
-    mAbsMTWidthMajor = 0;
-    mAbsMTWidthMinor = 0;
-    mAbsMTOrientation = 0;
-    mAbsMTTrackingId = -1;
-    mAbsMTPressure = 0;
-    mAbsMTDistance = 0;
-    mAbsMTToolType = 0;
-}
 
 int32_t MultiTouchMotionAccumulator::Slot::getToolType() const {
     if (mHaveAbsMTToolType) {
@@ -264,14 +232,14 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
     mHavePointerIds = true;
 
     for (size_t inIndex = 0; inIndex < inCount; inIndex++) {
-        const MultiTouchMotionAccumulator::Slot* inSlot =
+        const MultiTouchMotionAccumulator::Slot& inSlot =
                 mMultiTouchMotionAccumulator.getSlot(inIndex);
-        if (!inSlot->isInUse()) {
+        if (!inSlot.isInUse()) {
             continue;
         }
 
-        if (inSlot->getToolType() == AMOTION_EVENT_TOOL_TYPE_PALM) {
-            std::optional<int32_t> id = getActiveBitId(*inSlot);
+        if (inSlot.getToolType() == AMOTION_EVENT_TOOL_TYPE_PALM) {
+            std::optional<int32_t> id = getActiveBitId(inSlot);
             if (id) {
                 outState->rawPointerData.canceledIdBits.markBit(id.value());
             }
@@ -292,19 +260,19 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
         }
 
         RawPointerData::Pointer& outPointer = outState->rawPointerData.pointers[outCount];
-        outPointer.x = inSlot->getX();
-        outPointer.y = inSlot->getY();
-        outPointer.pressure = inSlot->getPressure();
-        outPointer.touchMajor = inSlot->getTouchMajor();
-        outPointer.touchMinor = inSlot->getTouchMinor();
-        outPointer.toolMajor = inSlot->getToolMajor();
-        outPointer.toolMinor = inSlot->getToolMinor();
-        outPointer.orientation = inSlot->getOrientation();
-        outPointer.distance = inSlot->getDistance();
+        outPointer.x = inSlot.getX();
+        outPointer.y = inSlot.getY();
+        outPointer.pressure = inSlot.getPressure();
+        outPointer.touchMajor = inSlot.getTouchMajor();
+        outPointer.touchMinor = inSlot.getTouchMinor();
+        outPointer.toolMajor = inSlot.getToolMajor();
+        outPointer.toolMinor = inSlot.getToolMinor();
+        outPointer.orientation = inSlot.getOrientation();
+        outPointer.distance = inSlot.getDistance();
         outPointer.tiltX = 0;
         outPointer.tiltY = 0;
 
-        outPointer.toolType = inSlot->getToolType();
+        outPointer.toolType = inSlot.getToolType();
         if (outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
             outPointer.toolType = mTouchButtonAccumulator.getToolType();
             if (outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
@@ -318,12 +286,12 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
 
         bool isHovering = mTouchButtonAccumulator.getToolType() != AMOTION_EVENT_TOOL_TYPE_MOUSE &&
                 (mTouchButtonAccumulator.isHovering() ||
-                 (mRawPointerAxes.pressure.valid && inSlot->getPressure() <= 0));
+                 (mRawPointerAxes.pressure.valid && inSlot.getPressure() <= 0));
         outPointer.isHovering = isHovering;
 
         // Assign pointer id using tracking id if available.
         if (mHavePointerIds) {
-            int32_t trackingId = inSlot->getTrackingId();
+            int32_t trackingId = inSlot.getTrackingId();
             int32_t id = -1;
             if (trackingId >= 0) {
                 for (BitSet32 idBits(mPointerIdBits); !idBits.isEmpty();) {
