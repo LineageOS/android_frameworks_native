@@ -4,6 +4,7 @@
 + [DisplayHardware](#DisplayHardware)
 + [Scheduler](#Scheduler)
 + [Layer](#Layer)
++ [FrameTracer](#FrameTracer)
 
 # <a name="SurfaceFlinger"></a> Fuzzer for SurfaceFlinger
 
@@ -92,4 +93,17 @@ You can find the possible values in the fuzzer's source code.
 ```
   $ adb sync data
   $ adb shell /data/fuzz/arm64/surfaceflinger_layer_fuzzer/surfaceflinger_layer_fuzzer
+```
+
+# <a name="FrameTracer"></a> Fuzzer for FrameTracer
+
+#### Steps to run
+1. Build the fuzzer
+```
+  $ mm -j$(nproc) surfaceflinger_frametracer_fuzzer
+```
+2. To run on device
+```
+  $ adb sync data
+  $ adb shell /data/fuzz/arm64/surfaceflinger_frametracer_fuzzer/surfaceflinger_frametracer_fuzzer
 ```
