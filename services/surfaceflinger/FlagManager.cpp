@@ -101,7 +101,6 @@ bool FlagManager::use_adpf_cpu_hint() const {
 }
 
 bool FlagManager::use_skia_tracing() const {
-    ALOGD("use_skia_tracing ?");
     std::optional<bool> sysPropVal =
             doParse<bool>(base::GetProperty(PROPERTY_SKIA_ATRACE_ENABLED, "").c_str());
     return getValue("SkiaTracingFeature__use_skia_tracing", sysPropVal, false);
