@@ -353,12 +353,12 @@ int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** out
         return INVALID_OPERATION;
     }
 
-    GraphicBuffer* gBuffer = new GraphicBuffer();
+    sp<GraphicBuffer> gBuffer(new GraphicBuffer());
     status_t err = gBuffer->unflatten(data, dataLen, fdData, fdCount);
     if (err != NO_ERROR) {
         return err;
     }
-    *outBuffer = AHardwareBuffer_from_GraphicBuffer(gBuffer);
+    *outBuffer = AHardwareBuffer_from_GraphicBuffer(gBuffer.get());
     // Ensure the buffer has a positive ref-count.
     AHardwareBuffer_acquire(*outBuffer);
 
