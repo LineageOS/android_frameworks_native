@@ -366,12 +366,13 @@ status_t Surface::getHdrSupport(bool* supported) {
         return NAME_NOT_FOUND;
     }
 
-    ui::DynamicDisplayInfo info;
-    if (status_t err = composerService()->getDynamicDisplayInfo(display, &info); err != NO_ERROR) {
-        return err;
+    gui::DynamicDisplayInfo info;
+    if (binder::Status status = composerServiceAIDL()->getDynamicDisplayInfo(display, &info);
+        !status.isOk()) {
+        return status.transactionError();
     }
 
-    *supported = !info.hdrCapabilities.getSupportedHdrTypes().empty();
+    *supported = !info.hdrCapabilities.supportedHdrTypes.empty();
     return NO_ERROR;
 }
 

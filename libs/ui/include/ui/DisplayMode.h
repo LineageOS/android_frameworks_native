@@ -29,7 +29,7 @@ namespace android::ui {
 using DisplayModeId = int32_t;
 
 // Mode supported by physical display.
-struct DisplayMode : LightFlattenable<DisplayMode> {
+struct DisplayMode {
     DisplayModeId id;
     ui::Size resolution;
     float xDpi = 0;
@@ -40,11 +40,6 @@ struct DisplayMode : LightFlattenable<DisplayMode> {
     nsecs_t sfVsyncOffset = 0;
     nsecs_t presentationDeadline = 0;
     int32_t group = -1;
-
-    bool isFixedSize() const { return false; }
-    size_t getFlattenedSize() const;
-    status_t flatten(void* buffer, size_t size) const;
-    status_t unflatten(const void* buffer, size_t size);
 };
 
 } // namespace android::ui

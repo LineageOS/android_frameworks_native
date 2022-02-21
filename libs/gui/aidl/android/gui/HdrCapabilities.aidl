@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,14 @@
  * limitations under the License.
  */
 
-#include <ui/DynamicDisplayInfo.h>
+package android.gui;
 
-#include <cstdint>
+// Make sure to sync with libui HdrCapabilities.h
 
-namespace android::ui {
-
-std::optional<ui::DisplayMode> DynamicDisplayInfo::getActiveDisplayMode() const {
-    for (const auto& currMode : supportedDisplayModes) {
-        if (currMode.id == activeDisplayModeId) {
-            return currMode;
-        }
-    }
-    return {};
+/** @hide */
+parcelable HdrCapabilities {
+    int[] supportedHdrTypes;
+    float maxLuminance;
+    float maxAverageLuminance;
+    float minLuminance;
 }
-
-} // namespace android::ui
