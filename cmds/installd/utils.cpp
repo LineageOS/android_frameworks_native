@@ -195,39 +195,39 @@ std::string create_data_user_de_path(const char* volume_uuid, userid_t userid) {
 }
 
 /**
- * Create the path name where supplemental data for all apps will be stored.
- * E.g. /data/misc_ce/0/supplemental
+ * Create the path name where sdk_sandbox data for all apps will be stored.
+ * E.g. /data/misc_ce/0/sdksandbox
  */
-std::string create_data_misc_supplemental_path(const char* uuid, bool isCeData, userid_t user) {
+std::string create_data_misc_sdk_sandbox_path(const char* uuid, bool isCeData, userid_t user) {
     std::string data(create_data_path(uuid));
     if (isCeData) {
-        return StringPrintf("%s/misc_ce/%d/supplemental", data.c_str(), user);
+        return StringPrintf("%s/misc_ce/%d/sdksandbox", data.c_str(), user);
     } else {
-        return StringPrintf("%s/misc_de/%d/supplemental", data.c_str(), user);
+        return StringPrintf("%s/misc_de/%d/sdksandbox", data.c_str(), user);
     }
 }
 
 /**
  * Create the path name where code data for all codes in a particular app will be stored.
- * E.g. /data/misc_ce/0/supplemental/<app-name>
+ * E.g. /data/misc_ce/0/sdksandbox/<app-name>
  */
-std::string create_data_misc_supplemental_package_path(const char* volume_uuid, bool isCeData,
-                                                       userid_t user, const char* package_name) {
+std::string create_data_misc_sdk_sandbox_package_path(const char* volume_uuid, bool isCeData,
+                                                      userid_t user, const char* package_name) {
     check_package_name(package_name);
     return StringPrintf("%s/%s",
-                        create_data_misc_supplemental_path(volume_uuid, isCeData, user).c_str(),
+                        create_data_misc_sdk_sandbox_path(volume_uuid, isCeData, user).c_str(),
                         package_name);
 }
 
 /**
  * Create the path name where shared code data for a particular app will be stored.
- * E.g. /data/misc_ce/0/supplemental/<app-name>/shared
+ * E.g. /data/misc_ce/0/sdksandbox/<app-name>/shared
  */
-std::string create_data_misc_supplemental_shared_path(const char* volume_uuid, bool isCeData,
-                                                      userid_t user, const char* package_name) {
+std::string create_data_misc_sdk_sandbox_shared_path(const char* volume_uuid, bool isCeData,
+                                                     userid_t user, const char* package_name) {
     return StringPrintf("%s/shared",
-                        create_data_misc_supplemental_package_path(volume_uuid, isCeData, user,
-                                                                   package_name)
+                        create_data_misc_sdk_sandbox_package_path(volume_uuid, isCeData, user,
+                                                                  package_name)
                                 .c_str());
 }
 
