@@ -127,3 +127,13 @@ cc_fuzz {
         "surfaceflinger_layer_fuzzer.cpp",
     ],
 }
+
+cc_fuzz {
+    name: "surfaceflinger_frametracer_fuzzer",
+    defaults: [
+        "surfaceflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "surfaceflinger_frametracer_fuzzer.cpp",
+    ],
+}
