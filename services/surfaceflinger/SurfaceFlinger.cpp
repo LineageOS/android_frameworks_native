@@ -156,6 +156,10 @@
 #define NO_THREAD_SAFETY_ANALYSIS \
     _Pragma("GCC error \"Prefer <ftl/fake_guard.h> or MutexUtils.h helpers.\"")
 
+// To enable layer borders in the system, change the below flag to true.
+#undef DOES_CONTAIN_BORDER
+#define DOES_CONTAIN_BORDER false
+
 namespace android {
 
 using namespace std::string_literals;
@@ -2169,6 +2173,20 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId)
         if (auto layerFE = layer->getCompositionEngineLayerFE())
             refreshArgs.layers.push_back(layerFE);
     });
+
+    if (DOES_CONTAIN_BORDER) {
+        refreshArgs.borderInfoList.clear();
+        mDrawingState.traverse([&refreshArgs](Layer* layer) {
+            if (layer->isBorderEnabled()) {
+                compositionengine::BorderRenderInfo info;
+                layer->traverse(LayerVector::StateSet::Drawing, [&info](Layer* ilayer) {
+                    info.layerIds.push_back(ilayer->getSequence());
+                });
+                refreshArgs.borderInfoList.emplace_back(std::move(info));
+            }
+        });
+    }
+
     refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
     for (auto layer : mLayersWithQueuedFrames) {
         if (auto layerFE = layer->getCompositionEngineLayerFE())
@@ -4428,6 +4446,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
     if (what & layer_state_t::eBlurRegionsChanged) {
         if (layer->setBlurRegions(s.blurRegions)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eRenderBorderChanged) {
+        if (layer->enableBorder(s.borderEnabled)) {
+            flags |= eTraversalNeeded;
+        }
     }
     if (what & layer_state_t::eLayerStackChanged) {
         ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);

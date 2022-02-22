@@ -33,6 +33,7 @@
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
 #include <compositionengine/ProjectionSpace.h>
+#include <renderengine/BorderRenderInfo.h>
 #include <ui/LayerStack.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
@@ -164,6 +165,7 @@ struct OutputCompositionState {
 
     bool treat170mAsSrgb = false;
 
+    std::vector<renderengine::BorderRenderInfo> borderInfoList;
     // Debugging
     void dump(std::string& result) const;
 };
