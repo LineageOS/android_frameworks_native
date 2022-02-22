@@ -2360,11 +2360,30 @@ bool SurfaceComposerClient::getProtectedContentSupport() {
 }
 
 status_t SurfaceComposerClient::clearAnimationFrameStats() {
-    return ComposerService::getComposerService()->clearAnimationFrameStats();
+    binder::Status status = ComposerServiceAIDL::getComposerService()->clearAnimationFrameStats();
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::getAnimationFrameStats(FrameStats* outStats) {
-    return ComposerService::getComposerService()->getAnimationFrameStats(outStats);
+    gui::FrameStats stats;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getAnimationFrameStats(&stats);
+    if (status.isOk()) {
+        outStats->refreshPeriodNano = stats.refreshPeriodNano;
+        outStats->desiredPresentTimesNano.setCapacity(stats.desiredPresentTimesNano.size());
+        for (const auto& t : stats.desiredPresentTimesNano) {
+            outStats->desiredPresentTimesNano.add(t);
+        }
+        outStats->actualPresentTimesNano.setCapacity(stats.actualPresentTimesNano.size());
+        for (const auto& t : stats.actualPresentTimesNano) {
+            outStats->actualPresentTimesNano.add(t);
+        }
+        outStats->frameReadyTimesNano.setCapacity(stats.frameReadyTimesNano.size());
+        for (const auto& t : stats.frameReadyTimesNano) {
+            outStats->frameReadyTimesNano.add(t);
+        }
+    }
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::overrideHdrTypes(const sp<IBinder>& display,

@@ -21,6 +21,7 @@ import android.gui.DisplayBrightness;
 import android.gui.DisplayPrimaries;
 import android.gui.DisplayState;
 import android.gui.DisplayStatInfo;
+import android.gui.FrameStats;
 import android.gui.StaticDisplayInfo;
 import android.gui.DynamicDisplayInfo;
 import android.gui.IHdrLayerInfoListener;
@@ -137,6 +138,18 @@ interface ISurfaceComposer {
      * is a secure window on screen
      */
     void captureLayers(in LayerCaptureArgs args, IScreenCaptureListener listener);
+
+    /* Clears the frame statistics for animations.
+     *
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    void clearAnimationFrameStats();
+
+    /* Gets the frame statistics for animations.
+     *
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    FrameStats getAnimationFrameStats();
 
     /*
      * Queries whether the given display is a wide color display.
