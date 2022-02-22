@@ -182,7 +182,8 @@ BLASTBufferQueue::~BLASTBufferQueue() {
              static_cast<uint32_t>(mPendingTransactions.size()));
     SurfaceComposerClient::Transaction t;
     mergePendingTransactions(&t, std::numeric_limits<uint64_t>::max() /* frameNumber */);
-    t.setApplyToken(mApplyToken).apply();
+    // All transactions on our apply token are one-way. See comment on mAppliedLastTransaction
+    t.setApplyToken(mApplyToken).apply(false, true);
 }
 
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height,
@@ -230,7 +231,8 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
         }
     }
     if (applyTransaction) {
-        t.setApplyToken(mApplyToken).apply();
+        // All transactions on our apply token are one-way. See comment on mAppliedLastTransaction
+        t.setApplyToken(mApplyToken).apply(false, true);
     }
 }
 
@@ -551,7 +553,13 @@ void BLASTBufferQueue::acquireNextBufferLocked(
 
     mergePendingTransactions(t, bufferItem.mFrameNumber);
     if (applyTransaction) {
-        t->setApplyToken(mApplyToken).apply();
+        // All transactions on our apply token are one-way. See comment on mAppliedLastTransaction
+        t->setApplyToken(mApplyToken).apply(false, true);
+        mAppliedLastTransaction = true;
+        mLastAppliedFrameNumber = bufferItem.mFrameNumber;
+    } else {
+        t->setBufferHasBarrier(mSurfaceControl, mLastAppliedFrameNumber);
+        mAppliedLastTransaction = false;
     }
 
     BQA_LOGV("acquireNextBufferLocked size=%dx%d mFrameNumber=%" PRIu64
@@ -857,7 +865,8 @@ void BLASTBufferQueue::applyPendingTransactions(uint64_t frameNumber) {
 
     SurfaceComposerClient::Transaction t;
     mergePendingTransactions(&t, frameNumber);
-    t.setApplyToken(mApplyToken).apply();
+    // All transactions on our apply token are one-way. See comment on mAppliedLastTransaction
+    t.setApplyToken(mApplyToken).apply(false, true);
 }
 
 void BLASTBufferQueue::mergePendingTransactions(SurfaceComposerClient::Transaction* t,
@@ -1050,7 +1059,8 @@ void BLASTBufferQueue::abandon() {
                  static_cast<uint32_t>(mPendingTransactions.size()));
         SurfaceComposerClient::Transaction t;
         mergePendingTransactions(&t, std::numeric_limits<uint64_t>::max() /* frameNumber */);
-        t.setApplyToken(mApplyToken).apply();
+        // All transactions on our apply token are one-way. See comment on mAppliedLastTransaction
+        t.setApplyToken(mApplyToken).apply(false, true);
     }
 
     // Clear sync states
