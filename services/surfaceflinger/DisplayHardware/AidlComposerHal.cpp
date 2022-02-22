@@ -20,6 +20,7 @@
 
 #include "AidlComposerHal.h"
 
+#include <android-base/file.h>
 #include <android/binder_ibinder_platform.h>
 #include <android/binder_manager.h>
 #include <log/log.h>
@@ -262,13 +263,27 @@ std::vector<Capability> AidlComposer::getCapabilities() {
 }
 
 std::string AidlComposer::dumpDebugInfo() {
-    std::string info;
-    const auto status = mAidlComposer->dumpDebugInfo(&info);
-    if (!status.isOk()) {
-        ALOGE("dumpDebugInfo failed %s", status.getDescription().c_str());
+    int pipefds[2];
+    int result = pipe(pipefds);
+    if (result < 0) {
+        ALOGE("dumpDebugInfo: pipe failed: %s", strerror(errno));
         return {};
     }
-    return info;
+
+    std::string str;
+    const auto status = mAidlComposer->dump(pipefds[1], /*args*/ nullptr, /*numArgs*/ 0);
+    // Close the write-end of the pipe to make sure that when reading from the
+    // read-end we will get eof instead of blocking forever
+    close(pipefds[1]);
+
+    if (status == STATUS_OK) {
+        base::ReadFdToString(pipefds[0], &str);
+    } else {
+        ALOGE("dumpDebugInfo: dump failed: %d", status);
+    }
+
+    close(pipefds[0]);
+    return str;
 }
 
 void AidlComposer::registerCallback(HWC2::ComposerCallback& callback) {
