@@ -26,14 +26,14 @@
 namespace android {
 
 TEST(BootDisplayModeTest, setBootDisplayMode) {
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-    sp<gui::ISurfaceComposer> sf_aidl(ComposerServiceAIDL::getComposerService());
+    sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
     auto displayToken = SurfaceComposerClient::getInternalDisplayToken();
     bool bootModeSupport = false;
-    binder::Status status = sf_aidl->getBootDisplayModeSupport(&bootModeSupport);
+    binder::Status status = sf->getBootDisplayModeSupport(&bootModeSupport);
     ASSERT_NO_FATAL_FAILURE(status.transactionError());
     if (bootModeSupport) {
-        ASSERT_EQ(NO_ERROR, sf->setBootDisplayMode(displayToken, 0));
+        status = sf->setBootDisplayMode(displayToken, 0);
+        ASSERT_EQ(NO_ERROR, status.transactionError());
     }
 }
 

@@ -733,16 +733,6 @@ public:
         return NO_ERROR;
     }
 
-    status_t getDisplayNativePrimaries(const sp<IBinder>& /*display*/,
-            ui::DisplayPrimaries& /*primaries*/) override {
-        return NO_ERROR;
-    }
-    status_t setActiveColorMode(const sp<IBinder>& /*display*/,
-        ColorMode /*colorMode*/) override { return NO_ERROR; }
-    status_t setBootDisplayMode(const sp<IBinder>& /*display*/, ui::DisplayModeId /*id*/) override {
-        return NO_ERROR;
-    }
-
     status_t clearAnimationFrameStats() override { return NO_ERROR; }
     status_t getAnimationFrameStats(FrameStats* /*outStats*/) const override {
         return NO_ERROR;
@@ -929,6 +919,20 @@ public:
 
     binder::Status getDynamicDisplayInfo(const sp<IBinder>& /*display*/,
                                          gui::DynamicDisplayInfo* /*outInfo*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getDisplayNativePrimaries(const sp<IBinder>& /*display*/,
+                                             gui::DisplayPrimaries* /*outPrimaries*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status setActiveColorMode(const sp<IBinder>& /*display*/, int /*colorMode*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status setBootDisplayMode(const sp<IBinder>& /*display*/,
+                                      int /*displayModeId*/) override {
         return binder::Status::ok();
     }
 

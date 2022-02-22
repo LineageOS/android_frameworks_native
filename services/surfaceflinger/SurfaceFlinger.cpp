@@ -5472,8 +5472,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_HDR_CAPABILITIES:
         case SET_DESIRED_DISPLAY_MODE_SPECS:
         case GET_DESIRED_DISPLAY_MODE_SPECS:
-        case SET_ACTIVE_COLOR_MODE:
-        case SET_BOOT_DISPLAY_MODE:
         case GET_AUTO_LOW_LATENCY_MODE_SUPPORT:
         case GET_GAME_CONTENT_TYPE_SUPPORT:
         case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES:
@@ -5513,7 +5511,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_ACTIVE_COLOR_MODE:
         case GET_ACTIVE_DISPLAY_MODE:
         case GET_DISPLAY_COLOR_MODES:
-        case GET_DISPLAY_NATIVE_PRIMARIES:
         case GET_DISPLAY_MODES:
         case GET_SUPPORTED_FRAME_TIMESTAMPS:
         // Calling setTransactionState is safe, because you need to have been
@@ -5588,6 +5585,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_DISPLAY_STATS:
         case GET_STATIC_DISPLAY_INFO:
         case GET_DYNAMIC_DISPLAY_INFO:
+        case GET_DISPLAY_NATIVE_PRIMARIES:
+        case SET_ACTIVE_COLOR_MODE:
+        case SET_BOOT_DISPLAY_MODE:
         case CLEAR_BOOT_DISPLAY_MODE:
         case GET_BOOT_DISPLAY_MODE_SUPPORT:
         case SET_AUTO_LOW_LATENCY_MODE:
@@ -7480,6 +7480,48 @@ binder::Status SurfaceComposerAIDL::getDynamicDisplayInfo(const sp<IBinder>& dis
         outInfo->autoLowLatencyModeSupported = info.autoLowLatencyModeSupported;
         outInfo->gameContentTypeSupported = info.gameContentTypeSupported;
         outInfo->preferredBootDisplayMode = info.preferredBootDisplayMode;
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getDisplayNativePrimaries(const sp<IBinder>& display,
+                                                              gui::DisplayPrimaries* outPrimaries) {
+    ui::DisplayPrimaries primaries;
+    status_t status = mFlinger->getDisplayNativePrimaries(display, primaries);
+    if (status == NO_ERROR) {
+        outPrimaries->red.X = primaries.red.X;
+        outPrimaries->red.Y = primaries.red.Y;
+        outPrimaries->red.Z = primaries.red.Z;
+
+        outPrimaries->green.X = primaries.green.X;
+        outPrimaries->green.Y = primaries.green.Y;
+        outPrimaries->green.Z = primaries.green.Z;
+
+        outPrimaries->blue.X = primaries.blue.X;
+        outPrimaries->blue.Y = primaries.blue.Y;
+        outPrimaries->blue.Z = primaries.blue.Z;
+
+        outPrimaries->white.X = primaries.white.X;
+        outPrimaries->white.Y = primaries.white.Y;
+        outPrimaries->white.Z = primaries.white.Z;
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::setActiveColorMode(const sp<IBinder>& display, int colorMode) {
+    status_t status = checkAccessPermission();
+    if (status == OK) {
+        status = mFlinger->setActiveColorMode(display, static_cast<ui::ColorMode>(colorMode));
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::setBootDisplayMode(const sp<IBinder>& display,
+                                                       int displayModeId) {
+    status_t status = checkAccessPermission();
+    if (status == OK) {
+        status = mFlinger->setBootDisplayMode(display,
+                                              static_cast<ui::DisplayModeId>(displayModeId));
     }
     return binder::Status::fromStatusT(status);
 }
