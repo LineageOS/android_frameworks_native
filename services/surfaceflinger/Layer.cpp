@@ -1386,10 +1386,10 @@ void Layer::updateTransformHint(ui::Transform::RotationFlags transformHint) {
 // ----------------------------------------------------------------------------
 
 // TODO(marissaw): add new layer state info to layer debugging
-LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
+gui::LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
     using namespace std::string_literals;
 
-    LayerDebugInfo info;
+    gui::LayerDebugInfo info;
     const State& ds = getDrawingState();
     info.mName = getName();
     sp<Layer> parent = mDrawingParent.promote();

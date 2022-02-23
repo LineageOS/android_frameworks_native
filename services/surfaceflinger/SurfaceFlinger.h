@@ -32,6 +32,7 @@
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/ITransactionCompletedListener.h>
+#include <gui/LayerDebugInfo.h>
 #include <gui/LayerState.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <math/mat4.h>
@@ -582,25 +583,24 @@ private:
     status_t clearAnimationFrameStats();
     status_t getAnimationFrameStats(FrameStats* outStats) const;
     status_t overrideHdrTypes(const sp<IBinder>& displayToken,
-                              const std::vector<ui::Hdr>& hdrTypes) override;
-    status_t onPullAtom(const int32_t atomId, std::string* pulledData, bool* success) override;
-    status_t enableVSyncInjections(bool enable) override;
-    status_t injectVSync(nsecs_t when) override;
-    status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) override;
-    status_t getColorManagement(bool* outGetColorManagement) const override;
+                              const std::vector<ui::Hdr>& hdrTypes);
+    status_t onPullAtom(const int32_t atomId, std::string* pulledData, bool* success);
+    status_t enableVSyncInjections(bool enable);
+    status_t injectVSync(nsecs_t when);
+    status_t getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers);
+    status_t getColorManagement(bool* outGetColorManagement) const;
     status_t getCompositionPreference(ui::Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,
                                       ui::Dataspace* outWideColorGamutDataspace,
-                                      ui::PixelFormat* outWideColorGamutPixelFormat) const override;
+                                      ui::PixelFormat* outWideColorGamutPixelFormat) const;
     status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& displayToken,
                                                    ui::PixelFormat* outFormat,
                                                    ui::Dataspace* outDataspace,
-                                                   uint8_t* outComponentMask) const override;
+                                                   uint8_t* outComponentMask) const;
     status_t setDisplayContentSamplingEnabled(const sp<IBinder>& displayToken, bool enable,
-                                              uint8_t componentMask, uint64_t maxFrames) override;
+                                              uint8_t componentMask, uint64_t maxFrames);
     status_t getDisplayedContentSample(const sp<IBinder>& displayToken, uint64_t maxFrames,
-                                       uint64_t timestamp,
-                                       DisplayedFrameStats* outStats) const override;
-    status_t getProtectedContentSupport(bool* outSupported) const override;
+                                       uint64_t timestamp, DisplayedFrameStats* outStats) const;
+    status_t getProtectedContentSupport(bool* outSupported) const;
     status_t isWideColorDisplay(const sp<IBinder>& displayToken, bool* outIsWideColorDisplay) const;
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
                                        const sp<IRegionSamplingListener>& listener) override;
@@ -1480,6 +1480,20 @@ public:
                                  const sp<IScreenCaptureListener>&) override;
     binder::Status clearAnimationFrameStats() override;
     binder::Status getAnimationFrameStats(gui::FrameStats* outStats) override;
+    binder::Status overrideHdrTypes(const sp<IBinder>& display,
+                                    const std::vector<int32_t>& hdrTypes) override;
+    binder::Status onPullAtom(int32_t atomId, gui::PullAtomData* outPullData) override;
+    binder::Status enableVSyncInjections(bool enable) override;
+    binder::Status injectVSync(int64_t when) override;
+    binder::Status getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers) override;
+    binder::Status getColorManagement(bool* outGetColorManagement) override;
+    binder::Status getCompositionPreference(gui::CompositionPreference* outPref) override;
+    binder::Status getDisplayedContentSamplingAttributes(
+            const sp<IBinder>& display, gui::ContentSamplingAttributes* outAttrs) override;
+    binder::Status setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
+                                                    int8_t componentMask,
+                                                    int64_t maxFrames) override;
+    binder::Status getProtectedContentSupport(bool* outSupporte) override;
     binder::Status isWideColorDisplay(const sp<IBinder>& token,
                                       bool* outIsWideColorDisplay) override;
     binder::Status getDisplayBrightnessSupport(const sp<IBinder>& displayToken,

@@ -43,6 +43,7 @@
 #include <hwbinder/ProcessState.h>
 #include <log/log.h>
 #include <private/gui/ComposerService.h>
+#include <private/gui/ComposerServiceAIDL.h>
 #include <ui/DisplayMode.h>
 #include <ui/DynamicDisplayInfo.h>
 #include <utils/Looper.h>
@@ -992,7 +993,7 @@ using DisplayTest_2_1 = DisplayTest<FakeComposerService_2_1>;
 
 // Tests that VSYNC injection can be safely toggled while invalidating.
 TEST_F(DisplayTest_2_1, VsyncInjection) {
-    const auto flinger = ComposerService::getComposerService();
+    const auto flinger = ComposerServiceAIDL::getComposerService();
     bool enable = true;
 
     for (int i = 0; i < 100; i++) {
@@ -1238,9 +1239,10 @@ protected:
         sFakeComposer->clearFrames();
         ASSERT_EQ(0, sFakeComposer->getFrameCount());
 
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        std::vector<LayerDebugInfo> layers;
-        status_t result = sf->getLayerDebugInfo(&layers);
+        sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
+        std::vector<gui::LayerDebugInfo> layers;
+        binder::Status status = sf->getLayerDebugInfo(&layers);
+        status_t result = status.transactionError();
         if (result != NO_ERROR) {
             ALOGE("Failed to get layers %s %d", strerror(-result), result);
         } else {

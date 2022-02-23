@@ -69,11 +69,14 @@ class Colorizer;
 class DisplayDevice;
 class GraphicBuffer;
 class SurfaceFlinger;
-class LayerDebugInfo;
 
 namespace compositionengine {
 class OutputLayer;
 struct LayerFECompositionState;
+}
+
+namespace gui {
+class LayerDebugInfo;
 }
 
 namespace impl {
@@ -741,7 +744,7 @@ public:
     inline const State& getDrawingState() const { return mDrawingState; }
     inline State& getDrawingState() { return mDrawingState; }
 
-    LayerDebugInfo getLayerDebugInfo(const DisplayDevice*) const;
+    gui::LayerDebugInfo getLayerDebugInfo(const DisplayDevice*) const;
 
     void miniDump(std::string& result, const DisplayDevice&) const;
     void dumpFrameStats(std::string& result) const;
