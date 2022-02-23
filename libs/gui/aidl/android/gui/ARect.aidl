@@ -20,7 +20,7 @@ package android.gui;
 // TODO(b/221473398):
 // use hardware/interfaces/graphics/common/aidl/android/hardware/graphics/common/Rect.aidl
 /** @hide */
-parcelable Rect {
+parcelable ARect {
     /// Minimum X coordinate of the rectangle.
     int left;
 

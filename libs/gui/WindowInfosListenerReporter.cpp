@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <gui/ISurfaceComposer.h>
+#include <android/gui/ISurfaceComposer.h>
 #include <gui/WindowInfosListenerReporter.h>
 
 namespace android {
@@ -31,13 +31,14 @@ sp<WindowInfosListenerReporter> WindowInfosListenerReporter::getInstance() {
 
 status_t WindowInfosListenerReporter::addWindowInfosListener(
         const sp<WindowInfosListener>& windowInfosListener,
-        const sp<ISurfaceComposer>& surfaceComposer,
+        const sp<gui::ISurfaceComposer>& surfaceComposer,
         std::pair<std::vector<gui::WindowInfo>, std::vector<gui::DisplayInfo>>* outInitialInfo) {
     status_t status = OK;
     {
         std::scoped_lock lock(mListenersMutex);
         if (mWindowInfosListeners.empty()) {
-            status = surfaceComposer->addWindowInfosListener(this);
+            binder::Status s = surfaceComposer->addWindowInfosListener(this);
+            status = s.transactionError();
         }
 
         if (status == OK) {
@@ -55,12 +56,13 @@ status_t WindowInfosListenerReporter::addWindowInfosListener(
 
 status_t WindowInfosListenerReporter::removeWindowInfosListener(
         const sp<WindowInfosListener>& windowInfosListener,
-        const sp<ISurfaceComposer>& surfaceComposer) {
+        const sp<gui::ISurfaceComposer>& surfaceComposer) {
     status_t status = OK;
     {
         std::scoped_lock lock(mListenersMutex);
         if (mWindowInfosListeners.size() == 1) {
-            status = surfaceComposer->removeWindowInfosListener(this);
+            binder::Status s = surfaceComposer->removeWindowInfosListener(this);
+            status = s.transactionError();
             // Clear the last stored state since we're disabling updates and don't want to hold
             // stale values
             mLastWindowInfos.clear();
@@ -78,7 +80,8 @@ status_t WindowInfosListenerReporter::removeWindowInfosListener(
 binder::Status WindowInfosListenerReporter::onWindowInfosChanged(
         const std::vector<WindowInfo>& windowInfos, const std::vector<DisplayInfo>& displayInfos,
         const sp<IWindowInfosReportedListener>& windowInfosReportedListener) {
-    std::unordered_set<sp<WindowInfosListener>, SpHash<WindowInfosListener>> windowInfosListeners;
+    std::unordered_set<sp<WindowInfosListener>, gui::SpHash<WindowInfosListener>>
+            windowInfosListeners;
 
     {
         std::scoped_lock lock(mListenersMutex);
@@ -101,7 +104,7 @@ binder::Status WindowInfosListenerReporter::onWindowInfosChanged(
     return binder::Status::ok();
 }
 
-void WindowInfosListenerReporter::reconnect(const sp<ISurfaceComposer>& composerService) {
+void WindowInfosListenerReporter::reconnect(const sp<gui::ISurfaceComposer>& composerService) {
     std::scoped_lock lock(mListenersMutex);
     if (!mWindowInfosListeners.empty()) {
         composerService->addWindowInfosListener(this);

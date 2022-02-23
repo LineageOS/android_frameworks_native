@@ -720,48 +720,6 @@ public:
         return NO_ERROR;
     }
 
-    status_t addRegionSamplingListener(const Rect& /*samplingArea*/,
-                                       const sp<IBinder>& /*stopLayerHandle*/,
-                                       const sp<IRegionSamplingListener>& /*listener*/) override {
-        return NO_ERROR;
-    }
-    status_t removeRegionSamplingListener(
-            const sp<IRegionSamplingListener>& /*listener*/) override {
-        return NO_ERROR;
-    }
-    status_t addFpsListener(int32_t /*taskId*/, const sp<gui::IFpsListener>& /*listener*/) {
-        return NO_ERROR;
-    }
-    status_t removeFpsListener(const sp<gui::IFpsListener>& /*listener*/) { return NO_ERROR; }
-
-    status_t addTunnelModeEnabledListener(const sp<gui::ITunnelModeEnabledListener>& /*listener*/) {
-        return NO_ERROR;
-    }
-
-    status_t removeTunnelModeEnabledListener(
-            const sp<gui::ITunnelModeEnabledListener>& /*listener*/) {
-        return NO_ERROR;
-    }
-
-    status_t setDesiredDisplayModeSpecs(const sp<IBinder>& /*displayToken*/,
-                                        ui::DisplayModeId /*defaultMode*/,
-                                        bool /*allowGroupSwitching*/,
-                                        float /*primaryRefreshRateMin*/,
-                                        float /*primaryRefreshRateMax*/,
-                                        float /*appRequestRefreshRateMin*/,
-                                        float /*appRequestRefreshRateMax*/) {
-        return NO_ERROR;
-    }
-    status_t getDesiredDisplayModeSpecs(const sp<IBinder>& /*displayToken*/,
-                                        ui::DisplayModeId* /*outDefaultMode*/,
-                                        bool* /*outAllowGroupSwitching*/,
-                                        float* /*outPrimaryRefreshRateMin*/,
-                                        float* /*outPrimaryRefreshRateMax*/,
-                                        float* /*outAppRequestRefreshRateMin*/,
-                                        float* /*outAppRequestRefreshRateMax*/) override {
-        return NO_ERROR;
-    };
-
     status_t setGlobalShadowSettings(const half4& /*ambientColor*/, const half4& /*spotColor*/,
                                      float /*lightPosY*/, float /*lightPosZ*/,
                                      float /*lightRadius*/) override {
@@ -781,25 +739,6 @@ public:
 
     status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& /*surface*/,
                                   const FrameTimelineInfo& /*frameTimelineInfo*/) override {
-        return NO_ERROR;
-    }
-
-    status_t addTransactionTraceListener(
-            const sp<gui::ITransactionTraceListener>& /*listener*/) override {
-        return NO_ERROR;
-    }
-
-    int getGPUContextPriority() override { return 0; };
-
-    status_t getMaxAcquiredBufferCount(int* /*buffers*/) const override { return NO_ERROR; }
-
-    status_t addWindowInfosListener(
-            const sp<gui::IWindowInfosListener>& /*windowInfosListener*/) const override {
-        return NO_ERROR;
-    }
-
-    status_t removeWindowInfosListener(
-            const sp<gui::IWindowInfosListener>& /*windowInfosListener*/) const override {
         return NO_ERROR;
     }
 
@@ -974,6 +913,50 @@ public:
         return binder::Status::ok();
     }
 
+    binder::Status addRegionSamplingListener(
+            const gui::ARect& /*samplingArea*/, const sp<IBinder>& /*stopLayerHandle*/,
+            const sp<gui::IRegionSamplingListener>& /*listener*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status removeRegionSamplingListener(
+            const sp<gui::IRegionSamplingListener>& /*listener*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status addFpsListener(int32_t /*taskId*/,
+                                  const sp<gui::IFpsListener>& /*listener*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status removeFpsListener(const sp<gui::IFpsListener>& /*listener*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status addTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& /*listener*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status removeTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& /*listener*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status setDesiredDisplayModeSpecs(const sp<IBinder>& /*displayToken*/,
+                                              int32_t /*defaultMode*/, bool /*allowGroupSwitching*/,
+                                              float /*primaryRefreshRateMin*/,
+                                              float /*primaryRefreshRateMax*/,
+                                              float /*appRequestRefreshRateMin*/,
+                                              float /*appRequestRefreshRateMax*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getDesiredDisplayModeSpecs(const sp<IBinder>& /*displayToken*/,
+                                              gui::DisplayModeSpecs* /*outSpecs*/) override {
+        return binder::Status::ok();
+    }
+
     binder::Status getDisplayBrightnessSupport(const sp<IBinder>& /*displayToken*/,
                                                bool* /*outSupport*/) override {
         return binder::Status::ok();
@@ -997,6 +980,29 @@ public:
     }
 
     binder::Status notifyPowerBoost(int /*boostId*/) override { return binder::Status::ok(); }
+
+    binder::Status addTransactionTraceListener(
+            const sp<gui::ITransactionTraceListener>& /*listener*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getGpuContextPriority(int32_t* /*outPriority*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getMaxAcquiredBufferCount(int32_t* /*buffers*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status addWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& /*windowInfosListener*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status removeWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& /*windowInfosListener*/) override {
+        return binder::Status::ok();
+    }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }

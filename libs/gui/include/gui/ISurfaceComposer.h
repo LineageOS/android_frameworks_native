@@ -162,87 +162,6 @@ public:
                                                uint64_t timestamp,
                                                DisplayedFrameStats* outStats) const = 0;
 
-    /* Registers a listener to stream median luma updates from SurfaceFlinger.
-     *
-     * The sampling area is bounded by both samplingArea and the given stopLayerHandle
-     * (i.e., only layers behind the stop layer will be captured and sampled).
-     *
-     * Multiple listeners may be provided so long as they have independent listeners.
-     * If multiple listeners are provided, the effective sampling region for each listener will
-     * be bounded by whichever stop layer has a lower Z value.
-     *
-     * Requires the same permissions as captureLayers and captureScreen.
-     */
-    virtual status_t addRegionSamplingListener(const Rect& samplingArea,
-                                               const sp<IBinder>& stopLayerHandle,
-                                               const sp<IRegionSamplingListener>& listener) = 0;
-
-    /*
-     * Removes a listener that was streaming median luma updates from SurfaceFlinger.
-     */
-    virtual status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) = 0;
-
-    /* Registers a listener that streams fps updates from SurfaceFlinger.
-     *
-     * The listener will stream fps updates for the layer tree rooted at the layer denoted by the
-     * task ID, i.e., the layer must have the task ID as part of its layer metadata with key
-     * METADATA_TASK_ID. If there is no such layer, then no fps is expected to be reported.
-     *
-     * Multiple listeners may be supported.
-     *
-     * Requires the READ_FRAME_BUFFER permission.
-     */
-    virtual status_t addFpsListener(int32_t taskId, const sp<gui::IFpsListener>& listener) = 0;
-    /*
-     * Removes a listener that was streaming fps updates from SurfaceFlinger.
-     */
-    virtual status_t removeFpsListener(const sp<gui::IFpsListener>& listener) = 0;
-
-    /* Registers a listener to receive tunnel mode enabled updates from SurfaceFlinger.
-     *
-     * Requires ACCESS_SURFACE_FLINGER permission.
-     */
-    virtual status_t addTunnelModeEnabledListener(
-            const sp<gui::ITunnelModeEnabledListener>& listener) = 0;
-
-    /*
-     * Removes a listener that was receiving tunnel mode enabled updates from SurfaceFlinger.
-     *
-     * Requires ACCESS_SURFACE_FLINGER permission.
-     */
-    virtual status_t removeTunnelModeEnabledListener(
-            const sp<gui::ITunnelModeEnabledListener>& listener) = 0;
-
-    /* Sets the refresh rate boundaries for the display.
-     *
-     * The primary refresh rate range represents display manager's general guidance on the display
-     * modes we'll consider when switching refresh rates. Unless we get an explicit signal from an
-     * app, we should stay within this range.
-     *
-     * The app request refresh rate range allows us to consider more display modes when switching
-     * refresh rates. Although we should generally stay within the primary range, specific
-     * considerations, such as layer frame rate settings specified via the setFrameRate() api, may
-     * cause us to go outside the primary range. We never go outside the app request range. The app
-     * request range will be greater than or equal to the primary refresh rate range, never smaller.
-     *
-     * defaultMode is used to narrow the list of display modes SurfaceFlinger will consider
-     * switching between. Only modes with a mode group and resolution matching defaultMode
-     * will be considered for switching. The defaultMode corresponds to an ID of mode in the list
-     * of supported modes returned from getDynamicDisplayInfo().
-     */
-    virtual status_t setDesiredDisplayModeSpecs(
-            const sp<IBinder>& displayToken, ui::DisplayModeId defaultMode,
-            bool allowGroupSwitching, float primaryRefreshRateMin, float primaryRefreshRateMax,
-            float appRequestRefreshRateMin, float appRequestRefreshRateMax) = 0;
-
-    virtual status_t getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
-                                                ui::DisplayModeId* outDefaultMode,
-                                                bool* outAllowGroupSwitching,
-                                                float* outPrimaryRefreshRateMin,
-                                                float* outPrimaryRefreshRateMax,
-                                                float* outAppRequestRefreshRateMin,
-                                                float* outAppRequestRefreshRateMax) = 0;
-
     /*
      * Sets the global configuration for all the shadows drawn by SurfaceFlinger. Shadow follows
      * material design guidelines.
@@ -302,39 +221,6 @@ public:
      */
     virtual status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
                                           const FrameTimelineInfo& frameTimelineInfo) = 0;
-
-    /*
-     * Adds a TransactionTraceListener to listen for transaction tracing state updates.
-     */
-    virtual status_t addTransactionTraceListener(
-            const sp<gui::ITransactionTraceListener>& listener) = 0;
-
-    /**
-     * Gets priority of the RenderEngine in SurfaceFlinger.
-     */
-    virtual int getGPUContextPriority() = 0;
-
-    /**
-     * Gets the number of buffers SurfaceFlinger would need acquire. This number
-     * would be propagated to the client via MIN_UNDEQUEUED_BUFFERS so that the
-     * client could allocate enough buffers to match SF expectations of the
-     * pipeline depth. SurfaceFlinger will make sure that it will give the app at
-     * least the time configured as the 'appDuration' before trying to latch
-     * the buffer.
-     *
-     * The total buffers needed for a given configuration is basically the
-     * numbers of vsyncs a single buffer is used across the stack. For the default
-     * configuration a buffer is held ~1 vsync by the app, ~1 vsync by SurfaceFlinger
-     * and 1 vsync by the display. The extra buffers are calculated as the
-     * number of additional buffers on top of the 2 buffers already present
-     * in MIN_UNDEQUEUED_BUFFERS.
-     */
-    virtual status_t getMaxAcquiredBufferCount(int* buffers) const = 0;
-
-    virtual status_t addWindowInfosListener(
-            const sp<gui::IWindowInfosListener>& windowInfosListener) const = 0;
-    virtual status_t removeWindowInfosListener(
-            const sp<gui::IWindowInfosListener>& windowInfosListener) const = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -375,18 +261,18 @@ public:
         GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES, // Deprecated. Autogenerated by .aidl now.
         SET_DISPLAY_CONTENT_SAMPLING_ENABLED,      // Deprecated. Autogenerated by .aidl now.
         GET_DISPLAYED_CONTENT_SAMPLE,
-        GET_PROTECTED_CONTENT_SUPPORT, // Deprecated. Autogenerated by .aidl now.
-        IS_WIDE_COLOR_DISPLAY,         // Deprecated. Autogenerated by .aidl now.
-        GET_DISPLAY_NATIVE_PRIMARIES,  // Deprecated. Autogenerated by .aidl now.
-        GET_PHYSICAL_DISPLAY_IDS,      // Deprecated. Autogenerated by .aidl now.
-        ADD_REGION_SAMPLING_LISTENER,
-        REMOVE_REGION_SAMPLING_LISTENER,
-        SET_DESIRED_DISPLAY_MODE_SPECS,
-        GET_DESIRED_DISPLAY_MODE_SPECS,
-        GET_DISPLAY_BRIGHTNESS_SUPPORT, // Deprecated. Autogenerated by .aidl now.
-        SET_DISPLAY_BRIGHTNESS,         // Deprecated. Autogenerated by .aidl now.
-        CAPTURE_DISPLAY_BY_ID,          // Deprecated. Autogenerated by .aidl now.
-        NOTIFY_POWER_BOOST,             // Deprecated. Autogenerated by .aidl now.
+        GET_PROTECTED_CONTENT_SUPPORT,   // Deprecated. Autogenerated by .aidl now.
+        IS_WIDE_COLOR_DISPLAY,           // Deprecated. Autogenerated by .aidl now.
+        GET_DISPLAY_NATIVE_PRIMARIES,    // Deprecated. Autogenerated by .aidl now.
+        GET_PHYSICAL_DISPLAY_IDS,        // Deprecated. Autogenerated by .aidl now.
+        ADD_REGION_SAMPLING_LISTENER,    // Deprecated. Autogenerated by .aidl now.
+        REMOVE_REGION_SAMPLING_LISTENER, // Deprecated. Autogenerated by .aidl now.
+        SET_DESIRED_DISPLAY_MODE_SPECS,  // Deprecated. Autogenerated by .aidl now.
+        GET_DESIRED_DISPLAY_MODE_SPECS,  // Deprecated. Autogenerated by .aidl now.
+        GET_DISPLAY_BRIGHTNESS_SUPPORT,  // Deprecated. Autogenerated by .aidl now.
+        SET_DISPLAY_BRIGHTNESS,          // Deprecated. Autogenerated by .aidl now.
+        CAPTURE_DISPLAY_BY_ID,           // Deprecated. Autogenerated by .aidl now.
+        NOTIFY_POWER_BOOST,              // Deprecated. Autogenerated by .aidl now.
         SET_GLOBAL_SHADOW_SETTINGS,
         GET_AUTO_LOW_LATENCY_MODE_SUPPORT, // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
         SET_AUTO_LOW_LATENCY_MODE,         // Deprecated. Autogenerated by .aidl now.
@@ -396,21 +282,21 @@ public:
         // Deprecated. Use DisplayManager.setShouldAlwaysRespectAppRequestedMode(true);
         ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN,
         SET_FRAME_TIMELINE_INFO,
-        ADD_TRANSACTION_TRACE_LISTENER,
+        ADD_TRANSACTION_TRACE_LISTENER, // Deprecated. Autogenerated by .aidl now.
         GET_GPU_CONTEXT_PRIORITY,
         GET_MAX_ACQUIRED_BUFFER_COUNT,
-        GET_DYNAMIC_DISPLAY_INFO, // Deprecated. Autogenerated by .aidl now.
-        ADD_FPS_LISTENER,
-        REMOVE_FPS_LISTENER,
-        OVERRIDE_HDR_TYPES,             // Deprecated. Autogenerated by .aidl now.
-        ADD_HDR_LAYER_INFO_LISTENER,    // Deprecated. Autogenerated by .aidl now.
-        REMOVE_HDR_LAYER_INFO_LISTENER, // Deprecated. Autogenerated by .aidl now.
-        ON_PULL_ATOM,                   // Deprecated. Autogenerated by .aidl now.
-        ADD_TUNNEL_MODE_ENABLED_LISTENER,
-        REMOVE_TUNNEL_MODE_ENABLED_LISTENER,
-        ADD_WINDOW_INFOS_LISTENER,
-        REMOVE_WINDOW_INFOS_LISTENER,
-        GET_PRIMARY_PHYSICAL_DISPLAY_ID, // Deprecated. Autogenerated by .aidl now.
+        GET_DYNAMIC_DISPLAY_INFO,            // Deprecated. Autogenerated by .aidl now.
+        ADD_FPS_LISTENER,                    // Deprecated. Autogenerated by .aidl now.
+        REMOVE_FPS_LISTENER,                 // Deprecated. Autogenerated by .aidl now.
+        OVERRIDE_HDR_TYPES,                  // Deprecated. Autogenerated by .aidl now.
+        ADD_HDR_LAYER_INFO_LISTENER,         // Deprecated. Autogenerated by .aidl now.
+        REMOVE_HDR_LAYER_INFO_LISTENER,      // Deprecated. Autogenerated by .aidl now.
+        ON_PULL_ATOM,                        // Deprecated. Autogenerated by .aidl now.
+        ADD_TUNNEL_MODE_ENABLED_LISTENER,    // Deprecated. Autogenerated by .aidl now.
+        REMOVE_TUNNEL_MODE_ENABLED_LISTENER, // Deprecated. Autogenerated by .aidl now.
+        ADD_WINDOW_INFOS_LISTENER,           // Deprecated. Autogenerated by .aidl now.
+        REMOVE_WINDOW_INFOS_LISTENER,        // Deprecated. Autogenerated by .aidl now.
+        GET_PRIMARY_PHYSICAL_DISPLAY_ID,     // Deprecated. Autogenerated by .aidl now.
         GET_DISPLAY_DECORATION_SUPPORT,
         GET_BOOT_DISPLAY_MODE_SUPPORT, // Deprecated. Autogenerated by .aidl now.
         SET_BOOT_DISPLAY_MODE,         // Deprecated. Autogenerated by .aidl now.

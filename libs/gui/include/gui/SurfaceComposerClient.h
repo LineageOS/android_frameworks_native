@@ -216,7 +216,7 @@ public:
     /**
      * Gets the context priority of surface flinger's render engine.
      */
-    static int getGPUContextPriority();
+    static int getGpuContextPriority();
 
     /**
      * Uncaches a buffer in ISurfaceComposer. It must be uncached via a transaction so that it is
