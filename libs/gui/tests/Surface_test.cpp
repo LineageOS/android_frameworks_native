@@ -714,25 +714,6 @@ public:
         return false;
     }
 
-    status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported)
-            const override {
-        *outSupported = {
-                FrameEvent::REQUESTED_PRESENT,
-                FrameEvent::ACQUIRE,
-                FrameEvent::LATCH,
-                FrameEvent::FIRST_REFRESH_START,
-                FrameEvent::LAST_REFRESH_START,
-                FrameEvent::GPU_COMPOSITION_DONE,
-                FrameEvent::DEQUEUE_READY,
-                FrameEvent::RELEASE
-        };
-        if (mSupportsPresent) {
-            outSupported->push_back(
-                        FrameEvent::DISPLAY_PRESENT);
-        }
-        return NO_ERROR;
-    }
-
     status_t overrideHdrTypes(const sp<IBinder>& /*display*/,
                               const std::vector<ui::Hdr>& /*hdrTypes*/) override {
         return NO_ERROR;
@@ -898,6 +879,21 @@ public:
         return binder::Status::ok();
     }
 
+    binder::Status getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) override {
+        *outSupported = {FrameEvent::REQUESTED_PRESENT,
+                         FrameEvent::ACQUIRE,
+                         FrameEvent::LATCH,
+                         FrameEvent::FIRST_REFRESH_START,
+                         FrameEvent::LAST_REFRESH_START,
+                         FrameEvent::GPU_COMPOSITION_DONE,
+                         FrameEvent::DEQUEUE_READY,
+                         FrameEvent::RELEASE};
+        if (mSupportsPresent) {
+            outSupported->push_back(FrameEvent::DISPLAY_PRESENT);
+        }
+        return binder::Status::ok();
+    }
+
     binder::Status getDisplayStats(const sp<IBinder>& /*display*/,
                                    gui::DisplayStatInfo* /*outStatInfo*/) override {
         return binder::Status::ok();
@@ -1042,10 +1038,10 @@ protected:
 
 class TestSurface : public Surface {
 public:
-    TestSurface(const sp<IGraphicBufferProducer>& bufferProducer,
-            FenceToFenceTimeMap* fenceMap)
-        : Surface(bufferProducer),
-          mFakeSurfaceComposer(new FakeSurfaceComposer) {
+    TestSurface(const sp<IGraphicBufferProducer>& bufferProducer, FenceToFenceTimeMap* fenceMap)
+          : Surface(bufferProducer),
+            mFakeSurfaceComposer(new FakeSurfaceComposer),
+            mFakeSurfaceComposerAIDL(new FakeSurfaceComposerAIDL) {
         mFakeFrameEventHistory = new FakeProducerFrameEventHistory(fenceMap);
         mFrameEventHistory.reset(mFakeFrameEventHistory);
     }
@@ -1054,6 +1050,10 @@ public:
 
     sp<ISurfaceComposer> composerService() const override {
         return mFakeSurfaceComposer;
+    }
+
+    sp<gui::ISurfaceComposer> composerServiceAIDL() const override {
+        return mFakeSurfaceComposerAIDL;
     }
 
     nsecs_t now() const override {
@@ -1066,6 +1066,7 @@ public:
 
 public:
     sp<FakeSurfaceComposer> mFakeSurfaceComposer;
+    sp<FakeSurfaceComposerAIDL> mFakeSurfaceComposerAIDL;
     nsecs_t mNow = 0;
 
     // mFrameEventHistory owns the instance of FakeProducerFrameEventHistory,
@@ -1432,6 +1433,7 @@ TEST_F(GetFrameTimestampsTest, EnabledSimple) {
 TEST_F(GetFrameTimestampsTest, QueryPresentSupported) {
     bool displayPresentSupported = true;
     mSurface->mFakeSurfaceComposer->setSupportsPresent(displayPresentSupported);
+    mSurface->mFakeSurfaceComposerAIDL->setSupportsPresent(displayPresentSupported);
 
     // Verify supported bits are forwarded.
     int supportsPresent = -1;
@@ -1443,6 +1445,7 @@ TEST_F(GetFrameTimestampsTest, QueryPresentSupported) {
 TEST_F(GetFrameTimestampsTest, QueryPresentNotSupported) {
     bool displayPresentSupported = false;
     mSurface->mFakeSurfaceComposer->setSupportsPresent(displayPresentSupported);
+    mSurface->mFakeSurfaceComposerAIDL->setSupportsPresent(displayPresentSupported);
 
     // Verify supported bits are forwarded.
     int supportsPresent = -1;
@@ -2020,6 +2023,7 @@ TEST_F(GetFrameTimestampsTest, NoReleaseNoSync) {
 TEST_F(GetFrameTimestampsTest, PresentUnsupportedNoSync) {
     enableFrameTimestamps();
     mSurface->mFakeSurfaceComposer->setSupportsPresent(false);
+    mSurface->mFakeSurfaceComposerAIDL->setSupportsPresent(false);
 
     // Dequeue and queue frame 1.
     const uint64_t fId1 = getNextFrameId();

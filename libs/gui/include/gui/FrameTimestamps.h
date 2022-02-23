@@ -17,6 +17,8 @@
 #ifndef ANDROID_GUI_FRAMETIMESTAMPS_H
 #define ANDROID_GUI_FRAMETIMESTAMPS_H
 
+#include <android/gui/FrameEvent.h>
+
 #include <ui/FenceTime.h>
 #include <utils/Flattenable.h>
 #include <utils/StrongPointer.h>
@@ -31,22 +33,7 @@ namespace android {
 struct FrameEvents;
 class FrameEventHistoryDelta;
 
-
-// Identifiers for all the events that may be recorded or reported.
-enum class FrameEvent {
-    POSTED,
-    REQUESTED_PRESENT,
-    LATCH,
-    ACQUIRE,
-    FIRST_REFRESH_START,
-    LAST_REFRESH_START,
-    GPU_COMPOSITION_DONE,
-    DISPLAY_PRESENT,
-    DEQUEUE_READY,
-    RELEASE,
-    EVENT_COUNT, // Not an actual event.
-};
-
+using gui::FrameEvent;
 
 // A collection of timestamps corresponding to a single frame.
 struct FrameEvents {

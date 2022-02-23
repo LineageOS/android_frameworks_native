@@ -5510,7 +5510,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_ACTIVE_DISPLAY_MODE:
         case GET_DISPLAY_COLOR_MODES:
         case GET_DISPLAY_MODES:
-        case GET_SUPPORTED_FRAME_TIMESTAMPS:
         // Calling setTransactionState is safe, because you need to have been
         // granted a reference to Client* and Handle* to do anything with it.
         case SET_TRANSACTION_STATE:
@@ -5579,6 +5578,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_PHYSICAL_DISPLAY_IDS:
         case GET_PHYSICAL_DISPLAY_TOKEN:
         case SET_POWER_MODE:
+        case GET_SUPPORTED_FRAME_TIMESTAMPS:
         case GET_DISPLAY_STATE:
         case GET_DISPLAY_STATS:
         case GET_STATIC_DISPLAY_INFO:
@@ -7366,6 +7366,18 @@ binder::Status SurfaceComposerAIDL::setPowerMode(const sp<IBinder>& display, int
     }
     mFlinger->setPowerMode(display, mode);
     return binder::Status::ok();
+}
+
+binder::Status SurfaceComposerAIDL::getSupportedFrameTimestamps(
+        std::vector<FrameEvent>* outSupported) {
+    status_t status;
+    if (!outSupported) {
+        status = UNEXPECTED_NULL;
+    } else {
+        outSupported->clear();
+        status = mFlinger->getSupportedFrameTimestamps(outSupported);
+    }
+    return binder::Status::fromStatusT(status);
 }
 
 binder::Status SurfaceComposerAIDL::getDisplayStats(const sp<IBinder>& display,

@@ -1244,10 +1244,10 @@ void Surface::querySupportedTimestampsLocked() const {
     mQueriedSupportedTimestamps = true;
 
     std::vector<FrameEvent> supportedFrameTimestamps;
-    status_t err = composerService()->getSupportedFrameTimestamps(
-            &supportedFrameTimestamps);
+    binder::Status status =
+            composerServiceAIDL()->getSupportedFrameTimestamps(&supportedFrameTimestamps);
 
-    if (err != NO_ERROR) {
+    if (!status.isOk()) {
         return;
     }
 

@@ -555,7 +555,7 @@ private:
     void bootFinished() override;
     bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& bufferProducer) const override;
-    status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const override;
+    virtual status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const;
     sp<IDisplayEventConnection> createDisplayEventConnection(
             ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp,
             ISurfaceComposer::EventRegistrationFlags eventRegistration = {}) override;
@@ -1456,6 +1456,7 @@ public:
     binder::Status getPrimaryPhysicalDisplayId(int64_t* outDisplayId) override;
     binder::Status getPhysicalDisplayToken(int64_t displayId, sp<IBinder>* outDisplay) override;
     binder::Status setPowerMode(const sp<IBinder>& display, int mode) override;
+    binder::Status getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) override;
     binder::Status getDisplayStats(const sp<IBinder>& display,
                                    gui::DisplayStatInfo* outStatInfo) override;
     binder::Status getDisplayState(const sp<IBinder>& display,
