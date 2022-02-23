@@ -1069,11 +1069,11 @@ Error AidlComposer::getPreferredBootDisplayConfig(Display display, Config* confi
 
 Error AidlComposer::getClientTargetProperty(
         Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty,
-        float* whitePointNits) {
+        float* outBrightness) {
     const auto property = mReader.takeClientTargetProperty(translate<int64_t>(display));
     *outClientTargetProperty =
             translate<IComposerClient::ClientTargetProperty>(property.clientTargetProperty);
-    *whitePointNits = property.whitePointNits;
+    *outBrightness = property.brightness;
     return Error::NONE;
 }
 
