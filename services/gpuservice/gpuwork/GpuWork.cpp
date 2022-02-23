@@ -39,16 +39,29 @@
 #include <map>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "gpuwork/gpu_work.h"
 
-#define MS_IN_NS (1000000)
+#define ONE_MS_IN_NS (10000000)
 
 namespace android {
 namespace gpuwork {
 
 namespace {
+
+bool lessThanGpuIdUid(const android::gpuwork::GpuIdUid& l, const android::gpuwork::GpuIdUid& r) {
+    return std::tie(l.gpu_id, l.uid) < std::tie(r.gpu_id, r.uid);
+}
+
+size_t hashGpuIdUid(const android::gpuwork::GpuIdUid& gpuIdUid) {
+    return static_cast<size_t>((gpuIdUid.gpu_id << 5U) + gpuIdUid.uid);
+}
+
+bool equalGpuIdUid(const android::gpuwork::GpuIdUid& l, const android::gpuwork::GpuIdUid& r) {
+    return std::tie(l.gpu_id, l.uid) == std::tie(r.gpu_id, r.uid);
+}
 
 // Gets a BPF map from |mapPath|.
 template <class Key, class Value>
@@ -76,24 +89,6 @@ inline int32_t bitcast_int32<uint32_t>(uint32_t source) {
     return result;
 }
 
-template <>
-inline int32_t cast_int32<uint64_t>(uint64_t source) {
-    if (source > std::numeric_limits<int32_t>::max()) {
-        return std::numeric_limits<int32_t>::max();
-    }
-    return static_cast<int32_t>(source);
-}
-
-template <>
-inline int32_t cast_int32<long long>(long long source) {
-    if (source > std::numeric_limits<int32_t>::max()) {
-        return std::numeric_limits<int32_t>::max();
-    } else if (source < std::numeric_limits<int32_t>::min()) {
-        return std::numeric_limits<int32_t>::min();
-    }
-    return static_cast<int32_t>(source);
-}
-
 } // namespace
 
 using base::StringAppendF;
@@ -115,7 +110,7 @@ GpuWork::~GpuWork() {
     {
         std::scoped_lock<std::mutex> lock(mMutex);
         if (mStatsdRegistered) {
-            AStatsManager_clearPullAtomCallback(android::util::GPU_FREQ_TIME_IN_STATE_PER_UID);
+            AStatsManager_clearPullAtomCallback(android::util::GPU_WORK_PER_UID);
         }
     }
 
@@ -144,7 +139,7 @@ void GpuWork::initialize() {
         mPreviousMapClearTimePoint = std::chrono::steady_clock::now();
     }
 
-    // Attach the tracepoint ONLY if we got the map above.
+    // Attach the tracepoint.
     if (!attachTracepoint("/sys/fs/bpf/prog_gpu_work_tracepoint_power_gpu_work_period", "power",
                           "gpu_work_period")) {
         return;
@@ -157,8 +152,8 @@ void GpuWork::initialize() {
 
     {
         std::lock_guard<std::mutex> lock(mMutex);
-        AStatsManager_setPullAtomCallback(int32_t{android::util::GPU_FREQ_TIME_IN_STATE_PER_UID},
-                                          nullptr, GpuWork::pullAtomCallback, this);
+        AStatsManager_setPullAtomCallback(int32_t{android::util::GPU_WORK_PER_UID}, nullptr,
+                                          GpuWork::pullAtomCallback, this);
         mStatsdRegistered = true;
     }
 
@@ -169,18 +164,18 @@ void GpuWork::initialize() {
 
 void GpuWork::dump(const Vector<String16>& /* args */, std::string* result) {
     if (!mInitialized.load()) {
-        result->append("GPU time in state information is not available.\n");
+        result->append("GPU work information is not available.\n");
         return;
     }
 
-    // Ordered map ensures output data is sorted by UID.
-    std::map<Uid, UidTrackingInfo> dumpMap;
+    // Ordered map ensures output data is sorted.
+    std::map<GpuIdUid, UidTrackingInfo, decltype(lessThanGpuIdUid)*> dumpMap(&lessThanGpuIdUid);
 
     {
         std::lock_guard<std::mutex> lock(mMutex);
 
         if (!mGpuWorkMap.isValid()) {
-            result->append("GPU time in state map is not available.\n");
+            result->append("GPU work map is not available.\n");
             return;
         }
 
@@ -189,56 +184,42 @@ void GpuWork::dump(const Vector<String16>& /* args */, std::string* result) {
         // threads. The buckets are all preallocated. Our eBPF program only updates
         // entries (in-place) or adds entries. |GpuWork| only iterates or clears the
         // map while holding |mMutex|. Given this, we should be able to iterate over
-        // all elements reliably. In the worst case, we might see elements more than
-        // once.
+        // all elements reliably. Nevertheless, we copy into a map to avoid
+        // duplicates.
 
         // Note that userspace reads of BPF maps make a copy of the value, and
         // thus the returned value is not being concurrently accessed by the BPF
         // program (no atomic reads needed below).
 
-        mGpuWorkMap.iterateWithValue([&dumpMap](const Uid& key, const UidTrackingInfo& value,
-                                                const android::bpf::BpfMap<Uid, UidTrackingInfo>&)
-                                             -> base::Result<void> {
-            dumpMap[key] = value;
-            return {};
-        });
+        mGpuWorkMap.iterateWithValue(
+                [&dumpMap](const GpuIdUid& key, const UidTrackingInfo& value,
+                           const android::bpf::BpfMap<GpuIdUid, UidTrackingInfo>&)
+                        -> base::Result<void> {
+                    dumpMap[key] = value;
+                    return {};
+                });
     }
 
-    // Find the largest frequency where some UID has spent time in that frequency.
-    size_t largestFrequencyWithTime = 0;
-    for (const auto& uidToUidInfo : dumpMap) {
-        for (size_t i = largestFrequencyWithTime + 1; i < kNumTrackedFrequencies; ++i) {
-            if (uidToUidInfo.second.frequency_times_ns[i] > 0) {
-                largestFrequencyWithTime = i;
-            }
-        }
-    }
-
-    // Dump time in state information.
+    // Dump work information.
     // E.g.
-    // uid/freq: 0MHz 50MHz 100MHz ...
-    // 1000: 0 0 0 0 ...
-    // 1003: 0 0 3456 0 ...
-    // [errors:3]1006: 0 0 3456 0 ...
+    // GPU work information.
+    // gpu_id uid total_active_duration_ns total_inactive_duration_ns
+    // 0 1000 0 0
+    // 0 1003 1234 123
+    // [errors:3]0 1006 4567 456
 
     // Header.
-    result->append("GPU time in frequency state in ms.\n");
-    result->append("uid/freq: 0MHz");
-    for (size_t i = 1; i <= largestFrequencyWithTime; ++i) {
-        StringAppendF(result, " %zuMHz", i * 50);
-    }
-    result->append("\n");
+    result->append("GPU work information.\ngpu_id uid total_active_duration_ns "
+                   "total_inactive_duration_ns\n");
 
-    for (const auto& uidToUidInfo : dumpMap) {
-        if (uidToUidInfo.second.error_count) {
-            StringAppendF(result, "[errors:%" PRIu32 "]", uidToUidInfo.second.error_count);
+    for (const auto& idToUidInfo : dumpMap) {
+        if (idToUidInfo.second.error_count) {
+            StringAppendF(result, "[errors:%" PRIu32 "]", idToUidInfo.second.error_count);
         }
-        StringAppendF(result, "%" PRIu32 ":", uidToUidInfo.first);
-        for (size_t i = 0; i <= largestFrequencyWithTime; ++i) {
-            StringAppendF(result, " %" PRIu64,
-                          uidToUidInfo.second.frequency_times_ns[i] / MS_IN_NS);
-        }
-        result->append("\n");
+        StringAppendF(result, "%" PRIu32 " %" PRIu32 " %" PRIu64 " %" PRIu64 "\n",
+                      idToUidInfo.first.gpu_id, idToUidInfo.first.uid,
+                      idToUidInfo.second.total_active_duration_ns,
+                      idToUidInfo.second.total_inactive_duration_ns);
     }
 }
 
@@ -275,14 +256,14 @@ AStatsManager_PullAtomCallbackReturn GpuWork::pullAtomCallback(int32_t atomTag,
     ATRACE_CALL();
 
     GpuWork* gpuWork = reinterpret_cast<GpuWork*>(cookie);
-    if (atomTag == android::util::GPU_FREQ_TIME_IN_STATE_PER_UID) {
-        return gpuWork->pullFrequencyAtoms(data);
+    if (atomTag == android::util::GPU_WORK_PER_UID) {
+        return gpuWork->pullWorkAtoms(data);
     }
 
     return AStatsManager_PULL_SKIP;
 }
 
-AStatsManager_PullAtomCallbackReturn GpuWork::pullFrequencyAtoms(AStatsEventList* data) {
+AStatsManager_PullAtomCallbackReturn GpuWork::pullWorkAtoms(AStatsEventList* data) {
     ATRACE_CALL();
 
     if (!data || !mInitialized.load()) {
@@ -295,96 +276,153 @@ AStatsManager_PullAtomCallbackReturn GpuWork::pullFrequencyAtoms(AStatsEventList
         return AStatsManager_PULL_SKIP;
     }
 
-    std::unordered_map<Uid, UidTrackingInfo> uidInfos;
+    std::unordered_map<GpuIdUid, UidTrackingInfo, decltype(hashGpuIdUid)*, decltype(equalGpuIdUid)*>
+            workMap(32, &hashGpuIdUid, &equalGpuIdUid);
 
     // Iteration of BPF hash maps can be unreliable (no data races, but elements
     // may be repeated), as the map is typically being modified by other
     // threads. The buckets are all preallocated. Our eBPF program only updates
     // entries (in-place) or adds entries. |GpuWork| only iterates or clears the
     // map while holding |mMutex|. Given this, we should be able to iterate over
-    // all elements reliably. In the worst case, we might see elements more than
-    // once.
+    // all elements reliably. Nevertheless, we copy into a map to avoid
+    // duplicates.
 
     // Note that userspace reads of BPF maps make a copy of the value, and thus
     // the returned value is not being concurrently accessed by the BPF program
     // (no atomic reads needed below).
 
-    mGpuWorkMap.iterateWithValue(
-            [&uidInfos](const Uid& key, const UidTrackingInfo& value,
-                        const android::bpf::BpfMap<Uid, UidTrackingInfo>&) -> base::Result<void> {
-                uidInfos[key] = value;
-                return {};
-            });
-
-    ALOGI("pullFrequencyAtoms: uidInfos.size() == %zu", uidInfos.size());
+    mGpuWorkMap.iterateWithValue([&workMap](const GpuIdUid& key, const UidTrackingInfo& value,
+                                            const android::bpf::BpfMap<GpuIdUid, UidTrackingInfo>&)
+                                         -> base::Result<void> {
+        workMap[key] = value;
+        return {};
+    });
 
     // Get a list of just the UIDs; the order does not matter.
     std::vector<Uid> uids;
-    for (const auto& pair : uidInfos) {
-        uids.push_back(pair.first);
+    // Get a list of the GPU IDs, in order.
+    std::set<uint32_t> gpuIds;
+    {
+        // To avoid adding duplicate UIDs.
+        std::unordered_set<Uid> addedUids;
+
+        for (const auto& workInfo : workMap) {
+            if (addedUids.insert(workInfo.first.uid).second) {
+                // Insertion was successful.
+                uids.push_back(workInfo.first.uid);
+            }
+            gpuIds.insert(workInfo.first.gpu_id);
+        }
     }
+
+    ALOGI("pullWorkAtoms: uids.size() == %zu", uids.size());
+    ALOGI("pullWorkAtoms: gpuIds.size() == %zu", gpuIds.size());
+
+    if (gpuIds.size() > kNumGpusHardLimit) {
+        // If we observe a very high number of GPUs then something has probably
+        // gone wrong, so don't log any atoms.
+        return AStatsManager_PULL_SKIP;
+    }
+
+    size_t numSampledUids = kNumSampledUids;
+
+    if (gpuIds.size() > kNumGpusSoftLimit) {
+        // If we observe a high number of GPUs then we just sample 1 UID.
+        numSampledUids = 1;
+    }
+
+    // Remove all UIDs that do not have at least |kMinGpuTimeNanoseconds| on at
+    // least one GPU.
+    {
+        auto uidIt = uids.begin();
+        while (uidIt != uids.end()) {
+            bool hasEnoughGpuTime = false;
+            for (uint32_t gpuId : gpuIds) {
+                auto infoIt = workMap.find(GpuIdUid{gpuId, *uidIt});
+                if (infoIt == workMap.end()) {
+                    continue;
+                }
+                if (infoIt->second.total_active_duration_ns +
+                            infoIt->second.total_inactive_duration_ns >=
+                    kMinGpuTimeNanoseconds) {
+                    hasEnoughGpuTime = true;
+                    break;
+                }
+            }
+            if (hasEnoughGpuTime) {
+                ++uidIt;
+            } else {
+                uidIt = uids.erase(uidIt);
+            }
+        }
+    }
+
+    ALOGI("pullWorkAtoms: after removing uids with very low GPU time: uids.size() == %zu",
+          uids.size());
 
     std::random_device device;
     std::default_random_engine random_engine(device());
 
-    // If we have more than |kNumSampledUids| UIDs, choose |kNumSampledUids|
+    // If we have more than |numSampledUids| UIDs, choose |numSampledUids|
     // random UIDs. We swap them to the front of the list. Given the list
     // indices 0..i..n-1, we have the following inclusive-inclusive ranges:
     // - [0, i-1] == the randomly chosen elements.
     // - [i, n-1] == the remaining unchosen elements.
-    if (uids.size() > kNumSampledUids) {
-        for (size_t i = 0; i < kNumSampledUids; ++i) {
+    if (uids.size() > numSampledUids) {
+        for (size_t i = 0; i < numSampledUids; ++i) {
             std::uniform_int_distribution<size_t> uniform_dist(i, uids.size() - 1);
             size_t random_index = uniform_dist(random_engine);
             std::swap(uids[i], uids[random_index]);
         }
-        // Only keep the front |kNumSampledUids| elements.
-        uids.resize(kNumSampledUids);
+        // Only keep the front |numSampledUids| elements.
+        uids.resize(numSampledUids);
     }
 
-    ALOGI("pullFrequencyAtoms: uids.size() == %zu", uids.size());
+    ALOGI("pullWorkAtoms: after random selection: uids.size() == %zu", uids.size());
 
     auto now = std::chrono::steady_clock::now();
-
-    int32_t duration = cast_int32(
+    long long duration =
             std::chrono::duration_cast<std::chrono::seconds>(now - mPreviousMapClearTimePoint)
-                    .count());
+                    .count();
+    if (duration > std::numeric_limits<int32_t>::max() || duration < 0) {
+        // This is essentially impossible. If it does somehow happen, give up,
+        // but still clear the map.
+        clearMap();
+        return AStatsManager_PULL_SKIP;
+    }
 
-    for (const Uid uid : uids) {
-        const UidTrackingInfo& info = uidInfos[uid];
-        ALOGI("pullFrequencyAtoms: adding stats for UID %" PRIu32, uid);
-        android::util::addAStatsEvent(data, int32_t{android::util::GPU_FREQ_TIME_IN_STATE_PER_UID},
-                                      // uid
-                                      bitcast_int32(uid),
-                                      // time_duration_seconds
-                                      int32_t{duration},
-                                      // max_freq_mhz
-                                      int32_t{1000},
-                                      // freq_0_mhz_time_millis
-                                      cast_int32(info.frequency_times_ns[0] / 1000000),
-                                      // freq_50_mhz_time_millis
-                                      cast_int32(info.frequency_times_ns[1] / 1000000),
-                                      // ... etc. ...
-                                      cast_int32(info.frequency_times_ns[2] / 1000000),
-                                      cast_int32(info.frequency_times_ns[3] / 1000000),
-                                      cast_int32(info.frequency_times_ns[4] / 1000000),
-                                      cast_int32(info.frequency_times_ns[5] / 1000000),
-                                      cast_int32(info.frequency_times_ns[6] / 1000000),
-                                      cast_int32(info.frequency_times_ns[7] / 1000000),
-                                      cast_int32(info.frequency_times_ns[8] / 1000000),
-                                      cast_int32(info.frequency_times_ns[9] / 1000000),
-                                      cast_int32(info.frequency_times_ns[10] / 1000000),
-                                      cast_int32(info.frequency_times_ns[11] / 1000000),
-                                      cast_int32(info.frequency_times_ns[12] / 1000000),
-                                      cast_int32(info.frequency_times_ns[13] / 1000000),
-                                      cast_int32(info.frequency_times_ns[14] / 1000000),
-                                      cast_int32(info.frequency_times_ns[15] / 1000000),
-                                      cast_int32(info.frequency_times_ns[16] / 1000000),
-                                      cast_int32(info.frequency_times_ns[17] / 1000000),
-                                      cast_int32(info.frequency_times_ns[18] / 1000000),
-                                      cast_int32(info.frequency_times_ns[19] / 1000000),
-                                      // freq_1000_mhz_time_millis
-                                      cast_int32(info.frequency_times_ns[20] / 1000000));
+    // Log an atom for each (gpu id, uid) pair for which we have data.
+    for (uint32_t gpuId : gpuIds) {
+        for (Uid uid : uids) {
+            auto it = workMap.find(GpuIdUid{gpuId, uid});
+            if (it == workMap.end()) {
+                continue;
+            }
+            const UidTrackingInfo& info = it->second;
+
+            uint64_t total_active_duration_ms = info.total_active_duration_ns / ONE_MS_IN_NS;
+            uint64_t total_inactive_duration_ms = info.total_inactive_duration_ns / ONE_MS_IN_NS;
+
+            // Skip this atom if any numbers are out of range. |duration| is
+            // already checked above.
+            if (total_active_duration_ms > std::numeric_limits<int32_t>::max() ||
+                total_inactive_duration_ms > std::numeric_limits<int32_t>::max()) {
+                continue;
+            }
+
+            ALOGI("pullWorkAtoms: adding stats for GPU ID %" PRIu32 "; UID %" PRIu32, gpuId, uid);
+            android::util::addAStatsEvent(data, int32_t{android::util::GPU_WORK_PER_UID},
+                                          // uid
+                                          bitcast_int32(uid),
+                                          // gpu_id
+                                          bitcast_int32(gpuId),
+                                          // time_duration_seconds
+                                          static_cast<int32_t>(duration),
+                                          // total_active_duration_millis
+                                          static_cast<int32_t>(total_active_duration_ms),
+                                          // total_inactive_duration_millis
+                                          static_cast<int32_t>(total_inactive_duration_ms));
+        }
     }
     clearMap();
     return AStatsManager_PULL_SUCCESS;
@@ -435,7 +473,7 @@ void GpuWork::clearMapIfNeeded() {
     uint64_t numEntries = globalData.value().num_map_entries;
 
     // If the map is <=75% full, we do nothing.
-    if (numEntries <= (kMaxTrackedUids / 4) * 3) {
+    if (numEntries <= (kMaxTrackedGpuIdUids / 4) * 3) {
         return;
     }
 
@@ -456,22 +494,22 @@ void GpuWork::clearMap() {
 
     // Iterating BPF maps to delete keys is tricky. If we just repeatedly call
     // |getFirstKey()| and delete that, we may loop forever (or for a long time)
-    // because our BPF program might be repeatedly re-adding UID keys. Also,
-    // even if we limit the number of elements we try to delete, we might only
-    // delete new entries, leaving old entries in the map. If we delete a key A
-    // and then call |getNextKey(A)|, the first key in the map is returned, so
-    // we have the same issue.
+    // because our BPF program might be repeatedly re-adding keys. Also, even if
+    // we limit the number of elements we try to delete, we might only delete
+    // new entries, leaving old entries in the map. If we delete a key A and
+    // then call |getNextKey(A)|, the first key in the map is returned, so we
+    // have the same issue.
     //
     // Thus, we instead get the next key and then delete the previous key. We
     // also limit the number of deletions we try, just in case.
 
-    base::Result<Uid> key = mGpuWorkMap.getFirstKey();
+    base::Result<GpuIdUid> key = mGpuWorkMap.getFirstKey();
 
-    for (size_t i = 0; i < kMaxTrackedUids; ++i) {
+    for (size_t i = 0; i < kMaxTrackedGpuIdUids; ++i) {
         if (!key.ok()) {
             break;
         }
-        base::Result<Uid> previousKey = key;
+        base::Result<GpuIdUid> previousKey = key;
         key = mGpuWorkMap.getNextKey(previousKey.value());
         mGpuWorkMap.deleteValue(previousKey.value());
     }

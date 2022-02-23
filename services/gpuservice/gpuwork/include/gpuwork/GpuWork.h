@@ -41,7 +41,7 @@ public:
 
     void initialize();
 
-    // Dumps the GPU time in frequency state information.
+    // Dumps the GPU work information.
     void dump(const Vector<String16>& args, std::string* result);
 
 private:
@@ -55,7 +55,7 @@ private:
                                                                  AStatsEventList* data,
                                                                  void* cookie);
 
-    AStatsManager_PullAtomCallbackReturn pullFrequencyAtoms(AStatsEventList* data);
+    AStatsManager_PullAtomCallbackReturn pullWorkAtoms(AStatsEventList* data);
 
     // Periodically calls |clearMapIfNeeded| to clear the |mGpuWorkMap| map, if
     // needed.
@@ -88,7 +88,7 @@ private:
     std::mutex mMutex;
 
     // BPF map for per-UID GPU work.
-    bpf::BpfMap<Uid, UidTrackingInfo> mGpuWorkMap GUARDED_BY(mMutex);
+    bpf::BpfMap<GpuIdUid, UidTrackingInfo> mGpuWorkMap GUARDED_BY(mMutex);
 
     // BPF map containing a single element for global data.
     bpf::BpfMap<uint32_t, GlobalData> mGpuWorkGlobalDataMap GUARDED_BY(mMutex);
@@ -110,7 +110,18 @@ private:
     bool mStatsdRegistered GUARDED_BY(mMutex) = false;
 
     // The number of randomly chosen (i.e. sampled) UIDs to log stats for.
-    static constexpr int kNumSampledUids = 10;
+    static constexpr size_t kNumSampledUids = 10;
+
+    // A "large" number of GPUs. If we observe more GPUs than this limit then
+    // we reduce the amount of stats we log.
+    static constexpr size_t kNumGpusSoftLimit = 4;
+
+    // A "very large" number of GPUs. If we observe more GPUs than this limit
+    // then we don't log any stats.
+    static constexpr size_t kNumGpusHardLimit = 32;
+
+    // The minimum GPU time needed to actually log stats for a UID.
+    static constexpr uint64_t kMinGpuTimeNanoseconds = 30U * 1000000000U; // 30 seconds.
 
     // The previous time point at which |mGpuWorkMap| was cleared.
     std::chrono::steady_clock::time_point mPreviousMapClearTimePoint GUARDED_BY(mMutex);
