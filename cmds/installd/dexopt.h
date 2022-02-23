@@ -98,10 +98,9 @@ bool copy_system_profile(const std::string& system_profile,
                          const std::string& pkgname,
                          const std::string& profile_name);
 
-// Prepare the app profile for the given code path:
-//  - create the current profile using profile_name
-//  - merge the profile from the dex metadata file (if present) into
-//    the reference profile.
+// Prepares the app profile for the package at the given path:
+// - Creates the current profile for the given user ID, unless the user ID is `USER_NULL`.
+// - Merges the profile from the dex metadata file (if present) into the reference profile.
 bool prepare_app_profile(const std::string& package_name,
                          userid_t user_id,
                          appid_t app_id,
@@ -152,6 +151,12 @@ const char* select_execution_binary(
         bool is_debug_runtime,
         bool is_release,
         bool is_debuggable_build);
+
+// Returns `ODEX_NOT_FOUND` if the optimized artifacts are not found, or `ODEX_IS_PUBLIC` if the
+// optimized artifacts are accessible by all apps, or `ODEX_IS_PRIVATE` if the optimized artifacts
+// are only accessible by this app, or -1 if failed to get the visibility of the optimized
+// artifacts.
+int get_odex_visibility(const char* apk_path, const char* instruction_set, const char* oat_dir);
 
 }  // namespace installd
 }  // namespace android
