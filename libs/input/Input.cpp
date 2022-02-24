@@ -846,6 +846,7 @@ vec2 MotionEvent::calculateTransformedXY(uint32_t source, const ui::Transform& t
     return calculateTransformedXYUnchecked(source, transform, xy);
 }
 
+// Keep in sync with calculateTransformedCoords.
 float MotionEvent::calculateTransformedAxisValue(int32_t axis, uint32_t source,
                                                  const ui::Transform& transform,
                                                  const PointerCoords& coords) {
@@ -872,6 +873,34 @@ float MotionEvent::calculateTransformedAxisValue(int32_t axis, uint32_t source,
     }
 
     return coords.getAxisValue(axis);
+}
+
+// Keep in sync with calculateTransformedAxisValue. This is an optimization of
+// calculateTransformedAxisValue for all PointerCoords axes.
+PointerCoords MotionEvent::calculateTransformedCoords(uint32_t source,
+                                                      const ui::Transform& transform,
+                                                      const PointerCoords& coords) {
+    if (shouldDisregardTransformation(source)) {
+        return coords;
+    }
+    PointerCoords out = coords;
+
+    const vec2 xy = calculateTransformedXYUnchecked(source, transform, coords.getXYValue());
+    out.setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
+    out.setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
+
+    const vec2 relativeXy =
+            transformWithoutTranslation(transform,
+                                        {coords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
+                                         coords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y)});
+    out.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, relativeXy.x);
+    out.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, relativeXy.y);
+
+    out.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
+                     transformAngle(transform,
+                                    coords.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION)));
+
+    return out;
 }
 
 // --- FocusEvent ---
