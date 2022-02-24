@@ -16,6 +16,7 @@
 #pragma once
 
 #include <gui/SyncScreenCaptureListener.h>
+#include <private/gui/ComposerServiceAIDL.h>
 #include <ui/Rect.h>
 #include <utils/String8.h>
 #include <functional>
@@ -31,15 +32,15 @@ class ScreenCapture : public RefBase {
 public:
     static status_t captureDisplay(DisplayCaptureArgs& captureArgs,
                                    ScreenCaptureResults& captureResults) {
-        const auto sf = ComposerService::getComposerService();
+        const auto sf = ComposerServiceAIDL::getComposerService();
         SurfaceComposerClient::Transaction().apply(true);
 
         captureArgs.dataspace = ui::Dataspace::V0_SRGB;
         const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
-        status_t status = sf->captureDisplay(captureArgs, captureListener);
+        binder::Status status = sf->captureDisplay(captureArgs, captureListener);
 
-        if (status != NO_ERROR) {
-            return status;
+        if (status.transactionError() != NO_ERROR) {
+            return status.transactionError();
         }
         captureResults = captureListener->waitForResults();
         return captureResults.result;
@@ -64,14 +65,14 @@ public:
 
     static status_t captureLayers(LayerCaptureArgs& captureArgs,
                                   ScreenCaptureResults& captureResults) {
-        const auto sf = ComposerService::getComposerService();
+        const auto sf = ComposerServiceAIDL::getComposerService();
         SurfaceComposerClient::Transaction().apply(true);
 
         captureArgs.dataspace = ui::Dataspace::V0_SRGB;
         const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
-        status_t status = sf->captureLayers(captureArgs, captureListener);
-        if (status != NO_ERROR) {
-            return status;
+        binder::Status status = sf->captureLayers(captureArgs, captureListener);
+        if (status.transactionError() != NO_ERROR) {
+            return status.transactionError();
         }
         captureResults = captureListener->waitForResults();
         return captureResults.result;
