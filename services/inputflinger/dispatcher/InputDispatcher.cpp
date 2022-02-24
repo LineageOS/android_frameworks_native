@@ -118,10 +118,7 @@ const std::chrono::duration DEFAULT_INPUT_DISPATCHING_TIMEOUT = std::chrono::mil
 // when an application takes too long to respond and the user has pressed an app switch key.
 constexpr nsecs_t APP_SWITCH_TIMEOUT = 500 * 1000000LL; // 0.5sec
 
-// Amount of time to allow for an event to be dispatched (measured since its eventTime)
-// before considering it stale and dropping it.
-const nsecs_t STALE_EVENT_TIMEOUT = 10000 * 1000000LL // 10sec
-        * HwTimeoutMultiplier();
+const std::chrono::duration STALE_EVENT_TIMEOUT = std::chrono::seconds(10) * HwTimeoutMultiplier();
 
 // Log a warning when an event takes longer than this to process, even if an ANR does not occur.
 constexpr nsecs_t SLOW_EVENT_PROCESSING_WARNING_TIMEOUT = 2000 * 1000000LL; // 2sec
@@ -320,10 +317,6 @@ bool haveSameApplicationToken(const WindowInfo* first, const WindowInfo* second)
     }
     return first->applicationInfo.token != nullptr &&
             first->applicationInfo.token == second->applicationInfo.token;
-}
-
-bool isStaleEvent(nsecs_t currentTime, const EventEntry& entry) {
-    return currentTime - entry.eventTime >= STALE_EVENT_TIMEOUT;
 }
 
 std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarget,
@@ -526,6 +519,10 @@ bool isPointerFromStylus(const MotionEntry& entry, int32_t pointerIndex) {
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy)
+      : InputDispatcher(policy, STALE_EVENT_TIMEOUT) {}
+
+InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy,
+                                 std::chrono::nanoseconds staleEventTimeout)
       : mPolicy(policy),
         mPendingEvent(nullptr),
         mLastDropReason(DropReason::NOT_DROPPED),
@@ -544,6 +541,7 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         mMaximumObscuringOpacityForTouch(1.0f),
         mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
         mWindowTokenWithPointerCapture(nullptr),
+        mStaleEventTimeout(staleEventTimeout),
         mLatencyAggregator(),
         mLatencyTracker(&mLatencyAggregator) {
     mLooper = new Looper(false);
@@ -899,6 +897,10 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
         releasePendingEventLocked();
         *nextWakeupTime = LONG_LONG_MIN; // force next poll to wake up immediately
     }
+}
+
+bool InputDispatcher::isStaleEvent(nsecs_t currentTime, const EventEntry& entry) {
+    return std::chrono::nanoseconds(currentTime - entry.eventTime) >= mStaleEventTimeout;
 }
 
 /**
