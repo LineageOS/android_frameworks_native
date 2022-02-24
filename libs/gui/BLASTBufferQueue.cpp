@@ -132,12 +132,13 @@ void BLASTBufferItemConsumer::onSidebandStreamChanged() {
     }
 }
 
-BLASTBufferQueue::BLASTBufferQueue(const std::string& name)
+BLASTBufferQueue::BLASTBufferQueue(const std::string& name, bool updateDestinationFrame)
       : mSurfaceControl(nullptr),
         mSize(1, 1),
         mRequestedSize(mSize),
         mFormat(PIXEL_FORMAT_RGBA_8888),
-        mSyncTransaction(nullptr) {
+        mSyncTransaction(nullptr),
+        mUpdateDestinationFrame(updateDestinationFrame) {
     createBufferQueue(&mProducer, &mConsumer);
     // since the adapter is in the client process, set dequeue timeout
     // explicitly so that dequeueBuffer will block
@@ -184,7 +185,7 @@ BLASTBufferQueue::~BLASTBufferQueue() {
 }
 
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height,
-                              int32_t format, SurfaceComposerClient::Transaction* outTransaction) {
+                              int32_t format) {
     LOG_ALWAYS_FATAL_IF(surface == nullptr, "BLASTBufferQueue: mSurfaceControl must not be NULL");
 
     std::unique_lock _lock{mMutex};
@@ -193,7 +194,6 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
         mBufferItemConsumer->setDefaultBufferFormat(convertBufferFormat(format));
     }
 
-    SurfaceComposerClient::Transaction t;
     const bool surfaceControlChanged = !SurfaceControl::isSameSurface(mSurfaceControl, surface);
     if (surfaceControlChanged && mSurfaceControl != nullptr) {
         BQA_LOGD("Updating SurfaceControl without recreating BBQ");
@@ -203,6 +203,7 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
     // Always update the native object even though they might have the same layer handle, so we can
     // get the updated transform hint from WM.
     mSurfaceControl = surface;
+    SurfaceComposerClient::Transaction t;
     if (surfaceControlChanged) {
         t.setFlags(mSurfaceControl, layer_state_t::eEnableBackpressure,
                    layer_state_t::eEnableBackpressure);
@@ -221,12 +222,10 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
             // If the buffer supports scaling, update the frame immediately since the client may
             // want to scale the existing buffer to the new size.
             mSize = mRequestedSize;
-            SurfaceComposerClient::Transaction* destFrameTransaction =
-                    (outTransaction) ? outTransaction : &t;
-            destFrameTransaction->setDestinationFrame(mSurfaceControl,
-                                                      Rect(0, 0, newSize.getWidth(),
-                                                           newSize.getHeight()));
-            applyTransaction = true;
+            if (mUpdateDestinationFrame) {
+                t.setDestinationFrame(mSurfaceControl, Rect(newSize));
+                applyTransaction = true;
+            }
         }
     }
     if (applyTransaction) {
@@ -498,7 +497,6 @@ void BLASTBufferQueue::acquireNextBufferLocked(
     // Ensure BLASTBufferQueue stays alive until we receive the transaction complete callback.
     incStrong((void*)transactionCallbackThunk);
 
-    const bool updateDestinationFrame = mRequestedSize != mSize;
     mSize = mRequestedSize;
     Rect crop = computeCrop(bufferItem);
     mLastBufferInfo.update(true /* hasBuffer */, bufferItem.mGraphicBuffer->getWidth(),
@@ -517,12 +515,19 @@ void BLASTBufferQueue::acquireNextBufferLocked(
 
     mSurfaceControlsWithPendingCallback.push(mSurfaceControl);
 
-    if (updateDestinationFrame) {
-        t->setDestinationFrame(mSurfaceControl, Rect(0, 0, mSize.getWidth(), mSize.getHeight()));
+    if (mUpdateDestinationFrame) {
+        t->setDestinationFrame(mSurfaceControl, Rect(mSize));
+    } else {
+        const bool ignoreDestinationFrame =
+                bufferItem.mScalingMode == NATIVE_WINDOW_SCALING_MODE_FREEZE;
+        t->setFlags(mSurfaceControl,
+                    ignoreDestinationFrame ? layer_state_t::eIgnoreDestinationFrame : 0,
+                    layer_state_t::eIgnoreDestinationFrame);
     }
     t->setBufferCrop(mSurfaceControl, crop);
     t->setTransform(mSurfaceControl, bufferItem.mTransform);
     t->setTransformToDisplayInverse(mSurfaceControl, bufferItem.mTransformToDisplayInverse);
+    t->setAutoRefresh(mSurfaceControl, bufferItem.mAutoRefresh);
     if (!bufferItem.mIsAutoTimestamp) {
         t->setDesiredPresentTime(bufferItem.mTimestamp);
     }
@@ -532,10 +537,6 @@ void BLASTBufferQueue::acquireNextBufferLocked(
         mNextFrameTimelineInfoQueue.pop();
     }
 
-    if (mAutoRefresh != bufferItem.mAutoRefresh) {
-        t->setAutoRefresh(mSurfaceControl, bufferItem.mAutoRefresh);
-        mAutoRefresh = bufferItem.mAutoRefresh;
-    }
     {
         std::unique_lock _lock{mTimestampMutex};
         auto dequeueTime = mDequeueTimestamps.find(buffer->getId());
