@@ -507,7 +507,7 @@ LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
         return LatchUnsignaledConfig::Always;
     }
 
-    if (base::GetBoolProperty("debug.sf.auto_latch_unsignaled"s, true)) {
+    if (base::GetBoolProperty("debug.sf.auto_latch_unsignaled"s, false)) {
         return LatchUnsignaledConfig::AutoSingleLayer;
     }
 
