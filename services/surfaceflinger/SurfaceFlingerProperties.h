@@ -100,6 +100,8 @@ bool enable_layer_caching(bool defaultValue);
 
 bool enable_sdr_dimming(bool defaultValue);
 
+bool ignore_hdr_camera_layers(bool defaultValue);
+
 } // namespace sysprop
 } // namespace android
 #endif // SURFACEFLINGERPROPERTIES_H_

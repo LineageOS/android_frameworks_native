@@ -69,6 +69,10 @@ props {
     prop_name: "ro.surface_flinger.has_wide_color_display"
   }
   prop {
+    api_name: "ignore_hdr_camera_layers"
+    prop_name: "ro.surface_flinger.ignore_hdr_camera_layers"
+  }
+  prop {
     api_name: "max_frame_buffer_acquired_buffers"
     type: Long
     prop_name: "ro.surface_flinger.max_frame_buffer_acquired_buffers"

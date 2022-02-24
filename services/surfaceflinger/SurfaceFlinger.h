@@ -1120,6 +1120,8 @@ private:
     void updateInternalDisplayVsyncLocked(const sp<DisplayDevice>& activeDisplay)
             REQUIRES(mStateLock);
 
+    bool isHdrLayer(Layer* layer) const;
+
     sp<StartPropertySetThread> mStartPropertySetThread;
     surfaceflinger::Factory& mFactory;
     pid_t mPid;
@@ -1168,6 +1170,7 @@ private:
     // Used to ensure we omit a callback when HDR layer info listener is newly added but the
     // scene hasn't changed
     bool mAddingHDRLayerInfoListener = false;
+    bool mIgnoreHdrCameraLayers = false;
 
     // Set during transaction application stage to track if the input info or children
     // for a layer has changed.
