@@ -28,6 +28,7 @@
 #include <gtest/gtest.h>
 #include <renderengine/ExternalTexture.h>
 #include <renderengine/impl/ExternalTexture.h>
+#include <renderengine/mock/FakeExternalTexture.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
@@ -989,7 +990,9 @@ struct OutputPrepareFrameTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
         // Sets up the helper functions called by the function under test to use
         // mock implementations.
-        MOCK_METHOD0(chooseCompositionStrategy, void());
+        MOCK_METHOD1(chooseCompositionStrategy,
+                     bool(std::optional<android::HWComposer::DeviceRequestedChanges>*));
+        MOCK_METHOD0(resetCompositionStrategy, void());
     };
 
     OutputPrepareFrameTest() {
@@ -1015,7 +1018,8 @@ TEST_F(OutputPrepareFrameTest, delegatesToChooseCompositionStrategyAndRenderSurf
     mOutput.editState().usesClientComposition = false;
     mOutput.editState().usesDeviceComposition = true;
 
-    EXPECT_CALL(mOutput, chooseCompositionStrategy()).Times(1);
+    EXPECT_CALL(mOutput, chooseCompositionStrategy(_)).WillRepeatedly(Return(true));
+    EXPECT_CALL(mOutput, resetCompositionStrategy()).Times(1);
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
     EXPECT_CALL(*mRenderSurface, prepareFrame(false, true));
 
@@ -1035,6 +1039,147 @@ TEST_F(OutputTest, prepareFrameSetsClientCompositionOnlyByDefault) {
 
     EXPECT_TRUE(mOutput->getState().usesClientComposition);
     EXPECT_FALSE(mOutput->getState().usesDeviceComposition);
+}
+
+struct OutputPrepareFrameAsyncTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
+        MOCK_METHOD1(chooseCompositionStrategy,
+                     bool(std::optional<android::HWComposer::DeviceRequestedChanges>*));
+        MOCK_METHOD0(updateProtectedContentState, void());
+        MOCK_METHOD2(dequeueRenderBuffer,
+                     bool(base::unique_fd*, std::shared_ptr<renderengine::ExternalTexture>*));
+        MOCK_METHOD1(
+                chooseCompositionStrategyAsync,
+                std::future<bool>(std::optional<android::HWComposer::DeviceRequestedChanges>*));
+        MOCK_METHOD4(composeSurfaces,
+                     std::optional<base::unique_fd>(
+                             const Region&, const compositionengine::CompositionRefreshArgs&,
+                             std::shared_ptr<renderengine::ExternalTexture>, base::unique_fd&));
+        MOCK_METHOD0(resetCompositionStrategy, void());
+    };
+
+    OutputPrepareFrameAsyncTest() {
+        mOutput.setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+    }
+
+    StrictMock<mock::CompositionEngine> mCompositionEngine;
+    mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    StrictMock<OutputPartialMock> mOutput;
+    CompositionRefreshArgs mRefreshArgs;
+};
+
+TEST_F(OutputPrepareFrameAsyncTest, delegatesToChooseCompositionStrategyAndRenderSurface) {
+    mOutput.editState().isEnabled = true;
+    mOutput.editState().usesClientComposition = false;
+    mOutput.editState().usesDeviceComposition = true;
+    mOutput.editState().previousDeviceRequestedChanges =
+            std::make_optional<android::HWComposer::DeviceRequestedChanges>({});
+    std::promise<bool> p;
+    p.set_value(true);
+
+    EXPECT_CALL(mOutput, resetCompositionStrategy()).Times(1);
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
+    EXPECT_CALL(mOutput, updateProtectedContentState());
+    EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _)).WillOnce(Return(true));
+    EXPECT_CALL(*mRenderSurface, prepareFrame(false, true)).Times(1);
+    EXPECT_CALL(mOutput, chooseCompositionStrategyAsync(_))
+            .WillOnce(DoAll(SetArgPointee<0>(mOutput.editState().previousDeviceRequestedChanges),
+                            Return(ByMove(p.get_future()))));
+    EXPECT_CALL(mOutput, composeSurfaces(_, Ref(mRefreshArgs), _, _));
+
+    impl::GpuCompositionResult result = mOutput.prepareFrameAsync(mRefreshArgs);
+    EXPECT_TRUE(result.succeeded);
+    EXPECT_FALSE(result.bufferAvailable());
+}
+
+TEST_F(OutputPrepareFrameAsyncTest, skipCompositionOnDequeueFailure) {
+    mOutput.editState().isEnabled = true;
+    mOutput.editState().usesClientComposition = false;
+    mOutput.editState().usesDeviceComposition = true;
+    mOutput.editState().previousDeviceRequestedChanges =
+            std::make_optional<android::HWComposer::DeviceRequestedChanges>({});
+    std::promise<bool> p;
+    p.set_value(true);
+
+    EXPECT_CALL(mOutput, resetCompositionStrategy()).Times(2);
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
+    EXPECT_CALL(mOutput, updateProtectedContentState());
+    EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _)).WillOnce(Return(false));
+    EXPECT_CALL(*mRenderSurface, prepareFrame(false, true)).Times(2);
+    EXPECT_CALL(mOutput, chooseCompositionStrategyAsync(_))
+            .WillOnce(DoAll(SetArgPointee<0>(mOutput.editState().previousDeviceRequestedChanges),
+                            Return(ByMove(p.get_future()))));
+
+    impl::GpuCompositionResult result = mOutput.prepareFrameAsync(mRefreshArgs);
+    EXPECT_FALSE(result.succeeded);
+    EXPECT_FALSE(result.bufferAvailable());
+}
+
+// Tests that in the event of hwc error when choosing composition strategy, we would fall back
+// client composition
+TEST_F(OutputPrepareFrameAsyncTest, chooseCompositionStrategyFailureCallsPrepareFrame) {
+    mOutput.editState().isEnabled = true;
+    mOutput.editState().usesClientComposition = false;
+    mOutput.editState().usesDeviceComposition = true;
+    mOutput.editState().previousDeviceRequestedChanges =
+            std::make_optional<android::HWComposer::DeviceRequestedChanges>({});
+    std::promise<bool> p;
+    p.set_value(false);
+    std::shared_ptr<renderengine::ExternalTexture> tex =
+            std::make_shared<renderengine::mock::FakeExternalTexture>(1, 1,
+                                                                      HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                                                      2);
+    EXPECT_CALL(mOutput, resetCompositionStrategy()).Times(2);
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
+    EXPECT_CALL(mOutput, updateProtectedContentState());
+    EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _))
+            .WillOnce(DoAll(SetArgPointee<1>(tex), Return(true)));
+    EXPECT_CALL(*mRenderSurface, prepareFrame(false, true)).Times(2);
+    EXPECT_CALL(mOutput, chooseCompositionStrategyAsync(_)).WillOnce([&] {
+        return p.get_future();
+    });
+    EXPECT_CALL(mOutput, composeSurfaces(_, Ref(mRefreshArgs), _, _));
+
+    impl::GpuCompositionResult result = mOutput.prepareFrameAsync(mRefreshArgs);
+    EXPECT_FALSE(result.succeeded);
+    EXPECT_TRUE(result.bufferAvailable());
+}
+
+TEST_F(OutputPrepareFrameAsyncTest, predictionMiss) {
+    mOutput.editState().isEnabled = true;
+    mOutput.editState().usesClientComposition = false;
+    mOutput.editState().usesDeviceComposition = true;
+    mOutput.editState().previousDeviceRequestedChanges =
+            std::make_optional<android::HWComposer::DeviceRequestedChanges>({});
+    auto newDeviceRequestedChanges =
+            std::make_optional<android::HWComposer::DeviceRequestedChanges>({});
+    newDeviceRequestedChanges->displayRequests = static_cast<hal::DisplayRequest>(0);
+    std::promise<bool> p;
+    p.set_value(false);
+    std::shared_ptr<renderengine::ExternalTexture> tex =
+            std::make_shared<renderengine::mock::FakeExternalTexture>(1, 1,
+                                                                      HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                                                      2);
+
+    EXPECT_CALL(mOutput, resetCompositionStrategy()).Times(2);
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
+    EXPECT_CALL(mOutput, updateProtectedContentState());
+    EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _))
+            .WillOnce(DoAll(SetArgPointee<1>(tex), Return(true)));
+    EXPECT_CALL(*mRenderSurface, prepareFrame(false, true)).Times(2);
+    EXPECT_CALL(mOutput, chooseCompositionStrategyAsync(_)).WillOnce([&] {
+        return p.get_future();
+    });
+    EXPECT_CALL(mOutput, composeSurfaces(_, Ref(mRefreshArgs), _, _));
+
+    impl::GpuCompositionResult result = mOutput.prepareFrameAsync(mRefreshArgs);
+    EXPECT_FALSE(result.succeeded);
+    EXPECT_TRUE(result.bufferAvailable());
 }
 
 /*
@@ -1820,10 +1965,14 @@ struct OutputPresentTest : public testing::Test {
         MOCK_METHOD1(setColorTransform, void(const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD0(beginFrame, void());
         MOCK_METHOD0(prepareFrame, void());
+        MOCK_METHOD1(prepareFrameAsync, GpuCompositionResult(const CompositionRefreshArgs&));
         MOCK_METHOD1(devOptRepaintFlash, void(const compositionengine::CompositionRefreshArgs&));
-        MOCK_METHOD1(finishFrame, void(const compositionengine::CompositionRefreshArgs&));
+        MOCK_METHOD2(finishFrame,
+                     void(const compositionengine::CompositionRefreshArgs&,
+                          GpuCompositionResult&&));
         MOCK_METHOD0(postFramebuffer, void());
         MOCK_METHOD1(renderCachedSets, void(const compositionengine::CompositionRefreshArgs&));
+        MOCK_METHOD1(canPredictCompositionStrategy, bool(const CompositionRefreshArgs&));
     };
 
     StrictMock<OutputPartialMock> mOutput;
@@ -1839,9 +1988,30 @@ TEST_F(OutputPresentTest, justInvokesChildFunctionsInSequence) {
     EXPECT_CALL(mOutput, writeCompositionState(Ref(args)));
     EXPECT_CALL(mOutput, setColorTransform(Ref(args)));
     EXPECT_CALL(mOutput, beginFrame());
+    EXPECT_CALL(mOutput, canPredictCompositionStrategy(Ref(args))).WillOnce(Return(false));
     EXPECT_CALL(mOutput, prepareFrame());
     EXPECT_CALL(mOutput, devOptRepaintFlash(Ref(args)));
-    EXPECT_CALL(mOutput, finishFrame(Ref(args)));
+    EXPECT_CALL(mOutput, finishFrame(Ref(args), _));
+    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, renderCachedSets(Ref(args)));
+
+    mOutput.present(args);
+}
+
+TEST_F(OutputPresentTest, predictingCompositionStrategyInvokesPrepareFrameAsync) {
+    CompositionRefreshArgs args;
+
+    InSequence seq;
+    EXPECT_CALL(mOutput, updateColorProfile(Ref(args)));
+    EXPECT_CALL(mOutput, updateCompositionState(Ref(args)));
+    EXPECT_CALL(mOutput, planComposition());
+    EXPECT_CALL(mOutput, writeCompositionState(Ref(args)));
+    EXPECT_CALL(mOutput, setColorTransform(Ref(args)));
+    EXPECT_CALL(mOutput, beginFrame());
+    EXPECT_CALL(mOutput, canPredictCompositionStrategy(Ref(args))).WillOnce(Return(true));
+    EXPECT_CALL(mOutput, prepareFrameAsync(Ref(args)));
+    EXPECT_CALL(mOutput, devOptRepaintFlash(Ref(args)));
+    EXPECT_CALL(mOutput, finishFrame(Ref(args), _));
     EXPECT_CALL(mOutput, postFramebuffer());
     EXPECT_CALL(mOutput, renderCachedSets(Ref(args)));
 
@@ -2739,11 +2909,15 @@ struct OutputDevOptRepaintFlashTest : public testing::Test {
         // Sets up the helper functions called by the function under test to use
         // mock implementations.
         MOCK_METHOD(Region, getDirtyRegion, (), (const));
-        MOCK_METHOD2(composeSurfaces,
+        MOCK_METHOD4(composeSurfaces,
                      std::optional<base::unique_fd>(
-                             const Region&, const compositionengine::CompositionRefreshArgs&));
+                             const Region&, const compositionengine::CompositionRefreshArgs&,
+                             std::shared_ptr<renderengine::ExternalTexture>, base::unique_fd&));
         MOCK_METHOD0(postFramebuffer, void());
         MOCK_METHOD0(prepareFrame, void());
+        MOCK_METHOD0(updateProtectedContentState, void());
+        MOCK_METHOD2(dequeueRenderBuffer,
+                     bool(base::unique_fd*, std::shared_ptr<renderengine::ExternalTexture>*));
     };
 
     OutputDevOptRepaintFlashTest() {
@@ -2800,7 +2974,9 @@ TEST_F(OutputDevOptRepaintFlashTest, alsoComposesSurfacesAndQueuesABufferIfDirty
 
     InSequence seq;
     EXPECT_CALL(mOutput, getDirtyRegion()).WillOnce(Return(kNotEmptyRegion));
-    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(kNotEmptyRegion), Ref(mRefreshArgs)));
+    EXPECT_CALL(mOutput, updateProtectedContentState());
+    EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _));
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(kNotEmptyRegion), Ref(mRefreshArgs), _, _));
     EXPECT_CALL(*mRenderSurface, queueBuffer(_));
     EXPECT_CALL(mOutput, postFramebuffer());
     EXPECT_CALL(mOutput, prepareFrame());
@@ -2816,10 +2992,14 @@ struct OutputFinishFrameTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
         // Sets up the helper functions called by the function under test to use
         // mock implementations.
-        MOCK_METHOD2(composeSurfaces,
+        MOCK_METHOD4(composeSurfaces,
                      std::optional<base::unique_fd>(
-                             const Region&, const compositionengine::CompositionRefreshArgs&));
+                             const Region&, const compositionengine::CompositionRefreshArgs&,
+                             std::shared_ptr<renderengine::ExternalTexture>, base::unique_fd&));
         MOCK_METHOD0(postFramebuffer, void());
+        MOCK_METHOD0(updateProtectedContentState, void());
+        MOCK_METHOD2(dequeueRenderBuffer,
+                     bool(base::unique_fd*, std::shared_ptr<renderengine::ExternalTexture>*));
     };
 
     OutputFinishFrameTest() {
@@ -2837,27 +3017,63 @@ struct OutputFinishFrameTest : public testing::Test {
 TEST_F(OutputFinishFrameTest, ifNotEnabledDoesNothing) {
     mOutput.mState.isEnabled = false;
 
-    mOutput.finishFrame(mRefreshArgs);
+    impl::GpuCompositionResult result;
+    mOutput.finishFrame(mRefreshArgs, std::move(result));
 }
 
 TEST_F(OutputFinishFrameTest, takesEarlyOutifComposeSurfacesReturnsNoFence) {
     mOutput.mState.isEnabled = true;
+    EXPECT_CALL(mOutput, updateProtectedContentState());
+    EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _)).WillOnce(Return(true));
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION), _, _, _));
 
-    InSequence seq;
-    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION), _));
-
-    mOutput.finishFrame(mRefreshArgs);
+    impl::GpuCompositionResult result;
+    mOutput.finishFrame(mRefreshArgs, std::move(result));
 }
 
 TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
     mOutput.mState.isEnabled = true;
 
     InSequence seq;
-    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION), _))
+    EXPECT_CALL(mOutput, updateProtectedContentState());
+    EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _)).WillOnce(Return(true));
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION), _, _, _))
             .WillOnce(Return(ByMove(base::unique_fd())));
     EXPECT_CALL(*mRenderSurface, queueBuffer(_));
 
-    mOutput.finishFrame(mRefreshArgs);
+    impl::GpuCompositionResult result;
+    mOutput.finishFrame(mRefreshArgs, std::move(result));
+}
+
+TEST_F(OutputFinishFrameTest, predictionSucceeded) {
+    mOutput.mState.isEnabled = true;
+
+    InSequence seq;
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
+
+    impl::GpuCompositionResult result;
+    result.succeeded = true;
+    mOutput.finishFrame(mRefreshArgs, std::move(result));
+}
+
+TEST_F(OutputFinishFrameTest, predictionFailedAndBufferIsReused) {
+    mOutput.mState.isEnabled = true;
+
+    InSequence seq;
+
+    impl::GpuCompositionResult result;
+    result.succeeded = false;
+    result.buffer =
+            std::make_shared<renderengine::mock::FakeExternalTexture>(1, 1,
+                                                                      HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                                                      2);
+
+    EXPECT_CALL(mOutput,
+                composeSurfaces(RegionEq(Region::INVALID_REGION), _, result.buffer,
+                                Eq(ByRef(result.fence))))
+            .WillOnce(Return(ByMove(base::unique_fd())));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
+    mOutput.finishFrame(mRefreshArgs, std::move(result));
 }
 
 /*
@@ -3104,8 +3320,15 @@ struct OutputComposeSurfacesTest : public testing::Test {
 
     struct ExecuteState : public CallOrderStateMachineHelper<TestType, ExecuteState> {
         auto execute() {
-            getInstance()->mReadyFence =
-                    getInstance()->mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
+            base::unique_fd fence;
+            std::shared_ptr<renderengine::ExternalTexture> externalTexture;
+            const bool success =
+                    getInstance()->mOutput.dequeueRenderBuffer(&fence, &externalTexture);
+            if (success) {
+                getInstance()->mReadyFence =
+                        getInstance()->mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs,
+                                                               externalTexture, fence);
+            }
             return nextState<FenceCheckState>();
         }
     };
@@ -3728,7 +3951,11 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifDisplayIsNotSecure) 
     EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(true));
     EXPECT_CALL(mRenderEngine, useProtectedContext(false));
 
-    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
+    base::unique_fd fd;
+    std::shared_ptr<renderengine::ExternalTexture> tex;
+    mOutput.updateProtectedContentState();
+    mOutput.dequeueRenderBuffer(&fd, &tex);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs, tex, fd);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifRenderEngineDoesNotSupportIt) {
@@ -3736,7 +3963,11 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifRenderEngineDoesNotS
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
 
-    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
+    base::unique_fd fd;
+    std::shared_ptr<renderengine::ExternalTexture> tex;
+    mOutput.updateProtectedContentState();
+    mOutput.dequeueRenderBuffer(&fd, &tex);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs, tex, fd);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNoProtectedContentLayers) {
@@ -3748,7 +3979,11 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNoProtectedContentLa
     EXPECT_CALL(mRenderEngine, useProtectedContext(false));
     EXPECT_CALL(*mRenderSurface, setProtected(false));
 
-    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
+    base::unique_fd fd;
+    std::shared_ptr<renderengine::ExternalTexture> tex;
+    mOutput.updateProtectedContentState();
+    mOutput.dequeueRenderBuffer(&fd, &tex);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs, tex, fd);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
@@ -3770,7 +4005,11 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
 
-    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
+    base::unique_fd fd;
+    std::shared_ptr<renderengine::ExternalTexture> tex;
+    mOutput.updateProtectedContentState();
+    mOutput.dequeueRenderBuffer(&fd, &tex);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs, tex, fd);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledEverywhere) {
@@ -3780,7 +4019,11 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledEveryw
     EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(true));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
 
-    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
+    base::unique_fd fd;
+    std::shared_ptr<renderengine::ExternalTexture> tex;
+    mOutput.updateProtectedContentState();
+    mOutput.dequeueRenderBuffer(&fd, &tex);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs, tex, fd);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifFailsToEnableInRenderEngine) {
@@ -3791,7 +4034,11 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifFailsToEnableInRende
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
     EXPECT_CALL(mRenderEngine, useProtectedContext(true));
 
-    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
+    base::unique_fd fd;
+    std::shared_ptr<renderengine::ExternalTexture> tex;
+    mOutput.updateProtectedContentState();
+    mOutput.dequeueRenderBuffer(&fd, &tex);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs, tex, fd);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRenderEngine) {
@@ -3802,7 +4049,11 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRend
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
     EXPECT_CALL(*mRenderSurface, setProtected(true));
 
-    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
+    base::unique_fd fd;
+    std::shared_ptr<renderengine::ExternalTexture> tex;
+    mOutput.updateProtectedContentState();
+    mOutput.dequeueRenderBuffer(&fd, &tex);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs, tex, fd);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRenderSurface) {
@@ -3813,7 +4064,11 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRend
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
     EXPECT_CALL(mRenderEngine, useProtectedContext(true));
 
-    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
+    base::unique_fd fd;
+    std::shared_ptr<renderengine::ExternalTexture> tex;
+    mOutput.updateProtectedContentState();
+    mOutput.dequeueRenderBuffer(&fd, &tex);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs, tex, fd);
 }
 
 struct OutputComposeSurfacesTest_SetsExpensiveRendering : public OutputComposeSurfacesTest {
@@ -3843,7 +4098,11 @@ TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering, IfExepensiveOutputDatas
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
 
-    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
+    base::unique_fd fd;
+    std::shared_ptr<renderengine::ExternalTexture> tex;
+    mOutput.updateProtectedContentState();
+    mOutput.dequeueRenderBuffer(&fd, &tex);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs, tex, fd);
 }
 
 struct OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur
@@ -3878,7 +4137,12 @@ TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur, IfBlursAreExpen
     mOutput.writeCompositionState(mRefreshArgs);
 
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true));
-    mOutput.composeSurfaces(kDebugRegion, mRefreshArgs);
+
+    base::unique_fd fd;
+    std::shared_ptr<renderengine::ExternalTexture> tex;
+    mOutput.updateProtectedContentState();
+    mOutput.dequeueRenderBuffer(&fd, &tex);
+    mOutput.composeSurfaces(kDebugRegion, mRefreshArgs, tex, fd);
 }
 
 TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur, IfBlursAreNotExpensive) {
@@ -3888,7 +4152,12 @@ TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur, IfBlursAreNotEx
     mOutput.writeCompositionState(mRefreshArgs);
 
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true)).Times(0);
-    mOutput.composeSurfaces(kDebugRegion, mRefreshArgs);
+
+    base::unique_fd fd;
+    std::shared_ptr<renderengine::ExternalTexture> tex;
+    mOutput.updateProtectedContentState();
+    mOutput.dequeueRenderBuffer(&fd, &tex);
+    mOutput.composeSurfaces(kDebugRegion, mRefreshArgs, tex, fd);
 }
 
 /*
