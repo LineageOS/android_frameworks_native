@@ -173,15 +173,15 @@ impl::EventThread::GetVsyncPeriodFunction Scheduler::makeGetVsyncPeriodFunction(
             return basePeriod;
         }
 
-        const auto divider =
-                scheduler::RefreshRateConfigs::getFrameRateDivider(refreshRateConfigs
+        const auto divisor =
+                scheduler::RefreshRateConfigs::getFrameRateDivisor(refreshRateConfigs
                                                                            ->getCurrentRefreshRate()
                                                                            .getFps(),
                                                                    *frameRate);
-        if (divider <= 1) {
+        if (divisor <= 1) {
             return basePeriod;
         }
-        return basePeriod * divider;
+        return basePeriod * divisor;
     };
 }
 
