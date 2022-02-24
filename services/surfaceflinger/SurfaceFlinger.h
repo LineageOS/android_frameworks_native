@@ -750,6 +750,12 @@ private:
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
 
+    void flushPendingTransactionQueues(
+            std::vector<TransactionState>& transactions,
+            std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
+            std::unordered_set<sp<IBinder>, SpHash<IBinder>>& applyTokensWithUnsignaledTransactions,
+            bool tryApplyUnsignaled) REQUIRES(mStateLock, mQueueLock);
+
     uint32_t setClientStateLocked(const FrameTimelineInfo&, ComposerState&,
                                   int64_t desiredPresentTime, bool isAutoTimestamp,
                                   int64_t postTime, uint32_t permissions) REQUIRES(mStateLock);
@@ -780,7 +786,7 @@ private:
             const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
             uid_t originUid, const Vector<ComposerState>& states,
             const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
-            size_t totalTXapplied) const REQUIRES(mStateLock);
+            size_t totalTXapplied, bool tryApplyUnsignaled) const REQUIRES(mStateLock);
     static LatchUnsignaledConfig getLatchUnsignaledConfig();
     bool shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t&, size_t numStates,
                                size_t totalTXapplied) const;
