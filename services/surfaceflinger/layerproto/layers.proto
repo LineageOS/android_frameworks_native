@@ -136,6 +136,8 @@ message LayerProto {
 
   // Corner radius explicitly set on layer rather than inherited
   float requested_corner_radius = 56;
+
+  RectProto destination_frame = 57;
 }
 
 message PositionProto {
