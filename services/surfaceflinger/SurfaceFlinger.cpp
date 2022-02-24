@@ -2344,16 +2344,19 @@ void SurfaceFlinger::updateCompositorTiming(const DisplayStatInfo& stats, nsecs_
 
 void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
                                                 nsecs_t compositeToPresentLatency) {
+    // Avoid division by 0 by defaulting to 60Hz
+    const auto vsyncPeriod = stats.vsyncPeriod ?: (60_Hz).getPeriodNsecs();
+
     // Integer division and modulo round toward 0 not -inf, so we need to
     // treat negative and positive offsets differently.
     nsecs_t idealLatency = (mVsyncConfiguration->getCurrentConfigs().late.sfOffset > 0)
-            ? (stats.vsyncPeriod -
-               (mVsyncConfiguration->getCurrentConfigs().late.sfOffset % stats.vsyncPeriod))
-            : ((-mVsyncConfiguration->getCurrentConfigs().late.sfOffset) % stats.vsyncPeriod);
+            ? (vsyncPeriod -
+               (mVsyncConfiguration->getCurrentConfigs().late.sfOffset % vsyncPeriod))
+            : ((-mVsyncConfiguration->getCurrentConfigs().late.sfOffset) % vsyncPeriod);
 
     // Just in case mVsyncConfiguration->getCurrentConfigs().late.sf == -vsyncInterval.
     if (idealLatency <= 0) {
-        idealLatency = stats.vsyncPeriod;
+        idealLatency = vsyncPeriod;
     }
 
     // Snap the latency to a value that removes scheduling jitter from the
@@ -2362,16 +2365,14 @@ void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
     // something (such as user input) to an accurate diasplay time.
     // Snapping also allows an app to precisely calculate
     // mVsyncConfiguration->getCurrentConfigs().late.sf with (presentLatency % interval).
-    const nsecs_t bias = stats.vsyncPeriod / 2;
-    const int64_t extraVsyncs = (stats.vsyncPeriod) > 0 ?
-        ((compositeToPresentLatency - idealLatency + bias) / stats.vsyncPeriod) :
-        0;
+    const nsecs_t bias = vsyncPeriod / 2;
+    const int64_t extraVsyncs = ((compositeToPresentLatency - idealLatency + bias) / vsyncPeriod);
     const nsecs_t snappedCompositeToPresentLatency =
-            (extraVsyncs > 0) ? idealLatency + (extraVsyncs * stats.vsyncPeriod) : idealLatency;
+            (extraVsyncs > 0) ? idealLatency + (extraVsyncs * vsyncPeriod) : idealLatency;
 
     std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
     getBE().mCompositorTiming.deadline = stats.vsyncTime - idealLatency;
-    getBE().mCompositorTiming.interval = stats.vsyncPeriod;
+    getBE().mCompositorTiming.interval = vsyncPeriod;
     getBE().mCompositorTiming.presentLatency = snappedCompositeToPresentLatency;
 }
 
