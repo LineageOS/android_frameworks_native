@@ -256,7 +256,7 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
 
 /*
  * Returns whether a given vsync timestamp is in phase with a frame rate.
- * If the frame rate is not a divider of the refresh rate, it is always considered in phase.
+ * If the frame rate is not a divisor of the refresh rate, it is always considered in phase.
  * For example, if the vsync timestamps are (16.6,33.3,50.0,66.6):
  * isVSyncInPhase(16.6, 30) = true
  * isVSyncInPhase(33.3, 30) = false
@@ -271,42 +271,42 @@ bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const {
     };
 
     std::lock_guard lock(mMutex);
-    const auto divider =
-            RefreshRateConfigs::getFrameRateDivider(Fps::fromPeriodNsecs(mIdealPeriod), frameRate);
-    if (divider <= 1 || timePoint == 0) {
+    const auto divisor =
+            RefreshRateConfigs::getFrameRateDivisor(Fps::fromPeriodNsecs(mIdealPeriod), frameRate);
+    if (divisor <= 1 || timePoint == 0) {
         return true;
     }
 
     const nsecs_t period = mRateMap[mIdealPeriod].slope;
     const nsecs_t justBeforeTimePoint = timePoint - period / 2;
-    const nsecs_t dividedPeriod = mIdealPeriod / divider;
+    const nsecs_t dividedPeriod = mIdealPeriod / divisor;
 
-    // If this is the first time we have asked about this divider with the
+    // If this is the first time we have asked about this divisor with the
     // current vsync period, it is considered in phase and we store the closest
     // vsync timestamp
-    const auto knownTimestampIter = mRateDividerKnownTimestampMap.find(dividedPeriod);
-    if (knownTimestampIter == mRateDividerKnownTimestampMap.end()) {
+    const auto knownTimestampIter = mRateDivisorKnownTimestampMap.find(dividedPeriod);
+    if (knownTimestampIter == mRateDivisorKnownTimestampMap.end()) {
         const auto vsync = nextAnticipatedVSyncTimeFromLocked(justBeforeTimePoint);
-        mRateDividerKnownTimestampMap[dividedPeriod] = vsync;
+        mRateDivisorKnownTimestampMap[dividedPeriod] = vsync;
         return true;
     }
 
-    // Find the next N vsync timestamp where N is the divider.
+    // Find the next N vsync timestamp where N is the divisor.
     // One of these vsyncs will be in phase. We return the one which is
     // the most aligned with the last known in phase vsync
-    std::vector<VsyncError> vsyncs(static_cast<size_t>(divider));
+    std::vector<VsyncError> vsyncs(static_cast<size_t>(divisor));
     const nsecs_t knownVsync = knownTimestampIter->second;
     nsecs_t point = justBeforeTimePoint;
-    for (size_t i = 0; i < divider; i++) {
+    for (size_t i = 0; i < divisor; i++) {
         const nsecs_t vsync = nextAnticipatedVSyncTimeFromLocked(point);
-        const auto numPeriods = static_cast<float>(vsync - knownVsync) / (period * divider);
+        const auto numPeriods = static_cast<float>(vsync - knownVsync) / (period * divisor);
         const auto error = std::abs(std::round(numPeriods) - numPeriods);
         vsyncs[i] = {vsync, error};
         point = vsync + 1;
     }
 
     const auto minVsyncError = std::min_element(vsyncs.begin(), vsyncs.end());
-    mRateDividerKnownTimestampMap[dividedPeriod] = minVsyncError->vsyncTimestamp;
+    mRateDivisorKnownTimestampMap[dividedPeriod] = minVsyncError->vsyncTimestamp;
     return std::abs(minVsyncError->vsyncTimestamp - timePoint) < period / 2;
 }
 
