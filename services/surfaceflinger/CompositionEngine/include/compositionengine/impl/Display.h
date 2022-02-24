@@ -78,7 +78,7 @@ public:
     virtual void applyChangedTypesToLayers(const ChangedTypes&);
     virtual void applyDisplayRequests(const DisplayRequests&);
     virtual void applyLayerRequestsToLayers(const LayerRequests&);
-    virtual void applyClientTargetRequests(const ClientTargetProperty&, float whitePointNits);
+    virtual void applyClientTargetRequests(const ClientTargetProperty&, float brightness);
 
     // Internal
     virtual void setConfiguration(const compositionengine::DisplayCreationArgs&);
