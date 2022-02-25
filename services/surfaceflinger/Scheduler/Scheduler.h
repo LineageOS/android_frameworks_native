@@ -169,6 +169,7 @@ public:
     // The period is the vsync period from the current display configuration.
     void resyncToHardwareVsync(bool makeAvailable, nsecs_t period);
     void resync() EXCLUDES(mRefreshRateConfigsLock);
+    void forceNextResync() { mLastResyncTime = 0; }
 
     // Passes a vsync sample to VsyncController. periodFlushed will be true if
     // VsyncController detected that the vsync period changed, and false otherwise.
