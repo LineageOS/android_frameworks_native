@@ -29,7 +29,9 @@
 #include <android/gui/DropInputMode.h>
 #include <android/gui/FocusRequest.h>
 
+#include <gui/DisplayCaptureArgs.h>
 #include <gui/ISurfaceComposer.h>
+#include <gui/LayerCaptureArgs.h>
 #include <gui/LayerMetadata.h>
 #include <gui/SpHash.h>
 #include <gui/SurfaceControl.h>
@@ -374,56 +376,6 @@ static inline int compare_type(const DisplayState& lhs, const DisplayState& rhs)
 // @param privileged whether caller has unscoped surfaceflinger access
 bool ValidateFrameRate(float frameRate, int8_t compatibility, int8_t changeFrameRateStrategy,
                        const char* functionName, bool privileged = false);
-
-struct CaptureArgs {
-    const static int32_t UNSET_UID = -1;
-    virtual ~CaptureArgs() = default;
-
-    ui::PixelFormat pixelFormat{ui::PixelFormat::RGBA_8888};
-    Rect sourceCrop;
-    float frameScaleX{1};
-    float frameScaleY{1};
-    bool captureSecureLayers{false};
-    int32_t uid{UNSET_UID};
-    // Force capture to be in a color space. If the value is ui::Dataspace::UNKNOWN, the captured
-    // result will be in the display's colorspace.
-    // The display may use non-RGB dataspace (ex. displayP3) that could cause pixel data could be
-    // different from SRGB (byte per color), and failed when checking colors in tests.
-    // NOTE: In normal cases, we want the screen to be captured in display's colorspace.
-    ui::Dataspace dataspace = ui::Dataspace::UNKNOWN;
-
-    // The receiver of the capture can handle protected buffer. A protected buffer has
-    // GRALLOC_USAGE_PROTECTED usage bit and must not be accessed unprotected behaviour.
-    // Any read/write access from unprotected context will result in undefined behaviour.
-    // Protected contents are typically DRM contents. This has no direct implication to the
-    // secure property of the surface, which is specified by the application explicitly to avoid
-    // the contents being accessed/captured by screenshot or unsecure display.
-    bool allowProtected = false;
-
-    bool grayscale = false;
-
-    virtual status_t write(Parcel& output) const;
-    virtual status_t read(const Parcel& input);
-};
-
-struct DisplayCaptureArgs : CaptureArgs {
-    sp<IBinder> displayToken;
-    uint32_t width{0};
-    uint32_t height{0};
-    bool useIdentityTransform{false};
-
-    status_t write(Parcel& output) const override;
-    status_t read(const Parcel& input) override;
-};
-
-struct LayerCaptureArgs : CaptureArgs {
-    sp<IBinder> layerHandle;
-    std::unordered_set<sp<IBinder>, SpHash<IBinder>> excludeHandles;
-    bool childrenOnly{false};
-
-    status_t write(Parcel& output) const override;
-    status_t read(const Parcel& input) override;
-};
 
 }; // namespace android
 

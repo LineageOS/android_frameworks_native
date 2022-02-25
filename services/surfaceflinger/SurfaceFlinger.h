@@ -23,6 +23,7 @@
  */
 
 #include <android-base/thread_annotations.h>
+#include <android/gui/BnSurfaceComposer.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <gui/BufferQueue.h>
@@ -106,9 +107,13 @@ class RegionSamplingThread;
 class RenderArea;
 class TimeStats;
 class FrameTracer;
+class ScreenCapturer;
 class WindowInfosListenerInvoker;
 
+using gui::CaptureArgs;
+using gui::DisplayCaptureArgs;
 using gui::IRegionSamplingListener;
+using gui::LayerCaptureArgs;
 using gui::ScreenCaptureResults;
 
 namespace frametimeline {
@@ -540,9 +545,9 @@ private:
             ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp,
             ISurfaceComposer::EventRegistrationFlags eventRegistration = {}) override;
 
-    status_t captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&) override;
-    status_t captureDisplay(DisplayId, const sp<IScreenCaptureListener>&) override;
-    status_t captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&) override;
+    status_t captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&);
+    status_t captureDisplay(DisplayId, const sp<IScreenCaptureListener>&);
+    status_t captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&);
 
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats) override;
     status_t getDisplayState(const sp<IBinder>& displayToken, ui::DisplayState*)
@@ -1407,6 +1412,22 @@ private:
     } mPowerHintSessionData GUARDED_BY(SF_MAIN_THREAD);
 
     nsecs_t mAnimationTransactionTimeout = s2ns(5);
+
+    friend class SurfaceComposerAIDL;
+};
+
+class SurfaceComposerAIDL : public gui::BnSurfaceComposer {
+public:
+    SurfaceComposerAIDL(sp<SurfaceFlinger> sf) { mFlinger = sf; }
+
+    binder::Status captureDisplay(const DisplayCaptureArgs&,
+                                  const sp<IScreenCaptureListener>&) override;
+    binder::Status captureDisplayById(int64_t, const sp<IScreenCaptureListener>&) override;
+    binder::Status captureLayers(const LayerCaptureArgs&,
+                                 const sp<IScreenCaptureListener>&) override;
+
+private:
+    sp<SurfaceFlinger> mFlinger;
 };
 
 } // namespace android
