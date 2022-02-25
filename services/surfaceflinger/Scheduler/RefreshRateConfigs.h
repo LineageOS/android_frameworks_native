@@ -316,10 +316,10 @@ public:
 
     bool supportsFrameRateOverrideByContent() const { return mSupportsFrameRateOverrideByContent; }
 
-    // Return the display refresh rate divider to match the layer
+    // Return the display refresh rate divisor to match the layer
     // frame rate, or 0 if the display refresh rate is not a multiple of the
     // layer refresh rate.
-    static int getFrameRateDivider(Fps displayFrameRate, Fps layerFrameRate);
+    static int getFrameRateDivisor(Fps displayFrameRate, Fps layerFrameRate);
 
     // Returns if the provided frame rates have a ratio t*1000/1001 or t*1001/1000
     // for an integer t.

@@ -1873,37 +1873,37 @@ TEST_F(RefreshRateConfigsTest, testKernelIdleTimerActionFor120Hz) {
     EXPECT_EQ(KernelIdleTimerAction::TurnOff, configs.getIdleTimerAction());
 }
 
-TEST_F(RefreshRateConfigsTest, getFrameRateDivider) {
+TEST_F(RefreshRateConfigsTest, getFrameRateDivisor) {
     RefreshRateConfigs configs(kModes_30_60_72_90_120, kModeId30);
 
     const auto frameRate = 30_Hz;
     Fps displayRefreshRate = configs.getCurrentRefreshRate().getFps();
-    EXPECT_EQ(1, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, frameRate));
+    EXPECT_EQ(1, RefreshRateConfigs::getFrameRateDivisor(displayRefreshRate, frameRate));
 
     configs.setCurrentModeId(kModeId60);
     displayRefreshRate = configs.getCurrentRefreshRate().getFps();
-    EXPECT_EQ(2, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, frameRate));
+    EXPECT_EQ(2, RefreshRateConfigs::getFrameRateDivisor(displayRefreshRate, frameRate));
 
     configs.setCurrentModeId(kModeId72);
     displayRefreshRate = configs.getCurrentRefreshRate().getFps();
-    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, frameRate));
+    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivisor(displayRefreshRate, frameRate));
 
     configs.setCurrentModeId(kModeId90);
     displayRefreshRate = configs.getCurrentRefreshRate().getFps();
-    EXPECT_EQ(3, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, frameRate));
+    EXPECT_EQ(3, RefreshRateConfigs::getFrameRateDivisor(displayRefreshRate, frameRate));
 
     configs.setCurrentModeId(kModeId120);
     displayRefreshRate = configs.getCurrentRefreshRate().getFps();
-    EXPECT_EQ(4, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, frameRate));
+    EXPECT_EQ(4, RefreshRateConfigs::getFrameRateDivisor(displayRefreshRate, frameRate));
 
     configs.setCurrentModeId(kModeId90);
     displayRefreshRate = configs.getCurrentRefreshRate().getFps();
-    EXPECT_EQ(4, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, 22.5_Hz));
+    EXPECT_EQ(4, RefreshRateConfigs::getFrameRateDivisor(displayRefreshRate, 22.5_Hz));
 
-    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivider(24_Hz, 25_Hz));
-    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivider(24_Hz, 23.976_Hz));
-    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivider(30_Hz, 29.97_Hz));
-    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivider(60_Hz, 59.94_Hz));
+    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivisor(24_Hz, 25_Hz));
+    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivisor(24_Hz, 23.976_Hz));
+    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivisor(30_Hz, 29.97_Hz));
+    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivisor(60_Hz, 59.94_Hz));
 }
 
 TEST_F(RefreshRateConfigsTest, isFractionalPairOrMultiple) {

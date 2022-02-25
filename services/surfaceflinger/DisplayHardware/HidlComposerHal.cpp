@@ -1297,9 +1297,9 @@ Error HidlComposer::getPreferredBootDisplayConfig(Display /*displayId*/, Config*
 
 Error HidlComposer::getClientTargetProperty(
         Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty,
-        float* outWhitePointNits) {
+        float* outBrightness) {
     mReader.takeClientTargetProperty(display, outClientTargetProperty);
-    *outWhitePointNits = -1.f;
+    *outBrightness = 1.f;
     return Error::NONE;
 }
 

@@ -357,7 +357,7 @@ void SchedulerFuzzer::fuzzRefreshRateConfigs() {
                                                            mFdp.ConsumeFloatingPoint<float>()),
                                                    Fps::fromValue(
                                                            mFdp.ConsumeFloatingPoint<float>()));
-    RefreshRateConfigs::getFrameRateDivider(Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()),
+    RefreshRateConfigs::getFrameRateDivisor(Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()),
                                             Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()));
 
     android::mock::TimeStats timeStats;
