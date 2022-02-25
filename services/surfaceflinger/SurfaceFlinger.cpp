@@ -2344,16 +2344,19 @@ void SurfaceFlinger::updateCompositorTiming(const DisplayStatInfo& stats, nsecs_
 
 void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
                                                 nsecs_t compositeToPresentLatency) {
+    // Avoid division by 0 by defaulting to 60Hz
+    const auto vsyncPeriod = stats.vsyncPeriod ?: (60_Hz).getPeriodNsecs();
+
     // Integer division and modulo round toward 0 not -inf, so we need to
     // treat negative and positive offsets differently.
     nsecs_t idealLatency = (mVsyncConfiguration->getCurrentConfigs().late.sfOffset > 0)
-            ? (stats.vsyncPeriod -
-               (mVsyncConfiguration->getCurrentConfigs().late.sfOffset % stats.vsyncPeriod))
-            : ((-mVsyncConfiguration->getCurrentConfigs().late.sfOffset) % stats.vsyncPeriod);
+            ? (vsyncPeriod -
+               (mVsyncConfiguration->getCurrentConfigs().late.sfOffset % vsyncPeriod))
+            : ((-mVsyncConfiguration->getCurrentConfigs().late.sfOffset) % vsyncPeriod);
 
     // Just in case mVsyncConfiguration->getCurrentConfigs().late.sf == -vsyncInterval.
     if (idealLatency <= 0) {
-        idealLatency = stats.vsyncPeriod;
+        idealLatency = vsyncPeriod;
     }
 
     // Snap the latency to a value that removes scheduling jitter from the
@@ -2362,16 +2365,14 @@ void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
     // something (such as user input) to an accurate diasplay time.
     // Snapping also allows an app to precisely calculate
     // mVsyncConfiguration->getCurrentConfigs().late.sf with (presentLatency % interval).
-    const nsecs_t bias = stats.vsyncPeriod / 2;
-    const int64_t extraVsyncs = (stats.vsyncPeriod) > 0 ?
-        ((compositeToPresentLatency - idealLatency + bias) / stats.vsyncPeriod) :
-        0;
+    const nsecs_t bias = vsyncPeriod / 2;
+    const int64_t extraVsyncs = ((compositeToPresentLatency - idealLatency + bias) / vsyncPeriod);
     const nsecs_t snappedCompositeToPresentLatency =
-            (extraVsyncs > 0) ? idealLatency + (extraVsyncs * stats.vsyncPeriod) : idealLatency;
+            (extraVsyncs > 0) ? idealLatency + (extraVsyncs * vsyncPeriod) : idealLatency;
 
     std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
     getBE().mCompositorTiming.deadline = stats.vsyncTime - idealLatency;
-    getBE().mCompositorTiming.interval = stats.vsyncPeriod;
+    getBE().mCompositorTiming.interval = vsyncPeriod;
     getBE().mCompositorTiming.presentLatency = snappedCompositeToPresentLatency;
 }
 
@@ -5472,9 +5473,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_FRAME_RATE:
         case GET_DISPLAY_BRIGHTNESS_SUPPORT:
         case GET_DISPLAY_DECORATION_SUPPORT:
-        // captureLayers and captureDisplay will handle the permission check in the function
-        case CAPTURE_LAYERS:
-        case CAPTURE_DISPLAY:
         case SET_FRAME_TIMELINE_INFO:
         case GET_GPU_CONTEXT_PRIORITY:
         case GET_MAX_ACQUIRED_BUFFER_COUNT: {
@@ -5509,8 +5507,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             }
             return OK;
         }
-        case ADD_TRANSACTION_TRACE_LISTENER:
-        case CAPTURE_DISPLAY_BY_ID: {
+        case ADD_TRANSACTION_TRACE_LISTENER: {
             IPCThreadState* ipc = IPCThreadState::self();
             const int uid = ipc->getCallingUid();
             if (uid == AID_ROOT || uid == AID_GRAPHICS || uid == AID_SYSTEM || uid == AID_SHELL) {
@@ -5540,6 +5537,11 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             }
             return PERMISSION_DENIED;
         }
+        case CAPTURE_LAYERS:
+        case CAPTURE_DISPLAY:
+        case CAPTURE_DISPLAY_BY_ID:
+            LOG_FATAL("Deprecated opcode: %d", code);
+            return PERMISSION_DENIED;
     }
 
     // These codes are used for the IBinder protocol to either interrogate the recipient
@@ -7188,6 +7190,34 @@ bool SurfaceFlinger::commitCreatedLayers() {
     mLayersAdded = true;
     return true;
 }
+
+// gui::ISurfaceComposer
+binder::Status SurfaceComposerAIDL::captureDisplay(
+        const DisplayCaptureArgs& args, const sp<IScreenCaptureListener>& captureListener) {
+    status_t status = mFlinger->captureDisplay(args, captureListener);
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::captureDisplayById(
+        int64_t displayId, const sp<IScreenCaptureListener>& captureListener) {
+    status_t status;
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int uid = ipc->getCallingUid();
+    if (uid == AID_ROOT || uid == AID_GRAPHICS || uid == AID_SYSTEM || uid == AID_SHELL) {
+        std::optional<DisplayId> id = DisplayId::fromValue(static_cast<uint64_t>(displayId));
+        status = mFlinger->captureDisplay(*id, captureListener);
+    } else {
+        status = PERMISSION_DENIED;
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::captureLayers(
+        const LayerCaptureArgs& args, const sp<IScreenCaptureListener>& captureListener) {
+    status_t status = mFlinger->captureLayers(args, captureListener);
+    return binder::Status::fromStatusT(status);
+}
+
 } // namespace android
 
 #if defined(__gl_h_)

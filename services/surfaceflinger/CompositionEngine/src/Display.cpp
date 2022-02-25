@@ -266,8 +266,7 @@ void Display::chooseCompositionStrategy() {
         applyChangedTypesToLayers(changes->changedTypes);
         applyDisplayRequests(changes->displayRequests);
         applyLayerRequestsToLayers(changes->layerRequests);
-        applyClientTargetRequests(changes->clientTargetProperty,
-                                  changes->clientTargetWhitePointNits);
+        applyClientTargetRequests(changes->clientTargetProperty, changes->clientTargetBrightness);
     }
 
     // Determine what type of composition we are doing from the final state
@@ -343,13 +342,13 @@ void Display::applyLayerRequestsToLayers(const LayerRequests& layerRequests) {
 }
 
 void Display::applyClientTargetRequests(const ClientTargetProperty& clientTargetProperty,
-                                        float whitePointNits) {
+                                        float brightness) {
     if (clientTargetProperty.dataspace == ui::Dataspace::UNKNOWN) {
         return;
     }
 
     editState().dataspace = clientTargetProperty.dataspace;
-    editState().clientTargetWhitePointNits = whitePointNits;
+    editState().clientTargetBrightness = brightness;
     getRenderSurface()->setBufferDataspace(clientTargetProperty.dataspace);
     getRenderSurface()->setBufferPixelFormat(clientTargetProperty.pixelFormat);
 }

@@ -4428,19 +4428,9 @@ void InputDispatcher::transformMotionEntryForInjectionLocked(
     const auto& transformToDisplay = it->second.transform.inverse() * injectedTransform;
 
     for (uint32_t i = 0; i < entry.pointerCount; i++) {
-        PointerCoords& pc = entry.pointerCoords[i];
-        // Make a copy of the injected coords. We cannot change them in place because some of them
-        // are interdependent (for example, X coordinate might depend on the Y coordinate).
-        PointerCoords injectedCoords = entry.pointerCoords[i];
-
-        BitSet64 bits(injectedCoords.bits);
-        while (!bits.isEmpty()) {
-            const auto axis = static_cast<int32_t>(bits.clearFirstMarkedBit());
-            const float value =
-                    MotionEvent::calculateTransformedAxisValue(axis, entry.source,
-                                                               transformToDisplay, injectedCoords);
-            pc.setAxisValue(axis, value);
-        }
+        entry.pointerCoords[i] =
+                MotionEvent::calculateTransformedCoords(entry.source, transformToDisplay,
+                                                        entry.pointerCoords[i]);
     }
 }
 
@@ -5818,35 +5808,21 @@ void InputDispatcher::doInterceptKeyBeforeDispatchingCommand(const sp<IBinder>& 
     }
 }
 
-void InputDispatcher::sendMonitorUnresponsiveCommandLocked(int32_t pid, std::string reason) {
-    auto command = [this, pid, reason = std::move(reason)]() REQUIRES(mLock) {
-        scoped_unlock unlock(mLock);
-        mPolicy->notifyMonitorUnresponsive(pid, reason);
-    };
-    postCommandLocked(std::move(command));
-}
-
 void InputDispatcher::sendWindowUnresponsiveCommandLocked(const sp<IBinder>& token,
+                                                          std::optional<int32_t> pid,
                                                           std::string reason) {
-    auto command = [this, token, reason = std::move(reason)]() REQUIRES(mLock) {
+    auto command = [this, token, pid, reason = std::move(reason)]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
-        mPolicy->notifyWindowUnresponsive(token, reason);
+        mPolicy->notifyWindowUnresponsive(token, pid, reason);
     };
     postCommandLocked(std::move(command));
 }
 
-void InputDispatcher::sendMonitorResponsiveCommandLocked(int32_t pid) {
-    auto command = [this, pid]() REQUIRES(mLock) {
+void InputDispatcher::sendWindowResponsiveCommandLocked(const sp<IBinder>& token,
+                                                        std::optional<int32_t> pid) {
+    auto command = [this, token, pid]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
-        mPolicy->notifyMonitorResponsive(pid);
-    };
-    postCommandLocked(std::move(command));
-}
-
-void InputDispatcher::sendWindowResponsiveCommandLocked(const sp<IBinder>& connectionToken) {
-    auto command = [this, connectionToken]() REQUIRES(mLock) {
-        scoped_unlock unlock(mLock);
-        mPolicy->notifyWindowResponsive(connectionToken);
+        mPolicy->notifyWindowResponsive(token, pid);
     };
     postCommandLocked(std::move(command));
 }
@@ -5859,22 +5835,21 @@ void InputDispatcher::sendWindowResponsiveCommandLocked(const sp<IBinder>& conne
 void InputDispatcher::processConnectionUnresponsiveLocked(const Connection& connection,
                                                           std::string reason) {
     const sp<IBinder>& connectionToken = connection.inputChannel->getConnectionToken();
+    std::optional<int32_t> pid;
     if (connection.monitor) {
         ALOGW("Monitor %s is unresponsive: %s", connection.inputChannel->getName().c_str(),
               reason.c_str());
-        std::optional<int32_t> pid = findMonitorPidByTokenLocked(connectionToken);
-        if (!pid.has_value()) {
-            ALOGE("Could not find unresponsive monitor for connection %s",
-                  connection.inputChannel->getName().c_str());
-            return;
+        pid = findMonitorPidByTokenLocked(connectionToken);
+    } else {
+        // The connection is a window
+        ALOGW("Window %s is unresponsive: %s", connection.inputChannel->getName().c_str(),
+              reason.c_str());
+        const sp<WindowInfoHandle> handle = getWindowHandleLocked(connectionToken);
+        if (handle != nullptr) {
+            pid = handle->getInfo()->ownerPid;
         }
-        sendMonitorUnresponsiveCommandLocked(pid.value(), std::move(reason));
-        return;
     }
-    // If not a monitor, must be a window
-    ALOGW("Window %s is unresponsive: %s", connection.inputChannel->getName().c_str(),
-          reason.c_str());
-    sendWindowUnresponsiveCommandLocked(connectionToken, std::move(reason));
+    sendWindowUnresponsiveCommandLocked(connectionToken, pid, std::move(reason));
 }
 
 /**
@@ -5882,18 +5857,17 @@ void InputDispatcher::processConnectionUnresponsiveLocked(const Connection& conn
  */
 void InputDispatcher::processConnectionResponsiveLocked(const Connection& connection) {
     const sp<IBinder>& connectionToken = connection.inputChannel->getConnectionToken();
+    std::optional<int32_t> pid;
     if (connection.monitor) {
-        std::optional<int32_t> pid = findMonitorPidByTokenLocked(connectionToken);
-        if (!pid.has_value()) {
-            ALOGE("Could not find responsive monitor for connection %s",
-                  connection.inputChannel->getName().c_str());
-            return;
+        pid = findMonitorPidByTokenLocked(connectionToken);
+    } else {
+        // The connection is a window
+        const sp<WindowInfoHandle> handle = getWindowHandleLocked(connectionToken);
+        if (handle != nullptr) {
+            pid = handle->getInfo()->ownerPid;
         }
-        sendMonitorResponsiveCommandLocked(pid.value());
-        return;
     }
-    // If not a monitor, must be a window
-    sendWindowResponsiveCommandLocked(connectionToken);
+    sendWindowResponsiveCommandLocked(connectionToken, pid);
 }
 
 bool InputDispatcher::afterKeyEventLockedInterruptable(const sp<Connection>& connection,

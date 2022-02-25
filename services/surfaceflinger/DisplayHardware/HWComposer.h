@@ -86,7 +86,7 @@ public:
         DisplayRequests displayRequests;
         LayerRequests layerRequests;
         ClientTargetProperty clientTargetProperty;
-        float clientTargetWhitePointNits;
+        float clientTargetBrightness;
     };
 
     struct HWCDisplayMode {

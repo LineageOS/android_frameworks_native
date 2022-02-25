@@ -839,7 +839,7 @@ TEST_F(DisplayApplyLayerRequestsToLayersTest, applyClientTargetRequests) {
 
     auto& state = mDisplay->getState();
     EXPECT_EQ(clientTargetProperty.dataspace, state.dataspace);
-    EXPECT_EQ(kWhitePointNits, state.clientTargetWhitePointNits);
+    EXPECT_EQ(kWhitePointNits, state.clientTargetBrightness);
 }
 
 /*
