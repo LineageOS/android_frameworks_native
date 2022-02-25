@@ -31,6 +31,7 @@
 #include <gui/SyncScreenCaptureListener.h>
 #include <inttypes.h>
 #include <private/gui/ComposerService.h>
+#include <private/gui/ComposerServiceAIDL.h>
 #include <sys/types.h>
 #include <ui/BufferQueueDefs.h>
 #include <ui/DisplayMode.h>
@@ -205,13 +206,13 @@ protected:
 
     static status_t captureDisplay(DisplayCaptureArgs& captureArgs,
                                    ScreenCaptureResults& captureResults) {
-        const auto sf = ComposerService::getComposerService();
+        const auto sf = ComposerServiceAIDL::getComposerService();
         SurfaceComposerClient::Transaction().apply(true);
 
         const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
-        status_t status = sf->captureDisplay(captureArgs, captureListener);
-        if (status != NO_ERROR) {
-            return status;
+        binder::Status status = sf->captureDisplay(captureArgs, captureListener);
+        if (status.transactionError() != NO_ERROR) {
+            return status.transactionError();
         }
         captureResults = captureListener->waitForResults();
         return captureResults.result;
@@ -765,16 +766,6 @@ public:
     status_t clearBootDisplayMode(const sp<IBinder>& /*display*/) override { return NO_ERROR; }
     void setAutoLowLatencyMode(const sp<IBinder>& /*display*/, bool /*on*/) override {}
     void setGameContentType(const sp<IBinder>& /*display*/, bool /*on*/) override {}
-
-    status_t captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&) override {
-        return NO_ERROR;
-    }
-    status_t captureDisplay(DisplayId, const sp<IScreenCaptureListener>&) override {
-        return NO_ERROR;
-    }
-    status_t captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&) override {
-        return NO_ERROR;
-    }
 
     status_t clearAnimationFrameStats() override { return NO_ERROR; }
     status_t getAnimationFrameStats(FrameStats* /*outStats*/) const override {

@@ -29,6 +29,7 @@
 #include <gui/SyncScreenCaptureListener.h>
 #include <gui/test/CallbackUtils.h>
 #include <private/gui/ComposerService.h>
+#include <private/gui/ComposerServiceAIDL.h>
 #include <ui/DisplayMode.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
@@ -283,13 +284,13 @@ protected:
 
     static status_t captureDisplay(DisplayCaptureArgs& captureArgs,
                                    ScreenCaptureResults& captureResults) {
-        const auto sf = ComposerService::getComposerService();
+        const auto sf = ComposerServiceAIDL::getComposerService();
         SurfaceComposerClient::Transaction().apply(true);
 
         const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
-        status_t status = sf->captureDisplay(captureArgs, captureListener);
-        if (status != NO_ERROR) {
-            return status;
+        binder::Status status = sf->captureDisplay(captureArgs, captureListener);
+        if (status.transactionError() != NO_ERROR) {
+            return status.transactionError();
         }
         captureResults = captureListener->waitForResults();
         return captureResults.result;
