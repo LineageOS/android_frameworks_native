@@ -181,6 +181,7 @@ public:
 bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
                                    const char* outputLayersTracePath) {
     if (traceFile.entry_size() == 0) {
+        ALOGD("Trace file is empty");
         return false;
     }
 

@@ -15,6 +15,7 @@
  */
 
 #include <gui/SurfaceComposerClient.h>
+#include <ui/Fence.h>
 #include <ui/Rect.h>
 
 #include "LayerProtoHelper.h"
@@ -431,6 +432,7 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
         layer.bufferData->frameNumber = bufferProto.frame_number();
         layer.bufferData->flags = Flags<BufferData::BufferDataChange>(bufferProto.flags());
         layer.bufferData->cachedBuffer.id = bufferProto.cached_buffer_id();
+        layer.bufferData->acquireFence = Fence::NO_FENCE;
     }
 
     if (proto.what() & layer_state_t::eApiChanged) {
