@@ -261,7 +261,7 @@ public:
 
     virtual Error getClientTargetProperty(
             Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty,
-            float* outWhitePointNits) = 0;
+            float* outBrightness) = 0;
 
     // AIDL Composer
     virtual Error setLayerBrightness(Display display, Layer layer, float brightness) = 0;

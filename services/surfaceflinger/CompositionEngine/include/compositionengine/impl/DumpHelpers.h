@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <type_traits>
 
@@ -62,5 +63,14 @@ void dumpVal(std::string& out, const char* name, const Region&);
 void dumpVal(std::string& out, const char* name, const ui::Transform&);
 void dumpVal(std::string& out, const char* name, const mat4&);
 void dumpVal(std::string& out, const char* name, const StretchEffect&);
+
+template <typename T>
+void dumpVal(std::string& out, const char* name, std::optional<T> value) {
+    if (value.has_value()) {
+        return dumpVal(out, name, *value);
+    } else {
+        return dumpVal(out, name, "nullopt");
+    }
+}
 
 } // namespace android::compositionengine::impl

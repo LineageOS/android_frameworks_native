@@ -202,24 +202,24 @@ float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& laye
     }
 
     if (layer.vote == LayerVoteType::ExplicitExact) {
-        const int divider = getFrameRateDivider(refreshRate.getFps(), layer.desiredRefreshRate);
+        const int divisor = getFrameRateDivisor(refreshRate.getFps(), layer.desiredRefreshRate);
         if (mSupportsFrameRateOverrideByContent) {
             // Since we support frame rate override, allow refresh rates which are
             // multiples of the layer's request, as those apps would be throttled
             // down to run at the desired refresh rate.
-            return divider > 0;
+            return divisor > 0;
         }
 
-        return divider == 1;
+        return divisor == 1;
     }
 
-    // If the layer frame rate is a divider of the refresh rate it should score
+    // If the layer frame rate is a divisor of the refresh rate it should score
     // the highest score.
-    if (getFrameRateDivider(refreshRate.getFps(), layer.desiredRefreshRate) > 0) {
+    if (getFrameRateDivisor(refreshRate.getFps(), layer.desiredRefreshRate) > 0) {
         return 1.0f * seamlessness;
     }
 
-    // The layer frame rate is not a divider of the refresh rate,
+    // The layer frame rate is not a divisor of the refresh rate,
     // there is a small penalty attached to the score to favor the frame rates
     // the exactly matches the display refresh rate or a multiple.
     constexpr float kNonExactMatchingPenalty = 0.95f;
@@ -543,11 +543,11 @@ RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverr
             }
         }
 
-        // We just care about the refresh rates which are a divider of the
+        // We just care about the refresh rates which are a divisor of the
         // display refresh rate
         auto iter =
                 std::remove_if(scores.begin(), scores.end(), [&](const RefreshRateScore& score) {
-                    return getFrameRateDivider(displayFrameRate, score.refreshRate->getFps()) == 0;
+                    return getFrameRateDivisor(displayFrameRate, score.refreshRate->getFps()) == 0;
                 });
         scores.erase(iter, scores.end());
 
@@ -723,7 +723,7 @@ void RefreshRateConfigs::updateDisplayModes(const DisplayModes& modes,
     if (mConfig.enableFrameRateOverride) {
         for (const auto& mode1 : sortedModes) {
             for (const auto& mode2 : sortedModes) {
-                if (getFrameRateDivider(mode1->getFps(), mode2->getFps()) >= 2) {
+                if (getFrameRateDivisor(mode1->getFps(), mode2->getFps()) >= 2) {
                     mSupportsFrameRateOverrideByContent = true;
                     break;
                 }
@@ -915,7 +915,7 @@ RefreshRateConfigs::KernelIdleTimerAction RefreshRateConfigs::getIdleTimerAction
     return RefreshRateConfigs::KernelIdleTimerAction::TurnOn;
 }
 
-int RefreshRateConfigs::getFrameRateDivider(Fps displayFrameRate, Fps layerFrameRate) {
+int RefreshRateConfigs::getFrameRateDivisor(Fps displayFrameRate, Fps layerFrameRate) {
     // This calculation needs to be in sync with the java code
     // in DisplayManagerService.getDisplayInfoForFrameRateOverride
 
