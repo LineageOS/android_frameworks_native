@@ -16,6 +16,8 @@
 
 //#define LOG_NDEBUG 0
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #undef LOG_TAG
 #define LOG_TAG "PowerAdvisor"
 
@@ -27,6 +29,7 @@
 #include <android-base/properties.h>
 #include <utils/Log.h>
 #include <utils/Mutex.h>
+#include <utils/Trace.h>
 
 #include <android/hardware/power/1.3/IPower.h>
 #include <android/hardware/power/IPower.h>
@@ -68,6 +71,14 @@ int32_t getUpdateTimeout() {
     // Default to a timeout of 80ms if nothing else is specified
     static int32_t timeout = sysprop::display_update_imminent_timeout_ms(80);
     return timeout;
+}
+
+void traceExpensiveRendering(bool enabled) {
+    if (enabled) {
+        ATRACE_ASYNC_BEGIN("ExpensiveRendering", 0);
+    } else {
+        ATRACE_ASYNC_END("ExpensiveRendering", 0);
+    }
 }
 
 } // namespace
@@ -247,6 +258,9 @@ public:
     bool setExpensiveRendering(bool enabled) override {
         ALOGV("HIDL setExpensiveRendering %s", enabled ? "T" : "F");
         auto ret = mPowerHal->powerHintAsync_1_3(PowerHint::EXPENSIVE_RENDERING, enabled);
+        if (ret.isOk()) {
+            traceExpensiveRendering(enabled);
+        }
         return ret.isOk();
     }
 
@@ -323,6 +337,9 @@ public:
         }
 
         auto ret = mPowerHal->setMode(Mode::EXPENSIVE_RENDERING, enabled);
+        if (ret.isOk()) {
+            traceExpensiveRendering(enabled);
+        }
         return ret.isOk();
     }
 
