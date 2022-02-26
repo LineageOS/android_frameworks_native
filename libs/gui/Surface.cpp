@@ -45,6 +45,7 @@
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerState.h>
 #include <private/gui/ComposerService.h>
+#include <private/gui/ComposerServiceAIDL.h>
 
 namespace android {
 
@@ -123,6 +124,10 @@ Surface::~Surface() {
 
 sp<ISurfaceComposer> Surface::composerService() const {
     return ComposerService::getComposerService();
+}
+
+sp<gui::ISurfaceComposer> Surface::composerServiceAIDL() const {
+    return ComposerServiceAIDL::getComposerService();
 }
 
 nsecs_t Surface::now() const {
@@ -343,20 +348,20 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
 status_t Surface::getWideColorSupport(bool* supported) {
     ATRACE_CALL();
 
-    const sp<IBinder> display = composerService()->getInternalDisplayToken();
+    const sp<IBinder> display = ComposerServiceAIDL::getInstance().getInternalDisplayToken();
     if (display == nullptr) {
         return NAME_NOT_FOUND;
     }
 
     *supported = false;
-    status_t error = composerService()->isWideColorDisplay(display, supported);
-    return error;
+    binder::Status status = composerServiceAIDL()->isWideColorDisplay(display, supported);
+    return status.transactionError();
 }
 
 status_t Surface::getHdrSupport(bool* supported) {
     ATRACE_CALL();
 
-    const sp<IBinder> display = composerService()->getInternalDisplayToken();
+    const sp<IBinder> display = ComposerServiceAIDL::getInstance().getInternalDisplayToken();
     if (display == nullptr) {
         return NAME_NOT_FOUND;
     }

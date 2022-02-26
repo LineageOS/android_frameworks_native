@@ -507,7 +507,7 @@ LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
         return LatchUnsignaledConfig::Always;
     }
 
-    if (base::GetBoolProperty("debug.sf.auto_latch_unsignaled"s, false)) {
+    if (base::GetBoolProperty("debug.sf.auto_latch_unsignaled"s, true)) {
         return LatchUnsignaledConfig::AutoSingleLayer;
     }
 
@@ -1957,8 +1957,8 @@ void SurfaceFlinger::onComposerHalRefresh(hal::HWDisplayId) {
 }
 
 void SurfaceFlinger::onComposerHalVsyncIdle(hal::HWDisplayId) {
-    // TODO(b/198106220): force enable HWVsync to avoid drift problem during
-    // idle.
+    ATRACE_CALL();
+    mScheduler->forceNextResync();
 }
 
 void SurfaceFlinger::setVsyncEnabled(bool enabled) {
@@ -3647,6 +3647,54 @@ bool SurfaceFlinger::stopTransactionProcessing(
     return false;
 }
 
+void SurfaceFlinger::flushPendingTransactionQueues(
+        std::vector<TransactionState>& transactions,
+        std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
+        std::unordered_set<sp<IBinder>, SpHash<IBinder>>& applyTokensWithUnsignaledTransactions,
+        bool tryApplyUnsignaled) {
+    auto it = mPendingTransactionQueues.begin();
+    while (it != mPendingTransactionQueues.end()) {
+        auto& [applyToken, transactionQueue] = *it;
+        while (!transactionQueue.empty()) {
+            if (stopTransactionProcessing(applyTokensWithUnsignaledTransactions)) {
+                ATRACE_NAME("stopTransactionProcessing");
+                break;
+            }
+
+            auto& transaction = transactionQueue.front();
+            const auto ready =
+                    transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
+                                                  transaction.isAutoTimestamp,
+                                                  transaction.desiredPresentTime,
+                                                  transaction.originUid, transaction.states,
+                                                  bufferLayersReadyToPresent, transactions.size(),
+                                                  tryApplyUnsignaled);
+            ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
+            if (ready == TransactionReadiness::NotReady) {
+                setTransactionFlags(eTransactionFlushNeeded);
+                break;
+            }
+            transaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
+                bufferLayersReadyToPresent.insert(state.surface);
+            });
+            const bool appliedUnsignaled = (ready == TransactionReadiness::ReadyUnsignaled);
+            if (appliedUnsignaled) {
+                applyTokensWithUnsignaledTransactions.insert(transaction.applyToken);
+            }
+
+            transactions.emplace_back(std::move(transaction));
+            transactionQueue.pop();
+        }
+
+        if (transactionQueue.empty()) {
+            it = mPendingTransactionQueues.erase(it);
+            mTransactionQueueCV.broadcast();
+        } else {
+            it = std::next(it, 1);
+        }
+    }
+}
+
 bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
     // to prevent onHandleDestroyed from being called while the lock is held,
     // we must keep a copy of the transactions (specifically the composer
@@ -3659,63 +3707,25 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
         Mutex::Autolock _l(mStateLock);
         {
             Mutex::Autolock _l(mQueueLock);
-            // Collect transactions from pending transaction queue.
-            auto it = mPendingTransactionQueues.begin();
-            while (it != mPendingTransactionQueues.end()) {
-                auto& [applyToken, transactionQueue] = *it;
-                while (!transactionQueue.empty()) {
-                    if (stopTransactionProcessing(applyTokensWithUnsignaledTransactions)) {
-                        ATRACE_NAME("stopTransactionProcessing");
-                        break;
-                    }
 
-                    auto& transaction = transactionQueue.front();
-                    const auto ready =
-                            transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
-                                                          transaction.isAutoTimestamp,
-                                                          transaction.desiredPresentTime,
-                                                          transaction.originUid, transaction.states,
-                                                          bufferLayersReadyToPresent,
-                                                          transactions.size());
-                    ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
-                    if (ready == TransactionReadiness::NotReady) {
-                        setTransactionFlags(eTransactionFlushNeeded);
-                        break;
-                    }
-                    transaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
-                        bufferLayersReadyToPresent.insert(state.surface);
-                    });
-                    const bool appliedUnsignaled = (ready == TransactionReadiness::ReadyUnsignaled);
-                    if (appliedUnsignaled) {
-                        applyTokensWithUnsignaledTransactions.insert(transaction.applyToken);
-                    }
+            // First collect transactions from the pending transaction queues.
+            // We are not allowing unsignaled buffers here as we want to
+            // collect all the transactions from applyTokens that are ready first.
+            flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
+                                          applyTokensWithUnsignaledTransactions,
+                                          /*tryApplyUnsignaled*/ false);
 
-                    transactions.emplace_back(std::move(transaction));
-                    transactionQueue.pop();
-                }
-
-                if (transactionQueue.empty()) {
-                    it = mPendingTransactionQueues.erase(it);
-                    mTransactionQueueCV.broadcast();
-                } else {
-                    it = std::next(it, 1);
-                }
-            }
-
-            // Collect transactions from current transaction queue or queue to pending transactions.
-            // Case 1: push to pending when transactionIsReadyToBeApplied is false
-            // or the first transaction was unsignaled.
-            // Case 2: push to pending when there exist a pending queue.
-            // Case 3: others are the transactions that are ready to apply.
+            // Second, collect transactions from the transaction queue.
+            // Here as well we are not allowing unsignaled buffers for the same
+            // reason as above.
             while (!mTransactionQueue.empty()) {
                 auto& transaction = mTransactionQueue.front();
                 const bool pendingTransactions =
                         mPendingTransactionQueues.find(transaction.applyToken) !=
                         mPendingTransactionQueues.end();
                 const auto ready = [&]() REQUIRES(mStateLock) {
-                    if (pendingTransactions ||
-                        stopTransactionProcessing(applyTokensWithUnsignaledTransactions)) {
-                        ATRACE_NAME("pendingTransactions || stopTransactionProcessing");
+                    if (pendingTransactions) {
+                        ATRACE_NAME("pendingTransactions");
                         return TransactionReadiness::NotReady;
                     }
 
@@ -3724,7 +3734,8 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                                                          transaction.desiredPresentTime,
                                                          transaction.originUid, transaction.states,
                                                          bufferLayersReadyToPresent,
-                                                         transactions.size());
+                                                         transactions.size(),
+                                                         /*tryApplyUnsignaled*/ false);
                 }();
                 ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
                 if (ready == TransactionReadiness::NotReady) {
@@ -3733,14 +3744,19 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                     transaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
                         bufferLayersReadyToPresent.insert(state.surface);
                     });
-                    const bool appliedUnsignaled = (ready == TransactionReadiness::ReadyUnsignaled);
-                    if (appliedUnsignaled) {
-                        applyTokensWithUnsignaledTransactions.insert(transaction.applyToken);
-                    }
                     transactions.emplace_back(std::move(transaction));
                 }
                 mTransactionQueue.pop_front();
                 ATRACE_INT("TransactionQueue", mTransactionQueue.size());
+            }
+
+            // We collected all transactions that could apply without latching unsignaled buffers.
+            // If we are allowing latch unsignaled of some form, now it's the time to go over the
+            // transactions that were not applied and try to apply them unsignaled.
+            if (enableLatchUnsignaledConfig != LatchUnsignaledConfig::Disabled) {
+                flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
+                                              applyTokensWithUnsignaledTransactions,
+                                              /*tryApplyUnsignaled*/ true);
             }
 
             return applyTransactions(transactions, vsyncId);
@@ -3850,7 +3866,7 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
         const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
         uid_t originUid, const Vector<ComposerState>& states,
         const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
-        size_t totalTXapplied) const -> TransactionReadiness {
+        size_t totalTXapplied, bool tryApplyUnsignaled) const -> TransactionReadiness {
     ATRACE_FORMAT("transactionIsReadyToBeApplied vsyncId: %" PRId64, info.vsyncId);
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
@@ -3887,7 +3903,7 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
             continue;
         }
 
-        const bool allowLatchUnsignaled =
+        const bool allowLatchUnsignaled = tryApplyUnsignaled &&
                 shouldLatchUnsignaled(layer, s, states.size(), totalTXapplied);
         ATRACE_FORMAT("%s allowLatchUnsignaled=%s", layer->getName().c_str(),
                       allowLatchUnsignaled ? "true" : "false");
@@ -5396,30 +5412,21 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // access to SF.
         case BOOT_FINISHED:
         case CLEAR_ANIMATION_FRAME_STATS:
-        case CREATE_DISPLAY:
-        case DESTROY_DISPLAY:
         case GET_ANIMATION_FRAME_STATS:
         case OVERRIDE_HDR_TYPES:
         case GET_HDR_CAPABILITIES:
         case SET_DESIRED_DISPLAY_MODE_SPECS:
         case GET_DESIRED_DISPLAY_MODE_SPECS:
         case SET_ACTIVE_COLOR_MODE:
-        case GET_BOOT_DISPLAY_MODE_SUPPORT:
         case SET_BOOT_DISPLAY_MODE:
-        case CLEAR_BOOT_DISPLAY_MODE:
         case GET_AUTO_LOW_LATENCY_MODE_SUPPORT:
-        case SET_AUTO_LOW_LATENCY_MODE:
         case GET_GAME_CONTENT_TYPE_SUPPORT:
-        case SET_GAME_CONTENT_TYPE:
-        case SET_POWER_MODE:
         case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES:
         case SET_DISPLAY_CONTENT_SAMPLING_ENABLED:
         case GET_DISPLAYED_CONTENT_SAMPLE:
         case ADD_TUNNEL_MODE_ENABLED_LISTENER:
         case REMOVE_TUNNEL_MODE_ENABLED_LISTENER:
-        case NOTIFY_POWER_BOOST:
         case SET_GLOBAL_SHADOW_SETTINGS:
-        case GET_PRIMARY_PHYSICAL_DISPLAY_ID:
         case ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN: {
             // OVERRIDE_HDR_TYPES is used by CTS tests, which acquire the necessary
             // permission dynamically. Don't use the permission cache for this check.
@@ -5450,8 +5457,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case AUTHENTICATE_SURFACE:
         case GET_ACTIVE_COLOR_MODE:
         case GET_ACTIVE_DISPLAY_MODE:
-        case GET_PHYSICAL_DISPLAY_IDS:
-        case GET_PHYSICAL_DISPLAY_TOKEN:
         case GET_DISPLAY_COLOR_MODES:
         case GET_DISPLAY_NATIVE_PRIMARIES:
         case GET_STATIC_DISPLAY_INFO:
@@ -5467,29 +5472,14 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_COLOR_MANAGEMENT:
         case GET_COMPOSITION_PREFERENCE:
         case GET_PROTECTED_CONTENT_SUPPORT:
-        case IS_WIDE_COLOR_DISPLAY:
         // setFrameRate() is deliberately available for apps to call without any
         // special permissions.
         case SET_FRAME_RATE:
-        case GET_DISPLAY_BRIGHTNESS_SUPPORT:
         case GET_DISPLAY_DECORATION_SUPPORT:
         case SET_FRAME_TIMELINE_INFO:
         case GET_GPU_CONTEXT_PRIORITY:
         case GET_MAX_ACQUIRED_BUFFER_COUNT: {
             // This is not sensitive information, so should not require permission control.
-            return OK;
-        }
-        case SET_DISPLAY_BRIGHTNESS:
-        case ADD_HDR_LAYER_INFO_LISTENER:
-        case REMOVE_HDR_LAYER_INFO_LISTENER: {
-            IPCThreadState* ipc = IPCThreadState::self();
-            const int pid = ipc->getCallingPid();
-            const int uid = ipc->getCallingUid();
-            if ((uid != AID_GRAPHICS) &&
-                !PermissionCache::checkPermission(sControlDisplayBrightness, pid, uid)) {
-                ALOGE("Permission Denial: can't control brightness pid=%d, uid=%d", pid, uid);
-                return PERMISSION_DENIED;
-            }
             return OK;
         }
         case ADD_FPS_LISTENER:
@@ -5537,10 +5527,26 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             }
             return PERMISSION_DENIED;
         }
+        case CREATE_DISPLAY:
+        case DESTROY_DISPLAY:
+        case GET_PRIMARY_PHYSICAL_DISPLAY_ID:
+        case GET_PHYSICAL_DISPLAY_IDS:
+        case GET_PHYSICAL_DISPLAY_TOKEN:
+        case SET_POWER_MODE:
+        case CLEAR_BOOT_DISPLAY_MODE:
+        case GET_BOOT_DISPLAY_MODE_SUPPORT:
+        case SET_AUTO_LOW_LATENCY_MODE:
+        case SET_GAME_CONTENT_TYPE:
         case CAPTURE_LAYERS:
         case CAPTURE_DISPLAY:
         case CAPTURE_DISPLAY_BY_ID:
-            LOG_FATAL("Deprecated opcode: %d", code);
+        case IS_WIDE_COLOR_DISPLAY:
+        case GET_DISPLAY_BRIGHTNESS_SUPPORT:
+        case SET_DISPLAY_BRIGHTNESS:
+        case ADD_HDR_LAYER_INFO_LISTENER:
+        case REMOVE_HDR_LAYER_INFO_LISTENER:
+        case NOTIFY_POWER_BOOST:
+            LOG_FATAL("Deprecated opcode: %d, migrated to AIDL", code);
             return PERMISSION_DENIED;
     }
 
@@ -7192,6 +7198,102 @@ bool SurfaceFlinger::commitCreatedLayers() {
 }
 
 // gui::ISurfaceComposer
+
+binder::Status SurfaceComposerAIDL::createDisplay(const std::string& displayName, bool secure,
+                                                  sp<IBinder>* outDisplay) {
+    status_t status = checkAccessPermission();
+    if (status != OK) {
+        return binder::Status::fromStatusT(status);
+    }
+    String8 displayName8 = String8::format("%s", displayName.c_str());
+    *outDisplay = mFlinger->createDisplay(displayName8, secure);
+    return binder::Status::ok();
+}
+
+binder::Status SurfaceComposerAIDL::destroyDisplay(const sp<IBinder>& display) {
+    status_t status = checkAccessPermission();
+    if (status != OK) {
+        return binder::Status::fromStatusT(status);
+    }
+    mFlinger->destroyDisplay(display);
+    return binder::Status::ok();
+}
+
+binder::Status SurfaceComposerAIDL::getPhysicalDisplayIds(std::vector<int64_t>* outDisplayIds) {
+    std::vector<PhysicalDisplayId> physicalDisplayIds = mFlinger->getPhysicalDisplayIds();
+    std::vector<int64_t> displayIds;
+    displayIds.reserve(physicalDisplayIds.size());
+    for (auto item : physicalDisplayIds) {
+        displayIds.push_back(static_cast<int64_t>(item.value));
+    }
+    *outDisplayIds = displayIds;
+    return binder::Status::ok();
+}
+
+binder::Status SurfaceComposerAIDL::getPrimaryPhysicalDisplayId(int64_t* outDisplayId) {
+    status_t status = checkAccessPermission();
+    if (status != OK) {
+        return binder::Status::fromStatusT(status);
+    }
+
+    PhysicalDisplayId id;
+    status = mFlinger->getPrimaryPhysicalDisplayId(&id);
+    if (status == NO_ERROR) {
+        *outDisplayId = id.value;
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getPhysicalDisplayToken(int64_t displayId,
+                                                            sp<IBinder>* outDisplay) {
+    const auto id = DisplayId::fromValue<PhysicalDisplayId>(static_cast<uint64_t>(displayId));
+    *outDisplay = mFlinger->getPhysicalDisplayToken(*id);
+    return binder::Status::ok();
+}
+
+binder::Status SurfaceComposerAIDL::setPowerMode(const sp<IBinder>& display, int mode) {
+    status_t status = checkAccessPermission();
+    if (status != OK) {
+        return binder::Status::fromStatusT(status);
+    }
+    mFlinger->setPowerMode(display, mode);
+    return binder::Status::ok();
+}
+
+binder::Status SurfaceComposerAIDL::clearBootDisplayMode(const sp<IBinder>& display) {
+    status_t status = checkAccessPermission();
+    if (status == OK) {
+        status = mFlinger->clearBootDisplayMode(display);
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getBootDisplayModeSupport(bool* outMode) {
+    status_t status = checkAccessPermission();
+    if (status == OK) {
+        status = mFlinger->getBootDisplayModeSupport(outMode);
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::setAutoLowLatencyMode(const sp<IBinder>& display, bool on) {
+    status_t status = checkAccessPermission();
+    if (status != OK) {
+        return binder::Status::fromStatusT(status);
+    }
+    mFlinger->setAutoLowLatencyMode(display, on);
+    return binder::Status::ok();
+}
+
+binder::Status SurfaceComposerAIDL::setGameContentType(const sp<IBinder>& display, bool on) {
+    status_t status = checkAccessPermission();
+    if (status != OK) {
+        return binder::Status::fromStatusT(status);
+    }
+    mFlinger->setGameContentType(display, on);
+    return binder::Status::ok();
+}
+
 binder::Status SurfaceComposerAIDL::captureDisplay(
         const DisplayCaptureArgs& args, const sp<IScreenCaptureListener>& captureListener) {
     status_t status = mFlinger->captureDisplay(args, captureListener);
@@ -7216,6 +7318,75 @@ binder::Status SurfaceComposerAIDL::captureLayers(
         const LayerCaptureArgs& args, const sp<IScreenCaptureListener>& captureListener) {
     status_t status = mFlinger->captureLayers(args, captureListener);
     return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::isWideColorDisplay(const sp<IBinder>& token,
+                                                       bool* outIsWideColorDisplay) {
+    status_t status = mFlinger->isWideColorDisplay(token, outIsWideColorDisplay);
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
+                                                                bool* outSupport) {
+    status_t status = mFlinger->getDisplayBrightnessSupport(displayToken, outSupport);
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::setDisplayBrightness(const sp<IBinder>& displayToken,
+                                                         const gui::DisplayBrightness& brightness) {
+    status_t status = checkControlDisplayBrightnessPermission();
+    if (status == OK) {
+        status = mFlinger->setDisplayBrightness(displayToken, brightness);
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::addHdrLayerInfoListener(
+        const sp<IBinder>& displayToken, const sp<gui::IHdrLayerInfoListener>& listener) {
+    status_t status = checkControlDisplayBrightnessPermission();
+    if (status == OK) {
+        status = mFlinger->addHdrLayerInfoListener(displayToken, listener);
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::removeHdrLayerInfoListener(
+        const sp<IBinder>& displayToken, const sp<gui::IHdrLayerInfoListener>& listener) {
+    status_t status = checkControlDisplayBrightnessPermission();
+    if (status == OK) {
+        status = mFlinger->removeHdrLayerInfoListener(displayToken, listener);
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::notifyPowerBoost(int boostId) {
+    status_t status = checkAccessPermission();
+    if (status == OK) {
+        status = mFlinger->notifyPowerBoost(boostId);
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+status_t SurfaceComposerAIDL::checkAccessPermission(bool usePermissionCache) {
+    if (!mFlinger->callingThreadHasUnscopedSurfaceFlingerAccess(usePermissionCache)) {
+        IPCThreadState* ipc = IPCThreadState::self();
+        ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d", ipc->getCallingPid(),
+              ipc->getCallingUid());
+        return PERMISSION_DENIED;
+    }
+    return OK;
+}
+
+status_t SurfaceComposerAIDL::checkControlDisplayBrightnessPermission() {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+    if ((uid != AID_GRAPHICS) &&
+        !PermissionCache::checkPermission(sControlDisplayBrightness, pid, uid)) {
+        ALOGE("Permission Denial: can't control brightness pid=%d, uid=%d", pid, uid);
+        return PERMISSION_DENIED;
+    }
+    return OK;
 }
 
 } // namespace android
