@@ -33,10 +33,7 @@ public:
     MOCK_METHOD0(miniDump, std::string());
     MOCK_METHOD0(incrementTotalFrames, void());
     MOCK_METHOD0(incrementMissedFrames, void());
-    MOCK_METHOD0(incrementClientCompositionFrames, void());
-    MOCK_METHOD0(incrementClientCompositionReusedFrames, void());
     MOCK_METHOD0(incrementRefreshRateSwitches, void());
-    MOCK_METHOD0(incrementCompositionStrategyChanges, void());
     MOCK_METHOD1(recordDisplayEventConnectionCount, void(int32_t));
     MOCK_METHOD2(recordFrameDuration, void(nsecs_t, nsecs_t));
     MOCK_METHOD2(recordRenderEngineDuration, void(nsecs_t, nsecs_t));
@@ -63,6 +60,8 @@ public:
                  void(hardware::graphics::composer::V2_4::IComposerClient::PowerMode));
     MOCK_METHOD2(recordRefreshRate, void(uint32_t, nsecs_t));
     MOCK_METHOD1(setPresentFenceGlobal, void(const std::shared_ptr<FenceTime>&));
+    MOCK_METHOD(void, pushCompositionStrategyState,
+                (const android::TimeStats::ClientCompositionRecord&), (override));
 };
 
 } // namespace android::mock

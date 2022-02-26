@@ -45,7 +45,7 @@ public:
     virtual ~TimeStats() = default;
 
     // Process a pull request from statsd.
-    virtual bool onPullAtom(const int atomId, std::string* pulledData);
+    virtual bool onPullAtom(const int atomId, std::string* pulledData) = 0;
 
     virtual void parseArgs(bool asProto, const Vector<String16>& args, std::string& result) = 0;
     virtual bool isEnabled() = 0;
@@ -53,14 +53,8 @@ public:
 
     virtual void incrementTotalFrames() = 0;
     virtual void incrementMissedFrames() = 0;
-    virtual void incrementClientCompositionFrames() = 0;
-    virtual void incrementClientCompositionReusedFrames() = 0;
     // Increments the number of times the display refresh rate changed.
     virtual void incrementRefreshRateSwitches() = 0;
-    // Increments the number of changes in composition strategy
-    // The intention is to reflect the number of changes between hwc and gpu
-    // composition, where "gpu composition" may also include mixed composition.
-    virtual void incrementCompositionStrategyChanges() = 0;
     // Records the most up-to-date count of display event connections.
     // The stored count will be the maximum ever recoded.
     virtual void recordDisplayEventConnectionCount(int32_t count) = 0;
@@ -158,6 +152,24 @@ public:
         }
     };
 
+    struct ClientCompositionRecord {
+        // Frame had client composition or mixed composition
+        bool hadClientComposition = false;
+        // Composition changed between hw composition and mixed/client composition
+        bool changed = false;
+        // Frame reused the client composition result from a previous frame
+        bool reused = false;
+        // Composition strategy predicted for frame
+        bool predicted = false;
+        // Composition strategy prediction succeeded
+        bool predictionSucceeded = false;
+
+        // Whether there is data we want to record.
+        bool hasInterestingData() const {
+            return hadClientComposition || changed || reused || predicted;
+        }
+    };
+
     virtual void incrementJankyFrames(const JankyFramesInfo& info) = 0;
     // Clean up the layer record
     virtual void onDestroy(int32_t layerId) = 0;
@@ -169,6 +181,7 @@ public:
     // Source of truth is RefrehRateStats.
     virtual void recordRefreshRate(uint32_t fps, nsecs_t duration) = 0;
     virtual void setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentFence) = 0;
+    virtual void pushCompositionStrategyState(const ClientCompositionRecord&) = 0;
 };
 
 namespace impl {
@@ -236,10 +249,7 @@ public:
 
     void incrementTotalFrames() override;
     void incrementMissedFrames() override;
-    void incrementClientCompositionFrames() override;
-    void incrementClientCompositionReusedFrames() override;
     void incrementRefreshRateSwitches() override;
-    void incrementCompositionStrategyChanges() override;
     void recordDisplayEventConnectionCount(int32_t count) override;
 
     void recordFrameDuration(nsecs_t startTime, nsecs_t endTime) override;
@@ -274,6 +284,8 @@ public:
     // Source of truth is RefrehRateStats.
     void recordRefreshRate(uint32_t fps, nsecs_t duration) override;
     void setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentFence) override;
+
+    void pushCompositionStrategyState(const ClientCompositionRecord&) override;
 
     static const size_t MAX_NUM_TIME_RECORDS = 64;
 
