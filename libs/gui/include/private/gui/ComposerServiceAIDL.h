@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_PRIVATE_GUI_COMPOSER_SERVICE_H
-#define ANDROID_PRIVATE_GUI_COMPOSER_SERVICE_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <android/gui/ISurfaceComposer.h>
+
 #include <utils/Singleton.h>
 #include <utils/StrongPointer.h>
-
 
 namespace android {
 
 // ---------------------------------------------------------------------------
-
-class ISurfaceComposer;
 
 // ---------------------------------------------------------------------------
 
@@ -38,23 +36,21 @@ class ISurfaceComposer;
 // getComposerService() for an extended period.
 //
 // (TODO: b/219785927, It's not clear that using Singleton is useful here anymore.)
-class ComposerService : public Singleton<ComposerService>
-{
-    sp<ISurfaceComposer> mComposerService;
+class ComposerServiceAIDL : public Singleton<ComposerServiceAIDL> {
+    sp<gui::ISurfaceComposer> mComposerService;
     sp<IBinder::DeathRecipient> mDeathObserver;
-    Mutex mLock;
+    mutable std::mutex mMutex;
 
-    ComposerService();
+    ComposerServiceAIDL();
     bool connectLocked();
     void composerServiceDied();
-    friend class Singleton<ComposerService>;
+    friend class Singleton<ComposerServiceAIDL>;
+
 public:
     // Get a connection to the Composer Service.  This will block until
     // a connection is established. Returns null if permission is denied.
-    static sp<ISurfaceComposer> getComposerService();
+    static sp<gui::ISurfaceComposer> getComposerService();
 };
 
 // ---------------------------------------------------------------------------
 }; // namespace android
-
-#endif // ANDROID_PRIVATE_GUI_COMPOSER_SERVICE_H

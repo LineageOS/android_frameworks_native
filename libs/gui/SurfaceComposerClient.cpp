@@ -46,6 +46,7 @@
 #include <ui/DynamicDisplayInfo.h>
 
 #include <private/gui/ComposerService.h>
+#include <private/gui/ComposerServiceAIDL.h>
 
 // This server size should always be smaller than the server cache size
 #define BUFFER_CACHE_MAX_SIZE 64
@@ -62,6 +63,7 @@ using ui::ColorMode;
 // ---------------------------------------------------------------------------
 
 ANDROID_SINGLETON_STATIC_INSTANCE(ComposerService);
+ANDROID_SINGLETON_STATIC_INSTANCE(ComposerServiceAIDL);
 
 namespace {
 // Initialize transaction id counter used to generate transaction ids
@@ -116,6 +118,52 @@ bool ComposerService::connectLocked() {
 void ComposerService::composerServiceDied()
 {
     Mutex::Autolock _l(mLock);
+    mComposerService = nullptr;
+    mDeathObserver = nullptr;
+}
+
+ComposerServiceAIDL::ComposerServiceAIDL() : Singleton<ComposerServiceAIDL>() {
+    std::scoped_lock lock(mMutex);
+    connectLocked();
+}
+
+bool ComposerServiceAIDL::connectLocked() {
+    const String16 name("SurfaceFlingerAIDL");
+    mComposerService = waitForService<gui::ISurfaceComposer>(name);
+    if (mComposerService == nullptr) {
+        return false; // fatal error or permission problem
+    }
+
+    // Create the death listener.
+    class DeathObserver : public IBinder::DeathRecipient {
+        ComposerServiceAIDL& mComposerService;
+        virtual void binderDied(const wp<IBinder>& who) {
+            ALOGW("ComposerService aidl remote (surfaceflinger) died [%p]", who.unsafe_get());
+            mComposerService.composerServiceDied();
+        }
+
+    public:
+        explicit DeathObserver(ComposerServiceAIDL& mgr) : mComposerService(mgr) {}
+    };
+
+    mDeathObserver = new DeathObserver(*const_cast<ComposerServiceAIDL*>(this));
+    IInterface::asBinder(mComposerService)->linkToDeath(mDeathObserver);
+    return true;
+}
+
+/*static*/ sp<gui::ISurfaceComposer> ComposerServiceAIDL::getComposerService() {
+    ComposerServiceAIDL& instance = ComposerServiceAIDL::getInstance();
+    std::scoped_lock lock(instance.mMutex);
+    if (instance.mComposerService == nullptr) {
+        if (ComposerServiceAIDL::getInstance().connectLocked()) {
+            ALOGD("ComposerServiceAIDL reconnected");
+        }
+    }
+    return instance.mComposerService;
+}
+
+void ComposerServiceAIDL::composerServiceDied() {
+    std::scoped_lock lock(mMutex);
     mComposerService = nullptr;
     mDeathObserver = nullptr;
 }
@@ -2267,26 +2315,29 @@ status_t SurfaceComposerClient::removeWindowInfosListener(
 
 status_t ScreenshotClient::captureDisplay(const DisplayCaptureArgs& captureArgs,
                                           const sp<IScreenCaptureListener>& captureListener) {
-    sp<ISurfaceComposer> s(ComposerService::getComposerService());
+    sp<gui::ISurfaceComposer> s(ComposerServiceAIDL::getComposerService());
     if (s == nullptr) return NO_INIT;
 
-    return s->captureDisplay(captureArgs, captureListener);
+    binder::Status status = s->captureDisplay(captureArgs, captureListener);
+    return status.transactionError();
 }
 
 status_t ScreenshotClient::captureDisplay(DisplayId displayId,
                                           const sp<IScreenCaptureListener>& captureListener) {
-    sp<ISurfaceComposer> s(ComposerService::getComposerService());
+    sp<gui::ISurfaceComposer> s(ComposerServiceAIDL::getComposerService());
     if (s == nullptr) return NO_INIT;
 
-    return s->captureDisplay(displayId, captureListener);
+    binder::Status status = s->captureDisplayById(displayId.value, captureListener);
+    return status.transactionError();
 }
 
 status_t ScreenshotClient::captureLayers(const LayerCaptureArgs& captureArgs,
                                          const sp<IScreenCaptureListener>& captureListener) {
-    sp<ISurfaceComposer> s(ComposerService::getComposerService());
+    sp<gui::ISurfaceComposer> s(ComposerServiceAIDL::getComposerService());
     if (s == nullptr) return NO_INIT;
 
-    return s->captureLayers(captureArgs, captureListener);
+    binder::Status status = s->captureLayers(captureArgs, captureListener);
+    return status.transactionError();
 }
 
 // ---------------------------------------------------------------------------------
