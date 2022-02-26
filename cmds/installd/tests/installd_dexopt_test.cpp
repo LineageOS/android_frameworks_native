@@ -50,6 +50,8 @@ using android::base::unique_fd;
 namespace android {
 namespace installd {
 
+constexpr int kTimeoutMs = 60000;
+
 // TODO(calin): try to dedup this code.
 #if defined(__arm__)
 static const std::string kRuntimeIsa = "arm";
@@ -1072,7 +1074,7 @@ class ProfileTest : public DexoptTest {
             _exit(0);
         }
         /* parent */
-        ASSERT_TRUE(WIFEXITED(wait_child(pid)));
+        ASSERT_TRUE(WIFEXITED(wait_child_with_timeout(pid, kTimeoutMs)));
     }
 
     void mergePackageProfiles(const std::string& package_name,
@@ -1376,7 +1378,7 @@ class BootProfileTest : public ProfileTest {
             _exit(0);
         }
         /* parent */
-        ASSERT_TRUE(WIFEXITED(wait_child(pid)));
+        ASSERT_TRUE(WIFEXITED(wait_child_with_timeout(pid, kTimeoutMs)));
     }
   protected:
     std::string intial_android_profiles_dir;
