@@ -18,6 +18,8 @@ package android.gui;
 
 import android.gui.DisplayCaptureArgs;
 import android.gui.DisplayBrightness;
+import android.gui.DisplayState;
+import android.gui.DisplayStatInfo;
 import android.gui.IHdrLayerInfoListener;
 import android.gui.LayerCaptureArgs;
 import android.gui.IScreenCaptureListener;
@@ -51,6 +53,16 @@ interface ISurfaceComposer {
      * requires ACCESS_SURFACE_FLINGER permission.
      */
     void setPowerMode(IBinder display, int mode);
+
+    /* returns display statistics for a given display
+     * intended to be used by the media framework to properly schedule
+     * video frames */
+    DisplayStatInfo getDisplayStats(IBinder display);
+
+     /**
+     * Get transactional state of given display.
+     */
+    DisplayState getDisplayState(IBinder display);
 
     /**
      * Clears the user-preferred display mode. The device should now boot in system preferred
