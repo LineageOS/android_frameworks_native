@@ -1438,7 +1438,7 @@ private:
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {
 public:
-    SurfaceComposerAIDL(sp<SurfaceFlinger> sf) { mFlinger = sf; }
+    SurfaceComposerAIDL(sp<SurfaceFlinger> sf) : mFlinger(std::move(sf)) {}
 
     binder::Status createDisplay(const std::string& displayName, bool secure,
                                  sp<IBinder>* outDisplay) override;
