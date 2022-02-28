@@ -462,3 +462,12 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.enable_sdr_dimming"
 }
+
+# Ignores Camera layers when calculating HDR coverage information
+prop {
+    api_name: "ignore_hdr_camera_layers"
+    type: Boolean
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.ignore_hdr_camera_layers"
+}

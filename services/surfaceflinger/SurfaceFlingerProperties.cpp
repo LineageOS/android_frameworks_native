@@ -371,5 +371,9 @@ bool enable_layer_caching(bool defaultValue) {
     return SurfaceFlingerProperties::enable_layer_caching().value_or(defaultValue);
 }
 
+bool ignore_hdr_camera_layers(bool defaultValue) {
+    return SurfaceFlingerProperties::ignore_hdr_camera_layers().value_or(defaultValue);
+}
+
 } // namespace sysprop
 } // namespace android
