@@ -37,6 +37,8 @@
 #include <ui/Region.h>
 #include <ui/Transform.h>
 
+#include "DisplayHardware/HWComposer.h"
+
 namespace android {
 
 namespace compositionengine::impl {
@@ -113,6 +115,8 @@ struct OutputCompositionState {
 
     // Current target dataspace
     ui::Dataspace targetDataspace{ui::Dataspace::UNKNOWN};
+
+    std::optional<android::HWComposer::DeviceRequestedChanges> previousDeviceRequestedChanges{};
 
     // The earliest time to send the present command to the HAL
     std::chrono::steady_clock::time_point earliestPresentTime;
