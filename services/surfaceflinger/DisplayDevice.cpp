@@ -236,6 +236,15 @@ DisplayModePtr DisplayDevice::getMode(DisplayModeId modeId) const {
     return nullptr;
 }
 
+DisplayModePtr DisplayDevice::getModefromHwcId(uint32_t hwcId) const {
+    const auto it = std::find_if(mSupportedModes.begin(), mSupportedModes.end(),
+                                 [&](DisplayModePtr mode) { return mode->getHwcId() == hwcId; });
+    if (it != mSupportedModes.end()) {
+        return *it;
+    }
+    return nullptr;
+}
+
 nsecs_t DisplayDevice::getVsyncPeriodFromHWC() const {
     const auto physicalId = getPhysicalId();
     if (!mHwComposer.isConnected(physicalId)) {
@@ -461,7 +470,13 @@ HdrCapabilities DisplayDevice::getHdrCapabilities() const {
 }
 
 ui::DisplayModeId DisplayDevice::getPreferredBootModeId() const {
-    return mCompositionDisplay->getPreferredBootModeId();
+    const auto preferredBootHwcModeId = mCompositionDisplay->getPreferredBootHwcConfigId();
+    const auto mode = getModefromHwcId(preferredBootHwcModeId);
+    if (mode == nullptr) {
+        ALOGE("%s: invalid display mode (%d)", __FUNCTION__, preferredBootHwcModeId);
+        return BAD_VALUE;
+    }
+    return mode->getId().value();
 }
 
 void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinnner) {

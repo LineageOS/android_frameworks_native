@@ -232,6 +232,9 @@ public:
     // set-top boxes after a hotplug reconnect.
     DisplayModePtr getMode(DisplayModeId) const;
 
+    // Returns nullptr if the given mode ID is not supported.
+    DisplayModePtr getModefromHwcId(uint32_t) const;
+
     // Returns the refresh rate configs for this display.
     scheduler::RefreshRateConfigs& refreshRateConfigs() const { return *mRefreshRateConfigs; }
 
