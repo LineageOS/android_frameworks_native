@@ -269,6 +269,14 @@ public:
                     support) = 0;
 };
 
+static inline bool operator==(const android::HWComposer::DeviceRequestedChanges& lhs,
+                              const android::HWComposer::DeviceRequestedChanges& rhs) {
+    return lhs.changedTypes == rhs.changedTypes && lhs.displayRequests == rhs.displayRequests &&
+            lhs.layerRequests == rhs.layerRequests &&
+            lhs.clientTargetProperty == rhs.clientTargetProperty &&
+            lhs.clientTargetBrightness == rhs.clientTargetBrightness;
+}
+
 namespace impl {
 
 class HWComposer final : public android::HWComposer {
