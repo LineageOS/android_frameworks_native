@@ -3962,24 +3962,6 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
 void SurfaceFlinger::queueTransaction(TransactionState& state) {
     Mutex::Autolock _l(mQueueLock);
 
-    // If its TransactionQueue already has a pending TransactionState or if it is pending
-    auto itr = mPendingTransactionQueues.find(state.applyToken);
-    // if this is an animation frame, wait until prior animation frame has
-    // been applied by SF
-    if (state.flags & eAnimation) {
-        while (itr != mPendingTransactionQueues.end()) {
-            status_t err =
-                    mTransactionQueueCV.waitRelative(mQueueLock, mAnimationTransactionTimeout);
-            if (CC_UNLIKELY(err != NO_ERROR)) {
-                ALOGW_IF(err == TIMED_OUT,
-                         "setTransactionState timed out "
-                         "waiting for animation frame to apply");
-                break;
-            }
-            itr = mPendingTransactionQueues.find(state.applyToken);
-        }
-    }
-
     // Generate a CountDownLatch pending state if this is a synchronous transaction.
     if ((state.flags & eSynchronous) || state.inputWindowCommands.syncInputWindows) {
         state.transactionCommittedSignal = std::make_shared<CountDownLatch>(
