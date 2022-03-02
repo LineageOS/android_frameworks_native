@@ -53,6 +53,11 @@ static const int32_t DEVICE_ID = 1;
 static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
 static constexpr int32_t SECOND_DISPLAY_ID = 1;
 
+static constexpr int32_t POINTER_1_DOWN =
+        AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+static constexpr int32_t POINTER_1_UP =
+        AMOTION_EVENT_ACTION_POINTER_UP | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+
 // An arbitrary injector pid / uid pair that has permission to inject events.
 static const int32_t INJECTOR_PID = 999;
 static const int32_t INJECTOR_UID = 1001;
@@ -578,11 +583,10 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
 
     // Rejects pointer down with invalid index.
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
-                     AMOTION_EVENT_ACTION_POINTER_DOWN |
-                             (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                     0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     identityTransform, ARBITRARY_TIME, ARBITRARY_TIME,
+                     POINTER_1_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
+                     identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, ARBITRARY_TIME,
+                     ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -603,11 +607,10 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
 
     // Rejects pointer up with invalid index.
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
-                     AMOTION_EVENT_ACTION_POINTER_UP |
-                             (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                     0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     identityTransform, ARBITRARY_TIME, ARBITRARY_TIME,
+                     POINTER_1_UP, 0, 0, edgeFlags, metaState, 0, classification, identityTransform,
+                     0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, ARBITRARY_TIME,
+                     ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -1496,6 +1499,10 @@ static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source, int32
     return args;
 }
 
+static NotifyMotionArgs generateTouchArgs(int32_t action, const std::vector<PointF>& points) {
+    return generateMotionArgs(action, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID, points);
+}
+
 static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source, int32_t displayId) {
     return generateMotionArgs(action, source, displayId, {PointF{100, 200}});
 }
@@ -1731,9 +1738,7 @@ TEST_F(InputDispatcherTest, WallpaperWindow_ReceivesMultiTouch) {
 
     // Second finger down on the top window
     const MotionEvent secondFingerDownEvent =
-            MotionEventBuilder(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN)
+            MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
                     .pointer(PointerBuilder(/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER)
                                      .x(100)
@@ -1796,9 +1801,7 @@ TEST_F(InputDispatcherTest, TwoWindows_SplitWallpaperTouch) {
 
     // Second finger down on the right window
     const MotionEvent secondFingerDownEvent =
-            MotionEventBuilder(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN)
+            MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
                     .pointer(PointerBuilder(/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER)
                                      .x(100)
@@ -1844,6 +1847,61 @@ TEST_F(InputDispatcherTest, TwoWindows_SplitWallpaperTouch) {
     leftWindow->assertNoEvents();
     rightWindow->assertNoEvents();
     wallpaperWindow->assertNoEvents();
+}
+
+/**
+ * On the display, have a single window, and also an area where there's no window.
+ * First pointer touches the "no window" area of the screen. Second pointer touches the window.
+ * Make sure that the window receives the second pointer, and first pointer is simply ignored.
+ */
+TEST_F(InputDispatcherTest, SplitWorksWhenEmptyAreaIsTouched) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Window", DISPLAY_ID);
+
+    mDispatcher->setInputWindows({{DISPLAY_ID, {window}}});
+    NotifyMotionArgs args;
+
+    // Touch down on the empty space
+    mDispatcher->notifyMotion(&(args = generateTouchArgs(AMOTION_EVENT_ACTION_DOWN, {{-1, -1}})));
+
+    mDispatcher->waitForIdle();
+    window->assertNoEvents();
+
+    // Now touch down on the window with another pointer
+    mDispatcher->notifyMotion(&(args = generateTouchArgs(POINTER_1_DOWN, {{-1, -1}, {10, 10}})));
+    mDispatcher->waitForIdle();
+    window->consumeMotionDown();
+}
+
+/**
+ * Same test as above, but instead of touching the empty space, the first touch goes to
+ * non-touchable window.
+ */
+TEST_F(InputDispatcherTest, SplitWorksWhenNonTouchableWindowIsTouched) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window1 =
+            new FakeWindowHandle(application, mDispatcher, "Window1", DISPLAY_ID);
+    window1->setTouchableRegion(Region{{0, 0, 100, 100}});
+    window1->setTouchable(false);
+    sp<FakeWindowHandle> window2 =
+            new FakeWindowHandle(application, mDispatcher, "Window2", DISPLAY_ID);
+    window2->setTouchableRegion(Region{{100, 0, 200, 100}});
+
+    mDispatcher->setInputWindows({{DISPLAY_ID, {window1, window2}}});
+
+    NotifyMotionArgs args;
+    // Touch down on the non-touchable window
+    mDispatcher->notifyMotion(&(args = generateTouchArgs(AMOTION_EVENT_ACTION_DOWN, {{50, 50}})));
+
+    mDispatcher->waitForIdle();
+    window1->assertNoEvents();
+    window2->assertNoEvents();
+
+    // Now touch down on the window with another pointer
+    mDispatcher->notifyMotion(&(args = generateTouchArgs(POINTER_1_DOWN, {{50, 50}, {150, 50}})));
+    mDispatcher->waitForIdle();
+    window2->consumeMotionDown();
 }
 
 TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
@@ -2316,9 +2374,7 @@ TEST_P(TransferTouchFixture, TransferTouch_TwoPointersNonSplitTouch) {
 
     // Send pointer down to the first window
     NotifyMotionArgs pointerDownMotionArgs =
-            generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+            generateMotionArgs(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                {touchPoint, touchPoint});
     mDispatcher->notifyMotion(&pointerDownMotionArgs);
     // Only the first window should get the pointer down event
@@ -2336,9 +2392,7 @@ TEST_P(TransferTouchFixture, TransferTouch_TwoPointersNonSplitTouch) {
 
     // Send pointer up to the second window
     NotifyMotionArgs pointerUpMotionArgs =
-            generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+            generateMotionArgs(POINTER_1_UP, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                {touchPoint, touchPoint});
     mDispatcher->notifyMotion(&pointerUpMotionArgs);
     // The first window gets nothing and the second gets pointer up
@@ -2398,9 +2452,7 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointersSplitTouch) {
 
     // Send down to the second window
     NotifyMotionArgs secondDownMotionArgs =
-            generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+            generateMotionArgs(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                {pointInFirst, pointInSecond});
     mDispatcher->notifyMotion(&secondDownMotionArgs);
     // The first window gets a move and the second a down
@@ -2415,9 +2467,7 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointersSplitTouch) {
 
     // Send pointer up to the second window
     NotifyMotionArgs pointerUpMotionArgs =
-            generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+            generateMotionArgs(POINTER_1_UP, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                {pointInFirst, pointInSecond});
     mDispatcher->notifyMotion(&pointerUpMotionArgs);
     // The first window gets nothing and the second gets pointer up
@@ -2466,9 +2516,7 @@ TEST_F(InputDispatcherTest, TransferTouch_TwoPointersSplitTouch) {
 
     // Send down to the second window
     NotifyMotionArgs secondDownMotionArgs =
-            generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+            generateMotionArgs(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                {pointInFirst, pointInSecond});
     mDispatcher->notifyMotion(&secondDownMotionArgs);
     // The first window gets a move and the second a down
@@ -2485,9 +2533,7 @@ TEST_F(InputDispatcherTest, TransferTouch_TwoPointersSplitTouch) {
     // The rest of the dispatch should proceed as normal
     // Send pointer up to the second window
     NotifyMotionArgs pointerUpMotionArgs =
-            generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+            generateMotionArgs(POINTER_1_UP, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                {pointInFirst, pointInSecond});
     mDispatcher->notifyMotion(&pointerUpMotionArgs);
     // The first window gets MOVE and the second gets pointer up
@@ -2704,9 +2750,7 @@ TEST_F(InputDispatcherTest, PointerCancel_SendCancelWhenSplitTouch) {
 
     // Send down to the second window
     NotifyMotionArgs secondDownMotionArgs =
-            generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+            generateMotionArgs(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                {pointInFirst, pointInSecond});
     mDispatcher->notifyMotion(&secondDownMotionArgs);
     // The first window gets a move and the second a down
@@ -2715,9 +2759,7 @@ TEST_F(InputDispatcherTest, PointerCancel_SendCancelWhenSplitTouch) {
 
     // Send pointer cancel to the second window
     NotifyMotionArgs pointerUpMotionArgs =
-            generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+            generateMotionArgs(POINTER_1_UP, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                {pointInFirst, pointInSecond});
     pointerUpMotionArgs.flags |= AMOTION_EVENT_FLAG_CANCELED;
     mDispatcher->notifyMotion(&pointerUpMotionArgs);
@@ -4173,22 +4215,18 @@ TEST_F(InputDispatcherMultiWindowSameTokenTests, MultipleTouchDifferentTransform
     touchAndAssertPositions(AMOTION_EVENT_ACTION_DOWN, touchedPoints, expectedPoints);
 
     // Touch Window 2
-    int32_t actionPointerDown =
-            AMOTION_EVENT_ACTION_POINTER_DOWN + (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
     touchedPoints.push_back(PointF{150, 150});
     expectedPoints.push_back(getPointInWindow(mWindow2->getInfo(), touchedPoints[1]));
-    touchAndAssertPositions(actionPointerDown, touchedPoints, expectedPoints);
+    touchAndAssertPositions(POINTER_1_DOWN, touchedPoints, expectedPoints);
 
     // Release Window 2
-    int32_t actionPointerUp =
-            AMOTION_EVENT_ACTION_POINTER_UP + (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-    touchAndAssertPositions(actionPointerUp, touchedPoints, expectedPoints);
+    touchAndAssertPositions(POINTER_1_UP, touchedPoints, expectedPoints);
     expectedPoints.pop_back();
 
     // Update the transform so rotation is set for Window 2
     mWindow2->setWindowTransform(0, -1, 1, 0);
     expectedPoints.push_back(getPointInWindow(mWindow2->getInfo(), touchedPoints[1]));
-    touchAndAssertPositions(actionPointerDown, touchedPoints, expectedPoints);
+    touchAndAssertPositions(POINTER_1_DOWN, touchedPoints, expectedPoints);
 }
 
 TEST_F(InputDispatcherMultiWindowSameTokenTests, MultipleTouchMoveDifferentTransform) {
@@ -4200,12 +4238,10 @@ TEST_F(InputDispatcherMultiWindowSameTokenTests, MultipleTouchMoveDifferentTrans
     touchAndAssertPositions(AMOTION_EVENT_ACTION_DOWN, touchedPoints, expectedPoints);
 
     // Touch Window 2
-    int32_t actionPointerDown =
-            AMOTION_EVENT_ACTION_POINTER_DOWN + (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
     touchedPoints.push_back(PointF{150, 150});
     expectedPoints.push_back(getPointInWindow(mWindow2->getInfo(), touchedPoints[1]));
 
-    touchAndAssertPositions(actionPointerDown, touchedPoints, expectedPoints);
+    touchAndAssertPositions(POINTER_1_DOWN, touchedPoints, expectedPoints);
 
     // Move both windows
     touchedPoints = {{20, 20}, {175, 175}};
@@ -4215,15 +4251,13 @@ TEST_F(InputDispatcherMultiWindowSameTokenTests, MultipleTouchMoveDifferentTrans
     touchAndAssertPositions(AMOTION_EVENT_ACTION_MOVE, touchedPoints, expectedPoints);
 
     // Release Window 2
-    int32_t actionPointerUp =
-            AMOTION_EVENT_ACTION_POINTER_UP + (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-    touchAndAssertPositions(actionPointerUp, touchedPoints, expectedPoints);
+    touchAndAssertPositions(POINTER_1_UP, touchedPoints, expectedPoints);
     expectedPoints.pop_back();
 
     // Touch Window 2
     mWindow2->setWindowTransform(0, -1, 1, 0);
     expectedPoints.push_back(getPointInWindow(mWindow2->getInfo(), touchedPoints[1]));
-    touchAndAssertPositions(actionPointerDown, touchedPoints, expectedPoints);
+    touchAndAssertPositions(POINTER_1_DOWN, touchedPoints, expectedPoints);
 
     // Move both windows
     touchedPoints = {{20, 20}, {175, 175}};
@@ -4242,12 +4276,10 @@ TEST_F(InputDispatcherMultiWindowSameTokenTests, MultipleWindowsFirstTouchWithSc
     touchAndAssertPositions(AMOTION_EVENT_ACTION_DOWN, touchedPoints, expectedPoints);
 
     // Touch Window 2
-    int32_t actionPointerDown =
-            AMOTION_EVENT_ACTION_POINTER_DOWN + (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
     touchedPoints.push_back(PointF{150, 150});
     expectedPoints.push_back(getPointInWindow(mWindow2->getInfo(), touchedPoints[1]));
 
-    touchAndAssertPositions(actionPointerDown, touchedPoints, expectedPoints);
+    touchAndAssertPositions(POINTER_1_DOWN, touchedPoints, expectedPoints);
 
     // Move both windows
     touchedPoints = {{20, 20}, {175, 175}};
@@ -4978,12 +5010,8 @@ TEST_F(InputDispatcherMultiWindowAnr, SplitTouch_SingleWindowAnr) {
                                    ADISPLAY_ID_DEFAULT, 0 /*flags*/);
 
     // Touch Window 2
-    int32_t actionPointerDown =
-            AMOTION_EVENT_ACTION_POINTER_DOWN + (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-
-    motionArgs =
-            generateMotionArgs(actionPointerDown, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
-                               {FOCUSED_WINDOW_LOCATION, UNFOCUSED_WINDOW_LOCATION});
+    motionArgs = generateMotionArgs(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                                    {FOCUSED_WINDOW_LOCATION, UNFOCUSED_WINDOW_LOCATION});
     mDispatcher->notifyMotion(&motionArgs);
 
     const std::chrono::duration timeout =
@@ -6509,9 +6537,7 @@ TEST_F(InputDispatcherSpyWindowTest, ContinuesToReceiveGestureAfterPilfer) {
 
     // Second finger down on the window and spy, but the window should not receive the pointer down.
     const MotionEvent secondFingerDownEvent =
-            MotionEventBuilder(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN)
+            MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
                     .pointer(PointerBuilder(/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER)
@@ -6569,9 +6595,7 @@ TEST_F(InputDispatcherSpyWindowTest, ReceivesMultiplePointers) {
     spy->consumeMotionDown();
 
     const MotionEvent secondFingerDownEvent =
-            MotionEventBuilder(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN)
+            MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
                     .pointer(PointerBuilder(/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
                     .pointer(
@@ -6604,9 +6628,7 @@ TEST_F(InputDispatcherSpyWindowTest, ReceivesSecondPointerAsDown) {
     spyRight->assertNoEvents();
 
     const MotionEvent secondFingerDownEvent =
-            MotionEventBuilder(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN)
+            MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
                     .pointer(PointerBuilder(/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
                     .pointer(
@@ -6645,9 +6667,7 @@ TEST_F(InputDispatcherSpyWindowTest, SplitIfNoForegroundWindowTouched) {
 
     // Second finger down on window, the window should receive touch down.
     const MotionEvent secondFingerDownEvent =
-            MotionEventBuilder(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN)
+            MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
                     .pointer(PointerBuilder(/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER)
