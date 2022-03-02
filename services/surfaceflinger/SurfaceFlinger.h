@@ -345,6 +345,11 @@ public:
     void disableExpensiveRendering();
     FloatRect getMaxDisplayBounds();
 
+    // If set, composition engine tries to predict the composition strategy provided by HWC
+    // based on the previous frame. If the strategy can be predicted, gpu composition will
+    // run parallel to the hwc validateDisplay call and re-run if the predition is incorrect.
+    bool mPredictCompositionStrategy = false;
+
 protected:
     // We're reference counted, never destroy SurfaceFlinger directly
     virtual ~SurfaceFlinger();
@@ -1143,6 +1148,8 @@ private:
     void updateInternalDisplayVsyncLocked(const sp<DisplayDevice>& activeDisplay)
             REQUIRES(mStateLock);
 
+    bool isHdrLayer(Layer* layer) const;
+
     sp<StartPropertySetThread> mStartPropertySetThread;
     surfaceflinger::Factory& mFactory;
     pid_t mPid;
@@ -1191,6 +1198,7 @@ private:
     // Used to ensure we omit a callback when HDR layer info listener is newly added but the
     // scene hasn't changed
     bool mAddingHDRLayerInfoListener = false;
+    bool mIgnoreHdrCameraLayers = false;
 
     // Set during transaction application stage to track if the input info or children
     // for a layer has changed.

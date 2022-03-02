@@ -232,7 +232,7 @@ void convertToSensorEvent(const Event &src, sensors_event_t *dst) {
                     break;
                 }
                 default: {
-                    ALOGE("Invalid sensor additional info tag: %d", srcInfo.payload.getTag());
+                    ALOGE("Invalid sensor additional info tag: %d", (int)srcInfo.payload.getTag());
                 }
             }
             break;

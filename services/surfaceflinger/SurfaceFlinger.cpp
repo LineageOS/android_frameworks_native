@@ -480,6 +480,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     property_get("debug.sf.disable_client_composition_cache", value, "0");
     mDisableClientCompositionCache = atoi(value);
 
+    property_get("debug.sf.predict_hwc_composition_strategy", value, "0");
+    mPredictCompositionStrategy = atoi(value);
+
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
     // comes online to attempt to read the property. The property is
@@ -500,6 +503,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     if (!mIsUserBuild && base::GetBoolProperty("debug.sf.enable_transaction_tracing"s, true)) {
         mTransactionTracing.emplace();
     }
+
+    mIgnoreHdrCameraLayers = ignore_hdr_camera_layers(false);
 }
 
 LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
@@ -2383,6 +2388,19 @@ void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
     getBE().mCompositorTiming.presentLatency = snappedCompositeToPresentLatency;
 }
 
+bool SurfaceFlinger::isHdrLayer(Layer* layer) const {
+    if (!isHdrDataspace(layer->getDataSpace())) {
+        return false;
+    }
+    if (mIgnoreHdrCameraLayers) {
+        auto buffer = layer->getBuffer();
+        if (buffer && (buffer->getUsage() & GRALLOC_USAGE_HW_CAMERA_WRITE) != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void SurfaceFlinger::postComposition() {
     ATRACE_CALL();
     ALOGV("postComposition");
@@ -2468,7 +2486,7 @@ void SurfaceFlinger::postComposition() {
             mDrawingState.traverse([&, compositionDisplay = compositionDisplay](Layer* layer) {
                 const auto layerFe = layer->getCompositionEngineLayerFE();
                 if (layer->isVisible() && compositionDisplay->includesLayer(layerFe)) {
-                    if (isHdrDataspace(layer->getDataSpace())) {
+                    if (isHdrLayer(layer)) {
                         const auto* outputLayer =
                             compositionDisplay->getOutputLayerForLayer(layerFe);
                         if (outputLayer) {
