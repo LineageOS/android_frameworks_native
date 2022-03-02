@@ -153,6 +153,7 @@ cc_library_shared {
     name: "libEGL",
     defaults: [
         "egl_libs_defaults",
+        "egl_display_array_defaults",
         "nvidia_enhancements_defaults"
     ],
     llndk: {
