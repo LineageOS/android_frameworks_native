@@ -143,6 +143,14 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> m
                   clientCompositionReusedFramesLegacy);
     StringAppendF(&result, "refreshRateSwitches = %d\n", refreshRateSwitchesLegacy);
     StringAppendF(&result, "compositionStrategyChanges = %d\n", compositionStrategyChangesLegacy);
+    StringAppendF(&result, "compositionStrategyPredicted = %d\n",
+                  compositionStrategyPredictedLegacy);
+    StringAppendF(&result, "compositionStrategyPredictionSucceeded = %d\n",
+                  compositionStrategyPredictionSucceededLegacy);
+    StringAppendF(&result, "compositionStrategyPredictionFailed = %d\n",
+                  compositionStrategyPredictedLegacy -
+                          compositionStrategyPredictionSucceededLegacy);
+
     StringAppendF(&result, "displayOnTime = %" PRId64 " ms\n", displayOnTimeLegacy);
     StringAppendF(&result, "displayConfigStats is as below:\n");
     for (const auto& [fps, duration] : refreshRateStatsLegacy) {
