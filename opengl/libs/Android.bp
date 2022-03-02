@@ -164,6 +164,10 @@ cc_library_shared {
         "aconfig_lib_cc_static_link.defaults",
         "egl_libs_defaults",
     ],
+    cflags: select(soong_config_variable("EGL", "USE_DISPLAY_ARRAY"), {
+        "true": ["-DEGL_DISPLAY_ARRAY"],
+        default: [],
+    }),
     llndk: {
         symbol_file: "libEGL.map.txt",
         export_llndk_headers: ["gl_headers"],
