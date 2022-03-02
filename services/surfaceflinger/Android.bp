@@ -115,10 +115,6 @@ cc_defaults {
     },
     whole_program_vtables: true, // Requires ThinLTO
     afdo: true,
-    // TODO(b/131771163): Fix broken fuzzer support with LTO.
-    sanitize: {
-        fuzzer: false,
-    },
 }
 
 cc_library_headers {
