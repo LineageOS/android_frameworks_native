@@ -100,6 +100,7 @@ public:
                              std::vector<uint32_t>* outLayerRequestMasks) override;
 
     Error getDozeSupport(Display display, bool* outSupport) override;
+    Error hasDisplayIdleTimerCapability(Display display, bool* outSupport) override;
     Error getHdrCapabilities(Display display, std::vector<Hdr>* outTypes, float* outMaxLuminance,
                              float* outMaxAverageLuminance, float* outMinLuminance) override;
 
@@ -220,6 +221,7 @@ public:
     Error getPreferredBootDisplayConfig(Display displayId, Config*) override;
     Error getDisplayDecorationSupport(Display display,
                                       std::optional<DisplayDecorationSupport>* support) override;
+    Error setIdleTimerEnabled(Display displayId, std::chrono::milliseconds timeout) override;
 
 private:
     // Many public functions above simply write a command into the command

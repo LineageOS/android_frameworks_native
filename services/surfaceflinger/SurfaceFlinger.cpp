@@ -169,6 +169,8 @@
 using aidl::android::hardware::graphics::common::DisplayDecorationSupport;
 using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
+using KernelIdleTimerController =
+        ::android::scheduler::RefreshRateConfigs::KernelIdleTimerController;
 
 namespace android {
 
@@ -270,39 +272,33 @@ bool validateCompositionDataspace(Dataspace dataspace) {
     return dataspace == Dataspace::V0_SRGB || dataspace == Dataspace::DISPLAY_P3;
 }
 
-
-struct IdleTimerConfig {
-    int32_t timeoutMs;
-    bool supportKernelIdleTimer;
-};
-
-IdleTimerConfig getIdleTimerConfiguration(DisplayId displayId) {
-    // TODO(adyabr): use ro.surface_flinger.* namespace
-
+std::chrono::milliseconds getIdleTimerTimeout(DisplayId displayId) {
     const auto displayIdleTimerMsKey = [displayId] {
         std::stringstream ss;
         ss << "debug.sf.set_idle_timer_ms_" << displayId.value;
         return ss.str();
     }();
 
+    const int32_t displayIdleTimerMs = base::GetIntProperty(displayIdleTimerMsKey, 0);
+    if (displayIdleTimerMs > 0) {
+        return std::chrono::milliseconds(displayIdleTimerMs);
+    }
+
+    const int32_t setIdleTimerMs = base::GetIntProperty("debug.sf.set_idle_timer_ms", 0);
+    const int32_t millis = setIdleTimerMs ? setIdleTimerMs : sysprop::set_idle_timer_ms(0);
+    return std::chrono::milliseconds(millis);
+}
+
+bool getKernelIdleTimerSyspropConfig(DisplayId displayId) {
     const auto displaySupportKernelIdleTimerKey = [displayId] {
         std::stringstream ss;
         ss << "debug.sf.support_kernel_idle_timer_" << displayId.value;
         return ss.str();
     }();
 
-    const int32_t displayIdleTimerMs = base::GetIntProperty(displayIdleTimerMsKey, 0);
     const auto displaySupportKernelIdleTimer =
             base::GetBoolProperty(displaySupportKernelIdleTimerKey, false);
-
-    if (displayIdleTimerMs > 0) {
-        return {displayIdleTimerMs, displaySupportKernelIdleTimer};
-    }
-
-    const int32_t setIdleTimerMs = base::GetIntProperty("debug.sf.set_idle_timer_ms", 0);
-    const int32_t millis = setIdleTimerMs ? setIdleTimerMs : sysprop::set_idle_timer_ms(0);
-
-    return {millis, sysprop::support_kernel_idle_timer(false)};
+    return displaySupportKernelIdleTimer || sysprop::support_kernel_idle_timer(false);
 }
 
 }  // namespace anonymous
@@ -2829,14 +2825,15 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         creationArgs.connectionType = physical->type;
         creationArgs.supportedModes = physical->supportedModes;
         creationArgs.activeModeId = physical->activeMode->getId();
-        const auto [idleTimerTimeoutMs, supportKernelIdleTimer] =
-                getIdleTimerConfiguration(compositionDisplay->getId());
+        const auto [kernelIdleTimerController, idleTimerTimeoutMs] =
+                getKernelIdleTimerProperties(compositionDisplay->getId());
+
         scheduler::RefreshRateConfigs::Config config =
                 {.enableFrameRateOverride = android::sysprop::enable_frame_rate_override(false),
                  .frameRateMultipleThreshold =
                          base::GetIntProperty("debug.sf.frame_rate_multiple_threshold", 0),
-                 .idleTimerTimeoutMs = idleTimerTimeoutMs,
-                 .supportKernelIdleTimer = supportKernelIdleTimer};
+                 .idleTimerTimeout = idleTimerTimeoutMs,
+                 .kernelIdleTimerController = kernelIdleTimerController};
         creationArgs.refreshRateConfigs =
                 std::make_shared<scheduler::RefreshRateConfigs>(creationArgs.supportedModes,
                                                                 creationArgs.activeModeId, config);
@@ -3410,7 +3407,7 @@ void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
                                                         features);
     {
         auto configs = display->holdRefreshRateConfigs();
-        if (configs->supportsKernelIdleTimer()) {
+        if (configs->kernelIdleTimerController().has_value()) {
             features |= Feature::kKernelIdleTimer;
         }
 
@@ -6148,6 +6145,47 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
     }));
 }
 
+std::pair<std::optional<KernelIdleTimerController>, std::chrono::milliseconds>
+SurfaceFlinger::getKernelIdleTimerProperties(DisplayId displayId) {
+    const bool isKernelIdleTimerHwcSupported = getHwComposer().getComposer()->isSupported(
+            android::Hwc2::Composer::OptionalFeature::KernelIdleTimer);
+    const auto timeout = getIdleTimerTimeout(displayId);
+    if (isKernelIdleTimerHwcSupported) {
+        if (const auto id = PhysicalDisplayId::tryCast(displayId);
+            getHwComposer().hasDisplayIdleTimerCapability(*id)) {
+            // In order to decide if we can use the HWC api for idle timer
+            // we query DisplayCapability::DISPLAY_IDLE_TIMER directly on the composer
+            // without relying on hasDisplayCapability.
+            // hasDisplayCapability relies on DisplayCapabilities
+            // which are updated after we set the PowerMode::ON.
+            // DISPLAY_IDLE_TIMER is a display driver property
+            // and is available before the PowerMode::ON
+            return {KernelIdleTimerController::HwcApi, timeout};
+        }
+        return {std::nullopt, timeout};
+    }
+    if (getKernelIdleTimerSyspropConfig(displayId)) {
+        return {KernelIdleTimerController::Sysprop, timeout};
+    }
+
+    return {std::nullopt, timeout};
+}
+
+void SurfaceFlinger::updateKernelIdleTimer(std::chrono::milliseconds timeout,
+                                           KernelIdleTimerController controller,
+                                           PhysicalDisplayId displayId) {
+    switch (controller) {
+        case KernelIdleTimerController::HwcApi: {
+            getHwComposer().setIdleTimerEnabled(displayId, timeout);
+            break;
+        }
+        case KernelIdleTimerController::Sysprop: {
+            base::SetProperty(KERNEL_IDLE_TIMER_PROP, timeout > 0ms ? "true" : "false");
+            break;
+        }
+    }
+}
+
 void SurfaceFlinger::toggleKernelIdleTimer() {
     using KernelIdleTimerAction = scheduler::RefreshRateConfigs::KernelIdleTimerAction;
 
@@ -6159,23 +6197,31 @@ void SurfaceFlinger::toggleKernelIdleTimer() {
 
     // If the support for kernel idle timer is disabled for the active display,
     // don't do anything.
-    if (!display->refreshRateConfigs().supportsKernelIdleTimer()) {
+    const std::optional<KernelIdleTimerController> kernelIdleTimerController =
+            display->refreshRateConfigs().kernelIdleTimerController();
+    if (!kernelIdleTimerController.has_value()) {
         return;
     }
 
     const KernelIdleTimerAction action = display->refreshRateConfigs().getIdleTimerAction();
+
     switch (action) {
         case KernelIdleTimerAction::TurnOff:
             if (mKernelIdleTimerEnabled) {
                 ATRACE_INT("KernelIdleTimer", 0);
-                base::SetProperty(KERNEL_IDLE_TIMER_PROP, "false");
+                std::chrono::milliseconds constexpr kTimerDisabledTimeout = 0ms;
+                updateKernelIdleTimer(kTimerDisabledTimeout, kernelIdleTimerController.value(),
+                                      display->getPhysicalId());
                 mKernelIdleTimerEnabled = false;
             }
             break;
         case KernelIdleTimerAction::TurnOn:
             if (!mKernelIdleTimerEnabled) {
                 ATRACE_INT("KernelIdleTimer", 1);
-                base::SetProperty(KERNEL_IDLE_TIMER_PROP, "true");
+                const std::chrono::milliseconds timeout =
+                        display->refreshRateConfigs().getIdleTimerTimeout();
+                updateKernelIdleTimer(timeout, kernelIdleTimerController.value(),
+                                      display->getPhysicalId());
                 mKernelIdleTimerEnabled = true;
             }
             break;
