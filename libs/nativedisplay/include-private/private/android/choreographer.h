@@ -71,4 +71,9 @@ int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentatio
 int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineDeadlineNanos(
         const AChoreographerFrameCallbackData* data, size_t index);
 
+// Gets the start time (dispatch time) in nanos of the callback, given a vsync ID. This does not
+// account for clients that use multiple choreographers, because callbacks that give the same vsync
+// ID may be dispatched at different times.
+int64_t AChoreographer_getStartTimeNanosForVsyncId(AVsyncId vsyncId);
+
 } // namespace android
