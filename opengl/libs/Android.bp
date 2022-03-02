@@ -113,6 +113,23 @@ cc_defaults {
     ],
 }
 
+soong_config_module_type {
+    name: "egl_libs_ext_cc_defaults",
+    module_type: "cc_defaults",
+    config_namespace: "eglExt",
+    bool_variables: ["displayArray"],
+    properties: ["cflags"]
+}
+
+egl_libs_ext_cc_defaults {
+    name: "egl_libs_ext_defaults",
+    soong_config_variables: {
+        displayArray: {
+            cflags: ["-DEGL_EGLEXT_DISPLAY_ARRAY"]
+        }
+    }
+}
+
 cc_library_static {
     name: "libEGL_getProcAddress",
     defaults: ["egl_libs_defaults"],
@@ -136,7 +153,7 @@ cc_library_static {
 
 cc_library_shared {
     name: "libEGL",
-    defaults: ["egl_libs_defaults"],
+    defaults: ["egl_libs_defaults", "egl_libs_ext_defaults"],
     llndk: {
         symbol_file: "libEGL.map.txt",
         export_llndk_headers: ["gl_headers"],
