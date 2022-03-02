@@ -4426,19 +4426,9 @@ void InputDispatcher::transformMotionEntryForInjectionLocked(
     const auto& transformToDisplay = it->second.transform.inverse() * injectedTransform;
 
     for (uint32_t i = 0; i < entry.pointerCount; i++) {
-        PointerCoords& pc = entry.pointerCoords[i];
-        // Make a copy of the injected coords. We cannot change them in place because some of them
-        // are interdependent (for example, X coordinate might depend on the Y coordinate).
-        PointerCoords injectedCoords = entry.pointerCoords[i];
-
-        BitSet64 bits(injectedCoords.bits);
-        while (!bits.isEmpty()) {
-            const auto axis = static_cast<int32_t>(bits.clearFirstMarkedBit());
-            const float value =
-                    MotionEvent::calculateTransformedAxisValue(axis, entry.source,
-                                                               transformToDisplay, injectedCoords);
-            pc.setAxisValue(axis, value);
-        }
+        entry.pointerCoords[i] =
+                MotionEvent::calculateTransformedCoords(entry.source, transformToDisplay,
+                                                        entry.pointerCoords[i]);
     }
 }
 
