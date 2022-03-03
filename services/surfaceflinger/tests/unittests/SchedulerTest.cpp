@@ -24,11 +24,14 @@
 #include "Scheduler/RefreshRateConfigs.h"
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
+#include "mock/DisplayHardware/MockDisplayMode.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockLayer.h"
 #include "mock/MockSchedulerCallback.h"
 
 namespace android::scheduler {
+
+using android::mock::createDisplayMode;
 
 using testing::_;
 using testing::Return;
@@ -55,21 +58,11 @@ protected:
 
     SchedulerTest();
 
-    const DisplayModePtr mode60 = DisplayMode::Builder(0)
-                                          .setId(DisplayModeId(0))
-                                          .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
-                                          .setVsyncPeriod((60_Hz).getPeriodNsecs())
-                                          .setGroup(0)
-                                          .build();
-    const DisplayModePtr mode120 = DisplayMode::Builder(1)
-                                           .setId(DisplayModeId(1))
-                                           .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
-                                           .setVsyncPeriod((120_Hz).getPeriodNsecs())
-                                           .setGroup(0)
-                                           .build();
+    static inline const DisplayModePtr kMode60 = createDisplayMode(DisplayModeId(0), 60_Hz);
+    static inline const DisplayModePtr kMode120 = createDisplayMode(DisplayModeId(1), 120_Hz);
 
     std::shared_ptr<RefreshRateConfigs> mConfigs =
-            std::make_shared<RefreshRateConfigs>(DisplayModes{mode60}, mode60->getId());
+            std::make_shared<RefreshRateConfigs>(makeModes(kMode60), kMode60->getId());
 
     mock::SchedulerCallback mSchedulerCallback;
     TestableScheduler* mScheduler = new TestableScheduler{mConfigs, mSchedulerCallback};
@@ -172,7 +165,7 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSup
     constexpr uint32_t kDisplayArea = 999'999;
     mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
 
-    EXPECT_CALL(mSchedulerCallback, changeRefreshRate(_, _)).Times(0);
+    EXPECT_CALL(mSchedulerCallback, requestDisplayMode(_, _)).Times(0);
     mScheduler->chooseRefreshRateForContent();
 }
 
@@ -182,7 +175,7 @@ TEST_F(SchedulerTest, updateDisplayModes) {
     ASSERT_EQ(1u, mScheduler->layerHistorySize());
 
     mScheduler->setRefreshRateConfigs(
-            std::make_shared<RefreshRateConfigs>(DisplayModes{mode60, mode120}, mode60->getId()));
+            std::make_shared<RefreshRateConfigs>(makeModes(kMode60, kMode120), kMode60->getId()));
 
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
     mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
@@ -221,12 +214,12 @@ TEST_F(SchedulerTest, calculateMaxAcquiredBufferCount) {
 }
 
 MATCHER(Is120Hz, "") {
-    return isApproxEqual(arg.getFps(), 120_Hz);
+    return isApproxEqual(arg->getFps(), 120_Hz);
 }
 
 TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
     mScheduler->setRefreshRateConfigs(
-            std::make_shared<RefreshRateConfigs>(DisplayModes{mode60, mode120}, mode60->getId()));
+            std::make_shared<RefreshRateConfigs>(makeModes(kMode60, kMode120), kMode60->getId()));
 
     const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
     EXPECT_CALL(*layer, isVisible()).WillOnce(Return(true));
@@ -239,11 +232,11 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
     constexpr uint32_t kDisplayArea = 999'999;
     mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
 
-    EXPECT_CALL(mSchedulerCallback, changeRefreshRate(Is120Hz(), _)).Times(1);
+    EXPECT_CALL(mSchedulerCallback, requestDisplayMode(Is120Hz(), _)).Times(1);
     mScheduler->chooseRefreshRateForContent();
 
     // No-op if layer requirements have not changed.
-    EXPECT_CALL(mSchedulerCallback, changeRefreshRate(_, _)).Times(0);
+    EXPECT_CALL(mSchedulerCallback, requestDisplayMode(_, _)).Times(0);
     mScheduler->chooseRefreshRateForContent();
 }
 

@@ -45,6 +45,7 @@
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
+#include "mock/DisplayHardware/MockDisplayMode.h"
 #include "mock/DisplayHardware/MockPowerAdvisor.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockNativeWindowSurface.h"
@@ -235,9 +236,9 @@ struct DisplayVariant {
     using CONNECTION_TYPE = DisplayConnectionTypeGetter<DisplayIdType>;
     using HWC_DISPLAY_ID_OPT = HwcDisplayIdGetter<DisplayIdType>;
 
-    // The display width and height
     static constexpr int WIDTH = width;
     static constexpr int HEIGHT = height;
+    static constexpr ui::Size RESOLUTION{WIDTH, HEIGHT};
 
     static constexpr int GRALLOC_USAGE = grallocUsage;
 
@@ -262,7 +263,7 @@ struct DisplayVariant {
     static auto makeFakeExistingDisplayInjector(DisplayTransactionTest* test) {
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder();
         ceDisplayArgs.setId(DISPLAY_ID::get())
-                .setPixels({WIDTH, HEIGHT})
+                .setPixels(RESOLUTION)
                 .setPowerAdvisor(&test->mPowerAdvisor);
 
         auto compositionDisplay =
@@ -357,8 +358,7 @@ struct HwcDisplayVariant {
         TestableSurfaceFlinger::FakeHwcDisplayInjector(displayId, HWC_DISPLAY_TYPE,
                                                        static_cast<bool>(DisplayVariant::PRIMARY))
                 .setHwcDisplayId(HWC_DISPLAY_ID)
-                .setWidth(DisplayVariant::WIDTH)
-                .setHeight(DisplayVariant::HEIGHT)
+                .setResolution(DisplayVariant::RESOLUTION)
                 .setActiveConfig(HWC_ACTIVE_CONFIG_ID)
                 .setPowerMode(INIT_POWER_MODE)
                 .inject(&test->mFlinger, test->mComposer);
@@ -381,7 +381,7 @@ struct HwcDisplayVariant {
 
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder()
                                      .setId(DisplayVariant::DISPLAY_ID::get())
-                                     .setPixels({DisplayVariant::WIDTH, DisplayVariant::HEIGHT})
+                                     .setPixels(DisplayVariant::RESOLUTION)
                                      .setIsSecure(static_cast<bool>(DisplayVariant::SECURE))
                                      .setPowerAdvisor(&test->mPowerAdvisor)
                                      .setName(std::string("Injected display for ") +
@@ -541,7 +541,7 @@ struct NonHwcVirtualDisplayVariant
 
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder()
                                      .setId(Base::DISPLAY_ID::get())
-                                     .setPixels({Base::WIDTH, Base::HEIGHT})
+                                     .setPixels(Base::RESOLUTION)
                                      .setIsSecure(static_cast<bool>(Base::SECURE))
                                      .setPowerAdvisor(&test->mPowerAdvisor)
                                      .setName(std::string("Injected display for ") +
@@ -593,7 +593,7 @@ struct HwcVirtualDisplayVariant
         const auto displayId = Base::DISPLAY_ID::get();
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder()
                                      .setId(displayId)
-                                     .setPixels({Base::WIDTH, Base::HEIGHT})
+                                     .setPixels(Base::RESOLUTION)
                                      .setIsSecure(static_cast<bool>(Base::SECURE))
                                      .setPowerAdvisor(&test->mPowerAdvisor)
                                      .setName(std::string("Injected display for ") +
@@ -735,6 +735,12 @@ using HwcVirtualDisplayCase =
         Case<SimpleHwcVirtualDisplayVariant, WideColorSupportNotConfiguredVariant,
              HdrNotSupportedVariant<SimpleHwcVirtualDisplayVariant>,
              NoPerFrameMetadataSupportVariant<SimpleHwcVirtualDisplayVariant>>;
+
+inline DisplayModePtr createDisplayMode(DisplayModeId modeId, Fps refreshRate, int32_t group = 0,
+                                        ui::Size resolution = ui::Size(1920, 1080)) {
+    return mock::createDisplayMode(modeId, refreshRate, group, resolution,
+                                   PrimaryDisplayVariant::DISPLAY_ID::get());
+}
 
 } // namespace android
 

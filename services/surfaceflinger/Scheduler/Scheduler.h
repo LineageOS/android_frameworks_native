@@ -86,12 +86,11 @@ struct ISchedulerCallback {
     // Indicates frame activity, i.e. whether commit and/or composite is taking place.
     enum class FrameHint { kNone, kActive };
 
-    using RefreshRate = RefreshRateConfigs::RefreshRate;
     using DisplayModeEvent = scheduler::DisplayModeEvent;
 
     virtual void scheduleComposite(FrameHint) = 0;
     virtual void setVsyncEnabled(bool) = 0;
-    virtual void changeRefreshRate(const RefreshRate&, DisplayModeEvent) = 0;
+    virtual void requestDisplayMode(DisplayModePtr, DisplayModeEvent) = 0;
     virtual void kernelTimerChanged(bool expired) = 0;
     virtual void triggerOnFrameRateOverridesChanged() = 0;
 
@@ -166,8 +165,7 @@ public:
     // If makeAvailable is true, then hardware vsync will be turned on.
     // Otherwise, if hardware vsync is not already enabled then this method will
     // no-op.
-    // The period is the vsync period from the current display configuration.
-    void resyncToHardwareVsync(bool makeAvailable, nsecs_t period);
+    void resyncToHardwareVsync(bool makeAvailable, Fps refreshRate);
     void resync() EXCLUDES(mRefreshRateConfigsLock);
     void forceNextResync() { mLastResyncTime = 0; }
 
@@ -236,7 +234,7 @@ public:
 
     nsecs_t getVsyncPeriodFromRefreshRateConfigs() const EXCLUDES(mRefreshRateConfigsLock) {
         std::scoped_lock lock(mRefreshRateConfigsLock);
-        return mRefreshRateConfigs->getCurrentRefreshRate().getVsyncPeriod();
+        return mRefreshRateConfigs->getActiveMode()->getFps().getPeriodNsecs();
     }
 
     // Returns the framerate of the layer with the given sequence ID

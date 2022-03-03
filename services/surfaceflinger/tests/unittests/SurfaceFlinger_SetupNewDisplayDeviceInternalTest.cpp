@@ -240,19 +240,17 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
         ASSERT_TRUE(hwcDisplayId);
         mFlinger.getHwComposer().allocatePhysicalDisplay(*hwcDisplayId, *displayId);
         DisplayModePtr activeMode = DisplayMode::Builder(Case::Display::HWC_ACTIVE_CONFIG_ID)
-                                            .setWidth(Case::Display::WIDTH)
-                                            .setHeight(Case::Display::HEIGHT)
+                                            .setResolution(Case::Display::RESOLUTION)
                                             .setVsyncPeriod(DEFAULT_VSYNC_PERIOD)
                                             .setDpiX(DEFAULT_DPI)
                                             .setDpiY(DEFAULT_DPI)
                                             .setGroup(0)
                                             .build();
-        DisplayModes modes{activeMode};
         state.physical = {.id = *displayId,
                           .type = *connectionType,
                           .hwcDisplayId = *hwcDisplayId,
-                          .supportedModes = modes,
-                          .activeMode = activeMode};
+                          .supportedModes = makeModes(activeMode),
+                          .activeMode = std::move(activeMode)};
     }
 
     state.isSecure = static_cast<bool>(Case::Display::SECURE);
@@ -270,8 +268,7 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     EXPECT_EQ(static_cast<bool>(Case::Display::VIRTUAL), device->isVirtual());
     EXPECT_EQ(static_cast<bool>(Case::Display::SECURE), device->isSecure());
     EXPECT_EQ(static_cast<bool>(Case::Display::PRIMARY), device->isPrimary());
-    EXPECT_EQ(Case::Display::WIDTH, device->getWidth());
-    EXPECT_EQ(Case::Display::HEIGHT, device->getHeight());
+    EXPECT_EQ(Case::Display::RESOLUTION, device->getSize());
     EXPECT_EQ(Case::WideColorSupport::WIDE_COLOR_SUPPORTED, device->hasWideColorGamut());
     EXPECT_EQ(Case::HdrSupport::HDR10_PLUS_SUPPORTED, device->hasHDR10PlusSupport());
     EXPECT_EQ(Case::HdrSupport::HDR10_SUPPORTED, device->hasHDR10Support());

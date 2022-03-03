@@ -31,6 +31,7 @@
 #include "Scheduler/LayerInfo.h"
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
+#include "mock/DisplayHardware/MockDisplayMode.h"
 #include "mock/MockLayer.h"
 #include "mock/MockSchedulerCallback.h"
 
@@ -41,6 +42,8 @@ using testing::ReturnRef;
 namespace android::scheduler {
 
 using MockLayer = android::mock::MockLayer;
+
+using android::mock::createDisplayMode;
 
 class LayerHistoryTest : public testing::Test {
 protected:
@@ -122,22 +125,12 @@ protected:
         ASSERT_EQ(desiredRefreshRate, summary[0].desiredRefreshRate);
     }
 
-    std::shared_ptr<RefreshRateConfigs> mConfigs = std::make_shared<
-            RefreshRateConfigs>(DisplayModes{DisplayMode::Builder(0)
-                                                     .setId(DisplayModeId(0))
-                                                     .setPhysicalDisplayId(
-                                                             PhysicalDisplayId::fromPort(0))
-                                                     .setVsyncPeriod(int32_t(LO_FPS_PERIOD))
-                                                     .setGroup(0)
-                                                     .build(),
-                                             DisplayMode::Builder(1)
-                                                     .setId(DisplayModeId(1))
-                                                     .setPhysicalDisplayId(
-                                                             PhysicalDisplayId::fromPort(0))
-                                                     .setVsyncPeriod(int32_t(HI_FPS_PERIOD))
-                                                     .setGroup(0)
-                                                     .build()},
-                                DisplayModeId(0));
+    std::shared_ptr<RefreshRateConfigs> mConfigs =
+            std::make_shared<RefreshRateConfigs>(makeModes(createDisplayMode(DisplayModeId(0),
+                                                                             LO_FPS),
+                                                           createDisplayMode(DisplayModeId(1),
+                                                                             HI_FPS)),
+                                                 DisplayModeId(0));
 
     mock::SchedulerCallback mSchedulerCallback;
 

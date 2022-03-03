@@ -17,7 +17,9 @@
 #pragma once
 
 #include <chrono>
-#include <numeric>
+#include <cinttypes>
+#include <cstdlib>
+#include <string>
 
 #include <android-base/stringprintf.h>
 #include <ftl/small_map.h>
@@ -25,6 +27,7 @@
 
 #include <scheduler/Fps.h>
 
+#include "DisplayHardware/Hal.h"
 #include "TimeStats/TimeStats.h"
 
 namespace android::scheduler {
@@ -41,16 +44,16 @@ class RefreshRateStats {
     static constexpr int64_t MS_PER_HOUR = 60 * MS_PER_MIN;
     static constexpr int64_t MS_PER_DAY = 24 * MS_PER_HOUR;
 
+    using PowerMode = android::hardware::graphics::composer::hal::PowerMode;
+
 public:
     // TODO(b/185535769): Inject clock to avoid sleeping in tests.
-    RefreshRateStats(TimeStats& timeStats, Fps currentRefreshRate,
-                     android::hardware::graphics::composer::hal::PowerMode currentPowerMode)
+    RefreshRateStats(TimeStats& timeStats, Fps currentRefreshRate, PowerMode currentPowerMode)
           : mTimeStats(timeStats),
             mCurrentRefreshRate(currentRefreshRate),
             mCurrentPowerMode(currentPowerMode) {}
 
-    // Sets power mode.
-    void setPowerMode(android::hardware::graphics::composer::hal::PowerMode mode) {
+    void setPowerMode(PowerMode mode) {
         if (mCurrentPowerMode == mode) {
             return;
         }
@@ -115,7 +118,7 @@ private:
 
         uint32_t fps = 0;
 
-        if (mCurrentPowerMode == android::hardware::graphics::composer::hal::PowerMode::ON) {
+        if (mCurrentPowerMode == PowerMode::ON) {
             // Normal power mode is counted under different config modes.
             const auto total = std::as_const(mFpsTotalTimes)
                                        .get(mCurrentRefreshRate)
@@ -144,7 +147,7 @@ private:
     TimeStats& mTimeStats;
 
     Fps mCurrentRefreshRate;
-    android::hardware::graphics::composer::hal::PowerMode mCurrentPowerMode;
+    PowerMode mCurrentPowerMode;
 
     ftl::SmallMap<Fps, std::chrono::milliseconds, 2, FpsApproxEqual> mFpsTotalTimes;
     std::chrono::milliseconds mScreenOffTime = std::chrono::milliseconds::zero();
