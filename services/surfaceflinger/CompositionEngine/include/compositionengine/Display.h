@@ -57,7 +57,7 @@ public:
     virtual void createClientCompositionCache(uint32_t cacheSize) = 0;
 
     // Returns the boot display mode preferred by HWC.
-    virtual int32_t getPreferredBootModeId() const = 0;
+    virtual int32_t getPreferredBootHwcConfigId() const = 0;
 
 protected:
     ~Display() = default;

@@ -503,11 +503,11 @@ private:
      */
     void processConnectionResponsiveLocked(const Connection& connection) REQUIRES(mLock);
 
-    void sendMonitorUnresponsiveCommandLocked(int32_t pid, std::string reason) REQUIRES(mLock);
-    void sendWindowUnresponsiveCommandLocked(const sp<IBinder>& connectionToken, std::string reason)
+    void sendWindowUnresponsiveCommandLocked(const sp<IBinder>& connectionToken,
+                                             std::optional<int32_t> pid, std::string reason)
             REQUIRES(mLock);
-    void sendMonitorResponsiveCommandLocked(int32_t pid) REQUIRES(mLock);
-    void sendWindowResponsiveCommandLocked(const sp<IBinder>& connectionToken) REQUIRES(mLock);
+    void sendWindowResponsiveCommandLocked(const sp<IBinder>& connectionToken,
+                                           std::optional<int32_t> pid) REQUIRES(mLock);
 
     // Optimization: AnrTracker is used to quickly find which connection is due for a timeout next.
     // AnrTracker must be kept in-sync with all responsive connection.waitQueues.
