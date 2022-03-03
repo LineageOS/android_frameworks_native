@@ -137,6 +137,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, bool updateDestinati
         mSize(1, 1),
         mRequestedSize(mSize),
         mFormat(PIXEL_FORMAT_RGBA_8888),
+        mTransactionReadyCallback(nullptr),
         mSyncTransaction(nullptr),
         mUpdateDestinationFrame(updateDestinationFrame) {
     createBufferQueue(&mProducer, &mConsumer);
@@ -608,60 +609,69 @@ void BLASTBufferQueue::flushAndWaitForFreeBuffer(std::unique_lock<std::mutex>& l
 }
 
 void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
-    BBQ_TRACE();
-    std::unique_lock _lock{mMutex};
+    std::function<void(SurfaceComposerClient::Transaction*)> prevCallback = nullptr;
+    SurfaceComposerClient::Transaction* prevTransaction = nullptr;
+    {
+        BBQ_TRACE();
+        std::unique_lock _lock{mMutex};
+        const bool syncTransactionSet = mTransactionReadyCallback != nullptr;
+        BQA_LOGV("onFrameAvailable-start syncTransactionSet=%s", boolToString(syncTransactionSet));
 
-    const bool syncTransactionSet = mSyncTransaction != nullptr;
-    BQA_LOGV("onFrameAvailable-start syncTransactionSet=%s", boolToString(syncTransactionSet));
+        if (syncTransactionSet) {
+            bool mayNeedToWaitForBuffer = true;
+            // If we are going to re-use the same mSyncTransaction, release the buffer that may
+            // already be set in the Transaction. This is to allow us a free slot early to continue
+            // processing a new buffer.
+            if (!mAcquireSingleBuffer) {
+                auto bufferData = mSyncTransaction->getAndClearBuffer(mSurfaceControl);
+                if (bufferData) {
+                    BQA_LOGD("Releasing previous buffer when syncing: framenumber=%" PRIu64,
+                             bufferData->frameNumber);
+                    releaseBuffer(bufferData->generateReleaseCallbackId(),
+                                  bufferData->acquireFence);
+                    // Because we just released a buffer, we know there's no need to wait for a free
+                    // buffer.
+                    mayNeedToWaitForBuffer = false;
+                }
+            }
 
-    if (syncTransactionSet) {
-        bool mayNeedToWaitForBuffer = true;
-        // If we are going to re-use the same mSyncTransaction, release the buffer that may already
-        // be set in the Transaction. This is to allow us a free slot early to continue processing
-        // a new buffer.
-        if (!mAcquireSingleBuffer) {
-            auto bufferData = mSyncTransaction->getAndClearBuffer(mSurfaceControl);
-            if (bufferData) {
-                BQA_LOGD("Releasing previous buffer when syncing: framenumber=%" PRIu64,
-                         bufferData->frameNumber);
-                releaseBuffer(bufferData->generateReleaseCallbackId(), bufferData->acquireFence);
-                // Because we just released a buffer, we know there's no need to wait for a free
-                // buffer.
-                mayNeedToWaitForBuffer = false;
+            if (mayNeedToWaitForBuffer) {
+                flushAndWaitForFreeBuffer(_lock);
             }
         }
 
-        if (mayNeedToWaitForBuffer) {
-            flushAndWaitForFreeBuffer(_lock);
+        // add to shadow queue
+        mNumFrameAvailable++;
+        if (mWaitForTransactionCallback && mNumFrameAvailable >= 2) {
+            acquireAndReleaseBuffer();
+        }
+        ATRACE_INT(mQueuedBufferTrace.c_str(),
+                   mNumFrameAvailable + mNumAcquired - mPendingRelease.size());
+
+        BQA_LOGV("onFrameAvailable framenumber=%" PRIu64 " syncTransactionSet=%s",
+                 item.mFrameNumber, boolToString(syncTransactionSet));
+
+        if (syncTransactionSet) {
+            acquireNextBufferLocked(mSyncTransaction);
+
+            // Only need a commit callback when syncing to ensure the buffer that's synced has been
+            // sent to SF
+            incStrong((void*)transactionCommittedCallbackThunk);
+            mSyncTransaction->addTransactionCommittedCallback(transactionCommittedCallbackThunk,
+                                                              static_cast<void*>(this));
+            mWaitForTransactionCallback = true;
+            if (mAcquireSingleBuffer) {
+                prevCallback = mTransactionReadyCallback;
+                prevTransaction = mSyncTransaction;
+                mTransactionReadyCallback = nullptr;
+                mSyncTransaction = nullptr;
+            }
+        } else if (!mWaitForTransactionCallback) {
+            acquireNextBufferLocked(std::nullopt);
         }
     }
-
-    // add to shadow queue
-    mNumFrameAvailable++;
-    if (mWaitForTransactionCallback && mNumFrameAvailable >= 2) {
-        acquireAndReleaseBuffer();
-    }
-    ATRACE_INT(mQueuedBufferTrace.c_str(),
-               mNumFrameAvailable + mNumAcquired - mPendingRelease.size());
-
-    BQA_LOGV("onFrameAvailable framenumber=%" PRIu64 " syncTransactionSet=%s", item.mFrameNumber,
-             boolToString(syncTransactionSet));
-
-    if (syncTransactionSet) {
-        acquireNextBufferLocked(mSyncTransaction);
-
-        // Only need a commit callback when syncing to ensure the buffer that's synced has been sent
-        // to SF
-        incStrong((void*)transactionCommittedCallbackThunk);
-        mSyncTransaction->addTransactionCommittedCallback(transactionCommittedCallbackThunk,
-                                                          static_cast<void*>(this));
-
-        if (mAcquireSingleBuffer) {
-            mSyncTransaction = nullptr;
-        }
-        mWaitForTransactionCallback = true;
-    } else if (!mWaitForTransactionCallback) {
-        acquireNextBufferLocked(std::nullopt);
+    if (prevCallback) {
+        prevCallback(prevTransaction);
     }
 }
 
@@ -680,12 +690,37 @@ void BLASTBufferQueue::onFrameCancelled(const uint64_t bufferId) {
     mDequeueTimestamps.erase(bufferId);
 };
 
-void BLASTBufferQueue::setSyncTransaction(SurfaceComposerClient::Transaction* t,
-                                          bool acquireSingleBuffer) {
+void BLASTBufferQueue::syncNextTransaction(
+        std::function<void(SurfaceComposerClient::Transaction*)> callback,
+        bool acquireSingleBuffer) {
     BBQ_TRACE();
     std::lock_guard _lock{mMutex};
-    mSyncTransaction = t;
-    mAcquireSingleBuffer = mSyncTransaction ? acquireSingleBuffer : true;
+    mTransactionReadyCallback = callback;
+    if (callback) {
+        mSyncTransaction = new SurfaceComposerClient::Transaction();
+    } else {
+        mSyncTransaction = nullptr;
+    }
+    mAcquireSingleBuffer = mTransactionReadyCallback ? acquireSingleBuffer : true;
+}
+
+void BLASTBufferQueue::stopContinuousSyncTransaction() {
+    std::function<void(SurfaceComposerClient::Transaction*)> prevCallback = nullptr;
+    SurfaceComposerClient::Transaction* prevTransaction = nullptr;
+    {
+        std::lock_guard _lock{mMutex};
+        bool invokeCallback = mTransactionReadyCallback && !mAcquireSingleBuffer;
+        if (invokeCallback) {
+            prevCallback = mTransactionReadyCallback;
+            prevTransaction = mSyncTransaction;
+        }
+        mTransactionReadyCallback = nullptr;
+        mSyncTransaction = nullptr;
+        mAcquireSingleBuffer = true;
+    }
+    if (prevCallback) {
+        prevCallback(prevTransaction);
+    }
 }
 
 bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
