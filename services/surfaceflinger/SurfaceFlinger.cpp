@@ -169,6 +169,8 @@
 using aidl::android::hardware::graphics::common::DisplayDecorationSupport;
 using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
+using CompositionStrategyPredictionState = android::compositionengine::impl::
+        OutputCompositionState::CompositionStrategyPredictionState;
 
 namespace android {
 
@@ -2270,23 +2272,23 @@ void SurfaceFlinger::composite(nsecs_t frameTime) {
 
     const bool prevFrameHadClientComposition = mHadClientComposition;
 
-    mHadClientComposition = std::any_of(displays.cbegin(), displays.cend(), [](const auto& pair) {
-        const auto& state = pair.second->getCompositionDisplay()->getState();
-        return state.usesClientComposition && !state.reusedClientComposition;
-    });
-    mHadDeviceComposition = std::any_of(displays.cbegin(), displays.cend(), [](const auto& pair) {
-        const auto& state = pair.second->getCompositionDisplay()->getState();
-        return state.usesDeviceComposition;
-    });
-    mReusedClientComposition =
-            std::any_of(displays.cbegin(), displays.cend(), [](const auto& pair) {
-                const auto& state = pair.second->getCompositionDisplay()->getState();
-                return state.reusedClientComposition;
-            });
-    // Only report a strategy change if we move in and out of client composition
-    if (prevFrameHadClientComposition != mHadClientComposition) {
-        mTimeStats->incrementCompositionStrategyChanges();
+    mHadClientComposition = mHadDeviceComposition = mReusedClientComposition = false;
+    TimeStats::ClientCompositionRecord clientCompositionRecord;
+    for (const auto& [_, display] : displays) {
+        const auto& state = display->getCompositionDisplay()->getState();
+        mHadClientComposition |= state.usesClientComposition && !state.reusedClientComposition;
+        mHadDeviceComposition |= state.usesDeviceComposition;
+        mReusedClientComposition |= state.reusedClientComposition;
+        clientCompositionRecord.predicted |=
+                (state.strategyPrediction != CompositionStrategyPredictionState::DISABLED);
+        clientCompositionRecord.predictionSucceeded |=
+                (state.strategyPrediction == CompositionStrategyPredictionState::SUCCESS);
     }
+
+    clientCompositionRecord.hadClientComposition = mHadClientComposition;
+    clientCompositionRecord.reused = mReusedClientComposition;
+    clientCompositionRecord.changed = prevFrameHadClientComposition != mHadClientComposition;
+    mTimeStats->pushCompositionStrategyState(clientCompositionRecord);
 
     // TODO: b/160583065 Enable skip validation when SF caches all client composition layers
     const bool usedGpuComposition = mHadClientComposition || mReusedClientComposition;
@@ -2542,13 +2544,6 @@ void SurfaceFlinger::postComposition() {
     }
 
     mTimeStats->incrementTotalFrames();
-    if (mHadClientComposition) {
-        mTimeStats->incrementClientCompositionFrames();
-    }
-
-    if (mReusedClientComposition) {
-        mTimeStats->incrementClientCompositionReusedFrames();
-    }
 
     mTimeStats->setPresentFenceGlobal(mPreviousPresentFences[0].fenceTime);
 
@@ -3961,24 +3956,6 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
 
 void SurfaceFlinger::queueTransaction(TransactionState& state) {
     Mutex::Autolock _l(mQueueLock);
-
-    // If its TransactionQueue already has a pending TransactionState or if it is pending
-    auto itr = mPendingTransactionQueues.find(state.applyToken);
-    // if this is an animation frame, wait until prior animation frame has
-    // been applied by SF
-    if (state.flags & eAnimation) {
-        while (itr != mPendingTransactionQueues.end()) {
-            status_t err =
-                    mTransactionQueueCV.waitRelative(mQueueLock, mAnimationTransactionTimeout);
-            if (CC_UNLIKELY(err != NO_ERROR)) {
-                ALOGW_IF(err == TIMED_OUT,
-                         "setTransactionState timed out "
-                         "waiting for animation frame to apply");
-                break;
-            }
-            itr = mPendingTransactionQueues.find(state.applyToken);
-        }
-    }
 
     // Generate a CountDownLatch pending state if this is a synchronous transaction.
     if ((state.flags & eSynchronous) || state.inputWindowCommands.syncInputWindows) {

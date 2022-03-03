@@ -268,8 +268,11 @@ TEST_F(TimeStatsTest, canIncreaseGlobalStats) {
     for (size_t i = 0; i < MISSED_FRAMES; i++) {
         ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementMissedFrames());
     }
+    TimeStats::ClientCompositionRecord record;
+    record.hadClientComposition = true;
+
     for (size_t i = 0; i < CLIENT_COMPOSITION_FRAMES; i++) {
-        ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementClientCompositionFrames());
+        ASSERT_NO_FATAL_FAILURE(mTimeStats->pushCompositionStrategyState(record));
     }
 
     SFTimeStatsGlobalProto globalProto;
@@ -459,19 +462,49 @@ TEST_F(TimeStatsTest, canCaptureSetFrameRateVoteAfterZeroForLayer) {
     EXPECT_THAT(result, HasSubstr(expectedResult));
 }
 
-TEST_F(TimeStatsTest, canIncreaseClientCompositionReusedFrames) {
+TEST_F(TimeStatsTest, canIncreaseClientCompositionStats) {
     // this stat is not in the proto so verify by checking the string dump
-    constexpr size_t CLIENT_COMPOSITION_REUSED_FRAMES = 2;
+    constexpr size_t COMPOSITION_STRATEGY_CHANGED_FRAMES = 1;
+    constexpr size_t HAD_CLIENT_COMPOSITION_FRAMES = 2;
+    constexpr size_t REUSED_CLIENT_COMPOSITION_FRAMES = 3;
+    constexpr size_t COMPOSITION_STRATEGY_PREDICTION_SUCCEEDED_FRAMES = 4;
+    constexpr size_t COMPOSITION_STRATEGY_PREDICTED_FRAMES = 5;
 
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
-    for (size_t i = 0; i < CLIENT_COMPOSITION_REUSED_FRAMES; i++) {
-        ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementClientCompositionReusedFrames());
+    for (size_t i = 0; i <= COMPOSITION_STRATEGY_PREDICTED_FRAMES; i++) {
+        TimeStats::ClientCompositionRecord record;
+        record.hadClientComposition = i < HAD_CLIENT_COMPOSITION_FRAMES;
+        record.changed = i < COMPOSITION_STRATEGY_CHANGED_FRAMES;
+        record.reused = i < REUSED_CLIENT_COMPOSITION_FRAMES;
+        record.predicted = i < COMPOSITION_STRATEGY_PREDICTED_FRAMES;
+        record.predictionSucceeded = i < COMPOSITION_STRATEGY_PREDICTION_SUCCEEDED_FRAMES;
+        mTimeStats->pushCompositionStrategyState(record);
     }
 
     const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
-    const std::string expectedResult =
-            "clientCompositionReusedFrames = " + std::to_string(CLIENT_COMPOSITION_REUSED_FRAMES);
-    EXPECT_THAT(result, HasSubstr(expectedResult));
+    std::string expected =
+            "compositionStrategyChanges = " + std::to_string(COMPOSITION_STRATEGY_CHANGED_FRAMES);
+    EXPECT_THAT(result, HasSubstr(expected));
+
+    expected = "clientCompositionFrames = " + std::to_string(HAD_CLIENT_COMPOSITION_FRAMES);
+    EXPECT_THAT(result, HasSubstr(expected));
+
+    expected =
+            "clientCompositionReusedFrames = " + std::to_string(REUSED_CLIENT_COMPOSITION_FRAMES);
+    EXPECT_THAT(result, HasSubstr(expected));
+
+    expected = "compositionStrategyPredicted = " +
+            std::to_string(COMPOSITION_STRATEGY_PREDICTED_FRAMES);
+    EXPECT_THAT(result, HasSubstr(expected));
+
+    expected = "compositionStrategyPredictionSucceeded = " +
+            std::to_string(COMPOSITION_STRATEGY_PREDICTION_SUCCEEDED_FRAMES);
+    EXPECT_THAT(result, HasSubstr(expected));
+
+    expected = "compositionStrategyPredictionFailed = " +
+            std::to_string(COMPOSITION_STRATEGY_PREDICTED_FRAMES -
+                           COMPOSITION_STRATEGY_PREDICTION_SUCCEEDED_FRAMES);
+    EXPECT_THAT(result, HasSubstr(expected));
 }
 
 TEST_F(TimeStatsTest, canIncreaseRefreshRateSwitches) {
@@ -486,21 +519,6 @@ TEST_F(TimeStatsTest, canIncreaseRefreshRateSwitches) {
     const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
     const std::string expectedResult =
             "refreshRateSwitches = " + std::to_string(REFRESH_RATE_SWITCHES);
-    EXPECT_THAT(result, HasSubstr(expectedResult));
-}
-
-TEST_F(TimeStatsTest, canIncreaseCompositionStrategyChanges) {
-    // this stat is not in the proto so verify by checking the string dump
-    constexpr size_t COMPOSITION_STRATEGY_CHANGES = 2;
-
-    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
-    for (size_t i = 0; i < COMPOSITION_STRATEGY_CHANGES; i++) {
-        ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementCompositionStrategyChanges());
-    }
-
-    const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
-    const std::string expectedResult =
-            "compositionStrategyChanges = " + std::to_string(COMPOSITION_STRATEGY_CHANGES);
     EXPECT_THAT(result, HasSubstr(expectedResult));
 }
 
@@ -836,7 +854,7 @@ TEST_F(TimeStatsTest, canClearTimeStats) {
 
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementTotalFrames());
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementMissedFrames());
-    ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementClientCompositionFrames());
+    ASSERT_NO_FATAL_FAILURE(mTimeStats->pushCompositionStrategyState({}));
     ASSERT_NO_FATAL_FAILURE(mTimeStats->setPowerMode(PowerMode::ON));
 
     mTimeStats->recordFrameDuration(std::chrono::nanoseconds(3ms).count(),
@@ -867,9 +885,8 @@ TEST_F(TimeStatsTest, canClearTimeStats) {
 TEST_F(TimeStatsTest, canClearDumpOnlyTimeStats) {
     // These stats are not in the proto so verify by checking the string dump.
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
-    ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementClientCompositionReusedFrames());
+    ASSERT_NO_FATAL_FAILURE(mTimeStats->pushCompositionStrategyState({}));
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementRefreshRateSwitches());
-    ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementCompositionStrategyChanges());
     mTimeStats->setPowerMode(PowerMode::ON);
     mTimeStats->recordFrameDuration(std::chrono::nanoseconds(1ms).count(),
                                     std::chrono::nanoseconds(5ms).count());
@@ -1032,8 +1049,10 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     for (size_t i = 0; i < MISSED_FRAMES; i++) {
         mTimeStats->incrementMissedFrames();
     }
+    TimeStats::ClientCompositionRecord record;
+    record.hadClientComposition = true;
     for (size_t i = 0; i < CLIENT_COMPOSITION_FRAMES; i++) {
-        mTimeStats->incrementClientCompositionFrames();
+        mTimeStats->pushCompositionStrategyState(record);
     }
 
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);

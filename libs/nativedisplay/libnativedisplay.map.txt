@@ -42,6 +42,7 @@ LIBNATIVEDISPLAY_PLATFORM {
       android::AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId*;
       android::AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentationTimeNanos*;
       android::AChoreographerFrameCallbackData_routeGetFrameTimelineDeadlineNanos*;
+      android::AChoreographer_getStartTimeNanosForVsyncId*;
       android::AChoreographer_signalRefreshRateCallbacks*;
       android::AChoreographer_getFrameInterval*;
       android::ADisplay_acquirePhysicalDisplays*;

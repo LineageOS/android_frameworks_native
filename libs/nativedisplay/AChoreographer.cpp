@@ -111,6 +111,7 @@ struct ChoreographerFrameCallbackDataImpl {
 struct {
     std::mutex lock;
     std::vector<Choreographer*> ptrs GUARDED_BY(lock);
+    std::map<AVsyncId, int64_t> startTimes GUARDED_BY(lock);
     bool registeredToDisplayManager GUARDED_BY(lock) = false;
 
     std::atomic<nsecs_t> mLastKnownVsync = -1;
@@ -160,6 +161,7 @@ private:
     void scheduleCallbacks();
 
     ChoreographerFrameCallbackDataImpl createFrameCallbackData(nsecs_t timestamp) const;
+    void registerStartTime() const;
 
     std::mutex mLock;
     // Protected by mLock
@@ -172,6 +174,9 @@ private:
 
     const sp<Looper> mLooper;
     const std::thread::id mThreadId;
+
+    // Approximation of num_threads_using_choreographer * num_frames_of_history with leeway.
+    static constexpr size_t kMaxStartTimes = 250;
 };
 
 static thread_local Choreographer* gChoreographer;
@@ -392,6 +397,7 @@ void Choreographer::dispatchVsync(nsecs_t timestamp, PhysicalDisplayId, uint32_t
         if (cb.vsyncCallback != nullptr) {
             const ChoreographerFrameCallbackDataImpl frameCallbackData =
                     createFrameCallbackData(timestamp);
+            registerStartTime();
             mInCallback = true;
             cb.vsyncCallback(reinterpret_cast<const AChoreographerFrameCallbackData*>(
                                      &frameCallbackData),
@@ -450,6 +456,16 @@ ChoreographerFrameCallbackDataImpl Choreographer::createFrameCallbackData(nsecs_
     return {.frameTimeNanos = timestamp,
             .vsyncEventData = mLastVsyncEventData,
             .choreographer = this};
+}
+
+void Choreographer::registerStartTime() const {
+    std::scoped_lock _l(gChoreographers.lock);
+    for (VsyncEventData::FrameTimeline frameTimeline : mLastVsyncEventData.frameTimelines) {
+        while (gChoreographers.startTimes.size() >= kMaxStartTimes) {
+            gChoreographers.startTimes.erase(gChoreographers.startTimes.begin());
+        }
+        gChoreographers.startTimes[frameTimeline.vsyncId] = systemTime(SYSTEM_TIME_MONOTONIC);
+    }
 }
 
 } // namespace android
@@ -564,6 +580,16 @@ int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineDeadlineNanos(
 
 int64_t AChoreographer_getFrameInterval(const AChoreographer* choreographer) {
     return AChoreographer_to_Choreographer(choreographer)->getFrameInterval();
+}
+
+int64_t AChoreographer_getStartTimeNanosForVsyncId(AVsyncId vsyncId) {
+    std::scoped_lock _l(gChoreographers.lock);
+    const auto iter = gChoreographers.startTimes.find(vsyncId);
+    if (iter == gChoreographers.startTimes.end()) {
+        ALOGW("Start time was not found for vsync id: %" PRId64, vsyncId);
+        return 0;
+    }
+    return iter->second;
 }
 
 } // namespace android
