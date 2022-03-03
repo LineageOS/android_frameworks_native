@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <gui/FrameTimelineInfo.h>
+#include <android/gui/FrameTimelineInfo.h>
 
 #include <array>
 
