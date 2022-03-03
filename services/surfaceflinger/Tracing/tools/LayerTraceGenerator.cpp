@@ -204,8 +204,7 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
     mFlinger.setupComposer(std::unique_ptr<Hwc2::Composer>(mComposer));
     mFlinger.mutableMaxRenderTargetSize() = 16384;
 
-    flinger->setLayerTracingFlags(LayerTracing::TRACE_BUFFERS | LayerTracing::TRACE_INPUT |
-                                  LayerTracing::TRACE_BUFFERS);
+    flinger->setLayerTracingFlags(LayerTracing::TRACE_INPUT | LayerTracing::TRACE_BUFFERS);
     flinger->startLayerTracing(traceFile.entry(0).elapsed_realtime_nanos());
     std::unique_ptr<TraceGenFlingerDataMapper> mapper =
             std::make_unique<TraceGenFlingerDataMapper>();

@@ -2603,6 +2603,13 @@ FloatRect SurfaceFlinger::getMaxDisplayBounds() {
     // Find the largest width and height among all the displays.
     int32_t maxDisplayWidth = 0;
     int32_t maxDisplayHeight = 0;
+
+    // If there are no displays, set a valid display bounds so we can still compute a valid layer
+    // bounds.
+    if (ON_MAIN_THREAD(mDisplays.size()) == 0) {
+        maxDisplayWidth = maxDisplayHeight = 5000;
+    }
+
     for (const auto& pair : ON_MAIN_THREAD(mDisplays)) {
         const auto& displayDevice = pair.second;
         int32_t width = displayDevice->getWidth();
