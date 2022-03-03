@@ -752,6 +752,7 @@ public:
                                   FrameEventHistoryDelta* outDelta);
 
     ui::Transform getTransform() const;
+    bool isTransformValid() const;
 
     // Returns the Alpha of the Surface, accounting for the Alpha
     // of parent Surfaces in the hierarchy (alpha's will be multiplied
