@@ -30,73 +30,29 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
 #include "FpsOps.h"
+#include "LayerTestUtils.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
-#include "mock/MockEventThread.h"
 #include "mock/MockVsyncController.h"
 
 namespace android {
 
-using testing::_;
 using testing::DoAll;
 using testing::Mock;
-using testing::Return;
 using testing::SetArgPointee;
 
 using android::Hwc2::IComposer;
 using android::Hwc2::IComposerClient;
-
-using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
 
 using scheduler::LayerHistory;
 
 using FrameRate = Layer::FrameRate;
 using FrameRateCompatibility = Layer::FrameRateCompatibility;
 
-class LayerFactory {
-public:
-    virtual ~LayerFactory() = default;
-
-    virtual std::string name() = 0;
-    virtual sp<Layer> createLayer(TestableSurfaceFlinger& flinger) = 0;
-
-protected:
-    static constexpr uint32_t WIDTH = 100;
-    static constexpr uint32_t HEIGHT = 100;
-    static constexpr uint32_t LAYER_FLAGS = 0;
-};
-
-class BufferStateLayerFactory : public LayerFactory {
-public:
-    std::string name() override { return "BufferStateLayer"; }
-    sp<Layer> createLayer(TestableSurfaceFlinger& flinger) override {
-        sp<Client> client;
-        LayerCreationArgs args(flinger.flinger(), client, "buffer-state-layer", LAYER_FLAGS,
-                               LayerMetadata());
-        return new BufferStateLayer(args);
-    }
-};
-
-class EffectLayerFactory : public LayerFactory {
-public:
-    std::string name() override { return "EffectLayer"; }
-    sp<Layer> createLayer(TestableSurfaceFlinger& flinger) override {
-        sp<Client> client;
-        LayerCreationArgs args(flinger.flinger(), client, "color-layer", LAYER_FLAGS,
-                               LayerMetadata());
-        return new EffectLayer(args);
-    }
-};
-
-std::string PrintToStringParamName(
-        const ::testing::TestParamInfo<std::shared_ptr<LayerFactory>>& info) {
-    return info.param->name();
-}
-
 /**
  * This class tests the behaviour of Layer::SetFrameRate and Layer::GetFrameRate
  */
-class SetFrameRateTest : public ::testing::TestWithParam<std::shared_ptr<LayerFactory>> {
+class SetFrameRateTest : public BaseLayerTest {
 protected:
     const FrameRate FRAME_RATE_VOTE1 = FrameRate(67_Hz, FrameRateCompatibility::Default);
     const FrameRate FRAME_RATE_VOTE2 = FrameRate(14_Hz, FrameRateCompatibility::ExactOrMultiple);
@@ -106,13 +62,9 @@ protected:
 
     SetFrameRateTest();
 
-    void setupScheduler();
-
     void addChild(sp<Layer> layer, sp<Layer> child);
     void removeChild(sp<Layer> layer, sp<Layer> child);
     void commitTransaction();
-
-    TestableSurfaceFlinger mFlinger;
 
     std::vector<sp<Layer>> mLayers;
 };
@@ -121,8 +73,6 @@ SetFrameRateTest::SetFrameRateTest() {
     const ::testing::TestInfo* const test_info =
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
-
-    setupScheduler();
 
     mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
 }
@@ -140,33 +90,6 @@ void SetFrameRateTest::commitTransaction() {
         auto c = layer->getDrawingState();
         layer->commitTransaction(c);
     }
-}
-
-void SetFrameRateTest::setupScheduler() {
-    auto eventThread = std::make_unique<mock::EventThread>();
-    auto sfEventThread = std::make_unique<mock::EventThread>();
-
-    EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
-    EXPECT_CALL(*eventThread, createEventConnection(_, _))
-            .WillOnce(Return(new EventThreadConnection(eventThread.get(), /*callingUid=*/0,
-                                                       ResyncCallback())));
-
-    EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
-    EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-            .WillOnce(Return(new EventThreadConnection(sfEventThread.get(), /*callingUid=*/0,
-                                                       ResyncCallback())));
-
-    auto vsyncController = std::make_unique<mock::VsyncController>();
-    auto vsyncTracker = std::make_unique<mock::VSyncTracker>();
-
-    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
-    EXPECT_CALL(*vsyncTracker, currentPeriod())
-            .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
-    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
-    mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
-                            std::move(eventThread), std::move(sfEventThread),
-                            TestableSurfaceFlinger::SchedulerCallbackImpl::kNoOp,
-                            TestableSurfaceFlinger::kTwoDisplayModes);
 }
 
 namespace {
