@@ -157,9 +157,6 @@ public:
     // respectively if hardware composer doesn't return meaningful values.
     HdrCapabilities getHdrCapabilities() const;
 
-    // Returns the boot display mode preferred by the implementation.
-    ui::DisplayModeId getPreferredBootModeId() const;
-
     // Return true if intent is supported by the display.
     bool hasRenderIntent(ui::RenderIntent intent) const;
 
@@ -232,8 +229,7 @@ public:
     // set-top boxes after a hotplug reconnect.
     DisplayModePtr getMode(DisplayModeId) const;
 
-    // Returns nullptr if the given mode ID is not supported.
-    DisplayModePtr getModefromHwcId(uint32_t) const;
+    std::optional<DisplayModeId> translateModeId(hal::HWConfigId) const;
 
     // Returns the refresh rate configs for this display.
     scheduler::RefreshRateConfigs& refreshRateConfigs() const { return *mRefreshRateConfigs; }

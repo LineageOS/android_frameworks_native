@@ -227,21 +227,23 @@ const DisplayModes& DisplayDevice::getSupportedModes() const {
 }
 
 DisplayModePtr DisplayDevice::getMode(DisplayModeId modeId) const {
-    const auto it = std::find_if(mSupportedModes.begin(), mSupportedModes.end(),
-                                 [&](DisplayModePtr mode) { return mode->getId() == modeId; });
+    const auto it =
+            std::find_if(mSupportedModes.begin(), mSupportedModes.end(),
+                         [&](const DisplayModePtr& mode) { return mode->getId() == modeId; });
     if (it != mSupportedModes.end()) {
         return *it;
     }
     return nullptr;
 }
 
-DisplayModePtr DisplayDevice::getModefromHwcId(uint32_t hwcId) const {
-    const auto it = std::find_if(mSupportedModes.begin(), mSupportedModes.end(),
-                                 [&](DisplayModePtr mode) { return mode->getHwcId() == hwcId; });
+std::optional<DisplayModeId> DisplayDevice::translateModeId(hal::HWConfigId hwcId) const {
+    const auto it =
+            std::find_if(mSupportedModes.begin(), mSupportedModes.end(),
+                         [&](const DisplayModePtr& mode) { return mode->getHwcId() == hwcId; });
     if (it != mSupportedModes.end()) {
-        return *it;
+        return (*it)->getId();
     }
-    return nullptr;
+    return {};
 }
 
 nsecs_t DisplayDevice::getVsyncPeriodFromHWC() const {
@@ -466,16 +468,6 @@ HdrCapabilities DisplayDevice::getHdrCapabilities() const {
     return HdrCapabilities(hdrTypes, capabilities.getDesiredMaxLuminance(),
                            capabilities.getDesiredMaxAverageLuminance(),
                            capabilities.getDesiredMinLuminance());
-}
-
-ui::DisplayModeId DisplayDevice::getPreferredBootModeId() const {
-    const auto preferredBootHwcModeId = mCompositionDisplay->getPreferredBootHwcConfigId();
-    const auto mode = getModefromHwcId(preferredBootHwcModeId);
-    if (mode == nullptr) {
-        ALOGE("%s: invalid display mode (%d)", __FUNCTION__, preferredBootHwcModeId);
-        return BAD_VALUE;
-    }
-    return mode->getId().value();
 }
 
 void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinnner) {
