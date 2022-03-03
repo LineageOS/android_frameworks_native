@@ -81,7 +81,7 @@ static constexpr const int32_t kTestUserId = 0;
 static constexpr const uid_t kTestAppId = 19999;
 
 const gid_t kTestAppUid = multiuser_get_uid(kTestUserId, kTestAppId);
-const uid_t kTestAppSupplementalUid = multiuser_get_supplemental_uid(kTestUserId, kTestAppId);
+const uid_t kTestSdkSandboxUid = multiuser_get_sdk_sandbox_uid(kTestUserId, kTestAppId);
 
 #define FLAG_FORCE InstalldNativeService::FLAG_FORCE
 
@@ -490,6 +490,19 @@ TEST_F(ServiceTest, GetAppSize) {
         std::string removeCommand = StringPrintf("rm -f %s", externalFileLocation.c_str());
         system(removeCommand.c_str());
     }
+}
+TEST_F(ServiceTest, GetAppSizeWrongSizes) {
+    int32_t externalStorageAppId = -1;
+    std::vector<int64_t> externalStorageSize;
+
+    std::vector<std::string> codePaths;
+    std::vector<std::string> packageNames = {"package1", "package2"};
+    std::vector<int64_t> ceDataInodes = {0};
+
+    EXPECT_BINDER_FAIL(service->getAppSize(std::nullopt, packageNames, 0,
+                                           InstalldNativeService::FLAG_USE_QUOTA,
+                                           externalStorageAppId, ceDataInodes, codePaths,
+                                           &externalStorageSize));
 }
 static bool mkdirs(const std::string& path, mode_t mode) {
     struct stat sb;
@@ -936,7 +949,7 @@ TEST_F(AppDataSnapshotTest, RestoreAppDataSnapshot_WrongVolumeUuid) {
           "com.foo", 10000, "", 0, 41, FLAG_STORAGE_DE));
 }
 
-class AppSupplementalDataTest : public testing::Test {
+class SdkSandboxDataTest : public testing::Test {
 public:
     void CheckFileAccess(const std::string& path, uid_t uid, mode_t mode) {
         const auto fullPath = "/data/local/tmp/" + path;
@@ -973,8 +986,8 @@ protected:
         clearAppData();
         ASSERT_TRUE(mkdirs("/data/local/tmp/user/0", 0700));
         ASSERT_TRUE(mkdirs("/data/local/tmp/user_de/0", 0700));
-        ASSERT_TRUE(mkdirs("/data/local/tmp/misc_ce/0/supplemental", 0700));
-        ASSERT_TRUE(mkdirs("/data/local/tmp/misc_de/0/supplemental", 0700));
+        ASSERT_TRUE(mkdirs("/data/local/tmp/misc_ce/0/sdksandbox", 0700));
+        ASSERT_TRUE(mkdirs("/data/local/tmp/misc_de/0/sdksandbox", 0700));
 
         init_globals_from_data_and_root();
     }
@@ -993,7 +1006,7 @@ private:
     }
 };
 
-TEST_F(AppSupplementalDataTest, CreateAppData_CreatesSupplementalAppData) {
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSupplementalAppData) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs();
     args.packageName = "com.foo";
@@ -1002,24 +1015,22 @@ TEST_F(AppSupplementalDataTest, CreateAppData_CreatesSupplementalAppData) {
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
 
-    CheckFileAccess("misc_ce/0/supplemental/com.foo", kSystemUid, S_IFDIR | 0751);
-    CheckFileAccess("misc_ce/0/supplemental/com.foo/shared", kTestAppSupplementalUid,
-                    S_IFDIR | 0700);
-    CheckFileAccess("misc_ce/0/supplemental/com.foo/shared/cache", kTestAppSupplementalUid,
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo", kSystemUid, S_IFDIR | 0751);
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/shared", kTestSdkSandboxUid, S_IFDIR | 0700);
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/shared/cache", kTestSdkSandboxUid,
                     S_IFDIR | S_ISGID | 0771);
-    CheckFileAccess("misc_ce/0/supplemental/com.foo/shared/code_cache", kTestAppSupplementalUid,
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/shared/code_cache", kTestSdkSandboxUid,
                     S_IFDIR | S_ISGID | 0771);
 
-    CheckFileAccess("misc_de/0/supplemental/com.foo", kSystemUid, S_IFDIR | 0751);
-    CheckFileAccess("misc_de/0/supplemental/com.foo/shared", kTestAppSupplementalUid,
-                    S_IFDIR | 0700);
-    CheckFileAccess("misc_de/0/supplemental/com.foo/shared/cache", kTestAppSupplementalUid,
+    CheckFileAccess("misc_de/0/sdksandbox/com.foo", kSystemUid, S_IFDIR | 0751);
+    CheckFileAccess("misc_de/0/sdksandbox/com.foo/shared", kTestSdkSandboxUid, S_IFDIR | 0700);
+    CheckFileAccess("misc_de/0/sdksandbox/com.foo/shared/cache", kTestSdkSandboxUid,
                     S_IFDIR | S_ISGID | 0771);
-    CheckFileAccess("misc_de/0/supplemental/com.foo/shared/code_cache", kTestAppSupplementalUid,
+    CheckFileAccess("misc_de/0/sdksandbox/com.foo/shared/code_cache", kTestSdkSandboxUid,
                     S_IFDIR | S_ISGID | 0771);
 }
 
-TEST_F(AppSupplementalDataTest, CreateAppData_CreatesSupplementalAppData_WithoutDeFlag) {
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSupplementalAppData_WithoutDeFlag) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs();
     args.packageName = "com.foo";
@@ -1029,13 +1040,13 @@ TEST_F(AppSupplementalDataTest, CreateAppData_CreatesSupplementalAppData_Without
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
 
     // Only CE paths should exist
-    CheckFileAccess("misc_ce/0/supplemental/com.foo", kSystemUid, S_IFDIR | 0751);
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo", kSystemUid, S_IFDIR | 0751);
 
     // DE paths should not exist
-    ASSERT_FALSE(exists("/data/local/tmp/misc_de/0/supplemental/com.foo"));
+    ASSERT_FALSE(exists("/data/local/tmp/misc_de/0/sdksandbox/com.foo"));
 }
 
-TEST_F(AppSupplementalDataTest, CreateAppData_CreatesSupplementalAppData_WithoutCeFlag) {
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSupplementalAppData_WithoutCeFlag) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs();
     args.packageName = "com.foo";
@@ -1045,10 +1056,10 @@ TEST_F(AppSupplementalDataTest, CreateAppData_CreatesSupplementalAppData_Without
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
 
     // CE paths should not exist
-    ASSERT_FALSE(exists("/data/local/tmp/misc_ce/0/supplemental/com.foo"));
+    ASSERT_FALSE(exists("/data/local/tmp/misc_ce/0/sdksandbox/com.foo"));
 
     // Only DE paths should exist
-    CheckFileAccess("misc_de/0/supplemental/com.foo", kSystemUid, S_IFDIR | 0751);
+    CheckFileAccess("misc_de/0/sdksandbox/com.foo", kSystemUid, S_IFDIR | 0751);
 }
 
 }  // namespace installd

@@ -723,10 +723,10 @@ binder::Status InstalldNativeService::createAppDataLocked(
     }
 
     // TODO(b/220095381): Due to boot time regression, we have omitted call to
-    // createAppDirectoryForSupplementalData from here temporarily (unless it's for testing)
+    // createSdkSandboxDataDirectory from here temporarily (unless it's for testing)
     if (uuid_ != nullptr && strcmp(uuid_, "TEST") == 0) {
-        auto status = createAppDirectoryForSupplementalData(uuid, packageName, userId, appId,
-                                                            previousAppId, seInfo, flags);
+        auto status = createSdkSandboxDataDirectory(uuid, packageName, userId, appId, previousAppId,
+                                                    seInfo, flags);
         if (!status.isOk()) {
             return status;
         }
@@ -736,15 +736,15 @@ binder::Status InstalldNativeService::createAppDataLocked(
 }
 
 /**
- * Responsible for creating /data/user/0/supplemental/<app-name> directory and other
+ * Responsible for creating /data/misc_{ce|de}/user/0/sdksandbox/<app-name> directory and other
  * app level sub directories, such as ./shared
  */
-binder::Status InstalldNativeService::createAppDirectoryForSupplementalData(
+binder::Status InstalldNativeService::createSdkSandboxDataDirectory(
         const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
         int32_t appId, int32_t previousAppId, const std::string& seInfo, int32_t flags) {
-    int32_t supplementalUid = multiuser_get_supplemental_uid(userId, appId);
-    if (supplementalUid == -1) {
-        // There no valid supplemental process for this app. Skip creation of data directory
+    int32_t sdkSandboxUid = multiuser_get_sdk_sandbox_uid(userId, appId);
+    if (sdkSandboxUid == -1) {
+        // There no valid sdk sandbox process for this app. Skip creation of data directory
         return ok();
     }
 
@@ -759,35 +759,35 @@ binder::Status InstalldNativeService::createAppDirectoryForSupplementalData(
         }
         bool isCeData = (currentFlag == FLAG_STORAGE_CE);
 
-        // /data/misc_{ce,de}/<user-id>/supplemental directory gets created by vold
+        // /data/misc_{ce,de}/<user-id>/sdksandbox directory gets created by vold
         // during user creation
 
         // Prepare the app directory
-        auto appPath = create_data_misc_supplemental_package_path(uuid_, isCeData, userId,
-                                                                  packageName.c_str());
+        auto appPath = create_data_misc_sdk_sandbox_package_path(uuid_, isCeData, userId,
+                                                                 packageName.c_str());
         if (prepare_app_dir(appPath, 0751, AID_SYSTEM)) {
             return error("Failed to prepare " + appPath);
         }
 
         // Now prepare the shared directory which will be accessible by all codes
-        auto sharedPath = create_data_misc_supplemental_shared_path(uuid_, isCeData, userId,
-                                                                    packageName.c_str());
+        auto sharedPath = create_data_misc_sdk_sandbox_shared_path(uuid_, isCeData, userId,
+                                                                   packageName.c_str());
 
-        int32_t previousSupplementalUid = multiuser_get_supplemental_uid(userId, previousAppId);
+        int32_t previousSdkSandboxUid = multiuser_get_sdk_sandbox_uid(userId, previousAppId);
         int32_t cacheGid = multiuser_get_cache_gid(userId, appId);
         if (cacheGid == -1) {
             return exception(binder::Status::EX_ILLEGAL_STATE,
-                             StringPrintf("cacheGid cannot be -1 for supplemental data"));
+                             StringPrintf("cacheGid cannot be -1 for sdksandbox data"));
         }
-        auto status = createAppDataDirs(sharedPath, supplementalUid, &previousSupplementalUid,
-                                        cacheGid, seInfo, 0700);
+        auto status = createAppDataDirs(sharedPath, sdkSandboxUid, &previousSdkSandboxUid, cacheGid,
+                                        seInfo, 0700);
         if (!status.isOk()) {
             return status;
         }
 
         // TODO(b/211763739): We also need to handle art profile creations
 
-        // TODO(b/211763739): And return the CE inode of the supplemental root directory and
+        // TODO(b/211763739): And return the CE inode of the sdksandbox root directory and
         // app directory under it so we can clear contents while CE storage is locked
     }
 
@@ -2084,6 +2084,10 @@ binder::Status InstalldNativeService::getAppSize(const std::optional<std::string
         const std::vector<std::string>& codePaths, std::vector<int64_t>* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
+    if (packageNames.size() != ceDataInodes.size()) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                         "packageNames/ceDataInodes size mismatch.");
+    }
     for (const auto& packageName : packageNames) {
         CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     }

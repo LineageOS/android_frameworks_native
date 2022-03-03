@@ -91,6 +91,7 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
                 static_cast<uint32_t>(SurfaceFlinger::maxFrameBufferAcquiredBuffers));
     }
 
+    mCompositionDisplay->setPredictCompositionStrategy(mFlinger->mPredictCompositionStrategy);
     mCompositionDisplay->createDisplayColorProfile(
             compositionengine::DisplayColorProfileCreationArgsBuilder()
                     .setHasWideColorGamut(args.hasWideColorGamut)
@@ -229,6 +230,15 @@ const DisplayModes& DisplayDevice::getSupportedModes() const {
 DisplayModePtr DisplayDevice::getMode(DisplayModeId modeId) const {
     const auto it = std::find_if(mSupportedModes.begin(), mSupportedModes.end(),
                                  [&](DisplayModePtr mode) { return mode->getId() == modeId; });
+    if (it != mSupportedModes.end()) {
+        return *it;
+    }
+    return nullptr;
+}
+
+DisplayModePtr DisplayDevice::getModefromHwcId(uint32_t hwcId) const {
+    const auto it = std::find_if(mSupportedModes.begin(), mSupportedModes.end(),
+                                 [&](DisplayModePtr mode) { return mode->getHwcId() == hwcId; });
     if (it != mSupportedModes.end()) {
         return *it;
     }
@@ -460,7 +470,13 @@ HdrCapabilities DisplayDevice::getHdrCapabilities() const {
 }
 
 ui::DisplayModeId DisplayDevice::getPreferredBootModeId() const {
-    return mCompositionDisplay->getPreferredBootModeId();
+    const auto preferredBootHwcModeId = mCompositionDisplay->getPreferredBootHwcConfigId();
+    const auto mode = getModefromHwcId(preferredBootHwcModeId);
+    if (mode == nullptr) {
+        ALOGE("%s: invalid display mode (%d)", __FUNCTION__, preferredBootHwcModeId);
+        return BAD_VALUE;
+    }
+    return mode->getId().value();
 }
 
 void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinnner) {

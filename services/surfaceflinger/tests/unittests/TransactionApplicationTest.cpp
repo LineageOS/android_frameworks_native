@@ -226,7 +226,7 @@ public:
         // if this is an animation, this thread should be blocked for 5s
         // in setTransactionState waiting for transactionA to flush.  Otherwise,
         // the transaction should be placed on the pending queue
-        if (flags & (ISurfaceComposer::eAnimation | ISurfaceComposer::eSynchronous) ||
+        if (flags & (ISurfaceComposer::eSynchronous) ||
             syncInputWindows) {
             EXPECT_GE(systemTime(),
                       applicationSentTime + mFlinger.getAnimationTransactionTimeout());
@@ -288,20 +288,12 @@ TEST_F(TransactionApplicationTest, NotPlacedOnTransactionQueue_Synchronous) {
     NotPlacedOnTransactionQueue(ISurfaceComposer::eSynchronous, /*syncInputWindows*/ false);
 }
 
-TEST_F(TransactionApplicationTest, NotPlacedOnTransactionQueue_Animation) {
-    NotPlacedOnTransactionQueue(ISurfaceComposer::eAnimation, /*syncInputWindows*/ false);
-}
-
 TEST_F(TransactionApplicationTest, NotPlacedOnTransactionQueue_SyncInputWindows) {
     NotPlacedOnTransactionQueue(/*flags*/ 0, /*syncInputWindows*/ true);
 }
 
 TEST_F(TransactionApplicationTest, PlaceOnTransactionQueue_Synchronous) {
     PlaceOnTransactionQueue(ISurfaceComposer::eSynchronous, /*syncInputWindows*/ false);
-}
-
-TEST_F(TransactionApplicationTest, PlaceOnTransactionQueue_Animation) {
-    PlaceOnTransactionQueue(ISurfaceComposer::eAnimation, /*syncInputWindows*/ false);
 }
 
 TEST_F(TransactionApplicationTest, PlaceOnTransactionQueue_SyncInputWindows) {

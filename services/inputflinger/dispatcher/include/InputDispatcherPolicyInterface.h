@@ -51,30 +51,19 @@ public:
             const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) = 0;
 
     /* Notifies the system that a window just became unresponsive. This indicates that ANR
-     * should be raised for this window. The window is identified via token.
-     * The string reason contains information about the input event that we haven't received
-     * a response for.
+     * should be raised for this window. The window can be identified via its input token and the
+     * pid of the owner. The string reason contains information about the input event that we
+     * haven't received a response for.
      */
-    virtual void notifyWindowUnresponsive(const sp<IBinder>& token, const std::string& reason) = 0;
-    /* Notifies the system that a monitor just became unresponsive. This indicates that ANR
-     * should be raised for this monitor. The monitor is identified via its pid.
-     * The string reason contains information about the input event that we haven't received
-     * a response for.
-     */
-    virtual void notifyMonitorUnresponsive(int32_t pid, const std::string& reason) = 0;
+    virtual void notifyWindowUnresponsive(const sp<IBinder>& token, std::optional<int32_t> pid,
+                                          const std::string& reason) = 0;
 
     /* Notifies the system that a window just became responsive. This is only called after the
      * window was first marked "unresponsive". This indicates that ANR dialog (if any) should
      * no longer should be shown to the user. The window is eligible to cause a new ANR in the
      * future.
      */
-    virtual void notifyWindowResponsive(const sp<IBinder>& token) = 0;
-    /* Notifies the system that a monitor just became responsive. This is only called after the
-     * monitor was first marked "unresponsive". This indicates that ANR dialog (if any) should
-     * no longer should be shown to the user. The monitor is eligible to cause a new ANR in the
-     * future.
-     */
-    virtual void notifyMonitorResponsive(int32_t pid) = 0;
+    virtual void notifyWindowResponsive(const sp<IBinder>& token, std::optional<int32_t> pid) = 0;
 
     /* Notifies the system that an input channel is unrecoverably broken. */
     virtual void notifyInputChannelBroken(const sp<IBinder>& token) = 0;
