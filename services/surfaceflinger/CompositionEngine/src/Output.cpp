@@ -1112,8 +1112,12 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     // because high frequency consumes extra battery.
     const bool expensiveBlurs =
             refreshArgs.blursAreExpensive && mLayerRequestingBackgroundBlur != nullptr;
-    const bool expensiveRenderingExpected =
-            clientCompositionDisplay.outputDataspace == ui::Dataspace::DISPLAY_P3 || expensiveBlurs;
+    const bool expensiveRenderingExpected = expensiveBlurs ||
+            std::any_of(clientCompositionLayers.begin(), clientCompositionLayers.end(),
+                        [outputDataspace =
+                                 clientCompositionDisplay.outputDataspace](const auto& layer) {
+                            return layer.sourceDataspace != outputDataspace;
+                        });
     if (expensiveRenderingExpected) {
         setExpensiveRenderingExpected(true);
     }
