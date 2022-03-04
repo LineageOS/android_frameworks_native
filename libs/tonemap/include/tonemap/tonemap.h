@@ -48,6 +48,14 @@ struct Metadata {
     float contentMaxLuminance = 0.0;
 };
 
+// Utility class containing pre-processed conversions for a particular color
+struct Color {
+    // RGB color in linear space
+    vec3 linearRGB;
+    // CIE 1931 XYZ representation of the color
+    vec3 xyz;
+};
+
 class ToneMapper {
 public:
     virtual ~ToneMapper() {}
@@ -108,10 +116,11 @@ public:
     // described by destinationDataspace. To compute the gain, the input colors are provided by
     // linearRGB, which is the RGB colors in linear space. The colors in XYZ space are also
     // provided. Metadata is also provided for helping to compute the tonemapping curve.
-    virtual double lookupTonemapGain(
+    using Gain = double;
+    virtual std::vector<Gain> lookupTonemapGain(
             aidl::android::hardware::graphics::common::Dataspace sourceDataspace,
             aidl::android::hardware::graphics::common::Dataspace destinationDataspace,
-            vec3 linearRGB, vec3 xyz, const Metadata& metadata) = 0;
+            const std::vector<Color>& colors, const Metadata& metadata) = 0;
 };
 
 // Retrieves a tonemapper instance.

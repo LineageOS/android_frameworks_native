@@ -236,136 +236,143 @@ public:
         return uniforms;
     }
 
-    double lookupTonemapGain(
+    std::vector<Gain> lookupTonemapGain(
             aidl::android::hardware::graphics::common::Dataspace sourceDataspace,
             aidl::android::hardware::graphics::common::Dataspace destinationDataspace,
-            vec3 /* linearRGB */, vec3 xyz, const Metadata& metadata) override {
-        if (xyz.y <= 0.0) {
-            return 1.0;
-        }
-        const int32_t sourceDataspaceInt = static_cast<int32_t>(sourceDataspace);
-        const int32_t destinationDataspaceInt = static_cast<int32_t>(destinationDataspace);
+            const std::vector<Color>& colors, const Metadata& metadata) override {
+        std::vector<Gain> gains;
+        gains.reserve(colors.size());
 
-        double targetNits = 0.0;
-        switch (sourceDataspaceInt & kTransferMask) {
-            case kTransferST2084:
-            case kTransferHLG:
-                switch (destinationDataspaceInt & kTransferMask) {
-                    case kTransferST2084:
-                        targetNits = xyz.y;
-                        break;
-                    case kTransferHLG:
-                        // PQ has a wider luminance range (10,000 nits vs. 1,000 nits) than HLG, so
-                        // we'll clamp the luminance range in case we're mapping from PQ input to
-                        // HLG output.
-                        targetNits = std::clamp(xyz.y, 0.0f, 1000.0f);
-                        break;
-                    default:
-                        // Here we're mapping from HDR to SDR content, so interpolate using a
-                        // Hermitian polynomial onto the smaller luminance range.
+        for (const auto [_, xyz] : colors) {
+            if (xyz.y <= 0.0) {
+                gains.push_back(1.0);
+                continue;
+            }
+            const int32_t sourceDataspaceInt = static_cast<int32_t>(sourceDataspace);
+            const int32_t destinationDataspaceInt = static_cast<int32_t>(destinationDataspace);
 
-                        targetNits = xyz.y;
-                        // if the max input luminance is less than what we can output then
-                        // no tone mapping is needed as all color values will be in range.
-                        if (metadata.contentMaxLuminance > metadata.displayMaxLuminance) {
-                            // three control points
-                            const double x0 = 10.0;
-                            const double y0 = 17.0;
-                            double x1 = metadata.displayMaxLuminance * 0.75;
-                            double y1 = x1;
-                            double x2 = x1 + (metadata.contentMaxLuminance - x1) / 2.0;
-                            double y2 = y1 + (metadata.displayMaxLuminance - y1) * 0.75;
+            double targetNits = 0.0;
+            switch (sourceDataspaceInt & kTransferMask) {
+                case kTransferST2084:
+                case kTransferHLG:
+                    switch (destinationDataspaceInt & kTransferMask) {
+                        case kTransferST2084:
+                            targetNits = xyz.y;
+                            break;
+                        case kTransferHLG:
+                            // PQ has a wider luminance range (10,000 nits vs. 1,000 nits) than HLG,
+                            // so we'll clamp the luminance range in case we're mapping from PQ
+                            // input to HLG output.
+                            targetNits = std::clamp(xyz.y, 0.0f, 1000.0f);
+                            break;
+                        default:
+                            // Here we're mapping from HDR to SDR content, so interpolate using a
+                            // Hermitian polynomial onto the smaller luminance range.
 
-                            // horizontal distances between the last three control points
-                            double h12 = x2 - x1;
-                            double h23 = metadata.contentMaxLuminance - x2;
-                            // tangents at the last three control points
-                            double m1 = (y2 - y1) / h12;
-                            double m3 = (metadata.displayMaxLuminance - y2) / h23;
-                            double m2 = (m1 + m3) / 2.0;
+                            targetNits = xyz.y;
+                            // if the max input luminance is less than what we can output then
+                            // no tone mapping is needed as all color values will be in range.
+                            if (metadata.contentMaxLuminance > metadata.displayMaxLuminance) {
+                                // three control points
+                                const double x0 = 10.0;
+                                const double y0 = 17.0;
+                                double x1 = metadata.displayMaxLuminance * 0.75;
+                                double y1 = x1;
+                                double x2 = x1 + (metadata.contentMaxLuminance - x1) / 2.0;
+                                double y2 = y1 + (metadata.displayMaxLuminance - y1) * 0.75;
 
-                            if (targetNits < x0) {
+                                // horizontal distances between the last three control points
+                                double h12 = x2 - x1;
+                                double h23 = metadata.contentMaxLuminance - x2;
+                                // tangents at the last three control points
+                                double m1 = (y2 - y1) / h12;
+                                double m3 = (metadata.displayMaxLuminance - y2) / h23;
+                                double m2 = (m1 + m3) / 2.0;
+
+                                if (targetNits < x0) {
+                                    // scale [0.0, x0] to [0.0, y0] linearly
+                                    double slope = y0 / x0;
+                                    targetNits *= slope;
+                                } else if (targetNits < x1) {
+                                    // scale [x0, x1] to [y0, y1] linearly
+                                    double slope = (y1 - y0) / (x1 - x0);
+                                    targetNits = y0 + (targetNits - x0) * slope;
+                                } else if (targetNits < x2) {
+                                    // scale [x1, x2] to [y1, y2] using Hermite interp
+                                    double t = (targetNits - x1) / h12;
+                                    targetNits = (y1 * (1.0 + 2.0 * t) + h12 * m1 * t) * (1.0 - t) *
+                                                    (1.0 - t) +
+                                            (y2 * (3.0 - 2.0 * t) + h12 * m2 * (t - 1.0)) * t * t;
+                                } else {
+                                    // scale [x2, maxInLumi] to [y2, maxOutLumi] using Hermite
+                                    // interp
+                                    double t = (targetNits - x2) / h23;
+                                    targetNits = (y2 * (1.0 + 2.0 * t) + h23 * m2 * t) * (1.0 - t) *
+                                                    (1.0 - t) +
+                                            (metadata.displayMaxLuminance * (3.0 - 2.0 * t) +
+                                             h23 * m3 * (t - 1.0)) *
+                                                    t * t;
+                                }
+                            }
+                            break;
+                    }
+                    break;
+                default:
+                    // source is SDR
+                    switch (destinationDataspaceInt & kTransferMask) {
+                        case kTransferST2084:
+                        case kTransferHLG: {
+                            // Map from SDR onto an HDR output buffer
+                            // Here we use a polynomial curve to map from [0, displayMaxLuminance]
+                            // onto [0, maxOutLumi] which is hard-coded to be 3000 nits.
+                            const double maxOutLumi = 3000.0;
+
+                            double x0 = 5.0;
+                            double y0 = 2.5;
+                            double x1 = metadata.displayMaxLuminance * 0.7;
+                            double y1 = maxOutLumi * 0.15;
+                            double x2 = metadata.displayMaxLuminance * 0.9;
+                            double y2 = maxOutLumi * 0.45;
+                            double x3 = metadata.displayMaxLuminance;
+                            double y3 = maxOutLumi;
+
+                            double c1 = y1 / 3.0;
+                            double c2 = y2 / 2.0;
+                            double c3 = y3 / 1.5;
+
+                            targetNits = xyz.y;
+
+                            if (targetNits <= x0) {
                                 // scale [0.0, x0] to [0.0, y0] linearly
                                 double slope = y0 / x0;
                                 targetNits *= slope;
-                            } else if (targetNits < x1) {
-                                // scale [x0, x1] to [y0, y1] linearly
-                                double slope = (y1 - y0) / (x1 - x0);
-                                targetNits = y0 + (targetNits - x0) * slope;
-                            } else if (targetNits < x2) {
-                                // scale [x1, x2] to [y1, y2] using Hermite interp
-                                double t = (targetNits - x1) / h12;
-                                targetNits = (y1 * (1.0 + 2.0 * t) + h12 * m1 * t) * (1.0 - t) *
-                                                (1.0 - t) +
-                                        (y2 * (3.0 - 2.0 * t) + h12 * m2 * (t - 1.0)) * t * t;
+                            } else if (targetNits <= x1) {
+                                // scale [x0, x1] to [y0, y1] using a curve
+                                double t = (targetNits - x0) / (x1 - x0);
+                                targetNits = (1.0 - t) * (1.0 - t) * y0 + 2.0 * (1.0 - t) * t * c1 +
+                                        t * t * y1;
+                            } else if (targetNits <= x2) {
+                                // scale [x1, x2] to [y1, y2] using a curve
+                                double t = (targetNits - x1) / (x2 - x1);
+                                targetNits = (1.0 - t) * (1.0 - t) * y1 + 2.0 * (1.0 - t) * t * c2 +
+                                        t * t * y2;
                             } else {
-                                // scale [x2, maxInLumi] to [y2, maxOutLumi] using Hermite interp
-                                double t = (targetNits - x2) / h23;
-                                targetNits = (y2 * (1.0 + 2.0 * t) + h23 * m2 * t) * (1.0 - t) *
-                                                (1.0 - t) +
-                                        (metadata.displayMaxLuminance * (3.0 - 2.0 * t) +
-                                         h23 * m3 * (t - 1.0)) *
-                                                t * t;
+                                // scale [x2, x3] to [y2, y3] using a curve
+                                double t = (targetNits - x2) / (x3 - x2);
+                                targetNits = (1.0 - t) * (1.0 - t) * y2 + 2.0 * (1.0 - t) * t * c3 +
+                                        t * t * y3;
                             }
-                        }
-                        break;
-                }
-                break;
-            default:
-                // source is SDR
-                switch (destinationDataspaceInt & kTransferMask) {
-                    case kTransferST2084:
-                    case kTransferHLG: {
-                        // Map from SDR onto an HDR output buffer
-                        // Here we use a polynomial curve to map from [0, displayMaxLuminance] onto
-                        // [0, maxOutLumi] which is hard-coded to be 3000 nits.
-                        const double maxOutLumi = 3000.0;
-
-                        double x0 = 5.0;
-                        double y0 = 2.5;
-                        double x1 = metadata.displayMaxLuminance * 0.7;
-                        double y1 = maxOutLumi * 0.15;
-                        double x2 = metadata.displayMaxLuminance * 0.9;
-                        double y2 = maxOutLumi * 0.45;
-                        double x3 = metadata.displayMaxLuminance;
-                        double y3 = maxOutLumi;
-
-                        double c1 = y1 / 3.0;
-                        double c2 = y2 / 2.0;
-                        double c3 = y3 / 1.5;
-
-                        targetNits = xyz.y;
-
-                        if (targetNits <= x0) {
-                            // scale [0.0, x0] to [0.0, y0] linearly
-                            double slope = y0 / x0;
-                            targetNits *= slope;
-                        } else if (targetNits <= x1) {
-                            // scale [x0, x1] to [y0, y1] using a curve
-                            double t = (targetNits - x0) / (x1 - x0);
-                            targetNits = (1.0 - t) * (1.0 - t) * y0 + 2.0 * (1.0 - t) * t * c1 +
-                                    t * t * y1;
-                        } else if (targetNits <= x2) {
-                            // scale [x1, x2] to [y1, y2] using a curve
-                            double t = (targetNits - x1) / (x2 - x1);
-                            targetNits = (1.0 - t) * (1.0 - t) * y1 + 2.0 * (1.0 - t) * t * c2 +
-                                    t * t * y2;
-                        } else {
-                            // scale [x2, x3] to [y2, y3] using a curve
-                            double t = (targetNits - x2) / (x3 - x2);
-                            targetNits = (1.0 - t) * (1.0 - t) * y2 + 2.0 * (1.0 - t) * t * c3 +
-                                    t * t * y3;
-                        }
-                    } break;
-                    default:
-                        // For completeness, this is tone-mapping from SDR to SDR, where this is
-                        // just a no-op.
-                        targetNits = xyz.y;
-                        break;
-                }
+                        } break;
+                        default:
+                            // For completeness, this is tone-mapping from SDR to SDR, where this is
+                            // just a no-op.
+                            targetNits = xyz.y;
+                            break;
+                    }
+            }
+            gains.push_back(targetNits / xyz.y);
         }
-
-        return targetNits / xyz.y;
+        return gains;
     }
 };
 
@@ -427,8 +434,6 @@ public:
                         break;
 
                     default:
-                        // Here we're mapping from HDR to SDR content, so interpolate using a
-                        // Hermitian polynomial onto the smaller luminance range.
                         program.append(R"(
                                 float libtonemap_OETFTone(float channel) {
                                     channel = channel / 10000.0;
@@ -548,95 +553,99 @@ public:
         return uniforms;
     }
 
-    double lookupTonemapGain(
+    std::vector<Gain> lookupTonemapGain(
             aidl::android::hardware::graphics::common::Dataspace sourceDataspace,
             aidl::android::hardware::graphics::common::Dataspace destinationDataspace,
-            vec3 linearRGB, vec3 /* xyz */, const Metadata& metadata) override {
-        double maxRGB = std::max({linearRGB.r, linearRGB.g, linearRGB.b});
+            const std::vector<Color>& colors, const Metadata& metadata) override {
+        std::vector<Gain> gains;
+        gains.reserve(colors.size());
 
-        if (maxRGB <= 0.0) {
-            return 1.0;
-        }
+        // Precompute constants for HDR->SDR tonemapping parameters
+        constexpr double maxInLumi = 4000;
+        const double maxOutLumi = metadata.displayMaxLuminance;
 
-        const int32_t sourceDataspaceInt = static_cast<int32_t>(sourceDataspace);
-        const int32_t destinationDataspaceInt = static_cast<int32_t>(destinationDataspace);
+        const double x1 = maxOutLumi * 0.65;
+        const double y1 = x1;
 
-        double targetNits = 0.0;
-        switch (sourceDataspaceInt & kTransferMask) {
-            case kTransferST2084:
-                switch (destinationDataspaceInt & kTransferMask) {
-                    case kTransferST2084:
-                        targetNits = maxRGB;
-                        break;
-                    case kTransferHLG:
-                        // PQ has a wider luminance range (10,000 nits vs. 1,000 nits) than HLG, so
-                        // we'll clamp the luminance range in case we're mapping from PQ input to
-                        // HLG output.
-                        targetNits = std::clamp(maxRGB, 0.0, 1000.0);
-                        break;
-                    default:
-                        // Here we're mapping from HDR to SDR content, so interpolate using a
-                        // Hermitian polynomial onto the smaller luminance range.
+        const double x3 = maxInLumi;
+        const double y3 = maxOutLumi;
 
-                        double maxInLumi = 4000;
-                        double maxOutLumi = metadata.displayMaxLuminance;
+        const double x2 = x1 + (x3 - x1) * 4.0 / 17.0;
+        const double y2 = maxOutLumi * 0.9;
 
-                        targetNits = maxRGB;
+        const double greyNorm1 = OETF_ST2084(x1);
+        const double greyNorm2 = OETF_ST2084(x2);
+        const double greyNorm3 = OETF_ST2084(x3);
 
-                        double x1 = maxOutLumi * 0.65;
-                        double y1 = x1;
+        const double slope2 = (y2 - y1) / (greyNorm2 - greyNorm1);
+        const double slope3 = (y3 - y2) / (greyNorm3 - greyNorm2);
 
-                        double x3 = maxInLumi;
-                        double y3 = maxOutLumi;
+        for (const auto [linearRGB, _] : colors) {
+            double maxRGB = std::max({linearRGB.r, linearRGB.g, linearRGB.b});
 
-                        double x2 = x1 + (x3 - x1) * 4.0 / 17.0;
-                        double y2 = maxOutLumi * 0.9;
+            if (maxRGB <= 0.0) {
+                gains.push_back(1.0);
+                continue;
+            }
 
-                        const double greyNorm1 = OETF_ST2084(x1);
-                        const double greyNorm2 = OETF_ST2084(x2);
-                        const double greyNorm3 = OETF_ST2084(x3);
+            const int32_t sourceDataspaceInt = static_cast<int32_t>(sourceDataspace);
+            const int32_t destinationDataspaceInt = static_cast<int32_t>(destinationDataspace);
 
-                        double slope2 = (y2 - y1) / (greyNorm2 - greyNorm1);
-                        double slope3 = (y3 - y2) / (greyNorm3 - greyNorm2);
-
-                        if (targetNits < x1) {
+            double targetNits = 0.0;
+            switch (sourceDataspaceInt & kTransferMask) {
+                case kTransferST2084:
+                    switch (destinationDataspaceInt & kTransferMask) {
+                        case kTransferST2084:
+                            targetNits = maxRGB;
                             break;
-                        }
-
-                        if (targetNits > maxInLumi) {
-                            targetNits = maxOutLumi;
+                        case kTransferHLG:
+                            // PQ has a wider luminance range (10,000 nits vs. 1,000 nits) than HLG,
+                            // so we'll clamp the luminance range in case we're mapping from PQ
+                            // input to HLG output.
+                            targetNits = std::clamp(maxRGB, 0.0, 1000.0);
                             break;
-                        }
+                        default:
+                            targetNits = maxRGB;
+                            if (targetNits < x1) {
+                                break;
+                            }
 
-                        const double greyNits = OETF_ST2084(targetNits);
+                            if (targetNits > maxInLumi) {
+                                targetNits = maxOutLumi;
+                                break;
+                            }
 
-                        if (greyNits <= greyNorm2) {
-                            targetNits = (greyNits - greyNorm2) * slope2 + y2;
-                        } else if (greyNits <= greyNorm3) {
-                            targetNits = (greyNits - greyNorm3) * slope3 + y3;
-                        } else {
-                            targetNits = maxOutLumi;
-                        }
-                        break;
-                }
-                break;
-            case kTransferHLG:
-                switch (destinationDataspaceInt & kTransferMask) {
-                    case kTransferST2084:
-                    case kTransferHLG:
-                        targetNits = maxRGB;
-                        break;
-                    default:
-                        targetNits = maxRGB * metadata.displayMaxLuminance / 1000.0;
-                        break;
-                }
-                break;
-            default:
-                targetNits = maxRGB;
-                break;
+                            const double greyNits = OETF_ST2084(targetNits);
+
+                            if (greyNits <= greyNorm2) {
+                                targetNits = (greyNits - greyNorm2) * slope2 + y2;
+                            } else if (greyNits <= greyNorm3) {
+                                targetNits = (greyNits - greyNorm3) * slope3 + y3;
+                            } else {
+                                targetNits = maxOutLumi;
+                            }
+                            break;
+                    }
+                    break;
+                case kTransferHLG:
+                    switch (destinationDataspaceInt & kTransferMask) {
+                        case kTransferST2084:
+                        case kTransferHLG:
+                            targetNits = maxRGB;
+                            break;
+                        default:
+                            targetNits = maxRGB * metadata.displayMaxLuminance / 1000.0;
+                            break;
+                    }
+                    break;
+                default:
+                    targetNits = maxRGB;
+                    break;
+            }
+
+            gains.push_back(targetNits / maxRGB);
         }
-
-        return targetNits / maxRGB;
+        return gains;
     }
 };
 

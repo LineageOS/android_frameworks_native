@@ -1562,15 +1562,21 @@ void RenderEngineTest::tonemap(ui::Dataspace sourceDataspace, std::function<vec3
         const vec3 xyz = bt2020.getRGBtoXYZ() * linearRGB;
 
         const vec3 scaledXYZ = scaleOotf(xyz, kCurrentLuminanceNits);
-        const double gain =
+        const auto gains =
                 tonemap::getToneMapper()
                         ->lookupTonemapGain(static_cast<aidl::android::hardware::graphics::common::
                                                                 Dataspace>(sourceDataspace),
                                             static_cast<aidl::android::hardware::graphics::common::
                                                                 Dataspace>(
                                                     ui::Dataspace::DISPLAY_P3),
-                                            scaleOotf(linearRGB, kCurrentLuminanceNits), scaledXYZ,
+                                            {tonemap::
+                                                     Color{.linearRGB =
+                                                                   scaleOotf(linearRGB,
+                                                                             kCurrentLuminanceNits),
+                                                           .xyz = scaledXYZ}},
                                             metadata);
+        EXPECT_EQ(1, gains.size());
+        const double gain = gains.front();
         const vec3 normalizedXYZ = scaledXYZ * gain / metadata.displayMaxLuminance;
 
         const vec3 targetRGB = OETF_sRGB(displayP3.getXYZtoRGB() * normalizedXYZ) * 255;
