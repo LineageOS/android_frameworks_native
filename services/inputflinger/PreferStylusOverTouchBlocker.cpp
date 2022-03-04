@@ -15,78 +15,163 @@
  */
 
 #include "PreferStylusOverTouchBlocker.h"
-
-#include <android-base/stringprintf.h>
-
-using android::base::StringPrintf;
-
-static const char* toString(bool value) {
-    return value ? "true" : "false";
-}
+#include <input/PrintTools.h>
 
 namespace android {
 
-ftl::StaticVector<NotifyMotionArgs, 2> PreferStylusOverTouchBlocker::processMotion(
-        const NotifyMotionArgs& args) {
-    const bool isStylusEvent = isFromSource(args.source, AINPUT_SOURCE_STYLUS);
-    if (isStylusEvent) {
-        for (size_t i = 0; i < args.pointerCount; i++) {
-            // Make sure we are canceling stylus pointers
-            const int32_t toolType = args.pointerProperties[i].toolType;
-            LOG_ALWAYS_FATAL_IF(toolType != AMOTION_EVENT_TOOL_TYPE_STYLUS &&
-                                        toolType != AMOTION_EVENT_TOOL_TYPE_ERASER,
-                                "The pointer %zu has toolType=%i, but the source is STYLUS. If "
-                                "simultaneous touch and stylus is supported, "
-                                "'PreferStylusOverTouchBlocker' should be disabled.",
-                                i, toolType);
+static std::pair<bool, bool> checkToolType(const NotifyMotionArgs& args) {
+    bool hasStylus = false;
+    bool hasTouch = false;
+    for (size_t i = 0; i < args.pointerCount; i++) {
+        // Make sure we are canceling stylus pointers
+        const int32_t toolType = args.pointerProperties[i].toolType;
+        if (toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS ||
+            toolType == AMOTION_EVENT_TOOL_TYPE_ERASER) {
+            hasStylus = true;
+        }
+        if (toolType == AMOTION_EVENT_TOOL_TYPE_FINGER) {
+            hasTouch = true;
         }
     }
-    const bool isDown = args.action == AMOTION_EVENT_ACTION_DOWN;
+    return std::make_pair(hasTouch, hasStylus);
+}
+
+/**
+ * Intersect two sets in-place, storing the result in 'set1'.
+ * Find elements in set1 that are not present in set2 and delete them,
+ * relying on the fact that the two sets are ordered.
+ */
+template <typename T>
+static void intersectInPlace(std::set<T>& set1, const std::set<T>& set2) {
+    typename std::set<T>::iterator it1 = set1.begin();
+    typename std::set<T>::const_iterator it2 = set2.begin();
+    while (it1 != set1.end() && it2 != set2.end()) {
+        const T& element1 = *it1;
+        const T& element2 = *it2;
+        if (element1 < element2) {
+            // This element is not present in set2. Remove it from set1.
+            it1 = set1.erase(it1);
+            continue;
+        }
+        if (element2 < element1) {
+            it2++;
+        }
+        if (element1 == element2) {
+            it1++;
+            it2++;
+        }
+    }
+    // Remove the rest of the elements in set1 because set2 is already exhausted.
+    set1.erase(it1, set1.end());
+}
+
+/**
+ * Same as above, but prune a map
+ */
+template <typename K, class V>
+static void intersectInPlace(std::map<K, V>& map, const std::set<K>& set2) {
+    typename std::map<K, V>::iterator it1 = map.begin();
+    typename std::set<K>::const_iterator it2 = set2.begin();
+    while (it1 != map.end() && it2 != set2.end()) {
+        const auto& [key, _] = *it1;
+        const K& element2 = *it2;
+        if (key < element2) {
+            // This element is not present in set2. Remove it from map.
+            it1 = map.erase(it1);
+            continue;
+        }
+        if (element2 < key) {
+            it2++;
+        }
+        if (key == element2) {
+            it1++;
+            it2++;
+        }
+    }
+    // Remove the rest of the elements in map because set2 is already exhausted.
+    map.erase(it1, map.end());
+}
+
+// -------------------------------- PreferStylusOverTouchBlocker -----------------------------------
+
+std::vector<NotifyMotionArgs> PreferStylusOverTouchBlocker::processMotion(
+        const NotifyMotionArgs& args) {
+    const auto [hasTouch, hasStylus] = checkToolType(args);
     const bool isUpOrCancel =
             args.action == AMOTION_EVENT_ACTION_UP || args.action == AMOTION_EVENT_ACTION_CANCEL;
+
+    if (hasTouch && hasStylus) {
+        mDevicesWithMixedToolType.insert(args.deviceId);
+    }
+    // Handle the case where mixed touch and stylus pointers are reported. Add this device to the
+    // ignore list, since it clearly supports simultaneous touch and stylus.
+    if (mDevicesWithMixedToolType.find(args.deviceId) != mDevicesWithMixedToolType.end()) {
+        // This event comes from device with mixed stylus and touch event. Ignore this device.
+        if (mCanceledDevices.find(args.deviceId) != mCanceledDevices.end()) {
+            // If we started to cancel events from this device, continue to do so to keep
+            // the stream consistent. It should happen at most once per "mixed" device.
+            if (isUpOrCancel) {
+                mCanceledDevices.erase(args.deviceId);
+                mLastTouchEvents.erase(args.deviceId);
+            }
+            return {};
+        }
+        return {args};
+    }
+
+    const bool isStylusEvent = hasStylus;
+    const bool isDown = args.action == AMOTION_EVENT_ACTION_DOWN;
+
     if (isStylusEvent) {
         if (isDown) {
             // Reject all touch while stylus is down
-            mIsStylusDown = true;
-            if (mIsTouchDown && !mCurrentTouchIsCanceled) {
-                // Cancel touch!
-                mCurrentTouchIsCanceled = true;
-                mLastTouchEvent.action = AMOTION_EVENT_ACTION_CANCEL;
-                mLastTouchEvent.flags |= AMOTION_EVENT_FLAG_CANCELED;
-                mLastTouchEvent.eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
-                return {mLastTouchEvent, args};
+            mActiveStyli.insert(args.deviceId);
+
+            // Cancel all current touch!
+            std::vector<NotifyMotionArgs> result;
+            for (auto& [deviceId, lastTouchEvent] : mLastTouchEvents) {
+                if (mCanceledDevices.find(deviceId) != mCanceledDevices.end()) {
+                    // Already canceled, go to next one.
+                    continue;
+                }
+                // Not yet canceled. Cancel it.
+                lastTouchEvent.action = AMOTION_EVENT_ACTION_CANCEL;
+                lastTouchEvent.flags |= AMOTION_EVENT_FLAG_CANCELED;
+                lastTouchEvent.eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
+                result.push_back(lastTouchEvent);
+                mCanceledDevices.insert(deviceId);
             }
+            result.push_back(args);
+            return result;
         }
         if (isUpOrCancel) {
-            mIsStylusDown = false;
+            mActiveStyli.erase(args.deviceId);
         }
         // Never drop stylus events
         return {args};
     }
 
-    const bool isTouchEvent =
-            isFromSource(args.source, AINPUT_SOURCE_TOUCHSCREEN) && !isStylusEvent;
+    const bool isTouchEvent = hasTouch;
     if (isTouchEvent) {
-        if (mIsStylusDown) {
-            mCurrentTouchIsCanceled = true;
+        // Suppress the current gesture if any stylus is still down
+        if (!mActiveStyli.empty()) {
+            mCanceledDevices.insert(args.deviceId);
         }
+
+        const bool shouldDrop = mCanceledDevices.find(args.deviceId) != mCanceledDevices.end();
+        if (isUpOrCancel) {
+            mCanceledDevices.erase(args.deviceId);
+            mLastTouchEvents.erase(args.deviceId);
+        }
+
         // If we already canceled the current gesture, then continue to drop events from it, even if
         // the stylus has been lifted.
-        if (mCurrentTouchIsCanceled) {
-            if (isUpOrCancel) {
-                mCurrentTouchIsCanceled = false;
-            }
+        if (shouldDrop) {
             return {};
         }
 
-        // Update state
-        mLastTouchEvent = args;
-        if (isDown) {
-            mIsTouchDown = true;
-        }
-        if (isUpOrCancel) {
-            mIsTouchDown = false;
-            mCurrentTouchIsCanceled = false;
+        if (!isUpOrCancel) {
+            mLastTouchEvents[args.deviceId] = args;
         }
         return {args};
     }
@@ -95,12 +180,36 @@ ftl::StaticVector<NotifyMotionArgs, 2> PreferStylusOverTouchBlocker::processMoti
     return {args};
 }
 
-std::string PreferStylusOverTouchBlocker::dump() {
+void PreferStylusOverTouchBlocker::notifyInputDevicesChanged(
+        const std::vector<InputDeviceInfo>& inputDevices) {
+    std::set<int32_t> presentDevices;
+    for (const InputDeviceInfo& device : inputDevices) {
+        presentDevices.insert(device.getId());
+    }
+    // Only keep the devices that are still present.
+    intersectInPlace(mDevicesWithMixedToolType, presentDevices);
+    intersectInPlace(mLastTouchEvents, presentDevices);
+    intersectInPlace(mCanceledDevices, presentDevices);
+    intersectInPlace(mActiveStyli, presentDevices);
+}
+
+void PreferStylusOverTouchBlocker::notifyDeviceReset(const NotifyDeviceResetArgs& args) {
+    mDevicesWithMixedToolType.erase(args.deviceId);
+    mLastTouchEvents.erase(args.deviceId);
+    mCanceledDevices.erase(args.deviceId);
+    mActiveStyli.erase(args.deviceId);
+}
+
+static std::string dumpArgs(const NotifyMotionArgs& args) {
+    return args.dump();
+}
+
+std::string PreferStylusOverTouchBlocker::dump() const {
     std::string out;
-    out += StringPrintf("mIsTouchDown: %s\n", toString(mIsTouchDown));
-    out += StringPrintf("mIsStylusDown: %s\n", toString(mIsStylusDown));
-    out += StringPrintf("mLastTouchEvent: %s\n", mLastTouchEvent.dump().c_str());
-    out += StringPrintf("mCurrentTouchIsCanceled: %s\n", toString(mCurrentTouchIsCanceled));
+    out += "mActiveStyli: " + dumpSet(mActiveStyli) + "\n";
+    out += "mLastTouchEvents: " + dumpMap(mLastTouchEvents, constToString, dumpArgs) + "\n";
+    out += "mDevicesWithMixedToolType: " + dumpSet(mDevicesWithMixedToolType) + "\n";
+    out += "mCanceledDevices: " + dumpSet(mCanceledDevices) + "\n";
     return out;
 }
 
