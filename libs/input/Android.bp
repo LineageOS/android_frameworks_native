@@ -49,6 +49,7 @@ cc_library {
         "Keyboard.cpp",
         "KeyCharacterMap.cpp",
         "KeyLayoutMap.cpp",
+        "PrintTools.cpp",
         "PropertyMap.cpp",
         "TouchVideoFrame.cpp",
         "VelocityControl.cpp",
@@ -104,6 +105,9 @@ cc_library {
 
             sanitize: {
                 misc_undefined: ["integer"],
+                diag: {
+                    misc_undefined: ["integer"],
+                },
             },
         },
         host: {
