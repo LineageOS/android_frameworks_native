@@ -38,6 +38,10 @@ cc_library_static {
         "libui-types",
     ],
 
+    header_libs: [
+        "libtonemap_headers",
+    ],
+
     srcs: [
         "shaders.cpp",
     ],

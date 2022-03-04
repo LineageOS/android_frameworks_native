@@ -27,6 +27,9 @@ cc_test {
     srcs: [
         "tonemap_test.cpp",
     ],
+    header_libs: [
+        "libtonemap_headers",
+    ],
     shared_libs: [
         "android.hardware.graphics.common-V3-ndk",
     ],
