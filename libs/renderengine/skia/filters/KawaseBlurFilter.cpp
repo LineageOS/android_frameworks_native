@@ -18,7 +18,6 @@
 
 #include "KawaseBlurFilter.h"
 #include <SkCanvas.h>
-#include <SkData.h>
 #include <SkPaint.h>
 #include <SkRRect.h>
 #include <SkRuntimeEffect.h>

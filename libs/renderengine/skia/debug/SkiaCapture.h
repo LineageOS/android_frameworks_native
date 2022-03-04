@@ -19,13 +19,15 @@
 #include <SkDocument.h>
 #include <SkNWayCanvas.h>
 #include <SkPictureRecorder.h>
+#include <SkRefCnt.h>
+#include <SkStream.h>
 #include <SkSurface.h>
+#include "tools/SkSharingProc.h"
 
 #include <chrono>
 #include <mutex>
 
 #include "CaptureTimer.h"
-#include "tools/SkSharingProc.h"
 
 namespace android {
 namespace renderengine {
