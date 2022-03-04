@@ -338,6 +338,12 @@ void Layer::computeBounds(FloatRect parentBounds, ui::Transform parentTransform,
     // Calculate effective layer transform
     mEffectiveTransform = parentTransform * getActiveTransform(s);
 
+    if (CC_UNLIKELY(!isTransformValid())) {
+        ALOGW("Stop computing bounds for %s because it has invalid transformation.",
+              getDebugName());
+        return;
+    }
+
     // Transform parent bounds to layer space
     parentBounds = getActiveTransform(s).inverse().transform(parentBounds);
 
@@ -1326,6 +1332,10 @@ bool Layer::isHiddenByPolicy() const {
             }
         }
     }
+    if (CC_UNLIKELY(!isTransformValid())) {
+        ALOGW("Hide layer %s because it has invalid transformation.", getDebugName());
+        return true;
+    }
     return s.flags & layer_state_t::eLayerHidden;
 }
 
@@ -1856,6 +1866,11 @@ void Layer::traverseChildrenInZOrder(LayerVector::StateSet stateSet,
 
 ui::Transform Layer::getTransform() const {
     return mEffectiveTransform;
+}
+
+bool Layer::isTransformValid() const {
+    float transformDet = getTransform().det();
+    return transformDet != 0 && !isinf(transformDet) && !isnan(transformDet);
 }
 
 half Layer::getAlpha() const {
