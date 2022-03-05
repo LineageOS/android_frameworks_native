@@ -110,15 +110,27 @@ public:
         mBlastBufferQueueAdapter->update(sc, width, height, PIXEL_FORMAT_RGBA_8888);
     }
 
-    void setSyncTransaction(Transaction* next, bool acquireSingleBuffer = true) {
-        mBlastBufferQueueAdapter->setSyncTransaction(next, acquireSingleBuffer);
+    void setSyncTransaction(Transaction& next, bool acquireSingleBuffer = true) {
+        auto callback = [&next](Transaction* t) { next.merge(std::move(*t)); };
+        mBlastBufferQueueAdapter->syncNextTransaction(callback, acquireSingleBuffer);
+    }
+
+    void syncNextTransaction(std::function<void(Transaction*)> callback,
+                             bool acquireSingleBuffer = true) {
+        mBlastBufferQueueAdapter->syncNextTransaction(callback, acquireSingleBuffer);
+    }
+
+    void stopContinuousSyncTransaction() {
+        mBlastBufferQueueAdapter->stopContinuousSyncTransaction();
     }
 
     int getWidth() { return mBlastBufferQueueAdapter->mSize.width; }
 
     int getHeight() { return mBlastBufferQueueAdapter->mSize.height; }
 
-    Transaction* getSyncTransaction() { return mBlastBufferQueueAdapter->mSyncTransaction; }
+    std::function<void(Transaction*)> getTransactionReadyCallback() {
+        return mBlastBufferQueueAdapter->mTransactionReadyCallback;
+    }
 
     sp<IGraphicBufferProducer> getIGraphicBufferProducer() {
         return mBlastBufferQueueAdapter->getIGraphicBufferProducer();
@@ -343,7 +355,7 @@ TEST_F(BLASTBufferQueueTest, CreateBLASTBufferQueue) {
     ASSERT_EQ(mSurfaceControl, adapter.getSurfaceControl());
     ASSERT_EQ(mDisplayWidth, adapter.getWidth());
     ASSERT_EQ(mDisplayHeight, adapter.getHeight());
-    ASSERT_EQ(nullptr, adapter.getSyncTransaction());
+    ASSERT_EQ(nullptr, adapter.getTransactionReadyCallback());
 }
 
 TEST_F(BLASTBufferQueueTest, Update) {
@@ -364,11 +376,12 @@ TEST_F(BLASTBufferQueueTest, Update) {
     ASSERT_EQ(mDisplayHeight / 2, height);
 }
 
-TEST_F(BLASTBufferQueueTest, SetSyncTransaction) {
+TEST_F(BLASTBufferQueueTest, SyncNextTransaction) {
     BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
-    Transaction sync;
-    adapter.setSyncTransaction(&sync);
-    ASSERT_EQ(&sync, adapter.getSyncTransaction());
+    ASSERT_EQ(nullptr, adapter.getTransactionReadyCallback());
+    auto callback = [](Transaction*) {};
+    adapter.syncNextTransaction(callback);
+    ASSERT_NE(nullptr, adapter.getTransactionReadyCallback());
 }
 
 TEST_F(BLASTBufferQueueTest, DISABLED_onFrameAvailable_ApplyDesiredPresentTime) {
@@ -808,7 +821,7 @@ TEST_F(BLASTBufferQueueTest, SyncThenNoSync) {
     setUpProducer(adapter, igbProducer);
 
     Transaction sync;
-    adapter.setSyncTransaction(&sync);
+    adapter.setSyncTransaction(sync);
     queueBuffer(igbProducer, 0, 255, 0, 0);
 
     // queue non sync buffer, so this one should get blocked
@@ -848,12 +861,12 @@ TEST_F(BLASTBufferQueueTest, MultipleSyncTransactions) {
     Transaction mainTransaction;
 
     Transaction sync;
-    adapter.setSyncTransaction(&sync);
+    adapter.setSyncTransaction(sync);
     queueBuffer(igbProducer, 0, 255, 0, 0);
 
     mainTransaction.merge(std::move(sync));
 
-    adapter.setSyncTransaction(&sync);
+    adapter.setSyncTransaction(sync);
     queueBuffer(igbProducer, r, g, b, 0);
 
     mainTransaction.merge(std::move(sync));
@@ -889,7 +902,7 @@ TEST_F(BLASTBufferQueueTest, MultipleSyncTransactionWithNonSync) {
 
     Transaction sync;
     // queue a sync transaction
-    adapter.setSyncTransaction(&sync);
+    adapter.setSyncTransaction(sync);
     queueBuffer(igbProducer, 0, 255, 0, 0);
 
     mainTransaction.merge(std::move(sync));
@@ -898,7 +911,7 @@ TEST_F(BLASTBufferQueueTest, MultipleSyncTransactionWithNonSync) {
     queueBuffer(igbProducer, 0, 0, 255, 0);
 
     // queue another sync transaction
-    adapter.setSyncTransaction(&sync);
+    adapter.setSyncTransaction(sync);
     queueBuffer(igbProducer, r, g, b, 0);
     // Expect 1 buffer to be released because the non sync transaction should merge
     // with the sync
@@ -937,7 +950,7 @@ TEST_F(BLASTBufferQueueTest, MultipleSyncRunOutOfBuffers) {
 
     Transaction sync;
     // queue a sync transaction
-    adapter.setSyncTransaction(&sync);
+    adapter.setSyncTransaction(sync);
     queueBuffer(igbProducer, 0, 255, 0, 0);
 
     mainTransaction.merge(std::move(sync));
@@ -948,7 +961,7 @@ TEST_F(BLASTBufferQueueTest, MultipleSyncRunOutOfBuffers) {
     queueBuffer(igbProducer, 0, 0, 255, 0);
 
     // queue another sync transaction
-    adapter.setSyncTransaction(&sync);
+    adapter.setSyncTransaction(sync);
     queueBuffer(igbProducer, r, g, b, 0);
     // Expect 3 buffers to be released because the non sync transactions should merge
     // with the sync
@@ -994,7 +1007,7 @@ TEST_F(BLASTBufferQueueTest, RunOutOfBuffersWaitingOnSF) {
 
     Transaction sync;
     // queue a sync transaction
-    adapter.setSyncTransaction(&sync);
+    adapter.setSyncTransaction(sync);
     queueBuffer(igbProducer, 0, 255, 0, 0);
 
     mainTransaction.merge(std::move(sync));
@@ -1008,7 +1021,7 @@ TEST_F(BLASTBufferQueueTest, RunOutOfBuffersWaitingOnSF) {
     mainTransaction.apply();
 
     // queue another sync transaction
-    adapter.setSyncTransaction(&sync);
+    adapter.setSyncTransaction(sync);
     queueBuffer(igbProducer, r, g, b, 0);
     // Expect 2 buffers to be released because the non sync transactions should merge
     // with the sync
@@ -1031,19 +1044,19 @@ TEST_F(BLASTBufferQueueTest, RunOutOfBuffersWaitingOnSF) {
             checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
 
-TEST_F(BLASTBufferQueueTest, SetSyncTransactionAcquireMultipleBuffers) {
+TEST_F(BLASTBufferQueueTest, SyncNextTransactionAcquireMultipleBuffers) {
     BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
 
     sp<IGraphicBufferProducer> igbProducer;
     setUpProducer(adapter, igbProducer);
 
     Transaction next;
-    adapter.setSyncTransaction(&next, false);
+    adapter.setSyncTransaction(next, false);
     queueBuffer(igbProducer, 0, 255, 0, 0);
     queueBuffer(igbProducer, 0, 0, 255, 0);
     // There should only be one frame submitted since the first frame will be released.
     adapter.validateNumFramesSubmitted(1);
-    adapter.setSyncTransaction(nullptr);
+    adapter.stopContinuousSyncTransaction();
 
     // queue non sync buffer, so this one should get blocked
     // Add a present delay to allow the first screenshot to get taken.
@@ -1097,7 +1110,7 @@ TEST_F(BLASTBufferQueueTest, DISABLED_DisconnectProducerTest) {
         Transaction next;
         queueBuffer(igbProducer, 0, 255, 0, 0);
         queueBuffer(igbProducer, 0, 0, 255, 0);
-        adapter.setSyncTransaction(&next, false);
+        adapter.setSyncTransaction(next, true);
         queueBuffer(igbProducer, 255, 0, 0, 0);
 
         CallbackHelper transactionCallback;
@@ -1140,7 +1153,7 @@ TEST_F(BLASTBufferQueueTest, DISABLED_UpdateSurfaceControlTest) {
         Transaction next;
         queueBuffer(igbProducer, 0, 255, 0, 0);
         queueBuffer(igbProducer, 0, 0, 255, 0);
-        adapter.setSyncTransaction(&next, false);
+        adapter.setSyncTransaction(next, true);
         queueBuffer(igbProducer, 255, 0, 0, 0);
 
         CallbackHelper transactionCallback;
