@@ -47,7 +47,6 @@ struct ProcHook {
         KHR_incremental_present,
         KHR_shared_presentable_image,
         KHR_surface,
-        KHR_surface_protected_capabilities,
         KHR_swapchain,
         ANDROID_external_memory_android_hardware_buffer,
         KHR_bind_memory2,
