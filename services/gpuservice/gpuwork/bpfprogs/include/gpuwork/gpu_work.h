@@ -25,18 +25,28 @@ namespace android {
 namespace gpuwork {
 #endif
 
+typedef struct  {
+    uint32_t gpu_id;
+    uint32_t uid;
+} GpuIdUid;
+
 typedef struct {
-    // The end time of the previous period from this UID in nanoseconds.
-    uint64_t previous_end_time_ns;
+    // The end time of the previous period where the GPU was active for the UID,
+    // in nanoseconds.
+    uint64_t previous_active_end_time_ns;
 
-    // The time spent at each GPU frequency while running GPU work from the UID,
-    // in nanoseconds. Array index i stores the time for frequency i*50 MHz. So
-    // index 0 is 0Mhz, index 1 is 50MHz, index 2 is 100MHz, etc., up to index
-    // |kNumTrackedFrequencies|.
-    uint64_t frequency_times_ns[21];
+    // The total amount of time the GPU has spent running work for the UID, in
+    // nanoseconds.
+    uint64_t total_active_duration_ns;
 
-    // The number of times we received |GpuUidWorkPeriodEvent| events in an
-    // unexpected order. See |GpuUidWorkPeriodEvent|.
+    // The total amount of time of the "gaps" between "continuous" GPU work for
+    // the UID, in nanoseconds. This is estimated by ignoring large gaps between
+    // GPU work for this UID.
+    uint64_t total_inactive_duration_ns;
+
+    // The number of errors detected due to |GpuWorkPeriodEvent| events for the
+    // UID violating the specification in some way. E.g. periods with a zero or
+    // negative duration.
     uint32_t error_count;
 
 } UidTrackingInfo;
@@ -48,14 +58,10 @@ typedef struct {
     uint64_t num_map_entries;
 } GlobalData;
 
-static const uint32_t kMaxTrackedUids = 512;
-static const uint32_t kFrequencyGranularityMhz = 50;
-static const uint32_t kNumTrackedFrequencies = 21;
+// The maximum number of tracked GPU ID and UID pairs (|GpuIdUid|).
+static const uint32_t kMaxTrackedGpuIdUids = 512;
 
 #ifdef __cplusplus
-static_assert(kNumTrackedFrequencies ==
-              std::extent<decltype(UidTrackingInfo::frequency_times_ns)>::value);
-
 } // namespace gpuwork
 } // namespace android
 #endif
