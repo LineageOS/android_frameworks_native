@@ -14,6 +14,9 @@
      limitations under the License.
 -->
 <configuration description="Runs GpuServiceVendorTests">
+    <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer">
+        <option name="force-root" value="false" />
+    </target_preparer>
     <test class="com.android.tradefed.testtype.HostTest" >
         <option name="jar" value="GpuServiceVendorTests.jar" />
     </test>

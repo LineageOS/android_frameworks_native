@@ -78,12 +78,11 @@ public class GpuWorkTracepointTest extends BaseHostJUnit4Test {
                 "\tfield:unsigned char common_flags;\toffset:2;\tsize:1;\tsigned:0;",
                 "\tfield:unsigned char common_preempt_count;\toffset:3;\tsize:1;\tsigned:0;",
                 "\tfield:int common_pid;\toffset:4;\tsize:4;\tsigned:1;",
-                "\tfield:u32 uid;\toffset:8;\tsize:4;\tsigned:0;",
-                "\tfield:u32 frequency;\toffset:12;\tsize:4;\tsigned:0;",
-                "\tfield:u64 start_time;\toffset:16;\tsize:8;\tsigned:0;",
-                "\tfield:u64 end_time;\toffset:24;\tsize:8;\tsigned:0;",
-                "\tfield:u64 flags;\toffset:32;\tsize:8;\tsigned:0;",
-                "\tfield:u32 thermally_throttled_max_frequency_khz;\toffset:40;\tsize:4;\tsigned:0;"
+                "\tfield:u32 gpu_id;\toffset:8;\tsize:4;\tsigned:0;",
+                "\tfield:u32 uid;\toffset:12;\tsize:4;\tsigned:0;",
+                "\tfield:u64 start_time_ns;\toffset:16;\tsize:8;\tsigned:0;",
+                "\tfield:u64 end_time_ns;\toffset:24;\tsize:8;\tsigned:0;",
+                "\tfield:u64 total_active_duration_ns;\toffset:32;\tsize:8;\tsigned:0;"
         );
 
         // We use |fail| rather than |assertEquals| because it allows us to give a clearer message.
