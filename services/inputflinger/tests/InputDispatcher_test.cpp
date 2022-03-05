@@ -996,7 +996,7 @@ public:
         mInfo.ownerPid = INJECTOR_PID;
         mInfo.ownerUid = INJECTOR_UID;
         mInfo.displayId = displayId;
-        mInfo.inputConfig = WindowInfo::InputConfig::NONE;
+        mInfo.inputConfig = WindowInfo::InputConfig::DEFAULT;
     }
 
     sp<FakeWindowHandle> clone(
@@ -1040,6 +1040,24 @@ public:
         mInfo.setInputConfig(WindowInfo::InputConfig::WATCH_OUTSIDE_TOUCH, watchOutside);
     }
 
+    void setSpy(bool spy) { mInfo.setInputConfig(WindowInfo::InputConfig::SPY, spy); }
+
+    void setInterceptsStylus(bool interceptsStylus) {
+        mInfo.setInputConfig(WindowInfo::InputConfig::INTERCEPTS_STYLUS, interceptsStylus);
+    }
+
+    void setDropInput(bool dropInput) {
+        mInfo.setInputConfig(WindowInfo::InputConfig::DROP_INPUT, dropInput);
+    }
+
+    void setDropInputIfObscured(bool dropInputIfObscured) {
+        mInfo.setInputConfig(WindowInfo::InputConfig::DROP_INPUT_IF_OBSCURED, dropInputIfObscured);
+    }
+
+    void setNoInputChannel(bool noInputChannel) {
+        mInfo.setInputConfig(WindowInfo::InputConfig::NO_INPUT_CHANNEL, noInputChannel);
+    }
+
     void setAlpha(float alpha) { mInfo.alpha = alpha; }
 
     void setTouchOcclusionMode(TouchOcclusionMode mode) { mInfo.touchOcclusionMode = mode; }
@@ -1069,8 +1087,6 @@ public:
     void setDupTouchToWallpaper(bool hasWallpaper) {
         mInfo.setInputConfig(WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER, hasWallpaper);
     }
-
-    void setInputFeatures(Flags<WindowInfo::Feature> features) { mInfo.inputFeatures = features; }
 
     void setTrustedOverlay(bool trustedOverlay) {
         mInfo.setInputConfig(WindowInfo::InputConfig::TRUSTED_OVERLAY, trustedOverlay);
@@ -1224,7 +1240,7 @@ public:
 
     void assertNoEvents() {
         if (mInputReceiver == nullptr &&
-            mInfo.inputFeatures.test(WindowInfo::Feature::NO_INPUT_CHANNEL)) {
+            mInfo.inputConfig.test(WindowInfo::InputConfig::NO_INPUT_CHANNEL)) {
             return; // Can't receive events if the window does not have input channel
         }
         ASSERT_NE(nullptr, mInputReceiver)
@@ -4335,7 +4351,7 @@ protected:
                 new FakeWindowHandle(mApplication, mDispatcher, "Spy", ADISPLAY_ID_DEFAULT);
         spy->setTrustedOverlay(true);
         spy->setFocusable(false);
-        spy->setInputFeatures(WindowInfo::Feature::SPY);
+        spy->setSpy(true);
         spy->setDispatchingTimeout(30ms);
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy, mWindow}}});
         return spy;
@@ -5156,7 +5172,7 @@ class InputDispatcherMultiWindowOcclusionTests : public InputDispatcherTest {
                                               "Window without input channel", ADISPLAY_ID_DEFAULT,
                                               std::make_optional<sp<IBinder>>(nullptr) /*token*/);
 
-        mNoInputWindow->setInputFeatures(WindowInfo::Feature::NO_INPUT_CHANNEL);
+        mNoInputWindow->setNoInputChannel(true);
         mNoInputWindow->setFrame(Rect(0, 0, 100, 100));
         // It's perfectly valid for this window to not have an associated input channel
 
@@ -5198,7 +5214,7 @@ TEST_F(InputDispatcherMultiWindowOcclusionTests,
                                           "Window with input channel and NO_INPUT_CHANNEL",
                                           ADISPLAY_ID_DEFAULT);
 
-    mNoInputWindow->setInputFeatures(WindowInfo::Feature::NO_INPUT_CHANNEL);
+    mNoInputWindow->setNoInputChannel(true);
     mNoInputWindow->setFrame(Rect(0, 0, 100, 100));
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mNoInputWindow, mBottomWindow}}});
 
@@ -6113,7 +6129,7 @@ TEST_F(InputDispatcherDropInputFeatureTest, WindowDropsInput) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
-    window->setInputFeatures(WindowInfo::Feature::DROP_INPUT);
+    window->setDropInput(true);
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
     window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
@@ -6132,7 +6148,7 @@ TEST_F(InputDispatcherDropInputFeatureTest, WindowDropsInput) {
     window->assertNoEvents();
 
     // With the flag cleared, the window should get input
-    window->setInputFeatures({});
+    window->setDropInput(false);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
     keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT);
@@ -6158,7 +6174,7 @@ TEST_F(InputDispatcherDropInputFeatureTest, ObscuredWindowDropsInput) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
-    window->setInputFeatures(WindowInfo::Feature::DROP_INPUT_IF_OBSCURED);
+    window->setDropInputIfObscured(true);
     window->setOwnerInfo(222, 222);
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
     window->setFocusable(true);
@@ -6178,7 +6194,7 @@ TEST_F(InputDispatcherDropInputFeatureTest, ObscuredWindowDropsInput) {
     window->assertNoEvents();
 
     // With the flag cleared, the window should get input
-    window->setInputFeatures({});
+    window->setDropInputIfObscured(false);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {obscuringWindow, window}}});
 
     keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT);
@@ -6204,7 +6220,7 @@ TEST_F(InputDispatcherDropInputFeatureTest, UnobscuredWindowGetsInput) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
-    window->setInputFeatures(WindowInfo::Feature::DROP_INPUT_IF_OBSCURED);
+    window->setDropInputIfObscured(true);
     window->setOwnerInfo(222, 222);
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
     window->setFocusable(true);
@@ -6313,7 +6329,7 @@ public:
         name += std::to_string(mSpyCount++);
         sp<FakeWindowHandle> spy =
                 new FakeWindowHandle(application, mDispatcher, name.c_str(), ADISPLAY_ID_DEFAULT);
-        spy->setInputFeatures(WindowInfo::Feature::SPY);
+        spy->setSpy(true);
         spy->setTrustedOverlay(true);
         return spy;
     }
@@ -6753,7 +6769,7 @@ public:
         overlay->setFocusable(false);
         overlay->setOwnerInfo(111, 111);
         overlay->setTouchable(false);
-        overlay->setInputFeatures(WindowInfo::Feature::INTERCEPTS_STYLUS);
+        overlay->setInterceptsStylus(true);
         overlay->setTrustedOverlay(true);
 
         std::shared_ptr<FakeApplicationHandle> application =
@@ -6819,7 +6835,7 @@ TEST_F(InputDispatcherStylusInterceptorTest, ConsmesOnlyStylusEvents) {
 
 TEST_F(InputDispatcherStylusInterceptorTest, SpyWindowStylusInterceptor) {
     auto [overlay, window] = setupStylusOverlayScenario();
-    overlay->setInputFeatures(overlay->getInfo()->inputFeatures | WindowInfo::Feature::SPY);
+    overlay->setSpy(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {overlay, window}}});
 
     sendStylusEvent(AMOTION_EVENT_ACTION_DOWN);
