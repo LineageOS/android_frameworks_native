@@ -2041,7 +2041,13 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
 
     // Check whether this device is an accelerometer.
     if (device->propBitmask.test(INPUT_PROP_ACCELEROMETER)) {
-        device->classes |= InputDeviceClass::SENSOR;
+         bool hasAxis = false;
+        for (int i = 0; i <= ABS_MAX; i++) {
+            if (device->absBitmask.test(i)) hasAxis = true;
+        }
+        if(hasAxis) {
+            device->classes |= InputDeviceClass::SENSOR;
+        }
     }
 
     // Check whether this device has switches.
