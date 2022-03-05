@@ -624,6 +624,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
         switch (ext_bit) {
             case ProcHook::KHR_android_surface:
             case ProcHook::KHR_surface:
+            case ProcHook::KHR_surface_protected_capabilities:
             case ProcHook::EXT_swapchain_colorspace:
             case ProcHook::KHR_get_surface_capabilities2:
             case ProcHook::GOOGLE_surfaceless_query:
@@ -702,6 +703,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
             case ProcHook::KHR_external_fence_capabilities:
             case ProcHook::KHR_get_surface_capabilities2:
             case ProcHook::KHR_surface:
+            case ProcHook::KHR_surface_protected_capabilities:
             case ProcHook::EXT_debug_report:
             case ProcHook::EXT_swapchain_colorspace:
             case ProcHook::GOOGLE_surfaceless_query:
@@ -915,6 +917,9 @@ VkResult EnumerateInstanceExtensionProperties(
     loader_extensions.push_back({
         VK_KHR_SURFACE_EXTENSION_NAME,
         VK_KHR_SURFACE_SPEC_VERSION});
+    loader_extensions.push_back(
+        {VK_KHR_SURFACE_PROTECTED_CAPABILITIES_EXTENSION_NAME,
+         VK_KHR_SURFACE_PROTECTED_CAPABILITIES_SPEC_VERSION});
     loader_extensions.push_back({
         VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
         VK_KHR_ANDROID_SURFACE_SPEC_VERSION});
