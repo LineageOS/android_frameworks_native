@@ -25,7 +25,6 @@ cc_library_static {
     name: "libtonemap",
     vendor_available: true,
 
-    export_include_dirs: ["include"],
     local_include_dirs: ["include"],
 
     shared_libs: [
@@ -40,4 +39,10 @@ cc_library_static {
     srcs: [
         "tonemap.cpp",
     ],
+}
+
+cc_library_headers {
+    name: "libtonemap_headers",
+    vendor_available: true,
+    export_include_dirs: ["include"],
 }
