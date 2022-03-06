@@ -6053,7 +6053,6 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
     static bool updateOverlay =
             property_get_bool("debug.sf.kernel_idle_timer_update_overlay", true);
     if (!updateOverlay) return;
-    if (Mutex::Autolock lock(mStateLock); !isRefreshRateOverlayEnabled()) return;
 
     // Update the overlay on the main thread to avoid race conditions with
     // mRefreshRateConfigs->getCurrentRefreshRate()
@@ -6063,6 +6062,7 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
             ALOGW("%s: default display is null", __func__);
             return;
         }
+        if (!display->isRefreshRateOverlayEnabled()) return;
 
         const auto desiredActiveMode = display->getDesiredActiveMode();
         const std::optional<DisplayModeId> desiredModeId = desiredActiveMode
