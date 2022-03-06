@@ -42,6 +42,9 @@ cc_test {
         "libshaders",
         "libtonemap",
     ],
+    header_libs: [
+        "libtonemap_headers",
+    ],
 
     shared_libs: [
         "libbase",

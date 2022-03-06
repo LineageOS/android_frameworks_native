@@ -64,7 +64,6 @@ TEST(WindowInfo, Parcelling) {
     i.ownerPid = 19;
     i.ownerUid = 24;
     i.packageName = "com.example.package";
-    i.inputFeatures = WindowInfo::Feature::DISABLE_USER_ACTIVITY;
     i.inputConfig = WindowInfo::InputConfig::NOT_FOCUSABLE;
     i.displayId = 34;
     i.replaceTouchableRegionWithCrop = true;
@@ -97,7 +96,6 @@ TEST(WindowInfo, Parcelling) {
     ASSERT_EQ(i.ownerPid, i2.ownerPid);
     ASSERT_EQ(i.ownerUid, i2.ownerUid);
     ASSERT_EQ(i.packageName, i2.packageName);
-    ASSERT_EQ(i.inputFeatures, i2.inputFeatures);
     ASSERT_EQ(i.inputConfig, i2.inputConfig);
     ASSERT_EQ(i.displayId, i2.displayId);
     ASSERT_EQ(i.replaceTouchableRegionWithCrop, i2.replaceTouchableRegionWithCrop);

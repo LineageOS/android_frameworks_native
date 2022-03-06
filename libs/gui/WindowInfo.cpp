@@ -51,11 +51,11 @@ bool WindowInfo::supportsSplitTouch() const {
 }
 
 bool WindowInfo::isSpy() const {
-    return inputFeatures.test(Feature::SPY);
+    return inputConfig.test(InputConfig::SPY);
 }
 
 bool WindowInfo::interceptsStylus() const {
-    return inputFeatures.test(Feature::INTERCEPTS_STYLUS);
+    return inputConfig.test(InputConfig::INTERCEPTS_STYLUS);
 }
 
 bool WindowInfo::overlaps(const WindowInfo* other) const {
@@ -73,8 +73,7 @@ bool WindowInfo::operator==(const WindowInfo& info) const {
             info.touchableRegion.hasSameRects(touchableRegion) &&
             info.touchOcclusionMode == touchOcclusionMode && info.ownerPid == ownerPid &&
             info.ownerUid == ownerUid && info.packageName == packageName &&
-            info.inputFeatures == inputFeatures && info.inputConfig == inputConfig &&
-            info.displayId == displayId &&
+            info.inputConfig == inputConfig && info.displayId == displayId &&
             info.replaceTouchableRegionWithCrop == replaceTouchableRegionWithCrop &&
             info.applicationInfo == applicationInfo && info.layoutParamsType == layoutParamsType &&
             info.layoutParamsFlags == layoutParamsFlags;
@@ -92,7 +91,6 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
     parcel->writeInt32(1);
 
     // Ensure that the size of the flags that we use is 32 bits for writing into the parcel.
-    static_assert(sizeof(inputFeatures) == 4u);
     static_assert(sizeof(inputConfig) == 4u);
 
     // clang-format off
@@ -120,7 +118,6 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeInt32(ownerPid) ?:
         parcel->writeInt32(ownerUid) ?:
         parcel->writeUtf8AsUtf16(packageName) ?:
-        parcel->writeInt32(inputFeatures.get()) ?:
         parcel->writeInt32(inputConfig.get()) ?:
         parcel->writeInt32(displayId) ?:
         applicationInfo.writeToParcel(parcel) ?:
@@ -178,7 +175,6 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
 
     touchOcclusionMode = static_cast<TouchOcclusionMode>(touchOcclusionModeInt);
 
-    inputFeatures = Flags<Feature>(parcel->readInt32());
     inputConfig = Flags<InputConfig>(parcel->readInt32());
     // clang-format off
     status = parcel->readInt32(&displayId) ?:

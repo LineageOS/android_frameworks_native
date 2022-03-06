@@ -27,65 +27,123 @@
 #endif
 
 #define S_IN_NS (1000000000)
-#define MHZ_IN_KHZS (1000)
+#define SMALL_TIME_GAP_LIMIT_NS (S_IN_NS)
 
-typedef uint32_t Uid;
-
-// A map from UID to |UidTrackingInfo|.
-DEFINE_BPF_MAP_GRW(gpu_work_map, HASH, Uid, UidTrackingInfo, kMaxTrackedUids, AID_GRAPHICS);
+// A map from GpuIdUid (GPU ID and application UID) to |UidTrackingInfo|.
+DEFINE_BPF_MAP_GRW(gpu_work_map, HASH, GpuIdUid, UidTrackingInfo, kMaxTrackedGpuIdUids,
+                   AID_GRAPHICS);
 
 // A map containing a single entry of |GlobalData|.
 DEFINE_BPF_MAP_GRW(gpu_work_global_data, ARRAY, uint32_t, GlobalData, 1, AID_GRAPHICS);
 
-// GpuUidWorkPeriodEvent defines the structure of a kernel tracepoint under the
-// tracepoint system (also referred to as the group) "power" and name
-// "gpu_work_period". In summary, the kernel tracepoint should be
-// "power/gpu_work_period", available at:
+// Defines the structure of the kernel tracepoint:
 //
 //  /sys/kernel/tracing/events/power/gpu_work_period/
 //
-// GpuUidWorkPeriodEvent defines a non-overlapping, non-zero period of time when
-// work was running on the GPU for a given application (identified by its UID;
-// the persistent, unique ID of the application) from |start_time_ns| to
-// |end_time_ns|. Drivers should issue this tracepoint as soon as possible
-// (within 1 second) after |end_time_ns|. For a given UID, periods must not
-// overlap, but periods from different UIDs can overlap (and should overlap, if
-// and only if that is how the work was executed). The period includes
-// information such as |frequency_khz|, the frequency that the GPU was running
-// at during the period, and |includes_compute_work|, whether the work included
-// compute shader work (not just graphics work). GPUs may have multiple
-// frequencies that can be adjusted, but the driver should report the frequency
-// that most closely estimates power usage (e.g. the frequency of shader cores,
-// not a scheduling unit).
+// Drivers must define an appropriate gpu_work_period kernel tracepoint (for
+// example, using the DECLARE_EVENT_CLASS and DEFINE_EVENT macros) such that the
+// arguments/fields match the fields of |GpuWorkPeriodEvent|, excluding the
+// initial "common" field. Drivers must invoke the tracepoint (also referred to
+// as emitting the event) as described below. Note that the description below
+// assumes a single physical GPU and its driver; for devices with multiple GPUs,
+// each GPU and its driver should emit events independently, using a different
+// value for |gpu_id| per GPU.
 //
-// If any information changes while work from the UID is running on the GPU
-// (e.g. the GPU frequency changes, or the work starts/stops including compute
-// work) then the driver must conceptually end the period, issue the tracepoint,
-// start tracking a new period, and eventually issue a second tracepoint when
-// the work completes or when the information changes again. In this case, the
-// |end_time_ns| of the first period must equal the |start_time_ns| of the
-// second period. The driver may also end and start a new period (without a
-// gap), even if no information changes. For example, this might be convenient
-// if there is a collection of work from a UID running on the GPU for a long
-// time; ending and starting a period as individual parts of the work complete
-// allows the consumer of the tracepoint to be updated about the ongoing work.
+// |GpuWorkPeriodEvent| defines a non-overlapping, non-zero period of time from
+// |start_time_ns| (inclusive) until |end_time_ns| (exclusive) for a given
+// |uid|, and includes details of how much work the GPU was performing for |uid|
+// during the period. When GPU work for a given |uid| runs on the GPU, the
+// driver must track one or more periods that cover the time where the work was
+// running, and emit events soon after. The driver should try to emit the event
+// for a period at most 1 second after |end_time_ns|, and must emit the event at
+// most 2 seconds after |end_time_ns|. A period's duration (|end_time_ns| -
+// |start_time_ns|) must be at most 1 second. Periods for different |uids| can
+// overlap, but periods for the same |uid| must not overlap. The driver must
+// emit events for the same |uid| in strictly increasing order of
+// |start_time_ns|, such that it is guaranteed that the tracepoint call for a
+// period for |uid| has returned before the tracepoint call for the next period
+// for |uid| is made. Note that synchronization may be necessary if the driver
+// emits events for the same |uid| from different threads/contexts. Note that
+// |end_time_ns| for a period for a |uid| may equal the |start_time_ns| of the
+// next period for |uid|. The driver should try to avoid emitting a large number
+// of events in a short time period (e.g. 1000 events per second) for a given
+// |uid|.
 //
-// For a given UID, the tracepoints must be emitted in order; that is, the
-// |start_time_ns| of each subsequent tracepoint for a given UID must be
-// monotonically increasing.
+// The |total_active_duration_ns| must be set to the approximate total amount of
+// time the GPU spent running work for |uid| within the period, without
+// "double-counting" parallel GPU work on the same GPU for the same |uid|. "GPU
+// work" should correspond to the "GPU slices" shown in the AGI (Android GPU
+// Inspector) tool, and so should include work such as fragment and non-fragment
+// work/shaders running on the shader cores of the GPU. For example, given the
+// following:
+//  - A period has:
+//    - |start_time_ns|: 100,000,000 ns
+//    - |end_time_ns|:   800,000,000 ns
+//  - Some GPU vertex work (A):
+//    - started at:      200,000,000 ns
+//    - ended at:        400,000,000 ns
+//  - Some GPU fragment work (B):
+//    - started at:      300,000,000 ns
+//    - ended at:        500,000,000 ns
+//  - Some GPU fragment work (C):
+//    - started at:      300,000,000 ns
+//    - ended at:        400,000,000 ns
+//  - Some GPU fragment work (D):
+//    - started at:      600,000,000 ns
+//    - ended at:        700,000,000 ns
+//
+// The |total_active_duration_ns| would be 400,000,000 ns, because GPU work for
+// |uid| was executing:
+//  - from 200,000,000 ns to 500,000,000 ns, giving a duration of 300,000,000 ns
+//    (encompassing GPU work A, B, and C)
+//  - from 600,000,000 ns to 700,000,000 ns, giving a duration of 100,000,000 ns
+//    (GPU work D)
+//
+// Thus, the |total_active_duration_ns| is the sum of the (non-overlapping)
+// durations. Drivers may not have efficient access to the exact start and end
+// times of all GPU work, as shown above, but drivers should try to
+// approximate/aggregate the value of |total_active_duration_ns| as accurately
+// as possible within the limitations of the hardware, without double-counting
+// parallel GPU work for the same |uid|. The |total_active_duration_ns| value
+// must be less than or equal to the period duration (|end_time_ns| -
+// |start_time_ns|); if the aggregation approach might violate this requirement
+// then the driver must clamp |total_active_duration_ns| to be at most the
+// period duration.
+//
+// Note that the above description allows for a certain amount of flexibility in
+// how the driver tracks periods and emits the events. We list a few examples of
+// how drivers might implement the above:
+//
+// - 1: The driver could track periods for all |uid| values at fixed intervals
+//   of 1 second. Thus, every period duration would be exactly 1 second, and
+//   periods from different |uid|s that overlap would have the same
+//   |start_time_ns| and |end_time_ns| values.
+//
+// - 2: The driver could track periods with many different durations (up to 1
+//   second), as needed in order to cover the GPU work for each |uid|.
+//   Overlapping periods for different |uid|s may have very different durations,
+//   as well as different |start_time_ns| and |end_time_ns| values.
+//
+// - 3: The driver could track fine-grained periods with different durations
+//   that precisely cover the time where GPU work is running for each |uid|.
+//   Thus, |total_active_duration_ns| would always equal the period duration.
+//   For example, if a game was running at 60 frames per second, the driver
+//   would most likely emit _at least_ 60 events per second (probably more, as
+//   there would likely be multiple "chunks" of GPU work per frame, with gaps
+//   between each chunk). However, the driver may sometimes need to resort to
+//   more coarse-grained periods to avoid emitting thousands of events per
+//   second for a |uid|, where |total_active_duration_ns| would then be less
+//   than the period duration.
 typedef struct {
     // Actual fields start at offset 8.
-    uint64_t reserved;
+    uint64_t common;
 
-    // The UID of the process (i.e. persistent, unique ID of the Android app)
-    // that submitted work to the GPU.
+    // A value that uniquely identifies the GPU within the system.
+    uint32_t gpu_id;
+
+    // The UID of the application (i.e. persistent, unique ID of the Android
+    // app) that submitted work to the GPU.
     uint32_t uid;
-
-    // The GPU frequency during the period. GPUs may have multiple frequencies
-    // that can be adjusted, but the driver should report the frequency that
-    // would most closely estimate power usage (e.g. the frequency of shader
-    // cores, not a scheduling unit).
-    uint32_t frequency_khz;
 
     // The start time of the period in nanoseconds. The clock must be
     // CLOCK_MONOTONIC, as returned by the ktime_get_ns(void) function.
@@ -95,54 +153,44 @@ typedef struct {
     // CLOCK_MONOTONIC, as returned by the ktime_get_ns(void) function.
     uint64_t end_time_ns;
 
-    // Flags about the work. Reserved for future use.
-    uint64_t flags;
+    // The amount of time the GPU was running GPU work for |uid| during the
+    // period, in nanoseconds, without double-counting parallel GPU work for the
+    // same |uid|. For example, this might include the amount of time the GPU
+    // spent performing shader work (vertex work, fragment work, etc.) for
+    // |uid|.
+    uint64_t total_active_duration_ns;
 
-    // The maximum GPU frequency allowed during the period according to the
-    // thermal throttling policy. Must be 0 if no thermal throttling was
-    // enforced during the period. The value must relate to |frequency_khz|; in
-    // other words, if |frequency_khz| is the frequency of the GPU shader cores,
-    // then |thermally_throttled_max_frequency_khz| must be the maximum allowed
-    // frequency of the GPU shader cores (not the maximum allowed frequency of
-    // some other part of the GPU).
-    //
-    // Note: Unlike with other fields of this struct, if the
-    // |thermally_throttled_max_frequency_khz| value conceptually changes while
-    // work from a UID is running on the GPU then the GPU driver does NOT need
-    // to accurately report this by ending the period and starting to track a
-    // new period; instead, the GPU driver may report any one of the
-    // |thermally_throttled_max_frequency_khz| values that was enforced during
-    // the period. The motivation for this relaxation is that we assume the
-    // maximum frequency will not be changing rapidly, and so capturing the
-    // exact point at which the change occurs is unnecessary.
-    uint32_t thermally_throttled_max_frequency_khz;
+} GpuWorkPeriodEvent;
 
-} GpuUidWorkPeriodEvent;
-
-_Static_assert(offsetof(GpuUidWorkPeriodEvent, uid) == 8 &&
-                       offsetof(GpuUidWorkPeriodEvent, frequency_khz) == 12 &&
-                       offsetof(GpuUidWorkPeriodEvent, start_time_ns) == 16 &&
-                       offsetof(GpuUidWorkPeriodEvent, end_time_ns) == 24 &&
-                       offsetof(GpuUidWorkPeriodEvent, flags) == 32 &&
-                       offsetof(GpuUidWorkPeriodEvent, thermally_throttled_max_frequency_khz) == 40,
-               "Field offsets of struct GpuUidWorkPeriodEvent must not be changed because they "
+_Static_assert(offsetof(GpuWorkPeriodEvent, gpu_id) == 8 &&
+                       offsetof(GpuWorkPeriodEvent, uid) == 12 &&
+                       offsetof(GpuWorkPeriodEvent, start_time_ns) == 16 &&
+                       offsetof(GpuWorkPeriodEvent, end_time_ns) == 24 &&
+                       offsetof(GpuWorkPeriodEvent, total_active_duration_ns) == 32,
+               "Field offsets of struct GpuWorkPeriodEvent must not be changed because they "
                "must match the tracepoint field offsets found via adb shell cat "
                "/sys/kernel/tracing/events/power/gpu_work_period/format");
 
 DEFINE_BPF_PROG("tracepoint/power/gpu_work_period", AID_ROOT, AID_GRAPHICS, tp_gpu_work_period)
-(GpuUidWorkPeriodEvent* const args) {
-    // Note: In BPF programs, |__sync_fetch_and_add| is translated to an atomic
+(GpuWorkPeriodEvent* const period) {
+    // Note: In eBPF programs, |__sync_fetch_and_add| is translated to an atomic
     // add.
 
-    const uint32_t uid = args->uid;
+    // Return 1 to avoid blocking simpleperf from receiving events.
+    const int ALLOW = 1;
 
-    // Get |UidTrackingInfo| for |uid|.
-    UidTrackingInfo* uid_tracking_info = bpf_gpu_work_map_lookup_elem(&uid);
+    GpuIdUid gpu_id_and_uid;
+    __builtin_memset(&gpu_id_and_uid, 0, sizeof(gpu_id_and_uid));
+    gpu_id_and_uid.gpu_id = period->gpu_id;
+    gpu_id_and_uid.uid = period->uid;
+
+    // Get |UidTrackingInfo|.
+    UidTrackingInfo* uid_tracking_info = bpf_gpu_work_map_lookup_elem(&gpu_id_and_uid);
     if (!uid_tracking_info) {
         // There was no existing entry, so we add a new one.
         UidTrackingInfo initial_info;
         __builtin_memset(&initial_info, 0, sizeof(initial_info));
-        if (0 == bpf_gpu_work_map_update_elem(&uid, &initial_info, BPF_NOEXIST)) {
+        if (0 == bpf_gpu_work_map_update_elem(&gpu_id_and_uid, &initial_info, BPF_NOEXIST)) {
             // We added an entry to the map, so we increment our entry counter in
             // |GlobalData|.
             const uint32_t zero = 0;
@@ -154,66 +202,80 @@ DEFINE_BPF_PROG("tracepoint/power/gpu_work_period", AID_ROOT, AID_GRAPHICS, tp_g
                 __sync_fetch_and_add(&global_data->num_map_entries, 1);
             }
         }
-        uid_tracking_info = bpf_gpu_work_map_lookup_elem(&uid);
+        uid_tracking_info = bpf_gpu_work_map_lookup_elem(&gpu_id_and_uid);
         if (!uid_tracking_info) {
             // This should never happen, unless entries are getting deleted at
             // this moment. If so, we just give up.
-            return 0;
+            return ALLOW;
         }
     }
 
-    // The period duration must be non-zero.
-    if (args->start_time_ns >= args->end_time_ns) {
+    if (
+            // The period duration must be non-zero.
+            period->start_time_ns >= period->end_time_ns ||
+            // The period duration must be at most 1 second.
+            (period->end_time_ns - period->start_time_ns) > S_IN_NS) {
         __sync_fetch_and_add(&uid_tracking_info->error_count, 1);
-        return 0;
+        return ALLOW;
     }
 
-    // The frequency must not be 0.
-    if (args->frequency_khz == 0) {
-        __sync_fetch_and_add(&uid_tracking_info->error_count, 1);
-        return 0;
+    // If |total_active_duration_ns| is 0 then no GPU work occurred and there is
+    // nothing to do.
+    if (period->total_active_duration_ns == 0) {
+        return ALLOW;
     }
 
-    // Calculate the frequency index: see |UidTrackingInfo.frequency_times_ns|.
-    // Round to the nearest 50MHz bucket.
-    uint32_t frequency_index =
-            ((args->frequency_khz / MHZ_IN_KHZS) + (kFrequencyGranularityMhz / 2)) /
-            kFrequencyGranularityMhz;
-    if (frequency_index >= kNumTrackedFrequencies) {
-        frequency_index = kNumTrackedFrequencies - 1;
-    }
+    // Update |uid_tracking_info->total_active_duration_ns|.
+    __sync_fetch_and_add(&uid_tracking_info->total_active_duration_ns,
+                         period->total_active_duration_ns);
 
-    // Never round down to 0MHz, as this is a special bucket (see below) and not
-    // an actual operating point.
-    if (frequency_index == 0) {
-        frequency_index = 1;
-    }
-
-    // Update time in state.
-    __sync_fetch_and_add(&uid_tracking_info->frequency_times_ns[frequency_index],
-                         args->end_time_ns - args->start_time_ns);
-
-    if (uid_tracking_info->previous_end_time_ns > args->start_time_ns) {
-        // This must not happen because per-UID periods must not overlap and
-        // must be emitted in order.
+    // |small_gap_time_ns| is the time gap between the current and previous
+    // active period, which could be 0. If the gap is more than
+    // |SMALL_TIME_GAP_LIMIT_NS| then |small_gap_time_ns| will be set to 0
+    // because we want to estimate the small gaps between "continuous" GPU work.
+    uint64_t small_gap_time_ns = 0;
+    if (uid_tracking_info->previous_active_end_time_ns > period->start_time_ns) {
+        // The current period appears to have occurred before the previous
+        // active period, which must not happen because per-UID periods must not
+        // overlap and must be emitted in strictly increasing order of
+        // |start_time_ns|.
         __sync_fetch_and_add(&uid_tracking_info->error_count, 1);
     } else {
-        // The period appears to have been emitted after the previous, as
-        // expected, so we can calculate the gap between this and the previous
-        // period.
-        const uint64_t gap_time = args->start_time_ns - uid_tracking_info->previous_end_time_ns;
+        // The current period appears to have been emitted after the previous
+        // active period, as expected, so we can calculate the gap between the
+        // current and previous active period.
+        small_gap_time_ns = period->start_time_ns - uid_tracking_info->previous_active_end_time_ns;
 
-        // Update |previous_end_time_ns|.
-        uid_tracking_info->previous_end_time_ns = args->end_time_ns;
+        // Update |previous_active_end_time_ns|.
+        uid_tracking_info->previous_active_end_time_ns = period->end_time_ns;
 
-        // Update the special 0MHz frequency time, which stores the gaps between
-        // periods, but only if the gap is < 1 second.
-        if (gap_time > 0 && gap_time < S_IN_NS) {
-            __sync_fetch_and_add(&uid_tracking_info->frequency_times_ns[0], gap_time);
+        // We want to estimate the small gaps between "continuous" GPU work; if
+        // the gap is more than |SMALL_TIME_GAP_LIMIT_NS| then we don't consider
+        // this "continuous" GPU work.
+        if (small_gap_time_ns > SMALL_TIME_GAP_LIMIT_NS) {
+            small_gap_time_ns = 0;
         }
     }
 
-    return 0;
+    uint64_t period_total_inactive_time_ns = 0;
+    const uint64_t period_duration_ns = period->end_time_ns - period->start_time_ns;
+    // |period->total_active_duration_ns| is the active time within the period duration, so
+    // it must not be larger than |period_duration_ns|.
+    if (period->total_active_duration_ns > period_duration_ns) {
+        __sync_fetch_and_add(&uid_tracking_info->error_count, 1);
+    } else {
+        period_total_inactive_time_ns = period_duration_ns - period->total_active_duration_ns;
+    }
+
+    // Update |uid_tracking_info->total_inactive_duration_ns| by adding the
+    // inactive time from this period, plus the small gap between the current
+    // and previous active period. Either or both of these values could be 0.
+    if (small_gap_time_ns > 0 || period_total_inactive_time_ns > 0) {
+        __sync_fetch_and_add(&uid_tracking_info->total_inactive_duration_ns,
+                             small_gap_time_ns + period_total_inactive_time_ns);
+    }
+
+    return ALLOW;
 }
 
 LICENSE("Apache 2.0");
