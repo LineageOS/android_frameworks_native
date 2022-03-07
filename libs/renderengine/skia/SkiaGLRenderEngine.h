@@ -41,6 +41,8 @@
 #include "filters/LinearEffect.h"
 #include "filters/StretchShaderFactory.h"
 
+class SkData;
+
 namespace android {
 namespace renderengine {
 namespace skia {
