@@ -111,7 +111,13 @@ public:
 
         SAFE_PARCEL(data.writeUint64, transactionId);
 
-        return remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE, data, &reply);
+        if (flags & ISurfaceComposer::eOneWay) {
+            return remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE,
+                    data, &reply, IBinder::FLAG_ONEWAY);
+        } else {
+            return remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE,
+                    data, &reply);
+        }
     }
 
     void bootFinished() override {

@@ -461,7 +461,7 @@ public:
         // Clears the contents of the transaction without applying it.
         void clear();
 
-        status_t apply(bool synchronous = false);
+        status_t apply(bool synchronous = false, bool oneWay = false);
         // Merge another transaction in to this one, clearing other
         // as if it had been applied.
         Transaction& merge(Transaction&& other);
@@ -521,6 +521,27 @@ public:
                                const std::optional<uint64_t>& frameNumber = std::nullopt,
                                ReleaseBufferCallback callback = nullptr);
         std::shared_ptr<BufferData> getAndClearBuffer(const sp<SurfaceControl>& sc);
+
+        /**
+         * If this transaction, has a a buffer set for the given SurfaceControl
+         * mark that buffer as ordered after a given barrierFrameNumber.
+         *
+         * SurfaceFlinger will refuse to apply this transaction until after
+         * the frame in barrierFrameNumber has been applied. This transaction may
+         * be applied in the same frame as the barrier buffer or after.
+         *
+         * This is only designed to be used to handle switches between multiple
+         * apply tokens, as explained in the comment for BLASTBufferQueue::mAppliedLastTransaction.
+         *
+         * Has to be called after setBuffer.
+         *
+         * WARNING:
+         * This API is very dangerous to the caller, as if you invoke it without
+         * a frameNumber you have not yet submitted, you can dead-lock your
+         * SurfaceControl's transaction queue.
+         */
+        Transaction& setBufferHasBarrier(const sp<SurfaceControl>& sc,
+                                         uint64_t barrierFrameNumber);
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
         Transaction& setHdrMetadata(const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata);
         Transaction& setSurfaceDamageRegion(const sp<SurfaceControl>& sc,
