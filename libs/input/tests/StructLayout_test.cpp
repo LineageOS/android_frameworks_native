@@ -74,10 +74,10 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Motion, yPrecision, 124);
   CHECK_OFFSET(InputMessage::Body::Motion, xCursorPosition, 128);
   CHECK_OFFSET(InputMessage::Body::Motion, yCursorPosition, 132);
-  CHECK_OFFSET(InputMessage::Body::Motion, displayWidth, 136);
-  CHECK_OFFSET(InputMessage::Body::Motion, displayHeight, 140);
-  CHECK_OFFSET(InputMessage::Body::Motion, pointerCount, 144);
-  CHECK_OFFSET(InputMessage::Body::Motion, empty3, 148);
+  CHECK_OFFSET(InputMessage::Body::Motion, displayOrientation, 136);
+  CHECK_OFFSET(InputMessage::Body::Motion, displayWidth, 140);
+  CHECK_OFFSET(InputMessage::Body::Motion, displayHeight, 144);
+  CHECK_OFFSET(InputMessage::Body::Motion, pointerCount, 148);
   CHECK_OFFSET(InputMessage::Body::Motion, pointers, 152);
 
   CHECK_OFFSET(InputMessage::Body::Focus, eventId, 0);

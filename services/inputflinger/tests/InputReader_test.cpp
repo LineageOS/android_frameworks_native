@@ -16,6 +16,7 @@
 
 #include <CursorInputMapper.h>
 #include <InputDevice.h>
+#include <InputFlingerProperties.sysprop.h>
 #include <InputMapper.h>
 #include <InputReader.h>
 #include <InputReaderBase.h>
@@ -32,6 +33,7 @@
 #include <VibratorInputMapper.h>
 #include <android-base/thread_annotations.h>
 #include <gtest/gtest.h>
+#include <gui/constants.h>
 #include <inttypes.h>
 #include <math.h>
 
@@ -93,6 +95,17 @@ static inline float avg(float x, float y) {
 const std::unordered_map<std::string, LightColor> LIGHT_COLORS = {{"red", LightColor::RED},
                                                                   {"green", LightColor::GREEN},
                                                                   {"blue", LightColor::BLUE}};
+
+static int32_t getInverseRotation(int32_t orientation) {
+    switch (orientation) {
+        case DISPLAY_ORIENTATION_90:
+            return DISPLAY_ORIENTATION_270;
+        case DISPLAY_ORIENTATION_270:
+            return DISPLAY_ORIENTATION_90;
+        default:
+            return orientation;
+    }
+}
 
 // --- FakePointerController ---
 
@@ -2662,6 +2675,7 @@ protected:
     static const int32_t DEVICE_CONTROLLER_NUMBER;
     static const Flags<InputDeviceClass> DEVICE_CLASSES;
     static const int32_t EVENTHUB_ID;
+    static const std::optional<bool> INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE;
 
     std::shared_ptr<FakeEventHub> mFakeEventHub;
     sp<FakeInputReaderPolicy> mFakePolicy;
@@ -2678,11 +2692,19 @@ protected:
         mDevice = newDevice(DEVICE_ID, DEVICE_NAME, DEVICE_LOCATION, EVENTHUB_ID, classes);
     }
 
-    void SetUp() override { SetUp(DEVICE_CLASSES); }
+    void SetUp() override {
+        // Ensure per_window_input_rotation is enabled.
+        sysprop::InputFlingerProperties::per_window_input_rotation(true);
+
+        SetUp(DEVICE_CLASSES);
+    }
 
     void TearDown() override {
         mFakeListener.clear();
         mFakePolicy.clear();
+
+        sysprop::InputFlingerProperties::per_window_input_rotation(
+                INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE);
     }
 
     void addConfigurationProperty(const char* key, const char* value) {
@@ -2794,6 +2816,8 @@ const int32_t InputMapperTest::DEVICE_CONTROLLER_NUMBER = 0;
 const Flags<InputDeviceClass> InputMapperTest::DEVICE_CLASSES =
         Flags<InputDeviceClass>(0); // not needed for current tests
 const int32_t InputMapperTest::EVENTHUB_ID = 1;
+const std::optional<bool> InputMapperTest::INITIAL_PER_WINDOW_INPUT_ROTATION_FLAG_VALUE =
+        sysprop::InputFlingerProperties::per_window_input_rotation();
 
 // --- SwitchInputMapperTest ---
 
@@ -4090,8 +4114,11 @@ TEST_F(CursorInputMapperTest, Process_ShouldHandleCombinedXYAndButtonUpdates) {
     ASSERT_NO_FATAL_FAILURE(assertCursorPointerCoords(args.pointerCoords[0], 0.0f, 0.0f, 0.0f));
 }
 
-TEST_F(CursorInputMapperTest, Process_WhenNotOrientationAware_ShouldNotRotateMotions) {
+TEST_F(CursorInputMapperTest, Process_WhenOrientationAware_ShouldNotRotateMotions) {
     addConfigurationProperty("cursor.mode", "navigation");
+    // InputReader works in the un-rotated coordinate space, so orientation-aware devices do not
+    // need to be rotated.
+    addConfigurationProperty("cursor.orientationAware", "1");
     CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
 
     prepareDisplay(DISPLAY_ORIENTATION_90);
@@ -4105,9 +4132,10 @@ TEST_F(CursorInputMapperTest, Process_WhenNotOrientationAware_ShouldNotRotateMot
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  1, -1,  1));
 }
 
-TEST_F(CursorInputMapperTest, Process_WhenOrientationAware_ShouldRotateMotions) {
+TEST_F(CursorInputMapperTest, Process_WhenNotOrientationAware_ShouldRotateMotions) {
     addConfigurationProperty("cursor.mode", "navigation");
-    addConfigurationProperty("cursor.orientationAware", "1");
+    // Since InputReader works in the un-rotated coordinate space, only devices that are not
+    // orientation-aware are affected by display rotation.
     CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
 
     prepareDisplay(DISPLAY_ORIENTATION_0);
@@ -4121,14 +4149,14 @@ TEST_F(CursorInputMapperTest, Process_WhenOrientationAware_ShouldRotateMotions) 
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  1, -1,  1));
 
     prepareDisplay(DISPLAY_ORIENTATION_90);
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1,  1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  1,  1, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  0,  0, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1, -1, -1, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0, -1, -1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1, -1, -1,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  0,  0,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  1,  1,  1));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1, -1,  0));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  1, -1,  1));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  0,  0,  1));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1, -1,  1,  1));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0, -1,  1,  0));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1, -1,  1, -1));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  0,  0, -1));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  1, -1, -1));
 
     prepareDisplay(DISPLAY_ORIENTATION_180);
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1,  0, -1));
@@ -4141,14 +4169,14 @@ TEST_F(CursorInputMapperTest, Process_WhenOrientationAware_ShouldRotateMotions) 
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  1,  1, -1));
 
     prepareDisplay(DISPLAY_ORIENTATION_270);
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1, -1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  1, -1,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  0,  0,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1, -1,  1,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0, -1,  1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1, -1,  1, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  0,  0, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  1, -1, -1));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1,  1,  0));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  1,  1, -1));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  0,  0, -1));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1, -1, -1, -1));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0, -1, -1,  0));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1, -1, -1,  1));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  0,  0,  1));
+    ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  1,  1,  1));
 }
 
 TEST_F(CursorInputMapperTest, Process_ShouldHandleAllButtons) {
@@ -4634,6 +4662,8 @@ protected:
     void prepareLocationCalibration();
     int32_t toRawX(float displayX);
     int32_t toRawY(float displayY);
+    int32_t toRotatedRawX(float displayX);
+    int32_t toRotatedRawY(float displayY);
     float toCookedX(float rawX, float rawY);
     float toCookedY(float rawX, float rawY);
     float toDisplayX(int32_t rawX);
@@ -4714,6 +4744,14 @@ int32_t TouchInputMapperTest::toRawX(float displayX) {
 
 int32_t TouchInputMapperTest::toRawY(float displayY) {
     return int32_t(displayY * (RAW_Y_MAX - RAW_Y_MIN + 1) / DISPLAY_HEIGHT + RAW_Y_MIN);
+}
+
+int32_t TouchInputMapperTest::toRotatedRawX(float displayX) {
+    return int32_t(displayX * (RAW_X_MAX - RAW_X_MIN + 1) / DISPLAY_HEIGHT + RAW_X_MIN);
+}
+
+int32_t TouchInputMapperTest::toRotatedRawY(float displayY) {
+    return int32_t(displayY * (RAW_Y_MAX - RAW_Y_MIN + 1) / DISPLAY_WIDTH + RAW_Y_MIN);
 }
 
 float TouchInputMapperTest::toCookedX(float rawX, float rawY) {
@@ -5370,11 +5408,12 @@ TEST_F(SingleTouchInputMapperTest, Process_NormalSingleTouchGesture) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 }
 
-TEST_F(SingleTouchInputMapperTest, Process_WhenNotOrientationAware_DoesNotRotateMotions) {
+TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationAware_DoesNotRotateMotions) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareButtons();
     prepareAxes(POSITION);
-    addConfigurationProperty("touch.orientationAware", "0");
+    // InputReader works in the un-rotated coordinate space, so orientation-aware devices do not
+    // need to be rotated. Touchscreens are orientation-aware by default.
     SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
 
     NotifyMotionArgs args;
@@ -5393,10 +5432,13 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenNotOrientationAware_DoesNotRotate
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
 }
 
-TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationAware_RotatesMotions) {
+TEST_F(SingleTouchInputMapperTest, Process_WhenNotOrientationAware_RotatesMotions) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareButtons();
     prepareAxes(POSITION);
+    // Since InputReader works in the un-rotated coordinate space, only devices that are not
+    // orientation-aware are affected by display rotation.
+    addConfigurationProperty("touch.orientationAware", "0");
     SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
 
     NotifyMotionArgs args;
@@ -5418,7 +5460,7 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationAware_RotatesMotions) 
     // Rotation 90.
     clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_90);
-    processDown(mapper, RAW_X_MAX - toRawX(75) + RAW_X_MIN, toRawY(50));
+    processDown(mapper, toRawX(75), RAW_Y_MAX - toRawY(50) + RAW_Y_MIN);
     processSync(mapper);
 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
@@ -5446,7 +5488,7 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationAware_RotatesMotions) 
     // Rotation 270.
     clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_270);
-    processDown(mapper, toRawX(75), RAW_Y_MAX - toRawY(50) + RAW_Y_MIN);
+    processDown(mapper, RAW_X_MAX - toRawX(75) + RAW_X_MIN, toRawY(50));
     processSync(mapper);
 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
@@ -5456,6 +5498,172 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationAware_RotatesMotions) 
     processUp(mapper);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+}
+
+TEST_F(SingleTouchInputMapperTest, Process_WhenOrientation0_RotatesMotions) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareButtons();
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.orientationAware", "1");
+    addConfigurationProperty("touch.orientation", "ORIENTATION_0");
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    auto& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    NotifyMotionArgs args;
+
+    // Orientation 0.
+    processDown(mapper, toRawX(50), toRawY(75));
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+}
+
+TEST_F(SingleTouchInputMapperTest, Process_WhenOrientation90_RotatesMotions) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareButtons();
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.orientationAware", "1");
+    addConfigurationProperty("touch.orientation", "ORIENTATION_90");
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    auto& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    NotifyMotionArgs args;
+
+    // Orientation 90.
+    processDown(mapper, RAW_X_MAX - toRotatedRawX(75) + RAW_X_MIN, toRotatedRawY(50));
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+}
+
+TEST_F(SingleTouchInputMapperTest, Process_WhenOrientation180_RotatesMotions) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareButtons();
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.orientationAware", "1");
+    addConfigurationProperty("touch.orientation", "ORIENTATION_180");
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    auto& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    NotifyMotionArgs args;
+
+    // Orientation 180.
+    processDown(mapper, RAW_X_MAX - toRawX(50) + RAW_X_MIN, RAW_Y_MAX - toRawY(75) + RAW_Y_MIN);
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+}
+
+TEST_F(SingleTouchInputMapperTest, Process_WhenOrientation270_RotatesMotions) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareButtons();
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.orientationAware", "1");
+    addConfigurationProperty("touch.orientation", "ORIENTATION_270");
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    auto& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    NotifyMotionArgs args;
+
+    // Orientation 270.
+    processDown(mapper, toRotatedRawX(75), RAW_Y_MAX - toRotatedRawY(50) + RAW_Y_MIN);
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+}
+
+TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationSpecified_RotatesMotionWithDisplay) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareButtons();
+    prepareAxes(POSITION);
+    // Since InputReader works in the un-rotated coordinate space, only devices that are not
+    // orientation-aware are affected by display rotation.
+    addConfigurationProperty("touch.orientationAware", "0");
+    addConfigurationProperty("touch.orientation", "ORIENTATION_90");
+    auto& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    NotifyMotionArgs args;
+
+    // Orientation 90, Rotation 0.
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    processDown(mapper, RAW_X_MAX - toRotatedRawX(75) + RAW_X_MIN, toRotatedRawY(50));
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+
+    // Orientation 90, Rotation 90.
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_90);
+    processDown(mapper, toRotatedRawX(50), toRotatedRawY(75));
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+
+    // Orientation 90, Rotation 180.
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_180);
+    processDown(mapper, toRotatedRawX(75), RAW_Y_MAX - toRotatedRawY(50) + RAW_Y_MIN);
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
+
+    // Orientation 90, Rotation 270.
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_270);
+    processDown(mapper, RAW_X_MAX - toRotatedRawX(50) + RAW_X_MIN,
+                RAW_Y_MAX - toRotatedRawY(75) + RAW_Y_MIN);
+    processSync(mapper);
+
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_NEAR(50, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(75, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
 }
 
 TEST_F(SingleTouchInputMapperTest, Process_AllAxes_DefaultCalibration) {
@@ -7808,9 +8016,35 @@ TEST_F(MultiTouchInputMapperTest, VideoFrames_ReceivedByListener) {
     ASSERT_EQ(std::vector<TouchVideoFrame>(), motionArgs.videoFrames);
 }
 
-TEST_F(MultiTouchInputMapperTest, VideoFrames_AreRotated) {
+TEST_F(MultiTouchInputMapperTest, VideoFrames_AreNotRotated) {
     prepareAxes(POSITION);
     addConfigurationProperty("touch.deviceType", "touchScreen");
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+    // Unrotated video frame
+    TouchVideoFrame frame(3, 2, {1, 2, 3, 4, 5, 6}, {1, 2});
+    NotifyMotionArgs motionArgs;
+
+    // Test all 4 orientations
+    for (int32_t orientation : {DISPLAY_ORIENTATION_0, DISPLAY_ORIENTATION_90,
+                                DISPLAY_ORIENTATION_180, DISPLAY_ORIENTATION_270}) {
+        SCOPED_TRACE("Orientation " + StringPrintf("%i", orientation));
+        clearViewports();
+        prepareDisplay(orientation);
+        std::vector<TouchVideoFrame> frames{frame};
+        mFakeEventHub->setVideoFrames({{EVENTHUB_ID, frames}});
+        processPosition(mapper, 100, 200);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+        ASSERT_EQ(frames, motionArgs.videoFrames);
+    }
+}
+
+TEST_F(MultiTouchInputMapperTest, VideoFrames_WhenNotOrientationAware_AreRotated) {
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    // Since InputReader works in the un-rotated coordinate space, only devices that are not
+    // orientation-aware are affected by display rotation.
+    addConfigurationProperty("touch.orientationAware", "0");
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
     // Unrotated video frame
     TouchVideoFrame frame(3, 2, {1, 2, 3, 4, 5, 6}, {1, 2});
@@ -7827,12 +8061,16 @@ TEST_F(MultiTouchInputMapperTest, VideoFrames_AreRotated) {
         processPosition(mapper, 100, 200);
         processSync(mapper);
         ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
-        frames[0].rotate(orientation);
+        // We expect the raw coordinates of the MotionEvent to be rotated in the inverse direction
+        // compared to the display. This is so that when the window transform (which contains the
+        // display rotation) is applied later by InputDispatcher, the coordinates end up in the
+        // window's coordinate space.
+        frames[0].rotate(getInverseRotation(orientation));
         ASSERT_EQ(frames, motionArgs.videoFrames);
     }
 }
 
-TEST_F(MultiTouchInputMapperTest, VideoFrames_MultipleFramesAreRotated) {
+TEST_F(MultiTouchInputMapperTest, VideoFrames_MultipleFramesAreNotRotated) {
     prepareAxes(POSITION);
     addConfigurationProperty("touch.deviceType", "touchScreen");
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
@@ -7849,8 +8087,36 @@ TEST_F(MultiTouchInputMapperTest, VideoFrames_MultipleFramesAreRotated) {
     processPosition(mapper, 100, 200);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
-    std::for_each(frames.begin(), frames.end(),
-            [](TouchVideoFrame& frame) { frame.rotate(DISPLAY_ORIENTATION_90); });
+    ASSERT_EQ(frames, motionArgs.videoFrames);
+}
+
+TEST_F(MultiTouchInputMapperTest, VideoFrames_WhenNotOrientationAware_MultipleFramesAreRotated) {
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    // Since InputReader works in the un-rotated coordinate space, only devices that are not
+    // orientation-aware are affected by display rotation.
+    addConfigurationProperty("touch.orientationAware", "0");
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+    // Unrotated video frames. There's no rule that they must all have the same dimensions,
+    // so mix these.
+    TouchVideoFrame frame1(3, 2, {1, 2, 3, 4, 5, 6}, {1, 2});
+    TouchVideoFrame frame2(3, 3, {0, 1, 2, 3, 4, 5, 6, 7, 8}, {1, 3});
+    TouchVideoFrame frame3(2, 2, {10, 20, 10, 0}, {1, 4});
+    std::vector<TouchVideoFrame> frames{frame1, frame2, frame3};
+    NotifyMotionArgs motionArgs;
+
+    prepareDisplay(DISPLAY_ORIENTATION_90);
+    mFakeEventHub->setVideoFrames({{EVENTHUB_ID, frames}});
+    processPosition(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    std::for_each(frames.begin(), frames.end(), [](TouchVideoFrame& frame) {
+        // We expect the raw coordinates of the MotionEvent to be rotated in the inverse direction
+        // compared to the display. This is so that when the window transform (which contains the
+        // display rotation) is applied later by InputDispatcher, the coordinates end up in the
+        // window's coordinate space.
+        frame.rotate(getInverseRotation(DISPLAY_ORIENTATION_90));
+    });
     ASSERT_EQ(frames, motionArgs.videoFrames);
 }
 
@@ -8404,40 +8670,29 @@ TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange) {
     // Reset.
     mapper.reset(ARBITRARY_TIME);
 
-    // Let physical display be different to device, and make surface and physical could be 1:1.
-    halfDisplayToCenterHorizontal(DISPLAY_ORIENTATION_0);
+    // Let physical display be different to device, and make surface and physical could be 1:1 in
+    // all four orientations.
+    for (int orientation : {DISPLAY_ORIENTATION_0, DISPLAY_ORIENTATION_90, DISPLAY_ORIENTATION_180,
+                            DISPLAY_ORIENTATION_270}) {
+        halfDisplayToCenterHorizontal(orientation);
 
-    const int32_t xExpected = (x + 1) - (DISPLAY_WIDTH / 4);
-    const int32_t yExpected = y;
-    processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
+        const int32_t xExpected = (x + 1) - (DISPLAY_WIDTH / 4);
+        const int32_t yExpected = y;
+        processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
+    }
 }
 
-TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_90) {
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_90_NotOrientationAware) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(DISPLAY_ORIENTATION_0);
     prepareAxes(POSITION);
+    // Since InputReader works in the un-rotated coordinate space, only devices that are not
+    // orientation-aware are affected by display rotation.
+    addConfigurationProperty("touch.orientationAware", "0");
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
 
     // Half display to (width/4, 0, width * 3/4, height) and rotate 90-degrees.
     halfDisplayToCenterHorizontal(DISPLAY_ORIENTATION_90);
-
-    const int32_t x = DISPLAY_WIDTH / 4;
-    const int32_t y = DISPLAY_HEIGHT / 2;
-
-    // expect x/y = swap x/y then reverse y.
-    const int32_t xExpected = y;
-    const int32_t yExpected = (DISPLAY_WIDTH * 3 / 4) - (x + 1);
-    processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
-}
-
-TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_270) {
-    addConfigurationProperty("touch.deviceType", "touchScreen");
-    prepareDisplay(DISPLAY_ORIENTATION_0);
-    prepareAxes(POSITION);
-    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
-
-    // Half display to (width/4, 0, width * 3/4, height) and rotate 270-degrees.
-    halfDisplayToCenterHorizontal(DISPLAY_ORIENTATION_270);
 
     const int32_t x = DISPLAY_WIDTH / 4;
     const int32_t y = DISPLAY_HEIGHT / 2;
@@ -8448,10 +8703,34 @@ TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_270) {
     processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
 }
 
-TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_Corner) {
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_270_NotOrientationAware) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(DISPLAY_ORIENTATION_0);
     prepareAxes(POSITION);
+    // Since InputReader works in the un-rotated coordinate space, only devices that are not
+    // orientation-aware are affected by display rotation.
+    addConfigurationProperty("touch.orientationAware", "0");
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    // Half display to (width/4, 0, width * 3/4, height) and rotate 270-degrees.
+    halfDisplayToCenterHorizontal(DISPLAY_ORIENTATION_270);
+
+    const int32_t x = DISPLAY_WIDTH / 4;
+    const int32_t y = DISPLAY_HEIGHT / 2;
+
+    // expect x/y = swap x/y then reverse y.
+    const int32_t xExpected = y;
+    const int32_t yExpected = (DISPLAY_WIDTH * 3 / 4) - (x + 1);
+    processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
+}
+
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_Corner_NotOrientationAware) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION);
+    // Since InputReader works in the un-rotated coordinate space, only devices that are not
+    // orientation-aware are affected by display rotation.
+    addConfigurationProperty("touch.orientationAware", "0");
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
 
     const int32_t x = 0;
@@ -8463,16 +8742,16 @@ TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_Corner) {
 
     clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_90);
-    // expect x/y = swap x/y then reverse y.
-    const int32_t xExpected90 = y;
-    const int32_t yExpected90 = DISPLAY_WIDTH - 1;
+    // expect x/y = swap x/y then reverse x.
+    const int32_t xExpected90 = DISPLAY_HEIGHT - 1;
+    const int32_t yExpected90 = x;
     processPositionAndVerify(mapper, x - 1, y, x, y, xExpected90, yExpected90);
 
     clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_270);
-    // expect x/y = swap x/y then reverse x.
-    const int32_t xExpected270 = DISPLAY_HEIGHT - 1;
-    const int32_t yExpected270 = x;
+    // expect x/y = swap x/y then reverse y.
+    const int32_t xExpected270 = y;
+    const int32_t yExpected270 = DISPLAY_WIDTH - 1;
     processPositionAndVerify(mapper, x - 1, y, x, y, xExpected270, yExpected270);
 }
 

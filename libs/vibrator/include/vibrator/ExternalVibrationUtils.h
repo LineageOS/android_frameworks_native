@@ -32,7 +32,11 @@ enum class HapticScale {
 
 bool isValidHapticScale(HapticScale scale);
 
-void scaleHapticData(float* buffer, size_t length, HapticScale scale);
+/* Scales the haptic data in given buffer using the selected HapticScale and ensuring no absolute
+ * value will be larger than the absolute of given limit.
+ * The limit will be ignored if it is NaN or zero.
+ */
+void scaleHapticData(float* buffer, size_t length, HapticScale scale, float limit);
 
 } // namespace android::os
 

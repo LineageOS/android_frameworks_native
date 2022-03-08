@@ -17,8 +17,8 @@
 #include "../InputClassifierConverter.h"
 
 #include <gtest/gtest.h>
+#include <gui/constants.h>
 #include <utils/BitSet.h>
-
 
 using namespace android::hardware::input;
 

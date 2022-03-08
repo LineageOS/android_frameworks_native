@@ -176,6 +176,15 @@ TEST_F(EffectLayerTest, BlurEffectLayerIsVisible) {
     }
 }
 
+TEST_F(EffectLayerTest, EffectLayerWithColorNoCrop) {
+    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    ui::DisplayMode mode;
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+    const ui::Size& resolution = mode.resolution;
+    auto shot = screenshot();
+    shot->expectColor(Rect(0, 0, resolution.getWidth(), resolution.getHeight()), Color::RED);
+}
+
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues

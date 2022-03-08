@@ -31,6 +31,9 @@
 
 namespace android {
 
+using gui::FocusRequest;
+using gui::WindowInfoHandle;
+
 layer_state_t::layer_state_t()
       : what(0),
         x(0),
@@ -67,7 +70,8 @@ layer_state_t::layer_state_t()
         isTrustedOverlay(false),
         bufferCrop(Rect::INVALID_RECT),
         destinationFrame(Rect::INVALID_RECT),
-        releaseBufferListener(nullptr) {
+        releaseBufferListener(nullptr),
+        dropInputMode(gui::DropInputMode::NONE) {
     matrix.dsdx = matrix.dtdy = 1.0f;
     matrix.dsdy = matrix.dtdx = 0.0f;
     hdrMetadata.validTypes = 0;
@@ -95,9 +99,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeFloat, color.r);
     SAFE_PARCEL(output.writeFloat, color.g);
     SAFE_PARCEL(output.writeFloat, color.b);
-#ifndef NO_INPUT
-    SAFE_PARCEL(inputHandle->writeToParcel, &output);
-#endif
+    SAFE_PARCEL(windowInfoHandle->writeToParcel, &output);
     SAFE_PARCEL(output.write, transparentRegion);
     SAFE_PARCEL(output.writeUint32, transform);
     SAFE_PARCEL(output.writeBool, transformToDisplayInverse);
@@ -173,6 +175,8 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.write, destinationFrame);
     SAFE_PARCEL(output.writeBool, isTrustedOverlay);
 
+    SAFE_PARCEL(output.writeStrongBinder, releaseBufferEndpoint);
+    SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dropInputMode));
     return NO_ERROR;
 }
 
@@ -207,9 +211,7 @@ status_t layer_state_t::read(const Parcel& input)
     color.g = tmpFloat;
     SAFE_PARCEL(input.readFloat, &tmpFloat);
     color.b = tmpFloat;
-#ifndef NO_INPUT
-    SAFE_PARCEL(inputHandle->readFromParcel, &input);
-#endif
+    SAFE_PARCEL(windowInfoHandle->readFromParcel, &input);
 
     SAFE_PARCEL(input.read, transparentRegion);
     SAFE_PARCEL(input.readUint32, &transform);
@@ -304,6 +306,11 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, destinationFrame);
     SAFE_PARCEL(input.readBool, &isTrustedOverlay);
 
+    SAFE_PARCEL(input.readNullableStrongBinder, &releaseBufferEndpoint);
+
+    uint32_t mode;
+    SAFE_PARCEL(input.readUint32, &mode);
+    dropInputMode = static_cast<gui::DropInputMode>(mode);
     return NO_ERROR;
 }
 
@@ -318,6 +325,7 @@ status_t ComposerState::read(const Parcel& input) {
 DisplayState::DisplayState()
       : what(0),
         layerStack(0),
+        flags(0),
         layerStackSpaceRect(Rect::EMPTY_RECT),
         orientedDisplaySpaceRect(Rect::EMPTY_RECT),
         width(0),
@@ -328,6 +336,7 @@ status_t DisplayState::write(Parcel& output) const {
     SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(surface));
     SAFE_PARCEL(output.writeUint32, what);
     SAFE_PARCEL(output.writeUint32, layerStack);
+    SAFE_PARCEL(output.writeUint32, flags);
     SAFE_PARCEL(output.writeUint32, toRotationInt(orientation));
     SAFE_PARCEL(output.write, layerStackSpaceRect);
     SAFE_PARCEL(output.write, orientedDisplaySpaceRect);
@@ -344,6 +353,7 @@ status_t DisplayState::read(const Parcel& input) {
 
     SAFE_PARCEL(input.readUint32, &what);
     SAFE_PARCEL(input.readUint32, &layerStack);
+    SAFE_PARCEL(input.readUint32, &flags);
     uint32_t tmpUint = 0;
     SAFE_PARCEL(input.readUint32, &tmpUint);
     orientation = ui::toRotation(tmpUint);
@@ -363,6 +373,10 @@ void DisplayState::merge(const DisplayState& other) {
     if (other.what & eLayerStackChanged) {
         what |= eLayerStackChanged;
         layerStack = other.layerStack;
+    }
+    if (other.what & eFlagsChanged) {
+        what |= eFlagsChanged;
+        flags = other.flags;
     }
     if (other.what & eDisplayProjectionChanged) {
         what |= eDisplayProjectionChanged;
@@ -455,6 +469,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eBufferChanged) {
         what |= eBufferChanged;
         buffer = other.buffer;
+        releaseBufferEndpoint = other.releaseBufferEndpoint;
     }
     if (other.what & eAcquireFenceChanged) {
         what |= eAcquireFenceChanged;
@@ -487,17 +502,14 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eHasListenerCallbacksChanged) {
         what |= eHasListenerCallbacksChanged;
     }
-
-#ifndef NO_INPUT
     if (other.what & eInputInfoChanged) {
         what |= eInputInfoChanged;
-        inputHandle = new InputWindowHandle(*other.inputHandle);
+        windowInfoHandle = new WindowInfoHandle(*other.windowInfoHandle);
     }
-#endif
-
     if (other.what & eCachedBufferChanged) {
         what |= eCachedBufferChanged;
         cachedBuffer = other.cachedBuffer;
+        releaseBufferEndpoint = other.releaseBufferEndpoint;
     }
     if (other.what & eBackgroundColorChanged) {
         what |= eBackgroundColorChanged;
@@ -558,6 +570,14 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eDestinationFrameChanged;
         destinationFrame = other.destinationFrame;
     }
+    if (other.what & eDropInputModeChanged) {
+        what |= eDropInputModeChanged;
+        dropInputMode = other.dropInputMode;
+    }
+    if (other.what & eColorChanged) {
+        what |= eColorChanged;
+        color = other.color;
+    }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "
               "other.what=0x%" PRIu64 " what=0x%" PRIu64,
@@ -593,11 +613,9 @@ status_t layer_state_t::matrix22_t::read(const Parcel& input) {
 
 bool InputWindowCommands::merge(const InputWindowCommands& other) {
     bool changes = false;
-#ifndef NO_INPUT
     changes |= !other.focusRequests.empty();
     focusRequests.insert(focusRequests.end(), std::make_move_iterator(other.focusRequests.begin()),
                          std::make_move_iterator(other.focusRequests.end()));
-#endif
     changes |= other.syncInputWindows && !syncInputWindows;
     syncInputWindows |= other.syncInputWindows;
     return changes;
@@ -605,31 +623,23 @@ bool InputWindowCommands::merge(const InputWindowCommands& other) {
 
 bool InputWindowCommands::empty() const {
     bool empty = true;
-#ifndef NO_INPUT
     empty = focusRequests.empty() && !syncInputWindows;
-#endif
     return empty;
 }
 
 void InputWindowCommands::clear() {
-#ifndef NO_INPUT
     focusRequests.clear();
-#endif
     syncInputWindows = false;
 }
 
 status_t InputWindowCommands::write(Parcel& output) const {
-#ifndef NO_INPUT
     SAFE_PARCEL(output.writeParcelableVector, focusRequests);
-#endif
     SAFE_PARCEL(output.writeBool, syncInputWindows);
     return NO_ERROR;
 }
 
 status_t InputWindowCommands::read(const Parcel& input) {
-#ifndef NO_INPUT
     SAFE_PARCEL(input.readParcelableVector, &focusRequests);
-#endif
     SAFE_PARCEL(input.readBool, &syncInputWindows);
     return NO_ERROR;
 }

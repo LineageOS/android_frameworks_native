@@ -296,12 +296,14 @@ std::string SensorEntry::getDescription() const {
 volatile int32_t DispatchEntry::sNextSeqAtomic;
 
 DispatchEntry::DispatchEntry(std::shared_ptr<EventEntry> eventEntry, int32_t targetFlags,
-                             ui::Transform transform, float globalScaleFactor, int2 displaySize)
+                             ui::Transform transform, float globalScaleFactor,
+                             uint32_t displayOrientation, int2 displaySize)
       : seq(nextSeq()),
         eventEntry(std::move(eventEntry)),
         targetFlags(targetFlags),
         transform(transform),
         globalScaleFactor(globalScaleFactor),
+        displayOrientation(displayOrientation),
         displaySize(displaySize),
         deliveryTime(0),
         resolvedAction(0),

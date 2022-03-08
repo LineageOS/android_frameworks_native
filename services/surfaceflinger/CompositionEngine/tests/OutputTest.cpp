@@ -3606,6 +3606,7 @@ struct OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur
       : public OutputComposeSurfacesTest_SetsExpensiveRendering {
     OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur() {
         mLayer.layerFEState.backgroundBlurRadius = 10;
+        mLayer.layerFEState.isOpaque = false;
         mOutput.editState().isEnabled = true;
 
         EXPECT_CALL(mLayer.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
@@ -4225,6 +4226,37 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
                                                                 kDisplayDataspace));
 }
 
+TEST_F(OutputUpdateAndWriteCompositionStateTest, noBackgroundBlurWhenOpaque) {
+    InjectedLayer layer1;
+    InjectedLayer layer2;
+
+    uint32_t z = 0;
+    // Layer requesting blur, or below, should request client composition, unless opaque.
+    EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_0));
+    EXPECT_CALL(*layer1.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
+    EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_0));
+    EXPECT_CALL(*layer2.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
+
+    layer2.layerFEState.backgroundBlurRadius = 10;
+    layer2.layerFEState.isOpaque = true;
+
+    injectOutputLayer(layer1);
+    injectOutputLayer(layer2);
+
+    mOutput->editState().isEnabled = true;
+
+    CompositionRefreshArgs args;
+    args.updatingGeometryThisFrame = false;
+    args.devOptForceClientComposition = false;
+    mOutput->updateCompositionState(args);
+    mOutput->planComposition();
+    mOutput->writeCompositionState(args);
+}
+
 TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBackgroundBlurRequests) {
     InjectedLayer layer1;
     InjectedLayer layer2;
@@ -4246,6 +4278,7 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBackgroundBlurRequests) 
                                 /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
 
     layer2.layerFEState.backgroundBlurRadius = 10;
+    layer2.layerFEState.isOpaque = false;
 
     injectOutputLayer(layer1);
     injectOutputLayer(layer2);
@@ -4283,6 +4316,7 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBlurRegionRequests) {
 
     BlurRegion region;
     layer2.layerFEState.blurRegions.push_back(region);
+    layer2.layerFEState.isOpaque = false;
 
     injectOutputLayer(layer1);
     injectOutputLayer(layer2);

@@ -18,7 +18,7 @@
 
 #include "InputDevice.h"
 
-#include <input/Flags.h>
+#include <ftl/Flags.h>
 #include <algorithm>
 
 #include "CursorInputMapper.h"

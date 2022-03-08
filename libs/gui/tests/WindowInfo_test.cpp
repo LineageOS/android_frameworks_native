@@ -19,16 +19,20 @@
 #include <binder/Binder.h>
 #include <binder/Parcel.h>
 
-#include <input/InputWindow.h>
-#include <input/InputTransport.h>
+#include <gui/WindowInfo.h>
 
 using std::chrono_literals::operator""s;
 
 namespace android {
+
+using gui::InputApplicationInfo;
+using gui::TouchOcclusionMode;
+using gui::WindowInfo;
+
 namespace test {
 
-TEST(InputWindowInfo, ParcellingWithoutToken) {
-    InputWindowInfo i, i2;
+TEST(WindowInfo, ParcellingWithoutToken) {
+    WindowInfo i, i2;
     i.token = nullptr;
 
     Parcel p;
@@ -38,14 +42,15 @@ TEST(InputWindowInfo, ParcellingWithoutToken) {
     ASSERT_TRUE(i2.token == nullptr);
 }
 
-TEST(InputWindowInfo, Parcelling) {
+TEST(WindowInfo, Parcelling) {
     sp<IBinder> touchableRegionCropHandle = new BBinder();
-    InputWindowInfo i;
+    WindowInfo i;
     i.token = new BBinder();
+    i.windowToken = new BBinder();
     i.id = 1;
     i.name = "Foobar";
-    i.flags = InputWindowInfo::Flag::SLIPPERY;
-    i.type = InputWindowInfo::Type::INPUT_METHOD;
+    i.flags = WindowInfo::Flag::SLIPPERY;
+    i.type = WindowInfo::Type::INPUT_METHOD;
     i.dispatchingTimeout = 12s;
     i.frameLeft = 93;
     i.frameTop = 34;
@@ -55,6 +60,7 @@ TEST(InputWindowInfo, Parcelling) {
     i.globalScaleFactor = 0.3;
     i.alpha = 0.7;
     i.transform.set({0.4, -1, 100, 0.5, 0, 40, 0, 0, 1});
+    i.displayOrientation = ui::Transform::ROT_0;
     i.displayWidth = 1000;
     i.displayHeight = 2000;
     i.visible = false;
@@ -65,7 +71,7 @@ TEST(InputWindowInfo, Parcelling) {
     i.ownerPid = 19;
     i.ownerUid = 24;
     i.packageName = "com.example.package";
-    i.inputFeatures = InputWindowInfo::Feature::DISABLE_USER_ACTIVITY;
+    i.inputFeatures = WindowInfo::Feature::DISABLE_USER_ACTIVITY;
     i.displayId = 34;
     i.portalToDisplayId = 2;
     i.replaceTouchableRegionWithCrop = true;
@@ -77,9 +83,10 @@ TEST(InputWindowInfo, Parcelling) {
     Parcel p;
     i.writeToParcel(&p);
     p.setDataPosition(0);
-    InputWindowInfo i2;
+    WindowInfo i2;
     i2.readFromParcel(&p);
     ASSERT_EQ(i.token, i2.token);
+    ASSERT_EQ(i.windowToken, i2.windowToken);
     ASSERT_EQ(i.id, i2.id);
     ASSERT_EQ(i.name, i2.name);
     ASSERT_EQ(i.flags, i2.flags);

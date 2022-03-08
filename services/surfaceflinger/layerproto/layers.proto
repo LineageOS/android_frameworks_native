@@ -2,6 +2,9 @@
 
 syntax = "proto3";
 option optimize_for = LITE_RUNTIME;
+
+import "frameworks/native/services/surfaceflinger/layerproto/common.proto";
+
 package android.surfaceflinger;
 
 // Contains a list of all layers.
@@ -130,6 +133,9 @@ message LayerProto {
   repeated BlurRegion blur_regions = 54;
 
   bool is_trusted_overlay = 55;
+
+  // Corner radius explicitly set on layer rather than inherited
+  float requested_corner_radius = 56;
 }
 
 message PositionProto {
@@ -137,29 +143,9 @@ message PositionProto {
   float y = 2;
 }
 
-message SizeProto {
-  int32 w = 1;
-  int32 h = 2;
-}
-
-message TransformProto {
-  float dsdx = 1;
-  float dtdx = 2;
-  float dsdy = 3;
-  float dtdy = 4;
-  int32 type = 5;
-}
-
 message RegionProto {
   reserved 1;  // Previously: uint64 id
   repeated RectProto rect = 2;
-}
-
-message RectProto {
-  int32 left   = 1;
-  int32 top    = 2;
-  int32 right  = 3;
-  int32 bottom = 4;
 }
 
 message FloatRectProto {

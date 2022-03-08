@@ -31,6 +31,10 @@
 
 namespace android {
 
+using gui::FocusRequest;
+using gui::WindowInfo;
+using gui::WindowInfoHandle;
+
 static int32_t exceptionCodeFromStatusT(status_t status) {
     switch (status) {
         case OK:
@@ -108,33 +112,6 @@ sp<InputClassifierInterface> InputManager::getClassifier() {
 
 sp<InputDispatcherInterface> InputManager::getDispatcher() {
     return mDispatcher;
-}
-
-class BinderWindowHandle : public InputWindowHandle {
-public:
-    BinderWindowHandle(const InputWindowInfo& info) { mInfo = info; }
-
-    bool updateInfo() override {
-        return true;
-    }
-};
-
-binder::Status InputManager::setInputWindows(
-        const std::vector<InputWindowInfo>& infos,
-        const sp<ISetInputWindowsListener>& setInputWindowsListener) {
-    std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>> handlesPerDisplay;
-
-    std::vector<sp<InputWindowHandle>> handles;
-    for (const auto& info : infos) {
-        handlesPerDisplay.emplace(info.displayId, std::vector<sp<InputWindowHandle>>());
-        handlesPerDisplay[info.displayId].push_back(new BinderWindowHandle(info));
-    }
-    mDispatcher->setInputWindows(handlesPerDisplay);
-
-    if (setInputWindowsListener) {
-        setInputWindowsListener->onSetInputWindowsFinished();
-    }
-    return binder::Status::ok();
 }
 
 // Used by tests only.

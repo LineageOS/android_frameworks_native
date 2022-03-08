@@ -34,7 +34,6 @@
 
 namespace android::scheduler {
 
-const RefreshRateConfigs* LayerInfo::sRefreshRateConfigs = nullptr;
 bool LayerInfo::sTraceEnabled = false;
 
 LayerInfo::LayerInfo(const std::string& name, uid_t ownerUid,
@@ -184,7 +183,8 @@ std::optional<nsecs_t> LayerInfo::calculateAverageFrameTime() const {
     return static_cast<nsecs_t>(averageFrameTime);
 }
 
-std::optional<Fps> LayerInfo::calculateRefreshRateIfPossible(nsecs_t now) {
+std::optional<Fps> LayerInfo::calculateRefreshRateIfPossible(
+        const RefreshRateConfigs& refreshRateConfigs, nsecs_t now) {
     static constexpr float MARGIN = 1.0f; // 1Hz
     if (!hasEnoughDataForHeuristic()) {
         ALOGV("Not enough data");
@@ -196,9 +196,7 @@ std::optional<Fps> LayerInfo::calculateRefreshRateIfPossible(nsecs_t now) {
         const auto refreshRate = Fps::fromPeriodNsecs(*averageFrameTime);
         const bool refreshRateConsistent = mRefreshRateHistory.add(refreshRate, now);
         if (refreshRateConsistent) {
-            const auto knownRefreshRate =
-                    sRefreshRateConfigs->findClosestKnownFrameRate(refreshRate);
-
+            const auto knownRefreshRate = refreshRateConfigs.findClosestKnownFrameRate(refreshRate);
             // To avoid oscillation, use the last calculated refresh rate if it is
             // close enough
             if (std::abs(mLastRefreshRate.calculated.getValue() - refreshRate.getValue()) >
@@ -220,7 +218,8 @@ std::optional<Fps> LayerInfo::calculateRefreshRateIfPossible(nsecs_t now) {
                                                : std::nullopt;
 }
 
-LayerInfo::LayerVote LayerInfo::getRefreshRateVote(nsecs_t now) {
+LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateConfigs& refreshRateConfigs,
+                                                   nsecs_t now) {
     if (mLayerVote.type != LayerHistory::LayerVoteType::Heuristic) {
         ALOGV("%s voted %d ", mName.c_str(), static_cast<int>(mLayerVote.type));
         return mLayerVote;
@@ -247,7 +246,7 @@ LayerInfo::LayerVote LayerInfo::getRefreshRateVote(nsecs_t now) {
         clearHistory(now);
     }
 
-    auto refreshRate = calculateRefreshRateIfPossible(now);
+    auto refreshRate = calculateRefreshRateIfPossible(refreshRateConfigs, now);
     if (refreshRate.has_value()) {
         ALOGV("%s calculated refresh rate: %s", mName.c_str(), to_string(*refreshRate).c_str());
         return {LayerHistory::LayerVoteType::Heuristic, refreshRate.value()};
