@@ -2239,8 +2239,17 @@ static void collectManualStats(const std::string& path, struct stats* stats) {
     closedir(d);
 }
 
+void collectManualStatsForSubDirectories(const std::string& path, struct stats* stats) {
+    const auto subDirHandler = [&path, &stats](const std::string& subDir) {
+        auto fullpath = path + "/" + subDir;
+        collectManualStats(fullpath, stats);
+    };
+    foreach_subdir(path, subDirHandler);
+}
+
 static void collectManualStatsForUser(const std::string& path, struct stats* stats,
-        bool exclude_apps = false) {
+                                      bool exclude_apps = false,
+                                      bool is_sdk_sandbox_storage = false) {
     DIR *d;
     int dfd;
     struct dirent *de;
@@ -2265,6 +2274,11 @@ static void collectManualStatsForUser(const std::string& path, struct stats* sta
                 continue;
             } else if (exclude_apps && (user_uid >= AID_APP_START && user_uid <= AID_APP_END)) {
                 continue;
+            } else if (is_sdk_sandbox_storage) {
+                // In case of sdk sandbox storage (e.g. /data/misc_ce/0/sdksandbox/<package-name>),
+                // collect individual stats of each subdirectory (shared, storage of each sdk etc.)
+                collectManualStatsForSubDirectories(StringPrintf("%s/%s", path.c_str(), name),
+                                                    stats);
             } else {
                 collectManualStats(StringPrintf("%s/%s", path.c_str(), name), stats);
             }
@@ -2412,6 +2426,19 @@ binder::Status InstalldNativeService::getAppSize(const std::optional<std::string
             auto dePath = create_data_user_de_package_path(uuid_, userId, pkgname);
             collectManualStats(dePath, &stats);
             ATRACE_END();
+
+            // In case of sdk sandbox storage (e.g. /data/misc_ce/0/sdksandbox/<package-name>),
+            // collect individual stats of each subdirectory (shared, storage of each sdk etc.)
+            if (appId >= AID_APP_START && appId <= AID_APP_END) {
+                ATRACE_BEGIN("sdksandbox");
+                auto sdkSandboxCePath =
+                        create_data_misc_sdk_sandbox_package_path(uuid_, true, userId, pkgname);
+                collectManualStatsForSubDirectories(sdkSandboxCePath, &stats);
+                auto sdkSandboxDePath =
+                        create_data_misc_sdk_sandbox_package_path(uuid_, false, userId, pkgname);
+                collectManualStatsForSubDirectories(sdkSandboxDePath, &stats);
+                ATRACE_END();
+            }
 
             if (!uuid) {
                 ATRACE_BEGIN("profiles");
@@ -2647,6 +2674,13 @@ binder::Status InstalldNativeService::getUserSize(const std::optional<std::strin
         collectManualStatsForUser(cePath, &stats);
         auto dePath = create_data_user_de_path(uuid_, userId);
         collectManualStatsForUser(dePath, &stats);
+        ATRACE_END();
+
+        ATRACE_BEGIN("sdksandbox");
+        auto sdkSandboxCePath = create_data_misc_sdk_sandbox_path(uuid_, true, userId);
+        collectManualStatsForUser(sdkSandboxCePath, &stats, false, true);
+        auto sdkSandboxDePath = create_data_misc_sdk_sandbox_path(uuid_, false, userId);
+        collectManualStatsForUser(sdkSandboxDePath, &stats, false, true);
         ATRACE_END();
 
         if (!uuid) {
