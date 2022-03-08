@@ -212,7 +212,7 @@ std::string create_data_misc_sdk_sandbox_path(const char* uuid, bool isCeData, u
 
 /**
  * Create the path name where code data for all codes in a particular app will be stored.
- * E.g. /data/misc_ce/0/sdksandbox/<app-name>
+ * E.g. /data/misc_ce/0/sdksandbox/<package-name>
  */
 std::string create_data_misc_sdk_sandbox_package_path(const char* volume_uuid, bool isCeData,
                                                       userid_t user, const char* package_name) {
@@ -224,7 +224,7 @@ std::string create_data_misc_sdk_sandbox_package_path(const char* volume_uuid, b
 
 /**
  * Create the path name where shared code data for a particular app will be stored.
- * E.g. /data/misc_ce/0/sdksandbox/<app-name>/shared
+ * E.g. /data/misc_ce/0/sdksandbox/<package-name>/shared
  */
 std::string create_data_misc_sdk_sandbox_shared_path(const char* volume_uuid, bool isCeData,
                                                      userid_t user, const char* package_name) {
@@ -232,6 +232,19 @@ std::string create_data_misc_sdk_sandbox_shared_path(const char* volume_uuid, bo
                         create_data_misc_sdk_sandbox_package_path(volume_uuid, isCeData, user,
                                                                   package_name)
                                 .c_str());
+}
+
+/**
+ * Create the path name where per-code level data for a particular app will be stored.
+ * E.g. /data/misc_ce/0/sdksandbox/<package-name>/<sdk-name>-<random-suffix>
+ */
+std::string create_data_misc_sdk_sandbox_sdk_path(const char* volume_uuid, bool isCeData,
+                                                  userid_t user, const char* package_name,
+                                                  const char* sdk_name, const char* randomSuffix) {
+    check_package_name(sdk_name);
+    auto package_path =
+            create_data_misc_sdk_sandbox_package_path(volume_uuid, isCeData, user, package_name);
+    return StringPrintf("%s/%s@%s", package_path.c_str(), sdk_name, randomSuffix);
 }
 
 std::string create_data_misc_ce_rollback_base_path(const char* volume_uuid, userid_t user) {
@@ -694,6 +707,34 @@ static auto open_dir(const char* dir) {
         void operator()(DIR* d) const noexcept { ::closedir(d); }
     };
     return std::unique_ptr<DIR, DirCloser>(::opendir(dir));
+}
+
+// Collects filename of subdirectories of given directory and passes it to the function
+int foreach_subdir(const std::string& pathname, const std::function<void(const std::string&)> fn) {
+    auto dir = open_dir(pathname.c_str());
+    if (!dir) return -1;
+
+    int dfd = dirfd(dir.get());
+    if (dfd < 0) {
+        ALOGE("Couldn't dirfd %s: %s\n", pathname.c_str(), strerror(errno));
+        return -1;
+    }
+
+    struct dirent* de;
+    while ((de = readdir(dir.get()))) {
+        if (de->d_type != DT_DIR) {
+            continue;
+        }
+
+        std::string name{de->d_name};
+        // always skip "." and ".."
+        if (name == "." || name == "..") {
+            continue;
+        }
+        fn(name);
+    }
+
+    return 0;
 }
 
 void cleanup_invalid_package_dirs_under_path(const std::string& pathname) {
