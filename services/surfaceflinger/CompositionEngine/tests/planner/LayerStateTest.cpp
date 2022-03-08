@@ -359,6 +359,30 @@ TEST_F(LayerStateTest, updateBuffer) {
     EXPECT_EQ(Flags<LayerStateField>(LayerStateField::Buffer), updates);
 }
 
+TEST_F(LayerStateTest, updateBufferSingleBufferedLegacy) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.buffer = new GraphicBuffer();
+    setupMocksForLayer(mOutputLayer, *mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+
+    mock::OutputLayer newOutputLayer;
+    sp<mock::LayerFE> newLayerFE = sp<mock::LayerFE>::make();
+    LayerFECompositionState layerFECompositionStateTwo;
+    layerFECompositionStateTwo.buffer = new GraphicBuffer();
+    setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
+                       layerFECompositionStateTwo);
+
+    for (uint64_t i = 0; i < 10; i++) {
+        layerFECompositionStateTwo.frameNumber = i;
+        setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
+                           layerFECompositionStateTwo);
+        Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+        EXPECT_EQ(Flags<LayerStateField>(LayerStateField::Buffer), updates);
+    }
+}
+
 TEST_F(LayerStateTest, compareBuffer) {
     OutputLayerCompositionState outputLayerCompositionState;
     LayerFECompositionState layerFECompositionState;
