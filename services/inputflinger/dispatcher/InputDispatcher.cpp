@@ -2350,8 +2350,8 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
                                         *touchedWindow.windowHandle->getInfo()) ||
                                  (touchedWindow.targetFlags & InputTarget::FLAG_FOREGROUND) != 0;
                      })) {
-        ALOGI("Dropping event because there is no touched window on display %d to receive it.",
-              displayId);
+        ALOGI("Dropping event because there is no touched window on display %d to receive it: %s",
+              displayId, entry.getDescription().c_str());
         injectionResult = InputEventInjectionResult::FAILED;
         goto Failed;
     }
