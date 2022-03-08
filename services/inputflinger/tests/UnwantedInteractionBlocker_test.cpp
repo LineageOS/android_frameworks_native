@@ -490,6 +490,14 @@ TEST_F(UnwantedInteractionBlockerTest, NoCrashWhenResetHappens) {
             &(args = generateMotionArgs(0 /*downTime*/, 4 /*eventTime*/, DOWN, {{7, 8, 9}})));
 }
 
+TEST_F(UnwantedInteractionBlockerTest, NoCrashWhenStylusSourceWithFingerToolIsReceived) {
+    mBlocker->notifyInputDevicesChanged({generateTestDeviceInfo()});
+    NotifyMotionArgs args = generateMotionArgs(0 /*downTime*/, 1 /*eventTime*/, DOWN, {{1, 2, 3}});
+    args.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    args.source = AINPUT_SOURCE_STYLUS;
+    mBlocker->notifyMotion(&args);
+}
+
 /**
  * If input devices have changed, but the important device info that's used by the
  * UnwantedInteractionBlocker has not changed, there should not be a reset.
