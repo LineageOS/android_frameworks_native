@@ -204,11 +204,10 @@ private:
                                        const std::string& seInfo, int32_t targetSdkVersion,
                                        int64_t* _aidl_return);
 
-    binder::Status createAppDirectoryForSupplementalData(const std::optional<std::string>& uuid,
-                                                         const std::string& packageName,
-                                                         int32_t userId, int32_t appId,
-                                                         int32_t previousAppId,
-                                                         const std::string& seInfo, int32_t flags);
+    binder::Status createSdkSandboxDataDirectory(const std::optional<std::string>& uuid,
+                                                 const std::string& packageName, int32_t userId,
+                                                 int32_t appId, int32_t previousAppId,
+                                                 const std::string& seInfo, int32_t flags);
 };
 
 }  // namespace installd
