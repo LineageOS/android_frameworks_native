@@ -2320,8 +2320,8 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
                          return (touchedWindow.targetFlags & InputTarget::FLAG_FOREGROUND) != 0 ||
                                  touchedWindow.windowHandle->getInfo()->isSpy();
                      })) {
-        ALOGI("Dropping event because there is no touched window on display %d to receive it.",
-              displayId);
+        ALOGI("Dropping event because there is no touched window on display %d to receive it: %s",
+              displayId, entry.getDescription().c_str());
         injectionResult = InputEventInjectionResult::FAILED;
         goto Failed;
     }
