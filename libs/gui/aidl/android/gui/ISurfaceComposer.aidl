@@ -34,6 +34,7 @@ import android.gui.IFpsListener;
 import android.gui.IHdrLayerInfoListener;
 import android.gui.IRegionSamplingListener;
 import android.gui.IScreenCaptureListener;
+import android.gui.ISurfaceComposerClient;
 import android.gui.ITransactionTraceListener;
 import android.gui.ITunnelModeEnabledListener;
 import android.gui.IWindowInfosListener;
@@ -45,6 +46,12 @@ import android.gui.StaticDisplayInfo;
 
 /** @hide */
 interface ISurfaceComposer {
+
+    /**
+     * Create a connection with SurfaceFlinger.
+     */
+    @nullable ISurfaceComposerClient createConnection();
+
     /**
      * Create a virtual display
      * requires ACCESS_SURFACE_FLINGER permission.

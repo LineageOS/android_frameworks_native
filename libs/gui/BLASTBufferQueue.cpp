@@ -551,7 +551,7 @@ void BLASTBufferQueue::acquireNextBufferLocked(
         if (dequeueTime != mDequeueTimestamps.end()) {
             Parcel p;
             p.writeInt64(dequeueTime->second);
-            t->setMetadata(mSurfaceControl, METADATA_DEQUEUE_TIME, p);
+            t->setMetadata(mSurfaceControl, gui::METADATA_DEQUEUE_TIME, p);
             mDequeueTimestamps.erase(dequeueTime);
         }
     }

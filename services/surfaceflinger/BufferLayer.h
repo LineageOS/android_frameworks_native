@@ -20,7 +20,7 @@
 #include <cstdint>
 #include <list>
 
-#include <gui/ISurfaceComposerClient.h>
+#include <android/gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
 #include <renderengine/Image.h>
 #include <renderengine/Mesh.h>

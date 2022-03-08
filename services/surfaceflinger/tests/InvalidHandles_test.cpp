@@ -48,7 +48,7 @@ protected:
     }
 
     sp<SurfaceControl> makeNotSurfaceControl() {
-        return new SurfaceControl(mScc, new NotALayer(), nullptr, true);
+        return new SurfaceControl(mScc, new NotALayer(), 1);
     }
 };
 

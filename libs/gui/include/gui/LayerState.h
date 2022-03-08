@@ -51,7 +51,9 @@
 namespace android {
 
 class Parcel;
-class ISurfaceComposerClient;
+
+using gui::ISurfaceComposerClient;
+using gui::LayerMetadata;
 
 struct client_cache_t {
     wp<IBinder> token = nullptr;

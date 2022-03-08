@@ -27,6 +27,8 @@
 #include <gui/LayerMetadata.h>
 #include <log/log.h>
 
+using android::gui::LayerMetadata;
+
 namespace android {
 namespace {
 

@@ -19,10 +19,10 @@
 #include <cinttypes>
 #include <cmath>
 
+#include <android/gui/ISurfaceComposerClient.h>
 #include <android/native_window.h>
 #include <binder/Parcel.h>
 #include <gui/IGraphicBufferProducer.h>
-#include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
 #include <private/gui/ParcelUtils.h>
 #include <system/window.h>

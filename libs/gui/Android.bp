@@ -204,7 +204,6 @@ cc_library_shared {
         "IGraphicBufferProducer.cpp",
         "IProducerListener.cpp",
         "ISurfaceComposer.cpp",
-        "ISurfaceComposerClient.cpp",
         "ITransactionCompletedListener.cpp",
         "LayerDebugInfo.cpp",
         "LayerMetadata.cpp",

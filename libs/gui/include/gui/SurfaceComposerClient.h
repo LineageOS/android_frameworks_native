@@ -40,6 +40,8 @@
 #include <ui/Rotation.h>
 #include <ui/StaticDisplayInfo.h>
 
+#include <android/gui/ISurfaceComposerClient.h>
+
 #include <gui/CpuConsumer.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ITransactionCompletedListener.h>
@@ -53,14 +55,15 @@
 namespace android {
 
 class HdrCapabilities;
-class ISurfaceComposerClient;
 class IGraphicBufferProducer;
 class ITunnelModeEnabledListener;
 class Region;
 
 using gui::DisplayCaptureArgs;
 using gui::IRegionSamplingListener;
+using gui::ISurfaceComposerClient;
 using gui::LayerCaptureArgs;
+using gui::LayerMetadata;
 
 struct SurfaceControlStats {
     SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime,
@@ -312,7 +315,7 @@ public:
                                      uint32_t w,          // width in pixel
                                      uint32_t h,          // height in pixel
                                      PixelFormat format,  // pixel-format desired
-                                     uint32_t flags = 0,  // usage flags
+                                     int32_t flags = 0,   // usage flags
                                      const sp<IBinder>& parentHandle = nullptr, // parentHandle
                                      LayerMetadata metadata = LayerMetadata(),  // metadata
                                      uint32_t* outTransformHint = nullptr);
@@ -322,20 +325,10 @@ public:
                                   uint32_t h,          // height in pixel
                                   PixelFormat format,  // pixel-format desired
                                   sp<SurfaceControl>* outSurface,
-                                  uint32_t flags = 0,                        // usage flags
+                                  int32_t flags = 0,                         // usage flags
                                   const sp<IBinder>& parentHandle = nullptr, // parentHandle
                                   LayerMetadata metadata = LayerMetadata(),  // metadata
                                   uint32_t* outTransformHint = nullptr);
-
-    //! Create a surface
-    sp<SurfaceControl> createWithSurfaceParent(const String8& name,       // name of the surface
-                                               uint32_t w,                // width in pixel
-                                               uint32_t h,                // height in pixel
-                                               PixelFormat format,        // pixel-format desired
-                                               uint32_t flags = 0,        // usage flags
-                                               Surface* parent = nullptr, // parent
-                                               LayerMetadata metadata = LayerMetadata(), // metadata
-                                               uint32_t* outTransformHint = nullptr);
 
     // Creates a mirrored hierarchy for the mirrorFromSurface. This returns a SurfaceControl
     // which is a parent of the root of the mirrored hierarchy.
