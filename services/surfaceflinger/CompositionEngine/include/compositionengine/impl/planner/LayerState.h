@@ -405,6 +405,12 @@ private:
                                                                   : nullptr)};
                     }};
 
+    // Even if the same buffer is passed to BLAST's setBuffer(), we still increment the frame
+    // number and need to treat it as if the buffer changed. Otherwise we break existing
+    // front-buffer rendering paths (such as egl's EGL_SINGLE_BUFFER).
+    OutputLayerState<uint64_t, LayerStateField::Buffer> mFrameNumber{
+            [](auto layer) { return layer->getLayerFE().getCompositionState()->frameNumber; }};
+
     int64_t mFramesSinceBufferUpdate = 0;
 
     OutputLayerState<half4, LayerStateField::SolidColor>
@@ -453,7 +459,7 @@ private:
                                       return hash;
                                   }};
 
-    static const constexpr size_t kNumNonUniqueFields = 16;
+    static const constexpr size_t kNumNonUniqueFields = 17;
 
     std::array<StateInterface*, kNumNonUniqueFields> getNonUniqueFields() {
         std::array<const StateInterface*, kNumNonUniqueFields> constFields =
@@ -472,6 +478,7 @@ private:
                 &mAlpha,        &mLayerMetadata,  &mVisibleRegion,        &mOutputDataspace,
                 &mPixelFormat,  &mColorTransform, &mCompositionType,      &mSidebandStream,
                 &mBuffer,       &mSolidColor,     &mBackgroundBlurRadius, &mBlurRegions,
+                &mFrameNumber,
         };
     }
 };
