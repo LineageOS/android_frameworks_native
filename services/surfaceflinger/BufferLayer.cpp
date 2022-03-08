@@ -311,6 +311,7 @@ void BufferLayer::preparePerFrameCompositionState() {
             ? 0
             : mBufferInfo.mBufferSlot;
     compositionState->acquireFence = mBufferInfo.mFence;
+    compositionState->frameNumber = mBufferInfo.mFrameNumber;
     compositionState->sidebandStreamHasFrame = false;
 }
 
