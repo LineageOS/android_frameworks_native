@@ -2199,8 +2199,8 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     return mustComposite && CC_LIKELY(mBootStage != BootStage::BOOTLOADER);
 }
 
-void SurfaceFlinger::composite(nsecs_t frameTime) {
-    ATRACE_CALL();
+void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId) {
+    ATRACE_FORMAT("%s %" PRId64, __func__, vsyncId);
     MainThreadScopedGuard mainThreadGuard(SF_MAIN_THREAD);
     if (mPowerHintSessionData.sessionEnabled) {
         mPowerHintSessionData.compositeStart = systemTime();
