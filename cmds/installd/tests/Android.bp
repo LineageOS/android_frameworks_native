@@ -26,6 +26,7 @@ cc_test {
         "libasync_safe",
         "libdiskusage",
         "libext2_uuid",
+        "libgmock",
         "libinstalld",
         "liblog",
     ],
