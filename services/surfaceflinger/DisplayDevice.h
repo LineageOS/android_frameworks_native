@@ -39,10 +39,16 @@
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
+#include "MainThreadGuard.h"
+
 #include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/Hal.h"
 #include "DisplayHardware/PowerAdvisor.h"
+
+#include "Scheduler/RefreshRateConfigs.h"
+
+#include "TracedOrdinal.h"
 
 namespace android {
 
@@ -50,6 +56,7 @@ class Fence;
 class HWComposer;
 class IGraphicBufferProducer;
 class Layer;
+class RefreshRateOverlay;
 class SurfaceFlinger;
 
 struct CompositionInfo;
@@ -64,6 +71,7 @@ class DisplayDevice : public RefBase {
 public:
     constexpr static float sDefaultMinLumiance = 0.0;
     constexpr static float sDefaultMaxLumiance = 500.0;
+    enum { eReceivesInput = 0x01 };
 
     explicit DisplayDevice(DisplayDeviceCreationArgs& args);
 
@@ -78,6 +86,9 @@ public:
 
     bool isVirtual() const { return !mConnectionType; }
     bool isPrimary() const { return mIsPrimary; }
+    bool isInternal() const {
+        return !isVirtual() && mConnectionType == ui::DisplayConnectionType::Internal;
+    }
 
     // isSecure indicates whether this display can be trusted to display
     // secure surfaces.
@@ -90,6 +101,7 @@ public:
     void setLayerStack(ui::LayerStack);
     void setDisplaySize(int width, int height);
     void setProjection(ui::Rotation orientation, Rect viewport, Rect frame);
+    void setFlags(uint32_t flags);
 
     ui::Rotation getPhysicalOrientation() const { return mPhysicalOrientation; }
     ui::Rotation getOrientation() const { return mOrientation; }
@@ -102,6 +114,7 @@ public:
     const Rect& getOrientedDisplaySpaceRect() const;
     bool needsFiltering() const;
     ui::LayerStack getLayerStack() const;
+    bool receivesInput() const { return mFlags & eReceivesInput; }
 
     DisplayId getId() const;
 
@@ -172,10 +185,28 @@ public:
      * Display mode management.
      */
     const DisplayModePtr& getActiveMode() const;
-    void setActiveMode(DisplayModeId);
-    status_t initiateModeChange(DisplayModeId modeId,
+
+    struct ActiveModeInfo {
+        DisplayModePtr mode;
+        scheduler::RefreshRateConfigEvent event = scheduler::RefreshRateConfigEvent::None;
+
+        bool operator!=(const ActiveModeInfo& other) const {
+            return mode != other.mode || event != other.event;
+        }
+    };
+
+    bool setDesiredActiveMode(const ActiveModeInfo&) EXCLUDES(mActiveModeLock);
+    std::optional<ActiveModeInfo> getDesiredActiveMode() const EXCLUDES(mActiveModeLock);
+    void clearDesiredActiveModeState() EXCLUDES(mActiveModeLock);
+    ActiveModeInfo getUpcomingActiveMode() const REQUIRES(SF_MAIN_THREAD) {
+        return mUpcomingActiveMode;
+    }
+
+    void setActiveMode(DisplayModeId) REQUIRES(SF_MAIN_THREAD);
+    status_t initiateModeChange(const ActiveModeInfo&,
                                 const hal::VsyncPeriodChangeConstraints& constraints,
-                                hal::VsyncPeriodChangeTimeline* outTimeline) const;
+                                hal::VsyncPeriodChangeTimeline* outTimeline)
+            REQUIRES(SF_MAIN_THREAD);
 
     // Return the immutable list of supported display modes. The HWC may report different modes
     // after a hotplug reconnect event, in which case the DisplayDevice object will be recreated.
@@ -186,6 +217,22 @@ public:
     // supported mode may be no longer supported for some devices like TVs and
     // set-top boxes after a hotplug reconnect.
     DisplayModePtr getMode(DisplayModeId) const;
+
+    // Returns the refresh rate configs for this display.
+    scheduler::RefreshRateConfigs& refreshRateConfigs() const { return *mRefreshRateConfigs; }
+
+    // Returns a shared pointer to the refresh rate configs for this display.
+    // Clients can store this refresh rate configs and use it even if the DisplayDevice
+    // is destroyed.
+    std::shared_ptr<scheduler::RefreshRateConfigs> holdRefreshRateConfigs() const {
+        return mRefreshRateConfigs;
+    }
+
+    // Enables an overlay to be displayed with the current refresh rate
+    void enableRefreshRateOverlay(bool enable, bool showSpinner);
+    bool isRefreshRateOverlayEnabled() const { return mRefreshRateOverlay != nullptr; }
+    bool onKernelTimerChanged(std::optional<DisplayModeId>, bool timerExpired);
+    void onInvalidate();
 
     void onVsync(nsecs_t timestamp);
     nsecs_t getVsyncPeriodFromHWC() const;
@@ -211,6 +258,8 @@ private:
     const std::shared_ptr<compositionengine::Display> mCompositionDisplay;
 
     std::string mDisplayName;
+    std::string mActiveModeFPSTrace;
+    std::string mActiveModeFPSHwcTrace;
 
     const ui::Rotation mPhysicalOrientation;
     ui::Rotation mOrientation = ui::ROTATION_0;
@@ -227,9 +276,20 @@ private:
     // TODO(b/74619554): Remove special cases for primary display.
     const bool mIsPrimary;
 
+    uint32_t mFlags = 0;
+
     std::optional<DeviceProductInfo> mDeviceProductInfo;
 
     std::vector<ui::Hdr> mOverrideHdrTypes;
+
+    std::shared_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
+    std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay;
+
+    mutable std::mutex mActiveModeLock;
+    ActiveModeInfo mDesiredActiveMode GUARDED_BY(mActiveModeLock);
+    TracedOrdinal<bool> mDesiredActiveModeChanged
+            GUARDED_BY(mActiveModeLock) = {"DesiredActiveModeChanged", false};
+    ActiveModeInfo mUpcomingActiveMode GUARDED_BY(SF_MAIN_THREAD);
 };
 
 struct DisplayDeviceState {
@@ -252,6 +312,7 @@ struct DisplayDeviceState {
     std::optional<Physical> physical;
     sp<IGraphicBufferProducer> surface;
     ui::LayerStack layerStack = ui::NO_LAYER_STACK;
+    uint32_t flags = 0;
     Rect layerStackSpaceRect;
     Rect orientedDisplaySpaceRect;
     ui::Rotation orientation = ui::ROTATION_0;
@@ -274,6 +335,7 @@ struct DisplayDeviceCreationArgs {
     HWComposer& hwComposer;
     const wp<IBinder> displayToken;
     const std::shared_ptr<compositionengine::Display> compositionDisplay;
+    std::shared_ptr<scheduler::RefreshRateConfigs> refreshRateConfigs;
 
     int32_t sequenceId{0};
     std::optional<ui::DisplayConnectionType> connectionType;
@@ -289,6 +351,7 @@ struct DisplayDeviceCreationArgs {
             hardware::graphics::composer::hal::PowerMode::ON};
     bool isPrimary{false};
     DisplayModes supportedModes;
+    DisplayModeId activeModeId;
 };
 
 // Predicates for display lookup.

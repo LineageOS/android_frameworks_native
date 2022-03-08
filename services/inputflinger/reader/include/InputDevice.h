@@ -17,8 +17,8 @@
 #ifndef _UI_INPUTREADER_INPUT_DEVICE_H
 #define _UI_INPUTREADER_INPUT_DEVICE_H
 
+#include <ftl/Flags.h>
 #include <input/DisplayViewport.h>
-#include <input/Flags.h>
 #include <input/InputDevice.h>
 #include <input/PropertyMap.h>
 #include <stdint.h>

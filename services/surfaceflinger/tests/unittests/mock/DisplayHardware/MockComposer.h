@@ -54,8 +54,7 @@ public:
     MOCK_METHOD0(resetCommands, void());
     MOCK_METHOD0(executeCommands, Error());
     MOCK_METHOD0(getMaxVirtualDisplayCount, uint32_t());
-    MOCK_METHOD5(createVirtualDisplay,
-                 Error(uint32_t, uint32_t, PixelFormat*, std::optional<Display>, Display*));
+    MOCK_METHOD4(createVirtualDisplay, Error(uint32_t, uint32_t, PixelFormat*, Display*));
     MOCK_METHOD1(destroyVirtualDisplay, Error(Display));
     MOCK_METHOD1(acceptDisplayChanges, Error(Display));
     MOCK_METHOD2(createLayer, Error(Display, Layer* outLayer));

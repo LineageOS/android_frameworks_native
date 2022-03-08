@@ -18,8 +18,9 @@
 #define _LIBINPUT_DISPLAY_VIEWPORT_H
 
 #include <android-base/stringprintf.h>
+#include <ftl/NamedEnum.h>
+#include <gui/constants.h>
 #include <input/Input.h>
-#include <input/NamedEnum.h>
 
 #include <cinttypes>
 #include <optional>

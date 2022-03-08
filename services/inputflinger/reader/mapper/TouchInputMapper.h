@@ -204,6 +204,15 @@ protected:
         bool hasAssociatedDisplay;
         bool associatedDisplayIsExternal;
         bool orientationAware;
+
+        enum class Orientation : int32_t {
+            ORIENTATION_0 = DISPLAY_ORIENTATION_0,
+            ORIENTATION_90 = DISPLAY_ORIENTATION_90,
+            ORIENTATION_180 = DISPLAY_ORIENTATION_180,
+            ORIENTATION_270 = DISPLAY_ORIENTATION_270,
+        };
+        Orientation orientation;
+
         bool hasButtonUnderPad;
         std::string uniqueDisplayId;
 

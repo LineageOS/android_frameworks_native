@@ -18,8 +18,8 @@
 
 #include <gui/DisplayEventReceiver.h>
 
+#include <gui/test/CallbackUtils.h>
 #include "LayerTransactionTest.h"
-#include "utils/CallbackUtils.h"
 
 using namespace std::chrono_literals;
 

@@ -208,6 +208,37 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadius) {
     }
 }
 
+// b/200781179 - don't round a layer without a valid crop
+// This behaviour should be fixed since we treat buffer layers differently than
+// effect or container layers.
+TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusInvalidCrop) {
+    sp<SurfaceControl> parent;
+    sp<SurfaceControl> child;
+    const uint8_t size = 64;
+    const uint8_t testArea = 4;
+    const float cornerRadius = 20.0f;
+    ASSERT_NO_FATAL_FAILURE(parent = createLayer("parent", size, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(parent, Color::GREEN, size, size));
+    ASSERT_NO_FATAL_FAILURE(child = createColorLayer("child", Color::RED));
+
+    Transaction().setCornerRadius(child, cornerRadius).reparent(child, parent).show(child).apply();
+    {
+        const uint8_t bottom = size - 1;
+        const uint8_t right = size - 1;
+        auto shot = getScreenCapture();
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        // Solid corners since we don't round a layer without a valid crop
+        shot->expectColor(Rect(0, 0, testArea, testArea), Color::RED);
+        shot->expectColor(Rect(size - testArea, 0, right, testArea), Color::RED);
+        shot->expectColor(Rect(0, bottom - testArea, testArea, bottom), Color::RED);
+        shot->expectColor(Rect(size - testArea, bottom - testArea, right, bottom), Color::RED);
+        // Solid center
+        shot->expectColor(Rect(size / 2 - testArea / 2, size / 2 - testArea / 2,
+                               size / 2 + testArea / 2, size / 2 + testArea / 2),
+                          Color::RED);
+    }
+}
+
 TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusRotated) {
     sp<SurfaceControl> parent;
     sp<SurfaceControl> child;
@@ -462,6 +493,95 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusChildBufferRotation
         shot->expectColor(Rect(layerWidth - cornerRadius - testArea, 0, layerWidth - cornerRadius,
                                layerHeight),
                           Color::RED);
+    }
+}
+
+TEST_P(LayerTypeAndRenderTypeTransactionTest, ChildCornerRadiusTakesPrecedence) {
+    sp<SurfaceControl> parent;
+    sp<SurfaceControl> child;
+    const uint32_t size = 64;
+    const uint32_t parentSize = size * 3;
+    const uint32_t testLength = 4;
+    const float cornerRadius = 20.0f;
+    ASSERT_NO_FATAL_FAILURE(parent = createLayer("parent", parentSize, parentSize));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(parent, Color::RED, parentSize, parentSize));
+    ASSERT_NO_FATAL_FAILURE(child = createLayer("child", size, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(child, Color::GREEN, size, size));
+
+    Transaction()
+            .setCornerRadius(parent, cornerRadius)
+            .setCornerRadius(child, cornerRadius)
+            .reparent(child, parent)
+            .setPosition(child, size, size)
+            .apply();
+
+    {
+        const uint32_t top = size - 1;
+        const uint32_t left = size - 1;
+        const uint32_t bottom = size * 2 - 1;
+        const uint32_t right = size * 2 - 1;
+        auto shot = getScreenCapture();
+        // Edges are transparent
+        // TL
+        shot->expectColor(Rect(left, top, testLength, testLength), Color::RED);
+        // TR
+        shot->expectColor(Rect(right - testLength, top, right, testLength), Color::RED);
+        // BL
+        shot->expectColor(Rect(left, bottom - testLength, testLength, bottom - testLength),
+                          Color::RED);
+        // BR
+        shot->expectColor(Rect(right - testLength, bottom - testLength, right, bottom), Color::RED);
+        // Solid center
+        shot->expectColor(Rect(parentSize / 2 - testLength / 2, parentSize / 2 - testLength / 2,
+                               parentSize / 2 + testLength / 2, parentSize / 2 + testLength / 2),
+                          Color::GREEN);
+    }
+}
+
+// Test if ParentCornerRadiusTakesPrecedence if the parent corner radius crop is fully contained by
+// the child corner radius crop.
+TEST_P(LayerTypeAndRenderTypeTransactionTest, ParentCornerRadiusTakesPrecedence) {
+    sp<SurfaceControl> parent;
+    sp<SurfaceControl> child;
+    const uint32_t size = 64;
+    const uint32_t parentSize = size * 3;
+    const Rect parentCrop(size + 1, size + 1, size * 2 - 1, size * 2 - 1);
+    const uint32_t testLength = 4;
+    const float cornerRadius = 20.0f;
+    ASSERT_NO_FATAL_FAILURE(parent = createLayer("parent", parentSize, parentSize));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(parent, Color::RED, parentSize, parentSize));
+    ASSERT_NO_FATAL_FAILURE(child = createLayer("child", size, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(child, Color::GREEN, size, size));
+
+    Transaction()
+            .setCornerRadius(parent, cornerRadius)
+            .setCrop(parent, parentCrop)
+            .setCornerRadius(child, cornerRadius)
+            .reparent(child, parent)
+            .setPosition(child, size, size)
+            .apply();
+
+    {
+        const uint32_t top = size - 1;
+        const uint32_t left = size - 1;
+        const uint32_t bottom = size * 2 - 1;
+        const uint32_t right = size * 2 - 1;
+        auto shot = getScreenCapture();
+        // Edges are transparent
+        // TL
+        shot->expectColor(Rect(left, top, testLength, testLength), Color::BLACK);
+        // TR
+        shot->expectColor(Rect(right - testLength, top, right, testLength), Color::BLACK);
+        // BL
+        shot->expectColor(Rect(left, bottom - testLength, testLength, bottom - testLength),
+                          Color::BLACK);
+        // BR
+        shot->expectColor(Rect(right - testLength, bottom - testLength, right, bottom),
+                          Color::BLACK);
+        // Solid center
+        shot->expectColor(Rect(parentSize / 2 - testLength / 2, parentSize / 2 - testLength / 2,
+                               parentSize / 2 + testLength / 2, parentSize / 2 + testLength / 2),
+                          Color::GREEN);
     }
 }
 

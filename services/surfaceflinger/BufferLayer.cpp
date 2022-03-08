@@ -58,6 +58,8 @@
 
 namespace android {
 
+using gui::WindowInfo;
+
 static constexpr float defaultMaxLuminance = 1000.0;
 
 BufferLayer::BufferLayer(const LayerCreationArgs& args)
@@ -419,33 +421,35 @@ bool BufferLayer::onPostComposition(const DisplayDevice* display,
         mFrameTracker.setFrameReadyTime(desiredPresentTime);
     }
 
-    const Fps refreshRate = mFlinger->mRefreshRateConfigs->getCurrentRefreshRate().getFps();
-    const std::optional<Fps> renderRate = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
-    if (presentFence->isValid()) {
-        mFlinger->mTimeStats->setPresentFence(layerId, mCurrentFrameNumber, presentFence,
-                                              refreshRate, renderRate,
-                                              frameRateToSetFrameRateVotePayload(
-                                                      mDrawingState.frameRate),
-                                              getGameMode());
-        mFlinger->mFrameTracer->traceFence(layerId, getCurrentBufferId(), mCurrentFrameNumber,
-                                           presentFence, FrameTracer::FrameEvent::PRESENT_FENCE);
-        mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
-    } else if (!display) {
-        // Do nothing.
-    } else if (const auto displayId = PhysicalDisplayId::tryCast(display->getId());
-               displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
-        // The HWC doesn't support present fences, so use the refresh
-        // timestamp instead.
-        const nsecs_t actualPresentTime = display->getRefreshTimestamp();
-        mFlinger->mTimeStats->setPresentTime(layerId, mCurrentFrameNumber, actualPresentTime,
-                                             refreshRate, renderRate,
-                                             frameRateToSetFrameRateVotePayload(
-                                                     mDrawingState.frameRate),
-                                             getGameMode());
-        mFlinger->mFrameTracer->traceTimestamp(layerId, getCurrentBufferId(), mCurrentFrameNumber,
-                                               actualPresentTime,
+    if (display) {
+        const Fps refreshRate = display->refreshRateConfigs().getCurrentRefreshRate().getFps();
+        const std::optional<Fps> renderRate =
+                mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
+        if (presentFence->isValid()) {
+            mFlinger->mTimeStats->setPresentFence(layerId, mCurrentFrameNumber, presentFence,
+                                                  refreshRate, renderRate,
+                                                  frameRateToSetFrameRateVotePayload(
+                                                          mDrawingState.frameRate),
+                                                  getGameMode());
+            mFlinger->mFrameTracer->traceFence(layerId, getCurrentBufferId(), mCurrentFrameNumber,
+                                               presentFence,
                                                FrameTracer::FrameEvent::PRESENT_FENCE);
-        mFrameTracker.setActualPresentTime(actualPresentTime);
+            mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
+        } else if (const auto displayId = PhysicalDisplayId::tryCast(display->getId());
+                   displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
+            // The HWC doesn't support present fences, so use the refresh
+            // timestamp instead.
+            const nsecs_t actualPresentTime = display->getRefreshTimestamp();
+            mFlinger->mTimeStats->setPresentTime(layerId, mCurrentFrameNumber, actualPresentTime,
+                                                 refreshRate, renderRate,
+                                                 frameRateToSetFrameRateVotePayload(
+                                                         mDrawingState.frameRate),
+                                                 getGameMode());
+            mFlinger->mFrameTracer->traceTimestamp(layerId, getCurrentBufferId(),
+                                                   mCurrentFrameNumber, actualPresentTime,
+                                                   FrameTracer::FrameEvent::PRESENT_FENCE);
+            mFrameTracker.setActualPresentTime(actualPresentTime);
+        }
     }
 
     mFrameTracker.advanceFrame();
@@ -825,9 +829,9 @@ void BufferLayer::updateCloneBufferInfo() {
     wp<Layer> tmpZOrderRelativeOf = mDrawingState.zOrderRelativeOf;
     SortedVector<wp<Layer>> tmpZOrderRelatives = mDrawingState.zOrderRelatives;
     wp<Layer> tmpTouchableRegionCrop = mDrawingState.touchableRegionCrop;
-    InputWindowInfo tmpInputInfo = mDrawingState.inputInfo;
+    WindowInfo tmpInputInfo = mDrawingState.inputInfo;
 
-    mDrawingState = clonedFrom->mDrawingState;
+    cloneDrawingState(clonedFrom.get());
 
     mDrawingState.touchableRegionCrop = tmpTouchableRegionCrop;
     mDrawingState.zOrderRelativeOf = tmpZOrderRelativeOf;

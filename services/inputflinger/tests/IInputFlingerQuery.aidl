@@ -14,17 +14,14 @@
  * limitations under the License.
  */
 
-import android.FocusRequest;
 import android.InputChannel;
-import android.InputWindowInfo;
-import android.os.ISetInputWindowsListener;
+import android.gui.FocusRequest;
+import android.gui.WindowInfo;
 
 /** @hide */
 interface IInputFlingerQuery
 {
     /* Test interfaces */
-    void getInputWindows(out InputWindowInfo[] inputHandles);
     void getInputChannels(out InputChannel[] channels);
-    void getLastFocusRequest(out FocusRequest request);
     void resetInputManager();
 }
