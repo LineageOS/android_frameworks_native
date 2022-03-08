@@ -380,6 +380,7 @@ private:
     friend class MonitoredProducer;
     friend class RefreshRateOverlay;
     friend class RegionSamplingThread;
+    friend class LayerRenderArea;
     friend class LayerTracing;
 
     // For unit tests
