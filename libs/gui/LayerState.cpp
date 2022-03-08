@@ -796,6 +796,8 @@ status_t BufferData::writeToParcel(Parcel* output) const {
 
     SAFE_PARCEL(output->writeStrongBinder, cachedBuffer.token.promote());
     SAFE_PARCEL(output->writeUint64, cachedBuffer.id);
+    SAFE_PARCEL(output->writeBool, hasBarrier);
+    SAFE_PARCEL(output->writeUint64, barrierFrameNumber);
 
     return NO_ERROR;
 }
@@ -831,6 +833,9 @@ status_t BufferData::readFromParcel(const Parcel* input) {
     SAFE_PARCEL(input->readNullableStrongBinder, &tmpBinder);
     cachedBuffer.token = tmpBinder;
     SAFE_PARCEL(input->readUint64, &cachedBuffer.id);
+
+    SAFE_PARCEL(input->readBool, &hasBarrier);
+    SAFE_PARCEL(input->readUint64, &barrierFrameNumber);
 
     return NO_ERROR;
 }

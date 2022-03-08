@@ -141,6 +141,8 @@ private:
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     uint64_t mPreviousReleasedFrameNumber = 0;
 
+    uint64_t mPreviousBarrierFrameNumber = 0;
+
     bool mReleasePreviousBuffer = false;
 
     // Stores the last set acquire fence signal time used to populate the callback handle's acquire
