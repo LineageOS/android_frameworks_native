@@ -74,8 +74,14 @@ std::string get_package_name(uid_t uid) {
 }
 namespace installd {
 
-constexpr const char* kTestUuid = "TEST";
-constexpr const char* kTestPath = "/data/local/tmp/user/0";
+static constexpr const char* kTestUuid = "TEST";
+static constexpr const char* kTestPath = "/data/local/tmp/user/0";
+static constexpr const uid_t kSystemUid = 1000;
+static constexpr const int32_t kTestUserId = 0;
+static constexpr const uid_t kTestAppId = 19999;
+
+const gid_t kTestAppUid = multiuser_get_uid(kTestUserId, kTestAppId);
+const uid_t kTestSdkSandboxUid = multiuser_get_sdk_sandbox_uid(kTestUserId, kTestAppId);
 
 #define FLAG_FORCE InstalldNativeService::FLAG_FORCE
 
@@ -941,6 +947,119 @@ TEST_F(AppDataSnapshotTest, RestoreAppDataSnapshot_WrongVolumeUuid) {
 
   EXPECT_BINDER_FAIL(service->restoreAppDataSnapshot(std::make_optional<std::string>("BAR"),
           "com.foo", 10000, "", 0, 41, FLAG_STORAGE_DE));
+}
+
+class SdkSandboxDataTest : public testing::Test {
+public:
+    void CheckFileAccess(const std::string& path, uid_t uid, mode_t mode) {
+        const auto fullPath = "/data/local/tmp/" + path;
+        ASSERT_TRUE(exists(fullPath.c_str())) << "For path: " << fullPath;
+        struct stat st;
+        ASSERT_EQ(0, stat(fullPath.c_str(), &st));
+        ASSERT_EQ(uid, st.st_uid) << "For path: " << fullPath;
+        ASSERT_EQ(uid, st.st_gid) << "For path: " << fullPath;
+        ASSERT_EQ(mode, st.st_mode) << "For path: " << fullPath;
+    }
+
+    bool exists(const char* path) { return ::access(path, F_OK) == 0; }
+
+    // Creates a default CreateAppDataArgs object
+    android::os::CreateAppDataArgs createAppDataArgs() {
+        android::os::CreateAppDataArgs args;
+        args.uuid = kTestUuid;
+        args.packageName = "com.foo";
+        args.userId = kTestUserId;
+        args.appId = kTestAppId;
+        args.seInfo = "default";
+        args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE;
+        return args;
+    }
+
+protected:
+    InstalldNativeService* service;
+
+    virtual void SetUp() {
+        setenv("ANDROID_LOG_TAGS", "*:v", 1);
+        android::base::InitLogging(nullptr);
+
+        service = new InstalldNativeService();
+        clearAppData();
+        ASSERT_TRUE(mkdirs("/data/local/tmp/user/0", 0700));
+        ASSERT_TRUE(mkdirs("/data/local/tmp/user_de/0", 0700));
+        ASSERT_TRUE(mkdirs("/data/local/tmp/misc_ce/0/sdksandbox", 0700));
+        ASSERT_TRUE(mkdirs("/data/local/tmp/misc_de/0/sdksandbox", 0700));
+
+        init_globals_from_data_and_root();
+    }
+
+    virtual void TearDown() {
+        delete service;
+        clearAppData();
+    }
+
+private:
+    void clearAppData() {
+        ASSERT_EQ(0, delete_dir_contents_and_dir("/data/local/tmp/user_de", true));
+        ASSERT_EQ(0, delete_dir_contents_and_dir("/data/local/tmp/misc_ce", true));
+        ASSERT_EQ(0, delete_dir_contents_and_dir("/data/local/tmp/misc_de", true));
+        ASSERT_EQ(0, delete_dir_contents_and_dir("/data/local/tmp/user_de", true));
+    }
+};
+
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSupplementalAppData) {
+    android::os::CreateAppDataResult result;
+    android::os::CreateAppDataArgs args = createAppDataArgs();
+    args.packageName = "com.foo";
+    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE;
+
+    // Create the app user data.
+    ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
+
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo", kSystemUid, S_IFDIR | 0751);
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/shared", kTestSdkSandboxUid, S_IFDIR | 0700);
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/shared/cache", kTestSdkSandboxUid,
+                    S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/shared/code_cache", kTestSdkSandboxUid,
+                    S_IFDIR | S_ISGID | 0771);
+
+    CheckFileAccess("misc_de/0/sdksandbox/com.foo", kSystemUid, S_IFDIR | 0751);
+    CheckFileAccess("misc_de/0/sdksandbox/com.foo/shared", kTestSdkSandboxUid, S_IFDIR | 0700);
+    CheckFileAccess("misc_de/0/sdksandbox/com.foo/shared/cache", kTestSdkSandboxUid,
+                    S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess("misc_de/0/sdksandbox/com.foo/shared/code_cache", kTestSdkSandboxUid,
+                    S_IFDIR | S_ISGID | 0771);
+}
+
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSupplementalAppData_WithoutDeFlag) {
+    android::os::CreateAppDataResult result;
+    android::os::CreateAppDataArgs args = createAppDataArgs();
+    args.packageName = "com.foo";
+    args.flags = FLAG_STORAGE_CE;
+
+    // Create the app user data.
+    ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
+
+    // Only CE paths should exist
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo", kSystemUid, S_IFDIR | 0751);
+
+    // DE paths should not exist
+    ASSERT_FALSE(exists("/data/local/tmp/misc_de/0/sdksandbox/com.foo"));
+}
+
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSupplementalAppData_WithoutCeFlag) {
+    android::os::CreateAppDataResult result;
+    android::os::CreateAppDataArgs args = createAppDataArgs();
+    args.packageName = "com.foo";
+    args.flags = FLAG_STORAGE_DE;
+
+    // Create the app user data.
+    ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
+
+    // CE paths should not exist
+    ASSERT_FALSE(exists("/data/local/tmp/misc_ce/0/sdksandbox/com.foo"));
+
+    // Only DE paths should exist
+    CheckFileAccess("misc_de/0/sdksandbox/com.foo", kSystemUid, S_IFDIR | 0751);
 }
 
 }  // namespace installd

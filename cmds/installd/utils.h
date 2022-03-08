@@ -60,6 +60,13 @@ std::string create_data_user_de_package_path(const char* volume_uuid,
 std::string create_data_user_ce_package_path_as_user_link(
         const char* volume_uuid, userid_t userid, const char* package_name);
 
+std::string create_data_misc_sdk_sandbox_path(const char* volume_uuid, bool isCeData,
+                                              userid_t userid);
+std::string create_data_misc_sdk_sandbox_package_path(const char* volume_uuid, bool isCeData,
+                                                      userid_t userid, const char* package_name);
+std::string create_data_misc_sdk_sandbox_shared_path(const char* volume_uuid, bool isCeData,
+                                                     userid_t userid, const char* package_name);
+
 std::string create_data_misc_ce_rollback_base_path(const char* volume_uuid, userid_t user);
 std::string create_data_misc_de_rollback_base_path(const char* volume_uuid, userid_t user);
 std::string create_data_misc_ce_rollback_path(const char* volume_uuid, userid_t user,

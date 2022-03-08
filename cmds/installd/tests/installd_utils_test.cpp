@@ -658,6 +658,38 @@ TEST_F(UtilsTest, TestCreateDirIfNeeded) {
     ASSERT_NE(0, create_dir_if_needed("/data/local/tmp/user/0/bar/baz", 0700));
 }
 
+TEST_F(UtilsTest, TestSdkSandboxDataPaths) {
+    // Ce data paths
+    EXPECT_EQ("/data/misc_ce/0/sdksandbox",
+              create_data_misc_sdk_sandbox_path(nullptr, /*isCeData=*/true, 0));
+    EXPECT_EQ("/data/misc_ce/10/sdksandbox", create_data_misc_sdk_sandbox_path(nullptr, true, 10));
+
+    EXPECT_EQ("/data/misc_ce/0/sdksandbox/com.foo",
+              create_data_misc_sdk_sandbox_package_path(nullptr, true, 0, "com.foo"));
+    EXPECT_EQ("/data/misc_ce/10/sdksandbox/com.foo",
+              create_data_misc_sdk_sandbox_package_path(nullptr, true, 10, "com.foo"));
+
+    EXPECT_EQ("/data/misc_ce/0/sdksandbox/com.foo/shared",
+              create_data_misc_sdk_sandbox_shared_path(nullptr, true, 0, "com.foo"));
+    EXPECT_EQ("/data/misc_ce/10/sdksandbox/com.foo/shared",
+              create_data_misc_sdk_sandbox_shared_path(nullptr, true, 10, "com.foo"));
+
+    // De data paths
+    EXPECT_EQ("/data/misc_de/0/sdksandbox",
+              create_data_misc_sdk_sandbox_path(nullptr, /*isCeData=*/false, 0));
+    EXPECT_EQ("/data/misc_de/10/sdksandbox", create_data_misc_sdk_sandbox_path(nullptr, false, 10));
+
+    EXPECT_EQ("/data/misc_de/0/sdksandbox/com.foo",
+              create_data_misc_sdk_sandbox_package_path(nullptr, false, 0, "com.foo"));
+    EXPECT_EQ("/data/misc_de/10/sdksandbox/com.foo",
+              create_data_misc_sdk_sandbox_package_path(nullptr, false, 10, "com.foo"));
+
+    EXPECT_EQ("/data/misc_de/0/sdksandbox/com.foo/shared",
+              create_data_misc_sdk_sandbox_shared_path(nullptr, false, 0, "com.foo"));
+    EXPECT_EQ("/data/misc_de/10/sdksandbox/com.foo/shared",
+              create_data_misc_sdk_sandbox_shared_path(nullptr, false, 10, "com.foo"));
+}
+
 TEST_F(UtilsTest, WaitChild) {
     pid_t pid = fork();
     if (pid == 0) {

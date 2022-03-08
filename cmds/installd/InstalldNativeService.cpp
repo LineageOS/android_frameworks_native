@@ -18,13 +18,9 @@
 
 #define ATRACE_TAG ATRACE_TAG_PACKAGE_MANAGER
 
-#include <algorithm>
 #include <errno.h>
-#include <fstream>
 #include <fts.h>
-#include <functional>
 #include <inttypes.h>
-#include <regex>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,6 +36,11 @@
 #include <sys/wait.h>
 #include <sys/xattr.h>
 #include <unistd.h>
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <regex>
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
@@ -720,6 +721,76 @@ binder::Status InstalldNativeService::createAppDataLocked(
             return error("Failed to prepare profiles for " + packageName);
         }
     }
+
+    // TODO(b/220095381): Due to boot time regression, we have omitted call to
+    // createSdkSandboxDataDirectory from here temporarily (unless it's for testing)
+    if (uuid_ != nullptr && strcmp(uuid_, "TEST") == 0) {
+        auto status = createSdkSandboxDataDirectory(uuid, packageName, userId, appId, previousAppId,
+                                                    seInfo, flags);
+        if (!status.isOk()) {
+            return status;
+        }
+    }
+
+    return ok();
+}
+
+/**
+ * Responsible for creating /data/misc_{ce|de}/user/0/sdksandbox/<app-name> directory and other
+ * app level sub directories, such as ./shared
+ */
+binder::Status InstalldNativeService::createSdkSandboxDataDirectory(
+        const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
+        int32_t appId, int32_t previousAppId, const std::string& seInfo, int32_t flags) {
+    int32_t sdkSandboxUid = multiuser_get_sdk_sandbox_uid(userId, appId);
+    if (sdkSandboxUid == -1) {
+        // There no valid sdk sandbox process for this app. Skip creation of data directory
+        return ok();
+    }
+
+    // TODO(b/211763739): what if uuid is not nullptr or TEST?
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+
+    constexpr int storageFlags[2] = {FLAG_STORAGE_CE, FLAG_STORAGE_DE};
+    for (int i = 0; i < 2; i++) {
+        int currentFlag = storageFlags[i];
+        if ((flags & currentFlag) == 0) {
+            continue;
+        }
+        bool isCeData = (currentFlag == FLAG_STORAGE_CE);
+
+        // /data/misc_{ce,de}/<user-id>/sdksandbox directory gets created by vold
+        // during user creation
+
+        // Prepare the app directory
+        auto appPath = create_data_misc_sdk_sandbox_package_path(uuid_, isCeData, userId,
+                                                                 packageName.c_str());
+        if (prepare_app_dir(appPath, 0751, AID_SYSTEM)) {
+            return error("Failed to prepare " + appPath);
+        }
+
+        // Now prepare the shared directory which will be accessible by all codes
+        auto sharedPath = create_data_misc_sdk_sandbox_shared_path(uuid_, isCeData, userId,
+                                                                   packageName.c_str());
+
+        int32_t previousSdkSandboxUid = multiuser_get_sdk_sandbox_uid(userId, previousAppId);
+        int32_t cacheGid = multiuser_get_cache_gid(userId, appId);
+        if (cacheGid == -1) {
+            return exception(binder::Status::EX_ILLEGAL_STATE,
+                             StringPrintf("cacheGid cannot be -1 for sdksandbox data"));
+        }
+        auto status = createAppDataDirs(sharedPath, sdkSandboxUid, &previousSdkSandboxUid, cacheGid,
+                                        seInfo, 0700);
+        if (!status.isOk()) {
+            return status;
+        }
+
+        // TODO(b/211763739): We also need to handle art profile creations
+
+        // TODO(b/211763739): And return the CE inode of the sdksandbox root directory and
+        // app directory under it so we can clear contents while CE storage is locked
+    }
+
     return ok();
 }
 

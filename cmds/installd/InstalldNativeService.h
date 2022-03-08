@@ -47,14 +47,9 @@ public:
             int32_t flags);
 
     binder::Status createAppData(const std::optional<std::string>& uuid,
-            const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
-            int32_t previousAppId, const std::string& seInfo, int32_t targetSdkVersion,
-            int64_t* _aidl_return);
-    binder::Status createAppDataLocked(const std::optional<std::string>& uuid,
-                                       const std::string& packageName, int32_t userId,
-                                       int32_t flags, int32_t appId, int32_t previousAppId,
-                                       const std::string& seInfo, int32_t targetSdkVersion,
-                                       int64_t* _aidl_return);
+                                 const std::string& packageName, int32_t userId, int32_t flags,
+                                 int32_t appId, int32_t previousAppId, const std::string& seInfo,
+                                 int32_t targetSdkVersion, int64_t* _aidl_return);
 
     binder::Status createAppData(
             const android::os::CreateAppDataArgs& args,
@@ -202,6 +197,17 @@ private:
     std::unordered_map<uid_t, int64_t> mCacheQuotas;
 
     std::string findDataMediaPath(const std::optional<std::string>& uuid, userid_t userid);
+
+    binder::Status createAppDataLocked(const std::optional<std::string>& uuid,
+                                       const std::string& packageName, int32_t userId,
+                                       int32_t flags, int32_t appId, int32_t previousAppId,
+                                       const std::string& seInfo, int32_t targetSdkVersion,
+                                       int64_t* _aidl_return);
+
+    binder::Status createSdkSandboxDataDirectory(const std::optional<std::string>& uuid,
+                                                 const std::string& packageName, int32_t userId,
+                                                 int32_t appId, int32_t previousAppId,
+                                                 const std::string& seInfo, int32_t flags);
 };
 
 }  // namespace installd
