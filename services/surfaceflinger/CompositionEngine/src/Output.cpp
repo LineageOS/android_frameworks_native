@@ -58,8 +58,7 @@ namespace android::compositionengine {
 Output::~Output() = default;
 
 namespace impl {
-using CompositionStrategyPredictionState =
-        OutputCompositionState::CompositionStrategyPredictionState;
+
 namespace {
 
 template <typename T>
@@ -967,7 +966,6 @@ void Output::prepareFrame() {
     }
 
     auto changes = chooseCompositionStrategy();
-    outputState.strategyPrediction = CompositionStrategyPredictionState::DISABLED;
     outputState.previousDeviceRequestedChanges = changes;
     if (changes) {
         applyCompositionStrategy(changes);
@@ -1004,8 +1002,7 @@ GpuCompositionResult Output::prepareFrameAsync(const CompositionRefreshArgs& ref
 
     auto changes = hwcResult.valid() ? hwcResult.get() : std::nullopt;
     const bool predictionSucceeded = dequeueSucceeded && changes == previousChanges;
-    state.strategyPrediction = predictionSucceeded ? CompositionStrategyPredictionState::SUCCESS
-                                                   : CompositionStrategyPredictionState::FAIL;
+    compositionResult.succeeded = predictionSucceeded;
     if (!predictionSucceeded) {
         ATRACE_NAME("CompositionStrategyPredictionMiss");
         if (changes) {
@@ -1047,15 +1044,15 @@ void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&
 void Output::finishFrame(const CompositionRefreshArgs& refreshArgs, GpuCompositionResult&& result) {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
-    const auto& outputState = getState();
-    if (!outputState.isEnabled) {
+
+    if (!getState().isEnabled) {
         return;
     }
 
     std::optional<base::unique_fd> optReadyFence;
     std::shared_ptr<renderengine::ExternalTexture> buffer;
     base::unique_fd bufferFence;
-    if (outputState.strategyPrediction == CompositionStrategyPredictionState::SUCCESS) {
+    if (result.succeeded) {
         optReadyFence = std::move(result.fence);
     } else {
         if (result.bufferAvailable()) {
