@@ -74,9 +74,6 @@ const mat4 kNonIdentityQuarter = mat4() * 0.25f;
 constexpr OutputColorSetting kVendorSpecifiedOutputColorSetting =
         static_cast<OutputColorSetting>(0x100);
 
-using CompositionStrategyPredictionState = android::compositionengine::impl::
-        OutputCompositionState::CompositionStrategyPredictionState;
-
 struct OutputPartialMockBase : public impl::Output {
     // compositionengine::Output overrides
     const OutputCompositionState& getState() const override { return mState; }
@@ -1024,7 +1021,6 @@ TEST_F(OutputPrepareFrameTest, delegatesToChooseCompositionStrategyAndRenderSurf
     EXPECT_CALL(*mRenderSurface, prepareFrame(false, true));
 
     mOutput.prepareFrame();
-    EXPECT_EQ(mOutput.getState().strategyPrediction, CompositionStrategyPredictionState::DISABLED);
 }
 
 // Note: Use OutputTest and not OutputPrepareFrameTest, so the real
@@ -1040,7 +1036,6 @@ TEST_F(OutputTest, prepareFrameSetsClientCompositionOnlyByDefault) {
 
     EXPECT_TRUE(mOutput->getState().usesClientComposition);
     EXPECT_FALSE(mOutput->getState().usesDeviceComposition);
-    EXPECT_EQ(mOutput->getState().strategyPrediction, CompositionStrategyPredictionState::DISABLED);
 }
 
 struct OutputPrepareFrameAsyncTest : public testing::Test {
@@ -1089,7 +1084,7 @@ TEST_F(OutputPrepareFrameAsyncTest, delegatesToChooseCompositionStrategyAndRende
     EXPECT_CALL(mOutput, composeSurfaces(_, Ref(mRefreshArgs), _, _));
 
     impl::GpuCompositionResult result = mOutput.prepareFrameAsync(mRefreshArgs);
-    EXPECT_EQ(mOutput.getState().strategyPrediction, CompositionStrategyPredictionState::SUCCESS);
+    EXPECT_TRUE(result.succeeded);
     EXPECT_FALSE(result.bufferAvailable());
 }
 
@@ -1109,7 +1104,7 @@ TEST_F(OutputPrepareFrameAsyncTest, skipCompositionOnDequeueFailure) {
     EXPECT_CALL(mOutput, chooseCompositionStrategyAsync()).WillOnce([&] { return p.get_future(); });
 
     impl::GpuCompositionResult result = mOutput.prepareFrameAsync(mRefreshArgs);
-    EXPECT_EQ(mOutput.getState().strategyPrediction, CompositionStrategyPredictionState::FAIL);
+    EXPECT_FALSE(result.succeeded);
     EXPECT_FALSE(result.bufferAvailable());
 }
 
@@ -1137,7 +1132,7 @@ TEST_F(OutputPrepareFrameAsyncTest, chooseCompositionStrategyFailureCallsPrepare
     EXPECT_CALL(mOutput, composeSurfaces(_, Ref(mRefreshArgs), _, _));
 
     impl::GpuCompositionResult result = mOutput.prepareFrameAsync(mRefreshArgs);
-    EXPECT_EQ(mOutput.getState().strategyPrediction, CompositionStrategyPredictionState::FAIL);
+    EXPECT_FALSE(result.succeeded);
     EXPECT_TRUE(result.bufferAvailable());
 }
 
@@ -1166,7 +1161,7 @@ TEST_F(OutputPrepareFrameAsyncTest, predictionMiss) {
     EXPECT_CALL(mOutput, composeSurfaces(_, Ref(mRefreshArgs), _, _));
 
     impl::GpuCompositionResult result = mOutput.prepareFrameAsync(mRefreshArgs);
-    EXPECT_EQ(mOutput.getState().strategyPrediction, CompositionStrategyPredictionState::FAIL);
+    EXPECT_FALSE(result.succeeded);
     EXPECT_TRUE(result.bufferAvailable());
 }
 
@@ -3010,21 +3005,22 @@ TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
 
 TEST_F(OutputFinishFrameTest, predictionSucceeded) {
     mOutput.mState.isEnabled = true;
-    mOutput.mState.strategyPrediction = CompositionStrategyPredictionState::SUCCESS;
+
     InSequence seq;
     EXPECT_CALL(*mRenderSurface, queueBuffer(_));
 
     impl::GpuCompositionResult result;
+    result.succeeded = true;
     mOutput.finishFrame(mRefreshArgs, std::move(result));
 }
 
 TEST_F(OutputFinishFrameTest, predictionFailedAndBufferIsReused) {
     mOutput.mState.isEnabled = true;
-    mOutput.mState.strategyPrediction = CompositionStrategyPredictionState::FAIL;
 
     InSequence seq;
 
     impl::GpuCompositionResult result;
+    result.succeeded = false;
     result.buffer =
             std::make_shared<renderengine::mock::FakeExternalTexture>(1, 1,
                                                                       HAL_PIXEL_FORMAT_RGBA_8888, 1,
