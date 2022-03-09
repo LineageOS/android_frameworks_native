@@ -124,15 +124,6 @@ constexpr int32_t VERIFIED_MOTION_EVENT_FLAGS = AMOTION_EVENT_FLAG_WINDOW_IS_OBS
 constexpr int32_t AMOTION_EVENT_FLAG_CANCELED = 0x20;
 
 enum {
-    /* Used when a motion event is not associated with any display.
-     * Typically used for non-pointer events. */
-    ADISPLAY_ID_NONE = -1,
-
-    /* The default display id. */
-    ADISPLAY_ID_DEFAULT = 0,
-};
-
-enum {
     /*
      * Indicates that an input device has switches.
      * This input source flag is hidden from the API because switches are only used by the system
@@ -353,12 +344,6 @@ private:
  * IEEE 754. Use isnan() instead to check if a cursor position is valid.
  */
 constexpr float AMOTION_EVENT_INVALID_CURSOR_POSITION = std::numeric_limits<float>::quiet_NaN();
-
-/**
- * Invalid value for display size. Used when display size isn't available for an event or doesn't
- * matter. This is just a constant 0 so that it has no effect if unused.
- */
-constexpr int32_t AMOTION_EVENT_INVALID_DISPLAY_SIZE = 0;
 
 /*
  * Pointer coordinate data.
@@ -592,6 +577,8 @@ public:
 
     void setCursorPosition(float x, float y);
 
+    uint32_t getDisplayOrientation() const { return mDisplayOrientation; }
+
     int2 getDisplaySize() const { return {mDisplayWidth, mDisplayHeight}; }
 
     static inline bool isValidCursorPosition(float x, float y) { return !isnan(x) && !isnan(y); }
@@ -768,8 +755,8 @@ public:
                     int32_t flags, int32_t edgeFlags, int32_t metaState, int32_t buttonState,
                     MotionClassification classification, const ui::Transform& transform,
                     float xPrecision, float yPrecision, float rawXCursorPosition,
-                    float rawYCursorPosition, int32_t displayWidth, int32_t displayHeight,
-                    nsecs_t downTime, nsecs_t eventTime, size_t pointerCount,
+                    float rawYCursorPosition, uint32_t displayOrientation, int32_t displayWidth,
+                    int32_t displayHeight, nsecs_t downTime, nsecs_t eventTime, size_t pointerCount,
                     const PointerProperties* pointerProperties, const PointerCoords* pointerCoords);
 
     void copyFrom(const MotionEvent* other, bool keepHistory);
@@ -827,6 +814,7 @@ protected:
     float mYPrecision;
     float mRawXCursorPosition;
     float mRawYCursorPosition;
+    uint32_t mDisplayOrientation;
     int32_t mDisplayWidth;
     int32_t mDisplayHeight;
     nsecs_t mDownTime;

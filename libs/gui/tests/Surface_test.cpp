@@ -694,6 +694,7 @@ public:
             bool /*secure*/) override { return nullptr; }
     void destroyDisplay(const sp<IBinder>& /*display */) override {}
     std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override { return {}; }
+    status_t getPrimaryPhysicalDisplayId(PhysicalDisplayId*) const override { return NO_ERROR; }
     sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId) const override { return nullptr; }
     status_t setTransactionState(const FrameTimelineInfo& /*frameTimelineInfo*/,
                                  const Vector<ComposerState>& /*state*/,
@@ -903,6 +904,16 @@ public:
     int getGPUContextPriority() override { return 0; };
 
     status_t getMaxAcquiredBufferCount(int* /*buffers*/) const override { return NO_ERROR; }
+
+    status_t addWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& /*windowInfosListener*/) const override {
+        return NO_ERROR;
+    }
+
+    status_t removeWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& /*windowInfosListener*/) const override {
+        return NO_ERROR;
+    }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }

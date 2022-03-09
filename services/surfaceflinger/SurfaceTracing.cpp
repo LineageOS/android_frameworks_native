@@ -137,14 +137,19 @@ status_t SurfaceTracing::Runner::stop() {
     return writeToFile();
 }
 
+LayersTraceFileProto SurfaceTracing::createLayersTraceFileProto() {
+    LayersTraceFileProto fileProto;
+    fileProto.set_magic_number(uint64_t(LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_H) << 32 |
+                               LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_L);
+    return fileProto;
+}
+
 status_t SurfaceTracing::Runner::writeToFile() {
     ATRACE_CALL();
 
-    LayersTraceFileProto fileProto;
+    LayersTraceFileProto fileProto = createLayersTraceFileProto();
     std::string output;
 
-    fileProto.set_magic_number(uint64_t(LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_H) << 32 |
-                               LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_L);
     mBuffer.flush(&fileProto);
     mBuffer.reset(mConfig.bufferSize);
 
@@ -186,7 +191,7 @@ LayersTraceProto SurfaceTracing::Runner::traceLayers(const char* where) {
         entry.set_excludes_composition_state(true);
     }
     entry.set_missed_entries(mMissedTraceEntries);
-
+    mFlinger.dumpDisplayProto(entry);
     return entry;
 }
 

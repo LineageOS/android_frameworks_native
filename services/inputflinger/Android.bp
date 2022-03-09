@@ -73,6 +73,7 @@ cc_defaults {
         "libui",
         "lib-platform-compat-native-api",
         "server_configurable_flags",
+        "InputFlingerProperties",
     ],
     static_libs: [
         "libattestation",
@@ -95,6 +96,7 @@ cc_library_shared {
         "libinputflinger_base",
         "libinputreporter",
         "libinputreader",
+        "libgui",
     ],
     static_libs: [
         "libinputdispatcher",

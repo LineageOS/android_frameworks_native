@@ -20,8 +20,8 @@
 #include "InputDispatcherConfiguration.h"
 
 #include <binder/IBinder.h>
+#include <gui/InputApplication.h>
 #include <input/Input.h>
-#include <input/InputApplication.h>
 #include <utils/RefBase.h>
 
 namespace android {

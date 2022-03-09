@@ -21,8 +21,7 @@
 #include <optional>
 #include <string>
 
-#ifndef __UI_INPUT_NAMEDENUM_H
-#define __UI_INPUT_NAMEDENUM_H
+#pragma once
 
 namespace android {
 
@@ -124,5 +123,3 @@ public:
 };
 
 } // namespace android
-
-#endif // __UI_INPUT_NAMEDENUM_H

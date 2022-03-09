@@ -14,3 +14,11 @@ prebuilt_etc {
     src: "android.hardware.biometrics.face.xml",
     filename_from_src: true,
 }
+
+prebuilt_etc {
+    name: "android.software.app_compat_overrides.xml",
+    product_specific: true,
+    sub_dir: "permissions",
+    src: "android.software.app_compat_overrides.xml",
+    filename_from_src: true,
+}

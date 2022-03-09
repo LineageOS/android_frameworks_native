@@ -147,6 +147,12 @@ void Output::setLayerCachingEnabled(bool enabled) {
     }
 }
 
+void Output::setLayerCachingTexturePoolEnabled(bool enabled) {
+    if (mPlanner) {
+        mPlanner->setTexturePoolEnabled(enabled);
+    }
+}
+
 void Output::setProjection(ui::Rotation orientation, const Rect& layerStackSpaceRect,
                            const Rect& orientedDisplaySpaceRect) {
     auto& outputState = editState();
@@ -786,6 +792,9 @@ compositionengine::OutputLayer* Output::findLayerRequestingBackgroundComposition
         // want to force client composition because of the blur.
         if (compState->sidebandStream != nullptr) {
             return nullptr;
+        }
+        if (compState->isOpaque) {
+            continue;
         }
         if (compState->backgroundBlurRadius > 0 || compState->blurRegions.size() > 0) {
             layerRequestingBgComposition = layer;

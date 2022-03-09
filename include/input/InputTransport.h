@@ -136,10 +136,10 @@ struct InputMessage {
             float yPrecision;
             float xCursorPosition;
             float yCursorPosition;
+            uint32_t displayOrientation;
             int32_t displayWidth;
             int32_t displayHeight;
             uint32_t pointerCount;
-            uint32_t empty3;
             /**
              * The "pointers" field must be the last field of the struct InputMessage.
              * When we send the struct InputMessage across the socket, we are not
@@ -355,8 +355,9 @@ public:
                                 int32_t metaState, int32_t buttonState,
                                 MotionClassification classification, const ui::Transform& transform,
                                 float xPrecision, float yPrecision, float xCursorPosition,
-                                float yCursorPosition, int32_t displayWidth, int32_t displayHeight,
-                                nsecs_t downTime, nsecs_t eventTime, uint32_t pointerCount,
+                                float yCursorPosition, uint32_t displayOrientation,
+                                int32_t displayWidth, int32_t displayHeight, nsecs_t downTime,
+                                nsecs_t eventTime, uint32_t pointerCount,
                                 const PointerProperties* pointerProperties,
                                 const PointerCoords* pointerCoords);
 
