@@ -113,6 +113,7 @@ public:
         // android.permission.ACCESS_SURFACE_FLINGER
         eEarlyWakeupStart = 0x08,
         eEarlyWakeupEnd = 0x10,
+        eOneWay = 0x20
     };
 
     enum VsyncSource {

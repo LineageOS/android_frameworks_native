@@ -35,7 +35,7 @@ namespace android {
 
 struct ICompositor {
     virtual bool commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expectedVsyncTime) = 0;
-    virtual void composite(nsecs_t frameTime) = 0;
+    virtual void composite(nsecs_t frameTime, int64_t vsyncId) = 0;
     virtual void sample() = 0;
 
 protected:

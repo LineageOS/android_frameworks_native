@@ -254,6 +254,21 @@ private:
     // surfacecontol. This is useful if the caller wants to synchronize the buffer scale with
     // additional scales in the hierarchy.
     bool mUpdateDestinationFrame GUARDED_BY(mMutex) = true;
+
+    // We send all transactions on our apply token over one-way binder calls to avoid blocking
+    // client threads. All of our transactions remain in order, since they are one-way binder calls
+    // from a single process, to a single interface. However once we give up a Transaction for sync
+    // we can start to have ordering issues. When we return from sync to normal frame production,
+    // we wait on the commit callback of sync frames ensuring ordering, however we don't want to
+    // wait on the commit callback for every normal frame (since even emitting them has a
+    // performance cost) this means we need a method to ensure frames are in order when switching
+    // from one-way application on our apply token, to application on some other apply token. We
+    // make use of setBufferHasBarrier to declare this ordering. This boolean simply tracks when we
+    // need to set this flag, notably only in the case where we are transitioning from a previous
+    // transaction applied by us (one way, may not yet have reached server) and an upcoming
+    // transaction that will be applied by some sync consumer.
+    bool mAppliedLastTransaction = false;
+    uint64_t mLastAppliedFrameNumber = 0;
 };
 
 } // namespace android

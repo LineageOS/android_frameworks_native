@@ -932,7 +932,7 @@ void SurfaceComposerClient::Transaction::cacheBuffers() {
     }
 }
 
-status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
+status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay) {
     if (mStatus != NO_ERROR) {
         return mStatus;
     }
@@ -985,6 +985,14 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
     }
     if (mAnimation) {
         flags |= ISurfaceComposer::eAnimation;
+    }
+    if (oneWay) {
+      if (mForceSynchronous) {
+          ALOGE("Transaction attempted to set synchronous and one way at the same time"
+                " this is an invalid request. Synchronous will win for safety");
+      } else {
+          flags |= ISurfaceComposer::eOneWay;
+      }
     }
 
     // If both mEarlyWakeupStart and mEarlyWakeupEnd are set
@@ -1426,6 +1434,18 @@ std::shared_ptr<BufferData> SurfaceComposerClient::Transaction::getAndClearBuffe
 
     mContainsBuffer = false;
     return bufferData;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBufferHasBarrier(
+        const sp<SurfaceControl>& sc, uint64_t barrierFrameNumber) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->bufferData->hasBarrier = true;
+    s->bufferData->barrierFrameNumber = barrierFrameNumber;
+    return *this;
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffer(

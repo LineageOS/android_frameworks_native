@@ -683,7 +683,7 @@ private:
 
     // Composites a frame for each display. CompositionEngine performs GPU and/or HAL composition
     // via RenderEngine and the Composer HAL, respectively.
-    void composite(nsecs_t frameTime) override;
+    void composite(nsecs_t frameTime, int64_t vsyncId) override;
 
     // Samples the composited frame via RegionSamplingThread.
     void sample() override;
@@ -772,9 +772,9 @@ private:
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
 
-    void flushPendingTransactionQueues(
+    int flushPendingTransactionQueues(
             std::vector<TransactionState>& transactions,
-            std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
+            std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
             std::unordered_set<sp<IBinder>, SpHash<IBinder>>& applyTokensWithUnsignaledTransactions,
             bool tryApplyUnsignaled) REQUIRES(mStateLock, mQueueLock);
 
@@ -801,13 +801,15 @@ private:
     void commitOffscreenLayers();
     enum class TransactionReadiness {
         NotReady,
+        NotReadyBarrier,
         Ready,
         ReadyUnsignaled,
     };
     TransactionReadiness transactionIsReadyToBeApplied(
             const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
             uid_t originUid, const Vector<ComposerState>& states,
-            const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
+            const std::unordered_map<
+                sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
             size_t totalTXapplied, bool tryApplyUnsignaled) const REQUIRES(mStateLock);
     static LatchUnsignaledConfig getLatchUnsignaledConfig();
     bool shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t&, size_t numStates,

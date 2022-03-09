@@ -17,6 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "LayerStateTest"
 
+#include <aidl/android/hardware/graphics/common/BufferUsage.h>
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/planner/LayerState.h>
 #include <compositionengine/mock/LayerFE.h>
@@ -29,7 +30,8 @@
 
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 
-using aidl::android::hardware::graphics::composer3::Composition;
+using ::aidl::android::hardware::graphics::common::BufferUsage;
+using ::aidl::android::hardware::graphics::composer3::Composition;
 
 namespace android::compositionengine::impl::planner {
 namespace {
@@ -357,6 +359,54 @@ TEST_F(LayerStateTest, updateBuffer) {
                        layerFECompositionStateTwo);
     Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
     EXPECT_EQ(Flags<LayerStateField>(LayerStateField::Buffer), updates);
+}
+
+TEST_F(LayerStateTest, updateBufferSingleBufferedLegacy) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.buffer = new GraphicBuffer();
+    setupMocksForLayer(mOutputLayer, *mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+
+    mock::OutputLayer newOutputLayer;
+    sp<mock::LayerFE> newLayerFE = sp<mock::LayerFE>::make();
+    LayerFECompositionState layerFECompositionStateTwo;
+    layerFECompositionStateTwo.buffer = new GraphicBuffer();
+    setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
+                       layerFECompositionStateTwo);
+
+    for (uint64_t i = 0; i < 10; i++) {
+        layerFECompositionStateTwo.frameNumber = i;
+        setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
+                           layerFECompositionStateTwo);
+        Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+        EXPECT_EQ(Flags<LayerStateField>(LayerStateField::Buffer), updates);
+    }
+}
+
+TEST_F(LayerStateTest, updateBufferSingleBufferedUsage) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.buffer = new GraphicBuffer();
+    setupMocksForLayer(mOutputLayer, *mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+
+    mock::OutputLayer newOutputLayer;
+    sp<mock::LayerFE> newLayerFE = sp<mock::LayerFE>::make();
+    LayerFECompositionState layerFECompositionStateTwo;
+    layerFECompositionStateTwo.buffer = new GraphicBuffer();
+    layerFECompositionStateTwo.buffer->usage = static_cast<uint64_t>(BufferUsage::FRONT_BUFFER);
+    setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
+                       layerFECompositionStateTwo);
+
+    for (uint64_t i = 0; i < 10; i++) {
+        setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
+                           layerFECompositionStateTwo);
+        Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+        EXPECT_EQ(Flags<LayerStateField>(LayerStateField::Buffer), updates);
+    }
 }
 
 TEST_F(LayerStateTest, compareBuffer) {

@@ -2199,8 +2199,8 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     return mustComposite && CC_LIKELY(mBootStage != BootStage::BOOTLOADER);
 }
 
-void SurfaceFlinger::composite(nsecs_t frameTime) {
-    ATRACE_CALL();
+void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId) {
+    ATRACE_FORMAT("%s %" PRId64, __func__, vsyncId);
     MainThreadScopedGuard mainThreadGuard(SF_MAIN_THREAD);
     if (mPowerHintSessionData.sessionEnabled) {
         mPowerHintSessionData.compositeStart = systemTime();
@@ -3674,11 +3674,12 @@ bool SurfaceFlinger::stopTransactionProcessing(
     return false;
 }
 
-void SurfaceFlinger::flushPendingTransactionQueues(
+int SurfaceFlinger::flushPendingTransactionQueues(
         std::vector<TransactionState>& transactions,
-        std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
+        std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
         std::unordered_set<sp<IBinder>, SpHash<IBinder>>& applyTokensWithUnsignaledTransactions,
         bool tryApplyUnsignaled) {
+    int transactionsPendingBarrier = 0;
     auto it = mPendingTransactionQueues.begin();
     while (it != mPendingTransactionQueues.end()) {
         auto& [applyToken, transactionQueue] = *it;
@@ -3701,8 +3702,21 @@ void SurfaceFlinger::flushPendingTransactionQueues(
                 setTransactionFlags(eTransactionFlushNeeded);
                 break;
             }
+            if (ready == TransactionReadiness::NotReadyBarrier) {
+                transactionsPendingBarrier++;
+                setTransactionFlags(eTransactionFlushNeeded);
+                break;
+            }
             transaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
-                bufferLayersReadyToPresent.insert(state.surface);
+                const bool frameNumberChanged = 
+                    state.bufferData->flags.test(BufferData::BufferDataChange::frameNumberChanged);
+                if (frameNumberChanged) {
+                    bufferLayersReadyToPresent[state.surface] = state.bufferData->frameNumber;
+                } else {
+                    // Barrier function only used for BBQ which always includes a frame number
+                    bufferLayersReadyToPresent[state.surface] =
+                        std::numeric_limits<uint64_t>::max();
+                }
             });
             const bool appliedUnsignaled = (ready == TransactionReadiness::ReadyUnsignaled);
             if (appliedUnsignaled) {
@@ -3720,6 +3734,7 @@ void SurfaceFlinger::flushPendingTransactionQueues(
             it = std::next(it, 1);
         }
     }
+    return transactionsPendingBarrier;
 }
 
 bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
@@ -3728,19 +3743,21 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
     // states) around outside the scope of the lock
     std::vector<TransactionState> transactions;
     // Layer handles that have transactions with buffers that are ready to be applied.
-    std::unordered_set<sp<IBinder>, SpHash<IBinder>> bufferLayersReadyToPresent;
+    std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>> bufferLayersReadyToPresent;
     std::unordered_set<sp<IBinder>, SpHash<IBinder>> applyTokensWithUnsignaledTransactions;
     {
         Mutex::Autolock _l(mStateLock);
         {
             Mutex::Autolock _l(mQueueLock);
 
+            int lastTransactionsPendingBarrier = 0;
+            int transactionsPendingBarrier = 0;
             // First collect transactions from the pending transaction queues.
             // We are not allowing unsignaled buffers here as we want to
             // collect all the transactions from applyTokens that are ready first.
-            flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
-                                          applyTokensWithUnsignaledTransactions,
-                                          /*tryApplyUnsignaled*/ false);
+            transactionsPendingBarrier =
+                    flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
+                            applyTokensWithUnsignaledTransactions, /*tryApplyUnsignaled*/ false);
 
             // Second, collect transactions from the transaction queue.
             // Here as well we are not allowing unsignaled buffers for the same
@@ -3765,16 +3782,46 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                                                          /*tryApplyUnsignaled*/ false);
                 }();
                 ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
-                if (ready == TransactionReadiness::NotReady) {
+                if (ready != TransactionReadiness::Ready) {
+                    if (ready == TransactionReadiness::NotReadyBarrier) {
+                        transactionsPendingBarrier++;
+                    }
                     mPendingTransactionQueues[transaction.applyToken].push(std::move(transaction));
                 } else {
                     transaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
-                        bufferLayersReadyToPresent.insert(state.surface);
-                    });
+                        const bool frameNumberChanged = 
+                            state.bufferData->flags.test(BufferData::BufferDataChange::frameNumberChanged);
+                        if (frameNumberChanged) {
+                            bufferLayersReadyToPresent[state.surface] = state.bufferData->frameNumber;
+                        } else {
+                            // Barrier function only used for BBQ which always includes a frame number.
+                            // This value only used for barrier logic.
+                            bufferLayersReadyToPresent[state.surface] =
+                                std::numeric_limits<uint64_t>::max();
+                        }
+                      });
                     transactions.emplace_back(std::move(transaction));
                 }
                 mTransactionQueue.pop_front();
                 ATRACE_INT("TransactionQueue", mTransactionQueue.size());
+            }
+
+            // Transactions with a buffer pending on a barrier may be on a different applyToken
+            // than the transaction which satisfies our barrier. In fact this is the exact use case
+            // that the primitive is designed for. This means we may first process
+            // the barrier dependent transaction, determine it ineligible to complete
+            // and then satisfy in a later inner iteration of flushPendingTransactionQueues.
+            // The barrier dependent transaction was eligible to be presented in this frame
+            // but we would have prevented it without case. To fix this we continually
+            // loop through flushPendingTransactionQueues until we perform an iteration
+            // where the number of transactionsPendingBarrier doesn't change. This way
+            // we can continue to resolve dependency chains of barriers as far as possible.
+            while (lastTransactionsPendingBarrier != transactionsPendingBarrier) {
+                lastTransactionsPendingBarrier = transactionsPendingBarrier;
+                transactionsPendingBarrier =
+                    flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
+                        applyTokensWithUnsignaledTransactions,
+                        /*tryApplyUnsignaled*/ false);
             }
 
             // We collected all transactions that could apply without latching unsignaled buffers.
@@ -3892,7 +3939,8 @@ bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_s
 auto SurfaceFlinger::transactionIsReadyToBeApplied(
         const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
         uid_t originUid, const Vector<ComposerState>& states,
-        const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& bufferLayersReadyToPresent,
+        const std::unordered_map<
+            sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
         size_t totalTXapplied, bool tryApplyUnsignaled) const -> TransactionReadiness {
     ATRACE_FORMAT("transactionIsReadyToBeApplied vsyncId: %" PRId64, info.vsyncId);
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
@@ -3930,6 +3978,17 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
             continue;
         }
 
+        if (s.hasBufferChanges() && s.bufferData->hasBarrier &&
+            ((layer->getDrawingState().frameNumber) < s.bufferData->barrierFrameNumber)) {
+            const bool willApplyBarrierFrame =
+                (bufferLayersReadyToPresent.find(s.surface) != bufferLayersReadyToPresent.end()) &&
+                (bufferLayersReadyToPresent.at(s.surface) >= s.bufferData->barrierFrameNumber);
+            if (!willApplyBarrierFrame) {
+                ATRACE_NAME("NotReadyBarrier");
+                return TransactionReadiness::NotReadyBarrier;
+            }
+        }
+
         const bool allowLatchUnsignaled = tryApplyUnsignaled &&
                 shouldLatchUnsignaled(layer, s, states.size(), totalTXapplied);
         ATRACE_FORMAT("%s allowLatchUnsignaled=%s", layer->getName().c_str(),
@@ -3950,8 +4009,8 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
         if (s.hasBufferChanges()) {
             // If backpressure is enabled and we already have a buffer to commit, keep the
             // transaction in the queue.
-            const bool hasPendingBuffer =
-                    bufferLayersReadyToPresent.find(s.surface) != bufferLayersReadyToPresent.end();
+            const bool hasPendingBuffer = bufferLayersReadyToPresent.find(s.surface) !=
+                bufferLayersReadyToPresent.end();
             if (layer->backpressureEnabled() && hasPendingBuffer && isAutoTimestamp) {
                 ATRACE_NAME("hasPendingBuffer");
                 return TransactionReadiness::NotReady;
