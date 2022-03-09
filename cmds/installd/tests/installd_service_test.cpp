@@ -985,7 +985,7 @@ public:
         args.userId = kTestUserId;
         args.appId = kTestAppId;
         args.seInfo = "default";
-        args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE;
+        args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
         return args;
     }
 
@@ -1043,7 +1043,6 @@ private:
 TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
-    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
 
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
@@ -1076,7 +1075,6 @@ TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData_WithoutSdkFlag) 
 TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData_WithoutSdkFlagDeletesExisting) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
-    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
     ASSERT_TRUE(exists("/data/local/tmp/misc_ce/0/sdksandbox/com.foo"));
@@ -1215,7 +1213,6 @@ TEST_F(DestroyAppDataTest, DestroySdkSandboxDataDirectories_WithCeAndDeFlag) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     args.packageName = "com.foo";
-    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
     // Destroy the app user data.
@@ -1229,7 +1226,6 @@ TEST_F(DestroyAppDataTest, DestroySdkSandboxDataDirectories_WithoutDeFlag) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     args.packageName = "com.foo";
-    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
     // Destroy the app user data.
@@ -1243,7 +1239,6 @@ TEST_F(DestroyAppDataTest, DestroySdkSandboxDataDirectories_WithoutCeFlag) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     args.packageName = "com.foo";
-    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
     // Destroy the app user data.
@@ -1280,7 +1275,6 @@ TEST_F(ClearAppDataTest, ClearSdkSandboxDataDirectories_WithCeAndClearCacheFlag)
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     args.packageName = "com.foo";
-    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
     createTestSdkData("com.foo", {"sdk1", "sdk2"});
@@ -1299,7 +1293,6 @@ TEST_F(ClearAppDataTest, ClearSdkSandboxDataDirectories_WithCeAndClearCodeCacheF
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     args.packageName = "com.foo";
-    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
     createTestSdkData("com.foo", {"sdk1", "sdk2"});
@@ -1321,7 +1314,6 @@ TEST_F(ClearAppDataTest, ClearSdkSandboxDataDirectories_WithDeAndClearCacheFlag)
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     args.packageName = "com.foo";
-    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
     createTestSdkData("com.foo", {"sdk1", "sdk2"});
@@ -1340,7 +1332,6 @@ TEST_F(ClearAppDataTest, ClearSdkSandboxDataDirectories_WithDeAndClearCodeCacheF
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     args.packageName = "com.foo";
-    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
     createTestSdkData("com.foo", {"sdk1", "sdk2"});
@@ -1362,7 +1353,6 @@ TEST_F(ClearAppDataTest, ClearSdkSandboxDataDirectories_WithCeAndWithoutAnyCache
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     args.packageName = "com.foo";
-    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
     createTestSdkData("com.foo", {"sdk1", "sdk2"});
@@ -1378,7 +1368,6 @@ TEST_F(ClearAppDataTest, ClearSdkSandboxDataDirectories_WithDeAndWithoutAnyCache
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     args.packageName = "com.foo";
-    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
     createTestSdkData("com.foo", {"sdk1", "sdk2"});
@@ -1388,6 +1377,32 @@ TEST_F(ClearAppDataTest, ClearSdkSandboxDataDirectories_WithDeAndWithoutAnyCache
     ASSERT_TRUE(fs::is_empty(fs::path("/data/local/tmp/misc_de/0/sdksandbox/com.foo/shared")));
     ASSERT_TRUE(fs::is_empty(fs::path("/data/local/tmp/misc_de/0/sdksandbox/com.foo/sdk1")));
     ASSERT_TRUE(fs::is_empty(fs::path("/data/local/tmp/misc_de/0/sdksandbox/com.foo/sdk2")));
+}
+
+class DestroyUserDataTest : public SdkSandboxDataTest {};
+
+TEST_F(DestroyUserDataTest, DestroySdkData_WithCeFlag) {
+    android::os::CreateAppDataResult result;
+    android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
+    args.packageName = "com.foo";
+    // Create the app user data.
+    ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
+    // Destroy user data
+    ASSERT_BINDER_SUCCESS(service->destroyUserData(args.uuid, args.userId, FLAG_STORAGE_CE));
+    ASSERT_FALSE(exists("/data/local/tmp/misc_ce/0/sdksandbox"));
+    ASSERT_TRUE(exists("/data/local/tmp/misc_de/0/sdksandbox"));
+}
+
+TEST_F(DestroyUserDataTest, DestroySdkData_WithDeFlag) {
+    android::os::CreateAppDataResult result;
+    android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
+    args.packageName = "com.foo";
+    // Create the app user data.
+    ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
+    // Destroy user data
+    ASSERT_BINDER_SUCCESS(service->destroyUserData(args.uuid, args.userId, FLAG_STORAGE_DE));
+    ASSERT_TRUE(exists("/data/local/tmp/misc_ce/0/sdksandbox"));
+    ASSERT_FALSE(exists("/data/local/tmp/misc_de/0/sdksandbox"));
 }
 
 }  // namespace installd
