@@ -91,7 +91,6 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
                 static_cast<uint32_t>(SurfaceFlinger::maxFrameBufferAcquiredBuffers));
     }
 
-    mCompositionDisplay->setPredictCompositionStrategy(mFlinger->mPredictCompositionStrategy);
     mCompositionDisplay->createDisplayColorProfile(
             compositionengine::DisplayColorProfileCreationArgsBuilder()
                     .setHasWideColorGamut(args.hasWideColorGamut)
