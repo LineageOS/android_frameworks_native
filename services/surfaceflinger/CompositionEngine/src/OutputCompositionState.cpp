@@ -18,19 +18,6 @@
 #include <compositionengine/impl/OutputCompositionState.h>
 
 namespace android::compositionengine::impl {
-using CompositionStrategyPredictionState =
-        OutputCompositionState::CompositionStrategyPredictionState;
-
-std::string toString(CompositionStrategyPredictionState state) {
-    switch (state) {
-        case CompositionStrategyPredictionState::DISABLED:
-            return "Disabled";
-        case CompositionStrategyPredictionState::SUCCESS:
-            return "Success";
-        case CompositionStrategyPredictionState::FAIL:
-            return "Fail";
-    }
-}
 
 void OutputCompositionState::dump(std::string& out) const {
     out.append("   ");
@@ -69,7 +56,6 @@ void OutputCompositionState::dump(std::string& out) const {
     dumpVal(out, "sdrWhitePointNits", sdrWhitePointNits);
     dumpVal(out, "clientTargetBrightness", clientTargetBrightness);
     dumpVal(out, "displayBrightness", displayBrightness);
-    dumpVal(out, "compositionStrategyPredictionState", toString(strategyPrediction));
 
     out.append("\n");
 }
