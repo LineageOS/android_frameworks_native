@@ -3744,8 +3744,9 @@ struct OutputComposeSurfacesTest_SetsExpensiveRendering : public OutputComposeSu
 TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering, IfExepensiveOutputDataspaceIsUsed) {
     mOutput.mState.dataspace = kExpensiveOutputDataspace;
 
+    LayerFE::LayerSettings layerSettings;
     EXPECT_CALL(mOutput, generateClientCompositionRequests(_, kExpensiveOutputDataspace, _))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>{}));
+            .WillOnce(Return(std::vector<LayerFE::LayerSettings>{layerSettings}));
 
     // For this test, we also check the call order of key functions.
     InSequence seq;
