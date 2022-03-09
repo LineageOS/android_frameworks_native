@@ -30,6 +30,9 @@
     },
     {
       "name": "CtsCompilationTestCases"
+    },
+    {
+      "name": "SdkSandboxStorageHostTest"
     }
   ]
 }
