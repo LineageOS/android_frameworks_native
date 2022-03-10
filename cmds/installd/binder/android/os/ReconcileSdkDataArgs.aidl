@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-#include <compositionengine/DisplaySurface.h>
+package android.os;
 
-namespace android::compositionengine {
-
-DisplaySurface::~DisplaySurface() = default;
-
-bool DisplaySurface::supportsCompositionStrategyPrediction() const {
-    return true;
+/** {@hide} */
+parcelable ReconcileSdkDataArgs {
+    @nullable @utf8InCpp String uuid;
+    @utf8InCpp String packageName;
+    @utf8InCpp List<String> sdkPackageNames;
+    @utf8InCpp List<String> randomSuffixes;
+    int userId;
+    int appId;
+    int previousAppId;
+    @utf8InCpp String seInfo;
+    int flags;
 }
-
-} // namespace android::compositionengine

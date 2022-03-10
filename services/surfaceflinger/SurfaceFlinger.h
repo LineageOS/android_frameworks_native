@@ -344,6 +344,11 @@ public:
     void disableExpensiveRendering();
     FloatRect getMaxDisplayBounds();
 
+    // If set, composition engine tries to predict the composition strategy provided by HWC
+    // based on the previous frame. If the strategy can be predicted, gpu composition will
+    // run parallel to the hwc validateDisplay call and re-run if the predition is incorrect.
+    bool mPredictCompositionStrategy = false;
+
 protected:
     // We're reference counted, never destroy SurfaceFlinger directly
     virtual ~SurfaceFlinger();
@@ -666,7 +671,7 @@ private:
 
     // Composites a frame for each display. CompositionEngine performs GPU and/or HAL composition
     // via RenderEngine and the Composer HAL, respectively.
-    void composite(nsecs_t frameTime) override;
+    void composite(nsecs_t frameTime, int64_t vsyncId) override;
 
     // Samples the composited frame via RegionSamplingThread.
     void sample() override;
