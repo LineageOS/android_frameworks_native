@@ -458,8 +458,8 @@ done:
     return res;
 }
 
-static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t uid) {
-    if (fs_prepare_dir_strict(path.c_str(), target_mode, uid, uid) != 0) {
+static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t uid, gid_t gid) {
+    if (fs_prepare_dir_strict(path.c_str(), target_mode, uid, gid) != 0) {
         PLOG(ERROR) << "Failed to prepare " << path;
         return -1;
     }
@@ -599,9 +599,9 @@ static void chown_app_profile_dir(const std::string &packageName, int32_t appId,
     }
 }
 
-static binder::Status createAppDataDirs(const std::string& path,
-        int32_t uid, int32_t* previousUid, int32_t cacheGid,
-        const std::string& seInfo, mode_t targetMode) {
+static binder::Status createAppDataDirs(const std::string& path, int32_t uid, int32_t gid,
+                                        int32_t* previousUid, int32_t cacheGid,
+                                        const std::string& seInfo, mode_t targetMode) {
     struct stat st{};
     bool parent_dir_exists = (stat(path.c_str(), &st) == 0);
 
@@ -625,9 +625,9 @@ static binder::Status createAppDataDirs(const std::string& path,
     }
 
     // Prepare only the parent app directory
-    if (prepare_app_dir(path, targetMode, uid) ||
-            prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid) ||
-            prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid)) {
+    if (prepare_app_dir(path, targetMode, uid, gid) ||
+        prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid) ||
+        prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid)) {
         return error("Failed to prepare " + path);
     }
 
@@ -686,7 +686,7 @@ binder::Status InstalldNativeService::createAppDataLocked(
     if (flags & FLAG_STORAGE_CE) {
         auto path = create_data_user_ce_package_path(uuid_, userId, pkgname);
 
-        auto status = createAppDataDirs(path, uid, &previousUid, cacheGid, seInfo, targetMode);
+        auto status = createAppDataDirs(path, uid, uid, &previousUid, cacheGid, seInfo, targetMode);
         if (!status.isOk()) {
             return status;
         }
@@ -711,7 +711,7 @@ binder::Status InstalldNativeService::createAppDataLocked(
     if (flags & FLAG_STORAGE_DE) {
         auto path = create_data_user_de_package_path(uuid_, userId, pkgname);
 
-        auto status = createAppDataDirs(path, uid, &previousUid, cacheGid, seInfo, targetMode);
+        auto status = createAppDataDirs(path, uid, uid, &previousUid, cacheGid, seInfo, targetMode);
         if (!status.isOk()) {
             return status;
         }
@@ -734,7 +734,7 @@ binder::Status InstalldNativeService::createAppDataLocked(
 
     } else {
         // Package does not need sdk storage. Remove it.
-        deleteSdkSandboxDataPackageDirectory(uuid, packageName, userId, flags);
+        destroySdkSandboxDataPackageDirectory(uuid, packageName, userId, flags);
     }
 
     return ok();
@@ -773,7 +773,7 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
         LOG(DEBUG) << "Creating app-level sdk data directory: " << packagePath;
 #endif
 
-        if (prepare_app_dir(packagePath, 0751, AID_SYSTEM)) {
+        if (prepare_app_dir(packagePath, 0751, AID_SYSTEM, AID_SYSTEM)) {
             return error("Failed to prepare " + packagePath);
         }
 
@@ -787,8 +787,8 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
             return exception(binder::Status::EX_ILLEGAL_STATE,
                              StringPrintf("cacheGid cannot be -1 for sdksandbox data"));
         }
-        auto status = createAppDataDirs(sharedPath, sdkSandboxUid, &previousSdkSandboxUid, cacheGid,
-                                        seInfo, 0700);
+        auto status = createAppDataDirs(sharedPath, sdkSandboxUid, AID_NOBODY,
+                                        &previousSdkSandboxUid, cacheGid, seInfo, 0700);
         if (!status.isOk()) {
             return status;
         }
@@ -800,32 +800,6 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
     }
 
     return ok();
-}
-
-/**
- * Responsible for deleting /data/misc_{ce|de}/user/0/sdksandbox/<package-name> directory
- */
-binder::Status InstalldNativeService::deleteSdkSandboxDataPackageDirectory(
-        const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
-        int32_t flags) {
-    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
-    auto res = ok();
-
-    constexpr int storageFlags[2] = {FLAG_STORAGE_CE, FLAG_STORAGE_DE};
-    for (int currentFlag : storageFlags) {
-        if ((flags & currentFlag) == 0) {
-            continue;
-        }
-        bool isCeData = (currentFlag == FLAG_STORAGE_CE);
-
-        const auto& packagePath = create_data_misc_sdk_sandbox_package_path(uuid_, isCeData, userId,
-                                                                            packageName.c_str());
-        if (delete_dir_contents_and_dir(packagePath, /*ignore_if_missing=*/true) != 0) {
-            res = error("Failed to delete sdk package directory: " + packagePath);
-        }
-    }
-
-    return res;
 }
 
 binder::Status InstalldNativeService::createAppData(
@@ -993,8 +967,8 @@ binder::Status InstalldNativeService::reconcileSdkData(
             }
             const int32_t sandboxUid = multiuser_get_sdk_sandbox_uid(userId, appId);
             int32_t previousSandboxUid = multiuser_get_sdk_sandbox_uid(userId, previousAppId);
-            auto status = createAppDataDirs(path, sandboxUid, &previousSandboxUid, cacheGid, seInfo,
-                                            0700);
+            auto status = createAppDataDirs(path, sandboxUid, AID_NOBODY, &previousSandboxUid,
+                                            cacheGid, seInfo, 0700);
             if (!status.isOk()) {
                 res = status;
                 continue;
@@ -1150,6 +1124,47 @@ binder::Status InstalldNativeService::clearAppData(const std::optional<std::stri
             }
         }
     }
+    auto status = clearSdkSandboxDataPackageDirectory(uuid, packageName, userId, flags);
+    if (!status.isOk()) {
+        res = status;
+    }
+    return res;
+}
+
+binder::Status InstalldNativeService::clearSdkSandboxDataPackageDirectory(
+        const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
+        int32_t flags) {
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* pkgname = packageName.c_str();
+
+    binder::Status res = ok();
+    constexpr int storageFlags[2] = {FLAG_STORAGE_CE, FLAG_STORAGE_DE};
+    for (int i = 0; i < 2; i++) {
+        int currentFlag = storageFlags[i];
+        if ((flags & currentFlag) == 0) {
+            continue;
+        }
+        bool isCeData = (currentFlag == FLAG_STORAGE_CE);
+        std::string suffix;
+        if (flags & FLAG_CLEAR_CACHE_ONLY) {
+            suffix = CACHE_DIR_POSTFIX;
+        } else if (flags & FLAG_CLEAR_CODE_CACHE_ONLY) {
+            suffix = CODE_CACHE_DIR_POSTFIX;
+        }
+
+        auto appPath = create_data_misc_sdk_sandbox_package_path(uuid_, isCeData, userId, pkgname);
+        if (access(appPath.c_str(), F_OK) != 0) continue;
+        const auto subDirHandler = [&appPath, &res, &suffix](const std::string& filename) {
+            auto filepath = appPath + "/" + filename + suffix;
+            if (delete_dir_contents(filepath, true) != 0) {
+                res = error("Failed to clear contents of " + filepath);
+            }
+        };
+        const int ec = foreach_subdir(appPath, subDirHandler);
+        if (ec != 0) {
+            res = error("Failed to process subdirs for " + appPath);
+        }
+    }
     return res;
 }
 
@@ -1244,6 +1259,32 @@ binder::Status InstalldNativeService::destroyAppData(const std::optional<std::st
             if (delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete contents of " + path);
             }
+        }
+    }
+    auto status = destroySdkSandboxDataPackageDirectory(uuid, packageName, userId, flags);
+    if (!status.isOk()) {
+        res = status;
+    }
+    return res;
+}
+
+binder::Status InstalldNativeService::destroySdkSandboxDataPackageDirectory(
+        const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
+        int32_t flags) {
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* pkgname = packageName.c_str();
+
+    binder::Status res = ok();
+    constexpr int storageFlags[2] = {FLAG_STORAGE_CE, FLAG_STORAGE_DE};
+    for (int i = 0; i < 2; i++) {
+        int currentFlag = storageFlags[i];
+        if ((flags & currentFlag) == 0) {
+            continue;
+        }
+        bool isCeData = (currentFlag == FLAG_STORAGE_CE);
+        auto appPath = create_data_misc_sdk_sandbox_package_path(uuid_, isCeData, userId, pkgname);
+        if (rename_delete_dir_contents_and_dir(appPath) != 0) {
+            res = error("Failed to delete " + appPath);
         }
     }
     return res;
@@ -3439,11 +3480,17 @@ binder::Status InstalldNativeService::cleanupInvalidPackageDirs(
     if (flags & FLAG_STORAGE_CE) {
         auto ce_path = create_data_user_ce_path(uuid_cstr, userId);
         cleanup_invalid_package_dirs_under_path(ce_path);
+        auto sdksandbox_ce_path =
+                create_data_misc_sdk_sandbox_path(uuid_cstr, /*isCeData=*/true, userId);
+        cleanup_invalid_package_dirs_under_path(sdksandbox_ce_path);
     }
 
     if (flags & FLAG_STORAGE_DE) {
         auto de_path = create_data_user_de_path(uuid_cstr, userId);
         cleanup_invalid_package_dirs_under_path(de_path);
+        auto sdksandbox_de_path =
+                create_data_misc_sdk_sandbox_path(uuid_cstr, /*isCeData=*/false, userId);
+        cleanup_invalid_package_dirs_under_path(sdksandbox_de_path);
     }
 
     return ok();
