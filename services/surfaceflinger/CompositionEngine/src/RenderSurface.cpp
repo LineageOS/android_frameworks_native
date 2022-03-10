@@ -289,9 +289,5 @@ std::shared_ptr<renderengine::ExternalTexture>& RenderSurface::mutableTextureFor
     return mTexture;
 }
 
-bool RenderSurface::supportsCompositionStrategyPrediction() const {
-    return mDisplaySurface->supportsCompositionStrategyPrediction();
-}
-
 } // namespace impl
 } // namespace android::compositionengine
