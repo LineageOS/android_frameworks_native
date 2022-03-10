@@ -22,6 +22,9 @@
 namespace android::compositionengine::impl {
 
 struct GpuCompositionResult {
+    // True if composition strategy was predicted successfully.
+    bool succeeded = false;
+
     // Composition ready fence.
     base::unique_fd fence{};
 
