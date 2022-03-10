@@ -70,7 +70,7 @@ message TransactionState {
 
 // Keep insync with layer_state_t
 message LayerState {
-    int32 layer_id = 1;
+    int64 layer_id = 1;
     // Changes are split into ChangesLsb and ChangesMsb. First 32 bits are in ChangesLsb
     // and the next 32 bits are in ChangesMsb. This is needed because enums have to be
     // 32 bits and there's no nice way to put 64bit constants into .proto files.
@@ -161,8 +161,8 @@ message LayerState {
     Matrix22 matrix = 11;
     float corner_radius = 12;
     uint32 background_blur_radius = 13;
-    int32 parent_id = 14;
-    int32 relative_parent_id = 15;
+    int64 parent_id = 14;
+    int64 relative_parent_id = 15;
 
     float alpha = 16;
     message Color3 {
@@ -233,7 +233,7 @@ message LayerState {
         bool focusable = 5;
         bool has_wallpaper = 6;
         float global_scale_factor = 7;
-        int32 crop_layer_id = 8;
+        int64 crop_layer_id = 8;
         bool replace_touchable_region_with_crop = 9;
         RectProto touchable_region_crop = 10;
         Transform transform = 11;

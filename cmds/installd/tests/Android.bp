@@ -26,6 +26,7 @@ cc_test {
         "libasync_safe",
         "libdiskusage",
         "libext2_uuid",
+        "libgmock",
         "libinstalld",
         "liblog",
     ],
@@ -106,6 +107,7 @@ cc_test {
         "libziparchive",
         "liblog",
         "liblogwrap",
+        "libc++fs",
     ],
     test_config: "installd_service_test.xml",
 
