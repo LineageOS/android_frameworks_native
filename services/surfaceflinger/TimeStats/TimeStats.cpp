@@ -321,19 +321,22 @@ void TimeStats::incrementMissedFrames() {
     mTimeStats.missedFramesLegacy++;
 }
 
-void TimeStats::pushCompositionStrategyState(const TimeStats::ClientCompositionRecord& record) {
-    if (!mEnabled.load() || !record.hasInterestingData()) {
-        return;
-    }
+void TimeStats::incrementClientCompositionFrames() {
+    if (!mEnabled.load()) return;
 
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (record.changed) mTimeStats.compositionStrategyChangesLegacy++;
-    if (record.hadClientComposition) mTimeStats.clientCompositionFramesLegacy++;
-    if (record.reused) mTimeStats.clientCompositionReusedFramesLegacy++;
-    if (record.predicted) mTimeStats.compositionStrategyPredictedLegacy++;
-    if (record.predictionSucceeded) mTimeStats.compositionStrategyPredictionSucceededLegacy++;
+    mTimeStats.clientCompositionFramesLegacy++;
+}
+
+void TimeStats::incrementClientCompositionReusedFrames() {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    mTimeStats.clientCompositionReusedFramesLegacy++;
 }
 
 void TimeStats::incrementRefreshRateSwitches() {
@@ -343,6 +346,15 @@ void TimeStats::incrementRefreshRateSwitches() {
 
     std::lock_guard<std::mutex> lock(mMutex);
     mTimeStats.refreshRateSwitchesLegacy++;
+}
+
+void TimeStats::incrementCompositionStrategyChanges() {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    mTimeStats.compositionStrategyChangesLegacy++;
 }
 
 void TimeStats::recordDisplayEventConnectionCount(int32_t count) {
@@ -1050,10 +1062,8 @@ void TimeStats::clearGlobalLocked() {
     mTimeStats.missedFramesLegacy = 0;
     mTimeStats.clientCompositionFramesLegacy = 0;
     mTimeStats.clientCompositionReusedFramesLegacy = 0;
-    mTimeStats.compositionStrategyChangesLegacy = 0;
-    mTimeStats.compositionStrategyPredictedLegacy = 0;
-    mTimeStats.compositionStrategyPredictionSucceededLegacy = 0;
     mTimeStats.refreshRateSwitchesLegacy = 0;
+    mTimeStats.compositionStrategyChangesLegacy = 0;
     mTimeStats.displayEventConnectionsCountLegacy = 0;
     mTimeStats.displayOnTimeLegacy = 0;
     mTimeStats.presentToPresentLegacy.hist.clear();
