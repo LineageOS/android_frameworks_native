@@ -37,8 +37,6 @@
 #include <ui/Region.h>
 #include <ui/Transform.h>
 
-#include "DisplayHardware/HWComposer.h"
-
 namespace android {
 
 namespace compositionengine::impl {
@@ -116,8 +114,6 @@ struct OutputCompositionState {
     // Current target dataspace
     ui::Dataspace targetDataspace{ui::Dataspace::UNKNOWN};
 
-    std::optional<android::HWComposer::DeviceRequestedChanges> previousDeviceRequestedChanges{};
-
     // The earliest time to send the present command to the HAL
     std::chrono::steady_clock::time_point earliestPresentTime;
 
@@ -140,18 +136,6 @@ struct OutputCompositionState {
     // Display brightness that will take effect this frame.
     // This is slightly distinct from nits, in that nits cannot be passed to hw composer.
     std::optional<float> displayBrightness = std::nullopt;
-
-    enum class CompositionStrategyPredictionState : uint32_t {
-        // Composition strategy prediction did not run for this frame.
-        DISABLED = 0,
-        // Composition strategy predicted successfully for this frame.
-        SUCCESS = 1,
-        // Composition strategy prediction failed for this frame.
-        FAIL = 2,
-    };
-
-    CompositionStrategyPredictionState strategyPrediction =
-            CompositionStrategyPredictionState::DISABLED;
 
     // Debugging
     void dump(std::string& result) const;
