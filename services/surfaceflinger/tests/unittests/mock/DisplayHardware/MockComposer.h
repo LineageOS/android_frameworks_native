@@ -76,6 +76,7 @@ public:
     MOCK_METHOD4(getDisplayRequests,
                  Error(Display, uint32_t*, std::vector<Layer>*, std::vector<uint32_t>*));
     MOCK_METHOD2(getDozeSupport, Error(Display, bool*));
+    MOCK_METHOD2(getKernelIdleTimerSupport, Error(Display, bool*));
     MOCK_METHOD5(getHdrCapabilities, Error(Display, std::vector<Hdr>*, float*, float*, float*));
     MOCK_METHOD1(getPerFrameMetadataKeys,
                  std::vector<IComposerClient::PerFrameMetadataKey>(Display));
@@ -157,6 +158,8 @@ public:
                  Error(Display, Layer, const std::vector<IComposerClient::Rect>&));
     MOCK_METHOD2(getDisplayDecorationSupport,
                  Error(Display, std::optional<DisplayDecorationSupport>*));
+    MOCK_METHOD2(setIdleTimerEnabled, Error(Display, std::chrono::milliseconds));
+    MOCK_METHOD2(hasDisplayIdleTimerCapability, Error(Display, bool*));
 };
 
 } // namespace Hwc2::mock
