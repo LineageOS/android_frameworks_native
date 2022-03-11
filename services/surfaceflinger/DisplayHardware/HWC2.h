@@ -91,6 +91,7 @@ public:
     virtual bool hasCapability(
             aidl::android::hardware::graphics::composer3::DisplayCapability) const = 0;
     virtual bool isVsyncPeriodSwitchSupported() const = 0;
+    virtual bool hasDisplayIdleTimerCapability() const = 0;
     virtual void onLayerDestroyed(hal::HWLayerId layerId) = 0;
 
     [[clang::warn_unused_result]] virtual hal::Error acceptChanges() = 0;
@@ -166,6 +167,8 @@ public:
     [[clang::warn_unused_result]] virtual hal::Error getDisplayDecorationSupport(
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) = 0;
+    [[clang::warn_unused_result]] virtual hal::Error setIdleTimerEnabled(
+            std::chrono::milliseconds timeout) = 0;
 };
 
 namespace impl {
@@ -242,6 +245,7 @@ public:
     hal::Error getDisplayDecorationSupport(
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) override;
+    hal::Error setIdleTimerEnabled(std::chrono::milliseconds timeout) override;
 
     // Other Display methods
     hal::HWDisplayId getId() const override { return mId; }
@@ -250,6 +254,7 @@ public:
     bool hasCapability(aidl::android::hardware::graphics::composer3::DisplayCapability)
             const override EXCLUDES(mDisplayCapabilitiesMutex);
     bool isVsyncPeriodSwitchSupported() const override;
+    bool hasDisplayIdleTimerCapability() const override;
     void onLayerDestroyed(hal::HWLayerId layerId) override;
 
 private:
