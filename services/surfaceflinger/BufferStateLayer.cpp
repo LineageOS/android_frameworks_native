@@ -75,17 +75,15 @@ BufferStateLayer::~BufferStateLayer() {
 // -----------------------------------------------------------------------
 void BufferStateLayer::onLayerDisplayed(
         std::shared_future<renderengine::RenderEngineResult> futureRenderEngineResult) {
-    // If a layer has been displayed again we may need to clear
-    // the mLastClientComposition fence that we use for early release in setBuffer
-    // (as we now have a new fence which won't pass through the client composition path in some cases
-    //  e.g. screenshot). We expect one call to onLayerDisplayed after receiving the GL comp fence
-    // from a single composition cycle, and want to clear on the second call
-    // (which we track with mLastClientCompositionDisplayed)
-   if (mLastClientCompositionDisplayed) {
+    // If we are displayed on multiple displays in a single composition cycle then we would
+    // need to do careful tracking to enable the use of the mLastClientCompositionFence.
+    //  For example we can only use it if all the displays are client comp, and we need
+    //  to merge all the client comp fences. We could do this, but for now we just
+    // disable the optimization when a layer is composed on multiple displays.
+    if (mAlreadyDisplayedThisCompose) {
         mLastClientCompositionFence = nullptr;
-        mLastClientCompositionDisplayed = false;
-    } else if (mLastClientCompositionFence) {
-        mLastClientCompositionDisplayed = true;
+    } else {
+        mAlreadyDisplayedThisCompose = true;
     }
 
     // The previous release fence notifies the client that SurfaceFlinger is done with the previous

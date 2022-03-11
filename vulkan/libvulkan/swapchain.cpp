@@ -719,8 +719,6 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
 
     bool wide_color_support = false;
     uint64_t consumer_usage = 0;
-    bool swapchain_ext =
-        instance_data.hook_extensions.test(ProcHook::EXT_swapchain_colorspace);
     if (surface_handle == VK_NULL_HANDLE) {
         ProcHook::Extension surfaceless = ProcHook::GOOGLE_surfaceless_query;
         bool surfaceless_enabled =
@@ -748,7 +746,9 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
 
         consumer_usage = surface.consumer_usage;
     }
-    wide_color_support = wide_color_support && swapchain_ext;
+    wide_color_support =
+        wide_color_support &&
+        instance_data.hook_extensions.test(ProcHook::EXT_swapchain_colorspace);
 
     AHardwareBuffer_Desc desc = {};
     desc.width = 1;
@@ -761,11 +761,6 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
     std::vector<VkSurfaceFormatKHR> all_formats = {
         {VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
         {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}};
-
-    if (swapchain_ext) {
-        all_formats.emplace_back(VkSurfaceFormatKHR{
-            VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_BT709_LINEAR_EXT});
-    }
 
     if (wide_color_support) {
         all_formats.emplace_back(VkSurfaceFormatKHR{

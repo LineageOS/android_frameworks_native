@@ -1049,7 +1049,7 @@ protected:
     mutable bool mDrawingStateModified = false;
 
     sp<Fence> mLastClientCompositionFence;
-    bool mLastClientCompositionDisplayed = false;
+    bool mAlreadyDisplayedThisCompose = false;
 private:
     virtual void setTransformHint(ui::Transform::RotationFlags) {}
 
