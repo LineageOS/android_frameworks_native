@@ -307,7 +307,12 @@ bool CachedSet::requiresHolePunch() const {
     }
 
     const auto& layerFE = mLayers[0].getState()->getOutputLayer()->getLayerFE();
-    if (layerFE.getCompositionState()->forceClientComposition) {
+    const auto* compositionState = layerFE.getCompositionState();
+    if (compositionState->forceClientComposition) {
+        return false;
+    }
+
+    if (compositionState->blendMode != hal::BlendMode::NONE) {
         return false;
     }
 
