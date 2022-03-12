@@ -248,6 +248,7 @@ bool AidlComposer::isSupported(OptionalFeature feature) const {
         case OptionalFeature::ExpectedPresentTime:
         case OptionalFeature::DisplayBrightnessCommand:
         case OptionalFeature::BootDisplayConfig:
+        case OptionalFeature::KernelIdleTimer:
             return true;
     }
 }
@@ -472,6 +473,19 @@ Error AidlComposer::getDozeSupport(Display display, bool* outSupport) {
     }
     *outSupport = std::find(capabilities.begin(), capabilities.end(),
                             AidlDisplayCapability::DOZE) != capabilities.end();
+    return Error::NONE;
+}
+
+Error AidlComposer::hasDisplayIdleTimerCapability(Display display, bool* outSupport) {
+    std::vector<AidlDisplayCapability> capabilities;
+    const auto status =
+            mAidlComposerClient->getDisplayCapabilities(translate<int64_t>(display), &capabilities);
+    if (!status.isOk()) {
+        ALOGE("getDisplayCapabilities failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    *outSupport = std::find(capabilities.begin(), capabilities.end(),
+                            AidlDisplayCapability::DISPLAY_IDLE_TIMER) != capabilities.end();
     return Error::NONE;
 }
 
@@ -1100,5 +1114,17 @@ Error AidlComposer::getDisplayDecorationSupport(Display display,
     }
     return Error::NONE;
 }
+
+Error AidlComposer::setIdleTimerEnabled(Display displayId, std::chrono::milliseconds timeout) {
+    const auto status =
+            mAidlComposerClient->setIdleTimerEnabled(translate<int64_t>(displayId),
+                                                     translate<int32_t>(timeout.count()));
+    if (!status.isOk()) {
+        ALOGE("setIdleTimerEnabled failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    return Error::NONE;
+}
+
 } // namespace Hwc2
 } // namespace android

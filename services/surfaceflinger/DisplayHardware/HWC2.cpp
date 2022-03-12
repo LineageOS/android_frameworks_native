@@ -148,6 +148,12 @@ bool Display::isVsyncPeriodSwitchSupported() const {
     return mComposer.isSupported(android::Hwc2::Composer::OptionalFeature::RefreshRateSwitching);
 }
 
+bool Display::hasDisplayIdleTimerCapability() const {
+    bool isCapabilitySupported = false;
+    return mComposer.hasDisplayIdleTimerCapability(mId, &isCapabilitySupported) == Error::NONE &&
+            isCapabilitySupported;
+}
+
 Error Display::getChangedCompositionTypes(std::unordered_map<HWC2::Layer*, Composition>* outTypes) {
     std::vector<Hwc2::Layer> layerIds;
     std::vector<Composition> types;
@@ -585,6 +591,11 @@ Error Display::getDisplayDecorationSupport(
         std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                 support) {
     const auto error = mComposer.getDisplayDecorationSupport(mId, support);
+    return static_cast<Error>(error);
+}
+
+Error Display::setIdleTimerEnabled(std::chrono::milliseconds timeout) {
+    const auto error = mComposer.setIdleTimerEnabled(mId, timeout);
     return static_cast<Error>(error);
 }
 
