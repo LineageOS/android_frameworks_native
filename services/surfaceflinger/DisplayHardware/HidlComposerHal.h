@@ -208,6 +208,7 @@ public:
                              std::vector<uint32_t>* outLayerRequestMasks) override;
 
     Error getDozeSupport(Display display, bool* outSupport) override;
+    Error hasDisplayIdleTimerCapability(Display display, bool* outSupport) override;
     Error getHdrCapabilities(Display display, std::vector<Hdr>* outTypes, float* outMaxLuminance,
                              float* outMaxAverageLuminance, float* outMinLuminance) override;
 
@@ -331,6 +332,7 @@ public:
             Display display,
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) override;
+    Error setIdleTimerEnabled(Display displayId, std::chrono::milliseconds timeout) override;
 
 private:
     class CommandWriter : public CommandWriterBase {

@@ -133,6 +133,8 @@ public:
                  status_t(PhysicalDisplayId,
                           std::optional<aidl::android::hardware::graphics::common::
                                                 DisplayDecorationSupport>* support));
+    MOCK_METHOD2(setIdleTimerEnabled, status_t(PhysicalDisplayId, std::chrono::milliseconds));
+    MOCK_METHOD1(hasDisplayIdleTimerCapability, bool(PhysicalDisplayId displayId));
 };
 
 } // namespace mock

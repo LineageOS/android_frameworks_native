@@ -93,6 +93,7 @@ public:
         // Whether setDisplayBrightness is able to be applied as part of a display command.
         DisplayBrightnessCommand,
         BootDisplayConfig,
+        KernelIdleTimer,
     };
 
     virtual bool isSupported(OptionalFeature) const = 0;
@@ -134,6 +135,7 @@ public:
                                      std::vector<uint32_t>* outLayerRequestMasks) = 0;
 
     virtual Error getDozeSupport(Display display, bool* outSupport) = 0;
+    virtual Error hasDisplayIdleTimerCapability(Display display, bool* outSupport) = 0;
     virtual Error getHdrCapabilities(Display display, std::vector<Hdr>* outTypes,
                                      float* outMaxLuminance, float* outMaxAverageLuminance,
                                      float* outMinLuminance) = 0;
@@ -274,6 +276,7 @@ public:
             Display display,
             std::optional<::aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) = 0;
+    virtual Error setIdleTimerEnabled(Display displayId, std::chrono::milliseconds timeout) = 0;
 };
 
 } // namespace Hwc2

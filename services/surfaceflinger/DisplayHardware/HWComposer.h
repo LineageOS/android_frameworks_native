@@ -267,15 +267,9 @@ public:
             PhysicalDisplayId,
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) = 0;
+    virtual status_t setIdleTimerEnabled(PhysicalDisplayId, std::chrono::milliseconds timeout) = 0;
+    virtual bool hasDisplayIdleTimerCapability(PhysicalDisplayId) = 0;
 };
-
-static inline bool operator==(const android::HWComposer::DeviceRequestedChanges& lhs,
-                              const android::HWComposer::DeviceRequestedChanges& rhs) {
-    return lhs.changedTypes == rhs.changedTypes && lhs.displayRequests == rhs.displayRequests &&
-            lhs.layerRequests == rhs.layerRequests &&
-            lhs.clientTargetProperty == rhs.clientTargetProperty &&
-            lhs.clientTargetBrightness == rhs.clientTargetBrightness;
-}
 
 namespace impl {
 
@@ -410,6 +404,8 @@ public:
             PhysicalDisplayId,
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) override;
+    status_t setIdleTimerEnabled(PhysicalDisplayId, std::chrono::milliseconds timeout) override;
+    bool hasDisplayIdleTimerCapability(PhysicalDisplayId) override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;
