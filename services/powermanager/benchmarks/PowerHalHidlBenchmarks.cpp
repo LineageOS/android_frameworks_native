@@ -51,7 +51,7 @@ static void runBenchmark(benchmark::State& state, microseconds delay, Return<R> 
     sp<I> hal = I::getService();
 
     if (hal == nullptr) {
-        ALOGI("Power HAL HIDL not available, skipping test...");
+        ALOGV("Power HAL HIDL not available, skipping test...");
         return;
     }
 
