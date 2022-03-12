@@ -971,6 +971,26 @@ void HWComposer::loadCapabilities() {
     }
 }
 
+status_t HWComposer::setIdleTimerEnabled(PhysicalDisplayId displayId,
+                                         std::chrono::milliseconds timeout) {
+    ATRACE_CALL();
+    RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
+    const auto error = mDisplayData[displayId].hwcDisplay->setIdleTimerEnabled(timeout);
+    if (error == hal::Error::UNSUPPORTED) {
+        RETURN_IF_HWC_ERROR(error, displayId, INVALID_OPERATION);
+    }
+    if (error == hal::Error::BAD_PARAMETER) {
+        RETURN_IF_HWC_ERROR(error, displayId, BAD_VALUE);
+    }
+    RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
+    return NO_ERROR;
+}
+
+bool HWComposer::hasDisplayIdleTimerCapability(PhysicalDisplayId displayId) {
+    RETURN_IF_INVALID_DISPLAY(displayId, false);
+    return mDisplayData[displayId].hwcDisplay->hasDisplayIdleTimerCapability();
+}
+
 void HWComposer::loadLayerMetadataSupport() {
     mSupportedLayerGenericMetadata.clear();
 

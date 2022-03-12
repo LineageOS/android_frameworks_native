@@ -670,9 +670,9 @@ RefreshRateConfigs::RefreshRateConfigs(const DisplayModes& modes, DisplayModeId 
 }
 
 void RefreshRateConfigs::initializeIdleTimer() {
-    if (mConfig.idleTimerTimeoutMs > 0) {
+    if (mConfig.idleTimerTimeout > 0ms) {
         mIdleTimer.emplace(
-                "IdleTimer", std::chrono::milliseconds(mConfig.idleTimerTimeoutMs),
+                "IdleTimer", mConfig.idleTimerTimeout,
                 [this] {
                     std::scoped_lock lock(mIdleTimerCallbacksMutex);
                     if (const auto callbacks = getIdleTimerCallbacks()) {
@@ -963,10 +963,22 @@ void RefreshRateConfigs::dump(std::string& result) const {
 
     base::StringAppendF(&result, "Supports Frame Rate Override By Content: %s\n",
                         mSupportsFrameRateOverrideByContent ? "yes" : "no");
-    base::StringAppendF(&result, "Idle timer: (%s) %s\n",
-                        mConfig.supportKernelIdleTimer ? "kernel" : "platform",
-                        mIdleTimer ? mIdleTimer->dump().c_str() : "off");
+    base::StringAppendF(&result, "Idle timer: ");
+    if (mConfig.kernelIdleTimerController.has_value()) {
+        if (mConfig.kernelIdleTimerController == KernelIdleTimerController::Sysprop) {
+            base::StringAppendF(&result, "(kernel(sysprop))");
+        } else {
+            base::StringAppendF(&result, "(kernel(hwc))");
+        }
+    } else {
+        base::StringAppendF(&result, "(platform)");
+    }
+    base::StringAppendF(&result, " %s\n", mIdleTimer ? mIdleTimer->dump().c_str() : "off");
     result.append("\n");
+}
+
+std::chrono::milliseconds RefreshRateConfigs::getIdleTimerTimeout() {
+    return mConfig.idleTimerTimeout;
 }
 
 } // namespace android::scheduler
