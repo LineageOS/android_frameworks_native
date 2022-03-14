@@ -173,6 +173,8 @@ int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t ta
         uid_t uid, gid_t gid);
 
 bool supports_sdcardfs();
+long get_project_id(uid_t uid, long start_project_id_range);
+int set_quota_project_id(const std::string& path, long project_id, bool set_inherit);
 int64_t get_occupied_app_space_external(const std::string& uuid, int32_t userId, int32_t appId);
 int64_t get_occupied_app_cache_space_external(const std::string& uuid, int32_t userId, int32_t appId);
 
