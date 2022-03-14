@@ -334,6 +334,9 @@ public:
                     support) override;
     Error setIdleTimerEnabled(Display displayId, std::chrono::milliseconds timeout) override;
 
+    Error getPhysicalDisplayOrientation(Display displayId,
+                                        AidlTransform* outDisplayOrientation) override;
+
 private:
     class CommandWriter : public CommandWriterBase {
     public:

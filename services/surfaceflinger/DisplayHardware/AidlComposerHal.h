@@ -223,6 +223,9 @@ public:
                                       std::optional<DisplayDecorationSupport>* support) override;
     Error setIdleTimerEnabled(Display displayId, std::chrono::milliseconds timeout) override;
 
+    Error getPhysicalDisplayOrientation(Display displayId,
+                                        AidlTransform* outDisplayOrientation) override;
+
 private:
     // Many public functions above simply write a command into the command
     // queue to batch the calls.  validateDisplay and presentDisplay will call

@@ -29,9 +29,6 @@ static constexpr LatchUnsignaledConfig kLatchUnsignaledConfig[] = {
         LatchUnsignaledConfig::Disabled,
 };
 
-static constexpr ui::Rotation kRotations[] = {ui::Rotation::Rotation0, ui::Rotation::Rotation90,
-                                              ui::Rotation::Rotation180, ui::Rotation::Rotation270};
-
 static constexpr BnSurfaceComposer::ISurfaceComposerTag kSurfaceComposerTags[]{
         BnSurfaceComposer::BOOT_FINISHED,
         BnSurfaceComposer::CREATE_CONNECTION,
@@ -134,7 +131,6 @@ void SurfaceFlingerFuzzer::invokeFlinger() {
     mFlinger->maxGraphicsWidth = mFdp.ConsumeIntegral<uint32_t>();
     mFlinger->maxGraphicsHeight = mFdp.ConsumeIntegral<uint32_t>();
     mFlinger->hasWideColorDisplay = mFdp.ConsumeBool();
-    mFlinger->internalDisplayOrientation = mFdp.PickValueInArray(kRotations);
     mFlinger->useContextPriority = mFdp.ConsumeBool();
 
     mFlinger->defaultCompositionDataspace = mFdp.PickValueInArray(kDataspaces);

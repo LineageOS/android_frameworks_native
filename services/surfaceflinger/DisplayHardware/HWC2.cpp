@@ -154,6 +154,11 @@ bool Display::hasDisplayIdleTimerCapability() const {
             isCapabilitySupported;
 }
 
+Error Display::getPhysicalDisplayOrientation(Hwc2::AidlTransform* outTransform) const {
+    auto error = mComposer.getPhysicalDisplayOrientation(mId, outTransform);
+    return static_cast<Error>(error);
+}
+
 Error Display::getChangedCompositionTypes(std::unordered_map<HWC2::Layer*, Composition>* outTypes) {
     std::vector<Hwc2::Layer> layerIds;
     std::vector<Composition> types;

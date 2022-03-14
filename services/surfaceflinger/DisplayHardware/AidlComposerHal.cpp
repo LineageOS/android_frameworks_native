@@ -249,6 +249,7 @@ bool AidlComposer::isSupported(OptionalFeature feature) const {
         case OptionalFeature::DisplayBrightnessCommand:
         case OptionalFeature::BootDisplayConfig:
         case OptionalFeature::KernelIdleTimer:
+        case OptionalFeature::PhysicalDisplayOrientation:
             return true;
     }
 }
@@ -1121,6 +1122,18 @@ Error AidlComposer::setIdleTimerEnabled(Display displayId, std::chrono::millisec
                                                      translate<int32_t>(timeout.count()));
     if (!status.isOk()) {
         ALOGE("setIdleTimerEnabled failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    return Error::NONE;
+}
+
+Error AidlComposer::getPhysicalDisplayOrientation(Display displayId,
+                                                  AidlTransform* outDisplayOrientation) {
+    const auto status =
+            mAidlComposerClient->getDisplayPhysicalOrientation(translate<int64_t>(displayId),
+                                                               outDisplayOrientation);
+    if (!status.isOk()) {
+        ALOGE("getPhysicalDisplayOrientation failed %s", status.getDescription().c_str());
         return static_cast<Error>(status.getServiceSpecificError());
     }
     return Error::NONE;

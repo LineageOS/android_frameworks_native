@@ -169,6 +169,8 @@ public:
                     support) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setIdleTimerEnabled(
             std::chrono::milliseconds timeout) = 0;
+    [[clang::warn_unused_result]] virtual hal::Error getPhysicalDisplayOrientation(
+            Hwc2::AidlTransform* outTransform) const = 0;
 };
 
 namespace impl {
@@ -256,6 +258,7 @@ public:
     bool isVsyncPeriodSwitchSupported() const override;
     bool hasDisplayIdleTimerCapability() const override;
     void onLayerDestroyed(hal::HWLayerId layerId) override;
+    hal::Error getPhysicalDisplayOrientation(Hwc2::AidlTransform* outTransform) const override;
 
 private:
 
