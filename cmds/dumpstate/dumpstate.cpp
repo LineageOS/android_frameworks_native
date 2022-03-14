@@ -2418,7 +2418,7 @@ void Dumpstate::DumpstateBoard(int out_fd) {
     // Given that bugreport is required to diagnose failures, it's better to set an arbitrary amount
     // of timeout for IDumpstateDevice than to block the rest of bugreport. In the timeout case, we
     // will kill the HAL and grab whatever it dumped in time.
-    constexpr size_t timeout_sec = 30;
+    constexpr size_t timeout_sec = 45;
 
     if (dumpstate_hal_handle_aidl != nullptr) {
         DoDumpstateBoardAidl(dumpstate_hal_handle_aidl, dumpstate_fds, options_->bugreport_mode,
