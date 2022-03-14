@@ -22,6 +22,30 @@
       },
       "revId": "2d035353e47272b8a19423241df8246d3f5f7cc0",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "d0088d50_a3232376",
+        "filename": "opengl/libs/EGL/egl_display.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 59,
+      "author": {
+        "id": 26916
+      },
+      "writtenOn": "2022-03-14T08:39:17Z",
+      "side": 1,
+      "message": "This is needed. The method is now static. If this will be dropped it won\u0027t compile anymore:\n\nframeworks/native/opengl/libs/EGL/egl_display.cpp:203:36: error: invalid use of member \u0027lock\u0027 in static member function\n    std::lock_guard\u003cstd::mutex\u003e _l(lock);\n                                   ^~~~\nframeworks/native/opengl/libs/EGL/egl_display.cpp:241:9: error: invalid use of member \u0027disp\u0027 in static member function\n        disp.dpy \u003d dpy;\n        ^~~~",
+      "parentUuid": "f287c2be_147dc02c",
+      "range": {
+        "startLine": 54,
+        "startChar": 0,
+        "endLine": 59,
+        "endChar": 6
+      },
+      "revId": "2d035353e47272b8a19423241df8246d3f5f7cc0",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
