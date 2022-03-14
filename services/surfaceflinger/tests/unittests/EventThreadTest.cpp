@@ -414,6 +414,10 @@ TEST_F(EventThreadTest, getLatestVsyncEventData) {
     EXPECT_CALL(*mVSyncSource, getLatestVSyncData()).WillOnce(Return(preferredData));
 
     VsyncEventData vsyncEventData = mThread->getLatestVsyncEventData(mConnection);
+
+    // Check EventThread immediately requested a resync.
+    EXPECT_TRUE(mResyncCallRecorder.waitForCall().has_value());
+
     EXPECT_GT(vsyncEventData.frameTimelines[0].deadlineTimestamp, now)
             << "Deadline timestamp should be greater than frame time";
     for (size_t i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
