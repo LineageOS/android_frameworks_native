@@ -2211,6 +2211,12 @@ static void collectQuotaStats(const std::string& uuid, int32_t userId,
                 stats->dataSize += space;
             }
             deductDoubleSpaceIfNeeded(stats, doubleSpaceToBeDeleted, uid, uuid);
+            int sdkSandboxUid = multiuser_get_sdk_sandbox_uid(userId, appId);
+            if (sdkSandboxUid != -1) {
+                if ((space = GetOccupiedSpaceForUid(uuid, sdkSandboxUid)) != -1) {
+                    stats->dataSize += space;
+                }
+            }
             int cacheGid = multiuser_get_cache_gid(userId, appId);
             if (cacheGid != -1) {
                 if ((space = GetOccupiedSpaceForGid(uuid, cacheGid)) != -1) {
