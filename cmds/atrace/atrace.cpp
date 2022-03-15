@@ -1224,10 +1224,7 @@ int main(int argc, char **argv)
 
         if (ret < 0) {
             for (int i = optind; i < argc; i++) {
-                if (!setCategoryEnable(argv[i])) {
-                    fprintf(stderr, "error enabling tracing category \"%s\"\n", argv[i]);
-                    exit(1);
-                }
+                setCategoryEnable(argv[i]);
             }
             break;
         }
