@@ -72,7 +72,7 @@ protected:
     public:
         MockEventThreadConnection(impl::EventThread* eventThread, uid_t callingUid,
                                   ResyncCallback&& resyncCallback,
-                                  ISurfaceComposer::EventRegistrationFlags eventRegistration)
+                                  EventRegistrationFlags eventRegistration)
               : EventThreadConnection(eventThread, callingUid, std::move(resyncCallback),
                                       eventRegistration) {}
         MOCK_METHOD1(postEvent, status_t(const DisplayEventReceiver::Event& event));
@@ -85,10 +85,9 @@ protected:
     ~EventThreadTest() override;
 
     void createThread(std::unique_ptr<VSyncSource>);
-    sp<MockEventThreadConnection> createConnection(
-            ConnectionEventRecorder& recorder,
-            ISurfaceComposer::EventRegistrationFlags eventRegistration = {},
-            uid_t ownerUid = mConnectionUid);
+    sp<MockEventThreadConnection> createConnection(ConnectionEventRecorder& recorder,
+                                                   EventRegistrationFlags eventRegistration = {},
+                                                   uid_t ownerUid = mConnectionUid);
 
     void expectVSyncSetEnabledCallReceived(bool expectedState);
     void expectVSyncSetDurationCallReceived(std::chrono::nanoseconds expectedDuration,
@@ -149,11 +148,12 @@ EventThreadTest::EventThreadTest() {
             .WillRepeatedly(Invoke(mVSyncSetDurationCallRecorder.getInvocable()));
 
     createThread(std::move(vsyncSource));
-    mConnection = createConnection(mConnectionEventCallRecorder,
-                                   ISurfaceComposer::EventRegistration::modeChanged |
-                                           ISurfaceComposer::EventRegistration::frameRateOverride);
+    mConnection =
+            createConnection(mConnectionEventCallRecorder,
+                             gui::ISurfaceComposer::EventRegistration::modeChanged |
+                                     gui::ISurfaceComposer::EventRegistration::frameRateOverride);
     mThrottledConnection = createConnection(mThrottledConnectionEventCallRecorder,
-                                            ISurfaceComposer::EventRegistration::modeChanged,
+                                            gui::ISurfaceComposer::EventRegistration::modeChanged,
                                             mThrottledConnectionUid);
 
     // A display must be connected for VSYNC events to be delivered.
@@ -190,8 +190,8 @@ void EventThreadTest::createThread(std::unique_ptr<VSyncSource> source) {
 }
 
 sp<EventThreadTest::MockEventThreadConnection> EventThreadTest::createConnection(
-        ConnectionEventRecorder& recorder,
-        ISurfaceComposer::EventRegistrationFlags eventRegistration, uid_t ownerUid) {
+        ConnectionEventRecorder& recorder, EventRegistrationFlags eventRegistration,
+        uid_t ownerUid) {
     sp<MockEventThreadConnection> connection =
             new MockEventThreadConnection(mThread.get(), ownerUid,
                                           mResyncCallRecorder.getInvocable(), eventRegistration);

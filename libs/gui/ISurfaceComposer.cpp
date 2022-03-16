@@ -108,35 +108,6 @@ public:
                     data, &reply);
         }
     }
-
-    void bootFinished() override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        remote()->transact(BnSurfaceComposer::BOOT_FINISHED, data, &reply);
-    }
-
-    sp<IDisplayEventConnection> createDisplayEventConnection(
-            VsyncSource vsyncSource, EventRegistrationFlags eventRegistration) override {
-        Parcel data, reply;
-        sp<IDisplayEventConnection> result;
-        int err = data.writeInterfaceToken(
-                ISurfaceComposer::getInterfaceDescriptor());
-        if (err != NO_ERROR) {
-            return result;
-        }
-        data.writeInt32(static_cast<int32_t>(vsyncSource));
-        data.writeUint32(eventRegistration.get());
-        err = remote()->transact(
-                BnSurfaceComposer::CREATE_DISPLAY_EVENT_CONNECTION,
-                data, &reply);
-        if (err != NO_ERROR) {
-            ALOGE("ISurfaceComposer::createDisplayEventConnection: error performing "
-                    "transaction: %s (%d)", strerror(-err), -err);
-            return result;
-        }
-        result = interface_cast<IDisplayEventConnection>(reply.readStrongBinder());
-        return result;
-    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -214,22 +185,6 @@ status_t BnSurfaceComposer::onTransact(
                                        inputWindowCommands, desiredPresentTime, isAutoTimestamp,
                                        uncachedBuffer, hasListenerCallbacks, listenerCallbacks,
                                        transactionId);
-        }
-        case BOOT_FINISHED: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            bootFinished();
-            return NO_ERROR;
-        }
-        case CREATE_DISPLAY_EVENT_CONNECTION: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            auto vsyncSource = static_cast<ISurfaceComposer::VsyncSource>(data.readInt32());
-            EventRegistrationFlags eventRegistration =
-                    static_cast<EventRegistration>(data.readUint32());
-
-            sp<IDisplayEventConnection> connection(
-                    createDisplayEventConnection(vsyncSource, eventRegistration));
-            reply->writeStrongBinder(IInterface::asBinder(connection));
-            return NO_ERROR;
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

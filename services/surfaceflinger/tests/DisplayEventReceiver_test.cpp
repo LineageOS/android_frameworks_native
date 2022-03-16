@@ -36,7 +36,8 @@ TEST_F(DisplayEventReceiverTest, getLatestVsyncEventData) {
     EXPECT_GT(vsyncEventData.frameTimelines[0].deadlineTimestamp, now)
             << "Deadline timestamp should be greater than frame time";
     for (size_t i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
-        EXPECT_NE(FrameTimelineInfo::INVALID_VSYNC_ID, vsyncEventData.frameTimelines[i].vsyncId);
+        EXPECT_NE(gui::FrameTimelineInfo::INVALID_VSYNC_ID,
+                  vsyncEventData.frameTimelines[i].vsyncId);
         EXPECT_GT(vsyncEventData.frameTimelines[i].expectedPresentationTime,
                   vsyncEventData.frameTimelines[i].deadlineTimestamp)
                 << "Expected vsync timestamp should be greater than deadline";

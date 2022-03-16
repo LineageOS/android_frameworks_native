@@ -92,7 +92,7 @@ public:
 class EventThreadConnection : public gui::BnDisplayEventConnection {
 public:
     EventThreadConnection(EventThread*, uid_t callingUid, ResyncCallback,
-                          ISurfaceComposer::EventRegistrationFlags eventRegistration = {});
+                          EventRegistrationFlags eventRegistration = {});
     virtual ~EventThreadConnection();
 
     virtual status_t postEvent(const DisplayEventReceiver::Event& event);
@@ -107,7 +107,7 @@ public:
 
     VSyncRequest vsyncRequest = VSyncRequest::None;
     const uid_t mOwnerUid;
-    const ISurfaceComposer::EventRegistrationFlags mEventRegistration;
+    const EventRegistrationFlags mEventRegistration;
 
 private:
     virtual void onFirstRef();
@@ -122,8 +122,7 @@ public:
     virtual ~EventThread();
 
     virtual sp<EventThreadConnection> createEventConnection(
-            ResyncCallback,
-            ISurfaceComposer::EventRegistrationFlags eventRegistration = {}) const = 0;
+            ResyncCallback, EventRegistrationFlags eventRegistration = {}) const = 0;
 
     // called before the screen is turned off from main thread
     virtual void onScreenReleased() = 0;
@@ -170,8 +169,7 @@ public:
     ~EventThread();
 
     sp<EventThreadConnection> createEventConnection(
-            ResyncCallback,
-            ISurfaceComposer::EventRegistrationFlags eventRegistration = {}) const override;
+            ResyncCallback, EventRegistrationFlags eventRegistration = {}) const override;
 
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) override;

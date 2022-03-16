@@ -406,7 +406,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     property_get("ro.sf.blurs_are_expensive", value, "0");
     mBlursAreExpensive = atoi(value);
 
-    const size_t defaultListSize = ISurfaceComposer::MAX_LAYERS;
+    const size_t defaultListSize = MAX_LAYERS;
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
     mGraphicBufferProducerListSizeLogThreshold =
@@ -1789,10 +1789,11 @@ status_t SurfaceFlinger::getDisplayDecorationSupport(
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
-        ISurfaceComposer::VsyncSource vsyncSource,
-        ISurfaceComposer::EventRegistrationFlags eventRegistration) {
+        gui::ISurfaceComposer::VsyncSource vsyncSource, EventRegistrationFlags eventRegistration) {
     const auto& handle =
-            vsyncSource == eVsyncSourceSurfaceFlinger ? mSfConnectionHandle : mAppConnectionHandle;
+            vsyncSource == gui::ISurfaceComposer::VsyncSource::eVsyncSourceSurfaceFlinger
+            ? mSfConnectionHandle
+            : mAppConnectionHandle;
 
     return mScheduler->createDisplayEventConnection(handle, eventRegistration);
 }
@@ -3589,9 +3590,9 @@ bool SurfaceFlinger::latchBuffers() {
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
                                         const sp<Layer>& layer, const wp<Layer>& parent,
                                         bool addToRoot, uint32_t* outTransformHint) {
-    if (mNumLayers >= ISurfaceComposer::MAX_LAYERS) {
+    if (mNumLayers >= MAX_LAYERS) {
         ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
-              ISurfaceComposer::MAX_LAYERS);
+              MAX_LAYERS);
         static_cast<void>(mScheduler->schedule([=] {
             ALOGE("Dumping random sampling of on-screen layers: ");
             mDrawingState.traverse([&](Layer *layer) {
@@ -5474,7 +5475,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
     switch (static_cast<ISurfaceComposerTag>(code)) {
         // These methods should at minimum make sure that the client requested
         // access to SF.
-        case BOOT_FINISHED:
         case GET_HDR_CAPABILITIES:
         case GET_AUTO_LOW_LATENCY_MODE_SUPPORT:
         case GET_GAME_CONTENT_TYPE_SUPPORT:
@@ -5490,8 +5490,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             }
             return OK;
         }
-        // Used by apps to hook Choreographer to SurfaceFlinger.
-        case CREATE_DISPLAY_EVENT_CONNECTION:
         // The following calls are currently used by clients that do not
         // request necessary permissions. However, they do not expose any secret
         // information, so it is OK to pass them.
@@ -5505,6 +5503,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             // This is not sensitive information, so should not require permission control.
             return OK;
         }
+        case BOOT_FINISHED:
+        // Used by apps to hook Choreographer to SurfaceFlinger.
+        case CREATE_DISPLAY_EVENT_CONNECTION:
         case CREATE_CONNECTION:
         case CREATE_DISPLAY:
         case DESTROY_DISPLAY:
@@ -7210,6 +7211,29 @@ bool SurfaceFlinger::commitCreatedLayers() {
 }
 
 // gui::ISurfaceComposer
+
+binder::Status SurfaceComposerAIDL::bootFinished() {
+    status_t status = checkAccessPermission();
+    if (status != OK) {
+        return binderStatusFromStatusT(status);
+    }
+    mFlinger->bootFinished();
+    return binder::Status::ok();
+}
+
+binder::Status SurfaceComposerAIDL::createDisplayEventConnection(
+        VsyncSource vsyncSource, EventRegistration eventRegistration,
+        sp<IDisplayEventConnection>* outConnection) {
+    sp<IDisplayEventConnection> conn =
+            mFlinger->createDisplayEventConnection(vsyncSource, eventRegistration);
+    if (conn == nullptr) {
+        *outConnection = nullptr;
+        return binderStatusFromStatusT(BAD_VALUE);
+    } else {
+        *outConnection = conn;
+        return binder::Status::ok();
+    }
+}
 
 binder::Status SurfaceComposerAIDL::createConnection(sp<gui::ISurfaceComposerClient>* outClient) {
     const sp<Client> client = new Client(mFlinger);

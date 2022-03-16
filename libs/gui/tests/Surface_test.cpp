@@ -692,10 +692,6 @@ public:
         mSupportsPresent = supportsPresent;
     }
 
-    sp<IDisplayEventConnection> createDisplayEventConnection(
-            ISurfaceComposer::VsyncSource, ISurfaceComposer::EventRegistrationFlags) override {
-        return nullptr;
-    }
     status_t setTransactionState(const FrameTimelineInfo& /*frameTimelineInfo*/,
                                  const Vector<ComposerState>& /*state*/,
                                  const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
@@ -709,8 +705,6 @@ public:
         return NO_ERROR;
     }
 
-    void bootFinished() override {}
-
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 
@@ -723,6 +717,15 @@ public:
     ~FakeSurfaceComposerAIDL() override {}
 
     void setSupportsPresent(bool supportsPresent) { mSupportsPresent = supportsPresent; }
+
+    binder::Status bootFinished() override { return binder::Status::ok(); }
+
+    binder::Status createDisplayEventConnection(
+            VsyncSource /*vsyncSource*/, EventRegistration /*eventRegistration*/,
+            sp<gui::IDisplayEventConnection>* outConnection) override {
+        *outConnection = nullptr;
+        return binder::Status::ok();
+    }
 
     binder::Status createConnection(sp<gui::ISurfaceComposerClient>* outClient) override {
         *outClient = nullptr;

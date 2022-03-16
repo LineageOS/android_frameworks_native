@@ -30,6 +30,7 @@ import android.gui.DisplayStatInfo;
 import android.gui.DynamicDisplayInfo;
 import android.gui.FrameEvent;
 import android.gui.FrameStats;
+import android.gui.IDisplayEventConnection;
 import android.gui.IFpsListener;
 import android.gui.IHdrLayerInfoListener;
 import android.gui.IRegionSamplingListener;
@@ -46,6 +47,30 @@ import android.gui.StaticDisplayInfo;
 
 /** @hide */
 interface ISurfaceComposer {
+
+    enum VsyncSource {
+        eVsyncSourceApp = 0,
+        eVsyncSourceSurfaceFlinger = 1
+    }
+
+    enum EventRegistration {
+        modeChanged = 1 << 0,
+        frameRateOverride = 1 << 1,
+    }
+
+    /**
+     * Signal that we're done booting.
+     * Requires ACCESS_SURFACE_FLINGER permission
+     */
+    // Note this must be the 1st method, so IBinder::FIRST_CALL_TRANSACTION
+    // is assigned, as it is called from Java by ActivityManagerService.
+    void bootFinished();
+
+    /**
+     * Create a display event connection
+     */
+    @nullable IDisplayEventConnection createDisplayEventConnection(VsyncSource vsyncSource,
+            EventRegistration eventRegistration);
 
     /**
      * Create a connection with SurfaceFlinger.
