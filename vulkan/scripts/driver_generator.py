@@ -27,7 +27,6 @@ _INTERCEPTED_EXTENSIONS = [
     'VK_EXT_hdr_metadata',
     'VK_EXT_swapchain_colorspace',
     'VK_GOOGLE_display_timing',
-    'VK_GOOGLE_surfaceless_query',
     'VK_KHR_android_surface',
     'VK_KHR_get_surface_capabilities2',
     'VK_KHR_incremental_present',
