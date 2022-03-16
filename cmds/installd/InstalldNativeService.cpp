@@ -812,7 +812,7 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
                              StringPrintf("cacheGid cannot be -1 for sdksandbox data"));
         }
         auto status = createAppDataDirs(sharedPath, sdkSandboxUid, AID_NOBODY,
-                                        &previousSdkSandboxUid, cacheGid, seInfo, 0700);
+                                        &previousSdkSandboxUid, cacheGid, seInfo, 0700 | S_ISGID);
         if (!status.isOk()) {
             return status;
         }
@@ -992,7 +992,7 @@ binder::Status InstalldNativeService::reconcileSdkData(
             const int32_t sandboxUid = multiuser_get_sdk_sandbox_uid(userId, appId);
             int32_t previousSandboxUid = multiuser_get_sdk_sandbox_uid(userId, previousAppId);
             auto status = createAppDataDirs(path, sandboxUid, AID_NOBODY, &previousSandboxUid,
-                                            cacheGid, seInfo, 0700);
+                                            cacheGid, seInfo, 0700 | S_ISGID);
             if (!status.isOk()) {
                 res = status;
                 continue;
@@ -2211,6 +2211,12 @@ static void collectQuotaStats(const std::string& uuid, int32_t userId,
                 stats->dataSize += space;
             }
             deductDoubleSpaceIfNeeded(stats, doubleSpaceToBeDeleted, uid, uuid);
+            int sdkSandboxUid = multiuser_get_sdk_sandbox_uid(userId, appId);
+            if (sdkSandboxUid != -1) {
+                if ((space = GetOccupiedSpaceForUid(uuid, sdkSandboxUid)) != -1) {
+                    stats->dataSize += space;
+                }
+            }
             int cacheGid = multiuser_get_cache_gid(userId, appId);
             if (cacheGid != -1) {
                 if ((space = GetOccupiedSpaceForGid(uuid, cacheGid)) != -1) {
