@@ -6489,19 +6489,6 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         // and failed if display is not in native mode. This provide a way to force using native
         // colors when capture.
         dataspace = args.dataspace;
-        if (dataspace == ui::Dataspace::UNKNOWN) {
-            auto display = findDisplay([layerStack = parent->getLayerStack()](const auto& display) {
-                return display.getLayerStack() == layerStack;
-            });
-            if (!display) {
-                // If the layer is not on a display, use the dataspace for the default display.
-                display = getDefaultDisplayDeviceLocked();
-            }
-
-            const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
-            dataspace = pickDataspaceFromColorMode(colorMode);
-        }
-
     } // mStateLock
 
     // really small crop or frameScale
@@ -6630,7 +6617,7 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::captureScre
 
         renderArea->render([&] {
             renderEngineResultFuture =
-                    renderScreenImplLocked(*renderArea, traverseLayers, buffer,
+                    renderScreenImpl(*renderArea, traverseLayers, buffer,
                                            canCaptureBlackoutContent, regionSampling, grayscale,
                                            captureResults);
         });
@@ -6663,7 +6650,7 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::captureScre
     }
 }
 
-std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScreenImplLocked(
+std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScreenImpl(
         const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer,
         bool canCaptureBlackoutContent, bool regionSampling, bool grayscale,
@@ -6687,7 +6674,22 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
     }
 
     captureResults.buffer = buffer->getBuffer();
-    captureResults.capturedDataspace = renderArea.getReqDataSpace();
+    auto dataspace = renderArea.getReqDataSpace();
+    auto parent = renderArea.getParentLayer();
+    if ((dataspace == ui::Dataspace::UNKNOWN) && (parent != nullptr)) {
+        Mutex::Autolock lock(mStateLock);
+        auto display = findDisplay([layerStack = parent->getLayerStack()](const auto& display) {
+            return display.getLayerStack() == layerStack;
+        });
+        if (!display) {
+            // If the layer is not on a display, use the dataspace for the default display.
+            display = getDefaultDisplayDeviceLocked();
+        }
+
+        const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
+        dataspace = pickDataspaceFromColorMode(colorMode);
+    }
+    captureResults.capturedDataspace = dataspace;
 
     const auto reqWidth = renderArea.getReqWidth();
     const auto reqHeight = renderArea.getReqHeight();
@@ -6705,7 +6707,7 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
     clientCompositionDisplay.clip = sourceCrop;
     clientCompositionDisplay.orientation = rotation;
 
-    clientCompositionDisplay.outputDataspace = renderArea.getReqDataSpace();
+    clientCompositionDisplay.outputDataspace = dataspace;
     clientCompositionDisplay.maxLuminance = DisplayDevice::sDefaultMaxLumiance;
 
     const float colorSaturation = grayscale ? 0 : 1;
