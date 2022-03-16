@@ -634,6 +634,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
             case ProcHook::KHR_surface:
             case ProcHook::EXT_swapchain_colorspace:
             case ProcHook::KHR_get_surface_capabilities2:
+            case ProcHook::GOOGLE_surfaceless_query:
                 hook_extensions_.set(ext_bit);
                 // return now as these extensions do not require HAL support
                 return;
@@ -712,6 +713,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
             case ProcHook::KHR_surface:
             case ProcHook::EXT_debug_report:
             case ProcHook::EXT_swapchain_colorspace:
+            case ProcHook::GOOGLE_surfaceless_query:
             case ProcHook::ANDROID_native_buffer:
             case ProcHook::EXTENSION_CORE_1_0:
             case ProcHook::EXTENSION_CORE_1_1:
@@ -931,6 +933,8 @@ VkResult EnumerateInstanceExtensionProperties(
     loader_extensions.push_back(
         {VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
          VK_KHR_GET_SURFACE_CAPABILITIES_2_SPEC_VERSION});
+    loader_extensions.push_back({VK_GOOGLE_SURFACELESS_QUERY_EXTENSION_NAME,
+                                 VK_GOOGLE_SURFACELESS_QUERY_SPEC_VERSION});
 
     static const VkExtensionProperties loader_debug_report_extension = {
         VK_EXT_DEBUG_REPORT_EXTENSION_NAME, VK_EXT_DEBUG_REPORT_SPEC_VERSION,
