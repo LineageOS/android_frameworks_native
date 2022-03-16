@@ -690,11 +690,11 @@ TEST_F(UtilsTest, TestSdkSandboxDataPaths) {
               create_data_misc_sdk_sandbox_package_path(nullptr, true, 10, "com.foo"));
 
     EXPECT_EQ("/data/misc_ce/0/sdksandbox/com.foo/shared",
-              create_data_misc_sdk_sandbox_shared_path(nullptr, true, 0, "com.foo"));
+              create_data_misc_sdk_sandbox_sdk_path(nullptr, true, 0, "com.foo", "shared"));
     EXPECT_EQ("/data/misc_ce/10/sdksandbox/com.foo/shared",
-              create_data_misc_sdk_sandbox_shared_path(nullptr, true, 10, "com.foo"));
+              create_data_misc_sdk_sandbox_sdk_path(nullptr, true, 10, "com.foo", "shared"));
     EXPECT_EQ("/data/misc_ce/10/sdksandbox/com.foo/bar@random",
-              create_data_misc_sdk_sandbox_sdk_path(nullptr, true, 10, "com.foo", "bar", "random"));
+              create_data_misc_sdk_sandbox_sdk_path(nullptr, true, 10, "com.foo", "bar@random"));
 
     // De data paths
     EXPECT_EQ("/data/misc_de/0/sdksandbox",
@@ -707,12 +707,11 @@ TEST_F(UtilsTest, TestSdkSandboxDataPaths) {
               create_data_misc_sdk_sandbox_package_path(nullptr, false, 10, "com.foo"));
 
     EXPECT_EQ("/data/misc_de/0/sdksandbox/com.foo/shared",
-              create_data_misc_sdk_sandbox_shared_path(nullptr, false, 0, "com.foo"));
+              create_data_misc_sdk_sandbox_sdk_path(nullptr, false, 0, "com.foo", "shared"));
     EXPECT_EQ("/data/misc_de/10/sdksandbox/com.foo/shared",
-              create_data_misc_sdk_sandbox_shared_path(nullptr, false, 10, "com.foo"));
+              create_data_misc_sdk_sandbox_sdk_path(nullptr, false, 10, "com.foo", "shared"));
     EXPECT_EQ("/data/misc_de/10/sdksandbox/com.foo/bar@random",
-              create_data_misc_sdk_sandbox_sdk_path(nullptr, false, 10, "com.foo", "bar",
-                                                    "random"));
+              create_data_misc_sdk_sandbox_sdk_path(nullptr, false, 10, "com.foo", "bar@random"));
 }
 
 TEST_F(UtilsTest, WaitChild) {
