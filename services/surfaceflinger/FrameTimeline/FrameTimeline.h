@@ -204,8 +204,9 @@ public:
     std::string miniDump() const;
     // Emits a packet for perfetto tracing. The function body will be executed only if tracing is
     // enabled. The displayFrameToken is needed to link the SurfaceFrame to the corresponding
-    // DisplayFrame at the trace processor side.
-    void trace(int64_t displayFrameToken) const;
+    // DisplayFrame at the trace processor side. monoBootOffset is the difference
+    // between SYSTEM_TIME_BOOTTIME and SYSTEM_TIME_MONOTONIC.
+    void trace(int64_t displayFrameToken, nsecs_t monoBootOffset) const;
 
     // Getter functions used only by FrameTimelineTests and SurfaceFrame internally
     TimelineItem getActuals() const;
@@ -225,8 +226,8 @@ public:
             std::chrono::duration_cast<std::chrono::nanoseconds>(2ms).count();
 
 private:
-    void tracePredictions(int64_t displayFrameToken) const;
-    void traceActuals(int64_t displayFrameToken) const;
+    void tracePredictions(int64_t displayFrameToken, nsecs_t monoBootOffset) const;
+    void traceActuals(int64_t displayFrameToken, nsecs_t monoBootOffset) const;
     void classifyJankLocked(int32_t displayFrameJankType, const Fps& refreshRate,
                             nsecs_t& deadlineDelta) REQUIRES(mMutex);
 
@@ -369,8 +370,9 @@ public:
         // Dumpsys interface - dumps all data irrespective of jank
         void dumpAll(std::string& result, nsecs_t baseTime) const;
         // Emits a packet for perfetto tracing. The function body will be executed only if tracing
-        // is enabled.
-        void trace(pid_t surfaceFlingerPid) const;
+        // is enabled. monoBootOffset is the difference between SYSTEM_TIME_BOOTTIME
+        // and SYSTEM_TIME_MONOTONIC.
+        void trace(pid_t surfaceFlingerPid, nsecs_t monoBootOffset) const;
         // Sets the token, vsyncPeriod, predictions and SF start time.
         void onSfWakeUp(int64_t token, Fps refreshRate, std::optional<TimelineItem> predictions,
                         nsecs_t wakeUpTime);
@@ -401,8 +403,8 @@ public:
 
     private:
         void dump(std::string& result, nsecs_t baseTime) const;
-        void tracePredictions(pid_t surfaceFlingerPid) const;
-        void traceActuals(pid_t surfaceFlingerPid) const;
+        void tracePredictions(pid_t surfaceFlingerPid, nsecs_t monoBootOffset) const;
+        void traceActuals(pid_t surfaceFlingerPid, nsecs_t monoBootOffset) const;
         void classifyJank(nsecs_t& deadlineDelta, nsecs_t& deltaToVsync,
                           nsecs_t previousPresentTime);
 
@@ -442,7 +444,7 @@ public:
     };
 
     FrameTimeline(std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid,
-                  JankClassificationThresholds thresholds = {});
+                  JankClassificationThresholds thresholds = {}, bool useBootTimeClock = true);
     ~FrameTimeline() = default;
 
     frametimeline::TokenManager* getTokenManager() override { return &mTokenManager; }
@@ -484,6 +486,7 @@ private:
     TokenManager mTokenManager;
     TraceCookieCounter mTraceCookieCounter;
     mutable std::mutex mMutex;
+    const bool mUseBootTimeClock;
     uint32_t mMaxDisplayFrames;
     std::shared_ptr<TimeStats> mTimeStats;
     const pid_t mSurfaceFlingerPid;

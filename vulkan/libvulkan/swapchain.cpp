@@ -865,12 +865,6 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
                         .supportedUsageFlags;
             } break;
 
-            case VK_STRUCTURE_TYPE_SURFACE_PROTECTED_CAPABILITIES_KHR: {
-                VkSurfaceProtectedCapabilitiesKHR* protected_caps =
-                    reinterpret_cast<VkSurfaceProtectedCapabilitiesKHR*>(caps);
-                protected_caps->supportsProtected = VK_TRUE;
-            } break;
-
             default:
                 // Ignore all other extension structs
                 break;
