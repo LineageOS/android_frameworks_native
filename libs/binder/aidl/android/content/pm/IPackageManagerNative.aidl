@@ -17,7 +17,6 @@
 
 package android.content.pm;
 
-import android.content.pm.IPackageChangeObserver;
 import android.content.pm.IStagedApexObserver;
 import android.content.pm.StagedApexInfo;
 
@@ -91,18 +90,6 @@ interface IPackageManagerNative {
      * package.
      */
     @utf8InCpp String getModuleMetadataPackageName();
-
-    /* Returns the names of all packages. */
-    @utf8InCpp String[] getAllPackages();
-
-    /** Register an extra package change observer to receive the multi-cast. */
-    void registerPackageChangeObserver(in IPackageChangeObserver observer);
-
-    /**
-     * Unregister an existing package change observer.
-     * This does nothing if this observer was not already registered.
-     */
-    void unregisterPackageChangeObserver(in IPackageChangeObserver observer);
 
     /**
      * Returns true if the package has the SHA 256 version of the signing certificate.
