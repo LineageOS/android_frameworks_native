@@ -740,10 +740,6 @@ std::future<status_t> HWComposer::setDisplayBrightness(
             });
 }
 
-bool HWComposer::getBootDisplayModeSupport() {
-    return mComposer->isSupported(Hwc2::Composer::OptionalFeature::BootDisplayConfig);
-}
-
 status_t HWComposer::setBootDisplayMode(PhysicalDisplayId displayId,
                                         hal::HWConfigId displayModeId) {
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
