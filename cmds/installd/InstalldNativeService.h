@@ -211,8 +211,7 @@ private:
     binder::Status createSdkSandboxDataPackageDirectory(const std::optional<std::string>& uuid,
                                                         const std::string& packageName,
                                                         int32_t userId, int32_t appId,
-                                                        int32_t previousAppId,
-                                                        const std::string& seInfo, int32_t flags);
+                                                        int32_t flags);
     binder::Status clearSdkSandboxDataPackageDirectory(const std::optional<std::string>& uuid,
                                                        const std::string& packageName,
                                                        int32_t userId, int32_t flags);
@@ -221,8 +220,7 @@ private:
                                                          int32_t userId, int32_t flags);
     binder::Status reconcileSdkData(const std::optional<std::string>& uuid,
                                     const std::string& packageName,
-                                    const std::vector<std::string>& sdkPackageNames,
-                                    const std::vector<std::string>& randomSuffixes, int32_t userId,
+                                    const std::vector<std::string>& subDirNames, int32_t userId,
                                     int32_t appId, int32_t previousAppId, const std::string& seInfo,
                                     int flags);
     binder::Status restoreconSdkDataLocked(const std::optional<std::string>& uuid,
