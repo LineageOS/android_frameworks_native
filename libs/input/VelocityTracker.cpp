@@ -15,13 +15,6 @@
  */
 
 #define LOG_TAG "VelocityTracker"
-//#define LOG_NDEBUG 0
-
-// Log debug messages about velocity tracking.
-static constexpr bool DEBUG_VELOCITY = false;
-
-// Log debug messages about the progress of the algorithm itself.
-static constexpr bool DEBUG_STRATEGY = false;
 
 #include <array>
 #include <inttypes.h>
@@ -35,6 +28,27 @@ static constexpr bool DEBUG_STRATEGY = false;
 #include <utils/Timers.h>
 
 namespace android {
+
+/**
+ * Log debug messages about velocity tracking.
+ * Enable this via "adb shell setprop log.tag.VelocityTrackerVelocity DEBUG" (requires restart)
+ */
+const bool DEBUG_VELOCITY =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Velocity", ANDROID_LOG_INFO);
+
+/**
+ * Log debug messages about the progress of the algorithm itself.
+ * Enable this via "adb shell setprop log.tag.VelocityTrackerStrategy DEBUG" (requires restart)
+ */
+const bool DEBUG_STRATEGY =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Strategy", ANDROID_LOG_INFO);
+
+/**
+ * Log debug messages about the 'impulse' strategy.
+ * Enable this via "adb shell setprop log.tag.VelocityTrackerImpulse DEBUG" (requires restart)
+ */
+const bool DEBUG_IMPULSE =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Impulse", ANDROID_LOG_INFO);
 
 // Nanoseconds per milliseconds.
 static const nsecs_t NANOS_PER_MS = 1000000;
@@ -141,7 +155,7 @@ std::unique_ptr<VelocityTrackerStrategy> VelocityTracker::createStrategy(
             return std::make_unique<LeastSquaresVelocityTrackerStrategy>(1);
 
         case VelocityTracker::Strategy::LSQ2:
-            if (DEBUG_STRATEGY) {
+            if (DEBUG_STRATEGY && !DEBUG_IMPULSE) {
                 ALOGI("Initializing lsq2 strategy");
             }
             return std::make_unique<LeastSquaresVelocityTrackerStrategy>(2);
@@ -1172,7 +1186,25 @@ bool ImpulseVelocityTrackerStrategy::getEstimator(uint32_t id,
     outEstimator->degree = 2; // similar results to 2nd degree fit
     outEstimator->confidence = 1;
     if (DEBUG_STRATEGY) {
-        ALOGD("velocity: (%f, %f)", outEstimator->xCoeff[1], outEstimator->yCoeff[1]);
+        ALOGD("velocity: (%.1f, %.1f)", outEstimator->xCoeff[1], outEstimator->yCoeff[1]);
+    }
+    if (DEBUG_IMPULSE) {
+        // TODO(b/134179997): delete this block once the switch to 'impulse' is complete.
+        // Calculate the lsq2 velocity for the same inputs to allow runtime comparisons
+        VelocityTracker lsq2(VelocityTracker::Strategy::LSQ2);
+        BitSet32 idBits;
+        const uint32_t pointerId = 0;
+        idBits.markBit(pointerId);
+        for (ssize_t i = m - 1; i >= 0; i--) {
+            lsq2.addMovement(time[i], idBits, {{x[i], y[i]}});
+        }
+        float outVx = 0, outVy = 0;
+        const bool computed = lsq2.getVelocity(pointerId, &outVx, &outVy);
+        if (computed) {
+            ALOGD("lsq2 velocity: (%.1f, %.1f)", outVx, outVy);
+        } else {
+            ALOGD("lsq2 velocity: could not compute velocity");
+        }
     }
     return true;
 }
