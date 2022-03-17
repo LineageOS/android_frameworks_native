@@ -1224,10 +1224,7 @@ int main(int argc, char **argv)
 
         if (ret < 0) {
             for (int i = optind; i < argc; i++) {
-                if (!setCategoryEnable(argv[i])) {
-                    fprintf(stderr, "error enabling tracing category \"%s\"\n", argv[i]);
-                    exit(1);
-                }
+                setCategoryEnable(argv[i]);
             }
             break;
         }
@@ -1343,10 +1340,10 @@ int main(int argc, char **argv)
         // contain entries from only one CPU can cause "begin" entries without a
         // matching "end" entry to show up if a task gets migrated from one CPU to
         // another.
-        if (!onlyUserspace)
+        if (!onlyUserspace) {
             ok = clearTrace();
-
-        writeClockSyncMarker();
+            writeClockSyncMarker();
+        }
         if (ok && !async && !traceStream) {
             // Sleep to allow the trace to be captured.
             struct timespec timeLeft;
