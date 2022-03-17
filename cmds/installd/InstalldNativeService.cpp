@@ -734,7 +734,7 @@ binder::Status InstalldNativeService::createAppDataLocked(
 
     } else {
         // Package does not need sdk storage. Remove it.
-        deleteSdkSandboxDataPackageDirectory(uuid, packageName, userId, flags);
+        destroySdkSandboxDataPackageDirectory(uuid, packageName, userId, flags);
     }
 
     return ok();
@@ -800,32 +800,6 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
     }
 
     return ok();
-}
-
-/**
- * Responsible for deleting /data/misc_{ce|de}/user/0/sdksandbox/<package-name> directory
- */
-binder::Status InstalldNativeService::deleteSdkSandboxDataPackageDirectory(
-        const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
-        int32_t flags) {
-    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
-    auto res = ok();
-
-    constexpr int storageFlags[2] = {FLAG_STORAGE_CE, FLAG_STORAGE_DE};
-    for (int currentFlag : storageFlags) {
-        if ((flags & currentFlag) == 0) {
-            continue;
-        }
-        bool isCeData = (currentFlag == FLAG_STORAGE_CE);
-
-        const auto& packagePath = create_data_misc_sdk_sandbox_package_path(uuid_, isCeData, userId,
-                                                                            packageName.c_str());
-        if (delete_dir_contents_and_dir(packagePath, /*ignore_if_missing=*/true) != 0) {
-            res = error("Failed to delete sdk package directory: " + packagePath);
-        }
-    }
-
-    return res;
 }
 
 binder::Status InstalldNativeService::createAppData(
@@ -1150,6 +1124,47 @@ binder::Status InstalldNativeService::clearAppData(const std::optional<std::stri
             }
         }
     }
+    auto status = clearSdkSandboxDataPackageDirectory(uuid, packageName, userId, flags);
+    if (!status.isOk()) {
+        res = status;
+    }
+    return res;
+}
+
+binder::Status InstalldNativeService::clearSdkSandboxDataPackageDirectory(
+        const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
+        int32_t flags) {
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* pkgname = packageName.c_str();
+
+    binder::Status res = ok();
+    constexpr int storageFlags[2] = {FLAG_STORAGE_CE, FLAG_STORAGE_DE};
+    for (int i = 0; i < 2; i++) {
+        int currentFlag = storageFlags[i];
+        if ((flags & currentFlag) == 0) {
+            continue;
+        }
+        bool isCeData = (currentFlag == FLAG_STORAGE_CE);
+        std::string suffix;
+        if (flags & FLAG_CLEAR_CACHE_ONLY) {
+            suffix = CACHE_DIR_POSTFIX;
+        } else if (flags & FLAG_CLEAR_CODE_CACHE_ONLY) {
+            suffix = CODE_CACHE_DIR_POSTFIX;
+        }
+
+        auto appPath = create_data_misc_sdk_sandbox_package_path(uuid_, isCeData, userId, pkgname);
+        if (access(appPath.c_str(), F_OK) != 0) continue;
+        const auto subDirHandler = [&appPath, &res, &suffix](const std::string& filename) {
+            auto filepath = appPath + "/" + filename + suffix;
+            if (delete_dir_contents(filepath, true) != 0) {
+                res = error("Failed to clear contents of " + filepath);
+            }
+        };
+        const int ec = foreach_subdir(appPath, subDirHandler);
+        if (ec != 0) {
+            res = error("Failed to process subdirs for " + appPath);
+        }
+    }
     return res;
 }
 
@@ -1244,6 +1259,32 @@ binder::Status InstalldNativeService::destroyAppData(const std::optional<std::st
             if (delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete contents of " + path);
             }
+        }
+    }
+    auto status = destroySdkSandboxDataPackageDirectory(uuid, packageName, userId, flags);
+    if (!status.isOk()) {
+        res = status;
+    }
+    return res;
+}
+
+binder::Status InstalldNativeService::destroySdkSandboxDataPackageDirectory(
+        const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
+        int32_t flags) {
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* pkgname = packageName.c_str();
+
+    binder::Status res = ok();
+    constexpr int storageFlags[2] = {FLAG_STORAGE_CE, FLAG_STORAGE_DE};
+    for (int i = 0; i < 2; i++) {
+        int currentFlag = storageFlags[i];
+        if ((flags & currentFlag) == 0) {
+            continue;
+        }
+        bool isCeData = (currentFlag == FLAG_STORAGE_CE);
+        auto appPath = create_data_misc_sdk_sandbox_package_path(uuid_, isCeData, userId, pkgname);
+        if (rename_delete_dir_contents_and_dir(appPath) != 0) {
+            res = error("Failed to delete " + appPath);
         }
     }
     return res;
@@ -3426,11 +3467,17 @@ binder::Status InstalldNativeService::cleanupInvalidPackageDirs(
     if (flags & FLAG_STORAGE_CE) {
         auto ce_path = create_data_user_ce_path(uuid_cstr, userId);
         cleanup_invalid_package_dirs_under_path(ce_path);
+        auto sdksandbox_ce_path =
+                create_data_misc_sdk_sandbox_path(uuid_cstr, /*isCeData=*/true, userId);
+        cleanup_invalid_package_dirs_under_path(sdksandbox_ce_path);
     }
 
     if (flags & FLAG_STORAGE_DE) {
         auto de_path = create_data_user_de_path(uuid_cstr, userId);
         cleanup_invalid_package_dirs_under_path(de_path);
+        auto sdksandbox_de_path =
+                create_data_misc_sdk_sandbox_path(uuid_cstr, /*isCeData=*/false, userId);
+        cleanup_invalid_package_dirs_under_path(sdksandbox_de_path);
     }
 
     return ok();
