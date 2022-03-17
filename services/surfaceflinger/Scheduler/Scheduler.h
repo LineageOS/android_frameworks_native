@@ -83,12 +83,8 @@ class TokenManager;
 namespace scheduler {
 
 struct ISchedulerCallback {
-    // Indicates frame activity, i.e. whether commit and/or composite is taking place.
-    enum class FrameHint { kNone, kActive };
-
     using DisplayModeEvent = scheduler::DisplayModeEvent;
 
-    virtual void scheduleComposite(FrameHint) = 0;
     virtual void setVsyncEnabled(bool) = 0;
     virtual void requestDisplayMode(DisplayModePtr, DisplayModeEvent) = 0;
     virtual void kernelTimerChanged(bool expired) = 0;
@@ -210,8 +206,8 @@ public:
     // Notifies the scheduler about a refresh rate timeline change.
     void onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline);
 
-    // Notifies the scheduler post composition.
-    void onPostComposition(nsecs_t presentTime);
+    // Notifies the scheduler post composition. Returns if recomposite is needed.
+    bool onPostComposition(nsecs_t presentTime);
 
     // Notifies the scheduler when the display size has changed. Called from SF's main thread
     void onActiveDisplayAreaChanged(uint32_t displayArea);
@@ -244,8 +240,6 @@ public:
 
 private:
     friend class TestableScheduler;
-
-    using FrameHint = ISchedulerCallback::FrameHint;
 
     enum class ContentDetectionState { Off, On };
     enum class TimerState { Reset, Expired };
