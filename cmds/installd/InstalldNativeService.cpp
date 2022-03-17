@@ -458,8 +458,8 @@ done:
     return res;
 }
 
-static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t uid) {
-    if (fs_prepare_dir_strict(path.c_str(), target_mode, uid, uid) != 0) {
+static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t uid, gid_t gid) {
+    if (fs_prepare_dir_strict(path.c_str(), target_mode, uid, gid) != 0) {
         PLOG(ERROR) << "Failed to prepare " << path;
         return -1;
     }
@@ -599,9 +599,9 @@ static void chown_app_profile_dir(const std::string &packageName, int32_t appId,
     }
 }
 
-static binder::Status createAppDataDirs(const std::string& path,
-        int32_t uid, int32_t* previousUid, int32_t cacheGid,
-        const std::string& seInfo, mode_t targetMode) {
+static binder::Status createAppDataDirs(const std::string& path, int32_t uid, int32_t gid,
+                                        int32_t* previousUid, int32_t cacheGid,
+                                        const std::string& seInfo, mode_t targetMode) {
     struct stat st{};
     bool parent_dir_exists = (stat(path.c_str(), &st) == 0);
 
@@ -625,9 +625,9 @@ static binder::Status createAppDataDirs(const std::string& path,
     }
 
     // Prepare only the parent app directory
-    if (prepare_app_dir(path, targetMode, uid) ||
-            prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid) ||
-            prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid)) {
+    if (prepare_app_dir(path, targetMode, uid, gid) ||
+        prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid) ||
+        prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid)) {
         return error("Failed to prepare " + path);
     }
 
@@ -686,7 +686,7 @@ binder::Status InstalldNativeService::createAppDataLocked(
     if (flags & FLAG_STORAGE_CE) {
         auto path = create_data_user_ce_package_path(uuid_, userId, pkgname);
 
-        auto status = createAppDataDirs(path, uid, &previousUid, cacheGid, seInfo, targetMode);
+        auto status = createAppDataDirs(path, uid, uid, &previousUid, cacheGid, seInfo, targetMode);
         if (!status.isOk()) {
             return status;
         }
@@ -711,7 +711,7 @@ binder::Status InstalldNativeService::createAppDataLocked(
     if (flags & FLAG_STORAGE_DE) {
         auto path = create_data_user_de_package_path(uuid_, userId, pkgname);
 
-        auto status = createAppDataDirs(path, uid, &previousUid, cacheGid, seInfo, targetMode);
+        auto status = createAppDataDirs(path, uid, uid, &previousUid, cacheGid, seInfo, targetMode);
         if (!status.isOk()) {
             return status;
         }
@@ -773,7 +773,7 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
         LOG(DEBUG) << "Creating app-level sdk data directory: " << packagePath;
 #endif
 
-        if (prepare_app_dir(packagePath, 0751, AID_SYSTEM)) {
+        if (prepare_app_dir(packagePath, 0751, AID_SYSTEM, AID_SYSTEM)) {
             return error("Failed to prepare " + packagePath);
         }
 
@@ -787,8 +787,8 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
             return exception(binder::Status::EX_ILLEGAL_STATE,
                              StringPrintf("cacheGid cannot be -1 for sdksandbox data"));
         }
-        auto status = createAppDataDirs(sharedPath, sdkSandboxUid, &previousSdkSandboxUid, cacheGid,
-                                        seInfo, 0700);
+        auto status = createAppDataDirs(sharedPath, sdkSandboxUid, AID_NOBODY,
+                                        &previousSdkSandboxUid, cacheGid, seInfo, 0700);
         if (!status.isOk()) {
             return status;
         }
@@ -967,8 +967,8 @@ binder::Status InstalldNativeService::reconcileSdkData(
             }
             const int32_t sandboxUid = multiuser_get_sdk_sandbox_uid(userId, appId);
             int32_t previousSandboxUid = multiuser_get_sdk_sandbox_uid(userId, previousAppId);
-            auto status = createAppDataDirs(path, sandboxUid, &previousSandboxUid, cacheGid, seInfo,
-                                            0700);
+            auto status = createAppDataDirs(path, sandboxUid, AID_NOBODY, &previousSandboxUid,
+                                            cacheGid, seInfo, 0700);
             if (!status.isOk()) {
                 res = status;
                 continue;
