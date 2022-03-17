@@ -107,6 +107,7 @@ cc_test {
         "libziparchive",
         "liblog",
         "liblogwrap",
+        "libc++fs",
     ],
     test_config: "installd_service_test.xml",
 
