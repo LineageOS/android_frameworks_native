@@ -112,7 +112,7 @@ cc_library {
                 "frameworks/native/libs/arect/include",
             ],
         },
-        linux_glibc: {
+        host_linux: {
             srcs: [
                 "InputTransport.cpp",
                 "android/os/IInputConstants.aidl",

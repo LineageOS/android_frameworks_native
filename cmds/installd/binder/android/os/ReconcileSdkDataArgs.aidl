@@ -20,8 +20,7 @@ package android.os;
 parcelable ReconcileSdkDataArgs {
     @nullable @utf8InCpp String uuid;
     @utf8InCpp String packageName;
-    @utf8InCpp List<String> sdkPackageNames;
-    @utf8InCpp List<String> randomSuffixes;
+    @utf8InCpp List<String> subDirNames;
     int userId;
     int appId;
     int previousAppId;
