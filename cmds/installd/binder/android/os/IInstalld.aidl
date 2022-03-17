@@ -24,6 +24,8 @@ interface IInstalld {
     android.os.CreateAppDataResult createAppData(in android.os.CreateAppDataArgs args);
     android.os.CreateAppDataResult[] createAppDataBatched(in android.os.CreateAppDataArgs[] args);
 
+    void reconcileSdkData(in android.os.ReconcileSdkDataArgs args);
+
     void restoreconAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
             int userId, int flags, int appId, @utf8InCpp String seInfo);
     void migrateAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
@@ -131,6 +133,7 @@ interface IInstalld {
     const int FLAG_STORAGE_DE = 0x1;
     const int FLAG_STORAGE_CE = 0x2;
     const int FLAG_STORAGE_EXTERNAL = 0x4;
+    const int FLAG_STORAGE_SDK = 0x8;
 
     const int FLAG_CLEAR_CACHE_ONLY = 0x10;
     const int FLAG_CLEAR_CODE_CACHE_ONLY = 0x20;
