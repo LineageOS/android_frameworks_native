@@ -65,11 +65,9 @@ std::string create_data_misc_sdk_sandbox_path(const char* volume_uuid, bool isCe
                                               userid_t userid);
 std::string create_data_misc_sdk_sandbox_package_path(const char* volume_uuid, bool isCeData,
                                                       userid_t userid, const char* package_name);
-std::string create_data_misc_sdk_sandbox_shared_path(const char* volume_uuid, bool isCeData,
-                                                     userid_t userid, const char* package_name);
 std::string create_data_misc_sdk_sandbox_sdk_path(const char* volume_uuid, bool isCeData,
                                                   userid_t userid, const char* package_name,
-                                                  const char* sdk_name, const char* randomSuffix);
+                                                  const char* sub_dir_name);
 
 std::string create_data_misc_ce_rollback_base_path(const char* volume_uuid, userid_t user);
 std::string create_data_misc_de_rollback_base_path(const char* volume_uuid, userid_t user);
