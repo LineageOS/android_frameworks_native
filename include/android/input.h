@@ -810,7 +810,7 @@ enum {
 /**
  * Constants that identify different gesture classification types.
  */
-enum {
+enum AMotionClassification : uint32_t {
     /**
      * Classification constant: None.
      *
@@ -820,7 +820,8 @@ enum {
     /**
      * Classification constant: Ambiguous gesture.
      *
-     * The user's intent with respect to the current event stream is not yet determined.
+     * The user's intent with respect to the current event stream is not yet determined. Events
+     * starting in AMBIGUOUS_GESTURE will eventually resolve into either DEEP_PRESS or NONE.
      * Gestural actions, such as scrolling, should be inhibited until the classification resolves
      * to another value or the event stream ends.
      */
@@ -1357,8 +1358,17 @@ float AMotionEvent_getHistoricalAxisValue(const AInputEvent* motion_event,
  * Get the action button for the motion event. Returns a valid action button when the
  * event is associated with a button press or button release action. For other actions
  * the return value is undefined.
+ *
+ * @see #AMOTION_EVENT_BUTTON_PRIMARY
+ * @see #AMOTION_EVENT_BUTTON_SECONDARY
+ * @see #AMOTION_EVENT_BUTTON_TERTIARY
+ * @see #AMOTION_EVENT_BUTTON_BACK
+ * @see #AMOTION_EVENT_BUTTON_FORWARD
+ * @see #AMOTION_EVENT_BUTTON_STYLUS_PRIMARY
+ * @see #AMOTION_EVENT_BUTTON_STYLUS_SECONDARY
  */
-int32_t AMotionEvent_getActionButton(const AInputEvent* motion_event);
+int32_t AMotionEvent_getActionButton(const AInputEvent* motion_event)
+        __INTRODUCED_IN(__ANDROID_API_T__);
 
 /**
  * Returns the classification for the current gesture.
@@ -1368,7 +1378,8 @@ int32_t AMotionEvent_getActionButton(const AInputEvent* motion_event);
  * @see #AMOTION_EVENT_CLASSIFICATION_AMBIGUOUS_GESTURE
  * @see #AMOTION_EVENT_CLASSIFICATION_DEEP_PRESS
 */
-int32_t AMotionEvent_getClassification(const AInputEvent* motion_event);
+int32_t AMotionEvent_getClassification(const AInputEvent* motion_event)
+        __INTRODUCED_IN(__ANDROID_API_T__);
 
 /**
  * Creates a native AInputEvent* object that is a copy of the specified Java
