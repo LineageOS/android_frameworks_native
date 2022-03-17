@@ -80,12 +80,14 @@ namespace installd {
 
 static constexpr const char* kTestUuid = "TEST";
 static constexpr const char* kTestPath = "/data/local/tmp";
+static constexpr const uid_t kNobodyUid = 9999;
 static constexpr const uid_t kSystemUid = 1000;
 static constexpr const int32_t kTestUserId = 0;
 static constexpr const uid_t kTestAppId = 19999;
 static constexpr const int FLAG_STORAGE_SDK = InstalldNativeService::FLAG_STORAGE_SDK;
 
 const gid_t kTestAppUid = multiuser_get_uid(kTestUserId, kTestAppId);
+const gid_t kTestCacheGid = multiuser_get_cache_gid(kTestUserId, kTestAppId);
 const uid_t kTestSdkSandboxUid = multiuser_get_sdk_sandbox_uid(kTestUserId, kTestAppId);
 
 #define FLAG_FORCE InstalldNativeService::FLAG_FORCE
@@ -965,13 +967,13 @@ TEST_F(AppDataSnapshotTest, RestoreAppDataSnapshot_WrongVolumeUuid) {
 
 class SdkSandboxDataTest : public testing::Test {
 public:
-    void CheckFileAccess(const std::string& path, uid_t uid, mode_t mode) {
+    void CheckFileAccess(const std::string& path, uid_t uid, gid_t gid, mode_t mode) {
         const auto fullPath = "/data/local/tmp/" + path;
         ASSERT_TRUE(exists(fullPath.c_str())) << "For path: " << fullPath;
         struct stat st;
         ASSERT_EQ(0, stat(fullPath.c_str(), &st));
         ASSERT_EQ(uid, st.st_uid) << "For path: " << fullPath;
-        ASSERT_EQ(uid, st.st_gid) << "For path: " << fullPath;
+        ASSERT_EQ(gid, st.st_gid) << "For path: " << fullPath;
         ASSERT_EQ(mode, st.st_mode) << "For path: " << fullPath;
     }
 
@@ -1040,7 +1042,7 @@ private:
     }
 };
 
-TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData) {
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkPackageData) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
@@ -1049,16 +1051,20 @@ TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData) {
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
 
     const std::string fooCePath = "misc_ce/0/sdksandbox/com.foo";
-    CheckFileAccess(fooCePath, kSystemUid, S_IFDIR | 0751);
-    CheckFileAccess(fooCePath + "/shared", kTestSdkSandboxUid, S_IFDIR | 0700);
-    CheckFileAccess(fooCePath + "/shared/cache", kTestSdkSandboxUid, S_IFDIR | S_ISGID | 0771);
-    CheckFileAccess(fooCePath + "/shared/code_cache", kTestSdkSandboxUid, S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess(fooCePath, kSystemUid, kSystemUid, S_IFDIR | 0751);
+    CheckFileAccess(fooCePath + "/shared", kTestSdkSandboxUid, kNobodyUid, S_IFDIR | 0700);
+    CheckFileAccess(fooCePath + "/shared/cache", kTestSdkSandboxUid, kTestCacheGid,
+                    S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess(fooCePath + "/shared/code_cache", kTestSdkSandboxUid, kTestCacheGid,
+                    S_IFDIR | S_ISGID | 0771);
 
     const std::string fooDePath = "misc_de/0/sdksandbox/com.foo";
-    CheckFileAccess(fooDePath, kSystemUid, S_IFDIR | 0751);
-    CheckFileAccess(fooDePath + "/shared", kTestSdkSandboxUid, S_IFDIR | 0700);
-    CheckFileAccess(fooDePath + "/shared/cache", kTestSdkSandboxUid, S_IFDIR | S_ISGID | 0771);
-    CheckFileAccess(fooDePath + "/shared/code_cache", kTestSdkSandboxUid, S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess(fooDePath, kSystemUid, kSystemUid, S_IFDIR | 0751);
+    CheckFileAccess(fooDePath + "/shared", kTestSdkSandboxUid, kNobodyUid, S_IFDIR | 0700);
+    CheckFileAccess(fooDePath + "/shared/cache", kTestSdkSandboxUid, kTestCacheGid,
+                    S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess(fooDePath + "/shared/code_cache", kTestSdkSandboxUid, kTestCacheGid,
+                    S_IFDIR | S_ISGID | 0771);
 }
 
 TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData_WithoutSdkFlag) {
@@ -1097,7 +1103,7 @@ TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData_WithoutDeFlag) {
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
 
     // Only CE paths should exist
-    CheckFileAccess("misc_ce/0/sdksandbox/com.foo", kSystemUid, S_IFDIR | 0751);
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo", kSystemUid, kSystemUid, S_IFDIR | 0751);
 
     // DE paths should not exist
     ASSERT_FALSE(exists("/data/local/tmp/misc_de/0/sdksandbox/com.foo"));
@@ -1115,7 +1121,7 @@ TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData_WithoutCeFlag) {
     ASSERT_FALSE(exists("/data/local/tmp/misc_ce/0/sdksandbox/com.foo"));
 
     // Only DE paths should exist
-    CheckFileAccess("misc_de/0/sdksandbox/com.foo", kSystemUid, S_IFDIR | 0751);
+    CheckFileAccess("misc_de/0/sdksandbox/com.foo", kSystemUid, kSystemUid, S_IFDIR | 0751);
 }
 
 TEST_F(SdkSandboxDataTest, ReconcileSdkData) {
@@ -1126,24 +1132,32 @@ TEST_F(SdkSandboxDataTest, ReconcileSdkData) {
     ASSERT_BINDER_SUCCESS(service->reconcileSdkData(args));
 
     const std::string barCePath = "misc_ce/0/sdksandbox/com.foo/bar@random1";
-    CheckFileAccess(barCePath, kTestSdkSandboxUid, S_IFDIR | 0700);
-    CheckFileAccess(barCePath + "/cache", kTestSdkSandboxUid, S_IFDIR | S_ISGID | 0771);
-    CheckFileAccess(barCePath + "/code_cache", kTestSdkSandboxUid, S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess(barCePath, kTestSdkSandboxUid, kNobodyUid, S_IFDIR | 0700);
+    CheckFileAccess(barCePath + "/cache", kTestSdkSandboxUid, kTestCacheGid,
+                    S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess(barCePath + "/code_cache", kTestSdkSandboxUid, kTestCacheGid,
+                    S_IFDIR | S_ISGID | 0771);
 
     const std::string bazCePath = "misc_ce/0/sdksandbox/com.foo/baz@random2";
-    CheckFileAccess(bazCePath, kTestSdkSandboxUid, S_IFDIR | 0700);
-    CheckFileAccess(bazCePath + "/cache", kTestSdkSandboxUid, S_IFDIR | S_ISGID | 0771);
-    CheckFileAccess(bazCePath + "/code_cache", kTestSdkSandboxUid, S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess(bazCePath, kTestSdkSandboxUid, kNobodyUid, S_IFDIR | 0700);
+    CheckFileAccess(bazCePath + "/cache", kTestSdkSandboxUid, kTestCacheGid,
+                    S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess(bazCePath + "/code_cache", kTestSdkSandboxUid, kTestCacheGid,
+                    S_IFDIR | S_ISGID | 0771);
 
     const std::string barDePath = "misc_de/0/sdksandbox/com.foo/bar@random1";
-    CheckFileAccess(barDePath, kTestSdkSandboxUid, S_IFDIR | 0700);
-    CheckFileAccess(barDePath + "/cache", kTestSdkSandboxUid, S_IFDIR | S_ISGID | 0771);
-    CheckFileAccess(barDePath + "/code_cache", kTestSdkSandboxUid, S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess(barDePath, kTestSdkSandboxUid, kNobodyUid, S_IFDIR | 0700);
+    CheckFileAccess(barDePath + "/cache", kTestSdkSandboxUid, kTestCacheGid,
+                    S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess(barDePath + "/code_cache", kTestSdkSandboxUid, kTestCacheGid,
+                    S_IFDIR | S_ISGID | 0771);
 
     const std::string bazDePath = "misc_de/0/sdksandbox/com.foo/baz@random2";
-    CheckFileAccess(bazDePath, kTestSdkSandboxUid, S_IFDIR | 0700);
-    CheckFileAccess(bazDePath + "/cache", kTestSdkSandboxUid, S_IFDIR | S_ISGID | 0771);
-    CheckFileAccess(bazDePath + "/code_cache", kTestSdkSandboxUid, S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess(bazDePath, kTestSdkSandboxUid, kNobodyUid, S_IFDIR | 0700);
+    CheckFileAccess(bazDePath + "/cache", kTestSdkSandboxUid, kTestCacheGid,
+                    S_IFDIR | S_ISGID | 0771);
+    CheckFileAccess(bazDePath + "/code_cache", kTestSdkSandboxUid, kTestCacheGid,
+                    S_IFDIR | S_ISGID | 0771);
 }
 
 TEST_F(SdkSandboxDataTest, ReconcileSdkData_PackageNameCannotUseRandomSuffixSeparator) {
@@ -1181,8 +1195,10 @@ TEST_F(SdkSandboxDataTest, ReconcileSdkData_DirectoryNotCreatedIfAlreadyExistsIg
     ASSERT_BINDER_SUCCESS(service->reconcileSdkData(args));
 
     // Previous directories from first attempt should exist
-    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/bar@random1", kTestSdkSandboxUid, S_IFDIR | 0700);
-    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/baz@random2", kTestSdkSandboxUid, S_IFDIR | 0700);
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/bar@random1", kTestSdkSandboxUid, kNobodyUid,
+                    S_IFDIR | 0700);
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/baz@random2", kTestSdkSandboxUid, kNobodyUid,
+                    S_IFDIR | 0700);
     // No new directories should be created on second attempt
     ASSERT_FALSE(exists("/data/local/tmp/misc_ce/0/sdksandbox/com.foo/bar@r10"));
     ASSERT_FALSE(exists("/data/local/tmp/misc_de/0/sdksandbox/com.foo/bar@r20"));
@@ -1202,9 +1218,10 @@ TEST_F(SdkSandboxDataTest, ReconcileSdkData_ExtraCodeDirectoriesAreDeleted) {
     ASSERT_BINDER_SUCCESS(service->reconcileSdkData(args));
 
     // New directoris should exist
-    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/bar.diff@random1", kTestSdkSandboxUid,
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/bar.diff@random1", kTestSdkSandboxUid, kNobodyUid,
                     S_IFDIR | 0700);
-    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/baz@random2", kTestSdkSandboxUid, S_IFDIR | 0700);
+    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/baz@random2", kTestSdkSandboxUid, kNobodyUid,
+                    S_IFDIR | 0700);
     // Directory for old unreferred sdksandbox package name should be removed
     ASSERT_FALSE(exists("/data/local/tmp/misc_ce/0/sdksandbox/com.foo/bar@random1"));
 }
