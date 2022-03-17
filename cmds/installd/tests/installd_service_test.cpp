@@ -79,6 +79,7 @@ static constexpr const char* kTestPath = "/data/local/tmp/user/0";
 static constexpr const uid_t kSystemUid = 1000;
 static constexpr const int32_t kTestUserId = 0;
 static constexpr const uid_t kTestAppId = 19999;
+static constexpr const int FLAG_STORAGE_SDK = InstalldNativeService::FLAG_STORAGE_SDK;
 
 const gid_t kTestAppUid = multiuser_get_uid(kTestUserId, kTestAppId);
 const uid_t kTestSdkSandboxUid = multiuser_get_sdk_sandbox_uid(kTestUserId, kTestAppId);
@@ -971,7 +972,7 @@ public:
         args.userId = kTestUserId;
         args.appId = kTestAppId;
         args.seInfo = "default";
-        args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE;
+        args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
         return args;
     }
 
@@ -1006,11 +1007,11 @@ private:
     }
 };
 
-TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSupplementalAppData) {
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs();
     args.packageName = "com.foo";
-    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE;
+    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
 
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
@@ -1030,11 +1031,24 @@ TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSupplementalAppData) {
                     S_IFDIR | S_ISGID | 0771);
 }
 
-TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSupplementalAppData_WithoutDeFlag) {
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLeveleData_WithoutSdkFlag) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs();
     args.packageName = "com.foo";
-    args.flags = FLAG_STORAGE_CE;
+    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE;
+
+    // Create the app user data.
+    ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
+
+    ASSERT_FALSE(exists("/data/local/tmp/misc_ce/0/sdksandbox/com.foo"));
+    ASSERT_FALSE(exists("/data/local/tmp/misc_de/0/sdksandbox/com.foo"));
+}
+
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLeveleData_WithoutDeFlag) {
+    android::os::CreateAppDataResult result;
+    android::os::CreateAppDataArgs args = createAppDataArgs();
+    args.packageName = "com.foo";
+    args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_SDK;
 
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
@@ -1046,11 +1060,11 @@ TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSupplementalAppData_WithoutDeFla
     ASSERT_FALSE(exists("/data/local/tmp/misc_de/0/sdksandbox/com.foo"));
 }
 
-TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSupplementalAppData_WithoutCeFlag) {
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLeveleData_WithoutCeFlag) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs();
     args.packageName = "com.foo";
-    args.flags = FLAG_STORAGE_DE;
+    args.flags = FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
 
     // Create the app user data.
     ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
