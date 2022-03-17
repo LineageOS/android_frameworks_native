@@ -722,9 +722,7 @@ binder::Status InstalldNativeService::createAppDataLocked(
         }
     }
 
-    // TODO(b/220095381): Due to boot time regression, we have omitted call to
-    // createSdkSandboxDataDirectory from here temporarily (unless it's for testing)
-    if (uuid_ != nullptr && strcmp(uuid_, "TEST") == 0) {
+    if (flags & FLAG_STORAGE_SDK) {
         auto status = createSdkSandboxDataDirectory(uuid, packageName, userId, appId, previousAppId,
                                                     seInfo, flags);
         if (!status.isOk()) {
