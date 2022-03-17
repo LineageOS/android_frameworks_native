@@ -24,6 +24,8 @@ interface IInstalld {
     android.os.CreateAppDataResult createAppData(in android.os.CreateAppDataArgs args);
     android.os.CreateAppDataResult[] createAppDataBatched(in android.os.CreateAppDataArgs[] args);
 
+    void reconcileSdkData(in android.os.ReconcileSdkDataArgs args);
+
     void restoreconAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
             int userId, int flags, int appId, @utf8InCpp String seInfo);
     void migrateAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
