@@ -650,6 +650,36 @@ protected:
 
         ASSERT_EQ(expected_bytes_freed, bytes_freed);
     }
+
+    void checkVisibility(bool in_dalvik_cache, int32_t expected_visibility) {
+        int32_t visibility;
+        ASSERT_BINDER_SUCCESS(service_->getOdexVisibility(package_name_, apk_path_, kRuntimeIsa,
+                                                          in_dalvik_cache
+                                                                  ? std::nullopt
+                                                                  : std::make_optional<std::string>(
+                                                                            app_oat_dir_.c_str()),
+                                                          &visibility));
+        EXPECT_EQ(visibility, expected_visibility);
+    }
+
+    void TestGetOdexVisibility(bool in_dalvik_cache) {
+        const char* oat_dir = in_dalvik_cache ? nullptr : app_oat_dir_.c_str();
+
+        checkVisibility(in_dalvik_cache, ODEX_NOT_FOUND);
+
+        CompilePrimaryDexOk("speed-profile",
+                            DEXOPT_BOOTCOMPLETE | DEXOPT_PROFILE_GUIDED | DEXOPT_PUBLIC |
+                                    DEXOPT_GENERATE_APP_IMAGE,
+                            oat_dir, kTestAppGid, DEX2OAT_FROM_SCRATCH,
+                            /*binder_result=*/nullptr, empty_dm_file_.c_str());
+        checkVisibility(in_dalvik_cache, ODEX_IS_PUBLIC);
+
+        CompilePrimaryDexOk("speed-profile",
+                            DEXOPT_BOOTCOMPLETE | DEXOPT_PROFILE_GUIDED | DEXOPT_GENERATE_APP_IMAGE,
+                            oat_dir, kTestAppGid, DEX2OAT_FROM_SCRATCH,
+                            /*binder_result=*/nullptr, empty_dm_file_.c_str());
+        checkVisibility(in_dalvik_cache, ODEX_IS_PRIVATE);
+    }
 };
 
 
@@ -828,6 +858,16 @@ TEST_F(DexoptTest, DeleteDexoptArtifactsData) {
 TEST_F(DexoptTest, DeleteDexoptArtifactsDalvikCache) {
     LOG(INFO) << "DeleteDexoptArtifactsDalvikCache";
     TestDeleteOdex(/*in_dalvik_cache=*/ true);
+}
+
+TEST_F(DexoptTest, GetOdexVisibilityData) {
+    LOG(INFO) << "GetOdexVisibilityData";
+    TestGetOdexVisibility(/*in_dalvik_cache=*/false);
+}
+
+TEST_F(DexoptTest, GetOdexVisibilityDalvikCache) {
+    LOG(INFO) << "GetOdexVisibilityDalvikCache";
+    TestGetOdexVisibility(/*in_dalvik_cache=*/true);
 }
 
 TEST_F(DexoptTest, ResolveStartupConstStrings) {
@@ -1105,13 +1145,16 @@ class ProfileTest : public DexoptTest {
         ASSERT_TRUE(AreFilesEqual(ref_profile_content, ref_profile_));
     }
 
-    // TODO(calin): add dex metadata tests once the ART change is merged.
     void preparePackageProfile(const std::string& package_name, const std::string& profile_name,
-            bool expected_result) {
+                               bool has_dex_metadata, bool has_user_id, bool expected_result) {
         bool result;
-        ASSERT_BINDER_SUCCESS(service_->prepareAppProfile(
-                package_name, kTestUserId, kTestAppId, profile_name, apk_path_,
-                /*dex_metadata*/ {}, &result));
+        ASSERT_BINDER_SUCCESS(
+                service_->prepareAppProfile(package_name, has_user_id ? kTestUserId : USER_NULL,
+                                            kTestAppId, profile_name, apk_path_,
+                                            has_dex_metadata ? std::make_optional<std::string>(
+                                                                       empty_dm_file_)
+                                                             : std::nullopt,
+                                            &result));
         ASSERT_EQ(expected_result, result);
 
         if (!expected_result) {
@@ -1119,16 +1162,29 @@ class ProfileTest : public DexoptTest {
             return;
         }
 
-        std::string code_path_cur_prof = create_current_profile_path(
-                kTestUserId, package_name, profile_name, /*is_secondary_dex*/ false);
-        std::string code_path_ref_profile = create_reference_profile_path(package_name,
-                profile_name, /*is_secondary_dex*/ false);
+        std::string code_path_cur_prof =
+                create_current_profile_path(kTestUserId, package_name, profile_name,
+                                            /*is_secondary_dex*/ false);
+        std::string code_path_ref_profile =
+                create_reference_profile_path(package_name, profile_name,
+                                              /*is_secondary_dex*/ false);
 
-        // Check that we created the current profile.
-        CheckFileAccess(code_path_cur_prof, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
+        if (has_user_id) {
+            // Check that we created the current profile.
+            CheckFileAccess(code_path_cur_prof, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
+        } else {
+            // Without a user ID, we don't generate a current profile.
+            ASSERT_EQ(-1, access(code_path_cur_prof.c_str(), R_OK));
+        }
 
-        // Without dex metadata we don't generate a reference profile.
-        ASSERT_EQ(-1, access(code_path_ref_profile.c_str(), R_OK));
+        if (has_dex_metadata) {
+            int32_t uid = has_user_id ? kTestAppUid : multiuser_get_uid(USER_SYSTEM, kTestAppId);
+            // Check that we created the reference profile.
+            CheckFileAccess(code_path_ref_profile, uid, uid, 0640 | S_IFREG);
+        } else {
+            // Without dex metadata, we don't generate a reference profile.
+            ASSERT_EQ(-1, access(code_path_ref_profile.c_str(), R_OK));
+        }
     }
 
   protected:
@@ -1273,12 +1329,32 @@ TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
 
 TEST_F(ProfileTest, ProfilePrepareOk) {
     LOG(INFO) << "ProfilePrepareOk";
-    preparePackageProfile(package_name_, "split.prof", /*expected_result*/ true);
+    preparePackageProfile(package_name_, "split.prof", /*has_dex_metadata*/ true,
+                          /*has_user_id*/ true, /*expected_result*/ true);
+}
+
+TEST_F(ProfileTest, ProfilePrepareOkNoUser) {
+    LOG(INFO) << "ProfilePrepareOk";
+    preparePackageProfile(package_name_, "split.prof", /*has_dex_metadata*/ true,
+                          /*has_user_id*/ false, /*expected_result*/ true);
+}
+
+TEST_F(ProfileTest, ProfilePrepareOkNoDm) {
+    LOG(INFO) << "ProfilePrepareOk";
+    preparePackageProfile(package_name_, "split.prof", /*has_dex_metadata*/ false,
+                          /*has_user_id*/ true, /*expected_result*/ true);
+}
+
+TEST_F(ProfileTest, ProfilePrepareOkNoUserNoDm) {
+    LOG(INFO) << "ProfilePrepareOk";
+    preparePackageProfile(package_name_, "split.prof", /*has_dex_metadata*/ false,
+                          /*has_user_id*/ false, /*expected_result*/ true);
 }
 
 TEST_F(ProfileTest, ProfilePrepareFailInvalidPackage) {
     LOG(INFO) << "ProfilePrepareFailInvalidPackage";
-    preparePackageProfile("not.there.package", "split.prof", /*expected_result*/ false);
+    preparePackageProfile("not.there.package", "split.prof", /*has_dex_metadata*/ true,
+                          /*has_user_id*/ true, /*expected_result*/ false);
 }
 
 TEST_F(ProfileTest, ProfilePrepareFailProfileChangedUid) {
@@ -1286,7 +1362,8 @@ TEST_F(ProfileTest, ProfilePrepareFailProfileChangedUid) {
     SetupProfiles(/*setup_ref*/ false);
     // Change the uid on the profile to trigger a failure.
     ::chown(cur_profile_.c_str(), kTestAppUid + 1, kTestAppGid + 1);
-    preparePackageProfile(package_name_, "primary.prof", /*expected_result*/ false);
+    preparePackageProfile(package_name_, "primary.prof", /*has_dex_metadata*/ true,
+                          /*has_user_id*/ true, /*expected_result*/ false);
 }
 
 
