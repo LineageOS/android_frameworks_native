@@ -93,8 +93,10 @@ public:
     MOCK_METHOD(hal::Error, getSupportedContentTypes, (std::vector<hal::ContentType> *),
                 (const, override));
     MOCK_METHOD(hal::Error, setContentType, (hal::ContentType), (override));
-    MOCK_METHOD(hal::Error, getClientTargetProperty, (hal::ClientTargetProperty *, float *),
-                (override));
+    MOCK_METHOD(
+            hal::Error, getClientTargetProperty,
+            (aidl::android::hardware::graphics::composer3::ClientTargetPropertyWithBrightness *),
+            (override));
     MOCK_METHOD(
             hal::Error, getDisplayDecorationSupport,
             (std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport> *),

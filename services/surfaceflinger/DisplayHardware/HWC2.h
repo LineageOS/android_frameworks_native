@@ -39,6 +39,7 @@
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
 #include <aidl/android/hardware/graphics/composer3/Capability.h>
+#include <aidl/android/hardware/graphics/composer3/ClientTargetPropertyWithBrightness.h>
 #include <aidl/android/hardware/graphics/composer3/Color.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
@@ -160,7 +161,8 @@ public:
             std::vector<hal::ContentType>*) const = 0;
     [[nodiscard]] virtual hal::Error setContentType(hal::ContentType) = 0;
     [[nodiscard]] virtual hal::Error getClientTargetProperty(
-            hal::ClientTargetProperty* outClientTargetProperty, float* outWhitePointNits) = 0;
+            aidl::android::hardware::graphics::composer3::ClientTargetPropertyWithBrightness*
+                    outClientTargetProperty) = 0;
     [[nodiscard]] virtual hal::Error getDisplayDecorationSupport(
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) = 0;
@@ -238,8 +240,9 @@ public:
     hal::Error getSupportedContentTypes(
             std::vector<hal::ContentType>* outSupportedContentTypes) const override;
     hal::Error setContentType(hal::ContentType) override;
-    hal::Error getClientTargetProperty(hal::ClientTargetProperty* outClientTargetProperty,
-                                       float* outWhitePointNits) override;
+    hal::Error getClientTargetProperty(
+            aidl::android::hardware::graphics::composer3::ClientTargetPropertyWithBrightness*
+                    outClientTargetProperty) override;
     hal::Error getDisplayDecorationSupport(
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) override;
