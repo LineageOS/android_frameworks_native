@@ -274,7 +274,6 @@ class QueuedInputListener : public InputListenerInterface {
 
 public:
     explicit QueuedInputListener(InputListenerInterface& innerListener);
-    virtual ~QueuedInputListener();
 
     virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
     virtual void notifyKey(const NotifyKeyArgs* args) override;
@@ -289,7 +288,7 @@ public:
 
 private:
     InputListenerInterface& mInnerListener;
-    std::vector<NotifyArgs*> mArgsQueue;
+    std::vector<std::unique_ptr<NotifyArgs>> mArgsQueue;
 };
 
 } // namespace android
