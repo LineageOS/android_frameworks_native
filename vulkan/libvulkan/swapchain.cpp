@@ -619,43 +619,65 @@ VkResult GetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice /*pdev*/,
 
 VKAPI_ATTR
 VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
-    VkPhysicalDevice /*pdev*/,
+    VkPhysicalDevice pdev,
     VkSurfaceKHR surface,
     VkSurfaceCapabilitiesKHR* capabilities) {
     ATRACE_CALL();
 
     int err;
-    ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
-
     int width, height;
-    err = window->query(window, NATIVE_WINDOW_DEFAULT_WIDTH, &width);
-    if (err != android::OK) {
-        ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
-              strerror(-err), err);
-        return VK_ERROR_SURFACE_LOST_KHR;
-    }
-    err = window->query(window, NATIVE_WINDOW_DEFAULT_HEIGHT, &height);
-    if (err != android::OK) {
-        ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
-              strerror(-err), err);
-        return VK_ERROR_SURFACE_LOST_KHR;
-    }
-
     int transform_hint;
-    err = window->query(window, NATIVE_WINDOW_TRANSFORM_HINT, &transform_hint);
-    if (err != android::OK) {
-        ALOGE("NATIVE_WINDOW_TRANSFORM_HINT query failed: %s (%d)",
-              strerror(-err), err);
-        return VK_ERROR_SURFACE_LOST_KHR;
-    }
-
     int max_buffer_count;
-    err = window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT,
-                        &max_buffer_count);
-    if (err != android::OK) {
-        ALOGE("NATIVE_WINDOW_MAX_BUFFER_COUNT query failed: %s (%d)",
-              strerror(-err), err);
-        return VK_ERROR_SURFACE_LOST_KHR;
+    if (surface == VK_NULL_HANDLE) {
+        const InstanceData& instance_data = GetData(pdev);
+        ProcHook::Extension surfaceless = ProcHook::GOOGLE_surfaceless_query;
+        bool surfaceless_enabled =
+            instance_data.hook_extensions.test(surfaceless);
+        if (!surfaceless_enabled) {
+            // It is an error to pass a surface==VK_NULL_HANDLE unless the
+            // VK_GOOGLE_surfaceless_query extension is enabled
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+        // Support for VK_GOOGLE_surfaceless_query.  The primary purpose of this
+        // extension for this function is for
+        // VkSurfaceProtectedCapabilitiesKHR::supportsProtected.  The following
+        // four values cannot be known without a surface.  Default values will
+        // be supplied anyway, but cannot be relied upon.
+        width = 1000;
+        height = 1000;
+        transform_hint = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+        max_buffer_count = 10;
+    } else {
+        ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
+
+        err = window->query(window, NATIVE_WINDOW_DEFAULT_WIDTH, &width);
+        if (err != android::OK) {
+            ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
+                  strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+        err = window->query(window, NATIVE_WINDOW_DEFAULT_HEIGHT, &height);
+        if (err != android::OK) {
+            ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
+                  strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+
+        err = window->query(window, NATIVE_WINDOW_TRANSFORM_HINT,
+                            &transform_hint);
+        if (err != android::OK) {
+            ALOGE("NATIVE_WINDOW_TRANSFORM_HINT query failed: %s (%d)",
+                  strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+
+        err = window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT,
+                            &max_buffer_count);
+        if (err != android::OK) {
+            ALOGE("NATIVE_WINDOW_MAX_BUFFER_COUNT query failed: %s (%d)",
+                  strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
     }
     capabilities->minImageCount = std::min(max_buffer_count, 3);
     capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
@@ -696,23 +718,43 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
     const InstanceData& instance_data = GetData(pdev);
 
     bool wide_color_support = false;
-    Surface& surface = *SurfaceFromHandle(surface_handle);
-    int err = native_window_get_wide_color_support(surface.window.get(),
-                                                   &wide_color_support);
-    if (err) {
-        return VK_ERROR_SURFACE_LOST_KHR;
-    }
-    ALOGV("wide_color_support is: %d", wide_color_support);
-    wide_color_support =
-        wide_color_support &&
+    uint64_t consumer_usage = 0;
+    bool swapchain_ext =
         instance_data.hook_extensions.test(ProcHook::EXT_swapchain_colorspace);
+    if (surface_handle == VK_NULL_HANDLE) {
+        ProcHook::Extension surfaceless = ProcHook::GOOGLE_surfaceless_query;
+        bool surfaceless_enabled =
+            instance_data.hook_extensions.test(surfaceless);
+        if (!surfaceless_enabled) {
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+        // Support for VK_GOOGLE_surfaceless_query.  The EGL loader
+        // unconditionally supports wide color formats, even if they will cause
+        // a SurfaceFlinger fallback.  Based on that, wide_color_support will be
+        // set to true in this case.
+        wide_color_support = true;
+
+        // TODO(b/203826952): research proper value; temporarily use the
+        // values seen on Pixel
+        consumer_usage = AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
+    } else {
+        Surface& surface = *SurfaceFromHandle(surface_handle);
+        int err = native_window_get_wide_color_support(surface.window.get(),
+                                                       &wide_color_support);
+        if (err) {
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+        ALOGV("wide_color_support is: %d", wide_color_support);
+
+        consumer_usage = surface.consumer_usage;
+    }
+    wide_color_support = wide_color_support && swapchain_ext;
 
     AHardwareBuffer_Desc desc = {};
     desc.width = 1;
     desc.height = 1;
     desc.layers = 1;
-    desc.usage = surface.consumer_usage |
-                 AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
+    desc.usage = consumer_usage | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
                  AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER;
 
     // We must support R8G8B8A8
@@ -726,6 +768,10 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         all_formats.emplace_back(VkSurfaceFormatKHR{
             VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
     }
+
+    // NOTE: Any new formats that are added must be coordinated across different
+    // Android users.  This includes the ANGLE team (a layered implementation of
+    // OpenGL-ES).
 
     desc.format = AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM;
     if (AHardwareBuffer_isSupported(&desc)) {
@@ -814,6 +860,12 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
                         .supportedUsageFlags;
             } break;
 
+            case VK_STRUCTURE_TYPE_SURFACE_PROTECTED_CAPABILITIES_KHR: {
+                VkSurfaceProtectedCapabilitiesKHR* protected_caps =
+                    reinterpret_cast<VkSurfaceProtectedCapabilitiesKHR*>(caps);
+                protected_caps->supportsProtected = VK_TRUE;
+            } break;
+
             default:
                 // Ignore all other extension structs
                 break;
@@ -865,31 +917,51 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
 
     int err;
     int query_value;
-    ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
-
-    err = window->query(window, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
-                        &query_value);
-    if (err != android::OK || query_value < 0) {
-        ALOGE(
-            "NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS query failed: %s (%d) "
-            "value=%d",
-            strerror(-err), err, query_value);
-        return VK_ERROR_SURFACE_LOST_KHR;
-    }
-    uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
-
-    err = window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT, &query_value);
-    if (err != android::OK || query_value < 0) {
-        ALOGE("NATIVE_WINDOW_MAX_BUFFER_COUNT query failed: %s (%d) value=%d",
-              strerror(-err), err, query_value);
-        return VK_ERROR_SURFACE_LOST_KHR;
-    }
-    uint32_t max_buffer_count = static_cast<uint32_t>(query_value);
-
     std::vector<VkPresentModeKHR> present_modes;
-    if (min_undequeued_buffers + 1 < max_buffer_count)
+    if (surface == VK_NULL_HANDLE) {
+        const InstanceData& instance_data = GetData(pdev);
+        ProcHook::Extension surfaceless = ProcHook::GOOGLE_surfaceless_query;
+        bool surfaceless_enabled =
+            instance_data.hook_extensions.test(surfaceless);
+        if (!surfaceless_enabled) {
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+        // Support for VK_GOOGLE_surfaceless_query.  The primary purpose of this
+        // extension for this function is for
+        // VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR and
+        // VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR.  We technically cannot
+        // know if VK_PRESENT_MODE_SHARED_MAILBOX_KHR is supported without a
+        // surface, and that cannot be relied upon.
         present_modes.push_back(VK_PRESENT_MODE_MAILBOX_KHR);
-    present_modes.push_back(VK_PRESENT_MODE_FIFO_KHR);
+        present_modes.push_back(VK_PRESENT_MODE_FIFO_KHR);
+    } else {
+        ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
+
+        err = window->query(window, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
+                            &query_value);
+        if (err != android::OK || query_value < 0) {
+            ALOGE(
+                "NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS query failed: %s (%d) "
+                "value=%d",
+                strerror(-err), err, query_value);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+        uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
+
+        err =
+            window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT, &query_value);
+        if (err != android::OK || query_value < 0) {
+            ALOGE(
+                "NATIVE_WINDOW_MAX_BUFFER_COUNT query failed: %s (%d) value=%d",
+                strerror(-err), err, query_value);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+        uint32_t max_buffer_count = static_cast<uint32_t>(query_value);
+
+        if (min_undequeued_buffers + 1 < max_buffer_count)
+            present_modes.push_back(VK_PRESENT_MODE_MAILBOX_KHR);
+        present_modes.push_back(VK_PRESENT_MODE_FIFO_KHR);
+    }
 
     VkPhysicalDevicePresentationPropertiesANDROID present_properties;
     QueryPresentationProperties(pdev, &present_properties);

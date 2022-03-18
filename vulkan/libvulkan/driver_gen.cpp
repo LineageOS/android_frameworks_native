@@ -565,11 +565,13 @@ ProcHook::Extension GetProcHookExtension(const char* name) {
     if (strcmp(name, "VK_EXT_hdr_metadata") == 0) return ProcHook::EXT_hdr_metadata;
     if (strcmp(name, "VK_EXT_swapchain_colorspace") == 0) return ProcHook::EXT_swapchain_colorspace;
     if (strcmp(name, "VK_GOOGLE_display_timing") == 0) return ProcHook::GOOGLE_display_timing;
+    if (strcmp(name, "VK_GOOGLE_surfaceless_query") == 0) return ProcHook::GOOGLE_surfaceless_query;
     if (strcmp(name, "VK_KHR_android_surface") == 0) return ProcHook::KHR_android_surface;
     if (strcmp(name, "VK_KHR_get_surface_capabilities2") == 0) return ProcHook::KHR_get_surface_capabilities2;
     if (strcmp(name, "VK_KHR_incremental_present") == 0) return ProcHook::KHR_incremental_present;
     if (strcmp(name, "VK_KHR_shared_presentable_image") == 0) return ProcHook::KHR_shared_presentable_image;
     if (strcmp(name, "VK_KHR_surface") == 0) return ProcHook::KHR_surface;
+    if (strcmp(name, "VK_KHR_surface_protected_capabilities") == 0) return ProcHook::KHR_surface_protected_capabilities;
     if (strcmp(name, "VK_KHR_swapchain") == 0) return ProcHook::KHR_swapchain;
     if (strcmp(name, "VK_ANDROID_external_memory_android_hardware_buffer") == 0) return ProcHook::ANDROID_external_memory_android_hardware_buffer;
     if (strcmp(name, "VK_KHR_bind_memory2") == 0) return ProcHook::KHR_bind_memory2;
