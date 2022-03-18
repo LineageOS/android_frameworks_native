@@ -759,6 +759,17 @@ public:
                     int32_t displayHeight, nsecs_t downTime, nsecs_t eventTime, size_t pointerCount,
                     const PointerProperties* pointerProperties, const PointerCoords* pointerCoords);
 
+private:
+    void initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
+                    std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
+                    int32_t flags, int32_t edgeFlags, int32_t metaState, int32_t buttonState,
+                    MotionClassification classification, const ui::Transform& transform,
+                    float xPrecision, float yPrecision, float rawXCursorPosition,
+                    float rawYCursorPosition, int32_t displayWidth, int32_t displayHeight,
+                    nsecs_t downTime, nsecs_t eventTime, size_t pointerCount,
+                    const PointerProperties* pointerProperties, const PointerCoords* pointerCoords);
+
+public:
     void copyFrom(const MotionEvent* other, bool keepHistory);
 
     void addSample(
