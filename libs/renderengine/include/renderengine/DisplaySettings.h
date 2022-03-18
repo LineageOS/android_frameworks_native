@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <aidl/android/hardware/graphics/composer3/DimmingStage.h>
 #include <iosfwd>
 
 #include <math/mat4.h>
@@ -68,6 +69,10 @@ struct DisplaySettings {
     // All layers will be dimmed by (max(layer white points) / targetLuminanceNits).
     // If the target luminance is unknown, then no display-level dimming occurs.
     float targetLuminanceNits = -1.f;
+
+    // Configures when dimming should be applied for each layer.
+    aidl::android::hardware::graphics::composer3::DimmingStage dimmingStage =
+            aidl::android::hardware::graphics::composer3::DimmingStage::NONE;
 };
 
 static inline bool operator==(const DisplaySettings& lhs, const DisplaySettings& rhs) {

@@ -252,7 +252,7 @@ void Display::chooseCompositionStrategy() {
         applyChangedTypesToLayers(changes->changedTypes);
         applyDisplayRequests(changes->displayRequests);
         applyLayerRequestsToLayers(changes->layerRequests);
-        applyClientTargetRequests(changes->clientTargetProperty, changes->clientTargetBrightness);
+        applyClientTargetRequests(changes->clientTargetProperty);
     }
 
     // Determine what type of composition we are doing from the final state
@@ -327,16 +327,19 @@ void Display::applyLayerRequestsToLayers(const LayerRequests& layerRequests) {
     }
 }
 
-void Display::applyClientTargetRequests(const ClientTargetProperty& clientTargetProperty,
-                                        float brightness) {
-    if (clientTargetProperty.dataspace == ui::Dataspace::UNKNOWN) {
+void Display::applyClientTargetRequests(const ClientTargetProperty& clientTargetProperty) {
+    if (static_cast<ui::Dataspace>(clientTargetProperty.clientTargetProperty.dataspace) ==
+        ui::Dataspace::UNKNOWN) {
         return;
     }
 
-    editState().dataspace = clientTargetProperty.dataspace;
-    editState().clientTargetBrightness = brightness;
-    getRenderSurface()->setBufferDataspace(clientTargetProperty.dataspace);
-    getRenderSurface()->setBufferPixelFormat(clientTargetProperty.pixelFormat);
+    editState().dataspace =
+            static_cast<ui::Dataspace>(clientTargetProperty.clientTargetProperty.dataspace);
+    editState().clientTargetBrightness = clientTargetProperty.brightness;
+    editState().clientTargetDimmingStage = clientTargetProperty.dimmingStage;
+    getRenderSurface()->setBufferDataspace(editState().dataspace);
+    getRenderSurface()->setBufferPixelFormat(
+            static_cast<ui::PixelFormat>(clientTargetProperty.clientTargetProperty.pixelFormat));
 }
 
 compositionengine::Output::FrameFences Display::presentAndGetFrameFences() {
