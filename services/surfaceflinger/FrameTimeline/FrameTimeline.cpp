@@ -669,12 +669,12 @@ void SurfaceFrame::traceActuals(int64_t displayFrameToken, nsecs_t monoBootOffse
             // frame in the trace.
             nsecs_t endTime =
                     (mPresentState == PresentState::Dropped ? mDropTime : mActuals.endTime);
-            packet->set_timestamp(static_cast<uint64_t>(endTime - kPredictionExpiredStartTimeDelta +
-                                                        monoBootOffset));
+            const auto timestamp = endTime - kPredictionExpiredStartTimeDelta;
+            packet->set_timestamp(static_cast<uint64_t>(timestamp + monoBootOffset));
         } else {
-            packet->set_timestamp(static_cast<uint64_t>(monoBootOffset + mActuals.startTime == 0
-                                                                ? mPredictions.startTime
-                                                                : mActuals.startTime));
+            const auto timestamp =
+                    mActuals.startTime == 0 ? mPredictions.startTime : mActuals.startTime;
+            packet->set_timestamp(static_cast<uint64_t>(timestamp + monoBootOffset));
         }
 
         auto* event = packet->set_frame_timeline_event();
