@@ -684,8 +684,10 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
             visibleNonShadowRegion.intersect(outputState.layerStackSpace.getContent()));
     outputLayerState.shadowRegion = shadowRegion;
     outputLayerState.outputSpaceBlockingRegionHint =
-            layerFEState->compositionType == Composition::DISPLAY_DECORATION ? transparentRegion
-                                                                             : Region();
+            layerFEState->compositionType == Composition::DISPLAY_DECORATION
+            ? outputState.transform.transform(
+                      transparentRegion.intersect(outputState.layerStackSpace.getContent()))
+            : Region();
 }
 
 void Output::setReleasedLayers(const compositionengine::CompositionRefreshArgs&) {
