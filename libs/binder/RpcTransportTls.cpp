@@ -277,7 +277,7 @@ class RpcTransportTls : public RpcTransport {
 public:
     RpcTransportTls(android::base::unique_fd socket, Ssl ssl)
           : mSocket(std::move(socket)), mSsl(std::move(ssl)) {}
-    status_t peek(void* buf, size_t size, size_t* out_size) override;
+    status_t pollRead(void) override;
     status_t interruptableWriteFully(FdTrigger* fdTrigger, iovec* iovs, int niovs,
                                      const std::function<status_t()>& altPoll) override;
     status_t interruptableReadFully(FdTrigger* fdTrigger, iovec* iovs, int niovs,
@@ -289,9 +289,9 @@ private:
 };
 
 // Error code is errno.
-status_t RpcTransportTls::peek(void* buf, size_t size, size_t* out_size) {
-    size_t todo = std::min<size_t>(size, std::numeric_limits<int>::max());
-    auto [ret, errorQueue] = mSsl.call(SSL_peek, buf, static_cast<int>(todo));
+status_t RpcTransportTls::pollRead(void) {
+    uint8_t buf;
+    auto [ret, errorQueue] = mSsl.call(SSL_peek, &buf, sizeof(buf));
     if (ret < 0) {
         int err = mSsl.getError(ret);
         if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ) {
@@ -304,7 +304,6 @@ status_t RpcTransportTls::peek(void* buf, size_t size, size_t* out_size) {
     }
     errorQueue.clear();
     LOG_TLS_DETAIL("TLS: Peeked %d bytes!", ret);
-    *out_size = static_cast<size_t>(ret);
     return OK;
 }
 
