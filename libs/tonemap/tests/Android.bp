@@ -32,6 +32,7 @@ cc_test {
     ],
     shared_libs: [
         "android.hardware.graphics.common-V3-ndk",
+        "libnativewindow",
     ],
     static_libs: [
         "libmath",
