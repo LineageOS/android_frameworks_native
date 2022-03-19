@@ -696,7 +696,10 @@ public:
     static status_t removeTunnelModeEnabledListener(
             const sp<gui::ITunnelModeEnabledListener>& listener);
 
-    status_t addWindowInfosListener(const sp<gui::WindowInfosListener>& windowInfosListener);
+    status_t addWindowInfosListener(
+            const sp<gui::WindowInfosListener>& windowInfosListener,
+            std::pair<std::vector<gui::WindowInfo>, std::vector<gui::DisplayInfo>>* outInitialInfo =
+                    nullptr);
     status_t removeWindowInfosListener(const sp<gui::WindowInfosListener>& windowInfosListener);
 
 protected:

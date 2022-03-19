@@ -5436,7 +5436,9 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     /*
      * Dump flag/property manager state
      */
-    mFlagManager->dump(result);
+    if (mFlagManager != nullptr) {
+        mFlagManager->dump(result);
+    }
 
     result.append(mTimeStats->miniDump());
     result.append("\n");

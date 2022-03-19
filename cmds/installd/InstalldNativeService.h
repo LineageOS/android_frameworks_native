@@ -183,6 +183,11 @@ public:
     binder::Status cleanupInvalidPackageDirs(const std::optional<std::string>& uuid, int32_t userId,
                                              int32_t flags);
 
+    binder::Status getOdexVisibility(const std::string& packageName, const std::string& apkPath,
+                                     const std::string& instructionSet,
+                                     const std::optional<std::string>& outputPath,
+                                     int32_t* _aidl_return);
+
 private:
     std::recursive_mutex mLock;
     std::unordered_map<userid_t, std::weak_ptr<std::shared_mutex>> mUserIdLock;
