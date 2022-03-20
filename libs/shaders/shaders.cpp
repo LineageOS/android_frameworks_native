@@ -476,7 +476,8 @@ std::vector<tonemap::ShaderUniform> buildLinearEffectUniforms(const LinearEffect
                                                               const mat4& colorTransform,
                                                               float maxDisplayLuminance,
                                                               float currentDisplayLuminanceNits,
-                                                              float maxLuminance) {
+                                                              float maxLuminance,
+                                                              AHardwareBuffer* buffer) {
     std::vector<tonemap::ShaderUniform> uniforms;
     if (linearEffect.inputDataspace == linearEffect.outputDataspace) {
         uniforms.push_back({.name = "in_rgbToXyz", .value = buildUniformValue<mat4>(mat4())});
@@ -504,7 +505,8 @@ std::vector<tonemap::ShaderUniform> buildLinearEffectUniforms(const LinearEffect
                                // This will be the case for eg screenshots in addition to
                                // uncalibrated displays
                                .contentMaxLuminance =
-                                       maxLuminance > 0 ? maxLuminance : maxDisplayLuminance};
+                                       maxLuminance > 0 ? maxLuminance : maxDisplayLuminance,
+                               .buffer = buffer};
 
     for (const auto uniform : tonemap::getToneMapper()->generateShaderSkSLUniforms(metadata)) {
         uniforms.push_back(uniform);

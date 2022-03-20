@@ -1450,7 +1450,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffer(
         const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
-        const std::optional<sp<Fence>>& fence, const std::optional<uint64_t>& frameNumber,
+        const std::optional<sp<Fence>>& fence, const std::optional<uint64_t>& optFrameNumber,
         ReleaseBufferCallback callback) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
@@ -1462,10 +1462,9 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
 
     std::shared_ptr<BufferData> bufferData = std::make_shared<BufferData>();
     bufferData->buffer = buffer;
-    if (frameNumber) {
-        bufferData->frameNumber = *frameNumber;
-        bufferData->flags |= BufferData::BufferDataChange::frameNumberChanged;
-    }
+    uint64_t frameNumber = sc->resolveFrameNumber(optFrameNumber);
+    bufferData->frameNumber = frameNumber;
+    bufferData->flags |= BufferData::BufferDataChange::frameNumberChanged;
     if (fence) {
         bufferData->acquireFence = *fence;
         bufferData->flags |= BufferData::BufferDataChange::fenceChanged;
@@ -2375,9 +2374,11 @@ int SurfaceComposerClient::getGPUContextPriority() {
 }
 
 status_t SurfaceComposerClient::addWindowInfosListener(
-        const sp<WindowInfosListener>& windowInfosListener) {
+        const sp<WindowInfosListener>& windowInfosListener,
+        std::pair<std::vector<gui::WindowInfo>, std::vector<gui::DisplayInfo>>* outInitialInfo) {
     return WindowInfosListenerReporter::getInstance()
-            ->addWindowInfosListener(windowInfosListener, ComposerService::getComposerService());
+            ->addWindowInfosListener(windowInfosListener, ComposerService::getComposerService(),
+                                     outInitialInfo);
 }
 
 status_t SurfaceComposerClient::removeWindowInfosListener(
