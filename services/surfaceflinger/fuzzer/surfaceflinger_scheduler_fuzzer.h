@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include <scheduler/TimeKeeper.h>
+
 #include "Clock.h"
 #include "Layer.h"
 #include "Scheduler/EventThread.h"
@@ -29,23 +31,8 @@
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VSyncTracker.h"
 #include "Scheduler/VsyncModulator.h"
-#include "scheduler/TimeKeeper.h"
 
 namespace android::fuzz {
-
-constexpr int64_t kVsyncPeriods[] = {static_cast<int64_t>(1e9f / 30),
-                                     static_cast<int64_t>(1e9f / 60),
-                                     static_cast<int64_t>(1e9f / 72),
-                                     static_cast<int64_t>(1e9f / 90),
-                                     static_cast<int64_t>(1e9f / 120)};
-
-android::scheduler::RefreshRateConfigs::LayerVoteType kLayerVoteTypes[] =
-        {android::scheduler::RefreshRateConfigs::LayerVoteType::NoVote,
-         android::scheduler::RefreshRateConfigs::LayerVoteType::Min,
-         android::scheduler::RefreshRateConfigs::LayerVoteType::Max,
-         android::scheduler::RefreshRateConfigs::LayerVoteType::Heuristic,
-         android::scheduler::RefreshRateConfigs::LayerVoteType::ExplicitDefault,
-         android::scheduler::RefreshRateConfigs::LayerVoteType::ExplicitExactOrMultiple};
 
 class FuzzImplClock : public android::scheduler::Clock {
 public:
@@ -167,18 +154,6 @@ public:
 } // namespace android
 
 namespace android::scheduler {
-
-DisplayModePtr createDisplayMode(DisplayModeId modeId, int32_t group, int64_t vsyncPeriod,
-                                 ui::Size resolution = ui::Size()) {
-    return DisplayMode::Builder(hal::HWConfigId(modeId.value()))
-            .setId(modeId)
-            .setPhysicalDisplayId(PhysicalDisplayId::fromPort(0))
-            .setVsyncPeriod(int32_t(vsyncPeriod))
-            .setGroup(group)
-            .setHeight(resolution.height)
-            .setWidth(resolution.width)
-            .build();
-}
 
 class ControllableClock : public TimeKeeper {
 public:

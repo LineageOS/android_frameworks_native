@@ -56,50 +56,6 @@ public:
     static constexpr nsecs_t MARGIN_FOR_PERIOD_CALCULATION =
             std::chrono::nanoseconds(800us).count();
 
-    class RefreshRate {
-    private:
-        // Effectively making the constructor private while allowing
-        // std::make_unique to create the object
-        struct ConstructorTag {
-            explicit ConstructorTag(int) {}
-        };
-
-    public:
-        RefreshRate(DisplayModePtr mode, ConstructorTag) : mode(mode) {}
-
-        DisplayModeId getModeId() const { return mode->getId(); }
-        nsecs_t getVsyncPeriod() const { return mode->getVsyncPeriod(); }
-        int32_t getModeGroup() const { return mode->getGroup(); }
-        std::string getName() const { return to_string(getFps()); }
-        Fps getFps() const { return mode->getFps(); }
-        DisplayModePtr getMode() const { return mode; }
-
-        // Checks whether the fps of this RefreshRate struct is within a given min and max refresh
-        // rate passed in. Margin of error is applied to the boundaries for approximation.
-        bool inPolicy(Fps minRefreshRate, Fps maxRefreshRate) const;
-
-        bool operator==(const RefreshRate& other) const { return mode == other.mode; }
-        bool operator!=(const RefreshRate& other) const { return !operator==(other); }
-
-        bool operator<(const RefreshRate& other) const {
-            return isStrictlyLess(getFps(), other.getFps());
-        }
-
-        std::string toString() const;
-        friend std::ostream& operator<<(std::ostream& os, const RefreshRate& refreshRate) {
-            return os << refreshRate.toString();
-        }
-
-    private:
-        friend RefreshRateConfigs;
-        friend class RefreshRateConfigsTest;
-
-        DisplayModePtr mode;
-    };
-
-    using AllRefreshRatesMapType =
-            std::unordered_map<DisplayModeId, std::unique_ptr<const RefreshRate>>;
-
     struct Policy {
     private:
         static constexpr int kAllowGroupSwitchingDefault = false;
@@ -236,12 +192,12 @@ public:
 
     // Returns the refresh rate that best fits the given layers, and whether the refresh rate was
     // chosen based on touch boost and/or idle timer.
-    std::pair<RefreshRate, GlobalSignals> getBestRefreshRate(const std::vector<LayerRequirement>&,
-                                                             GlobalSignals) const EXCLUDES(mLock);
+    std::pair<DisplayModePtr, GlobalSignals> getBestRefreshRate(
+            const std::vector<LayerRequirement>&, GlobalSignals) const EXCLUDES(mLock);
 
     FpsRange getSupportedRefreshRateRange() const EXCLUDES(mLock) {
         std::lock_guard lock(mLock);
-        return {mMinSupportedRefreshRate->getFps(), mMaxSupportedRefreshRate->getFps()};
+        return {mMinRefreshRateModeIt->second->getFps(), mMaxRefreshRateModeIt->second->getFps()};
     }
 
     std::optional<Fps> onKernelTimerChanged(std::optional<DisplayModeId> desiredActiveModeId,
@@ -249,30 +205,15 @@ public:
 
     // Returns the highest refresh rate according to the current policy. May change at runtime. Only
     // uses the primary range, not the app request range.
-    RefreshRate getMaxRefreshRateByPolicy() const EXCLUDES(mLock);
+    DisplayModePtr getMaxRefreshRateByPolicy() const EXCLUDES(mLock);
 
-    // Returns the current refresh rate
-    RefreshRate getCurrentRefreshRate() const EXCLUDES(mLock);
-
-    // Returns the current refresh rate, if allowed. Otherwise the default that is allowed by
-    // the policy.
-    RefreshRate getCurrentRefreshRateByPolicy() const;
-
-    // Returns the refresh rate that corresponds to a DisplayModeId. This may change at
-    // runtime.
-    // TODO(b/159590486) An invalid mode id may be given here if the dipslay modes have changed.
-    RefreshRate getRefreshRateFromModeId(DisplayModeId modeId) const EXCLUDES(mLock) {
-        std::lock_guard lock(mLock);
-        return *mRefreshRates.at(modeId);
-    };
-
-    // Stores the current modeId the device operates at
-    void setCurrentModeId(DisplayModeId) EXCLUDES(mLock);
+    void setActiveModeId(DisplayModeId) EXCLUDES(mLock);
+    DisplayModePtr getActiveMode() const EXCLUDES(mLock);
 
     // Returns a known frame rate that is the closest to frameRate
     Fps findClosestKnownFrameRate(Fps frameRate) const;
 
-    enum class KernelIdleTimerController { Sysprop, HwcApi };
+    enum class KernelIdleTimerController { Sysprop, HwcApi, ftl_last = HwcApi };
 
     // Configuration flags.
     struct Config {
@@ -291,7 +232,7 @@ public:
         std::optional<KernelIdleTimerController> kernelIdleTimerController;
     };
 
-    RefreshRateConfigs(const DisplayModes&, DisplayModeId,
+    RefreshRateConfigs(DisplayModes, DisplayModeId activeModeId,
                        Config config = {.enableFrameRateOverride = false,
                                         .frameRateMultipleThreshold = 0,
                                         .idleTimerTimeout = 0ms,
@@ -305,7 +246,7 @@ public:
     // differ in resolution.
     bool canSwitch() const EXCLUDES(mLock) {
         std::lock_guard lock(mLock);
-        return mRefreshRates.size() > 1;
+        return mDisplayModes.size() > 1;
     }
 
     // Class to enumerate options around toggling the kernel timer on and off.
@@ -323,7 +264,7 @@ public:
     // Return the display refresh rate divisor to match the layer
     // frame rate, or 0 if the display refresh rate is not a multiple of the
     // layer refresh rate.
-    static int getFrameRateDivisor(Fps displayFrameRate, Fps layerFrameRate);
+    static int getFrameRateDivisor(Fps displayRefreshRate, Fps layerFrameRate);
 
     // Returns if the provided frame rates have a ratio t*1000/1001 or t*1001/1000
     // for an integer t.
@@ -391,18 +332,8 @@ private:
 
     void constructAvailableRefreshRates() REQUIRES(mLock);
 
-    void getSortedRefreshRateListLocked(
-            const std::function<bool(const RefreshRate&)>& shouldAddRefreshRate,
-            std::vector<const RefreshRate*>* outRefreshRates) REQUIRES(mLock);
-
-    std::pair<RefreshRate, GlobalSignals> getBestRefreshRateLocked(
+    std::pair<DisplayModePtr, GlobalSignals> getBestRefreshRateLocked(
             const std::vector<LayerRequirement>&, GlobalSignals) const REQUIRES(mLock);
-
-    // Returns the refresh rate with the highest score in the collection specified from begin
-    // to end. If there are more than one with the same highest refresh rate, the first one is
-    // returned.
-    template <typename Iter>
-    const RefreshRate* getBestRefreshRate(Iter begin, Iter end) const;
 
     // Returns number of display frames and remainder when dividing the layer refresh period by
     // display refresh period.
@@ -410,35 +341,30 @@ private:
 
     // Returns the lowest refresh rate according to the current policy. May change at runtime. Only
     // uses the primary range, not the app request range.
-    const RefreshRate& getMinRefreshRateByPolicyLocked() const REQUIRES(mLock);
+    const DisplayModePtr& getMinRefreshRateByPolicyLocked() const REQUIRES(mLock);
 
     // Returns the highest refresh rate according to the current policy. May change at runtime. Only
     // uses the primary range, not the app request range.
-    const RefreshRate& getMaxRefreshRateByPolicyLocked() const REQUIRES(mLock) {
-        return getMaxRefreshRateByPolicyLocked(mCurrentRefreshRate->getModeGroup());
+    const DisplayModePtr& getMaxRefreshRateByPolicyLocked(int anchorGroup) const REQUIRES(mLock);
+    const DisplayModePtr& getMaxRefreshRateByPolicyLocked() const REQUIRES(mLock) {
+        return getMaxRefreshRateByPolicyLocked(mActiveModeIt->second->getGroup());
     }
-
-    const RefreshRate& getMaxRefreshRateByPolicyLocked(int anchorGroup) const REQUIRES(mLock);
-
-    // Returns the current refresh rate, if allowed. Otherwise the default that is allowed by
-    // the policy.
-    const RefreshRate& getCurrentRefreshRateByPolicyLocked() const REQUIRES(mLock);
 
     const Policy* getCurrentPolicyLocked() const REQUIRES(mLock);
     bool isPolicyValidLocked(const Policy& policy) const REQUIRES(mLock);
 
     // Returns whether the layer is allowed to vote for the given refresh rate.
-    bool isVoteAllowed(const LayerRequirement&, const RefreshRate&) const;
+    bool isVoteAllowed(const LayerRequirement&, Fps) const;
 
     // calculates a score for a layer. Used to determine the display refresh rate
     // and the frame rate override for certains applications.
-    float calculateLayerScoreLocked(const LayerRequirement&, const RefreshRate&,
+    float calculateLayerScoreLocked(const LayerRequirement&, Fps refreshRate,
                                     bool isSeamlessSwitch) const REQUIRES(mLock);
 
-    float calculateNonExactMatchingLayerScoreLocked(const LayerRequirement&,
-                                                    const RefreshRate&) const REQUIRES(mLock);
+    float calculateNonExactMatchingLayerScoreLocked(const LayerRequirement&, Fps refreshRate) const
+            REQUIRES(mLock);
 
-    void updateDisplayModes(const DisplayModes& mode, DisplayModeId currentModeId) EXCLUDES(mLock);
+    void updateDisplayModes(DisplayModes, DisplayModeId activeModeId) EXCLUDES(mLock);
 
     void initializeIdleTimer();
 
@@ -449,31 +375,21 @@ private:
                                                              : mIdleTimerCallbacks->platform;
     }
 
-    // The list of refresh rates, indexed by display modes ID. This may change after this
-    // object is initialized.
-    AllRefreshRatesMapType mRefreshRates GUARDED_BY(mLock);
+    // The display modes of the active display. The DisplayModeIterators below are pointers into
+    // this container, so must be invalidated whenever the DisplayModes change. The Policy below
+    // is also dependent, so must be reset as well.
+    DisplayModes mDisplayModes GUARDED_BY(mLock);
 
-    // The list of refresh rates in the primary range of the current policy, ordered by vsyncPeriod
-    // (the first element is the lowest refresh rate).
-    std::vector<const RefreshRate*> mPrimaryRefreshRates GUARDED_BY(mLock);
+    DisplayModeIterator mActiveModeIt GUARDED_BY(mLock);
+    DisplayModeIterator mMinRefreshRateModeIt GUARDED_BY(mLock);
+    DisplayModeIterator mMaxRefreshRateModeIt GUARDED_BY(mLock);
 
-    // The list of refresh rates in the app request range of the current policy, ordered by
-    // vsyncPeriod (the first element is the lowest refresh rate).
-    std::vector<const RefreshRate*> mAppRequestRefreshRates GUARDED_BY(mLock);
+    // Display modes that satisfy the Policy's ranges, filtered and sorted by refresh rate.
+    std::vector<DisplayModeIterator> mPrimaryRefreshRates GUARDED_BY(mLock);
+    std::vector<DisplayModeIterator> mAppRequestRefreshRates GUARDED_BY(mLock);
 
-    // The current display mode. This will change at runtime. This is set by SurfaceFlinger on
-    // the main thread, and read by the Scheduler (and other objects) on other threads.
-    const RefreshRate* mCurrentRefreshRate GUARDED_BY(mLock);
-
-    // The policy values will change at runtime. They're set by SurfaceFlinger on the main thread,
-    // and read by the Scheduler (and other objects) on other threads.
     Policy mDisplayManagerPolicy GUARDED_BY(mLock);
     std::optional<Policy> mOverridePolicy GUARDED_BY(mLock);
-
-    // The min and max refresh rates supported by the device.
-    // This may change at runtime.
-    const RefreshRate* mMinSupportedRefreshRate GUARDED_BY(mLock);
-    const RefreshRate* mMaxSupportedRefreshRate GUARDED_BY(mLock);
 
     mutable std::mutex mLock;
 
@@ -486,7 +402,7 @@ private:
 
     struct GetBestRefreshRateCache {
         std::pair<std::vector<LayerRequirement>, GlobalSignals> arguments;
-        std::pair<RefreshRate, GlobalSignals> result;
+        std::pair<DisplayModePtr, GlobalSignals> result;
     };
     mutable std::optional<GetBestRefreshRateCache> mGetBestRefreshRateCache GUARDED_BY(mLock);
 
