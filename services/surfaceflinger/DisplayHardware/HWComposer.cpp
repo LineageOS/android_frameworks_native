@@ -814,10 +814,11 @@ status_t HWComposer::setAutoLowLatencyMode(PhysicalDisplayId displayId, bool on)
 }
 
 status_t HWComposer::getSupportedContentTypes(
-        PhysicalDisplayId displayId, std::vector<hal::ContentType>* outSupportedContentTypes) {
+        PhysicalDisplayId displayId,
+        std::vector<hal::ContentType>* outSupportedContentTypes) const {
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
-    const auto error =
-            mDisplayData[displayId].hwcDisplay->getSupportedContentTypes(outSupportedContentTypes);
+    const auto error = mDisplayData.at(displayId).hwcDisplay->getSupportedContentTypes(
+            outSupportedContentTypes);
 
     RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
 

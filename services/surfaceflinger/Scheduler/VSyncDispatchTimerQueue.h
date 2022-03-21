@@ -29,6 +29,7 @@
 
 namespace android::scheduler {
 
+class TimeKeeper;
 class VSyncTracker;
 
 // VSyncDispatchTimerQueueEntry is a helper class representing internal state for each entry in
