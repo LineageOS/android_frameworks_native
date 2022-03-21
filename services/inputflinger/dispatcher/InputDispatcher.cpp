@@ -1032,6 +1032,21 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
                     }
                 }
             }
+
+            // If a new up event comes in, and the pending event with same key code has been asked
+            // to try again later because of the policy. We have to reset the intercept key wake up
+            // time for it may have been handled in the policy and could be dropped.
+            if (keyEntry.action == AKEY_EVENT_ACTION_UP && mPendingEvent &&
+                mPendingEvent->type == EventEntry::Type::KEY) {
+                KeyEntry& pendingKey = static_cast<KeyEntry&>(*mPendingEvent);
+                if (pendingKey.keyCode == keyEntry.keyCode &&
+                    pendingKey.interceptKeyResult ==
+                            KeyEntry::INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER) {
+                    pendingKey.interceptKeyResult = KeyEntry::INTERCEPT_KEY_RESULT_UNKNOWN;
+                    pendingKey.interceptKeyWakeupTime = 0;
+                    needWake = true;
+                }
+            }
             break;
         }
 
