@@ -134,7 +134,9 @@ public:
                           std::optional<aidl::android::hardware::graphics::common::
                                                 DisplayDecorationSupport>* support));
     MOCK_METHOD2(setIdleTimerEnabled, status_t(PhysicalDisplayId, std::chrono::milliseconds));
-    MOCK_METHOD1(hasDisplayIdleTimerCapability, bool(PhysicalDisplayId displayId));
+    MOCK_METHOD(bool, hasDisplayIdleTimerCapability, (PhysicalDisplayId), (const, override));
+    MOCK_METHOD(Hwc2::AidlTransform, getPhysicalDisplayOrientation, (PhysicalDisplayId),
+                (const, override));
 };
 
 } // namespace mock

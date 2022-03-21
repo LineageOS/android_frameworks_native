@@ -268,7 +268,8 @@ public:
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) = 0;
     virtual status_t setIdleTimerEnabled(PhysicalDisplayId, std::chrono::milliseconds timeout) = 0;
-    virtual bool hasDisplayIdleTimerCapability(PhysicalDisplayId) = 0;
+    virtual bool hasDisplayIdleTimerCapability(PhysicalDisplayId) const = 0;
+    virtual Hwc2::AidlTransform getPhysicalDisplayOrientation(PhysicalDisplayId) const = 0;
 };
 
 namespace impl {
@@ -405,7 +406,8 @@ public:
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) override;
     status_t setIdleTimerEnabled(PhysicalDisplayId, std::chrono::milliseconds timeout) override;
-    bool hasDisplayIdleTimerCapability(PhysicalDisplayId) override;
+    bool hasDisplayIdleTimerCapability(PhysicalDisplayId) const override;
+    Hwc2::AidlTransform getPhysicalDisplayOrientation(PhysicalDisplayId) const override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;
