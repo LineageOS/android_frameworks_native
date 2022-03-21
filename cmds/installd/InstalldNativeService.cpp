@@ -756,8 +756,7 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
 
     constexpr int storageFlags[2] = {FLAG_STORAGE_CE, FLAG_STORAGE_DE};
-    for (int i = 0; i < 2; i++) {
-        int currentFlag = storageFlags[i];
+    for (int currentFlag : storageFlags) {
         if ((flags & currentFlag) == 0) {
             continue;
         }
@@ -847,7 +846,6 @@ binder::Status InstalldNativeService::createAppDataBatched(
 
 binder::Status InstalldNativeService::reconcileSdkData(
         const android::os::ReconcileSdkDataArgs& args) {
-    ENFORCE_UID(AID_SYSTEM);
     // Locking is performed depeer in the callstack.
 
     return reconcileSdkData(args.uuid, args.packageName, args.sdkPackageNames, args.randomSuffixes,
@@ -870,6 +868,7 @@ binder::Status InstalldNativeService::reconcileSdkData(
         const std::vector<std::string>& sdkPackageNames,
         const std::vector<std::string>& randomSuffixes, int userId, int appId, int previousAppId,
         const std::string& seInfo, int flags) {
+    ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     for (const auto& sdkPackageName : sdkPackageNames) {
@@ -1772,6 +1771,36 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::optional<std::s
         }
     }
 
+    // Copy sdk data for all known users
+    for (auto userId : users) {
+        LOCK_USER();
+
+        constexpr int storageFlags[2] = {FLAG_STORAGE_CE, FLAG_STORAGE_DE};
+        for (int currentFlag : storageFlags) {
+            const bool isCeData = currentFlag == FLAG_STORAGE_CE;
+
+            const auto from = create_data_misc_sdk_sandbox_package_path(from_uuid, isCeData, userId,
+                                                                        package_name);
+            if (access(from.c_str(), F_OK) != 0) {
+                LOG(INFO) << "Missing source " << from;
+                continue;
+            }
+            const auto to = create_data_misc_sdk_sandbox_path(to_uuid, isCeData, userId);
+
+            const int rc = copy_directory_recursive(from.c_str(), to.c_str());
+            if (rc != 0) {
+                res = error(rc, "Failed copying " + from + " to " + to);
+                goto fail;
+            }
+        }
+
+        if (!restoreconSdkDataLocked(toUuid, packageName, userId, FLAG_STORAGE_CE | FLAG_STORAGE_DE,
+                                     appId, seInfo)
+                     .isOk()) {
+            res = error("Failed to restorecon");
+            goto fail;
+        }
+    }
     // We let the framework scan the new location and persist that before
     // deleting the data in the old location; this ordering ensures that
     // we can recover from things like battery pulls.
@@ -1794,6 +1823,18 @@ fail:
         }
         {
             auto to = create_data_user_ce_package_path(to_uuid, userId, package_name);
+            if (delete_dir_contents(to.c_str(), 1, nullptr) != 0) {
+                LOG(WARNING) << "Failed to rollback " << to;
+            }
+        }
+    }
+    for (auto userId : users) {
+        LOCK_USER();
+        constexpr int storageFlags[2] = {FLAG_STORAGE_CE, FLAG_STORAGE_DE};
+        for (int currentFlag : storageFlags) {
+            const bool isCeData = currentFlag == FLAG_STORAGE_CE;
+            const auto to = create_data_misc_sdk_sandbox_package_path(to_uuid, isCeData, userId,
+                                                                      package_name);
             if (delete_dir_contents(to.c_str(), 1, nullptr) != 0) {
                 LOG(WARNING) << "Failed to rollback " << to;
             }
@@ -3125,6 +3166,49 @@ binder::Status InstalldNativeService::restoreconAppDataLocked(
         auto path = create_data_user_de_package_path(uuid_, userId, pkgName);
         if (selinux_android_restorecon_pkgdir(path.c_str(), seinfo, uid, seflags) < 0) {
             res = error("restorecon failed for " + path);
+        }
+    }
+    return res;
+}
+
+binder::Status InstalldNativeService::restoreconSdkDataLocked(
+        const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
+        int32_t flags, int32_t appId, const std::string& seInfo) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID(uuid);
+    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+
+    binder::Status res = ok();
+
+    // SELINUX_ANDROID_RESTORECON_DATADATA flag is set by libselinux. Not needed here.
+    unsigned int seflags = SELINUX_ANDROID_RESTORECON_RECURSE;
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* pkgName = packageName.c_str();
+    const char* seinfo = seInfo.c_str();
+
+    uid_t uid = multiuser_get_sdk_sandbox_uid(userId, appId);
+    constexpr int storageFlags[2] = {FLAG_STORAGE_CE, FLAG_STORAGE_DE};
+    for (int currentFlag : storageFlags) {
+        if ((flags & currentFlag) == 0) {
+            continue;
+        }
+        const bool isCeData = (currentFlag == FLAG_STORAGE_CE);
+        const auto packagePath =
+                create_data_misc_sdk_sandbox_package_path(uuid_, isCeData, userId, pkgName);
+        if (access(packagePath.c_str(), F_OK) != 0) {
+            LOG(INFO) << "Missing source " << packagePath;
+            continue;
+        }
+        const auto subDirHandler = [&packagePath, &seinfo, &uid, &seflags,
+                                    &res](const std::string& subDir) {
+            const auto& fullpath = packagePath + "/" + subDir;
+            if (selinux_android_restorecon_pkgdir(fullpath.c_str(), seinfo, uid, seflags) < 0) {
+                res = error("restorecon failed for " + fullpath);
+            }
+        };
+        const auto ec = foreach_subdir(packagePath, subDirHandler);
+        if (ec != 0) {
+            res = error("Failed to restorecon for subdirs of " + packagePath);
         }
     }
     return res;
