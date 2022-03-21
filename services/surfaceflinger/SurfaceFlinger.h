@@ -256,8 +256,6 @@ public:
     // found on devices with wide color gamut (e.g. Display-P3) display.
     static bool hasWideColorDisplay;
 
-    static ui::Rotation internalDisplayOrientation;
-
     // Indicate if device wants color management on its display.
     static const constexpr bool useColorManagement = true;
 
@@ -1145,6 +1143,9 @@ private:
             REQUIRES(mStateLock);
 
     bool isHdrLayer(Layer* layer) const;
+
+    ui::Rotation getPhysicalDisplayOrientation(DisplayId, bool isPrimary) const
+            REQUIRES(mStateLock);
 
     sp<StartPropertySetThread> mStartPropertySetThread;
     surfaceflinger::Factory& mFactory;

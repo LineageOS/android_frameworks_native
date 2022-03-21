@@ -324,7 +324,6 @@ int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
 uint32_t SurfaceFlinger::maxGraphicsWidth;
 uint32_t SurfaceFlinger::maxGraphicsHeight;
 bool SurfaceFlinger::hasWideColorDisplay;
-ui::Rotation SurfaceFlinger::internalDisplayOrientation = ui::ROTATION_0;
 bool SurfaceFlinger::useContextPriority;
 Dataspace SurfaceFlinger::defaultCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::defaultCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
@@ -415,22 +414,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     }();
 
     useContextPriority = use_context_priority(true);
-
-    using Values = SurfaceFlingerProperties::primary_display_orientation_values;
-    switch (primary_display_orientation(Values::ORIENTATION_0)) {
-        case Values::ORIENTATION_0:
-            break;
-        case Values::ORIENTATION_90:
-            internalDisplayOrientation = ui::ROTATION_90;
-            break;
-        case Values::ORIENTATION_180:
-            internalDisplayOrientation = ui::ROTATION_180;
-            break;
-        case Values::ORIENTATION_270:
-            internalDisplayOrientation = ui::ROTATION_270;
-            break;
-    }
-    ALOGV("Internal Display Orientation: %s", toCString(internalDisplayOrientation));
 
     mInternalDisplayPrimaries = sysprop::getDisplayNativePrimaries();
 
@@ -1014,9 +997,7 @@ status_t SurfaceFlinger::getStaticDisplayInfo(const sp<IBinder>& displayToken,
 
     info->secure = display->isSecure();
     info->deviceProductInfo = display->getDeviceProductInfo();
-
-    // TODO: Scale this to multiple displays.
-    info->installOrientation = display->isPrimary() ? internalDisplayOrientation : ui::ROTATION_0;
+    info->installOrientation = display->getPhysicalOrientation();
 
     return NO_ERROR;
 }
@@ -1054,9 +1035,8 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
         auto xDpi = mode->getDpiX();
         auto yDpi = mode->getDpiY();
 
-        if (display->isPrimary() &&
-            (internalDisplayOrientation == ui::ROTATION_90 ||
-             internalDisplayOrientation == ui::ROTATION_270)) {
+        if (const auto physicalOrientation = display->getPhysicalOrientation();
+            physicalOrientation == ui::ROTATION_90 || physicalOrientation == ui::ROTATION_270) {
             std::swap(width, height);
             std::swap(xDpi, yDpi);
         }
@@ -2394,6 +2374,42 @@ bool SurfaceFlinger::isHdrLayer(Layer* layer) const {
     return true;
 }
 
+ui::Rotation SurfaceFlinger::getPhysicalDisplayOrientation(DisplayId displayId,
+                                                           bool isPrimary) const {
+    const auto id = PhysicalDisplayId::tryCast(displayId);
+    if (!id) {
+        return ui::ROTATION_0;
+    }
+    if (getHwComposer().getComposer()->isSupported(
+                Hwc2::Composer::OptionalFeature::PhysicalDisplayOrientation)) {
+        switch (getHwComposer().getPhysicalDisplayOrientation(*id)) {
+            case Hwc2::AidlTransform::ROT_90:
+                return ui::ROTATION_90;
+            case Hwc2::AidlTransform::ROT_180:
+                return ui::ROTATION_180;
+            case Hwc2::AidlTransform::ROT_270:
+                return ui::ROTATION_270;
+            default:
+                return ui::ROTATION_0;
+        }
+    }
+
+    if (isPrimary) {
+        using Values = SurfaceFlingerProperties::primary_display_orientation_values;
+        switch (primary_display_orientation(Values::ORIENTATION_0)) {
+            case Values::ORIENTATION_90:
+                return ui::ROTATION_90;
+            case Values::ORIENTATION_180:
+                return ui::ROTATION_180;
+            case Values::ORIENTATION_270:
+                return ui::ROTATION_270;
+            default:
+                break;
+        }
+    }
+    return ui::ROTATION_0;
+}
+
 void SurfaceFlinger::postComposition() {
     ATRACE_CALL();
     ALOGV("postComposition");
@@ -2873,7 +2889,8 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     }
 
     creationArgs.physicalOrientation =
-            creationArgs.isPrimary ? internalDisplayOrientation : ui::ROTATION_0;
+            getPhysicalDisplayOrientation(compositionDisplay->getId(), creationArgs.isPrimary);
+    ALOGV("Display Orientation: %s", toCString(creationArgs.physicalOrientation));
 
     // virtual displays are always considered enabled
     creationArgs.initialPowerMode = state.isVirtual() ? hal::PowerMode::ON : hal::PowerMode::OFF;
