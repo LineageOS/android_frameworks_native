@@ -832,6 +832,14 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relati
         return false;
     }
 
+    if (CC_UNLIKELY(relative->usingRelativeZ(LayerVector::StateSet::Drawing)) &&
+        (relative->mDrawingState.zOrderRelativeOf == this)) {
+        ALOGE("Detected relative layer loop between %s and %s",
+              mName.c_str(), relative->mName.c_str());
+        ALOGE("Ignoring new call to set relative layer");
+        return false;
+    }
+
     mFlinger->mSomeChildrenChanged = true;
 
     mDrawingState.sequence++;
@@ -2004,6 +2012,18 @@ void Layer::prepareShadowClientComposition(LayerFE::LayerSettings& caster,
     }
 }
 
+bool Layer::findInHierarchy(const sp<Layer>& l) {
+    if (l == this) {
+        return true;
+    }
+    for (auto& child : mDrawingChildren) {
+      if (child->findInHierarchy(l)) {
+          return true;
+      }
+    }
+    return false;
+}
+
 void Layer::commitChildList() {
     for (size_t i = 0; i < mCurrentChildren.size(); i++) {
         const auto& child = mCurrentChildren[i];
@@ -2011,6 +2031,17 @@ void Layer::commitChildList() {
     }
     mDrawingChildren = mCurrentChildren;
     mDrawingParent = mCurrentParent;
+    if (CC_UNLIKELY(usingRelativeZ(LayerVector::StateSet::Drawing))) {
+        auto zOrderRelativeOf = mDrawingState.zOrderRelativeOf.promote();
+        if (zOrderRelativeOf == nullptr) return;
+        if (findInHierarchy(zOrderRelativeOf)) {
+            ALOGE("Detected Z ordering loop between %s and %s", mName.c_str(),
+                  zOrderRelativeOf->mName.c_str());
+            ALOGE("Severing rel Z loop, potentially dangerous");
+            mDrawingState.isRelativeOf = false;
+            zOrderRelativeOf->removeZOrderRelative(this);
+        }
+    }
 }
 
 

@@ -1123,6 +1123,8 @@ private:
     const std::vector<BlurRegion> getBlurRegions() const;
 
     bool mIsAtRoot = false;
+
+    bool findInHierarchy(const sp<Layer>&);
 };
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate);
