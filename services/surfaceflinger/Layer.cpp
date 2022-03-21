@@ -2110,6 +2110,13 @@ const std::vector<BlurRegion> Layer::getBlurRegions() const {
 }
 
 RoundedCornerState Layer::getRoundedCornerState() const {
+    // Today's DPUs cannot do rounded corners. If RenderEngine cannot render
+    // protected content, remove rounded corners from protected content so it
+    // can be rendered by the DPU.
+    if (isProtected() && !mFlinger->getRenderEngine().supportsProtectedContent()) {
+        return {};
+    }
+
     // Get parent settings
     RoundedCornerState parentSettings;
     const auto& parent = mDrawingParent.promote();

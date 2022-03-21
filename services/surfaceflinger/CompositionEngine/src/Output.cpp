@@ -895,11 +895,17 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
 compositionengine::OutputLayer* Output::findLayerRequestingBackgroundComposition() const {
     compositionengine::OutputLayer* layerRequestingBgComposition = nullptr;
     for (auto* layer : getOutputLayersOrderedByZ()) {
-        auto* compState = layer->getLayerFE().getCompositionState();
+        const auto* compState = layer->getLayerFE().getCompositionState();
 
         // If any layer has a sideband stream, we will disable blurs. In that case, we don't
         // want to force client composition because of the blur.
         if (compState->sidebandStream != nullptr) {
+            return nullptr;
+        }
+
+        // If RenderEngine cannot render protected content, we cannot blur.
+        if (compState->hasProtectedContent &&
+            !getCompositionEngine().getRenderEngine().supportsProtectedContent()) {
             return nullptr;
         }
         if (compState->isOpaque) {
