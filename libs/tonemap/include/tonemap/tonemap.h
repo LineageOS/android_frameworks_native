@@ -49,6 +49,9 @@ struct Metadata {
     // The maximum luminance of the content in nits
     float contentMaxLuminance = 0.0;
 
+    // The current brightness of the display in nits
+    float currentDisplayLuminance = 0.0;
+
     // Reference to an AHardwareBuffer.
     // Devices that support gralloc 4.0 and higher may attach metadata onto a
     // particular frame's buffer, including metadata used by HDR-standards like
