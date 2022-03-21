@@ -48,6 +48,22 @@ std::vector<uint8_t> buildUniformValue(T value) {
     return result;
 }
 
+// Refer to BT2100-2
+float computeHlgGamma(float currentDisplayBrightnessNits) {
+    // BT 2100-2's recommendation for taking into account the nominal max
+    // brightness of the display does not work when the current brightness is
+    // very low. For instance, the gamma becomes negative when the current
+    // brightness is between 1 and 2 nits, which would be a bad experience in a
+    // dark environment. Furthermore, BT2100-2 recommends applying
+    // channel^(gamma - 1) as its OOTF, which means that when the current
+    // brightness is lower than 335 nits then channel * channel^(gamma - 1) >
+    // channel, which makes dark scenes very bright. As a workaround for those
+    // problems, lower-bound the brightness to 500 nits.
+    constexpr float minBrightnessNits = 500.f;
+    currentDisplayBrightnessNits = std::max(minBrightnessNits, currentDisplayBrightnessNits);
+    return 1.2 + 0.42 * std::log10(currentDisplayBrightnessNits / 1000);
+}
+
 class ToneMapperO : public ToneMapper {
 public:
     std::string generateTonemapGainShaderSkSL(
@@ -79,17 +95,35 @@ public:
                         // HLG output.
                         program.append(R"(
                                     float libtonemap_ToneMapTargetNits(vec3 xyz) {
-                                        return clamp(xyz.y, 0.0, 1000.0);
+                                        float nits = clamp(xyz.y, 0.0, 1000.0);
+                                        return nits * pow(nits / 1000.0, -0.2 / 1.2);
                                     }
                                 )");
                         break;
                     default:
+                        // HLG follows BT2100, but this tonemapping version
+                        // does not take into account current display brightness
+                        if ((sourceDataspaceInt & kTransferMask) == kTransferHLG) {
+                            program.append(R"(
+                                        float libtonemap_applyBaseOOTFGain(float nits) {
+                                            return pow(nits, 0.2);
+                                        }
+                                    )");
+                        } else {
+                            program.append(R"(
+                                        float libtonemap_applyBaseOOTFGain(float nits) {
+                                            return 1.0;
+                                        }
+                                    )");
+                        }
                         // Here we're mapping from HDR to SDR content, so interpolate using a
                         // Hermitian polynomial onto the smaller luminance range.
                         program.append(R"(
                                     float libtonemap_ToneMapTargetNits(vec3 xyz) {
                                         float maxInLumi = in_libtonemap_inputMaxLuminance;
                                         float maxOutLumi = in_libtonemap_displayMaxLuminance;
+
+                                        xyz = xyz * libtonemap_applyBaseOOTFGain(xyz.y);
 
                                         float nits = xyz.y;
 
@@ -153,6 +187,21 @@ public:
                 switch (destinationDataspaceInt & kTransferMask) {
                     case kTransferST2084:
                     case kTransferHLG:
+                        // HLG follows BT2100, but this tonemapping version
+                        // does not take into account current display brightness
+                        if ((destinationDataspaceInt & kTransferMask) == kTransferHLG) {
+                            program.append(R"(
+                                        float libtonemap_applyBaseOOTFGain(float nits) {
+                                            return pow(nits / 1000.0, -0.2 / 1.2);
+                                        }
+                                    )");
+                        } else {
+                            program.append(R"(
+                                        float libtonemap_applyBaseOOTFGain(float nits) {
+                                            return 1.0;
+                                        }
+                                    )");
+                        }
                         // Map from SDR onto an HDR output buffer
                         // Here we use a polynomial curve to map from [0, displayMaxLuminance] onto
                         // [0, maxOutLumi] which is hard-coded to be 3000 nits.
@@ -178,7 +227,7 @@ public:
                                         if (nits <= x0) {
                                             // scale [0.0, x0] to [0.0, y0] linearly
                                             float slope = y0 / x0;
-                                            return nits * slope;
+                                            nits = nits * slope;
                                         } else if (nits <= x1) {
                                             // scale [x0, x1] to [y0, y1] using a curve
                                             float t = (nits - x0) / (x1 - x0);
@@ -196,7 +245,7 @@ public:
                                                     2.0 * (1.0 - t) * t * c3 + t * t * y3;
                                         }
 
-                                        return nits;
+                                        return nits * libtonemap_applyBaseOOTFGain(nits);
                                     }
                                 )");
                         break;
@@ -264,12 +313,17 @@ public:
                             // so we'll clamp the luminance range in case we're mapping from PQ
                             // input to HLG output.
                             targetNits = std::clamp(xyz.y, 0.0f, 1000.0f);
+                            targetNits *= std::pow(targetNits / 1000.f, -0.2 / 1.2);
                             break;
                         default:
                             // Here we're mapping from HDR to SDR content, so interpolate using a
                             // Hermitian polynomial onto the smaller luminance range.
 
                             targetNits = xyz.y;
+
+                            if ((sourceDataspaceInt & kTransferMask) == kTransferHLG) {
+                                targetNits *= std::pow(targetNits, 0.2);
+                            }
                             // if the max input luminance is less than what we can output then
                             // no tone mapping is needed as all color values will be in range.
                             if (metadata.contentMaxLuminance > metadata.displayMaxLuminance) {
@@ -362,6 +416,10 @@ public:
                                 targetNits = (1.0 - t) * (1.0 - t) * y2 + 2.0 * (1.0 - t) * t * c3 +
                                         t * t * y3;
                             }
+
+                            if ((destinationDataspaceInt & kTransferMask) == kTransferHLG) {
+                                targetNits *= std::pow(targetNits / 1000.0, -0.2 / 1.2);
+                            }
                         } break;
                         default:
                             // For completeness, this is tone-mapping from SDR to SDR, where this is
@@ -411,6 +469,7 @@ public:
         program.append(R"(
                 uniform float in_libtonemap_displayMaxLuminance;
                 uniform float in_libtonemap_inputMaxLuminance;
+                uniform float in_libtonemap_hlgGamma;
             )");
         switch (sourceDataspaceInt & kTransferMask) {
             case kTransferST2084:
@@ -428,7 +487,10 @@ public:
                         // HLG output.
                         program.append(R"(
                                     float libtonemap_ToneMapTargetNits(float maxRGB) {
-                                        return clamp(maxRGB, 0.0, 1000.0);
+                                        float nits = clamp(maxRGB, 0.0, 1000.0);
+                                        float gamma = (1 - in_libtonemap_hlgGamma)
+                                                / in_libtonemap_hlgGamma;
+                                        return nits * pow(nits / 1000.0, gamma);
                                     }
                                 )");
                         break;
@@ -497,8 +559,15 @@ public:
                 break;
             case kTransferHLG:
                 switch (destinationDataspaceInt & kTransferMask) {
-                    // HLG -> HDR does not tone-map at all
+                    // HLG uses the OOTF from BT 2100.
                     case kTransferST2084:
+                        program.append(R"(
+                                    float libtonemap_ToneMapTargetNits(float maxRGB) {
+                                        return maxRGB
+                                                * pow(maxRGB / 1000.0, in_libtonemap_hlgGamma - 1);
+                                    }
+                                )");
+                        break;
                     case kTransferHLG:
                         program.append(R"(
                                     float libtonemap_ToneMapTargetNits(float maxRGB) {
@@ -507,13 +576,14 @@ public:
                                 )");
                         break;
                     default:
-                        // libshaders follows BT2100 OOTF, but with a nominal peak display luminance
-                        // of 1000 nits. Renormalize to max display luminance if we're tone-mapping
-                        // down to SDR, as libshaders normalizes all SDR output from [0,
-                        // maxDisplayLumins] -> [0, 1]
+                        // Follow BT 2100 and renormalize to max display luminance if we're
+                        // tone-mapping down to SDR, as libshaders normalizes all SDR output from
+                        // [0, maxDisplayLumins] -> [0, 1]
                         program.append(R"(
                                     float libtonemap_ToneMapTargetNits(float maxRGB) {
-                                        return maxRGB * in_libtonemap_displayMaxLuminance / 1000.0;
+                                        return maxRGB
+                                                * pow(maxRGB / 1000.0, in_libtonemap_hlgGamma - 1)
+                                                * in_libtonemap_displayMaxLuminance / 1000.0;
                                     }
                                 )");
                         break;
@@ -545,11 +615,14 @@ public:
         // Hardcode the max content luminance to a "reasonable" level
         static const constexpr float kContentMaxLuminance = 4000.f;
         std::vector<ShaderUniform> uniforms;
-        uniforms.reserve(2);
+        uniforms.reserve(3);
         uniforms.push_back({.name = "in_libtonemap_displayMaxLuminance",
                             .value = buildUniformValue<float>(metadata.displayMaxLuminance)});
         uniforms.push_back({.name = "in_libtonemap_inputMaxLuminance",
                             .value = buildUniformValue<float>(kContentMaxLuminance)});
+        uniforms.push_back({.name = "in_libtonemap_hlgGamma",
+                            .value = buildUniformValue<float>(
+                                    computeHlgGamma(metadata.currentDisplayLuminance))});
         return uniforms;
     }
 
@@ -580,6 +653,8 @@ public:
         const double slope2 = (y2 - y1) / (greyNorm2 - greyNorm1);
         const double slope3 = (y3 - y2) / (greyNorm3 - greyNorm2);
 
+        const double hlgGamma = computeHlgGamma(metadata.currentDisplayLuminance);
+
         for (const auto [linearRGB, _] : colors) {
             double maxRGB = std::max({linearRGB.r, linearRGB.g, linearRGB.b});
 
@@ -603,6 +678,7 @@ public:
                             // so we'll clamp the luminance range in case we're mapping from PQ
                             // input to HLG output.
                             targetNits = std::clamp(maxRGB, 0.0, 1000.0);
+                            targetNits *= pow(targetNits / 1000.0, (1 - hlgGamma) / (hlgGamma));
                             break;
                         default:
                             targetNits = maxRGB;
@@ -630,11 +706,14 @@ public:
                 case kTransferHLG:
                     switch (destinationDataspaceInt & kTransferMask) {
                         case kTransferST2084:
+                            targetNits = maxRGB * pow(maxRGB / 1000.0, hlgGamma - 1);
+                            break;
                         case kTransferHLG:
                             targetNits = maxRGB;
                             break;
                         default:
-                            targetNits = maxRGB * metadata.displayMaxLuminance / 1000.0;
+                            targetNits = maxRGB * pow(maxRGB / 1000.0, hlgGamma - 1) *
+                                    metadata.displayMaxLuminance / 1000.0;
                             break;
                     }
                     break;
