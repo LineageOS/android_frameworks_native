@@ -774,7 +774,13 @@ status_t LayerCaptureArgs::readFromParcel(const Parcel* input) {
 }; // namespace gui
 
 ReleaseCallbackId BufferData::generateReleaseCallbackId() const {
-    return {buffer->getId(), frameNumber};
+    uint64_t bufferId;
+    if (buffer) {
+        bufferId = buffer->getId();
+    } else {
+        bufferId = cachedBuffer.id;
+    }
+    return {bufferId, frameNumber};
 }
 
 status_t BufferData::writeToParcel(Parcel* output) const {
