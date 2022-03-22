@@ -234,8 +234,16 @@ public:
                                                   hal::VsyncPeriodChangeTimeline* outTimeline) = 0;
     virtual status_t setAutoLowLatencyMode(PhysicalDisplayId, bool on) = 0;
     virtual status_t getSupportedContentTypes(
-            PhysicalDisplayId, std::vector<hal::ContentType>* outSupportedContentTypes) = 0;
+            PhysicalDisplayId, std::vector<hal::ContentType>* outSupportedContentTypes) const = 0;
+
+    bool supportsContentType(PhysicalDisplayId displayId, hal::ContentType type) const {
+        std::vector<hal::ContentType> types;
+        return getSupportedContentTypes(displayId, &types) == NO_ERROR &&
+                std::find(types.begin(), types.end(), type) != types.end();
+    }
+
     virtual status_t setContentType(PhysicalDisplayId, hal::ContentType) = 0;
+
     virtual const std::unordered_map<std::string, bool>& getSupportedLayerGenericMetadata()
             const = 0;
 
@@ -268,7 +276,8 @@ public:
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) = 0;
     virtual status_t setIdleTimerEnabled(PhysicalDisplayId, std::chrono::milliseconds timeout) = 0;
-    virtual bool hasDisplayIdleTimerCapability(PhysicalDisplayId) = 0;
+    virtual bool hasDisplayIdleTimerCapability(PhysicalDisplayId) const = 0;
+    virtual Hwc2::AidlTransform getPhysicalDisplayOrientation(PhysicalDisplayId) const = 0;
 };
 
 namespace impl {
@@ -390,7 +399,8 @@ public:
                                           const hal::VsyncPeriodChangeConstraints&,
                                           hal::VsyncPeriodChangeTimeline* outTimeline) override;
     status_t setAutoLowLatencyMode(PhysicalDisplayId, bool) override;
-    status_t getSupportedContentTypes(PhysicalDisplayId, std::vector<hal::ContentType>*) override;
+    status_t getSupportedContentTypes(PhysicalDisplayId,
+                                      std::vector<hal::ContentType>*) const override;
     status_t setContentType(PhysicalDisplayId, hal::ContentType) override;
 
     const std::unordered_map<std::string, bool>& getSupportedLayerGenericMetadata() const override;
@@ -405,7 +415,8 @@ public:
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) override;
     status_t setIdleTimerEnabled(PhysicalDisplayId, std::chrono::milliseconds timeout) override;
-    bool hasDisplayIdleTimerCapability(PhysicalDisplayId) override;
+    bool hasDisplayIdleTimerCapability(PhysicalDisplayId) const override;
+    Hwc2::AidlTransform getPhysicalDisplayOrientation(PhysicalDisplayId) const override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;
