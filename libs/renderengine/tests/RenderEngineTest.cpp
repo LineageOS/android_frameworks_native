@@ -2619,8 +2619,7 @@ TEST_P(RenderEngineTest, test_tonemapHLGMatches) {
             [](vec3 color) { return EOTF_HLG(color); },
             [](vec3 color, float currentLuminaceNits) {
                 static constexpr float kMaxHLGLuminance = 1000.f;
-                static const float kHLGGamma = 1.2 + 0.42 * std::log10(currentLuminaceNits / 1000);
-                return color * kMaxHLGLuminance * std::pow(color.y, kHLGGamma - 1);
+                return color * kMaxHLGLuminance;
             });
 }
 

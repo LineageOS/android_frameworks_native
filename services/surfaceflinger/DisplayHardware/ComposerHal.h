@@ -38,6 +38,7 @@
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 #include <aidl/android/hardware/graphics/composer3/IComposerCallback.h>
 
+#include <aidl/android/hardware/graphics/common/Transform.h>
 #include <optional>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
@@ -80,6 +81,7 @@ using V2_4::VsyncPeriodNanos;
 using PerFrameMetadata = IComposerClient::PerFrameMetadata;
 using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
 using PerFrameMetadataBlob = IComposerClient::PerFrameMetadataBlob;
+using AidlTransform = ::aidl::android::hardware::graphics::common::Transform;
 
 class Composer {
 public:
@@ -94,6 +96,7 @@ public:
         DisplayBrightnessCommand,
         BootDisplayConfig,
         KernelIdleTimer,
+        PhysicalDisplayOrientation,
     };
 
     virtual bool isSupported(OptionalFeature) const = 0;
@@ -277,6 +280,8 @@ public:
             std::optional<::aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) = 0;
     virtual Error setIdleTimerEnabled(Display displayId, std::chrono::milliseconds timeout) = 0;
+    virtual Error getPhysicalDisplayOrientation(Display displayId,
+                                                AidlTransform* outDisplayOrientation) = 0;
 };
 
 } // namespace Hwc2
