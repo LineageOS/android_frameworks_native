@@ -70,6 +70,7 @@ SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
     mLayerId = other->mLayerId;
     mWidth = other->mWidth;
     mHeight = other->mHeight;
+    mFormat = other->mFormat;
     mCreateFlags = other->mCreateFlags;
 }
 

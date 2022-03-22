@@ -118,12 +118,12 @@ private:
     mutable sp<Surface>         mSurfaceData;
     mutable sp<BLASTBufferQueue> mBbq;
     mutable sp<SurfaceControl> mBbqChild;
-    int32_t mLayerId;
-    uint32_t mTransformHint;
-    uint32_t mWidth;
-    uint32_t mHeight;
-    PixelFormat mFormat;
-    uint32_t mCreateFlags;
+    int32_t mLayerId = 0;
+    uint32_t mTransformHint = 0;
+    uint32_t mWidth = 0;
+    uint32_t mHeight = 0;
+    PixelFormat mFormat = PIXEL_FORMAT_NONE;
+    uint32_t mCreateFlags = 0;
 };
 
 }; // namespace android
