@@ -34,6 +34,7 @@ public:
     void injectEvent(const DisplayEventReceiver::Event& event);
     int getFd() const;
     virtual int handleEvent(int receiveFd, int events, void* data);
+    status_t getLatestVsyncEventData(ParcelableVsyncEventData* outVsyncEventData) const;
 
 protected:
     virtual ~DisplayEventDispatcher() = default;
