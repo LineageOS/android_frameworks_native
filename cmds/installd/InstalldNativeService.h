@@ -167,6 +167,7 @@ public:
         int32_t storageFlag, std::vector<uint8_t>* _aidl_return);
 
     binder::Status invalidateMounts();
+    binder::Status setFirstBoot();
     binder::Status isQuotaSupported(const std::optional<std::string>& volumeUuid,
             bool* _aidl_return);
     binder::Status tryMountDataMirror(const std::optional<std::string>& volumeUuid);
