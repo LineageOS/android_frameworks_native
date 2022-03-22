@@ -295,28 +295,27 @@ bool isValidServiceName(const std::string& name) {
 Status ServiceManager::addService(const std::string& name, const sp<IBinder>& binder, bool allowIsolated, int32_t dumpPriority) {
     auto ctx = mAccess->getCallingContext();
 
-    // apps cannot add services
     if (multiuser_get_app_id(ctx.uid) >= AID_APP) {
-        return Status::fromExceptionCode(Status::EX_SECURITY);
+        return Status::fromExceptionCode(Status::EX_SECURITY, "App UIDs cannot add services");
     }
 
     if (!mAccess->canAdd(ctx, name)) {
-        return Status::fromExceptionCode(Status::EX_SECURITY);
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denial");
     }
 
     if (binder == nullptr) {
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "Null binder");
     }
 
     if (!isValidServiceName(name)) {
         LOG(ERROR) << "Invalid service name: " << name;
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "Invalid service name");
     }
 
 #ifndef VENDORSERVICEMANAGER
     if (!meetsDeclarationRequirements(binder, name)) {
         // already logged
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "VINTF declaration error");
     }
 #endif  // !VENDORSERVICEMANAGER
 
@@ -324,7 +323,7 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
     if (binder->remoteBinder() != nullptr &&
         binder->linkToDeath(sp<ServiceManager>::fromExisting(this)) != OK) {
         LOG(ERROR) << "Could not linkToDeath when adding " << name;
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "linkToDeath failure");
     }
 
     // Overwrite the old service if it exists
