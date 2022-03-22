@@ -134,6 +134,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeByte, changeFrameRateStrategy);
     SAFE_PARCEL(output.writeUint32, fixedTransformHint);
     SAFE_PARCEL(output.writeBool, autoRefresh);
+    SAFE_PARCEL(output.writeBool, dimmingEnabled);
 
     SAFE_PARCEL(output.writeUint32, blurRegions.size());
     for (auto region : blurRegions) {
@@ -243,6 +244,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
     SAFE_PARCEL(input.readBool, &autoRefresh);
+    SAFE_PARCEL(input.readBool, &dimmingEnabled);
 
     uint32_t numRegions = 0;
     SAFE_PARCEL(input.readUint32, &numRegions);
@@ -597,6 +599,10 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eColorSpaceAgnosticChanged) {
         what |= eColorSpaceAgnosticChanged;
         colorSpaceAgnostic = other.colorSpaceAgnostic;
+    }
+    if (other.what & eDimmingEnabledChanged) {
+        what |= eDimmingEnabledChanged;
+        dimmingEnabled = other.dimmingEnabled;
     }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "

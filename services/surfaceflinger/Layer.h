@@ -281,6 +281,8 @@ public:
         gui::DropInputMode dropInputMode;
 
         bool autoRefresh = false;
+
+        bool dimmingEnabled = true;
     };
 
     /*
@@ -411,6 +413,7 @@ public:
     virtual mat4 getColorTransform() const;
     virtual bool hasColorTransform() const;
     virtual bool isColorSpaceAgnostic() const { return mDrawingState.colorSpaceAgnostic; }
+    virtual bool isDimmingEnabled() const { return getDrawingState().dimmingEnabled; };
 
     // Used only to set BufferStateLayer state
     virtual bool setTransform(uint32_t /*transform*/) { return false; };
@@ -437,6 +440,7 @@ public:
     }
     virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
     virtual bool setColorSpaceAgnostic(const bool agnostic);
+    virtual bool setDimmingEnabled(const bool dimmingEnabled);
     virtual bool setFrameRateSelectionPriority(int32_t priority);
     virtual bool setFixedTransformHint(ui::Transform::RotationFlags fixedTransformHint);
     virtual void setAutoRefresh(bool /* autoRefresh */) {}
