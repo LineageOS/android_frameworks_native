@@ -6915,4 +6915,38 @@ TEST_F(InputDispatcherStylusInterceptorTest, SpyWindowStylusInterceptor) {
     window->assertNoEvents();
 }
 
+/**
+ * Set up a scenario to test the behavior used by the stylus handwriting detection feature.
+ * The scenario is as follows:
+ *   - The stylus interceptor overlay is configured as a spy window.
+ *   - The stylus interceptor spy receives the start of a new stylus gesture.
+ *   - It pilfers pointers and then configures itself to no longer be a spy.
+ *   - The stylus interceptor continues to receive the rest of the gesture.
+ */
+TEST_F(InputDispatcherStylusInterceptorTest, StylusHandwritingScenario) {
+    auto [overlay, window] = setupStylusOverlayScenario();
+    overlay->setSpy(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {overlay, window}}});
+
+    sendStylusEvent(AMOTION_EVENT_ACTION_DOWN);
+    overlay->consumeMotionDown();
+    window->consumeMotionDown();
+
+    // The interceptor pilfers the pointers.
+    EXPECT_EQ(OK, mDispatcher->pilferPointers(overlay->getToken()));
+    window->consumeMotionCancel();
+
+    // The interceptor configures itself so that it is no longer a spy.
+    overlay->setSpy(false);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {overlay, window}}});
+
+    // It continues to receive the rest of the stylus gesture.
+    sendStylusEvent(AMOTION_EVENT_ACTION_MOVE);
+    overlay->consumeMotionMove();
+    sendStylusEvent(AMOTION_EVENT_ACTION_UP);
+    overlay->consumeMotionUp();
+
+    window->assertNoEvents();
+}
+
 } // namespace android::inputdispatcher
