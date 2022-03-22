@@ -55,6 +55,7 @@
 #include <cutils/fs.h>
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
+#include <linux/quota.h>
 #include <log/log.h>               // TODO: Move everything to base/logging.
 #include <logwrap/logwrap.h>
 #include <private/android_filesystem_config.h>
@@ -457,13 +458,35 @@ done:
     free(after);
     return res;
 }
+static bool internal_storage_has_project_id() {
+    // The following path is populated in setFirstBoot, so if this file is present
+    // then project ids can be used.
 
-static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t uid, gid_t gid) {
+    auto using_project_ids =
+            StringPrintf("%smisc/installd/using_project_ids", android_data_dir.c_str());
+    return access(using_project_ids.c_str(), F_OK) == 0;
+}
+
+static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t uid, gid_t gid,
+                           long project_id) {
     if (fs_prepare_dir_strict(path.c_str(), target_mode, uid, gid) != 0) {
         PLOG(ERROR) << "Failed to prepare " << path;
         return -1;
     }
+    if (internal_storage_has_project_id()) {
+        return set_quota_project_id(path, project_id, true);
+    }
     return 0;
+}
+
+static int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t target_mode,
+                                 uid_t uid, gid_t gid, long project_id) {
+    auto path = StringPrintf("%s/%s", parent.c_str(), name);
+    int ret = prepare_app_cache_dir(parent, name, target_mode, uid, gid);
+    if (ret == 0 && internal_storage_has_project_id()) {
+        return set_quota_project_id(path, project_id, true);
+    }
+    return ret;
 }
 
 static bool prepare_app_profile_dir(const std::string& packageName, int32_t appId, int32_t userId) {
@@ -625,9 +648,11 @@ static binder::Status createAppDataDirs(const std::string& path, int32_t uid, in
     }
 
     // Prepare only the parent app directory
-    if (prepare_app_dir(path, targetMode, uid, gid) ||
-        prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid) ||
-        prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid)) {
+    long project_id_app = get_project_id(uid, PROJECT_ID_APP_START);
+    long project_id_cache_app = get_project_id(uid, PROJECT_ID_APP_CACHE_START);
+    if (prepare_app_dir(path, targetMode, uid, gid, project_id_app) ||
+        prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid, project_id_cache_app) ||
+        prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid, project_id_cache_app)) {
         return error("Failed to prepare " + path);
     }
 
@@ -771,7 +796,7 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
         LOG(DEBUG) << "Creating app-level sdk data directory: " << packagePath;
 #endif
 
-        if (prepare_app_dir(packagePath, 0751, AID_SYSTEM, AID_SYSTEM)) {
+        if (prepare_app_dir(packagePath, 0751, AID_SYSTEM, AID_SYSTEM, 0)) {
             return error("Failed to prepare " + packagePath);
         }
     }
@@ -2088,26 +2113,70 @@ static std::string toString(std::vector<int64_t> values) {
 }
 #endif
 
+// On devices without sdcardfs, if internal and external are on
+// the same volume, a uid such as u0_a123 is used for both
+// internal and external storage; therefore, subtract that
+// amount from internal to make sure we don't count it double.
+// This needs to happen for data, cache and OBB
+static void deductDoubleSpaceIfNeeded(stats* stats, int64_t doubleSpaceToBeDeleted, uid_t uid,
+                                      const std::string& uuid) {
+    if (!supports_sdcardfs()) {
+        stats->dataSize -= doubleSpaceToBeDeleted;
+        long obbProjectId = get_project_id(uid, PROJECT_ID_EXT_OBB_START);
+        int64_t appObbSize = GetOccupiedSpaceForProjectId(uuid, obbProjectId);
+        stats->dataSize -= appObbSize;
+    }
+}
+
 static void collectQuotaStats(const std::string& uuid, int32_t userId,
         int32_t appId, struct stats* stats, struct stats* extStats) {
-    int64_t space;
+    int64_t space, doubleSpaceToBeDeleted = 0;
     uid_t uid = multiuser_get_uid(userId, appId);
-    if (stats != nullptr) {
-        if ((space = GetOccupiedSpaceForUid(uuid, uid)) != -1) {
-            stats->dataSize += space;
+    static const bool supportsProjectId = internal_storage_has_project_id();
+
+    if (extStats != nullptr) {
+        space = get_occupied_app_space_external(uuid, userId, appId);
+
+        if (space != -1) {
+            extStats->dataSize += space;
+            doubleSpaceToBeDeleted += space;
         }
 
-        int sdkSandboxUid = multiuser_get_sdk_sandbox_uid(userId, appId);
-        if (sdkSandboxUid != -1) {
-            if ((space = GetOccupiedSpaceForUid(uuid, sdkSandboxUid)) != -1) {
+        space = get_occupied_app_cache_space_external(uuid, userId, appId);
+        if (space != -1) {
+            extStats->dataSize += space; // cache counts for "data"
+            extStats->cacheSize += space;
+            doubleSpaceToBeDeleted += space;
+        }
+    }
+
+    if (stats != nullptr) {
+        if (!supportsProjectId) {
+            if ((space = GetOccupiedSpaceForUid(uuid, uid)) != -1) {
                 stats->dataSize += space;
             }
-        }
-
-        int cacheGid = multiuser_get_cache_gid(userId, appId);
-        if (cacheGid != -1) {
-            if ((space = GetOccupiedSpaceForGid(uuid, cacheGid)) != -1) {
+            deductDoubleSpaceIfNeeded(stats, doubleSpaceToBeDeleted, uid, uuid);
+            int sdkSandboxUid = multiuser_get_sdk_sandbox_uid(userId, appId);
+            if (sdkSandboxUid != -1) {
+                if ((space = GetOccupiedSpaceForUid(uuid, sdkSandboxUid)) != -1) {
+                    stats->dataSize += space;
+                }
+            }
+            int cacheGid = multiuser_get_cache_gid(userId, appId);
+            if (cacheGid != -1) {
+                if ((space = GetOccupiedSpaceForGid(uuid, cacheGid)) != -1) {
+                    stats->cacheSize += space;
+                }
+            }
+        } else {
+            long projectId = get_project_id(uid, PROJECT_ID_APP_START);
+            if ((space = GetOccupiedSpaceForProjectId(uuid, projectId)) != -1) {
+                stats->dataSize += space;
+            }
+            projectId = get_project_id(uid, PROJECT_ID_APP_CACHE_START);
+            if ((space = GetOccupiedSpaceForProjectId(uuid, projectId)) != -1) {
                 stats->cacheSize += space;
+                stats->dataSize += space;
             }
         }
 
@@ -2116,47 +2185,6 @@ static void collectQuotaStats(const std::string& uuid, int32_t userId,
             if ((space = GetOccupiedSpaceForGid(uuid, sharedGid)) != -1) {
                 stats->codeSize += space;
             }
-        }
-    }
-
-    if (extStats != nullptr) {
-        static const bool supportsSdCardFs = supports_sdcardfs();
-        space = get_occupied_app_space_external(uuid, userId, appId);
-
-        if (space != -1) {
-            extStats->dataSize += space;
-            if (!supportsSdCardFs && stats != nullptr) {
-                // On devices without sdcardfs, if internal and external are on
-                // the same volume, a uid such as u0_a123 is used for
-                // application dirs on both internal and external storage;
-                // therefore, substract that amount from internal to make sure
-                // we don't count it double.
-                stats->dataSize -= space;
-            }
-        }
-
-        space = get_occupied_app_cache_space_external(uuid, userId, appId);
-        if (space != -1) {
-            extStats->dataSize += space; // cache counts for "data"
-            extStats->cacheSize += space;
-            if (!supportsSdCardFs && stats != nullptr) {
-                // On devices without sdcardfs, if internal and external are on
-                // the same volume, a uid such as u0_a123 is used for both
-                // internal and external storage; therefore, substract that
-                // amount from internal to make sure we don't count it double.
-                stats->dataSize -= space;
-            }
-        }
-
-        if (!supportsSdCardFs && stats != nullptr) {
-            // On devices without sdcardfs, the UID of OBBs on external storage
-            // matches the regular app UID (eg u0_a123); therefore, to avoid
-            // OBBs being include in stats->dataSize, compute the OBB size for
-            // this app, and substract it from the size reported on internal
-            // storage
-            long obbProjectId = uid - AID_APP_START + PROJECT_ID_EXT_OBB_START;
-            int64_t appObbSize = GetOccupiedSpaceForProjectId(uuid, obbProjectId);
-            stats->dataSize -= appObbSize;
         }
     }
 }
@@ -2293,6 +2321,12 @@ static void collectManualExternalStatsForUser(const std::string& path, struct st
     fts_close(fts);
 }
 static bool ownsExternalStorage(int32_t appId) {
+    // if project id calculation is supported then, there is no need to
+    // calculate in a different way and project_id based calculation can work
+    if (internal_storage_has_project_id()) {
+        return false;
+    }
+
     //  Fetch external storage owner appid  and check if it is the same as the
     //  current appId whose size is calculated
     struct stat s;
@@ -3355,6 +3389,38 @@ binder::Status InstalldNativeService::hashSecondaryDexFile(
     bool result = android::installd::hash_secondary_dex_file(
         dexPath, packageName, uid, volumeUuid, storageFlag, _aidl_return);
     return result ? ok() : error();
+}
+/**
+ * Returns true if ioctl feature (F2FS_IOC_FS{GET,SET}XATTR) is supported as
+ * these were introduced in Linux 4.14, so kernel versions before that will fail
+ * while setting project id attributes. Only when these features are enabled,
+ * storage calculation using project_id is enabled
+ */
+bool check_if_ioctl_feature_is_supported() {
+    bool result = false;
+    auto temp_path = StringPrintf("%smisc/installd/ioctl_check", android_data_dir.c_str());
+    if (access(temp_path.c_str(), F_OK) != 0) {
+        int fd = open(temp_path.c_str(), O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, 0644);
+        result = set_quota_project_id(temp_path, 0, true) == 0;
+        close(fd);
+        // delete the temp file
+        remove(temp_path.c_str());
+    }
+    return result;
+}
+
+binder::Status InstalldNativeService::setFirstBoot() {
+    ENFORCE_UID(AID_SYSTEM);
+    std::lock_guard<std::recursive_mutex> lock(mMountsLock);
+    std::string uuid;
+    if (GetOccupiedSpaceForProjectId(uuid, 0) != -1 && check_if_ioctl_feature_is_supported()) {
+        auto first_boot_path =
+                StringPrintf("%smisc/installd/using_project_ids", android_data_dir.c_str());
+        if (access(first_boot_path.c_str(), F_OK) != 0) {
+            close(open(first_boot_path.c_str(), O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, 0644));
+        }
+    }
+    return ok();
 }
 
 binder::Status InstalldNativeService::invalidateMounts() {

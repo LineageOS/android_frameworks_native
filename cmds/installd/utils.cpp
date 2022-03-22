@@ -37,6 +37,7 @@
 #include <android-base/unique_fd.h>
 #include <cutils/fs.h>
 #include <cutils/properties.h>
+#include <linux/fs.h>
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
 #include <private/android_projectid_config.h>
@@ -422,6 +423,45 @@ std::vector<userid_t> get_known_users(const char* volume_uuid) {
     closedir(dir);
 
     return users;
+}
+
+long get_project_id(uid_t uid, long start_project_id_range) {
+    return uid - AID_APP_START + start_project_id_range;
+}
+
+int set_quota_project_id(const std::string& path, long project_id, bool set_inherit) {
+    struct fsxattr fsx;
+    android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_CLOEXEC)));
+    if (fd == -1) {
+        PLOG(ERROR) << "Failed to open " << path << " to set project id.";
+        return -1;
+    }
+
+    if (ioctl(fd, FS_IOC_FSGETXATTR, &fsx) == -1) {
+        PLOG(ERROR) << "Failed to get extended attributes for " << path << " to get project id.";
+        return -1;
+    }
+
+    fsx.fsx_projid = project_id;
+    if (ioctl(fd, FS_IOC_FSSETXATTR, &fsx) == -1) {
+        PLOG(ERROR) << "Failed to set project id on " << path;
+        return -1;
+    }
+    if (set_inherit) {
+        unsigned int flags;
+        if (ioctl(fd, FS_IOC_GETFLAGS, &flags) == -1) {
+            PLOG(ERROR) << "Failed to get flags for " << path << " to set project id inheritance.";
+            return -1;
+        }
+
+        flags |= FS_PROJINHERIT_FL;
+
+        if (ioctl(fd, FS_IOC_SETFLAGS, &flags) == -1) {
+            PLOG(ERROR) << "Failed to set flags for " << path << " to set project id inheritance.";
+            return -1;
+        }
+    }
+    return 0;
 }
 
 int calculate_tree_size(const std::string& path, int64_t* size,
