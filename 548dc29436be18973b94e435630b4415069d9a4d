@@ -34,6 +34,24 @@
       "parentUuid": "e5e0c5b2_2ccd673e",
       "revId": "548dc29436be18973b94e435630b4415069d9a4d",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "66560f3c_c6553c24",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2022-03-23T22:06:02Z",
+      "side": 1,
+      "message": "I know, but I am pretty sure this is not doing nothing, if you don\u0027t take into account egl_display_array_defaults here. This leads me to think that: a) you didn\u0027t test this change because you also edited via gerrit UI or b) magically your device now works without this patch.",
+      "parentUuid": "d5e7cff2_09ead9e7",
+      "revId": "548dc29436be18973b94e435630b4415069d9a4d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
