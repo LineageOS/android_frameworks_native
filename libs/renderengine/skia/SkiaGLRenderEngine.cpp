@@ -872,18 +872,21 @@ void SkiaGLRenderEngine::drawLayersInternal(
             // save a snapshot of the activeSurface to use as input to the blur shaders
             blurInput = activeSurface->makeImageSnapshot();
 
-            // TODO we could skip this step if we know the blur will cover the entire image
-            //  blit the offscreen framebuffer into the destination AHB
-            SkPaint paint;
-            paint.setBlendMode(SkBlendMode::kSrc);
-            if (CC_UNLIKELY(mCapture->isCaptureRunning())) {
-                uint64_t id = mCapture->endOffscreenCapture(&offscreenCaptureState);
-                dstCanvas->drawAnnotation(SkRect::Make(dstCanvas->imageInfo().dimensions()),
-                                          String8::format("SurfaceID|%" PRId64, id).c_str(),
-                                          nullptr);
-                dstCanvas->drawImage(blurInput, 0, 0, SkSamplingOptions(), &paint);
-            } else {
-                activeSurface->draw(dstCanvas, 0, 0, SkSamplingOptions(), &paint);
+            // blit the offscreen framebuffer into the destination AHB, but only
+            // if there are blur regions. backgroundBlurRadius blurs the entire
+            // image below, so it can skip this step.
+            if (layer.blurRegions.size()) {
+                SkPaint paint;
+                paint.setBlendMode(SkBlendMode::kSrc);
+                if (CC_UNLIKELY(mCapture->isCaptureRunning())) {
+                    uint64_t id = mCapture->endOffscreenCapture(&offscreenCaptureState);
+                    dstCanvas->drawAnnotation(SkRect::Make(dstCanvas->imageInfo().dimensions()),
+                                              String8::format("SurfaceID|%" PRId64, id).c_str(),
+                                              nullptr);
+                    dstCanvas->drawImage(blurInput, 0, 0, SkSamplingOptions(), &paint);
+                } else {
+                    activeSurface->draw(dstCanvas, 0, 0, SkSamplingOptions(), &paint);
+                }
             }
 
             // assign dstCanvas to canvas and ensure that the canvas state is up to date
