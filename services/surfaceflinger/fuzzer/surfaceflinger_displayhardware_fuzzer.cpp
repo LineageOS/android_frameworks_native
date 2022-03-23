@@ -358,6 +358,7 @@ void DisplayHardwareFuzzer::invokeComposerHal2_3(Hwc2::AidlComposer* composer, D
     composer->setLayerPerFrameMetadataBlobs(display, outLayer, std::vector<PerFrameMetadataBlob>{});
 
     composer->setDisplayBrightness(display, mFdp.ConsumeFloatingPoint<float>(),
+                                   mFdp.ConsumeFloatingPoint<float>(),
                                    Hwc2::Composer::DisplayBrightnessOptions{
                                            .applyImmediately = mFdp.ConsumeIntegral<bool>()});
 }
@@ -585,6 +586,7 @@ void DisplayHardwareFuzzer::invokeComposer() {
     getDisplayedContentSample(halDisplayID);
 
     mHwc.setDisplayBrightness(mPhysicalDisplayId, mFdp.ConsumeFloatingPoint<float>(),
+                              mFdp.ConsumeFloatingPoint<float>(),
                               Hwc2::Composer::DisplayBrightnessOptions{
                                       .applyImmediately = mFdp.ConsumeIntegral<bool>()});
 
