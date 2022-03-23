@@ -16,6 +16,24 @@
       "message": "How can this work, if you don\u0027t have any change in Android.bp?",
       "revId": "548dc29436be18973b94e435630b4415069d9a4d",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "d5e7cff2_09ead9e7",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 26916
+      },
+      "writtenOn": "2022-03-23T22:03:43Z",
+      "side": 1,
+      "message": "It\u0027s moved to vendor/lineage: https://review.lineageos.org/c/LineageOS/android_vendor_lineage/+/327290",
+      "parentUuid": "e5e0c5b2_2ccd673e",
+      "revId": "548dc29436be18973b94e435630b4415069d9a4d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
