@@ -813,7 +813,7 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
                              StringPrintf("cacheGid cannot be -1 for sdksandbox data"));
         }
         auto status = createAppDataDirs(sharedPath, sdkSandboxUid, AID_NOBODY,
-                                        &previousSdkSandboxUid, cacheGid, seInfo, 0700);
+                                        &previousSdkSandboxUid, cacheGid, seInfo, 0700 | S_ISGID);
         if (!status.isOk()) {
             return status;
         }
@@ -993,7 +993,7 @@ binder::Status InstalldNativeService::reconcileSdkData(
             const int32_t sandboxUid = multiuser_get_sdk_sandbox_uid(userId, appId);
             int32_t previousSandboxUid = multiuser_get_sdk_sandbox_uid(userId, previousAppId);
             auto status = createAppDataDirs(path, sandboxUid, AID_NOBODY, &previousSandboxUid,
-                                            cacheGid, seInfo, 0700);
+                                            cacheGid, seInfo, 0700 | S_ISGID);
             if (!status.isOk()) {
                 res = status;
                 continue;
