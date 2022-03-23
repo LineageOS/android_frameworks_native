@@ -58,6 +58,30 @@
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "bc12ab7a_230a2e14",
+        "filename": "opengl/libs/Android.bp",
+        "patchSetId": 2
+      },
+      "lineNbr": 131,
+      "author": {
+        "id": 26916
+      },
+      "writtenOn": "2022-03-23T22:01:53Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "f905c5b4_222fcf90",
+      "range": {
+        "startLine": 116,
+        "startChar": 0,
+        "endLine": 131,
+        "endChar": 1
+      },
+      "revId": "2d035353e47272b8a19423241df8246d3f5f7cc0",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "f287c2be_147dc02c",
