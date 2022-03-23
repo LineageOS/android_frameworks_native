@@ -1900,6 +1900,11 @@ binder::Status InstalldNativeService::destroyUserData(const std::optional<std::s
         if (delete_dir_contents_and_dir(path, true) != 0) {
             res = error("Failed to delete " + path);
         }
+        auto sdk_sandbox_de_path =
+                create_data_misc_sdk_sandbox_path(uuid_, /*isCeData=*/false, userId);
+        if (delete_dir_contents_and_dir(sdk_sandbox_de_path, true) != 0) {
+            res = error("Failed to delete " + sdk_sandbox_de_path);
+        }
         if (uuid_ == nullptr) {
             path = create_data_misc_legacy_path(userId);
             if (delete_dir_contents_and_dir(path, true) != 0) {
@@ -1915,6 +1920,11 @@ binder::Status InstalldNativeService::destroyUserData(const std::optional<std::s
         auto path = create_data_user_ce_path(uuid_, userId);
         if (delete_dir_contents_and_dir(path, true) != 0) {
             res = error("Failed to delete " + path);
+        }
+        auto sdk_sandbox_ce_path =
+                create_data_misc_sdk_sandbox_path(uuid_, /*isCeData=*/true, userId);
+        if (delete_dir_contents_and_dir(sdk_sandbox_ce_path, true) != 0) {
+            res = error("Failed to delete " + sdk_sandbox_ce_path);
         }
         path = findDataMediaPath(uuid, userId);
         if (delete_dir_contents_and_dir(path, true) != 0) {
