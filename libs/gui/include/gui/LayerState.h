@@ -29,6 +29,7 @@
 #include <android/gui/DropInputMode.h>
 #include <android/gui/FocusRequest.h>
 
+#include <ftl/flags.h>
 #include <gui/DisplayCaptureArgs.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerCaptureArgs.h>
@@ -102,7 +103,7 @@ public:
     // was called with.
     sp<IBinder> releaseBufferEndpoint;
 
-    Flags<BufferDataChange> flags;
+    ftl::Flags<BufferDataChange> flags;
 
     client_cache_t cachedBuffer;
 

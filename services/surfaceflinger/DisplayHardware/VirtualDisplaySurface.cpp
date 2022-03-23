@@ -19,19 +19,19 @@
 #pragma clang diagnostic ignored "-Wconversion"
 
 // #define LOG_NDEBUG 0
-#include "VirtualDisplaySurface.h"
 
 #include <cinttypes>
 
-#include "HWComposer.h"
-#include "SurfaceFlinger.h"
-
-#include <ftl/Flags.h>
 #include <ftl/enum.h>
+#include <ftl/flags.h>
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
 #include <gui/IProducerListener.h>
 #include <system/window.h>
+
+#include "HWComposer.h"
+#include "SurfaceFlinger.h"
+#include "VirtualDisplaySurface.h"
 
 #define VDS_LOGE(msg, ...) ALOGE("[%s] " msg, \
         mDisplayName.c_str(), ##__VA_ARGS__)
@@ -657,7 +657,7 @@ auto VirtualDisplaySurface::fbSourceForCompositionType(CompositionType type) -> 
 
 std::string VirtualDisplaySurface::toString(CompositionType type) {
     using namespace std::literals;
-    return type == CompositionType::Unknown ? "Unknown"s : Flags(type).string();
+    return type == CompositionType::Unknown ? "Unknown"s : ftl::Flags(type).string();
 }
 
 } // namespace android
