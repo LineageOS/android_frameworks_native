@@ -813,7 +813,7 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
                              StringPrintf("cacheGid cannot be -1 for sdksandbox data"));
         }
         auto status = createAppDataDirs(sharedPath, sdkSandboxUid, AID_NOBODY,
-                                        &previousSdkSandboxUid, cacheGid, seInfo, 0700);
+                                        &previousSdkSandboxUid, cacheGid, seInfo, 0700 | S_ISGID);
         if (!status.isOk()) {
             return status;
         }
@@ -993,7 +993,7 @@ binder::Status InstalldNativeService::reconcileSdkData(
             const int32_t sandboxUid = multiuser_get_sdk_sandbox_uid(userId, appId);
             int32_t previousSandboxUid = multiuser_get_sdk_sandbox_uid(userId, previousAppId);
             auto status = createAppDataDirs(path, sandboxUid, AID_NOBODY, &previousSandboxUid,
-                                            cacheGid, seInfo, 0700);
+                                            cacheGid, seInfo, 0700 | S_ISGID);
             if (!status.isOk()) {
                 res = status;
                 continue;
@@ -1900,6 +1900,11 @@ binder::Status InstalldNativeService::destroyUserData(const std::optional<std::s
         if (delete_dir_contents_and_dir(path, true) != 0) {
             res = error("Failed to delete " + path);
         }
+        auto sdk_sandbox_de_path =
+                create_data_misc_sdk_sandbox_path(uuid_, /*isCeData=*/false, userId);
+        if (delete_dir_contents_and_dir(sdk_sandbox_de_path, true) != 0) {
+            res = error("Failed to delete " + sdk_sandbox_de_path);
+        }
         if (uuid_ == nullptr) {
             path = create_data_misc_legacy_path(userId);
             if (delete_dir_contents_and_dir(path, true) != 0) {
@@ -1915,6 +1920,11 @@ binder::Status InstalldNativeService::destroyUserData(const std::optional<std::s
         auto path = create_data_user_ce_path(uuid_, userId);
         if (delete_dir_contents_and_dir(path, true) != 0) {
             res = error("Failed to delete " + path);
+        }
+        auto sdk_sandbox_ce_path =
+                create_data_misc_sdk_sandbox_path(uuid_, /*isCeData=*/true, userId);
+        if (delete_dir_contents_and_dir(sdk_sandbox_ce_path, true) != 0) {
+            res = error("Failed to delete " + sdk_sandbox_ce_path);
         }
         path = findDataMediaPath(uuid, userId);
         if (delete_dir_contents_and_dir(path, true) != 0) {
