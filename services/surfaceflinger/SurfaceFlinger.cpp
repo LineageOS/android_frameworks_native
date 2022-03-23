@@ -1300,7 +1300,7 @@ void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
         mScheduler->onNewVsyncPeriodChangeTimeline(outTimeline);
 
         if (outTimeline.refreshRequired) {
-            // Scheduler will submit an empty frame to HWC.
+            scheduleComposite(FrameHint::kNone);
             mSetActiveModePending = true;
         } else {
             // Updating the internal state should be done outside the loop,
@@ -1941,6 +1941,10 @@ void SurfaceFlinger::onComposerHalVsyncPeriodTimingChanged(
         hal::HWDisplayId, const hal::VsyncPeriodChangeTimeline& timeline) {
     Mutex::Autolock lock(mStateLock);
     mScheduler->onNewVsyncPeriodChangeTimeline(timeline);
+
+    if (timeline.refreshRequired) {
+        scheduleComposite(FrameHint::kNone);
+    }
 }
 
 void SurfaceFlinger::onComposerHalSeamlessPossible(hal::HWDisplayId) {
@@ -2248,7 +2252,9 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId) {
 
     mTimeStats->recordFrameDuration(frameTime, systemTime());
 
-    mScheduler->onPostComposition(presentTime);
+    if (mScheduler->onPostComposition(presentTime)) {
+        scheduleComposite(FrameHint::kNone);
+    }
 
     postFrame();
     postComposition();
