@@ -20,6 +20,29 @@
     {
       "unresolved": true,
       "key": {
+        "uuid": "f905c5b4_222fcf90",
+        "filename": "opengl/libs/Android.bp",
+        "patchSetId": 2
+      },
+      "lineNbr": 131,
+      "author": {
+        "id": 17401
+      },
+      "writtenOn": "2022-03-23T17:50:31Z",
+      "side": 1,
+      "message": "move to vendor/lineage as we usually do with these?",
+      "range": {
+        "startLine": 116,
+        "startChar": 0,
+        "endLine": 131,
+        "endChar": 1
+      },
+      "revId": "2d035353e47272b8a19423241df8246d3f5f7cc0",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
         "uuid": "f287c2be_147dc02c",
         "filename": "opengl/libs/EGL/egl_display.h",
         "patchSetId": 2
