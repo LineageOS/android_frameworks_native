@@ -721,15 +721,15 @@ void SurfaceFlinger::bootFinished() {
         }
 
         readPersistentProperties();
-        std::optional<pid_t> renderEngineTid = getRenderEngine().getRenderEngineTid();
-        std::vector<int32_t> tidList;
-        tidList.emplace_back(gettid());
-        if (renderEngineTid.has_value()) {
-            tidList.emplace_back(*renderEngineTid);
-        }
         mPowerAdvisor.onBootFinished();
         mPowerAdvisor.enablePowerHint(mFlagManager->use_adpf_cpu_hint());
         if (mPowerAdvisor.usePowerHintSession()) {
+            std::optional<pid_t> renderEngineTid = getRenderEngine().getRenderEngineTid();
+            std::vector<int32_t> tidList;
+            tidList.emplace_back(gettid());
+            if (renderEngineTid.has_value()) {
+                tidList.emplace_back(*renderEngineTid);
+            }
             mPowerAdvisor.startPowerHintSession(tidList);
         }
 
@@ -3729,8 +3729,8 @@ int SurfaceFlinger::flushPendingTransactionQueues(
                 break;
             }
             transaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
-                const bool frameNumberChanged = 
-                    state.bufferData->flags.test(BufferData::BufferDataChange::frameNumberChanged);
+                const bool frameNumberChanged = state.bufferData->flags.test(
+                        BufferData::BufferDataChange::frameNumberChanged);
                 if (frameNumberChanged) {
                     bufferLayersReadyToPresent[state.surface] = state.bufferData->frameNumber;
                 } else {
@@ -3810,8 +3810,8 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                     mPendingTransactionQueues[transaction.applyToken].push(std::move(transaction));
                 } else {
                     transaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
-                        const bool frameNumberChanged = 
-                            state.bufferData->flags.test(BufferData::BufferDataChange::frameNumberChanged);
+                        const bool frameNumberChanged = state.bufferData->flags.test(
+                                BufferData::BufferDataChange::frameNumberChanged);
                         if (frameNumberChanged) {
                             bufferLayersReadyToPresent[state.surface] = state.bufferData->frameNumber;
                         } else {
@@ -3820,7 +3820,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                             bufferLayersReadyToPresent[state.surface] =
                                 std::numeric_limits<uint64_t>::max();
                         }
-                      });
+                    });
                     transactions.emplace_back(std::move(transaction));
                 }
                 mTransactionQueue.pop_front();

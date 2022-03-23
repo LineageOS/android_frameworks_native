@@ -542,7 +542,7 @@ private:
     static constexpr double kAllowedTargetDeviationPercent = 0.05;
     // Target used for init and normalization, the actual value does not really matter
     static constexpr const std::chrono::nanoseconds kDefaultTarget = 50ms;
-    // amount of time after the last message was sent before the session goes stale
+    // Amount of time after the last message was sent before the session goes stale
     // actually 100ms but we use 80 here to ideally avoid going stale
     static constexpr const std::chrono::nanoseconds kStaleTimeout = 80ms;
 };
@@ -551,7 +551,7 @@ const bool AidlPowerHalWrapper::sTraceHintSessionData =
         base::GetBoolProperty(std::string("debug.sf.trace_hint_sessions"), false);
 
 const bool AidlPowerHalWrapper::sNormalizeTarget =
-        base::GetBoolProperty(std::string("debug.sf.normalize_hint_session_durations"), true);
+        base::GetBoolProperty(std::string("debug.sf.normalize_hint_session_durations"), false);
 
 PowerAdvisor::HalWrapper* PowerAdvisor::getPowerHal() {
     static std::unique_ptr<HalWrapper> sHalWrapper = nullptr;
