@@ -286,10 +286,13 @@ public:
     SurfaceFlingerBE& getBE() { return mBE; }
     const SurfaceFlingerBE& getBE() const { return mBE; }
 
+    // Indicates frame activity, i.e. whether commit and/or composite is taking place.
+    enum class FrameHint { kNone, kActive };
+
     // Schedule commit of transactions on the main thread ahead of the next VSYNC.
     void scheduleCommit(FrameHint);
     // As above, but also force composite regardless if transactions were committed.
-    void scheduleComposite(FrameHint) override;
+    void scheduleComposite(FrameHint);
     // As above, but also force dirty geometry to repaint.
     void scheduleRepaint();
     // Schedule sampling independently from commit or composite.

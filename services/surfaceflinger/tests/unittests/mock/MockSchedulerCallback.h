@@ -23,7 +23,6 @@
 namespace android::scheduler::mock {
 
 struct SchedulerCallback final : ISchedulerCallback {
-    MOCK_METHOD(void, scheduleComposite, (FrameHint), (override));
     MOCK_METHOD(void, setVsyncEnabled, (bool), (override));
     MOCK_METHOD(void, requestDisplayMode, (DisplayModePtr, DisplayModeEvent), (override));
     MOCK_METHOD(void, kernelTimerChanged, (bool), (override));
@@ -31,7 +30,6 @@ struct SchedulerCallback final : ISchedulerCallback {
 };
 
 struct NoOpSchedulerCallback final : ISchedulerCallback {
-    void scheduleComposite(FrameHint) override {}
     void setVsyncEnabled(bool) override {}
     void requestDisplayMode(DisplayModePtr, DisplayModeEvent) override {}
     void kernelTimerChanged(bool) override {}
