@@ -3695,6 +3695,15 @@ bool SurfaceFlinger::stopTransactionProcessing(
     return false;
 }
 
+int SurfaceFlinger::flushUnsignaledPendingTransactionQueues(
+        std::vector<TransactionState>& transactions,
+        std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
+        std::unordered_set<sp<IBinder>, SpHash<IBinder>>& applyTokensWithUnsignaledTransactions) {
+    return flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
+                                         applyTokensWithUnsignaledTransactions,
+                                         /*tryApplyUnsignaled*/ true);
+}
+
 int SurfaceFlinger::flushPendingTransactionQueues(
         std::vector<TransactionState>& transactions,
         std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
@@ -3849,9 +3858,8 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
             // If we are allowing latch unsignaled of some form, now it's the time to go over the
             // transactions that were not applied and try to apply them unsignaled.
             if (enableLatchUnsignaledConfig != LatchUnsignaledConfig::Disabled) {
-                flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
-                                              applyTokensWithUnsignaledTransactions,
-                                              /*tryApplyUnsignaled*/ true);
+                flushUnsignaledPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
+                                                        applyTokensWithUnsignaledTransactions);
             }
 
             return applyTransactions(transactions, vsyncId);
