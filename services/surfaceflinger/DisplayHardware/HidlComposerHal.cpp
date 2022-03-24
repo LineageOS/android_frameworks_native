@@ -235,7 +235,6 @@ bool HidlComposer::isSupported(OptionalFeature feature) const {
             return mClient_2_4 != nullptr;
         case OptionalFeature::ExpectedPresentTime:
         case OptionalFeature::DisplayBrightnessCommand:
-        case OptionalFeature::BootDisplayConfig:
         case OptionalFeature::KernelIdleTimer:
         case OptionalFeature::PhysicalDisplayOrientation:
             return false;
