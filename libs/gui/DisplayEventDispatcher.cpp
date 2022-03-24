@@ -197,4 +197,9 @@ bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
     return gotVsync;
 }
 
+status_t DisplayEventDispatcher::getLatestVsyncEventData(
+        ParcelableVsyncEventData* outVsyncEventData) const {
+    return mReceiver.getLatestVsyncEventData(outVsyncEventData);
+}
+
 } // namespace android
