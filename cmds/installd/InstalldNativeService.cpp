@@ -1176,6 +1176,25 @@ binder::Status InstalldNativeService::destroyAppProfiles(const std::string& pack
     return res;
 }
 
+binder::Status InstalldNativeService::deleteReferenceProfile(const std::string& packageName,
+                                                             const std::string& profileName) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    LOCK_PACKAGE();
+
+    // This function only supports primary dex'es.
+    std::string path =
+            create_reference_profile_path(packageName, profileName, /*is_secondary_dex=*/false);
+    if (unlink(path.c_str()) != 0) {
+        if (errno == ENOENT) {
+            return ok();
+        } else {
+            return error("Failed to delete profile " + profileName + " for " + packageName);
+        }
+    }
+    return ok();
+}
+
 binder::Status InstalldNativeService::destroyAppData(const std::optional<std::string>& uuid,
         const std::string& packageName, int32_t userId, int32_t flags, int64_t ceDataInode) {
     ENFORCE_UID(AID_SYSTEM);
