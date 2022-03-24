@@ -140,10 +140,8 @@ void SurfaceFlingerFuzzer::invokeFlinger() {
 
     mFlinger->enableLatchUnsignaledConfig = mFdp.PickValueInArray(kLatchUnsignaledConfig);
 
-    mFlinger->scheduleComposite(mFdp.ConsumeBool()
-                                        ? scheduler::ISchedulerCallback::FrameHint::kActive
-                                        : scheduler::ISchedulerCallback::FrameHint::kNone);
-
+    using FrameHint = SurfaceFlinger::FrameHint;
+    mFlinger->scheduleComposite(mFdp.ConsumeBool() ? FrameHint::kActive : FrameHint::kNone);
     mFlinger->scheduleRepaint();
     mFlinger->scheduleSample();
 

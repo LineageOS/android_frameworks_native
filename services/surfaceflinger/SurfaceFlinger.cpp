@@ -1299,7 +1299,7 @@ void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
         mScheduler->onNewVsyncPeriodChangeTimeline(outTimeline);
 
         if (outTimeline.refreshRequired) {
-            // Scheduler will submit an empty frame to HWC.
+            scheduleComposite(FrameHint::kNone);
             mSetActiveModePending = true;
         } else {
             // Updating the internal state should be done outside the loop,
@@ -1940,6 +1940,10 @@ void SurfaceFlinger::onComposerHalVsyncPeriodTimingChanged(
         hal::HWDisplayId, const hal::VsyncPeriodChangeTimeline& timeline) {
     Mutex::Autolock lock(mStateLock);
     mScheduler->onNewVsyncPeriodChangeTimeline(timeline);
+
+    if (timeline.refreshRequired) {
+        scheduleComposite(FrameHint::kNone);
+    }
 }
 
 void SurfaceFlinger::onComposerHalSeamlessPossible(hal::HWDisplayId) {
@@ -2247,7 +2251,9 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId) {
 
     mTimeStats->recordFrameDuration(frameTime, systemTime());
 
-    mScheduler->onPostComposition(presentTime);
+    if (mScheduler->onPostComposition(presentTime)) {
+        scheduleComposite(FrameHint::kNone);
+    }
 
     postFrame();
     postComposition();
@@ -3669,16 +3675,13 @@ uint32_t SurfaceFlinger::clearTransactionFlags(uint32_t mask) {
     return mTransactionFlags.fetch_and(~mask) & mask;
 }
 
-uint32_t SurfaceFlinger::setTransactionFlags(uint32_t mask) {
-    return setTransactionFlags(mask, TransactionSchedule::Late);
-}
-
-uint32_t SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule schedule,
-                                             const sp<IBinder>& applyToken) {
-    const uint32_t old = mTransactionFlags.fetch_or(mask);
+void SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule schedule,
+                                         const sp<IBinder>& applyToken) {
     modulateVsync(&VsyncModulator::setTransactionSchedule, schedule, applyToken);
-    if ((old & mask) == 0) scheduleCommit(FrameHint::kActive);
-    return old;
+
+    if (const bool scheduled = mTransactionFlags.fetch_or(mask) & mask; !scheduled) {
+        scheduleCommit(FrameHint::kActive);
+    }
 }
 
 bool SurfaceFlinger::stopTransactionProcessing(
