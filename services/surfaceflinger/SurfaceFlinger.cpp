@@ -690,10 +690,9 @@ void SurfaceFlinger::bootFinished() {
     const nsecs_t duration = now - mBootTime;
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
 
-    mFlagManager = std::make_unique<android::FlagManager>();
     mFrameTracer->initialize();
     mFrameTimeline->onBootFinished();
-    getRenderEngine().setEnableTracing(mFlagManager->use_skia_tracing());
+    getRenderEngine().setEnableTracing(mFlagManager.use_skia_tracing());
 
     // wait patiently for the window manager death
     const String16 name("window");
@@ -722,7 +721,7 @@ void SurfaceFlinger::bootFinished() {
 
         readPersistentProperties();
         mPowerAdvisor.onBootFinished();
-        mPowerAdvisor.enablePowerHint(mFlagManager->use_adpf_cpu_hint());
+        mPowerAdvisor.enablePowerHint(mFlagManager.use_adpf_cpu_hint());
         if (mPowerAdvisor.usePowerHintSession()) {
             std::optional<pid_t> renderEngineTid = getRenderEngine().getRenderEngineTid();
             std::vector<int32_t> tidList;
@@ -5459,9 +5458,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     /*
      * Dump flag/property manager state
      */
-    if (mFlagManager != nullptr) {
-        mFlagManager->dump(result);
-    }
+    mFlagManager.dump(result);
 
     result.append(mTimeStats->miniDump());
     result.append("\n");
