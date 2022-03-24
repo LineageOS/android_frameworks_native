@@ -995,21 +995,6 @@ TEST_F(InputSurfacesTest, drop_input_policy) {
     EXPECT_EQ(surface->consumeEvent(100), nullptr);
 }
 
-TEST_F(InputSurfacesTest, layer_with_empty_crop_cannot_be_focused) {
-    std::unique_ptr<InputSurface> bufferSurface =
-            InputSurface::makeBufferInputSurface(mComposerClient, 100, 100);
-
-    bufferSurface->showAt(50, 50, Rect::EMPTY_RECT);
-
-    bufferSurface->requestFocus();
-    EXPECT_EQ(bufferSurface->consumeEvent(100), nullptr);
-
-    bufferSurface->showAt(50, 50, Rect::INVALID_RECT);
-
-    bufferSurface->requestFocus();
-    EXPECT_EQ(bufferSurface->consumeEvent(100), nullptr);
-}
-
 TEST_F(InputSurfacesTest, layer_with_valid_crop_can_be_focused) {
     std::unique_ptr<InputSurface> bufferSurface =
             InputSurface::makeBufferInputSurface(mComposerClient, 100, 100);
