@@ -1085,7 +1085,8 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
             getHwComposer().supportsContentType(*displayId, hal::ContentType::GAME);
 
     info->preferredBootDisplayMode = static_cast<ui::DisplayModeId>(-1);
-    if (getHwComposer().getBootDisplayModeSupport()) {
+
+    if (getHwComposer().hasCapability(Capability::BOOT_DISPLAY_CONFIG)) {
         if (const auto hwcId = getHwComposer().getPreferredBootDisplayMode(*displayId)) {
             if (const auto modeId = display->translateModeId(*hwcId)) {
                 info->preferredBootDisplayMode = modeId->value();
@@ -1407,7 +1408,7 @@ status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, Col
 
 status_t SurfaceFlinger::getBootDisplayModeSupport(bool* outSupport) const {
     auto future = mScheduler->schedule([=]() MAIN_THREAD mutable -> status_t {
-        *outSupport = getHwComposer().getBootDisplayModeSupport();
+        *outSupport = getHwComposer().hasCapability(Capability::BOOT_DISPLAY_CONFIG);
         return NO_ERROR;
     });
     return future.get();
