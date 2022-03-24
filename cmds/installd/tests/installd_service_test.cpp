@@ -45,7 +45,7 @@
 #include "utils.h"
 
 using android::base::StringPrintf;
-namespace fs = std::filesystem;
+using std::filesystem::is_empty;
 
 namespace android {
 std::string get_package_name(uid_t uid) {
@@ -79,12 +79,15 @@ std::string get_package_name(uid_t uid) {
 namespace installd {
 
 static constexpr const char* kTestUuid = "TEST";
-static constexpr const char* kTestPath = "/data/local/tmp";
+static const std::string kTestPath = "/data/local/tmp";
 static constexpr const uid_t kNobodyUid = 9999;
 static constexpr const uid_t kSystemUid = 1000;
 static constexpr const int32_t kTestUserId = 0;
 static constexpr const uid_t kTestAppId = 19999;
 static constexpr const int FLAG_STORAGE_SDK = InstalldNativeService::FLAG_STORAGE_SDK;
+static constexpr const int FLAG_CLEAR_CACHE_ONLY = InstalldNativeService::FLAG_CLEAR_CACHE_ONLY;
+static constexpr const int FLAG_CLEAR_CODE_CACHE_ONLY =
+        InstalldNativeService::FLAG_CLEAR_CODE_CACHE_ONLY;
 
 const gid_t kTestAppUid = multiuser_get_uid(kTestUserId, kTestAppId);
 const gid_t kTestCacheGid = multiuser_get_cache_gid(kTestUserId, kTestAppId);
@@ -111,7 +114,7 @@ bool create_cache_path(char path[PKG_PATH_MAX], const char *src, const char *ins
 }
 
 static std::string get_full_path(const std::string& path) {
-    return StringPrintf("%s/%s", kTestPath, path.c_str());
+    return StringPrintf("%s/%s", kTestPath.c_str(), path.c_str());
 }
 
 static void mkdir(const std::string& path, uid_t owner, gid_t group, mode_t mode) {
@@ -169,10 +172,9 @@ static bool find_file(const char* path, Pred&& pred) {
 }
 
 static bool exists_renamed_deleted_dir(const std::string& rootDirectory) {
-    return find_file((std::string(kTestPath) + rootDirectory).c_str(),
-                     [](const std::string& name, bool is_dir) {
-                         return is_dir && is_renamed_deleted_dir(name);
-                     });
+    return find_file((kTestPath + rootDirectory).c_str(), [](const std::string& name, bool is_dir) {
+        return is_dir && is_renamed_deleted_dir(name);
+    });
 }
 
 class ServiceTest : public testing::Test {
@@ -1067,16 +1069,12 @@ public:
     }
 
     android::os::ReconcileSdkDataArgs reconcileSdkDataArgs(
-            std::string packageName, std::vector<std::string> codeNames,
-            std::vector<std::string> randomSuffixes) {
+            const std::string& packageName, const std::vector<std::string>& subDirNames) {
         android::os::ReconcileSdkDataArgs args;
         args.uuid = kTestUuid;
         args.packageName = packageName;
-        for (const auto& codeName : codeNames) {
-            args.sdkPackageNames.push_back(codeName);
-        }
-        for (const auto& randomSuffix : randomSuffixes) {
-            args.randomSuffixes.push_back(randomSuffix);
+        for (const auto& subDirName : subDirNames) {
+            args.subDirNames.push_back(subDirName);
         }
         args.userId = kTestUserId;
         args.appId = kTestAppId;
@@ -1126,24 +1124,12 @@ TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkPackageData) {
 
     const std::string fooCePath = "misc_ce/0/sdksandbox/com.foo";
     CheckFileAccess(fooCePath, kSystemUid, kSystemUid, S_IFDIR | 0751);
-    CheckFileAccess(fooCePath + "/shared", kTestSdkSandboxUid, kNobodyUid,
-                    S_IFDIR | S_ISGID | 0700);
-    CheckFileAccess(fooCePath + "/shared/cache", kTestSdkSandboxUid, kTestCacheGid,
-                    S_IFDIR | S_ISGID | 0771);
-    CheckFileAccess(fooCePath + "/shared/code_cache", kTestSdkSandboxUid, kTestCacheGid,
-                    S_IFDIR | S_ISGID | 0771);
 
     const std::string fooDePath = "misc_de/0/sdksandbox/com.foo";
     CheckFileAccess(fooDePath, kSystemUid, kSystemUid, S_IFDIR | 0751);
-    CheckFileAccess(fooDePath + "/shared", kTestSdkSandboxUid, kNobodyUid,
-                    S_IFDIR | S_ISGID | 0700);
-    CheckFileAccess(fooDePath + "/shared/cache", kTestSdkSandboxUid, kTestCacheGid,
-                    S_IFDIR | S_ISGID | 0771);
-    CheckFileAccess(fooDePath + "/shared/code_cache", kTestSdkSandboxUid, kTestCacheGid,
-                    S_IFDIR | S_ISGID | 0771);
 }
 
-TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData_WithoutSdkFlag) {
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkPackageData_WithoutSdkFlag) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_DE;
@@ -1155,7 +1141,7 @@ TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData_WithoutSdkFlag) 
     ASSERT_FALSE(exists("/data/local/tmp/misc_de/0/sdksandbox/com.foo"));
 }
 
-TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData_WithoutSdkFlagDeletesExisting) {
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkPackageData_WithoutSdkFlagDeletesExisting) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     // Create the app user data.
@@ -1169,7 +1155,7 @@ TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData_WithoutSdkFlagDe
     ASSERT_FALSE(exists("/data/local/tmp/misc_de/0/sdksandbox/com.foo"));
 }
 
-TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData_WithoutDeFlag) {
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkPackageData_WithoutDeFlag) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     args.flags = FLAG_STORAGE_CE | FLAG_STORAGE_SDK;
@@ -1184,7 +1170,7 @@ TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData_WithoutDeFlag) {
     ASSERT_FALSE(exists("/data/local/tmp/misc_de/0/sdksandbox/com.foo"));
 }
 
-TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData_WithoutCeFlag) {
+TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkPackageData_WithoutCeFlag) {
     android::os::CreateAppDataResult result;
     android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
     args.flags = FLAG_STORAGE_DE | FLAG_STORAGE_SDK;
@@ -1201,7 +1187,7 @@ TEST_F(SdkSandboxDataTest, CreateAppData_CreatesSdkAppLevelData_WithoutCeFlag) {
 
 TEST_F(SdkSandboxDataTest, ReconcileSdkData) {
     android::os::ReconcileSdkDataArgs args =
-            reconcileSdkDataArgs("com.foo", {"bar", "baz"}, {"random1", "random2"});
+            reconcileSdkDataArgs("com.foo", {"bar@random1", "baz@random2"});
 
     // Create the sdk data.
     ASSERT_BINDER_SUCCESS(service->reconcileSdkData(args));
@@ -1235,59 +1221,15 @@ TEST_F(SdkSandboxDataTest, ReconcileSdkData) {
                     S_IFDIR | S_ISGID | 0771);
 }
 
-TEST_F(SdkSandboxDataTest, ReconcileSdkData_PackageNameCannotUseRandomSuffixSeparator) {
-    android::os::ReconcileSdkDataArgs args =
-            reconcileSdkDataArgs("com.foo", {"bar@illegal"}, {"random1"});
-
-    // Create the sdksandbox data.
-    auto status = service->reconcileSdkData(args);
-    ASSERT_EQ(status.exceptionCode(), binder::Status::EX_ILLEGAL_ARGUMENT);
-    ASSERT_EQ(status.exceptionMessage(), "Package name bar@illegal is malformed");
-}
-
-TEST_F(SdkSandboxDataTest, ReconcileSdkData_NotEnoughRandomSuffix) {
-    android::os::ReconcileSdkDataArgs args =
-            reconcileSdkDataArgs("com.foo", {"bar", "baz"}, {"random1"});
-
-    // Create the sdksandbox data.
-    auto status = service->reconcileSdkData(args);
-    ASSERT_EQ(status.exceptionCode(), binder::Status::EX_ILLEGAL_ARGUMENT);
-    ASSERT_EQ(status.exceptionMessage(), "Not enough random suffix. Required 2, received 1.");
-}
-
-TEST_F(SdkSandboxDataTest, ReconcileSdkData_DirectoryNotCreatedIfAlreadyExistsIgnoringSuffix) {
-    android::os::ReconcileSdkDataArgs args =
-            reconcileSdkDataArgs("com.foo", {"bar", "baz"}, {"random1", "random2"});
-
-    // Create the sdksandbox data.
-    ASSERT_BINDER_SUCCESS(service->reconcileSdkData(args));
-
-    // Retry with different random suffix
-    args.randomSuffixes[0] = "r10";
-    args.randomSuffixes[1] = "r20";
-
-    // Create the sdksandbox data again
-    ASSERT_BINDER_SUCCESS(service->reconcileSdkData(args));
-
-    // Previous directories from first attempt should exist
-    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/bar@random1", kTestSdkSandboxUid, kNobodyUid,
-                    S_IFDIR | S_ISGID | 0700);
-    CheckFileAccess("misc_ce/0/sdksandbox/com.foo/baz@random2", kTestSdkSandboxUid, kNobodyUid,
-                    S_IFDIR | S_ISGID | 0700);
-    // No new directories should be created on second attempt
-    ASSERT_FALSE(exists("/data/local/tmp/misc_ce/0/sdksandbox/com.foo/bar@r10"));
-    ASSERT_FALSE(exists("/data/local/tmp/misc_de/0/sdksandbox/com.foo/bar@r20"));
-}
-
 TEST_F(SdkSandboxDataTest, ReconcileSdkData_ExtraCodeDirectoriesAreDeleted) {
     android::os::ReconcileSdkDataArgs args =
-            reconcileSdkDataArgs("com.foo", {"bar", "baz"}, {"random1", "random2"});
+            reconcileSdkDataArgs("com.foo", {"bar@random1", "baz@random2"});
 
     // Create the sdksandbox data.
     ASSERT_BINDER_SUCCESS(service->reconcileSdkData(args));
 
     // Retry with different package name
-    args.sdkPackageNames[0] = "bar.diff";
+    args.subDirNames[0] = "bar.diff@random1";
 
     // Create the sdksandbox data again
     ASSERT_BINDER_SUCCESS(service->reconcileSdkData(args));
@@ -1347,130 +1289,90 @@ public:
     void createTestSdkData(const std::string& packageName, std::vector<std::string> sdkNames) {
         const auto& cePackagePath = "/data/local/tmp/misc_ce/0/sdksandbox/" + packageName;
         const auto& dePackagePath = "/data/local/tmp/misc_de/0/sdksandbox/" + packageName;
-        ASSERT_TRUE(mkdirs(cePackagePath + "/shared/cache", 0700));
-        ASSERT_TRUE(mkdirs(cePackagePath + "shared/code_cache", 0700));
-        ASSERT_TRUE(mkdirs(dePackagePath + "/shared/cache", 0700));
-        ASSERT_TRUE(mkdirs(dePackagePath + "/shared/code_cache", 0700));
-        std::ofstream{cePackagePath + "/shared/cache/cachedTestData.txt"};
-        for (auto sdkName : sdkNames) {
-            ASSERT_TRUE(mkdirs(cePackagePath + "/" + sdkName + "/cache", 0700));
-            ASSERT_TRUE(mkdirs(dePackagePath + "/" + sdkName + "/cache", 0700));
-            ASSERT_TRUE(mkdirs(cePackagePath + "/" + sdkName + "/code_cache", 0700));
-            ASSERT_TRUE(mkdirs(dePackagePath + "/" + sdkName + "/code_cache", 0700));
-            std::ofstream{cePackagePath + "/" + sdkName + "/cache/cachedTestData.txt"};
-            std::ofstream{cePackagePath + "/" + sdkName + "/code_cache/cachedTestData.txt"};
-            std::ofstream{dePackagePath + "/" + sdkName + "/cache/cachedTestData.txt"};
-            std::ofstream{dePackagePath + "/" + sdkName + "/code_cache/cachedTestData.txt"};
+        ASSERT_TRUE(mkdirs(cePackagePath, 0700));
+        ASSERT_TRUE(mkdirs(dePackagePath, 0700));
+        const std::vector<std::string> packagePaths = {cePackagePath, dePackagePath};
+        for (const auto& packagePath : packagePaths) {
+            for (auto sdkName : sdkNames) {
+                ASSERT_TRUE(mkdirs(packagePath + "/" + sdkName + "/cache", 0700));
+                ASSERT_TRUE(mkdirs(packagePath + "/" + sdkName + "/code_cache", 0700));
+                std::ofstream{packagePath + "/" + sdkName + "/cache/cachedTestData.txt"};
+                std::ofstream{packagePath + "/" + sdkName + "/code_cache/cachedTestData.txt"};
+            }
         }
     }
 };
 
 TEST_F(ClearAppDataTest, ClearSdkSandboxDataDirectories_WithCeAndClearCacheFlag) {
-    android::os::CreateAppDataResult result;
-    android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
-    args.packageName = "com.foo";
-    // Create the app user data.
-    ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
-    createTestSdkData("com.foo", {"sdk1", "sdk2"});
+    createTestSdkData("com.foo", {"shared", "sdk1", "sdk2"});
     // Clear the app user data.
-    ASSERT_BINDER_SUCCESS(
-            service->clearAppData(args.uuid, args.packageName, args.userId,
-                                  FLAG_STORAGE_CE | (InstalldNativeService::FLAG_CLEAR_CACHE_ONLY),
-                                  result.ceDataInode));
-    ASSERT_TRUE(
-            fs::is_empty(fs::path("/data/local/tmp/misc_ce/0/sdksandbox/com.foo/shared/cache")));
-    ASSERT_TRUE(fs::is_empty(fs::path("/data/local/tmp/misc_ce/0/sdksandbox/com.foo/sdk1/cache")));
-    ASSERT_TRUE(fs::is_empty(fs::path("/data/local/tmp/misc_ce/0/sdksandbox/com.foo/sdk2/cache")));
+    ASSERT_BINDER_SUCCESS(service->clearAppData(kTestUuid, "com.foo", 0,
+                                                FLAG_STORAGE_CE | FLAG_CLEAR_CACHE_ONLY, -1));
+
+    const std::string packagePath = kTestPath + "/misc_ce/0/sdksandbox/com.foo";
+    ASSERT_TRUE(is_empty(packagePath + "/shared/cache"));
+    ASSERT_TRUE(is_empty(packagePath + "/sdk1/cache"));
+    ASSERT_TRUE(is_empty(packagePath + "/sdk2/cache"));
 }
 
 TEST_F(ClearAppDataTest, ClearSdkSandboxDataDirectories_WithCeAndClearCodeCacheFlag) {
-    android::os::CreateAppDataResult result;
-    android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
-    args.packageName = "com.foo";
-    // Create the app user data.
-    ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
-    createTestSdkData("com.foo", {"sdk1", "sdk2"});
+    createTestSdkData("com.foo", {"shared", "sdk1", "sdk2"});
     // Clear the app user data.
-    ASSERT_BINDER_SUCCESS(
-            service->clearAppData(args.uuid, args.packageName, args.userId,
-                                  FLAG_STORAGE_CE |
-                                          (InstalldNativeService::FLAG_CLEAR_CODE_CACHE_ONLY),
-                                  result.ceDataInode));
-    ASSERT_TRUE(fs::is_empty(
-            fs::path("/data/local/tmp/misc_ce/0/sdksandbox/com.foo/shared/code_cache")));
-    ASSERT_TRUE(
-            fs::is_empty(fs::path("/data/local/tmp/misc_ce/0/sdksandbox/com.foo/sdk1/code_cache")));
-    ASSERT_TRUE(
-            fs::is_empty(fs::path("/data/local/tmp/misc_ce/0/sdksandbox/com.foo/sdk2/code_cache")));
+    ASSERT_BINDER_SUCCESS(service->clearAppData(kTestUuid, "com.foo", 0,
+                                                FLAG_STORAGE_CE | FLAG_CLEAR_CODE_CACHE_ONLY, -1));
+
+    const std::string packagePath = kTestPath + "/misc_ce/0/sdksandbox/com.foo";
+    ASSERT_TRUE(is_empty(packagePath + "/shared/code_cache"));
+    ASSERT_TRUE(is_empty(packagePath + "/sdk1/code_cache"));
+    ASSERT_TRUE(is_empty(packagePath + "/sdk2/code_cache"));
 }
 
 TEST_F(ClearAppDataTest, ClearSdkSandboxDataDirectories_WithDeAndClearCacheFlag) {
-    android::os::CreateAppDataResult result;
-    android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
-    args.packageName = "com.foo";
-    // Create the app user data.
-    ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
-    createTestSdkData("com.foo", {"sdk1", "sdk2"});
+    createTestSdkData("com.foo", {"shared", "sdk1", "sdk2"});
     // Clear the app user data
     ASSERT_BINDER_SUCCESS(
-            service->clearAppData(args.uuid, args.packageName, args.userId,
+            service->clearAppData(kTestUuid, "com.foo", 0,
                                   FLAG_STORAGE_DE | (InstalldNativeService::FLAG_CLEAR_CACHE_ONLY),
-                                  result.ceDataInode));
-    ASSERT_TRUE(
-            fs::is_empty(fs::path("/data/local/tmp/misc_de/0/sdksandbox/com.foo/shared/cache")));
-    ASSERT_TRUE(fs::is_empty(fs::path("/data/local/tmp/misc_de/0/sdksandbox/com.foo/sdk1/cache")));
-    ASSERT_TRUE(fs::is_empty(fs::path("/data/local/tmp/misc_de/0/sdksandbox/com.foo/sdk2/cache")));
+                                  -1));
+
+    const std::string packagePath = kTestPath + "/misc_de/0/sdksandbox/com.foo";
+    ASSERT_TRUE(is_empty(packagePath + "/shared/cache"));
+    ASSERT_TRUE(is_empty(packagePath + "/sdk1/cache"));
+    ASSERT_TRUE(is_empty(packagePath + "/sdk2/cache"));
 }
 
 TEST_F(ClearAppDataTest, ClearSdkSandboxDataDirectories_WithDeAndClearCodeCacheFlag) {
-    android::os::CreateAppDataResult result;
-    android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
-    args.packageName = "com.foo";
-    // Create the app user data.
-    ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
-    createTestSdkData("com.foo", {"sdk1", "sdk2"});
+    createTestSdkData("com.foo", {"shared", "sdk1", "sdk2"});
     // Clear the app user data.
-    ASSERT_BINDER_SUCCESS(
-            service->clearAppData(args.uuid, args.packageName, args.userId,
-                                  FLAG_STORAGE_DE |
-                                          (InstalldNativeService::FLAG_CLEAR_CODE_CACHE_ONLY),
-                                  result.ceDataInode));
-    ASSERT_TRUE(fs::is_empty(
-            fs::path("/data/local/tmp/misc_de/0/sdksandbox/com.foo/shared/code_cache")));
-    ASSERT_TRUE(
-            fs::is_empty(fs::path("/data/local/tmp/misc_de/0/sdksandbox/com.foo/sdk1/code_cache")));
-    ASSERT_TRUE(
-            fs::is_empty(fs::path("/data/local/tmp/misc_de/0/sdksandbox/com.foo/sdk2/code_cache")));
+    ASSERT_BINDER_SUCCESS(service->clearAppData(kTestUuid, "com.foo", 0,
+                                                FLAG_STORAGE_DE | FLAG_CLEAR_CODE_CACHE_ONLY, -1));
+
+    const std::string packagePath = kTestPath + "/misc_de/0/sdksandbox/com.foo";
+    ASSERT_TRUE(is_empty(packagePath + "/shared/code_cache"));
+    ASSERT_TRUE(is_empty(packagePath + "/sdk1/code_cache"));
+    ASSERT_TRUE(is_empty(packagePath + "/sdk2/code_cache"));
 }
 
 TEST_F(ClearAppDataTest, ClearSdkSandboxDataDirectories_WithCeAndWithoutAnyCacheFlag) {
-    android::os::CreateAppDataResult result;
-    android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
-    args.packageName = "com.foo";
-    // Create the app user data.
-    ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
-    createTestSdkData("com.foo", {"sdk1", "sdk2"});
+    createTestSdkData("com.foo", {"shared", "sdk1", "sdk2"});
     // Clear the app user data.
-    ASSERT_BINDER_SUCCESS(service->clearAppData(args.uuid, args.packageName, args.userId,
-                                                FLAG_STORAGE_CE, result.ceDataInode));
-    ASSERT_TRUE(fs::is_empty(fs::path("/data/local/tmp/misc_ce/0/sdksandbox/com.foo/shared")));
-    ASSERT_TRUE(fs::is_empty(fs::path("/data/local/tmp/misc_ce/0/sdksandbox/com.foo/sdk1")));
-    ASSERT_TRUE(fs::is_empty(fs::path("/data/local/tmp/misc_ce/0/sdksandbox/com.foo/sdk2")));
+    ASSERT_BINDER_SUCCESS(service->clearAppData(kTestUuid, "com.foo", 0, FLAG_STORAGE_CE, -1));
+
+    const std::string packagePath = kTestPath + "/misc_ce/0/sdksandbox/com.foo";
+    ASSERT_TRUE(is_empty(packagePath + "/shared"));
+    ASSERT_TRUE(is_empty(packagePath + "/sdk1"));
+    ASSERT_TRUE(is_empty(packagePath + "/sdk2"));
 }
 
 TEST_F(ClearAppDataTest, ClearSdkSandboxDataDirectories_WithDeAndWithoutAnyCacheFlag) {
-    android::os::CreateAppDataResult result;
-    android::os::CreateAppDataArgs args = createAppDataArgs("com.foo");
-    args.packageName = "com.foo";
-    // Create the app user data.
-    ASSERT_BINDER_SUCCESS(service->createAppData(args, &result));
-    createTestSdkData("com.foo", {"sdk1", "sdk2"});
+    createTestSdkData("com.foo", {"shared", "sdk1", "sdk2"});
     // Clear the app user data.
-    ASSERT_BINDER_SUCCESS(service->clearAppData(args.uuid, args.packageName, args.userId,
-                                                FLAG_STORAGE_DE, result.ceDataInode));
-    ASSERT_TRUE(fs::is_empty(fs::path("/data/local/tmp/misc_de/0/sdksandbox/com.foo/shared")));
-    ASSERT_TRUE(fs::is_empty(fs::path("/data/local/tmp/misc_de/0/sdksandbox/com.foo/sdk1")));
-    ASSERT_TRUE(fs::is_empty(fs::path("/data/local/tmp/misc_de/0/sdksandbox/com.foo/sdk2")));
+    ASSERT_BINDER_SUCCESS(service->clearAppData(kTestUuid, "com.foo", 0, FLAG_STORAGE_DE, -1));
+
+    const std::string packagePath = kTestPath + "/misc_de/0/sdksandbox/com.foo";
+    ASSERT_TRUE(is_empty(packagePath + "/shared"));
+    ASSERT_TRUE(is_empty(packagePath + "/sdk1"));
+    ASSERT_TRUE(is_empty(packagePath + "/sdk2"));
 }
 
 class DestroyUserDataTest : public SdkSandboxDataTest {};
