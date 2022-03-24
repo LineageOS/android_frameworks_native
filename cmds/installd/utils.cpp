@@ -224,28 +224,17 @@ std::string create_data_misc_sdk_sandbox_package_path(const char* volume_uuid, b
 }
 
 /**
- * Create the path name where shared code data for a particular app will be stored.
- * E.g. /data/misc_ce/0/sdksandbox/<package-name>/shared
- */
-std::string create_data_misc_sdk_sandbox_shared_path(const char* volume_uuid, bool isCeData,
-                                                     userid_t user, const char* package_name) {
-    return StringPrintf("%s/shared",
-                        create_data_misc_sdk_sandbox_package_path(volume_uuid, isCeData, user,
-                                                                  package_name)
-                                .c_str());
-}
-
-/**
- * Create the path name where per-code level data for a particular app will be stored.
- * E.g. /data/misc_ce/0/sdksandbox/<package-name>/<sdk-name>-<random-suffix>
+ * Create the path name where sdk data for a particular sdk will be stored.
+ * E.g. /data/misc_ce/0/sdksandbox/<package-name>/com.foo@randomstrings
  */
 std::string create_data_misc_sdk_sandbox_sdk_path(const char* volume_uuid, bool isCeData,
                                                   userid_t user, const char* package_name,
-                                                  const char* sdk_name, const char* randomSuffix) {
-    check_package_name(sdk_name);
-    auto package_path =
-            create_data_misc_sdk_sandbox_package_path(volume_uuid, isCeData, user, package_name);
-    return StringPrintf("%s/%s@%s", package_path.c_str(), sdk_name, randomSuffix);
+                                                  const char* sub_dir_name) {
+    return StringPrintf("%s/%s",
+                        create_data_misc_sdk_sandbox_package_path(volume_uuid, isCeData, user,
+                                                                  package_name)
+                                .c_str(),
+                        sub_dir_name);
 }
 
 std::string create_data_misc_ce_rollback_base_path(const char* volume_uuid, userid_t user) {
