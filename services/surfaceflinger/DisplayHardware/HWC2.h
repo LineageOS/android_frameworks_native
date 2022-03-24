@@ -94,82 +94,78 @@ public:
     virtual bool hasDisplayIdleTimerCapability() const = 0;
     virtual void onLayerDestroyed(hal::HWLayerId layerId) = 0;
 
-    [[clang::warn_unused_result]] virtual hal::Error acceptChanges() = 0;
-    [[clang::warn_unused_result]] virtual base::expected<std::shared_ptr<HWC2::Layer>, hal::Error>
+    [[nodiscard]] virtual hal::Error acceptChanges() = 0;
+    [[nodiscard]] virtual base::expected<std::shared_ptr<HWC2::Layer>, hal::Error>
     createLayer() = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getChangedCompositionTypes(
+    [[nodiscard]] virtual hal::Error getChangedCompositionTypes(
             std::unordered_map<Layer*, aidl::android::hardware::graphics::composer3::Composition>*
                     outTypes) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getColorModes(
-            std::vector<hal::ColorMode>* outModes) const = 0;
+    [[nodiscard]] virtual hal::Error getColorModes(std::vector<hal::ColorMode>* outModes) const = 0;
     // Returns a bitmask which contains HdrMetadata::Type::*.
-    [[clang::warn_unused_result]] virtual int32_t getSupportedPerFrameMetadata() const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getRenderIntents(
+    [[nodiscard]] virtual int32_t getSupportedPerFrameMetadata() const = 0;
+    [[nodiscard]] virtual hal::Error getRenderIntents(
             hal::ColorMode colorMode, std::vector<hal::RenderIntent>* outRenderIntents) const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getDataspaceSaturationMatrix(
-            hal::Dataspace dataspace, android::mat4* outMatrix) = 0;
+    [[nodiscard]] virtual hal::Error getDataspaceSaturationMatrix(hal::Dataspace dataspace,
+                                                                  android::mat4* outMatrix) = 0;
 
-    [[clang::warn_unused_result]] virtual hal::Error getName(std::string* outName) const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getRequests(
+    [[nodiscard]] virtual hal::Error getName(std::string* outName) const = 0;
+    [[nodiscard]] virtual hal::Error getRequests(
             hal::DisplayRequest* outDisplayRequests,
             std::unordered_map<Layer*, hal::LayerRequest>* outLayerRequests) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getConnectionType(
-            ui::DisplayConnectionType*) const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error supportsDoze(bool* outSupport) const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getHdrCapabilities(
+    [[nodiscard]] virtual hal::Error getConnectionType(ui::DisplayConnectionType*) const = 0;
+    [[nodiscard]] virtual hal::Error supportsDoze(bool* outSupport) const = 0;
+    [[nodiscard]] virtual hal::Error getHdrCapabilities(
             android::HdrCapabilities* outCapabilities) const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getDisplayedContentSamplingAttributes(
+    [[nodiscard]] virtual hal::Error getDisplayedContentSamplingAttributes(
             hal::PixelFormat* outFormat, hal::Dataspace* outDataspace,
             uint8_t* outComponentMask) const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setDisplayContentSamplingEnabled(
-            bool enabled, uint8_t componentMask, uint64_t maxFrames) const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getDisplayedContentSample(
+    [[nodiscard]] virtual hal::Error setDisplayContentSamplingEnabled(bool enabled,
+                                                                      uint8_t componentMask,
+                                                                      uint64_t maxFrames) const = 0;
+    [[nodiscard]] virtual hal::Error getDisplayedContentSample(
             uint64_t maxFrames, uint64_t timestamp,
             android::DisplayedFrameStats* outStats) const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getReleaseFences(
+    [[nodiscard]] virtual hal::Error getReleaseFences(
             std::unordered_map<Layer*, android::sp<android::Fence>>* outFences) const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error present(
-            android::sp<android::Fence>* outPresentFence) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setClientTarget(
+    [[nodiscard]] virtual hal::Error present(android::sp<android::Fence>* outPresentFence) = 0;
+    [[nodiscard]] virtual hal::Error setClientTarget(
             uint32_t slot, const android::sp<android::GraphicBuffer>& target,
             const android::sp<android::Fence>& acquireFence, hal::Dataspace dataspace) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setColorMode(
-            hal::ColorMode mode, hal::RenderIntent renderIntent) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setColorTransform(
-            const android::mat4& matrix) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setOutputBuffer(
+    [[nodiscard]] virtual hal::Error setColorMode(hal::ColorMode mode,
+                                                  hal::RenderIntent renderIntent) = 0;
+    [[nodiscard]] virtual hal::Error setColorTransform(const android::mat4& matrix) = 0;
+    [[nodiscard]] virtual hal::Error setOutputBuffer(
             const android::sp<android::GraphicBuffer>& buffer,
             const android::sp<android::Fence>& releaseFence) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setPowerMode(hal::PowerMode mode) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setVsyncEnabled(hal::Vsync enabled) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error validate(nsecs_t expectedPresentTime,
-                                                              uint32_t* outNumTypes,
-                                                              uint32_t* outNumRequests) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error presentOrValidate(
-            nsecs_t expectedPresentTime, uint32_t* outNumTypes, uint32_t* outNumRequests,
-            android::sp<android::Fence>* outPresentFence, uint32_t* state) = 0;
-    [[clang::warn_unused_result]] virtual std::future<hal::Error> setDisplayBrightness(
+    [[nodiscard]] virtual hal::Error setPowerMode(hal::PowerMode mode) = 0;
+    [[nodiscard]] virtual hal::Error setVsyncEnabled(hal::Vsync enabled) = 0;
+    [[nodiscard]] virtual hal::Error validate(nsecs_t expectedPresentTime, uint32_t* outNumTypes,
+                                              uint32_t* outNumRequests) = 0;
+    [[nodiscard]] virtual hal::Error presentOrValidate(nsecs_t expectedPresentTime,
+                                                       uint32_t* outNumTypes,
+                                                       uint32_t* outNumRequests,
+                                                       android::sp<android::Fence>* outPresentFence,
+                                                       uint32_t* state) = 0;
+    [[nodiscard]] virtual std::future<hal::Error> setDisplayBrightness(
             float brightness, const Hwc2::Composer::DisplayBrightnessOptions& options) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setActiveConfigWithConstraints(
+    [[nodiscard]] virtual hal::Error setActiveConfigWithConstraints(
             hal::HWConfigId configId, const hal::VsyncPeriodChangeConstraints& constraints,
             hal::VsyncPeriodChangeTimeline* outTimeline) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setBootDisplayConfig(
-            hal::HWConfigId configId) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error clearBootDisplayConfig() = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getPreferredBootDisplayConfig(
+    [[nodiscard]] virtual hal::Error setBootDisplayConfig(hal::HWConfigId configId) = 0;
+    [[nodiscard]] virtual hal::Error clearBootDisplayConfig() = 0;
+    [[nodiscard]] virtual hal::Error getPreferredBootDisplayConfig(
             hal::HWConfigId* configId) const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setAutoLowLatencyMode(bool on) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getSupportedContentTypes(
+    [[nodiscard]] virtual hal::Error setAutoLowLatencyMode(bool on) = 0;
+    [[nodiscard]] virtual hal::Error getSupportedContentTypes(
             std::vector<hal::ContentType>*) const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setContentType(hal::ContentType) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getClientTargetProperty(
+    [[nodiscard]] virtual hal::Error setContentType(hal::ContentType) = 0;
+    [[nodiscard]] virtual hal::Error getClientTargetProperty(
             hal::ClientTargetProperty* outClientTargetProperty, float* outWhitePointNits) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getDisplayDecorationSupport(
+    [[nodiscard]] virtual hal::Error getDisplayDecorationSupport(
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setIdleTimerEnabled(
-            std::chrono::milliseconds timeout) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getPhysicalDisplayOrientation(
+    [[nodiscard]] virtual hal::Error setIdleTimerEnabled(std::chrono::milliseconds timeout) = 0;
+    [[nodiscard]] virtual hal::Error getPhysicalDisplayOrientation(
             Hwc2::AidlTransform* outTransform) const = 0;
 };
 
@@ -299,45 +295,39 @@ public:
 
     virtual hal::HWLayerId getId() const = 0;
 
-    [[clang::warn_unused_result]] virtual hal::Error setCursorPosition(int32_t x, int32_t y) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setBuffer(
-            uint32_t slot, const android::sp<android::GraphicBuffer>& buffer,
-            const android::sp<android::Fence>& acquireFence) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setSurfaceDamage(
-            const android::Region& damage) = 0;
+    [[nodiscard]] virtual hal::Error setCursorPosition(int32_t x, int32_t y) = 0;
+    [[nodiscard]] virtual hal::Error setBuffer(uint32_t slot,
+                                               const android::sp<android::GraphicBuffer>& buffer,
+                                               const android::sp<android::Fence>& acquireFence) = 0;
+    [[nodiscard]] virtual hal::Error setSurfaceDamage(const android::Region& damage) = 0;
 
-    [[clang::warn_unused_result]] virtual hal::Error setBlendMode(hal::BlendMode mode) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setColor(
+    [[nodiscard]] virtual hal::Error setBlendMode(hal::BlendMode mode) = 0;
+    [[nodiscard]] virtual hal::Error setColor(
             aidl::android::hardware::graphics::composer3::Color color) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setCompositionType(
+    [[nodiscard]] virtual hal::Error setCompositionType(
             aidl::android::hardware::graphics::composer3::Composition type) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setDataspace(hal::Dataspace dataspace) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setPerFrameMetadata(
-            const int32_t supportedPerFrameMetadata, const android::HdrMetadata& metadata) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setDisplayFrame(
-            const android::Rect& frame) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setPlaneAlpha(float alpha) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setSidebandStream(
-            const native_handle_t* stream) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setSourceCrop(
-            const android::FloatRect& crop) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setTransform(hal::Transform transform) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setVisibleRegion(
-            const android::Region& region) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setZOrder(uint32_t z) = 0;
+    [[nodiscard]] virtual hal::Error setDataspace(hal::Dataspace dataspace) = 0;
+    [[nodiscard]] virtual hal::Error setPerFrameMetadata(const int32_t supportedPerFrameMetadata,
+                                                         const android::HdrMetadata& metadata) = 0;
+    [[nodiscard]] virtual hal::Error setDisplayFrame(const android::Rect& frame) = 0;
+    [[nodiscard]] virtual hal::Error setPlaneAlpha(float alpha) = 0;
+    [[nodiscard]] virtual hal::Error setSidebandStream(const native_handle_t* stream) = 0;
+    [[nodiscard]] virtual hal::Error setSourceCrop(const android::FloatRect& crop) = 0;
+    [[nodiscard]] virtual hal::Error setTransform(hal::Transform transform) = 0;
+    [[nodiscard]] virtual hal::Error setVisibleRegion(const android::Region& region) = 0;
+    [[nodiscard]] virtual hal::Error setZOrder(uint32_t z) = 0;
 
     // Composer HAL 2.3
-    [[clang::warn_unused_result]] virtual hal::Error setColorTransform(
-            const android::mat4& matrix) = 0;
+    [[nodiscard]] virtual hal::Error setColorTransform(const android::mat4& matrix) = 0;
 
     // Composer HAL 2.4
-    [[clang::warn_unused_result]] virtual hal::Error setLayerGenericMetadata(
-            const std::string& name, bool mandatory, const std::vector<uint8_t>& value) = 0;
+    [[nodiscard]] virtual hal::Error setLayerGenericMetadata(const std::string& name,
+                                                             bool mandatory,
+                                                             const std::vector<uint8_t>& value) = 0;
 
     // AIDL HAL
-    [[clang::warn_unused_result]] virtual hal::Error setBrightness(float brightness) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setBlockingRegion(
-            const android::Region& region) = 0;
+    [[nodiscard]] virtual hal::Error setBrightness(float brightness) = 0;
+    [[nodiscard]] virtual hal::Error setBlockingRegion(const android::Region& region) = 0;
 };
 
 namespace impl {
