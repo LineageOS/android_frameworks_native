@@ -567,6 +567,17 @@ bool canReceiveForegroundTouches(const WindowInfo& info) {
     return !info.inputConfig.test(gui::WindowInfo::InputConfig::NOT_TOUCHABLE) && !info.isSpy();
 }
 
+bool isWindowOwnedBy(const sp<WindowInfoHandle>& windowHandle, int32_t pid, int32_t uid) {
+    if (windowHandle == nullptr) {
+        return false;
+    }
+    const WindowInfo* windowInfo = windowHandle->getInfo();
+    if (pid == windowInfo->ownerPid && uid == windowInfo->ownerUid) {
+        return true;
+    }
+    return false;
+}
+
 } // namespace
 
 // --- InputDispatcher ---
@@ -4990,21 +5001,11 @@ bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid,
                   toString(mInTouchMode), toString(inTouchMode), pid, uid, toString(hasPermission));
         }
         if (!hasPermission) {
-            const sp<IBinder> focusedToken =
-                    mFocusResolver.getFocusedWindowToken(mFocusedDisplayId);
-
-            //  TODO(b/218541064): if no window is currently focused, then we need to check the last
-            //      interacted window (within 1 second timeout). We should allow touch mode change
-            //      if the last interacted window owner's pid/uid match the calling ones.
-            if (focusedToken == nullptr) {
-                return false;
-            }
-            const sp<WindowInfoHandle> windowHandle = getWindowHandleLocked(focusedToken);
-            if (windowHandle == nullptr) {
-                return false;
-            }
-            const WindowInfo* windowInfo = windowHandle->getInfo();
-            if (pid != windowInfo->ownerPid || uid != windowInfo->ownerUid) {
+            if (!focusedWindowIsOwnedByLocked(pid, uid) &&
+                !recentWindowsAreOwnedByLocked(pid, uid)) {
+                ALOGD("Touch mode switch rejected, caller (pid=%d, uid=%d) doesn't own the focused "
+                      "window nor none of the previously interacted window",
+                      pid, uid);
                 return false;
             }
         }
@@ -5020,6 +5021,24 @@ bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid,
         mLooper->wake();
     }
     return true;
+}
+
+bool InputDispatcher::focusedWindowIsOwnedByLocked(int32_t pid, int32_t uid) {
+    const sp<IBinder> focusedToken = mFocusResolver.getFocusedWindowToken(mFocusedDisplayId);
+    if (focusedToken == nullptr) {
+        return false;
+    }
+    sp<WindowInfoHandle> windowHandle = getWindowHandleLocked(focusedToken);
+    return isWindowOwnedBy(windowHandle, pid, uid);
+}
+
+bool InputDispatcher::recentWindowsAreOwnedByLocked(int32_t pid, int32_t uid) {
+    return std::find_if(mInteractionConnectionTokens.begin(), mInteractionConnectionTokens.end(),
+                        [&](const sp<IBinder>& connectionToken) REQUIRES(mLock) {
+                            const sp<WindowInfoHandle> windowHandle =
+                                    getWindowHandleLocked(connectionToken);
+                            return isWindowOwnedBy(windowHandle, pid, uid);
+                        }) != mInteractionConnectionTokens.end();
 }
 
 void InputDispatcher::setMaximumObscuringOpacityForTouch(float opacity) {
