@@ -761,8 +761,7 @@ binder::Status InstalldNativeService::createAppDataLocked(
 
     if (flags & FLAG_STORAGE_SDK) {
         // Safe to ignore status since we can retry creating this by calling reconcileSdkData
-        auto ignore = createSdkSandboxDataPackageDirectory(uuid, packageName, userId, appId,
-                                                           previousAppId, seInfo, flags);
+        auto ignore = createSdkSandboxDataPackageDirectory(uuid, packageName, userId, appId, flags);
         if (!ignore.isOk()) {
             PLOG(WARNING) << "Failed to create sdk data package directory for " << packageName;
         }
@@ -781,7 +780,7 @@ binder::Status InstalldNativeService::createAppDataLocked(
  */
 binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
         const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
-        int32_t appId, int32_t previousAppId, const std::string& seInfo, int32_t flags) {
+        int32_t appId, int32_t flags) {
     int32_t sdkSandboxUid = multiuser_get_sdk_sandbox_uid(userId, appId);
     if (sdkSandboxUid == -1) {
         // There no valid sdk sandbox process for this app. Skip creation of data directory
@@ -800,7 +799,7 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
         // /data/misc_{ce,de}/<user-id>/sdksandbox directory gets created by vold
         // during user creation
 
-        // Prepare the app directory
+        // Prepare the package directory
         auto packagePath = create_data_misc_sdk_sandbox_package_path(uuid_, isCeData, userId,
                                                                      packageName.c_str());
 #if SDK_DEBUG
@@ -810,27 +809,6 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
         if (prepare_app_dir(packagePath, 0751, AID_SYSTEM, AID_SYSTEM, 0)) {
             return error("Failed to prepare " + packagePath);
         }
-
-        // Now prepare the shared directory which will be accessible by all codes
-        auto sharedPath = create_data_misc_sdk_sandbox_shared_path(uuid_, isCeData, userId,
-                                                                   packageName.c_str());
-
-        int32_t previousSdkSandboxUid = multiuser_get_sdk_sandbox_uid(userId, previousAppId);
-        int32_t cacheGid = multiuser_get_cache_gid(userId, appId);
-        if (cacheGid == -1) {
-            return exception(binder::Status::EX_ILLEGAL_STATE,
-                             StringPrintf("cacheGid cannot be -1 for sdksandbox data"));
-        }
-        auto status = createAppDataDirs(sharedPath, sdkSandboxUid, AID_NOBODY,
-                                        &previousSdkSandboxUid, cacheGid, seInfo, 0700 | S_ISGID);
-        if (!status.isOk()) {
-            return status;
-        }
-
-        // TODO(b/211763739): We also need to handle art profile creations
-
-        // TODO(b/211763739): And return the CE inode of the sdksandbox root directory and
-        // app directory under it so we can clear contents while CE storage is locked
     }
 
     return ok();
@@ -883,8 +861,8 @@ binder::Status InstalldNativeService::reconcileSdkData(
         const android::os::ReconcileSdkDataArgs& args) {
     // Locking is performed depeer in the callstack.
 
-    return reconcileSdkData(args.uuid, args.packageName, args.sdkPackageNames, args.randomSuffixes,
-                            args.userId, args.appId, args.previousAppId, args.seInfo, args.flags);
+    return reconcileSdkData(args.uuid, args.packageName, args.subDirNames, args.userId, args.appId,
+                            args.previousAppId, args.seInfo, args.flags);
 }
 
 /**
@@ -898,17 +876,14 @@ binder::Status InstalldNativeService::reconcileSdkData(
  *   is to avoid having same per-sdk directory with different suffix.
  * - If a sdk level directory exist which is absent from sdkPackageNames, we remove it.
  */
-binder::Status InstalldNativeService::reconcileSdkData(
-        const std::optional<std::string>& uuid, const std::string& packageName,
-        const std::vector<std::string>& sdkPackageNames,
-        const std::vector<std::string>& randomSuffixes, int userId, int appId, int previousAppId,
-        const std::string& seInfo, int flags) {
+binder::Status InstalldNativeService::reconcileSdkData(const std::optional<std::string>& uuid,
+                                                       const std::string& packageName,
+                                                       const std::vector<std::string>& subDirNames,
+                                                       int userId, int appId, int previousAppId,
+                                                       const std::string& seInfo, int flags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-    for (const auto& sdkPackageName : sdkPackageNames) {
-        CHECK_ARGUMENT_PACKAGE_NAME(sdkPackageName);
-    }
     LOCK_PACKAGE_USER();
 
 #if SDK_DEBUG
@@ -917,16 +892,9 @@ binder::Status InstalldNativeService::reconcileSdkData(
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
 
-    // Validate we have enough randomSuffixStrings
-    if (randomSuffixes.size() != sdkPackageNames.size()) {
-        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
-                         StringPrintf("Not enough random suffix. Required %d, received %d.",
-                                      (int)sdkPackageNames.size(), (int)randomSuffixes.size()));
-    }
-
     // Prepare the sdk package directory in case it's missing
-    const auto status = createSdkSandboxDataPackageDirectory(uuid, packageName, userId, appId,
-                                                             previousAppId, seInfo, flags);
+    const auto status =
+            createSdkSandboxDataPackageDirectory(uuid, packageName, userId, appId, flags);
     if (!status.isOk()) {
         return status;
     }
@@ -940,37 +908,22 @@ binder::Status InstalldNativeService::reconcileSdkData(
         }
         const bool isCeData = (currentFlag == FLAG_STORAGE_CE);
 
-        // Since random suffix provided will be random every time, we need to ensure we don't end up
-        // creating multuple directories for same sdk package with different suffixes. This
-        // is ensured by fetching all the existing sub directories and storing them so that we can
-        // check for existence later. We also remove unconsumed sdk directories in this check.
         const auto packagePath = create_data_misc_sdk_sandbox_package_path(uuid_, isCeData, userId,
                                                                            packageName.c_str());
-        const std::unordered_set<std::string> expectedSdkNames(sdkPackageNames.begin(),
-                                                               sdkPackageNames.end());
-        // Store paths of per-sdk directory for sdk that already exists
-        std::unordered_map<std::string, std::string> sdkNamesThatExist;
 
-        const auto subDirHandler = [&packagePath, &expectedSdkNames, &sdkNamesThatExist,
-                                    &res](const std::string& filename) {
-            auto filepath = packagePath + "/" + filename;
-            auto tokens = Split(filename, "@");
-            if (tokens.size() != 2) {
-                // Not a per-sdk directory with random suffix
-                return;
-            }
-            auto sdkName = tokens[0];
-
+        // Remove existing sub-directories not referred in subDirNames
+        const std::unordered_set<std::string> expectedSubDirNames(subDirNames.begin(),
+                                                                  subDirNames.end());
+        const auto subDirHandler = [&packagePath, &expectedSubDirNames,
+                                    &res](const std::string& subDirName) {
             // Remove the per-sdk directory if it is not referred in
-            // expectedSdkNames
-            if (expectedSdkNames.find(sdkName) == expectedSdkNames.end()) {
-                if (delete_dir_contents_and_dir(filepath) != 0) {
-                    res = error("Failed to delete " + filepath);
+            // expectedSubDirNames
+            if (expectedSubDirNames.find(subDirName) == expectedSubDirNames.end()) {
+                auto path = packagePath + "/" + subDirName;
+                if (delete_dir_contents_and_dir(path) != 0) {
+                    res = error("Failed to delete " + path);
                     return;
                 }
-            } else {
-                // Otherwise, store it as existing sdk level directory
-                sdkNamesThatExist[sdkName] = filepath;
             }
         };
         const int ec = foreach_subdir(packagePath, subDirHandler);
@@ -979,19 +932,11 @@ binder::Status InstalldNativeService::reconcileSdkData(
             continue;
         }
 
-        // Create sdksandbox data directory for each sdksandbox package
-        for (int i = 0, size = sdkPackageNames.size(); i < size; i++) {
-            const std::string& sdkName = sdkPackageNames[i];
-            const std::string& randomSuffix = randomSuffixes[i];
-            std::string path;
-            if (const auto& it = sdkNamesThatExist.find(sdkName); it != sdkNamesThatExist.end()) {
-                // Already exists. Use existing path instead of creating a new one
-                path = it->second;
-            } else {
-                path = create_data_misc_sdk_sandbox_sdk_path(uuid_, isCeData, userId,
-                                                             packageName.c_str(), sdkName.c_str(),
-                                                             randomSuffix.c_str());
-            }
+        // Now create the subDirNames
+        for (const auto& subDirName : subDirNames) {
+            const std::string path =
+                    create_data_misc_sdk_sandbox_sdk_path(uuid_, isCeData, userId,
+                                                          packageName.c_str(), subDirName.c_str());
 
             // Create the directory along with cache and code_cache
             const int32_t cacheGid = multiuser_get_cache_gid(userId, appId);
