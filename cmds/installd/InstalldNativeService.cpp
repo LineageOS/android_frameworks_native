@@ -118,6 +118,12 @@ static constexpr const char* kMntFuse = "/mnt/pass_through/0/";
 
 static std::atomic<bool> sAppDataIsolationEnabled(false);
 
+/**
+ * Flag to control if project ids are supported for internal storage
+ */
+static std::atomic<bool> sUsingProjectIdsFlag(false);
+static std::once_flag flag;
+
 namespace {
 
 constexpr const char* kDump = "android.permission.DUMP";
@@ -461,11 +467,14 @@ done:
 
 static bool internal_storage_has_project_id() {
     // The following path is populated in setFirstBoot, so if this file is present
-    // then project ids can be used.
-
-    auto using_project_ids =
-            StringPrintf("%smisc/installd/using_project_ids", android_data_dir.c_str());
-    return access(using_project_ids.c_str(), F_OK) == 0;
+    // then project ids can be used. Using call once to cache the result of this check
+    // to avoid having to check the file presence again and again.
+    std::call_once(flag, []() {
+        auto using_project_ids =
+                StringPrintf("%smisc/installd/using_project_ids", android_data_dir.c_str());
+        sUsingProjectIdsFlag = access(using_project_ids.c_str(), F_OK) == 0;
+    });
+    return sUsingProjectIdsFlag;
 }
 
 static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t uid, gid_t gid,
