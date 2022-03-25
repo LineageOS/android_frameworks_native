@@ -690,10 +690,9 @@ void SurfaceFlinger::bootFinished() {
     const nsecs_t duration = now - mBootTime;
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
 
-    mFlagManager = std::make_unique<android::FlagManager>();
     mFrameTracer->initialize();
     mFrameTimeline->onBootFinished();
-    getRenderEngine().setEnableTracing(mFlagManager->use_skia_tracing());
+    getRenderEngine().setEnableTracing(mFlagManager.use_skia_tracing());
 
     // wait patiently for the window manager death
     const String16 name("window");
@@ -722,7 +721,7 @@ void SurfaceFlinger::bootFinished() {
 
         readPersistentProperties();
         mPowerAdvisor.onBootFinished();
-        mPowerAdvisor.enablePowerHint(mFlagManager->use_adpf_cpu_hint());
+        mPowerAdvisor.enablePowerHint(mFlagManager.use_adpf_cpu_hint());
         if (mPowerAdvisor.usePowerHintSession()) {
             std::optional<pid_t> renderEngineTid = getRenderEngine().getRenderEngineTid();
             std::vector<int32_t> tidList;
@@ -1086,7 +1085,8 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
             getHwComposer().supportsContentType(*displayId, hal::ContentType::GAME);
 
     info->preferredBootDisplayMode = static_cast<ui::DisplayModeId>(-1);
-    if (getHwComposer().getBootDisplayModeSupport()) {
+
+    if (getHwComposer().hasCapability(Capability::BOOT_DISPLAY_CONFIG)) {
         if (const auto hwcId = getHwComposer().getPreferredBootDisplayMode(*displayId)) {
             if (const auto modeId = display->translateModeId(*hwcId)) {
                 info->preferredBootDisplayMode = modeId->value();
@@ -1300,7 +1300,7 @@ void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
         mScheduler->onNewVsyncPeriodChangeTimeline(outTimeline);
 
         if (outTimeline.refreshRequired) {
-            // Scheduler will submit an empty frame to HWC.
+            scheduleComposite(FrameHint::kNone);
             mSetActiveModePending = true;
         } else {
             // Updating the internal state should be done outside the loop,
@@ -1408,7 +1408,7 @@ status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, Col
 
 status_t SurfaceFlinger::getBootDisplayModeSupport(bool* outSupport) const {
     auto future = mScheduler->schedule([=]() MAIN_THREAD mutable -> status_t {
-        *outSupport = getHwComposer().getBootDisplayModeSupport();
+        *outSupport = getHwComposer().hasCapability(Capability::BOOT_DISPLAY_CONFIG);
         return NO_ERROR;
     });
     return future.get();
@@ -1941,6 +1941,10 @@ void SurfaceFlinger::onComposerHalVsyncPeriodTimingChanged(
         hal::HWDisplayId, const hal::VsyncPeriodChangeTimeline& timeline) {
     Mutex::Autolock lock(mStateLock);
     mScheduler->onNewVsyncPeriodChangeTimeline(timeline);
+
+    if (timeline.refreshRequired) {
+        scheduleComposite(FrameHint::kNone);
+    }
 }
 
 void SurfaceFlinger::onComposerHalSeamlessPossible(hal::HWDisplayId) {
@@ -2248,7 +2252,9 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId) {
 
     mTimeStats->recordFrameDuration(frameTime, systemTime());
 
-    mScheduler->onPostComposition(presentTime);
+    if (mScheduler->onPostComposition(presentTime)) {
+        scheduleComposite(FrameHint::kNone);
+    }
 
     postFrame();
     postComposition();
@@ -3670,16 +3676,13 @@ uint32_t SurfaceFlinger::clearTransactionFlags(uint32_t mask) {
     return mTransactionFlags.fetch_and(~mask) & mask;
 }
 
-uint32_t SurfaceFlinger::setTransactionFlags(uint32_t mask) {
-    return setTransactionFlags(mask, TransactionSchedule::Late);
-}
-
-uint32_t SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule schedule,
-                                             const sp<IBinder>& applyToken) {
-    const uint32_t old = mTransactionFlags.fetch_or(mask);
+void SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule schedule,
+                                         const sp<IBinder>& applyToken) {
     modulateVsync(&VsyncModulator::setTransactionSchedule, schedule, applyToken);
-    if ((old & mask) == 0) scheduleCommit(FrameHint::kActive);
-    return old;
+
+    if (const bool scheduled = mTransactionFlags.fetch_or(mask) & mask; !scheduled) {
+        scheduleCommit(FrameHint::kActive);
+    }
 }
 
 bool SurfaceFlinger::stopTransactionProcessing(
@@ -3693,6 +3696,15 @@ bool SurfaceFlinger::stopTransactionProcessing(
     }
 
     return false;
+}
+
+int SurfaceFlinger::flushUnsignaledPendingTransactionQueues(
+        std::vector<TransactionState>& transactions,
+        std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
+        std::unordered_set<sp<IBinder>, SpHash<IBinder>>& applyTokensWithUnsignaledTransactions) {
+    return flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
+                                         applyTokensWithUnsignaledTransactions,
+                                         /*tryApplyUnsignaled*/ true);
 }
 
 int SurfaceFlinger::flushPendingTransactionQueues(
@@ -3849,9 +3861,8 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
             // If we are allowing latch unsignaled of some form, now it's the time to go over the
             // transactions that were not applied and try to apply them unsignaled.
             if (enableLatchUnsignaledConfig != LatchUnsignaledConfig::Disabled) {
-                flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
-                                              applyTokensWithUnsignaledTransactions,
-                                              /*tryApplyUnsignaled*/ true);
+                flushUnsignaledPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
+                                                        applyTokensWithUnsignaledTransactions);
             }
 
             return applyTransactions(transactions, vsyncId);
@@ -5459,9 +5470,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     /*
      * Dump flag/property manager state
      */
-    if (mFlagManager != nullptr) {
-        mFlagManager->dump(result);
-    }
+    mFlagManager.dump(result);
 
     result.append(mTimeStats->miniDump());
     result.append("\n");

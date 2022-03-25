@@ -247,7 +247,6 @@ bool AidlComposer::isSupported(OptionalFeature feature) const {
         case OptionalFeature::RefreshRateSwitching:
         case OptionalFeature::ExpectedPresentTime:
         case OptionalFeature::DisplayBrightnessCommand:
-        case OptionalFeature::BootDisplayConfig:
         case OptionalFeature::KernelIdleTimer:
         case OptionalFeature::PhysicalDisplayOrientation:
             return true;
