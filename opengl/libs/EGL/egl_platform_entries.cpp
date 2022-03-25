@@ -1165,6 +1165,10 @@ __eglMustCastToProperFunctionPointerType eglGetProcAddressImpl(const char* procn
     addr = findBuiltinWrapper(procname);
     if (addr) return addr;
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    if (gEGLImpl.dso && gEGLImpl.egl.eglGetProcAddress)
+        addr = gEGLImpl.egl.eglGetProcAddress(procname);
+#else
     // this protects accesses to sGLExtensionMap, sGLExtensionSlot, and sGLExtensionSlotMap
     pthread_mutex_lock(&sExtensionMapMutex);
 
@@ -1249,6 +1253,7 @@ __eglMustCastToProperFunctionPointerType eglGetProcAddressImpl(const char* procn
     }
 
     pthread_mutex_unlock(&sExtensionMapMutex);
+#endif
     return addr;
 }
 
