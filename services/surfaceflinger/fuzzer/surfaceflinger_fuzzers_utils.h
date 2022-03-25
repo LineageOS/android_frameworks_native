@@ -810,7 +810,6 @@ public:
     }
 
 private:
-    void scheduleComposite(FrameHint) override {}
     void setVsyncEnabled(bool) override {}
     void requestDisplayMode(DisplayModePtr, DisplayModeEvent) override {}
     void kernelTimerChanged(bool) override {}

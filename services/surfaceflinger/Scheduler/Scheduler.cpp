@@ -726,10 +726,6 @@ DisplayModePtr Scheduler::getPreferredDisplayMode() {
 }
 
 void Scheduler::onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline) {
-    if (timeline.refreshRequired) {
-        mSchedulerCallback.scheduleComposite(FrameHint::kNone);
-    }
-
     std::lock_guard<std::mutex> lock(mVsyncTimelineLock);
     mLastVsyncPeriodChangeTimeline = std::make_optional(timeline);
 
@@ -739,23 +735,17 @@ void Scheduler::onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimel
     }
 }
 
-void Scheduler::onPostComposition(nsecs_t presentTime) {
-    const bool recomposite = [=] {
-        std::lock_guard<std::mutex> lock(mVsyncTimelineLock);
-        if (mLastVsyncPeriodChangeTimeline && mLastVsyncPeriodChangeTimeline->refreshRequired) {
-            if (presentTime < mLastVsyncPeriodChangeTimeline->refreshTimeNanos) {
-                // We need to composite again as refreshTimeNanos is still in the future.
-                return true;
-            }
-
-            mLastVsyncPeriodChangeTimeline->refreshRequired = false;
+bool Scheduler::onPostComposition(nsecs_t presentTime) {
+    std::lock_guard<std::mutex> lock(mVsyncTimelineLock);
+    if (mLastVsyncPeriodChangeTimeline && mLastVsyncPeriodChangeTimeline->refreshRequired) {
+        if (presentTime < mLastVsyncPeriodChangeTimeline->refreshTimeNanos) {
+            // We need to composite again as refreshTimeNanos is still in the future.
+            return true;
         }
-        return false;
-    }();
 
-    if (recomposite) {
-        mSchedulerCallback.scheduleComposite(FrameHint::kNone);
+        mLastVsyncPeriodChangeTimeline->refreshRequired = false;
     }
+    return false;
 }
 
 void Scheduler::onActiveDisplayAreaChanged(uint32_t displayArea) {

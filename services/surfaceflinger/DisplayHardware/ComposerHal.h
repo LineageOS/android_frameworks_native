@@ -94,7 +94,6 @@ public:
         ExpectedPresentTime,
         // Whether setDisplayBrightness is able to be applied as part of a display command.
         DisplayBrightnessCommand,
-        BootDisplayConfig,
         KernelIdleTimer,
         PhysicalDisplayOrientation,
     };
