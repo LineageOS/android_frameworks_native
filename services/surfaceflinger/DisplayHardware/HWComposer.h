@@ -267,7 +267,6 @@ public:
     virtual std::optional<hal::HWDisplayId> fromPhysicalDisplayId(PhysicalDisplayId) const = 0;
 
     // Composer 3.0
-    virtual bool getBootDisplayModeSupport() = 0;
     virtual status_t setBootDisplayMode(PhysicalDisplayId, hal::HWConfigId) = 0;
     virtual status_t clearBootDisplayMode(PhysicalDisplayId) = 0;
     virtual std::optional<hal::HWConfigId> getPreferredBootDisplayMode(PhysicalDisplayId) = 0;
@@ -406,7 +405,6 @@ public:
     const std::unordered_map<std::string, bool>& getSupportedLayerGenericMetadata() const override;
 
     // Composer 3.0
-    bool getBootDisplayModeSupport() override;
     status_t setBootDisplayMode(PhysicalDisplayId, hal::HWConfigId) override;
     status_t clearBootDisplayMode(PhysicalDisplayId) override;
     std::optional<hal::HWConfigId> getPreferredBootDisplayMode(PhysicalDisplayId) override;
