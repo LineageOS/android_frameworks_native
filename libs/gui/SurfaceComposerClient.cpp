@@ -2128,8 +2128,48 @@ status_t SurfaceComposerClient::getDisplayState(const sp<IBinder>& display,
 }
 
 status_t SurfaceComposerClient::getStaticDisplayInfo(const sp<IBinder>& display,
-                                                     ui::StaticDisplayInfo* info) {
-    return ComposerService::getComposerService()->getStaticDisplayInfo(display, info);
+                                                     ui::StaticDisplayInfo* outInfo) {
+    using Tag = android::gui::DeviceProductInfo::ManufactureOrModelDate::Tag;
+    gui::StaticDisplayInfo ginfo;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getStaticDisplayInfo(display, &ginfo);
+    if (status.isOk()) {
+        // convert gui::StaticDisplayInfo to ui::StaticDisplayInfo
+        outInfo->connectionType = static_cast<ui::DisplayConnectionType>(ginfo.connectionType);
+        outInfo->density = ginfo.density;
+        outInfo->secure = ginfo.secure;
+        outInfo->installOrientation = static_cast<ui::Rotation>(ginfo.installOrientation);
+
+        DeviceProductInfo info;
+        std::optional<gui::DeviceProductInfo> dpi = ginfo.deviceProductInfo;
+        gui::DeviceProductInfo::ManufactureOrModelDate& date = dpi->manufactureOrModelDate;
+        info.name = dpi->name;
+        if (dpi->manufacturerPnpId.size() > 0) {
+            // copid from PnpId = std::array<char, 4> in ui/DeviceProductInfo.h
+            constexpr int kMaxPnpIdSize = 4;
+            size_t count = std::max<size_t>(kMaxPnpIdSize, dpi->manufacturerPnpId.size());
+            std::copy_n(dpi->manufacturerPnpId.begin(), count, info.manufacturerPnpId.begin());
+        }
+        info.productId = dpi->productId;
+        if (date.getTag() == Tag::modelYear) {
+            DeviceProductInfo::ModelYear modelYear;
+            modelYear.year = static_cast<uint32_t>(date.get<Tag::modelYear>().year);
+            info.manufactureOrModelDate = modelYear;
+        } else if (date.getTag() == Tag::manufactureYear) {
+            DeviceProductInfo::ManufactureYear manufactureYear;
+            manufactureYear.year = date.get<Tag::manufactureYear>().modelYear.year;
+            info.manufactureOrModelDate = manufactureYear;
+        } else if (date.getTag() == Tag::manufactureWeekAndYear) {
+            DeviceProductInfo::ManufactureWeekAndYear weekAndYear;
+            weekAndYear.year =
+                    date.get<Tag::manufactureWeekAndYear>().manufactureYear.modelYear.year;
+            weekAndYear.week = date.get<Tag::manufactureWeekAndYear>().week;
+            info.manufactureOrModelDate = weekAndYear;
+        }
+
+        outInfo->deviceProductInfo = info;
+    }
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::getDynamicDisplayInfo(const sp<IBinder>& display,

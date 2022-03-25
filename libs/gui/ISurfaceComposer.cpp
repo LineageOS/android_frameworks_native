@@ -37,7 +37,6 @@
 #include <ui/DisplayState.h>
 #include <ui/DynamicDisplayInfo.h>
 #include <ui/HdrCapabilities.h>
-#include <ui/StaticDisplayInfo.h>
 #include <utils/Log.h>
 
 // ---------------------------------------------------------------------------
@@ -224,17 +223,6 @@ public:
         }
         result = interface_cast<IDisplayEventConnection>(reply.readStrongBinder());
         return result;
-    }
-
-    status_t getStaticDisplayInfo(const sp<IBinder>& display,
-                                  ui::StaticDisplayInfo* info) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-        remote()->transact(BnSurfaceComposer::GET_STATIC_DISPLAY_INFO, data, &reply);
-        const status_t result = reply.readInt32();
-        if (result != NO_ERROR) return result;
-        return reply.read(*info);
     }
 
     status_t getDynamicDisplayInfo(const sp<IBinder>& display,
@@ -1143,16 +1131,6 @@ status_t BnSurfaceComposer::onTransact(
             sp<IDisplayEventConnection> connection(
                     createDisplayEventConnection(vsyncSource, eventRegistration));
             reply->writeStrongBinder(IInterface::asBinder(connection));
-            return NO_ERROR;
-        }
-        case GET_STATIC_DISPLAY_INFO: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            ui::StaticDisplayInfo info;
-            const sp<IBinder> display = data.readStrongBinder();
-            const status_t result = getStaticDisplayInfo(display, &info);
-            SAFE_PARCEL(reply->writeInt32, result);
-            if (result != NO_ERROR) return result;
-            SAFE_PARCEL(reply->write, info);
             return NO_ERROR;
         }
         case GET_DYNAMIC_DISPLAY_INFO: {

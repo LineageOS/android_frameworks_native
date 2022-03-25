@@ -145,7 +145,6 @@ cc_library_shared {
         "PixelFormat.cpp",
         "PublicFormat.cpp",
         "StaticAsserts.cpp",
-        "StaticDisplayInfo.cpp",
     ],
 
     include_dirs: [

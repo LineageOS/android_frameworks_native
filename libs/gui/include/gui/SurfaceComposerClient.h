@@ -38,6 +38,7 @@
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rotation.h>
+#include <ui/StaticDisplayInfo.h>
 
 #include <gui/CpuConsumer.h>
 #include <gui/ISurfaceComposer.h>
