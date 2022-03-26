@@ -17,7 +17,6 @@
 #include <ui/DeviceProductInfo.h>
 
 #include <android-base/stringprintf.h>
-#include <ui/FlattenableHelpers.h>
 #include <utils/Log.h>
 
 #define RETURN_IF_ERROR(op) \
@@ -26,35 +25,6 @@
 namespace android {
 
 using base::StringAppendF;
-
-size_t DeviceProductInfo::getFlattenedSize() const {
-    return FlattenableHelpers::getFlattenedSize(name) +
-            FlattenableHelpers::getFlattenedSize(manufacturerPnpId) +
-            FlattenableHelpers::getFlattenedSize(productId) +
-            FlattenableHelpers::getFlattenedSize(manufactureOrModelDate) +
-            FlattenableHelpers::getFlattenedSize(relativeAddress);
-}
-
-status_t DeviceProductInfo::flatten(void* buffer, size_t size) const {
-    if (size < getFlattenedSize()) {
-        return NO_MEMORY;
-    }
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, name));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, manufacturerPnpId));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, productId));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, manufactureOrModelDate));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, relativeAddress));
-    return OK;
-}
-
-status_t DeviceProductInfo::unflatten(void const* buffer, size_t size) {
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &name));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &manufacturerPnpId));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &productId));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &manufactureOrModelDate));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &relativeAddress));
-    return OK;
-}
 
 void DeviceProductInfo::dump(std::string& result) const {
     StringAppendF(&result, "{name=%s, ", name.c_str());

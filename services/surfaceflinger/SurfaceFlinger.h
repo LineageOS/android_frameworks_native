@@ -572,7 +572,7 @@ private:
     status_t getDisplayState(const sp<IBinder>& displayToken, ui::DisplayState*)
             EXCLUDES(mStateLock);
     status_t getStaticDisplayInfo(const sp<IBinder>& displayToken, ui::StaticDisplayInfo*)
-            EXCLUDES(mStateLock) override;
+            EXCLUDES(mStateLock);
     status_t getDynamicDisplayInfo(const sp<IBinder>& displayToken, ui::DynamicDisplayInfo*)
             EXCLUDES(mStateLock) override;
     status_t getDisplayNativePrimaries(const sp<IBinder>& displayToken,
@@ -1465,6 +1465,8 @@ public:
                                    gui::DisplayStatInfo* outStatInfo) override;
     binder::Status getDisplayState(const sp<IBinder>& display,
                                    gui::DisplayState* outState) override;
+    binder::Status getStaticDisplayInfo(const sp<IBinder>& display,
+                                        gui::StaticDisplayInfo* outInfo) override;
     binder::Status clearBootDisplayMode(const sp<IBinder>& display) override;
     binder::Status getBootDisplayModeSupport(bool* outMode) override;
     binder::Status setAutoLowLatencyMode(const sp<IBinder>& display, bool on) override;

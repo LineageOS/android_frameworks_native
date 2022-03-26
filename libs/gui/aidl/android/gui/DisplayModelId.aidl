@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,13 @@
  * limitations under the License.
  */
 
-#pragma once
+package android.gui;
 
-#include <optional>
+// Product-specific information about the display or the directly connected device on the
+// display chain. For example, if the display is transitively connected, this field may contain
+// product information about the intermediate device.
 
-#include <ui/DeviceProductInfo.h>
-#include <ui/Rotation.h>
-
-namespace android::ui {
-
-enum class DisplayConnectionType { Internal, External };
-
-// Immutable information about physical display.
-struct StaticDisplayInfo {
-    DisplayConnectionType connectionType = DisplayConnectionType::Internal;
-    float density = 0.f;
-    bool secure = false;
-    std::optional<DeviceProductInfo> deviceProductInfo;
-    Rotation installOrientation = ROTATION_0;
-};
-
-} // namespace android::ui
+/** @hide */
+parcelable DisplayModelId {
+    int id;
+}
