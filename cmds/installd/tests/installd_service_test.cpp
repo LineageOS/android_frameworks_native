@@ -322,6 +322,19 @@ TEST_F(ServiceTest, GetAppSize) {
         system(removeCommand.c_str());
     }
 }
+TEST_F(ServiceTest, GetAppSizeWrongSizes) {
+    int32_t externalStorageAppId = -1;
+    std::vector<int64_t> externalStorageSize;
+
+    std::vector<std::string> codePaths;
+    std::vector<std::string> packageNames = {"package1", "package2"};
+    std::vector<int64_t> ceDataInodes = {0};
+
+    EXPECT_BINDER_FAIL(service->getAppSize(std::nullopt, packageNames, 0,
+                                           InstalldNativeService::FLAG_USE_QUOTA,
+                                           externalStorageAppId, ceDataInodes, codePaths,
+                                           &externalStorageSize));
+}
 static bool mkdirs(const std::string& path, mode_t mode) {
     struct stat sb;
     if (stat(path.c_str(), &sb) != -1 && S_ISDIR(sb.st_mode)) {
