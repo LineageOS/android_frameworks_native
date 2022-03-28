@@ -993,13 +993,8 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
 
         outMode.resolution = ui::Size(width, height);
 
-        if (mEmulatedDisplayDensity) {
-            outMode.xDpi = mEmulatedDisplayDensity;
-            outMode.yDpi = mEmulatedDisplayDensity;
-        } else {
-            outMode.xDpi = xDpi;
-            outMode.yDpi = yDpi;
-        }
+        outMode.xDpi = xDpi;
+        outMode.yDpi = yDpi;
 
         const nsecs_t period = mode->getVsyncPeriod();
         outMode.refreshRate = Fps::fromPeriodNsecs(period).getValue();
