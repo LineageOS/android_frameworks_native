@@ -65,6 +65,7 @@
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VsyncModulator.h"
 #include "SurfaceFlingerFactory.h"
+#include "ThreadContext.h"
 #include "TracedOrdinal.h"
 #include "Tracing/LayerTracing.h"
 #include "Tracing/TransactionTracing.h"
@@ -182,11 +183,6 @@ struct SurfaceFlingerBE {
     nsecs_t mFrameBuckets[NUM_BUCKETS] = {};
     nsecs_t mTotalTime = 0;
     std::atomic<nsecs_t> mLastSwapTime = 0;
-};
-
-struct SCOPED_CAPABILITY UnnecessaryLock {
-    explicit UnnecessaryLock(Mutex& mutex) ACQUIRE(mutex) {}
-    ~UnnecessaryLock() RELEASE() {}
 };
 
 class SurfaceFlinger : public BnSurfaceComposer,
@@ -752,7 +748,7 @@ private:
     void updateLayerGeometry();
 
     void updateInputFlinger();
-    void persistDisplayBrightness(bool needsComposite) REQUIRES(SF_MAIN_THREAD);
+    void persistDisplayBrightness(bool needsComposite) REQUIRES(kMainThreadContext);
     void buildWindowInfos(std::vector<gui::WindowInfo>& outWindowInfos,
                           std::vector<gui::DisplayInfo>& outDisplayInfos);
     void commitInputWindowCommands() REQUIRES(mStateLock);
@@ -985,7 +981,7 @@ private:
     void setCompositorTimingSnapped(const DisplayStatInfo& stats,
                                     nsecs_t compositeToPresentLatency);
 
-    void postFrame();
+    void postFrame() REQUIRES(kMainThreadContext);
 
     /*
      * Display management
@@ -1100,7 +1096,7 @@ private:
     void clearStatsLocked(const DumpArgs& args, std::string& result);
     void dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const;
     void dumpFrameTimeline(const DumpArgs& args, std::string& result) const;
-    void logFrameStats();
+    void logFrameStats() REQUIRES(kMainThreadContext);
 
     void dumpVSync(std::string& result) const REQUIRES(mStateLock);
     void dumpStaticScreenStats(std::string& result) const;
@@ -1443,7 +1439,7 @@ private:
         nsecs_t commitStart;
         nsecs_t compositeStart;
         nsecs_t presentEnd;
-    } mPowerHintSessionData GUARDED_BY(SF_MAIN_THREAD);
+    } mPowerHintSessionData GUARDED_BY(kMainThreadContext);
 
     nsecs_t mAnimationTransactionTimeout = s2ns(5);
 
