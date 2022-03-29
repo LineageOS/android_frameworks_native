@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,10 @@
 
 #pragma once
 
-#include <utils/Mutex.h>
-
 namespace android {
-namespace {
 
-// Helps to ensure that some functions runs on SF's main thread by using the
-// clang thread safety annotations.
-class CAPABILITY("mutex") MainThreadGuard {
-} SF_MAIN_THREAD;
+// Enforces exclusive access by the main thread.
+constexpr class [[clang::capability("mutex")]] {
+} kMainThreadContext;
 
-struct SCOPED_CAPABILITY MainThreadScopedGuard {
-public:
-    explicit MainThreadScopedGuard(MainThreadGuard& mutex) ACQUIRE(mutex) {}
-    ~MainThreadScopedGuard() RELEASE() {}
-};
-} // namespace
 } // namespace android
