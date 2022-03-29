@@ -368,6 +368,14 @@ void UnwantedInteractionBlocker::notifyKey(const NotifyKeyArgs* args) {
 }
 
 void UnwantedInteractionBlocker::notifyMotion(const NotifyMotionArgs* args) {
+    const std::vector<NotifyMotionArgs> processedArgs =
+            mPreferStylusOverTouchBlocker.processMotion(*args);
+    for (const NotifyMotionArgs& loopArgs : processedArgs) {
+        notifyMotionInner(&loopArgs);
+    }
+}
+
+void UnwantedInteractionBlocker::notifyMotionInner(const NotifyMotionArgs* args) {
     auto it = mPalmRejectors.find(args->deviceId);
     const bool sendToPalmRejector = it != mPalmRejectors.end() && isFromTouchscreen(args->source);
     if (!sendToPalmRejector) {
@@ -401,6 +409,7 @@ void UnwantedInteractionBlocker::notifyDeviceReset(const NotifyDeviceResetArgs* 
         mPalmRejectors.emplace(args->deviceId, info);
     }
     mListener.notifyDeviceReset(args);
+    mPreferStylusOverTouchBlocker.notifyDeviceReset(*args);
 }
 
 void UnwantedInteractionBlocker::notifyPointerCaptureChanged(
@@ -437,10 +446,13 @@ void UnwantedInteractionBlocker::notifyInputDevicesChanged(
         auto const& [deviceId, _] = item;
         return devicesToKeep.find(deviceId) == devicesToKeep.end();
     });
+    mPreferStylusOverTouchBlocker.notifyInputDevicesChanged(inputDevices);
 }
 
 void UnwantedInteractionBlocker::dump(std::string& dump) {
     dump += "UnwantedInteractionBlocker:\n";
+    dump += "  mPreferStylusOverTouchBlocker:\n";
+    dump += addPrefix(mPreferStylusOverTouchBlocker.dump(), "    ");
     dump += StringPrintf("  mEnablePalmRejection: %s\n", toString(mEnablePalmRejection));
     dump += StringPrintf("  isPalmRejectionEnabled (flag value): %s\n",
                          toString(isPalmRejectionEnabled()));

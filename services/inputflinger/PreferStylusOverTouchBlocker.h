@@ -16,66 +16,50 @@
 
 #pragma once
 
-#include <ftl/static_vector.h>
 #include <optional>
+#include <set>
 #include "InputListener.h"
 
 namespace android {
 
 /**
- * When stylus is down, we ignore all touch.
+ * When stylus is down, all touch is ignored.
  * TODO(b/210159205): delete this when simultaneous stylus and touch is supported
  */
 class PreferStylusOverTouchBlocker {
 public:
     /**
-     * Process the provided event and emit up to 2 events in response.
+     * Process the provided event and emit 0 or more events that should be used instead of it.
      * In the majority of cases, the returned result will just be the provided args (array with
      * only 1 element), unmodified.
      *
      * If the gesture should be blocked, the returned result may be:
      *
      * a) An empty array, if the current event should just be ignored completely
-     * b) An array of 2 elements, containing an event with ACTION_CANCEL and the current event.
+     * b) An array of N elements, containing N-1 events with ACTION_CANCEL and the current event.
      *
-     * bool is set to 'true'.
-     * NotifyMotionArgs potentially contains an event that should be used to cancel the existing
-     * gesture.
-     *
-     * If the event should not be blocked, bool contains 'false'.
+     * The returned result is intended to be reinjected into the original event stream in
+     * replacement of the incoming event.
      */
-    ftl::StaticVector<NotifyMotionArgs, 2> processMotion(const NotifyMotionArgs& args);
-    std::string dump();
+    std::vector<NotifyMotionArgs> processMotion(const NotifyMotionArgs& args);
+    std::string dump() const;
+
+    void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices);
+
+    void notifyDeviceReset(const NotifyDeviceResetArgs& args);
 
 private:
-    bool mIsTouchDown = false;
-    bool mIsStylusDown = false;
-    // Provide some default values for the stored MotionEvent to allow printint the event before
-    // any real event is received.
-    NotifyMotionArgs mLastTouchEvent{0 /*id*/,
-                                     0 /*eventTime*/,
-                                     0 /*readTime*/,
-                                     0 /*deviceId*/,
-                                     AINPUT_SOURCE_TOUCHSCREEN,
-                                     0 /*displayId*/,
-                                     0 /*policyFlags*/,
-                                     0 /*action*/,
-                                     0 /*actionButton*/,
-                                     0 /*flags*/,
-                                     0 /*metaState*/,
-                                     0 /*buttonState*/,
-                                     MotionClassification::NONE,
-                                     AMOTION_EVENT_EDGE_FLAG_NONE,
-                                     0 /*pointerCount*/,
-                                     nullptr /*properties*/,
-                                     nullptr /*coords*/,
-                                     0. /*xPrecision*/,
-                                     0. /*yPrecision*/,
-                                     AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                     AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                     0 /*downTime*/,
-                                     {}};
-    bool mCurrentTouchIsCanceled = false;
+    // Stores the device id's of styli that are currently down.
+    std::set<int32_t /*deviceId*/> mActiveStyli;
+    // For each device, store the last touch event as long as the touch is down. Upon liftoff,
+    // the entry is erased.
+    std::map<int32_t /*deviceId*/, NotifyMotionArgs> mLastTouchEvents;
+    // Device ids of devices for which the current touch gesture is canceled.
+    std::set<int32_t /*deviceId*/> mCanceledDevices;
+
+    // Device ids of input devices where we encountered simultaneous touch and stylus
+    // events. For these devices, we don't do any event processing (nothing is blocked or altered).
+    std::set<int32_t /*deviceId*/> mDevicesWithMixedToolType;
 };
 
 } // namespace android
