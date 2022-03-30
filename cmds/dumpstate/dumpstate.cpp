@@ -2733,8 +2733,8 @@ void Dumpstate::DumpOptions::Initialize(BugreportMode bugreport_mode,
                                         const android::base::unique_fd& screenshot_fd_in,
                                         bool is_screenshot_requested) {
     // Duplicate the fds because the passed in fds don't outlive the binder transaction.
-    bugreport_fd.reset(dup(bugreport_fd_in.get()));
-    screenshot_fd.reset(dup(screenshot_fd_in.get()));
+    bugreport_fd.reset(fcntl(bugreport_fd_in.get(), F_DUPFD_CLOEXEC, 0));
+    screenshot_fd.reset(fcntl(screenshot_fd_in.get(), F_DUPFD_CLOEXEC, 0));
 
     SetOptionsFromMode(bugreport_mode, this, is_screenshot_requested);
 }
