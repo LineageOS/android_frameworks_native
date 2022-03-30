@@ -150,7 +150,7 @@ struct layer_state_t {
         eTransparentRegionChanged = 0x00000020,
         eFlagsChanged = 0x00000040,
         eLayerStackChanged = 0x00000080,
-        /* unused 0x00000400, */
+        eDimmingEnabledChanged = 0x00000400,
         eShadowRadiusChanged = 0x00000800,
         /* unused 0x00001000, */
         eBufferCropChanged = 0x00002000,
@@ -187,7 +187,7 @@ struct layer_state_t {
         eAutoRefreshChanged = 0x1000'00000000,
         eStretchChanged = 0x2000'00000000,
         eTrustedOverlayChanged = 0x4000'00000000,
-        eDropInputModeChanged = 0x8000'00000000,
+        eDropInputModeChanged = 0x8000'00000000
     };
 
     layer_state_t();
@@ -298,6 +298,8 @@ struct layer_state_t {
 
     // Force inputflinger to drop all input events for the layer and its children.
     gui::DropInputMode dropInputMode;
+
+    bool dimmingEnabled;
 };
 
 struct ComposerState {
