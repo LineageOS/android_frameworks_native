@@ -22,6 +22,7 @@
 #include <compositionengine/impl/CompositionEngine.h>
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
+#include <ftl/fake_guard.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/ScreenCaptureResults.h>
 #include <gui/SurfaceComposerClient.h>
@@ -50,6 +51,7 @@
 #include "SurfaceFlinger.h"
 #include "SurfaceFlingerDefaultFactory.h"
 #include "SurfaceInterceptor.h"
+#include "ThreadContext.h"
 #include "TimeStats/TimeStats.h"
 
 #include "renderengine/mock/RenderEngine.h"
@@ -445,7 +447,7 @@ public:
         mFlinger->clearStatsLocked(dumpArgs, result);
 
         mFlinger->dumpTimeStats(dumpArgs, fdp->ConsumeBool(), result);
-        mFlinger->logFrameStats();
+        FTL_FAKE_GUARD(kMainThreadContext, mFlinger->logFrameStats());
 
         result = fdp->ConsumeRandomLengthString().c_str();
         mFlinger->dumpFrameTimeline(dumpArgs, result);
@@ -651,7 +653,7 @@ public:
         updateCompositorTiming(&mFdp);
 
         mFlinger->setCompositorTimingSnapped({}, mFdp.ConsumeIntegral<nsecs_t>());
-        mFlinger->postFrame();
+        FTL_FAKE_GUARD(kMainThreadContext, mFlinger->postFrame());
         mFlinger->calculateExpectedPresentTime({});
 
         mFlinger->enableHalVirtualDisplays(mFdp.ConsumeBool());

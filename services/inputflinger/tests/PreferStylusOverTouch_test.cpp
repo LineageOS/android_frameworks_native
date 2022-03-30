@@ -20,12 +20,16 @@
 namespace android {
 
 constexpr int32_t TOUCH_DEVICE_ID = 3;
-constexpr int32_t STYLUS_DEVICE_ID = 4;
+constexpr int32_t SECOND_TOUCH_DEVICE_ID = 4;
+constexpr int32_t STYLUS_DEVICE_ID = 5;
+constexpr int32_t SECOND_STYLUS_DEVICE_ID = 6;
 
 constexpr int DOWN = AMOTION_EVENT_ACTION_DOWN;
 constexpr int MOVE = AMOTION_EVENT_ACTION_MOVE;
 constexpr int UP = AMOTION_EVENT_ACTION_UP;
 constexpr int CANCEL = AMOTION_EVENT_ACTION_CANCEL;
+static constexpr int32_t POINTER_1_DOWN =
+        AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 constexpr int32_t TOUCHSCREEN = AINPUT_SOURCE_TOUCHSCREEN;
 constexpr int32_t STYLUS = AINPUT_SOURCE_STYLUS;
 
@@ -78,29 +82,30 @@ static NotifyMotionArgs generateMotionArgs(nsecs_t downTime, nsecs_t eventTime, 
 
 class PreferStylusOverTouchTest : public testing::Test {
 protected:
-    void assertNotBlocked(const NotifyMotionArgs& args) {
-        ftl::StaticVector<NotifyMotionArgs, 2> processedArgs = mBlocker.processMotion(args);
-        ASSERT_EQ(1u, processedArgs.size());
-        ASSERT_EQ(args, processedArgs[0]);
+    void assertNotBlocked(const NotifyMotionArgs& args) { assertResponse(args, {args}); }
+
+    void assertDropped(const NotifyMotionArgs& args) { assertResponse(args, {}); }
+
+    void assertResponse(const NotifyMotionArgs& args,
+                        const std::vector<NotifyMotionArgs>& expected) {
+        std::vector<NotifyMotionArgs> receivedArgs = mBlocker.processMotion(args);
+        ASSERT_EQ(expected.size(), receivedArgs.size());
+        for (size_t i = 0; i < expected.size(); i++) {
+            // The 'eventTime' of CANCEL events is dynamically generated. Don't check this field.
+            if (expected[i].action == CANCEL && receivedArgs[i].action == CANCEL) {
+                receivedArgs[i].eventTime = expected[i].eventTime;
+            }
+
+            ASSERT_EQ(expected[i], receivedArgs[i])
+                    << expected[i].dump() << " vs " << receivedArgs[i].dump();
+        }
     }
 
-    void assertDropped(const NotifyMotionArgs& args) {
-        ftl::StaticVector<NotifyMotionArgs, 2> processedArgs = mBlocker.processMotion(args);
-        ASSERT_TRUE(processedArgs.empty());
+    void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& devices) {
+        mBlocker.notifyInputDevicesChanged(devices);
     }
 
-    void assertCanceled(const NotifyMotionArgs& args,
-                        std::optional<NotifyMotionArgs> canceledArgs) {
-        ftl::StaticVector<NotifyMotionArgs, 2> processedArgs = mBlocker.processMotion(args);
-        ASSERT_EQ(2u, processedArgs.size());
-        NotifyMotionArgs& cancelEvent = processedArgs[0];
-        ASSERT_EQ(CANCEL, cancelEvent.action);
-        ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, cancelEvent.flags & AMOTION_EVENT_FLAG_CANCELED);
-        ASSERT_TRUE(isFromSource(cancelEvent.source, TOUCHSCREEN));
-        ASSERT_FALSE(isFromSource(cancelEvent.source, STYLUS));
-
-        ASSERT_EQ(args, processedArgs[1]);
-    }
+    void dump() const { ALOGI("Blocker: \n%s\n", mBlocker.dump().c_str()); }
 
 private:
     PreferStylusOverTouchBlocker mBlocker;
@@ -148,7 +153,8 @@ TEST_F(PreferStylusOverTouchTest, TouchIsCanceledWhenStylusGoesDown) {
     args = generateMotionArgs(3 /*downTime*/, 3 /*eventTime*/, DOWN, {{10, 30}}, STYLUS);
     NotifyMotionArgs cancelArgs =
             generateMotionArgs(0 /*downTime*/, 1 /*eventTime*/, CANCEL, {{1, 3}}, TOUCHSCREEN);
-    assertCanceled(args, cancelArgs);
+    cancelArgs.flags |= AMOTION_EVENT_FLAG_CANCELED;
+    assertResponse(args, {cancelArgs, args});
 
     // Both stylus and touch events continue. Stylus should be not blocked, and touch should be
     // blocked
@@ -157,6 +163,26 @@ TEST_F(PreferStylusOverTouchTest, TouchIsCanceledWhenStylusGoesDown) {
 
     args = generateMotionArgs(0 /*downTime*/, 5 /*eventTime*/, MOVE, {{1, 4}}, TOUCHSCREEN);
     assertDropped(args);
+}
+
+/**
+ * Stylus goes down after touch gesture.
+ */
+TEST_F(PreferStylusOverTouchTest, StylusDownAfterTouch) {
+    NotifyMotionArgs args;
+
+    args = generateMotionArgs(0 /*downTime*/, 0 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    assertNotBlocked(args);
+
+    args = generateMotionArgs(0 /*downTime*/, 1 /*eventTime*/, MOVE, {{1, 3}}, TOUCHSCREEN);
+    assertNotBlocked(args);
+
+    args = generateMotionArgs(0 /*downTime*/, 2 /*eventTime*/, UP, {{1, 3}}, TOUCHSCREEN);
+    assertNotBlocked(args);
+
+    // Stylus goes down
+    args = generateMotionArgs(3 /*downTime*/, 3 /*eventTime*/, DOWN, {{10, 30}}, STYLUS);
+    assertNotBlocked(args);
 }
 
 /**
@@ -244,6 +270,232 @@ TEST_F(PreferStylusOverTouchTest, AfterStylusIsLiftedCurrentTouchIsBlocked) {
     // New touch should go through, though.
     constexpr nsecs_t newTouchDownTime = 5;
     args = generateMotionArgs(newTouchDownTime, 5 /*eventTime*/, DOWN, {{10, 20}}, TOUCHSCREEN);
+    assertNotBlocked(args);
+}
+
+/**
+ * If an event with mixed stylus and touch pointers is encountered, it should be ignored. Touches
+ * from such should pass, even if stylus from the same device goes down.
+ */
+TEST_F(PreferStylusOverTouchTest, MixedStylusAndTouchPointersAreIgnored) {
+    NotifyMotionArgs args;
+
+    // Event from a stylus device, but with finger tool type
+    args = generateMotionArgs(1 /*downTime*/, 1 /*eventTime*/, DOWN, {{1, 2}}, STYLUS);
+    // Keep source stylus, but make the tool type touch
+    args.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    assertNotBlocked(args);
+
+    // Second pointer (stylus pointer) goes down, from the same device
+    args = generateMotionArgs(1 /*downTime*/, 2 /*eventTime*/, POINTER_1_DOWN, {{1, 2}, {10, 20}},
+                              STYLUS);
+    // Keep source stylus, but make the tool type touch
+    args.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    assertNotBlocked(args);
+
+    // Second pointer (stylus pointer) goes down, from the same device
+    args = generateMotionArgs(1 /*downTime*/, 3 /*eventTime*/, MOVE, {{2, 3}, {11, 21}}, STYLUS);
+    // Keep source stylus, but make the tool type touch
+    args.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    assertNotBlocked(args);
+}
+
+/**
+ * When there are two touch devices, stylus down should cancel all current touch streams.
+ */
+TEST_F(PreferStylusOverTouchTest, TouchFromTwoDevicesAndStylus) {
+    NotifyMotionArgs touch1Down =
+            generateMotionArgs(1 /*downTime*/, 1 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    assertNotBlocked(touch1Down);
+
+    NotifyMotionArgs touch2Down =
+            generateMotionArgs(2 /*downTime*/, 2 /*eventTime*/, DOWN, {{3, 4}}, TOUCHSCREEN);
+    touch2Down.deviceId = SECOND_TOUCH_DEVICE_ID;
+    assertNotBlocked(touch2Down);
+
+    NotifyMotionArgs stylusDown =
+            generateMotionArgs(3 /*downTime*/, 3 /*eventTime*/, DOWN, {{10, 30}}, STYLUS);
+    NotifyMotionArgs cancelArgs1 = touch1Down;
+    cancelArgs1.action = CANCEL;
+    cancelArgs1.flags |= AMOTION_EVENT_FLAG_CANCELED;
+    NotifyMotionArgs cancelArgs2 = touch2Down;
+    cancelArgs2.action = CANCEL;
+    cancelArgs2.flags |= AMOTION_EVENT_FLAG_CANCELED;
+    assertResponse(stylusDown, {cancelArgs1, cancelArgs2, stylusDown});
+}
+
+/**
+ * Touch should be canceled when stylus goes down. After the stylus lifts up, the touch from that
+ * device should continue to be canceled.
+ * If one of the devices is already canceled, it should remain canceled, but new touches from a
+ * different device should go through.
+ */
+TEST_F(PreferStylusOverTouchTest, AllTouchMustLiftAfterCanceledByStylus) {
+    // First device touches down
+    NotifyMotionArgs touch1Down =
+            generateMotionArgs(1 /*downTime*/, 1 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    assertNotBlocked(touch1Down);
+
+    // Stylus goes down - touch should be canceled
+    NotifyMotionArgs stylusDown =
+            generateMotionArgs(2 /*downTime*/, 2 /*eventTime*/, DOWN, {{10, 30}}, STYLUS);
+    NotifyMotionArgs cancelArgs1 = touch1Down;
+    cancelArgs1.action = CANCEL;
+    cancelArgs1.flags |= AMOTION_EVENT_FLAG_CANCELED;
+    assertResponse(stylusDown, {cancelArgs1, stylusDown});
+
+    // Stylus goes up
+    NotifyMotionArgs stylusUp =
+            generateMotionArgs(2 /*downTime*/, 3 /*eventTime*/, UP, {{10, 30}}, STYLUS);
+    assertNotBlocked(stylusUp);
+
+    // Touch from the first device remains blocked
+    NotifyMotionArgs touch1Move =
+            generateMotionArgs(1 /*downTime*/, 4 /*eventTime*/, MOVE, {{2, 3}}, TOUCHSCREEN);
+    assertDropped(touch1Move);
+
+    // Second touch goes down. It should not be blocked because stylus has already lifted.
+    NotifyMotionArgs touch2Down =
+            generateMotionArgs(5 /*downTime*/, 5 /*eventTime*/, DOWN, {{31, 32}}, TOUCHSCREEN);
+    touch2Down.deviceId = SECOND_TOUCH_DEVICE_ID;
+    assertNotBlocked(touch2Down);
+
+    // First device is lifted up. It's already been canceled, so the UP event should be dropped.
+    NotifyMotionArgs touch1Up =
+            generateMotionArgs(1 /*downTime*/, 6 /*eventTime*/, UP, {{2, 3}}, TOUCHSCREEN);
+    assertDropped(touch1Up);
+
+    // Touch from second device touch should continue to work
+    NotifyMotionArgs touch2Move =
+            generateMotionArgs(5 /*downTime*/, 7 /*eventTime*/, MOVE, {{32, 33}}, TOUCHSCREEN);
+    touch2Move.deviceId = SECOND_TOUCH_DEVICE_ID;
+    assertNotBlocked(touch2Move);
+
+    // Second touch lifts up
+    NotifyMotionArgs touch2Up =
+            generateMotionArgs(5 /*downTime*/, 8 /*eventTime*/, UP, {{32, 33}}, TOUCHSCREEN);
+    touch2Up.deviceId = SECOND_TOUCH_DEVICE_ID;
+    assertNotBlocked(touch2Up);
+
+    // Now that all touch has been lifted, new touch from either first or second device should work
+    NotifyMotionArgs touch3Down =
+            generateMotionArgs(9 /*downTime*/, 9 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    assertNotBlocked(touch3Down);
+
+    NotifyMotionArgs touch4Down =
+            generateMotionArgs(10 /*downTime*/, 10 /*eventTime*/, DOWN, {{100, 200}}, TOUCHSCREEN);
+    touch4Down.deviceId = SECOND_TOUCH_DEVICE_ID;
+    assertNotBlocked(touch4Down);
+}
+
+/**
+ * When we don't know that a specific device does both stylus and touch, and we only see touch
+ * pointers from it, we should treat it as a touch device. That means, the device events should be
+ * canceled when stylus from another device goes down. When we detect simultaneous touch and stylus
+ * from this device though, we should just pass this device through without canceling anything.
+ *
+ * In this test:
+ * 1. Start by touching down with device 1
+ * 2. Device 2 has stylus going down
+ * 3. Device 1 should be canceled.
+ * 4. When we add stylus pointers to the device 1, they should continue to be canceled.
+ * 5. Device 1 lifts up.
+ * 6. Subsequent events from device 1 should not be canceled even if stylus is down.
+ * 7. If a reset happens, and such device is no longer there, then we should
+ * Therefore, the device 1 is "ignored" and does not participate into "prefer stylus over touch"
+ * behaviour.
+ */
+TEST_F(PreferStylusOverTouchTest, MixedStylusAndTouchDeviceIsCanceledAtFirst) {
+    // Touch from device 1 goes down
+    NotifyMotionArgs touchDown =
+            generateMotionArgs(1 /*downTime*/, 1 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    touchDown.source = STYLUS;
+    assertNotBlocked(touchDown);
+
+    // Stylus from device 2 goes down. Touch should be canceled.
+    NotifyMotionArgs args =
+            generateMotionArgs(2 /*downTime*/, 2 /*eventTime*/, DOWN, {{10, 20}}, STYLUS);
+    NotifyMotionArgs cancelTouchArgs = touchDown;
+    cancelTouchArgs.action = CANCEL;
+    cancelTouchArgs.flags |= AMOTION_EVENT_FLAG_CANCELED;
+    assertResponse(args, {cancelTouchArgs, args});
+
+    // Introduce a stylus pointer into the device 1 stream. It should be ignored.
+    args = generateMotionArgs(1 /*downTime*/, 3 /*eventTime*/, POINTER_1_DOWN, {{1, 2}, {3, 4}},
+                              TOUCHSCREEN);
+    args.pointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    args.source = STYLUS;
+    assertDropped(args);
+
+    // Lift up touch from the mixed touch/stylus device
+    args = generateMotionArgs(1 /*downTime*/, 4 /*eventTime*/, CANCEL, {{1, 2}, {3, 4}},
+                              TOUCHSCREEN);
+    args.pointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    args.source = STYLUS;
+    assertDropped(args);
+
+    // Stylus from device 2 is still down. Since the device 1 is now identified as a mixed
+    // touch/stylus device, its events should go through, even if they are touch.
+    args = generateMotionArgs(5 /*downTime*/, 5 /*eventTime*/, DOWN, {{21, 22}}, TOUCHSCREEN);
+    touchDown.source = STYLUS;
+    assertResponse(args, {args});
+
+    // Reconfigure such that only the stylus device remains
+    InputDeviceInfo stylusDevice;
+    stylusDevice.initialize(STYLUS_DEVICE_ID, 1 /*generation*/, 1 /*controllerNumber*/,
+                            {} /*identifier*/, "stylus device", false /*external*/,
+                            false /*hasMic*/);
+    notifyInputDevicesChanged({stylusDevice});
+    // The touchscreen device was removed, so we no longer remember anything about it. We should
+    // again start blocking touch events from it.
+    args = generateMotionArgs(6 /*downTime*/, 6 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    args.source = STYLUS;
+    assertDropped(args);
+}
+
+/**
+ * If two styli are active at the same time, touch should be blocked until both of them are lifted.
+ * If one of them lifts, touch should continue to be blocked.
+ */
+TEST_F(PreferStylusOverTouchTest, TouchIsBlockedWhenTwoStyliAreUsed) {
+    NotifyMotionArgs args;
+
+    // First stylus is down
+    assertNotBlocked(generateMotionArgs(0 /*downTime*/, 0 /*eventTime*/, DOWN, {{10, 30}}, STYLUS));
+
+    // Second stylus is down
+    args = generateMotionArgs(1 /*downTime*/, 1 /*eventTime*/, DOWN, {{20, 40}}, STYLUS);
+    args.deviceId = SECOND_STYLUS_DEVICE_ID;
+    assertNotBlocked(args);
+
+    // Touch goes down. It should be ignored.
+    args = generateMotionArgs(2 /*downTime*/, 2 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    assertDropped(args);
+
+    // Lift the first stylus
+    args = generateMotionArgs(0 /*downTime*/, 3 /*eventTime*/, UP, {{10, 30}}, STYLUS);
+    assertNotBlocked(args);
+
+    // Touch should continue to be blocked
+    args = generateMotionArgs(2 /*downTime*/, 4 /*eventTime*/, UP, {{1, 2}}, TOUCHSCREEN);
+    assertDropped(args);
+
+    // New touch should be blocked because second stylus is still down
+    args = generateMotionArgs(5 /*downTime*/, 5 /*eventTime*/, DOWN, {{5, 6}}, TOUCHSCREEN);
+    assertDropped(args);
+
+    // Second stylus goes up
+    args = generateMotionArgs(1 /*downTime*/, 6 /*eventTime*/, UP, {{20, 40}}, STYLUS);
+    args.deviceId = SECOND_STYLUS_DEVICE_ID;
+    assertNotBlocked(args);
+
+    // Current touch gesture should continue to be blocked
+    // Touch should continue to be blocked
+    args = generateMotionArgs(5 /*downTime*/, 7 /*eventTime*/, UP, {{5, 6}}, TOUCHSCREEN);
+    assertDropped(args);
+
+    // Now that all styli were lifted, new touch should go through
+    args = generateMotionArgs(8 /*downTime*/, 8 /*eventTime*/, DOWN, {{7, 8}}, TOUCHSCREEN);
     assertNotBlocked(args);
 }
 

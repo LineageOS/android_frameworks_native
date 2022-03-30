@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,14 @@
  * limitations under the License.
  */
 
-#pragma once
+#define LOG_TAG "PrintTools"
 
-#include <utils/Mutex.h>
+#include <input/PrintTools.h>
 
 namespace android {
-namespace {
 
-// Helps to ensure that some functions runs on SF's main thread by using the
-// clang thread safety annotations.
-class CAPABILITY("mutex") MainThreadGuard {
-} SF_MAIN_THREAD;
+const char* toString(bool value) {
+    return value ? "true" : "false";
+}
 
-struct SCOPED_CAPABILITY MainThreadScopedGuard {
-public:
-    explicit MainThreadScopedGuard(MainThreadGuard& mutex) ACQUIRE(mutex) {}
-    ~MainThreadScopedGuard() RELEASE() {}
-};
-} // namespace
 } // namespace android
