@@ -32,12 +32,4 @@ cc_test {
         "-Wpedantic",
         "-Wthread-safety",
     ],
-
-    header_libs: [
-        "libbase_headers",
-    ],
-
-    shared_libs: [
-        "libbase",
-    ],
 }

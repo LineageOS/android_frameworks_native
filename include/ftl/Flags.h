@@ -19,12 +19,11 @@
 #include <ftl/enum.h>
 #include <ftl/string.h>
 
+#include <bitset>
 #include <cstdint>
 #include <iterator>
 #include <string>
 #include <type_traits>
-
-#include "utils/BitSet.h"
 
 // TODO(b/185536303): Align with FTL style and namespace.
 
@@ -56,21 +55,22 @@ public:
           : mFlags(t) {}
 
     class Iterator {
-        // The type can't be larger than 64-bits otherwise it won't fit in BitSet64.
-        static_assert(sizeof(U) <= sizeof(uint64_t));
+        using Bits = std::uint64_t;
+        static_assert(sizeof(U) <= sizeof(Bits));
 
     public:
+        constexpr Iterator() = default;
         Iterator(Flags<F> flags) : mRemainingFlags(flags.mFlags) { (*this)++; }
-        Iterator() : mRemainingFlags(0), mCurrFlag(static_cast<F>(0)) {}
 
         // Pre-fix ++
         Iterator& operator++() {
-            if (mRemainingFlags.isEmpty()) {
-                mCurrFlag = static_cast<F>(0);
+            if (mRemainingFlags.none()) {
+                mCurrFlag = 0;
             } else {
-                uint64_t bit = mRemainingFlags.clearLastMarkedBit(); // counts from left
-                const U flag = 1 << (64 - bit - 1);
-                mCurrFlag = static_cast<F>(flag);
+                // TODO: Replace with std::countr_zero in C++20.
+                const Bits bit = static_cast<Bits>(__builtin_ctzll(mRemainingFlags.to_ullong()));
+                mRemainingFlags.reset(static_cast<std::size_t>(bit));
+                mCurrFlag = static_cast<U>(static_cast<Bits>(1) << bit);
             }
             return *this;
         }
@@ -88,7 +88,7 @@ public:
 
         bool operator!=(Iterator other) const { return !(*this == other); }
 
-        F operator*() { return mCurrFlag; }
+        F operator*() const { return F{mCurrFlag}; }
 
         // iterator traits
 
@@ -107,8 +107,8 @@ public:
         using pointer = void;
 
     private:
-        BitSet64 mRemainingFlags;
-        F mCurrFlag;
+        std::bitset<sizeof(Bits) * 8> mRemainingFlags;
+        U mCurrFlag = 0;
     };
 
     /*

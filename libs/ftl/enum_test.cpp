@@ -143,6 +143,16 @@ TEST(Enum, String) {
     EXPECT_EQ(ftl::flag_string(Flags::kNone), "0b0");
     EXPECT_EQ(ftl::flag_string(Flags::kMask), "0b10010010");
     EXPECT_EQ(ftl::flag_string(Flags::kAll), "0b11111111");
+
+    enum class Flags64 : std::uint64_t {
+      kFlag0 = 0b1ull,
+      kFlag63 = 0x8000'0000'0000'0000ull,
+      kMask = kFlag0 | kFlag63
+    };
+
+    EXPECT_EQ(ftl::flag_string(Flags64::kFlag0), "kFlag0");
+    EXPECT_EQ(ftl::flag_string(Flags64::kFlag63), "kFlag63");
+    EXPECT_EQ(ftl::flag_string(Flags64::kMask), "0x8000000000000001");
   }
   {
     EXPECT_EQ(ftl::enum_string(Planet::kEarth), "kEarth");
