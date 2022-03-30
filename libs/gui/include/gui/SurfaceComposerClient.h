@@ -625,7 +625,8 @@ public:
                                          const Rect& destinationFrame);
         Transaction& setDropInputMode(const sp<SurfaceControl>& sc, gui::DropInputMode mode);
 
-        Transaction& enableBorder(const sp<SurfaceControl>& sc, bool shouldEnable);
+        Transaction& enableBorder(const sp<SurfaceControl>& sc, bool shouldEnable, float width,
+                                  const half4& color);
 
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);

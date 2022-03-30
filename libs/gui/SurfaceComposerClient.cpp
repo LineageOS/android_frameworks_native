@@ -1940,7 +1940,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDropI
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::enableBorder(
-        const sp<SurfaceControl>& sc, bool shouldEnable) {
+        const sp<SurfaceControl>& sc, bool shouldEnable, float width, const half4& color) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
@@ -1949,6 +1949,8 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::enableBo
 
     s->what |= layer_state_t::eRenderBorderChanged;
     s->borderEnabled = shouldEnable;
+    s->borderWidth = width;
+    s->borderColor = color;
 
     registerSurfaceControlForCallback(sc);
     return *this;

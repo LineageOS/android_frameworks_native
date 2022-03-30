@@ -2179,6 +2179,8 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId)
         mDrawingState.traverse([&refreshArgs](Layer* layer) {
             if (layer->isBorderEnabled()) {
                 compositionengine::BorderRenderInfo info;
+                info.width = layer->getBorderWidth();
+                info.color = layer->getBorderColor();
                 layer->traverse(LayerVector::StateSet::Drawing, [&info](Layer* ilayer) {
                     info.layerIds.push_back(ilayer->getSequence());
                 });
@@ -4462,7 +4464,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         if (layer->setBlurRegions(s.blurRegions)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eRenderBorderChanged) {
-        if (layer->enableBorder(s.borderEnabled)) {
+        if (layer->enableBorder(s.borderEnabled, s.borderWidth, s.borderColor)) {
             flags |= eTraversalNeeded;
         }
     }

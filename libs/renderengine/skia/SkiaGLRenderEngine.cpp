@@ -1247,15 +1247,11 @@ void SkiaGLRenderEngine::drawLayersInternal(
     }
     for (const auto& borderRenderInfo : display.borderInfoList) {
         SkPaint p;
-        // TODO (b/225977175): Use specified color
-        p.setColor(SkColor4f{.fR = 255 / 255.0f,
-                             .fG = 128 / 255.0f,
-                             .fB = 0 / 255.0f,
-                             .fA = 255 / 255.0f});
+        p.setColor(SkColor4f{borderRenderInfo.color.r, borderRenderInfo.color.g,
+                             borderRenderInfo.color.b, borderRenderInfo.color.a});
         p.setAntiAlias(true);
         p.setStyle(SkPaint::kStroke_Style);
-        // TODO (b/225977175): Use specified width
-        p.setStrokeWidth(20);
+        p.setStrokeWidth(borderRenderInfo.width);
         SkRegion sk_region;
         SkPath path;
 

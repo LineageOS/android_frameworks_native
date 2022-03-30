@@ -2433,6 +2433,8 @@ TEST_P(RenderEngineTest, testBorder) {
     display.borderInfoList.clear();
     renderengine::BorderRenderInfo info;
     info.combinedRegion = Region(Rect(99, 99, 199, 199));
+    info.width = 20.0f;
+    info.color = half4{1.0f, 128.0f / 255.0f, 0.0f, 1.0f};
     display.borderInfoList.emplace_back(info);
 
     const auto greenBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(0, 255, 0, 255));

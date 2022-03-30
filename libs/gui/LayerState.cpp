@@ -102,6 +102,11 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeUint32, transform);
     SAFE_PARCEL(output.writeBool, transformToDisplayInverse);
     SAFE_PARCEL(output.writeBool, borderEnabled);
+    SAFE_PARCEL(output.writeFloat, borderWidth);
+    SAFE_PARCEL(output.writeFloat, borderColor.r);
+    SAFE_PARCEL(output.writeFloat, borderColor.g);
+    SAFE_PARCEL(output.writeFloat, borderColor.b);
+    SAFE_PARCEL(output.writeFloat, borderColor.a);
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dataspace));
     SAFE_PARCEL(output.write, hdrMetadata);
     SAFE_PARCEL(output.write, surfaceDamageRegion);
@@ -202,6 +207,16 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readUint32, &transform);
     SAFE_PARCEL(input.readBool, &transformToDisplayInverse);
     SAFE_PARCEL(input.readBool, &borderEnabled);
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    borderWidth = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    borderColor.r = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    borderColor.g = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    borderColor.b = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    borderColor.a = tmpFloat;
 
     uint32_t tmpUint32 = 0;
     SAFE_PARCEL(input.readUint32, &tmpUint32);
@@ -555,6 +570,8 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eRenderBorderChanged) {
         what |= eRenderBorderChanged;
         borderEnabled = other.borderEnabled;
+        borderWidth = other.borderWidth;
+        borderColor = other.borderColor;
     }
     if (other.what & eFrameRateSelectionPriority) {
         what |= eFrameRateSelectionPriority;
