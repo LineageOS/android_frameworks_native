@@ -82,6 +82,7 @@ interface IInstalld {
             @utf8InCpp String packageName, @utf8InCpp String profileName);
     void clearAppProfiles(@utf8InCpp String packageName, @utf8InCpp String profileName);
     void destroyAppProfiles(@utf8InCpp String packageName);
+    void deleteReferenceProfile(@utf8InCpp String packageName, @utf8InCpp String profileName);
 
     boolean createProfileSnapshot(int appId, @utf8InCpp String packageName,
             @utf8InCpp String profileName, @utf8InCpp String classpath);
