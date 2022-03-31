@@ -235,7 +235,7 @@ void android_res_cancel(int nsend_fd) __INTRODUCED_IN(29);
  *
  * Available since API level 33.
  */
-int android_tag_socket_with_uid(int sockfd, int tag, uid_t uid) __INTRODUCED_IN(33);
+int android_tag_socket_with_uid(int sockfd, uint32_t tag, uid_t uid) __INTRODUCED_IN(33);
 
 /*
  * Set the socket tag for traffic statistics on the specified socket.
@@ -245,14 +245,26 @@ int android_tag_socket_with_uid(int sockfd, int tag, uid_t uid) __INTRODUCED_IN(
  * opened by another UID or was previously tagged by another UID. Subsequent
  * calls always replace any existing parameters. The socket tag is kept when the
  * socket is sent to another process using binder IPCs or other mechanisms such
- * as UNIX socket fd passing.
+ * as UNIX socket fd passing. The tag is a value defined by the caller and used
+ * together with uid for data traffic accounting, so that the function callers
+ * can account different types of data usage for a uid.
  *
  * Returns 0 on success, or a negative POSIX error code (see errno.h) on
  * failure.
  *
+ * Some possible error codes:
+ * -EBADF           Bad socketfd.
+ * -EPERM           No permission.
+ * -EAFNOSUPPORT    Socket family is neither AF_INET nor AF_INET6.
+ * -EPROTONOSUPPORT Socket protocol is neither IPPROTO_UDP nor IPPROTO_TCP.
+ * -EMFILE          Too many stats entries.
+ * There are still other error codes that may provided by -errno of
+ * [getsockopt()](https://man7.org/linux/man-pages/man2/getsockopt.2.html) or by
+ * BPF maps read/write sys calls, which are set appropriately.
+ *
  * Available since API level 33.
  */
-int android_tag_socket(int sockfd, int tag) __INTRODUCED_IN(33);
+int android_tag_socket(int sockfd, uint32_t tag) __INTRODUCED_IN(33);
 
 /*
  * Untag a network socket.
@@ -266,6 +278,12 @@ int android_tag_socket(int sockfd, int tag) __INTRODUCED_IN(33);
  *
  * Returns 0 on success, or a negative POSIX error code (see errno.h) on
  * failure.
+ *
+ * One of possible error code:
+ * -EBADF           Bad socketfd.
+ * Other error codes are either provided by -errno of
+ * [getsockopt()](https://man7.org/linux/man-pages/man2/getsockopt.2.html) or by
+ * BPF map element deletion sys call, which are set appropriately.
  *
  * Available since API level 33.
  */
