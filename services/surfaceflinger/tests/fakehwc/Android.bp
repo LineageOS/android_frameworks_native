@@ -28,6 +28,7 @@ cc_test {
         "android.hardware.graphics.mapper@3.0",
         "android.hardware.graphics.mapper@4.0",
         "android.hardware.power@1.3",
+        "android.hardware.power-V2-cpp",
         "libbase",
         "libbinder",
         "libbinder_ndk",

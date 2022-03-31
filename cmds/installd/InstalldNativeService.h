@@ -140,6 +140,8 @@ public:
             bool* _aidl_return);
     binder::Status clearAppProfiles(const std::string& packageName, const std::string& profileName);
     binder::Status destroyAppProfiles(const std::string& packageName);
+    binder::Status deleteReferenceProfile(const std::string& packageName,
+                                          const std::string& profileName);
 
     binder::Status createProfileSnapshot(int32_t appId, const std::string& packageName,
             const std::string& profileName, const std::string& classpath, bool* _aidl_return);

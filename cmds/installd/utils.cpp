@@ -707,16 +707,16 @@ static int rename_delete_dir_contents(const std::string& pathname,
     auto temp_dir_path =
             base::StringPrintf("%s/%s", Dirname(pathname).c_str(), temp_dir_name.c_str());
 
-    if (::rename(pathname.c_str(), temp_dir_path.c_str())) {
+    auto dir_to_delete = temp_dir_path.c_str();
+    if (::rename(pathname.c_str(), dir_to_delete)) {
         if (ignore_if_missing && (errno == ENOENT)) {
             return 0;
         }
-        ALOGE("Couldn't rename %s -> %s: %s \n", pathname.c_str(), temp_dir_path.c_str(),
-              strerror(errno));
-        return -errno;
+        ALOGE("Couldn't rename %s -> %s: %s \n", pathname.c_str(), dir_to_delete, strerror(errno));
+        dir_to_delete = pathname.c_str();
     }
 
-    return delete_dir_contents(temp_dir_path.c_str(), 1, exclusion_predicate, ignore_if_missing);
+    return delete_dir_contents(dir_to_delete, 1, exclusion_predicate, ignore_if_missing);
 }
 
 bool is_renamed_deleted_dir(const std::string& path) {

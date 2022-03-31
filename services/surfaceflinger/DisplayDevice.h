@@ -21,6 +21,7 @@
 #include <string>
 #include <unordered_map>
 
+#include <android-base/thread_annotations.h>
 #include <android/native_window.h>
 #include <binder/IBinder.h>
 #include <gui/LayerState.h>
@@ -28,6 +29,7 @@
 #include <renderengine/RenderEngine.h>
 #include <system/window.h>
 #include <ui/DisplayId.h>
+#include <ui/DisplayIdentification.h>
 #include <ui/DisplayState.h>
 #include <ui/GraphicTypes.h>
 #include <ui/HdrCapabilities.h>
@@ -39,15 +41,11 @@
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
-#include "MainThreadGuard.h"
-
-#include <ui/DisplayIdentification.h>
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/Hal.h"
 #include "DisplayHardware/PowerAdvisor.h"
-
 #include "Scheduler/RefreshRateConfigs.h"
-
+#include "ThreadContext.h"
 #include "TracedOrdinal.h"
 
 namespace android {
@@ -99,9 +97,9 @@ public:
     void setLayerStack(ui::LayerStack);
     void setDisplaySize(int width, int height);
     void setProjection(ui::Rotation orientation, Rect viewport, Rect frame);
-    void stageBrightness(float brightness) REQUIRES(SF_MAIN_THREAD);
-    void persistBrightness(bool needsComposite) REQUIRES(SF_MAIN_THREAD);
-    bool isBrightnessStale() const REQUIRES(SF_MAIN_THREAD);
+    void stageBrightness(float brightness) REQUIRES(kMainThreadContext);
+    void persistBrightness(bool needsComposite) REQUIRES(kMainThreadContext);
+    bool isBrightnessStale() const REQUIRES(kMainThreadContext);
     void setFlags(uint32_t flags);
 
     ui::Rotation getPhysicalOrientation() const { return mPhysicalOrientation; }
@@ -109,7 +107,7 @@ public:
 
     static ui::Transform::RotationFlags getPrimaryDisplayRotationFlags();
 
-    std::optional<float> getStagedBrightness() const REQUIRES(SF_MAIN_THREAD);
+    std::optional<float> getStagedBrightness() const REQUIRES(kMainThreadContext);
     ui::Transform::RotationFlags getTransformHint() const;
     const ui::Transform& getTransform() const;
     const Rect& getLayerStackSpaceRect() const;
@@ -209,15 +207,15 @@ public:
     bool setDesiredActiveMode(const ActiveModeInfo&) EXCLUDES(mActiveModeLock);
     std::optional<ActiveModeInfo> getDesiredActiveMode() const EXCLUDES(mActiveModeLock);
     void clearDesiredActiveModeState() EXCLUDES(mActiveModeLock);
-    ActiveModeInfo getUpcomingActiveMode() const REQUIRES(SF_MAIN_THREAD) {
+    ActiveModeInfo getUpcomingActiveMode() const REQUIRES(kMainThreadContext) {
         return mUpcomingActiveMode;
     }
 
-    void setActiveMode(DisplayModeId) REQUIRES(SF_MAIN_THREAD);
+    void setActiveMode(DisplayModeId) REQUIRES(kMainThreadContext);
     status_t initiateModeChange(const ActiveModeInfo&,
                                 const hal::VsyncPeriodChangeConstraints& constraints,
                                 hal::VsyncPeriodChangeTimeline* outTimeline)
-            REQUIRES(SF_MAIN_THREAD);
+            REQUIRES(kMainThreadContext);
 
     // Return the immutable list of supported display modes. The HWC may report different modes
     // after a hotplug reconnect event, in which case the DisplayDevice object will be recreated.
@@ -304,7 +302,7 @@ private:
     ActiveModeInfo mDesiredActiveMode GUARDED_BY(mActiveModeLock);
     TracedOrdinal<bool> mDesiredActiveModeChanged
             GUARDED_BY(mActiveModeLock) = {"DesiredActiveModeChanged", false};
-    ActiveModeInfo mUpcomingActiveMode GUARDED_BY(SF_MAIN_THREAD);
+    ActiveModeInfo mUpcomingActiveMode GUARDED_BY(kMainThreadContext);
 };
 
 struct DisplayDeviceState {
