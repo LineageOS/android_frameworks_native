@@ -1098,6 +1098,13 @@ bool BufferStateLayer::simpleBufferUpdate(const layer_state_t& s) const {
         }
     }
 
+    if (s.what & layer_state_t::eDimmingEnabledChanged) {
+        if (mDrawingState.dimmingEnabled != s.dimmingEnabled) {
+            ALOGV("%s: false [eDimmingEnabledChanged changed]", __func__);
+            return false;
+        }
+    }
+
     ALOGV("%s: true", __func__);
     return true;
 }
