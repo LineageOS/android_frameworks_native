@@ -19,6 +19,7 @@
 
 #include "DisplayTransactionTestHelpers.h"
 
+#include <ftl/fake_guard.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -35,7 +36,7 @@ public:
 };
 
 TEST_F(SetDisplayBrightnessTest, persistDisplayBrightnessNoComposite) {
-    MainThreadScopedGuard fakeMainThreadGuard(SF_MAIN_THREAD);
+    ftl::FakeGuard guard(kMainThreadContext);
     sp<DisplayDevice> displayDevice = getDisplayDevice();
 
     EXPECT_EQ(std::nullopt, displayDevice->getStagedBrightness());
@@ -52,7 +53,7 @@ TEST_F(SetDisplayBrightnessTest, persistDisplayBrightnessNoComposite) {
 }
 
 TEST_F(SetDisplayBrightnessTest, persistDisplayBrightnessWithComposite) {
-    MainThreadScopedGuard fakeMainThreadGuard(SF_MAIN_THREAD);
+    ftl::FakeGuard guard(kMainThreadContext);
     sp<DisplayDevice> displayDevice = getDisplayDevice();
 
     EXPECT_EQ(std::nullopt, displayDevice->getStagedBrightness());
@@ -70,7 +71,7 @@ TEST_F(SetDisplayBrightnessTest, persistDisplayBrightnessWithComposite) {
 }
 
 TEST_F(SetDisplayBrightnessTest, persistDisplayBrightnessWithCompositeShortCircuitsOnNoOp) {
-    MainThreadScopedGuard fakeMainThreadGuard(SF_MAIN_THREAD);
+    ftl::FakeGuard guard(kMainThreadContext);
     sp<DisplayDevice> displayDevice = getDisplayDevice();
 
     EXPECT_EQ(std::nullopt, displayDevice->getStagedBrightness());

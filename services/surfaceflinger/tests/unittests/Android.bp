@@ -26,6 +26,8 @@ filegroup {
     srcs: [
         "mock/DisplayHardware/MockComposer.cpp",
         "mock/DisplayHardware/MockHWC2.cpp",
+        "mock/DisplayHardware/MockIPower.cpp",
+        "mock/DisplayHardware/MockIPowerHintSession.cpp",
         "mock/DisplayHardware/MockPowerAdvisor.cpp",
         "mock/MockEventThread.cpp",
         "mock/MockFrameTimeline.cpp",
@@ -67,6 +69,7 @@ cc_test {
         ":libsurfaceflinger_mock_sources",
         ":libsurfaceflinger_sources",
         "libsurfaceflinger_unittest_main.cpp",
+        "AidlPowerHalWrapperTest.cpp",
         "CachingTest.cpp",
         "CompositionTest.cpp",
         "DispSyncSourceTest.cpp",

@@ -37,6 +37,7 @@
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
 #include <ftl/enum.h>
+#include <ftl/fake_guard.h>
 #include <gui/BufferItem.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
@@ -2045,10 +2046,10 @@ LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags) {
     writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
 
     if (traceFlags & LayerTracing::TRACE_COMPOSITION) {
+        ftl::FakeGuard guard(mFlinger->mStateLock); // Called from the main thread.
+
         // Only populate for the primary display.
-        UnnecessaryLock assumeLocked(mFlinger->mStateLock); // called from the main thread.
-        const auto display = mFlinger->getDefaultDisplayDeviceLocked();
-        if (display) {
+        if (const auto display = mFlinger->getDefaultDisplayDeviceLocked()) {
             const auto compositionType = getCompositionType(*display);
             layerProto->set_hwc_composition_type(static_cast<HwcCompositionType>(compositionType));
             LayerProtoHelper::writeToProto(getVisibleRegion(display.get()),

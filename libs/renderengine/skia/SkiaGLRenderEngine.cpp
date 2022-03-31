@@ -39,6 +39,7 @@
 #include <gui/TraceUtils.h>
 #include <sync/sync.h>
 #include <ui/BlurRegion.h>
+#include <ui/DataspaceUtils.h>
 #include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/Trace.h>
@@ -1105,9 +1106,15 @@ void SkiaGLRenderEngine::drawLayersInternal(
                                                   .requiresLinearEffect = requiresLinearEffect,
                                                   .layerDimmingRatio = layerDimmingRatio}));
 
-            // Turn on dithering when dimming beyond this threshold.
+            // Turn on dithering when dimming beyond this (arbitrary) threshold...
             static constexpr float kDimmingThreshold = 0.2f;
-            if (layerDimmingRatio <= kDimmingThreshold) {
+            // ...or we're rendering an HDR layer down to an 8-bit target
+            // Most HDR standards require at least 10-bits of color depth for source content, so we
+            // can just extract the transfer function rather than dig into precise gralloc layout.
+            // Furthermore, we can assume that the only 8-bit target we support is RGBA8888.
+            const bool requiresDownsample = isHdrDataspace(layer.sourceDataspace) &&
+                    buffer->getPixelFormat() == PIXEL_FORMAT_RGBA_8888;
+            if (layerDimmingRatio <= kDimmingThreshold || requiresDownsample) {
                 paint.setDither(true);
             }
             paint.setAlphaf(layer.alpha);

@@ -261,10 +261,10 @@ constexpr std::optional<std::string_view> flag_name(E v) {
   const auto value = to_underlying(v);
 
   // TODO: Replace with std::popcount and std::countr_zero in C++20.
-  if (__builtin_popcountl(value) != 1) return {};
+  if (__builtin_popcountll(value) != 1) return {};
 
   constexpr auto kRange = details::EnumRange<E, details::FlagName>{};
-  return kRange.values[__builtin_ctzl(value)];
+  return kRange.values[__builtin_ctzll(value)];
 }
 
 // Returns a stringified enumerator, or its integral value if not named.
