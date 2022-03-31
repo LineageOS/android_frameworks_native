@@ -102,16 +102,24 @@ public:
     status_t getPlaneLayouts(buffer_handle_t bufferHandle,
                              std::vector<ui::PlaneLayout>* outPlaneLayouts) const override;
     status_t getDataspace(buffer_handle_t bufferHandle, ui::Dataspace* outDataspace) const override;
+    status_t setDataspace(buffer_handle_t bufferHandle, ui::Dataspace dataspace) const override;
     status_t getBlendMode(buffer_handle_t bufferHandle, ui::BlendMode* outBlendMode) const override;
     status_t getSmpte2086(buffer_handle_t bufferHandle,
                           std::optional<ui::Smpte2086>* outSmpte2086) const override;
+    status_t setSmpte2086(buffer_handle_t bufferHandle,
+                          std::optional<ui::Smpte2086> smpte2086) const override;
     status_t getCta861_3(buffer_handle_t bufferHandle,
                          std::optional<ui::Cta861_3>* outCta861_3) const override;
+    status_t setCta861_3(buffer_handle_t bufferHandle,
+                         std::optional<ui::Cta861_3> cta861_3) const override;
     status_t getSmpte2094_40(buffer_handle_t bufferHandle,
                              std::optional<std::vector<uint8_t>>* outSmpte2094_40) const override;
+    status_t setSmpte2094_40(buffer_handle_t bufferHandle,
+                             std::optional<std::vector<uint8_t>> smpte2094_40) const override;
     status_t getSmpte2094_10(buffer_handle_t bufferHandle,
                              std::optional<std::vector<uint8_t>>* outSmpte2094_10) const override;
-
+    status_t setSmpte2094_10(buffer_handle_t bufferHandle,
+                             std::optional<std::vector<uint8_t>> smpte2094_10) const override;
     status_t getDefaultPixelFormatFourCC(uint32_t width, uint32_t height, PixelFormat format,
                                          uint32_t layerCount, uint64_t usage,
                                          uint32_t* outPixelFormatFourCC) const override;
@@ -157,12 +165,20 @@ private:
 
     template <class T>
     using DecodeFunction = status_t (*)(const hardware::hidl_vec<uint8_t>& input, T* output);
+    template <class T>
+    using EncodeFunction = status_t (*)(const T& input, hardware::hidl_vec<uint8_t>* output);
 
     template <class T>
     status_t get(
             buffer_handle_t bufferHandle,
             const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
             DecodeFunction<T> decodeFunction, T* outMetadata) const;
+
+    template <class T>
+    status_t set(
+            buffer_handle_t bufferHandle,
+            const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+            const T& metadata, EncodeFunction<T> encodeFunction) const;
 
     template <class T>
     status_t getDefault(
