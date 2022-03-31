@@ -16,11 +16,21 @@
 
 package android.gui;
 
-// Product-specific information about the display or the directly connected device on the
-// display chain. For example, if the display is transitively connected, this field may contain
-// product information about the intermediate device.
+import android.gui.Size;
+
+// Mode supported by physical display.
+// Make sure to sync with libui DisplayMode.h
 
 /** @hide */
-parcelable DisplayModelId {
+parcelable DisplayMode {
     int id;
+    Size resolution;
+    float xDpi = 0.0f;
+    float yDpi = 0.0f;
+
+    float refreshRate = 0.0f;
+    long appVsyncOffset = 0;
+    long sfVsyncOffset = 0;
+    long presentationDeadline = 0;
+    int group = -1;
 }

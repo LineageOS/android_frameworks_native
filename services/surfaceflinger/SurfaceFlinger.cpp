@@ -5519,7 +5519,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_ACTIVE_DISPLAY_MODE:
         case GET_DISPLAY_COLOR_MODES:
         case GET_DISPLAY_NATIVE_PRIMARIES:
-        case GET_DYNAMIC_DISPLAY_INFO:
         case GET_DISPLAY_MODES:
         case GET_SUPPORTED_FRAME_TIMESTAMPS:
         // Calling setTransactionState is safe, because you need to have been
@@ -5593,6 +5592,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_DISPLAY_STATE:
         case GET_DISPLAY_STATS:
         case GET_STATIC_DISPLAY_INFO:
+        case GET_DYNAMIC_DISPLAY_INFO:
         case CLEAR_BOOT_DISPLAY_MODE:
         case GET_BOOT_DISPLAY_MODE_SUPPORT:
         case SET_AUTO_LOW_LATENCY_MODE:
@@ -7434,6 +7434,57 @@ binder::Status SurfaceComposerAIDL::getStaticDisplayInfo(const sp<IBinder>& disp
         }
 
         outInfo->deviceProductInfo = dinfo;
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getDynamicDisplayInfo(const sp<IBinder>& display,
+                                                          gui::DynamicDisplayInfo* outInfo) {
+    ui::DynamicDisplayInfo info;
+    status_t status = mFlinger->getDynamicDisplayInfo(display, &info);
+    if (status == NO_ERROR) {
+        // convert ui::DynamicDisplayInfo to gui::DynamicDisplayInfo
+        outInfo->supportedDisplayModes.clear();
+        outInfo->supportedDisplayModes.reserve(info.supportedDisplayModes.size());
+        for (const auto& mode : info.supportedDisplayModes) {
+            gui::DisplayMode outMode;
+            outMode.id = mode.id;
+            outMode.resolution.width = mode.resolution.width;
+            outMode.resolution.height = mode.resolution.height;
+            outMode.xDpi = mode.xDpi;
+            outMode.yDpi = mode.yDpi;
+            outMode.refreshRate = mode.refreshRate;
+            outMode.appVsyncOffset = mode.appVsyncOffset;
+            outMode.sfVsyncOffset = mode.sfVsyncOffset;
+            outMode.presentationDeadline = mode.presentationDeadline;
+            outMode.group = mode.group;
+            outInfo->supportedDisplayModes.push_back(outMode);
+        }
+
+        outInfo->activeDisplayModeId = info.activeDisplayModeId;
+
+        outInfo->supportedColorModes.clear();
+        outInfo->supportedColorModes.reserve(info.supportedColorModes.size());
+        for (const auto& cmode : info.supportedColorModes) {
+            outInfo->supportedColorModes.push_back(static_cast<int32_t>(cmode));
+        }
+
+        outInfo->activeColorMode = static_cast<int32_t>(info.activeColorMode);
+
+        gui::HdrCapabilities& hdrCapabilities = outInfo->hdrCapabilities;
+        hdrCapabilities.supportedHdrTypes.clear();
+        hdrCapabilities.supportedHdrTypes.reserve(
+                info.hdrCapabilities.getSupportedHdrTypes().size());
+        for (const auto& hdr : info.hdrCapabilities.getSupportedHdrTypes()) {
+            hdrCapabilities.supportedHdrTypes.push_back(static_cast<int32_t>(hdr));
+        }
+        hdrCapabilities.maxLuminance = info.hdrCapabilities.getDesiredMaxLuminance();
+        hdrCapabilities.maxAverageLuminance = info.hdrCapabilities.getDesiredMaxAverageLuminance();
+        hdrCapabilities.minLuminance = info.hdrCapabilities.getDesiredMinLuminance();
+
+        outInfo->autoLowLatencyModeSupported = info.autoLowLatencyModeSupported;
+        outInfo->gameContentTypeSupported = info.gameContentTypeSupported;
+        outInfo->preferredBootDisplayMode = info.preferredBootDisplayMode;
     }
     return binder::Status::fromStatusT(status);
 }

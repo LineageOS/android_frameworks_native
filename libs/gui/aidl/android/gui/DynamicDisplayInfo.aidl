@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,44 +14,32 @@
  * limitations under the License.
  */
 
-#pragma once
+package android.gui;
 
-#include "DisplayMode.h"
-
-#include <cstdint>
-#include <optional>
-#include <vector>
-
-#include <ui/GraphicTypes.h>
-#include <ui/HdrCapabilities.h>
-
-namespace android::ui {
+import android.gui.DisplayMode;
+import android.gui.HdrCapabilities;
 
 // Information about a physical display which may change on hotplug reconnect.
-struct DynamicDisplayInfo {
-    std::vector<ui::DisplayMode> supportedDisplayModes;
+// Make sure to sync with libui DynamicDisplayInfo.h
 
-    // This struct is going to be serialized over binder, so
-    // we can't use size_t because it may have different width
-    // in the client process.
-    ui::DisplayModeId activeDisplayModeId;
+/** @hide */
+parcelable DynamicDisplayInfo {
+    List<DisplayMode> supportedDisplayModes;
 
-    std::vector<ui::ColorMode> supportedColorModes;
-    ui::ColorMode activeColorMode;
+    int activeDisplayModeId;
+
+    int[] supportedColorModes;
+    int activeColorMode;
     HdrCapabilities hdrCapabilities;
 
     // True if the display reports support for HDMI 2.1 Auto Low Latency Mode.
     // For more information, see the HDMI 2.1 specification.
-    bool autoLowLatencyModeSupported;
+    boolean autoLowLatencyModeSupported;
 
     // True if the display reports support for Game Content Type.
     // For more information, see the HDMI 1.4 specification.
-    bool gameContentTypeSupported;
+    boolean gameContentTypeSupported;
 
     // The boot display mode preferred by the implementation.
-    ui::DisplayModeId preferredBootDisplayMode;
-
-    std::optional<ui::DisplayMode> getActiveDisplayMode() const;
-};
-
-} // namespace android::ui
+    int preferredBootDisplayMode;
+}

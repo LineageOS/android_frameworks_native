@@ -225,17 +225,6 @@ public:
         return result;
     }
 
-    status_t getDynamicDisplayInfo(const sp<IBinder>& display,
-                                   ui::DynamicDisplayInfo* info) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-        remote()->transact(BnSurfaceComposer::GET_DYNAMIC_DISPLAY_INFO, data, &reply);
-        const status_t result = reply.readInt32();
-        if (result != NO_ERROR) return result;
-        return reply.read(*info);
-    }
-
     status_t getDisplayNativePrimaries(const sp<IBinder>& display,
                                        ui::DisplayPrimaries& primaries) override {
         Parcel data, reply;
@@ -1131,16 +1120,6 @@ status_t BnSurfaceComposer::onTransact(
             sp<IDisplayEventConnection> connection(
                     createDisplayEventConnection(vsyncSource, eventRegistration));
             reply->writeStrongBinder(IInterface::asBinder(connection));
-            return NO_ERROR;
-        }
-        case GET_DYNAMIC_DISPLAY_INFO: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            ui::DynamicDisplayInfo info;
-            const sp<IBinder> display = data.readStrongBinder();
-            const status_t result = getDynamicDisplayInfo(display, &info);
-            SAFE_PARCEL(reply->writeInt32, result);
-            if (result != NO_ERROR) return result;
-            SAFE_PARCEL(reply->write, info);
             return NO_ERROR;
         }
         case GET_DISPLAY_NATIVE_PRIMARIES: {
