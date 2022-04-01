@@ -25,7 +25,7 @@
 #include <string>
 #include <math/vec4.h>
 
-namespace android {
+namespace android::gui {
 
 /* Class for transporting debug info from SurfaceFlinger to authorized
  * recipients.  The class is intended to be a data container. There are
@@ -71,4 +71,4 @@ public:
 
 std::string to_string(const LayerDebugInfo& info);
 
-} // namespace android
+} // namespace android::gui

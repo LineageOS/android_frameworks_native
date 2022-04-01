@@ -714,46 +714,11 @@ public:
         return false;
     }
 
-    status_t overrideHdrTypes(const sp<IBinder>& /*display*/,
-                              const std::vector<ui::Hdr>& /*hdrTypes*/) override {
-        return NO_ERROR;
-    }
-    status_t onPullAtom(const int32_t /*atomId*/, std::string* /*outData*/,
-                        bool* /*success*/) override {
-        return NO_ERROR;
-    }
-    status_t enableVSyncInjections(bool /*enable*/) override {
-        return NO_ERROR;
-    }
-    status_t injectVSync(nsecs_t /*when*/) override { return NO_ERROR; }
-    status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* /*layers*/) override {
-        return NO_ERROR;
-    }
-    status_t getCompositionPreference(
-            ui::Dataspace* /*outDefaultDataspace*/, ui::PixelFormat* /*outDefaultPixelFormat*/,
-            ui::Dataspace* /*outWideColorGamutDataspace*/,
-            ui::PixelFormat* /*outWideColorGamutPixelFormat*/) const override {
-        return NO_ERROR;
-    }
-    status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& /*display*/,
-                                                   ui::PixelFormat* /*outFormat*/,
-                                                   ui::Dataspace* /*outDataspace*/,
-                                                   uint8_t* /*outComponentMask*/) const override {
-        return NO_ERROR;
-    }
-    status_t setDisplayContentSamplingEnabled(const sp<IBinder>& /*display*/, bool /*enable*/,
-                                              uint8_t /*componentMask*/,
-                                              uint64_t /*maxFrames*/) override {
-        return NO_ERROR;
-    }
     status_t getDisplayedContentSample(const sp<IBinder>& /*display*/, uint64_t /*maxFrames*/,
                                        uint64_t /*timestamp*/,
                                        DisplayedFrameStats* /*outStats*/) const override {
         return NO_ERROR;
     }
-
-    status_t getColorManagement(bool* /*outGetColorManagement*/) const override { return NO_ERROR; }
-    status_t getProtectedContentSupport(bool* /*outSupported*/) const override { return NO_ERROR; }
 
     status_t addRegionSamplingListener(const Rect& /*samplingArea*/,
                                        const sp<IBinder>& /*stopLayerHandle*/,
@@ -961,6 +926,46 @@ public:
     binder::Status clearAnimationFrameStats() override { return binder::Status::ok(); }
 
     binder::Status getAnimationFrameStats(gui::FrameStats* /*outStats*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status overrideHdrTypes(const sp<IBinder>& /*display*/,
+                                    const std::vector<int32_t>& /*hdrTypes*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status onPullAtom(int32_t /*atomId*/, gui::PullAtomData* /*outPullData*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status enableVSyncInjections(bool /*enable*/) override { return binder::Status::ok(); }
+
+    binder::Status injectVSync(int64_t /*when*/) override { return binder::Status::ok(); }
+
+    binder::Status getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* /*outLayers*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getColorManagement(bool* /*outGetColorManagement*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getCompositionPreference(gui::CompositionPreference* /*outPref*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getDisplayedContentSamplingAttributes(
+            const sp<IBinder>& /*display*/, gui::ContentSamplingAttributes* /*outAttrs*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status setDisplayContentSamplingEnabled(const sp<IBinder>& /*display*/, bool /*enable*/,
+                                                    int8_t /*componentMask*/,
+                                                    int64_t /*maxFrames*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getProtectedContentSupport(bool* /*outSupporte*/) override {
         return binder::Status::ok();
     }
 

@@ -16,6 +16,8 @@
 
 package android.gui;
 
+import android.gui.CompositionPreference;
+import android.gui.ContentSamplingAttributes;
 import android.gui.DisplayCaptureArgs;
 import android.gui.DisplayBrightness;
 import android.gui.DisplayPrimaries;
@@ -23,6 +25,8 @@ import android.gui.DisplayState;
 import android.gui.DisplayStatInfo;
 import android.gui.FrameEvent;
 import android.gui.FrameStats;
+import android.gui.LayerDebugInfo;
+import android.gui.PullAtomData;
 import android.gui.StaticDisplayInfo;
 import android.gui.DynamicDisplayInfo;
 import android.gui.IHdrLayerInfoListener;
@@ -31,43 +35,50 @@ import android.gui.IScreenCaptureListener;
 
 /** @hide */
 interface ISurfaceComposer {
-    /* create a virtual display
+    /**
+     * Create a virtual display
      * requires ACCESS_SURFACE_FLINGER permission.
      */
     @nullable IBinder createDisplay(@utf8InCpp String displayName, boolean secure);
 
-    /* destroy a virtual display
+    /**
+     * Destroy a virtual display
      * requires ACCESS_SURFACE_FLINGER permission.
      */
     void destroyDisplay(IBinder display);
 
-    /* get stable IDs for connected physical displays.
+    /**
+     * Get stable IDs for connected physical displays.
      */
     long[] getPhysicalDisplayIds();
 
     long getPrimaryPhysicalDisplayId();
 
-    /* get token for a physical display given its stable ID obtained via getPhysicalDisplayIds or a
-     * DisplayEventReceiver hotplug event.
+    /**
+     * Get token for a physical display given its stable ID obtained via getPhysicalDisplayIds or
+     * a DisplayEventReceiver hotplug event.
      */
     @nullable IBinder getPhysicalDisplayToken(long displayId);
 
-    /* Returns the frame timestamps supported by SurfaceFlinger.
+    /**
+     * Returns the frame timestamps supported by SurfaceFlinger.
      */
     FrameEvent[] getSupportedFrameTimestamps();
 
-    /* set display power mode. depending on the mode, it can either trigger
+    /**
+     * Set display power mode. depending on the mode, it can either trigger
      * screen on, off or low power mode and wait for it to complete.
      * requires ACCESS_SURFACE_FLINGER permission.
      */
     void setPowerMode(IBinder display, int mode);
 
-    /* returns display statistics for a given display
+    /**
+     * Returns display statistics for a given display
      * intended to be used by the media framework to properly schedule
      * video frames */
     DisplayStatInfo getDisplayStats(IBinder display);
 
-     /**
+    /**
      * Get transactional state of given display.
      */
     DisplayState getDisplayState(IBinder display);
@@ -136,7 +147,9 @@ interface ISurfaceComposer {
      * match the size of the output buffer.
      */
     void captureDisplay(in DisplayCaptureArgs args, IScreenCaptureListener listener);
+
     void captureDisplayById(long displayId, IScreenCaptureListener listener);
+
     /**
      * Capture a subtree of the layer hierarchy, potentially ignoring the root node.
      * This requires READ_FRAME_BUFFER permission. This function will fail if there
@@ -144,25 +157,80 @@ interface ISurfaceComposer {
      */
     void captureLayers(in LayerCaptureArgs args, IScreenCaptureListener listener);
 
-    /* Clears the frame statistics for animations.
+    /**
+     * Clears the frame statistics for animations.
      *
      * Requires the ACCESS_SURFACE_FLINGER permission.
      */
     void clearAnimationFrameStats();
 
-    /* Gets the frame statistics for animations.
+    /**
+     * Gets the frame statistics for animations.
      *
      * Requires the ACCESS_SURFACE_FLINGER permission.
      */
     FrameStats getAnimationFrameStats();
 
-    /*
+    /**
+     * Overrides the supported HDR modes for the given display device.
+     *
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    void overrideHdrTypes(IBinder display, in int[] hdrTypes);
+
+    /**
+     * Pulls surfaceflinger atoms global stats and layer stats to pipe to statsd.
+     *
+     * Requires the calling uid be from system server.
+     */
+    PullAtomData onPullAtom(int atomId);
+
+    oneway void enableVSyncInjections(boolean enable);
+
+    oneway void injectVSync(long when);
+
+    /**
+     * Gets the list of active layers in Z order for debugging purposes
+     *
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    List<LayerDebugInfo> getLayerDebugInfo();
+
+    boolean getColorManagement();
+
+    /**
+     * Gets the composition preference of the default data space and default pixel format,
+     * as well as the wide color gamut data space and wide color gamut pixel format.
+     * If the wide color gamut data space is V0_SRGB, then it implies that the platform
+     * has no wide color gamut support.
+     *
+     */
+    CompositionPreference getCompositionPreference();
+
+    /**
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    ContentSamplingAttributes getDisplayedContentSamplingAttributes(IBinder display);
+
+    /**
+     * Turns on the color sampling engine on the display.
+     *
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    void setDisplayContentSamplingEnabled(IBinder display, boolean enable, byte componentMask, long maxFrames);
+
+    /**
+     * Gets whether SurfaceFlinger can support protected content in GPU composition.
+     */
+    boolean getProtectedContentSupport();
+
+    /**
      * Queries whether the given display is a wide color display.
      * Requires the ACCESS_SURFACE_FLINGER permission.
      */
     boolean isWideColorDisplay(IBinder token);
 
-    /*
+    /**
      * Gets whether brightness operations are supported on a display.
      *
      * displayToken
@@ -176,7 +244,7 @@ interface ISurfaceComposer {
      */
     boolean getDisplayBrightnessSupport(IBinder displayToken);
 
-    /*
+    /**
      * Sets the brightness of a display.
      *
      * displayToken
@@ -191,7 +259,7 @@ interface ISurfaceComposer {
      */
     void setDisplayBrightness(IBinder displayToken, in DisplayBrightness brightness);
 
-    /*
+    /**
      * Adds a listener that receives HDR layer information. This is used in combination
      * with setDisplayBrightness to adjust the display brightness depending on factors such
      * as whether or not HDR is in use.
@@ -200,7 +268,7 @@ interface ISurfaceComposer {
      */
     void addHdrLayerInfoListener(IBinder displayToken, IHdrLayerInfoListener listener);
 
-    /*
+    /**
      * Removes a listener that was added with addHdrLayerInfoListener.
      *
      * Returns NO_ERROR upon success, NAME_NOT_FOUND if the display is invalid, and BAD_VALUE if
@@ -209,7 +277,7 @@ interface ISurfaceComposer {
      */
     void removeHdrLayerInfoListener(IBinder displayToken, IHdrLayerInfoListener listener);
 
-    /*
+    /**
      * Sends a power boost to the composer. This function is asynchronous.
      *
      * boostId
@@ -217,5 +285,5 @@ interface ISurfaceComposer {
      *
      * Returns NO_ERROR upon success.
      */
-    void notifyPowerBoost(int boostId);
+    oneway void notifyPowerBoost(int boostId);
 }
