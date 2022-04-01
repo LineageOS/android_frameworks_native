@@ -324,9 +324,10 @@ void OutputLayer::updateCompositionState(
 
     // For hdr content, treat the white point as the display brightness - HDR content should not be
     // boosted or dimmed.
+    // If the layer explicitly requests to disable dimming, then don't dim either.
     if (isHdrDataspace(state.dataspace) ||
         getOutput().getState().displayBrightnessNits == getOutput().getState().sdrWhitePointNits ||
-        getOutput().getState().displayBrightnessNits == 0.f) {
+        getOutput().getState().displayBrightnessNits == 0.f || !layerFEState->dimmingEnabled) {
         state.dimmingRatio = 1.f;
         state.whitePointNits = getOutput().getState().displayBrightnessNits;
     } else {
