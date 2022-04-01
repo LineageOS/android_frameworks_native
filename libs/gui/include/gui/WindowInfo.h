@@ -20,7 +20,7 @@
 #include <android/os/InputConfig.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
-#include <ftl/Flags.h>
+#include <ftl/flags.h>
 #include <gui/constants.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
@@ -224,7 +224,7 @@ struct WindowInfo : public Parcelable {
     int32_t ownerPid = -1;
     int32_t ownerUid = -1;
     std::string packageName;
-    Flags<InputConfig> inputConfig;
+    ftl::Flags<InputConfig> inputConfig;
     int32_t displayId = ADISPLAY_ID_NONE;
     InputApplicationInfo applicationInfo;
     bool replaceTouchableRegionWithCrop = false;
@@ -232,9 +232,9 @@ struct WindowInfo : public Parcelable {
 
     // The window's layout params flags and type set by WM.
     Type layoutParamsType = Type::UNKNOWN;
-    Flags<Flag> layoutParamsFlags;
+    ftl::Flags<Flag> layoutParamsFlags;
 
-    void setInputConfig(Flags<InputConfig> config, bool value);
+    void setInputConfig(ftl::Flags<InputConfig> config, bool value);
 
     void addTouchableRegion(const Rect& region);
 

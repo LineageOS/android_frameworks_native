@@ -429,7 +429,7 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
                                                   bufferProto.height(), bufferProto.pixel_format(),
                                                   bufferProto.usage()));
         layer.bufferData->frameNumber = bufferProto.frame_number();
-        layer.bufferData->flags = Flags<BufferData::BufferDataChange>(bufferProto.flags());
+        layer.bufferData->flags = ftl::Flags<BufferData::BufferDataChange>(bufferProto.flags());
         layer.bufferData->cachedBuffer.id = bufferProto.cached_buffer_id();
         layer.bufferData->acquireFence = Fence::NO_FENCE;
     }

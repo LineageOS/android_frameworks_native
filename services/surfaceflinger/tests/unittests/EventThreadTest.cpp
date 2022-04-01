@@ -34,11 +34,12 @@
 using namespace std::chrono_literals;
 using namespace std::placeholders;
 
-using namespace android::flag_operators;
 using testing::_;
 using testing::Invoke;
 
 namespace android {
+
+using namespace ftl::flag_operators;
 
 namespace {
 
