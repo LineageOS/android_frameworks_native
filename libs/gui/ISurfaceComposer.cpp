@@ -225,29 +225,6 @@ public:
         return result;
     }
 
-    status_t clearAnimationFrameStats() override {
-        Parcel data, reply;
-        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (result != NO_ERROR) {
-            ALOGE("clearAnimationFrameStats failed to writeInterfaceToken: %d", result);
-            return result;
-        }
-        result = remote()->transact(BnSurfaceComposer::CLEAR_ANIMATION_FRAME_STATS, data, &reply);
-        if (result != NO_ERROR) {
-            ALOGE("clearAnimationFrameStats failed to transact: %d", result);
-            return result;
-        }
-        return reply.readInt32();
-    }
-
-    status_t getAnimationFrameStats(FrameStats* outStats) const override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        remote()->transact(BnSurfaceComposer::GET_ANIMATION_FRAME_STATS, data, &reply);
-        reply.read(*outStats);
-        return reply.readInt32();
-    }
-
     virtual status_t overrideHdrTypes(const sp<IBinder>& display,
                                       const std::vector<ui::Hdr>& hdrTypes) {
         Parcel data, reply;
@@ -1044,20 +1021,6 @@ status_t BnSurfaceComposer::onTransact(
             sp<IDisplayEventConnection> connection(
                     createDisplayEventConnection(vsyncSource, eventRegistration));
             reply->writeStrongBinder(IInterface::asBinder(connection));
-            return NO_ERROR;
-        }
-        case CLEAR_ANIMATION_FRAME_STATS: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            status_t result = clearAnimationFrameStats();
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case GET_ANIMATION_FRAME_STATS: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            FrameStats stats;
-            status_t result = getAnimationFrameStats(&stats);
-            reply->write(stats);
-            reply->writeInt32(result);
             return NO_ERROR;
         }
         case ENABLE_VSYNC_INJECTIONS: {

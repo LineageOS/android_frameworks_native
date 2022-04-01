@@ -733,10 +733,6 @@ public:
         return NO_ERROR;
     }
 
-    status_t clearAnimationFrameStats() override { return NO_ERROR; }
-    status_t getAnimationFrameStats(FrameStats* /*outStats*/) const override {
-        return NO_ERROR;
-    }
     status_t overrideHdrTypes(const sp<IBinder>& /*display*/,
                               const std::vector<ui::Hdr>& /*hdrTypes*/) override {
         return NO_ERROR;
@@ -963,6 +959,12 @@ public:
 
     binder::Status captureLayers(const LayerCaptureArgs&,
                                  const sp<IScreenCaptureListener>&) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status clearAnimationFrameStats() override { return binder::Status::ok(); }
+
+    binder::Status getAnimationFrameStats(gui::FrameStats* /*outStats*/) override {
         return binder::Status::ok();
     }
 

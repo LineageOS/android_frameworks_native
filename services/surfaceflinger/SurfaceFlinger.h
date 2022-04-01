@@ -579,8 +579,8 @@ private:
     void setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on);
     void setGameContentType(const sp<IBinder>& displayToken, bool on);
     void setPowerMode(const sp<IBinder>& displayToken, int mode);
-    status_t clearAnimationFrameStats() override;
-    status_t getAnimationFrameStats(FrameStats* outStats) const override;
+    status_t clearAnimationFrameStats();
+    status_t getAnimationFrameStats(FrameStats* outStats) const;
     status_t overrideHdrTypes(const sp<IBinder>& displayToken,
                               const std::vector<ui::Hdr>& hdrTypes) override;
     status_t onPullAtom(const int32_t atomId, std::string* pulledData, bool* success) override;
@@ -1477,6 +1477,8 @@ public:
     binder::Status captureDisplayById(int64_t, const sp<IScreenCaptureListener>&) override;
     binder::Status captureLayers(const LayerCaptureArgs&,
                                  const sp<IScreenCaptureListener>&) override;
+    binder::Status clearAnimationFrameStats() override;
+    binder::Status getAnimationFrameStats(gui::FrameStats* outStats) override;
     binder::Status isWideColorDisplay(const sp<IBinder>& token,
                                       bool* outIsWideColorDisplay) override;
     binder::Status getDisplayBrightnessSupport(const sp<IBinder>& displayToken,

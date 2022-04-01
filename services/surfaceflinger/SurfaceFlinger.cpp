@@ -5466,8 +5466,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // These methods should at minimum make sure that the client requested
         // access to SF.
         case BOOT_FINISHED:
-        case CLEAR_ANIMATION_FRAME_STATS:
-        case GET_ANIMATION_FRAME_STATS:
         case OVERRIDE_HDR_TYPES:
         case GET_HDR_CAPABILITIES:
         case SET_DESIRED_DISPLAY_MODE_SPECS:
@@ -5595,6 +5593,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case CAPTURE_LAYERS:
         case CAPTURE_DISPLAY:
         case CAPTURE_DISPLAY_BY_ID:
+        case CLEAR_ANIMATION_FRAME_STATS:
+        case GET_ANIMATION_FRAME_STATS:
         case IS_WIDE_COLOR_DISPLAY:
         case GET_DISPLAY_BRIGHTNESS_SUPPORT:
         case SET_DISPLAY_BRIGHTNESS:
@@ -7583,6 +7583,40 @@ binder::Status SurfaceComposerAIDL::captureDisplayById(
 binder::Status SurfaceComposerAIDL::captureLayers(
         const LayerCaptureArgs& args, const sp<IScreenCaptureListener>& captureListener) {
     status_t status = mFlinger->captureLayers(args, captureListener);
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::clearAnimationFrameStats() {
+    status_t status = checkAccessPermission();
+    if (status == OK) {
+        status = mFlinger->clearAnimationFrameStats();
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getAnimationFrameStats(gui::FrameStats* outStats) {
+    status_t status = checkAccessPermission();
+    if (status != OK) {
+        return binder::Status::fromStatusT(status);
+    }
+
+    FrameStats stats;
+    status = mFlinger->getAnimationFrameStats(&stats);
+    if (status == NO_ERROR) {
+        outStats->refreshPeriodNano = stats.refreshPeriodNano;
+        outStats->desiredPresentTimesNano.reserve(stats.desiredPresentTimesNano.size());
+        for (const auto& t : stats.desiredPresentTimesNano) {
+            outStats->desiredPresentTimesNano.push_back(t);
+        }
+        outStats->actualPresentTimesNano.reserve(stats.actualPresentTimesNano.size());
+        for (const auto& t : stats.actualPresentTimesNano) {
+            outStats->actualPresentTimesNano.push_back(t);
+        }
+        outStats->frameReadyTimesNano.reserve(stats.frameReadyTimesNano.size());
+        for (const auto& t : stats.frameReadyTimesNano) {
+            outStats->frameReadyTimesNano.push_back(t);
+        }
+    }
     return binder::Status::fromStatusT(status);
 }
 
