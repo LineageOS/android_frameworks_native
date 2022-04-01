@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-#include <type_traits>
 #define LOG_TAG "WindowInfo"
 #define LOG_NDEBUG 0
+
+#include <type_traits>
 
 #include <binder/Parcel.h>
 #include <gui/WindowInfo.h>
@@ -25,8 +26,7 @@
 
 namespace android::gui {
 
-// --- WindowInfo ---
-void WindowInfo::setInputConfig(Flags<InputConfig> config, bool value) {
+void WindowInfo::setInputConfig(ftl::Flags<InputConfig> config, bool value) {
     if (value) {
         inputConfig |= config;
         return;
@@ -182,17 +182,15 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
         return status;
     }
 
-    layoutParamsFlags = Flags<Flag>(lpFlags);
+    layoutParamsFlags = ftl::Flags<Flag>(lpFlags);
     layoutParamsType = static_cast<Type>(lpType);
     transform.set({dsdx, dtdx, tx, dtdy, dsdy, ty, 0, 0, 1});
     touchOcclusionMode = static_cast<TouchOcclusionMode>(touchOcclusionModeInt);
-    inputConfig = Flags<InputConfig>(inputConfigInt);
+    inputConfig = ftl::Flags<InputConfig>(inputConfigInt);
     touchableRegionCropHandle = touchableRegionCropHandleSp;
 
     return OK;
 }
-
-// --- WindowInfoHandle ---
 
 WindowInfoHandle::WindowInfoHandle() {}
 

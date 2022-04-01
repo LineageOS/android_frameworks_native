@@ -27,7 +27,7 @@
 #include <android/gui/IWindowInfosListener.h>
 #include <binder/IBinder.h>
 #include <binder/IInterface.h>
-#include <ftl/Flags.h>
+#include <ftl/flags.h>
 #include <gui/FrameTimelineInfo.h>
 #include <gui/ITransactionCompletedListener.h>
 #include <gui/SpHash.h>
@@ -125,7 +125,7 @@ public:
         frameRateOverride = 1 << 1,
     };
 
-    using EventRegistrationFlags = Flags<EventRegistration>;
+    using EventRegistrationFlags = ftl::Flags<EventRegistration>;
 
     /*
      * Create a connection with SurfaceFlinger.

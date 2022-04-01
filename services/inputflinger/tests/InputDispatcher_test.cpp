@@ -39,9 +39,10 @@ using android::gui::WindowInfo;
 using android::gui::WindowInfoHandle;
 using android::os::InputEventInjectionResult;
 using android::os::InputEventInjectionSync;
-using namespace android::flag_operators;
 
 namespace android::inputdispatcher {
+
+using namespace ftl::flag_operators;
 
 // An arbitrary time value.
 static const nsecs_t ARBITRARY_TIME = 1234;

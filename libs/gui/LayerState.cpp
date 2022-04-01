@@ -821,7 +821,7 @@ status_t BufferData::writeToParcel(Parcel* output) const {
 status_t BufferData::readFromParcel(const Parcel* input) {
     int32_t tmpInt32;
     SAFE_PARCEL(input->readInt32, &tmpInt32);
-    flags = Flags<BufferDataChange>(tmpInt32);
+    flags = ftl::Flags<BufferDataChange>(tmpInt32);
 
     bool tmpBool = false;
     SAFE_PARCEL(input->readBool, &tmpBool);

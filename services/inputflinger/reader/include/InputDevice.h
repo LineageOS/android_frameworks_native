@@ -17,12 +17,12 @@
 #ifndef _UI_INPUTREADER_INPUT_DEVICE_H
 #define _UI_INPUTREADER_INPUT_DEVICE_H
 
-#include <ftl/Flags.h>
+#include <ftl/flags.h>
 #include <input/DisplayViewport.h>
 #include <input/InputDevice.h>
 #include <input/PropertyMap.h>
-#include <stdint.h>
 
+#include <cstdint>
 #include <optional>
 #include <unordered_map>
 #include <vector>
@@ -53,7 +53,7 @@ public:
     inline int32_t getGeneration() const { return mGeneration; }
     inline const std::string getName() const { return mIdentifier.name; }
     inline const std::string getDescriptor() { return mIdentifier.descriptor; }
-    inline Flags<InputDeviceClass> getClasses() const { return mClasses; }
+    inline ftl::Flags<InputDeviceClass> getClasses() const { return mClasses; }
     inline uint32_t getSources() const { return mSources; }
     inline bool hasEventHubDevices() const { return !mDevices.empty(); }
 
@@ -160,7 +160,7 @@ private:
     int32_t mControllerNumber;
     InputDeviceIdentifier mIdentifier;
     std::string mAlias;
-    Flags<InputDeviceClass> mClasses;
+    ftl::Flags<InputDeviceClass> mClasses;
 
     // map from eventHubId to device context and mappers
     using MapperVector = std::vector<std::unique_ptr<InputMapper>>;
@@ -250,7 +250,7 @@ public:
     inline int32_t getId() { return mDeviceId; }
     inline int32_t getEventHubId() { return mId; }
 
-    inline Flags<InputDeviceClass> getDeviceClasses() const {
+    inline ftl::Flags<InputDeviceClass> getDeviceClasses() const {
         return mEventHub->getDeviceClasses(mId);
     }
     inline InputDeviceIdentifier getDeviceIdentifier() const {

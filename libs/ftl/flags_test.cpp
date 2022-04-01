@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
+#include <ftl/flags.h>
 #include <gtest/gtest.h>
-#include <ftl/Flags.h>
 
 #include <type_traits>
 
 namespace android::test {
 
-using namespace android::flag_operators;
+using ftl::Flags;
+using namespace ftl::flag_operators;
 
 enum class TestFlags : uint8_t { ONE = 0x1, TWO = 0x2, THREE = 0x4 };
 
