@@ -1195,6 +1195,20 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setTrans
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDimmingEnabled(
+        const sp<SurfaceControl>& sc, bool dimmingEnabled) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eDimmingEnabledChanged;
+    s->dimmingEnabled = dimmingEnabled;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAlpha(
         const sp<SurfaceControl>& sc, float alpha) {
     layer_state_t* s = getLayerState(sc);

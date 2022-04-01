@@ -491,6 +491,7 @@ public:
                 uint32_t flags, uint32_t mask);
         Transaction& setTransparentRegionHint(const sp<SurfaceControl>& sc,
                 const Region& transparentRegion);
+        Transaction& setDimmingEnabled(const sp<SurfaceControl>& sc, bool dimmingEnabled);
         Transaction& setAlpha(const sp<SurfaceControl>& sc,
                 float alpha);
         Transaction& setMatrix(const sp<SurfaceControl>& sc,
