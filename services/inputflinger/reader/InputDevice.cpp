@@ -18,8 +18,9 @@
 
 #include "InputDevice.h"
 
-#include <ftl/Flags.h>
 #include <algorithm>
+
+#include <ftl/flags.h>
 
 #include "CursorInputMapper.h"
 #include "ExternalStylusInputMapper.h"
@@ -145,7 +146,7 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
         return;
     }
     std::unique_ptr<InputDeviceContext> contextPtr(new InputDeviceContext(*this, eventHubId));
-    Flags<InputDeviceClass> classes = contextPtr->getDeviceClasses();
+    ftl::Flags<InputDeviceClass> classes = contextPtr->getDeviceClasses();
     std::vector<std::unique_ptr<InputMapper>> mappers;
 
     // Check if we should skip population
@@ -236,7 +237,7 @@ void InputDevice::removeEventHubDevice(int32_t eventHubId) {
 void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config,
                             uint32_t changes) {
     mSources = 0;
-    mClasses = Flags<InputDeviceClass>(0);
+    mClasses = ftl::Flags<InputDeviceClass>(0);
     mControllerNumber = 0;
 
     for_each_subdevice([this](InputDeviceContext& context) {
