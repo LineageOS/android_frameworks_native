@@ -18,9 +18,11 @@ package android.gui;
 
 import android.gui.DisplayCaptureArgs;
 import android.gui.DisplayBrightness;
+import android.gui.DisplayPrimaries;
 import android.gui.DisplayState;
 import android.gui.DisplayStatInfo;
 import android.gui.StaticDisplayInfo;
+import android.gui.DynamicDisplayInfo;
 import android.gui.IHdrLayerInfoListener;
 import android.gui.LayerCaptureArgs;
 import android.gui.IScreenCaptureListener;
@@ -68,6 +70,20 @@ interface ISurfaceComposer {
      * Gets immutable information about given physical display.
      */
     StaticDisplayInfo getStaticDisplayInfo(IBinder display);
+
+    /**
+     * Gets dynamic information about given physical display.
+     */
+    DynamicDisplayInfo getDynamicDisplayInfo(IBinder display);
+
+    DisplayPrimaries getDisplayNativePrimaries(IBinder display);
+
+    void setActiveColorMode(IBinder display, int colorMode);
+
+    /**
+     * Sets the user-preferred display mode that a device should boot in.
+     */
+    void setBootDisplayMode(IBinder display, int displayModeId);
 
     /**
      * Clears the user-preferred display mode. The device should now boot in system preferred

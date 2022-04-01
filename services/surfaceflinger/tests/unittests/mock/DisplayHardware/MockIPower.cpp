@@ -14,13 +14,11 @@
  * limitations under the License.
  */
 
-package android.gui;
+#include "mock/DisplayHardware/MockIPower.h"
 
-// Product-specific information about the display or the directly connected device on the
-// display chain. For example, if the display is transitively connected, this field may contain
-// product information about the intermediate device.
+namespace android::Hwc2::mock {
 
-/** @hide */
-parcelable DisplayModelId {
-    int id;
-}
+// Explicit default instantiation is recommended.
+MockIPower::MockIPower() = default;
+
+} // namespace android::Hwc2::mock

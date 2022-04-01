@@ -682,7 +682,9 @@ void SurfaceFlinger::bootFinished() {
             if (renderEngineTid.has_value()) {
                 tidList.emplace_back(*renderEngineTid);
             }
-            mPowerAdvisor.startPowerHintSession(tidList);
+            if (!mPowerAdvisor.startPowerHintSession(tidList)) {
+                ALOGW("Cannot start power hint session");
+            }
         }
 
         mBootStage = BootStage::FINISHED;
@@ -994,13 +996,8 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
 
         outMode.resolution = ui::Size(width, height);
 
-        if (mEmulatedDisplayDensity) {
-            outMode.xDpi = mEmulatedDisplayDensity;
-            outMode.yDpi = mEmulatedDisplayDensity;
-        } else {
-            outMode.xDpi = xDpi;
-            outMode.yDpi = yDpi;
-        }
+        outMode.xDpi = xDpi;
+        outMode.yDpi = yDpi;
 
         const nsecs_t period = mode->getVsyncPeriod();
         outMode.refreshRate = Fps::fromPeriodNsecs(period).getValue();
@@ -5475,8 +5472,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_HDR_CAPABILITIES:
         case SET_DESIRED_DISPLAY_MODE_SPECS:
         case GET_DESIRED_DISPLAY_MODE_SPECS:
-        case SET_ACTIVE_COLOR_MODE:
-        case SET_BOOT_DISPLAY_MODE:
         case GET_AUTO_LOW_LATENCY_MODE_SUPPORT:
         case GET_GAME_CONTENT_TYPE_SUPPORT:
         case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES:
@@ -5516,8 +5511,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_ACTIVE_COLOR_MODE:
         case GET_ACTIVE_DISPLAY_MODE:
         case GET_DISPLAY_COLOR_MODES:
-        case GET_DISPLAY_NATIVE_PRIMARIES:
-        case GET_DYNAMIC_DISPLAY_INFO:
         case GET_DISPLAY_MODES:
         case GET_SUPPORTED_FRAME_TIMESTAMPS:
         // Calling setTransactionState is safe, because you need to have been
@@ -5591,6 +5584,10 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_DISPLAY_STATE:
         case GET_DISPLAY_STATS:
         case GET_STATIC_DISPLAY_INFO:
+        case GET_DYNAMIC_DISPLAY_INFO:
+        case GET_DISPLAY_NATIVE_PRIMARIES:
+        case SET_ACTIVE_COLOR_MODE:
+        case SET_BOOT_DISPLAY_MODE:
         case CLEAR_BOOT_DISPLAY_MODE:
         case GET_BOOT_DISPLAY_MODE_SUPPORT:
         case SET_AUTO_LOW_LATENCY_MODE:
@@ -7432,6 +7429,99 @@ binder::Status SurfaceComposerAIDL::getStaticDisplayInfo(const sp<IBinder>& disp
         }
 
         outInfo->deviceProductInfo = dinfo;
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getDynamicDisplayInfo(const sp<IBinder>& display,
+                                                          gui::DynamicDisplayInfo* outInfo) {
+    ui::DynamicDisplayInfo info;
+    status_t status = mFlinger->getDynamicDisplayInfo(display, &info);
+    if (status == NO_ERROR) {
+        // convert ui::DynamicDisplayInfo to gui::DynamicDisplayInfo
+        outInfo->supportedDisplayModes.clear();
+        outInfo->supportedDisplayModes.reserve(info.supportedDisplayModes.size());
+        for (const auto& mode : info.supportedDisplayModes) {
+            gui::DisplayMode outMode;
+            outMode.id = mode.id;
+            outMode.resolution.width = mode.resolution.width;
+            outMode.resolution.height = mode.resolution.height;
+            outMode.xDpi = mode.xDpi;
+            outMode.yDpi = mode.yDpi;
+            outMode.refreshRate = mode.refreshRate;
+            outMode.appVsyncOffset = mode.appVsyncOffset;
+            outMode.sfVsyncOffset = mode.sfVsyncOffset;
+            outMode.presentationDeadline = mode.presentationDeadline;
+            outMode.group = mode.group;
+            outInfo->supportedDisplayModes.push_back(outMode);
+        }
+
+        outInfo->activeDisplayModeId = info.activeDisplayModeId;
+
+        outInfo->supportedColorModes.clear();
+        outInfo->supportedColorModes.reserve(info.supportedColorModes.size());
+        for (const auto& cmode : info.supportedColorModes) {
+            outInfo->supportedColorModes.push_back(static_cast<int32_t>(cmode));
+        }
+
+        outInfo->activeColorMode = static_cast<int32_t>(info.activeColorMode);
+
+        gui::HdrCapabilities& hdrCapabilities = outInfo->hdrCapabilities;
+        hdrCapabilities.supportedHdrTypes.clear();
+        hdrCapabilities.supportedHdrTypes.reserve(
+                info.hdrCapabilities.getSupportedHdrTypes().size());
+        for (const auto& hdr : info.hdrCapabilities.getSupportedHdrTypes()) {
+            hdrCapabilities.supportedHdrTypes.push_back(static_cast<int32_t>(hdr));
+        }
+        hdrCapabilities.maxLuminance = info.hdrCapabilities.getDesiredMaxLuminance();
+        hdrCapabilities.maxAverageLuminance = info.hdrCapabilities.getDesiredMaxAverageLuminance();
+        hdrCapabilities.minLuminance = info.hdrCapabilities.getDesiredMinLuminance();
+
+        outInfo->autoLowLatencyModeSupported = info.autoLowLatencyModeSupported;
+        outInfo->gameContentTypeSupported = info.gameContentTypeSupported;
+        outInfo->preferredBootDisplayMode = info.preferredBootDisplayMode;
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getDisplayNativePrimaries(const sp<IBinder>& display,
+                                                              gui::DisplayPrimaries* outPrimaries) {
+    ui::DisplayPrimaries primaries;
+    status_t status = mFlinger->getDisplayNativePrimaries(display, primaries);
+    if (status == NO_ERROR) {
+        outPrimaries->red.X = primaries.red.X;
+        outPrimaries->red.Y = primaries.red.Y;
+        outPrimaries->red.Z = primaries.red.Z;
+
+        outPrimaries->green.X = primaries.green.X;
+        outPrimaries->green.Y = primaries.green.Y;
+        outPrimaries->green.Z = primaries.green.Z;
+
+        outPrimaries->blue.X = primaries.blue.X;
+        outPrimaries->blue.Y = primaries.blue.Y;
+        outPrimaries->blue.Z = primaries.blue.Z;
+
+        outPrimaries->white.X = primaries.white.X;
+        outPrimaries->white.Y = primaries.white.Y;
+        outPrimaries->white.Z = primaries.white.Z;
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::setActiveColorMode(const sp<IBinder>& display, int colorMode) {
+    status_t status = checkAccessPermission();
+    if (status == OK) {
+        status = mFlinger->setActiveColorMode(display, static_cast<ui::ColorMode>(colorMode));
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::setBootDisplayMode(const sp<IBinder>& display,
+                                                       int displayModeId) {
+    status_t status = checkAccessPermission();
+    if (status == OK) {
+        status = mFlinger->setBootDisplayMode(display,
+                                              static_cast<ui::DisplayModeId>(displayModeId));
     }
     return binder::Status::fromStatusT(status);
 }

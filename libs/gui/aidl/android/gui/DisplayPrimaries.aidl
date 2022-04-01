@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,20 @@
  * limitations under the License.
  */
 
-#include <ui/DynamicDisplayInfo.h>
+package android.gui;
 
-#include <cstdint>
+// copied from libui ConfigStoreTypes.h
 
-namespace android::ui {
-
-std::optional<ui::DisplayMode> DynamicDisplayInfo::getActiveDisplayMode() const {
-    for (const auto& currMode : supportedDisplayModes) {
-        if (currMode.id == activeDisplayModeId) {
-            return currMode;
-        }
+/** @hide */
+parcelable DisplayPrimaries {
+    parcelable CieXyz {
+        float X;
+        float Y;
+        float Z;
     }
-    return {};
-}
 
-} // namespace android::ui
+    CieXyz red;
+    CieXyz green;
+    CieXyz blue;
+    CieXyz white;
+}

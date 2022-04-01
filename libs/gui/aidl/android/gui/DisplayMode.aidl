@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,23 @@
  * limitations under the License.
  */
 
-#include <ui/DynamicDisplayInfo.h>
+package android.gui;
 
-#include <cstdint>
+import android.gui.Size;
 
-namespace android::ui {
+// Mode supported by physical display.
+// Make sure to sync with libui DisplayMode.h
 
-std::optional<ui::DisplayMode> DynamicDisplayInfo::getActiveDisplayMode() const {
-    for (const auto& currMode : supportedDisplayModes) {
-        if (currMode.id == activeDisplayModeId) {
-            return currMode;
-        }
-    }
-    return {};
+/** @hide */
+parcelable DisplayMode {
+    int id;
+    Size resolution;
+    float xDpi = 0.0f;
+    float yDpi = 0.0f;
+
+    float refreshRate = 0.0f;
+    long appVsyncOffset = 0;
+    long sfVsyncOffset = 0;
+    long presentationDeadline = 0;
+    int group = -1;
 }
-
-} // namespace android::ui

@@ -2187,8 +2187,53 @@ status_t SurfaceComposerClient::getStaticDisplayInfo(const sp<IBinder>& display,
 }
 
 status_t SurfaceComposerClient::getDynamicDisplayInfo(const sp<IBinder>& display,
-                                                      ui::DynamicDisplayInfo* info) {
-    return ComposerService::getComposerService()->getDynamicDisplayInfo(display, info);
+                                                      ui::DynamicDisplayInfo* outInfo) {
+    gui::DynamicDisplayInfo ginfo;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getDynamicDisplayInfo(display, &ginfo);
+    if (status.isOk()) {
+        // convert gui::DynamicDisplayInfo to ui::DynamicDisplayInfo
+        outInfo->supportedDisplayModes.clear();
+        outInfo->supportedDisplayModes.reserve(ginfo.supportedDisplayModes.size());
+        for (const auto& mode : ginfo.supportedDisplayModes) {
+            ui::DisplayMode outMode;
+            outMode.id = mode.id;
+            outMode.resolution.width = mode.resolution.width;
+            outMode.resolution.height = mode.resolution.height;
+            outMode.xDpi = mode.xDpi;
+            outMode.yDpi = mode.yDpi;
+            outMode.refreshRate = mode.refreshRate;
+            outMode.appVsyncOffset = mode.appVsyncOffset;
+            outMode.sfVsyncOffset = mode.sfVsyncOffset;
+            outMode.presentationDeadline = mode.presentationDeadline;
+            outMode.group = mode.group;
+            outInfo->supportedDisplayModes.push_back(outMode);
+        }
+
+        outInfo->activeDisplayModeId = ginfo.activeDisplayModeId;
+
+        outInfo->supportedColorModes.clear();
+        outInfo->supportedColorModes.reserve(ginfo.supportedColorModes.size());
+        for (const auto& cmode : ginfo.supportedColorModes) {
+            outInfo->supportedColorModes.push_back(static_cast<ui::ColorMode>(cmode));
+        }
+
+        outInfo->activeColorMode = static_cast<ui::ColorMode>(ginfo.activeColorMode);
+
+        std::vector<ui::Hdr> types;
+        types.reserve(ginfo.hdrCapabilities.supportedHdrTypes.size());
+        for (const auto& hdr : ginfo.hdrCapabilities.supportedHdrTypes) {
+            types.push_back(static_cast<ui::Hdr>(hdr));
+        }
+        outInfo->hdrCapabilities = HdrCapabilities(types, ginfo.hdrCapabilities.maxLuminance,
+                                                   ginfo.hdrCapabilities.maxAverageLuminance,
+                                                   ginfo.hdrCapabilities.minLuminance);
+
+        outInfo->autoLowLatencyModeSupported = ginfo.autoLowLatencyModeSupported;
+        outInfo->gameContentTypeSupported = ginfo.gameContentTypeSupported;
+        outInfo->preferredBootDisplayMode = ginfo.preferredBootDisplayMode;
+    }
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::getActiveDisplayMode(const sp<IBinder>& display,
@@ -2233,12 +2278,35 @@ status_t SurfaceComposerClient::getDesiredDisplayModeSpecs(const sp<IBinder>& di
 
 status_t SurfaceComposerClient::getDisplayNativePrimaries(const sp<IBinder>& display,
         ui::DisplayPrimaries& outPrimaries) {
-    return ComposerService::getComposerService()->getDisplayNativePrimaries(display, outPrimaries);
+    gui::DisplayPrimaries primaries;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getDisplayNativePrimaries(display,
+                                                                                 &primaries);
+    if (status.isOk()) {
+        outPrimaries.red.X = primaries.red.X;
+        outPrimaries.red.Y = primaries.red.Y;
+        outPrimaries.red.Z = primaries.red.Z;
+
+        outPrimaries.green.X = primaries.green.X;
+        outPrimaries.green.Y = primaries.green.Y;
+        outPrimaries.green.Z = primaries.green.Z;
+
+        outPrimaries.blue.X = primaries.blue.X;
+        outPrimaries.blue.Y = primaries.blue.Y;
+        outPrimaries.blue.Z = primaries.blue.Z;
+
+        outPrimaries.white.X = primaries.white.X;
+        outPrimaries.white.Y = primaries.white.Y;
+        outPrimaries.white.Z = primaries.white.Z;
+    }
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::setActiveColorMode(const sp<IBinder>& display,
         ColorMode colorMode) {
-    return ComposerService::getComposerService()->setActiveColorMode(display, colorMode);
+    binder::Status status = ComposerServiceAIDL::getComposerService()
+                                    ->setActiveColorMode(display, static_cast<int>(colorMode));
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::getBootDisplayModeSupport(bool* support) {
@@ -2249,7 +2317,9 @@ status_t SurfaceComposerClient::getBootDisplayModeSupport(bool* support) {
 
 status_t SurfaceComposerClient::setBootDisplayMode(const sp<IBinder>& display,
                                                    ui::DisplayModeId displayModeId) {
-    return ComposerService::getComposerService()->setBootDisplayMode(display, displayModeId);
+    binder::Status status = ComposerServiceAIDL::getComposerService()
+                                    ->setBootDisplayMode(display, static_cast<int>(displayModeId));
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::clearBootDisplayMode(const sp<IBinder>& display) {
