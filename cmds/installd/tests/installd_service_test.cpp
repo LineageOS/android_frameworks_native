@@ -535,6 +535,22 @@ TEST_F(ServiceTest, GetAppSizeProjectID_UID) {
         if (!usingProjectIds) {
             service->setFirstBoot();
         }
+
+        if (access(using_project_ids.c_str(), F_OK) != 0) {
+            // projectids is not used, so check that ioctl features should be absent
+            auto temp_path = StringPrintf("%smisc/installd/ioctl_check", android_data_dir.c_str());
+
+            if (access(temp_path.c_str(), F_OK) != 0) {
+                open(temp_path.c_str(), O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, 0644);
+                bool result = set_quota_project_id(temp_path, 0, false) == 0;
+                // delete the temp file
+                // remove the external file
+                remove(temp_path.c_str());
+                // since using_project_ids file is not present, so ioctl settings should be absent
+                //  that is denoted by the result of setting project id flag as false
+                ASSERT_FALSE(result);
+            }
+        }
         // call the getAppSize to get the current size of the external storage owning app
         service->getAppSize(std::nullopt, packageNames, 0, InstalldNativeService::FLAG_USE_QUOTA,
                             externalStorageAppId, ceDataInodes, codePaths, &externalStorageSize);
