@@ -161,6 +161,10 @@ public:
                                   ui::Dataspace* /*outDataspace*/) const {
         return INVALID_OPERATION;
     }
+    virtual status_t setDataspace(buffer_handle_t /*bufferHandle*/,
+                                  ui::Dataspace /*dataspace*/) const {
+        return INVALID_OPERATION;
+    }
     virtual status_t getBlendMode(buffer_handle_t /*bufferHandle*/,
                                   ui::BlendMode* /*outBlendMode*/) const {
         return INVALID_OPERATION;
@@ -169,8 +173,16 @@ public:
                                   std::optional<ui::Smpte2086>* /*outSmpte2086*/) const {
         return INVALID_OPERATION;
     }
+    virtual status_t setSmpte2086(buffer_handle_t /*bufferHandle*/,
+                                  std::optional<ui::Smpte2086> /*smpte2086*/) const {
+        return INVALID_OPERATION;
+    }
     virtual status_t getCta861_3(buffer_handle_t /*bufferHandle*/,
                                  std::optional<ui::Cta861_3>* /*outCta861_3*/) const {
+        return INVALID_OPERATION;
+    }
+    virtual status_t setCta861_3(buffer_handle_t /*bufferHandle*/,
+                                 std::optional<ui::Cta861_3> /*cta861_3*/) const {
         return INVALID_OPERATION;
     }
     virtual status_t getSmpte2094_40(
@@ -178,12 +190,19 @@ public:
             std::optional<std::vector<uint8_t>>* /*outSmpte2094_40*/) const {
         return INVALID_OPERATION;
     }
+    virtual status_t setSmpte2094_40(buffer_handle_t /*bufferHandle*/,
+                                     std::optional<std::vector<uint8_t>> /*smpte2094_40*/) const {
+        return INVALID_OPERATION;
+    }
     virtual status_t getSmpte2094_10(
             buffer_handle_t /*bufferHandle*/,
             std::optional<std::vector<uint8_t>>* /*outSmpte2094_10*/) const {
         return INVALID_OPERATION;
     }
-
+    virtual status_t setSmpte2094_10(buffer_handle_t /*bufferHandle*/,
+                                     std::optional<std::vector<uint8_t>> /*smpte2094_10*/) const {
+        return INVALID_OPERATION;
+    }
     virtual status_t getDefaultPixelFormatFourCC(uint32_t /*width*/, uint32_t /*height*/,
                                                  PixelFormat /*format*/, uint32_t /*layerCount*/,
                                                  uint64_t /*usage*/,
