@@ -57,7 +57,7 @@ std::optional<LayerStack::ApproximateMatch> LayerStack::getApproximateMatch(
             return std::nullopt;
         }
 
-        Flags<LayerStateField> differingFields = mLayers[i].getDifferingFields(*other[i]);
+        ftl::Flags<LayerStateField> differingFields = mLayers[i].getDifferingFields(*other[i]);
 
         // If we don't find an approximate match on this layer, then the LayerStacks differ
         // by too much, so return nothing
