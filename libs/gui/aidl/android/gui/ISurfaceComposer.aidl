@@ -21,6 +21,7 @@ import android.gui.DisplayBrightness;
 import android.gui.DisplayPrimaries;
 import android.gui.DisplayState;
 import android.gui.DisplayStatInfo;
+import android.gui.FrameEvent;
 import android.gui.FrameStats;
 import android.gui.StaticDisplayInfo;
 import android.gui.DynamicDisplayInfo;
@@ -50,6 +51,10 @@ interface ISurfaceComposer {
      * DisplayEventReceiver hotplug event.
      */
     @nullable IBinder getPhysicalDisplayToken(long displayId);
+
+    /* Returns the frame timestamps supported by SurfaceFlinger.
+     */
+    FrameEvent[] getSupportedFrameTimestamps();
 
     /* set display power mode. depending on the mode, it can either trigger
      * screen on, off or low power mode and wait for it to complete.

@@ -120,6 +120,12 @@ filegroup {
     path: "aidl/",
 }
 
+filegroup {
+    name: "libgui_frame_event_aidl",
+    srcs: ["aidl/android/gui/FrameEvent.aidl"],
+    path: "aidl/",
+}
+
 cc_library_static {
     name: "libgui_aidl_static",
     vendor_available: true,
@@ -405,6 +411,7 @@ cc_library_static {
     ],
 
     srcs: [
+        ":libgui_frame_event_aidl",
         "mock/GraphicBufferConsumer.cpp",
         "mock/GraphicBufferProducer.cpp",
     ],
