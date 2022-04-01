@@ -471,9 +471,8 @@ void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinnner) {
         return;
     }
 
-    const auto [lowFps, highFps] = mRefreshRateConfigs->getSupportedRefreshRateRange();
-    mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(*mFlinger, lowFps.getIntValue(),
-                                                               highFps.getIntValue(), showSpinnner);
+    const auto fpsRange = mRefreshRateConfigs->getSupportedRefreshRateRange();
+    mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(fpsRange, showSpinnner);
     mRefreshRateOverlay->setLayerStack(getLayerStack());
     mRefreshRateOverlay->setViewport(getSize());
     mRefreshRateOverlay->changeRefreshRate(getActiveMode()->getFps());
