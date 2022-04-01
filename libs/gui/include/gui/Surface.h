@@ -403,6 +403,13 @@ protected:
     void getQueueBufferInputLocked(android_native_buffer_t* buffer, int fenceFd, nsecs_t timestamp,
             IGraphicBufferProducer::QueueBufferInput* out);
 
+    // For easing in adoption of gralloc4 metadata by vendor components, as well as for supporting
+    // the public ANativeWindow api, allow setting relevant metadata when queueing a buffer through
+    // a native window
+    void applyGrallocMetadataLocked(
+            android_native_buffer_t* buffer,
+            const IGraphicBufferProducer::QueueBufferInput& queueBufferInput);
+
     void onBufferQueuedLocked(int slot, sp<Fence> fence,
             const IGraphicBufferProducer::QueueBufferOutput& output);
 
