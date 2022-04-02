@@ -43,6 +43,7 @@ cc_benchmark {
     ],
 
     shared_libs: [
+        "android.hardware.graphics.composer3-V1-ndk",
         "libbase",
         "libcutils",
         "libjnigraphics",
