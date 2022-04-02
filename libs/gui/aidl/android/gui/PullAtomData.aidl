@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,10 @@
  * limitations under the License.
  */
 
-#pragma once
+package android.gui;
 
-#include <cstdint>
-
-#include <ftl/flags.h>
-
-namespace android::scheduler {
-
-enum class Feature : std::uint8_t {
-    kPresentFences = 0b1,
-    kKernelIdleTimer = 0b10,
-    kContentDetection = 0b100,
-    kTracePredictedVsync = 0b1000,
-};
-
-using FeatureFlags = ftl::Flags<Feature>;
-
-} // namespace android::scheduler
+/** @hide */
+parcelable PullAtomData {
+    @utf8InCpp String data;
+    boolean success;
+}

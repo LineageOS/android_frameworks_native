@@ -18,13 +18,13 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
+#include <android/gui/ISurfaceComposer.h>
 #include <gtest/gtest.h>
-#include <gui/ISurfaceComposer.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/android_filesystem_config.h>
-#include <private/gui/ComposerService.h>
+#include <private/gui/ComposerServiceAIDL.h>
 #include <ui/DisplayMode.h>
 #include <ui/DynamicDisplayInfo.h>
 #include <utils/String8.h>
@@ -34,6 +34,7 @@
 namespace android {
 
 using Transaction = SurfaceComposerClient::Transaction;
+using gui::LayerDebugInfo;
 using ui::ColorMode;
 
 namespace {
@@ -307,23 +308,26 @@ TEST_F(CredentialsTest, CaptureLayersTest) {
  */
 TEST_F(CredentialsTest, GetLayerDebugInfo) {
     setupBackgroundSurface();
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
 
     // Historically, only root and shell can access the getLayerDebugInfo which
     // is called when we call dumpsys. I don't see a reason why we should change this.
     std::vector<LayerDebugInfo> outLayers;
     // Check with root.
     seteuid(AID_ROOT);
-    ASSERT_EQ(NO_ERROR, sf->getLayerDebugInfo(&outLayers));
+    binder::Status status = sf->getLayerDebugInfo(&outLayers);
+    ASSERT_EQ(NO_ERROR, status.transactionError());
 
     // Check as a shell.
     seteuid(AID_SHELL);
-    ASSERT_EQ(NO_ERROR, sf->getLayerDebugInfo(&outLayers));
+    status = sf->getLayerDebugInfo(&outLayers);
+    ASSERT_EQ(NO_ERROR, status.transactionError());
 
     // Check as anyone else.
     seteuid(AID_ROOT);
     seteuid(AID_BIN);
-    ASSERT_EQ(PERMISSION_DENIED, sf->getLayerDebugInfo(&outLayers));
+    status = sf->getLayerDebugInfo(&outLayers);
+    ASSERT_EQ(PERMISSION_DENIED, status.transactionError());
 }
 
 TEST_F(CredentialsTest, IsWideColorDisplayBasicCorrectness) {

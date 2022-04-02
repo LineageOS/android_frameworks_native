@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,22 @@
  * limitations under the License.
  */
 
-#pragma once
+package android.gui;
 
-#include <cstdint>
+// Identifiers for all the events that may be recorded or reported.
 
-#include <ftl/flags.h>
-
-namespace android::scheduler {
-
-enum class Feature : std::uint8_t {
-    kPresentFences = 0b1,
-    kKernelIdleTimer = 0b10,
-    kContentDetection = 0b100,
-    kTracePredictedVsync = 0b1000,
-};
-
-using FeatureFlags = ftl::Flags<Feature>;
-
-} // namespace android::scheduler
+/** @hide */
+@Backing(type="int")
+enum FrameEvent {
+    POSTED = 0,
+    REQUESTED_PRESENT = 1,
+    LATCH = 2,
+    ACQUIRE = 3,
+    FIRST_REFRESH_START = 4,
+    LAST_REFRESH_START = 5,
+    GPU_COMPOSITION_DONE = 6,
+    DISPLAY_PRESENT = 7,
+    DEQUEUE_READY = 8,
+    RELEASE = 9,
+    EVENT_COUNT = 10 // Not an actual event.
+}

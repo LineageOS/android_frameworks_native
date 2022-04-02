@@ -714,69 +714,11 @@ public:
         return false;
     }
 
-    status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported)
-            const override {
-        *outSupported = {
-                FrameEvent::REQUESTED_PRESENT,
-                FrameEvent::ACQUIRE,
-                FrameEvent::LATCH,
-                FrameEvent::FIRST_REFRESH_START,
-                FrameEvent::LAST_REFRESH_START,
-                FrameEvent::GPU_COMPOSITION_DONE,
-                FrameEvent::DEQUEUE_READY,
-                FrameEvent::RELEASE
-        };
-        if (mSupportsPresent) {
-            outSupported->push_back(
-                        FrameEvent::DISPLAY_PRESENT);
-        }
-        return NO_ERROR;
-    }
-
-    status_t clearAnimationFrameStats() override { return NO_ERROR; }
-    status_t getAnimationFrameStats(FrameStats* /*outStats*/) const override {
-        return NO_ERROR;
-    }
-    status_t overrideHdrTypes(const sp<IBinder>& /*display*/,
-                              const std::vector<ui::Hdr>& /*hdrTypes*/) override {
-        return NO_ERROR;
-    }
-    status_t onPullAtom(const int32_t /*atomId*/, std::string* /*outData*/,
-                        bool* /*success*/) override {
-        return NO_ERROR;
-    }
-    status_t enableVSyncInjections(bool /*enable*/) override {
-        return NO_ERROR;
-    }
-    status_t injectVSync(nsecs_t /*when*/) override { return NO_ERROR; }
-    status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* /*layers*/) override {
-        return NO_ERROR;
-    }
-    status_t getCompositionPreference(
-            ui::Dataspace* /*outDefaultDataspace*/, ui::PixelFormat* /*outDefaultPixelFormat*/,
-            ui::Dataspace* /*outWideColorGamutDataspace*/,
-            ui::PixelFormat* /*outWideColorGamutPixelFormat*/) const override {
-        return NO_ERROR;
-    }
-    status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& /*display*/,
-                                                   ui::PixelFormat* /*outFormat*/,
-                                                   ui::Dataspace* /*outDataspace*/,
-                                                   uint8_t* /*outComponentMask*/) const override {
-        return NO_ERROR;
-    }
-    status_t setDisplayContentSamplingEnabled(const sp<IBinder>& /*display*/, bool /*enable*/,
-                                              uint8_t /*componentMask*/,
-                                              uint64_t /*maxFrames*/) override {
-        return NO_ERROR;
-    }
     status_t getDisplayedContentSample(const sp<IBinder>& /*display*/, uint64_t /*maxFrames*/,
                                        uint64_t /*timestamp*/,
                                        DisplayedFrameStats* /*outStats*/) const override {
         return NO_ERROR;
     }
-
-    status_t getColorManagement(bool* /*outGetColorManagement*/) const override { return NO_ERROR; }
-    status_t getProtectedContentSupport(bool* /*outSupported*/) const override { return NO_ERROR; }
 
     status_t addRegionSamplingListener(const Rect& /*samplingArea*/,
                                        const sp<IBinder>& /*stopLayerHandle*/,
@@ -902,6 +844,21 @@ public:
         return binder::Status::ok();
     }
 
+    binder::Status getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) override {
+        *outSupported = {FrameEvent::REQUESTED_PRESENT,
+                         FrameEvent::ACQUIRE,
+                         FrameEvent::LATCH,
+                         FrameEvent::FIRST_REFRESH_START,
+                         FrameEvent::LAST_REFRESH_START,
+                         FrameEvent::GPU_COMPOSITION_DONE,
+                         FrameEvent::DEQUEUE_READY,
+                         FrameEvent::RELEASE};
+        if (mSupportsPresent) {
+            outSupported->push_back(FrameEvent::DISPLAY_PRESENT);
+        }
+        return binder::Status::ok();
+    }
+
     binder::Status getDisplayStats(const sp<IBinder>& /*display*/,
                                    gui::DisplayStatInfo* /*outStatInfo*/) override {
         return binder::Status::ok();
@@ -963,6 +920,52 @@ public:
 
     binder::Status captureLayers(const LayerCaptureArgs&,
                                  const sp<IScreenCaptureListener>&) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status clearAnimationFrameStats() override { return binder::Status::ok(); }
+
+    binder::Status getAnimationFrameStats(gui::FrameStats* /*outStats*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status overrideHdrTypes(const sp<IBinder>& /*display*/,
+                                    const std::vector<int32_t>& /*hdrTypes*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status onPullAtom(int32_t /*atomId*/, gui::PullAtomData* /*outPullData*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status enableVSyncInjections(bool /*enable*/) override { return binder::Status::ok(); }
+
+    binder::Status injectVSync(int64_t /*when*/) override { return binder::Status::ok(); }
+
+    binder::Status getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* /*outLayers*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getColorManagement(bool* /*outGetColorManagement*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getCompositionPreference(gui::CompositionPreference* /*outPref*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getDisplayedContentSamplingAttributes(
+            const sp<IBinder>& /*display*/, gui::ContentSamplingAttributes* /*outAttrs*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status setDisplayContentSamplingEnabled(const sp<IBinder>& /*display*/, bool /*enable*/,
+                                                    int8_t /*componentMask*/,
+                                                    int64_t /*maxFrames*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getProtectedContentSupport(bool* /*outSupporte*/) override {
         return binder::Status::ok();
     }
 
@@ -1040,10 +1043,10 @@ protected:
 
 class TestSurface : public Surface {
 public:
-    TestSurface(const sp<IGraphicBufferProducer>& bufferProducer,
-            FenceToFenceTimeMap* fenceMap)
-        : Surface(bufferProducer),
-          mFakeSurfaceComposer(new FakeSurfaceComposer) {
+    TestSurface(const sp<IGraphicBufferProducer>& bufferProducer, FenceToFenceTimeMap* fenceMap)
+          : Surface(bufferProducer),
+            mFakeSurfaceComposer(new FakeSurfaceComposer),
+            mFakeSurfaceComposerAIDL(new FakeSurfaceComposerAIDL) {
         mFakeFrameEventHistory = new FakeProducerFrameEventHistory(fenceMap);
         mFrameEventHistory.reset(mFakeFrameEventHistory);
     }
@@ -1052,6 +1055,10 @@ public:
 
     sp<ISurfaceComposer> composerService() const override {
         return mFakeSurfaceComposer;
+    }
+
+    sp<gui::ISurfaceComposer> composerServiceAIDL() const override {
+        return mFakeSurfaceComposerAIDL;
     }
 
     nsecs_t now() const override {
@@ -1064,6 +1071,7 @@ public:
 
 public:
     sp<FakeSurfaceComposer> mFakeSurfaceComposer;
+    sp<FakeSurfaceComposerAIDL> mFakeSurfaceComposerAIDL;
     nsecs_t mNow = 0;
 
     // mFrameEventHistory owns the instance of FakeProducerFrameEventHistory,
@@ -1430,6 +1438,7 @@ TEST_F(GetFrameTimestampsTest, EnabledSimple) {
 TEST_F(GetFrameTimestampsTest, QueryPresentSupported) {
     bool displayPresentSupported = true;
     mSurface->mFakeSurfaceComposer->setSupportsPresent(displayPresentSupported);
+    mSurface->mFakeSurfaceComposerAIDL->setSupportsPresent(displayPresentSupported);
 
     // Verify supported bits are forwarded.
     int supportsPresent = -1;
@@ -1441,6 +1450,7 @@ TEST_F(GetFrameTimestampsTest, QueryPresentSupported) {
 TEST_F(GetFrameTimestampsTest, QueryPresentNotSupported) {
     bool displayPresentSupported = false;
     mSurface->mFakeSurfaceComposer->setSupportsPresent(displayPresentSupported);
+    mSurface->mFakeSurfaceComposerAIDL->setSupportsPresent(displayPresentSupported);
 
     // Verify supported bits are forwarded.
     int supportsPresent = -1;
@@ -2018,6 +2028,7 @@ TEST_F(GetFrameTimestampsTest, NoReleaseNoSync) {
 TEST_F(GetFrameTimestampsTest, PresentUnsupportedNoSync) {
     enableFrameTimestamps();
     mSurface->mFakeSurfaceComposer->setSupportsPresent(false);
+    mSurface->mFakeSurfaceComposerAIDL->setSupportsPresent(false);
 
     // Dequeue and queue frame 1.
     const uint64_t fId1 = getNextFrameId();

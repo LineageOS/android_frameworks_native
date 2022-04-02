@@ -2118,13 +2118,15 @@ status_t SurfaceComposerClient::getLayerFrameStats(const sp<IBinder>& token,
 // ----------------------------------------------------------------------------
 
 status_t SurfaceComposerClient::enableVSyncInjections(bool enable) {
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-    return sf->enableVSyncInjections(enable);
+    sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
+    binder::Status status = sf->enableVSyncInjections(enable);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::injectVSync(nsecs_t when) {
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-    return sf->injectVSync(when);
+    sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
+    binder::Status status = sf->injectVSync(when);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::getDisplayState(const sp<IBinder>& display,
@@ -2348,50 +2350,103 @@ void SurfaceComposerClient::setDisplayPowerMode(const sp<IBinder>& token,
 status_t SurfaceComposerClient::getCompositionPreference(
         ui::Dataspace* defaultDataspace, ui::PixelFormat* defaultPixelFormat,
         ui::Dataspace* wideColorGamutDataspace, ui::PixelFormat* wideColorGamutPixelFormat) {
-    return ComposerService::getComposerService()
-            ->getCompositionPreference(defaultDataspace, defaultPixelFormat,
-                                       wideColorGamutDataspace, wideColorGamutPixelFormat);
+    gui::CompositionPreference pref;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getCompositionPreference(&pref);
+    if (status.isOk()) {
+        *defaultDataspace = static_cast<ui::Dataspace>(pref.defaultDataspace);
+        *defaultPixelFormat = static_cast<ui::PixelFormat>(pref.defaultPixelFormat);
+        *wideColorGamutDataspace = static_cast<ui::Dataspace>(pref.wideColorGamutDataspace);
+        *wideColorGamutPixelFormat = static_cast<ui::PixelFormat>(pref.wideColorGamutPixelFormat);
+    }
+    return status.transactionError();
 }
 
 bool SurfaceComposerClient::getProtectedContentSupport() {
     bool supported = false;
-    ComposerService::getComposerService()->getProtectedContentSupport(&supported);
+    ComposerServiceAIDL::getComposerService()->getProtectedContentSupport(&supported);
     return supported;
 }
 
 status_t SurfaceComposerClient::clearAnimationFrameStats() {
-    return ComposerService::getComposerService()->clearAnimationFrameStats();
+    binder::Status status = ComposerServiceAIDL::getComposerService()->clearAnimationFrameStats();
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::getAnimationFrameStats(FrameStats* outStats) {
-    return ComposerService::getComposerService()->getAnimationFrameStats(outStats);
+    gui::FrameStats stats;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getAnimationFrameStats(&stats);
+    if (status.isOk()) {
+        outStats->refreshPeriodNano = stats.refreshPeriodNano;
+        outStats->desiredPresentTimesNano.setCapacity(stats.desiredPresentTimesNano.size());
+        for (const auto& t : stats.desiredPresentTimesNano) {
+            outStats->desiredPresentTimesNano.add(t);
+        }
+        outStats->actualPresentTimesNano.setCapacity(stats.actualPresentTimesNano.size());
+        for (const auto& t : stats.actualPresentTimesNano) {
+            outStats->actualPresentTimesNano.add(t);
+        }
+        outStats->frameReadyTimesNano.setCapacity(stats.frameReadyTimesNano.size());
+        for (const auto& t : stats.frameReadyTimesNano) {
+            outStats->frameReadyTimesNano.add(t);
+        }
+    }
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::overrideHdrTypes(const sp<IBinder>& display,
                                                  const std::vector<ui::Hdr>& hdrTypes) {
-    return ComposerService::getComposerService()->overrideHdrTypes(display, hdrTypes);
+    std::vector<int32_t> hdrTypesVector;
+    hdrTypesVector.reserve(hdrTypes.size());
+    for (auto t : hdrTypes) {
+        hdrTypesVector.push_back(static_cast<int32_t>(t));
+    }
+
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->overrideHdrTypes(display, hdrTypesVector);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::onPullAtom(const int32_t atomId, std::string* outData,
                                            bool* success) {
-    return ComposerService::getComposerService()->onPullAtom(atomId, outData, success);
+    gui::PullAtomData pad;
+    binder::Status status = ComposerServiceAIDL::getComposerService()->onPullAtom(atomId, &pad);
+    if (status.isOk()) {
+        outData->assign((const char*)pad.data.data(), pad.data.size());
+        *success = pad.success;
+    }
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::getDisplayedContentSamplingAttributes(const sp<IBinder>& display,
                                                                       ui::PixelFormat* outFormat,
                                                                       ui::Dataspace* outDataspace,
                                                                       uint8_t* outComponentMask) {
-    return ComposerService::getComposerService()
-            ->getDisplayedContentSamplingAttributes(display, outFormat, outDataspace,
-                                                    outComponentMask);
+    if (!outFormat || !outDataspace || !outComponentMask) {
+        return BAD_VALUE;
+    }
+
+    gui::ContentSamplingAttributes attrs;
+    binder::Status status = ComposerServiceAIDL::getComposerService()
+                                    ->getDisplayedContentSamplingAttributes(display, &attrs);
+    if (status.isOk()) {
+        *outFormat = static_cast<ui::PixelFormat>(attrs.format);
+        *outDataspace = static_cast<ui::Dataspace>(attrs.dataspace);
+        *outComponentMask = static_cast<uint8_t>(attrs.componentMask);
+    }
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::setDisplayContentSamplingEnabled(const sp<IBinder>& display,
                                                                  bool enable, uint8_t componentMask,
                                                                  uint64_t maxFrames) {
-    return ComposerService::getComposerService()->setDisplayContentSamplingEnabled(display, enable,
-                                                                                   componentMask,
-                                                                                   maxFrames);
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()
+                    ->setDisplayContentSamplingEnabled(display, enable,
+                                                       static_cast<int8_t>(componentMask),
+                                                       static_cast<int64_t>(maxFrames));
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::getDisplayedContentSample(const sp<IBinder>& display,

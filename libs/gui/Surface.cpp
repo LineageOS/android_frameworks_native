@@ -1102,6 +1102,17 @@ void Surface::getQueueBufferInputLocked(android_native_buffer_t* buffer, int fen
     *out = input;
 }
 
+void Surface::applyGrallocMetadataLocked(
+        android_native_buffer_t* buffer,
+        const IGraphicBufferProducer::QueueBufferInput& queueBufferInput) {
+    ATRACE_CALL();
+    auto& mapper = GraphicBufferMapper::get();
+    mapper.setDataspace(buffer->handle, static_cast<ui::Dataspace>(queueBufferInput.dataSpace));
+    mapper.setSmpte2086(buffer->handle, queueBufferInput.getHdrMetadata().getSmpte2086());
+    mapper.setCta861_3(buffer->handle, queueBufferInput.getHdrMetadata().getCta8613());
+    mapper.setSmpte2094_40(buffer->handle, queueBufferInput.getHdrMetadata().getHdr10Plus());
+}
+
 void Surface::onBufferQueuedLocked(int slot, sp<Fence> fence,
         const IGraphicBufferProducer::QueueBufferOutput& output) {
     mDequeuedSlots.erase(slot);
@@ -1172,9 +1183,11 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
     IGraphicBufferProducer::QueueBufferOutput output;
     IGraphicBufferProducer::QueueBufferInput input;
     getQueueBufferInputLocked(buffer, fenceFd, mTimestamp, &input);
+    applyGrallocMetadataLocked(buffer, input);
     sp<Fence> fence = input.fence;
 
     nsecs_t now = systemTime();
+
     status_t err = mGraphicBufferProducer->queueBuffer(i, input, &output);
     mLastQueueDuration = systemTime() - now;
     if (err != OK)  {
@@ -1244,10 +1257,10 @@ void Surface::querySupportedTimestampsLocked() const {
     mQueriedSupportedTimestamps = true;
 
     std::vector<FrameEvent> supportedFrameTimestamps;
-    status_t err = composerService()->getSupportedFrameTimestamps(
-            &supportedFrameTimestamps);
+    binder::Status status =
+            composerServiceAIDL()->getSupportedFrameTimestamps(&supportedFrameTimestamps);
 
-    if (err != NO_ERROR) {
+    if (!status.isOk()) {
         return;
     }
 

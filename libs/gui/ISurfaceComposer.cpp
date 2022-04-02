@@ -26,7 +26,6 @@
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
-#include <gui/LayerDebugInfo.h>
 #include <gui/LayerState.h>
 #include <private/gui/ParcelUtils.h>
 #include <stdint.h>
@@ -159,49 +158,6 @@ public:
         return result != 0;
     }
 
-    status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const override {
-        if (!outSupported) {
-            return UNEXPECTED_NULL;
-        }
-        outSupported->clear();
-
-        Parcel data, reply;
-
-        status_t err = data.writeInterfaceToken(
-                ISurfaceComposer::getInterfaceDescriptor());
-        if (err != NO_ERROR) {
-            return err;
-        }
-
-        err = remote()->transact(
-                BnSurfaceComposer::GET_SUPPORTED_FRAME_TIMESTAMPS,
-                data, &reply);
-        if (err != NO_ERROR) {
-            return err;
-        }
-
-        int32_t result = 0;
-        err = reply.readInt32(&result);
-        if (err != NO_ERROR) {
-            return err;
-        }
-        if (result != NO_ERROR) {
-            return result;
-        }
-
-        std::vector<int32_t> supported;
-        err = reply.readInt32Vector(&supported);
-        if (err != NO_ERROR) {
-            return err;
-        }
-
-        outSupported->reserve(supported.size());
-        for (int32_t s : supported) {
-            outSupported->push_back(static_cast<FrameEvent>(s));
-        }
-        return NO_ERROR;
-    }
-
     sp<IDisplayEventConnection> createDisplayEventConnection(
             VsyncSource vsyncSource, EventRegistrationFlags eventRegistration) override {
         Parcel data, reply;
@@ -222,229 +178,6 @@ public:
             return result;
         }
         result = interface_cast<IDisplayEventConnection>(reply.readStrongBinder());
-        return result;
-    }
-
-    status_t clearAnimationFrameStats() override {
-        Parcel data, reply;
-        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (result != NO_ERROR) {
-            ALOGE("clearAnimationFrameStats failed to writeInterfaceToken: %d", result);
-            return result;
-        }
-        result = remote()->transact(BnSurfaceComposer::CLEAR_ANIMATION_FRAME_STATS, data, &reply);
-        if (result != NO_ERROR) {
-            ALOGE("clearAnimationFrameStats failed to transact: %d", result);
-            return result;
-        }
-        return reply.readInt32();
-    }
-
-    status_t getAnimationFrameStats(FrameStats* outStats) const override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        remote()->transact(BnSurfaceComposer::GET_ANIMATION_FRAME_STATS, data, &reply);
-        reply.read(*outStats);
-        return reply.readInt32();
-    }
-
-    virtual status_t overrideHdrTypes(const sp<IBinder>& display,
-                                      const std::vector<ui::Hdr>& hdrTypes) {
-        Parcel data, reply;
-        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(data.writeStrongBinder, display);
-
-        std::vector<int32_t> hdrTypesVector;
-        for (ui::Hdr i : hdrTypes) {
-            hdrTypesVector.push_back(static_cast<int32_t>(i));
-        }
-        SAFE_PARCEL(data.writeInt32Vector, hdrTypesVector);
-
-        status_t result = remote()->transact(BnSurfaceComposer::OVERRIDE_HDR_TYPES, data, &reply);
-        if (result != NO_ERROR) {
-            ALOGE("overrideHdrTypes failed to transact: %d", result);
-            return result;
-        }
-        return result;
-    }
-
-    status_t onPullAtom(const int32_t atomId, std::string* pulledData, bool* success) {
-        Parcel data, reply;
-        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(data.writeInt32, atomId);
-
-        status_t err = remote()->transact(BnSurfaceComposer::ON_PULL_ATOM, data, &reply);
-        if (err != NO_ERROR) {
-            ALOGE("onPullAtom failed to transact: %d", err);
-            return err;
-        }
-
-        int32_t size = 0;
-        SAFE_PARCEL(reply.readInt32, &size);
-        const void* dataPtr = reply.readInplace(size);
-        if (dataPtr == nullptr) {
-            return UNEXPECTED_NULL;
-        }
-        pulledData->assign((const char*)dataPtr, size);
-        SAFE_PARCEL(reply.readBool, success);
-        return NO_ERROR;
-    }
-
-    status_t enableVSyncInjections(bool enable) override {
-        Parcel data, reply;
-        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (result != NO_ERROR) {
-            ALOGE("enableVSyncInjections failed to writeInterfaceToken: %d", result);
-            return result;
-        }
-        result = data.writeBool(enable);
-        if (result != NO_ERROR) {
-            ALOGE("enableVSyncInjections failed to writeBool: %d", result);
-            return result;
-        }
-        result = remote()->transact(BnSurfaceComposer::ENABLE_VSYNC_INJECTIONS, data, &reply,
-                                    IBinder::FLAG_ONEWAY);
-        if (result != NO_ERROR) {
-            ALOGE("enableVSyncInjections failed to transact: %d", result);
-            return result;
-        }
-        return result;
-    }
-
-    status_t injectVSync(nsecs_t when) override {
-        Parcel data, reply;
-        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (result != NO_ERROR) {
-            ALOGE("injectVSync failed to writeInterfaceToken: %d", result);
-            return result;
-        }
-        result = data.writeInt64(when);
-        if (result != NO_ERROR) {
-            ALOGE("injectVSync failed to writeInt64: %d", result);
-            return result;
-        }
-        result = remote()->transact(BnSurfaceComposer::INJECT_VSYNC, data, &reply,
-                                    IBinder::FLAG_ONEWAY);
-        if (result != NO_ERROR) {
-            ALOGE("injectVSync failed to transact: %d", result);
-            return result;
-        }
-        return result;
-    }
-
-    status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) override {
-        if (!outLayers) {
-            return UNEXPECTED_NULL;
-        }
-
-        Parcel data, reply;
-
-        status_t err = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (err != NO_ERROR) {
-            return err;
-        }
-
-        err = remote()->transact(BnSurfaceComposer::GET_LAYER_DEBUG_INFO, data, &reply);
-        if (err != NO_ERROR) {
-            return err;
-        }
-
-        int32_t result = 0;
-        err = reply.readInt32(&result);
-        if (err != NO_ERROR) {
-            return err;
-        }
-        if (result != NO_ERROR) {
-            return result;
-        }
-
-        outLayers->clear();
-        return reply.readParcelableVector(outLayers);
-    }
-
-    status_t getCompositionPreference(ui::Dataspace* defaultDataspace,
-                                      ui::PixelFormat* defaultPixelFormat,
-                                      ui::Dataspace* wideColorGamutDataspace,
-                                      ui::PixelFormat* wideColorGamutPixelFormat) const override {
-        Parcel data, reply;
-        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (error != NO_ERROR) {
-            return error;
-        }
-        error = remote()->transact(BnSurfaceComposer::GET_COMPOSITION_PREFERENCE, data, &reply);
-        if (error != NO_ERROR) {
-            return error;
-        }
-        error = static_cast<status_t>(reply.readInt32());
-        if (error == NO_ERROR) {
-            *defaultDataspace = static_cast<ui::Dataspace>(reply.readInt32());
-            *defaultPixelFormat = static_cast<ui::PixelFormat>(reply.readInt32());
-            *wideColorGamutDataspace = static_cast<ui::Dataspace>(reply.readInt32());
-            *wideColorGamutPixelFormat = static_cast<ui::PixelFormat>(reply.readInt32());
-        }
-        return error;
-    }
-
-    status_t getColorManagement(bool* outGetColorManagement) const override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        remote()->transact(BnSurfaceComposer::GET_COLOR_MANAGEMENT, data, &reply);
-        bool result;
-        status_t err = reply.readBool(&result);
-        if (err == NO_ERROR) {
-            *outGetColorManagement = result;
-        }
-        return err;
-    }
-
-    status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& display,
-                                                   ui::PixelFormat* outFormat,
-                                                   ui::Dataspace* outDataspace,
-                                                   uint8_t* outComponentMask) const override {
-        if (!outFormat || !outDataspace || !outComponentMask) return BAD_VALUE;
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-
-        status_t error =
-                remote()->transact(BnSurfaceComposer::GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES,
-                                   data, &reply);
-        if (error != NO_ERROR) {
-            return error;
-        }
-
-        uint32_t value = 0;
-        error = reply.readUint32(&value);
-        if (error != NO_ERROR) {
-            return error;
-        }
-        *outFormat = static_cast<ui::PixelFormat>(value);
-
-        error = reply.readUint32(&value);
-        if (error != NO_ERROR) {
-            return error;
-        }
-        *outDataspace = static_cast<ui::Dataspace>(value);
-
-        error = reply.readUint32(&value);
-        if (error != NO_ERROR) {
-            return error;
-        }
-        *outComponentMask = static_cast<uint8_t>(value);
-        return error;
-    }
-
-    status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
-                                              uint8_t componentMask, uint64_t maxFrames) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-        data.writeBool(enable);
-        data.writeByte(static_cast<int8_t>(componentMask));
-        data.writeUint64(maxFrames);
-        status_t result =
-                remote()->transact(BnSurfaceComposer::SET_DISPLAY_CONTENT_SAMPLING_ENABLED, data,
-                                   &reply);
         return result;
     }
 
@@ -485,18 +218,6 @@ public:
         }
         result = reply.readUint64Vector(&outStats->component_3_sample);
         return result;
-    }
-
-    status_t getProtectedContentSupport(bool* outSupported) const override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        status_t error =
-                remote()->transact(BnSurfaceComposer::GET_PROTECTED_CONTENT_SUPPORT, data, &reply);
-        if (error != NO_ERROR) {
-            return error;
-        }
-        error = reply.readBool(outSupported);
-        return error;
     }
 
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
@@ -1016,25 +737,6 @@ status_t BnSurfaceComposer::onTransact(
             reply->writeInt32(result);
             return NO_ERROR;
         }
-        case GET_SUPPORTED_FRAME_TIMESTAMPS: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            std::vector<FrameEvent> supportedTimestamps;
-            status_t result = getSupportedFrameTimestamps(&supportedTimestamps);
-            status_t err = reply->writeInt32(result);
-            if (err != NO_ERROR) {
-                return err;
-            }
-            if (result != NO_ERROR) {
-                return result;
-            }
-
-            std::vector<int32_t> supported;
-            supported.reserve(supportedTimestamps.size());
-            for (FrameEvent s : supportedTimestamps) {
-                supported.push_back(static_cast<int32_t>(s));
-            }
-            return reply->writeInt32Vector(supported);
-        }
         case CREATE_DISPLAY_EVENT_CONNECTION: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             auto vsyncSource = static_cast<ISurfaceComposer::VsyncSource>(data.readInt32());
@@ -1045,130 +747,6 @@ status_t BnSurfaceComposer::onTransact(
                     createDisplayEventConnection(vsyncSource, eventRegistration));
             reply->writeStrongBinder(IInterface::asBinder(connection));
             return NO_ERROR;
-        }
-        case CLEAR_ANIMATION_FRAME_STATS: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            status_t result = clearAnimationFrameStats();
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case GET_ANIMATION_FRAME_STATS: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            FrameStats stats;
-            status_t result = getAnimationFrameStats(&stats);
-            reply->write(stats);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case ENABLE_VSYNC_INJECTIONS: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            bool enable = false;
-            status_t result = data.readBool(&enable);
-            if (result != NO_ERROR) {
-                ALOGE("enableVSyncInjections failed to readBool: %d", result);
-                return result;
-            }
-            return enableVSyncInjections(enable);
-        }
-        case INJECT_VSYNC: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            int64_t when = 0;
-            status_t result = data.readInt64(&when);
-            if (result != NO_ERROR) {
-                ALOGE("enableVSyncInjections failed to readInt64: %d", result);
-                return result;
-            }
-            return injectVSync(when);
-        }
-        case GET_LAYER_DEBUG_INFO: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            std::vector<LayerDebugInfo> outLayers;
-            status_t result = getLayerDebugInfo(&outLayers);
-            reply->writeInt32(result);
-            if (result == NO_ERROR)
-            {
-                result = reply->writeParcelableVector(outLayers);
-            }
-            return result;
-        }
-        case GET_COMPOSITION_PREFERENCE: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            ui::Dataspace defaultDataspace;
-            ui::PixelFormat defaultPixelFormat;
-            ui::Dataspace wideColorGamutDataspace;
-            ui::PixelFormat wideColorGamutPixelFormat;
-            status_t error =
-                    getCompositionPreference(&defaultDataspace, &defaultPixelFormat,
-                                             &wideColorGamutDataspace, &wideColorGamutPixelFormat);
-            reply->writeInt32(error);
-            if (error == NO_ERROR) {
-                reply->writeInt32(static_cast<int32_t>(defaultDataspace));
-                reply->writeInt32(static_cast<int32_t>(defaultPixelFormat));
-                reply->writeInt32(static_cast<int32_t>(wideColorGamutDataspace));
-                reply->writeInt32(static_cast<int32_t>(wideColorGamutPixelFormat));
-            }
-            return error;
-        }
-        case GET_COLOR_MANAGEMENT: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            bool result;
-            status_t error = getColorManagement(&result);
-            if (error == NO_ERROR) {
-                reply->writeBool(result);
-            }
-            return error;
-        }
-        case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-
-            sp<IBinder> display = data.readStrongBinder();
-            ui::PixelFormat format;
-            ui::Dataspace dataspace;
-            uint8_t component = 0;
-            auto result =
-                    getDisplayedContentSamplingAttributes(display, &format, &dataspace, &component);
-            if (result == NO_ERROR) {
-                reply->writeUint32(static_cast<uint32_t>(format));
-                reply->writeUint32(static_cast<uint32_t>(dataspace));
-                reply->writeUint32(static_cast<uint32_t>(component));
-            }
-            return result;
-        }
-        case SET_DISPLAY_CONTENT_SAMPLING_ENABLED: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-
-            sp<IBinder> display = nullptr;
-            bool enable = false;
-            int8_t componentMask = 0;
-            uint64_t maxFrames = 0;
-            status_t result = data.readStrongBinder(&display);
-            if (result != NO_ERROR) {
-                ALOGE("setDisplayContentSamplingEnabled failure in reading Display token: %d",
-                      result);
-                return result;
-            }
-
-            result = data.readBool(&enable);
-            if (result != NO_ERROR) {
-                ALOGE("setDisplayContentSamplingEnabled failure in reading enable: %d", result);
-                return result;
-            }
-
-            result = data.readByte(static_cast<int8_t*>(&componentMask));
-            if (result != NO_ERROR) {
-                ALOGE("setDisplayContentSamplingEnabled failure in reading component mask: %d",
-                      result);
-                return result;
-            }
-
-            result = data.readUint64(&maxFrames);
-            if (result != NO_ERROR) {
-                ALOGE("setDisplayContentSamplingEnabled failure in reading max frames: %d", result);
-                return result;
-            }
-
-            return setDisplayContentSamplingEnabled(display, enable,
-                                                    static_cast<uint8_t>(componentMask), maxFrames);
         }
         case GET_DISPLAYED_CONTENT_SAMPLE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
@@ -1199,15 +777,6 @@ status_t BnSurfaceComposer::onTransact(
                 reply->writeUint64Vector(stats.component_3_sample);
             }
             return result;
-        }
-        case GET_PROTECTED_CONTENT_SUPPORT: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            bool result;
-            status_t error = getProtectedContentSupport(&result);
-            if (error == NO_ERROR) {
-                reply->writeBool(result);
-            }
-            return error;
         }
         case ADD_REGION_SAMPLING_LISTENER: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
@@ -1511,33 +1080,6 @@ status_t BnSurfaceComposer::onTransact(
             }
             SAFE_PARCEL(reply->writeInt32, buffers);
             return NO_ERROR;
-        }
-        case OVERRIDE_HDR_TYPES: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> display = nullptr;
-            SAFE_PARCEL(data.readStrongBinder, &display);
-
-            std::vector<int32_t> hdrTypes;
-            SAFE_PARCEL(data.readInt32Vector, &hdrTypes);
-
-            std::vector<ui::Hdr> hdrTypesVector;
-            for (int i : hdrTypes) {
-                hdrTypesVector.push_back(static_cast<ui::Hdr>(i));
-            }
-            return overrideHdrTypes(display, hdrTypesVector);
-        }
-        case ON_PULL_ATOM: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            int32_t atomId = 0;
-            SAFE_PARCEL(data.readInt32, &atomId);
-
-            std::string pulledData;
-            bool success;
-            status_t err = onPullAtom(atomId, &pulledData, &success);
-            SAFE_PARCEL(reply->writeByteArray, pulledData.size(),
-                        reinterpret_cast<const uint8_t*>(pulledData.data()));
-            SAFE_PARCEL(reply->writeBool, success);
-            return err;
         }
         case ADD_WINDOW_INFOS_LISTENER: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);

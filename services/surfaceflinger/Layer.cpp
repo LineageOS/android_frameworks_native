@@ -82,10 +82,12 @@ namespace {
 constexpr int kDumpTableRowLength = 159;
 } // namespace
 
+using namespace ftl::flag_operators;
+
 using base::StringAppendF;
-using namespace android::flag_operators;
-using PresentState = frametimeline::SurfaceFrame::PresentState;
 using gui::WindowInfo;
+
+using PresentState = frametimeline::SurfaceFrame::PresentState;
 
 std::atomic<int32_t> Layer::sSequence{1};
 
@@ -1386,10 +1388,10 @@ void Layer::updateTransformHint(ui::Transform::RotationFlags transformHint) {
 // ----------------------------------------------------------------------------
 
 // TODO(marissaw): add new layer state info to layer debugging
-LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
+gui::LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
     using namespace std::string_literals;
 
-    LayerDebugInfo info;
+    gui::LayerDebugInfo info;
     const State& ds = getDrawingState();
     info.mName = getName();
     sp<Layer> parent = mDrawingParent.promote();

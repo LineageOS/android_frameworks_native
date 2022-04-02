@@ -27,7 +27,7 @@
 #include <android/gui/IWindowInfosListener.h>
 #include <binder/IBinder.h>
 #include <binder/IInterface.h>
-#include <ftl/Flags.h>
+#include <ftl/flags.h>
 #include <gui/FrameTimelineInfo.h>
 #include <gui/ITransactionCompletedListener.h>
 #include <gui/SpHash.h>
@@ -61,12 +61,10 @@ struct ComposerState;
 struct DisplayStatInfo;
 struct DisplayState;
 struct InputWindowCommands;
-class LayerDebugInfo;
 class HdrCapabilities;
 class IGraphicBufferProducer;
 class ISurfaceComposerClient;
 class Rect;
-enum class FrameEvent;
 
 using gui::IDisplayEventConnection;
 using gui::IRegionSamplingListener;
@@ -77,6 +75,7 @@ namespace gui {
 
 struct DisplayCaptureArgs;
 struct LayerCaptureArgs;
+class LayerDebugInfo;
 
 } // namespace gui
 
@@ -125,7 +124,7 @@ public:
         frameRateOverride = 1 << 1,
     };
 
-    using EventRegistrationFlags = Flags<EventRegistration>;
+    using EventRegistrationFlags = ftl::Flags<EventRegistration>;
 
     /*
      * Create a connection with SurfaceFlinger.
@@ -155,75 +154,6 @@ public:
     virtual bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& surface) const = 0;
 
-    /* Returns the frame timestamps supported by SurfaceFlinger.
-     */
-    virtual status_t getSupportedFrameTimestamps(
-            std::vector<FrameEvent>* outSupported) const = 0;
-
-    /* Clears the frame statistics for animations.
-     *
-     * Requires the ACCESS_SURFACE_FLINGER permission.
-     */
-    virtual status_t clearAnimationFrameStats() = 0;
-
-    /* Gets the frame statistics for animations.
-     *
-     * Requires the ACCESS_SURFACE_FLINGER permission.
-     */
-    virtual status_t getAnimationFrameStats(FrameStats* outStats) const = 0;
-
-    /* Overrides the supported HDR modes for the given display device.
-     *
-     * Requires the ACCESS_SURFACE_FLINGER permission.
-     */
-    virtual status_t overrideHdrTypes(const sp<IBinder>& display,
-                                      const std::vector<ui::Hdr>& hdrTypes) = 0;
-
-    /* Pulls surfaceflinger atoms global stats and layer stats to pipe to statsd.
-     *
-     * Requires the calling uid be from system server.
-     */
-    virtual status_t onPullAtom(const int32_t atomId, std::string* outData, bool* success) = 0;
-
-    virtual status_t enableVSyncInjections(bool enable) = 0;
-
-    virtual status_t injectVSync(nsecs_t when) = 0;
-
-    /* Gets the list of active layers in Z order for debugging purposes
-     *
-     * Requires the ACCESS_SURFACE_FLINGER permission.
-     */
-    virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) = 0;
-
-    virtual status_t getColorManagement(bool* outGetColorManagement) const = 0;
-
-    /* Gets the composition preference of the default data space and default pixel format,
-     * as well as the wide color gamut data space and wide color gamut pixel format.
-     * If the wide color gamut data space is V0_SRGB, then it implies that the platform
-     * has no wide color gamut support.
-     *
-     * Requires the ACCESS_SURFACE_FLINGER permission.
-     */
-    virtual status_t getCompositionPreference(ui::Dataspace* defaultDataspace,
-                                              ui::PixelFormat* defaultPixelFormat,
-                                              ui::Dataspace* wideColorGamutDataspace,
-                                              ui::PixelFormat* wideColorGamutPixelFormat) const = 0;
-    /*
-     * Requires the ACCESS_SURFACE_FLINGER permission.
-     */
-    virtual status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& display,
-                                                           ui::PixelFormat* outFormat,
-                                                           ui::Dataspace* outDataspace,
-                                                           uint8_t* outComponentMask) const = 0;
-
-    /* Turns on the color sampling engine on the display.
-     *
-     * Requires the ACCESS_SURFACE_FLINGER permission.
-     */
-    virtual status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
-                                                      uint8_t componentMask,
-                                                      uint64_t maxFrames) = 0;
-
     /* Returns statistics on the color profile of the last frame displayed for a given display
      *
      * Requires the ACCESS_SURFACE_FLINGER permission.
@@ -231,12 +161,6 @@ public:
     virtual status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
                                                uint64_t timestamp,
                                                DisplayedFrameStats* outStats) const = 0;
-
-    /*
-     * Gets whether SurfaceFlinger can support protected content in GPU composition.
-     * Requires the ACCESS_SURFACE_FLINGER permission.
-     */
-    virtual status_t getProtectedContentSupport(bool* outSupported) const = 0;
 
     /* Registers a listener to stream median luma updates from SurfaceFlinger.
      *
@@ -429,32 +353,32 @@ public:
         GET_PHYSICAL_DISPLAY_TOKEN, // Deprecated. Autogenerated by .aidl now.
         SET_TRANSACTION_STATE,
         AUTHENTICATE_SURFACE,
-        GET_SUPPORTED_FRAME_TIMESTAMPS,
-        GET_DISPLAY_MODES,       // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
-        GET_ACTIVE_DISPLAY_MODE, // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
+        GET_SUPPORTED_FRAME_TIMESTAMPS, // Deprecated. Autogenerated by .aidl now.
+        GET_DISPLAY_MODES,              // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
+        GET_ACTIVE_DISPLAY_MODE,        // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
         GET_DISPLAY_STATE,
-        CAPTURE_DISPLAY, // Deprecated. Autogenerated by .aidl now.
-        CAPTURE_LAYERS,  // Deprecated. Autogenerated by .aidl now.
-        CLEAR_ANIMATION_FRAME_STATS,
-        GET_ANIMATION_FRAME_STATS,
-        SET_POWER_MODE, // Deprecated. Autogenerated by .aidl now.
+        CAPTURE_DISPLAY,             // Deprecated. Autogenerated by .aidl now.
+        CAPTURE_LAYERS,              // Deprecated. Autogenerated by .aidl now.
+        CLEAR_ANIMATION_FRAME_STATS, // Deprecated. Autogenerated by .aidl now.
+        GET_ANIMATION_FRAME_STATS,   // Deprecated. Autogenerated by .aidl now.
+        SET_POWER_MODE,              // Deprecated. Autogenerated by .aidl now.
         GET_DISPLAY_STATS,
-        GET_HDR_CAPABILITIES,    // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
-        GET_DISPLAY_COLOR_MODES, // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
-        GET_ACTIVE_COLOR_MODE,   // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
-        SET_ACTIVE_COLOR_MODE,   // Deprecated. Autogenerated by .aidl now.
-        ENABLE_VSYNC_INJECTIONS,
-        INJECT_VSYNC,
-        GET_LAYER_DEBUG_INFO,
-        GET_COMPOSITION_PREFERENCE,
-        GET_COLOR_MANAGEMENT,
-        GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES,
-        SET_DISPLAY_CONTENT_SAMPLING_ENABLED,
+        GET_HDR_CAPABILITIES,       // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
+        GET_DISPLAY_COLOR_MODES,    // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
+        GET_ACTIVE_COLOR_MODE,      // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
+        SET_ACTIVE_COLOR_MODE,      // Deprecated. Autogenerated by .aidl now.
+        ENABLE_VSYNC_INJECTIONS,    // Deprecated. Autogenerated by .aidl now.
+        INJECT_VSYNC,               // Deprecated. Autogenerated by .aidl now.
+        GET_LAYER_DEBUG_INFO,       // Deprecated. Autogenerated by .aidl now.
+        GET_COMPOSITION_PREFERENCE, // Deprecated. Autogenerated by .aidl now.
+        GET_COLOR_MANAGEMENT,       // Deprecated. Autogenerated by .aidl now.
+        GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES, // Deprecated. Autogenerated by .aidl now.
+        SET_DISPLAY_CONTENT_SAMPLING_ENABLED,      // Deprecated. Autogenerated by .aidl now.
         GET_DISPLAYED_CONTENT_SAMPLE,
-        GET_PROTECTED_CONTENT_SUPPORT,
-        IS_WIDE_COLOR_DISPLAY,        // Deprecated. Autogenerated by .aidl now.
-        GET_DISPLAY_NATIVE_PRIMARIES, // Deprecated. Autogenerated by .aidl now.
-        GET_PHYSICAL_DISPLAY_IDS,     // Deprecated. Autogenerated by .aidl now.
+        GET_PROTECTED_CONTENT_SUPPORT, // Deprecated. Autogenerated by .aidl now.
+        IS_WIDE_COLOR_DISPLAY,         // Deprecated. Autogenerated by .aidl now.
+        GET_DISPLAY_NATIVE_PRIMARIES,  // Deprecated. Autogenerated by .aidl now.
+        GET_PHYSICAL_DISPLAY_IDS,      // Deprecated. Autogenerated by .aidl now.
         ADD_REGION_SAMPLING_LISTENER,
         REMOVE_REGION_SAMPLING_LISTENER,
         SET_DESIRED_DISPLAY_MODE_SPECS,
@@ -478,10 +402,10 @@ public:
         GET_DYNAMIC_DISPLAY_INFO, // Deprecated. Autogenerated by .aidl now.
         ADD_FPS_LISTENER,
         REMOVE_FPS_LISTENER,
-        OVERRIDE_HDR_TYPES,
+        OVERRIDE_HDR_TYPES,             // Deprecated. Autogenerated by .aidl now.
         ADD_HDR_LAYER_INFO_LISTENER,    // Deprecated. Autogenerated by .aidl now.
         REMOVE_HDR_LAYER_INFO_LISTENER, // Deprecated. Autogenerated by .aidl now.
-        ON_PULL_ATOM,
+        ON_PULL_ATOM,                   // Deprecated. Autogenerated by .aidl now.
         ADD_TUNNEL_MODE_ENABLED_LISTENER,
         REMOVE_TUNNEL_MODE_ENABLED_LISTENER,
         ADD_WINDOW_INFOS_LISTENER,
