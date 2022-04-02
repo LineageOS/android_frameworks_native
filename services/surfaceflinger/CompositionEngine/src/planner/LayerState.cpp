@@ -41,7 +41,7 @@ LayerState::LayerState(compositionengine::OutputLayer* layer)
     update(layer);
 }
 
-Flags<LayerStateField> LayerState::update(compositionengine::OutputLayer* layer) {
+ftl::Flags<LayerStateField> LayerState::update(compositionengine::OutputLayer* layer) {
     ALOGE_IF(mOutputLayer != layer && layer->getLayerFE().getSequence() != mId.get(),
              "[%s] Expected mOutputLayer ID to never change: %d, %d", __func__,
              layer->getLayerFE().getSequence(), mId.get());
@@ -50,7 +50,7 @@ Flags<LayerStateField> LayerState::update(compositionengine::OutputLayer* layer)
     // same, i.e., the LayerFE is the same. An example use-case is screen rotation.
     mOutputLayer = layer;
 
-    Flags<LayerStateField> differences;
+    ftl::Flags<LayerStateField> differences;
 
     // Update the unique fields as well, since we have to set them at least
     // once from the OutputLayer
@@ -76,8 +76,8 @@ size_t LayerState::getHash() const {
     return hash;
 }
 
-Flags<LayerStateField> LayerState::getDifferingFields(const LayerState& other) const {
-    Flags<LayerStateField> differences;
+ftl::Flags<LayerStateField> LayerState::getDifferingFields(const LayerState& other) const {
+    ftl::Flags<LayerStateField> differences;
     auto myFields = getNonUniqueFields();
     auto otherFields = other.getNonUniqueFields();
     for (size_t i = 0; i < myFields.size(); ++i) {
