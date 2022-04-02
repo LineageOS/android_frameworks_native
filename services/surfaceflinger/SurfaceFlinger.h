@@ -518,17 +518,30 @@ private:
     bool callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermissionCache = true)
             EXCLUDES(mStateLock);
 
+    // the following two methods are moved from ISurfaceComposer.h
+    // TODO(b/74619554): Remove this stopgap once the framework is display-agnostic.
+    std::optional<PhysicalDisplayId> getInternalDisplayId() const {
+        const auto displayIds = getPhysicalDisplayIds();
+        return displayIds.empty() ? std::nullopt : std::make_optional(displayIds.front());
+    }
+
+    // TODO(b/74619554): Remove this stopgap once the framework is display-agnostic.
+    sp<IBinder> getInternalDisplayToken() const {
+        const auto displayId = getInternalDisplayId();
+        return displayId ? getPhysicalDisplayToken(*displayId) : nullptr;
+    }
+
     // Implements ISurfaceComposer
     sp<ISurfaceComposerClient> createConnection() override;
-    sp<IBinder> createDisplay(const String8& displayName, bool secure) override;
-    void destroyDisplay(const sp<IBinder>& displayToken) override;
-    std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override EXCLUDES(mStateLock) {
+    sp<IBinder> createDisplay(const String8& displayName, bool secure);
+    void destroyDisplay(const sp<IBinder>& displayToken);
+    std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const EXCLUDES(mStateLock) {
         Mutex::Autolock lock(mStateLock);
         return getPhysicalDisplayIdsLocked();
     }
-    status_t getPrimaryPhysicalDisplayId(PhysicalDisplayId*) const override EXCLUDES(mStateLock);
+    status_t getPrimaryPhysicalDisplayId(PhysicalDisplayId*) const EXCLUDES(mStateLock);
 
-    sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const override;
+    sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const;
     status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
                                  const Vector<ComposerState>& state,
                                  const Vector<DisplayState>& displays, uint32_t flags,
@@ -1438,11 +1451,22 @@ class SurfaceComposerAIDL : public gui::BnSurfaceComposer {
 public:
     SurfaceComposerAIDL(sp<SurfaceFlinger> sf) { mFlinger = sf; }
 
+    binder::Status createDisplay(const std::string& displayName, bool secure,
+                                 sp<IBinder>* outDisplay) override;
+    binder::Status destroyDisplay(const sp<IBinder>& display) override;
+    binder::Status getPhysicalDisplayIds(std::vector<int64_t>* outDisplayIds) override;
+    binder::Status getPrimaryPhysicalDisplayId(int64_t* outDisplayId) override;
+    binder::Status getPhysicalDisplayToken(int64_t displayId, sp<IBinder>* outDisplay) override;
+
     binder::Status captureDisplay(const DisplayCaptureArgs&,
                                   const sp<IScreenCaptureListener>&) override;
     binder::Status captureDisplayById(int64_t, const sp<IScreenCaptureListener>&) override;
     binder::Status captureLayers(const LayerCaptureArgs&,
                                  const sp<IScreenCaptureListener>&) override;
+
+private:
+    static const constexpr bool kUsePermissionCache = true;
+    status_t checkAccessPermission(bool usePermissionCache = kUsePermissionCache);
 
 private:
     sp<SurfaceFlinger> mFlinger;
