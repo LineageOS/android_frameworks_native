@@ -753,7 +753,9 @@ static SkRRect getBlurRRect(const BlurRegion& region) {
     return roundedRect;
 }
 
-static bool equalsWithinMargin(float expected, float value, float margin) {
+// Arbitrary default margin which should be close enough to zero.
+constexpr float kDefaultMargin = 0.0001f;
+static bool equalsWithinMargin(float expected, float value, float margin = kDefaultMargin) {
     LOG_ALWAYS_FATAL_IF(margin < 0.f, "Margin is negative!");
     return std::abs(expected - value) < margin;
 }
@@ -1011,10 +1013,13 @@ void SkiaGLRenderEngine::drawLayersInternal(
                 ? displayDimmingRatio
                 : (layer.whitePointNits / maxLayerWhitePoint) * displayDimmingRatio;
 
+        const bool dimInLinearSpace = display.dimmingStage !=
+                aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF;
+
         const bool requiresLinearEffect = layer.colorTransform != mat4() ||
                 (mUseColorManagement &&
                  needsToneMapping(layer.sourceDataspace, display.outputDataspace)) ||
-                !equalsWithinMargin(1.f, layerDimmingRatio, 0.001f);
+                (dimInLinearSpace && !equalsWithinMargin(1.f, layerDimmingRatio));
 
         // quick abort from drawing the remaining portion of the layer
         if (layer.skipContentDraw ||
@@ -1120,7 +1125,9 @@ void SkiaGLRenderEngine::drawLayersInternal(
                                                   .undoPremultipliedAlpha = !item.isOpaque &&
                                                           item.usePremultipliedAlpha,
                                                   .requiresLinearEffect = requiresLinearEffect,
-                                                  .layerDimmingRatio = layerDimmingRatio}));
+                                                  .layerDimmingRatio = dimInLinearSpace
+                                                          ? layerDimmingRatio
+                                                          : 1.f}));
 
             // Turn on dithering when dimming beyond this (arbitrary) threshold...
             static constexpr float kDimmingThreshold = 0.2f;
@@ -1193,7 +1200,20 @@ void SkiaGLRenderEngine::drawLayersInternal(
         // An A8 buffer will already have the proper color filter attached to
         // its paint, including the displayColorTransform as needed.
         if (!paint.getColorFilter()) {
-            paint.setColorFilter(displayColorTransform);
+            if (!dimInLinearSpace && !equalsWithinMargin(1.0, layerDimmingRatio)) {
+                // If we don't dim in linear space, then when we gamma correct the dimming ratio we
+                // can assume a gamma 2.2 transfer function.
+                static constexpr float kInverseGamma22 = 1.f / 2.2f;
+                const auto gammaCorrectedDimmingRatio =
+                        std::pow(layerDimmingRatio, kInverseGamma22);
+                const auto dimmingMatrix =
+                        mat4::scale(vec4(gammaCorrectedDimmingRatio, gammaCorrectedDimmingRatio,
+                                         gammaCorrectedDimmingRatio, 1.f));
+                paint.setColorFilter(SkColorFilters::Matrix(
+                        toSkColorMatrix(display.colorTransform * dimmingMatrix)));
+            } else {
+                paint.setColorFilter(displayColorTransform);
+            }
         }
 
         if (!roundRectClip.isEmpty()) {
