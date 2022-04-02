@@ -22,6 +22,28 @@ import android.gui.IScreenCaptureListener;
 
 /** @hide */
 interface ISurfaceComposer {
+
+    /* create a virtual display
+     * requires ACCESS_SURFACE_FLINGER permission.
+     */
+    @nullable IBinder createDisplay(@utf8InCpp String displayName, boolean secure);
+
+    /* destroy a virtual display
+     * requires ACCESS_SURFACE_FLINGER permission.
+     */
+    void destroyDisplay(IBinder display);
+
+    /* get stable IDs for connected physical displays.
+     */
+    long[] getPhysicalDisplayIds();
+
+    long getPrimaryPhysicalDisplayId();
+
+    /* get token for a physical display given its stable ID obtained via getPhysicalDisplayIds or a
+     * DisplayEventReceiver hotplug event.
+     */
+    @nullable IBinder getPhysicalDisplayToken(long displayId);
+
     /**
      * Capture the specified screen. This requires READ_FRAME_BUFFER
      * permission.  This function will fail if there is a secure window on

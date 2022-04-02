@@ -1022,32 +1022,59 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
 // ---------------------------------------------------------------------------
 
 sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName, bool secure) {
-    return ComposerService::getComposerService()->createDisplay(displayName,
-            secure);
+    sp<IBinder> display = nullptr;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->createDisplay(std::string(
+                                                                             displayName.string()),
+                                                                     secure, &display);
+    return status.isOk() ? display : nullptr;
 }
 
 void SurfaceComposerClient::destroyDisplay(const sp<IBinder>& display) {
-    return ComposerService::getComposerService()->destroyDisplay(display);
+    ComposerServiceAIDL::getComposerService()->destroyDisplay(display);
 }
 
 std::vector<PhysicalDisplayId> SurfaceComposerClient::getPhysicalDisplayIds() {
-    return ComposerService::getComposerService()->getPhysicalDisplayIds();
+    std::vector<int64_t> displayIds;
+    std::vector<PhysicalDisplayId> physicalDisplayIds;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getPhysicalDisplayIds(&displayIds);
+    if (status.isOk()) {
+        physicalDisplayIds.reserve(displayIds.size());
+        for (auto item : displayIds) {
+            auto id = DisplayId::fromValue<PhysicalDisplayId>(static_cast<uint64_t>(item));
+            physicalDisplayIds.push_back(*id);
+        }
+    }
+    return physicalDisplayIds;
 }
 
 status_t SurfaceComposerClient::getPrimaryPhysicalDisplayId(PhysicalDisplayId* id) {
-    return ComposerService::getComposerService()->getPrimaryPhysicalDisplayId(id);
+    int64_t displayId;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getPrimaryPhysicalDisplayId(&displayId);
+    if (status.isOk()) {
+        *id = *DisplayId::fromValue<PhysicalDisplayId>(static_cast<uint64_t>(displayId));
+    }
+    return status.transactionError();
 }
 
 std::optional<PhysicalDisplayId> SurfaceComposerClient::getInternalDisplayId() {
-    return ComposerService::getComposerService()->getInternalDisplayId();
+    ComposerServiceAIDL& instance = ComposerServiceAIDL::getInstance();
+    return instance.getInternalDisplayId();
 }
 
 sp<IBinder> SurfaceComposerClient::getPhysicalDisplayToken(PhysicalDisplayId displayId) {
-    return ComposerService::getComposerService()->getPhysicalDisplayToken(displayId);
+    sp<IBinder> display = nullptr;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getPhysicalDisplayToken(displayId.value,
+                                                                               &display);
+    return status.isOk() ? display : nullptr;
 }
 
 sp<IBinder> SurfaceComposerClient::getInternalDisplayToken() {
-    return ComposerService::getComposerService()->getInternalDisplayToken();
+    ComposerServiceAIDL& instance = ComposerServiceAIDL::getInstance();
+    return instance.getInternalDisplayToken();
 }
 
 void SurfaceComposerClient::Transaction::setAnimationTransaction() {
