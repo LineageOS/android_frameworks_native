@@ -27,6 +27,7 @@ cc_defaults {
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
     shared_libs: [
+        "android.hardware.graphics.composer3-V1-ndk",
         "libbase",
         "libcutils",
         "libEGL",
