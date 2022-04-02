@@ -585,10 +585,10 @@ Error Display::setContentType(ContentType contentType) {
     return static_cast<Error>(intError);
 }
 
-Error Display::getClientTargetProperty(ClientTargetProperty* outClientTargetProperty,
-                                       float* outWhitePointNits) {
-    const auto error =
-            mComposer.getClientTargetProperty(mId, outClientTargetProperty, outWhitePointNits);
+Error Display::getClientTargetProperty(
+        aidl::android::hardware::graphics::composer3::ClientTargetPropertyWithBrightness*
+                outClientTargetProperty) {
+    const auto error = mComposer.getClientTargetProperty(mId, outClientTargetProperty);
     return static_cast<Error>(error);
 }
 

@@ -479,12 +479,11 @@ status_t HWComposer::getDeviceCompositionChanges(
     RETURN_IF_HWC_ERROR_FOR("getRequests", error, displayId, BAD_INDEX);
 
     DeviceRequestedChanges::ClientTargetProperty clientTargetProperty;
-    float brightness = 1.f;
-    error = hwcDisplay->getClientTargetProperty(&clientTargetProperty, &brightness);
+    error = hwcDisplay->getClientTargetProperty(&clientTargetProperty);
 
     outChanges->emplace(DeviceRequestedChanges{std::move(changedTypes), std::move(displayRequests),
                                                std::move(layerRequests),
-                                               std::move(clientTargetProperty), brightness});
+                                               std::move(clientTargetProperty)});
     error = hwcDisplay->acceptChanges();
     RETURN_IF_HWC_ERROR_FOR("acceptChanges", error, displayId, BAD_INDEX);
 
