@@ -226,81 +226,6 @@ public:
         return result;
     }
 
-    sp<IBinder> createDisplay(const String8& displayName, bool secure) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        status_t status = data.writeString8(displayName);
-        if (status) {
-            return nullptr;
-        }
-        status = data.writeBool(secure);
-        if (status) {
-            return nullptr;
-        }
-
-        status = remote()->transact(BnSurfaceComposer::CREATE_DISPLAY, data, &reply);
-        if (status) {
-            return nullptr;
-        }
-        sp<IBinder> display;
-        status = reply.readNullableStrongBinder(&display);
-        if (status) {
-            return nullptr;
-        }
-        return display;
-    }
-
-    void destroyDisplay(const sp<IBinder>& display) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-        remote()->transact(BnSurfaceComposer::DESTROY_DISPLAY, data, &reply);
-    }
-
-    std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (remote()->transact(BnSurfaceComposer::GET_PHYSICAL_DISPLAY_IDS, data, &reply) ==
-            NO_ERROR) {
-            std::vector<uint64_t> rawIds;
-            if (reply.readUint64Vector(&rawIds) == NO_ERROR) {
-                std::vector<PhysicalDisplayId> displayIds;
-                displayIds.reserve(rawIds.size());
-
-                for (const uint64_t rawId : rawIds) {
-                    if (const auto id = DisplayId::fromValue<PhysicalDisplayId>(rawId)) {
-                        displayIds.push_back(*id);
-                    }
-                }
-                return displayIds;
-            }
-        }
-
-        return {};
-    }
-
-    status_t getPrimaryPhysicalDisplayId(PhysicalDisplayId* displayId) const override {
-        Parcel data, reply;
-        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(remote()->transact, BnSurfaceComposer::GET_PRIMARY_PHYSICAL_DISPLAY_ID, data,
-                    &reply);
-        uint64_t rawId;
-        SAFE_PARCEL(reply.readUint64, &rawId);
-        if (const auto id = DisplayId::fromValue<PhysicalDisplayId>(rawId)) {
-            *displayId = *id;
-            return NO_ERROR;
-        }
-        return NAME_NOT_FOUND;
-    }
-
-    sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeUint64(displayId.value);
-        remote()->transact(BnSurfaceComposer::GET_PHYSICAL_DISPLAY_TOKEN, data, &reply);
-        return reply.readStrongBinder();
-    }
-
     void setPowerMode(const sp<IBinder>& display, int mode) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
@@ -1467,29 +1392,6 @@ status_t BnSurfaceComposer::onTransact(
             reply->writeStrongBinder(IInterface::asBinder(connection));
             return NO_ERROR;
         }
-        case CREATE_DISPLAY: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            String8 displayName;
-            SAFE_PARCEL(data.readString8, &displayName);
-            bool secure = false;
-            SAFE_PARCEL(data.readBool, &secure);
-            sp<IBinder> display = createDisplay(displayName, secure);
-            SAFE_PARCEL(reply->writeStrongBinder, display);
-            return NO_ERROR;
-        }
-        case DESTROY_DISPLAY: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> display = data.readStrongBinder();
-            destroyDisplay(display);
-            return NO_ERROR;
-        }
-        case GET_PHYSICAL_DISPLAY_TOKEN: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            const auto id = DisplayId::fromValue<PhysicalDisplayId>(data.readUint64());
-            if (!id) return BAD_VALUE;
-            reply->writeStrongBinder(getPhysicalDisplayToken(*id));
-            return NO_ERROR;
-        }
         case GET_DISPLAY_STATE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             ui::DisplayState state;
@@ -1825,24 +1727,6 @@ status_t BnSurfaceComposer::onTransact(
                 reply->writeBool(result);
             }
             return error;
-        }
-        case GET_PHYSICAL_DISPLAY_IDS: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            std::vector<PhysicalDisplayId> ids = getPhysicalDisplayIds();
-            std::vector<uint64_t> rawIds(ids.size());
-            std::transform(ids.begin(), ids.end(), rawIds.begin(),
-                           [](PhysicalDisplayId id) { return id.value; });
-            return reply->writeUint64Vector(rawIds);
-        }
-        case GET_PRIMARY_PHYSICAL_DISPLAY_ID: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            PhysicalDisplayId id;
-            status_t result = getPrimaryPhysicalDisplayId(&id);
-            if (result != NO_ERROR) {
-                ALOGE("getPrimaryPhysicalDisplayId: Failed to get id");
-                return result;
-            }
-            return reply->writeUint64(id.value);
         }
         case ADD_REGION_SAMPLING_LISTENER: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
