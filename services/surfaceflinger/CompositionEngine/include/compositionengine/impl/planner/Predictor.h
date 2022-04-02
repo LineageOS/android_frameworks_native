@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <ftl/flags.h>
+
 #include <compositionengine/impl/planner/LayerState.h>
 
 namespace android::compositionengine::impl::planner {
@@ -35,7 +37,7 @@ public:
         // This implies that only one layer is allowed to differ in an approximate match.
         size_t differingIndex;
         // Set of fields that differ for the differing layer in the approximate match.
-        Flags<LayerStateField> differingFields;
+        ftl::Flags<LayerStateField> differingFields;
     };
 
     // Returns an approximate match when comparing this layer stack with the provided list of

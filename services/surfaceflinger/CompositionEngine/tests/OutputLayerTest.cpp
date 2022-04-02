@@ -668,6 +668,13 @@ TEST_F(OutputLayerUpdateCompositionStateTest, setsWhitePointNitsAndDimmingRatioC
     EXPECT_EQ(mOutputState.sdrWhitePointNits / mOutputState.displayBrightnessNits,
               mOutputLayer.getState().dimmingRatio);
 
+    mLayerFEState.dimmingEnabled = false;
+    mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);
+    EXPECT_EQ(mOutputState.displayBrightnessNits, mOutputLayer.getState().whitePointNits);
+    EXPECT_EQ(1.f, mOutputLayer.getState().dimmingRatio);
+
+    // change dimmingEnabled back to true.
+    mLayerFEState.dimmingEnabled = true;
     mLayerFEState.dataspace = ui::Dataspace::BT2020_ITU_PQ;
     mLayerFEState.isColorspaceAgnostic = false;
     mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);

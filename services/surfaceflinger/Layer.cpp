@@ -82,10 +82,12 @@ namespace {
 constexpr int kDumpTableRowLength = 159;
 } // namespace
 
+using namespace ftl::flag_operators;
+
 using base::StringAppendF;
-using namespace android::flag_operators;
-using PresentState = frametimeline::SurfaceFrame::PresentState;
 using gui::WindowInfo;
+
+using PresentState = frametimeline::SurfaceFrame::PresentState;
 
 std::atomic<int32_t> Layer::sSequence{1};
 
@@ -140,6 +142,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mDrawingState.destinationFrame.makeInvalid();
     mDrawingState.isTrustedOverlay = false;
     mDrawingState.dropInputMode = gui::DropInputMode::NONE;
+    mDrawingState.dimmingEnabled = true;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
@@ -478,6 +481,7 @@ void Layer::preparePerFrameCompositionState() {
     compositionState->colorTransformIsIdentity = !hasColorTransform();
     compositionState->surfaceDamage = surfaceDamageRegion;
     compositionState->hasProtectedContent = isProtected();
+    compositionState->dimmingEnabled = isDimmingEnabled();
 
     const bool usesRoundedCorners = getRoundedCornerState().radius != 0.f;
 
@@ -1034,6 +1038,16 @@ bool Layer::setColorSpaceAgnostic(const bool agnostic) {
     }
     mDrawingState.sequence++;
     mDrawingState.colorSpaceAgnostic = agnostic;
+    mDrawingState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool Layer::setDimmingEnabled(const bool dimmingEnabled) {
+    if (mDrawingState.dimmingEnabled == dimmingEnabled) return false;
+
+    mDrawingState.sequence++;
+    mDrawingState.dimmingEnabled = dimmingEnabled;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;

@@ -207,6 +207,9 @@ struct LayerFECompositionState {
     // framerate of the layer as measured by LayerHistory
     float fps;
 
+    // The dimming flag
+    bool dimmingEnabled{true};
+
     virtual ~LayerFECompositionState();
 
     // Debugging

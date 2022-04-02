@@ -16,9 +16,9 @@
 
 #pragma once
 
-#include <ftl/Flags.h>
-
 #include <cstdint>
+
+#include <ftl/flags.h>
 
 namespace android::scheduler {
 
@@ -29,6 +29,6 @@ enum class Feature : std::uint8_t {
     kTracePredictedVsync = 0b1000,
 };
 
-using FeatureFlags = Flags<Feature>;
+using FeatureFlags = ftl::Flags<Feature>;
 
 } // namespace android::scheduler

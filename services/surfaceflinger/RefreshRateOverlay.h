@@ -16,32 +16,27 @@
 
 #pragma once
 
-#include <SkCanvas.h>
 #include <SkColor.h>
-#include <unordered_map>
+#include <vector>
 
-#include <math/vec4.h>
-#include <renderengine/RenderEngine.h>
+#include <ftl/small_map.h>
 #include <ui/LayerStack.h>
-#include <ui/Rect.h>
 #include <ui/Size.h>
+#include <ui/Transform.h>
 #include <utils/StrongPointer.h>
 
 #include <scheduler/Fps.h>
 
+class SkCanvas;
+
 namespace android {
 
-class Client;
 class GraphicBuffer;
-class IBinder;
-class IGraphicBufferProducer;
-class Layer;
-class SurfaceFlinger;
 class SurfaceControl;
 
 class RefreshRateOverlay {
 public:
-    RefreshRateOverlay(SurfaceFlinger&, uint32_t lowFps, uint32_t highFps, bool showSpinner);
+    RefreshRateOverlay(FpsRange, bool showSpinner);
 
     void setLayerStack(ui::LayerStack);
     void setViewport(ui::Size);
@@ -49,52 +44,38 @@ public:
     void animate();
 
 private:
+    using Buffers = std::vector<sp<GraphicBuffer>>;
+
     class SevenSegmentDrawer {
     public:
-        static std::vector<sp<GraphicBuffer>> draw(int number, SkColor& color,
-                                                   ui::Transform::RotationFlags, bool showSpinner);
-        static uint32_t getHeight() { return BUFFER_HEIGHT; }
-        static uint32_t getWidth() { return BUFFER_WIDTH; }
+        static Buffers draw(int number, SkColor, ui::Transform::RotationFlags, bool showSpinner);
 
     private:
         enum class Segment { Upper, UpperLeft, UpperRight, Middle, LowerLeft, LowerRight, Bottom };
 
-        static void drawSegment(Segment segment, int left, SkColor& color, SkCanvas& canvas);
-        static void drawDigit(int digit, int left, SkColor& color, SkCanvas& canvas);
-
-        static constexpr uint32_t DIGIT_HEIGHT = 100;
-        static constexpr uint32_t DIGIT_WIDTH = 64;
-        static constexpr uint32_t DIGIT_SPACE = 16;
-        static constexpr uint32_t BUFFER_HEIGHT = DIGIT_HEIGHT;
-        static constexpr uint32_t BUFFER_WIDTH =
-                4 * DIGIT_WIDTH + 3 * DIGIT_SPACE; // Digit|Space|Digit|Space|Digit|Space|Spinner
+        static void drawSegment(Segment, int left, SkColor, SkCanvas&);
+        static void drawDigit(int digit, int left, SkColor, SkCanvas&);
     };
 
-    bool createLayer();
+    const Buffers& getOrCreateBuffers(Fps);
 
-    const std::vector<sp<GraphicBuffer>>& getOrCreateBuffers(uint32_t fps);
+    struct Key {
+        int fps;
+        ui::Transform::RotationFlags flags;
 
-    SurfaceFlinger& mFlinger;
-    const sp<Client> mClient;
-    sp<IBinder> mIBinder;
-    sp<IGraphicBufferProducer> mGbp;
+        bool operator==(Key other) const { return fps == other.fps && flags == other.flags; }
+    };
 
-    std::unordered_map<ui::Transform::RotationFlags,
-                       std::unordered_map<int, std::vector<sp<GraphicBuffer>>>>
-            mBufferCache;
-    std::optional<int> mCurrentFps;
-    int mFrame = 0;
-    static constexpr float ALPHA = 0.8f;
-    const SkColor LOW_FPS_COLOR = SK_ColorRED;
-    const SkColor HIGH_FPS_COLOR = SK_ColorGREEN;
+    using BufferCache = ftl::SmallMap<Key, Buffers, 9>;
+    BufferCache mBufferCache;
 
+    std::optional<Fps> mCurrentFps;
+    size_t mFrame = 0;
+
+    const FpsRange mFpsRange; // For color interpolation.
     const bool mShowSpinner;
 
-    // Interpolate the colors between these values.
-    const uint32_t mLowFps;
-    const uint32_t mHighFps;
-
-    sp<SurfaceControl> mSurfaceControl;
+    const sp<SurfaceControl> mSurfaceControl;
 };
 
 } // namespace android

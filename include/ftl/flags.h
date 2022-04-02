@@ -25,9 +25,9 @@
 #include <string>
 #include <type_traits>
 
-// TODO(b/185536303): Align with FTL style and namespace.
+// TODO(b/185536303): Align with FTL style.
 
-namespace android {
+namespace android::ftl {
 
 /* A class for handling flags defined by an enum or enum class in a type-safe way. */
 template <typename F>
@@ -48,10 +48,10 @@ public:
     // should force them to be explicitly constructed from their underlying types to make full use
     // of the type checker.
     template <typename T = U>
-    constexpr Flags(T t, std::enable_if_t<!ftl::is_scoped_enum_v<F>, T>* = nullptr) : mFlags(t) {}
+    constexpr Flags(T t, std::enable_if_t<!is_scoped_enum_v<F>, T>* = nullptr) : mFlags(t) {}
 
     template <typename T = U>
-    explicit constexpr Flags(T t, std::enable_if_t<ftl::is_scoped_enum_v<F>, T>* = nullptr)
+    explicit constexpr Flags(T t, std::enable_if_t<is_scoped_enum_v<F>, T>* = nullptr)
           : mFlags(t) {}
 
     class Iterator {
@@ -175,7 +175,7 @@ public:
         bool first = true;
         U unstringified = 0;
         for (const F f : *this) {
-            if (const auto flagName = ftl::flag_name(f)) {
+            if (const auto flagName = flag_name(f)) {
                 appendFlag(result, flagName.value(), first);
             } else {
                 unstringified |= static_cast<U>(f);
@@ -183,8 +183,8 @@ public:
         }
 
         if (unstringified != 0) {
-            constexpr auto radix = sizeof(U) == 1 ? ftl::Radix::kBin : ftl::Radix::kHex;
-            appendFlag(result, ftl::to_string(unstringified, radix), first);
+            constexpr auto radix = sizeof(U) == 1 ? Radix::kBin : Radix::kHex;
+            appendFlag(result, to_string(unstringified, radix), first);
         }
 
         if (first) {
@@ -211,15 +211,15 @@ private:
 // as flags. In order to use these, add them via a `using namespace` declaration.
 namespace flag_operators {
 
-template <typename F, typename = std::enable_if_t<ftl::is_scoped_enum_v<F>>>
+template <typename F, typename = std::enable_if_t<is_scoped_enum_v<F>>>
 inline Flags<F> operator~(F f) {
-    return static_cast<F>(~ftl::to_underlying(f));
+    return static_cast<F>(~to_underlying(f));
 }
 
-template <typename F, typename = std::enable_if_t<ftl::is_scoped_enum_v<F>>>
+template <typename F, typename = std::enable_if_t<is_scoped_enum_v<F>>>
 Flags<F> operator|(F lhs, F rhs) {
-    return static_cast<F>(ftl::to_underlying(lhs) | ftl::to_underlying(rhs));
+    return static_cast<F>(to_underlying(lhs) | to_underlying(rhs));
 }
 
 } // namespace flag_operators
-} // namespace android
+} // namespace android::ftl
