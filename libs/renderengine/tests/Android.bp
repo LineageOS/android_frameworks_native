@@ -47,6 +47,7 @@ cc_test {
     ],
 
     shared_libs: [
+        "android.hardware.graphics.composer3-V1-ndk",
         "libbase",
         "libcutils",
         "libEGL",
