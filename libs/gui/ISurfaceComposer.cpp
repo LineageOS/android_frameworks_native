@@ -226,18 +226,6 @@ public:
         return result;
     }
 
-    status_t getDisplayState(const sp<IBinder>& display, ui::DisplayState* state) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-        remote()->transact(BnSurfaceComposer::GET_DISPLAY_STATE, data, &reply);
-        const status_t result = reply.readInt32();
-        if (result == NO_ERROR) {
-            memcpy(state, reply.readInplace(sizeof(ui::DisplayState)), sizeof(ui::DisplayState));
-        }
-        return result;
-    }
-
     status_t getStaticDisplayInfo(const sp<IBinder>& display,
                                   ui::StaticDisplayInfo* info) override {
         Parcel data, reply;
@@ -258,20 +246,6 @@ public:
         const status_t result = reply.readInt32();
         if (result != NO_ERROR) return result;
         return reply.read(*info);
-    }
-
-    status_t getDisplayStats(const sp<IBinder>& display, DisplayStatInfo* stats) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-        remote()->transact(BnSurfaceComposer::GET_DISPLAY_STATS, data, &reply);
-        status_t result = reply.readInt32();
-        if (result == NO_ERROR) {
-            memcpy(stats,
-                    reply.readInplace(sizeof(DisplayStatInfo)),
-                    sizeof(DisplayStatInfo));
-        }
-        return result;
     }
 
     status_t getDisplayNativePrimaries(const sp<IBinder>& display,
@@ -1171,18 +1145,6 @@ status_t BnSurfaceComposer::onTransact(
             reply->writeStrongBinder(IInterface::asBinder(connection));
             return NO_ERROR;
         }
-        case GET_DISPLAY_STATE: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            ui::DisplayState state;
-            const sp<IBinder> display = data.readStrongBinder();
-            const status_t result = getDisplayState(display, &state);
-            reply->writeInt32(result);
-            if (result == NO_ERROR) {
-                memcpy(reply->writeInplace(sizeof(ui::DisplayState)), &state,
-                       sizeof(ui::DisplayState));
-            }
-            return NO_ERROR;
-        }
         case GET_STATIC_DISPLAY_INFO: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             ui::StaticDisplayInfo info;
@@ -1201,18 +1163,6 @@ status_t BnSurfaceComposer::onTransact(
             SAFE_PARCEL(reply->writeInt32, result);
             if (result != NO_ERROR) return result;
             SAFE_PARCEL(reply->write, info);
-            return NO_ERROR;
-        }
-        case GET_DISPLAY_STATS: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            DisplayStatInfo stats;
-            sp<IBinder> display = data.readStrongBinder();
-            status_t result = getDisplayStats(display, &stats);
-            reply->writeInt32(result);
-            if (result == NO_ERROR) {
-                memcpy(reply->writeInplace(sizeof(DisplayStatInfo)),
-                        &stats, sizeof(DisplayStatInfo));
-            }
             return NO_ERROR;
         }
         case GET_DISPLAY_NATIVE_PRIMARIES: {
