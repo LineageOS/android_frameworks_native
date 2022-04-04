@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <android/gui/DisplayState.h>
 #include <android/gui/IWindowInfosListener.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
@@ -43,6 +44,7 @@
 #include <gui/WindowInfo.h>
 #include <private/gui/ParcelUtils.h>
 #include <ui/DisplayMode.h>
+#include <ui/DisplayState.h>
 #include <ui/DynamicDisplayInfo.h>
 
 #include <private/gui/ComposerService.h>
@@ -2127,7 +2129,16 @@ status_t SurfaceComposerClient::injectVSync(nsecs_t when) {
 
 status_t SurfaceComposerClient::getDisplayState(const sp<IBinder>& display,
                                                 ui::DisplayState* state) {
-    return ComposerService::getComposerService()->getDisplayState(display, state);
+    gui::DisplayState ds;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getDisplayState(display, &ds);
+    if (status.isOk()) {
+        state->layerStack = ui::LayerStack::fromValue(ds.layerStack);
+        state->orientation = static_cast<ui::Rotation>(ds.orientation);
+        state->layerStackSpaceRect =
+                ui::Size(ds.layerStackSpaceRect.width, ds.layerStackSpaceRect.height);
+    }
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::getStaticDisplayInfo(const sp<IBinder>& display,

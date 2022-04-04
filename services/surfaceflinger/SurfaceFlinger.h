@@ -7,7 +7,6 @@
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
@@ -24,6 +23,8 @@
 
 #include <android-base/thread_annotations.h>
 #include <android/gui/BnSurfaceComposer.h>
+#include <android/gui/DisplayStatInfo.h>
+#include <android/gui/DisplayState.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <gui/BufferQueue.h>
@@ -563,9 +564,9 @@ private:
     status_t captureDisplay(DisplayId, const sp<IScreenCaptureListener>&);
     status_t captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&);
 
-    status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats) override;
+    status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats);
     status_t getDisplayState(const sp<IBinder>& displayToken, ui::DisplayState*)
-            EXCLUDES(mStateLock) override;
+            EXCLUDES(mStateLock);
     status_t getStaticDisplayInfo(const sp<IBinder>& displayToken, ui::StaticDisplayInfo*)
             EXCLUDES(mStateLock) override;
     status_t getDynamicDisplayInfo(const sp<IBinder>& displayToken, ui::DynamicDisplayInfo*)
@@ -1456,6 +1457,10 @@ public:
     binder::Status getPrimaryPhysicalDisplayId(int64_t* outDisplayId) override;
     binder::Status getPhysicalDisplayToken(int64_t displayId, sp<IBinder>* outDisplay) override;
     binder::Status setPowerMode(const sp<IBinder>& display, int mode) override;
+    binder::Status getDisplayStats(const sp<IBinder>& display,
+                                   gui::DisplayStatInfo* outStatInfo) override;
+    binder::Status getDisplayState(const sp<IBinder>& display,
+                                   gui::DisplayState* outState) override;
     binder::Status clearBootDisplayMode(const sp<IBinder>& display) override;
     binder::Status getBootDisplayModeSupport(bool* outMode) override;
     binder::Status setAutoLowLatencyMode(const sp<IBinder>& display, bool on) override;
