@@ -126,6 +126,10 @@ sp<ISurfaceComposer> Surface::composerService() const {
     return ComposerService::getComposerService();
 }
 
+sp<gui::ISurfaceComposer> Surface::composerServiceAIDL() const {
+    return ComposerServiceAIDL::getComposerService();
+}
+
 nsecs_t Surface::now() const {
     return systemTime();
 }
@@ -350,8 +354,8 @@ status_t Surface::getWideColorSupport(bool* supported) {
     }
 
     *supported = false;
-    status_t error = composerService()->isWideColorDisplay(display, supported);
-    return error;
+    binder::Status status = composerServiceAIDL()->isWideColorDisplay(display, supported);
+    return status.transactionError();
 }
 
 status_t Surface::getHdrSupport(bool* supported) {
