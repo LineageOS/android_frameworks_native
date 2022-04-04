@@ -27,13 +27,13 @@
 
 #include <inttypes.h>
 
+#include <android/gui/DisplayStatInfo.h>
 #include <android/native_window.h>
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include <utils/NativeHandle.h>
 
-#include <ui/DisplayStatInfo.h>
 #include <ui/DynamicDisplayInfo.h>
 #include <ui/Fence.h>
 #include <ui/GraphicBuffer.h>
@@ -179,10 +179,10 @@ status_t Surface::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
 status_t Surface::getDisplayRefreshCycleDuration(nsecs_t* outRefreshDuration) {
     ATRACE_CALL();
 
-    DisplayStatInfo stats;
-    status_t result = composerService()->getDisplayStats(nullptr, &stats);
-    if (result != NO_ERROR) {
-        return result;
+    gui::DisplayStatInfo stats;
+    binder::Status status = composerServiceAIDL()->getDisplayStats(nullptr, &stats);
+    if (!status.isOk()) {
+        return status.transactionError();
     }
 
     *outRefreshDuration = stats.vsyncPeriod;
