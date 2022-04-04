@@ -35,6 +35,10 @@
 
 namespace android {
 
+namespace gui {
+class ISurfaceComposer;
+} // namespace gui
+
 class ISurfaceComposer;
 
 /* This is the same as ProducerListener except that onBuffersDiscarded is
@@ -196,6 +200,7 @@ protected:
 
     // Virtual for testing.
     virtual sp<ISurfaceComposer> composerService() const;
+    virtual sp<gui::ISurfaceComposer> composerServiceAIDL() const;
     virtual nsecs_t now() const;
 
 private:
