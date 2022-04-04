@@ -161,17 +161,6 @@ public:
     virtual status_t getSupportedFrameTimestamps(
             std::vector<FrameEvent>* outSupported) const = 0;
 
-    /* returns display statistics for a given display
-     * intended to be used by the media framework to properly schedule
-     * video frames */
-    virtual status_t getDisplayStats(const sp<IBinder>& display,
-            DisplayStatInfo* stats) = 0;
-
-    /**
-     * Get transactional state of given display.
-     */
-    virtual status_t getDisplayState(const sp<IBinder>& display, ui::DisplayState*) = 0;
-
     /**
      * Gets immutable information about given physical display.
      */
