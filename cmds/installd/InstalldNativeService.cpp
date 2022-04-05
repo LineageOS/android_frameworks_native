@@ -635,7 +635,8 @@ static void chown_app_profile_dir(const std::string &packageName, int32_t appId,
 
 static binder::Status createAppDataDirs(const std::string& path, int32_t uid, int32_t gid,
                                         int32_t* previousUid, int32_t cacheGid,
-                                        const std::string& seInfo, mode_t targetMode) {
+                                        const std::string& seInfo, mode_t targetMode,
+                                        long projectIdApp, long projectIdCache) {
     struct stat st{};
     bool parent_dir_exists = (stat(path.c_str(), &st) == 0);
 
@@ -659,11 +660,9 @@ static binder::Status createAppDataDirs(const std::string& path, int32_t uid, in
     }
 
     // Prepare only the parent app directory
-    long project_id_app = get_project_id(uid, PROJECT_ID_APP_START);
-    long project_id_cache_app = get_project_id(uid, PROJECT_ID_APP_CACHE_START);
-    if (prepare_app_dir(path, targetMode, uid, gid, project_id_app) ||
-        prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid, project_id_cache_app) ||
-        prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid, project_id_cache_app)) {
+    if (prepare_app_dir(path, targetMode, uid, gid, projectIdApp) ||
+        prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid, projectIdCache) ||
+        prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid, projectIdCache)) {
         return error("Failed to prepare " + path);
     }
 
@@ -719,10 +718,14 @@ binder::Status InstalldNativeService::createAppDataLocked(
         cacheGid = uid;
     }
 
+    long projectIdApp = get_project_id(uid, PROJECT_ID_APP_START);
+    long projectIdCache = get_project_id(uid, PROJECT_ID_APP_CACHE_START);
+
     if (flags & FLAG_STORAGE_CE) {
         auto path = create_data_user_ce_package_path(uuid_, userId, pkgname);
 
-        auto status = createAppDataDirs(path, uid, uid, &previousUid, cacheGid, seInfo, targetMode);
+        auto status = createAppDataDirs(path, uid, uid, &previousUid, cacheGid, seInfo, targetMode,
+                                        projectIdApp, projectIdCache);
         if (!status.isOk()) {
             return status;
         }
@@ -747,7 +750,8 @@ binder::Status InstalldNativeService::createAppDataLocked(
     if (flags & FLAG_STORAGE_DE) {
         auto path = create_data_user_de_package_path(uuid_, userId, pkgname);
 
-        auto status = createAppDataDirs(path, uid, uid, &previousUid, cacheGid, seInfo, targetMode);
+        auto status = createAppDataDirs(path, uid, uid, &previousUid, cacheGid, seInfo, targetMode,
+                                        projectIdApp, projectIdCache);
         if (!status.isOk()) {
             return status;
         }
@@ -947,8 +951,12 @@ binder::Status InstalldNativeService::reconcileSdkData(const std::optional<std::
             }
             const int32_t sandboxUid = multiuser_get_sdk_sandbox_uid(userId, appId);
             int32_t previousSandboxUid = multiuser_get_sdk_sandbox_uid(userId, previousAppId);
-            auto status = createAppDataDirs(path, sandboxUid, AID_NOBODY, &previousSandboxUid,
-                                            cacheGid, seInfo, 0700 | S_ISGID);
+            int32_t appUid = multiuser_get_uid(userId, appId);
+            long projectIdApp = get_project_id(appUid, PROJECT_ID_APP_START);
+            long projectIdCache = get_project_id(appUid, PROJECT_ID_APP_CACHE_START);
+            auto status =
+                    createAppDataDirs(path, sandboxUid, AID_NOBODY, &previousSandboxUid, cacheGid,
+                                      seInfo, 0700 | S_ISGID, projectIdApp, projectIdCache);
             if (!status.isOk()) {
                 res = status;
                 continue;
