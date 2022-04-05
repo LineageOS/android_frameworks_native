@@ -465,7 +465,7 @@ TEST_F(ServiceTest, CalculateCache) {
     EXPECT_TRUE(create_cache_path(buf, "/path/to/file.apk", "isa"));
     EXPECT_EQ("/data/dalvik-cache/isa/path@to@file.apk@classes.dex", std::string(buf));
 }
-TEST_F(ServiceTest, GetAppSize) {
+TEST_F(ServiceTest, GetAppSizeManualForMedia) {
     struct stat s;
 
     std::string externalPicDir =
@@ -509,6 +509,7 @@ TEST_F(ServiceTest, GetAppSize) {
         system(removeCommand.c_str());
     }
 }
+
 TEST_F(ServiceTest, GetAppSizeWrongSizes) {
     int32_t externalStorageAppId = -1;
     std::vector<int64_t> externalStorageSize;

@@ -346,6 +346,12 @@ void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection) 
 
 VsyncEventData EventThread::getLatestVsyncEventData(
         const sp<EventThreadConnection>& connection) const {
+    // Resync so that the vsync is accurate with hardware. getLatestVsyncEventData is an alternate
+    // way to get vsync data (instead of posting callbacks to Choreographer).
+    if (connection->resyncCallback) {
+        connection->resyncCallback();
+    }
+
     VsyncEventData vsyncEventData;
     nsecs_t frameInterval = mGetVsyncPeriodFunction(connection->mOwnerUid);
     vsyncEventData.frameInterval = frameInterval;
