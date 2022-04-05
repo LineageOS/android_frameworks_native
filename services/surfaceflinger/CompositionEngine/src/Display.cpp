@@ -207,16 +207,8 @@ void Display::setReleasedLayers(const compositionengine::CompositionRefreshArgs&
     setReleasedLayers(std::move(releasedLayers));
 }
 
-void Display::chooseCompositionStrategy() {
-    ATRACE_CALL();
-    ALOGV(__FUNCTION__);
-
-    if (mIsDisconnected) {
-        return;
-    }
-
-    // Default to the base settings -- client composition only.
-    Output::chooseCompositionStrategy();
+void Display::beginFrame() {
+    Output::beginFrame();
 
     // If we don't have a HWC display, then we are done.
     const auto halDisplayId = HalDisplayId::tryCast(mId);
@@ -224,8 +216,6 @@ void Display::chooseCompositionStrategy() {
         return;
     }
 
-    // Get any composition changes requested by the HWC device, and apply them.
-    std::optional<android::HWComposer::DeviceRequestedChanges> changes;
     auto& hwc = getCompositionEngine().getHwComposer();
     if (const auto physicalDisplayId = PhysicalDisplayId::tryCast(*halDisplayId);
         physicalDisplayId && getState().displayBrightness) {
@@ -237,17 +227,43 @@ void Display::chooseCompositionStrategy() {
         ALOGE_IF(result != NO_ERROR, "setDisplayBrightness failed for %s: %d, (%s)",
                  getName().c_str(), result, strerror(-result));
     }
+    // Clear out the display brightness now that it's been communicated to composer.
+    editState().displayBrightness.reset();
+}
 
+bool Display::chooseCompositionStrategy(
+        std::optional<android::HWComposer::DeviceRequestedChanges>* outChanges) {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    if (mIsDisconnected) {
+        return false;
+    }
+
+    // If we don't have a HWC display, then we are done.
+    const auto halDisplayId = HalDisplayId::tryCast(mId);
+    if (!halDisplayId) {
+        return false;
+    }
+
+    // Get any composition changes requested by the HWC device, and apply them.
+    std::optional<android::HWComposer::DeviceRequestedChanges> changes;
+    auto& hwc = getCompositionEngine().getHwComposer();
     if (status_t result =
                 hwc.getDeviceCompositionChanges(*halDisplayId, anyLayersRequireClientComposition(),
                                                 getState().earliestPresentTime,
                                                 getState().previousPresentFence,
-                                                getState().expectedPresentTime, &changes);
+                                                getState().expectedPresentTime, outChanges);
         result != NO_ERROR) {
         ALOGE("chooseCompositionStrategy failed for %s: %d (%s)", getName().c_str(), result,
               strerror(-result));
-        return;
+        return false;
     }
+
+    return true;
+}
+
+void Display::applyCompositionStrategy(const std::optional<DeviceRequestedChanges>& changes) {
     if (changes) {
         applyChangedTypesToLayers(changes->changedTypes);
         applyDisplayRequests(changes->displayRequests);
@@ -259,8 +275,6 @@ void Display::chooseCompositionStrategy() {
     auto& state = editState();
     state.usesClientComposition = anyLayersRequireClientComposition();
     state.usesDeviceComposition = !allLayersRequireClientComposition();
-    // Clear out the display brightness now that it's been communicated to composer.
-    state.displayBrightness.reset();
 }
 
 bool Display::getSkipColorTransform() const {
@@ -271,12 +285,6 @@ bool Display::getSkipColorTransform() const {
     }
 
     return hwc.hasCapability(Capability::SKIP_CLIENT_COLOR_TRANSFORM);
-}
-
-bool Display::anyLayersRequireClientComposition() const {
-    const auto layers = getOutputLayersOrderedByZ();
-    return std::any_of(layers.begin(), layers.end(),
-                       [](const auto& layer) { return layer->requiresClientComposition(); });
 }
 
 bool Display::allLayersRequireClientComposition() const {
@@ -379,7 +387,8 @@ void Display::setExpensiveRenderingExpected(bool enabled) {
     }
 }
 
-void Display::finishFrame(const compositionengine::CompositionRefreshArgs& refreshArgs) {
+void Display::finishFrame(const compositionengine::CompositionRefreshArgs& refreshArgs,
+                          GpuCompositionResult&& result) {
     // We only need to actually compose the display if:
     // 1) It is being handled by hardware composer, which may need this to
     //    keep its virtual display state machine in sync, or
@@ -389,7 +398,7 @@ void Display::finishFrame(const compositionengine::CompositionRefreshArgs& refre
         return;
     }
 
-    impl::Output::finishFrame(refreshArgs);
+    impl::Output::finishFrame(refreshArgs, std::move(result));
 }
 
 } // namespace android::compositionengine::impl
