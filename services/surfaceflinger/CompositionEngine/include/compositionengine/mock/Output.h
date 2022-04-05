@@ -22,6 +22,7 @@
 #include <compositionengine/Output.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/RenderSurface.h>
+#include <compositionengine/impl/GpuCompositionResult.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <gmock/gmock.h>
 
@@ -99,16 +100,24 @@ public:
     MOCK_METHOD0(beginFrame, void());
 
     MOCK_METHOD0(prepareFrame, void());
-    MOCK_METHOD0(chooseCompositionStrategy, void());
+    MOCK_METHOD1(prepareFrameAsync, GpuCompositionResult(const CompositionRefreshArgs&));
+    MOCK_METHOD1(chooseCompositionStrategy,
+                 bool(std::optional<android::HWComposer::DeviceRequestedChanges>*));
+    MOCK_METHOD1(chooseCompositionStrategyAsync,
+                 std::future<bool>(std::optional<android::HWComposer::DeviceRequestedChanges>*));
+    MOCK_METHOD1(applyCompositionStrategy,
+                 void(const std::optional<android::HWComposer::DeviceRequestedChanges>&));
 
     MOCK_METHOD1(devOptRepaintFlash, void(const compositionengine::CompositionRefreshArgs&));
 
-    MOCK_METHOD1(finishFrame, void(const compositionengine::CompositionRefreshArgs&));
+    MOCK_METHOD2(finishFrame,
+                 void(const compositionengine::CompositionRefreshArgs&, GpuCompositionResult&&));
 
-    MOCK_METHOD2(composeSurfaces,
+    MOCK_METHOD4(composeSurfaces,
                  std::optional<base::unique_fd>(
                          const Region&,
-                         const compositionengine::CompositionRefreshArgs& refreshArgs));
+                         const compositionengine::CompositionRefreshArgs& refreshArgs,
+                         std::shared_ptr<renderengine::ExternalTexture>, base::unique_fd&));
     MOCK_CONST_METHOD0(getSkipColorTransform, bool());
 
     MOCK_METHOD0(postFramebuffer, void());
@@ -121,6 +130,8 @@ public:
                  void(const Region&, std::vector<LayerFE::LayerSettings>&));
     MOCK_METHOD1(setExpensiveRenderingExpected, void(bool));
     MOCK_METHOD1(cacheClientCompositionRequests, void(uint32_t));
+    MOCK_METHOD1(canPredictCompositionStrategy, bool(const CompositionRefreshArgs&));
+    MOCK_METHOD1(setPredictCompositionStrategy, void(bool));
 };
 
 } // namespace android::compositionengine::mock

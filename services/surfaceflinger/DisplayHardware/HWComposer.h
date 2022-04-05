@@ -280,6 +280,13 @@ public:
     virtual Hwc2::AidlTransform getPhysicalDisplayOrientation(PhysicalDisplayId) const = 0;
 };
 
+static inline bool operator==(const android::HWComposer::DeviceRequestedChanges& lhs,
+                              const android::HWComposer::DeviceRequestedChanges& rhs) {
+    return lhs.changedTypes == rhs.changedTypes && lhs.displayRequests == rhs.displayRequests &&
+            lhs.layerRequests == rhs.layerRequests &&
+            lhs.clientTargetProperty == rhs.clientTargetProperty;
+}
+
 namespace impl {
 
 class HWComposer final : public android::HWComposer {
