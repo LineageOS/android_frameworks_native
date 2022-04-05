@@ -72,6 +72,9 @@ public:
     virtual void resizeBuffers(const ui::Size&) = 0;
 
     virtual const sp<Fence>& getClientTargetAcquireFence() const = 0;
+
+    // Returns true if the render surface supports client composition prediction.
+    virtual bool supportsCompositionStrategyPrediction() const;
 };
 
 } // namespace compositionengine

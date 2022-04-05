@@ -42,6 +42,10 @@ cc_defaults {
         "libtonemap",
         "libtrace_proto",
         "libaidlcommonsupport",
+        "libprocessgroup",
+        "libcgrouprc",
+        "libjsoncpp",
+        "libcgrouprc_format",
     ],
     header_libs: [
         "android.hardware.graphics.composer@2.1-command-buffer",
@@ -69,6 +73,7 @@ cc_library {
         "src/DisplayColorProfile.cpp",
         "src/DisplaySurface.cpp",
         "src/DumpHelpers.cpp",
+        "src/HwcAsyncWorker.cpp",
         "src/HwcBufferCache.cpp",
         "src/LayerFECompositionState.cpp",
         "src/Output.cpp",
