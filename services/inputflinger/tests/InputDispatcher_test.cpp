@@ -56,6 +56,8 @@ static constexpr int32_t SECOND_DISPLAY_ID = 1;
 
 static constexpr int32_t POINTER_1_DOWN =
         AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+static constexpr int32_t POINTER_2_DOWN =
+        AMOTION_EVENT_ACTION_POINTER_DOWN | (2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 static constexpr int32_t POINTER_1_UP =
         AMOTION_EVENT_ACTION_POINTER_UP | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 
@@ -2242,6 +2244,53 @@ TEST_F(InputDispatcherTest, InterceptKeyIfKeyUp) {
     // Window should receive key event immediately when same key up.
     window->consumeKeyDown(ADISPLAY_ID_DEFAULT);
     window->consumeKeyUp(ADISPLAY_ID_DEFAULT);
+}
+
+/**
+ * This test documents the behavior of WATCH_OUTSIDE_TOUCH. The window will get ACTION_OUTSIDE when
+ * a another pointer causes ACTION_DOWN to be sent to another window for the first time. Only one
+ * ACTION_OUTSIDE event is sent per gesture.
+ */
+TEST_F(InputDispatcherTest, ActionOutsideSentOnlyWhenAWindowIsTouched) {
+    // There are three windows that do not overlap. `window` wants to WATCH_OUTSIDE_TOUCH.
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "First Window", ADISPLAY_ID_DEFAULT);
+    window->setWatchOutsideTouch(true);
+    window->setFrame(Rect{0, 0, 100, 100});
+    sp<FakeWindowHandle> secondWindow =
+            new FakeWindowHandle(application, mDispatcher, "Second Window", ADISPLAY_ID_DEFAULT);
+    secondWindow->setFrame(Rect{100, 100, 200, 200});
+    sp<FakeWindowHandle> thirdWindow =
+            new FakeWindowHandle(application, mDispatcher, "Third Window", ADISPLAY_ID_DEFAULT);
+    thirdWindow->setFrame(Rect{200, 200, 300, 300});
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window, secondWindow, thirdWindow}}});
+
+    // First pointer lands outside all windows. `window` does not get ACTION_OUTSIDE.
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT, {PointF{-10, -10}});
+    mDispatcher->notifyMotion(&motionArgs);
+    window->assertNoEvents();
+    secondWindow->assertNoEvents();
+
+    // The second pointer lands inside `secondWindow`, which should receive a DOWN event.
+    // Now, `window` should get ACTION_OUTSIDE.
+    motionArgs = generateMotionArgs(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                                    {PointF{-10, -10}, PointF{105, 105}});
+    mDispatcher->notifyMotion(&motionArgs);
+    window->consumeMotionOutside();
+    secondWindow->consumeMotionDown();
+    thirdWindow->assertNoEvents();
+
+    // The third pointer lands inside `thirdWindow`, which should receive a DOWN event. There is
+    // no ACTION_OUTSIDE sent to `window` because one has already been sent for this gesture.
+    motionArgs = generateMotionArgs(POINTER_2_DOWN, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                                    {PointF{-10, -10}, PointF{105, 105}, PointF{205, 205}});
+    mDispatcher->notifyMotion(&motionArgs);
+    window->assertNoEvents();
+    secondWindow->consumeMotionMove();
+    thirdWindow->consumeMotionDown();
 }
 
 /**
@@ -6336,8 +6385,11 @@ protected:
         mWindow->consumeFocusEvent(true);
 
         // Set initial touch mode to InputDispatcher::kDefaultInTouchMode.
-        mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode, INJECTOR_PID,
-                                    INJECTOR_UID, /* hasPermission */ true);
+        if (mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode, INJECTOR_PID,
+                                        INJECTOR_UID, /* hasPermission */ true)) {
+            mWindow->consumeTouchModeEvent(InputDispatcher::kDefaultInTouchMode);
+            mSecondWindow->consumeTouchModeEvent(InputDispatcher::kDefaultInTouchMode);
+        }
     }
 
     void changeAndVerifyTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission) {
@@ -6380,6 +6432,23 @@ TEST_F(InputDispatcherTouchModeChangedTests, EventIsNotGeneratedIfNotChangingTou
                                              /* hasPermission */ true));
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTouchModeChangedTests, CanChangeTouchModeWhenOwningLastInteractedWindow) {
+    // Interact with the window first.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDown(mDispatcher, ADISPLAY_ID_DEFAULT))
+            << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
+    mWindow->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+
+    // Then remove focus.
+    mWindow->setFocusable(false);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
+
+    // Assert that caller can switch touch mode by owning one of the last interacted window.
+    const WindowInfo& windowInfo = *mWindow->getInfo();
+    ASSERT_TRUE(mDispatcher->setInTouchMode(!InputDispatcher::kDefaultInTouchMode,
+                                            windowInfo.ownerPid, windowInfo.ownerUid,
+                                            /* hasPermission= */ false));
 }
 
 class InputDispatcherSpyWindowTest : public InputDispatcherTest {
@@ -6666,9 +6735,7 @@ TEST_F(InputDispatcherSpyWindowTest, ContinuesToReceiveGestureAfterPilfer) {
 
     // Third finger goes down outside all windows, so injection should fail.
     const MotionEvent thirdFingerDownEvent =
-            MotionEventBuilder(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       (2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                               AINPUT_SOURCE_TOUCHSCREEN)
+            MotionEventBuilder(POINTER_2_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
                     .pointer(PointerBuilder(/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER)

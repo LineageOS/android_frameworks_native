@@ -473,7 +473,8 @@ static bool internal_storage_has_project_id() {
                 StringPrintf("%smisc/installd/using_project_ids", android_data_dir.c_str());
         sUsingProjectIdsFlag = access(using_project_ids.c_str(), F_OK) == 0;
     });
-    return sUsingProjectIdsFlag;
+    // return sUsingProjectIdsFlag;
+    return false;
 }
 
 static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t uid, gid_t gid,
@@ -3429,7 +3430,7 @@ bool check_if_ioctl_feature_is_supported() {
     auto temp_path = StringPrintf("%smisc/installd/ioctl_check", android_data_dir.c_str());
     if (access(temp_path.c_str(), F_OK) != 0) {
         int fd = open(temp_path.c_str(), O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, 0644);
-        result = set_quota_project_id(temp_path, 0, true) == 0;
+        result = set_quota_project_id(temp_path, 0, false) == 0;
         close(fd);
         // delete the temp file
         remove(temp_path.c_str());
