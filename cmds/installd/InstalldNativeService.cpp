@@ -474,7 +474,8 @@ static bool internal_storage_has_project_id() {
                 StringPrintf("%smisc/installd/using_project_ids", android_data_dir.c_str());
         sUsingProjectIdsFlag = access(using_project_ids.c_str(), F_OK) == 0;
     });
-    return sUsingProjectIdsFlag;
+    //    return sUsingProjectIdsFlag;
+    return false;
 }
 
 static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t uid, gid_t gid,
