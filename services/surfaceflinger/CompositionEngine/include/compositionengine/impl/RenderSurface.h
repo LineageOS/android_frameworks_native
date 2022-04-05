@@ -63,6 +63,7 @@ public:
     void queueBuffer(base::unique_fd readyFence) override;
     void onPresentDisplayCompleted() override;
     void flip() override;
+    bool supportsCompositionStrategyPrediction() const override;
 
     // Debugging
     void dump(std::string& result) const override;
