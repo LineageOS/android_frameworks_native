@@ -213,6 +213,13 @@ enum {
      */
     ASENSOR_TYPE_HEART_BEAT = 31,
     /**
+     * A constant describing a dynamic sensor meta event sensor.
+     *
+     * A sensor event of this type is received when a dynamic sensor is added to or removed from
+     * the system. This sensor type should always use special trigger report mode.
+     */
+    ASENSOR_TYPE_DYNAMIC_SENSOR_META = 32,
+    /**
      * This sensor type is for delivering additional sensor information aside
      * from sensor event data.
      *
@@ -760,6 +767,10 @@ int ASensorManager_getSensorList(ASensorManager* manager, ASensorList* list);
  *
  * Each time this is called, the previously returned list is deallocated and
  * must no longer be used.
+ *
+ * Clients should call this if they receive a sensor update from
+ * {@link ASENSOR_TYPE_DYNAMIC_SENSOR_META} indicating the sensors have changed.
+ * If this happens, previously received lists from this method will be stale.
  *
  * Available since API level 33.
  *
