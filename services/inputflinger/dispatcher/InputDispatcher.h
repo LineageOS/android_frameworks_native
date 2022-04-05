@@ -433,7 +433,8 @@ private:
     // Dispatcher state at time of last ANR.
     std::string mLastAnrState GUARDED_BY(mLock);
 
-    // The connection tokens of the channels that the user last interacted, for debugging
+    // The connection tokens of the channels that the user last interacted (used for debugging and
+    // when switching touch mode state).
     std::unordered_set<sp<IBinder>, StrongPointerHash<IBinder>> mInteractionConnectionTokens
             GUARDED_BY(mLock);
     void updateInteractionTokensLocked(const EventEntry& entry,
@@ -676,6 +677,10 @@ private:
     void traceInboundQueueLengthLocked() REQUIRES(mLock);
     void traceOutboundQueueLength(const Connection& connection);
     void traceWaitQueueLength(const Connection& connection);
+
+    // Check window ownership
+    bool focusedWindowIsOwnedByLocked(int32_t pid, int32_t uid) REQUIRES(mLock);
+    bool recentWindowsAreOwnedByLocked(int32_t pid, int32_t uid) REQUIRES(mLock);
 
     sp<InputReporterInterface> mReporter;
 };
