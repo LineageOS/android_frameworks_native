@@ -148,6 +148,18 @@ struct OutputCompositionState {
     // This is slightly distinct from nits, in that nits cannot be passed to hw composer.
     std::optional<float> displayBrightness = std::nullopt;
 
+    enum class CompositionStrategyPredictionState : uint32_t {
+        // Composition strategy prediction did not run for this frame.
+        DISABLED = 0,
+        // Composition strategy predicted successfully for this frame.
+        SUCCESS = 1,
+        // Composition strategy prediction failed for this frame.
+        FAIL = 2,
+    };
+
+    CompositionStrategyPredictionState strategyPrediction =
+            CompositionStrategyPredictionState::DISABLED;
+
     // Debugging
     void dump(std::string& result) const;
 };
