@@ -551,6 +551,13 @@ SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
     mListenerCallbacks = other.mListenerCallbacks;
 }
 
+void SurfaceComposerClient::Transaction::sanitize() {
+    for (auto & [handle, composerState] : mComposerStates) {
+        composerState.state.sanitize(0 /* permissionMask */);
+    }
+    mInputWindowCommands.clear();
+}
+
 std::unique_ptr<SurfaceComposerClient::Transaction>
 SurfaceComposerClient::Transaction::createFromParcel(const Parcel* parcel) {
     auto transaction = std::make_unique<Transaction>();
@@ -635,7 +642,6 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
         if (composerState.read(*parcel) == BAD_VALUE) {
             return BAD_VALUE;
         }
-
         composerStates[surfaceControlHandle] = composerState;
     }
 
