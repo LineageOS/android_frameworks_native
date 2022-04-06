@@ -100,6 +100,9 @@ public:
 
     // Debugging - gets the page flip count for the RenderSurface
     virtual std::uint32_t getPageFlipCount() const = 0;
+
+    // Returns true if the render surface supports client composition prediction.
+    virtual bool supportsCompositionStrategyPrediction() const = 0;
 };
 
 } // namespace compositionengine

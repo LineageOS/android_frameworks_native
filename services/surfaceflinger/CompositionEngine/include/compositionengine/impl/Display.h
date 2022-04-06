@@ -22,6 +22,7 @@
 #include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/DisplayCreationArgs.h>
 #include <compositionengine/RenderSurface.h>
+#include <compositionengine/impl/GpuCompositionResult.h>
 #include <compositionengine/impl/Output.h>
 #include <ui/PixelFormat.h>
 #include <ui/Size.h>
@@ -51,11 +52,16 @@ public:
     void setReleasedLayers(const CompositionRefreshArgs&) override;
     void setColorTransform(const CompositionRefreshArgs&) override;
     void setColorProfile(const ColorProfile&) override;
-    void chooseCompositionStrategy() override;
+
+    void beginFrame() override;
+    using DeviceRequestedChanges = android::HWComposer::DeviceRequestedChanges;
+    bool chooseCompositionStrategy(
+            std::optional<android::HWComposer::DeviceRequestedChanges>*) override;
+    void applyCompositionStrategy(const std::optional<DeviceRequestedChanges>&) override;
     bool getSkipColorTransform() const override;
     compositionengine::Output::FrameFences presentAndGetFrameFences() override;
     void setExpensiveRenderingExpected(bool) override;
-    void finishFrame(const CompositionRefreshArgs&) override;
+    void finishFrame(const CompositionRefreshArgs&, GpuCompositionResult&&) override;
 
     // compositionengine::Display overrides
     DisplayId getId() const override;
@@ -72,7 +78,6 @@ public:
     using DisplayRequests = android::HWComposer::DeviceRequestedChanges::DisplayRequests;
     using LayerRequests = android::HWComposer::DeviceRequestedChanges::LayerRequests;
     using ClientTargetProperty = android::HWComposer::DeviceRequestedChanges::ClientTargetProperty;
-    virtual bool anyLayersRequireClientComposition() const;
     virtual bool allLayersRequireClientComposition() const;
     virtual void applyChangedTypesToLayers(const ChangedTypes&);
     virtual void applyDisplayRequests(const DisplayRequests&);

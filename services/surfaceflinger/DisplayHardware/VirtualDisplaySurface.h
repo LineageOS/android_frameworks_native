@@ -89,6 +89,9 @@ public:
     virtual void dumpAsString(String8& result) const;
     virtual void resizeBuffers(const ui::Size&) override;
     virtual const sp<Fence>& getClientTargetAcquireFence() const override;
+    // Virtual display surface needs to prepare the frame based on composition type. Skip
+    // any client composition prediction.
+    virtual bool supportsCompositionStrategyPrediction() const override { return false; };
 
 private:
     enum Source : size_t {

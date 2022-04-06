@@ -208,12 +208,14 @@ int64_t TransactionCompletedListener::getNextIdLocked() {
 }
 
 sp<TransactionCompletedListener> TransactionCompletedListener::sInstance = nullptr;
+static std::mutex sListenerInstanceMutex;
 
 void TransactionCompletedListener::setInstance(const sp<TransactionCompletedListener>& listener) {
     sInstance = listener;
 }
 
 sp<TransactionCompletedListener> TransactionCompletedListener::getInstance() {
+    std::lock_guard<std::mutex> lock(sListenerInstanceMutex);
     if (sInstance == nullptr) {
         sInstance = new TransactionCompletedListener;
     }
