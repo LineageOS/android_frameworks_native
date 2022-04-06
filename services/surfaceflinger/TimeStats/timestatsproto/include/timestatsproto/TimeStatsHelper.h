@@ -178,6 +178,8 @@ public:
         Histogram frameDurationLegacy;
         Histogram renderEngineTimingLegacy;
         std::unordered_map<uint32_t, nsecs_t> refreshRateStatsLegacy;
+        int32_t compositionStrategyPredictedLegacy = 0;
+        int32_t compositionStrategyPredictionSucceededLegacy = 0;
 
         std::unordered_map<TimelineStatsKey, TimelineStats, TimelineStatsKey::Hasher> stats;
 
