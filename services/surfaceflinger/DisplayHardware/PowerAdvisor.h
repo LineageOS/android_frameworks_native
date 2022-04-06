@@ -173,8 +173,8 @@ private:
 
     // Max percent the actual duration can vary without causing a report (eg: 0.1 = 10%)
     static constexpr double kAllowedActualDeviationPercent = 0.1;
-    // Max percent the target duration can vary without causing a report (eg: 0.05 = 5%)
-    static constexpr double kAllowedTargetDeviationPercent = 0.05;
+    // Max percent the target duration can vary without causing a report (eg: 0.1 = 10%)
+    static constexpr double kAllowedTargetDeviationPercent = 0.1;
     // Target used for init and normalization, the actual value does not really matter
     static constexpr const std::chrono::nanoseconds kDefaultTarget = 50ms;
     // Amount of time after the last message was sent before the session goes stale
