@@ -1083,6 +1083,34 @@ TEST_F(BLASTBufferQueueTest, SyncNextTransactionAcquireMultipleBuffers) {
             checkScreenCapture(255, 0, 0, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
 
+TEST_F(BLASTBufferQueueTest, SyncNextTransactionOverwrite) {
+    std::mutex mutex;
+    std::condition_variable callbackReceivedCv;
+    bool receivedCallback = false;
+
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+    ASSERT_EQ(nullptr, adapter.getTransactionReadyCallback());
+    auto callback = [&](Transaction*) {
+        std::unique_lock<std::mutex> lock(mutex);
+        receivedCallback = true;
+        callbackReceivedCv.notify_one();
+    };
+    adapter.syncNextTransaction(callback);
+    ASSERT_NE(nullptr, adapter.getTransactionReadyCallback());
+
+    auto callback2 = [](Transaction*) {};
+    adapter.syncNextTransaction(callback2);
+
+    std::unique_lock<std::mutex> lock(mutex);
+    if (!receivedCallback) {
+        ASSERT_NE(callbackReceivedCv.wait_for(lock, std::chrono::seconds(3)),
+                  std::cv_status::timeout)
+                << "did not receive callback";
+    }
+
+    ASSERT_TRUE(receivedCallback);
+}
+
 // This test will currently fail because the old surfacecontrol will steal the last presented buffer
 // until the old surface control is destroyed. This is not necessarily a bug but to document a
 // limitation with the update API and to test any changes to make the api more robust. The current

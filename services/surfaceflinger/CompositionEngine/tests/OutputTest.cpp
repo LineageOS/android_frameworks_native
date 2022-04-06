@@ -993,7 +993,9 @@ struct OutputPrepareFrameTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
         // Sets up the helper functions called by the function under test to use
         // mock implementations.
-        MOCK_METHOD0(chooseCompositionStrategy, std::optional<DeviceRequestedChanges>());
+        MOCK_METHOD1(chooseCompositionStrategy,
+                     bool(std::optional<android::HWComposer::DeviceRequestedChanges>*));
+        MOCK_METHOD0(resetCompositionStrategy, void());
     };
 
     OutputPrepareFrameTest() {
@@ -1019,7 +1021,8 @@ TEST_F(OutputPrepareFrameTest, delegatesToChooseCompositionStrategyAndRenderSurf
     mOutput.editState().usesClientComposition = false;
     mOutput.editState().usesDeviceComposition = true;
 
-    EXPECT_CALL(mOutput, chooseCompositionStrategy()).Times(1);
+    EXPECT_CALL(mOutput, chooseCompositionStrategy(_)).WillRepeatedly(Return(true));
+    EXPECT_CALL(mOutput, resetCompositionStrategy()).Times(1);
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
     EXPECT_CALL(*mRenderSurface, prepareFrame(false, true));
 
@@ -1047,16 +1050,19 @@ struct OutputPrepareFrameAsyncTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
         // Sets up the helper functions called by the function under test to use
         // mock implementations.
-        MOCK_METHOD0(chooseCompositionStrategy, std::optional<DeviceRequestedChanges>());
+        MOCK_METHOD1(chooseCompositionStrategy,
+                     bool(std::optional<android::HWComposer::DeviceRequestedChanges>*));
         MOCK_METHOD0(updateProtectedContentState, void());
         MOCK_METHOD2(dequeueRenderBuffer,
                      bool(base::unique_fd*, std::shared_ptr<renderengine::ExternalTexture>*));
-        MOCK_METHOD0(chooseCompositionStrategyAsync,
-                     std::future<std::optional<android::HWComposer::DeviceRequestedChanges>>());
+        MOCK_METHOD1(
+                chooseCompositionStrategyAsync,
+                std::future<bool>(std::optional<android::HWComposer::DeviceRequestedChanges>*));
         MOCK_METHOD4(composeSurfaces,
                      std::optional<base::unique_fd>(
                              const Region&, const compositionengine::CompositionRefreshArgs&,
                              std::shared_ptr<renderengine::ExternalTexture>, base::unique_fd&));
+        MOCK_METHOD0(resetCompositionStrategy, void());
     };
 
     OutputPrepareFrameAsyncTest() {
@@ -1078,14 +1084,17 @@ TEST_F(OutputPrepareFrameAsyncTest, delegatesToChooseCompositionStrategyAndRende
     mOutput.editState().usesDeviceComposition = true;
     mOutput.editState().previousDeviceRequestedChanges =
             std::make_optional<android::HWComposer::DeviceRequestedChanges>({});
-    std::promise<std::optional<android::HWComposer::DeviceRequestedChanges>> p;
-    p.set_value(mOutput.editState().previousDeviceRequestedChanges);
+    std::promise<bool> p;
+    p.set_value(true);
 
+    EXPECT_CALL(mOutput, resetCompositionStrategy()).Times(1);
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
     EXPECT_CALL(mOutput, updateProtectedContentState());
     EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _)).WillOnce(Return(true));
-    EXPECT_CALL(*mRenderSurface, prepareFrame(false, true));
-    EXPECT_CALL(mOutput, chooseCompositionStrategyAsync()).WillOnce([&] { return p.get_future(); });
+    EXPECT_CALL(*mRenderSurface, prepareFrame(false, true)).Times(1);
+    EXPECT_CALL(mOutput, chooseCompositionStrategyAsync(_))
+            .WillOnce(DoAll(SetArgPointee<0>(mOutput.editState().previousDeviceRequestedChanges),
+                            Return(ByMove(p.get_future()))));
     EXPECT_CALL(mOutput, composeSurfaces(_, Ref(mRefreshArgs), _, _));
 
     impl::GpuCompositionResult result = mOutput.prepareFrameAsync(mRefreshArgs);
@@ -1099,14 +1108,17 @@ TEST_F(OutputPrepareFrameAsyncTest, skipCompositionOnDequeueFailure) {
     mOutput.editState().usesDeviceComposition = true;
     mOutput.editState().previousDeviceRequestedChanges =
             std::make_optional<android::HWComposer::DeviceRequestedChanges>({});
-    std::promise<std::optional<android::HWComposer::DeviceRequestedChanges>> p;
-    p.set_value(mOutput.editState().previousDeviceRequestedChanges);
+    std::promise<bool> p;
+    p.set_value(true);
 
+    EXPECT_CALL(mOutput, resetCompositionStrategy()).Times(2);
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
     EXPECT_CALL(mOutput, updateProtectedContentState());
     EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _)).WillOnce(Return(false));
     EXPECT_CALL(*mRenderSurface, prepareFrame(false, true)).Times(2);
-    EXPECT_CALL(mOutput, chooseCompositionStrategyAsync()).WillOnce([&] { return p.get_future(); });
+    EXPECT_CALL(mOutput, chooseCompositionStrategyAsync(_))
+            .WillOnce(DoAll(SetArgPointee<0>(mOutput.editState().previousDeviceRequestedChanges),
+                            Return(ByMove(p.get_future()))));
 
     impl::GpuCompositionResult result = mOutput.prepareFrameAsync(mRefreshArgs);
     EXPECT_EQ(mOutput.getState().strategyPrediction, CompositionStrategyPredictionState::FAIL);
@@ -1121,19 +1133,21 @@ TEST_F(OutputPrepareFrameAsyncTest, chooseCompositionStrategyFailureCallsPrepare
     mOutput.editState().usesDeviceComposition = true;
     mOutput.editState().previousDeviceRequestedChanges =
             std::make_optional<android::HWComposer::DeviceRequestedChanges>({});
-    std::promise<std::optional<android::HWComposer::DeviceRequestedChanges>> p;
-    p.set_value({});
+    std::promise<bool> p;
+    p.set_value(false);
     std::shared_ptr<renderengine::ExternalTexture> tex =
             std::make_shared<renderengine::mock::FakeExternalTexture>(1, 1,
                                                                       HAL_PIXEL_FORMAT_RGBA_8888, 1,
                                                                       2);
-
+    EXPECT_CALL(mOutput, resetCompositionStrategy()).Times(2);
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
     EXPECT_CALL(mOutput, updateProtectedContentState());
     EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _))
             .WillOnce(DoAll(SetArgPointee<1>(tex), Return(true)));
     EXPECT_CALL(*mRenderSurface, prepareFrame(false, true)).Times(2);
-    EXPECT_CALL(mOutput, chooseCompositionStrategyAsync()).WillOnce([&] { return p.get_future(); });
+    EXPECT_CALL(mOutput, chooseCompositionStrategyAsync(_)).WillOnce([&] {
+        return p.get_future();
+    });
     EXPECT_CALL(mOutput, composeSurfaces(_, Ref(mRefreshArgs), _, _));
 
     impl::GpuCompositionResult result = mOutput.prepareFrameAsync(mRefreshArgs);
@@ -1149,20 +1163,23 @@ TEST_F(OutputPrepareFrameAsyncTest, predictionMiss) {
             std::make_optional<android::HWComposer::DeviceRequestedChanges>({});
     auto newDeviceRequestedChanges =
             std::make_optional<android::HWComposer::DeviceRequestedChanges>({});
-    newDeviceRequestedChanges->clientTargetBrightness = 5.f;
-    std::promise<std::optional<android::HWComposer::DeviceRequestedChanges>> p;
-    p.set_value(newDeviceRequestedChanges);
+    newDeviceRequestedChanges->displayRequests = static_cast<hal::DisplayRequest>(0);
+    std::promise<bool> p;
+    p.set_value(false);
     std::shared_ptr<renderengine::ExternalTexture> tex =
             std::make_shared<renderengine::mock::FakeExternalTexture>(1, 1,
                                                                       HAL_PIXEL_FORMAT_RGBA_8888, 1,
                                                                       2);
 
+    EXPECT_CALL(mOutput, resetCompositionStrategy()).Times(2);
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
     EXPECT_CALL(mOutput, updateProtectedContentState());
     EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _))
             .WillOnce(DoAll(SetArgPointee<1>(tex), Return(true)));
     EXPECT_CALL(*mRenderSurface, prepareFrame(false, true)).Times(2);
-    EXPECT_CALL(mOutput, chooseCompositionStrategyAsync()).WillOnce([&] { return p.get_future(); });
+    EXPECT_CALL(mOutput, chooseCompositionStrategyAsync(_)).WillOnce([&] {
+        return p.get_future();
+    });
     EXPECT_CALL(mOutput, composeSurfaces(_, Ref(mRefreshArgs), _, _));
 
     impl::GpuCompositionResult result = mOutput.prepareFrameAsync(mRefreshArgs);
@@ -1443,6 +1460,8 @@ struct OutputEnsureOutputLayerIfVisibleTest : public testing::Test {
     static const Region kLowerHalfBoundsNoRotation;
     static const Region kFullBounds90Rotation;
     static const Region kTransparentRegionHint;
+    static const Region kTransparentRegionHintTwo;
+    static const Region kTransparentRegionHintTwo90Rotation;
 
     StrictMock<OutputPartialMock> mOutput;
     LayerFESet mGeomSnapshots;
@@ -1462,6 +1481,10 @@ const Region OutputEnsureOutputLayerIfVisibleTest::kFullBounds90Rotation =
         Region(Rect(0, 0, 200, 100));
 const Region OutputEnsureOutputLayerIfVisibleTest::kTransparentRegionHint =
         Region(Rect(0, 0, 100, 100));
+const Region OutputEnsureOutputLayerIfVisibleTest::kTransparentRegionHintTwo =
+        Region(Rect(25, 20, 50, 75));
+const Region OutputEnsureOutputLayerIfVisibleTest::kTransparentRegionHintTwo90Rotation =
+        Region(Rect(125, 25, 180, 50));
 
 TEST_F(OutputEnsureOutputLayerIfVisibleTest, performsGeomLatchBeforeCheckingIfLayerIncluded) {
     EXPECT_CALL(mOutput, includesLayer(sp<LayerFE>(mLayer.layerFE))).WillOnce(Return(false));
@@ -1910,6 +1933,25 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, normalLayersDoNotSetBlockingRegion)
     ensureOutputLayerIfVisible();
 
     EXPECT_THAT(mLayer.outputLayerState.outputSpaceBlockingRegionHint, RegionEq(Region()));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, blockingRegionIsInOutputSpace) {
+    mLayer.layerFEState.isOpaque = false;
+    mLayer.layerFEState.contentDirty = true;
+    mLayer.layerFEState.compositionType =
+            aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION;
+    mLayer.layerFEState.transparentRegionHint = kTransparentRegionHintTwo;
+
+    mOutput.mState.layerStackSpace.setContent(Rect(0, 0, 300, 200));
+    mOutput.mState.transform = ui::Transform(TR_ROT_90, 200, 300);
+
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(std::nullopt), Eq(mLayer.layerFE)))
+            .WillOnce(Return(&mLayer.outputLayer));
+    ensureOutputLayerIfVisible();
+
+    EXPECT_THAT(mLayer.outputLayerState.outputSpaceBlockingRegionHint,
+                RegionEq(kTransparentRegionHintTwo90Rotation));
 }
 
 /*
@@ -3660,6 +3702,15 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
           : public CallOrderStateMachineHelper<TestType, OutputWithDisplayBrightnessNits> {
         auto withDisplayBrightnessNits(float nits) {
             getInstance()->mOutput.mState.displayBrightnessNits = nits;
+            return nextState<OutputWithDimmingStage>();
+        }
+    };
+
+    struct OutputWithDimmingStage
+          : public CallOrderStateMachineHelper<TestType, OutputWithDimmingStage> {
+        auto withDimmingStage(
+                aidl::android::hardware::graphics::composer3::DimmingStage dimmingStage) {
+            getInstance()->mOutput.mState.clientTargetDimmingStage = dimmingStage;
             return nextState<SkipColorTransformState>();
         }
     };
@@ -3692,16 +3743,20 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposi
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed({.physicalDisplay = kDefaultOutputDestinationClip,
-                                            .clip = kDefaultOutputViewport,
-                                            .maxLuminance = kDefaultMaxLuminance,
-                                            .currentLuminanceNits = kDefaultMaxLuminance,
-                                            .outputDataspace = kDefaultOutputDataspace,
-                                            .colorTransform = kDefaultColorTransformMat,
-                                            .deviceHandlesColorTransform = true,
-                                            .orientation = kDefaultOutputOrientationFlags,
-                                            .targetLuminanceNits = kClientTargetLuminanceNits})
+            .thenExpectDisplaySettingsUsed(
+                    {.physicalDisplay = kDefaultOutputDestinationClip,
+                     .clip = kDefaultOutputViewport,
+                     .maxLuminance = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .outputDataspace = kDefaultOutputDataspace,
+                     .colorTransform = kDefaultColorTransformMat,
+                     .deviceHandlesColorTransform = true,
+                     .orientation = kDefaultOutputOrientationFlags,
+                     .targetLuminanceNits = kClientTargetLuminanceNits,
+                     .dimmingStage =
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3711,16 +3766,45 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
+
+            .andIfSkipColorTransform(false)
+            .thenExpectDisplaySettingsUsed(
+                    {.physicalDisplay = kDefaultOutputDestinationClip,
+                     .clip = kDefaultOutputViewport,
+                     .maxLuminance = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDisplayLuminance,
+                     .outputDataspace = kDefaultOutputDataspace,
+                     .colorTransform = kDefaultColorTransformMat,
+                     .deviceHandlesColorTransform = true,
+                     .orientation = kDefaultOutputOrientationFlags,
+                     .targetLuminanceNits = kClientTargetLuminanceNits,
+                     .dimmingStage =
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR})
+            .execute()
+            .expectAFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
+       forHdrMixedCompositionWithDimmingStage) {
+    verify().ifMixedCompositionIs(true)
+            .andIfUsesHdr(true)
+            .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDimmingStage(
+                    aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF)
+
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed({.physicalDisplay = kDefaultOutputDestinationClip,
                                             .clip = kDefaultOutputViewport,
                                             .maxLuminance = kDefaultMaxLuminance,
-                                            .currentLuminanceNits = kDisplayLuminance,
+                                            .currentLuminanceNits = kDefaultMaxLuminance,
                                             .outputDataspace = kDefaultOutputDataspace,
                                             .colorTransform = kDefaultColorTransformMat,
                                             .deviceHandlesColorTransform = true,
                                             .orientation = kDefaultOutputOrientationFlags,
-                                            .targetLuminanceNits = kClientTargetLuminanceNits})
+                                            .targetLuminanceNits = kClientTargetLuminanceNits,
+                                            .dimmingStage = aidl::android::hardware::graphics::
+                                                    composer3::DimmingStage::GAMMA_OETF})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3729,16 +3813,21 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComp
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(false)
             .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
+
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed({.physicalDisplay = kDefaultOutputDestinationClip,
-                                            .clip = kDefaultOutputViewport,
-                                            .maxLuminance = kDefaultMaxLuminance,
-                                            .currentLuminanceNits = kDefaultMaxLuminance,
-                                            .outputDataspace = kDefaultOutputDataspace,
-                                            .colorTransform = kDefaultColorTransformMat,
-                                            .deviceHandlesColorTransform = true,
-                                            .orientation = kDefaultOutputOrientationFlags,
-                                            .targetLuminanceNits = kClientTargetLuminanceNits})
+            .thenExpectDisplaySettingsUsed(
+                    {.physicalDisplay = kDefaultOutputDestinationClip,
+                     .clip = kDefaultOutputViewport,
+                     .maxLuminance = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .outputDataspace = kDefaultOutputDataspace,
+                     .colorTransform = kDefaultColorTransformMat,
+                     .deviceHandlesColorTransform = true,
+                     .orientation = kDefaultOutputOrientationFlags,
+                     .targetLuminanceNits = kClientTargetLuminanceNits,
+                     .dimmingStage =
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3747,16 +3836,21 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientCo
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
+
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed({.physicalDisplay = kDefaultOutputDestinationClip,
-                                            .clip = kDefaultOutputViewport,
-                                            .maxLuminance = kDefaultMaxLuminance,
-                                            .currentLuminanceNits = kDefaultMaxLuminance,
-                                            .outputDataspace = kDefaultOutputDataspace,
-                                            .colorTransform = kDefaultColorTransformMat,
-                                            .deviceHandlesColorTransform = false,
-                                            .orientation = kDefaultOutputOrientationFlags,
-                                            .targetLuminanceNits = kClientTargetLuminanceNits})
+            .thenExpectDisplaySettingsUsed(
+                    {.physicalDisplay = kDefaultOutputDestinationClip,
+                     .clip = kDefaultOutputViewport,
+                     .maxLuminance = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .outputDataspace = kDefaultOutputDataspace,
+                     .colorTransform = kDefaultColorTransformMat,
+                     .deviceHandlesColorTransform = false,
+                     .orientation = kDefaultOutputOrientationFlags,
+                     .targetLuminanceNits = kClientTargetLuminanceNits,
+                     .dimmingStage =
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3765,16 +3859,21 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClien
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(false)
             .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
+
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed({.physicalDisplay = kDefaultOutputDestinationClip,
-                                            .clip = kDefaultOutputViewport,
-                                            .maxLuminance = kDefaultMaxLuminance,
-                                            .currentLuminanceNits = kDefaultMaxLuminance,
-                                            .outputDataspace = kDefaultOutputDataspace,
-                                            .colorTransform = kDefaultColorTransformMat,
-                                            .deviceHandlesColorTransform = false,
-                                            .orientation = kDefaultOutputOrientationFlags,
-                                            .targetLuminanceNits = kClientTargetLuminanceNits})
+            .thenExpectDisplaySettingsUsed(
+                    {.physicalDisplay = kDefaultOutputDestinationClip,
+                     .clip = kDefaultOutputViewport,
+                     .maxLuminance = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .outputDataspace = kDefaultOutputDataspace,
+                     .colorTransform = kDefaultColorTransformMat,
+                     .deviceHandlesColorTransform = false,
+                     .orientation = kDefaultOutputOrientationFlags,
+                     .targetLuminanceNits = kClientTargetLuminanceNits,
+                     .dimmingStage =
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3784,16 +3883,21 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
+
             .andIfSkipColorTransform(true)
-            .thenExpectDisplaySettingsUsed({.physicalDisplay = kDefaultOutputDestinationClip,
-                                            .clip = kDefaultOutputViewport,
-                                            .maxLuminance = kDefaultMaxLuminance,
-                                            .currentLuminanceNits = kDefaultMaxLuminance,
-                                            .outputDataspace = kDefaultOutputDataspace,
-                                            .colorTransform = kDefaultColorTransformMat,
-                                            .deviceHandlesColorTransform = true,
-                                            .orientation = kDefaultOutputOrientationFlags,
-                                            .targetLuminanceNits = kClientTargetLuminanceNits})
+            .thenExpectDisplaySettingsUsed(
+                    {.physicalDisplay = kDefaultOutputDestinationClip,
+                     .clip = kDefaultOutputViewport,
+                     .maxLuminance = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .outputDataspace = kDefaultOutputDataspace,
+                     .colorTransform = kDefaultColorTransformMat,
+                     .deviceHandlesColorTransform = true,
+                     .orientation = kDefaultOutputOrientationFlags,
+                     .targetLuminanceNits = kClientTargetLuminanceNits,
+                     .dimmingStage =
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3986,8 +4090,9 @@ struct OutputComposeSurfacesTest_SetsExpensiveRendering : public OutputComposeSu
 TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering, IfExepensiveOutputDataspaceIsUsed) {
     mOutput.mState.dataspace = kExpensiveOutputDataspace;
 
+    LayerFE::LayerSettings layerSettings;
     EXPECT_CALL(mOutput, generateClientCompositionRequests(_, kExpensiveOutputDataspace, _))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>{}));
+            .WillOnce(Return(std::vector<LayerFE::LayerSettings>{layerSettings}));
 
     // For this test, we also check the call order of key functions.
     InSequence seq;

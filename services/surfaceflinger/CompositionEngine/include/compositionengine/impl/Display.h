@@ -53,8 +53,10 @@ public:
     void setColorTransform(const CompositionRefreshArgs&) override;
     void setColorProfile(const ColorProfile&) override;
 
+    void beginFrame() override;
     using DeviceRequestedChanges = android::HWComposer::DeviceRequestedChanges;
-    std::optional<DeviceRequestedChanges> chooseCompositionStrategy() override;
+    bool chooseCompositionStrategy(
+            std::optional<android::HWComposer::DeviceRequestedChanges>*) override;
     void applyCompositionStrategy(const std::optional<DeviceRequestedChanges>&) override;
     bool getSkipColorTransform() const override;
     compositionengine::Output::FrameFences presentAndGetFrameFences() override;
@@ -66,7 +68,6 @@ public:
     bool isSecure() const override;
     bool isVirtual() const override;
     void disconnect() override;
-    int32_t getPreferredBootHwcConfigId() const override;
     void createDisplayColorProfile(
             const compositionengine::DisplayColorProfileCreationArgs&) override;
     void createRenderSurface(const compositionengine::RenderSurfaceCreationArgs&) override;
@@ -81,7 +82,7 @@ public:
     virtual void applyChangedTypesToLayers(const ChangedTypes&);
     virtual void applyDisplayRequests(const DisplayRequests&);
     virtual void applyLayerRequestsToLayers(const LayerRequests&);
-    virtual void applyClientTargetRequests(const ClientTargetProperty&, float brightness);
+    virtual void applyClientTargetRequests(const ClientTargetProperty&);
 
     // Internal
     virtual void setConfiguration(const compositionengine::DisplayCreationArgs&);
@@ -91,7 +92,6 @@ private:
     DisplayId mId;
     bool mIsDisconnected = false;
     Hwc2::PowerAdvisor* mPowerAdvisor = nullptr;
-    int32_t mPreferredBootHwcConfigId = -1;
 };
 
 // This template factory function standardizes the implementation details of the

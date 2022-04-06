@@ -1562,15 +1562,21 @@ void RenderEngineTest::tonemap(ui::Dataspace sourceDataspace, std::function<vec3
         const vec3 xyz = bt2020.getRGBtoXYZ() * linearRGB;
 
         const vec3 scaledXYZ = scaleOotf(xyz, kCurrentLuminanceNits);
-        const double gain =
+        const auto gains =
                 tonemap::getToneMapper()
                         ->lookupTonemapGain(static_cast<aidl::android::hardware::graphics::common::
                                                                 Dataspace>(sourceDataspace),
                                             static_cast<aidl::android::hardware::graphics::common::
                                                                 Dataspace>(
                                                     ui::Dataspace::DISPLAY_P3),
-                                            scaleOotf(linearRGB, kCurrentLuminanceNits), scaledXYZ,
+                                            {tonemap::
+                                                     Color{.linearRGB =
+                                                                   scaleOotf(linearRGB,
+                                                                             kCurrentLuminanceNits),
+                                                           .xyz = scaledXYZ}},
                                             metadata);
+        EXPECT_EQ(1, gains.size());
+        const double gain = gains.front();
         const vec3 normalizedXYZ = scaledXYZ * gain / metadata.displayMaxLuminance;
 
         const vec3 targetRGB = OETF_sRGB(displayP3.getXYZtoRGB() * normalizedXYZ) * 255;
@@ -2399,15 +2405,18 @@ TEST_P(RenderEngineTest, testDisableBlendingBuffer) {
 
 TEST_P(RenderEngineTest, testDimming) {
     if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        return;
+        GTEST_SKIP();
     }
+
     initializeRenderEngine();
+
+    const ui::Dataspace dataspace = ui::Dataspace::V0_SRGB_LINEAR;
 
     const auto displayRect = Rect(3, 1);
     const renderengine::DisplaySettings display{
             .physicalDisplay = displayRect,
             .clip = displayRect,
-            .outputDataspace = ui::Dataspace::V0_SRGB_LINEAR,
+            .outputDataspace = dataspace,
             .targetLuminanceNits = 1000.f,
     };
 
@@ -2426,7 +2435,7 @@ TEST_P(RenderEngineTest, testDimming) {
                                     },
                     },
             .alpha = 1.0f,
-            .sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR,
+            .sourceDataspace = dataspace,
             .whitePointNits = 200.f,
     };
 
@@ -2441,7 +2450,7 @@ TEST_P(RenderEngineTest, testDimming) {
                                     },
                     },
             .alpha = 1.0f,
-            .sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR,
+            .sourceDataspace = dataspace,
             .whitePointNits = 1000.f / 51.f,
     };
 
@@ -2456,7 +2465,7 @@ TEST_P(RenderEngineTest, testDimming) {
                                     },
                     },
             .alpha = 1.0f,
-            .sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR,
+            .sourceDataspace = dataspace,
             // When the white point is not set for a layer, just ignore it and treat it as the same
             // as the max layer
             .whitePointNits = -1.f,
@@ -2468,6 +2477,84 @@ TEST_P(RenderEngineTest, testDimming) {
     expectBufferColor(Rect(1, 1), 0, 51, 0, 255, 1);
     expectBufferColor(Rect(1, 0, 2, 1), 0, 0, 5, 255, 1);
     expectBufferColor(Rect(2, 0, 3, 1), 51, 0, 0, 255, 1);
+}
+
+TEST_P(RenderEngineTest, testDimming_inGammaSpace) {
+    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        GTEST_SKIP();
+    }
+    initializeRenderEngine();
+
+    const ui::Dataspace dataspace = static_cast<ui::Dataspace>(ui::Dataspace::STANDARD_BT709 |
+                                                               ui::Dataspace::TRANSFER_GAMMA2_2 |
+                                                               ui::Dataspace::RANGE_FULL);
+
+    const auto displayRect = Rect(3, 1);
+    const renderengine::DisplaySettings display{
+            .physicalDisplay = displayRect,
+            .clip = displayRect,
+            .outputDataspace = dataspace,
+            .targetLuminanceNits = 1000.f,
+            .dimmingStage = aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF,
+    };
+
+    const auto greenBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(0, 255, 0, 255));
+    const auto blueBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(0, 0, 255, 255));
+    const auto redBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(255, 0, 0, 255));
+
+    const renderengine::LayerSettings greenLayer{
+            .geometry.boundaries = FloatRect(0.f, 0.f, 1.f, 1.f),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = greenBuffer,
+                                            .usePremultipliedAlpha = true,
+                                    },
+                    },
+            .alpha = 1.0f,
+            .sourceDataspace = dataspace,
+            .whitePointNits = 200.f,
+    };
+
+    const renderengine::LayerSettings blueLayer{
+            .geometry.boundaries = FloatRect(1.f, 0.f, 2.f, 1.f),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = blueBuffer,
+                                            .usePremultipliedAlpha = true,
+                                    },
+                    },
+            .alpha = 1.0f,
+            .sourceDataspace = dataspace,
+            .whitePointNits = 1000.f / 51.f,
+    };
+
+    const renderengine::LayerSettings redLayer{
+            .geometry.boundaries = FloatRect(2.f, 0.f, 3.f, 1.f),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = redBuffer,
+                                            .usePremultipliedAlpha = true,
+                                    },
+                    },
+            .alpha = 1.0f,
+            .sourceDataspace = dataspace,
+            // When the white point is not set for a layer, just ignore it and treat it as the same
+            // as the max layer
+            .whitePointNits = -1.f,
+    };
+
+    std::vector<renderengine::LayerSettings> layers{greenLayer, blueLayer, redLayer};
+    invokeDraw(display, layers);
+
+    expectBufferColor(Rect(1, 1), 0, 122, 0, 255, 1);
+    expectBufferColor(Rect(1, 0, 2, 1), 0, 0, 42, 255, 1);
+    expectBufferColor(Rect(2, 0, 3, 1), 122, 0, 0, 255, 1);
 }
 
 TEST_P(RenderEngineTest, testDimming_withoutTargetLuminance) {
@@ -2613,8 +2700,7 @@ TEST_P(RenderEngineTest, test_tonemapHLGMatches) {
             [](vec3 color) { return EOTF_HLG(color); },
             [](vec3 color, float currentLuminaceNits) {
                 static constexpr float kMaxHLGLuminance = 1000.f;
-                static const float kHLGGamma = 1.2 + 0.42 * std::log10(currentLuminaceNits / 1000);
-                return color * kMaxHLGLuminance * std::pow(color.y, kHLGGamma - 1);
+                return color * kMaxHLGLuminance;
             });
 }
 

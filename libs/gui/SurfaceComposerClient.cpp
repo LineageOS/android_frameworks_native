@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <android/gui/DisplayState.h>
 #include <android/gui/IWindowInfosListener.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
@@ -43,6 +44,7 @@
 #include <gui/WindowInfo.h>
 #include <private/gui/ParcelUtils.h>
 #include <ui/DisplayMode.h>
+#include <ui/DisplayState.h>
 #include <ui/DynamicDisplayInfo.h>
 
 #include <private/gui/ComposerService.h>
@@ -206,12 +208,14 @@ int64_t TransactionCompletedListener::getNextIdLocked() {
 }
 
 sp<TransactionCompletedListener> TransactionCompletedListener::sInstance = nullptr;
+static std::mutex sListenerInstanceMutex;
 
 void TransactionCompletedListener::setInstance(const sp<TransactionCompletedListener>& listener) {
     sInstance = listener;
 }
 
 sp<TransactionCompletedListener> TransactionCompletedListener::getInstance() {
+    std::lock_guard<std::mutex> lock(sListenerInstanceMutex);
     if (sInstance == nullptr) {
         sInstance = new TransactionCompletedListener;
     }
@@ -1022,32 +1026,59 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
 // ---------------------------------------------------------------------------
 
 sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName, bool secure) {
-    return ComposerService::getComposerService()->createDisplay(displayName,
-            secure);
+    sp<IBinder> display = nullptr;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->createDisplay(std::string(
+                                                                             displayName.string()),
+                                                                     secure, &display);
+    return status.isOk() ? display : nullptr;
 }
 
 void SurfaceComposerClient::destroyDisplay(const sp<IBinder>& display) {
-    return ComposerService::getComposerService()->destroyDisplay(display);
+    ComposerServiceAIDL::getComposerService()->destroyDisplay(display);
 }
 
 std::vector<PhysicalDisplayId> SurfaceComposerClient::getPhysicalDisplayIds() {
-    return ComposerService::getComposerService()->getPhysicalDisplayIds();
+    std::vector<int64_t> displayIds;
+    std::vector<PhysicalDisplayId> physicalDisplayIds;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getPhysicalDisplayIds(&displayIds);
+    if (status.isOk()) {
+        physicalDisplayIds.reserve(displayIds.size());
+        for (auto item : displayIds) {
+            auto id = DisplayId::fromValue<PhysicalDisplayId>(static_cast<uint64_t>(item));
+            physicalDisplayIds.push_back(*id);
+        }
+    }
+    return physicalDisplayIds;
 }
 
 status_t SurfaceComposerClient::getPrimaryPhysicalDisplayId(PhysicalDisplayId* id) {
-    return ComposerService::getComposerService()->getPrimaryPhysicalDisplayId(id);
+    int64_t displayId;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getPrimaryPhysicalDisplayId(&displayId);
+    if (status.isOk()) {
+        *id = *DisplayId::fromValue<PhysicalDisplayId>(static_cast<uint64_t>(displayId));
+    }
+    return status.transactionError();
 }
 
 std::optional<PhysicalDisplayId> SurfaceComposerClient::getInternalDisplayId() {
-    return ComposerService::getComposerService()->getInternalDisplayId();
+    ComposerServiceAIDL& instance = ComposerServiceAIDL::getInstance();
+    return instance.getInternalDisplayId();
 }
 
 sp<IBinder> SurfaceComposerClient::getPhysicalDisplayToken(PhysicalDisplayId displayId) {
-    return ComposerService::getComposerService()->getPhysicalDisplayToken(displayId);
+    sp<IBinder> display = nullptr;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getPhysicalDisplayToken(displayId.value,
+                                                                               &display);
+    return status.isOk() ? display : nullptr;
 }
 
 sp<IBinder> SurfaceComposerClient::getInternalDisplayToken() {
-    return ComposerService::getComposerService()->getInternalDisplayToken();
+    ComposerServiceAIDL& instance = ComposerServiceAIDL::getInstance();
+    return instance.getInternalDisplayToken();
 }
 
 void SurfaceComposerClient::Transaction::setAnimationTransaction() {
@@ -1190,6 +1221,20 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setTrans
     }
     s->what |= layer_state_t::eTransparentRegionChanged;
     s->transparentRegion = transparentRegion;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDimmingEnabled(
+        const sp<SurfaceControl>& sc, bool dimmingEnabled) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eDimmingEnabledChanged;
+    s->dimmingEnabled = dimmingEnabled;
 
     registerSurfaceControlForCallback(sc);
     return *this;
@@ -1421,7 +1466,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffer(
         const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
-        const std::optional<sp<Fence>>& fence, const std::optional<uint64_t>& frameNumber,
+        const std::optional<sp<Fence>>& fence, const std::optional<uint64_t>& optFrameNumber,
         ReleaseBufferCallback callback) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
@@ -1433,10 +1478,9 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
 
     std::shared_ptr<BufferData> bufferData = std::make_shared<BufferData>();
     bufferData->buffer = buffer;
-    if (frameNumber) {
-        bufferData->frameNumber = *frameNumber;
-        bufferData->flags |= BufferData::BufferDataChange::frameNumberChanged;
-    }
+    uint64_t frameNumber = sc->resolveFrameNumber(optFrameNumber);
+    bufferData->frameNumber = frameNumber;
+    bufferData->flags |= BufferData::BufferDataChange::frameNumberChanged;
     if (fence) {
         bufferData->acquireFence = *fence;
         bufferData->flags |= BufferData::BufferDataChange::fenceChanged;
@@ -2087,7 +2131,16 @@ status_t SurfaceComposerClient::injectVSync(nsecs_t when) {
 
 status_t SurfaceComposerClient::getDisplayState(const sp<IBinder>& display,
                                                 ui::DisplayState* state) {
-    return ComposerService::getComposerService()->getDisplayState(display, state);
+    gui::DisplayState ds;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getDisplayState(display, &ds);
+    if (status.isOk()) {
+        state->layerStack = ui::LayerStack::fromValue(ds.layerStack);
+        state->orientation = static_cast<ui::Rotation>(ds.orientation);
+        state->layerStackSpaceRect =
+                ui::Size(ds.layerStackSpaceRect.width, ds.layerStackSpaceRect.height);
+    }
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::getStaticDisplayInfo(const sp<IBinder>& display,
@@ -2151,7 +2204,9 @@ status_t SurfaceComposerClient::setActiveColorMode(const sp<IBinder>& display,
 }
 
 status_t SurfaceComposerClient::getBootDisplayModeSupport(bool* support) {
-    return ComposerService::getComposerService()->getBootDisplayModeSupport(support);
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getBootDisplayModeSupport(support);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::setBootDisplayMode(const sp<IBinder>& display,
@@ -2160,7 +2215,9 @@ status_t SurfaceComposerClient::setBootDisplayMode(const sp<IBinder>& display,
 }
 
 status_t SurfaceComposerClient::clearBootDisplayMode(const sp<IBinder>& display) {
-    return ComposerService::getComposerService()->clearBootDisplayMode(display);
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->clearBootDisplayMode(display);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::setOverrideFrameRate(uid_t uid, float frameRate) {
@@ -2168,16 +2225,16 @@ status_t SurfaceComposerClient::setOverrideFrameRate(uid_t uid, float frameRate)
 }
 
 void SurfaceComposerClient::setAutoLowLatencyMode(const sp<IBinder>& display, bool on) {
-    ComposerService::getComposerService()->setAutoLowLatencyMode(display, on);
+    ComposerServiceAIDL::getComposerService()->setAutoLowLatencyMode(display, on);
 }
 
 void SurfaceComposerClient::setGameContentType(const sp<IBinder>& display, bool on) {
-    ComposerService::getComposerService()->setGameContentType(display, on);
+    ComposerServiceAIDL::getComposerService()->setGameContentType(display, on);
 }
 
 void SurfaceComposerClient::setDisplayPowerMode(const sp<IBinder>& token,
         int mode) {
-    ComposerService::getComposerService()->setPowerMode(token, mode);
+    ComposerServiceAIDL::getComposerService()->setPowerMode(token, mode);
 }
 
 status_t SurfaceComposerClient::getCompositionPreference(
@@ -2238,8 +2295,10 @@ status_t SurfaceComposerClient::getDisplayedContentSample(const sp<IBinder>& dis
 
 status_t SurfaceComposerClient::isWideColorDisplay(const sp<IBinder>& display,
                                                    bool* outIsWideColorDisplay) {
-    return ComposerService::getComposerService()->isWideColorDisplay(display,
-                                                                     outIsWideColorDisplay);
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->isWideColorDisplay(display,
+                                                                          outIsWideColorDisplay);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::addRegionSamplingListener(
@@ -2276,28 +2335,39 @@ status_t SurfaceComposerClient::removeTunnelModeEnabledListener(
 
 bool SurfaceComposerClient::getDisplayBrightnessSupport(const sp<IBinder>& displayToken) {
     bool support = false;
-    ComposerService::getComposerService()->getDisplayBrightnessSupport(displayToken, &support);
-    return support;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getDisplayBrightnessSupport(displayToken,
+                                                                                   &support);
+    return status.isOk() ? support : false;
 }
 
 status_t SurfaceComposerClient::setDisplayBrightness(const sp<IBinder>& displayToken,
                                                      const gui::DisplayBrightness& brightness) {
-    return ComposerService::getComposerService()->setDisplayBrightness(displayToken, brightness);
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->setDisplayBrightness(displayToken,
+                                                                            brightness);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::addHdrLayerInfoListener(
         const sp<IBinder>& displayToken, const sp<gui::IHdrLayerInfoListener>& listener) {
-    return ComposerService::getComposerService()->addHdrLayerInfoListener(displayToken, listener);
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->addHdrLayerInfoListener(displayToken,
+                                                                               listener);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::removeHdrLayerInfoListener(
         const sp<IBinder>& displayToken, const sp<gui::IHdrLayerInfoListener>& listener) {
-    return ComposerService::getComposerService()->removeHdrLayerInfoListener(displayToken,
-                                                                             listener);
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->removeHdrLayerInfoListener(displayToken,
+                                                                                  listener);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::notifyPowerBoost(int32_t boostId) {
-    return ComposerService::getComposerService()->notifyPowerBoost(boostId);
+    binder::Status status = ComposerServiceAIDL::getComposerService()->notifyPowerBoost(boostId);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::setGlobalShadowSettings(const half4& ambientColor,
@@ -2320,9 +2390,11 @@ int SurfaceComposerClient::getGPUContextPriority() {
 }
 
 status_t SurfaceComposerClient::addWindowInfosListener(
-        const sp<WindowInfosListener>& windowInfosListener) {
+        const sp<WindowInfosListener>& windowInfosListener,
+        std::pair<std::vector<gui::WindowInfo>, std::vector<gui::DisplayInfo>>* outInitialInfo) {
     return WindowInfosListenerReporter::getInstance()
-            ->addWindowInfosListener(windowInfosListener, ComposerService::getComposerService());
+            ->addWindowInfosListener(windowInfosListener, ComposerService::getComposerService(),
+                                     outInitialInfo);
 }
 
 status_t SurfaceComposerClient::removeWindowInfosListener(

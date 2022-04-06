@@ -924,9 +924,8 @@ VkResult EnumerateInstanceExtensionProperties(
     uint32_t* pPropertyCount,
     VkExtensionProperties* pProperties) {
     std::vector<VkExtensionProperties> loader_extensions;
-    loader_extensions.push_back({
-        VK_KHR_SURFACE_EXTENSION_NAME,
-        VK_KHR_SURFACE_SPEC_VERSION});
+    loader_extensions.push_back(
+        {VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_SURFACE_SPEC_VERSION});
     loader_extensions.push_back(
         {VK_KHR_SURFACE_PROTECTED_CAPABILITIES_EXTENSION_NAME,
          VK_KHR_SURFACE_PROTECTED_CAPABILITIES_SPEC_VERSION});
@@ -936,9 +935,9 @@ VkResult EnumerateInstanceExtensionProperties(
     loader_extensions.push_back({
         VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME,
         VK_EXT_SWAPCHAIN_COLOR_SPACE_SPEC_VERSION});
-    loader_extensions.push_back({
-        VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
-        VK_KHR_GET_SURFACE_CAPABILITIES_2_SPEC_VERSION});
+    loader_extensions.push_back(
+        {VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
+         VK_KHR_GET_SURFACE_CAPABILITIES_2_SPEC_VERSION});
     loader_extensions.push_back({VK_GOOGLE_SURFACELESS_QUERY_EXTENSION_NAME,
                                  VK_GOOGLE_SURFACELESS_QUERY_SPEC_VERSION});
 

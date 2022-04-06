@@ -694,8 +694,10 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
             visibleNonShadowRegion.intersect(outputState.layerStackSpace.getContent()));
     outputLayerState.shadowRegion = shadowRegion;
     outputLayerState.outputSpaceBlockingRegionHint =
-            layerFEState->compositionType == Composition::DISPLAY_DECORATION ? transparentRegion
-                                                                             : Region();
+            layerFEState->compositionType == Composition::DISPLAY_DECORATION
+            ? outputState.transform.transform(
+                      transparentRegion.intersect(outputState.layerStackSpace.getContent()))
+            : Region();
 }
 
 void Output::setReleasedLayers(const compositionengine::CompositionRefreshArgs&) {
@@ -966,18 +968,22 @@ void Output::prepareFrame() {
         return;
     }
 
-    auto changes = chooseCompositionStrategy();
+    std::optional<android::HWComposer::DeviceRequestedChanges> changes;
+    bool success = chooseCompositionStrategy(&changes);
+    resetCompositionStrategy();
     outputState.strategyPrediction = CompositionStrategyPredictionState::DISABLED;
     outputState.previousDeviceRequestedChanges = changes;
-    if (changes) {
+    outputState.previousDeviceRequestedSuccess = success;
+    if (success) {
         applyCompositionStrategy(changes);
     }
     finishPrepareFrame();
 }
 
-std::future<std::optional<android::HWComposer::DeviceRequestedChanges>>
-Output::chooseCompositionStrategyAsync() {
-    return mHwComposerAsyncWorker->send([&]() { return chooseCompositionStrategy(); });
+std::future<bool> Output::chooseCompositionStrategyAsync(
+        std::optional<android::HWComposer::DeviceRequestedChanges>* changes) {
+    return mHwComposerAsyncWorker->send(
+            [&, changes]() { return chooseCompositionStrategy(changes); });
 }
 
 GpuCompositionResult Output::prepareFrameAsync(const CompositionRefreshArgs& refreshArgs) {
@@ -985,8 +991,12 @@ GpuCompositionResult Output::prepareFrameAsync(const CompositionRefreshArgs& ref
     ALOGV(__FUNCTION__);
     auto& state = editState();
     const auto& previousChanges = state.previousDeviceRequestedChanges;
-    auto hwcResult = chooseCompositionStrategyAsync();
-    applyCompositionStrategy(previousChanges);
+    std::optional<android::HWComposer::DeviceRequestedChanges> changes;
+    resetCompositionStrategy();
+    auto hwcResult = chooseCompositionStrategyAsync(&changes);
+    if (state.previousDeviceRequestedSuccess) {
+        applyCompositionStrategy(previousChanges);
+    }
     finishPrepareFrame();
 
     base::unique_fd bufferFence;
@@ -1002,13 +1012,14 @@ GpuCompositionResult Output::prepareFrameAsync(const CompositionRefreshArgs& ref
         }
     }
 
-    auto changes = hwcResult.valid() ? hwcResult.get() : std::nullopt;
+    auto chooseCompositionSuccess = hwcResult.get();
     const bool predictionSucceeded = dequeueSucceeded && changes == previousChanges;
     state.strategyPrediction = predictionSucceeded ? CompositionStrategyPredictionState::SUCCESS
                                                    : CompositionStrategyPredictionState::FAIL;
     if (!predictionSucceeded) {
         ATRACE_NAME("CompositionStrategyPredictionMiss");
-        if (changes) {
+        resetCompositionStrategy();
+        if (chooseCompositionSuccess) {
             applyCompositionStrategy(changes);
         }
         finishPrepareFrame();
@@ -1018,6 +1029,7 @@ GpuCompositionResult Output::prepareFrameAsync(const CompositionRefreshArgs& ref
         ATRACE_NAME("CompositionStrategyPredictionHit");
     }
     state.previousDeviceRequestedChanges = std::move(changes);
+    state.previousDeviceRequestedSuccess = chooseCompositionSuccess;
     return compositionResult;
 }
 
@@ -1164,6 +1176,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(
             mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
     clientCompositionDisplay.targetLuminanceNits =
             outputState.clientTargetBrightness * outputState.displayBrightnessNits;
+    clientCompositionDisplay.dimmingStage = outputState.clientTargetDimmingStage;
 
     // Compute the global color transform matrix.
     clientCompositionDisplay.colorTransform = outputState.colorTransformMatrix;
@@ -1203,8 +1216,12 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     // because high frequency consumes extra battery.
     const bool expensiveBlurs =
             refreshArgs.blursAreExpensive && mLayerRequestingBackgroundBlur != nullptr;
-    const bool expensiveRenderingExpected =
-            clientCompositionDisplay.outputDataspace == ui::Dataspace::DISPLAY_P3 || expensiveBlurs;
+    const bool expensiveRenderingExpected = expensiveBlurs ||
+            std::any_of(clientCompositionLayers.begin(), clientCompositionLayers.end(),
+                        [outputDataspace =
+                                 clientCompositionDisplay.outputDataspace](const auto& layer) {
+                            return layer.sourceDataspace != outputDataspace;
+                        });
     if (expensiveRenderingExpected) {
         setExpensiveRenderingExpected(true);
     }
@@ -1440,13 +1457,12 @@ void Output::dirtyEntireOutput() {
     outputState.dirtyRegion.set(outputState.displaySpace.getBoundsAsRect());
 }
 
-std::optional<android::HWComposer::DeviceRequestedChanges> Output::chooseCompositionStrategy() {
+void Output::resetCompositionStrategy() {
     // The base output implementation can only do client composition
     auto& outputState = editState();
     outputState.usesClientComposition = true;
     outputState.usesDeviceComposition = false;
     outputState.reusedClientComposition = false;
-    return {};
 }
 
 bool Output::getSkipColorTransform() const {

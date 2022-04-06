@@ -19,13 +19,24 @@
 #include <binder/Parcel.h>
 #include <fuzzer/FuzzedDataProvider.h>
 
+#include <functional>
+#include <vector>
+
 namespace android {
+
+struct RandomParcelOptions {
+    std::function<void(Parcel* p, FuzzedDataProvider& provider)> writeHeader;
+    std::vector<sp<IBinder>> extraBinders;
+    std::vector<base::unique_fd> extraFds;
+};
+
 /**
  * Fill parcel data, including some random binder objects and FDs
+ *
+ * p - the Parcel to fill
+ * provider - takes ownership and completely consumes provider
+ * writeHeader - optional function to write a specific header once the format of the parcel is
+ *     picked (for instance, to write an interface header)
  */
-void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider);
-/**
- * Fill parcel data, but don't fill any objects.
- */
-void fillRandomParcelData(Parcel* p, FuzzedDataProvider&& provider);
+void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider, const RandomParcelOptions& = {});
 } // namespace android

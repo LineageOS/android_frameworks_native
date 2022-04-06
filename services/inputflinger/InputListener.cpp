@@ -202,9 +202,11 @@ std::string NotifyMotionArgs::dump() const {
         coords += "}";
     }
     return StringPrintf("NotifyMotionArgs(id=%" PRId32 ", eventTime=%" PRId64 ", deviceId=%" PRId32
-                        ", source=%s, action=%s, pointerCount=%" PRIu32 " pointers=%s)",
+                        ", source=%s, action=%s, pointerCount=%" PRIu32
+                        " pointers=%s, flags=0x%08x)",
                         id, eventTime, deviceId, inputEventSourceToString(source).c_str(),
-                        MotionEvent::actionToString(action).c_str(), pointerCount, coords.c_str());
+                        MotionEvent::actionToString(action).c_str(), pointerCount, coords.c_str(),
+                        flags);
 }
 
 void NotifyMotionArgs::notify(InputListenerInterface& listener) const {
@@ -334,60 +336,50 @@ static inline void traceEvent(const char* functionName, int32_t id) {
 QueuedInputListener::QueuedInputListener(InputListenerInterface& innerListener)
       : mInnerListener(innerListener) {}
 
-QueuedInputListener::~QueuedInputListener() {
-    size_t count = mArgsQueue.size();
-    for (size_t i = 0; i < count; i++) {
-        delete mArgsQueue[i];
-    }
-}
-
 void QueuedInputListener::notifyConfigurationChanged(
         const NotifyConfigurationChangedArgs* args) {
     traceEvent(__func__, args->id);
-    mArgsQueue.push_back(new NotifyConfigurationChangedArgs(*args));
+    mArgsQueue.emplace_back(std::make_unique<NotifyConfigurationChangedArgs>(*args));
 }
 
 void QueuedInputListener::notifyKey(const NotifyKeyArgs* args) {
     traceEvent(__func__, args->id);
-    mArgsQueue.push_back(new NotifyKeyArgs(*args));
+    mArgsQueue.emplace_back(std::make_unique<NotifyKeyArgs>(*args));
 }
 
 void QueuedInputListener::notifyMotion(const NotifyMotionArgs* args) {
     traceEvent(__func__, args->id);
-    mArgsQueue.push_back(new NotifyMotionArgs(*args));
+    mArgsQueue.emplace_back(std::make_unique<NotifyMotionArgs>(*args));
 }
 
 void QueuedInputListener::notifySwitch(const NotifySwitchArgs* args) {
     traceEvent(__func__, args->id);
-    mArgsQueue.push_back(new NotifySwitchArgs(*args));
+    mArgsQueue.emplace_back(std::make_unique<NotifySwitchArgs>(*args));
 }
 
 void QueuedInputListener::notifySensor(const NotifySensorArgs* args) {
     traceEvent(__func__, args->id);
-    mArgsQueue.push_back(new NotifySensorArgs(*args));
+    mArgsQueue.emplace_back(std::make_unique<NotifySensorArgs>(*args));
 }
 
 void QueuedInputListener::notifyVibratorState(const NotifyVibratorStateArgs* args) {
     traceEvent(__func__, args->id);
-    mArgsQueue.push_back(new NotifyVibratorStateArgs(*args));
+    mArgsQueue.emplace_back(std::make_unique<NotifyVibratorStateArgs>(*args));
 }
 
 void QueuedInputListener::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     traceEvent(__func__, args->id);
-    mArgsQueue.push_back(new NotifyDeviceResetArgs(*args));
+    mArgsQueue.emplace_back(std::make_unique<NotifyDeviceResetArgs>(*args));
 }
 
 void QueuedInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
     traceEvent(__func__, args->id);
-    mArgsQueue.push_back(new NotifyPointerCaptureChangedArgs(*args));
+    mArgsQueue.emplace_back(std::make_unique<NotifyPointerCaptureChangedArgs>(*args));
 }
 
 void QueuedInputListener::flush() {
-    size_t count = mArgsQueue.size();
-    for (size_t i = 0; i < count; i++) {
-        NotifyArgs* args = mArgsQueue[i];
+    for (const std::unique_ptr<NotifyArgs>& args : mArgsQueue) {
         args->notify(mInnerListener);
-        delete args;
     }
     mArgsQueue.clear();
 }

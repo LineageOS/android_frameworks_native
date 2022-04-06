@@ -41,6 +41,7 @@ using hardware::Return;
 
 using aidl::android::hardware::graphics::composer3::BnComposerCallback;
 using aidl::android::hardware::graphics::composer3::Capability;
+using aidl::android::hardware::graphics::composer3::ClientTargetPropertyWithBrightness;
 using aidl::android::hardware::graphics::composer3::PowerMode;
 using aidl::android::hardware::graphics::composer3::VirtualDisplay;
 
@@ -155,15 +156,6 @@ VsyncPeriodChangeTimeline translate(AidlVsyncPeriodChangeTimeline x) {
             .refreshTimeNanos = x.refreshTimeNanos,
     };
 }
-
-template <>
-IComposerClient::ClientTargetProperty translate(ClientTargetProperty x) {
-    return IComposerClient::ClientTargetProperty{
-            .pixelFormat = translate<PixelFormat>(x.pixelFormat),
-            .dataspace = translate<Dataspace>(x.dataspace),
-    };
-}
-
 mat4 makeMat4(std::vector<float> in) {
     return mat4(static_cast<const float*>(in.data()));
 }
@@ -247,7 +239,8 @@ bool AidlComposer::isSupported(OptionalFeature feature) const {
         case OptionalFeature::RefreshRateSwitching:
         case OptionalFeature::ExpectedPresentTime:
         case OptionalFeature::DisplayBrightnessCommand:
-        case OptionalFeature::BootDisplayConfig:
+        case OptionalFeature::KernelIdleTimer:
+        case OptionalFeature::PhysicalDisplayOrientation:
             return true;
     }
 }
@@ -472,6 +465,19 @@ Error AidlComposer::getDozeSupport(Display display, bool* outSupport) {
     }
     *outSupport = std::find(capabilities.begin(), capabilities.end(),
                             AidlDisplayCapability::DOZE) != capabilities.end();
+    return Error::NONE;
+}
+
+Error AidlComposer::hasDisplayIdleTimerCapability(Display display, bool* outSupport) {
+    std::vector<AidlDisplayCapability> capabilities;
+    const auto status =
+            mAidlComposerClient->getDisplayCapabilities(translate<int64_t>(display), &capabilities);
+    if (!status.isOk()) {
+        ALOGE("getDisplayCapabilities failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    *outSupport = std::find(capabilities.begin(), capabilities.end(),
+                            AidlDisplayCapability::DISPLAY_IDLE_TIMER) != capabilities.end();
     return Error::NONE;
 }
 
@@ -1068,12 +1074,8 @@ Error AidlComposer::getPreferredBootDisplayConfig(Display display, Config* confi
 }
 
 Error AidlComposer::getClientTargetProperty(
-        Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty,
-        float* outBrightness) {
-    const auto property = mReader.takeClientTargetProperty(translate<int64_t>(display));
-    *outClientTargetProperty =
-            translate<IComposerClient::ClientTargetProperty>(property.clientTargetProperty);
-    *outBrightness = property.brightness;
+        Display display, ClientTargetPropertyWithBrightness* outClientTargetProperty) {
+    *outClientTargetProperty = mReader.takeClientTargetProperty(translate<int64_t>(display));
     return Error::NONE;
 }
 
@@ -1100,5 +1102,29 @@ Error AidlComposer::getDisplayDecorationSupport(Display display,
     }
     return Error::NONE;
 }
+
+Error AidlComposer::setIdleTimerEnabled(Display displayId, std::chrono::milliseconds timeout) {
+    const auto status =
+            mAidlComposerClient->setIdleTimerEnabled(translate<int64_t>(displayId),
+                                                     translate<int32_t>(timeout.count()));
+    if (!status.isOk()) {
+        ALOGE("setIdleTimerEnabled failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    return Error::NONE;
+}
+
+Error AidlComposer::getPhysicalDisplayOrientation(Display displayId,
+                                                  AidlTransform* outDisplayOrientation) {
+    const auto status =
+            mAidlComposerClient->getDisplayPhysicalOrientation(translate<int64_t>(displayId),
+                                                               outDisplayOrientation);
+    if (!status.isOk()) {
+        ALOGE("getPhysicalDisplayOrientation failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    return Error::NONE;
+}
+
 } // namespace Hwc2
 } // namespace android

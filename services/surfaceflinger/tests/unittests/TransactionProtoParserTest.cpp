@@ -81,7 +81,7 @@ TEST(TransactionProtoParserTest, parse) {
         sp<IBinder> getLayerHandle(int32_t id) const override {
             return (id == 42) ? layerHandle : nullptr;
         }
-        int32_t getLayerId(const sp<IBinder>& handle) const override {
+        int64_t getLayerId(const sp<IBinder>& handle) const override {
             return (handle == layerHandle) ? 42 : -1;
         }
         sp<IBinder> getDisplayHandle(int32_t id) const {

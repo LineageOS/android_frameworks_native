@@ -101,6 +101,7 @@ std::vector<tonemap::ShaderUniform> buildLinearEffectUniforms(const LinearEffect
                                                               const mat4& colorTransform,
                                                               float maxDisplayLuminance,
                                                               float currentDisplayLuminanceNits,
-                                                              float maxLuminance);
+                                                              float maxLuminance,
+                                                              AHardwareBuffer* buffer = nullptr);
 
 } // namespace android::shaders

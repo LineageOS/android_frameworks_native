@@ -100,6 +100,7 @@ public:
                              std::vector<uint32_t>* outLayerRequestMasks) override;
 
     Error getDozeSupport(Display display, bool* outSupport) override;
+    Error hasDisplayIdleTimerCapability(Display display, bool* outSupport) override;
     Error getHdrCapabilities(Display display, std::vector<Hdr>* outTypes, float* outMaxLuminance,
                              float* outMaxAverageLuminance, float* outMinLuminance) override;
 
@@ -207,9 +208,10 @@ public:
                                         bool mandatory, const std::vector<uint8_t>& value) override;
     V2_4::Error getLayerGenericMetadataKeys(
             std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) override;
-    Error getClientTargetProperty(Display display,
-                                  IComposerClient::ClientTargetProperty* outClientTargetProperty,
-                                  float* outBrightness) override;
+    Error getClientTargetProperty(
+            Display display,
+            aidl::android::hardware::graphics::composer3::ClientTargetPropertyWithBrightness*
+                    outClientTargetProperty) override;
 
     // AIDL Composer HAL
     Error setLayerBrightness(Display display, Layer layer, float brightness) override;
@@ -220,6 +222,10 @@ public:
     Error getPreferredBootDisplayConfig(Display displayId, Config*) override;
     Error getDisplayDecorationSupport(Display display,
                                       std::optional<DisplayDecorationSupport>* support) override;
+    Error setIdleTimerEnabled(Display displayId, std::chrono::milliseconds timeout) override;
+
+    Error getPhysicalDisplayOrientation(Display displayId,
+                                        AidlTransform* outDisplayOrientation) override;
 
 private:
     // Many public functions above simply write a command into the command

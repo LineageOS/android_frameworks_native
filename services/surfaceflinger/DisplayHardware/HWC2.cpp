@@ -148,6 +148,17 @@ bool Display::isVsyncPeriodSwitchSupported() const {
     return mComposer.isSupported(android::Hwc2::Composer::OptionalFeature::RefreshRateSwitching);
 }
 
+bool Display::hasDisplayIdleTimerCapability() const {
+    bool isCapabilitySupported = false;
+    return mComposer.hasDisplayIdleTimerCapability(mId, &isCapabilitySupported) == Error::NONE &&
+            isCapabilitySupported;
+}
+
+Error Display::getPhysicalDisplayOrientation(Hwc2::AidlTransform* outTransform) const {
+    auto error = mComposer.getPhysicalDisplayOrientation(mId, outTransform);
+    return static_cast<Error>(error);
+}
+
 Error Display::getChangedCompositionTypes(std::unordered_map<HWC2::Layer*, Composition>* outTypes) {
     std::vector<Hwc2::Layer> layerIds;
     std::vector<Composition> types;
@@ -574,10 +585,10 @@ Error Display::setContentType(ContentType contentType) {
     return static_cast<Error>(intError);
 }
 
-Error Display::getClientTargetProperty(ClientTargetProperty* outClientTargetProperty,
-                                       float* outWhitePointNits) {
-    const auto error =
-            mComposer.getClientTargetProperty(mId, outClientTargetProperty, outWhitePointNits);
+Error Display::getClientTargetProperty(
+        aidl::android::hardware::graphics::composer3::ClientTargetPropertyWithBrightness*
+                outClientTargetProperty) {
+    const auto error = mComposer.getClientTargetProperty(mId, outClientTargetProperty);
     return static_cast<Error>(error);
 }
 
@@ -585,6 +596,11 @@ Error Display::getDisplayDecorationSupport(
         std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                 support) {
     const auto error = mComposer.getDisplayDecorationSupport(mId, support);
+    return static_cast<Error>(error);
+}
+
+Error Display::setIdleTimerEnabled(std::chrono::milliseconds timeout) {
+    const auto error = mComposer.setIdleTimerEnabled(mId, timeout);
     return static_cast<Error>(error);
 }
 

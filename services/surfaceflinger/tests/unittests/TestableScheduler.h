@@ -110,7 +110,7 @@ public:
 private:
     // ICompositor overrides:
     bool commit(nsecs_t, int64_t, nsecs_t) override { return false; }
-    void composite(nsecs_t) override {}
+    void composite(nsecs_t, int64_t) override {}
     void sample() override {}
 };
 

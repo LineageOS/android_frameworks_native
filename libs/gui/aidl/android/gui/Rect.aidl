@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-#pragma once
+package android.gui;
 
-#include <utils/Mutex.h>
+// copied from libs/arect/include/android/rect.h
+// TODO(b/221473398):
+// use hardware/interfaces/graphics/common/aidl/android/hardware/graphics/common/Rect.aidl
+/** @hide */
+parcelable Rect {
+    /// Minimum X coordinate of the rectangle.
+    int left;
 
-namespace android {
-namespace {
+    /// Minimum Y coordinate of the rectangle.
+    int top;
 
-// Helps to ensure that some functions runs on SF's main thread by using the
-// clang thread safety annotations.
-class CAPABILITY("mutex") MainThreadGuard {
-} SF_MAIN_THREAD;
+    /// Maximum X coordinate of the rectangle.
+    int right;
 
-struct SCOPED_CAPABILITY MainThreadScopedGuard {
-public:
-    explicit MainThreadScopedGuard(MainThreadGuard& mutex) ACQUIRE(mutex) {}
-    ~MainThreadScopedGuard() RELEASE() {}
-};
-} // namespace
-} // namespace android
+    /// Maximum Y coordinate of the rectangle.
+    int bottom;
+}

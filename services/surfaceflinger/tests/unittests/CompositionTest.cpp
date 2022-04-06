@@ -244,8 +244,8 @@ void CompositionTest::captureScreenComposition() {
                                                                       HAL_PIXEL_FORMAT_RGBA_8888, 1,
                                                                       usage);
 
-    auto result = mFlinger.renderScreenImplLocked(*renderArea, traverseLayers, mCaptureScreenBuffer,
-                                                  forSystem, regionSampling);
+    auto result = mFlinger.renderScreenImpl(*renderArea, traverseLayers, mCaptureScreenBuffer,
+                                            forSystem, regionSampling);
     EXPECT_TRUE(result.valid());
 
     auto& [status, drawFence] = result.get();

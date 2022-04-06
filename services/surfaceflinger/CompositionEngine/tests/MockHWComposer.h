@@ -112,8 +112,8 @@ public:
     MOCK_METHOD1(getPreferredBootDisplayMode, std::optional<hal::HWConfigId>(PhysicalDisplayId));
     MOCK_METHOD0(getBootDisplayModeSupport, bool());
     MOCK_METHOD2(setAutoLowLatencyMode, status_t(PhysicalDisplayId, bool));
-    MOCK_METHOD2(getSupportedContentTypes,
-                 status_t(PhysicalDisplayId, std::vector<hal::ContentType>*));
+    MOCK_METHOD(status_t, getSupportedContentTypes,
+                (PhysicalDisplayId, std::vector<hal::ContentType>*), (const, override));
     MOCK_METHOD2(setContentType, status_t(PhysicalDisplayId, hal::ContentType));
     MOCK_CONST_METHOD0(getSupportedLayerGenericMetadata,
                        const std::unordered_map<std::string, bool>&());
@@ -133,6 +133,10 @@ public:
                  status_t(PhysicalDisplayId,
                           std::optional<aidl::android::hardware::graphics::common::
                                                 DisplayDecorationSupport>* support));
+    MOCK_METHOD2(setIdleTimerEnabled, status_t(PhysicalDisplayId, std::chrono::milliseconds));
+    MOCK_METHOD(bool, hasDisplayIdleTimerCapability, (PhysicalDisplayId), (const, override));
+    MOCK_METHOD(Hwc2::AidlTransform, getPhysicalDisplayOrientation, (PhysicalDisplayId),
+                (const, override));
 };
 
 } // namespace mock

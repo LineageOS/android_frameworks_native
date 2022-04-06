@@ -19,6 +19,7 @@
 #include <atomic>
 #include <set>
 
+#include <android-base/logging.h>
 #include <android-base/unique_fd.h>
 #include <binder/BpBinder.h>
 #include <binder/IInterface.h>
@@ -281,9 +282,11 @@ status_t BBinder::transact(
             err = pingBinder();
             break;
         case EXTENSION_TRANSACTION:
+            CHECK(reply != nullptr);
             err = reply->writeStrongBinder(getExtension());
             break;
         case DEBUG_PID_TRANSACTION:
+            CHECK(reply != nullptr);
             err = reply->writeInt32(getDebugPid());
             break;
         case SET_RPC_CLIENT_TRANSACTION: {
@@ -579,6 +582,10 @@ void BBinder::removeRpcServerLink(const sp<RpcServerLink>& link) {
 
 BBinder::~BBinder()
 {
+    if (!wasParceled() && getExtension()) {
+        ALOGW("Binder %p destroyed with extension attached before being parceled.", this);
+    }
+
     Extras* e = mExtras.load(std::memory_order_relaxed);
     if (e) delete e;
 }
@@ -590,6 +597,7 @@ status_t BBinder::onTransact(
 {
     switch (code) {
         case INTERFACE_TRANSACTION:
+            CHECK(reply != nullptr);
             reply->writeString16(getInterfaceDescriptor());
             return NO_ERROR;
 

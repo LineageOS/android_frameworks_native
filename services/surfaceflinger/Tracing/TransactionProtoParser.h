@@ -80,7 +80,8 @@ public:
     public:
         virtual ~FlingerDataMapper() = default;
         virtual sp<IBinder> getLayerHandle(int32_t /* layerId */) const { return nullptr; }
-        virtual int32_t getLayerId(const sp<IBinder>& /* layerHandle */) const { return -1; }
+        virtual int64_t getLayerId(const sp<IBinder>& /* layerHandle */) const { return -1; }
+        virtual int64_t getLayerId(BBinder* /* layerHandle */) const { return -1; }
         virtual sp<IBinder> getDisplayHandle(int32_t /* displayId */) const { return nullptr; }
         virtual int32_t getDisplayId(const sp<IBinder>& /* displayHandle */) const { return -1; }
         virtual std::shared_ptr<BufferData> getGraphicData(uint64_t bufferId, uint32_t width,
@@ -106,6 +107,7 @@ public:
     TransactionState fromProto(const proto::TransactionState&);
     void mergeFromProto(const proto::LayerState&, TracingLayerState& outState);
     void fromProto(const proto::LayerCreationArgs&, TracingLayerCreationArgs& outArgs);
+    std::unique_ptr<FlingerDataMapper> mMapper;
 
 private:
     proto::LayerState toProto(const layer_state_t&);
@@ -113,7 +115,6 @@ private:
     void fromProto(const proto::LayerState&, layer_state_t& out);
     DisplayState fromProto(const proto::DisplayState&);
 
-    std::unique_ptr<FlingerDataMapper> mMapper;
 };
 
 } // namespace android::surfaceflinger

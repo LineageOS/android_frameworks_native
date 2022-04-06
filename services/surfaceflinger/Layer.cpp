@@ -37,6 +37,7 @@
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
 #include <ftl/enum.h>
+#include <ftl/fake_guard.h>
 #include <gui/BufferItem.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
@@ -81,10 +82,12 @@ namespace {
 constexpr int kDumpTableRowLength = 159;
 } // namespace
 
+using namespace ftl::flag_operators;
+
 using base::StringAppendF;
-using namespace android::flag_operators;
-using PresentState = frametimeline::SurfaceFrame::PresentState;
 using gui::WindowInfo;
+
+using PresentState = frametimeline::SurfaceFrame::PresentState;
 
 std::atomic<int32_t> Layer::sSequence{1};
 
@@ -139,6 +142,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mDrawingState.destinationFrame.makeInvalid();
     mDrawingState.isTrustedOverlay = false;
     mDrawingState.dropInputMode = gui::DropInputMode::NONE;
+    mDrawingState.dimmingEnabled = true;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
@@ -477,6 +481,7 @@ void Layer::preparePerFrameCompositionState() {
     compositionState->colorTransformIsIdentity = !hasColorTransform();
     compositionState->surfaceDamage = surfaceDamageRegion;
     compositionState->hasProtectedContent = isProtected();
+    compositionState->dimmingEnabled = isDimmingEnabled();
 
     const bool usesRoundedCorners = getRoundedCornerState().radius != 0.f;
 
@@ -833,6 +838,14 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relati
         return false;
     }
 
+    if (CC_UNLIKELY(relative->usingRelativeZ(LayerVector::StateSet::Drawing)) &&
+        (relative->mDrawingState.zOrderRelativeOf == this)) {
+        ALOGE("Detected relative layer loop between %s and %s",
+              mName.c_str(), relative->mName.c_str());
+        ALOGE("Ignoring new call to set relative layer");
+        return false;
+    }
+
     mFlinger->mSomeChildrenChanged = true;
 
     mDrawingState.sequence++;
@@ -1025,6 +1038,16 @@ bool Layer::setColorSpaceAgnostic(const bool agnostic) {
     }
     mDrawingState.sequence++;
     mDrawingState.colorSpaceAgnostic = agnostic;
+    mDrawingState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool Layer::setDimmingEnabled(const bool dimmingEnabled) {
+    if (mDrawingState.dimmingEnabled == dimmingEnabled) return false;
+
+    mDrawingState.sequence++;
+    mDrawingState.dimmingEnabled = dimmingEnabled;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
@@ -1990,6 +2013,18 @@ void Layer::prepareShadowClientComposition(LayerFE::LayerSettings& caster,
     }
 }
 
+bool Layer::findInHierarchy(const sp<Layer>& l) {
+    if (l == this) {
+        return true;
+    }
+    for (auto& child : mDrawingChildren) {
+      if (child->findInHierarchy(l)) {
+          return true;
+      }
+    }
+    return false;
+}
+
 void Layer::commitChildList() {
     for (size_t i = 0; i < mCurrentChildren.size(); i++) {
         const auto& child = mCurrentChildren[i];
@@ -1997,6 +2032,17 @@ void Layer::commitChildList() {
     }
     mDrawingChildren = mCurrentChildren;
     mDrawingParent = mCurrentParent;
+    if (CC_UNLIKELY(usingRelativeZ(LayerVector::StateSet::Drawing))) {
+        auto zOrderRelativeOf = mDrawingState.zOrderRelativeOf.promote();
+        if (zOrderRelativeOf == nullptr) return;
+        if (findInHierarchy(zOrderRelativeOf)) {
+            ALOGE("Detected Z ordering loop between %s and %s", mName.c_str(),
+                  zOrderRelativeOf->mName.c_str());
+            ALOGE("Severing rel Z loop, potentially dangerous");
+            mDrawingState.isRelativeOf = false;
+            zOrderRelativeOf->removeZOrderRelative(this);
+        }
+    }
 }
 
 
@@ -2014,10 +2060,10 @@ LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags) {
     writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
 
     if (traceFlags & LayerTracing::TRACE_COMPOSITION) {
+        ftl::FakeGuard guard(mFlinger->mStateLock); // Called from the main thread.
+
         // Only populate for the primary display.
-        UnnecessaryLock assumeLocked(mFlinger->mStateLock); // called from the main thread.
-        const auto display = mFlinger->getDefaultDisplayDeviceLocked();
-        if (display) {
+        if (const auto display = mFlinger->getDefaultDisplayDeviceLocked()) {
             const auto compositionType = getCompositionType(*display);
             layerProto->set_hwc_composition_type(static_cast<HwcCompositionType>(compositionType));
             LayerProtoHelper::writeToProto(getVisibleRegion(display.get()),
@@ -2177,7 +2223,6 @@ Rect Layer::getInputBounds() const {
 void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& screenToDisplay) {
     Rect tmpBounds = getInputBounds();
     if (!tmpBounds.isValid()) {
-        info.setInputConfig(WindowInfo::InputConfig::NOT_FOCUSABLE, true);
         info.touchableRegion.clear();
         // A layer could have invalid input bounds and still expect to receive touch input if it has
         // replaceTouchableRegionWithCrop. For that case, the input transform needs to be calculated
@@ -2392,7 +2437,8 @@ sp<Layer> Layer::getClonedRoot() {
 }
 
 bool Layer::hasInputInfo() const {
-    return mDrawingState.inputInfo.token != nullptr;
+    return mDrawingState.inputInfo.token != nullptr ||
+            mDrawingState.inputInfo.inputConfig.test(WindowInfo::InputConfig::NO_INPUT_CHANNEL);
 }
 
 bool Layer::canReceiveInput() const {

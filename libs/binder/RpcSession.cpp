@@ -152,8 +152,13 @@ status_t RpcSession::setupInetClient(const char* addr, unsigned int port) {
 }
 
 status_t RpcSession::setupPreconnectedClient(unique_fd fd, std::function<unique_fd()>&& request) {
-    return setupClient([&](const std::vector<uint8_t>& sessionId, bool incoming) -> status_t {
-        // std::move'd from fd becomes -1 (!ok())
+    // Why passing raw fd? When fd is passed as reference, Clang analyzer sees that the variable
+    // `fd` is a moved-from object. To work-around the issue, unwrap the raw fd from the outer `fd`,
+    // pass the raw fd by value to the lambda, and then finally wrap it in unique_fd inside the
+    // lambda.
+    return setupClient([&, raw = fd.release()](const std::vector<uint8_t>& sessionId,
+                                               bool incoming) -> status_t {
+        unique_fd fd(raw);
         if (!fd.ok()) {
             fd = request();
             if (!fd.ok()) return BAD_VALUE;
@@ -848,10 +853,16 @@ status_t RpcSession::ExclusiveConnection::find(const sp<RpcSession>& session, Co
         }
 
         if (session->mConnections.mOutgoing.size() == 0) {
-            ALOGE("Session has no client connections. This is required for an RPC server to make "
-                  "any non-nested (e.g. oneway or on another thread) calls. Use: %d. Server "
-                  "connections: %zu",
-                  static_cast<int>(use), session->mConnections.mIncoming.size());
+            ALOGE("Session has no outgoing connections. This is required for an RPC server to make "
+                  "any non-nested (e.g. oneway or on another thread) calls. Use code request "
+                  "reason: %d. Incoming connections: %zu. %s.",
+                  static_cast<int>(use), session->mConnections.mIncoming.size(),
+                  (session->server()
+                           ? "This is a server session, so see RpcSession::setMaxIncomingThreads "
+                             "for the corresponding client"
+                           : "This is a client session, so see RpcSession::setMaxOutgoingThreads "
+                             "for this client or RpcServer::setMaxThreads for the corresponding "
+                             "server"));
             return WOULD_BLOCK;
         }
 

@@ -66,9 +66,10 @@ public:
     }
 
     void SetUp() override {
+        constexpr bool kUseBootTimeClock = true;
         mTimeStats = std::make_shared<mock::TimeStats>();
         mFrameTimeline = std::make_unique<impl::FrameTimeline>(mTimeStats, kSurfaceFlingerPid,
-                                                               kTestThresholds);
+                                                               kTestThresholds, !kUseBootTimeClock);
         mFrameTimeline->registerDataSource();
         mTokenManager = &mFrameTimeline->mTokenManager;
         mTraceCookieCounter = &mFrameTimeline->mTraceCookieCounter;

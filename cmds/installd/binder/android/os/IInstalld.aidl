@@ -20,7 +20,7 @@ package android.os;
 interface IInstalld {
     void createUserData(@nullable @utf8InCpp String uuid, int userId, int userSerial, int flags);
     void destroyUserData(@nullable @utf8InCpp String uuid, int userId, int flags);
-
+    void setFirstBoot();
     android.os.CreateAppDataResult createAppData(in android.os.CreateAppDataArgs args);
     android.os.CreateAppDataResult[] createAppDataBatched(in android.os.CreateAppDataArgs[] args);
 
@@ -82,6 +82,7 @@ interface IInstalld {
             @utf8InCpp String packageName, @utf8InCpp String profileName);
     void clearAppProfiles(@utf8InCpp String packageName, @utf8InCpp String profileName);
     void destroyAppProfiles(@utf8InCpp String packageName);
+    void deleteReferenceProfile(@utf8InCpp String packageName, @utf8InCpp String profileName);
 
     boolean createProfileSnapshot(int appId, @utf8InCpp String packageName,
             @utf8InCpp String profileName, @utf8InCpp String classpath);
@@ -129,6 +130,9 @@ interface IInstalld {
     void migrateLegacyObbData();
 
     void cleanupInvalidPackageDirs(@nullable @utf8InCpp String uuid, int userId, int flags);
+
+    int getOdexVisibility(@utf8InCpp String packageName, @utf8InCpp String apkPath,
+            @utf8InCpp String instructionSet, @nullable @utf8InCpp String outputPath);
 
     const int FLAG_STORAGE_DE = 0x1;
     const int FLAG_STORAGE_CE = 0x2;

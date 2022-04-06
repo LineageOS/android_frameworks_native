@@ -45,6 +45,7 @@
 
 using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::Composition;
+using aidl::android::hardware::graphics::composer3::DimmingStage;
 
 namespace android::compositionengine {
 namespace {
@@ -115,8 +116,9 @@ struct DisplayTestCommon : public testing::Test {
             return mCompositionEngine;
         };
 
+        size_t getOutputLayerCount() const override { return 1u; }
+
         // Mock implementation overrides
-        MOCK_CONST_METHOD0(getOutputLayerCount, size_t());
         MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex,
                            compositionengine::OutputLayer*(size_t));
         MOCK_METHOD2(ensureOutputLayer,
@@ -167,7 +169,6 @@ struct DisplayTestCommon : public testing::Test {
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
         EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
         EXPECT_CALL(mRenderEngine, isProtected()).WillRepeatedly(Return(false));
-        EXPECT_CALL(mHwComposer, getBootDisplayModeSupport()).WillRepeatedly(Return(false));
     }
 
     DisplayCreationArgs getDisplayCreationArgsForPhysicalDisplay() {
@@ -205,14 +206,18 @@ struct PartialMockDisplayTestCommon : public DisplayTestCommon {
             {{nullptr, Composition::CLIENT}},
             hal::DisplayRequest::FLIP_CLIENT_TARGET,
             {{nullptr, hal::LayerRequest::CLEAR_CLIENT_TARGET}},
-            {hal::PixelFormat::RGBA_8888, hal::Dataspace::UNKNOWN},
-            -1.f,
+            {DEFAULT_DISPLAY_ID.value,
+             {aidl::android::hardware::graphics::common::PixelFormat::RGBA_8888,
+              aidl::android::hardware::graphics::common::Dataspace::UNKNOWN},
+             -1.f,
+             DimmingStage::NONE},
     };
 
     void chooseCompositionStrategy(Display* display) {
-        std::optional<android::HWComposer::DeviceRequestedChanges> changes =
-                display->chooseCompositionStrategy();
-        if (changes) {
+        std::optional<android::HWComposer::DeviceRequestedChanges> changes;
+        bool success = display->chooseCompositionStrategy(&changes);
+        display->resetCompositionStrategy();
+        if (success) {
             display->applyCompositionStrategy(changes);
         }
     }
@@ -635,36 +640,19 @@ TEST_F(DisplayChooseCompositionStrategyTest, normalOperationWithDisplayBrightnes
     // values, use a Sequence to control the matching so the values are returned in a known
     // order.
     constexpr float kDisplayBrightness = 0.5f;
-    Sequence s;
-    EXPECT_CALL(*mDisplay, anyLayersRequireClientComposition())
-            .InSequence(s)
-            .WillOnce(Return(true));
-    EXPECT_CALL(*mDisplay, anyLayersRequireClientComposition())
-            .InSequence(s)
-            .WillOnce(Return(false));
     EXPECT_CALL(mHwComposer,
                 setDisplayBrightness(DEFAULT_DISPLAY_ID, kDisplayBrightness,
                                      Hwc2::Composer::DisplayBrightnessOptions{.applyImmediately =
                                                                                       false}))
             .WillOnce(Return(ByMove(ftl::yield<status_t>(NO_ERROR))));
 
-    EXPECT_CALL(mHwComposer,
-                getDeviceCompositionChanges(HalDisplayId(DEFAULT_DISPLAY_ID), true, _, _, _, _))
-            .WillOnce(testing::DoAll(testing::SetArgPointee<5>(mDeviceRequestedChanges),
-                                     Return(NO_ERROR)));
-    EXPECT_CALL(*mDisplay, applyChangedTypesToLayers(mDeviceRequestedChanges.changedTypes))
-            .Times(1);
-    EXPECT_CALL(*mDisplay, applyDisplayRequests(mDeviceRequestedChanges.displayRequests)).Times(1);
-    EXPECT_CALL(*mDisplay, applyLayerRequestsToLayers(mDeviceRequestedChanges.layerRequests))
-            .Times(1);
-    EXPECT_CALL(*mDisplay, allLayersRequireClientComposition()).WillOnce(Return(false));
-
     mDisplay->setNextBrightness(kDisplayBrightness);
-    chooseCompositionStrategy(mDisplay.get());
+    mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
+    EXPECT_CALL(*renderSurface, beginFrame(_)).Times(1);
+    mDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
+    mDisplay->beginFrame();
 
     auto& state = mDisplay->getState();
-    EXPECT_FALSE(state.usesClientComposition);
-    EXPECT_TRUE(state.usesDeviceComposition);
     EXPECT_FALSE(state.displayBrightness.has_value());
 }
 
@@ -855,23 +843,37 @@ TEST_F(DisplayApplyLayerRequestsToLayersTest, appliesDeviceLayerRequests) {
 using DisplayApplyClientTargetRequests = DisplayWithLayersTestCommon;
 
 TEST_F(DisplayApplyLayerRequestsToLayersTest, applyClientTargetRequests) {
-    Display::ClientTargetProperty clientTargetProperty = {
-            .pixelFormat = hal::PixelFormat::RGB_565,
-            .dataspace = hal::Dataspace::STANDARD_BT470M,
-    };
-
     static constexpr float kWhitePointNits = 800.f;
+
+    Display::ClientTargetProperty clientTargetProperty = {
+            .clientTargetProperty =
+                    {
+                            .pixelFormat =
+                                    aidl::android::hardware::graphics::common::PixelFormat::RGB_565,
+                            .dataspace = aidl::android::hardware::graphics::common::Dataspace::
+                                    STANDARD_BT470M,
+                    },
+            .brightness = kWhitePointNits,
+            .dimmingStage = aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF,
+    };
 
     mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
     mDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
 
-    EXPECT_CALL(*renderSurface, setBufferPixelFormat(clientTargetProperty.pixelFormat));
-    EXPECT_CALL(*renderSurface, setBufferDataspace(clientTargetProperty.dataspace));
-    mDisplay->applyClientTargetRequests(clientTargetProperty, kWhitePointNits);
+    EXPECT_CALL(*renderSurface,
+                setBufferPixelFormat(static_cast<ui::PixelFormat>(
+                        clientTargetProperty.clientTargetProperty.pixelFormat)));
+    EXPECT_CALL(*renderSurface,
+                setBufferDataspace(static_cast<ui::Dataspace>(
+                        clientTargetProperty.clientTargetProperty.dataspace)));
+    mDisplay->applyClientTargetRequests(clientTargetProperty);
 
     auto& state = mDisplay->getState();
-    EXPECT_EQ(clientTargetProperty.dataspace, state.dataspace);
+    EXPECT_EQ(clientTargetProperty.clientTargetProperty.dataspace,
+              static_cast<aidl::android::hardware::graphics::common::Dataspace>(state.dataspace));
     EXPECT_EQ(kWhitePointNits, state.clientTargetBrightness);
+    EXPECT_EQ(aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF,
+              state.clientTargetDimmingStage);
 }
 
 /*

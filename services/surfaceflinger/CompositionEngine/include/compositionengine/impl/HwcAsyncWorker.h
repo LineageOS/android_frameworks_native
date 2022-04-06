@@ -40,16 +40,14 @@ public:
     ~HwcAsyncWorker();
     // Runs the provided function which calls hwc validate and returns the requested
     // device changes as a future.
-    std::future<std::optional<android::HWComposer::DeviceRequestedChanges>> send(
-            std::function<std::optional<android::HWComposer::DeviceRequestedChanges>()>);
+    std::future<bool> send(std::function<bool()>);
 
 private:
     std::mutex mMutex;
     std::condition_variable mCv GUARDED_BY(mMutex);
     bool mDone GUARDED_BY(mMutex) = false;
     bool mTaskRequested GUARDED_BY(mMutex) = false;
-    std::packaged_task<std::optional<android::HWComposer::DeviceRequestedChanges>()> mTask
-            GUARDED_BY(mMutex);
+    std::packaged_task<bool()> mTask GUARDED_BY(mMutex);
     std::thread mThread;
     void run();
 };

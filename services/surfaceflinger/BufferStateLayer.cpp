@@ -75,17 +75,15 @@ BufferStateLayer::~BufferStateLayer() {
 // -----------------------------------------------------------------------
 void BufferStateLayer::onLayerDisplayed(
         std::shared_future<renderengine::RenderEngineResult> futureRenderEngineResult) {
-    // If a layer has been displayed again we may need to clear
-    // the mLastClientComposition fence that we use for early release in setBuffer
-    // (as we now have a new fence which won't pass through the client composition path in some cases
-    //  e.g. screenshot). We expect one call to onLayerDisplayed after receiving the GL comp fence
-    // from a single composition cycle, and want to clear on the second call
-    // (which we track with mLastClientCompositionDisplayed)
-   if (mLastClientCompositionDisplayed) {
+    // If we are displayed on multiple displays in a single composition cycle then we would
+    // need to do careful tracking to enable the use of the mLastClientCompositionFence.
+    //  For example we can only use it if all the displays are client comp, and we need
+    //  to merge all the client comp fences. We could do this, but for now we just
+    // disable the optimization when a layer is composed on multiple displays.
+    if (mAlreadyDisplayedThisCompose) {
         mLastClientCompositionFence = nullptr;
-        mLastClientCompositionDisplayed = false;
-    } else if (mLastClientCompositionFence) {
-        mLastClientCompositionDisplayed = true;
+    } else {
+        mAlreadyDisplayedThisCompose = true;
     }
 
     // The previous release fence notifies the client that SurfaceFlinger is done with the previous
@@ -1096,6 +1094,13 @@ bool BufferStateLayer::simpleBufferUpdate(const layer_state_t& s) const {
     if (s.what & layer_state_t::eDestinationFrameChanged) {
         if (mDrawingState.destinationFrame != s.destinationFrame) {
             ALOGV("%s: false [eDestinationFrameChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eDimmingEnabledChanged) {
+        if (mDrawingState.dimmingEnabled != s.dimmingEnabled) {
+            ALOGV("%s: false [eDimmingEnabledChanged changed]", __func__);
             return false;
         }
     }

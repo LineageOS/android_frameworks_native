@@ -180,13 +180,13 @@ proto::LayerState TransactionProtoParser::toProto(const layer_state_t& layer) {
     }
 
     if (layer.what & layer_state_t::eReparent) {
-        int32_t layerId = layer.parentSurfaceControlForChild
+        int64_t layerId = layer.parentSurfaceControlForChild
                 ? mMapper->getLayerId(layer.parentSurfaceControlForChild->getHandle())
                 : -1;
         proto.set_parent_id(layerId);
     }
     if (layer.what & layer_state_t::eRelativeLayerChanged) {
-        int32_t layerId = layer.relativeLayerSurfaceControl
+        int64_t layerId = layer.relativeLayerSurfaceControl
                 ? mMapper->getLayerId(layer.relativeLayerSurfaceControl->getHandle())
                 : -1;
         proto.set_relative_parent_id(layerId);
@@ -342,13 +342,13 @@ void TransactionProtoParser::mergeFromProto(const proto::LayerState& proto,
     outState.merge(state);
 
     if (state.what & layer_state_t::eReparent) {
-        outState.parentId = proto.parent_id();
+        outState.parentId = static_cast<int32_t>(proto.parent_id());
     }
     if (state.what & layer_state_t::eRelativeLayerChanged) {
-        outState.relativeParentId = proto.relative_parent_id();
+        outState.relativeParentId = static_cast<int32_t>(proto.relative_parent_id());
     }
     if (state.what & layer_state_t::eInputInfoChanged) {
-        outState.inputCropId = proto.window_info_handle().crop_layer_id();
+        outState.inputCropId = static_cast<int32_t>(proto.window_info_handle().crop_layer_id());
     }
     if (state.what & layer_state_t::eBufferChanged) {
         const proto::LayerState_BufferData& bufferProto = proto.buffer_data();
@@ -364,7 +364,7 @@ void TransactionProtoParser::mergeFromProto(const proto::LayerState& proto,
 }
 
 void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_state_t& layer) {
-    layer.layerId = proto.layer_id();
+    layer.layerId = (int32_t)proto.layer_id();
     layer.what |= proto.what();
     layer.surface = mMapper->getLayerHandle(layer.layerId);
 
@@ -429,8 +429,9 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
                                                   bufferProto.height(), bufferProto.pixel_format(),
                                                   bufferProto.usage()));
         layer.bufferData->frameNumber = bufferProto.frame_number();
-        layer.bufferData->flags = Flags<BufferData::BufferDataChange>(bufferProto.flags());
+        layer.bufferData->flags = ftl::Flags<BufferData::BufferDataChange>(bufferProto.flags());
         layer.bufferData->cachedBuffer.id = bufferProto.cached_buffer_id();
+        layer.bufferData->acquireFence = Fence::NO_FENCE;
     }
 
     if (proto.what() & layer_state_t::eApiChanged) {
@@ -450,23 +451,25 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
     }
 
     if (proto.what() & layer_state_t::eReparent) {
-        int32_t layerId = proto.parent_id();
+        int64_t layerId = proto.parent_id();
         if (layerId == -1) {
             layer.parentSurfaceControlForChild = nullptr;
         } else {
             layer.parentSurfaceControlForChild =
                     new SurfaceControl(SurfaceComposerClient::getDefault(),
-                                       mMapper->getLayerHandle(layerId), nullptr, layerId);
+                                       mMapper->getLayerHandle(static_cast<int32_t>(layerId)),
+                                       nullptr, static_cast<int32_t>(layerId));
         }
     }
     if (proto.what() & layer_state_t::eRelativeLayerChanged) {
-        int32_t layerId = proto.relative_parent_id();
+        int64_t layerId = proto.relative_parent_id();
         if (layerId == -1) {
             layer.relativeLayerSurfaceControl = nullptr;
         } else {
             layer.relativeLayerSurfaceControl =
                     new SurfaceControl(SurfaceComposerClient::getDefault(),
-                                       mMapper->getLayerHandle(layerId), nullptr, layerId);
+                                       mMapper->getLayerHandle(static_cast<int32_t>(layerId)),
+                                       nullptr, static_cast<int32_t>(layerId));
         }
         layer.z = proto.z();
     }
@@ -493,8 +496,9 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
         inputInfo.transform.set(transformProto.tx(), transformProto.ty());
         inputInfo.replaceTouchableRegionWithCrop =
                 windowInfoProto.replace_touchable_region_with_crop();
-        int32_t layerId = windowInfoProto.crop_layer_id();
-        inputInfo.touchableRegionCropHandle = mMapper->getLayerHandle(layerId);
+        int64_t layerId = windowInfoProto.crop_layer_id();
+        inputInfo.touchableRegionCropHandle =
+                mMapper->getLayerHandle(static_cast<int32_t>(layerId));
         layer.windowInfoHandle = sp<gui::WindowInfoHandle>::make(inputInfo);
     }
     if (proto.what() & layer_state_t::eBackgroundColorChanged) {

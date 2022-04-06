@@ -14,10 +14,11 @@ cc_test {
         address: true,
     },
     srcs: [
-        "Flags_test.cpp",
         "cast_test.cpp",
         "concat_test.cpp",
         "enum_test.cpp",
+        "fake_guard_test.cpp",
+        "flags_test.cpp",
         "future_test.cpp",
         "small_map_test.cpp",
         "small_vector_test.cpp",
@@ -29,13 +30,6 @@ cc_test {
         "-Werror",
         "-Wextra",
         "-Wpedantic",
-    ],
-
-    header_libs: [
-        "libbase_headers",
-    ],
-
-    shared_libs: [
-        "libbase",
+        "-Wthread-safety",
     ],
 }

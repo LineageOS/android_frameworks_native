@@ -20,6 +20,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <android-base/properties.h>
+#include <android-base/stringprintf.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/planner/CachedSet.h>
 #include <math/HashCombine.h>
@@ -216,9 +217,8 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
     renderengine::LayerSettings holePunchSettings;
     renderengine::LayerSettings holePunchBackgroundSettings;
     if (mHolePunchLayer) {
-        auto clientCompositionList =
-                mHolePunchLayer->getOutputLayer()->getLayerFE().prepareClientCompositionList(
-                        targetSettings);
+        auto& layerFE = mHolePunchLayer->getOutputLayer()->getLayerFE();
+        auto clientCompositionList = layerFE.prepareClientCompositionList(targetSettings);
         // Assume that the final layer contains the buffer that we want to
         // replace with a hole punch.
         holePunchSettings = clientCompositionList.back();
@@ -227,7 +227,8 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
         holePunchSettings.source.solidColor = half3(0.0f, 0.0f, 0.0f);
         holePunchSettings.disableBlending = true;
         holePunchSettings.alpha = 0.0f;
-        holePunchSettings.name = std::string("hole punch layer");
+        holePunchSettings.name =
+                android::base::StringPrintf("hole punch layer for %s", layerFE.getDebugName());
         layerSettings.push_back(holePunchSettings);
 
         // Add a solid background as the first layer in case there is no opaque
@@ -306,7 +307,12 @@ bool CachedSet::requiresHolePunch() const {
     }
 
     const auto& layerFE = mLayers[0].getState()->getOutputLayer()->getLayerFE();
-    if (layerFE.getCompositionState()->forceClientComposition) {
+    const auto* compositionState = layerFE.getCompositionState();
+    if (compositionState->forceClientComposition) {
+        return false;
+    }
+
+    if (compositionState->blendMode != hal::BlendMode::NONE) {
         return false;
     }
 
@@ -390,7 +396,10 @@ void CachedSet::dump(std::string& result) const {
         const auto b = mTexture ? mTexture->get()->getBuffer().get() : nullptr;
         base::StringAppendF(&result, "    Override buffer: %p\n", b);
     }
-    base::StringAppendF(&result, "    HolePunchLayer: %p\n", mHolePunchLayer);
+    base::StringAppendF(&result, "    HolePunchLayer: %p\t%s\n", mHolePunchLayer,
+                        mHolePunchLayer
+                                ? mHolePunchLayer->getOutputLayer()->getLayerFE().getDebugName()
+                                : "");
 
     if (mLayers.size() == 1) {
         base::StringAppendF(&result, "    Layer [%s]\n", mLayers[0].getName().c_str());

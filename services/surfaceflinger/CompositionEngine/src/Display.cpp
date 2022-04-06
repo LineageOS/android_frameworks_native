@@ -58,16 +58,6 @@ void Display::setConfiguration(const compositionengine::DisplayCreationArgs& arg
     editState().isSecure = args.isSecure;
     editState().displaySpace.setBounds(args.pixels);
     setName(args.name);
-    bool isBootModeSupported = getCompositionEngine().getHwComposer().getBootDisplayModeSupport();
-    const auto physicalId = PhysicalDisplayId::tryCast(mId);
-    if (!physicalId || !isBootModeSupported) {
-        return;
-    }
-    std::optional<hal::HWConfigId> preferredBootModeId =
-            getCompositionEngine().getHwComposer().getPreferredBootDisplayMode(*physicalId);
-    if (preferredBootModeId.has_value()) {
-        mPreferredBootHwcConfigId = static_cast<int32_t>(preferredBootModeId.value());
-    }
 }
 
 bool Display::isValid() const {
@@ -88,10 +78,6 @@ bool Display::isVirtual() const {
 
 std::optional<DisplayId> Display::getDisplayId() const {
     return mId;
-}
-
-int32_t Display::getPreferredBootHwcConfigId() const {
-    return mPreferredBootHwcConfigId;
 }
 
 void Display::disconnect() {
@@ -221,25 +207,15 @@ void Display::setReleasedLayers(const compositionengine::CompositionRefreshArgs&
     setReleasedLayers(std::move(releasedLayers));
 }
 
-std::optional<android::HWComposer::DeviceRequestedChanges> Display::chooseCompositionStrategy() {
-    ATRACE_CALL();
-    ALOGV(__FUNCTION__);
-
-    if (mIsDisconnected) {
-        return {};
-    }
-
-    // Default to the base settings -- client composition only.
-    Output::chooseCompositionStrategy();
+void Display::beginFrame() {
+    Output::beginFrame();
 
     // If we don't have a HWC display, then we are done.
     const auto halDisplayId = HalDisplayId::tryCast(mId);
     if (!halDisplayId) {
-        return {};
+        return;
     }
 
-    // Get any composition changes requested by the HWC device, and apply them.
-    std::optional<android::HWComposer::DeviceRequestedChanges> changes;
     auto& hwc = getCompositionEngine().getHwComposer();
     if (const auto physicalDisplayId = PhysicalDisplayId::tryCast(*halDisplayId);
         physicalDisplayId && getState().displayBrightness) {
@@ -251,19 +227,40 @@ std::optional<android::HWComposer::DeviceRequestedChanges> Display::chooseCompos
         ALOGE_IF(result != NO_ERROR, "setDisplayBrightness failed for %s: %d, (%s)",
                  getName().c_str(), result, strerror(-result));
     }
+    // Clear out the display brightness now that it's been communicated to composer.
+    editState().displayBrightness.reset();
+}
 
+bool Display::chooseCompositionStrategy(
+        std::optional<android::HWComposer::DeviceRequestedChanges>* outChanges) {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    if (mIsDisconnected) {
+        return false;
+    }
+
+    // If we don't have a HWC display, then we are done.
+    const auto halDisplayId = HalDisplayId::tryCast(mId);
+    if (!halDisplayId) {
+        return false;
+    }
+
+    // Get any composition changes requested by the HWC device, and apply them.
+    std::optional<android::HWComposer::DeviceRequestedChanges> changes;
+    auto& hwc = getCompositionEngine().getHwComposer();
     if (status_t result =
                 hwc.getDeviceCompositionChanges(*halDisplayId, anyLayersRequireClientComposition(),
                                                 getState().earliestPresentTime,
                                                 getState().previousPresentFence,
-                                                getState().expectedPresentTime, &changes);
+                                                getState().expectedPresentTime, outChanges);
         result != NO_ERROR) {
         ALOGE("chooseCompositionStrategy failed for %s: %d (%s)", getName().c_str(), result,
               strerror(-result));
-        return {};
+        return false;
     }
 
-    return changes;
+    return true;
 }
 
 void Display::applyCompositionStrategy(const std::optional<DeviceRequestedChanges>& changes) {
@@ -271,15 +268,13 @@ void Display::applyCompositionStrategy(const std::optional<DeviceRequestedChange
         applyChangedTypesToLayers(changes->changedTypes);
         applyDisplayRequests(changes->displayRequests);
         applyLayerRequestsToLayers(changes->layerRequests);
-        applyClientTargetRequests(changes->clientTargetProperty, changes->clientTargetBrightness);
+        applyClientTargetRequests(changes->clientTargetProperty);
     }
 
     // Determine what type of composition we are doing from the final state
     auto& state = editState();
     state.usesClientComposition = anyLayersRequireClientComposition();
     state.usesDeviceComposition = !allLayersRequireClientComposition();
-    // Clear out the display brightness now that it's been communicated to composer.
-    state.displayBrightness.reset();
 }
 
 bool Display::getSkipColorTransform() const {
@@ -340,16 +335,19 @@ void Display::applyLayerRequestsToLayers(const LayerRequests& layerRequests) {
     }
 }
 
-void Display::applyClientTargetRequests(const ClientTargetProperty& clientTargetProperty,
-                                        float brightness) {
-    if (clientTargetProperty.dataspace == ui::Dataspace::UNKNOWN) {
+void Display::applyClientTargetRequests(const ClientTargetProperty& clientTargetProperty) {
+    if (static_cast<ui::Dataspace>(clientTargetProperty.clientTargetProperty.dataspace) ==
+        ui::Dataspace::UNKNOWN) {
         return;
     }
 
-    editState().dataspace = clientTargetProperty.dataspace;
-    editState().clientTargetBrightness = brightness;
-    getRenderSurface()->setBufferDataspace(clientTargetProperty.dataspace);
-    getRenderSurface()->setBufferPixelFormat(clientTargetProperty.pixelFormat);
+    editState().dataspace =
+            static_cast<ui::Dataspace>(clientTargetProperty.clientTargetProperty.dataspace);
+    editState().clientTargetBrightness = clientTargetProperty.brightness;
+    editState().clientTargetDimmingStage = clientTargetProperty.dimmingStage;
+    getRenderSurface()->setBufferDataspace(editState().dataspace);
+    getRenderSurface()->setBufferPixelFormat(
+            static_cast<ui::PixelFormat>(clientTargetProperty.clientTargetProperty.pixelFormat));
 }
 
 compositionengine::Output::FrameFences Display::presentAndGetFrameFences() {

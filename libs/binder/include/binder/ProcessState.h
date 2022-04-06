@@ -18,10 +18,9 @@
 
 #include <binder/IBinder.h>
 #include <utils/KeyedVector.h>
+#include <utils/Mutex.h>
 #include <utils/String16.h>
 #include <utils/String8.h>
-
-#include <utils/threads.h>
 
 #include <pthread.h>
 
@@ -90,6 +89,12 @@ public:
      * Note: this is the lower bound. Additional threads may be started.
      */
     size_t getThreadPoolMaxThreadCount() const;
+
+    enum class DriverFeature {
+        ONEWAY_SPAM_DETECTION,
+    };
+    // Determine whether a feature is supported by the binder driver.
+    static bool isDriverFeatureEnabled(const DriverFeature feature);
 
 private:
     static sp<ProcessState> init(const char* defaultDriver, bool requireDefault);

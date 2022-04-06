@@ -50,6 +50,7 @@ cc_library {
         "Keyboard.cpp",
         "KeyCharacterMap.cpp",
         "KeyLayoutMap.cpp",
+        "PrintTools.cpp",
         "PropertyMap.cpp",
         "TouchVideoFrame.cpp",
         "VelocityControl.cpp",
@@ -102,6 +103,9 @@ cc_library {
 
             sanitize: {
                 misc_undefined: ["integer"],
+                diag: {
+                    misc_undefined: ["integer"],
+                },
             },
         },
         host: {
@@ -112,7 +116,7 @@ cc_library {
                 "frameworks/native/libs/arect/include",
             ],
         },
-        linux_glibc: {
+        host_linux: {
             srcs: [
                 "InputTransport.cpp",
                 "android/os/IInputConstants.aidl",

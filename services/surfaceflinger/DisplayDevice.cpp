@@ -197,7 +197,7 @@ void DisplayDevice::setActiveMode(DisplayModeId id) {
     ATRACE_INT(mActiveModeFPSTrace.c_str(), mode->getFps().getIntValue());
     mActiveMode = mode;
     if (mRefreshRateConfigs) {
-        mRefreshRateConfigs->setCurrentModeId(mActiveMode->getId());
+        mRefreshRateConfigs->setActiveModeId(mActiveMode->getId());
     }
     if (mRefreshRateOverlay) {
         mRefreshRateOverlay->changeRefreshRate(mActiveMode->getFps());
@@ -228,21 +228,18 @@ const DisplayModes& DisplayDevice::getSupportedModes() const {
 }
 
 DisplayModePtr DisplayDevice::getMode(DisplayModeId modeId) const {
-    const auto it = std::find_if(mSupportedModes.begin(), mSupportedModes.end(),
-                                 [&](DisplayModePtr mode) { return mode->getId() == modeId; });
-    if (it != mSupportedModes.end()) {
-        return *it;
-    }
-    return nullptr;
+    const DisplayModePtr nullMode;
+    return mSupportedModes.get(modeId).value_or(std::cref(nullMode));
 }
 
-DisplayModePtr DisplayDevice::getModefromHwcId(uint32_t hwcId) const {
-    const auto it = std::find_if(mSupportedModes.begin(), mSupportedModes.end(),
-                                 [&](DisplayModePtr mode) { return mode->getHwcId() == hwcId; });
+std::optional<DisplayModeId> DisplayDevice::translateModeId(hal::HWConfigId hwcId) const {
+    const auto it =
+            std::find_if(mSupportedModes.begin(), mSupportedModes.end(),
+                         [hwcId](const auto& pair) { return pair.second->getHwcId() == hwcId; });
     if (it != mSupportedModes.end()) {
-        return *it;
+        return it->second->getId();
     }
-    return nullptr;
+    return {};
 }
 
 nsecs_t DisplayDevice::getVsyncPeriodFromHWC() const {
@@ -365,12 +362,12 @@ void DisplayDevice::dump(std::string& result) const {
                   activeMode ? to_string(*activeMode).c_str() : "none");
 
     result.append("   supportedModes=\n");
-
-    for (const auto& mode : mSupportedModes) {
-        result.append("     ");
+    for (const auto& [id, mode] : mSupportedModes) {
+        result.append("      ");
         result.append(to_string(*mode));
-        result.append("\n");
+        result.push_back('\n');
     }
+
     StringAppendF(&result, "   deviceProductInfo=");
     if (mDeviceProductInfo) {
         mDeviceProductInfo->dump(result);
@@ -469,25 +466,14 @@ HdrCapabilities DisplayDevice::getHdrCapabilities() const {
                            capabilities.getDesiredMinLuminance());
 }
 
-ui::DisplayModeId DisplayDevice::getPreferredBootModeId() const {
-    const auto preferredBootHwcModeId = mCompositionDisplay->getPreferredBootHwcConfigId();
-    const auto mode = getModefromHwcId(preferredBootHwcModeId);
-    if (mode == nullptr) {
-        ALOGE("%s: invalid display mode (%d)", __FUNCTION__, preferredBootHwcModeId);
-        return BAD_VALUE;
-    }
-    return mode->getId().value();
-}
-
 void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinnner) {
     if (!enable) {
         mRefreshRateOverlay.reset();
         return;
     }
 
-    const auto [lowFps, highFps] = mRefreshRateConfigs->getSupportedRefreshRateRange();
-    mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(*mFlinger, lowFps.getIntValue(),
-                                                               highFps.getIntValue(), showSpinnner);
+    const auto fpsRange = mRefreshRateConfigs->getSupportedRefreshRateRange();
+    mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(fpsRange, showSpinnner);
     mRefreshRateOverlay->setLayerStack(getLayerStack());
     mRefreshRateOverlay->setViewport(getSize());
     mRefreshRateOverlay->changeRefreshRate(getActiveMode()->getFps());

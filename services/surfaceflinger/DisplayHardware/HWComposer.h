@@ -45,6 +45,7 @@
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
 #include <aidl/android/hardware/graphics/composer3/Capability.h>
+#include <aidl/android/hardware/graphics/composer3/ClientTargetPropertyWithBrightness.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
@@ -78,7 +79,8 @@ public:
         using ChangedTypes =
                 std::unordered_map<HWC2::Layer*,
                                    aidl::android::hardware::graphics::composer3::Composition>;
-        using ClientTargetProperty = hal::ClientTargetProperty;
+        using ClientTargetProperty =
+                aidl::android::hardware::graphics::composer3::ClientTargetPropertyWithBrightness;
         using DisplayRequests = hal::DisplayRequest;
         using LayerRequests = std::unordered_map<HWC2::Layer*, hal::LayerRequest>;
 
@@ -86,7 +88,6 @@ public:
         DisplayRequests displayRequests;
         LayerRequests layerRequests;
         ClientTargetProperty clientTargetProperty;
-        float clientTargetBrightness;
     };
 
     struct HWCDisplayMode {
@@ -234,8 +235,16 @@ public:
                                                   hal::VsyncPeriodChangeTimeline* outTimeline) = 0;
     virtual status_t setAutoLowLatencyMode(PhysicalDisplayId, bool on) = 0;
     virtual status_t getSupportedContentTypes(
-            PhysicalDisplayId, std::vector<hal::ContentType>* outSupportedContentTypes) = 0;
+            PhysicalDisplayId, std::vector<hal::ContentType>* outSupportedContentTypes) const = 0;
+
+    bool supportsContentType(PhysicalDisplayId displayId, hal::ContentType type) const {
+        std::vector<hal::ContentType> types;
+        return getSupportedContentTypes(displayId, &types) == NO_ERROR &&
+                std::find(types.begin(), types.end(), type) != types.end();
+    }
+
     virtual status_t setContentType(PhysicalDisplayId, hal::ContentType) = 0;
+
     virtual const std::unordered_map<std::string, bool>& getSupportedLayerGenericMetadata()
             const = 0;
 
@@ -259,7 +268,6 @@ public:
     virtual std::optional<hal::HWDisplayId> fromPhysicalDisplayId(PhysicalDisplayId) const = 0;
 
     // Composer 3.0
-    virtual bool getBootDisplayModeSupport() = 0;
     virtual status_t setBootDisplayMode(PhysicalDisplayId, hal::HWConfigId) = 0;
     virtual status_t clearBootDisplayMode(PhysicalDisplayId) = 0;
     virtual std::optional<hal::HWConfigId> getPreferredBootDisplayMode(PhysicalDisplayId) = 0;
@@ -267,14 +275,16 @@ public:
             PhysicalDisplayId,
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) = 0;
+    virtual status_t setIdleTimerEnabled(PhysicalDisplayId, std::chrono::milliseconds timeout) = 0;
+    virtual bool hasDisplayIdleTimerCapability(PhysicalDisplayId) const = 0;
+    virtual Hwc2::AidlTransform getPhysicalDisplayOrientation(PhysicalDisplayId) const = 0;
 };
 
 static inline bool operator==(const android::HWComposer::DeviceRequestedChanges& lhs,
                               const android::HWComposer::DeviceRequestedChanges& rhs) {
     return lhs.changedTypes == rhs.changedTypes && lhs.displayRequests == rhs.displayRequests &&
             lhs.layerRequests == rhs.layerRequests &&
-            lhs.clientTargetProperty == rhs.clientTargetProperty &&
-            lhs.clientTargetBrightness == rhs.clientTargetBrightness;
+            lhs.clientTargetProperty == rhs.clientTargetProperty;
 }
 
 namespace impl {
@@ -396,13 +406,13 @@ public:
                                           const hal::VsyncPeriodChangeConstraints&,
                                           hal::VsyncPeriodChangeTimeline* outTimeline) override;
     status_t setAutoLowLatencyMode(PhysicalDisplayId, bool) override;
-    status_t getSupportedContentTypes(PhysicalDisplayId, std::vector<hal::ContentType>*) override;
+    status_t getSupportedContentTypes(PhysicalDisplayId,
+                                      std::vector<hal::ContentType>*) const override;
     status_t setContentType(PhysicalDisplayId, hal::ContentType) override;
 
     const std::unordered_map<std::string, bool>& getSupportedLayerGenericMetadata() const override;
 
     // Composer 3.0
-    bool getBootDisplayModeSupport() override;
     status_t setBootDisplayMode(PhysicalDisplayId, hal::HWConfigId) override;
     status_t clearBootDisplayMode(PhysicalDisplayId) override;
     std::optional<hal::HWConfigId> getPreferredBootDisplayMode(PhysicalDisplayId) override;
@@ -410,6 +420,9 @@ public:
             PhysicalDisplayId,
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
                     support) override;
+    status_t setIdleTimerEnabled(PhysicalDisplayId, std::chrono::milliseconds timeout) override;
+    bool hasDisplayIdleTimerCapability(PhysicalDisplayId) const override;
+    Hwc2::AidlTransform getPhysicalDisplayOrientation(PhysicalDisplayId) const override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;

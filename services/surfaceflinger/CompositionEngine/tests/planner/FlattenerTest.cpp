@@ -633,6 +633,7 @@ TEST_F(FlattenerTest, flattenLayers_pip) {
 
     auto& layerState3 = mTestLayers[2]->layerState;
     const auto& overrideBuffer3 = layerState3->getOutputLayer()->getState().overrideInfo.buffer;
+    mTestLayers[2]->layerFECompositionState.blendMode = hal::BlendMode::NONE;
 
     EXPECT_CALL(*mTestLayers[2]->layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
 
@@ -706,6 +707,7 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleLayer) {
     // a rounded updating layer
     auto& layerState1 = mTestLayers[1]->layerState;
     const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
+    mTestLayers[1]->layerFECompositionState.blendMode = hal::BlendMode::NONE;
 
     EXPECT_CALL(*mTestLayers[1]->layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
 
@@ -777,6 +779,7 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleColorLayer) {
     // a rounded updating layer
     auto& layerState1 = mTestLayers[1]->layerState;
     const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
+    mTestLayers[1]->layerFECompositionState.blendMode = hal::BlendMode::NONE;
 
     EXPECT_CALL(*mTestLayers[1]->layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
 

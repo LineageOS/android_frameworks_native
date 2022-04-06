@@ -31,6 +31,7 @@
 #include <android-base/unique_fd.h>
 #include <bpf/BpfMap.h>
 #include <cputimeinstate.h>
+#include <cutils/android_filesystem_config.h>
 #include <libbpf.h>
 
 namespace android {
@@ -219,6 +220,7 @@ TEST_F(TimeInStateTest, TotalAndAllUidTimeInStateConsistent) {
         uint32_t totalFreqsCount = totalTimes.size();
         std::vector<uint64_t> allUidTimes(totalFreqsCount, 0);
         for (auto const &[uid, uidTimes]: *allUid) {
+            if (uid == AID_SDK_SANDBOX) continue;
             for (uint32_t freqIdx = 0; freqIdx < uidTimes[policyIdx].size(); ++freqIdx) {
                 allUidTimes[std::min(freqIdx, totalFreqsCount - 1)] += uidTimes[policyIdx][freqIdx];
             }
@@ -644,6 +646,56 @@ TEST_F(TimeInStateTest, GetAggregatedTaskCpuFreqTimes) {
         ASSERT_GT(totalCpuTime, 0ul);
         ASSERT_LE(totalCpuTime, testDurationNs);
     }
+}
+
+void *forceSwitchWithUid(void *uidPtr) {
+    if (!uidPtr) return nullptr;
+    setuid(*(uint32_t *)uidPtr);
+
+    // Sleep briefly to trigger a context switch, ensuring we see at least one update.
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = 1000000;
+    nanosleep(&ts, NULL);
+    return nullptr;
+}
+
+TEST_F(TimeInStateTest, SdkSandboxUid) {
+    // Find an unused app UID and its corresponding SDK sandbox uid.
+    uint32_t appUid = AID_APP_START, sandboxUid;
+    {
+        auto times = getUidsCpuFreqTimes();
+        ASSERT_TRUE(times.has_value());
+        ASSERT_FALSE(times->empty());
+        for (const auto &kv : *times) {
+            if (kv.first > AID_APP_END) break;
+            appUid = std::max(appUid, kv.first);
+        }
+        appUid++;
+        sandboxUid = appUid + (AID_SDK_SANDBOX_PROCESS_START - AID_APP_START);
+    }
+
+    // Create a thread to run with the fake sandbox uid.
+    pthread_t thread;
+    ASSERT_EQ(pthread_create(&thread, NULL, &forceSwitchWithUid, &sandboxUid), 0);
+    pthread_join(thread, NULL);
+
+    // Confirm we recorded stats for appUid and AID_SDK_SANDBOX but not sandboxUid
+    auto allTimes = getUidsCpuFreqTimes();
+    ASSERT_TRUE(allTimes.has_value());
+    ASSERT_FALSE(allTimes->empty());
+    ASSERT_NE(allTimes->find(appUid), allTimes->end());
+    ASSERT_NE(allTimes->find(AID_SDK_SANDBOX), allTimes->end());
+    ASSERT_EQ(allTimes->find(sandboxUid), allTimes->end());
+
+    auto allConcurrentTimes = getUidsConcurrentTimes();
+    ASSERT_TRUE(allConcurrentTimes.has_value());
+    ASSERT_FALSE(allConcurrentTimes->empty());
+    ASSERT_NE(allConcurrentTimes->find(appUid), allConcurrentTimes->end());
+    ASSERT_NE(allConcurrentTimes->find(AID_SDK_SANDBOX), allConcurrentTimes->end());
+    ASSERT_EQ(allConcurrentTimes->find(sandboxUid), allConcurrentTimes->end());
+
+    ASSERT_TRUE(clearUidTimes(appUid));
 }
 
 } // namespace bpf

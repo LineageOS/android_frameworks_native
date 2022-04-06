@@ -17,6 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "LayerStateTest"
 
+#include <aidl/android/hardware/graphics/common/BufferUsage.h>
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/planner/LayerState.h>
 #include <compositionengine/mock/LayerFE.h>
@@ -29,7 +30,8 @@
 
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 
-using aidl::android::hardware::graphics::composer3::Composition;
+using ::aidl::android::hardware::graphics::common::BufferUsage;
+using ::aidl::android::hardware::graphics::composer3::Composition;
 
 namespace android::compositionengine::impl::planner {
 namespace {
@@ -95,12 +97,12 @@ struct LayerStateTest : public testing::Test {
     void verifyUniqueDifferingFields(const LayerState& lhs, const LayerState& rhs) {
         EXPECT_EQ(lhs.getHash(), rhs.getHash());
 
-        EXPECT_EQ(Flags<LayerStateField>(LayerStateField::None), lhs.getDifferingFields(rhs));
-        EXPECT_EQ(Flags<LayerStateField>(LayerStateField::None), rhs.getDifferingFields(lhs));
+        EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::None), lhs.getDifferingFields(rhs));
+        EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::None), rhs.getDifferingFields(lhs));
     }
 
     void verifyNonUniqueDifferingFields(const LayerState& lhs, const LayerState& rhs,
-                                        Flags<LayerStateField> fields) {
+                                        ftl::Flags<LayerStateField> fields) {
         EXPECT_NE(lhs.getHash(), rhs.getHash());
 
         EXPECT_EQ(fields, lhs.getDifferingFields(rhs));
@@ -157,9 +159,9 @@ TEST_F(LayerStateTest, updateId) {
     sp<mock::LayerFE> newLayerFE = sp<mock::LayerFE>::make();
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                        layerFECompositionState, sSequenceIdTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
     EXPECT_EQ(sSequenceIdTwo, mLayerState->getId());
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::Id), updates);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::Id), updates);
 }
 
 TEST_F(LayerStateTest, compareId) {
@@ -202,9 +204,9 @@ TEST_F(LayerStateTest, updateName) {
     sp<mock::LayerFE> newLayerFE = sp<mock::LayerFE>::make();
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                        layerFECompositionState, sSequenceId, sDebugNameTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
     EXPECT_EQ(sDebugNameTwo, mLayerState->getName());
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::Name), updates);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::Name), updates);
 }
 
 TEST_F(LayerStateTest, compareName) {
@@ -251,9 +253,9 @@ TEST_F(LayerStateTest, updateDisplayFrame) {
     outputLayerCompositionStateTwo.displayFrame = sRectTwo;
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionStateTwo,
                        layerFECompositionState);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
     EXPECT_EQ(sRectTwo, mLayerState->getDisplayFrame());
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::DisplayFrame), updates);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::DisplayFrame), updates);
 }
 
 TEST_F(LayerStateTest, compareDisplayFrame) {
@@ -313,9 +315,9 @@ TEST_F(LayerStateTest, updateCompositionType) {
     layerFECompositionStateTwo.compositionType = Composition::SOLID_COLOR;
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                        layerFECompositionStateTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
     EXPECT_EQ(Composition::SOLID_COLOR, mLayerState->getCompositionType());
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::CompositionType), updates);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::CompositionType), updates);
 }
 
 TEST_F(LayerStateTest, compareCompositionType) {
@@ -355,8 +357,8 @@ TEST_F(LayerStateTest, updateBuffer) {
     layerFECompositionStateTwo.buffer = new GraphicBuffer();
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                        layerFECompositionStateTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::Buffer), updates);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::Buffer), updates);
 }
 
 TEST_F(LayerStateTest, updateBufferSingleBufferedLegacy) {
@@ -378,8 +380,32 @@ TEST_F(LayerStateTest, updateBufferSingleBufferedLegacy) {
         layerFECompositionStateTwo.frameNumber = i;
         setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                            layerFECompositionStateTwo);
-        Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-        EXPECT_EQ(Flags<LayerStateField>(LayerStateField::Buffer), updates);
+        ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+        EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::Buffer), updates);
+    }
+}
+
+TEST_F(LayerStateTest, updateBufferSingleBufferedUsage) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.buffer = new GraphicBuffer();
+    setupMocksForLayer(mOutputLayer, *mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+
+    mock::OutputLayer newOutputLayer;
+    sp<mock::LayerFE> newLayerFE = sp<mock::LayerFE>::make();
+    LayerFECompositionState layerFECompositionStateTwo;
+    layerFECompositionStateTwo.buffer = new GraphicBuffer();
+    layerFECompositionStateTwo.buffer->usage = static_cast<uint64_t>(BufferUsage::FRONT_BUFFER);
+    setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
+                       layerFECompositionStateTwo);
+
+    for (uint64_t i = 0; i < 10; i++) {
+        setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
+                           layerFECompositionStateTwo);
+        ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+        EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::Buffer), updates);
     }
 }
 
@@ -420,8 +446,8 @@ TEST_F(LayerStateTest, updateSourceCrop) {
     outputLayerCompositionStateTwo.sourceCrop = sFloatRectTwo;
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionStateTwo,
                        layerFECompositionState);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::SourceCrop), updates);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::SourceCrop), updates);
 }
 
 TEST_F(LayerStateTest, compareSourceCrop) {
@@ -459,8 +485,8 @@ TEST_F(LayerStateTest, updateBufferTransform) {
     outputLayerCompositionStateTwo.bufferTransform = Hwc2::Transform::FLIP_V;
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionStateTwo,
                        layerFECompositionState);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::BufferTransform), updates);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::BufferTransform), updates);
 }
 
 TEST_F(LayerStateTest, compareBufferTransform) {
@@ -499,8 +525,8 @@ TEST_F(LayerStateTest, updateBlendMode) {
     layerFECompositionStateTwo.blendMode = hal::BlendMode::PREMULTIPLIED;
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                        layerFECompositionStateTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::BlendMode), updates);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::BlendMode), updates);
 }
 
 TEST_F(LayerStateTest, compareBlendMode) {
@@ -538,8 +564,8 @@ TEST_F(LayerStateTest, updateAlpha) {
     layerFECompositionStateTwo.alpha = sAlphaTwo;
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                        layerFECompositionStateTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::Alpha), updates);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::Alpha), updates);
 }
 
 TEST_F(LayerStateTest, compareAlpha) {
@@ -577,8 +603,8 @@ TEST_F(LayerStateTest, updateLayerMetadata) {
     layerFECompositionStateTwo.metadata[sMetadataKeyTwo] = sMetadataValueTwo;
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                        layerFECompositionStateTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::LayerMetadata), updates);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::LayerMetadata), updates);
 }
 
 TEST_F(LayerStateTest, compareLayerMetadata) {
@@ -626,8 +652,8 @@ TEST_F(LayerStateTest, updateVisibleRegion) {
     outputLayerCompositionStateTwo.visibleRegion = sRegionTwo;
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionStateTwo,
                        layerFECompositionState);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::VisibleRegion), updates);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::VisibleRegion), updates);
 }
 
 TEST_F(LayerStateTest, compareVisibleRegion) {
@@ -665,8 +691,8 @@ TEST_F(LayerStateTest, updateDataspace) {
     outputLayerCompositionStateTwo.dataspace = ui::Dataspace::DISPLAY_P3;
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionStateTwo,
                        layerFECompositionState);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::Dataspace), updates);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::Dataspace), updates);
 }
 
 TEST_F(LayerStateTest, compareDataspace) {
@@ -712,9 +738,9 @@ TEST_F(LayerStateTest, updatePixelFormat) {
                               "buffer2");
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                        layerFECompositionStateTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::Buffer) |
-                      Flags<LayerStateField>(LayerStateField::PixelFormat),
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::Buffer) |
+                      ftl::Flags<LayerStateField>(LayerStateField::PixelFormat),
               updates);
 }
 
@@ -742,7 +768,7 @@ TEST_F(LayerStateTest, comparePixelFormat) {
     auto otherLayerState = std::make_unique<LayerState>(&newOutputLayer);
 
     verifyNonUniqueDifferingFields(*mLayerState, *otherLayerState,
-                                   Flags<LayerStateField>(LayerStateField::PixelFormat));
+                                   ftl::Flags<LayerStateField>(LayerStateField::PixelFormat));
 
     EXPECT_TRUE(mLayerState->compare(*otherLayerState));
     EXPECT_TRUE(otherLayerState->compare(*mLayerState));
@@ -764,8 +790,8 @@ TEST_F(LayerStateTest, updateColorTransform) {
     layerFECompositionStateTwo.colorTransform = sMat4One;
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                        layerFECompositionStateTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::ColorTransform), updates);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::ColorTransform), updates);
 }
 
 TEST_F(LayerStateTest, compareColorTransform) {
@@ -805,8 +831,8 @@ TEST_F(LayerStateTest, updateSidebandStream) {
     layerFECompositionStateTwo.sidebandStream = NativeHandle::create(sFakeSidebandStreamTwo, false);
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                        layerFECompositionStateTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::SidebandStream), updates);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::SidebandStream), updates);
 }
 
 TEST_F(LayerStateTest, compareSidebandStream) {
@@ -844,8 +870,8 @@ TEST_F(LayerStateTest, updateSolidColor) {
     layerFECompositionStateTwo.color = sHalf4Two;
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                        layerFECompositionStateTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::SolidColor), updates);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::SolidColor), updates);
 }
 
 TEST_F(LayerStateTest, compareSolidColor) {
@@ -883,8 +909,8 @@ TEST_F(LayerStateTest, updateBackgroundBlur) {
     layerFECompositionStateTwo.backgroundBlurRadius = sBgBlurRadiusTwo;
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                        layerFECompositionStateTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::BackgroundBlurRadius), updates);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::BackgroundBlurRadius), updates);
 }
 
 TEST_F(LayerStateTest, compareBackgroundBlur) {
@@ -923,8 +949,8 @@ TEST_F(LayerStateTest, updateBlurRegions) {
     layerFECompositionStateTwo.blurRegions.push_back(sBlurRegionTwo);
     setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
                        layerFECompositionStateTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::BlurRegions), updates);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::BlurRegions), updates);
 }
 
 TEST_F(LayerStateTest, compareBlurRegions) {

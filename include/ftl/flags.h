@@ -19,16 +19,15 @@
 #include <ftl/enum.h>
 #include <ftl/string.h>
 
+#include <bitset>
 #include <cstdint>
 #include <iterator>
 #include <string>
 #include <type_traits>
 
-#include "utils/BitSet.h"
+// TODO(b/185536303): Align with FTL style.
 
-// TODO(b/185536303): Align with FTL style and namespace.
-
-namespace android {
+namespace android::ftl {
 
 /* A class for handling flags defined by an enum or enum class in a type-safe way. */
 template <typename F>
@@ -49,28 +48,29 @@ public:
     // should force them to be explicitly constructed from their underlying types to make full use
     // of the type checker.
     template <typename T = U>
-    constexpr Flags(T t, std::enable_if_t<!ftl::is_scoped_enum_v<F>, T>* = nullptr) : mFlags(t) {}
+    constexpr Flags(T t, std::enable_if_t<!is_scoped_enum_v<F>, T>* = nullptr) : mFlags(t) {}
 
     template <typename T = U>
-    explicit constexpr Flags(T t, std::enable_if_t<ftl::is_scoped_enum_v<F>, T>* = nullptr)
+    explicit constexpr Flags(T t, std::enable_if_t<is_scoped_enum_v<F>, T>* = nullptr)
           : mFlags(t) {}
 
     class Iterator {
-        // The type can't be larger than 64-bits otherwise it won't fit in BitSet64.
-        static_assert(sizeof(U) <= sizeof(uint64_t));
+        using Bits = std::uint64_t;
+        static_assert(sizeof(U) <= sizeof(Bits));
 
     public:
+        constexpr Iterator() = default;
         Iterator(Flags<F> flags) : mRemainingFlags(flags.mFlags) { (*this)++; }
-        Iterator() : mRemainingFlags(0), mCurrFlag(static_cast<F>(0)) {}
 
         // Pre-fix ++
         Iterator& operator++() {
-            if (mRemainingFlags.isEmpty()) {
-                mCurrFlag = static_cast<F>(0);
+            if (mRemainingFlags.none()) {
+                mCurrFlag = 0;
             } else {
-                uint64_t bit = mRemainingFlags.clearLastMarkedBit(); // counts from left
-                const U flag = 1 << (64 - bit - 1);
-                mCurrFlag = static_cast<F>(flag);
+                // TODO: Replace with std::countr_zero in C++20.
+                const Bits bit = static_cast<Bits>(__builtin_ctzll(mRemainingFlags.to_ullong()));
+                mRemainingFlags.reset(static_cast<std::size_t>(bit));
+                mCurrFlag = static_cast<U>(static_cast<Bits>(1) << bit);
             }
             return *this;
         }
@@ -88,7 +88,7 @@ public:
 
         bool operator!=(Iterator other) const { return !(*this == other); }
 
-        F operator*() { return mCurrFlag; }
+        F operator*() const { return F{mCurrFlag}; }
 
         // iterator traits
 
@@ -107,8 +107,8 @@ public:
         using pointer = void;
 
     private:
-        BitSet64 mRemainingFlags;
-        F mCurrFlag;
+        std::bitset<sizeof(Bits) * 8> mRemainingFlags;
+        U mCurrFlag = 0;
     };
 
     /*
@@ -175,7 +175,7 @@ public:
         bool first = true;
         U unstringified = 0;
         for (const F f : *this) {
-            if (const auto flagName = ftl::flag_name(f)) {
+            if (const auto flagName = flag_name(f)) {
                 appendFlag(result, flagName.value(), first);
             } else {
                 unstringified |= static_cast<U>(f);
@@ -183,8 +183,8 @@ public:
         }
 
         if (unstringified != 0) {
-            constexpr auto radix = sizeof(U) == 1 ? ftl::Radix::kBin : ftl::Radix::kHex;
-            appendFlag(result, ftl::to_string(unstringified, radix), first);
+            constexpr auto radix = sizeof(U) == 1 ? Radix::kBin : Radix::kHex;
+            appendFlag(result, to_string(unstringified, radix), first);
         }
 
         if (first) {
@@ -211,15 +211,15 @@ private:
 // as flags. In order to use these, add them via a `using namespace` declaration.
 namespace flag_operators {
 
-template <typename F, typename = std::enable_if_t<ftl::is_scoped_enum_v<F>>>
+template <typename F, typename = std::enable_if_t<is_scoped_enum_v<F>>>
 inline Flags<F> operator~(F f) {
-    return static_cast<F>(~ftl::to_underlying(f));
+    return static_cast<F>(~to_underlying(f));
 }
 
-template <typename F, typename = std::enable_if_t<ftl::is_scoped_enum_v<F>>>
+template <typename F, typename = std::enable_if_t<is_scoped_enum_v<F>>>
 Flags<F> operator|(F lhs, F rhs) {
-    return static_cast<F>(ftl::to_underlying(lhs) | ftl::to_underlying(rhs));
+    return static_cast<F>(to_underlying(lhs) | to_underlying(rhs));
 }
 
 } // namespace flag_operators
-} // namespace android
+} // namespace android::ftl

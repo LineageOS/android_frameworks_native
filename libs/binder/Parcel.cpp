@@ -63,7 +63,7 @@
 // This macro should never be used at runtime, as a too large value
 // of s could cause an integer overflow. Instead, you should always
 // use the wrapper function pad_size()
-#define PAD_SIZE_UNSAFE(s) (((s)+3)&~3)
+#define PAD_SIZE_UNSAFE(s) (((s) + 3) & ~3UL)
 
 static size_t pad_size(size_t s) {
     if (s > (std::numeric_limits<size_t>::max() - 3)) {
@@ -567,6 +567,47 @@ bool Parcel::hasFileDescriptors() const
         scanForFds();
     }
     return mHasFds;
+}
+
+std::vector<sp<IBinder>> Parcel::debugReadAllStrongBinders() const {
+    std::vector<sp<IBinder>> ret;
+
+    size_t initPosition = dataPosition();
+    for (size_t i = 0; i < mObjectsSize; i++) {
+        binder_size_t offset = mObjects[i];
+        const flat_binder_object* flat =
+                reinterpret_cast<const flat_binder_object*>(mData + offset);
+        if (flat->hdr.type != BINDER_TYPE_BINDER) continue;
+
+        setDataPosition(offset);
+
+        sp<IBinder> binder = readStrongBinder();
+        if (binder != nullptr) ret.push_back(binder);
+    }
+
+    setDataPosition(initPosition);
+    return ret;
+}
+
+std::vector<int> Parcel::debugReadAllFileDescriptors() const {
+    std::vector<int> ret;
+
+    size_t initPosition = dataPosition();
+    for (size_t i = 0; i < mObjectsSize; i++) {
+        binder_size_t offset = mObjects[i];
+        const flat_binder_object* flat =
+                reinterpret_cast<const flat_binder_object*>(mData + offset);
+        if (flat->hdr.type != BINDER_TYPE_FD) continue;
+
+        setDataPosition(offset);
+
+        int fd = readFileDescriptor();
+        LOG_ALWAYS_FATAL_IF(fd == -1);
+        ret.push_back(fd);
+    }
+
+    setDataPosition(initPosition);
+    return ret;
 }
 
 status_t Parcel::hasFileDescriptorsInRange(size_t offset, size_t len, bool* result) const {
@@ -1543,6 +1584,7 @@ status_t Parcel::readOutVectorSizeWithCheck(size_t elmSize, int32_t* size) const
 template<class T>
 status_t Parcel::readAligned(T *pArg) const {
     static_assert(PAD_SIZE_UNSAFE(sizeof(T)) == sizeof(T));
+    static_assert(std::is_trivially_copyable_v<T>);
 
     if ((mDataPos+sizeof(T)) <= mDataSize) {
         if (mObjectsSize > 0) {
@@ -1554,9 +1596,8 @@ status_t Parcel::readAligned(T *pArg) const {
             }
         }
 
-        const void* data = mData+mDataPos;
+        memcpy(pArg, mData + mDataPos, sizeof(T));
         mDataPos += sizeof(T);
-        *pArg =  *reinterpret_cast<const T*>(data);
         return NO_ERROR;
     } else {
         return NOT_ENOUGH_DATA;
@@ -1576,10 +1617,11 @@ T Parcel::readAligned() const {
 template<class T>
 status_t Parcel::writeAligned(T val) {
     static_assert(PAD_SIZE_UNSAFE(sizeof(T)) == sizeof(T));
+    static_assert(std::is_trivially_copyable_v<T>);
 
     if ((mDataPos+sizeof(val)) <= mDataCapacity) {
 restart_write:
-        *reinterpret_cast<T*>(mData+mDataPos) = val;
+        memcpy(mData + mDataPos, &val, sizeof(val));
         return finishWrite(sizeof(val));
     }
 
@@ -1862,6 +1904,7 @@ status_t Parcel::readStrongBinder(sp<IBinder>* val) const
 {
     status_t status = readNullableStrongBinder(val);
     if (status == OK && !val->get()) {
+        ALOGW("Expecting binder but got null!");
         status = UNEXPECTED_NULL;
     }
     return status;

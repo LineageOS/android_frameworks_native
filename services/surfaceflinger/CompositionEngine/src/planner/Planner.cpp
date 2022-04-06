@@ -97,7 +97,7 @@ void Planner::plan(
         if (const auto layerEntry = mPreviousLayers.find(id); layerEntry != mPreviousLayers.end()) {
             // Track changes from previous info
             LayerState& state = layerEntry->second;
-            Flags<LayerStateField> differences = state.update(layer);
+            ftl::Flags<LayerStateField> differences = state.update(layer);
             if (differences.get() == 0) {
                 state.incrementFramesSinceBufferUpdate();
             } else {

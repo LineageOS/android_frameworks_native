@@ -42,12 +42,10 @@ HwcAsyncWorker::~HwcAsyncWorker() {
         mThread.join();
     }
 }
-std::future<std::optional<android::HWComposer::DeviceRequestedChanges>> HwcAsyncWorker::send(
-        std::function<std::optional<android::HWComposer::DeviceRequestedChanges>()> task) {
+std::future<bool> HwcAsyncWorker::send(std::function<bool()> task) {
     std::unique_lock<std::mutex> lock(mMutex);
     android::base::ScopedLockAssertion assumeLock(mMutex);
-    mTask = std::packaged_task<std::optional<android::HWComposer::DeviceRequestedChanges>()>(
-            [task = std::move(task)]() { return task(); });
+    mTask = std::packaged_task<bool()>([task = std::move(task)]() { return task(); });
     mTaskRequested = true;
     mCv.notify_one();
     return mTask.get_future();

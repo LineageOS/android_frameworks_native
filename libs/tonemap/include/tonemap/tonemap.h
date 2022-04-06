@@ -17,6 +17,7 @@
 #pragma once
 
 #include <aidl/android/hardware/graphics/common/Dataspace.h>
+#include <android/hardware_buffer.h>
 #include <math/vec3.h>
 
 #include <string>
@@ -44,8 +45,30 @@ struct ShaderUniform {
 struct Metadata {
     // The maximum luminance of the display in nits
     float displayMaxLuminance = 0.0;
+
     // The maximum luminance of the content in nits
     float contentMaxLuminance = 0.0;
+
+    // The current brightness of the display in nits
+    float currentDisplayLuminance = 0.0;
+
+    // Reference to an AHardwareBuffer.
+    // Devices that support gralloc 4.0 and higher may attach metadata onto a
+    // particular frame's buffer, including metadata used by HDR-standards like
+    // SMPTE 2086 or SMPTE 2094-40.
+    // Note that this parameter may be optional if there is no hardware buffer
+    // available, for instance if the source content is generated from a GL
+    // texture that does not have associated metadata. As such, implementations
+    // must support nullptr.
+    AHardwareBuffer* buffer = nullptr;
+};
+
+// Utility class containing pre-processed conversions for a particular color
+struct Color {
+    // RGB color in linear space
+    vec3 linearRGB;
+    // CIE 1931 XYZ representation of the color
+    vec3 xyz;
 };
 
 class ToneMapper {
@@ -108,10 +131,11 @@ public:
     // described by destinationDataspace. To compute the gain, the input colors are provided by
     // linearRGB, which is the RGB colors in linear space. The colors in XYZ space are also
     // provided. Metadata is also provided for helping to compute the tonemapping curve.
-    virtual double lookupTonemapGain(
+    using Gain = double;
+    virtual std::vector<Gain> lookupTonemapGain(
             aidl::android::hardware::graphics::common::Dataspace sourceDataspace,
             aidl::android::hardware::graphics::common::Dataspace destinationDataspace,
-            vec3 linearRGB, vec3 xyz, const Metadata& metadata) = 0;
+            const std::vector<Color>& colors, const Metadata& metadata) = 0;
 };
 
 // Retrieves a tonemapper instance.

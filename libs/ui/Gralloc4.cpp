@@ -22,6 +22,7 @@
 #include <aidlcommonsupport/NativeHandle.h>
 #include <android/binder_enums.h>
 #include <android/binder_manager.h>
+#include <gralloctypes/Gralloc4.h>
 #include <hidl/ServiceManagement.h>
 #include <hwbinder/IPCThreadState.h>
 #include <ui/Gralloc4.h>
@@ -358,20 +359,19 @@ status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, cons
             if (!gralloc4::isStandardPlaneLayoutComponentType(planeLayoutComponent.type)) {
                 continue;
             }
-            if (0 != planeLayoutComponent.offsetInBits % 8) {
-                unlock(bufferHandle);
-                return BAD_VALUE;
-            }
 
-            uint8_t* tmpData = static_cast<uint8_t*>(data) + planeLayout.offsetInBytes +
-                    (planeLayoutComponent.offsetInBits / 8);
+            uint8_t* tmpData = static_cast<uint8_t*>(data) + planeLayout.offsetInBytes;
+
+            // Note that `offsetInBits` may not be a multiple of 8 for packed formats (e.g. P010)
+            // but we still want to point to the start of the first byte.
+            tmpData += (planeLayoutComponent.offsetInBits / 8);
+
             uint64_t sampleIncrementInBytes;
 
             auto type = static_cast<PlaneLayoutComponentType>(planeLayoutComponent.type.value);
             switch (type) {
                 case PlaneLayoutComponentType::Y:
-                    if ((ycbcr.y != nullptr) || (planeLayoutComponent.sizeInBits != 8) ||
-                        (planeLayout.sampleIncrementInBits != 8)) {
+                    if ((ycbcr.y != nullptr) || (planeLayout.sampleIncrementInBits % 8 != 0)) {
                         unlock(bufferHandle);
                         return BAD_VALUE;
                     }
@@ -387,7 +387,8 @@ status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, cons
                     }
 
                     sampleIncrementInBytes = planeLayout.sampleIncrementInBits / 8;
-                    if ((sampleIncrementInBytes != 1) && (sampleIncrementInBytes != 2)) {
+                    if ((sampleIncrementInBytes != 1) && (sampleIncrementInBytes != 2) &&
+                        (sampleIncrementInBytes != 4)) {
                         unlock(bufferHandle);
                         return BAD_VALUE;
                     }
@@ -522,6 +523,37 @@ status_t Gralloc4Mapper::get(buffer_handle_t bufferHandle, const MetadataType& m
     }
 
     return decodeFunction(vec, outMetadata);
+}
+
+template <class T>
+status_t Gralloc4Mapper::set(buffer_handle_t bufferHandle, const MetadataType& metadataType,
+                             const T& metadata, EncodeFunction<T> encodeFunction) const {
+    hidl_vec<uint8_t> encodedMetadata;
+    if (const status_t status = encodeFunction(metadata, &encodedMetadata); status != OK) {
+        ALOGE("Encoding metadata(%s) failed with %d", metadataType.name.c_str(), status);
+        return status;
+    }
+    hidl_vec<uint8_t> vec;
+    auto ret =
+            mMapper->set(const_cast<native_handle_t*>(bufferHandle), metadataType, encodedMetadata);
+
+    const Error error = ret.withDefault(kTransactionError);
+    switch (error) {
+        case Error::BAD_DESCRIPTOR:
+        case Error::BAD_BUFFER:
+        case Error::BAD_VALUE:
+        case Error::NO_RESOURCES:
+            ALOGE("set(%s, %" PRIu64 ", ...) failed with %d", metadataType.name.c_str(),
+                  metadataType.value, error);
+            break;
+        // It is not an error to attempt to set metadata that a particular gralloc implementation
+        // happens to not support.
+        case Error::UNSUPPORTED:
+        case Error::NONE:
+            break;
+    }
+
+    return static_cast<status_t>(error);
 }
 
 status_t Gralloc4Mapper::getBufferId(buffer_handle_t bufferHandle, uint64_t* outBufferId) const {
@@ -673,6 +705,12 @@ status_t Gralloc4Mapper::getDataspace(buffer_handle_t bufferHandle,
     return NO_ERROR;
 }
 
+status_t Gralloc4Mapper::setDataspace(buffer_handle_t bufferHandle, ui::Dataspace dataspace) const {
+    return set(bufferHandle, gralloc4::MetadataType_Dataspace,
+               static_cast<aidl::android::hardware::graphics::common::Dataspace>(dataspace),
+               gralloc4::encodeDataspace);
+}
+
 status_t Gralloc4Mapper::getBlendMode(buffer_handle_t bufferHandle,
                                       ui::BlendMode* outBlendMode) const {
     return get(bufferHandle, gralloc4::MetadataType_BlendMode, gralloc4::decodeBlendMode,
@@ -685,10 +723,21 @@ status_t Gralloc4Mapper::getSmpte2086(buffer_handle_t bufferHandle,
                outSmpte2086);
 }
 
+status_t Gralloc4Mapper::setSmpte2086(buffer_handle_t bufferHandle,
+                                      std::optional<ui::Smpte2086> smpte2086) const {
+    return set(bufferHandle, gralloc4::MetadataType_Smpte2086, smpte2086,
+               gralloc4::encodeSmpte2086);
+}
+
 status_t Gralloc4Mapper::getCta861_3(buffer_handle_t bufferHandle,
                                      std::optional<ui::Cta861_3>* outCta861_3) const {
     return get(bufferHandle, gralloc4::MetadataType_Cta861_3, gralloc4::decodeCta861_3,
                outCta861_3);
+}
+
+status_t Gralloc4Mapper::setCta861_3(buffer_handle_t bufferHandle,
+                                     std::optional<ui::Cta861_3> cta861_3) const {
+    return set(bufferHandle, gralloc4::MetadataType_Cta861_3, cta861_3, gralloc4::encodeCta861_3);
 }
 
 status_t Gralloc4Mapper::getSmpte2094_40(
@@ -697,10 +746,22 @@ status_t Gralloc4Mapper::getSmpte2094_40(
                outSmpte2094_40);
 }
 
+status_t Gralloc4Mapper::setSmpte2094_40(buffer_handle_t bufferHandle,
+                                         std::optional<std::vector<uint8_t>> smpte2094_40) const {
+    return set(bufferHandle, gralloc4::MetadataType_Smpte2094_40, smpte2094_40,
+               gralloc4::encodeSmpte2094_40);
+}
+
 status_t Gralloc4Mapper::getSmpte2094_10(
         buffer_handle_t bufferHandle, std::optional<std::vector<uint8_t>>* outSmpte2094_10) const {
     return get(bufferHandle, gralloc4::MetadataType_Smpte2094_10, gralloc4::decodeSmpte2094_10,
                outSmpte2094_10);
+}
+
+status_t Gralloc4Mapper::setSmpte2094_10(buffer_handle_t bufferHandle,
+                                         std::optional<std::vector<uint8_t>> smpte2094_10) const {
+    return set(bufferHandle, gralloc4::MetadataType_Smpte2094_10, smpte2094_10,
+               gralloc4::encodeSmpte2094_10);
 }
 
 template <class T>

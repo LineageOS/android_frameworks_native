@@ -295,8 +295,8 @@ protected:
             std::shared_ptr<renderengine::ExternalTexture>, base::unique_fd&) = 0;
     virtual void postFramebuffer() = 0;
     virtual void renderCachedSets(const CompositionRefreshArgs&) = 0;
-    virtual std::optional<android::HWComposer::DeviceRequestedChanges>
-    chooseCompositionStrategy() = 0;
+    virtual bool chooseCompositionStrategy(
+            std::optional<android::HWComposer::DeviceRequestedChanges>*) = 0;
     virtual void applyCompositionStrategy(
             const std::optional<android::HWComposer::DeviceRequestedChanges>& changes) = 0;
     virtual bool getSkipColorTransform() const = 0;

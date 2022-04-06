@@ -184,6 +184,10 @@ BLASTBufferQueue::~BLASTBufferQueue() {
     mergePendingTransactions(&t, std::numeric_limits<uint64_t>::max() /* frameNumber */);
     // All transactions on our apply token are one-way. See comment on mAppliedLastTransaction
     t.setApplyToken(mApplyToken).apply(false, true);
+
+    if (mTransactionReadyCallback) {
+        mTransactionReadyCallback(mSyncTransaction);
+    }
 }
 
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height,
@@ -702,14 +706,31 @@ void BLASTBufferQueue::syncNextTransaction(
         std::function<void(SurfaceComposerClient::Transaction*)> callback,
         bool acquireSingleBuffer) {
     BBQ_TRACE();
-    std::lock_guard _lock{mMutex};
-    mTransactionReadyCallback = callback;
-    if (callback) {
-        mSyncTransaction = new SurfaceComposerClient::Transaction();
-    } else {
-        mSyncTransaction = nullptr;
+
+    std::function<void(SurfaceComposerClient::Transaction*)> prevCallback = nullptr;
+    SurfaceComposerClient::Transaction* prevTransaction = nullptr;
+
+    {
+        std::lock_guard _lock{mMutex};
+        // We're about to overwrite the previous call so we should invoke that callback
+        // immediately.
+        if (mTransactionReadyCallback) {
+            prevCallback = mTransactionReadyCallback;
+            prevTransaction = mSyncTransaction;
+        }
+
+        mTransactionReadyCallback = callback;
+        if (callback) {
+            mSyncTransaction = new SurfaceComposerClient::Transaction();
+        } else {
+            mSyncTransaction = nullptr;
+        }
+        mAcquireSingleBuffer = mTransactionReadyCallback ? acquireSingleBuffer : true;
     }
-    mAcquireSingleBuffer = mTransactionReadyCallback ? acquireSingleBuffer : true;
+
+    if (prevCallback) {
+        prevCallback(prevTransaction);
+    }
 }
 
 void BLASTBufferQueue::stopContinuousSyncTransaction() {

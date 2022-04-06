@@ -539,6 +539,8 @@ TEST_F(CachedSetTest, rendersWithOffsetFramebufferContent) {
 
 TEST_F(CachedSetTest, holePunch_requiresBuffer) {
     CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();
+    auto& layerFECompositionState = mTestLayers[0]->layerFECompositionState;
+    layerFECompositionState.blendMode = hal::BlendMode::NONE;
     sp<mock::LayerFE> layerFE1 = mTestLayers[0]->layerFE;
 
     CachedSet cachedSet(layer1);
@@ -549,7 +551,9 @@ TEST_F(CachedSetTest, holePunch_requiresBuffer) {
 
 TEST_F(CachedSetTest, holePunch_requiresRoundedCorners) {
     CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();
-    mTestLayers[0]->layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    auto& layerFECompositionState = mTestLayers[0]->layerFECompositionState;
+    layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    layerFECompositionState.blendMode = hal::BlendMode::NONE;
 
     CachedSet cachedSet(layer1);
 
@@ -558,7 +562,9 @@ TEST_F(CachedSetTest, holePunch_requiresRoundedCorners) {
 
 TEST_F(CachedSetTest, holePunch_requiresSingleLayer) {
     CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();
-    mTestLayers[0]->layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    auto& layerFECompositionState = mTestLayers[0]->layerFECompositionState;
+    layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    layerFECompositionState.blendMode = hal::BlendMode::NONE;
     sp<mock::LayerFE> layerFE = mTestLayers[0]->layerFE;
     EXPECT_CALL(*layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
 
@@ -575,7 +581,9 @@ TEST_F(CachedSetTest, holePunch_requiresNonHdr) {
     mTestLayers[0]->layerState->update(&mTestLayers[0]->outputLayer);
 
     CachedSet::Layer& layer = *mTestLayers[0]->cachedSetLayer.get();
-    mTestLayers[0]->layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    auto& layerFECompositionState = mTestLayers[0]->layerFECompositionState;
+    layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    layerFECompositionState.blendMode = hal::BlendMode::NONE;
     sp<mock::LayerFE> layerFE = mTestLayers[0]->layerFE;
 
     CachedSet cachedSet(layer);
@@ -589,7 +597,22 @@ TEST_F(CachedSetTest, holePunch_requiresNonBT601_625) {
     mTestLayers[0]->layerState->update(&mTestLayers[0]->outputLayer);
 
     CachedSet::Layer& layer = *mTestLayers[0]->cachedSetLayer.get();
-    mTestLayers[0]->layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    auto& layerFECompositionState = mTestLayers[0]->layerFECompositionState;
+    layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    layerFECompositionState.blendMode = hal::BlendMode::NONE;
+    sp<mock::LayerFE> layerFE = mTestLayers[0]->layerFE;
+
+    CachedSet cachedSet(layer);
+    EXPECT_CALL(*layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
+
+    EXPECT_FALSE(cachedSet.requiresHolePunch());
+}
+
+TEST_F(CachedSetTest, holePunch_requiresNoBlending) {
+    CachedSet::Layer& layer = *mTestLayers[0]->cachedSetLayer.get();
+    auto& layerFECompositionState = mTestLayers[0]->layerFECompositionState;
+    layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    layerFECompositionState.blendMode = hal::BlendMode::PREMULTIPLIED;
     sp<mock::LayerFE> layerFE = mTestLayers[0]->layerFE;
 
     CachedSet cachedSet(layer);
@@ -600,7 +623,9 @@ TEST_F(CachedSetTest, holePunch_requiresNonBT601_625) {
 
 TEST_F(CachedSetTest, requiresHolePunch) {
     CachedSet::Layer& layer = *mTestLayers[0]->cachedSetLayer.get();
-    mTestLayers[0]->layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    auto& layerFECompositionState = mTestLayers[0]->layerFECompositionState;
+    layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    layerFECompositionState.blendMode = hal::BlendMode::NONE;
     sp<mock::LayerFE> layerFE = mTestLayers[0]->layerFE;
 
     CachedSet cachedSet(layer);
@@ -614,6 +639,7 @@ TEST_F(CachedSetTest, holePunch_requiresDeviceComposition) {
     sp<mock::LayerFE> layerFE = mTestLayers[0]->layerFE;
     auto& layerFECompositionState = mTestLayers[0]->layerFECompositionState;
     layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    layerFECompositionState.blendMode = hal::BlendMode::NONE;
     layerFECompositionState.forceClientComposition = true;
 
     CachedSet cachedSet(layer);

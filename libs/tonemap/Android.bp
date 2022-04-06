@@ -30,9 +30,11 @@ cc_library_static {
     shared_libs: [
         "android.hardware.graphics.common-V3-ndk",
         "liblog",
+        "libnativewindow",
     ],
 
     static_libs: [
+        "libarect",
         "libmath",
     ],
 

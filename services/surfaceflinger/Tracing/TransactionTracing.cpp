@@ -29,23 +29,16 @@
 
 namespace android {
 
-class FlingerDataMapper : public TransactionProtoParser::FlingerDataMapper {
-    std::unordered_map<BBinder* /* layerHandle */, int32_t /* layerId */>& mLayerHandles;
-
+// Keeps the binder address as the layer id so we can avoid holding the tracing lock in the
+// binder thread.
+class FlatDataMapper : public TransactionProtoParser::FlingerDataMapper {
 public:
-    FlingerDataMapper(std::unordered_map<BBinder* /* handle */, int32_t /* id */>& layerHandles)
-          : mLayerHandles(layerHandles) {}
-
-    int32_t getLayerId(const sp<IBinder>& layerHandle) const override {
+    virtual int64_t getLayerId(const sp<IBinder>& layerHandle) const {
         if (layerHandle == nullptr) {
             return -1;
         }
-        auto it = mLayerHandles.find(layerHandle->localBinder());
-        if (it == mLayerHandles.end()) {
-            ALOGW("Could not find layer handle %p", layerHandle->localBinder());
-            return -1;
-        }
-        return it->second;
+
+        return reinterpret_cast<int64_t>(layerHandle->localBinder());
     }
 
     void getGraphicBufferPropertiesFromCache(client_cache_t cachedBuffer, uint64_t* outBufferId,
@@ -72,8 +65,33 @@ public:
     }
 };
 
+class FlingerDataMapper : public FlatDataMapper {
+    std::unordered_map<BBinder* /* layerHandle */, int32_t /* layerId */>& mLayerHandles;
+
+public:
+    FlingerDataMapper(std::unordered_map<BBinder* /* handle */, int32_t /* id */>& layerHandles)
+          : mLayerHandles(layerHandles) {}
+
+    int64_t getLayerId(const sp<IBinder>& layerHandle) const override {
+        if (layerHandle == nullptr) {
+            return -1;
+        }
+        return getLayerId(layerHandle->localBinder());
+    }
+
+    int64_t getLayerId(BBinder* localBinder) const {
+        auto it = mLayerHandles.find(localBinder);
+        if (it == mLayerHandles.end()) {
+            ALOGW("Could not find layer handle %p", localBinder);
+            return -1;
+        }
+        return it->second;
+    }
+};
+
 TransactionTracing::TransactionTracing()
-      : mProtoParser(std::make_unique<FlingerDataMapper>(mLayerHandles)) {
+      : mProtoParser(std::make_unique<FlingerDataMapper>(mLayerHandles)),
+        mLockfreeProtoParser(std::make_unique<FlatDataMapper>()) {
     std::scoped_lock lock(mTraceLock);
 
     mBuffer.setSize(mBufferSizeInBytes);
@@ -129,9 +147,9 @@ void TransactionTracing::dump(std::string& result) const {
 }
 
 void TransactionTracing::addQueuedTransaction(const TransactionState& transaction) {
-    std::scoped_lock lock(mTraceLock);
-    ATRACE_CALL();
-    mQueuedTransactions[transaction.id] = mProtoParser.toProto(transaction);
+    proto::TransactionState* state =
+            new proto::TransactionState(mLockfreeProtoParser.toProto(transaction));
+    mTransactionQueue.push(state);
 }
 
 void TransactionTracing::addCommittedTransactions(std::vector<TransactionState>& transactions,
@@ -182,6 +200,38 @@ void TransactionTracing::addEntry(const std::vector<CommittedTransactions>& comm
     std::scoped_lock lock(mTraceLock);
     std::vector<std::string> removedEntries;
     proto::TransactionTraceEntry entryProto;
+
+    while (auto incomingTransaction = mTransactionQueue.pop()) {
+        auto transaction = *incomingTransaction;
+        int32_t layerCount = transaction.layer_changes_size();
+        for (int i = 0; i < layerCount; i++) {
+            auto layer = transaction.mutable_layer_changes(i);
+            layer->set_layer_id(
+                mProtoParser.mMapper->getLayerId(reinterpret_cast<BBinder*>(layer->layer_id())));
+            if ((layer->what() & layer_state_t::eReparent) && layer->parent_id() != -1) {
+                layer->set_parent_id(
+                    mProtoParser.mMapper->getLayerId(reinterpret_cast<BBinder*>(
+                        layer->parent_id())));
+            }
+
+            if ((layer->what() & layer_state_t::eRelativeLayerChanged) &&
+                layer->relative_parent_id() != -1) {
+                layer->set_relative_parent_id(
+                    mProtoParser.mMapper->getLayerId(reinterpret_cast<BBinder*>(
+                        layer->relative_parent_id())));
+            }
+
+            if (layer->has_window_info_handle() &&
+                layer->window_info_handle().crop_layer_id() != -1) {
+                auto input = layer->mutable_window_info_handle();
+                input->set_crop_layer_id(
+                        mProtoParser.mMapper->getLayerId(reinterpret_cast<BBinder*>(
+                            input->crop_layer_id())));
+            }
+        }
+        mQueuedTransactions[incomingTransaction->transaction_id()] = transaction;
+        delete incomingTransaction;
+    }
     for (const CommittedTransactions& entry : committedTransactions) {
         entryProto.set_elapsed_realtime_nanos(entry.timestamp);
         entryProto.set_vsync_id(entry.vsyncId);
@@ -317,9 +367,9 @@ void TransactionTracing::updateStartingStateLocked(
     // Merge layer states to starting transaction state.
     for (const proto::TransactionState& transaction : removedEntry.transactions()) {
         for (const proto::LayerState& layerState : transaction.layer_changes()) {
-            auto it = mStartingStates.find(layerState.layer_id());
+            auto it = mStartingStates.find((int32_t)layerState.layer_id());
             if (it == mStartingStates.end()) {
-                ALOGW("Could not find layer id %d", layerState.layer_id());
+                ALOGW("Could not find layer id %d", (int32_t)layerState.layer_id());
                 continue;
             }
             mProtoParser.mergeFromProto(layerState, it->second);

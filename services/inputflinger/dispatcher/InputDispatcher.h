@@ -84,6 +84,8 @@ public:
     static constexpr bool kDefaultInTouchMode = true;
 
     explicit InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy);
+    explicit InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy,
+                             std::chrono::nanoseconds staleEventTimeout);
     ~InputDispatcher() override;
 
     void dump(std::string& dump) override;
@@ -102,7 +104,7 @@ public:
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 
     android::os::InputEventInjectionResult injectInputEvent(
-            const InputEvent* event, int32_t injectorPid, int32_t injectorUid,
+            const InputEvent* event, std::optional<int32_t> targetUid,
             android::os::InputEventInjectionSync syncMode, std::chrono::milliseconds timeout,
             uint32_t policyFlags) override;
 
@@ -273,7 +275,6 @@ private:
 
     // Event injection and synchronization.
     std::condition_variable mInjectionResultAvailable;
-    bool hasInjectionPermission(int32_t injectorPid, int32_t injectorUid);
     void setInjectionResult(EventEntry& entry,
                             android::os::InputEventInjectionResult injectionResult);
     void transformMotionEntryForInjectionLocked(MotionEntry&,
@@ -431,7 +432,8 @@ private:
     // Dispatcher state at time of last ANR.
     std::string mLastAnrState GUARDED_BY(mLock);
 
-    // The connection tokens of the channels that the user last interacted, for debugging
+    // The connection tokens of the channels that the user last interacted (used for debugging and
+    // when switching touch mode state).
     std::unordered_set<sp<IBinder>, StrongPointerHash<IBinder>> mInteractionConnectionTokens
             GUARDED_BY(mLock);
     void updateInteractionTokensLocked(const EventEntry& entry,
@@ -470,6 +472,11 @@ private:
      * This is useful if an application is slow to add a focused window.
      */
     std::optional<nsecs_t> mNoFocusedWindowTimeoutTime GUARDED_BY(mLock);
+
+    // Amount of time to allow for an event to be dispatched (measured since its eventTime)
+    // before considering it stale and dropping it.
+    const std::chrono::nanoseconds mStaleEventTimeout;
+    bool isStaleEvent(nsecs_t currentTime, const EventEntry& entry);
 
     bool shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) REQUIRES(mLock);
 
@@ -543,8 +550,6 @@ private:
     void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId)
             REQUIRES(mLock);
     void pokeUserActivityLocked(const EventEntry& eventEntry) REQUIRES(mLock);
-    bool checkInjectionPermission(const sp<android::gui::WindowInfoHandle>& windowHandle,
-                                  const InjectionState* injectionState);
     // Enqueue a drag event if needed, and update the touch state.
     // Uses findTouchedWindowTargetsLocked to make the decision
     void addDragEventLocked(const MotionEntry& entry) REQUIRES(mLock);
@@ -669,6 +674,10 @@ private:
     void traceInboundQueueLengthLocked() REQUIRES(mLock);
     void traceOutboundQueueLength(const Connection& connection);
     void traceWaitQueueLength(const Connection& connection);
+
+    // Check window ownership
+    bool focusedWindowIsOwnedByLocked(int32_t pid, int32_t uid) REQUIRES(mLock);
+    bool recentWindowsAreOwnedByLocked(int32_t pid, int32_t uid) REQUIRES(mLock);
 
     sp<InputReporterInterface> mReporter;
 };
