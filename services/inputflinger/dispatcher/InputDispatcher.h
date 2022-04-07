@@ -125,7 +125,7 @@ public:
 
     bool transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
                             bool isDragDrop = false) override;
-    bool transferTouch(const sp<IBinder>& destChannelToken) override;
+    bool transferTouch(const sp<IBinder>& destChannelToken, int32_t displayId) override;
 
     base::Result<std::unique_ptr<InputChannel>> createInputChannel(
             const std::string& name) override;
@@ -244,6 +244,9 @@ private:
 
     std::vector<sp<android::gui::WindowInfoHandle>> findTouchedSpyWindowsAtLocked(
             int32_t displayId, int32_t x, int32_t y, bool isStylus) const REQUIRES(mLock);
+
+    sp<android::gui::WindowInfoHandle> findTouchedForegroundWindowLocked(int32_t displayId) const
+            REQUIRES(mLock);
 
     sp<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) const
             REQUIRES(mLock);
