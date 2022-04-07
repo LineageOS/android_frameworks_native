@@ -20,18 +20,25 @@ import android.gui.CompositionPreference;
 import android.gui.ContentSamplingAttributes;
 import android.gui.DisplayCaptureArgs;
 import android.gui.DisplayBrightness;
+import android.gui.DisplayModeSpecs;
 import android.gui.DisplayPrimaries;
 import android.gui.DisplayState;
 import android.gui.DisplayStatInfo;
+import android.gui.DynamicDisplayInfo;
 import android.gui.FrameEvent;
 import android.gui.FrameStats;
+import android.gui.IFpsListener;
+import android.gui.IHdrLayerInfoListener;
+import android.gui.IRegionSamplingListener;
+import android.gui.IScreenCaptureListener;
+import android.gui.ITransactionTraceListener;
+import android.gui.ITunnelModeEnabledListener;
+import android.gui.IWindowInfosListener;
+import android.gui.LayerCaptureArgs;
 import android.gui.LayerDebugInfo;
 import android.gui.PullAtomData;
+import android.gui.ARect;
 import android.gui.StaticDisplayInfo;
-import android.gui.DynamicDisplayInfo;
-import android.gui.IHdrLayerInfoListener;
-import android.gui.LayerCaptureArgs;
-import android.gui.IScreenCaptureListener;
 
 /** @hide */
 interface ISurfaceComposer {
@@ -231,6 +238,82 @@ interface ISurfaceComposer {
     boolean isWideColorDisplay(IBinder token);
 
     /**
+     * Registers a listener to stream median luma updates from SurfaceFlinger.
+     *
+     * The sampling area is bounded by both samplingArea and the given stopLayerHandle
+     * (i.e., only layers behind the stop layer will be captured and sampled).
+     *
+     * Multiple listeners may be provided so long as they have independent listeners.
+     * If multiple listeners are provided, the effective sampling region for each listener will
+     * be bounded by whichever stop layer has a lower Z value.
+     *
+     * Requires the same permissions as captureLayers and captureScreen.
+     */
+    void addRegionSamplingListener(in ARect samplingArea, @nullable IBinder stopLayerHandle, IRegionSamplingListener listener);
+
+    /**
+     * Removes a listener that was streaming median luma updates from SurfaceFlinger.
+     */
+    void removeRegionSamplingListener(IRegionSamplingListener listener);
+
+    /**
+     * Registers a listener that streams fps updates from SurfaceFlinger.
+     *
+     * The listener will stream fps updates for the layer tree rooted at the layer denoted by the
+     * task ID, i.e., the layer must have the task ID as part of its layer metadata with key
+     * METADATA_TASK_ID. If there is no such layer, then no fps is expected to be reported.
+     *
+     * Multiple listeners may be supported.
+     *
+     * Requires the READ_FRAME_BUFFER permission.
+     */
+    void addFpsListener(int taskId, IFpsListener listener);
+
+    /**
+     * Removes a listener that was streaming fps updates from SurfaceFlinger.
+     */
+    void removeFpsListener(IFpsListener listener);
+
+    /**
+     * Registers a listener to receive tunnel mode enabled updates from SurfaceFlinger.
+     *
+     * Requires ACCESS_SURFACE_FLINGER permission.
+     */
+    void addTunnelModeEnabledListener(ITunnelModeEnabledListener listener);
+
+    /**
+     * Removes a listener that was receiving tunnel mode enabled updates from SurfaceFlinger.
+     *
+     * Requires ACCESS_SURFACE_FLINGER permission.
+     */
+    void removeTunnelModeEnabledListener(ITunnelModeEnabledListener listener);
+
+    /**
+     * Sets the refresh rate boundaries for the display.
+     *
+     * The primary refresh rate range represents display manager's general guidance on the display
+     * modes we'll consider when switching refresh rates. Unless we get an explicit signal from an
+     * app, we should stay within this range.
+     *
+     * The app request refresh rate range allows us to consider more display modes when switching
+     * refresh rates. Although we should generally stay within the primary range, specific
+     * considerations, such as layer frame rate settings specified via the setFrameRate() api, may
+     * cause us to go outside the primary range. We never go outside the app request range. The app
+     * request range will be greater than or equal to the primary refresh rate range, never smaller.
+     *
+     * defaultMode is used to narrow the list of display modes SurfaceFlinger will consider
+     * switching between. Only modes with a mode group and resolution matching defaultMode
+     * will be considered for switching. The defaultMode corresponds to an ID of mode in the list
+     * of supported modes returned from getDynamicDisplayInfo().
+     */
+    void setDesiredDisplayModeSpecs(
+            IBinder displayToken, int defaultMode,
+            boolean allowGroupSwitching, float primaryRefreshRateMin, float primaryRefreshRateMax,
+            float appRequestRefreshRateMin, float appRequestRefreshRateMax);
+
+    DisplayModeSpecs getDesiredDisplayModeSpecs(IBinder displayToken);
+
+    /**
      * Gets whether brightness operations are supported on a display.
      *
      * displayToken
@@ -286,4 +369,35 @@ interface ISurfaceComposer {
      * Returns NO_ERROR upon success.
      */
     oneway void notifyPowerBoost(int boostId);
+
+    /**
+     * Adds a TransactionTraceListener to listen for transaction tracing state updates.
+     */
+    void addTransactionTraceListener(ITransactionTraceListener listener);
+
+    /**
+     * Gets priority of the RenderEngine in SurfaceFlinger.
+     */
+    int getGpuContextPriority();
+
+    /**
+     * Gets the number of buffers SurfaceFlinger would need acquire. This number
+     * would be propagated to the client via MIN_UNDEQUEUED_BUFFERS so that the
+     * client could allocate enough buffers to match SF expectations of the
+     * pipeline depth. SurfaceFlinger will make sure that it will give the app at
+     * least the time configured as the 'appDuration' before trying to latch
+     * the buffer.
+     *
+     * The total buffers needed for a given configuration is basically the
+     * numbers of vsyncs a single buffer is used across the stack. For the default
+     * configuration a buffer is held ~1 vsync by the app, ~1 vsync by SurfaceFlinger
+     * and 1 vsync by the display. The extra buffers are calculated as the
+     * number of additional buffers on top of the 2 buffers already present
+     * in MIN_UNDEQUEUED_BUFFERS.
+     */
+    int getMaxAcquiredBufferCount();
+
+    void addWindowInfosListener(IWindowInfosListener windowInfosListener);
+
+    void removeWindowInfosListener(IWindowInfosListener windowInfosListener);
 }

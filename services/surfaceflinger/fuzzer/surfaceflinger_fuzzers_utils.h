@@ -782,7 +782,7 @@ public:
         return mFlinger->onTransact(code, data, reply, flags);
     }
 
-    auto getGPUContextPriority() { return mFlinger->getGPUContextPriority(); }
+    auto getGpuContextPriority() { return mFlinger->getGpuContextPriority(); }
 
     auto calculateMaxAcquiredBufferCount(Fps refreshRate,
                                          std::chrono::nanoseconds presentLatency) const {

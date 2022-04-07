@@ -142,16 +142,24 @@ cc_library_static {
         "include",
     ],
 
+    include_dirs: [
+        "frameworks/native/include",
+    ],
+
     export_shared_lib_headers: [
         "libbinder",
     ],
 
     static_libs: [
         "libui-types",
+        "libgui_window_info_static",
     ],
 
     aidl: {
         export_aidl_headers: true,
+        include_dirs: [
+            "frameworks/native/libs/gui",
+        ],
     },
 }
 
@@ -288,10 +296,16 @@ cc_library_static {
     defaults: ["libgui_bufferqueue-defaults"],
 
     srcs: [
+        ":libgui_frame_event_aidl",
         ":inputconstants_aidl",
         ":libgui_bufferqueue_sources",
-        ":libgui_aidl",
     ],
+
+    aidl: {
+        include_dirs: [
+            "frameworks/native/libs/gui",
+        ],
+    },
 }
 
 filegroup {
