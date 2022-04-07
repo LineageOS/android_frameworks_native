@@ -3364,9 +3364,8 @@ TEST_F(KeyboardInputMapperTest, Process_SimpleKeyPress) {
     KeyboardInputMapper& mapper =
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
-    // Initial metastate to AMETA_NONE.
-    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
-    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
 
     // Key down by scan code.
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_HOME, 1);
@@ -3491,9 +3490,8 @@ TEST_F(KeyboardInputMapperTest, Process_ShouldUpdateMetaState) {
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
-    // Initial metastate to AMETA_NONE.
-    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
-    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
 
     // Metakey down.
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_LEFTSHIFT, 1);
@@ -3738,9 +3736,8 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleMetaStateAndLeds) 
     KeyboardInputMapper& mapper =
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
-    // Initialize metastate to AMETA_NUM_LOCK_ON.
-    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
-    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
 
     // Initialization should have turned all of the lights off.
     ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
@@ -3806,8 +3803,6 @@ TEST_F(KeyboardInputMapperTest, NoMetaStateWhenMetaKeysNotPresent) {
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC);
 
-    // Initial metastate should be AMETA_NONE as no meta keys added.
-    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
     // Meta state should be AMETA_NONE after reset
     mapper.reset(ARBITRARY_TIME);
     ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
@@ -3922,9 +3917,8 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleAfterReattach) {
     KeyboardInputMapper& mapper =
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
-    // Initial metastate to AMETA_NONE.
-    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
-    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
 
     // Initialization should have turned all of the lights off.
     ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
@@ -3991,9 +3985,8 @@ TEST_F(KeyboardInputMapperTest, Process_toggleCapsLockState) {
     KeyboardInputMapper& mapper =
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
-    // Initialize metastate to AMETA_NUM_LOCK_ON.
-    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
-    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
 
     mReader->toggleCapsLockState(DEVICE_ID);
     ASSERT_EQ(AMETA_CAPS_LOCK_ON, mapper.getMetaState());
@@ -4033,7 +4026,13 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleInMultiDevices) {
     device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0 /*changes*/);
     device2->reset(ARBITRARY_TIME);
 
-    // Initial metastate is AMETA_NUM_LOCK_ON, turn it off.
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mapper1.getMetaState());
+    ASSERT_EQ(AMETA_NONE, mapper2.getMetaState());
+
+    // Toggle num lock on and off.
+    process(mapper1, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_NUMLOCK, 1);
+    process(mapper1, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_NUMLOCK, 0);
     ASSERT_TRUE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_NUML));
     ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper1.getMetaState());
     ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper2.getMetaState());
