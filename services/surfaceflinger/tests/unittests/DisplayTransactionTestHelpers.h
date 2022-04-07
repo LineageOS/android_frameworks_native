@@ -95,14 +95,17 @@ public:
     // --------------------------------------------------------------------
     // Postcondition helpers
 
-    bool hasPhysicalHwcDisplay(hal::HWDisplayId hwcDisplayId);
-    bool hasTransactionFlagSet(int flag);
-    bool hasDisplayDevice(sp<IBinder> displayToken);
-    sp<DisplayDevice> getDisplayDevice(sp<IBinder> displayToken);
-    bool hasCurrentDisplayState(sp<IBinder> displayToken);
-    const DisplayDeviceState& getCurrentDisplayState(sp<IBinder> displayToken);
-    bool hasDrawingDisplayState(sp<IBinder> displayToken);
-    const DisplayDeviceState& getDrawingDisplayState(sp<IBinder> displayToken);
+    bool hasPhysicalHwcDisplay(hal::HWDisplayId) const;
+    bool hasTransactionFlagSet(int32_t flag) const;
+
+    bool hasDisplayDevice(const sp<IBinder>& displayToken) const;
+    const DisplayDevice& getDisplayDevice(const sp<IBinder>& displayToken) const;
+
+    bool hasCurrentDisplayState(const sp<IBinder>& displayToken) const;
+    const DisplayDeviceState& getCurrentDisplayState(const sp<IBinder>& displayToken) const;
+
+    bool hasDrawingDisplayState(const sp<IBinder>& displayToken) const;
+    const DisplayDeviceState& getDrawingDisplayState(const sp<IBinder>& displayToken) const;
 
     // --------------------------------------------------------------------
     // Test instances

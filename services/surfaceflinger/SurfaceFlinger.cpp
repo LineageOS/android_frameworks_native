@@ -2730,12 +2730,12 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
         }
 
         const auto displayId = info->id;
-        const auto it = mPhysicalDisplayTokens.find(displayId);
+        const auto token = mPhysicalDisplayTokens.get(displayId);
 
         if (event.connection == hal::Connection::CONNECTED) {
             auto [supportedModes, activeMode] = loadDisplayModes(displayId);
 
-            if (it == mPhysicalDisplayTokens.end()) {
+            if (!token) {
                 ALOGV("Creating display %s", to_string(displayId).c_str());
 
                 DisplayDeviceState state;
@@ -2750,14 +2750,13 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
 
                 sp<IBinder> token = new BBinder();
                 mCurrentState.displays.add(token, state);
-                mPhysicalDisplayTokens.emplace(displayId, std::move(token));
+                mPhysicalDisplayTokens.try_emplace(displayId, std::move(token));
                 mInterceptor->saveDisplayCreation(state);
             } else {
                 ALOGV("Recreating display %s", to_string(displayId).c_str());
 
-                const auto token = it->second;
-                auto& state = mCurrentState.displays.editValueFor(token);
-                state.sequenceId = DisplayDeviceState{}.sequenceId; // Generate new sequenceId
+                auto& state = mCurrentState.displays.editValueFor(token->get());
+                state.sequenceId = DisplayDeviceState{}.sequenceId; // Generate new sequenceId.
                 state.physical->supportedModes = std::move(supportedModes);
                 state.physical->activeMode = std::move(activeMode);
                 if (getHwComposer().updatesDeviceProductInfoOnHotplugReconnect()) {
@@ -2767,13 +2766,13 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
         } else {
             ALOGV("Removing display %s", to_string(displayId).c_str());
 
-            const ssize_t index = mCurrentState.displays.indexOfKey(it->second);
-            if (index >= 0) {
+            if (const ssize_t index = mCurrentState.displays.indexOfKey(token->get()); index >= 0) {
                 const DisplayDeviceState& state = mCurrentState.displays.valueAt(index);
                 mInterceptor->saveDisplayDeletion(state.sequenceId);
                 mCurrentState.displays.removeItemsAt(index);
             }
-            mPhysicalDisplayTokens.erase(it);
+
+            mPhysicalDisplayTokens.erase(displayId);
         }
 
         processDisplayChangesLocked();
@@ -2954,15 +2953,16 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
     }
 
     LOG_FATAL_IF(!displaySurface);
-    const auto display = setupNewDisplayDeviceInternal(displayToken, std::move(compositionDisplay),
-                                                       state, displaySurface, producer);
-    mDisplays.emplace(displayToken, display);
+    auto display = setupNewDisplayDeviceInternal(displayToken, std::move(compositionDisplay), state,
+                                                 displaySurface, producer);
     if (display->isPrimary()) {
         initScheduler(display);
     }
     if (!state.isVirtual()) {
         dispatchDisplayHotplugEvent(display->getPhysicalId(), true);
     }
+
+    mDisplays.try_emplace(displayToken, std::move(display));
 }
 
 void SurfaceFlinger::processDisplayRemoved(const wp<IBinder>& displayToken) {
