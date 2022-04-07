@@ -1378,7 +1378,7 @@ private:
     sp<os::IInputFlinger> mInputFlinger;
     InputWindowCommands mInputWindowCommands;
 
-    Hwc2::impl::PowerAdvisor mPowerAdvisor;
+    std::unique_ptr<Hwc2::PowerAdvisor> mPowerAdvisor;
 
     void enableRefreshRateOverlay(bool enable) REQUIRES(mStateLock);
 
