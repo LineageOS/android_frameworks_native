@@ -413,7 +413,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     property_get("debug.sf.disable_client_composition_cache", value, "0");
     mDisableClientCompositionCache = atoi(value);
 
-    property_get("debug.sf.predict_hwc_composition_strategy", value, "0");
+    property_get("debug.sf.predict_hwc_composition_strategy", value, "1");
     mPredictCompositionStrategy = atoi(value);
 
     // We should be reading 'persist.sys.sf.color_saturation' here
