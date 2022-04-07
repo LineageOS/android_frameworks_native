@@ -582,14 +582,8 @@ void SurfaceFlinger::releaseVirtualDisplay(VirtualDisplayId displayId) {
 std::vector<PhysicalDisplayId> SurfaceFlinger::getPhysicalDisplayIdsLocked() const {
     std::vector<PhysicalDisplayId> displayIds;
     displayIds.reserve(mPhysicalDisplayTokens.size());
-    const auto defaultDisplayId = [this]() REQUIRES(mStateLock) {
-        if (const auto display = getDefaultDisplayDeviceLocked()) {
-            return display->getPhysicalId();
-        }
 
-        // fallback to the internal display id if the active display is unknown
-        return getInternalDisplayIdLocked();
-    }();
+    const auto defaultDisplayId = getDefaultDisplayDeviceLocked()->getPhysicalId();
     displayIds.push_back(defaultDisplayId);
 
     for (const auto& [id, token] : mPhysicalDisplayTokens) {
@@ -603,7 +597,7 @@ std::vector<PhysicalDisplayId> SurfaceFlinger::getPhysicalDisplayIdsLocked() con
 
 status_t SurfaceFlinger::getPrimaryPhysicalDisplayId(PhysicalDisplayId* id) const {
     Mutex::Autolock lock(mStateLock);
-    *id = getInternalDisplayIdLocked();
+    *id = getPrimaryDisplayIdLocked();
     return NO_ERROR;
 }
 
@@ -1314,17 +1308,25 @@ std::vector<ColorMode> SurfaceFlinger::getDisplayColorModes(const DisplayDevice&
 }
 
 status_t SurfaceFlinger::getDisplayNativePrimaries(const sp<IBinder>& displayToken,
-                                                   ui::DisplayPrimaries &primaries) {
+                                                   ui::DisplayPrimaries& primaries) {
     if (!displayToken) {
         return BAD_VALUE;
     }
 
-    // Currently we only support this API for a single internal display.
-    if (getInternalDisplayToken() != displayToken) {
+    Mutex::Autolock lock(mStateLock);
+
+    const auto display = getDisplayDeviceLocked(displayToken);
+    if (!display) {
         return NAME_NOT_FOUND;
     }
 
-    memcpy(&primaries, &mInternalDisplayPrimaries, sizeof(ui::DisplayPrimaries));
+    const auto connectionType = display->getConnectionType();
+    if (connectionType != ui::DisplayConnectionType::Internal) {
+        return INVALID_OPERATION;
+    }
+
+    // TODO(b/229846990): For now, assume that all internal displays have the same primaries.
+    primaries = mInternalDisplayPrimaries;
     return NO_ERROR;
 }
 
@@ -2820,7 +2822,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     }
 
     if (const auto id = PhysicalDisplayId::tryCast(compositionDisplay->getId())) {
-        creationArgs.isPrimary = id == getInternalDisplayIdLocked();
+        creationArgs.isPrimary = id == getPrimaryDisplayIdLocked();
 
         if (useColorManagement) {
             std::vector<ColorMode> modes = getHwComposer().getColorModes(*id);
