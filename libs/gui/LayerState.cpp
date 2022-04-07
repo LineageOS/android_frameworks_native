@@ -16,8 +16,8 @@
 
 #define LOG_TAG "LayerState"
 
-#include <apex/window.h>
-#include <inttypes.h>
+#include <cinttypes>
+#include <cmath>
 
 #include <android/native_window.h>
 #include <binder/Parcel.h>
@@ -25,9 +25,8 @@
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
 #include <private/gui/ParcelUtils.h>
+#include <system/window.h>
 #include <utils/Errors.h>
-
-#include <cmath>
 
 namespace android {
 
@@ -679,7 +678,9 @@ bool ValidateFrameRate(float frameRate, int8_t compatibility, int8_t changeFrame
 
     if (compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT &&
         compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE &&
-        (!privileged || compatibility != ANATIVEWINDOW_FRAME_RATE_EXACT)) {
+        (!privileged ||
+         (compatibility != ANATIVEWINDOW_FRAME_RATE_EXACT &&
+          compatibility != ANATIVEWINDOW_FRAME_RATE_NO_VOTE))) {
         ALOGE("%s failed - invalid compatibility value %d privileged: %s", functionName,
               compatibility, privileged ? "yes" : "no");
         return false;
