@@ -161,7 +161,7 @@ public:
      *
      * Return true on success, false if there was no on-going touch.
      */
-    virtual bool transferTouch(const sp<IBinder>& destChannelToken) = 0;
+    virtual bool transferTouch(const sp<IBinder>& destChannelToken, int32_t displayId) = 0;
 
     /**
      * Sets focus on the specified window.
