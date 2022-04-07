@@ -58,7 +58,8 @@ namespace android::compositionengine {
 Output::~Output() = default;
 
 namespace impl {
-
+using CompositionStrategyPredictionState =
+        OutputCompositionState::CompositionStrategyPredictionState;
 namespace {
 
 template <typename T>
@@ -970,6 +971,7 @@ void Output::prepareFrame() {
     std::optional<android::HWComposer::DeviceRequestedChanges> changes;
     bool success = chooseCompositionStrategy(&changes);
     resetCompositionStrategy();
+    outputState.strategyPrediction = CompositionStrategyPredictionState::DISABLED;
     outputState.previousDeviceRequestedChanges = changes;
     outputState.previousDeviceRequestedSuccess = success;
     if (success) {
@@ -1012,7 +1014,8 @@ GpuCompositionResult Output::prepareFrameAsync(const CompositionRefreshArgs& ref
 
     auto chooseCompositionSuccess = hwcResult.get();
     const bool predictionSucceeded = dequeueSucceeded && changes == previousChanges;
-    compositionResult.succeeded = predictionSucceeded;
+    state.strategyPrediction = predictionSucceeded ? CompositionStrategyPredictionState::SUCCESS
+                                                   : CompositionStrategyPredictionState::FAIL;
     if (!predictionSucceeded) {
         ATRACE_NAME("CompositionStrategyPredictionMiss");
         resetCompositionStrategy();
@@ -1056,15 +1059,15 @@ void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&
 void Output::finishFrame(const CompositionRefreshArgs& refreshArgs, GpuCompositionResult&& result) {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
-
-    if (!getState().isEnabled) {
+    const auto& outputState = getState();
+    if (!outputState.isEnabled) {
         return;
     }
 
     std::optional<base::unique_fd> optReadyFence;
     std::shared_ptr<renderengine::ExternalTexture> buffer;
     base::unique_fd bufferFence;
-    if (result.succeeded) {
+    if (outputState.strategyPrediction == CompositionStrategyPredictionState::SUCCESS) {
         optReadyFence = std::move(result.fence);
     } else {
         if (result.bufferAvailable()) {
