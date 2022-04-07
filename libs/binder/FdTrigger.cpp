@@ -28,25 +28,45 @@ namespace android {
 
 std::unique_ptr<FdTrigger> FdTrigger::make() {
     auto ret = std::make_unique<FdTrigger>();
+#ifndef BINDER_RPC_SINGLE_THREADED
     if (!android::base::Pipe(&ret->mRead, &ret->mWrite)) {
         ALOGE("Could not create pipe %s", strerror(errno));
         return nullptr;
     }
+#endif
     return ret;
 }
 
 void FdTrigger::trigger() {
+#ifdef BINDER_RPC_SINGLE_THREADED
+    mTriggered = true;
+#else
     mWrite.reset();
+#endif
 }
 
 bool FdTrigger::isTriggered() {
+#ifdef BINDER_RPC_SINGLE_THREADED
+    return mTriggered;
+#else
     return mWrite == -1;
+#endif
 }
 
 status_t FdTrigger::triggerablePoll(base::borrowed_fd fd, int16_t event) {
+#ifdef BINDER_RPC_SINGLE_THREADED
+    if (mTriggered) {
+        return DEAD_OBJECT;
+    }
+#endif
+
     LOG_ALWAYS_FATAL_IF(event == 0, "triggerablePoll %d with event 0 is not allowed", fd.get());
-    pollfd pfd[]{{.fd = fd.get(), .events = static_cast<int16_t>(event), .revents = 0},
-                 {.fd = mRead.get(), .events = 0, .revents = 0}};
+    pollfd pfd[]{
+            {.fd = fd.get(), .events = static_cast<int16_t>(event), .revents = 0},
+#ifndef BINDER_RPC_SINGLE_THREADED
+            {.fd = mRead.get(), .events = 0, .revents = 0},
+#endif
+    };
     int ret = TEMP_FAILURE_RETRY(poll(pfd, arraysize(pfd), -1));
     if (ret < 0) {
         return -errno;
@@ -55,6 +75,7 @@ status_t FdTrigger::triggerablePoll(base::borrowed_fd fd, int16_t event) {
 
     // At least one FD has events. Check them.
 
+#ifndef BINDER_RPC_SINGLE_THREADED
     // Detect explicit trigger(): DEAD_OBJECT
     if (pfd[1].revents & POLLHUP) {
         return DEAD_OBJECT;
@@ -68,6 +89,7 @@ status_t FdTrigger::triggerablePoll(base::borrowed_fd fd, int16_t event) {
 
     // pfd[1].revents is 0, hence pfd[0].revents must be set, and only possible values are
     // a subset of event | POLLHUP | POLLERR | POLLNVAL.
+#endif
 
     // POLLNVAL: invalid FD number, e.g. not opened.
     if (pfd[0].revents & POLLNVAL) {

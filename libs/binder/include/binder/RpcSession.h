@@ -18,13 +18,13 @@
 #include <android-base/threads.h>
 #include <android-base/unique_fd.h>
 #include <binder/IBinder.h>
+#include <binder/RpcThreads.h>
 #include <binder/RpcTransport.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
 #include <map>
 #include <optional>
-#include <thread>
 #include <vector>
 
 namespace android {
@@ -218,10 +218,10 @@ private:
     public:
         void onSessionAllIncomingThreadsEnded(const sp<RpcSession>& session) override;
         void onSessionIncomingThreadEnded() override;
-        void waitForShutdown(std::unique_lock<std::mutex>& lock, const sp<RpcSession>& session);
+        void waitForShutdown(RpcMutexUniqueLock& lock, const sp<RpcSession>& session);
 
     private:
-        std::condition_variable mCv;
+        RpcConditionVariable mCv;
     };
     friend WaitForShutdownListener;
 
@@ -244,7 +244,7 @@ private:
     //
     // transfer ownership of thread (usually done while a lock is taken on the
     // structure which originally owns the thread)
-    void preJoinThreadOwnership(std::thread thread);
+    void preJoinThreadOwnership(RpcMaybeThread thread);
     // pass FD to thread and read initial connection information
     struct PreJoinSetupResult {
         // Server connection object associated with this
@@ -340,14 +340,14 @@ private:
 
     std::unique_ptr<RpcState> mRpcBinderState;
 
-    std::mutex mMutex; // for all below
+    RpcMutex mMutex; // for all below
 
     size_t mMaxIncomingThreads = 0;
     size_t mMaxOutgoingThreads = kDefaultMaxOutgoingThreads;
     std::optional<uint32_t> mProtocolVersion;
     FileDescriptorTransportMode mFileDescriptorTransportMode = FileDescriptorTransportMode::NONE;
 
-    std::condition_variable mAvailableConnectionCv; // for mWaitingThreads
+    RpcConditionVariable mAvailableConnectionCv; // for mWaitingThreads
 
     struct ThreadState {
         size_t mWaitingThreads = 0;
@@ -356,7 +356,7 @@ private:
         std::vector<sp<RpcConnection>> mOutgoing;
         size_t mMaxIncoming = 0;
         std::vector<sp<RpcConnection>> mIncoming;
-        std::map<std::thread::id, std::thread> mThreads;
+        std::map<RpcMaybeThread::id, RpcMaybeThread> mThreads;
     } mConnections;
 };
 
