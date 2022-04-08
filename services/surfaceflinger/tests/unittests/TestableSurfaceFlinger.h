@@ -17,6 +17,7 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <variant>
 
 #include <compositionengine/Display.h>
@@ -200,6 +201,10 @@ public:
                 std::make_unique<impl::HWComposer>(std::move(composer)));
     }
 
+    void setupPowerAdvisor(std::unique_ptr<Hwc2::PowerAdvisor> powerAdvisor) {
+        mFlinger->mPowerAdvisor = std::move(powerAdvisor);
+    }
+
     void setupTimeStats(const std::shared_ptr<TimeStats>& timeStats) {
         mFlinger->mCompositionEngine->setTimeStats(timeStats);
     }
@@ -328,11 +333,26 @@ public:
     /* ------------------------------------------------------------------------
      * Forwarding for functions being tested
      */
+
+    nsecs_t commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expectedVSyncTime) {
+        mFlinger->commit(frameTime, vsyncId, expectedVSyncTime);
+        return frameTime;
+    }
+
+    nsecs_t commit(nsecs_t frameTime, int64_t vsyncId) {
+        std::chrono::nanoseconds period = 10ms;
+        return commit(frameTime, vsyncId, frameTime + period.count());
+    }
+
     nsecs_t commit() {
         const nsecs_t now = systemTime();
         const nsecs_t expectedVsyncTime = now + 10'000'000;
-        mFlinger->commit(now, kVsyncId, expectedVsyncTime);
-        return now;
+        return commit(now, kVsyncId, expectedVsyncTime);
+    }
+
+    void commitAndComposite(const nsecs_t frameTime, const int64_t vsyncId,
+                            const nsecs_t expectedVsyncTime) {
+        mFlinger->composite(commit(frameTime, vsyncId, expectedVsyncTime), kVsyncId);
     }
 
     void commitAndComposite() { mFlinger->composite(commit(), kVsyncId); }
@@ -458,11 +478,6 @@ public:
         mFlinger->onActiveDisplayChangedLocked(activeDisplay);
     }
 
-    auto commit(nsecs_t frameTime, int64_t vsyncId) {
-        const nsecs_t expectedVsyncTime = frameTime + 10'000'000;
-        mFlinger->commit(frameTime, vsyncId, expectedVsyncTime);
-    }
-
     auto createLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
                      const sp<IBinder>& parentHandle, int32_t* outLayerId,
                      const sp<Layer>& parentLayer, uint32_t* outTransformHint) {
@@ -515,7 +530,6 @@ public:
     auto& mutablePhysicalDisplayTokens() { return mFlinger->mPhysicalDisplayTokens; }
     auto& mutableTexturePool() { return mFlinger->mTexturePool; }
     auto& mutableTransactionFlags() { return mFlinger->mTransactionFlags; }
-    auto& mutablePowerAdvisor() { return mFlinger->mPowerAdvisor; }
     auto& mutableDebugDisableHWC() { return mFlinger->mDebugDisableHWC; }
     auto& mutableMaxRenderTargetSize() { return mFlinger->mMaxRenderTargetSize; }
 

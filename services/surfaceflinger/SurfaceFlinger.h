@@ -801,7 +801,8 @@ private:
 
     // Sets the masked bits, and schedules a commit if needed.
     void setTransactionFlags(uint32_t mask, TransactionSchedule = TransactionSchedule::Late,
-                             const sp<IBinder>& applyToken = nullptr);
+                             const sp<IBinder>& applyToken = nullptr,
+                             FrameHint = FrameHint::kActive);
 
     // Clears and returns the masked bits.
     uint32_t clearTransactionFlags(uint32_t mask);
@@ -1382,7 +1383,7 @@ private:
     sp<os::IInputFlinger> mInputFlinger;
     InputWindowCommands mInputWindowCommands;
 
-    Hwc2::impl::PowerAdvisor mPowerAdvisor;
+    std::unique_ptr<Hwc2::PowerAdvisor> mPowerAdvisor;
 
     void enableRefreshRateOverlay(bool enable) REQUIRES(mStateLock);
 

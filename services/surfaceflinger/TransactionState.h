@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,21 @@
 
 #pragma once
 
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <vector>
+
 #include <gui/LayerState.h>
+#include <system/window.h>
 
 namespace android {
+
 class CountDownLatch;
 
 struct TransactionState {
+    TransactionState() = default;
+
     TransactionState(const FrameTimelineInfo& frameTimelineInfo,
                      const Vector<ComposerState>& composerStates,
                      const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
@@ -47,9 +56,30 @@ struct TransactionState {
             originUid(originUid),
             id(transactionId) {}
 
-    TransactionState() {}
+    // Invokes `void(const layer_state_t&)` visitor for matching layers.
+    template <typename Visitor>
+    void traverseStatesWithBuffers(Visitor&& visitor) const {
+        for (const auto& [state] : states) {
+            if (state.hasBufferChanges() && state.hasValidBuffer() && state.surface) {
+                visitor(state);
+            }
+        }
+    }
 
-    void traverseStatesWithBuffers(std::function<void(const layer_state_t&)> visitor);
+    // TODO(b/185535769): Remove FrameHint. Instead, reset the idle timer (of the relevant physical
+    // display) on the main thread if commit leads to composite. Then, RefreshRateOverlay should be
+    // able to setFrameRate once, rather than for each transaction.
+    bool isFrameActive() const {
+        if (!displays.empty()) return true;
+
+        for (const auto& [state] : states) {
+            if (state.frameRateCompatibility != ANATIVEWINDOW_FRAME_RATE_NO_VOTE) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     FrameTimelineInfo frameTimelineInfo;
     Vector<ComposerState> states;
