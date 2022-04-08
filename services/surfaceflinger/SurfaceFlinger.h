@@ -608,26 +608,24 @@ private:
     status_t getProtectedContentSupport(bool* outSupported) const;
     status_t isWideColorDisplay(const sp<IBinder>& displayToken, bool* outIsWideColorDisplay) const;
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
-                                       const sp<IRegionSamplingListener>& listener) override;
-    status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
-    status_t addFpsListener(int32_t taskId, const sp<gui::IFpsListener>& listener) override;
-    status_t removeFpsListener(const sp<gui::IFpsListener>& listener) override;
-    status_t addTunnelModeEnabledListener(
-            const sp<gui::ITunnelModeEnabledListener>& listener) override;
-    status_t removeTunnelModeEnabledListener(
-            const sp<gui::ITunnelModeEnabledListener>& listener) override;
+                                       const sp<IRegionSamplingListener>& listener);
+    status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener);
+    status_t addFpsListener(int32_t taskId, const sp<gui::IFpsListener>& listener);
+    status_t removeFpsListener(const sp<gui::IFpsListener>& listener);
+    status_t addTunnelModeEnabledListener(const sp<gui::ITunnelModeEnabledListener>& listener);
+    status_t removeTunnelModeEnabledListener(const sp<gui::ITunnelModeEnabledListener>& listener);
     status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
                                         ui::DisplayModeId displayModeId, bool allowGroupSwitching,
                                         float primaryRefreshRateMin, float primaryRefreshRateMax,
                                         float appRequestRefreshRateMin,
-                                        float appRequestRefreshRateMax) override;
+                                        float appRequestRefreshRateMax);
     status_t getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
                                         ui::DisplayModeId* outDefaultMode,
                                         bool* outAllowGroupSwitching,
                                         float* outPrimaryRefreshRateMin,
                                         float* outPrimaryRefreshRateMax,
                                         float* outAppRequestRefreshRateMin,
-                                        float* outAppRequestRefreshRateMax) override;
+                                        float* outAppRequestRefreshRateMax);
     status_t getDisplayBrightnessSupport(const sp<IBinder>& displayToken, bool* outSupport) const;
     status_t setDisplayBrightness(const sp<IBinder>& displayToken,
                                   const gui::DisplayBrightness& brightness);
@@ -650,17 +648,15 @@ private:
 
     status_t setOverrideFrameRate(uid_t uid, float frameRate) override;
 
-    status_t addTransactionTraceListener(
-            const sp<gui::ITransactionTraceListener>& listener) override;
+    status_t addTransactionTraceListener(const sp<gui::ITransactionTraceListener>& listener);
 
-    int getGPUContextPriority() override;
+    int getGpuContextPriority();
 
-    status_t getMaxAcquiredBufferCount(int* buffers) const override;
+    status_t getMaxAcquiredBufferCount(int* buffers) const;
 
-    status_t addWindowInfosListener(
-            const sp<gui::IWindowInfosListener>& windowInfosListener) const override;
+    status_t addWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener) const;
     status_t removeWindowInfosListener(
-            const sp<gui::IWindowInfosListener>& windowInfosListener) const override;
+            const sp<gui::IWindowInfosListener>& windowInfosListener) const;
 
     // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
@@ -800,7 +796,8 @@ private:
 
     // Sets the masked bits, and schedules a commit if needed.
     void setTransactionFlags(uint32_t mask, TransactionSchedule = TransactionSchedule::Late,
-                             const sp<IBinder>& applyToken = nullptr);
+                             const sp<IBinder>& applyToken = nullptr,
+                             FrameHint = FrameHint::kActive);
 
     // Clears and returns the masked bits.
     uint32_t clearTransactionFlags(uint32_t mask);
@@ -1381,7 +1378,7 @@ private:
     sp<os::IInputFlinger> mInputFlinger;
     InputWindowCommands mInputWindowCommands;
 
-    Hwc2::impl::PowerAdvisor mPowerAdvisor;
+    std::unique_ptr<Hwc2::PowerAdvisor> mPowerAdvisor;
 
     void enableRefreshRateOverlay(bool enable) REQUIRES(mStateLock);
 
@@ -1501,6 +1498,24 @@ public:
     binder::Status getProtectedContentSupport(bool* outSupporte) override;
     binder::Status isWideColorDisplay(const sp<IBinder>& token,
                                       bool* outIsWideColorDisplay) override;
+    binder::Status addRegionSamplingListener(
+            const gui::ARect& samplingArea, const sp<IBinder>& stopLayerHandle,
+            const sp<gui::IRegionSamplingListener>& listener) override;
+    binder::Status removeRegionSamplingListener(
+            const sp<gui::IRegionSamplingListener>& listener) override;
+    binder::Status addFpsListener(int32_t taskId, const sp<gui::IFpsListener>& listener) override;
+    binder::Status removeFpsListener(const sp<gui::IFpsListener>& listener) override;
+    binder::Status addTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& listener) override;
+    binder::Status removeTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& listener) override;
+    binder::Status setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, int32_t defaultMode,
+                                              bool allowGroupSwitching, float primaryRefreshRateMin,
+                                              float primaryRefreshRateMax,
+                                              float appRequestRefreshRateMin,
+                                              float appRequestRefreshRateMax) override;
+    binder::Status getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
+                                              gui::DisplayModeSpecs* outSpecs) override;
     binder::Status getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
                                                bool* outSupport) override;
     binder::Status setDisplayBrightness(const sp<IBinder>& displayToken,
@@ -1511,11 +1526,20 @@ public:
             const sp<IBinder>& displayToken,
             const sp<gui::IHdrLayerInfoListener>& listener) override;
     binder::Status notifyPowerBoost(int boostId) override;
+    binder::Status addTransactionTraceListener(
+            const sp<gui::ITransactionTraceListener>& listener) override;
+    binder::Status getGpuContextPriority(int32_t* outPriority) override;
+    binder::Status getMaxAcquiredBufferCount(int32_t* buffers) override;
+    binder::Status addWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& windowInfosListener) override;
+    binder::Status removeWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& windowInfosListener) override;
 
 private:
     static const constexpr bool kUsePermissionCache = true;
     status_t checkAccessPermission(bool usePermissionCache = kUsePermissionCache);
     status_t checkControlDisplayBrightnessPermission();
+    status_t checkReadFrameBufferPermission();
 
 private:
     sp<SurfaceFlinger> mFlinger;

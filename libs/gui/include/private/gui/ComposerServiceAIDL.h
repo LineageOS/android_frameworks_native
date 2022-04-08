@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <android/gui/ISurfaceComposer.h>
+#include <ui/DisplayId.h>
 
 #include <utils/Singleton.h>
 #include <utils/StrongPointer.h>

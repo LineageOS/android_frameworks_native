@@ -96,6 +96,7 @@
 #include <cmath>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <type_traits>
@@ -114,6 +115,7 @@
 #include "DisplayHardware/FramebufferSurface.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/Hal.h"
+#include "DisplayHardware/PowerAdvisor.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
 #include "DisplayRenderArea.h"
 #include "EffectLayer.h"
@@ -328,7 +330,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mTunnelModeEnabledReporter(new TunnelModeEnabledReporter()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
         mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)),
-        mPowerAdvisor(*this),
+        mPowerAdvisor(std::make_unique<Hwc2::impl::PowerAdvisor>(*this)),
         mWindowInfosListenerInvoker(sp<WindowInfosListenerInvoker>::make(*this)) {
     ALOGI("Using HWComposer service: %s", mHwcServiceName.c_str());
 }
@@ -414,7 +416,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     property_get("debug.sf.disable_client_composition_cache", value, "0");
     mDisableClientCompositionCache = atoi(value);
 
-    property_get("debug.sf.predict_hwc_composition_strategy", value, "0");
+    property_get("debug.sf.predict_hwc_composition_strategy", value, "1");
     mPredictCompositionStrategy = atoi(value);
 
     // We should be reading 'persist.sys.sf.color_saturation' here
@@ -678,16 +680,16 @@ void SurfaceFlinger::bootFinished() {
         }
 
         readPersistentProperties();
-        mPowerAdvisor.onBootFinished();
-        mPowerAdvisor.enablePowerHint(mFlagManager.use_adpf_cpu_hint());
-        if (mPowerAdvisor.usePowerHintSession()) {
+        mPowerAdvisor->onBootFinished();
+        mPowerAdvisor->enablePowerHint(mFlagManager.use_adpf_cpu_hint());
+        if (mPowerAdvisor->usePowerHintSession()) {
             std::optional<pid_t> renderEngineTid = getRenderEngine().getRenderEngineTid();
             std::vector<int32_t> tidList;
             tidList.emplace_back(gettid());
             if (renderEngineTid.has_value()) {
                 tidList.emplace_back(*renderEngineTid);
             }
-            if (!mPowerAdvisor.startPowerHintSession(tidList)) {
+            if (!mPowerAdvisor->startPowerHintSession(tidList)) {
                 ALOGW("Cannot start power hint session");
             }
         }
@@ -813,7 +815,7 @@ void SurfaceFlinger::init() {
     // set initial conditions (e.g. unblank default device)
     initializeDisplays();
 
-    mPowerAdvisor.init();
+    mPowerAdvisor->init();
 
     char primeShaderCache[PROPERTY_VALUE_MAX];
     property_get("service.sf.prime_shader_cache", primeShaderCache, "1");
@@ -1285,10 +1287,10 @@ void SurfaceFlinger::disableExpensiveRendering() {
     const char* const whence = __func__;
     auto future = mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) {
         ATRACE_NAME(whence);
-        if (mPowerAdvisor.isUsingExpensiveRendering()) {
+        if (mPowerAdvisor->isUsingExpensiveRendering()) {
             for (const auto& [_, display] : mDisplays) {
                 constexpr bool kDisable = false;
-                mPowerAdvisor.setExpensiveRenderingExpected(display->getId(), kDisable);
+                mPowerAdvisor->setExpensiveRenderingExpected(display->getId(), kDisable);
             }
         }
     });
@@ -1810,7 +1812,7 @@ void SurfaceFlinger::scheduleCommit(FrameHint hint) {
     if (hint == FrameHint::kActive) {
         mScheduler->resetIdleTimer();
     }
-    mPowerAdvisor.notifyDisplayUpdateImminent();
+    mPowerAdvisor->notifyDisplayUpdateImminent();
     mScheduler->scheduleFrame();
 }
 
@@ -1980,7 +1982,7 @@ nsecs_t SurfaceFlinger::calculateExpectedPresentTime(DisplayStatInfo stats) cons
 bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expectedVsyncTime)
         FTL_FAKE_GUARD(kMainThreadContext) {
     // we set this once at the beginning of commit to ensure consistency throughout the whole frame
-    mPowerHintSessionData.sessionEnabled = mPowerAdvisor.usePowerHintSession();
+    mPowerHintSessionData.sessionEnabled = mPowerAdvisor->usePowerHintSession();
     if (mPowerHintSessionData.sessionEnabled) {
         mPowerHintSessionData.commitStart = systemTime();
     }
@@ -1999,8 +2001,8 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     mScheduledPresentTime = expectedVsyncTime;
 
     if (mPowerHintSessionData.sessionEnabled) {
-        mPowerAdvisor.setTargetWorkDuration(mExpectedPresentTime -
-                                            mPowerHintSessionData.commitStart);
+        mPowerAdvisor->setTargetWorkDuration(mExpectedPresentTime -
+                                             mPowerHintSessionData.commitStart);
     }
     const auto vsyncIn = [&] {
         if (!ATRACE_ENABLED()) return 0.f;
@@ -2264,7 +2266,7 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId)
     if (mPowerHintSessionData.sessionEnabled) {
         const nsecs_t flingerDuration =
                 (mPowerHintSessionData.presentEnd - mPowerHintSessionData.commitStart);
-        mPowerAdvisor.sendActualWorkDuration(flingerDuration, mPowerHintSessionData.presentEnd);
+        mPowerAdvisor->sendActualWorkDuration(flingerDuration, mPowerHintSessionData.presentEnd);
     }
 }
 
@@ -2919,7 +2921,7 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
 
     builder.setPixels(resolution);
     builder.setIsSecure(state.isSecure);
-    builder.setPowerAdvisor(&mPowerAdvisor);
+    builder.setPowerAdvisor(mPowerAdvisor.get());
     builder.setName(state.displayName);
     auto compositionDisplay = getCompositionEngine().createDisplay(builder.build());
     compositionDisplay->setLayerCachingEnabled(mLayerCachingEnabled);
@@ -3628,11 +3630,11 @@ uint32_t SurfaceFlinger::clearTransactionFlags(uint32_t mask) {
 }
 
 void SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule schedule,
-                                         const sp<IBinder>& applyToken) {
+                                         const sp<IBinder>& applyToken, FrameHint frameHint) {
     modulateVsync(&VsyncModulator::setTransactionSchedule, schedule, applyToken);
 
     if (const bool scheduled = mTransactionFlags.fetch_or(mask) & mask; !scheduled) {
-        scheduleCommit(FrameHint::kActive);
+        scheduleCommit(frameHint);
     }
 }
 
@@ -4004,7 +4006,7 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
 }
 
 void SurfaceFlinger::queueTransaction(TransactionState& state) {
-    Mutex::Autolock _l(mQueueLock);
+    Mutex::Autolock lock(mQueueLock);
 
     // Generate a CountDownLatch pending state if this is a synchronous transaction.
     if ((state.flags & eSynchronous) || state.inputWindowCommands.syncInputWindows) {
@@ -4023,7 +4025,9 @@ void SurfaceFlinger::queueTransaction(TransactionState& state) {
         return TransactionSchedule::Late;
     }(state.flags);
 
-    setTransactionFlags(eTransactionFlushNeeded, schedule, state.applyToken);
+    const auto frameHint = state.isFrameActive() ? FrameHint::kActive : FrameHint::kNone;
+
+    setTransactionFlags(eTransactionFlushNeeded, schedule, state.applyToken, frameHint);
 }
 
 void SurfaceFlinger::waitForSynchronousTransaction(
@@ -5462,13 +5466,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // access to SF.
         case BOOT_FINISHED:
         case GET_HDR_CAPABILITIES:
-        case SET_DESIRED_DISPLAY_MODE_SPECS:
-        case GET_DESIRED_DISPLAY_MODE_SPECS:
         case GET_AUTO_LOW_LATENCY_MODE_SUPPORT:
         case GET_GAME_CONTENT_TYPE_SUPPORT:
         case GET_DISPLAYED_CONTENT_SAMPLE:
-        case ADD_TUNNEL_MODE_ENABLED_LISTENER:
-        case REMOVE_TUNNEL_MODE_ENABLED_LISTENER:
         case SET_GLOBAL_SHADOW_SETTINGS:
         case ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN: {
             // OVERRIDE_HDR_TYPES is used by CTS tests, which acquire the necessary
@@ -5500,46 +5500,13 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // special permissions.
         case SET_FRAME_RATE:
         case GET_DISPLAY_DECORATION_SUPPORT:
-        case SET_FRAME_TIMELINE_INFO:
-        case GET_GPU_CONTEXT_PRIORITY:
-        case GET_MAX_ACQUIRED_BUFFER_COUNT: {
+        case SET_FRAME_TIMELINE_INFO: {
             // This is not sensitive information, so should not require permission control.
             return OK;
-        }
-        case ADD_FPS_LISTENER:
-        case REMOVE_FPS_LISTENER:
-        case ADD_REGION_SAMPLING_LISTENER:
-        case REMOVE_REGION_SAMPLING_LISTENER: {
-            // codes that require permission check
-            IPCThreadState* ipc = IPCThreadState::self();
-            const int pid = ipc->getCallingPid();
-            const int uid = ipc->getCallingUid();
-            if ((uid != AID_GRAPHICS) &&
-                !PermissionCache::checkPermission(sReadFramebuffer, pid, uid)) {
-                ALOGE("Permission Denial: can't read framebuffer pid=%d, uid=%d", pid, uid);
-                return PERMISSION_DENIED;
-            }
-            return OK;
-        }
-        case ADD_TRANSACTION_TRACE_LISTENER: {
-            IPCThreadState* ipc = IPCThreadState::self();
-            const int uid = ipc->getCallingUid();
-            if (uid == AID_ROOT || uid == AID_GRAPHICS || uid == AID_SYSTEM || uid == AID_SHELL) {
-                return OK;
-            }
-            return PERMISSION_DENIED;
         }
         case SET_OVERRIDE_FRAME_RATE: {
             const int uid = IPCThreadState::self()->getCallingUid();
             if (uid == AID_ROOT || uid == AID_SYSTEM) {
-                return OK;
-            }
-            return PERMISSION_DENIED;
-        }
-        case ADD_WINDOW_INFOS_LISTENER:
-        case REMOVE_WINDOW_INFOS_LISTENER: {
-            const int uid = IPCThreadState::self()->getCallingUid();
-            if (uid == AID_SYSTEM || uid == AID_GRAPHICS) {
                 return OK;
             }
             return PERMISSION_DENIED;
@@ -5578,11 +5545,24 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_DISPLAY_CONTENT_SAMPLING_ENABLED:
         case GET_PROTECTED_CONTENT_SUPPORT:
         case IS_WIDE_COLOR_DISPLAY:
+        case ADD_REGION_SAMPLING_LISTENER:
+        case REMOVE_REGION_SAMPLING_LISTENER:
+        case ADD_FPS_LISTENER:
+        case REMOVE_FPS_LISTENER:
+        case ADD_TUNNEL_MODE_ENABLED_LISTENER:
+        case REMOVE_TUNNEL_MODE_ENABLED_LISTENER:
+        case ADD_WINDOW_INFOS_LISTENER:
+        case REMOVE_WINDOW_INFOS_LISTENER:
+        case SET_DESIRED_DISPLAY_MODE_SPECS:
+        case GET_DESIRED_DISPLAY_MODE_SPECS:
         case GET_DISPLAY_BRIGHTNESS_SUPPORT:
         case SET_DISPLAY_BRIGHTNESS:
         case ADD_HDR_LAYER_INFO_LISTENER:
         case REMOVE_HDR_LAYER_INFO_LISTENER:
         case NOTIFY_POWER_BOOST:
+        case ADD_TRANSACTION_TRACE_LISTENER:
+        case GET_GPU_CONTEXT_PRIORITY:
+        case GET_MAX_ACQUIRED_BUFFER_COUNT:
             LOG_FATAL("Deprecated opcode: %d, migrated to AIDL", code);
             return PERMISSION_DENIED;
     }
@@ -7098,7 +7078,7 @@ status_t SurfaceFlinger::addTransactionTraceListener(
     return NO_ERROR;
 }
 
-int SurfaceFlinger::getGPUContextPriority() {
+int SurfaceFlinger::getGpuContextPriority() {
     return getRenderEngine().getContextPriority();
 }
 
@@ -7142,15 +7122,6 @@ int SurfaceFlinger::getMaxAcquiredBufferCountForRefreshRate(Fps refreshRate) con
     const auto vsyncConfig = mVsyncConfiguration->getConfigsForRefreshRate(refreshRate).late;
     const auto presentLatency = vsyncConfig.appWorkDuration + vsyncConfig.sfWorkDuration;
     return calculateMaxAcquiredBufferCount(refreshRate, presentLatency);
-}
-
-void TransactionState::traverseStatesWithBuffers(
-        std::function<void(const layer_state_t&)> visitor) {
-    for (const auto& state : states) {
-        if (state.state.hasBufferChanges() && state.state.hasValidBuffer() && state.state.surface) {
-            visitor(state.state);
-        }
-    }
 }
 
 void SurfaceFlinger::handleLayerCreatedLocked(const LayerCreatedState& state) {
@@ -7748,6 +7719,115 @@ binder::Status SurfaceComposerAIDL::isWideColorDisplay(const sp<IBinder>& token,
     return binder::Status::fromStatusT(status);
 }
 
+binder::Status SurfaceComposerAIDL::addRegionSamplingListener(
+        const gui::ARect& samplingArea, const sp<IBinder>& stopLayerHandle,
+        const sp<gui::IRegionSamplingListener>& listener) {
+    status_t status = checkReadFrameBufferPermission();
+    if (status != OK) {
+        return binder::Status::fromStatusT(status);
+    }
+    android::Rect rect;
+    rect.left = samplingArea.left;
+    rect.top = samplingArea.top;
+    rect.right = samplingArea.right;
+    rect.bottom = samplingArea.bottom;
+    status = mFlinger->addRegionSamplingListener(rect, stopLayerHandle, listener);
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::removeRegionSamplingListener(
+        const sp<gui::IRegionSamplingListener>& listener) {
+    status_t status = checkReadFrameBufferPermission();
+    if (status == OK) {
+        status = mFlinger->removeRegionSamplingListener(listener);
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::addFpsListener(int32_t taskId,
+                                                   const sp<gui::IFpsListener>& listener) {
+    status_t status = checkReadFrameBufferPermission();
+    if (status == OK) {
+        status = mFlinger->addFpsListener(taskId, listener);
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::removeFpsListener(const sp<gui::IFpsListener>& listener) {
+    status_t status = checkReadFrameBufferPermission();
+    if (status == OK) {
+        status = mFlinger->removeFpsListener(listener);
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::addTunnelModeEnabledListener(
+        const sp<gui::ITunnelModeEnabledListener>& listener) {
+    status_t status = checkAccessPermission();
+    if (status == OK) {
+        status = mFlinger->addTunnelModeEnabledListener(listener);
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::removeTunnelModeEnabledListener(
+        const sp<gui::ITunnelModeEnabledListener>& listener) {
+    status_t status = checkAccessPermission();
+    if (status == OK) {
+        status = mFlinger->removeTunnelModeEnabledListener(listener);
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::setDesiredDisplayModeSpecs(
+        const sp<IBinder>& displayToken, int32_t defaultMode, bool allowGroupSwitching,
+        float primaryRefreshRateMin, float primaryRefreshRateMax, float appRequestRefreshRateMin,
+        float appRequestRefreshRateMax) {
+    status_t status = checkAccessPermission();
+    if (status == OK) {
+        status = mFlinger->setDesiredDisplayModeSpecs(displayToken,
+                                                      static_cast<ui::DisplayModeId>(defaultMode),
+                                                      allowGroupSwitching, primaryRefreshRateMin,
+                                                      primaryRefreshRateMax,
+                                                      appRequestRefreshRateMin,
+                                                      appRequestRefreshRateMax);
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
+                                                               gui::DisplayModeSpecs* outSpecs) {
+    if (!outSpecs) {
+        return binder::Status::fromStatusT(BAD_VALUE);
+    }
+
+    status_t status = checkAccessPermission();
+    if (status != OK) {
+        return binder::Status::fromStatusT(status);
+    }
+
+    ui::DisplayModeId displayModeId;
+    bool allowGroupSwitching;
+    float primaryRefreshRateMin;
+    float primaryRefreshRateMax;
+    float appRequestRefreshRateMin;
+    float appRequestRefreshRateMax;
+    status = mFlinger->getDesiredDisplayModeSpecs(displayToken, &displayModeId,
+                                                  &allowGroupSwitching, &primaryRefreshRateMin,
+                                                  &primaryRefreshRateMax, &appRequestRefreshRateMin,
+                                                  &appRequestRefreshRateMax);
+    if (status == NO_ERROR) {
+        outSpecs->defaultMode = displayModeId;
+        outSpecs->allowGroupSwitching = allowGroupSwitching;
+        outSpecs->primaryRefreshRateMin = primaryRefreshRateMin;
+        outSpecs->primaryRefreshRateMax = primaryRefreshRateMax;
+        outSpecs->appRequestRefreshRateMin = appRequestRefreshRateMin;
+        outSpecs->appRequestRefreshRateMax = appRequestRefreshRateMax;
+    }
+
+    return binder::Status::fromStatusT(status);
+}
+
 binder::Status SurfaceComposerAIDL::getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
                                                                 bool* outSupport) {
     status_t status = mFlinger->getDisplayBrightnessSupport(displayToken, outSupport);
@@ -7789,6 +7869,53 @@ binder::Status SurfaceComposerAIDL::notifyPowerBoost(int boostId) {
     return binder::Status::fromStatusT(status);
 }
 
+binder::Status SurfaceComposerAIDL::addTransactionTraceListener(
+        const sp<gui::ITransactionTraceListener>& listener) {
+    status_t status;
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int uid = ipc->getCallingUid();
+    if (uid == AID_ROOT || uid == AID_GRAPHICS || uid == AID_SYSTEM || uid == AID_SHELL) {
+        status = mFlinger->addTransactionTraceListener(listener);
+    } else {
+        status = PERMISSION_DENIED;
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getGpuContextPriority(int32_t* outPriority) {
+    *outPriority = mFlinger->getGpuContextPriority();
+    return binder::Status::ok();
+}
+
+binder::Status SurfaceComposerAIDL::getMaxAcquiredBufferCount(int32_t* buffers) {
+    status_t status = mFlinger->getMaxAcquiredBufferCount(buffers);
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::addWindowInfosListener(
+        const sp<gui::IWindowInfosListener>& windowInfosListener) {
+    status_t status;
+    const int uid = IPCThreadState::self()->getCallingUid();
+    if (uid == AID_SYSTEM || uid == AID_GRAPHICS) {
+        status = mFlinger->addWindowInfosListener(windowInfosListener);
+    } else {
+        status = PERMISSION_DENIED;
+    }
+    return binder::Status::fromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::removeWindowInfosListener(
+        const sp<gui::IWindowInfosListener>& windowInfosListener) {
+    status_t status;
+    const int uid = IPCThreadState::self()->getCallingUid();
+    if (uid == AID_SYSTEM || uid == AID_GRAPHICS) {
+        status = mFlinger->removeWindowInfosListener(windowInfosListener);
+    } else {
+        status = PERMISSION_DENIED;
+    }
+    return binder::Status::fromStatusT(status);
+}
+
 status_t SurfaceComposerAIDL::checkAccessPermission(bool usePermissionCache) {
     if (!mFlinger->callingThreadHasUnscopedSurfaceFlingerAccess(usePermissionCache)) {
         IPCThreadState* ipc = IPCThreadState::self();
@@ -7806,6 +7933,17 @@ status_t SurfaceComposerAIDL::checkControlDisplayBrightnessPermission() {
     if ((uid != AID_GRAPHICS) &&
         !PermissionCache::checkPermission(sControlDisplayBrightness, pid, uid)) {
         ALOGE("Permission Denial: can't control brightness pid=%d, uid=%d", pid, uid);
+        return PERMISSION_DENIED;
+    }
+    return OK;
+}
+
+status_t SurfaceComposerAIDL::checkReadFrameBufferPermission() {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+    if ((uid != AID_GRAPHICS) && !PermissionCache::checkPermission(sReadFramebuffer, pid, uid)) {
+        ALOGE("Permission Denial: can't read framebuffer pid=%d, uid=%d", pid, uid);
         return PERMISSION_DENIED;
     }
     return OK;

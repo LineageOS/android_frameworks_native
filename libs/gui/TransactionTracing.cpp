@@ -15,9 +15,9 @@
  */
 
 #include "gui/TransactionTracing.h"
-#include "gui/ISurfaceComposer.h"
+#include "android/gui/ISurfaceComposer.h"
 
-#include <private/gui/ComposerService.h>
+#include <private/gui/ComposerServiceAIDL.h>
 
 namespace android {
 
@@ -32,7 +32,7 @@ sp<TransactionTraceListener> TransactionTraceListener::getInstance() {
     if (sInstance == nullptr) {
         sInstance = new TransactionTraceListener;
 
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+        sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
         sf->addTransactionTraceListener(sInstance);
     }
 

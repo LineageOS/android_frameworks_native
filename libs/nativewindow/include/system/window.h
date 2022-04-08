@@ -1018,6 +1018,24 @@ static inline int native_window_set_auto_prerotation(struct ANativeWindow* windo
     return window->perform(window, NATIVE_WINDOW_SET_AUTO_PREROTATION, autoPrerotation);
 }
 
+/*
+ * Internal extension of ANativeWindow_FrameRateCompatibility.
+ */
+enum {
+    /**
+     * This surface belongs to an app on the High Refresh Rate Deny list, and needs the display
+     * to operate at the exact frame rate.
+     *
+     * Keep in sync with Surface.java constant.
+     */
+    ANATIVEWINDOW_FRAME_RATE_EXACT = 100,
+
+    /**
+     * This surface is ignored while choosing the refresh rate.
+     */
+    ANATIVEWINDOW_FRAME_RATE_NO_VOTE,
+};
+
 static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate,
                                         int8_t compatibility, int8_t changeFrameRateStrategy) {
     return window->perform(window, NATIVE_WINDOW_SET_FRAME_RATE, (double)frameRate,

@@ -111,7 +111,6 @@ bool ComposerService::connectLocked() {
     if (instance.mComposerService == nullptr) {
         if (ComposerService::getInstance().connectLocked()) {
             ALOGD("ComposerService reconnected");
-            WindowInfosListenerReporter::getInstance()->reconnect(instance.mComposerService);
         }
     }
     return instance.mComposerService;
@@ -159,6 +158,7 @@ bool ComposerServiceAIDL::connectLocked() {
     if (instance.mComposerService == nullptr) {
         if (ComposerServiceAIDL::getInstance().connectLocked()) {
             ALOGD("ComposerServiceAIDL reconnected");
+            WindowInfosListenerReporter::getInstance()->reconnect(instance.mComposerService);
         }
     }
     return instance.mComposerService;
@@ -2261,10 +2261,13 @@ status_t SurfaceComposerClient::setDesiredDisplayModeSpecs(
         const sp<IBinder>& displayToken, ui::DisplayModeId defaultMode, bool allowGroupSwitching,
         float primaryRefreshRateMin, float primaryRefreshRateMax, float appRequestRefreshRateMin,
         float appRequestRefreshRateMax) {
-    return ComposerService::getComposerService()
-            ->setDesiredDisplayModeSpecs(displayToken, defaultMode, allowGroupSwitching,
-                                         primaryRefreshRateMin, primaryRefreshRateMax,
-                                         appRequestRefreshRateMin, appRequestRefreshRateMax);
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()
+                    ->setDesiredDisplayModeSpecs(displayToken, defaultMode, allowGroupSwitching,
+                                                 primaryRefreshRateMin, primaryRefreshRateMax,
+                                                 appRequestRefreshRateMin,
+                                                 appRequestRefreshRateMax);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
@@ -2274,10 +2277,23 @@ status_t SurfaceComposerClient::getDesiredDisplayModeSpecs(const sp<IBinder>& di
                                                            float* outPrimaryRefreshRateMax,
                                                            float* outAppRequestRefreshRateMin,
                                                            float* outAppRequestRefreshRateMax) {
-    return ComposerService::getComposerService()
-            ->getDesiredDisplayModeSpecs(displayToken, outDefaultMode, outAllowGroupSwitching,
-                                         outPrimaryRefreshRateMin, outPrimaryRefreshRateMax,
-                                         outAppRequestRefreshRateMin, outAppRequestRefreshRateMax);
+    if (!outDefaultMode || !outAllowGroupSwitching || !outPrimaryRefreshRateMin ||
+        !outPrimaryRefreshRateMax || !outAppRequestRefreshRateMin || !outAppRequestRefreshRateMax) {
+        return BAD_VALUE;
+    }
+    gui::DisplayModeSpecs specs;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getDesiredDisplayModeSpecs(displayToken,
+                                                                                  &specs);
+    if (status.isOk()) {
+        *outDefaultMode = specs.defaultMode;
+        *outAllowGroupSwitching = specs.allowGroupSwitching;
+        *outPrimaryRefreshRateMin = specs.primaryRefreshRateMin;
+        *outPrimaryRefreshRateMax = specs.primaryRefreshRateMax;
+        *outAppRequestRefreshRateMin = specs.appRequestRefreshRateMin;
+        *outAppRequestRefreshRateMax = specs.appRequestRefreshRateMax;
+    }
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::getDisplayNativePrimaries(const sp<IBinder>& display,
@@ -2469,33 +2485,49 @@ status_t SurfaceComposerClient::isWideColorDisplay(const sp<IBinder>& display,
 status_t SurfaceComposerClient::addRegionSamplingListener(
         const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
         const sp<IRegionSamplingListener>& listener) {
-    return ComposerService::getComposerService()->addRegionSamplingListener(samplingArea,
-                                                                            stopLayerHandle,
-                                                                            listener);
+    gui::ARect rect;
+    rect.left = samplingArea.left;
+    rect.top = samplingArea.top;
+    rect.right = samplingArea.right;
+    rect.bottom = samplingArea.bottom;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->addRegionSamplingListener(rect,
+                                                                                 stopLayerHandle,
+                                                                                 listener);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::removeRegionSamplingListener(
         const sp<IRegionSamplingListener>& listener) {
-    return ComposerService::getComposerService()->removeRegionSamplingListener(listener);
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->removeRegionSamplingListener(listener);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::addFpsListener(int32_t taskId,
                                                const sp<gui::IFpsListener>& listener) {
-    return ComposerService::getComposerService()->addFpsListener(taskId, listener);
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->addFpsListener(taskId, listener);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::removeFpsListener(const sp<gui::IFpsListener>& listener) {
-    return ComposerService::getComposerService()->removeFpsListener(listener);
+    binder::Status status = ComposerServiceAIDL::getComposerService()->removeFpsListener(listener);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::addTunnelModeEnabledListener(
         const sp<gui::ITunnelModeEnabledListener>& listener) {
-    return ComposerService::getComposerService()->addTunnelModeEnabledListener(listener);
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->addTunnelModeEnabledListener(listener);
+    return status.transactionError();
 }
 
 status_t SurfaceComposerClient::removeTunnelModeEnabledListener(
         const sp<gui::ITunnelModeEnabledListener>& listener) {
-    return ComposerService::getComposerService()->removeTunnelModeEnabledListener(listener);
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->removeTunnelModeEnabledListener(listener);
+    return status.transactionError();
 }
 
 bool SurfaceComposerClient::getDisplayBrightnessSupport(const sp<IBinder>& displayToken) {
@@ -2550,22 +2582,31 @@ std::optional<DisplayDecorationSupport> SurfaceComposerClient::getDisplayDecorat
     return support;
 }
 
-int SurfaceComposerClient::getGPUContextPriority() {
-    return ComposerService::getComposerService()->getGPUContextPriority();
+int SurfaceComposerClient::getGpuContextPriority() {
+    int priority;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getGpuContextPriority(&priority);
+    if (!status.isOk()) {
+        status_t err = status.transactionError();
+        ALOGE("getGpuContextPriority failed to read data:  %s (%d)", strerror(-err), err);
+        return 0;
+    }
+    return priority;
 }
 
 status_t SurfaceComposerClient::addWindowInfosListener(
         const sp<WindowInfosListener>& windowInfosListener,
         std::pair<std::vector<gui::WindowInfo>, std::vector<gui::DisplayInfo>>* outInitialInfo) {
     return WindowInfosListenerReporter::getInstance()
-            ->addWindowInfosListener(windowInfosListener, ComposerService::getComposerService(),
+            ->addWindowInfosListener(windowInfosListener, ComposerServiceAIDL::getComposerService(),
                                      outInitialInfo);
 }
 
 status_t SurfaceComposerClient::removeWindowInfosListener(
         const sp<WindowInfosListener>& windowInfosListener) {
     return WindowInfosListenerReporter::getInstance()
-            ->removeWindowInfosListener(windowInfosListener, ComposerService::getComposerService());
+            ->removeWindowInfosListener(windowInfosListener,
+                                        ComposerServiceAIDL::getComposerService());
 }
 
 // ----------------------------------------------------------------------------
