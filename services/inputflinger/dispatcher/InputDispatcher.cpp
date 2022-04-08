@@ -5146,28 +5146,54 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
     return true;
 }
 
+/**
+ * Get the touched foreground window on the given display.
+ * Return null if there are no windows touched on that display, or if more than one foreground
+ * window is being touched.
+ */
+sp<WindowInfoHandle> InputDispatcher::findTouchedForegroundWindowLocked(int32_t displayId) const {
+    auto stateIt = mTouchStatesByDisplay.find(displayId);
+    if (stateIt == mTouchStatesByDisplay.end()) {
+        ALOGI("No touch state on display %" PRId32, displayId);
+        return nullptr;
+    }
+
+    const TouchState& state = stateIt->second;
+    sp<WindowInfoHandle> touchedForegroundWindow;
+    // If multiple foreground windows are touched, return nullptr
+    for (const TouchedWindow& window : state.windows) {
+        if (window.targetFlags & InputTarget::FLAG_FOREGROUND) {
+            if (touchedForegroundWindow != nullptr) {
+                ALOGI("Two or more foreground windows: %s and %s",
+                      touchedForegroundWindow->getName().c_str(),
+                      window.windowHandle->getName().c_str());
+                return nullptr;
+            }
+            touchedForegroundWindow = window.windowHandle;
+        }
+    }
+    return touchedForegroundWindow;
+}
+
 // Binder call
-bool InputDispatcher::transferTouch(const sp<IBinder>& destChannelToken) {
+bool InputDispatcher::transferTouch(const sp<IBinder>& destChannelToken, int32_t displayId) {
     sp<IBinder> fromToken;
     { // acquire lock
         std::scoped_lock _l(mLock);
-
-        auto it = std::find_if(mTouchStatesByDisplay.begin(), mTouchStatesByDisplay.end(),
-                               [](const auto& pair) { return pair.second.windows.size() == 1; });
-        if (it == mTouchStatesByDisplay.end()) {
-            ALOGW("Cannot transfer touch state because there is no exact window being touched");
-            return false;
-        }
-        const int32_t displayId = it->first;
         sp<WindowInfoHandle> toWindowHandle = getWindowHandleLocked(destChannelToken, displayId);
         if (toWindowHandle == nullptr) {
-            ALOGW("Could not find window associated with token=%p", destChannelToken.get());
+            ALOGW("Could not find window associated with token=%p on display %" PRId32,
+                  destChannelToken.get(), displayId);
             return false;
         }
 
-        TouchState& state = it->second;
-        const TouchedWindow& touchedWindow = state.windows[0];
-        fromToken = touchedWindow.windowHandle->getToken();
+        sp<WindowInfoHandle> from = findTouchedForegroundWindowLocked(displayId);
+        if (from == nullptr) {
+            ALOGE("Could not find a source window in %s for %p", __func__, destChannelToken.get());
+            return false;
+        }
+
+        fromToken = from->getToken();
     } // release lock
 
     return transferTouchFocus(fromToken, destChannelToken);
