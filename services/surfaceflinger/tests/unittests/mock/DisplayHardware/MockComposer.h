@@ -126,7 +126,8 @@ public:
                  Error(Display, uint64_t, uint64_t, DisplayedFrameStats*));
     MOCK_METHOD3(setLayerPerFrameMetadataBlobs,
                  Error(Display, Layer, const std::vector<IComposerClient::PerFrameMetadataBlob>&));
-    MOCK_METHOD3(setDisplayBrightness, Error(Display, float, const DisplayBrightnessOptions&));
+    MOCK_METHOD4(setDisplayBrightness,
+                 Error(Display, float, float, const DisplayBrightnessOptions&));
     MOCK_METHOD2(
             getDisplayCapabilities,
             Error(Display,
