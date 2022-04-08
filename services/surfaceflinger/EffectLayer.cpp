@@ -114,7 +114,13 @@ void EffectLayer::preparePerFrameCompositionState() {
 }
 
 sp<compositionengine::LayerFE> EffectLayer::getCompositionEngineLayerFE() const {
-    return asLayerFE();
+    // There's no need to get a CE Layer if the EffectLayer isn't going to draw anything. In that
+    // case, it acts more like a ContainerLayer so returning a null CE Layer makes more sense
+    if (hasSomethingToDraw()) {
+        return asLayerFE();
+    } else {
+        return nullptr;
+    }
 }
 
 compositionengine::LayerFECompositionState* EffectLayer::editCompositionState() {

@@ -45,6 +45,15 @@ constexpr int kDigitSpace = 16;
 constexpr int kBufferWidth = 4 * kDigitWidth + 3 * kDigitSpace;
 constexpr int kBufferHeight = kDigitHeight;
 
+SurfaceComposerClient::Transaction createTransaction(const sp<SurfaceControl>& surface) {
+    constexpr float kFrameRate = 0.f;
+    constexpr int8_t kCompatibility = ANATIVEWINDOW_FRAME_RATE_NO_VOTE;
+    constexpr int8_t kSeamlessness = ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS;
+
+    return SurfaceComposerClient::Transaction().setFrameRate(surface, kFrameRate, kCompatibility,
+                                                             kSeamlessness);
+}
+
 } // namespace
 
 void RefreshRateOverlay::SevenSegmentDrawer::drawSegment(Segment segment, int left, SkColor color,
@@ -213,12 +222,7 @@ RefreshRateOverlay::RefreshRateOverlay(FpsRange fpsRange, bool showSpinner)
         return;
     }
 
-    constexpr float kFrameRate = 0.f;
-    constexpr int8_t kCompatibility = static_cast<int8_t>(Layer::FrameRateCompatibility::NoVote);
-    constexpr int8_t kSeamlessness = ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS;
-
-    SurfaceComposerClient::Transaction()
-            .setFrameRate(mSurfaceControl, kFrameRate, kCompatibility, kSeamlessness)
+    createTransaction(mSurfaceControl)
             .setLayer(mSurfaceControl, INT32_MAX - 2)
             .setTrustedOverlay(mSurfaceControl, true)
             .apply();
@@ -243,9 +247,7 @@ auto RefreshRateOverlay::getOrCreateBuffers(Fps fps) -> const Buffers& {
         }
     }();
 
-    SurfaceComposerClient::Transaction t;
-    t.setTransform(mSurfaceControl, transform);
-    t.apply();
+    createTransaction(mSurfaceControl).setTransform(mSurfaceControl, transform).apply();
 
     BufferCache::const_iterator it = mBufferCache.find({fps.getIntValue(), transformHint});
     if (it == mBufferCache.end()) {
@@ -287,25 +289,21 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
     Rect frame((3 * width) >> 4, height >> 5);
     frame.offsetBy(width >> 5, height >> 4);
 
-    SurfaceComposerClient::Transaction t;
-    t.setMatrix(mSurfaceControl, frame.getWidth() / static_cast<float>(kBufferWidth), 0, 0,
-                frame.getHeight() / static_cast<float>(kBufferHeight));
-    t.setPosition(mSurfaceControl, frame.left, frame.top);
-    t.apply();
+    createTransaction(mSurfaceControl)
+            .setMatrix(mSurfaceControl, frame.getWidth() / static_cast<float>(kBufferWidth), 0, 0,
+                       frame.getHeight() / static_cast<float>(kBufferHeight))
+            .setPosition(mSurfaceControl, frame.left, frame.top)
+            .apply();
 }
 
 void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
-    SurfaceComposerClient::Transaction t;
-    t.setLayerStack(mSurfaceControl, stack);
-    t.apply();
+    createTransaction(mSurfaceControl).setLayerStack(mSurfaceControl, stack).apply();
 }
 
 void RefreshRateOverlay::changeRefreshRate(Fps fps) {
     mCurrentFps = fps;
     const auto buffer = getOrCreateBuffers(fps)[mFrame];
-    SurfaceComposerClient::Transaction t;
-    t.setBuffer(mSurfaceControl, buffer);
-    t.apply();
+    createTransaction(mSurfaceControl).setBuffer(mSurfaceControl, buffer).apply();
 }
 
 void RefreshRateOverlay::animate() {
@@ -314,9 +312,7 @@ void RefreshRateOverlay::animate() {
     const auto& buffers = getOrCreateBuffers(*mCurrentFps);
     mFrame = (mFrame + 1) % buffers.size();
     const auto buffer = buffers[mFrame];
-    SurfaceComposerClient::Transaction t;
-    t.setBuffer(mSurfaceControl, buffer);
-    t.apply();
+    createTransaction(mSurfaceControl).setBuffer(mSurfaceControl, buffer).apply();
 }
 
 } // namespace android
