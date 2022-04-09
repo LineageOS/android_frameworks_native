@@ -29,8 +29,9 @@ enum InputEventInjectionResult {
     /* Injection succeeded. */
     SUCCEEDED = 0,
 
-    /* Injection failed because the injected event did not target the appropriate window. */
-    TARGET_MISMATCH = 1,
+    /* Injection failed because the injector did not have permission to inject
+     * into the application with input focus. */
+    PERMISSION_DENIED = 1,
 
     /* Injection failed because there were no available input targets. */
     FAILED = 2,

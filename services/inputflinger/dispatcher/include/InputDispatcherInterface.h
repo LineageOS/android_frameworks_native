@@ -68,16 +68,10 @@ public:
      * input injection to proceed.
      * Returns one of the INPUT_EVENT_INJECTION_XXX constants.
      *
-     * If a targetUid is provided, InputDispatcher will only consider injecting the input event into
-     * windows owned by the provided uid. If the input event is targeted at a window that is not
-     * owned by the provided uid, input injection will fail. If no targetUid is provided, the input
-     * event will be dispatched as-is.
-     *
-     * This method may be called on any thread (usually by the input manager). The caller must
-     * perform all necessary permission checks prior to injecting events.
+     * This method may be called on any thread (usually by the input manager).
      */
     virtual android::os::InputEventInjectionResult injectInputEvent(
-            const InputEvent* event, std::optional<int32_t> targetUid,
+            const InputEvent* event, int32_t injectorPid, int32_t injectorUid,
             android::os::InputEventInjectionSync syncMode, std::chrono::milliseconds timeout,
             uint32_t policyFlags) = 0;
 
@@ -161,7 +155,7 @@ public:
      *
      * Return true on success, false if there was no on-going touch.
      */
-    virtual bool transferTouch(const sp<IBinder>& destChannelToken) = 0;
+    virtual bool transferTouch(const sp<IBinder>& destChannelToken, int32_t displayId) = 0;
 
     /**
      * Sets focus on the specified window.
