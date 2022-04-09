@@ -80,7 +80,7 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
 
-        SAFE_PARCEL(frameTimelineInfo.write, data);
+        frameTimelineInfo.writeToParcel(&data);
 
         SAFE_PARCEL(data.writeUint32, static_cast<uint32_t>(state.size()));
         for (const auto& s : state) {
@@ -124,40 +124,6 @@ public:
         remote()->transact(BnSurfaceComposer::BOOT_FINISHED, data, &reply);
     }
 
-    bool authenticateSurfaceTexture(
-            const sp<IGraphicBufferProducer>& bufferProducer) const override {
-        Parcel data, reply;
-        int err = NO_ERROR;
-        err = data.writeInterfaceToken(
-                ISurfaceComposer::getInterfaceDescriptor());
-        if (err != NO_ERROR) {
-            ALOGE("ISurfaceComposer::authenticateSurfaceTexture: error writing "
-                    "interface descriptor: %s (%d)", strerror(-err), -err);
-            return false;
-        }
-        err = data.writeStrongBinder(IInterface::asBinder(bufferProducer));
-        if (err != NO_ERROR) {
-            ALOGE("ISurfaceComposer::authenticateSurfaceTexture: error writing "
-                    "strong binder to parcel: %s (%d)", strerror(-err), -err);
-            return false;
-        }
-        err = remote()->transact(BnSurfaceComposer::AUTHENTICATE_SURFACE, data,
-                &reply);
-        if (err != NO_ERROR) {
-            ALOGE("ISurfaceComposer::authenticateSurfaceTexture: error "
-                    "performing transaction: %s (%d)", strerror(-err), -err);
-            return false;
-        }
-        int32_t result = 0;
-        err = reply.readInt32(&result);
-        if (err != NO_ERROR) {
-            ALOGE("ISurfaceComposer::authenticateSurfaceTexture: error "
-                    "retrieving result: %s (%d)", strerror(-err), -err);
-            return false;
-        }
-        return result != 0;
-    }
-
     sp<IDisplayEventConnection> createDisplayEventConnection(
             VsyncSource vsyncSource, EventRegistrationFlags eventRegistration) override {
         Parcel data, reply;
@@ -179,181 +145,6 @@ public:
         }
         result = interface_cast<IDisplayEventConnection>(reply.readStrongBinder());
         return result;
-    }
-
-    status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
-                                       uint64_t timestamp,
-                                       DisplayedFrameStats* outStats) const override {
-        if (!outStats) return BAD_VALUE;
-
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-        data.writeUint64(maxFrames);
-        data.writeUint64(timestamp);
-
-        status_t result =
-                remote()->transact(BnSurfaceComposer::GET_DISPLAYED_CONTENT_SAMPLE, data, &reply);
-
-        if (result != NO_ERROR) {
-            return result;
-        }
-
-        result = reply.readUint64(&outStats->numFrames);
-        if (result != NO_ERROR) {
-            return result;
-        }
-
-        result = reply.readUint64Vector(&outStats->component_0_sample);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        result = reply.readUint64Vector(&outStats->component_1_sample);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        result = reply.readUint64Vector(&outStats->component_2_sample);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        result = reply.readUint64Vector(&outStats->component_3_sample);
-        return result;
-    }
-
-    status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
-                                     float lightPosY, float lightPosZ, float lightRadius) override {
-        Parcel data, reply;
-        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (error != NO_ERROR) {
-            ALOGE("setGlobalShadowSettings: failed to write interface token: %d", error);
-            return error;
-        }
-
-        std::vector<float> shadowConfig = {ambientColor.r, ambientColor.g, ambientColor.b,
-                                           ambientColor.a, spotColor.r,    spotColor.g,
-                                           spotColor.b,    spotColor.a,    lightPosY,
-                                           lightPosZ,      lightRadius};
-
-        error = data.writeFloatVector(shadowConfig);
-        if (error != NO_ERROR) {
-            ALOGE("setGlobalShadowSettings: failed to write shadowConfig: %d", error);
-            return error;
-        }
-
-        error = remote()->transact(BnSurfaceComposer::SET_GLOBAL_SHADOW_SETTINGS, data, &reply,
-                                   IBinder::FLAG_ONEWAY);
-        if (error != NO_ERROR) {
-            ALOGE("setGlobalShadowSettings: failed to transact: %d", error);
-            return error;
-        }
-        return NO_ERROR;
-    }
-
-    status_t getDisplayDecorationSupport(
-            const sp<IBinder>& displayToken,
-            std::optional<common::DisplayDecorationSupport>* outSupport) const override {
-        Parcel data, reply;
-        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (error != NO_ERROR) {
-            ALOGE("getDisplayDecorationSupport: failed to write interface token: %d", error);
-            return error;
-        }
-        error = data.writeStrongBinder(displayToken);
-        if (error != NO_ERROR) {
-            ALOGE("getDisplayDecorationSupport: failed to write display token: %d", error);
-            return error;
-        }
-        error = remote()->transact(BnSurfaceComposer::GET_DISPLAY_DECORATION_SUPPORT, data, &reply);
-        if (error != NO_ERROR) {
-            ALOGE("getDisplayDecorationSupport: failed to transact: %d", error);
-            return error;
-        }
-        bool support;
-        error = reply.readBool(&support);
-        if (error != NO_ERROR) {
-            ALOGE("getDisplayDecorationSupport: failed to read support: %d", error);
-            return error;
-        }
-
-        if (support) {
-            int32_t format, alphaInterpretation;
-            error = reply.readInt32(&format);
-            if (error != NO_ERROR) {
-                ALOGE("getDisplayDecorationSupport: failed to read format: %d", error);
-                return error;
-            }
-            error = reply.readInt32(&alphaInterpretation);
-            if (error != NO_ERROR) {
-                ALOGE("getDisplayDecorationSupport: failed to read alphaInterpretation: %d", error);
-                return error;
-            }
-            outSupport->emplace();
-            outSupport->value().format = static_cast<common::PixelFormat>(format);
-            outSupport->value().alphaInterpretation =
-                    static_cast<common::AlphaInterpretation>(alphaInterpretation);
-        } else {
-            outSupport->reset();
-        }
-        return NO_ERROR;
-    }
-
-    status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
-                          int8_t compatibility, int8_t changeFrameRateStrategy) override {
-        Parcel data, reply;
-        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(surface));
-        SAFE_PARCEL(data.writeFloat, frameRate);
-        SAFE_PARCEL(data.writeByte, compatibility);
-        SAFE_PARCEL(data.writeByte, changeFrameRateStrategy);
-
-        status_t err = remote()->transact(BnSurfaceComposer::SET_FRAME_RATE, data, &reply);
-        if (err != NO_ERROR) {
-            ALOGE("setFrameRate: failed to transact: %s (%d)", strerror(-err), err);
-            return err;
-        }
-
-        return reply.readInt32();
-    }
-
-    status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
-                                  const FrameTimelineInfo& frameTimelineInfo) override {
-        Parcel data, reply;
-        status_t err = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (err != NO_ERROR) {
-            ALOGE("%s: failed writing interface token: %s (%d)", __func__, strerror(-err), -err);
-            return err;
-        }
-
-        err = data.writeStrongBinder(IInterface::asBinder(surface));
-        if (err != NO_ERROR) {
-            ALOGE("%s: failed writing strong binder: %s (%d)", __func__, strerror(-err), -err);
-            return err;
-        }
-
-        SAFE_PARCEL(frameTimelineInfo.write, data);
-
-        err = remote()->transact(BnSurfaceComposer::SET_FRAME_TIMELINE_INFO, data, &reply);
-        if (err != NO_ERROR) {
-            ALOGE("%s: failed to transact: %s (%d)", __func__, strerror(-err), err);
-            return err;
-        }
-
-        return reply.readInt32();
-    }
-
-    status_t setOverrideFrameRate(uid_t uid, float frameRate) override {
-        Parcel data, reply;
-        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(data.writeUint32, uid);
-        SAFE_PARCEL(data.writeFloat, frameRate);
-
-        status_t err = remote()->transact(BnSurfaceComposer::SET_OVERRIDE_FRAME_RATE, data, &reply);
-        if (err != NO_ERROR) {
-            ALOGE("setOverrideFrameRate: failed to transact %s (%d)", strerror(-err), err);
-            return err;
-        }
-
-        return NO_ERROR;
     }
 };
 
@@ -379,7 +170,7 @@ status_t BnSurfaceComposer::onTransact(
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
 
             FrameTimelineInfo frameTimelineInfo;
-            SAFE_PARCEL(frameTimelineInfo.read, data);
+            frameTimelineInfo.readFromParcel(&data);
 
             uint32_t count = 0;
             SAFE_PARCEL_READ_SIZE(data.readUint32, &count, data.dataSize());
@@ -444,14 +235,6 @@ status_t BnSurfaceComposer::onTransact(
             bootFinished();
             return NO_ERROR;
         }
-        case AUTHENTICATE_SURFACE: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IGraphicBufferProducer> bufferProducer =
-                    interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
-            int32_t result = authenticateSurfaceTexture(bufferProducer) ? 1 : 0;
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
         case CREATE_DISPLAY_EVENT_CONNECTION: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             auto vsyncSource = static_cast<ISurfaceComposer::VsyncSource>(data.readInt32());
@@ -462,130 +245,6 @@ status_t BnSurfaceComposer::onTransact(
                     createDisplayEventConnection(vsyncSource, eventRegistration));
             reply->writeStrongBinder(IInterface::asBinder(connection));
             return NO_ERROR;
-        }
-        case GET_DISPLAYED_CONTENT_SAMPLE: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-
-            sp<IBinder> display = data.readStrongBinder();
-            uint64_t maxFrames = 0;
-            uint64_t timestamp = 0;
-
-            status_t result = data.readUint64(&maxFrames);
-            if (result != NO_ERROR) {
-                ALOGE("getDisplayedContentSample failure in reading max frames: %d", result);
-                return result;
-            }
-
-            result = data.readUint64(&timestamp);
-            if (result != NO_ERROR) {
-                ALOGE("getDisplayedContentSample failure in reading timestamp: %d", result);
-                return result;
-            }
-
-            DisplayedFrameStats stats;
-            result = getDisplayedContentSample(display, maxFrames, timestamp, &stats);
-            if (result == NO_ERROR) {
-                reply->writeUint64(stats.numFrames);
-                reply->writeUint64Vector(stats.component_0_sample);
-                reply->writeUint64Vector(stats.component_1_sample);
-                reply->writeUint64Vector(stats.component_2_sample);
-                reply->writeUint64Vector(stats.component_3_sample);
-            }
-            return result;
-        }
-        case SET_GLOBAL_SHADOW_SETTINGS: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-
-            std::vector<float> shadowConfig;
-            status_t error = data.readFloatVector(&shadowConfig);
-            if (error != NO_ERROR || shadowConfig.size() != 11) {
-                ALOGE("setGlobalShadowSettings: failed to read shadowConfig: %d", error);
-                return error;
-            }
-
-            half4 ambientColor = {shadowConfig[0], shadowConfig[1], shadowConfig[2],
-                                  shadowConfig[3]};
-            half4 spotColor = {shadowConfig[4], shadowConfig[5], shadowConfig[6], shadowConfig[7]};
-            float lightPosY = shadowConfig[8];
-            float lightPosZ = shadowConfig[9];
-            float lightRadius = shadowConfig[10];
-            return setGlobalShadowSettings(ambientColor, spotColor, lightPosY, lightPosZ,
-                                           lightRadius);
-        }
-        case GET_DISPLAY_DECORATION_SUPPORT: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> displayToken;
-            SAFE_PARCEL(data.readNullableStrongBinder, &displayToken);
-            std::optional<common::DisplayDecorationSupport> support;
-            auto error = getDisplayDecorationSupport(displayToken, &support);
-            if (error != NO_ERROR) {
-                ALOGE("getDisplayDecorationSupport failed with error %d", error);
-                return error;
-            }
-            reply->writeBool(support.has_value());
-            if (support) {
-                reply->writeInt32(static_cast<int32_t>(support.value().format));
-                reply->writeInt32(static_cast<int32_t>(support.value().alphaInterpretation));
-            }
-            return error;
-        }
-        case SET_FRAME_RATE: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> binder;
-            SAFE_PARCEL(data.readStrongBinder, &binder);
-
-            sp<IGraphicBufferProducer> surface = interface_cast<IGraphicBufferProducer>(binder);
-            if (!surface) {
-                ALOGE("setFrameRate: failed to cast to IGraphicBufferProducer");
-                return BAD_VALUE;
-            }
-            float frameRate;
-            SAFE_PARCEL(data.readFloat, &frameRate);
-
-            int8_t compatibility;
-            SAFE_PARCEL(data.readByte, &compatibility);
-
-            int8_t changeFrameRateStrategy;
-            SAFE_PARCEL(data.readByte, &changeFrameRateStrategy);
-
-            status_t result =
-                    setFrameRate(surface, frameRate, compatibility, changeFrameRateStrategy);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case SET_FRAME_TIMELINE_INFO: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> binder;
-            status_t err = data.readStrongBinder(&binder);
-            if (err != NO_ERROR) {
-                ALOGE("setFrameTimelineInfo: failed to read strong binder: %s (%d)", strerror(-err),
-                      -err);
-                return err;
-            }
-            sp<IGraphicBufferProducer> surface = interface_cast<IGraphicBufferProducer>(binder);
-            if (!surface) {
-                ALOGE("setFrameTimelineInfo: failed to cast to IGraphicBufferProducer: %s (%d)",
-                      strerror(-err), -err);
-                return err;
-            }
-
-            FrameTimelineInfo frameTimelineInfo;
-            SAFE_PARCEL(frameTimelineInfo.read, data);
-
-            status_t result = setFrameTimelineInfo(surface, frameTimelineInfo);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case SET_OVERRIDE_FRAME_RATE: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-
-            uid_t uid;
-            SAFE_PARCEL(data.readUint32, &uid);
-
-            float frameRate;
-            SAFE_PARCEL(data.readFloat, &frameRate);
-
-            return setOverrideFrameRate(uid, frameRate);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

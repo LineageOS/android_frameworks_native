@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <gui/AidlStatusUtil.h>
 #include <gui/SyncScreenCaptureListener.h>
 #include <private/gui/ComposerServiceAIDL.h>
 #include <ui/Rect.h>
@@ -23,6 +24,8 @@
 #include "TransactionUtils.h"
 
 namespace android {
+
+using gui::aidl_utils::statusTFromBinderStatus;
 
 namespace {
 
@@ -38,9 +41,9 @@ public:
         captureArgs.dataspace = ui::Dataspace::V0_SRGB;
         const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
         binder::Status status = sf->captureDisplay(captureArgs, captureListener);
-
-        if (status.transactionError() != NO_ERROR) {
-            return status.transactionError();
+        status_t err = statusTFromBinderStatus(status);
+        if (err != NO_ERROR) {
+            return err;
         }
         captureResults = captureListener->waitForResults();
         return captureResults.result;
@@ -71,8 +74,9 @@ public:
         captureArgs.dataspace = ui::Dataspace::V0_SRGB;
         const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
         binder::Status status = sf->captureLayers(captureArgs, captureListener);
-        if (status.transactionError() != NO_ERROR) {
-            return status.transactionError();
+        status_t err = statusTFromBinderStatus(status);
+        if (err != NO_ERROR) {
+            return err;
         }
         captureResults = captureListener->waitForResults();
         return captureResults.result;

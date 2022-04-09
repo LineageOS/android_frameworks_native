@@ -19,6 +19,7 @@
 
 #include <android/gui/BnRegionSamplingListener.h>
 #include <binder/ProcessState.h>
+#include <gui/AidlStatusUtil.h>
 #include <gui/DisplayEventReceiver.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
@@ -27,6 +28,7 @@
 #include <utils/Looper.h>
 
 using namespace std::chrono_literals;
+using android::gui::aidl_utils::statusTFromBinderStatus;
 
 namespace android::test {
 
@@ -255,7 +257,7 @@ TEST_F(RegionSamplingTest, invalidLayerHandle_doesNotCrash) {
     binder::Status status =
             composer->addRegionSamplingListener(sampleArea, IInterface::asBinder(composer),
                                                 listener);
-    ASSERT_EQ(NO_ERROR, status.transactionError());
+    ASSERT_EQ(NO_ERROR, statusTFromBinderStatus(status));
     composer->removeRegionSamplingListener(listener);
 }
 
@@ -349,17 +351,20 @@ TEST_F(RegionSamplingTest, DISABLED_TestIfInvalidInputParameters) {
     sampleArea.bottom = 200;
     // Invalid input sampleArea
     EXPECT_EQ(BAD_VALUE,
-              composer->addRegionSamplingListener(invalidRect, mTopLayer->getHandle(), listener)
-                      .transactionError());
+              statusTFromBinderStatus(composer->addRegionSamplingListener(invalidRect,
+                                                                          mTopLayer->getHandle(),
+                                                                          listener)));
     listener->reset();
     // Invalid input binder
     EXPECT_EQ(NO_ERROR,
-              composer->addRegionSamplingListener(sampleArea, NULL, listener).transactionError());
+              statusTFromBinderStatus(
+                      composer->addRegionSamplingListener(sampleArea, NULL, listener)));
     // Invalid input listener
     EXPECT_EQ(BAD_VALUE,
-              composer->addRegionSamplingListener(sampleArea, mTopLayer->getHandle(), NULL)
-                      .transactionError());
-    EXPECT_EQ(BAD_VALUE, composer->removeRegionSamplingListener(NULL).transactionError());
+              statusTFromBinderStatus(composer->addRegionSamplingListener(sampleArea,
+                                                                          mTopLayer->getHandle(),
+                                                                          NULL)));
+    EXPECT_EQ(BAD_VALUE, statusTFromBinderStatus(composer->removeRegionSamplingListener(NULL)));
     // remove the listener
     composer->removeRegionSamplingListener(listener);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,36 +14,23 @@
  * limitations under the License.
  */
 
-#pragma once
+package android.gui;
 
-#include <stdint.h>
-
-#include <binder/Parcel.h>
-
-namespace android {
-
-struct FrameTimelineInfo {
+/** @hide */
+parcelable FrameTimelineInfo {
     // Needs to be in sync with android.graphics.FrameInfo.INVALID_VSYNC_ID in java
-    static constexpr int64_t INVALID_VSYNC_ID = -1;
+    const long INVALID_VSYNC_ID = -1;
 
     // The vsync id that was used to start the transaction
-    int64_t vsyncId = INVALID_VSYNC_ID;
+    long vsyncId = INVALID_VSYNC_ID;
 
     // The id of the input event that caused this buffer
     // Default is android::os::IInputConstants::INVALID_INPUT_EVENT_ID = 0
     // We copy the value of the input event ID instead of including the header, because libgui
     // header libraries containing FrameTimelineInfo must be available to vendors, but libinput is
     // not directly vendor available.
-    int32_t inputEventId = 0;
+    int inputEventId = 0;
 
     // The current time in nanoseconds the application started to render the frame.
-    int64_t startTimeNanos = 0;
-
-    status_t write(Parcel& output) const;
-    status_t read(const Parcel& input);
-
-    void merge(const FrameTimelineInfo& other);
-    void clear();
-};
-
-} // namespace android
+    long startTimeNanos = 0;
+}

@@ -15,6 +15,7 @@
  */
 
 #include <android/gui/ISurfaceComposer.h>
+#include <gui/AidlStatusUtil.h>
 #include <gui/WindowInfosListenerReporter.h>
 
 namespace android {
@@ -23,6 +24,7 @@ using gui::DisplayInfo;
 using gui::IWindowInfosReportedListener;
 using gui::WindowInfo;
 using gui::WindowInfosListener;
+using gui::aidl_utils::statusTFromBinderStatus;
 
 sp<WindowInfosListenerReporter> WindowInfosListenerReporter::getInstance() {
     static sp<WindowInfosListenerReporter> sInstance = new WindowInfosListenerReporter;
@@ -38,7 +40,7 @@ status_t WindowInfosListenerReporter::addWindowInfosListener(
         std::scoped_lock lock(mListenersMutex);
         if (mWindowInfosListeners.empty()) {
             binder::Status s = surfaceComposer->addWindowInfosListener(this);
-            status = s.transactionError();
+            status = statusTFromBinderStatus(s);
         }
 
         if (status == OK) {
@@ -62,7 +64,7 @@ status_t WindowInfosListenerReporter::removeWindowInfosListener(
         std::scoped_lock lock(mListenersMutex);
         if (mWindowInfosListeners.size() == 1) {
             binder::Status s = surfaceComposer->removeWindowInfosListener(this);
-            status = s.transactionError();
+            status = statusTFromBinderStatus(s);
             // Clear the last stored state since we're disabling updates and don't want to hold
             // stale values
             mLastWindowInfos.clear();

@@ -23,6 +23,7 @@
 
 #include <cutils/properties.h>
 #include <gtest/gtest.h>
+#include <gui/AidlStatusUtil.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
@@ -47,7 +48,7 @@ protected:
 
         sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
         binder::Status status = sf->getColorManagement(&mColorManagementUsed);
-        ASSERT_NO_FATAL_FAILURE(status.transactionError());
+        ASSERT_NO_FATAL_FAILURE(gui::aidl_utils::statusTFromBinderStatus(status));
 
         mCaptureArgs.displayToken = mDisplay;
     }

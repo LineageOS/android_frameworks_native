@@ -1040,7 +1040,10 @@ TEST_F(LayerCallbackTest, ExpectedPresentTime) {
     }
 
     const Vsync vsync = waitForNextVsync();
-    transaction.setFrameTimelineInfo({vsync.vsyncId, 0});
+    FrameTimelineInfo ftInfo;
+    ftInfo.vsyncId = vsync.vsyncId;
+    ftInfo.inputEventId = 0;
+    transaction.setFrameTimelineInfo(ftInfo);
     transaction.apply();
 
     ExpectedResult expected;

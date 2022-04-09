@@ -16,10 +16,13 @@
 
 package android.gui;
 
+import android.gui.Color;
 import android.gui.CompositionPreference;
 import android.gui.ContentSamplingAttributes;
-import android.gui.DisplayCaptureArgs;
 import android.gui.DisplayBrightness;
+import android.gui.DisplayCaptureArgs;
+import android.gui.DisplayDecorationSupport;
+import android.gui.DisplayedFrameStats;
 import android.gui.DisplayModeSpecs;
 import android.gui.DisplayPrimaries;
 import android.gui.DisplayState;
@@ -227,6 +230,13 @@ interface ISurfaceComposer {
     void setDisplayContentSamplingEnabled(IBinder display, boolean enable, byte componentMask, long maxFrames);
 
     /**
+     * Returns statistics on the color profile of the last frame displayed for a given display
+     *
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    DisplayedFrameStats getDisplayedContentSample(IBinder display, long maxFrames, long timestamp);
+
+    /**
      * Gets whether SurfaceFlinger can support protected content in GPU composition.
      */
     boolean getProtectedContentSupport();
@@ -369,6 +379,48 @@ interface ISurfaceComposer {
      * Returns NO_ERROR upon success.
      */
     oneway void notifyPowerBoost(int boostId);
+
+    /*
+     * Sets the global configuration for all the shadows drawn by SurfaceFlinger. Shadow follows
+     * material design guidelines.
+     *
+     * ambientColor
+     *      Color to the ambient shadow. The alpha is premultiplied.
+     *
+     * spotColor
+     *      Color to the spot shadow. The alpha is premultiplied. The position of the spot shadow
+     *      depends on the light position.
+     *
+     * lightPosY/lightPosZ
+     *      Position of the light used to cast the spot shadow. The X value is always the display
+     *      width / 2.
+     *
+     * lightRadius
+     *      Radius of the light casting the shadow.
+     */
+    oneway void setGlobalShadowSettings(in Color ambientColor, in Color spotColor, float lightPosY, float lightPosZ, float lightRadius);
+
+    /**
+     * Gets whether a display supports DISPLAY_DECORATION layers.
+     *
+     * displayToken
+     *      The token of the display.
+     * outSupport
+     *      An output parameter for whether/how the display supports
+     *      DISPLAY_DECORATION layers.
+     *
+     * Returns NO_ERROR upon success. Otherwise,
+     *      NAME_NOT_FOUND if the display is invalid, or
+     *      BAD_VALUE      if the output parameter is invalid.
+     */
+    @nullable DisplayDecorationSupport getDisplayDecorationSupport(IBinder displayToken);
+
+    /**
+     * Set the override frame rate for a specified uid by GameManagerService.
+     * Passing the frame rate and uid to SurfaceFlinger to update the override mapping
+     * in the scheduler.
+     */
+    void setOverrideFrameRate(int uid, float frameRate);
 
     /**
      * Adds a TransactionTraceListener to listen for transaction tracing state updates.

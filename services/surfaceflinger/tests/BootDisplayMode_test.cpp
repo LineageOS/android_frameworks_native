@@ -18,6 +18,7 @@
 
 #include <gtest/gtest.h>
 
+#include <gui/AidlStatusUtil.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
 #include <private/gui/ComposerServiceAIDL.h>
@@ -25,15 +26,17 @@
 
 namespace android {
 
+using gui::aidl_utils::statusTFromBinderStatus;
+
 TEST(BootDisplayModeTest, setBootDisplayMode) {
     sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
     auto displayToken = SurfaceComposerClient::getInternalDisplayToken();
     bool bootModeSupport = false;
     binder::Status status = sf->getBootDisplayModeSupport(&bootModeSupport);
-    ASSERT_NO_FATAL_FAILURE(status.transactionError());
+    ASSERT_NO_FATAL_FAILURE(statusTFromBinderStatus(status));
     if (bootModeSupport) {
         status = sf->setBootDisplayMode(displayToken, 0);
-        ASSERT_EQ(NO_ERROR, status.transactionError());
+        ASSERT_EQ(NO_ERROR, statusTFromBinderStatus(status));
     }
 }
 
@@ -42,10 +45,10 @@ TEST(BootDisplayModeTest, clearBootDisplayMode) {
     auto displayToken = SurfaceComposerClient::getInternalDisplayToken();
     bool bootModeSupport = false;
     binder::Status status = sf->getBootDisplayModeSupport(&bootModeSupport);
-    ASSERT_NO_FATAL_FAILURE(status.transactionError());
+    ASSERT_NO_FATAL_FAILURE(statusTFromBinderStatus(status));
     if (bootModeSupport) {
         status = sf->clearBootDisplayMode(displayToken);
-        ASSERT_EQ(NO_ERROR, status.transactionError());
+        ASSERT_EQ(NO_ERROR, statusTFromBinderStatus(status));
     }
 }
 
