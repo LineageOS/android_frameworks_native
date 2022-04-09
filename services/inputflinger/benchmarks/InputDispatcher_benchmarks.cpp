@@ -31,11 +31,11 @@ using android::os::InputEventInjectionSync;
 namespace android::inputdispatcher {
 
 // An arbitrary device id.
-constexpr int32_t DEVICE_ID = 1;
+static const int32_t DEVICE_ID = 1;
 
-// The default pid and uid for windows created by the test.
-constexpr int32_t WINDOW_PID = 999;
-constexpr int32_t WINDOW_UID = 1001;
+// An arbitrary injector pid / uid pair that has permission to inject events.
+static const int32_t INJECTOR_PID = 999;
+static const int32_t INJECTOR_UID = 1001;
 
 static constexpr std::chrono::duration INJECT_EVENT_TIMEOUT = 5s;
 static constexpr std::chrono::nanoseconds DISPATCHING_TIMEOUT = 100ms;
@@ -107,6 +107,8 @@ private:
     void notifySwitch(nsecs_t, uint32_t, uint32_t, uint32_t) override {}
 
     void pokeUserActivity(nsecs_t, int32_t, int32_t) override {}
+
+    bool checkInjectEventsPermissionNonReentrant(int32_t, int32_t) override { return false; }
 
     void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override {}
 
@@ -194,8 +196,8 @@ public:
         mInfo.globalScaleFactor = 1.0;
         mInfo.touchableRegion.clear();
         mInfo.addTouchableRegion(mFrame);
-        mInfo.ownerPid = WINDOW_PID;
-        mInfo.ownerUid = WINDOW_UID;
+        mInfo.ownerPid = INJECTOR_PID;
+        mInfo.ownerUid = INJECTOR_UID;
         mInfo.displayId = ADISPLAY_ID_DEFAULT;
     }
 
@@ -308,14 +310,14 @@ static void benchmarkInjectMotion(benchmark::State& state) {
     for (auto _ : state) {
         MotionEvent event = generateMotionEvent();
         // Send ACTION_DOWN
-        dispatcher.injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
-                                    INJECT_EVENT_TIMEOUT,
+        dispatcher.injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
+                                    InputEventInjectionSync::NONE, INJECT_EVENT_TIMEOUT,
                                     POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
 
         // Send ACTION_UP
         event.setAction(AMOTION_EVENT_ACTION_UP);
-        dispatcher.injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
-                                    INJECT_EVENT_TIMEOUT,
+        dispatcher.injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
+                                    InputEventInjectionSync::NONE, INJECT_EVENT_TIMEOUT,
                                     POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
 
         window->consumeEvent();
