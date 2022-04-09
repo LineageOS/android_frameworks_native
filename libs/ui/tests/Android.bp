@@ -114,7 +114,6 @@ cc_test {
     ],
     shared_libs: [
         "libbinder",
-        "libgui",
         "liblog",
         "libui",
         "libutils",
