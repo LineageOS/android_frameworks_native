@@ -20,9 +20,6 @@
 #include <binder/Parcel.h>
 #include <binder/ProcessState.h>
 #include <gtest/gtest.h>
-#include <gui/BufferQueue.h>
-#include <gui/IGraphicBufferConsumer.h>
-#include <gui/IGraphicBufferProducer.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/Log.h>
 
