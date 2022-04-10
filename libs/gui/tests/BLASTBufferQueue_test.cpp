@@ -19,6 +19,7 @@
 #include <gui/BLASTBufferQueue.h>
 
 #include <android/hardware/graphics/common/1.2/types.h>
+#include <gui/AidlStatusUtil.h>
 #include <gui/BufferQueueCore.h>
 #include <gui/BufferQueueProducer.h>
 #include <gui/FrameTimestamps.h>
@@ -301,8 +302,9 @@ protected:
 
         const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
         binder::Status status = sf->captureDisplay(captureArgs, captureListener);
-        if (status.transactionError() != NO_ERROR) {
-            return status.transactionError();
+        status_t err = gui::aidl_utils::statusTFromBinderStatus(status);
+        if (err != NO_ERROR) {
+            return err;
         }
         captureResults = captureListener->waitForResults();
         return captureResults.result;

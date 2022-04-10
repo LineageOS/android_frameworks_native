@@ -58,8 +58,10 @@ Rect LayerFuzzer::getFuzzedRect() {
 }
 
 FrameTimelineInfo LayerFuzzer::getFuzzedFrameTimelineInfo() {
-    return FrameTimelineInfo{.vsyncId = mFdp.ConsumeIntegral<int64_t>(),
-                             .inputEventId = mFdp.ConsumeIntegral<int32_t>()};
+    FrameTimelineInfo ftInfo;
+    ftInfo.vsyncId = mFdp.ConsumeIntegral<int64_t>();
+    ftInfo.inputEventId = mFdp.ConsumeIntegral<int32_t>();
+    return ftInfo;
 }
 
 LayerCreationArgs LayerFuzzer::createLayerCreationArgs(TestableSurfaceFlinger* flinger,

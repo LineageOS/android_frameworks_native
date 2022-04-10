@@ -20,6 +20,7 @@
 
 #include <android/gui/ISurfaceComposer.h>
 #include <gtest/gtest.h>
+#include <gui/AidlStatusUtil.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
@@ -35,6 +36,7 @@ namespace android {
 
 using Transaction = SurfaceComposerClient::Transaction;
 using gui::LayerDebugInfo;
+using gui::aidl_utils::statusTFromBinderStatus;
 using ui::ColorMode;
 
 namespace {
@@ -316,18 +318,18 @@ TEST_F(CredentialsTest, GetLayerDebugInfo) {
     // Check with root.
     seteuid(AID_ROOT);
     binder::Status status = sf->getLayerDebugInfo(&outLayers);
-    ASSERT_EQ(NO_ERROR, status.transactionError());
+    ASSERT_EQ(NO_ERROR, statusTFromBinderStatus(status));
 
     // Check as a shell.
     seteuid(AID_SHELL);
     status = sf->getLayerDebugInfo(&outLayers);
-    ASSERT_EQ(NO_ERROR, status.transactionError());
+    ASSERT_EQ(NO_ERROR, statusTFromBinderStatus(status));
 
     // Check as anyone else.
     seteuid(AID_ROOT);
     seteuid(AID_BIN);
     status = sf->getLayerDebugInfo(&outLayers);
-    ASSERT_EQ(PERMISSION_DENIED, status.transactionError());
+    ASSERT_EQ(PERMISSION_DENIED, statusTFromBinderStatus(status));
 }
 
 TEST_F(CredentialsTest, IsWideColorDisplayBasicCorrectness) {

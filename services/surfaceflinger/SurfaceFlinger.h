@@ -311,9 +311,6 @@ public:
 
     renderengine::RenderEngine& getRenderEngine() const;
 
-    bool authenticateSurfaceTextureLocked(
-        const sp<IGraphicBufferProducer>& bufferProducer) const;
-
     void onLayerFirstRef(Layer*);
     void onLayerDestroyed(Layer*);
     void onLayerUpdate();
@@ -559,8 +556,6 @@ private:
                                  const std::vector<ListenerCallbacks>& listenerCallbacks,
                                  uint64_t transactionId) override;
     void bootFinished() override;
-    bool authenticateSurfaceTexture(
-            const sp<IGraphicBufferProducer>& bufferProducer) const override;
     virtual status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const;
     sp<IDisplayEventConnection> createDisplayEventConnection(
             ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp,
@@ -635,18 +630,18 @@ private:
                                         const sp<gui::IHdrLayerInfoListener>& listener);
     status_t notifyPowerBoost(int32_t boostId);
     status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
-                                     float lightPosY, float lightPosZ, float lightRadius) override;
+                                     float lightPosY, float lightPosZ, float lightRadius);
     status_t getDisplayDecorationSupport(
             const sp<IBinder>& displayToken,
             std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
-                    outSupport) const override;
+                    outSupport) const;
     status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
-                          int8_t compatibility, int8_t changeFrameRateStrategy) override;
+                          int8_t compatibility, int8_t changeFrameRateStrategy);
 
     status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
-                                  const FrameTimelineInfo& frameTimelineInfo) override;
+                                  const gui::FrameTimelineInfo& frameTimelineInfo);
 
-    status_t setOverrideFrameRate(uid_t uid, float frameRate) override;
+    status_t setOverrideFrameRate(uid_t uid, float frameRate);
 
     status_t addTransactionTraceListener(const sp<gui::ITransactionTraceListener>& listener);
 
@@ -1495,6 +1490,9 @@ public:
     binder::Status setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
                                                     int8_t componentMask,
                                                     int64_t maxFrames) override;
+    binder::Status getDisplayedContentSample(const sp<IBinder>& display, int64_t maxFrames,
+                                             int64_t timestamp,
+                                             gui::DisplayedFrameStats* outStats) override;
     binder::Status getProtectedContentSupport(bool* outSupporte) override;
     binder::Status isWideColorDisplay(const sp<IBinder>& token,
                                       bool* outIsWideColorDisplay) override;
@@ -1526,6 +1524,13 @@ public:
             const sp<IBinder>& displayToken,
             const sp<gui::IHdrLayerInfoListener>& listener) override;
     binder::Status notifyPowerBoost(int boostId) override;
+    binder::Status setGlobalShadowSettings(const gui::Color& ambientColor,
+                                           const gui::Color& spotColor, float lightPosY,
+                                           float lightPosZ, float lightRadius) override;
+    binder::Status getDisplayDecorationSupport(
+            const sp<IBinder>& displayToken,
+            std::optional<gui::DisplayDecorationSupport>* outSupport) override;
+    binder::Status setOverrideFrameRate(int32_t uid, float frameRate) override;
     binder::Status addTransactionTraceListener(
             const sp<gui::ITransactionTraceListener>& listener) override;
     binder::Status getGpuContextPriority(int32_t* outPriority) override;

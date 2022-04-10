@@ -588,7 +588,6 @@ public:
         sp<IBinder> display = fuzzBoot(&mFdp);
 
         sp<IGraphicBufferProducer> bufferProducer = sp<mock::GraphicBufferProducer>::make();
-        mFlinger->authenticateSurfaceTexture(bufferProducer.get());
 
         mFlinger->createDisplayEventConnection();
 

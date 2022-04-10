@@ -24,6 +24,7 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <binder/ProcessState.h>
 #include <configstore/Utils.h>
+#include <gui/AidlStatusUtil.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/IProducerListener.h>
 #include <gui/ISurfaceComposer.h>
@@ -212,8 +213,9 @@ protected:
 
         const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
         binder::Status status = sf->captureDisplay(captureArgs, captureListener);
-        if (status.transactionError() != NO_ERROR) {
-            return status.transactionError();
+        status_t err = gui::aidl_utils::statusTFromBinderStatus(status);
+        if (err != NO_ERROR) {
+            return err;
         }
         captureResults = captureListener->waitForResults();
         return captureResults.result;
@@ -709,40 +711,6 @@ public:
     }
 
     void bootFinished() override {}
-    bool authenticateSurfaceTexture(
-            const sp<IGraphicBufferProducer>& /*surface*/) const override {
-        return false;
-    }
-
-    status_t getDisplayedContentSample(const sp<IBinder>& /*display*/, uint64_t /*maxFrames*/,
-                                       uint64_t /*timestamp*/,
-                                       DisplayedFrameStats* /*outStats*/) const override {
-        return NO_ERROR;
-    }
-
-    status_t setGlobalShadowSettings(const half4& /*ambientColor*/, const half4& /*spotColor*/,
-                                     float /*lightPosY*/, float /*lightPosZ*/,
-                                     float /*lightRadius*/) override {
-        return NO_ERROR;
-    }
-
-    status_t getDisplayDecorationSupport(
-            const sp<IBinder>& /*displayToken*/,
-            std::optional<DisplayDecorationSupport>* /*outSupport*/) const override {
-        return NO_ERROR;
-    }
-
-    status_t setFrameRate(const sp<IGraphicBufferProducer>& /*surface*/, float /*frameRate*/,
-                          int8_t /*compatibility*/, int8_t /*changeFrameRateStrategy*/) override {
-        return NO_ERROR;
-    }
-
-    status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& /*surface*/,
-                                  const FrameTimelineInfo& /*frameTimelineInfo*/) override {
-        return NO_ERROR;
-    }
-
-    status_t setOverrideFrameRate(uid_t /*uid*/, float /*frameRate*/) override { return NO_ERROR; }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }
@@ -908,6 +876,12 @@ public:
         return binder::Status::ok();
     }
 
+    binder::Status getDisplayedContentSample(const sp<IBinder>& /*display*/, int64_t /*maxFrames*/,
+                                             int64_t /*timestamp*/,
+                                             gui::DisplayedFrameStats* /*outStats*/) override {
+        return binder::Status::ok();
+    }
+
     binder::Status isWideColorDisplay(const sp<IBinder>& /*token*/,
                                       bool* /*outIsWideColorDisplay*/) override {
         return binder::Status::ok();
@@ -980,6 +954,22 @@ public:
     }
 
     binder::Status notifyPowerBoost(int /*boostId*/) override { return binder::Status::ok(); }
+
+    binder::Status setGlobalShadowSettings(const gui::Color& /*ambientColor*/,
+                                           const gui::Color& /*spotColor*/, float /*lightPosY*/,
+                                           float /*lightPosZ*/, float /*lightRadius*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getDisplayDecorationSupport(
+            const sp<IBinder>& /*displayToken*/,
+            std::optional<gui::DisplayDecorationSupport>* /*outSupport*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status setOverrideFrameRate(int32_t /*uid*/, float /*frameRate*/) override {
+        return binder::Status::ok();
+    }
 
     binder::Status addTransactionTraceListener(
             const sp<gui::ITransactionTraceListener>& /*listener*/) override {

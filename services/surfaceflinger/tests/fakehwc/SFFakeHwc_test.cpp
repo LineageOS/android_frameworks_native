@@ -29,6 +29,7 @@
 #include "MockComposerHal.h"
 
 #include <binder/Parcel.h>
+#include <gui/AidlStatusUtil.h>
 #include <gui/DisplayEventReceiver.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerDebugInfo.h>
@@ -1242,7 +1243,7 @@ protected:
         sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
         std::vector<gui::LayerDebugInfo> layers;
         binder::Status status = sf->getLayerDebugInfo(&layers);
-        status_t result = status.transactionError();
+        status_t result = gui::aidl_utils::statusTFromBinderStatus(status);
         if (result != NO_ERROR) {
             ALOGE("Failed to get layers %s %d", strerror(-result), result);
         } else {
