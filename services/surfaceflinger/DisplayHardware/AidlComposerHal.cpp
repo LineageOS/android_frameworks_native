@@ -927,9 +927,9 @@ Error AidlComposer::setLayerPerFrameMetadataBlobs(
     return Error::NONE;
 }
 
-Error AidlComposer::setDisplayBrightness(Display display, float brightness,
+Error AidlComposer::setDisplayBrightness(Display display, float brightness, float brightnessNits,
                                          const DisplayBrightnessOptions& options) {
-    mWriter.setDisplayBrightness(translate<int64_t>(display), brightness);
+    mWriter.setDisplayBrightness(translate<int64_t>(display), brightness, brightnessNits);
 
     if (options.applyImmediately) {
         return execute();
