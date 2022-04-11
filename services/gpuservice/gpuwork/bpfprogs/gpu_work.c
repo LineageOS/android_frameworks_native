@@ -71,11 +71,14 @@ DEFINE_BPF_MAP_GRW(gpu_work_global_data, ARRAY, uint32_t, GlobalData, 1, AID_GRA
 //
 // The |total_active_duration_ns| must be set to the approximate total amount of
 // time the GPU spent running work for |uid| within the period, without
-// "double-counting" parallel GPU work on the same GPU for the same |uid|. "GPU
-// work" should correspond to the "GPU slices" shown in the AGI (Android GPU
+// "double-counting" parallel GPU work on the same GPU for the same |uid|. Note
+// that even if the parallel GPU work was submitted from several different
+// processes (i.e. different PIDs) with the same UID, this overlapping work must
+// not be double-counted, as it still came from a single |uid|. "GPU work"
+// should correspond to the "GPU slices" shown in the AGI (Android GPU
 // Inspector) tool, and so should include work such as fragment and non-fragment
 // work/shaders running on the shader cores of the GPU. For example, given the
-// following:
+// following for a single |uid|:
 //  - A period has:
 //    - |start_time_ns|: 100,000,000 ns
 //    - |end_time_ns|:   800,000,000 ns
@@ -99,16 +102,20 @@ DEFINE_BPF_MAP_GRW(gpu_work_global_data, ARRAY, uint32_t, GlobalData, 1, AID_GRA
 //  - from 600,000,000 ns to 700,000,000 ns, giving a duration of 100,000,000 ns
 //    (GPU work D)
 //
-// Thus, the |total_active_duration_ns| is the sum of the (non-overlapping)
-// durations. Drivers may not have efficient access to the exact start and end
-// times of all GPU work, as shown above, but drivers should try to
-// approximate/aggregate the value of |total_active_duration_ns| as accurately
-// as possible within the limitations of the hardware, without double-counting
-// parallel GPU work for the same |uid|. The |total_active_duration_ns| value
-// must be less than or equal to the period duration (|end_time_ns| -
-// |start_time_ns|); if the aggregation approach might violate this requirement
-// then the driver must clamp |total_active_duration_ns| to be at most the
-// period duration.
+// Thus, the |total_active_duration_ns| is the sum of these two
+// (non-overlapping) durations. Drivers may not have efficient access to the
+// exact start and end times of all GPU work, as shown above, but drivers should
+// try to approximate/aggregate the value of |total_active_duration_ns| as
+// accurately as possible within the limitations of the hardware, without
+// double-counting parallel GPU work for the same |uid|. The
+// |total_active_duration_ns| value must be less than or equal to the period
+// duration (|end_time_ns| - |start_time_ns|); if the aggregation approach might
+// violate this requirement then the driver must clamp
+// |total_active_duration_ns| to be at most the period duration.
+//
+// Protected mode: protected GPU work must not be reported. Periods must be
+// emitted, and the |total_active_duration_ns| value set, as if the protected
+// GPU work did not occur.
 //
 // Note that the above description allows for a certain amount of flexibility in
 // how the driver tracks periods and emits the events. We list a few examples of
