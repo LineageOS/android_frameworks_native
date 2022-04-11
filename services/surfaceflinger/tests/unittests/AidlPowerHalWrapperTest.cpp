@@ -17,6 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "AidlPowerHalWrapperTest"
 
+#include <android-base/stringprintf.h>
 #include <android/hardware/power/IPower.h>
 #include <android/hardware/power/IPowerHintSession.h>
 #include <gmock/gmock.h>
@@ -82,6 +83,15 @@ WorkDuration toWorkDuration(std::chrono::nanoseconds durationNanos, int64_t time
     return duration;
 }
 
+std::string printWorkDurations(const ::std::vector<WorkDuration>& durations) {
+    std::ostringstream os;
+    for (auto duration : durations) {
+        os << duration.toString();
+        os << "\n";
+    }
+    return os.str();
+}
+
 namespace {
 TEST_F(AidlPowerHalWrapperTest, supportsPowerHintSession) {
     ASSERT_TRUE(mWrapper->supportsPowerHintSession());
@@ -143,8 +153,8 @@ TEST_F(AidlPowerHalWrapperTest, setTargetWorkDuration) {
                                                                               {-1ms, false},
                                                                               {200ms, true},
                                                                               {2ms, true},
-                                                                              {96ms, false},
-                                                                              {104ms, false}};
+                                                                              {91ms, false},
+                                                                              {109ms, false}};
 
     for (const auto& test : testCases) {
         // reset to 100ms baseline
@@ -210,6 +220,40 @@ TEST_F(AidlPowerHalWrapperTest, sendActualWorkDuration) {
         sendActualWorkDurationGroup(durations, 0ms);
         verifyAndClearExpectations();
     }
+}
+
+TEST_F(AidlPowerHalWrapperTest, sendAdjustedActualWorkDuration) {
+    ASSERT_TRUE(mWrapper->supportsPowerHintSession());
+
+    std::vector<int32_t> threadIds = {1, 2};
+    mWrapper->setPowerHintSessionThreadIds(threadIds);
+    EXPECT_CALL(*mMockHal.get(), createHintSession(_, _, threadIds, _, _))
+            .WillOnce(DoAll(SetArgPointee<4>(mMockSession), Return(Status::ok())));
+    ASSERT_TRUE(mWrapper->startPowerHintSession());
+    verifyAndClearExpectations();
+
+    std::chrono::nanoseconds lastTarget = 100ms;
+    EXPECT_CALL(*mMockSession.get(), updateTargetWorkDuration(lastTarget.count())).Times(1);
+    mWrapper->setTargetWorkDuration(lastTarget.count());
+    std::chrono::nanoseconds newTarget = 105ms;
+    mWrapper->setTargetWorkDuration(newTarget.count());
+    EXPECT_CALL(*mMockSession.get(), updateTargetWorkDuration(newTarget.count())).Times(0);
+    std::chrono::nanoseconds actual = 21ms;
+    // 100 / 105 * 21ms = 20ms
+    std::chrono::nanoseconds expectedActualSent = 20ms;
+    std::vector<WorkDuration> expectedDurations = {toWorkDuration(expectedActualSent, 1)};
+
+    EXPECT_CALL(*mMockSession.get(), reportActualWorkDuration(_))
+            .WillOnce(DoAll(
+                    [expectedDurations](const ::std::vector<WorkDuration>& durationsSent) {
+                        EXPECT_EQ(expectedDurations, durationsSent)
+                                << base::StringPrintf("actual sent: %s vs expected: %s",
+                                                      printWorkDurations(durationsSent).c_str(),
+                                                      printWorkDurations(expectedDurations)
+                                                              .c_str());
+                    },
+                    Return(Status::ok())));
+    mWrapper->sendActualWorkDuration(actual.count(), 1);
 }
 
 TEST_F(AidlPowerHalWrapperTest, sendActualWorkDuration_exceedsStaleTime) {
