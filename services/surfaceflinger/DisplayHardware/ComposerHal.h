@@ -237,7 +237,7 @@ public:
             return applyImmediately == other.applyImmediately;
         }
     };
-    virtual Error setDisplayBrightness(Display display, float brightness,
+    virtual Error setDisplayBrightness(Display display, float brightness, float brightnessNits,
                                        const DisplayBrightnessOptions& options) = 0;
 
     // Composer HAL 2.4
