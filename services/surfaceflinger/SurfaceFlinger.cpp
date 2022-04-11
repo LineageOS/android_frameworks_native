@@ -1711,6 +1711,7 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
                        return getHwComposer()
                                .setDisplayBrightness(display->getPhysicalId(),
                                                      brightness.displayBrightness,
+                                                     brightness.displayBrightnessNits,
                                                      Hwc2::Composer::DisplayBrightnessOptions{
                                                              .applyImmediately = true});
                    }
@@ -3251,6 +3252,9 @@ void SurfaceFlinger::persistDisplayBrightness(bool needsComposite) {
                 const status_t error =
                         getHwComposer()
                                 .setDisplayBrightness(display->getPhysicalId(), *brightness,
+                                                      display->getCompositionDisplay()
+                                                              ->getState()
+                                                              .displayBrightnessNits,
                                                       Hwc2::Composer::DisplayBrightnessOptions{
                                                               .applyImmediately = true})
                                 .get();
