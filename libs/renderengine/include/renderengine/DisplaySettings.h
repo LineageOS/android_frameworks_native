@@ -17,6 +17,7 @@
 #pragma once
 
 #include <aidl/android/hardware/graphics/composer3/DimmingStage.h>
+#include <aidl/android/hardware/graphics/composer3/RenderIntent.h>
 #include <iosfwd>
 
 #include <math/mat4.h>
@@ -73,6 +74,10 @@ struct DisplaySettings {
     // Configures when dimming should be applied for each layer.
     aidl::android::hardware::graphics::composer3::DimmingStage dimmingStage =
             aidl::android::hardware::graphics::composer3::DimmingStage::NONE;
+
+    // Configures the rendering intent of the output display. This is used for tonemapping.
+    aidl::android::hardware::graphics::composer3::RenderIntent renderIntent =
+            aidl::android::hardware::graphics::composer3::RenderIntent::TONE_MAP_COLORIMETRIC;
 };
 
 static inline bool operator==(const DisplaySettings& lhs, const DisplaySettings& rhs) {
