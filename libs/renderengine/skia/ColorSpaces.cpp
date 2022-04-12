@@ -65,7 +65,15 @@ sk_sp<SkColorSpace> toSkColorSpace(ui::Dataspace dataspace) {
         case HAL_DATASPACE_TRANSFER_SMPTE_170M:
             return SkColorSpace::MakeRGB(SkNamedTransferFn::kRec2020, gamut);
         case HAL_DATASPACE_TRANSFER_HLG:
-            return SkColorSpace::MakeRGB(SkNamedTransferFn::kHLG, gamut);
+            // return HLG transfer but scale by 1/12
+            skcms_TransferFunction hlgFn;
+            if (skcms_TransferFunction_makeScaledHLGish(&hlgFn, 1.f / 12.f, 2.f, 2.f,
+                                                        1.f / 0.17883277f, 0.28466892f,
+                                                        0.55991073f)) {
+                return SkColorSpace::MakeRGB(hlgFn, gamut);
+            } else {
+                return SkColorSpace::MakeRGB(SkNamedTransferFn::kSRGB, gamut);
+            }
         case HAL_DATASPACE_TRANSFER_UNSPECIFIED:
         default:
             return SkColorSpace::MakeRGB(SkNamedTransferFn::kSRGB, gamut);

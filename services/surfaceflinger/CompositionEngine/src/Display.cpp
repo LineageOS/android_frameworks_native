@@ -221,6 +221,7 @@ void Display::beginFrame() {
         physicalDisplayId && getState().displayBrightness) {
         const status_t result =
                 hwc.setDisplayBrightness(*physicalDisplayId, *getState().displayBrightness,
+                                         getState().displayBrightnessNits,
                                          Hwc2::Composer::DisplayBrightnessOptions{
                                                  .applyImmediately = false})
                         .get();
