@@ -148,7 +148,8 @@ public:
                                                        android::sp<android::Fence>* outPresentFence,
                                                        uint32_t* state) = 0;
     [[nodiscard]] virtual std::future<hal::Error> setDisplayBrightness(
-            float brightness, const Hwc2::Composer::DisplayBrightnessOptions& options) = 0;
+            float brightness, float brightnessNits,
+            const Hwc2::Composer::DisplayBrightnessOptions& options) = 0;
     [[nodiscard]] virtual hal::Error setActiveConfigWithConstraints(
             hal::HWConfigId configId, const hal::VsyncPeriodChangeConstraints& constraints,
             hal::VsyncPeriodChangeTimeline* outTimeline) = 0;
@@ -229,7 +230,8 @@ public:
                                  android::sp<android::Fence>* outPresentFence,
                                  uint32_t* state) override;
     std::future<hal::Error> setDisplayBrightness(
-            float brightness, const Hwc2::Composer::DisplayBrightnessOptions& options) override;
+            float brightness, float brightnessNits,
+            const Hwc2::Composer::DisplayBrightnessOptions& options) override;
     hal::Error setActiveConfigWithConstraints(hal::HWConfigId configId,
                                               const hal::VsyncPeriodChangeConstraints& constraints,
                                               hal::VsyncPeriodChangeTimeline* outTimeline) override;
