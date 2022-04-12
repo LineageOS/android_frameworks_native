@@ -640,8 +640,9 @@ TEST_F(DisplayChooseCompositionStrategyTest, normalOperationWithDisplayBrightnes
     // values, use a Sequence to control the matching so the values are returned in a known
     // order.
     constexpr float kDisplayBrightness = 0.5f;
+    constexpr float kDisplayBrightnessNits = 200.f;
     EXPECT_CALL(mHwComposer,
-                setDisplayBrightness(DEFAULT_DISPLAY_ID, kDisplayBrightness,
+                setDisplayBrightness(DEFAULT_DISPLAY_ID, kDisplayBrightness, kDisplayBrightnessNits,
                                      Hwc2::Composer::DisplayBrightnessOptions{.applyImmediately =
                                                                                       false}))
             .WillOnce(Return(ByMove(ftl::yield<status_t>(NO_ERROR))));
@@ -650,6 +651,7 @@ TEST_F(DisplayChooseCompositionStrategyTest, normalOperationWithDisplayBrightnes
     mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
     EXPECT_CALL(*renderSurface, beginFrame(_)).Times(1);
     mDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
+    mDisplay->editState().displayBrightnessNits = kDisplayBrightnessNits;
     mDisplay->beginFrame();
 
     auto& state = mDisplay->getState();
