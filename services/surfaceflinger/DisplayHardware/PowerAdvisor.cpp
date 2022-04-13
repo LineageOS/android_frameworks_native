@@ -463,29 +463,41 @@ void AidlPowerHalWrapper::sendActualWorkDuration(int64_t actualDurationNanos,
         ALOGV("Failed to send actual work duration, skipping");
         return;
     }
-
-    WorkDuration duration;
-    duration.durationNanos = actualDurationNanos;
-    mActualDuration = actualDurationNanos;
+    nsecs_t reportedDuration = actualDurationNanos;
 
     // normalize the sent values to a pre-set target
     if (sNormalizeTarget) {
-        duration.durationNanos += mLastTargetDurationSent - mTargetDuration;
+        reportedDuration += mLastTargetDurationSent - mTargetDuration;
+    } else {
+        // when target duration change is within deviation and not updated, adjust the actual
+        // duration proportionally based on the difference, e.g. if new target is 5ms longer than
+        // last reported but actual duration is the same as last target, we want to report a smaller
+        // actual work duration now to indicate that we are overshooting
+        if (mLastTargetDurationSent != kDefaultTarget.count() && mTargetDuration != 0) {
+            reportedDuration =
+                    static_cast<int64_t>(static_cast<long double>(mLastTargetDurationSent) /
+                                         mTargetDuration * actualDurationNanos);
+            mActualDuration = reportedDuration;
+        }
     }
+    mActualDuration = reportedDuration;
+    WorkDuration duration;
+    duration.durationNanos = reportedDuration;
     duration.timeStampNanos = timeStampNanos;
     mPowerHintQueue.push_back(duration);
 
-    nsecs_t targetNsec = mTargetDuration;
-    nsecs_t durationNsec = actualDurationNanos;
-
     if (sTraceHintSessionData) {
-        ATRACE_INT64("Measured duration", durationNsec);
-        ATRACE_INT64("Target error term", targetNsec - durationNsec);
+        ATRACE_INT64("Measured duration", actualDurationNanos);
+        ATRACE_INT64("Target error term", mTargetDuration - actualDurationNanos);
+
+        ATRACE_INT64("Reported duration", reportedDuration);
+        ATRACE_INT64("Reported target", mLastTargetDurationSent);
+        ATRACE_INT64("Reported target error term", mLastTargetDurationSent - reportedDuration);
     }
 
-    ALOGV("Sending actual work duration of: %" PRId64 " on target: %" PRId64
+    ALOGV("Sending actual work duration of: %" PRId64 " on reported target: %" PRId64
           " with error: %" PRId64,
-          durationNsec, targetNsec, targetNsec - durationNsec);
+          reportedDuration, mLastTargetDurationSent, mLastTargetDurationSent - reportedDuration);
 
     // This rate limiter queues similar duration reports to the powerhal into
     // batches to avoid excessive binder calls. The criteria to send a given batch
@@ -501,7 +513,7 @@ void AidlPowerHalWrapper::sendActualWorkDuration(int64_t actualDurationNanos,
         }
         mPowerHintQueue.clear();
         // we save the non-normalized value here to detect % changes
-        mLastActualDurationSent = actualDurationNanos;
+        mLastActualDurationSent = reportedDuration;
     }
 }
 
