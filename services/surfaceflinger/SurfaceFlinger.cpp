@@ -3603,6 +3603,23 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
     if (mNumLayers >= ISurfaceComposer::MAX_LAYERS) {
         ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
               ISurfaceComposer::MAX_LAYERS);
+        static_cast<void>(mScheduler->schedule([=] {
+            ALOGE("Dumping random sampling of on-screen layers: ");
+            mDrawingState.traverse([&](Layer *layer) {
+                // Aim to dump about 200 layers to avoid totally trashing
+                // logcat. On the other hand, if there really are 4096 layers
+                // something has gone totally wrong its probably the most
+                // useful information in logcat.
+                if (rand() % 20 == 13) {
+                    ALOGE("Layer: %s", layer->getName().c_str());
+                }
+            });
+            for (Layer* offscreenLayer : mOffscreenLayers) {
+                if (rand() % 20 == 13) {
+                    ALOGE("Offscreen-layer: %s", offscreenLayer->getName().c_str());
+                }
+            }
+        }));
         return NO_MEMORY;
     }
 
