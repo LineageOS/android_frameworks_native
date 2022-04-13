@@ -49,12 +49,10 @@ namespace android {
 // ============================================================================
 
 SurfaceControl::SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
-                               const sp<IGraphicBufferProducer>& gbp, int32_t layerId,
-                               uint32_t w, uint32_t h, PixelFormat format, uint32_t transform,
-                               uint32_t flags)
+                               int32_t layerId, uint32_t w, uint32_t h, PixelFormat format,
+                               uint32_t transform, uint32_t flags)
       : mClient(client),
         mHandle(handle),
-        mGraphicBufferProducer(gbp),
         mLayerId(layerId),
         mTransformHint(transform),
         mWidth(w),
@@ -65,7 +63,6 @@ SurfaceControl::SurfaceControl(const sp<SurfaceComposerClient>& client, const sp
 SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
     mClient = other->mClient;
     mHandle = other->mHandle;
-    mGraphicBufferProducer = other->mGraphicBufferProducer;
     mTransformHint = other->mTransformHint;
     mLayerId = other->mLayerId;
     mWidth = other->mWidth;
@@ -165,11 +162,11 @@ sp<Surface> SurfaceControl::createSurface()
 
 void SurfaceControl::updateDefaultBufferSize(uint32_t width, uint32_t height) {
     Mutex::Autolock _l(mLock);
-    mWidth = width; mHeight = height;
+    mWidth = width;
+    mHeight = height;
     if (mBbq) {
         mBbq->update(mBbqChild, width, height, mFormat);
     }
-
 }
 
 sp<IBinder> SurfaceControl::getLayerStateHandle() const
@@ -245,9 +242,7 @@ status_t SurfaceControl::readFromParcel(const Parcel& parcel,
     *outSurfaceControl =
             new SurfaceControl(new SurfaceComposerClient(
                                        interface_cast<ISurfaceComposerClient>(client)),
-                               handle.get(), nullptr, layerId,
-                               width, height, format,
-                               transformHint);
+                               handle.get(), layerId, width, height, format, transformHint);
 
     return NO_ERROR;
 }

@@ -25,7 +25,6 @@
 #include <binder/Parcel.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ISurfaceComposer.h>
-#include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
 #include <private/gui/ParcelUtils.h>
 #include <stdint.h>
@@ -60,14 +59,6 @@ public:
     }
 
     virtual ~BpSurfaceComposer();
-
-    virtual sp<ISurfaceComposerClient> createConnection()
-    {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        remote()->transact(BnSurfaceComposer::CREATE_CONNECTION, data, &reply);
-        return interface_cast<ISurfaceComposerClient>(reply.readStrongBinder());
-    }
 
     status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
                                  const Vector<ComposerState>& state,
@@ -159,13 +150,7 @@ IMPLEMENT_META_INTERFACE(SurfaceComposer, "android.ui.ISurfaceComposer");
 status_t BnSurfaceComposer::onTransact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
 {
-    switch(code) {
-        case CREATE_CONNECTION: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> b = IInterface::asBinder(createConnection());
-            reply->writeStrongBinder(b);
-            return NO_ERROR;
-        }
+    switch (code) {
         case SET_TRANSACTION_STATE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
 

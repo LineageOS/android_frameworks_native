@@ -20,7 +20,7 @@
 
 #include <unordered_map>
 
-namespace android {
+namespace android::gui {
 
 enum {
     METADATA_OWNER_UID = 1,
@@ -69,4 +69,13 @@ enum class GameMode : int32_t {
     ftl_last = Battery
 };
 
-} // namespace android
+} // namespace android::gui
+
+using android::gui::METADATA_ACCESSIBILITY_ID;
+using android::gui::METADATA_DEQUEUE_TIME;
+using android::gui::METADATA_GAME_MODE;
+using android::gui::METADATA_MOUSE_CURSOR;
+using android::gui::METADATA_OWNER_PID;
+using android::gui::METADATA_OWNER_UID;
+using android::gui::METADATA_TASK_ID;
+using android::gui::METADATA_WINDOW_TYPE;

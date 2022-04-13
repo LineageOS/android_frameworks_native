@@ -51,6 +51,7 @@ using android::Hwc2::IComposer;
 using android::Hwc2::IComposerClient;
 
 using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
+using gui::LayerMetadata;
 
 struct TestableFpsListener : public gui::BnFpsListener {
     TestableFpsListener() {}
@@ -153,7 +154,7 @@ TEST_F(FpsReporterTest, callsListeners) {
     mParent = createBufferStateLayer();
     constexpr int32_t kTaskId = 12;
     LayerMetadata targetMetadata;
-    targetMetadata.setInt32(METADATA_TASK_ID, kTaskId);
+    targetMetadata.setInt32(gui::METADATA_TASK_ID, kTaskId);
     mTarget = createBufferStateLayer(targetMetadata);
     mChild = createBufferStateLayer();
     mGrandChild = createBufferStateLayer();
@@ -188,7 +189,7 @@ TEST_F(FpsReporterTest, callsListeners) {
 TEST_F(FpsReporterTest, rateLimits) {
     const constexpr int32_t kTaskId = 12;
     LayerMetadata targetMetadata;
-    targetMetadata.setInt32(METADATA_TASK_ID, kTaskId);
+    targetMetadata.setInt32(gui::METADATA_TASK_ID, kTaskId);
     mTarget = createBufferStateLayer(targetMetadata);
     mFlinger.mutableCurrentState().layersSortedByZ.add(mTarget);
 

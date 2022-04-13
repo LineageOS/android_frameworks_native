@@ -49,8 +49,7 @@ TEST(TransactionProtoParserTest, parse) {
         ComposerState s;
         if (i == 1) {
             layer.parentSurfaceControlForChild =
-                    new SurfaceControl(SurfaceComposerClient::getDefault(), layerHandle, nullptr,
-                                       42);
+                    new SurfaceControl(SurfaceComposerClient::getDefault(), layerHandle, 42);
         }
         s.state = layer;
         t1.states.add(s);

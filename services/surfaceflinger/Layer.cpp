@@ -85,6 +85,8 @@ constexpr int kDumpTableRowLength = 159;
 using namespace ftl::flag_operators;
 
 using base::StringAppendF;
+using gui::GameMode;
+using gui::LayerMetadata;
 using gui::WindowInfo;
 
 using PresentState = frametimeline::SurfaceFrame::PresentState;
@@ -96,7 +98,8 @@ Layer::Layer(const LayerCreationArgs& args)
         mFlinger(args.flinger),
         mName(base::StringPrintf("%s#%d", args.name.c_str(), sequence)),
         mClientRef(args.client),
-        mWindowType(static_cast<WindowInfo::Type>(args.metadata.getInt32(METADATA_WINDOW_TYPE, 0))),
+        mWindowType(static_cast<WindowInfo::Type>(
+                args.metadata.getInt32(gui::METADATA_WINDOW_TYPE, 0))),
         mLayerCreationFlags(args.flags) {
     uint32_t layerFlags = 0;
     if (args.flags & ISurfaceComposerClient::eHidden) layerFlags |= layer_state_t::eLayerHidden;
@@ -161,8 +164,8 @@ Layer::Layer(const LayerCreationArgs& args)
 
     if (mCallingUid == AID_GRAPHICS || mCallingUid == AID_SYSTEM) {
         // If the system didn't send an ownerUid, use the callingUid for the ownerUid.
-        mOwnerUid = args.metadata.getInt32(METADATA_OWNER_UID, mCallingUid);
-        mOwnerPid = args.metadata.getInt32(METADATA_OWNER_PID, mCallingPid);
+        mOwnerUid = args.metadata.getInt32(gui::METADATA_OWNER_UID, mCallingUid);
+        mOwnerPid = args.metadata.getInt32(gui::METADATA_OWNER_PID, mCallingPid);
     } else {
         // A create layer request from a non system request cannot specify the owner uid
         mOwnerUid = mCallingUid;
@@ -1576,8 +1579,9 @@ size_t Layer::getChildrenCount() const {
 
 void Layer::setGameModeForTree(GameMode gameMode) {
     const auto& currentState = getDrawingState();
-    if (currentState.metadata.has(METADATA_GAME_MODE)) {
-        gameMode = static_cast<GameMode>(currentState.metadata.getInt32(METADATA_GAME_MODE, 0));
+    if (currentState.metadata.has(gui::METADATA_GAME_MODE)) {
+        gameMode =
+                static_cast<GameMode>(currentState.metadata.getInt32(gui::METADATA_GAME_MODE, 0));
     }
     setGameMode(gameMode);
     for (const sp<Layer>& child : mCurrentChildren) {

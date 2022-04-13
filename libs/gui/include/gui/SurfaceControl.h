@@ -24,11 +24,12 @@
 #include <utils/RefBase.h>
 #include <utils/threads.h>
 
+#include <android/gui/ISurfaceComposerClient.h>
+
 #include <ui/FrameStats.h>
 #include <ui/PixelFormat.h>
 #include <ui/Region.h>
 
-#include <gui/ISurfaceComposerClient.h>
 #include <math/vec3.h>
 
 namespace android {
@@ -93,8 +94,7 @@ public:
     explicit SurfaceControl(const sp<SurfaceControl>& other);
 
     SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
-                   const sp<IGraphicBufferProducer>& gbp, int32_t layerId,
-                   uint32_t width = 0, uint32_t height = 0, PixelFormat format = 0,
+                   int32_t layerId, uint32_t width = 0, uint32_t height = 0, PixelFormat format = 0,
                    uint32_t transformHint = 0, uint32_t flags = 0);
 
     sp<SurfaceControl> getParentingLayer();
@@ -115,8 +115,7 @@ private:
     status_t validate() const;
 
     sp<SurfaceComposerClient>   mClient;
-    sp<IBinder>                 mHandle;
-    sp<IGraphicBufferProducer>  mGraphicBufferProducer;
+    sp<IBinder> mHandle;
     mutable Mutex               mLock;
     mutable sp<Surface>         mSurfaceData;
     mutable sp<BLASTBufferQueue> mBbq;

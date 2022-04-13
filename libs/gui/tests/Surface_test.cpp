@@ -692,7 +692,6 @@ public:
         mSupportsPresent = supportsPresent;
     }
 
-    sp<ISurfaceComposerClient> createConnection() override { return nullptr; }
     sp<IDisplayEventConnection> createDisplayEventConnection(
             ISurfaceComposer::VsyncSource, ISurfaceComposer::EventRegistrationFlags) override {
         return nullptr;
@@ -724,6 +723,11 @@ public:
     ~FakeSurfaceComposerAIDL() override {}
 
     void setSupportsPresent(bool supportsPresent) { mSupportsPresent = supportsPresent; }
+
+    binder::Status createConnection(sp<gui::ISurfaceComposerClient>* outClient) override {
+        *outClient = nullptr;
+        return binder::Status::ok();
+    }
 
     binder::Status createDisplay(const std::string& /*displayName*/, bool /*secure*/,
                                  sp<IBinder>* /*outDisplay*/) override {

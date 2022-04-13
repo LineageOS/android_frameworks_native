@@ -21,11 +21,15 @@
 
 #include <private/android_filesystem_config.h>
 
+#include <gui/AidlStatusUtil.h>
+
 #include "Client.h"
 #include "Layer.h"
 #include "SurfaceFlinger.h"
 
 namespace android {
+
+using gui::aidl_utils::binderStatusFromStatusT;
 
 // ---------------------------------------------------------------------------
 
@@ -72,52 +76,74 @@ sp<Layer> Client::getLayerUser(const sp<IBinder>& handle) const
     return lbc;
 }
 
-status_t Client::createSurface(const String8& name, uint32_t /* w */, uint32_t /* h */,
-                               PixelFormat /* format */, uint32_t flags,
-                               const sp<IBinder>& parentHandle, LayerMetadata metadata,
-                               sp<IBinder>* outHandle, sp<IGraphicBufferProducer>* /* gbp */,
-                               int32_t* outLayerId, uint32_t* outTransformHint) {
+binder::Status Client::createSurface(const std::string& name, int32_t flags,
+                                     const sp<IBinder>& parent, const gui::LayerMetadata& metadata,
+                                     gui::CreateSurfaceResult* outResult) {
     // We rely on createLayer to check permissions.
-    LayerCreationArgs args(mFlinger.get(), this, name.c_str(), flags, std::move(metadata));
-    return mFlinger->createLayer(args, outHandle, parentHandle, outLayerId, nullptr,
-                                 outTransformHint);
+    sp<IBinder> handle;
+    int32_t layerId;
+    uint32_t transformHint;
+    LayerCreationArgs args(mFlinger.get(), this, name.c_str(), static_cast<uint32_t>(flags),
+                           std::move(metadata));
+    const status_t status =
+            mFlinger->createLayer(args, &handle, parent, &layerId, nullptr, &transformHint);
+    if (status == NO_ERROR) {
+        outResult->handle = handle;
+        outResult->layerId = layerId;
+        outResult->transformHint = static_cast<int32_t>(transformHint);
+    }
+    return binderStatusFromStatusT(status);
 }
 
-status_t Client::createWithSurfaceParent(const String8& /* name */, uint32_t /* w */,
-                                         uint32_t /* h */, PixelFormat /* format */,
-                                         uint32_t /* flags */,
-                                         const sp<IGraphicBufferProducer>& /* parent */,
-                                         LayerMetadata /* metadata */, sp<IBinder>* /* handle */,
-                                         sp<IGraphicBufferProducer>* /* gbp */,
-                                         int32_t* /* outLayerId */,
-                                         uint32_t* /* outTransformHint */) {
-    // This api does not make sense with blast since SF no longer tracks IGBP. This api should be
-    // removed.
-    return BAD_VALUE;
-}
-
-status_t Client::mirrorSurface(const sp<IBinder>& mirrorFromHandle, sp<IBinder>* outHandle,
-                               int32_t* outLayerId) {
-    LayerCreationArgs args(mFlinger.get(), this, "MirrorRoot", 0 /* flags */, LayerMetadata());
-    return mFlinger->mirrorLayer(args, mirrorFromHandle, outHandle, outLayerId);
-}
-
-status_t Client::clearLayerFrameStats(const sp<IBinder>& handle) const {
+binder::Status Client::clearLayerFrameStats(const sp<IBinder>& handle) {
+    status_t status;
     sp<Layer> layer = getLayerUser(handle);
     if (layer == nullptr) {
-        return NAME_NOT_FOUND;
+        status = NAME_NOT_FOUND;
+    } else {
+        layer->clearFrameStats();
+        status = NO_ERROR;
     }
-    layer->clearFrameStats();
-    return NO_ERROR;
+    return binderStatusFromStatusT(status);
 }
 
-status_t Client::getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const {
+binder::Status Client::getLayerFrameStats(const sp<IBinder>& handle, gui::FrameStats* outStats) {
+    status_t status;
     sp<Layer> layer = getLayerUser(handle);
     if (layer == nullptr) {
-        return NAME_NOT_FOUND;
+        status = NAME_NOT_FOUND;
+    } else {
+        FrameStats stats;
+        layer->getFrameStats(&stats);
+        outStats->refreshPeriodNano = stats.refreshPeriodNano;
+        outStats->desiredPresentTimesNano.reserve(stats.desiredPresentTimesNano.size());
+        for (const auto& t : stats.desiredPresentTimesNano) {
+            outStats->desiredPresentTimesNano.push_back(t);
+        }
+        outStats->actualPresentTimesNano.reserve(stats.actualPresentTimesNano.size());
+        for (const auto& t : stats.actualPresentTimesNano) {
+            outStats->actualPresentTimesNano.push_back(t);
+        }
+        outStats->frameReadyTimesNano.reserve(stats.frameReadyTimesNano.size());
+        for (const auto& t : stats.frameReadyTimesNano) {
+            outStats->frameReadyTimesNano.push_back(t);
+        }
+        status = NO_ERROR;
     }
-    layer->getFrameStats(outStats);
-    return NO_ERROR;
+    return binderStatusFromStatusT(status);
+}
+
+binder::Status Client::mirrorSurface(const sp<IBinder>& mirrorFromHandle,
+                                     gui::MirrorSurfaceResult* outResult) {
+    sp<IBinder> handle;
+    int32_t layerId;
+    LayerCreationArgs args(mFlinger.get(), this, "MirrorRoot", 0 /* flags */, gui::LayerMetadata());
+    status_t status = mFlinger->mirrorLayer(args, mirrorFromHandle, &handle, &layerId);
+    if (status == NO_ERROR) {
+        outResult->handle = handle;
+        outResult->layerId = layerId;
+    }
+    return binderStatusFromStatusT(status);
 }
 
 // ---------------------------------------------------------------------------
