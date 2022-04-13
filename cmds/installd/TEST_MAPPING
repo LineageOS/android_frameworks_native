@@ -32,7 +32,12 @@
       "name": "CtsCompilationTestCases"
     },
     {
-      "name": "SdkSandboxStorageHostTest"
+      "name": "SdkSandboxStorageHostTest",
+      "options": [
+        {
+          "exclude-annotation": "android.platform.test.annotations.LargeTest"
+        }
+      ]
     }
   ]
 }
