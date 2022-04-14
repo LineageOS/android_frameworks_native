@@ -112,7 +112,7 @@ public:
     virtual status_t injectSensorData(const sensors_event_t* event) override;
 
     virtual status_t registerDirectChannel(const sensors_direct_mem_t* memory,
-                                           int32_t* channelHandle) override;
+                                           int32_t* outChannelHandle) override;
 
     virtual status_t unregisterDirectChannel(int32_t channelHandle) override;
 
