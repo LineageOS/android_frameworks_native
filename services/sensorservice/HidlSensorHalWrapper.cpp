@@ -281,7 +281,7 @@ status_t HidlSensorHalWrapper::injectSensorData(const sensors_event_t* event) {
 }
 
 status_t HidlSensorHalWrapper::registerDirectChannel(const sensors_direct_mem_t* memory,
-                                                     int32_t* /*channelHandle*/) {
+                                                     int32_t* outChannelHandle) {
     if (mSensors == nullptr) return NO_INIT;
 
     SharedMemType type;
@@ -309,14 +309,16 @@ status_t HidlSensorHalWrapper::registerDirectChannel(const sensors_direct_mem_t*
             .memoryHandle = memory->handle,
     };
 
-    status_t ret;
-    checkReturn(mSensors->registerDirectChannel(mem, [&ret](auto result, auto channelHandle) {
-        if (result == Result::OK) {
-            ret = channelHandle;
-        } else {
-            ret = statusFromResult(result);
-        }
-    }));
+    status_t ret = OK;
+    checkReturn(mSensors->registerDirectChannel(mem,
+                                                [&ret, &outChannelHandle](auto result,
+                                                                          auto channelHandle) {
+                                                    if (result == Result::OK) {
+                                                        *outChannelHandle = channelHandle;
+                                                    } else {
+                                                        ret = statusFromResult(result);
+                                                    }
+                                                }));
     return ret;
 }
 

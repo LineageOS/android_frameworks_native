@@ -766,7 +766,13 @@ int32_t SensorDevice::registerDirectChannel(const sensors_direct_mem_t* memory) 
     if (mHalWrapper == nullptr) return NO_INIT;
     Mutex::Autolock _l(mLock);
 
-    return mHalWrapper->registerDirectChannel(memory, nullptr);
+    int32_t channelHandle;
+    status_t status = mHalWrapper->registerDirectChannel(memory, &channelHandle);
+    if (status != OK) {
+        channelHandle = -1;
+    }
+
+    return channelHandle;
 }
 
 void SensorDevice::unregisterDirectChannel(int32_t channelHandle) {
