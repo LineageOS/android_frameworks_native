@@ -28,6 +28,7 @@
 #include <android/gui/ISurfaceComposerClient.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
+#include <ftl/small_map.h>
 #include <gui/BufferQueue.h>
 #include <gui/FrameTimestamps.h>
 #include <gui/ISurfaceComposer.h>
@@ -894,8 +895,8 @@ private:
     }
 
     sp<DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& displayToken) REQUIRES(mStateLock) {
-        const auto it = mDisplays.find(displayToken);
-        return it == mDisplays.end() ? nullptr : it->second;
+        const sp<DisplayDevice> nullDisplay;
+        return mDisplays.get(displayToken).value_or(std::cref(nullDisplay));
     }
 
     sp<const DisplayDevice> getDisplayDeviceLocked(PhysicalDisplayId id) const
@@ -1040,8 +1041,8 @@ private:
      */
     sp<IBinder> getPhysicalDisplayTokenLocked(PhysicalDisplayId displayId) const
             REQUIRES(mStateLock) {
-        const auto it = mPhysicalDisplayTokens.find(displayId);
-        return it != mPhysicalDisplayTokens.end() ? it->second : nullptr;
+        const sp<IBinder> nullToken;
+        return mPhysicalDisplayTokens.get(displayId).value_or(std::cref(nullToken));
     }
 
     std::optional<PhysicalDisplayId> getPhysicalDisplayIdLocked(
@@ -1236,10 +1237,14 @@ private:
 
     std::vector<HotplugEvent> mPendingHotplugEvents GUARDED_BY(mStateLock);
 
-    // this may only be written from the main thread with mStateLock held
-    // it may be read from other threads with mStateLock held
-    std::map<wp<IBinder>, sp<DisplayDevice>> mDisplays GUARDED_BY(mStateLock);
-    std::unordered_map<PhysicalDisplayId, sp<IBinder>> mPhysicalDisplayTokens
+    // Displays are composited in `mDisplays` order. Internal displays are inserted at boot and
+    // never removed, so take precedence over external and virtual displays.
+    //
+    // The static capacities were chosen to exceed a typical number of physical/virtual displays.
+    //
+    // May be read from any thread, but must only be written from the main thread.
+    ftl::SmallMap<wp<IBinder>, const sp<DisplayDevice>, 5> mDisplays GUARDED_BY(mStateLock);
+    ftl::SmallMap<PhysicalDisplayId, const sp<IBinder>, 3> mPhysicalDisplayTokens
             GUARDED_BY(mStateLock);
 
     struct {
@@ -1412,10 +1417,8 @@ private:
     std::atomic<ui::Transform::RotationFlags> mActiveDisplayTransformHint;
 
     bool isRefreshRateOverlayEnabled() const REQUIRES(mStateLock) {
-        return std::any_of(mDisplays.begin(), mDisplays.end(),
-                           [](std::pair<wp<IBinder>, sp<DisplayDevice>> display) {
-                               return display.second->isRefreshRateOverlayEnabled();
-                           });
+        return hasDisplay(
+                [](const auto& display) { return display.isRefreshRateOverlayEnabled(); });
     }
 
     wp<IBinder> mActiveDisplayToken GUARDED_BY(mStateLock);
