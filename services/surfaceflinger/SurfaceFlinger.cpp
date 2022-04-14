@@ -171,8 +171,10 @@ using CompositionStrategyPredictionState = android::compositionengine::impl::
 
 using base::StringAppendF;
 using gui::DisplayInfo;
+using gui::GameMode;
 using gui::IDisplayEventConnection;
 using gui::IWindowInfosListener;
+using gui::LayerMetadata;
 using gui::WindowInfo;
 using gui::aidl_utils::binderStatusFromStatusT;
 using ui::ColorMode;
@@ -475,11 +477,6 @@ void SurfaceFlinger::binderDied(const wp<IBinder>&) {
 
 void SurfaceFlinger::run() {
     mScheduler->run();
-}
-
-sp<ISurfaceComposerClient> SurfaceFlinger::createConnection() {
-    const sp<Client> client = new Client(this);
-    return client->initCheck() == NO_ERROR ? client : nullptr;
 }
 
 sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool secure) {
@@ -4458,9 +4455,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
     std::optional<nsecs_t> dequeueBufferTimestamp;
     if (what & layer_state_t::eMetadataChanged) {
-        dequeueBufferTimestamp = s.metadata.getInt64(METADATA_DEQUEUE_TIME);
+        dequeueBufferTimestamp = s.metadata.getInt64(gui::METADATA_DEQUEUE_TIME);
 
-        if (const int32_t gameMode = s.metadata.getInt32(METADATA_GAME_MODE, -1); gameMode != -1) {
+        if (const int32_t gameMode = s.metadata.getInt32(gui::METADATA_GAME_MODE, -1);
+            gameMode != -1) {
             // The transaction will be received on the Task layer and needs to be applied to all
             // child layers. Child layers that are added at a later point will obtain the game mode
             // info through addChild().
@@ -5503,11 +5501,11 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_DISPLAY_MODES:
         // Calling setTransactionState is safe, because you need to have been
         // granted a reference to Client* and Handle* to do anything with it.
-        case SET_TRANSACTION_STATE:
-        case CREATE_CONNECTION: {
+        case SET_TRANSACTION_STATE: {
             // This is not sensitive information, so should not require permission control.
             return OK;
         }
+        case CREATE_CONNECTION:
         case CREATE_DISPLAY:
         case DESTROY_DISPLAY:
         case GET_PRIMARY_PHYSICAL_DISPLAY_ID:
@@ -6995,8 +6993,8 @@ const std::unordered_map<std::string, uint32_t>& SurfaceFlinger::getGenericLayer
     // on the work to remove the table in that bug rather than adding more to
     // it.
     static const std::unordered_map<std::string, uint32_t> genericLayerMetadataKeyMap{
-            {"org.chromium.arc.V1_0.TaskId", METADATA_TASK_ID},
-            {"org.chromium.arc.V1_0.CursorInfo", METADATA_MOUSE_CURSOR},
+            {"org.chromium.arc.V1_0.TaskId", gui::METADATA_TASK_ID},
+            {"org.chromium.arc.V1_0.CursorInfo", gui::METADATA_MOUSE_CURSOR},
     };
     return genericLayerMetadataKeyMap;
 }
@@ -7212,6 +7210,17 @@ bool SurfaceFlinger::commitCreatedLayers() {
 }
 
 // gui::ISurfaceComposer
+
+binder::Status SurfaceComposerAIDL::createConnection(sp<gui::ISurfaceComposerClient>* outClient) {
+    const sp<Client> client = new Client(mFlinger);
+    if (client->initCheck() == NO_ERROR) {
+        *outClient = client;
+        return binder::Status::ok();
+    } else {
+        *outClient = nullptr;
+        return binderStatusFromStatusT(BAD_VALUE);
+    }
+}
 
 binder::Status SurfaceComposerAIDL::createDisplay(const std::string& displayName, bool secure,
                                                   sp<IBinder>* outDisplay) {

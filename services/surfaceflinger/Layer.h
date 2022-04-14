@@ -17,8 +17,8 @@
 #pragma once
 
 #include <android/gui/DropInputMode.h>
+#include <android/gui/ISurfaceComposerClient.h>
 #include <gui/BufferQueue.h>
-#include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
 #include <gui/WindowInfo.h>
 #include <layerproto/LayerProtoHeader.h>

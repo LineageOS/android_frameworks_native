@@ -56,8 +56,8 @@ void FpsReporter::dispatchLayerFps() {
 
     mFlinger.mCurrentState.traverse([&](Layer* layer) {
         auto& currentState = layer->getDrawingState();
-        if (currentState.metadata.has(METADATA_TASK_ID)) {
-            int32_t taskId = currentState.metadata.getInt32(METADATA_TASK_ID, 0);
+        if (currentState.metadata.has(gui::METADATA_TASK_ID)) {
+            int32_t taskId = currentState.metadata.getInt32(gui::METADATA_TASK_ID, 0);
             if (seenTasks.count(taskId) == 0) {
                 // localListeners is expected to be tiny
                 for (TrackedListener& listener : localListeners) {

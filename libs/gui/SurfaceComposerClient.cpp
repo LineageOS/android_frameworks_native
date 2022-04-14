@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <android/gui/DisplayState.h>
+#include <android/gui/ISurfaceComposerClient.h>
 #include <android/gui/IWindowInfosListener.h>
 #include <android/os/IInputConstants.h>
 #include <utils/Errors.h>
@@ -39,7 +40,6 @@
 #include <gui/CpuConsumer.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ISurfaceComposer.h>
-#include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
@@ -2004,11 +2004,11 @@ SurfaceComposerClient::SurfaceComposerClient(const sp<ISurfaceComposerClient>& c
       : mStatus(NO_ERROR), mClient(client) {}
 
 void SurfaceComposerClient::onFirstRef() {
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
     if (sf != nullptr && mStatus == NO_INIT) {
         sp<ISurfaceComposerClient> conn;
-        conn = sf->createConnection();
-        if (conn != nullptr) {
+        binder::Status status = sf->createConnection(&conn);
+        if (status.isOk() && conn != nullptr) {
             mClient = conn;
             mStatus = NO_ERROR;
         }
@@ -2046,7 +2046,7 @@ void SurfaceComposerClient::dispose() {
 }
 
 sp<SurfaceControl> SurfaceComposerClient::createSurface(const String8& name, uint32_t w, uint32_t h,
-                                                        PixelFormat format, uint32_t flags,
+                                                        PixelFormat format, int32_t flags,
                                                         const sp<IBinder>& parentHandle,
                                                         LayerMetadata metadata,
                                                         uint32_t* outTransformHint) {
@@ -2056,38 +2056,9 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(const String8& name, uin
     return s;
 }
 
-sp<SurfaceControl> SurfaceComposerClient::createWithSurfaceParent(const String8& name, uint32_t w,
-                                                                  uint32_t h, PixelFormat format,
-                                                                  uint32_t flags, Surface* parent,
-                                                                  LayerMetadata metadata,
-                                                                  uint32_t* outTransformHint) {
-    sp<SurfaceControl> sur;
-    status_t err = mStatus;
-
-    if (mStatus == NO_ERROR) {
-        sp<IBinder> handle;
-        sp<IGraphicBufferProducer> parentGbp = parent->getIGraphicBufferProducer();
-        sp<IGraphicBufferProducer> gbp;
-
-        uint32_t transformHint = 0;
-        int32_t id = -1;
-        err = mClient->createWithSurfaceParent(name, w, h, format, flags, parentGbp,
-                                               std::move(metadata), &handle, &gbp, &id,
-                                               &transformHint);
-        if (outTransformHint) {
-            *outTransformHint = transformHint;
-        }
-        ALOGE_IF(err, "SurfaceComposerClient::createWithSurfaceParent error %s", strerror(-err));
-        if (err == NO_ERROR) {
-            return new SurfaceControl(this, handle, gbp, id, transformHint);
-        }
-    }
-    return nullptr;
-}
-
 status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32_t w, uint32_t h,
                                                      PixelFormat format,
-                                                     sp<SurfaceControl>* outSurface, uint32_t flags,
+                                                     sp<SurfaceControl>* outSurface, int32_t flags,
                                                      const sp<IBinder>& parentHandle,
                                                      LayerMetadata metadata,
                                                      uint32_t* outTransformHint) {
@@ -2095,21 +2066,17 @@ status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32
     status_t err = mStatus;
 
     if (mStatus == NO_ERROR) {
-        sp<IBinder> handle;
-        sp<IGraphicBufferProducer> gbp;
-
-        uint32_t transformHint = 0;
-        int32_t id = -1;
-        err = mClient->createSurface(name, w, h, format, flags, parentHandle, std::move(metadata),
-                                     &handle, &gbp, &id, &transformHint);
-
+        gui::CreateSurfaceResult result;
+        binder::Status status = mClient->createSurface(std::string(name.string()), flags,
+                                                       parentHandle, std::move(metadata), &result);
+        err = statusTFromBinderStatus(status);
         if (outTransformHint) {
-            *outTransformHint = transformHint;
+            *outTransformHint = result.transformHint;
         }
         ALOGE_IF(err, "SurfaceComposerClient::createSurface error %s", strerror(-err));
         if (err == NO_ERROR) {
-            *outSurface =
-                    new SurfaceControl(this, handle, gbp, id, w, h, format, transformHint, flags);
+            *outSurface = new SurfaceControl(this, result.handle, result.layerId, w, h, format,
+                                             result.transformHint, flags);
         }
     }
     return err;
@@ -2120,12 +2087,12 @@ sp<SurfaceControl> SurfaceComposerClient::mirrorSurface(SurfaceControl* mirrorFr
         return nullptr;
     }
 
-    sp<IBinder> handle;
     sp<IBinder> mirrorFromHandle = mirrorFromSurface->getHandle();
-    int32_t layer_id = -1;
-    status_t err = mClient->mirrorSurface(mirrorFromHandle, &handle, &layer_id);
+    gui::MirrorSurfaceResult result;
+    const binder::Status status = mClient->mirrorSurface(mirrorFromHandle, &result);
+    const status_t err = statusTFromBinderStatus(status);
     if (err == NO_ERROR) {
-        return new SurfaceControl(this, handle, nullptr, layer_id, true /* owned */);
+        return new SurfaceControl(this, result.handle, result.layerId);
     }
     return nullptr;
 }
@@ -2134,7 +2101,8 @@ status_t SurfaceComposerClient::clearLayerFrameStats(const sp<IBinder>& token) c
     if (mStatus != NO_ERROR) {
         return mStatus;
     }
-    return mClient->clearLayerFrameStats(token);
+    const binder::Status status = mClient->clearLayerFrameStats(token);
+    return statusTFromBinderStatus(status);
 }
 
 status_t SurfaceComposerClient::getLayerFrameStats(const sp<IBinder>& token,
@@ -2142,7 +2110,24 @@ status_t SurfaceComposerClient::getLayerFrameStats(const sp<IBinder>& token,
     if (mStatus != NO_ERROR) {
         return mStatus;
     }
-    return mClient->getLayerFrameStats(token, outStats);
+    gui::FrameStats stats;
+    const binder::Status status = mClient->getLayerFrameStats(token, &stats);
+    if (status.isOk()) {
+        outStats->refreshPeriodNano = stats.refreshPeriodNano;
+        outStats->desiredPresentTimesNano.setCapacity(stats.desiredPresentTimesNano.size());
+        for (const auto& t : stats.desiredPresentTimesNano) {
+            outStats->desiredPresentTimesNano.add(t);
+        }
+        outStats->actualPresentTimesNano.setCapacity(stats.actualPresentTimesNano.size());
+        for (const auto& t : stats.actualPresentTimesNano) {
+            outStats->actualPresentTimesNano.add(t);
+        }
+        outStats->frameReadyTimesNano.setCapacity(stats.frameReadyTimesNano.size());
+        for (const auto& t : stats.frameReadyTimesNano) {
+            outStats->frameReadyTimesNano.add(t);
+        }
+    }
+    return statusTFromBinderStatus(status);
 }
 
 // ----------------------------------------------------------------------------

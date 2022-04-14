@@ -34,6 +34,8 @@ using testing::_;
 using testing::Mock;
 using testing::Return;
 using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
+using gui::GameMode;
+using gui::LayerMetadata;
 
 class GameModeTest : public testing::Test {
 public:
@@ -92,7 +94,7 @@ public:
 
     // Mocks the behavior of applying a transaction from WMShell
     void setGameModeMetadata(sp<Layer> layer, GameMode gameMode) {
-        mLayerMetadata.setInt32(METADATA_GAME_MODE, static_cast<int32_t>(gameMode));
+        mLayerMetadata.setInt32(gui::METADATA_GAME_MODE, static_cast<int32_t>(gameMode));
         layer->setMetadata(mLayerMetadata);
         layer->setGameModeForTree(gameMode);
     }

@@ -555,7 +555,7 @@ public:
 
     sp<IBinder> fuzzBoot(FuzzedDataProvider *fdp) {
         mFlinger->callingThreadHasUnscopedSurfaceFlingerAccess(fdp->ConsumeBool());
-        mFlinger->createConnection();
+        const sp<Client> client = new Client(mFlinger);
 
         DisplayIdGenerator<HalVirtualDisplayId> kGenerator;
         HalVirtualDisplayId halVirtualDisplayId = kGenerator.generateId().value();

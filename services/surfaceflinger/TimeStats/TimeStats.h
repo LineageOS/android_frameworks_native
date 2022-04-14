@@ -34,6 +34,8 @@
 
 #include <scheduler/Fps.h>
 
+using android::gui::GameMode;
+using android::gui::LayerMetadata;
 using namespace android::surfaceflinger;
 
 namespace android {

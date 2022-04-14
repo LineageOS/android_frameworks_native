@@ -25,12 +25,12 @@
 #include <android/gui/BnSurfaceComposer.h>
 #include <android/gui/DisplayStatInfo.h>
 #include <android/gui/DisplayState.h>
+#include <android/gui/ISurfaceComposerClient.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <gui/BufferQueue.h>
 #include <gui/FrameTimestamps.h>
 #include <gui/ISurfaceComposer.h>
-#include <gui/ISurfaceComposerClient.h>
 #include <gui/ITransactionCompletedListener.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/LayerState.h>
@@ -536,7 +536,6 @@ private:
     }
 
     // Implements ISurfaceComposer
-    sp<ISurfaceComposerClient> createConnection() override;
     sp<IBinder> createDisplay(const String8& displayName, bool secure);
     void destroyDisplay(const sp<IBinder>& displayToken);
     std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const EXCLUDES(mStateLock) {
@@ -1446,6 +1445,7 @@ class SurfaceComposerAIDL : public gui::BnSurfaceComposer {
 public:
     SurfaceComposerAIDL(sp<SurfaceFlinger> sf) : mFlinger(std::move(sf)) {}
 
+    binder::Status createConnection(sp<gui::ISurfaceComposerClient>* outClient) override;
     binder::Status createDisplay(const std::string& displayName, bool secure,
                                  sp<IBinder>* outDisplay) override;
     binder::Status destroyDisplay(const sp<IBinder>& display) override;
