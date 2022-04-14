@@ -517,6 +517,12 @@ public:
      * post-conditions.
      */
 
+    const auto& displays() const { return mFlinger->mDisplays; }
+    const auto& currentState() const { return mFlinger->mCurrentState; }
+    const auto& drawingState() const { return mFlinger->mDrawingState; }
+    const auto& transactionFlags() const { return mFlinger->mTransactionFlags; }
+    const auto& hwcPhysicalDisplayIdMap() const { return getHwComposer().mPhysicalDisplayIdMap; }
+
     auto& mutableHasWideColorDisplay() { return SurfaceFlinger::hasWideColorDisplay; }
 
     auto& mutableCurrentState() { return mFlinger->mCurrentState; }
@@ -755,7 +761,9 @@ public:
             return mFlinger.mutableCurrentState().displays.valueFor(mDisplayToken);
         }
 
-        auto& mutableDisplayDevice() { return mFlinger.mutableDisplays()[mDisplayToken]; }
+        const sp<DisplayDevice>& mutableDisplayDevice() {
+            return mFlinger.mutableDisplays().get(mDisplayToken)->get();
+        }
 
         // If `configs` is nullptr, the injector creates RefreshRateConfigs from the `modes`.
         // Otherwise, it uses `configs`, which the caller must create using the same `modes`.
@@ -862,12 +870,14 @@ public:
             if (!display->isVirtual()) {
                 display->setActiveMode(activeModeId);
             }
-            mFlinger.mutableDisplays().emplace(mDisplayToken, display);
+            mFlinger.mutableDisplays().emplace_or_replace(mDisplayToken, display);
+
             mFlinger.mutableCurrentState().displays.add(mDisplayToken, state);
             mFlinger.mutableDrawingState().displays.add(mDisplayToken, state);
 
             if (const auto& physical = state.physical) {
-                mFlinger.mutablePhysicalDisplayTokens()[physical->id] = mDisplayToken;
+                mFlinger.mutablePhysicalDisplayTokens().emplace_or_replace(physical->id,
+                                                                           mDisplayToken);
             }
 
             return display;
