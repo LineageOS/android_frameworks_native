@@ -107,9 +107,10 @@ template <typename Case>
 void DisplayTransactionCommitTest::verifyDisplayIsConnected(const sp<IBinder>& displayToken) {
     // The display device should have been set up in the list of displays.
     ASSERT_TRUE(hasDisplayDevice(displayToken));
-    const auto& device = getDisplayDevice(displayToken);
-    EXPECT_EQ(static_cast<bool>(Case::Display::SECURE), device->isSecure());
-    EXPECT_EQ(static_cast<bool>(Case::Display::PRIMARY), device->isPrimary());
+    const auto& display = getDisplayDevice(displayToken);
+
+    EXPECT_EQ(static_cast<bool>(Case::Display::SECURE), display.isSecure());
+    EXPECT_EQ(static_cast<bool>(Case::Display::PRIMARY), display.isPrimary());
 
     std::optional<DisplayDeviceState::Physical> expectedPhysical;
     if (const auto connectionType = Case::Display::CONNECTION_TYPE::value) {
@@ -143,10 +144,11 @@ void DisplayTransactionCommitTest::verifyPhysicalDisplayIsConnected() {
     // SF should have a display token.
     const auto displayId = Case::Display::DISPLAY_ID::get();
     ASSERT_TRUE(PhysicalDisplayId::tryCast(displayId));
-    ASSERT_EQ(mFlinger.mutablePhysicalDisplayTokens().count(displayId), 1);
-    auto& displayToken = mFlinger.mutablePhysicalDisplayTokens()[displayId];
 
-    verifyDisplayIsConnected<Case>(displayToken);
+    const auto displayTokenOpt = mFlinger.mutablePhysicalDisplayTokens().get(displayId);
+    ASSERT_TRUE(displayTokenOpt);
+
+    verifyDisplayIsConnected<Case>(displayTokenOpt->get());
 }
 
 void DisplayTransactionCommitTest::verifyDisplayIsNotConnected(const sp<IBinder>& displayToken) {
@@ -248,9 +250,9 @@ void DisplayTransactionCommitTest::processesHotplugDisconnectCommon() {
     // SF should not have a display token.
     const auto displayId = Case::Display::DISPLAY_ID::get();
     ASSERT_TRUE(PhysicalDisplayId::tryCast(displayId));
-    ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(displayId) == 0);
+    ASSERT_FALSE(mFlinger.mutablePhysicalDisplayTokens().contains(displayId));
 
-    // The existing token should have been removed
+    // The existing token should have been removed.
     verifyDisplayIsNotConnected(existing.token());
 }
 
@@ -330,7 +332,7 @@ TEST_F(DisplayTransactionCommitTest, processesHotplugConnectThenDisconnectPrimar
                 // SF should not have a display token.
                 const auto displayId = Case::Display::DISPLAY_ID::get();
                 ASSERT_TRUE(PhysicalDisplayId::tryCast(displayId));
-                ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(displayId) == 0);
+                ASSERT_FALSE(mFlinger.mutablePhysicalDisplayTokens().contains(displayId));
             }(),
             testing::KilledBySignal(SIGABRT), "Primary display cannot be disconnected.");
 }
@@ -369,15 +371,16 @@ TEST_F(DisplayTransactionCommitTest, processesHotplugDisconnectThenConnectPrimar
                 // --------------------------------------------------------------------
                 // Postconditions
 
-                // The existing token should have been removed
+                // The existing token should have been removed.
                 verifyDisplayIsNotConnected(existing.token());
                 const auto displayId = Case::Display::DISPLAY_ID::get();
                 ASSERT_TRUE(PhysicalDisplayId::tryCast(displayId));
-                ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(displayId) == 1);
-                EXPECT_NE(existing.token(), mFlinger.mutablePhysicalDisplayTokens()[displayId]);
 
-                // A new display should be connected in its place
+                const auto displayTokenOpt = mFlinger.mutablePhysicalDisplayTokens().get(displayId);
+                ASSERT_TRUE(displayTokenOpt);
+                EXPECT_NE(existing.token(), displayTokenOpt->get());
 
+                // A new display should be connected in its place.
                 verifyPhysicalDisplayIsConnected<Case>();
 
                 // --------------------------------------------------------------------

@@ -406,7 +406,7 @@ TEST_F(SetPowerModeInternalTest, setPowerModeInternalDoesNothingIfVirtualDisplay
     display.inject();
 
     // The display is set to PowerMode::ON
-    getDisplayDevice(display.token())->setPowerMode(PowerMode::ON);
+    display.mutableDisplayDevice()->setPowerMode(PowerMode::ON);
 
     // --------------------------------------------------------------------
     // Invocation
