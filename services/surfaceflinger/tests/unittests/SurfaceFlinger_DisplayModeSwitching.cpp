@@ -61,7 +61,6 @@ public:
 
 protected:
     void setupScheduler(std::shared_ptr<scheduler::RefreshRateConfigs>);
-    void testChangeRefreshRate(bool isDisplayActive, bool isRefreshRequired);
 
     sp<DisplayDevice> mDisplay;
     mock::EventThread* mAppEventThread;
