@@ -1193,10 +1193,6 @@ std::string Gralloc4Mapper::dumpBuffers(bool less) const {
 
 Gralloc4Allocator::Gralloc4Allocator(const Gralloc4Mapper& mapper) : mMapper(mapper) {
     mAllocator = IAllocator::getService();
-    if (mAllocator == nullptr) {
-        ALOGW("allocator 4.x is not supported");
-        return;
-    }
     if (__builtin_available(android 31, *)) {
         if (hasIAllocatorAidl()) {
             mAidlAllocator = AidlIAllocator::fromBinder(ndk::SpAIBinder(
@@ -1204,10 +1200,14 @@ Gralloc4Allocator::Gralloc4Allocator(const Gralloc4Mapper& mapper) : mMapper(map
             ALOGE_IF(!mAidlAllocator, "AIDL IAllocator declared but failed to get service");
         }
     }
+    if (mAllocator == nullptr && mAidlAllocator == nullptr) {
+        ALOGW("allocator 4.x is not supported");
+        return;
+    }
 }
 
 bool Gralloc4Allocator::isLoaded() const {
-    return mAllocator != nullptr;
+    return mAllocator != nullptr || mAidlAllocator != nullptr;
 }
 
 std::string Gralloc4Allocator::dumpDebugInfo(bool less) const {
