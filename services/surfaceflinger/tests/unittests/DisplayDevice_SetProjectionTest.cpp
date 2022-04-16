@@ -21,6 +21,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <ui/Rotation.h>
 
 namespace android {
 namespace {
@@ -53,6 +54,11 @@ public:
 
     ui::Size swapWH(const ui::Size size) const { return ui::Size(size.height, size.width); }
 
+    void setDefaultProjection() {
+        // INVALID_RECT pulls from the physical display dimensions.
+        mDisplayDevice->setProjection(ui::ROTATION_0, Rect::INVALID_RECT, Rect::INVALID_RECT);
+    }
+
     void setProjectionForRotation0() {
         // A logical rotation of 0 uses the SurfaceFlinger display size
         mDisplayDevice->setProjection(ui::ROTATION_0, Rect(mFlingerDisplaySize),
@@ -77,6 +83,30 @@ public:
         // the width/height swapped.
         mDisplayDevice->setProjection(ui::ROTATION_270, Rect(swapWH(mFlingerDisplaySize)),
                                       Rect(swapWH(mFlingerDisplaySize)));
+    }
+
+    void expectDefaultState() {
+        const auto& compositionState = mDisplayDevice->getCompositionDisplay()->getState();
+        EXPECT_EQ(ui::Transform(ui::Transform::toRotationFlags(mPhysicalOrientation),
+                                mHardwareDisplaySize.width, mHardwareDisplaySize.height),
+                  compositionState.transform);
+        EXPECT_EQ(mPhysicalOrientation, compositionState.displaySpace.getOrientation());
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.getContent());
+        EXPECT_EQ(mHardwareDisplaySize, compositionState.displaySpace.getBounds());
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.framebufferSpace.getContent());
+        EXPECT_EQ(mHardwareDisplaySize, compositionState.framebufferSpace.getBounds());
+
+        const ui::Size expectedLogicalSize = (mPhysicalOrientation == ui::ROTATION_270 ||
+                                              mPhysicalOrientation == ui::ROTATION_90)
+                ? swapWH(mHardwareDisplaySize)
+                : mHardwareDisplaySize;
+
+        EXPECT_EQ(Rect(expectedLogicalSize), compositionState.orientedDisplaySpace.getContent());
+        EXPECT_EQ(expectedLogicalSize, compositionState.orientedDisplaySpace.getBounds());
+        EXPECT_EQ(Rect(expectedLogicalSize), compositionState.layerStackSpace.getContent());
+        EXPECT_EQ(expectedLogicalSize, compositionState.layerStackSpace.getBounds());
+
+        EXPECT_EQ(false, compositionState.needsFiltering);
     }
 
     void expectStateForHardwareTransform0() {
@@ -147,6 +177,11 @@ struct DisplayDeviceSetProjectionTest_Installed0 : public DisplayDeviceSetProjec
                                            ui::ROTATION_0) {}
 };
 
+TEST_F(DisplayDeviceSetProjectionTest_Installed0, checkDefaultProjection) {
+    setDefaultProjection();
+    expectDefaultState();
+}
+
 TEST_F(DisplayDeviceSetProjectionTest_Installed0, checkWith0OutputRotation) {
     setProjectionForRotation0();
     expectStateForHardwareTransform0();
@@ -173,6 +208,11 @@ struct DisplayDeviceSetProjectionTest_Installed90 : public DisplayDeviceSetProje
                                            ui::Size(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                                            ui::ROTATION_90) {}
 };
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed90, checkDefaultProjection) {
+    setDefaultProjection();
+    expectDefaultState();
+}
 
 TEST_F(DisplayDeviceSetProjectionTest_Installed90, checkWith0OutputRotation) {
     setProjectionForRotation0();
@@ -201,6 +241,11 @@ struct DisplayDeviceSetProjectionTest_Installed180 : public DisplayDeviceSetProj
                                            ui::ROTATION_180) {}
 };
 
+TEST_F(DisplayDeviceSetProjectionTest_Installed180, checkDefaultProjection) {
+    setDefaultProjection();
+    expectDefaultState();
+}
+
 TEST_F(DisplayDeviceSetProjectionTest_Installed180, checkWith0OutputRotation) {
     setProjectionForRotation0();
     expectStateForHardwareTransform180();
@@ -227,6 +272,11 @@ struct DisplayDeviceSetProjectionTest_Installed270 : public DisplayDeviceSetProj
                                            ui::Size(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                                            ui::ROTATION_270) {}
 };
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed270, checkDefaultProjection) {
+    setDefaultProjection();
+    expectDefaultState();
+}
 
 TEST_F(DisplayDeviceSetProjectionTest_Installed270, checkWith0OutputRotation) {
     setProjectionForRotation0();
