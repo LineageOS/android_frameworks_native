@@ -299,26 +299,24 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect layerStackSpace
         sPrimaryDisplayRotationFlags = ui::Transform::toRotationFlags(orientation);
     }
 
-    if (!orientedDisplaySpaceRect.isValid()) {
-        // The destination frame can be invalid if it has never been set,
-        // in that case we assume the whole display size.
-        orientedDisplaySpaceRect =
-                getCompositionDisplay()->getState().displaySpace.getBoundsAsRect();
-    }
-
-    if (layerStackSpaceRect.isEmpty()) {
-        // The layerStackSpaceRect can be invalid if it has never been set, in that case
-        // we assume the whole framebuffer size.
-        layerStackSpaceRect =
-                getCompositionDisplay()->getState().framebufferSpace.getBoundsAsRect();
-        if (orientation == ui::ROTATION_90 || orientation == ui::ROTATION_270) {
-            std::swap(layerStackSpaceRect.right, layerStackSpaceRect.bottom);
-        }
-    }
-
     // We need to take care of display rotation for globalTransform for case if the panel is not
     // installed aligned with device orientation.
     const auto transformOrientation = orientation + mPhysicalOrientation;
+
+    const auto& state = getCompositionDisplay()->getState();
+
+    // If the layer stack and destination frames have never been set, then configure them to be the
+    // same as the physical device, taking into account the total transform.
+    if (!orientedDisplaySpaceRect.isValid()) {
+        ui::Size bounds = state.displaySpace.getBounds();
+        bounds.rotate(transformOrientation);
+        orientedDisplaySpaceRect = Rect(bounds);
+    }
+    if (layerStackSpaceRect.isEmpty()) {
+        ui::Size bounds = state.framebufferSpace.getBounds();
+        bounds.rotate(transformOrientation);
+        layerStackSpaceRect = Rect(bounds);
+    }
     getCompositionDisplay()->setProjection(transformOrientation, layerStackSpaceRect,
                                            orientedDisplaySpaceRect);
 }

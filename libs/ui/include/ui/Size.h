@@ -23,6 +23,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <ui/Rotation.h>
+
 namespace android::ui {
 
 // A simple value type representing a two-dimensional size.
@@ -60,6 +62,16 @@ struct Size {
     void set(T w, T h) {
         set(Size(w, h));
     }
+
+    // Applies a rotation onto the size
+    void rotate(Rotation rotation) {
+        if (rotation == ROTATION_90 || rotation == ROTATION_270) {
+            transpose();
+        }
+    }
+
+    // Swaps the width and height, emulating a 90 degree rotation.
+    void transpose() { std::swap(width, height); }
 
     // Sets the value to kInvalidSize
     void makeInvalid();

@@ -62,6 +62,10 @@ ndk::ScopedAStatus StatsHal::reportVendorAtom(const VendorAtom& vendorAtom) {
                 AStatsEvent_writeString(event,
                     atomValue.get<VendorAtomValue::stringValue>().c_str());
                 break;
+            case VendorAtomValue::boolValue:
+                AStatsEvent_writeBool(event,
+                    atomValue.get<VendorAtomValue::boolValue>());
+                break;
         }
     }
     AStatsEvent_build(event);
