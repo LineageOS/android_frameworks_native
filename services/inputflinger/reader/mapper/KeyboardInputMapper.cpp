@@ -428,6 +428,8 @@ void KeyboardInputMapper::initializeLedState(LedState& ledState, int32_t led) {
 }
 
 void KeyboardInputMapper::updateLedState(bool reset) {
+    // Clear the local led state then union the global led state.
+    mMetaState &= ~(AMETA_CAPS_LOCK_ON | AMETA_NUM_LOCK_ON | AMETA_SCROLL_LOCK_ON);
     mMetaState |= getContext()->getLedMetaState();
 
     constexpr int32_t META_NUM = 3;

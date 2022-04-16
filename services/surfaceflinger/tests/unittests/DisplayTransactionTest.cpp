@@ -165,36 +165,39 @@ sp<DisplayDevice> DisplayTransactionTest::injectDefaultInternalDisplay(
     return displayDevice;
 }
 
-bool DisplayTransactionTest::hasPhysicalHwcDisplay(HWDisplayId hwcDisplayId) {
-    return mFlinger.mutableHwcPhysicalDisplayIdMap().count(hwcDisplayId) == 1;
+bool DisplayTransactionTest::hasPhysicalHwcDisplay(HWDisplayId hwcDisplayId) const {
+    return mFlinger.hwcPhysicalDisplayIdMap().count(hwcDisplayId) == 1;
 }
 
-bool DisplayTransactionTest::hasTransactionFlagSet(int flag) {
-    return mFlinger.mutableTransactionFlags() & flag;
+bool DisplayTransactionTest::hasTransactionFlagSet(int32_t flag) const {
+    return mFlinger.transactionFlags() & flag;
 }
 
-bool DisplayTransactionTest::hasDisplayDevice(sp<IBinder> displayToken) {
-    return mFlinger.mutableDisplays().count(displayToken) == 1;
+bool DisplayTransactionTest::hasDisplayDevice(const sp<IBinder>& displayToken) const {
+    return mFlinger.displays().contains(displayToken);
 }
 
-sp<DisplayDevice> DisplayTransactionTest::getDisplayDevice(sp<IBinder> displayToken) {
-    return mFlinger.mutableDisplays()[displayToken];
+const DisplayDevice& DisplayTransactionTest::getDisplayDevice(
+        const sp<IBinder>& displayToken) const {
+    return *mFlinger.displays().get(displayToken)->get();
 }
 
-bool DisplayTransactionTest::hasCurrentDisplayState(sp<IBinder> displayToken) {
-    return mFlinger.mutableCurrentState().displays.indexOfKey(displayToken) >= 0;
+bool DisplayTransactionTest::hasCurrentDisplayState(const sp<IBinder>& displayToken) const {
+    return mFlinger.currentState().displays.indexOfKey(displayToken) >= 0;
 }
 
-const DisplayDeviceState& DisplayTransactionTest::getCurrentDisplayState(sp<IBinder> displayToken) {
-    return mFlinger.mutableCurrentState().displays.valueFor(displayToken);
+const DisplayDeviceState& DisplayTransactionTest::getCurrentDisplayState(
+        const sp<IBinder>& displayToken) const {
+    return mFlinger.currentState().displays.valueFor(displayToken);
 }
 
-bool DisplayTransactionTest::hasDrawingDisplayState(sp<IBinder> displayToken) {
-    return mFlinger.mutableDrawingState().displays.indexOfKey(displayToken) >= 0;
+bool DisplayTransactionTest::hasDrawingDisplayState(const sp<IBinder>& displayToken) const {
+    return mFlinger.drawingState().displays.indexOfKey(displayToken) >= 0;
 }
 
-const DisplayDeviceState& DisplayTransactionTest::getDrawingDisplayState(sp<IBinder> displayToken) {
-    return mFlinger.mutableDrawingState().displays.valueFor(displayToken);
+const DisplayDeviceState& DisplayTransactionTest::getDrawingDisplayState(
+        const sp<IBinder>& displayToken) const {
+    return mFlinger.drawingState().displays.valueFor(displayToken);
 }
 
 } // namespace android
