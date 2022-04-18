@@ -17,6 +17,7 @@
 #pragma once
 
 #include <aidl/android/hardware/graphics/common/Dataspace.h>
+#include <aidl/android/hardware/graphics/composer3/RenderIntent.h>
 #include <android/hardware_buffer.h>
 #include <math/vec3.h>
 
@@ -41,7 +42,7 @@ struct ShaderUniform {
 
 // Describes metadata which may be used for constructing the shader uniforms.
 // This metadata should not be used for manipulating the source code of the shader program directly,
-// as otherwise caching by other system of these shaders may break.
+// as otherwise caching by other parts of the system using these shaders may break.
 struct Metadata {
     // The maximum luminance of the display in nits
     float displayMaxLuminance = 0.0;
@@ -61,6 +62,17 @@ struct Metadata {
     // texture that does not have associated metadata. As such, implementations
     // must support nullptr.
     AHardwareBuffer* buffer = nullptr;
+
+    // RenderIntent of the destination display.
+    // Non-colorimetric render-intents may be defined in order to take advantage of the full display
+    // gamut. Various contrast-enhancement mechanisms may be employed on SDR content as a result,
+    // which means that HDR content may need to be compensated in order to achieve correct blending
+    // behavior. This default is effectively optional - the display render intent may not be
+    // available to clients such as HWUI which are display-agnostic. For those clients, tone-map
+    // colorimetric may be assumed so that the luminance range may be converted to the correct range
+    // based on the output dataspace.
+    aidl::android::hardware::graphics::composer3::RenderIntent renderIntent =
+            aidl::android::hardware::graphics::composer3::RenderIntent::TONE_MAP_COLORIMETRIC;
 };
 
 // Utility class containing pre-processed conversions for a particular color

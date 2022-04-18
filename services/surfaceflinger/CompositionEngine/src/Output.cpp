@@ -1177,6 +1177,9 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     clientCompositionDisplay.targetLuminanceNits =
             outputState.clientTargetBrightness * outputState.displayBrightnessNits;
     clientCompositionDisplay.dimmingStage = outputState.clientTargetDimmingStage;
+    clientCompositionDisplay.renderIntent =
+            static_cast<aidl::android::hardware::graphics::composer3::RenderIntent>(
+                    outputState.renderIntent);
 
     // Compute the global color transform matrix.
     clientCompositionDisplay.colorTransform = outputState.colorTransformMatrix;
