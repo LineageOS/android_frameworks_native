@@ -3711,6 +3711,16 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
         auto withDimmingStage(
                 aidl::android::hardware::graphics::composer3::DimmingStage dimmingStage) {
             getInstance()->mOutput.mState.clientTargetDimmingStage = dimmingStage;
+            return nextState<OutputWithRenderIntent>();
+        }
+    };
+
+    struct OutputWithRenderIntent
+          : public CallOrderStateMachineHelper<TestType, OutputWithRenderIntent> {
+        auto withRenderIntent(
+                aidl::android::hardware::graphics::composer3::RenderIntent renderIntent) {
+            getInstance()->mOutput.mState.renderIntent =
+                    static_cast<ui::RenderIntent>(renderIntent);
             return nextState<SkipColorTransformState>();
         }
     };
@@ -3744,6 +3754,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposi
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kUnknownLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
+            .withRenderIntent(
+                    aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
@@ -3756,7 +3768,9 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposi
                      .orientation = kDefaultOutputOrientationFlags,
                      .targetLuminanceNits = kClientTargetLuminanceNits,
                      .dimmingStage =
-                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR})
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR,
+                     .renderIntent = aidl::android::hardware::graphics::composer3::RenderIntent::
+                             COLORIMETRIC})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3767,7 +3781,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
-
+            .withRenderIntent(
+                    aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
@@ -3780,7 +3795,9 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
                      .orientation = kDefaultOutputOrientationFlags,
                      .targetLuminanceNits = kClientTargetLuminanceNits,
                      .dimmingStage =
-                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR})
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR,
+                     .renderIntent = aidl::android::hardware::graphics::composer3::RenderIntent::
+                             COLORIMETRIC})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3792,29 +3809,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
             .withDisplayBrightnessNits(kUnknownLuminance)
             .withDimmingStage(
                     aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF)
-
-            .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed({.physicalDisplay = kDefaultOutputDestinationClip,
-                                            .clip = kDefaultOutputViewport,
-                                            .maxLuminance = kDefaultMaxLuminance,
-                                            .currentLuminanceNits = kDefaultMaxLuminance,
-                                            .outputDataspace = kDefaultOutputDataspace,
-                                            .colorTransform = kDefaultColorTransformMat,
-                                            .deviceHandlesColorTransform = true,
-                                            .orientation = kDefaultOutputOrientationFlags,
-                                            .targetLuminanceNits = kClientTargetLuminanceNits,
-                                            .dimmingStage = aidl::android::hardware::graphics::
-                                                    composer3::DimmingStage::GAMMA_OETF})
-            .execute()
-            .expectAFenceWasReturned();
-}
-
-TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComposition) {
-    verify().ifMixedCompositionIs(true)
-            .andIfUsesHdr(false)
-            .withDisplayBrightnessNits(kUnknownLuminance)
-            .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
-
+            .withRenderIntent(
+                    aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
@@ -3827,7 +3823,61 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComp
                      .orientation = kDefaultOutputOrientationFlags,
                      .targetLuminanceNits = kClientTargetLuminanceNits,
                      .dimmingStage =
-                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR})
+                             aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF,
+                     .renderIntent = aidl::android::hardware::graphics::composer3::RenderIntent::
+                             COLORIMETRIC})
+            .execute()
+            .expectAFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
+       forHdrMixedCompositionWithRenderIntent) {
+    verify().ifMixedCompositionIs(true)
+            .andIfUsesHdr(true)
+            .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
+            .withRenderIntent(aidl::android::hardware::graphics::composer3::RenderIntent::ENHANCE)
+            .andIfSkipColorTransform(false)
+            .thenExpectDisplaySettingsUsed(
+                    {.physicalDisplay = kDefaultOutputDestinationClip,
+                     .clip = kDefaultOutputViewport,
+                     .maxLuminance = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .outputDataspace = kDefaultOutputDataspace,
+                     .colorTransform = kDefaultColorTransformMat,
+                     .deviceHandlesColorTransform = true,
+                     .orientation = kDefaultOutputOrientationFlags,
+                     .targetLuminanceNits = kClientTargetLuminanceNits,
+                     .dimmingStage =
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR,
+                     .renderIntent =
+                             aidl::android::hardware::graphics::composer3::RenderIntent::ENHANCE})
+            .execute()
+            .expectAFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComposition) {
+    verify().ifMixedCompositionIs(true)
+            .andIfUsesHdr(false)
+            .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
+            .withRenderIntent(
+                    aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
+            .andIfSkipColorTransform(false)
+            .thenExpectDisplaySettingsUsed(
+                    {.physicalDisplay = kDefaultOutputDestinationClip,
+                     .clip = kDefaultOutputViewport,
+                     .maxLuminance = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .outputDataspace = kDefaultOutputDataspace,
+                     .colorTransform = kDefaultColorTransformMat,
+                     .deviceHandlesColorTransform = true,
+                     .orientation = kDefaultOutputOrientationFlags,
+                     .targetLuminanceNits = kClientTargetLuminanceNits,
+                     .dimmingStage =
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR,
+                     .renderIntent = aidl::android::hardware::graphics::composer3::RenderIntent::
+                             COLORIMETRIC})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3837,7 +3887,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientCo
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kUnknownLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
-
+            .withRenderIntent(
+                    aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
@@ -3850,7 +3901,9 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientCo
                      .orientation = kDefaultOutputOrientationFlags,
                      .targetLuminanceNits = kClientTargetLuminanceNits,
                      .dimmingStage =
-                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR})
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR,
+                     .renderIntent = aidl::android::hardware::graphics::composer3::RenderIntent::
+                             COLORIMETRIC})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3860,7 +3913,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClien
             .andIfUsesHdr(false)
             .withDisplayBrightnessNits(kUnknownLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
-
+            .withRenderIntent(
+                    aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
@@ -3873,7 +3927,9 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClien
                      .orientation = kDefaultOutputOrientationFlags,
                      .targetLuminanceNits = kClientTargetLuminanceNits,
                      .dimmingStage =
-                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR})
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR,
+                     .renderIntent = aidl::android::hardware::graphics::composer3::RenderIntent::
+                             COLORIMETRIC})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3884,7 +3940,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kUnknownLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
-
+            .withRenderIntent(
+                    aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(true)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
@@ -3897,7 +3954,9 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
                      .orientation = kDefaultOutputOrientationFlags,
                      .targetLuminanceNits = kClientTargetLuminanceNits,
                      .dimmingStage =
-                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR})
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR,
+                     .renderIntent = aidl::android::hardware::graphics::composer3::RenderIntent::
+                             COLORIMETRIC})
             .execute()
             .expectAFenceWasReturned();
 }

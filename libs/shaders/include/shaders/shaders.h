@@ -97,11 +97,10 @@ struct LinearEffectHasher {
 std::string buildLinearEffectSkSL(const LinearEffect& linearEffect);
 
 // Generates a list of uniforms to set on the LinearEffect shader above.
-std::vector<tonemap::ShaderUniform> buildLinearEffectUniforms(const LinearEffect& linearEffect,
-                                                              const mat4& colorTransform,
-                                                              float maxDisplayLuminance,
-                                                              float currentDisplayLuminanceNits,
-                                                              float maxLuminance,
-                                                              AHardwareBuffer* buffer = nullptr);
+std::vector<tonemap::ShaderUniform> buildLinearEffectUniforms(
+        const LinearEffect& linearEffect, const mat4& colorTransform, float maxDisplayLuminance,
+        float currentDisplayLuminanceNits, float maxLuminance, AHardwareBuffer* buffer = nullptr,
+        aidl::android::hardware::graphics::composer3::RenderIntent renderIntent =
+                aidl::android::hardware::graphics::composer3::RenderIntent::TONE_MAP_COLORIMETRIC);
 
 } // namespace android::shaders
