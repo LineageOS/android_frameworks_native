@@ -20,6 +20,7 @@
 #include <android-base/result.h>
 #include <android-base/unique_fd.h>
 #include <log/log.h>
+#include <utils/Errors.h>
 
 #define TEST_AND_RETURN(value, expr)            \
     do {                                        \
@@ -35,5 +36,7 @@ namespace android {
 void zeroMemory(uint8_t* data, size_t size);
 
 android::base::Result<void> setNonBlocking(android::base::borrowed_fd fd);
+
+status_t getRandomBytes(uint8_t* data, size_t size);
 
 }   // namespace android
