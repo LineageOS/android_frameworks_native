@@ -40,12 +40,11 @@ sk_sp<SkRuntimeEffect> buildRuntimeEffect(const shaders::LinearEffect& linearEff
     return shader;
 }
 
-sk_sp<SkShader> createLinearEffectShader(sk_sp<SkShader> shader,
-                                         const shaders::LinearEffect& linearEffect,
-                                         sk_sp<SkRuntimeEffect> runtimeEffect,
-                                         const mat4& colorTransform, float maxDisplayLuminance,
-                                         float currentDisplayLuminanceNits, float maxLuminance,
-                                         AHardwareBuffer* buffer) {
+sk_sp<SkShader> createLinearEffectShader(
+        sk_sp<SkShader> shader, const shaders::LinearEffect& linearEffect,
+        sk_sp<SkRuntimeEffect> runtimeEffect, const mat4& colorTransform, float maxDisplayLuminance,
+        float currentDisplayLuminanceNits, float maxLuminance, AHardwareBuffer* buffer,
+        aidl::android::hardware::graphics::composer3::RenderIntent renderIntent) {
     ATRACE_CALL();
     SkRuntimeShaderBuilder effectBuilder(runtimeEffect);
 
@@ -53,7 +52,8 @@ sk_sp<SkShader> createLinearEffectShader(sk_sp<SkShader> shader,
 
     const auto uniforms =
             shaders::buildLinearEffectUniforms(linearEffect, colorTransform, maxDisplayLuminance,
-                                               currentDisplayLuminanceNits, maxLuminance, buffer);
+                                               currentDisplayLuminanceNits, maxLuminance, buffer,
+                                               renderIntent);
 
     for (const auto& uniform : uniforms) {
         effectBuilder.uniform(uniform.name.c_str()).set(uniform.value.data(), uniform.value.size());

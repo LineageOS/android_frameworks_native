@@ -148,6 +148,7 @@
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
+#include <aidl/android/hardware/graphics/composer3/RenderIntent.h>
 
 #undef NO_THREAD_SAFETY_ANALYSIS
 #define NO_THREAD_SAFETY_ANALYSIS \
@@ -6689,6 +6690,7 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
     captureResults.buffer = buffer->getBuffer();
     auto dataspace = renderArea.getReqDataSpace();
     auto parent = renderArea.getParentLayer();
+    auto renderIntent = RenderIntent::TONE_MAP_COLORIMETRIC;
     if ((dataspace == ui::Dataspace::UNKNOWN) && (parent != nullptr)) {
         Mutex::Autolock lock(mStateLock);
         auto display = findDisplay([layerStack = parent->getLayerStack()](const auto& display) {
@@ -6701,6 +6703,7 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
 
         const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
         dataspace = pickDataspaceFromColorMode(colorMode);
+        renderIntent = display->getCompositionDisplay()->getState().renderIntent;
     }
     captureResults.capturedDataspace = dataspace;
 
@@ -6722,6 +6725,8 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
 
     clientCompositionDisplay.outputDataspace = dataspace;
     clientCompositionDisplay.maxLuminance = DisplayDevice::sDefaultMaxLumiance;
+    clientCompositionDisplay.renderIntent =
+            static_cast<aidl::android::hardware::graphics::composer3::RenderIntent>(renderIntent);
 
     const float colorSaturation = grayscale ? 0 : 1;
     clientCompositionDisplay.colorTransform = calculateColorMatrix(colorSaturation);
