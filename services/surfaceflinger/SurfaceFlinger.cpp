@@ -2336,7 +2336,12 @@ void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
 }
 
 bool SurfaceFlinger::isHdrLayer(Layer* layer) const {
-    if (!isHdrDataspace(layer->getDataSpace())) {
+    // Treat all layers as non-HDR if:
+    // 1. They do not have a valid HDR dataspace. Currently we treat those as PQ or HLG. and
+    // 2. The layer is allowed to be dimmed. WindowManager may disable dimming in order to
+    // keep animations invoking SDR screenshots of HDR layers seamless. Treat such tagged
+    // layers as HDR so that DisplayManagerService does not try to change the screen brightness
+    if (!isHdrDataspace(layer->getDataSpace()) && layer->isDimmingEnabled()) {
         return false;
     }
     if (mIgnoreHdrCameraLayers) {
