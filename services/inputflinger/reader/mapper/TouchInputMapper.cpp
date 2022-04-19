@@ -42,6 +42,8 @@ static constexpr nsecs_t TOUCH_DATA_TIMEOUT = ms2ns(20);
 // data.
 static constexpr nsecs_t STYLUS_DATA_LATENCY = ms2ns(10);
 
+// Minimum width between two pointers to determine a gesture as freeform gesture in mm
+static const float MIN_FREEFORM_GESTURE_WIDTH_IN_MILLIMETER = 30;
 // --- Static Definitions ---
 
 template <typename T>
@@ -936,6 +938,11 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
     // Raw width and height in the natural orientation.
     const int32_t rawWidth = mRawPointerAxes.getRawWidth();
     const int32_t rawHeight = mRawPointerAxes.getRawHeight();
+    const int32_t rawXResolution = mRawPointerAxes.x.resolution;
+    const int32_t rawYResolution = mRawPointerAxes.y.resolution;
+    // Calculate the mean resolution when both x and y resolution are set, otherwise set it to 0.
+    const float rawMeanResolution =
+            (rawXResolution > 0 && rawYResolution > 0) ? (rawXResolution + rawYResolution) / 2 : 0;
 
     const bool viewportChanged = mViewport != *newViewport;
     bool skipViewportUpdate = false;
@@ -1094,10 +1101,14 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
                     mConfig.pointerGestureZoomSpeedRatio * displayDiagonal / rawDiagonal;
             mPointerYZoomScale = mPointerXZoomScale;
 
-            // Max width between pointers to detect a swipe gesture is more than some fraction
-            // of the diagonal axis of the touch pad.  Touches that are wider than this are
-            // translated into freeform gestures.
-            mPointerGestureMaxSwipeWidth = mConfig.pointerGestureSwipeMaxWidthRatio * rawDiagonal;
+            // Calculate the min freeform gesture width. It will be 0 when the resolution of any
+            // axis is non positive value.
+            const float minFreeformGestureWidth =
+                    rawMeanResolution * MIN_FREEFORM_GESTURE_WIDTH_IN_MILLIMETER;
+
+            mPointerGestureMaxSwipeWidth =
+                    std::max(mConfig.pointerGestureSwipeMaxWidthRatio * rawDiagonal,
+                             minFreeformGestureWidth);
 
             // Abort current pointer usages because the state has changed.
             const nsecs_t readTime = when; // synthetic event
