@@ -82,6 +82,14 @@
       ]
     },
     {
+      "name": "CtsAppTestCases",
+      "options": [
+        {
+          "include-filter": "android.app.cts.ToolbarActionBarTest"
+        }
+      ]
+    },
+    {
       "name": "FrameworksServicesTests",
       "options": [
         {
@@ -181,6 +189,14 @@
         {
           "include-filter": "android.view.VerifiedKeyEventTest",
           "include-filter": "android.view.VerifiedMotionEventTest"
+        }
+      ]
+    },
+    {
+      "name": "CtsAppTestCases",
+      "options": [
+        {
+          "include-filter": "android.app.cts.ToolbarActionBarTest"
         }
       ]
     },
