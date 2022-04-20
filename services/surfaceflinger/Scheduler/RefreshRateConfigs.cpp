@@ -133,9 +133,9 @@ bool canModesSupportFrameRateOverride(const std::vector<DisplayModeIterator>& so
 } // namespace
 
 std::string RefreshRateConfigs::Policy::toString() const {
-    return base::StringPrintf("default mode ID: %d, allowGroupSwitching = %d"
-                              ", primary range: %s, app request range: %s",
-                              defaultMode.value(), allowGroupSwitching,
+    return base::StringPrintf("{defaultModeId=%d, allowGroupSwitching=%s"
+                              ", primaryRange=%s, appRequestRange=%s}",
+                              defaultMode.value(), allowGroupSwitching ? "true" : "false",
                               to_string(primaryRange).c_str(), to_string(appRequestRange).c_str());
 }
 
@@ -922,41 +922,46 @@ bool RefreshRateConfigs::isFractionalPairOrMultiple(Fps smaller, Fps bigger) {
 }
 
 void RefreshRateConfigs::dump(std::string& result) const {
+    using namespace std::string_literals;
+
     std::lock_guard lock(mLock);
-    base::StringAppendF(&result, "DesiredDisplayModeSpecs (DisplayManager): %s\n\n",
-                        mDisplayManagerPolicy.toString().c_str());
-    scheduler::RefreshRateConfigs::Policy currentPolicy = *getCurrentPolicyLocked();
-    if (mOverridePolicy && currentPolicy != mDisplayManagerPolicy) {
-        base::StringAppendF(&result, "DesiredDisplayModeSpecs (Override): %s\n\n",
-                            currentPolicy.toString().c_str());
-    }
 
-    base::StringAppendF(&result, "Active mode: %s\n", to_string(*mActiveModeIt->second).c_str());
+    const auto activeModeId = mActiveModeIt->first;
+    result += "   activeModeId="s;
+    result += std::to_string(activeModeId.value());
 
-    result.append("Display modes:\n");
+    result += "\n   displayModes=\n"s;
     for (const auto& [id, mode] : mDisplayModes) {
-        result.push_back('\t');
-        result.append(to_string(*mode));
-        result.push_back('\n');
+        result += "      "s;
+        result += to_string(*mode);
+        result += '\n';
     }
 
-    base::StringAppendF(&result, "Supports Frame Rate Override By Content: %s\n",
-                        mSupportsFrameRateOverrideByContent ? "yes" : "no");
+    base::StringAppendF(&result, "   displayManagerPolicy=%s\n",
+                        mDisplayManagerPolicy.toString().c_str());
 
-    result.append("Idle timer: ");
-    if (const auto controller = mConfig.kernelIdleTimerController) {
-        base::StringAppendF(&result, "(kernel via %s) ", ftl::enum_string(*controller).c_str());
-    } else {
-        result.append("(platform) ");
+    if (const Policy& currentPolicy = *getCurrentPolicyLocked();
+        mOverridePolicy && currentPolicy != mDisplayManagerPolicy) {
+        base::StringAppendF(&result, "   overridePolicy=%s\n", currentPolicy.toString().c_str());
     }
 
+    base::StringAppendF(&result, "   supportsFrameRateOverrideByContent=%s\n",
+                        mSupportsFrameRateOverrideByContent ? "true" : "false");
+
+    result += "   idleTimer="s;
     if (mIdleTimer) {
-        result.append(mIdleTimer->dump());
+        result += mIdleTimer->dump();
     } else {
-        result.append("off");
+        result += "off"s;
     }
 
-    result.append("\n\n");
+    if (const auto controller = mConfig.kernelIdleTimerController) {
+        base::StringAppendF(&result, " (kernel via %s)", ftl::enum_string(*controller).c_str());
+    } else {
+        result += " (platform)"s;
+    }
+
+    result += '\n';
 }
 
 std::chrono::milliseconds RefreshRateConfigs::getIdleTimerTimeout() {
