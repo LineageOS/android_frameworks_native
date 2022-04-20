@@ -120,15 +120,15 @@ private:
 
 } // namespace compositionengine
 
-inline std::string to_string(const android::compositionengine::ProjectionSpace& space) {
-    return android::base::
-            StringPrintf("ProjectionSpace(bounds = %s, content = %s, orientation = %s)",
-                         to_string(space.getBoundsAsRect()).c_str(),
-                         to_string(space.getContent()).c_str(), toCString(space.getOrientation()));
+inline std::string to_string(const compositionengine::ProjectionSpace& space) {
+    return base::StringPrintf("ProjectionSpace{bounds=%s, content=%s, orientation=%s}",
+                              to_string(space.getBoundsAsRect()).c_str(),
+                              to_string(space.getContent()).c_str(),
+                              toCString(space.getOrientation()));
 }
 
 // Defining PrintTo helps with Google Tests.
-inline void PrintTo(const android::compositionengine::ProjectionSpace& space, ::std::ostream* os) {
+inline void PrintTo(const compositionengine::ProjectionSpace& space, std::ostream* os) {
     *os << to_string(space);
 }
 
