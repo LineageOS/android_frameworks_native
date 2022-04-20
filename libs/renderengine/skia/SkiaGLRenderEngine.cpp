@@ -662,7 +662,7 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
                                         parameters.display.maxLuminance,
                                         parameters.display.currentLuminanceNits,
                                         parameters.layer.source.buffer.maxLuminanceNits,
-                                        hardwareBuffer);
+                                        hardwareBuffer, parameters.display.renderIntent);
     }
     return parameters.shader;
 }
