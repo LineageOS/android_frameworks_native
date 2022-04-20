@@ -24,7 +24,6 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <android-base/stringprintf.h>
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/DisplayColorProfile.h>
@@ -48,8 +47,6 @@
 namespace android {
 
 namespace hal = hardware::graphics::composer::hal;
-
-using android::base::StringAppendF;
 
 ui::Transform::RotationFlags DisplayDevice::sPrimaryDisplayRotationFlags = ui::Transform::ROT_0;
 
@@ -342,38 +339,40 @@ ui::Transform::RotationFlags DisplayDevice::getPrimaryDisplayRotationFlags() {
 }
 
 std::string DisplayDevice::getDebugName() const {
-    const char* type = "virtual";
+    using namespace std::string_literals;
+
+    std::string name = "Display "s + to_string(getId()) + " ("s;
+
     if (mConnectionType) {
-        type = isInternal() ? "internal" : "external";
+        name += isInternal() ? "internal"s : "external"s;
+    } else {
+        name += "virtual"s;
     }
 
-    return base::StringPrintf("DisplayDevice{%s, %s%s, \"%s\"}", to_string(getId()).c_str(), type,
-                              isPrimary() ? ", primary" : "", mDisplayName.c_str());
+    if (isPrimary()) {
+        name += ", primary"s;
+    }
+
+    return name + ", \""s + mDisplayName + "\")"s;
 }
 
 void DisplayDevice::dump(std::string& result) const {
-    StringAppendF(&result, "+ %s\n", getDebugName().c_str());
-    StringAppendF(&result, "   powerMode=%s (%d)\n", to_string(mPowerMode).c_str(),
-                  static_cast<int32_t>(mPowerMode));
-    const auto activeMode = getActiveMode();
-    StringAppendF(&result, "   activeMode=%s\n",
-                  activeMode ? to_string(*activeMode).c_str() : "none");
+    using namespace std::string_literals;
 
-    result.append("   supportedModes=\n");
-    for (const auto& [id, mode] : mSupportedModes) {
-        result.append("      ");
-        result.append(to_string(*mode));
-        result.push_back('\n');
+    result += getDebugName();
+
+    if (!isVirtual()) {
+        result += "\n   deviceProductInfo="s;
+        if (mDeviceProductInfo) {
+            mDeviceProductInfo->dump(result);
+        } else {
+            result += "{}"s;
+        }
     }
 
-    StringAppendF(&result, "   deviceProductInfo=");
-    if (mDeviceProductInfo) {
-        mDeviceProductInfo->dump(result);
-    } else {
-        result.append("{}");
-    }
-    result.append("\n");
-    getCompositionDisplay()->dump(result);
+    result += "\n   powerMode="s;
+    result += to_string(mPowerMode);
+    result += '\n';
 
     if (mRefreshRateConfigs) {
         mRefreshRateConfigs->dump(result);
