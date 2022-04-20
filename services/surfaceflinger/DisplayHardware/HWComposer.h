@@ -454,8 +454,6 @@ private:
         std::mutex vsyncEnabledLock;
         hal::Vsync vsyncEnabled GUARDED_BY(vsyncEnabledLock) = hal::Vsync::DISABLE;
 
-        hal::PowerMode powerMode = hal::PowerMode::ON;
-
         nsecs_t lastHwVsync = 0;
     };
 
