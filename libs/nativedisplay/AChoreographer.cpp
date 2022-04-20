@@ -18,8 +18,8 @@
 //#define LOG_NDEBUG 0
 
 #include <android-base/thread_annotations.h>
+#include <android/gui/ISurfaceComposer.h>
 #include <gui/DisplayEventDispatcher.h>
-#include <gui/ISurfaceComposer.h>
 #include <jni.h>
 #include <private/android/choreographer.h>
 #include <utils/Looper.h>
@@ -198,7 +198,7 @@ Choreographer* Choreographer::getForThread() {
 }
 
 Choreographer::Choreographer(const sp<Looper>& looper)
-      : DisplayEventDispatcher(looper, ISurfaceComposer::VsyncSource::eVsyncSourceApp),
+      : DisplayEventDispatcher(looper, gui::ISurfaceComposer::VsyncSource::eVsyncSourceApp),
         mLooper(looper),
         mThreadId(std::this_thread::get_id()) {
     std::lock_guard<std::mutex> _l(gChoreographers.lock);

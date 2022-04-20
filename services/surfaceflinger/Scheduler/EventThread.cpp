@@ -157,9 +157,9 @@ DisplayEventReceiver::Event makeFrameRateOverrideFlushEvent(PhysicalDisplayId di
 
 } // namespace
 
-EventThreadConnection::EventThreadConnection(
-        EventThread* eventThread, uid_t callingUid, ResyncCallback resyncCallback,
-        ISurfaceComposer::EventRegistrationFlags eventRegistration)
+EventThreadConnection::EventThreadConnection(EventThread* eventThread, uid_t callingUid,
+                                             ResyncCallback resyncCallback,
+                                             EventRegistrationFlags eventRegistration)
       : resyncCallback(std::move(resyncCallback)),
         mOwnerUid(callingUid),
         mEventRegistration(eventRegistration),
@@ -283,8 +283,7 @@ void EventThread::setDuration(std::chrono::nanoseconds workDuration,
 }
 
 sp<EventThreadConnection> EventThread::createEventConnection(
-        ResyncCallback resyncCallback,
-        ISurfaceComposer::EventRegistrationFlags eventRegistration) const {
+        ResyncCallback resyncCallback, EventRegistrationFlags eventRegistration) const {
     return new EventThreadConnection(const_cast<EventThread*>(this),
                                      IPCThreadState::self()->getCallingUid(),
                                      std::move(resyncCallback), eventRegistration);
@@ -548,7 +547,7 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
 
         case DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE: {
             return connection->mEventRegistration.test(
-                    ISurfaceComposer::EventRegistration::modeChanged);
+                    gui::ISurfaceComposer::EventRegistration::modeChanged);
         }
 
         case DisplayEventReceiver::DISPLAY_EVENT_VSYNC:
@@ -581,7 +580,7 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
             [[fallthrough]];
         case DisplayEventReceiver::DISPLAY_EVENT_FRAME_RATE_OVERRIDE_FLUSH:
             return connection->mEventRegistration.test(
-                    ISurfaceComposer::EventRegistration::frameRateOverride);
+                    gui::ISurfaceComposer::EventRegistration::frameRateOverride);
 
         default:
             return false;

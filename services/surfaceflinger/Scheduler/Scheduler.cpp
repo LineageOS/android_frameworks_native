@@ -208,12 +208,12 @@ ConnectionHandle Scheduler::createConnection(std::unique_ptr<EventThread> eventT
 }
 
 sp<EventThreadConnection> Scheduler::createConnectionInternal(
-        EventThread* eventThread, ISurfaceComposer::EventRegistrationFlags eventRegistration) {
+        EventThread* eventThread, EventRegistrationFlags eventRegistration) {
     return eventThread->createEventConnection([&] { resync(); }, eventRegistration);
 }
 
 sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
-        ConnectionHandle handle, ISurfaceComposer::EventRegistrationFlags eventRegistration) {
+        ConnectionHandle handle, EventRegistrationFlags eventRegistration) {
     std::lock_guard<std::mutex> lock(mConnectionsLock);
     RETURN_IF_INVALID_HANDLE(handle, nullptr);
     return createConnectionInternal(mConnections[handle].thread.get(), eventRegistration);

@@ -517,6 +517,8 @@ private:
     // Maximum allowed number of display frames that can be set through backdoor
     static const int MAX_ALLOWED_DISPLAY_FRAMES = 2048;
 
+    static const size_t MAX_LAYERS = 4096;
+
     // Implements IBinder.
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) override;
     status_t dump(int fd, const Vector<String16>& args) override { return priorityDump(fd, args); }
@@ -542,11 +544,12 @@ private:
                                  const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
                                  const std::vector<ListenerCallbacks>& listenerCallbacks,
                                  uint64_t transactionId) override;
-    void bootFinished() override;
+    void bootFinished();
     virtual status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const;
     sp<IDisplayEventConnection> createDisplayEventConnection(
-            ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp,
-            ISurfaceComposer::EventRegistrationFlags eventRegistration = {}) override;
+            gui::ISurfaceComposer::VsyncSource vsyncSource =
+                    gui::ISurfaceComposer::VsyncSource::eVsyncSourceApp,
+            EventRegistrationFlags eventRegistration = {});
 
     status_t captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&);
     status_t captureDisplay(DisplayId, const sp<IScreenCaptureListener>&);
@@ -1164,7 +1167,7 @@ private:
     float mGlobalSaturationFactor = 1.0f;
     mat4 mClientColorMatrix;
 
-    size_t mMaxGraphicBufferProducerListSize = ISurfaceComposer::MAX_LAYERS;
+    size_t mMaxGraphicBufferProducerListSize = MAX_LAYERS;
     // If there are more GraphicBufferProducers tracked by SurfaceFlinger than
     // this threshold, then begin logging.
     size_t mGraphicBufferProducerListSizeLogThreshold =
@@ -1437,6 +1440,10 @@ class SurfaceComposerAIDL : public gui::BnSurfaceComposer {
 public:
     SurfaceComposerAIDL(sp<SurfaceFlinger> sf) : mFlinger(std::move(sf)) {}
 
+    binder::Status bootFinished() override;
+    binder::Status createDisplayEventConnection(
+            VsyncSource vsyncSource, EventRegistration eventRegistration,
+            sp<gui::IDisplayEventConnection>* outConnection) override;
     binder::Status createConnection(sp<gui::ISurfaceComposerClient>* outClient) override;
     binder::Status createDisplay(const std::string& displayName, bool secure,
                                  sp<IBinder>* outDisplay) override;
