@@ -117,8 +117,8 @@ fn on_transact(
 ) -> Result<(), StatusCode> {
     match code {
         bindings::Transaction_TEST_BOOL => {
-            assert_eq!(parcel.read::<bool>()?, true);
-            assert_eq!(parcel.read::<bool>()?, false);
+            assert!(parcel.read::<bool>()?);
+            assert!(!parcel.read::<bool>()?);
             assert_eq!(parcel.read::<Vec<bool>>()?, unsafe {
                 bindings::TESTDATA_BOOL
             });
