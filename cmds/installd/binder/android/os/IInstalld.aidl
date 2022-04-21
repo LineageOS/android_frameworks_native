@@ -77,7 +77,7 @@ interface IInstalld {
 
     int mergeProfiles(int uid, @utf8InCpp String packageName, @utf8InCpp String profileName);
     boolean dumpProfiles(int uid, @utf8InCpp String packageName, @utf8InCpp String  profileName,
-            @utf8InCpp String codePath);
+            @utf8InCpp String codePath, boolean dumpClassesAndMethods);
     boolean copySystemProfile(@utf8InCpp String systemProfile, int uid,
             @utf8InCpp String packageName, @utf8InCpp String profileName);
     void clearAppProfiles(@utf8InCpp String packageName, @utf8InCpp String profileName);
