@@ -155,6 +155,8 @@ struct OutputCompositionState {
         SUCCESS = 1,
         // Composition strategy prediction failed for this frame.
         FAIL = 2,
+
+        ftl_last = FAIL
     };
 
     CompositionStrategyPredictionState strategyPrediction =
