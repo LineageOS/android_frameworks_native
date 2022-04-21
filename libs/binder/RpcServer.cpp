@@ -135,7 +135,7 @@ void RpcServer::setRootObjectWeak(const wp<IBinder>& binder) {
     mRootObjectWeak = binder;
 }
 void RpcServer::setPerSessionRootObject(
-        std::function<sp<IBinder>(const sockaddr*, socklen_t)>&& makeObject) {
+        std::function<sp<IBinder>(const void*, size_t)>&& makeObject) {
     std::lock_guard<std::mutex> _l(mLock);
     mRootObject.clear();
     mRootObjectWeak.clear();
@@ -178,14 +178,16 @@ void RpcServer::join() {
 
     status_t status;
     while ((status = mShutdownTrigger->triggerablePoll(mServer, POLLIN)) == OK) {
-        sockaddr_storage addr;
-        socklen_t addrLen = sizeof(addr);
+        std::array<uint8_t, kRpcAddressSize> addr;
+        static_assert(addr.size() >= sizeof(sockaddr_storage), "kRpcAddressSize is too small");
 
+        socklen_t addrLen = addr.size();
         unique_fd clientFd(
-                TEMP_FAILURE_RETRY(accept4(mServer.get(), reinterpret_cast<sockaddr*>(&addr),
+                TEMP_FAILURE_RETRY(accept4(mServer.get(), reinterpret_cast<sockaddr*>(addr.data()),
                                            &addrLen, SOCK_CLOEXEC | SOCK_NONBLOCK)));
 
-        LOG_ALWAYS_FATAL_IF(addrLen > static_cast<socklen_t>(sizeof(addr)), "Truncated address");
+        LOG_ALWAYS_FATAL_IF(addrLen > static_cast<socklen_t>(sizeof(sockaddr_storage)),
+                            "Truncated address");
 
         if (clientFd < 0) {
             ALOGE("Could not accept4 socket: %s", strerror(errno));
@@ -268,7 +270,7 @@ size_t RpcServer::numUninitializedSessions() {
 }
 
 void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clientFd,
-                                    const sockaddr_storage addr, socklen_t addrLen) {
+                                    std::array<uint8_t, kRpcAddressSize> addr, size_t addrLen) {
     // mShutdownTrigger can only be cleared once connection threads have joined.
     // It must be set before this thread is started
     LOG_ALWAYS_FATAL_IF(server->mShutdownTrigger == nullptr);
@@ -397,9 +399,7 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
             // if null, falls back to server root
             sp<IBinder> sessionSpecificRoot;
             if (server->mRootObjectFactory != nullptr) {
-                sessionSpecificRoot =
-                        server->mRootObjectFactory(reinterpret_cast<const sockaddr*>(&addr),
-                                                   addrLen);
+                sessionSpecificRoot = server->mRootObjectFactory(addr.data(), addrLen);
                 if (sessionSpecificRoot == nullptr) {
                     ALOGE("Warning: server returned null from root object factory");
                 }
