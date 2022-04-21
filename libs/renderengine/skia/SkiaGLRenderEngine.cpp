@@ -1190,11 +1190,15 @@ void SkiaGLRenderEngine::drawLayersInternal(
                 static constexpr float kInverseGamma22 = 1.f / 2.2f;
                 const auto gammaCorrectedDimmingRatio =
                         std::pow(layerDimmingRatio, kInverseGamma22);
-                const auto dimmingMatrix =
+                auto dimmingMatrix =
                         mat4::scale(vec4(gammaCorrectedDimmingRatio, gammaCorrectedDimmingRatio,
                                          gammaCorrectedDimmingRatio, 1.f));
-                paint.setColorFilter(SkColorFilters::Matrix(
-                        toSkColorMatrix(display.colorTransform * dimmingMatrix)));
+
+                const auto colorFilter =
+                        SkColorFilters::Matrix(toSkColorMatrix(std::move(dimmingMatrix)));
+                paint.setColorFilter(displayColorTransform
+                                             ? displayColorTransform->makeComposed(colorFilter)
+                                             : colorFilter);
             } else {
                 paint.setColorFilter(displayColorTransform);
             }
