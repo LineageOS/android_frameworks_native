@@ -131,15 +131,11 @@ void Display::setColorProfile(const ColorProfile& colorProfile) {
 }
 
 void Display::dump(std::string& out) const {
-    using android::base::StringAppendF;
+    const char* const type = isVirtual() ? "virtual" : "physical";
+    base::StringAppendF(&out, "Display %s (%s, \"%s\")", to_string(mId).c_str(), type,
+                        getName().c_str());
 
-    StringAppendF(&out, "   Composition Display State: [\"%s\"]", getName().c_str());
-
-    out.append("\n   ");
-    dumpVal(out, "isVirtual", isVirtual());
-    dumpVal(out, "DisplayId", to_string(mId));
-    out.append("\n");
-
+    out.append("\n   Composition Display State:\n");
     Output::dumpBase(out);
 }
 

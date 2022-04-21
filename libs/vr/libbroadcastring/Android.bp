@@ -9,7 +9,7 @@ package {
 
 cc_library_static {
     name: "libbroadcastring",
-    clang: true,
+
     cflags: [
         "-Wall",
         "-Wextra",
