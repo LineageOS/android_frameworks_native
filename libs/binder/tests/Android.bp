@@ -319,7 +319,6 @@ cc_test {
         "libbinder",
         "libutils",
     ],
-    clang: true,
     cflags: [
         "-g",
         "-Wno-missing-field-initializers",
