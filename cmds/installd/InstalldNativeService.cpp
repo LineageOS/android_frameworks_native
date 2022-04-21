@@ -2976,13 +2976,15 @@ binder::Status InstalldNativeService::setAppQuota(const std::optional<std::strin
 // Dumps the contents of a profile file, using pkgname's dex files for pretty
 // printing the result.
 binder::Status InstalldNativeService::dumpProfiles(int32_t uid, const std::string& packageName,
-        const std::string& profileName, const std::string& codePath, bool* _aidl_return) {
+                                                   const std::string& profileName,
+                                                   const std::string& codePath,
+                                                   bool dumpClassesAndMethods, bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     CHECK_ARGUMENT_PATH(codePath);
     LOCK_PACKAGE();
 
-    *_aidl_return = dump_profiles(uid, packageName, profileName, codePath);
+    *_aidl_return = dump_profiles(uid, packageName, profileName, codePath, dumpClassesAndMethods);
     return ok();
 }
 

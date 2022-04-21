@@ -134,7 +134,8 @@ public:
     binder::Status mergeProfiles(int32_t uid, const std::string& packageName,
             const std::string& profileName, int* _aidl_return);
     binder::Status dumpProfiles(int32_t uid, const std::string& packageName,
-            const std::string& profileName, const std::string& codePath, bool* _aidl_return);
+                                const std::string& profileName, const std::string& codePath,
+                                bool dumpClassesAndMethods, bool* _aidl_return);
     binder::Status copySystemProfile(const std::string& systemProfile,
             int32_t uid, const std::string& packageName, const std::string& profileName,
             bool* _aidl_return);
