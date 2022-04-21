@@ -89,7 +89,6 @@ void dumpVal(std::string& out, const char* name, const Region& region) {
 
 void dumpVal(std::string& out, const char* name, const ui::Transform& transform) {
     transform.dump(out, name);
-    out.append(" ");
 }
 
 void dumpVal(std::string& out, const char* name, const mat4& tr) {
@@ -99,7 +98,7 @@ void dumpVal(std::string& out, const char* name, const mat4& tr) {
                   "[%0.3f,%0.3f,%0.3f,%0.3f]"
                   "[%0.3f,%0.3f,%0.3f,%0.3f]"
                   "[%0.3f,%0.3f,%0.3f,%0.3f]"
-                  "[%0.3f,%0.3f,%0.3f,%0.3f]]",
+                  "[%0.3f,%0.3f,%0.3f,%0.3f]] ",
                   name,
                   tr[0][0], tr[1][0], tr[2][0], tr[3][0],
                   tr[0][1], tr[1][1], tr[2][1], tr[3][1],
@@ -109,9 +108,9 @@ void dumpVal(std::string& out, const char* name, const mat4& tr) {
 }
 
 void dumpVal(std::string& out, const char* name, const StretchEffect& effect) {
-    StringAppendF(&out, "%s={ width =%f, height = %f, vec=(%f, %f), max=(%f, %f) } ", name,
-                  effect.width, effect.height,
-                  effect.vectorX, effect.vectorY, effect.maxAmountX, effect.maxAmountY);
+    StringAppendF(&out, "%s={width=%f, height=%f, vec=(%f, %f), max=(%f, %f)} ", name, effect.width,
+                  effect.height, effect.vectorX, effect.vectorY, effect.maxAmountX,
+                  effect.maxAmountY);
 }
 
 } // namespace android::compositionengine::impl
