@@ -180,6 +180,7 @@ private:
 
     private:
         int mShadersCachedSinceLastCall = 0;
+        int mTotalShadersCompiled = 0;
     };
 
     SkSLCacheMonitor mSkSLCacheMonitor;
