@@ -88,10 +88,8 @@ bool create_profile_snapshot(int32_t app_id,
                              const std::string& profile_name,
                              const std::string& classpath);
 
-bool dump_profiles(int32_t uid,
-                   const std::string& pkgname,
-                   const std::string& profile_name,
-                   const std::string& code_path);
+bool dump_profiles(int32_t uid, const std::string& pkgname, const std::string& profile_name,
+                   const std::string& code_path, bool dump_classes_and_methods);
 
 bool copy_system_profile(const std::string& system_profile,
                          uid_t packageUid,

@@ -624,12 +624,15 @@ class RunProfman : public ExecVHelper {
                   /*for_boot_image*/false);
     }
 
-    void SetupDump(const std::vector<unique_fd>& profiles_fd,
-                   const unique_fd& reference_profile_fd,
+    void SetupDump(const std::vector<unique_fd>& profiles_fd, const unique_fd& reference_profile_fd,
                    const std::vector<std::string>& dex_locations,
-                   const std::vector<unique_fd>& apk_fds,
+                   const std::vector<unique_fd>& apk_fds, bool dump_classes_and_methods,
                    const unique_fd& output_fd) {
-        AddArg("--dump-only");
+        if (dump_classes_and_methods) {
+            AddArg("--dump-classes-and-methods");
+        } else {
+            AddArg("--dump-only");
+        }
         AddArg(StringPrintf("--dump-output-to-fd=%d", output_fd.get()));
         SetupArgs(profiles_fd,
                   reference_profile_fd,
@@ -772,7 +775,7 @@ int analyze_primary_profiles(uid_t uid, const std::string& package_name,
 }
 
 bool dump_profiles(int32_t uid, const std::string& pkgname, const std::string& profile_name,
-        const std::string& code_path) {
+                   const std::string& code_path, bool dump_classes_and_methods) {
     std::vector<unique_fd> profile_fds;
     unique_fd reference_profile_fd;
     std::string out_file_name = StringPrintf("/data/misc/profman/%s-%s.txt",
@@ -808,7 +811,8 @@ bool dump_profiles(int32_t uid, const std::string& pkgname, const std::string& p
 
 
     RunProfman profman_dump;
-    profman_dump.SetupDump(profile_fds, reference_profile_fd, dex_locations, apk_fds, output_fd);
+    profman_dump.SetupDump(profile_fds, reference_profile_fd, dex_locations, apk_fds,
+                           dump_classes_and_methods, output_fd);
     pid_t pid = fork();
     if (pid == 0) {
         /* child -- drop privileges before continuing */
