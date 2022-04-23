@@ -216,8 +216,13 @@ void* Loader::open(egl_connection_t* cnx)
         return cnx->dso;
     }
 
-    // Firstly, try to load ANGLE driver.
-    driver_t* hnd = attempt_to_load_angle(cnx);
+    // Firstly, try to load ANGLE driver, unless we know that we shouldn't.
+    bool forceLegacyDriver = android::GraphicsEnv::getInstance().forceLegacyDriver();
+    driver_t* hnd = nullptr;
+    if (!forceLegacyDriver) {
+        hnd = attempt_to_load_angle(cnx);
+    }
+
     if (!hnd) {
         // Secondly, try to load from driver apk.
         hnd = attempt_to_load_updated_driver(cnx);
@@ -230,21 +235,29 @@ void* Loader::open(egl_connection_t* cnx)
             LOG_ALWAYS_FATAL("couldn't find an OpenGL ES implementation from %s",
                              android::GraphicsEnv::getInstance().getDriverPath().c_str());
         }
-        // Finally, try to load system driver, start by searching for the library name appended by
-        // the system properties of the GLES userspace driver in both locations.
-        // i.e.:
-        //      libGLES_${prop}.so, or:
-        //      libEGL_${prop}.so, libGLESv1_CM_${prop}.so, libGLESv2_${prop}.so
-        for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
-            auto prop = base::GetProperty(key, "");
-            if (prop.empty()) {
-                continue;
-            }
-            hnd = attempt_to_load_system_driver(cnx, prop.c_str(), true);
-            if (hnd) {
-                break;
-            } else if (strcmp(key, DRIVER_SUFFIX_PROPERTY) == 0) {
-                failToLoadFromDriverSuffixProperty = true;
+        // Finally, try to load system driver.  If ANGLE is the system driver
+        // (i.e. we are forcing the legacy system driver instead of ANGLE), use
+        // the driver suffix that was passed down from above.
+        if (forceLegacyDriver) {
+            std::string suffix = android::GraphicsEnv::getInstance().getLegacySuffix();
+            hnd = attempt_to_load_system_driver(cnx, suffix.c_str(), true);
+        } else {
+            // Start by searching for the library name appended by the system
+            // properties of the GLES userspace driver in both locations.
+            // i.e.:
+            //      libGLES_${prop}.so, or:
+            //      libEGL_${prop}.so, libGLESv1_CM_${prop}.so, libGLESv2_${prop}.so
+            for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
+                auto prop = base::GetProperty(key, "");
+                if (prop.empty()) {
+                    continue;
+                }
+                hnd = attempt_to_load_system_driver(cnx, prop.c_str(), true);
+                if (hnd) {
+                    break;
+                } else if (strcmp(key, DRIVER_SUFFIX_PROPERTY) == 0) {
+                    failToLoadFromDriverSuffixProperty = true;
+                }
             }
         }
     }
