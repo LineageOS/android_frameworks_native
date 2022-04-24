@@ -16,6 +16,23 @@
       "message": "good on Darcy",
       "revId": "101d8a1f390bee3bcb12f697f1b3f554fadeb156",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "25f0fb28_dd1666c9",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 14048
+      },
+      "writtenOn": "2022-04-24T01:18:33Z",
+      "side": 1,
+      "message": "Verified on mdarcy, running Portal, Talos Principle, and Dolphin.",
+      "revId": "101d8a1f390bee3bcb12f697f1b3f554fadeb156",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
