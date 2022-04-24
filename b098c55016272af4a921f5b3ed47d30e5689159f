@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "cb69b9f2_e304f26c",
+        "filename": "opengl/libs/EGL/egl_display.cpp",
+        "patchSetId": 5
+      },
+      "lineNbr": 247,
+      "author": {
+        "id": 11883
+      },
+      "writtenOn": "2022-04-24T20:31:42Z",
+      "side": 1,
+      "message": "could you try simply removing the else {}\nkeep the code just force it to always run",
+      "revId": "b098c55016272af4a921f5b3ed47d30e5689159f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
