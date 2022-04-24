@@ -16,6 +16,23 @@
       "message": "Chain verified on mdarcy, running Portal, Talos Principle, and Dolphin.",
       "revId": "5c397d3fdfddcb98835125af35846f08858b141c",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "e55a6c0b_9f586545",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 16185
+      },
+      "writtenOn": "2022-04-24T01:14:59Z",
+      "side": 1,
+      "message": "good on Darcy",
+      "revId": "5c397d3fdfddcb98835125af35846f08858b141c",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
