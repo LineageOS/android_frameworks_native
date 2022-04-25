@@ -91,7 +91,7 @@ cc_library_static {
     ],
 
     aidl: {
-        export_aidl_headers: true
+        export_aidl_headers: true,
     },
 
     include_dirs: [
