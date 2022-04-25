@@ -431,9 +431,7 @@ public:
     virtual bool setApi(int32_t /*api*/) { return false; };
     virtual bool setSidebandStream(const sp<NativeHandle>& /*sidebandStream*/) { return false; };
     virtual bool setTransactionCompletedListeners(
-            const std::vector<sp<CallbackHandle>>& /*handles*/) {
-        return false;
-    };
+            const std::vector<sp<CallbackHandle>>& /*handles*/);
     virtual bool addFrameEvent(const sp<Fence>& /*acquireFence*/, nsecs_t /*postedTime*/,
                                nsecs_t /*requestedPresentTime*/) {
         return false;
