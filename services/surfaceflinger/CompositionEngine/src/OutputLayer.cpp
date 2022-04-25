@@ -322,6 +322,17 @@ void OutputLayer::updateCompositionState(
             ? outputState.targetDataspace
             : layerFEState->dataspace;
 
+    // Override the dataspace transfer from 170M to sRGB if the device configuration requests this.
+    // We do this here instead of in buffer info so that dumpsys can still report layers that are
+    // using the 170M transfer. Also we only do this if the colorspace is not agnostic for the
+    // layer, in case the color profile uses a 170M transfer function.
+    if (outputState.treat170mAsSrgb && !layerFEState->isColorspaceAgnostic &&
+        (state.dataspace & HAL_DATASPACE_TRANSFER_MASK) == HAL_DATASPACE_TRANSFER_SMPTE_170M) {
+        state.dataspace = static_cast<ui::Dataspace>(
+                (state.dataspace & HAL_DATASPACE_STANDARD_MASK) |
+                (state.dataspace & HAL_DATASPACE_RANGE_MASK) | HAL_DATASPACE_TRANSFER_SRGB);
+    }
+
     // For hdr content, treat the white point as the display brightness - HDR content should not be
     // boosted or dimmed.
     // If the layer explicitly requests to disable dimming, then don't dim either.

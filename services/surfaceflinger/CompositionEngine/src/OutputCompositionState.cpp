@@ -66,6 +66,9 @@ void OutputCompositionState::dump(std::string& out) const {
     out.append("\n   ");
     dumpVal(out, "compositionStrategyPredictionState", ftl::enum_string(strategyPrediction));
 
+    out.append("\n   ");
+    dumpVal(out, "treate170mAsSrgb", treat170mAsSrgb);
+
     out += '\n';
 }
 

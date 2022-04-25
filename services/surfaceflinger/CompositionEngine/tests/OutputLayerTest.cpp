@@ -657,6 +657,23 @@ TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceCorrectly
     EXPECT_EQ(ui::Dataspace::V0_SCRGB, mOutputLayer.getState().dataspace);
 }
 
+TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceWith170mReplacement) {
+    mLayerFEState.dataspace = ui::Dataspace::TRANSFER_SMPTE_170M;
+    mOutputState.targetDataspace = ui::Dataspace::V0_SCRGB;
+    mOutputState.treat170mAsSrgb = false;
+    mLayerFEState.isColorspaceAgnostic = false;
+
+    mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);
+
+    EXPECT_EQ(ui::Dataspace::TRANSFER_SMPTE_170M, mOutputLayer.getState().dataspace);
+
+    // Rewrite SMPTE 170M as sRGB
+    mOutputState.treat170mAsSrgb = true;
+    mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);
+
+    EXPECT_EQ(ui::Dataspace::TRANSFER_SRGB, mOutputLayer.getState().dataspace);
+}
+
 TEST_F(OutputLayerUpdateCompositionStateTest, setsWhitePointNitsAndDimmingRatioCorrectly) {
     mOutputState.sdrWhitePointNits = 200.f;
     mOutputState.displayBrightnessNits = 800.f;
