@@ -103,9 +103,6 @@ cc_library {
 
             sanitize: {
                 misc_undefined: ["integer"],
-                diag: {
-                    misc_undefined: ["integer"],
-                },
             },
         },
         host: {
