@@ -57,7 +57,6 @@ using android::gui::FocusRequest;
 using android::gui::TouchOcclusionMode;
 using android::gui::WindowInfo;
 using android::gui::WindowInfoHandle;
-using android::os::BlockUntrustedTouchesMode;
 using android::os::IInputConstants;
 using android::os::InputEventInjectionResult;
 using android::os::InputEventInjectionSync;
@@ -2198,23 +2197,17 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             }
 
             // Drop events that can't be trusted due to occlusion
-            if (mBlockUntrustedTouchesMode != BlockUntrustedTouchesMode::DISABLED) {
-                TouchOcclusionInfo occlusionInfo =
-                        computeTouchOcclusionInfoLocked(windowHandle, x, y);
-                if (!isTouchTrustedLocked(occlusionInfo)) {
-                    if (DEBUG_TOUCH_OCCLUSION) {
-                        ALOGD("Stack of obscuring windows during untrusted touch (%d, %d):", x, y);
-                        for (const auto& log : occlusionInfo.debugInfo) {
-                            ALOGD("%s", log.c_str());
-                        }
-                    }
-                    sendUntrustedTouchCommandLocked(occlusionInfo.obscuringPackage);
-                    if (mBlockUntrustedTouchesMode == BlockUntrustedTouchesMode::BLOCK) {
-                        ALOGW("Dropping untrusted touch event due to %s/%d",
-                              occlusionInfo.obscuringPackage.c_str(), occlusionInfo.obscuringUid);
-                        continue;
+            TouchOcclusionInfo occlusionInfo = computeTouchOcclusionInfoLocked(windowHandle, x, y);
+            if (!isTouchTrustedLocked(occlusionInfo)) {
+                if (DEBUG_TOUCH_OCCLUSION) {
+                    ALOGD("Stack of obscuring windows during untrusted touch (%d, %d):", x, y);
+                    for (const auto& log : occlusionInfo.debugInfo) {
+                        ALOGD("%s", log.c_str());
                     }
                 }
+                ALOGW("Dropping untrusted touch event due to %s/%d",
+                      occlusionInfo.obscuringPackage.c_str(), occlusionInfo.obscuringUid);
+                continue;
             }
 
             // Drop touch events if requested by input feature
@@ -5051,11 +5044,6 @@ void InputDispatcher::setMaximumObscuringOpacityForTouch(float opacity) {
     mMaximumObscuringOpacityForTouch = opacity;
 }
 
-void InputDispatcher::setBlockUntrustedTouchesMode(BlockUntrustedTouchesMode mode) {
-    std::scoped_lock lock(mLock);
-    mBlockUntrustedTouchesMode = mode;
-}
-
 std::pair<TouchState*, TouchedWindow*> InputDispatcher::findTouchStateAndWindowLocked(
         const sp<IBinder>& token) {
     for (auto& [displayId, state] : mTouchStatesByDisplay) {
@@ -5811,14 +5799,6 @@ void InputDispatcher::sendDropWindowCommandLocked(const sp<IBinder>& token, floa
     auto command = [this, token, x, y]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
         mPolicy->notifyDropWindow(token, x, y);
-    };
-    postCommandLocked(std::move(command));
-}
-
-void InputDispatcher::sendUntrustedTouchCommandLocked(const std::string& obscuringPackage) {
-    auto command = [this, obscuringPackage]() REQUIRES(mLock) {
-        scoped_unlock unlock(mLock);
-        mPolicy->notifyUntrustedTouch(obscuringPackage);
     };
     postCommandLocked(std::move(command));
 }

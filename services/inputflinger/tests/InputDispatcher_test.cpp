@@ -409,7 +409,6 @@ private:
 
     void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) override {}
 
-    void notifyUntrustedTouch(const std::string& obscuringPackage) override {}
     void notifySensorEvent(int32_t deviceId, InputDeviceSensorType sensorType,
                            InputDeviceSensorAccuracy accuracy, nsecs_t timestamp,
                            const std::vector<float>& values) override {}
@@ -5696,7 +5695,6 @@ protected:
     virtual void SetUp() override {
         InputDispatcherTest::SetUp();
         mTouchWindow = getWindow(TOUCHED_APP_UID, "Touched");
-        mDispatcher->setBlockUntrustedTouchesMode(android::os::BlockUntrustedTouchesMode::BLOCK);
         mDispatcher->setMaximumObscuringOpacityForTouch(MAXIMUM_OBSCURING_OPACITY);
     }
 

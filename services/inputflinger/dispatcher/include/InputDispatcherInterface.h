@@ -20,7 +20,7 @@
 #include <InputListener.h>
 #include <android-base/result.h>
 #include <android/gui/FocusRequest.h>
-#include <android/os/BlockUntrustedTouchesMode.h>
+
 #include <android/os/InputEventInjectionResult.h>
 #include <android/os/InputEventInjectionSync.h>
 #include <gui/InputApplication.h>
@@ -135,13 +135,6 @@ public:
      * the windows above the touch-consuming window.
      */
     virtual void setMaximumObscuringOpacityForTouch(float opacity) = 0;
-
-    /**
-     * Sets the mode of the block untrusted touches feature.
-     *
-     * TODO(b/169067926): Clean-up feature modes.
-     */
-    virtual void setBlockUntrustedTouchesMode(android::os::BlockUntrustedTouchesMode mode) = 0;
 
     /* Transfers touch focus from one window to another window.
      *
