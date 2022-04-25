@@ -16,6 +16,24 @@
       "message": "could you try simply removing the else {}\nkeep the code just force it to always run",
       "revId": "b098c55016272af4a921f5b3ed47d30e5689159f",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "982dd32d_e9e78fb0",
+        "filename": "opengl/libs/EGL/egl_display.cpp",
+        "patchSetId": 5
+      },
+      "lineNbr": 247,
+      "author": {
+        "id": 26916
+      },
+      "writtenOn": "2022-04-25T15:50:55Z",
+      "side": 1,
+      "message": "I guess this would cause issues. Current code has an else block. I think that code shouldn\u0027t run if dpy \u003d\u003d EGL_NO_DISPLAY: https://github.com/LineageOS/android_frameworks_native/blob/2166c23c5930839ff65c8e4befece6aeceb97871/opengl/libs/EGL/egl_display.cpp#L222",
+      "parentUuid": "cb69b9f2_e304f26c",
+      "revId": "b098c55016272af4a921f5b3ed47d30e5689159f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
