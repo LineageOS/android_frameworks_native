@@ -96,7 +96,6 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
             .alpha = 1,
     };
 
-    auto layers = std::vector<LayerSettings>{layer, caster};
     // Four combinations of settings are used (two transforms here, and drawShadowLayers is
     // called with two different destination data spaces) They're all rounded rect.
     // Three of these are cache misses that generate new shaders.
@@ -115,6 +114,8 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
     for (auto transform : {mat4(), kFlip}) {
         layer.geometry.positionTransform = transform;
         caster.geometry.positionTransform = transform;
+
+        auto layers = std::vector<LayerSettings>{layer, caster};
         renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
                                  base::unique_fd());
     }
@@ -141,7 +142,6 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
                                           }},
     };
 
-    auto layers = std::vector<LayerSettings>{layer};
     for (auto dataspace : {kDestDataSpace, kOtherDataSpace}) {
         layer.sourceDataspace = dataspace;
         // Cache shaders for both rects and round rects.
@@ -153,6 +153,7 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
                 layer.source.buffer.isOpaque = isOpaque;
                 for (auto alpha : {half(.2f), half(1.0f)}) {
                     layer.alpha = alpha;
+                    auto layers = std::vector<LayerSettings>{layer};
                     renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
                                              base::unique_fd());
                 }
@@ -177,11 +178,11 @@ static void drawSolidLayers(SkiaRenderEngine* renderengine, const DisplaySetting
             .alpha = 0.5,
     };
 
-    auto layers = std::vector<LayerSettings>{layer};
     for (auto transform : {mat4(), kScaleAndTranslate}) {
         layer.geometry.positionTransform = transform;
         for (float roundedCornersRadius : {0.0f, 50.f}) {
             layer.geometry.roundedCornersRadius = roundedCornersRadius;
+            auto layers = std::vector<LayerSettings>{layer};
             renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
                                      base::unique_fd());
         }
@@ -202,10 +203,10 @@ static void drawBlurLayers(SkiaRenderEngine* renderengine, const DisplaySettings
             .skipContentDraw = true,
     };
 
-    auto layers = std::vector<LayerSettings>{layer};
     // Different blur code is invoked for radii less and greater than 30 pixels
     for (int radius : {9, 60}) {
         layer.backgroundBlurRadius = radius;
+        auto layers = std::vector<LayerSettings>{layer};
         renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
                                  base::unique_fd());
     }
@@ -243,7 +244,6 @@ static void drawClippedLayers(SkiaRenderEngine* renderengine, const DisplaySetti
                     },
     };
 
-    auto layers = std::vector<LayerSettings>{layer};
     for (auto pixelSource : {bufferSource, bufferOpaque, colorSource}) {
         layer.source = pixelSource;
         for (auto dataspace : {kDestDataSpace, kOtherDataSpace}) {
@@ -252,7 +252,8 @@ static void drawClippedLayers(SkiaRenderEngine* renderengine, const DisplaySetti
             for (auto transform : {kScaleAndTranslate, kScaleAsymmetric}) {
                 layer.geometry.positionTransform = transform;
                 for (float alpha : {0.5f, 1.f}) {
-                    layer.alpha = alpha,
+                    layer.alpha = alpha;
+                    auto layers = std::vector<LayerSettings>{layer};
                     renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
                                              base::unique_fd());
                 }
