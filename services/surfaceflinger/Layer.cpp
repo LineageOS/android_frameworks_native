@@ -2668,6 +2668,18 @@ void Layer::cloneDrawingState(const Layer* from) {
     mDrawingState.callbackHandles = {};
 }
 
+bool Layer::setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& handles) {
+    if (handles.empty()) {
+        return false;
+    }
+
+    for (const auto& handle : handles) {
+        mFlinger->getTransactionCallbackInvoker().registerUnpresentedCallbackHandle(handle);
+    }
+
+    return true;
+}
+
 // ---------------------------------------------------------------------------
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate) {

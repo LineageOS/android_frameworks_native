@@ -55,24 +55,34 @@ public:
         return createLayer(mClient, "test", 0, 0, ISurfaceComposerClient::eFXSurfaceBufferState);
     }
 
+    static int fillBuffer(Transaction& transaction, const sp<SurfaceControl>& layer,
+                          bool setBuffer = true, bool setBackgroundColor = false) {
+        sp<GraphicBuffer> buffer;
+        sp<Fence> fence;
+        if (setBuffer) {
+            int err = getBuffer(&buffer, &fence);
+            if (err != NO_ERROR) {
+                return err;
+            }
+
+            transaction.setBuffer(layer, buffer, fence);
+        }
+
+        if (setBackgroundColor) {
+            transaction.setBackgroundColor(layer, /*color*/ half3(1.0f, 0, 0), /*alpha*/ 1.0f,
+                                           ui::Dataspace::UNKNOWN);
+        }
+
+        return NO_ERROR;
+    }
+
     static int fillTransaction(Transaction& transaction, CallbackHelper* callbackHelper,
                                const sp<SurfaceControl>& layer = nullptr, bool setBuffer = true,
                                bool setBackgroundColor = false) {
         if (layer) {
-            sp<GraphicBuffer> buffer;
-            sp<Fence> fence;
-            if (setBuffer) {
-                int err = getBuffer(&buffer, &fence);
-                if (err != NO_ERROR) {
-                    return err;
-                }
-
-                transaction.setBuffer(layer, buffer, fence);
-            }
-
-            if (setBackgroundColor) {
-                transaction.setBackgroundColor(layer, /*color*/ half3(1.0f, 0, 0), /*alpha*/ 1.0f,
-                                               ui::Dataspace::UNKNOWN);
+            int err = fillBuffer(transaction, layer, setBuffer, setBackgroundColor);
+            if (err != NO_ERROR) {
+                return err;
             }
         }
 
@@ -1118,7 +1128,7 @@ TEST_F(LayerCallbackTest, CommitCallbackOffscreenLayer) {
     Transaction transaction;
     CallbackHelper callback;
     int err = fillTransaction(transaction, &callback, layer, true);
-    err |= fillTransaction(transaction, &callback, offscreenLayer, true);
+    err |= fillBuffer(transaction, offscreenLayer);
     if (err) {
         GTEST_SUCCEED() << "test not supported";
         return;
@@ -1132,5 +1142,86 @@ TEST_F(LayerCallbackTest, CommitCallbackOffscreenLayer) {
     committedSc.insert(layer);
     committedSc.insert(offscreenLayer);
     EXPECT_NO_FATAL_FAILURE(waitForCommitCallback(callback, committedSc));
+
+    ExpectedResult expected;
+    expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer);
+    expected.addSurface(ExpectedResult::Transaction::PRESENTED, offscreenLayer);
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
 }
+
+TEST_F(LayerCallbackTest, TransactionCommittedCallback_BSL) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+
+    Transaction transaction;
+    CallbackHelper callback;
+    int err = fillTransaction(transaction, &callback, layer, true);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+    transaction.addTransactionCommittedCallback(callback.function, callback.getContext()).apply();
+    std::unordered_set<sp<SurfaceControl>, SCHash> committedSc;
+    committedSc.insert(layer);
+    EXPECT_NO_FATAL_FAILURE(waitForCommitCallback(callback, committedSc));
+    ExpectedResult expected;
+    expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer);
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
+}
+
+TEST_F(LayerCallbackTest, TransactionCommittedCallback_EffectLayer) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createColorLayer("ColorLayer", Color::RED));
+
+    Transaction transaction;
+    CallbackHelper callback;
+    int err = fillTransaction(transaction, &callback);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+    transaction.addTransactionCommittedCallback(callback.function, callback.getContext()).apply();
+    std::unordered_set<sp<SurfaceControl>, SCHash> committedSc;
+    EXPECT_NO_FATAL_FAILURE(waitForCommitCallback(callback, committedSc));
+
+    ExpectedResult expected;
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
+}
+
+TEST_F(LayerCallbackTest, TransactionCommittedCallback_ContainerLayer) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer(mClient, "Container Layer", 0, 0,
+                                                ISurfaceComposerClient::eFXSurfaceContainer));
+
+    Transaction transaction;
+    CallbackHelper callback;
+    int err = fillTransaction(transaction, &callback);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+    transaction.addTransactionCommittedCallback(callback.function, callback.getContext()).apply();
+    std::unordered_set<sp<SurfaceControl>, SCHash> committedSc;
+    EXPECT_NO_FATAL_FAILURE(waitForCommitCallback(callback, committedSc));
+
+    ExpectedResult expected;
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
+}
+
+TEST_F(LayerCallbackTest, TransactionCommittedCallback_NoLayer) {
+    Transaction transaction;
+    CallbackHelper callback;
+    int err = fillTransaction(transaction, &callback);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+    transaction.addTransactionCommittedCallback(callback.function, callback.getContext()).apply();
+    std::unordered_set<sp<SurfaceControl>, SCHash> committedSc;
+    EXPECT_NO_FATAL_FAILURE(waitForCommitCallback(callback, committedSc));
+
+    ExpectedResult expected;
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
+}
+
 } // namespace android
