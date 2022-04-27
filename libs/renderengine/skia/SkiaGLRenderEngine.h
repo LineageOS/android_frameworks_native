@@ -61,7 +61,6 @@ public:
     bool supportsProtectedContent() const override;
     void useProtectedContext(bool useProtectedContext) override;
     bool supportsBackgroundBlur() override { return mBlurFilter != nullptr; }
-    void assertShadersCompiled(int numShaders) override;
     void onActiveDisplaySizeChanged(ui::Size size) override;
     int reportShadersCompiled() override;
 
@@ -177,6 +176,8 @@ private:
             mShadersCachedSinceLastCall = 0;
             return shadersCachedSinceLastCall;
         }
+
+        int totalShadersCompiled() const { return mTotalShadersCompiled; }
 
     private:
         int mShadersCachedSinceLastCall = 0;
