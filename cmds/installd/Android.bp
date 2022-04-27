@@ -81,8 +81,9 @@ cc_defaults {
         "cert-*",
         "-cert-err58-cpp",
     ],
-    tidy_flags: [
-        "-warnings-as-errors=clang-analyzer-security*,cert-*",
+    tidy_checks_as_errors: [
+        "clang-analyzer-security*",
+        "cert-*",
     ],
 }
 
