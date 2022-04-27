@@ -130,8 +130,7 @@ TEST_F(SurfaceFlingerPowerHintTest, sendDurationsIncludingHwcWaitTime) {
     ON_CALL(*mPowerAdvisor, usePowerHintSession()).WillByDefault(Return(true));
 
     const std::chrono::nanoseconds mockVsyncPeriod = 15ms;
-    const std::chrono::nanoseconds expectedTargetTime = 14ms;
-    EXPECT_CALL(*mPowerAdvisor, setTargetWorkDuration(Gt(expectedTargetTime.count()))).Times(1);
+    EXPECT_CALL(*mPowerAdvisor, setTargetWorkDuration(_)).Times(1);
 
     const nsecs_t now = systemTime();
     const std::chrono::nanoseconds mockHwcRunTime = 20ms;
