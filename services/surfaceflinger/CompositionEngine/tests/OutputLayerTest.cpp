@@ -169,7 +169,7 @@ struct OutputLayerSourceCropTest : public OutputLayerTest {
     FloatRect calculateOutputSourceCrop() {
         mLayerFEState.geomInverseLayerTransform = mLayerFEState.geomLayerTransform.inverse();
 
-        return mOutputLayer.calculateOutputSourceCrop();
+        return mOutputLayer.calculateOutputSourceCrop(ui::Transform::RotationFlags::ROT_0);
     }
 };
 
@@ -533,7 +533,7 @@ struct OutputLayerPartialMockForUpdateCompositionState : public impl::OutputLaye
                                                     sp<compositionengine::LayerFE> layerFE)
           : mOutput(output), mLayerFE(layerFE) {}
     // Mock everything called by updateCompositionState to simplify testing it.
-    MOCK_CONST_METHOD0(calculateOutputSourceCrop, FloatRect());
+    MOCK_CONST_METHOD1(calculateOutputSourceCrop, FloatRect(uint32_t));
     MOCK_CONST_METHOD0(calculateOutputDisplayFrame, Rect());
     MOCK_CONST_METHOD1(calculateOutputRelativeBufferTransform, uint32_t(uint32_t));
 
@@ -563,7 +563,8 @@ public:
     ~OutputLayerUpdateCompositionStateTest() = default;
 
     void setupGeometryChildCallValues(ui::Transform::RotationFlags internalDisplayRotationFlags) {
-        EXPECT_CALL(mOutputLayer, calculateOutputSourceCrop()).WillOnce(Return(kSourceCrop));
+        EXPECT_CALL(mOutputLayer, calculateOutputSourceCrop(internalDisplayRotationFlags))
+                .WillOnce(Return(kSourceCrop));
         EXPECT_CALL(mOutputLayer, calculateOutputDisplayFrame()).WillOnce(Return(kDisplayFrame));
         EXPECT_CALL(mOutputLayer,
                     calculateOutputRelativeBufferTransform(internalDisplayRotationFlags))
