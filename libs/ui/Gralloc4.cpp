@@ -1245,8 +1245,9 @@ status_t Gralloc4Allocator::allocate(std::string requestorName, uint32_t width, 
         } else {
             if (importBuffers) {
                 for (uint32_t i = 0; i < bufferCount; i++) {
-                    error = mMapper.importBuffer(makeFromAidl(result.buffers[i]),
-                                                 &outBufferHandles[i]);
+                    auto handle = makeFromAidl(result.buffers[i]);
+                    error = mMapper.importBuffer(handle, &outBufferHandles[i]);
+                    native_handle_delete(handle);
                     if (error != NO_ERROR) {
                         for (uint32_t j = 0; j < i; j++) {
                             mMapper.freeBuffer(outBufferHandles[j]);
