@@ -40,6 +40,7 @@
 #include <SkPaint.h>
 #include <SkPath.h>
 #include <SkPoint.h>
+#include <SkPoint3.h>
 #include <SkRect.h>
 #include <SkRefCnt.h>
 #include <SkRegion.h>
