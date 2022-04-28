@@ -1851,8 +1851,9 @@ binder::Status InstalldNativeService::destroyUserData(const std::optional<std::s
     binder::Status res = ok();
     if (flags & FLAG_STORAGE_DE) {
         auto path = create_data_user_de_path(uuid_, userId);
-        if (delete_dir_contents_and_dir(path, true) != 0) {
-            res = error("Failed to delete " + path);
+        // Contents only, as vold is responsible for the user_de dir itself.
+        if (delete_dir_contents(path, true) != 0) {
+            res = error("Failed to delete contents of " + path);
         }
         auto sdk_sandbox_de_path =
                 create_data_misc_sdk_sandbox_path(uuid_, /*isCeData=*/false, userId);
@@ -1872,8 +1873,9 @@ binder::Status InstalldNativeService::destroyUserData(const std::optional<std::s
     }
     if (flags & FLAG_STORAGE_CE) {
         auto path = create_data_user_ce_path(uuid_, userId);
-        if (delete_dir_contents_and_dir(path, true) != 0) {
-            res = error("Failed to delete " + path);
+        // Contents only, as vold is responsible for the user_ce dir itself.
+        if (delete_dir_contents(path, true) != 0) {
+            res = error("Failed to delete contents of " + path);
         }
         auto sdk_sandbox_ce_path =
                 create_data_misc_sdk_sandbox_path(uuid_, /*isCeData=*/true, userId);
@@ -1881,8 +1883,9 @@ binder::Status InstalldNativeService::destroyUserData(const std::optional<std::s
             res = error("Failed to delete " + sdk_sandbox_ce_path);
         }
         path = findDataMediaPath(uuid, userId);
-        if (delete_dir_contents_and_dir(path, true) != 0) {
-            res = error("Failed to delete " + path);
+        // Contents only, as vold is responsible for the media dir itself.
+        if (delete_dir_contents(path, true) != 0) {
+            res = error("Failed to delete contents of " + path);
         }
     }
     return res;
