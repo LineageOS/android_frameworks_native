@@ -106,9 +106,8 @@ Rect OutputLayer::calculateInitialCrop() const {
     return activeCrop;
 }
 
-FloatRect OutputLayer::calculateOutputSourceCrop() const {
+FloatRect OutputLayer::calculateOutputSourceCrop(uint32_t internalDisplayRotationFlags) const {
     const auto& layerState = *getLayerFE().getCompositionState();
-    const auto& outputState = getOutput().getState();
 
     if (!layerState.geomUsesSourceCrop) {
         return {};
@@ -140,8 +139,7 @@ FloatRect OutputLayer::calculateOutputSourceCrop() const {
          * the code below applies the primary display's inverse transform to the
          * buffer
          */
-        uint32_t invTransformOrient =
-                ui::Transform::toRotationFlags(outputState.displaySpace.getOrientation());
+        uint32_t invTransformOrient = internalDisplayRotationFlags;
         // calculate the inverse transform
         if (invTransformOrient & HAL_TRANSFORM_ROT_90) {
             invTransformOrient ^= HAL_TRANSFORM_FLIP_V | HAL_TRANSFORM_FLIP_H;
@@ -304,7 +302,7 @@ void OutputLayer::updateCompositionState(
         state.forceClientComposition = false;
 
         state.displayFrame = calculateOutputDisplayFrame();
-        state.sourceCrop = calculateOutputSourceCrop();
+        state.sourceCrop = calculateOutputSourceCrop(internalDisplayRotationFlags);
         state.bufferTransform = static_cast<Hwc2::Transform>(
                 calculateOutputRelativeBufferTransform(internalDisplayRotationFlags));
 
