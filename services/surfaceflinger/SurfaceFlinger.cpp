@@ -6804,6 +6804,7 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
                 if (regionSampling) {
                     settings.backgroundBlurRadius = 0;
                 }
+                captureResults.capturedHdrLayers |= isHdrDataspace(settings.sourceDataspace);
             }
 
             clientCompositionLayers.insert(clientCompositionLayers.end(),
