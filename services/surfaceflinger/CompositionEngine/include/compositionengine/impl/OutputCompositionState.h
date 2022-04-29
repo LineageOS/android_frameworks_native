@@ -162,6 +162,8 @@ struct OutputCompositionState {
     CompositionStrategyPredictionState strategyPrediction =
             CompositionStrategyPredictionState::DISABLED;
 
+    bool treat170mAsSrgb = false;
+
     // Debugging
     void dump(std::string& result) const;
 };
