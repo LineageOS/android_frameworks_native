@@ -33,6 +33,7 @@ public:
     sp<GraphicBuffer> buffer;
     sp<Fence> fence = Fence::NO_FENCE;
     bool capturedSecureLayers{false};
+    bool capturedHdrLayers{false};
     ui::Dataspace capturedDataspace{ui::Dataspace::V0_SRGB};
     status_t result = OK;
 };
