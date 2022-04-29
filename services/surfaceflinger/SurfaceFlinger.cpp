@@ -6713,6 +6713,9 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
     auto dataspace = renderArea.getReqDataSpace();
     auto parent = renderArea.getParentLayer();
     auto renderIntent = RenderIntent::TONE_MAP_COLORIMETRIC;
+    auto sdrWhitePointNits = DisplayDevice::sDefaultMaxLumiance;
+    auto displayBrightnessNits = DisplayDevice::sDefaultMaxLumiance;
+
     if ((dataspace == ui::Dataspace::UNKNOWN) && (parent != nullptr)) {
         Mutex::Autolock lock(mStateLock);
         auto display = findDisplay([layerStack = parent->getLayerStack()](const auto& display) {
@@ -6726,6 +6729,8 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
         const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
         dataspace = pickDataspaceFromColorMode(colorMode);
         renderIntent = display->getCompositionDisplay()->getState().renderIntent;
+        sdrWhitePointNits = display->getCompositionDisplay()->getState().sdrWhitePointNits;
+        displayBrightnessNits = display->getCompositionDisplay()->getState().displayBrightnessNits;
     }
     captureResults.capturedDataspace = dataspace;
 
@@ -6784,7 +6789,7 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
                                        BlurSetting::Disabled
                              : compositionengine::LayerFE::ClientCompositionTargetSettings::
                                        BlurSetting::Enabled,
-                DisplayDevice::sDefaultMaxLumiance,
+                isHdrDataspace(dataspace) ? displayBrightnessNits : sdrWhitePointNits,
 
         };
         std::vector<compositionengine::LayerFE::LayerSettings> results =
