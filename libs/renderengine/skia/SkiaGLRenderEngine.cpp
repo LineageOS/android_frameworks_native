@@ -296,14 +296,8 @@ void SkiaGLRenderEngine::SkSLCacheMonitor::store(const SkData& key, const SkData
     ATRACE_FORMAT("SF cache: %i shaders", mTotalShadersCompiled);
 }
 
-void SkiaGLRenderEngine::assertShadersCompiled(int numShaders) {
-    const int cached = mSkSLCacheMonitor.shadersCachedSinceLastCall();
-    LOG_ALWAYS_FATAL_IF(cached != numShaders, "Attempted to cache %i shaders; cached %i",
-                        numShaders, cached);
-}
-
 int SkiaGLRenderEngine::reportShadersCompiled() {
-    return mSkSLCacheMonitor.shadersCachedSinceLastCall();
+    return mSkSLCacheMonitor.totalShadersCompiled();
 }
 
 SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display,
