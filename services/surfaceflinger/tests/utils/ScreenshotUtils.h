@@ -60,7 +60,8 @@ public:
                                DisplayCaptureArgs& captureArgs) {
         ScreenCaptureResults captureResults;
         ASSERT_EQ(NO_ERROR, captureDisplay(captureArgs, captureResults));
-        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
+        *sc = std::make_unique<ScreenCapture>(captureResults.buffer,
+                                              captureResults.capturedHdrLayers);
     }
 
     static status_t captureLayers(LayerCaptureArgs& captureArgs,
@@ -81,8 +82,11 @@ public:
     static void captureLayers(std::unique_ptr<ScreenCapture>* sc, LayerCaptureArgs& captureArgs) {
         ScreenCaptureResults captureResults;
         ASSERT_EQ(NO_ERROR, captureLayers(captureArgs, captureResults));
-        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
+        *sc = std::make_unique<ScreenCapture>(captureResults.buffer,
+                                              captureResults.capturedHdrLayers);
     }
+
+    bool capturedHdrLayers() const { return mContainsHdr; }
 
     void expectColor(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
         ASSERT_NE(nullptr, mOutBuffer);
@@ -181,7 +185,8 @@ public:
         EXPECT_EQ(height, mOutBuffer->getHeight());
     }
 
-    explicit ScreenCapture(const sp<GraphicBuffer>& outBuffer) : mOutBuffer(outBuffer) {
+    explicit ScreenCapture(const sp<GraphicBuffer>& outBuffer, bool containsHdr)
+          : mOutBuffer(outBuffer), mContainsHdr(containsHdr) {
         if (mOutBuffer) {
             mOutBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, reinterpret_cast<void**>(&mPixels));
         }
@@ -193,6 +198,7 @@ public:
 
 private:
     sp<GraphicBuffer> mOutBuffer;
+    bool mContainsHdr = mContainsHdr;
     uint8_t* mPixels = nullptr;
 };
 } // namespace
