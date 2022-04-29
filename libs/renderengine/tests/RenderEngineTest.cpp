@@ -3034,6 +3034,23 @@ TEST_P(RenderEngineTest, r8_respects_color_transform_when_device_handles) {
     expectBufferColor(Rect(1, 0, 2, 1), 255, 0, 0, 255); // Still red.
     expectBufferColor(Rect(0, 0, 1, 1), 0,  70, 0, 255);
 }
+
+TEST_P(RenderEngineTest, primeShaderCache) {
+    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        GTEST_SKIP();
+    }
+
+    initializeRenderEngine();
+
+    auto fut = mRE->primeCache();
+    if (fut.valid()) {
+        fut.wait();
+    }
+
+    const int minimumExpectedShadersCompiled = GetParam()->useColorManagement() ? 60 : 30;
+    ASSERT_GT(static_cast<skia::SkiaGLRenderEngine*>(mRE.get())->reportShadersCompiled(),
+              minimumExpectedShadersCompiled);
+}
 } // namespace renderengine
 } // namespace android
 
