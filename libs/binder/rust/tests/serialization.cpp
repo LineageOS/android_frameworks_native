@@ -381,7 +381,7 @@ TEST_F(SerializationTest, SerializeFileDescriptor) {
     string expected = "TestingFileDescriptors";
     vector<char> buf(expected.length());
     base::ReadFully(file_descriptors[0].release(), buf.data(), buf.size());
-    ASSERT_EQ(expected, string(buf.data()));
+    ASSERT_EQ(expected, string(buf.data(), expected.length()));
 }
 
 TEST_F(SerializationTest, SerializeIBinder) {
