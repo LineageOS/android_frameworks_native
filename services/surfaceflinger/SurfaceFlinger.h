@@ -347,6 +347,12 @@ public:
     // run parallel to the hwc validateDisplay call and re-run if the predition is incorrect.
     bool mPredictCompositionStrategy = false;
 
+    // If true, then any layer with a SMPTE 170M transfer function is decoded using the sRGB
+    // transfer instead. This is mainly to preserve legacy behavior, where implementations treated
+    // SMPTE 170M as sRGB prior to color management being implemented, and now implementations rely
+    // on this behavior to increase contrast for some media sources.
+    bool mTreat170mAsSrgb = false;
+
 protected:
     // We're reference counted, never destroy SurfaceFlinger directly
     virtual ~SurfaceFlinger();
