@@ -108,6 +108,7 @@ public:
     void cacheClientCompositionRequests(uint32_t) override;
     bool canPredictCompositionStrategy(const CompositionRefreshArgs&) override;
     void setPredictCompositionStrategy(bool) override;
+    void setTreat170mAsSrgb(bool) override;
 
     // Testing
     const ReleasedLayers& getReleasedLayersForTest() const;

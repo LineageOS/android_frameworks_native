@@ -419,6 +419,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     property_get("debug.sf.predict_hwc_composition_strategy", value, "1");
     mPredictCompositionStrategy = atoi(value);
 
+    property_get("debug.sf.treat_170m_as_sRGB", value, "0");
+    mTreat170mAsSrgb = atoi(value);
+
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
     // comes online to attempt to read the property. The property is
