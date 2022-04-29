@@ -27,6 +27,9 @@
 
 namespace android {
 
+// The default velocity control parameters that has no effect.
+static const VelocityControlParameters FLAT_VELOCITY_CONTROL_PARAMS{};
+
 // --- CursorMotionAccumulator ---
 
 CursorMotionAccumulator::CursorMotionAccumulator() {
@@ -154,8 +157,9 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         mHWheelScale = 1.0f;
     }
 
-    if ((!changes && config->pointerCaptureRequest.enable) ||
-        (changes & InputReaderConfiguration::CHANGE_POINTER_CAPTURE)) {
+    const bool configurePointerCapture = (!changes && config->pointerCaptureRequest.enable) ||
+            (changes & InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
+    if (configurePointerCapture) {
         if (config->pointerCaptureRequest.enable) {
             if (mParameters.mode == Parameters::MODE_POINTER) {
                 mParameters.mode = Parameters::MODE_POINTER_RELATIVE;
@@ -180,10 +184,18 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         }
     }
 
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_POINTER_SPEED)) {
-        mPointerVelocityControl.setParameters(config->pointerVelocityControlParameters);
-        mWheelXVelocityControl.setParameters(config->wheelVelocityControlParameters);
-        mWheelYVelocityControl.setParameters(config->wheelVelocityControlParameters);
+    if (!changes || (changes & InputReaderConfiguration::CHANGE_POINTER_SPEED) ||
+        configurePointerCapture) {
+        if (config->pointerCaptureRequest.enable) {
+            // Disable any acceleration or scaling when Pointer Capture is enabled.
+            mPointerVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
+            mWheelXVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
+            mWheelYVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
+        } else {
+            mPointerVelocityControl.setParameters(config->pointerVelocityControlParameters);
+            mWheelXVelocityControl.setParameters(config->wheelVelocityControlParameters);
+            mWheelYVelocityControl.setParameters(config->wheelVelocityControlParameters);
+        }
     }
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
