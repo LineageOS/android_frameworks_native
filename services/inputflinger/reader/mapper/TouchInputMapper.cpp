@@ -1657,9 +1657,8 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when, nsecs_t readTime) {
 
         dispatchPointerUsage(when, readTime, policyFlags, pointerUsage);
     } else {
-        updateTouchSpots();
-
         if (!mCurrentMotionAborted) {
+            updateTouchSpots();
             dispatchButtonRelease(when, readTime, policyFlags);
             dispatchHoverExit(when, readTime, policyFlags);
             dispatchTouches(when, readTime, policyFlags);

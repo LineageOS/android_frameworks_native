@@ -91,6 +91,14 @@ vec3 OETF_sRGB(vec3 linear) {
                 sign(linear.b) * OETF_sRGB(linear.b));
 }
 
+// clang-format off
+// Converts red channels to green channels, and zeroes out an existing green channel.
+static const auto kRemoveGreenAndMoveRedToGreenMat4 = mat4(0, 1, 0, 0,
+                                                           0, 0, 0, 0,
+                                                           0, 0, 1, 0,
+                                                           0, 0, 0, 1);
+// clang-format on
+
 } // namespace
 
 class RenderEngineFactory {
@@ -2557,6 +2565,133 @@ TEST_P(RenderEngineTest, testDimming_inGammaSpace) {
     expectBufferColor(Rect(2, 0, 3, 1), 122, 0, 0, 255, 1);
 }
 
+TEST_P(RenderEngineTest, testDimming_inGammaSpace_withDisplayColorTransform) {
+    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        GTEST_SKIP();
+    }
+    initializeRenderEngine();
+
+    const ui::Dataspace dataspace = static_cast<ui::Dataspace>(ui::Dataspace::STANDARD_BT709 |
+                                                               ui::Dataspace::TRANSFER_GAMMA2_2 |
+                                                               ui::Dataspace::RANGE_FULL);
+
+    const auto displayRect = Rect(3, 1);
+    const renderengine::DisplaySettings display{
+            .physicalDisplay = displayRect,
+            .clip = displayRect,
+            .outputDataspace = dataspace,
+            .colorTransform = kRemoveGreenAndMoveRedToGreenMat4,
+            .targetLuminanceNits = 1000.f,
+            .dimmingStage = aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF,
+    };
+
+    const auto greenBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(0, 255, 0, 255));
+    const auto blueBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(0, 0, 255, 255));
+    const auto redBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(255, 0, 0, 255));
+
+    const renderengine::LayerSettings greenLayer{
+            .geometry.boundaries = FloatRect(0.f, 0.f, 1.f, 1.f),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = greenBuffer,
+                                            .usePremultipliedAlpha = true,
+                                    },
+                    },
+            .alpha = 1.0f,
+            .sourceDataspace = dataspace,
+            .whitePointNits = 200.f,
+    };
+
+    const renderengine::LayerSettings redLayer{
+            .geometry.boundaries = FloatRect(1.f, 0.f, 2.f, 1.f),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = redBuffer,
+                                            .usePremultipliedAlpha = true,
+                                    },
+                    },
+            .alpha = 1.0f,
+            .sourceDataspace = dataspace,
+            // When the white point is not set for a layer, just ignore it and treat it as the same
+            // as the max layer
+            .whitePointNits = -1.f,
+    };
+
+    std::vector<renderengine::LayerSettings> layers{greenLayer, redLayer};
+    invokeDraw(display, layers);
+
+    expectBufferColor(Rect(1, 1), 0, 0, 0, 255, 1);
+    expectBufferColor(Rect(1, 0, 2, 1), 0, 122, 0, 255, 1);
+}
+
+TEST_P(RenderEngineTest, testDimming_inGammaSpace_withDisplayColorTransform_deviceHandles) {
+    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        GTEST_SKIP();
+    }
+    initializeRenderEngine();
+
+    const ui::Dataspace dataspace = static_cast<ui::Dataspace>(ui::Dataspace::STANDARD_BT709 |
+                                                               ui::Dataspace::TRANSFER_GAMMA2_2 |
+                                                               ui::Dataspace::RANGE_FULL);
+
+    const auto displayRect = Rect(3, 1);
+    const renderengine::DisplaySettings display{
+            .physicalDisplay = displayRect,
+            .clip = displayRect,
+            .outputDataspace = dataspace,
+            .colorTransform = kRemoveGreenAndMoveRedToGreenMat4,
+            .deviceHandlesColorTransform = true,
+            .targetLuminanceNits = 1000.f,
+            .dimmingStage = aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF,
+    };
+
+    const auto greenBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(0, 255, 0, 255));
+    const auto blueBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(0, 0, 255, 255));
+    const auto redBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(255, 0, 0, 255));
+
+    const renderengine::LayerSettings greenLayer{
+            .geometry.boundaries = FloatRect(0.f, 0.f, 1.f, 1.f),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = greenBuffer,
+                                            .usePremultipliedAlpha = true,
+                                    },
+                    },
+            .alpha = 1.0f,
+            .sourceDataspace = dataspace,
+            .whitePointNits = 200.f,
+    };
+
+    const renderengine::LayerSettings redLayer{
+            .geometry.boundaries = FloatRect(1.f, 0.f, 2.f, 1.f),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = redBuffer,
+                                            .usePremultipliedAlpha = true,
+                                    },
+                    },
+            .alpha = 1.0f,
+            .sourceDataspace = dataspace,
+            // When the white point is not set for a layer, just ignore it and treat it as the same
+            // as the max layer
+            .whitePointNits = -1.f,
+    };
+
+    std::vector<renderengine::LayerSettings> layers{greenLayer, redLayer};
+    invokeDraw(display, layers);
+
+    expectBufferColor(Rect(1, 1), 0, 122, 0, 255, 1);
+    expectBufferColor(Rect(1, 0, 2, 1), 122, 0, 0, 255, 1);
+}
+
 TEST_P(RenderEngineTest, testDimming_withoutTargetLuminance) {
     initializeRenderEngine();
     if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
@@ -2796,10 +2931,7 @@ TEST_P(RenderEngineTest, r8_respects_color_transform) {
             // pure red to pure green. That will occur when the R8 buffer is
             // 255. When the R8 buffer is 0, it will still change to black, as
             // with r8_behaves_as_mask.
-            .colorTransform = mat4(0, 1, 0, 0,
-                                   0, 0, 0, 0,
-                                   0, 0, 1, 0,
-                                   0, 0, 0, 1),
+            .colorTransform = kRemoveGreenAndMoveRedToGreenMat4,
             .deviceHandlesColorTransform = false,
     };
 
@@ -2901,6 +3033,23 @@ TEST_P(RenderEngineTest, r8_respects_color_transform_when_device_handles) {
 
     expectBufferColor(Rect(1, 0, 2, 1), 255, 0, 0, 255); // Still red.
     expectBufferColor(Rect(0, 0, 1, 1), 0,  70, 0, 255);
+}
+
+TEST_P(RenderEngineTest, primeShaderCache) {
+    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        GTEST_SKIP();
+    }
+
+    initializeRenderEngine();
+
+    auto fut = mRE->primeCache();
+    if (fut.valid()) {
+        fut.wait();
+    }
+
+    const int minimumExpectedShadersCompiled = GetParam()->useColorManagement() ? 60 : 30;
+    ASSERT_GT(static_cast<skia::SkiaGLRenderEngine*>(mRE.get())->reportShadersCompiled(),
+              minimumExpectedShadersCompiled);
 }
 } // namespace renderengine
 } // namespace android
