@@ -89,6 +89,7 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
     }
 
     mCompositionDisplay->setPredictCompositionStrategy(mFlinger->mPredictCompositionStrategy);
+    mCompositionDisplay->setTreat170mAsSrgb(mFlinger->mTreat170mAsSrgb);
     mCompositionDisplay->createDisplayColorProfile(
             compositionengine::DisplayColorProfileCreationArgsBuilder()
                     .setHasWideColorGamut(args.hasWideColorGamut)
