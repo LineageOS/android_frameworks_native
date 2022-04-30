@@ -79,7 +79,8 @@ public:
 
                 BufferItem item;
                 itemConsumer->acquireBuffer(&item, 0, true);
-                auto sc = std::make_unique<ScreenCapture>(item.mGraphicBuffer);
+                constexpr bool kContainsHdr = false;
+                auto sc = std::make_unique<ScreenCapture>(item.mGraphicBuffer, kContainsHdr);
                 itemConsumer->releaseBuffer(item);
                 SurfaceComposerClient::destroyDisplay(vDisplay);
                 return sc;
