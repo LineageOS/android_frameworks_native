@@ -75,9 +75,6 @@ public:
                                       InputDeviceSensorAccuracy accuracy) = 0;
     virtual void notifyVibratorState(int32_t deviceId, bool isOn) = 0;
 
-    /* Notifies the system that an untrusted touch occurred. */
-    virtual void notifyUntrustedTouch(const std::string& obscuringPackage) = 0;
-
     /* Gets the input dispatcher configuration. */
     virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) = 0;
 

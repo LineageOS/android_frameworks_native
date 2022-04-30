@@ -267,6 +267,9 @@ public:
     // Enables predicting composition strategy to run client composition earlier
     virtual void setPredictCompositionStrategy(bool) = 0;
 
+    // Enables overriding the 170M trasnfer function as sRGB
+    virtual void setTreat170mAsSrgb(bool) = 0;
+
 protected:
     virtual void setDisplayColorProfile(std::unique_ptr<DisplayColorProfile>) = 0;
     virtual void setRenderSurface(std::unique_ptr<RenderSurface>) = 0;

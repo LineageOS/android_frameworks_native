@@ -248,6 +248,20 @@ TEST_F(OutputTest, setCompositionEnabledSetsDisabledAndDirtiesEntireOutput) {
 }
 
 /*
+ * Output::setTreat170mAsSrgb()
+ */
+
+TEST_F(OutputTest, setTreat170mAsSrgb) {
+    EXPECT_FALSE(mOutput->getState().treat170mAsSrgb);
+
+    mOutput->setTreat170mAsSrgb(true);
+    EXPECT_TRUE(mOutput->getState().treat170mAsSrgb);
+
+    mOutput->setTreat170mAsSrgb(false);
+    EXPECT_FALSE(mOutput->getState().treat170mAsSrgb);
+}
+
+/*
  * Output::setLayerCachingEnabled()
  */
 

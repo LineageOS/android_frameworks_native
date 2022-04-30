@@ -375,6 +375,11 @@ public:
 
     float getPointerGestureMovementSpeedRatio() { return mConfig.pointerGestureMovementSpeedRatio; }
 
+    void setVelocityControlParams(const VelocityControlParameters& params) {
+        mConfig.pointerVelocityControlParameters = params;
+        mConfig.wheelVelocityControlParameters = params;
+    }
+
 private:
     uint32_t mNextPointerCaptureSequenceNumber = 0;
 
@@ -2949,7 +2954,10 @@ protected:
     }
 
     void configureDevice(uint32_t changes) {
-        if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+        if (!changes ||
+            (changes &
+             (InputReaderConfiguration::CHANGE_DISPLAY_INFO |
+              InputReaderConfiguration::CHANGE_POINTER_CAPTURE))) {
             mReader->requestRefreshConfiguration(changes);
             mReader->loopOnce();
         }
@@ -3364,9 +3372,8 @@ TEST_F(KeyboardInputMapperTest, Process_SimpleKeyPress) {
     KeyboardInputMapper& mapper =
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
-    // Initial metastate to AMETA_NONE.
-    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
-    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
 
     // Key down by scan code.
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_HOME, 1);
@@ -3491,9 +3498,8 @@ TEST_F(KeyboardInputMapperTest, Process_ShouldUpdateMetaState) {
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
-    // Initial metastate to AMETA_NONE.
-    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
-    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
 
     // Metakey down.
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_LEFTSHIFT, 1);
@@ -3738,9 +3744,8 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleMetaStateAndLeds) 
     KeyboardInputMapper& mapper =
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
-    // Initialize metastate to AMETA_NUM_LOCK_ON.
-    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
-    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
 
     // Initialization should have turned all of the lights off.
     ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
@@ -3806,8 +3811,6 @@ TEST_F(KeyboardInputMapperTest, NoMetaStateWhenMetaKeysNotPresent) {
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC);
 
-    // Initial metastate should be AMETA_NONE as no meta keys added.
-    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
     // Meta state should be AMETA_NONE after reset
     mapper.reset(ARBITRARY_TIME);
     ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
@@ -3922,9 +3925,8 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleAfterReattach) {
     KeyboardInputMapper& mapper =
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
-    // Initial metastate to AMETA_NONE.
-    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
-    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
 
     // Initialization should have turned all of the lights off.
     ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
@@ -3991,9 +3993,8 @@ TEST_F(KeyboardInputMapperTest, Process_toggleCapsLockState) {
     KeyboardInputMapper& mapper =
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
-    // Initialize metastate to AMETA_NUM_LOCK_ON.
-    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
-    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
 
     mReader->toggleCapsLockState(DEVICE_ID);
     ASSERT_EQ(AMETA_CAPS_LOCK_ON, mapper.getMetaState());
@@ -4033,7 +4034,13 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleInMultiDevices) {
     device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0 /*changes*/);
     device2->reset(ARBITRARY_TIME);
 
-    // Initial metastate is AMETA_NUM_LOCK_ON, turn it off.
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mapper1.getMetaState());
+    ASSERT_EQ(AMETA_NONE, mapper2.getMetaState());
+
+    // Toggle num lock on and off.
+    process(mapper1, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_NUMLOCK, 1);
+    process(mapper1, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_NUMLOCK, 0);
     ASSERT_TRUE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_NUML));
     ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper1.getMetaState());
     ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper2.getMetaState());
@@ -4912,6 +4919,54 @@ TEST_F(CursorInputMapperTest, Process_PointerCapture) {
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0],
             110.0f, 220.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
     ASSERT_NO_FATAL_FAILURE(assertPosition(*mFakePointerController, 110.0f, 220.0f));
+}
+
+/**
+ * When Pointer Capture is enabled, we expect to report unprocessed relative movements, so any
+ * pointer acceleration or speed processing should not be applied.
+ */
+TEST_F(CursorInputMapperTest, PointerCaptureDisablesVelocityProcessing) {
+    addConfigurationProperty("cursor.mode", "pointer");
+    const VelocityControlParameters testParams(5.f /*scale*/, 0.f /*low threshold*/,
+                                               100.f /*high threshold*/, 10.f /*acceleration*/);
+    mFakePolicy->setVelocityControlParams(testParams);
+    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+
+    NotifyDeviceResetArgs resetArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    ASSERT_EQ(ARBITRARY_TIME, resetArgs.eventTime);
+    ASSERT_EQ(DEVICE_ID, resetArgs.deviceId);
+
+    NotifyMotionArgs args;
+
+    // Move and verify scale is applied.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE, args.source);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
+    const float relX = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
+    const float relY = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
+    ASSERT_GT(relX, 10);
+    ASSERT_GT(relY, 20);
+
+    // Enable Pointer Capture
+    mFakePolicy->setPointerCapture(true);
+    configureDevice(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
+    NotifyPointerCaptureChangedArgs captureArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyCaptureWasCalled(&captureArgs));
+    ASSERT_TRUE(captureArgs.request.enable);
+
+    // Move and verify scale is not applied.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE_RELATIVE, args.source);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+    ASSERT_EQ(10, args.pointerCoords[0].getX());
+    ASSERT_EQ(20, args.pointerCoords[0].getY());
 }
 
 TEST_F(CursorInputMapperTest, Process_ShouldHandleDisplayId) {
