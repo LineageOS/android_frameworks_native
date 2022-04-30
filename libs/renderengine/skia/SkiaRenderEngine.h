@@ -45,7 +45,6 @@ public:
     virtual bool isProtected() const override { return false; } // mInProtectedContext; }
     virtual bool supportsProtectedContent() const override { return false; };
     virtual int getContextPriority() override { return 0; }
-    virtual void assertShadersCompiled(int numShaders) {}
     virtual int reportShadersCompiled() { return 0; }
     virtual void setEnableTracing(bool tracingEnabled) override;
 

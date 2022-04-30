@@ -439,7 +439,7 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
 
         const nsecs_t timeAfter = systemTime();
         const float compileTimeMs = static_cast<float>(timeAfter - timeBefore) / 1.0E6;
-        const int shadersCompiled = renderengine->reportShadersCompiled();
+        const int shadersCompiled = renderengine->reportShadersCompiled() - previousCount;
         ALOGD("Shader cache generated %d shaders in %f ms\n", shadersCompiled, compileTimeMs);
     }
 }

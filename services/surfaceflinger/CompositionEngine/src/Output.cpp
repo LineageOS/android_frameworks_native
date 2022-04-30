@@ -1488,6 +1488,10 @@ void Output::setPredictCompositionStrategy(bool predict) {
     }
 }
 
+void Output::setTreat170mAsSrgb(bool enable) {
+    editState().treat170mAsSrgb = enable;
+}
+
 bool Output::canPredictCompositionStrategy(const CompositionRefreshArgs& refreshArgs) {
     if (!getState().isEnabled || !mHwComposerAsyncWorker) {
         ALOGV("canPredictCompositionStrategy disabled");
