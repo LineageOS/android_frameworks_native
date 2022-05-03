@@ -2627,12 +2627,13 @@ void Surface::ProducerListenerProxy::onBuffersDiscarded(const std::vector<int32_
     mSurfaceListener->onBuffersDiscarded(discardedBufs);
 }
 
-status_t Surface::setFrameRate(float /*frameRate*/, int8_t /*compatibility*/,
-                               int8_t /*changeFrameRateStrategy*/) {
-    ATRACE_CALL();
-    ALOGV("Surface::setFrameRate");
-    // ISurfaceComposer no longer supports setFrameRate
-    return BAD_VALUE;
+[[deprecated]] status_t Surface::setFrameRate(float /*frameRate*/, int8_t /*compatibility*/,
+                                              int8_t /*changeFrameRateStrategy*/) {
+    ALOGI("Surface::setFrameRate is deprecated, setFrameRate hint is dropped as destination is not "
+          "SurfaceFlinger");
+    // ISurfaceComposer no longer supports setFrameRate, we will return NO_ERROR when the api is
+    // called to avoid apps crashing, as BAD_VALUE can generate fatal exception in apps.
+    return NO_ERROR;
 }
 
 status_t Surface::setFrameTimelineInfo(const FrameTimelineInfo& /*frameTimelineInfo*/) {
