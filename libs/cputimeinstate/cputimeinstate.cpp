@@ -300,11 +300,11 @@ std::optional<std::vector<std::vector<uint64_t>>> getUidCpuFreqTimes(uint32_t ui
     }
 
     std::vector<tis_val_t> vals(gNCpus);
-    time_key_t key = {.uid = uid};
     for (uint32_t i = 0; i <= (maxFreqCount - 1) / FREQS_PER_ENTRY; ++i) {
-        key.bucket = i;
+        const time_key_t key = {.uid = uid, .bucket = i};
         if (findMapEntry(gTisMapFd, &key, vals.data())) {
-            if (errno != ENOENT || getFirstMapKey(gTisMapFd, &key)) return {};
+            time_key_t tmpKey;
+            if (errno != ENOENT || getFirstMapKey(gTisMapFd, &tmpKey)) return {};
             continue;
         }
 
@@ -412,10 +412,11 @@ std::optional<concurrent_time_t> getUidConcurrentTimes(uint32_t uid, bool retry)
     concurrent_time_t ret = {.active = std::vector<uint64_t>(gNCpus, 0)};
     for (const auto &cpuList : gPolicyCpus) ret.policy.emplace_back(cpuList.size(), 0);
     std::vector<concurrent_val_t> vals(gNCpus);
-    time_key_t key = {.uid = uid};
-    for (key.bucket = 0; key.bucket <= (gNCpus - 1) / CPUS_PER_ENTRY; ++key.bucket) {
+    for (uint32_t i = 0; i <= (gNCpus - 1) / CPUS_PER_ENTRY; ++i) {
+        const time_key_t key = {.uid = uid, .bucket = i};
         if (findMapEntry(gConcurrentMapFd, &key, vals.data())) {
-            if (errno != ENOENT || getFirstMapKey(gConcurrentMapFd, &key)) return {};
+            time_key_t tmpKey;
+            if (errno != ENOENT || getFirstMapKey(gConcurrentMapFd, &tmpKey)) return {};
             continue;
         }
         auto offset = key.bucket * CPUS_PER_ENTRY;
