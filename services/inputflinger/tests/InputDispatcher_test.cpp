@@ -5670,6 +5670,25 @@ TEST_F(InputDispatcherPointerCaptureTests, EnableRequestFollowsSequenceNumbers) 
     mWindow->consumeCaptureEvent(true);
 }
 
+TEST_F(InputDispatcherPointerCaptureTests, RapidToggleRequests) {
+    requestAndVerifyPointerCapture(mWindow, true);
+
+    // App toggles pointer capture off and on.
+    mDispatcher->requestPointerCapture(mWindow->getToken(), false);
+    mFakePolicy->assertSetPointerCaptureCalled(false);
+
+    mDispatcher->requestPointerCapture(mWindow->getToken(), true);
+    auto enableRequest = mFakePolicy->assertSetPointerCaptureCalled(true);
+
+    // InputReader notifies that the latest "enable" request was processed, while skipping over the
+    // preceding "disable" request.
+    notifyPointerCaptureChanged(enableRequest);
+
+    // Since pointer capture was never disabled during the rapid toggle, the window does not receive
+    // any notifications.
+    mWindow->assertNoEvents();
+}
+
 class InputDispatcherUntrustedTouchesTest : public InputDispatcherTest {
 protected:
     constexpr static const float MAXIMUM_OBSCURING_OPACITY = 0.8;
