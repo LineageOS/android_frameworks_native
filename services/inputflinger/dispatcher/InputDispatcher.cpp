@@ -1421,8 +1421,10 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
         // Enable Pointer Capture.
         if (haveWindowWithPointerCapture &&
             (entry->pointerCaptureRequest == mCurrentPointerCaptureRequest)) {
-            LOG_ALWAYS_FATAL("This request to enable Pointer Capture has already been dispatched "
-                             "to the window.");
+            // This can happen if pointer capture is disabled and re-enabled before we notify the
+            // app of the state change, so there is no need to notify the app.
+            ALOGI("Skipping dispatch of Pointer Capture being enabled: no state change.");
+            return;
         }
         if (!mCurrentPointerCaptureRequest.enable) {
             // This can happen if a window requests capture and immediately releases capture.
