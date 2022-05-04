@@ -763,6 +763,7 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
     bool includeGeometry = refreshArgs.updatingGeometryThisFrame;
     uint32_t z = 0;
     bool overrideZ = false;
+    uint64_t outputLayerHash = 0;
     for (auto* layer : getOutputLayersOrderedByZ()) {
         if (layer == peekThroughLayer) {
             // No longer needed, although it should not show up again, so
@@ -789,6 +790,10 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
                     constexpr bool isPeekingThrough = true;
                     peekThroughLayer->writeStateToHWC(includeGeometry, false, z++, overrideZ,
                                                       isPeekingThrough);
+                    outputLayerHash ^= android::hashCombine(
+                            reinterpret_cast<uint64_t>(&peekThroughLayer->getLayerFE()),
+                            z, includeGeometry, overrideZ, isPeekingThrough,
+                            peekThroughLayer->requiresClientComposition());
                 }
 
                 previousOverride = overrideInfo.buffer->getBuffer();
@@ -797,7 +802,14 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
 
         constexpr bool isPeekingThrough = false;
         layer->writeStateToHWC(includeGeometry, skipLayer, z++, overrideZ, isPeekingThrough);
+        if (!skipLayer) {
+            outputLayerHash ^= android::hashCombine(
+                    reinterpret_cast<uint64_t>(&layer->getLayerFE()),
+                    z, includeGeometry, overrideZ, isPeekingThrough,
+                    layer->requiresClientComposition());
+        }
     }
+    editState().outputLayerHash = outputLayerHash;
 }
 
 compositionengine::OutputLayer* Output::findLayerRequestingBackgroundComposition() const {
@@ -1493,6 +1505,10 @@ void Output::setTreat170mAsSrgb(bool enable) {
 }
 
 bool Output::canPredictCompositionStrategy(const CompositionRefreshArgs& refreshArgs) {
+    uint64_t lastOutputLayerHash = getState().lastOutputLayerHash;
+    uint64_t outputLayerHash = getState().outputLayerHash;
+    editState().lastOutputLayerHash = outputLayerHash;
+
     if (!getState().isEnabled || !mHwComposerAsyncWorker) {
         ALOGV("canPredictCompositionStrategy disabled");
         return false;
@@ -1513,6 +1529,11 @@ bool Output::canPredictCompositionStrategy(const CompositionRefreshArgs& refresh
         return false;
     }
 
+    if (lastOutputLayerHash != outputLayerHash) {
+        ALOGV("canPredictCompositionStrategy output layers changed");
+        return false;
+    }
+
     // If no layer uses clientComposition, then don't predict composition strategy
     // because we have less work to do in parallel.
     if (!anyLayersRequireClientComposition()) {
@@ -1520,12 +1541,7 @@ bool Output::canPredictCompositionStrategy(const CompositionRefreshArgs& refresh
         return false;
     }
 
-    if (!refreshArgs.updatingOutputGeometryThisFrame) {
-        return true;
-    }
-
-    ALOGV("canPredictCompositionStrategy updatingOutputGeometryThisFrame");
-    return false;
+    return true;
 }
 
 bool Output::anyLayersRequireClientComposition() const {
