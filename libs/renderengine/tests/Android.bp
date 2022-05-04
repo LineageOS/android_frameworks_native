@@ -29,6 +29,8 @@ cc_test {
     ],
     test_suites: ["device-tests"],
     srcs: [
+        "DisplaySettingsTest.cpp",
+        "LayerSettingsTest.cpp",
         "RenderEngineTest.cpp",
         "RenderEngineThreadedTest.cpp",
     ],

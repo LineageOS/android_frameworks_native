@@ -139,22 +139,35 @@ void MultiStateCounter<T>::setEnabled(bool enabled, time_t timestamp) {
         return;
     }
 
-    if (!enabled) {
+    if (isEnabled) {
         // Confirm the current state for the side-effect of updating the time-in-state
         // counter for the current state.
         setState(currentState, timestamp);
-    }
+        isEnabled = false;
+    } else {
+        // If the counter is being enabled with an out-of-order timestamp, just push back
+        // the timestamp to avoid having the situation where
+        // timeInStateSinceUpdate > timeSinceUpdate
+        if (timestamp < lastUpdateTimestamp) {
+            timestamp = lastUpdateTimestamp;
+        }
 
-    isEnabled = enabled;
-
-    if (lastStateChangeTimestamp >= 0) {
-        lastStateChangeTimestamp = timestamp;
+        if (lastStateChangeTimestamp >= 0) {
+            lastStateChangeTimestamp = timestamp;
+        }
+        isEnabled = true;
     }
 }
 
 template <class T>
 void MultiStateCounter<T>::setState(state_t state, time_t timestamp) {
-    if (isEnabled && lastStateChangeTimestamp >= 0) {
+    if (isEnabled && lastStateChangeTimestamp >= 0 && lastUpdateTimestamp >= 0) {
+        // If the update arrived out-of-order, just push back the timestamp to
+        // avoid having the situation where timeInStateSinceUpdate > timeSinceUpdate
+        if (timestamp < lastUpdateTimestamp) {
+            timestamp = lastUpdateTimestamp;
+        }
+
         if (timestamp >= lastStateChangeTimestamp) {
             states[currentState].timeInStateSinceUpdate += timestamp - lastStateChangeTimestamp;
         } else {
@@ -185,6 +198,12 @@ const T& MultiStateCounter<T>::updateValue(const T& value, time_t timestamp) {
     // If the counter is disabled, we ignore the update, except when the counter got disabled after
     // the previous update, in which case we still need to pick up the residual delta.
     if (isEnabled || lastUpdateTimestamp < lastStateChangeTimestamp) {
+        // If the update arrived out of order, just push back the timestamp to
+        // avoid having the situation where timeInStateSinceUpdate > timeSinceUpdate
+        if (timestamp < lastStateChangeTimestamp) {
+            timestamp = lastStateChangeTimestamp;
+        }
+
         // Confirm the current state for the side-effect of updating the time-in-state
         // counter for the current state.
         setState(currentState, timestamp);
