@@ -19,7 +19,9 @@
 #include <math/mat4.h>
 #include <math/vec3.h>
 #include <renderengine/ExternalTexture.h>
+#include <renderengine/PrintMatrix.h>
 #include <ui/BlurRegion.h>
+#include <ui/DebugUtils.h>
 #include <ui/Fence.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
@@ -208,6 +210,10 @@ static inline bool operator==(const ShadowSettings& lhs, const ShadowSettings& r
             lhs.casterIsTranslucent == rhs.casterIsTranslucent;
 }
 
+static inline bool operator!=(const ShadowSettings& lhs, const ShadowSettings& rhs) {
+    return !(operator==(lhs, rhs));
+}
+
 static inline bool operator==(const LayerSettings& lhs, const LayerSettings& rhs) {
     if (lhs.blurRegions.size() != rhs.blurRegions.size()) {
         return false;
@@ -226,18 +232,19 @@ static inline bool operator==(const LayerSettings& lhs, const LayerSettings& rhs
             lhs.skipContentDraw == rhs.skipContentDraw && lhs.shadow == rhs.shadow &&
             lhs.backgroundBlurRadius == rhs.backgroundBlurRadius &&
             lhs.blurRegionTransform == rhs.blurRegionTransform &&
-            lhs.stretchEffect == rhs.stretchEffect;
+            lhs.stretchEffect == rhs.stretchEffect && lhs.whitePointNits == rhs.whitePointNits;
 }
-
-// Defining PrintTo helps with Google Tests.
 
 static inline void PrintTo(const Buffer& settings, ::std::ostream* os) {
     *os << "Buffer {";
-    *os << "\n    .buffer = " << settings.buffer.get();
+    *os << "\n    .buffer = " << settings.buffer.get() << " "
+        << (settings.buffer.get() ? decodePixelFormat(settings.buffer->getPixelFormat()).c_str()
+                                  : "");
     *os << "\n    .fence = " << settings.fence.get();
     *os << "\n    .textureName = " << settings.textureName;
     *os << "\n    .useTextureFiltering = " << settings.useTextureFiltering;
-    *os << "\n    .textureTransform = " << settings.textureTransform;
+    *os << "\n    .textureTransform = ";
+    PrintMatrix(settings.textureTransform, os);
     *os << "\n    .usePremultipliedAlpha = " << settings.usePremultipliedAlpha;
     *os << "\n    .isOpaque = " << settings.isOpaque;
     *os << "\n    .isY410BT2020 = " << settings.isY410BT2020;
@@ -249,7 +256,8 @@ static inline void PrintTo(const Geometry& settings, ::std::ostream* os) {
     *os << "Geometry {";
     *os << "\n    .boundaries = ";
     PrintTo(settings.boundaries, os);
-    *os << "\n    .positionTransform = " << settings.positionTransform;
+    *os << "\n    .positionTransform = ";
+    PrintMatrix(settings.positionTransform, os);
     *os << "\n    .roundedCornersRadius = " << settings.roundedCornersRadius;
     *os << "\n    .roundedCornersCrop = ";
     PrintTo(settings.roundedCornersCrop, os);
@@ -258,10 +266,14 @@ static inline void PrintTo(const Geometry& settings, ::std::ostream* os) {
 
 static inline void PrintTo(const PixelSource& settings, ::std::ostream* os) {
     *os << "PixelSource {";
-    *os << "\n    .buffer = ";
-    PrintTo(settings.buffer, os);
-    *os << "\n    .solidColor = " << settings.solidColor;
-    *os << "\n}";
+    if (settings.buffer.buffer) {
+        *os << "\n    .buffer = ";
+        PrintTo(settings.buffer, os);
+        *os << "\n}";
+    } else {
+        *os << "\n    .solidColor = " << settings.solidColor;
+        *os << "\n}";
+    }
 }
 
 static inline void PrintTo(const ShadowSettings& settings, ::std::ostream* os) {
@@ -301,18 +313,28 @@ static inline void PrintTo(const LayerSettings& settings, ::std::ostream* os) {
     *os << "\n    .alpha = " << settings.alpha;
     *os << "\n    .sourceDataspace = ";
     PrintTo(settings.sourceDataspace, os);
-    *os << "\n    .colorTransform = " << settings.colorTransform;
+    *os << "\n    .colorTransform = ";
+    PrintMatrix(settings.colorTransform, os);
     *os << "\n    .disableBlending = " << settings.disableBlending;
     *os << "\n    .skipContentDraw = " << settings.skipContentDraw;
-    *os << "\n    .backgroundBlurRadius = " << settings.backgroundBlurRadius;
-    for (auto blurRegion : settings.blurRegions) {
-        *os << "\n";
-        PrintTo(blurRegion, os);
+    if (settings.shadow != ShadowSettings()) {
+        *os << "\n    .shadow = ";
+        PrintTo(settings.shadow, os);
     }
-    *os << "\n    .shadow = ";
-    PrintTo(settings.shadow, os);
-    *os << "\n    .stretchEffect = ";
-    PrintTo(settings.stretchEffect, os);
+    *os << "\n    .backgroundBlurRadius = " << settings.backgroundBlurRadius;
+    if (settings.blurRegions.size()) {
+        *os << "\n    .blurRegions =";
+        for (auto blurRegion : settings.blurRegions) {
+            *os << "\n";
+            PrintTo(blurRegion, os);
+        }
+    }
+    *os << "\n    .blurRegionTransform = ";
+    PrintMatrix(settings.blurRegionTransform, os);
+    if (settings.stretchEffect != StretchEffect()) {
+        *os << "\n    .stretchEffect = ";
+        PrintTo(settings.stretchEffect, os);
+    }
     *os << "\n    .whitePointNits = " << settings.whitePointNits;
     *os << "\n}";
 }
