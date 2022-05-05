@@ -21,6 +21,7 @@
 #include <iosfwd>
 
 #include <math/mat4.h>
+#include <renderengine/PrintMatrix.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
@@ -82,11 +83,38 @@ struct DisplaySettings {
 
 static inline bool operator==(const DisplaySettings& lhs, const DisplaySettings& rhs) {
     return lhs.physicalDisplay == rhs.physicalDisplay && lhs.clip == rhs.clip &&
-            lhs.maxLuminance == rhs.maxLuminance && lhs.outputDataspace == rhs.outputDataspace &&
-            lhs.colorTransform == rhs.colorTransform && lhs.orientation == rhs.orientation;
+            lhs.maxLuminance == rhs.maxLuminance &&
+            lhs.currentLuminanceNits == rhs.currentLuminanceNits &&
+            lhs.outputDataspace == rhs.outputDataspace &&
+            lhs.colorTransform == rhs.colorTransform &&
+            lhs.deviceHandlesColorTransform == rhs.deviceHandlesColorTransform &&
+            lhs.orientation == rhs.orientation &&
+            lhs.targetLuminanceNits == rhs.targetLuminanceNits &&
+            lhs.dimmingStage == rhs.dimmingStage && lhs.renderIntent == rhs.renderIntent;
 }
 
-// Defining PrintTo helps with Google Tests.
+static const char* orientation_to_string(uint32_t orientation) {
+    switch (orientation) {
+        case ui::Transform::ROT_0:
+            return "ROT_0";
+        case ui::Transform::FLIP_H:
+            return "FLIP_H";
+        case ui::Transform::FLIP_V:
+            return "FLIP_V";
+        case ui::Transform::ROT_90:
+            return "ROT_90";
+        case ui::Transform::ROT_180:
+            return "ROT_180";
+        case ui::Transform::ROT_270:
+            return "ROT_270";
+        case ui::Transform::ROT_INVALID:
+            return "ROT_INVALID";
+        default:
+            ALOGE("invalid orientation!");
+            return "invalid orientation";
+    }
+}
+
 static inline void PrintTo(const DisplaySettings& settings, ::std::ostream* os) {
     *os << "DisplaySettings {";
     *os << "\n    .physicalDisplay = ";
@@ -94,10 +122,19 @@ static inline void PrintTo(const DisplaySettings& settings, ::std::ostream* os) 
     *os << "\n    .clip = ";
     PrintTo(settings.clip, os);
     *os << "\n    .maxLuminance = " << settings.maxLuminance;
+    *os << "\n    .currentLuminanceNits = " << settings.currentLuminanceNits;
     *os << "\n    .outputDataspace = ";
     PrintTo(settings.outputDataspace, os);
-    *os << "\n    .colorTransform = " << settings.colorTransform;
-    *os << "\n    .clearRegion = ";
+    *os << "\n    .colorTransform = ";
+    PrintMatrix(settings.colorTransform, os);
+    *os << "\n    .deviceHandlesColorTransform = " << settings.deviceHandlesColorTransform;
+    *os << "\n    .orientation = " << orientation_to_string(settings.orientation);
+    *os << "\n    .targetLuminanceNits = " << settings.targetLuminanceNits;
+    *os << "\n    .dimmingStage = "
+        << aidl::android::hardware::graphics::composer3::toString(settings.dimmingStage).c_str();
+    *os << "\n    .renderIntent = "
+        << aidl::android::hardware::graphics::composer3::toString(settings.renderIntent).c_str();
+    *os << "\n}";
 }
 
 } // namespace renderengine
