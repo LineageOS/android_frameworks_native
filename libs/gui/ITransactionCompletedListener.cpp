@@ -29,6 +29,7 @@ namespace { // Anonymous
 enum class Tag : uint32_t {
     ON_TRANSACTION_COMPLETED = IBinder::FIRST_CALL_TRANSACTION,
     ON_RELEASE_BUFFER,
+    ON_TRANSACTION_QUEUE_STALLED,
     LAST = ON_RELEASE_BUFFER,
 };
 
@@ -277,6 +278,11 @@ public:
                                                                   callbackId, releaseFence,
                                                                   currentMaxAcquiredBufferCount);
     }
+
+    void onTransactionQueueStalled() override {
+        callRemoteAsync<decltype(&ITransactionCompletedListener::onTransactionQueueStalled)>(
+            Tag::ON_TRANSACTION_QUEUE_STALLED);
+    }
 };
 
 // Out-of-line virtual method definitions to trigger vtable emission in this translation unit (see
@@ -297,6 +303,9 @@ status_t BnTransactionCompletedListener::onTransact(uint32_t code, const Parcel&
                                   &ITransactionCompletedListener::onTransactionCompleted);
         case Tag::ON_RELEASE_BUFFER:
             return callLocalAsync(data, reply, &ITransactionCompletedListener::onReleaseBuffer);
+        case Tag::ON_TRANSACTION_QUEUE_STALLED:
+            return callLocalAsync(data, reply,
+                                  &ITransactionCompletedListener::onTransactionQueueStalled);
     }
 }
 
