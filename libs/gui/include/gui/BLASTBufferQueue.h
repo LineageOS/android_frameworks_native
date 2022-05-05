@@ -113,6 +113,14 @@ public:
     uint64_t getLastAcquiredFrameNum();
     void abandon();
 
+    /**
+     * Set a callback to be invoked when we are hung. The boolean parameter
+     * indicates whether the hang is due to an unfired fence.
+     * TODO: The boolean is always true atm, unfired fence is
+     * the only case we detect.
+     */
+    void setTransactionHangCallback(std::function<void(bool)> callback);
+
     virtual ~BLASTBufferQueue();
 
 private:
@@ -269,6 +277,8 @@ private:
     // transaction that will be applied by some sync consumer.
     bool mAppliedLastTransaction = false;
     uint64_t mLastAppliedFrameNumber = 0;
+
+    std::function<void(bool)> mTransactionHangCallback;
 };
 
 } // namespace android
