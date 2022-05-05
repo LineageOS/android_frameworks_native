@@ -1770,18 +1770,12 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, std::shared_ptr<
 }
 
 void InputDispatcher::enqueueDragEventLocked(const sp<WindowInfoHandle>& windowHandle,
-                                             bool isExiting, const MotionEntry& motionEntry) {
-    // If the window needs enqueue a drag event, the pointerCount should be 1 and the action should
-    // be AMOTION_EVENT_ACTION_MOVE, that could guarantee the first pointer is always valid.
-    LOG_ALWAYS_FATAL_IF(motionEntry.pointerCount != 1);
-    PointerCoords pointerCoords;
-    pointerCoords.copyFrom(motionEntry.pointerCoords[0]);
-    pointerCoords.transform(windowHandle->getInfo()->transform);
-
+                                             bool isExiting, const int32_t rawX,
+                                             const int32_t rawY) {
+    const vec2 xy = windowHandle->getInfo()->transform.transform(vec2(rawX, rawY));
     std::unique_ptr<DragEntry> dragEntry =
-            std::make_unique<DragEntry>(mIdGenerator.nextId(), motionEntry.eventTime,
-                                        windowHandle->getToken(), isExiting, pointerCoords.getX(),
-                                        pointerCoords.getY());
+            std::make_unique<DragEntry>(mIdGenerator.nextId(), now(), windowHandle->getToken(),
+                                        isExiting, xy.x, xy.y);
 
     enqueueInboundEventLocked(std::move(dragEntry));
 }
@@ -2573,13 +2567,14 @@ void InputDispatcher::finishDragAndDrop(int32_t displayId, float x, float y) {
         vec2 local = dropWindow->getInfo()->transform.transform(x, y);
         sendDropWindowCommandLocked(dropWindow->getToken(), local.x, local.y);
     } else {
+        ALOGW("No window found when drop.");
         sendDropWindowCommandLocked(nullptr, 0, 0);
     }
     mDragState.reset();
 }
 
 void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
-    if (entry.pointerCount != 1 || !mDragState) {
+    if (!mDragState) {
         return;
     }
 
@@ -2589,42 +2584,75 @@ void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
                 (entry.buttonState & AMOTION_EVENT_BUTTON_STYLUS_PRIMARY) != 0;
     }
 
-    int32_t maskedAction = entry.action & AMOTION_EVENT_ACTION_MASK;
-    int32_t x = static_cast<int32_t>(entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X));
-    int32_t y = static_cast<int32_t>(entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y));
-    if (maskedAction == AMOTION_EVENT_ACTION_MOVE) {
-        // Handle the special case : stylus button no longer pressed.
-        bool isStylusButtonDown = (entry.buttonState & AMOTION_EVENT_BUTTON_STYLUS_PRIMARY) != 0;
-        if (mDragState->isStylusButtonDownAtStart && !isStylusButtonDown) {
-            finishDragAndDrop(entry.displayId, x, y);
-            return;
+    // Find the pointer index by id.
+    int32_t pointerIndex = 0;
+    for (; static_cast<uint32_t>(pointerIndex) < entry.pointerCount; pointerIndex++) {
+        const PointerProperties& pointerProperties = entry.pointerProperties[pointerIndex];
+        if (pointerProperties.id == mDragState->pointerId) {
+            break;
         }
+    }
 
-        // Prevent stylus interceptor windows from affecting drag and drop behavior for now, until
-        // we have an explicit reason to support it.
-        constexpr bool isStylus = false;
-
-        const sp<WindowInfoHandle> hoverWindowHandle =
-                findTouchedWindowAtLocked(entry.displayId, x, y, nullptr /*touchState*/, isStylus,
-                                          false /*addOutsideTargets*/, true /*ignoreDragWindow*/);
-        // enqueue drag exit if needed.
-        if (hoverWindowHandle != mDragState->dragHoverWindowHandle &&
-            !haveSameToken(hoverWindowHandle, mDragState->dragHoverWindowHandle)) {
-            if (mDragState->dragHoverWindowHandle != nullptr) {
-                enqueueDragEventLocked(mDragState->dragHoverWindowHandle, true /*isExiting*/,
-                                       entry);
-            }
-            mDragState->dragHoverWindowHandle = hoverWindowHandle;
-        }
-        // enqueue drag location if needed.
-        if (hoverWindowHandle != nullptr) {
-            enqueueDragEventLocked(hoverWindowHandle, false /*isExiting*/, entry);
-        }
-    } else if (maskedAction == AMOTION_EVENT_ACTION_UP) {
-        finishDragAndDrop(entry.displayId, x, y);
-    } else if (maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
+    if (uint32_t(pointerIndex) == entry.pointerCount) {
+        LOG_ALWAYS_FATAL("Should find a valid pointer index by id %d", mDragState->pointerId);
         sendDropWindowCommandLocked(nullptr, 0, 0);
         mDragState.reset();
+        return;
+    }
+
+    const int32_t maskedAction = entry.action & AMOTION_EVENT_ACTION_MASK;
+    const int32_t x = entry.pointerCoords[pointerIndex].getX();
+    const int32_t y = entry.pointerCoords[pointerIndex].getY();
+
+    switch (maskedAction) {
+        case AMOTION_EVENT_ACTION_MOVE: {
+            // Handle the special case : stylus button no longer pressed.
+            bool isStylusButtonDown =
+                    (entry.buttonState & AMOTION_EVENT_BUTTON_STYLUS_PRIMARY) != 0;
+            if (mDragState->isStylusButtonDownAtStart && !isStylusButtonDown) {
+                finishDragAndDrop(entry.displayId, x, y);
+                return;
+            }
+
+            // Prevent stylus interceptor windows from affecting drag and drop behavior for now,
+            // until we have an explicit reason to support it.
+            constexpr bool isStylus = false;
+
+            const sp<WindowInfoHandle> hoverWindowHandle =
+                    findTouchedWindowAtLocked(entry.displayId, x, y, nullptr /*touchState*/,
+                                              isStylus, false /*addOutsideTargets*/,
+                                              true /*ignoreDragWindow*/);
+            // enqueue drag exit if needed.
+            if (hoverWindowHandle != mDragState->dragHoverWindowHandle &&
+                !haveSameToken(hoverWindowHandle, mDragState->dragHoverWindowHandle)) {
+                if (mDragState->dragHoverWindowHandle != nullptr) {
+                    enqueueDragEventLocked(mDragState->dragHoverWindowHandle, true /*isExiting*/, x,
+                                           y);
+                }
+                mDragState->dragHoverWindowHandle = hoverWindowHandle;
+            }
+            // enqueue drag location if needed.
+            if (hoverWindowHandle != nullptr) {
+                enqueueDragEventLocked(hoverWindowHandle, false /*isExiting*/, x, y);
+            }
+            break;
+        }
+
+        case AMOTION_EVENT_ACTION_POINTER_UP:
+            if (getMotionEventActionPointerIndex(entry.action) != pointerIndex) {
+                break;
+            }
+            // The drag pointer is up.
+            [[fallthrough]];
+        case AMOTION_EVENT_ACTION_UP:
+            finishDragAndDrop(entry.displayId, x, y);
+            break;
+        case AMOTION_EVENT_ACTION_CANCEL: {
+            ALOGD("Receiving cancel when drag and drop.");
+            sendDropWindowCommandLocked(nullptr, 0, 0);
+            mDragState.reset();
+            break;
+        }
     }
 }
 
@@ -5111,7 +5139,15 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
 
         // Store the dragging window.
         if (isDragDrop) {
-            mDragState = std::make_unique<DragState>(toWindowHandle);
+            if (pointerIds.count() > 1) {
+                ALOGW("The drag and drop cannot be started when there is more than 1 pointer on the"
+                      " window.");
+                return false;
+            }
+            // If the window didn't not support split or the source is mouse, the pointerIds count
+            // would be 0, so we have to track the pointer 0.
+            const int32_t id = pointerIds.count() == 0 ? 0 : pointerIds.firstMarkedBit();
+            mDragState = std::make_unique<DragState>(toWindowHandle, id);
         }
 
         // Synthesize cancel for old window and down for new window.

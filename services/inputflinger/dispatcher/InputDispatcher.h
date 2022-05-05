@@ -220,7 +220,8 @@ private:
                                  const std::string& reason) REQUIRES(mLock);
     // Enqueues a drag event.
     void enqueueDragEventLocked(const sp<android::gui::WindowInfoHandle>& windowToken,
-                                bool isExiting, const MotionEntry& motionEntry) REQUIRES(mLock);
+                                bool isExiting, const int32_t rawX, const int32_t rawY)
+            REQUIRES(mLock);
 
     // Adds an event to a queue of recent events for debugging purposes.
     void addRecentEventLocked(std::shared_ptr<EventEntry> entry) REQUIRES(mLock);
