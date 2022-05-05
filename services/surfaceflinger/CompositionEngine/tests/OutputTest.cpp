@@ -3368,7 +3368,6 @@ struct OutputComposeSurfacesTest : public testing::Test {
     static constexpr float kDefaultMaxLuminance = 0.9f;
     static constexpr float kDefaultAvgLuminance = 0.7f;
     static constexpr float kDefaultMinLuminance = 0.1f;
-    static constexpr float kUnknownLuminance = -1.f;
     static constexpr float kDisplayLuminance = 400.f;
     static constexpr float kClientTargetLuminanceNits = 200.f;
     static constexpr float kClientTargetBrightness = 0.5f;
@@ -3766,7 +3765,7 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
 TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposition) {
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
-            .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDisplayBrightnessNits(kDisplayLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
@@ -3775,7 +3774,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposi
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
                      .maxLuminance = kDefaultMaxLuminance,
-                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDisplayLuminance,
                      .outputDataspace = kDefaultOutputDataspace,
                      .colorTransform = kDefaultColorTransformMat,
                      .deviceHandlesColorTransform = true,
@@ -3820,7 +3819,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
        forHdrMixedCompositionWithDimmingStage) {
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
-            .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDisplayBrightnessNits(kDisplayLuminance)
             .withDimmingStage(
                     aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF)
             .withRenderIntent(
@@ -3830,7 +3829,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
                      .maxLuminance = kDefaultMaxLuminance,
-                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDisplayLuminance,
                      .outputDataspace = kDefaultOutputDataspace,
                      .colorTransform = kDefaultColorTransformMat,
                      .deviceHandlesColorTransform = true,
@@ -3848,7 +3847,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
        forHdrMixedCompositionWithRenderIntent) {
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
-            .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDisplayBrightnessNits(kDisplayLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(aidl::android::hardware::graphics::composer3::RenderIntent::ENHANCE)
             .andIfSkipColorTransform(false)
@@ -3856,7 +3855,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
                      .maxLuminance = kDefaultMaxLuminance,
-                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDisplayLuminance,
                      .outputDataspace = kDefaultOutputDataspace,
                      .colorTransform = kDefaultColorTransformMat,
                      .deviceHandlesColorTransform = true,
@@ -3873,7 +3872,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
 TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComposition) {
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(false)
-            .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDisplayBrightnessNits(kDisplayLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
@@ -3882,7 +3881,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComp
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
                      .maxLuminance = kDefaultMaxLuminance,
-                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDisplayLuminance,
                      .outputDataspace = kDefaultOutputDataspace,
                      .colorTransform = kDefaultColorTransformMat,
                      .deviceHandlesColorTransform = true,
@@ -3899,7 +3898,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComp
 TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientComposition) {
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
-            .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDisplayBrightnessNits(kDisplayLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
@@ -3908,7 +3907,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientCo
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
                      .maxLuminance = kDefaultMaxLuminance,
-                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDisplayLuminance,
                      .outputDataspace = kDefaultOutputDataspace,
                      .colorTransform = kDefaultColorTransformMat,
                      .deviceHandlesColorTransform = false,
@@ -3925,7 +3924,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientCo
 TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClientComposition) {
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(false)
-            .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDisplayBrightnessNits(kDisplayLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
@@ -3934,7 +3933,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClien
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
                      .maxLuminance = kDefaultMaxLuminance,
-                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDisplayLuminance,
                      .outputDataspace = kDefaultOutputDataspace,
                      .colorTransform = kDefaultColorTransformMat,
                      .deviceHandlesColorTransform = false,
@@ -3952,7 +3951,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
        usesExpectedDisplaySettingsForHdrOnlyClientCompositionWithSkipClientTransform) {
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
-            .withDisplayBrightnessNits(kUnknownLuminance)
+            .withDisplayBrightnessNits(kDisplayLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
@@ -3961,7 +3960,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
                      .maxLuminance = kDefaultMaxLuminance,
-                     .currentLuminanceNits = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDisplayLuminance,
                      .outputDataspace = kDefaultOutputDataspace,
                      .colorTransform = kDefaultColorTransformMat,
                      .deviceHandlesColorTransform = true,
