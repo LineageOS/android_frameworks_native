@@ -45,10 +45,10 @@ namespace android::inputdispatcher {
 using namespace ftl::flag_operators;
 
 // An arbitrary time value.
-static const nsecs_t ARBITRARY_TIME = 1234;
+static constexpr nsecs_t ARBITRARY_TIME = 1234;
 
 // An arbitrary device id.
-static const int32_t DEVICE_ID = 1;
+static constexpr int32_t DEVICE_ID = 1;
 
 // An arbitrary display id.
 static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
@@ -61,9 +61,12 @@ static constexpr int32_t POINTER_2_DOWN =
 static constexpr int32_t POINTER_1_UP =
         AMOTION_EVENT_ACTION_POINTER_UP | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 
-// An arbitrary injector pid / uid pair that has permission to inject events.
-static const int32_t INJECTOR_PID = 999;
-static const int32_t INJECTOR_UID = 1001;
+// The default pid and uid for windows created by the test.
+static constexpr int32_t WINDOW_PID = 999;
+static constexpr int32_t WINDOW_UID = 1001;
+
+// The default policy flags to use for event injection by tests.
+static constexpr uint32_t DEFAULT_POLICY_FLAGS = POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER;
 
 // An arbitrary pid of the gesture monitor window
 static constexpr int32_t MONITOR_PID = 2001;
@@ -471,10 +474,6 @@ private:
 
     void pokeUserActivity(nsecs_t, int32_t, int32_t) override {}
 
-    bool checkInjectEventsPermissionNonReentrant(int32_t pid, int32_t uid) override {
-        return pid == INJECTOR_PID && uid == INJECTOR_UID;
-    }
-
     void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override {
         std::scoped_lock lock(mLock);
         mOnPointerDownToken = newToken;
@@ -559,8 +558,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesKeyEvents) {
                      /*action*/ -1, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0, ARBITRARY_TIME,
                      ARBITRARY_TIME);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
-              mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                            InputEventInjectionSync::NONE, 0ms, 0))
+              mDispatcher->injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+                                            0ms, 0))
             << "Should reject key events with undefined action.";
 
     // Rejects ACTION_MULTIPLE since it is not supported despite being defined in the API.
@@ -568,8 +567,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesKeyEvents) {
                      INVALID_HMAC, AKEY_EVENT_ACTION_MULTIPLE, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0,
                      ARBITRARY_TIME, ARBITRARY_TIME);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
-              mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                            InputEventInjectionSync::NONE, 0ms, 0))
+              mDispatcher->injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+                                            0ms, 0))
             << "Should reject key events with ACTION_MULTIPLE.";
 }
 
@@ -598,8 +597,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
-              mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                            InputEventInjectionSync::NONE, 0ms, 0))
+              mDispatcher->injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+                                            0ms, 0))
             << "Should reject motion events with undefined action.";
 
     // Rejects pointer down with invalid index.
@@ -610,8 +609,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
-              mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                            InputEventInjectionSync::NONE, 0ms, 0))
+              mDispatcher->injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+                                            0ms, 0))
             << "Should reject motion events with pointer down index too large.";
 
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
@@ -622,8 +621,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      identityTransform, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
-              mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                            InputEventInjectionSync::NONE, 0ms, 0))
+              mDispatcher->injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+                                            0ms, 0))
             << "Should reject motion events with pointer down index too small.";
 
     // Rejects pointer up with invalid index.
@@ -634,8 +633,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
-              mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                            InputEventInjectionSync::NONE, 0ms, 0))
+              mDispatcher->injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+                                            0ms, 0))
             << "Should reject motion events with pointer up index too large.";
 
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
@@ -646,8 +645,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      identityTransform, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
-              mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                            InputEventInjectionSync::NONE, 0ms, 0))
+              mDispatcher->injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+                                            0ms, 0))
             << "Should reject motion events with pointer up index too small.";
 
     // Rejects motion events with invalid number of pointers.
@@ -658,8 +657,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      ARBITRARY_TIME,
                      /*pointerCount*/ 0, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
-              mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                            InputEventInjectionSync::NONE, 0ms, 0))
+              mDispatcher->injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+                                            0ms, 0))
             << "Should reject motion events with 0 pointers.";
 
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
@@ -669,8 +668,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      ARBITRARY_TIME,
                      /*pointerCount*/ MAX_POINTERS + 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
-              mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                            InputEventInjectionSync::NONE, 0ms, 0))
+              mDispatcher->injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+                                            0ms, 0))
             << "Should reject motion events with more than MAX_POINTERS pointers.";
 
     // Rejects motion events with invalid pointer ids.
@@ -682,8 +681,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
-              mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                            InputEventInjectionSync::NONE, 0ms, 0))
+              mDispatcher->injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+                                            0ms, 0))
             << "Should reject motion events with pointer ids less than 0.";
 
     pointerProperties[0].id = MAX_POINTER_ID + 1;
@@ -694,8 +693,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
-              mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                            InputEventInjectionSync::NONE, 0ms, 0))
+              mDispatcher->injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+                                            0ms, 0))
             << "Should reject motion events with pointer ids greater than MAX_POINTER_ID.";
 
     // Rejects motion events with duplicate pointer ids.
@@ -708,8 +707,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      ARBITRARY_TIME,
                      /*pointerCount*/ 2, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
-              mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                            InputEventInjectionSync::NONE, 0ms, 0))
+              mDispatcher->injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+                                            0ms, 0))
             << "Should reject motion events with duplicate pointer ids.";
 }
 
@@ -1012,8 +1011,8 @@ public:
         mInfo.globalScaleFactor = 1.0;
         mInfo.touchableRegion.clear();
         mInfo.addTouchableRegion(Rect(0, 0, WIDTH, HEIGHT));
-        mInfo.ownerPid = INJECTOR_PID;
-        mInfo.ownerUid = INJECTOR_UID;
+        mInfo.ownerPid = WINDOW_PID;
+        mInfo.ownerUid = WINDOW_UID;
         mInfo.displayId = displayId;
         mInfo.inputConfig = WindowInfo::InputConfig::DEFAULT;
     }
@@ -1295,7 +1294,8 @@ static InputEventInjectionResult injectKey(
         int32_t displayId = ADISPLAY_ID_NONE,
         InputEventInjectionSync syncMode = InputEventInjectionSync::WAIT_FOR_RESULT,
         std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
-        bool allowKeyRepeat = true) {
+        bool allowKeyRepeat = true, std::optional<int32_t> targetUid = {},
+        uint32_t policyFlags = DEFAULT_POLICY_FLAGS) {
     KeyEvent event;
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
@@ -1304,13 +1304,11 @@ static InputEventInjectionResult injectKey(
                      INVALID_HMAC, action, /* flags */ 0, AKEYCODE_A, KEY_A, AMETA_NONE,
                      repeatCount, currentTime, currentTime);
 
-    int32_t policyFlags = POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER;
     if (!allowKeyRepeat) {
         policyFlags |= POLICY_FLAG_DISABLE_KEY_REPEAT;
     }
     // Inject event until dispatch out.
-    return dispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID, syncMode,
-                                        injectionTimeout, policyFlags);
+    return dispatcher->injectInputEvent(&event, targetUid, syncMode, injectionTimeout, policyFlags);
 }
 
 static InputEventInjectionResult injectKeyDown(const std::unique_ptr<InputDispatcher>& dispatcher,
@@ -1453,10 +1451,10 @@ private:
 static InputEventInjectionResult injectMotionEvent(
         const std::unique_ptr<InputDispatcher>& dispatcher, const MotionEvent& event,
         std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
-        InputEventInjectionSync injectionMode = InputEventInjectionSync::WAIT_FOR_RESULT) {
-    return dispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID, injectionMode,
-                                        injectionTimeout,
-                                        POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
+        InputEventInjectionSync injectionMode = InputEventInjectionSync::WAIT_FOR_RESULT,
+        std::optional<int32_t> targetUid = {}, uint32_t policyFlags = DEFAULT_POLICY_FLAGS) {
+    return dispatcher->injectInputEvent(&event, targetUid, injectionMode, injectionTimeout,
+                                        policyFlags);
 }
 
 static InputEventInjectionResult injectMotionEvent(
@@ -1466,7 +1464,8 @@ static InputEventInjectionResult injectMotionEvent(
                                         AMOTION_EVENT_INVALID_CURSOR_POSITION},
         std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
         InputEventInjectionSync injectionMode = InputEventInjectionSync::WAIT_FOR_RESULT,
-        nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC)) {
+        nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC),
+        std::optional<int32_t> targetUid = {}, uint32_t policyFlags = DEFAULT_POLICY_FLAGS) {
     MotionEvent event = MotionEventBuilder(action, source)
                                 .displayId(displayId)
                                 .eventTime(eventTime)
@@ -1478,7 +1477,8 @@ static InputEventInjectionResult injectMotionEvent(
                                 .build();
 
     // Inject event until dispatch out.
-    return injectMotionEvent(dispatcher, event, injectionTimeout, injectionMode);
+    return injectMotionEvent(dispatcher, event, injectionTimeout, injectionMode, targetUid,
+                             policyFlags);
 }
 
 static InputEventInjectionResult injectMotionDown(
@@ -3573,8 +3573,8 @@ TEST_F(InputDispatcherTest, DisplayRemoved) {
  * FLAG_WINDOW_IS_PARTIALLY_OBSCURED.
  */
 TEST_F(InputDispatcherTest, SlipperyWindow_SetsFlagPartiallyObscured) {
-    constexpr int32_t SLIPPERY_PID = INJECTOR_PID + 1;
-    constexpr int32_t SLIPPERY_UID = INJECTOR_UID + 1;
+    constexpr int32_t SLIPPERY_PID = WINDOW_PID + 1;
+    constexpr int32_t SLIPPERY_UID = WINDOW_UID + 1;
 
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
@@ -4101,7 +4101,7 @@ protected:
         const int32_t additionalPolicyFlags =
                 POLICY_FLAG_PASS_TO_USER | POLICY_FLAG_DISABLE_KEY_REPEAT;
         ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-                  mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
+                  mDispatcher->injectInputEvent(&event, {} /*targetUid*/,
                                                 InputEventInjectionSync::WAIT_FOR_RESULT, 10ms,
                                                 policyFlags | additionalPolicyFlags));
 
@@ -4136,7 +4136,7 @@ protected:
 
         const int32_t additionalPolicyFlags = POLICY_FLAG_PASS_TO_USER;
         ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-                  mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
+                  mDispatcher->injectInputEvent(&event, {} /*targetUid*/,
                                                 InputEventInjectionSync::WAIT_FOR_RESULT, 10ms,
                                                 policyFlags | additionalPolicyFlags));
 
@@ -4643,7 +4643,7 @@ TEST_F(InputDispatcherSingleWindowAnr, StaleKeyEventDoesNotAnr) {
     const int32_t policyFlags = POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER;
 
     InputEventInjectionResult result =
-            mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
+            mDispatcher->injectInputEvent(&event, {} /* targetUid */,
                                           InputEventInjectionSync::WAIT_FOR_RESULT,
                                           INJECT_EVENT_TIMEOUT, policyFlags);
     ASSERT_EQ(InputEventInjectionResult::FAILED, result)
@@ -6461,8 +6461,8 @@ protected:
         mWindow->consumeFocusEvent(true);
 
         // Set initial touch mode to InputDispatcher::kDefaultInTouchMode.
-        if (mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode, INJECTOR_PID,
-                                        INJECTOR_UID, /* hasPermission */ true)) {
+        if (mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode, WINDOW_PID,
+                                        WINDOW_UID, /* hasPermission */ true)) {
             mWindow->consumeTouchModeEvent(InputDispatcher::kDefaultInTouchMode);
             mSecondWindow->consumeTouchModeEvent(InputDispatcher::kDefaultInTouchMode);
         }
@@ -7091,6 +7091,151 @@ TEST_F(InputDispatcherStylusInterceptorTest, StylusHandwritingScenario) {
     overlay->consumeMotionUp();
 
     window->assertNoEvents();
+}
+
+struct User {
+    int32_t mPid;
+    int32_t mUid;
+    uint32_t mPolicyFlags{DEFAULT_POLICY_FLAGS};
+    std::unique_ptr<InputDispatcher>& mDispatcher;
+
+    User(std::unique_ptr<InputDispatcher>& dispatcher, int32_t pid, int32_t uid)
+          : mPid(pid), mUid(uid), mDispatcher(dispatcher) {}
+
+    InputEventInjectionResult injectTargetedMotion(int32_t action) const {
+        return injectMotionEvent(mDispatcher, action, AINPUT_SOURCE_TOUCHSCREEN,
+                                 ADISPLAY_ID_DEFAULT, {100, 200},
+                                 {AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                  AMOTION_EVENT_INVALID_CURSOR_POSITION},
+                                 INJECT_EVENT_TIMEOUT, InputEventInjectionSync::WAIT_FOR_RESULT,
+                                 systemTime(SYSTEM_TIME_MONOTONIC), {mUid}, mPolicyFlags);
+    }
+
+    InputEventInjectionResult injectTargetedKey(int32_t action) const {
+        return inputdispatcher::injectKey(mDispatcher, action, 0 /* repeatCount*/, ADISPLAY_ID_NONE,
+                                          InputEventInjectionSync::WAIT_FOR_RESULT,
+                                          INJECT_EVENT_TIMEOUT, false /*allowKeyRepeat*/, {mUid},
+                                          mPolicyFlags);
+    }
+
+    sp<FakeWindowHandle> createWindow() const {
+        std::shared_ptr<FakeApplicationHandle> overlayApplication =
+                std::make_shared<FakeApplicationHandle>();
+        sp<FakeWindowHandle> window = new FakeWindowHandle(overlayApplication, mDispatcher,
+                                                           "Owned Window", ADISPLAY_ID_DEFAULT);
+        window->setOwnerInfo(mPid, mUid);
+        return window;
+    }
+};
+
+using InputDispatcherTargetedInjectionTest = InputDispatcherTest;
+
+TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoOwnedWindow) {
+    auto owner = User(mDispatcher, 10, 11);
+    auto window = owner.createWindow();
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    EXPECT_EQ(InputEventInjectionResult::SUCCEEDED,
+              owner.injectTargetedMotion(AMOTION_EVENT_ACTION_DOWN));
+    window->consumeMotionDown();
+
+    setFocusedWindow(window);
+    window->consumeFocusEvent(true);
+
+    EXPECT_EQ(InputEventInjectionResult::SUCCEEDED,
+              owner.injectTargetedKey(AKEY_EVENT_ACTION_DOWN));
+    window->consumeKeyDown(ADISPLAY_ID_NONE);
+}
+
+TEST_F(InputDispatcherTargetedInjectionTest, CannotInjectIntoUnownedWindow) {
+    auto owner = User(mDispatcher, 10, 11);
+    auto window = owner.createWindow();
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    auto rando = User(mDispatcher, 20, 21);
+    EXPECT_EQ(InputEventInjectionResult::TARGET_MISMATCH,
+              rando.injectTargetedMotion(AMOTION_EVENT_ACTION_DOWN));
+
+    setFocusedWindow(window);
+    window->consumeFocusEvent(true);
+
+    EXPECT_EQ(InputEventInjectionResult::TARGET_MISMATCH,
+              rando.injectTargetedKey(AKEY_EVENT_ACTION_DOWN));
+    window->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoOwnedSpyWindow) {
+    auto owner = User(mDispatcher, 10, 11);
+    auto window = owner.createWindow();
+    auto spy = owner.createWindow();
+    spy->setSpy(true);
+    spy->setTrustedOverlay(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy, window}}});
+
+    EXPECT_EQ(InputEventInjectionResult::SUCCEEDED,
+              owner.injectTargetedMotion(AMOTION_EVENT_ACTION_DOWN));
+    spy->consumeMotionDown();
+    window->consumeMotionDown();
+}
+
+TEST_F(InputDispatcherTargetedInjectionTest, CannotInjectIntoUnownedSpyWindow) {
+    auto owner = User(mDispatcher, 10, 11);
+    auto window = owner.createWindow();
+
+    auto rando = User(mDispatcher, 20, 21);
+    auto randosSpy = rando.createWindow();
+    randosSpy->setSpy(true);
+    randosSpy->setTrustedOverlay(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {randosSpy, window}}});
+
+    // The event is targeted at owner's window, so injection should succeed, but the spy should
+    // not receive the event.
+    EXPECT_EQ(InputEventInjectionResult::SUCCEEDED,
+              owner.injectTargetedMotion(AMOTION_EVENT_ACTION_DOWN));
+    randosSpy->assertNoEvents();
+    window->consumeMotionDown();
+}
+
+TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoAnyWindowWhenNotTargeting) {
+    auto owner = User(mDispatcher, 10, 11);
+    auto window = owner.createWindow();
+
+    auto rando = User(mDispatcher, 20, 21);
+    auto randosSpy = rando.createWindow();
+    randosSpy->setSpy(true);
+    randosSpy->setTrustedOverlay(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {randosSpy, window}}});
+
+    // A user that has injection permission can inject into any window.
+    EXPECT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                ADISPLAY_ID_DEFAULT));
+    randosSpy->consumeMotionDown();
+    window->consumeMotionDown();
+
+    setFocusedWindow(randosSpy);
+    randosSpy->consumeFocusEvent(true);
+
+    EXPECT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDown(mDispatcher));
+    randosSpy->consumeKeyDown(ADISPLAY_ID_NONE);
+    window->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTargetedInjectionTest, CanGenerateActionOutsideToOtherUids) {
+    auto owner = User(mDispatcher, 10, 11);
+    auto window = owner.createWindow();
+
+    auto rando = User(mDispatcher, 20, 21);
+    auto randosWindow = rando.createWindow();
+    randosWindow->setFrame(Rect{-10, -10, -5, -5});
+    randosWindow->setWatchOutsideTouch(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {randosWindow, window}}});
+
+    // We allow generation of ACTION_OUTSIDE events into windows owned by different uids.
+    EXPECT_EQ(InputEventInjectionResult::SUCCEEDED,
+              owner.injectTargetedMotion(AMOTION_EVENT_ACTION_DOWN));
+    window->consumeMotionDown();
+    randosWindow->consumeMotionOutside();
 }
 
 } // namespace android::inputdispatcher
