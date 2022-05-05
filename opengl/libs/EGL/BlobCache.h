@@ -39,6 +39,26 @@ public:
     // (key sizes plus value sizes) will not exceed maxTotalSize.
     BlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxTotalSize);
 
+    // Return value from set(), below.
+    enum class InsertResult {
+        // The key is larger than maxKeySize specified in the constructor.
+        kKeyTooBig,
+        // The value is larger than maxValueSize specified in the constructor.
+        kValueTooBig,
+        // The combined key + value is larger than maxTotalSize specified in the constructor.
+        kCombinedTooBig,
+        // keySize is 0
+        kInvalidKeySize,
+        // valueSize is 0
+        kInvalidValueSize,
+        // Unable to free enough space to fit the new entry.
+        kNotEnoughSpace,
+        // The new entry was inserted, but an old entry had to be evicted.
+        kDidClean,
+        // There was enough room in the cache and the new entry was inserted.
+        kInserted,
+
+    };
     // set inserts a new binary value into the cache and associates it with the
     // given binary key.  If the key or value are too large for the cache then
     // the cache remains unchanged.  This includes the case where a different
@@ -54,7 +74,7 @@ public:
     //   0 < keySize
     //   value != NULL
     //   0 < valueSize
-    void set(const void* key, size_t keySize, const void* value, size_t valueSize);
+    InsertResult set(const void* key, size_t keySize, const void* value, size_t valueSize);
 
     // get retrieves from the cache the binary value associated with a given
     // binary key.  If the key is present in the cache then the length of the
