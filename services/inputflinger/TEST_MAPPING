@@ -24,6 +24,14 @@
       "name": "libinputservice_test"
     },
     {
+      "name": "CtsHardwareTestCases",
+      "options": [
+        {
+          "include-filter": "android.hardware.input.cts.tests"
+        }
+      ]
+    },
+    {
       "name": "CtsInputTestCases"
     },
     {
