@@ -194,6 +194,7 @@ public:
 
     virtual void onReleaseBuffer(ReleaseCallbackId callbackId, sp<Fence> releaseFence,
                                  uint32_t currentMaxAcquiredBufferCount) = 0;
+    virtual void onTransactionQueueStalled() = 0;
 };
 
 class BnTransactionCompletedListener : public SafeBnInterface<ITransactionCompletedListener> {
