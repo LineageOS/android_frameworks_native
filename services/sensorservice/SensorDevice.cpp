@@ -612,8 +612,10 @@ int SensorDevice::getHalDeviceVersion() const {
     return SENSORS_DEVICE_API_VERSION_1_4;
 }
 
-status_t SensorDevice::flush(void* /*ident*/, int handle) {
+status_t SensorDevice::flush(void* ident, int handle) {
     if (mHalWrapper == nullptr) return NO_INIT;
+    if (isClientDisabled(ident)) return INVALID_OPERATION;
+    ALOGD_IF(DEBUG_CONNECTIONS, "\t>>> actuating h/w flush %d", handle);
     return mHalWrapper->flush(handle);
 }
 
@@ -754,6 +756,13 @@ void SensorDevice::disableAllSensors() {
 
 status_t SensorDevice::injectSensorData(const sensors_event_t* injected_sensor_event) {
     if (mHalWrapper == nullptr) return NO_INIT;
+    ALOGD_IF(DEBUG_CONNECTIONS,
+             "sensor_event handle=%d ts=%" PRId64 " data=%.2f, %.2f, %.2f %.2f %.2f %.2f",
+             injected_sensor_event->sensor, injected_sensor_event->timestamp,
+             injected_sensor_event->data[0], injected_sensor_event->data[1],
+             injected_sensor_event->data[2], injected_sensor_event->data[3],
+             injected_sensor_event->data[4], injected_sensor_event->data[5]);
+
     return mHalWrapper->injectSensorData(injected_sensor_event);
 }
 
