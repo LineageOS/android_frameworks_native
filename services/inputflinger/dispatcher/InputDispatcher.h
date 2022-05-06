@@ -104,7 +104,7 @@ public:
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 
     android::os::InputEventInjectionResult injectInputEvent(
-            const InputEvent* event, int32_t injectorPid, int32_t injectorUid,
+            const InputEvent* event, std::optional<int32_t> targetUid,
             android::os::InputEventInjectionSync syncMode, std::chrono::milliseconds timeout,
             uint32_t policyFlags) override;
 
@@ -220,7 +220,8 @@ private:
                                  const std::string& reason) REQUIRES(mLock);
     // Enqueues a drag event.
     void enqueueDragEventLocked(const sp<android::gui::WindowInfoHandle>& windowToken,
-                                bool isExiting, const MotionEntry& motionEntry) REQUIRES(mLock);
+                                bool isExiting, const int32_t rawX, const int32_t rawY)
+            REQUIRES(mLock);
 
     // Adds an event to a queue of recent events for debugging purposes.
     void addRecentEventLocked(std::shared_ptr<EventEntry> entry) REQUIRES(mLock);
@@ -277,7 +278,6 @@ private:
 
     // Event injection and synchronization.
     std::condition_variable mInjectionResultAvailable;
-    bool hasInjectionPermission(int32_t injectorPid, int32_t injectorUid);
     void setInjectionResult(EventEntry& entry,
                             android::os::InputEventInjectionResult injectionResult);
     void transformMotionEntryForInjectionLocked(MotionEntry&,
@@ -552,8 +552,6 @@ private:
     void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId)
             REQUIRES(mLock);
     void pokeUserActivityLocked(const EventEntry& eventEntry) REQUIRES(mLock);
-    bool checkInjectionPermission(const sp<android::gui::WindowInfoHandle>& windowHandle,
-                                  const InjectionState* injectionState);
     // Enqueue a drag event if needed, and update the touch state.
     // Uses findTouchedWindowTargetsLocked to make the decision
     void addDragEventLocked(const MotionEntry& entry) REQUIRES(mLock);
