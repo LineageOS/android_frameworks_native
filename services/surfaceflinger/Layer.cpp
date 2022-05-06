@@ -101,7 +101,8 @@ Layer::Layer(const LayerCreationArgs& args)
         mClientRef(args.client),
         mWindowType(static_cast<WindowInfo::Type>(
                 args.metadata.getInt32(gui::METADATA_WINDOW_TYPE, 0))),
-        mLayerCreationFlags(args.flags) {
+        mLayerCreationFlags(args.flags),
+        mBorderEnabled(false) {
     uint32_t layerFlags = 0;
     if (args.flags & ISurfaceComposerClient::eHidden) layerFlags |= layer_state_t::eLayerHidden;
     if (args.flags & ISurfaceComposerClient::eOpaque) layerFlags |= layer_state_t::eLayerOpaque;
@@ -1154,6 +1155,18 @@ StretchEffect Layer::getStretchEffect() const {
         }
     }
     return StretchEffect{};
+}
+
+bool Layer::enableBorder(bool shouldEnable) {
+    if (mBorderEnabled == shouldEnable) {
+        return false;
+    }
+    mBorderEnabled = shouldEnable;
+    return true;
+}
+
+bool Layer::isBorderEnabled() {
+    return mBorderEnabled;
 }
 
 bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool* transactionNeeded) {

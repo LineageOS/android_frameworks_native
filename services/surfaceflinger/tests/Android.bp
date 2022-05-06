@@ -34,6 +34,7 @@ cc_test {
         "DisplayConfigs_test.cpp",
         "DisplayEventReceiver_test.cpp",
         "EffectLayer_test.cpp",
+        "LayerBorder_test.cpp",
         "InvalidHandles_test.cpp",
         "LayerCallback_test.cpp",
         "LayerRenderTypeTransaction_test.cpp",

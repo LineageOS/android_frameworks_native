@@ -1245,6 +1245,30 @@ void SkiaGLRenderEngine::drawLayersInternal(
             activeSurface->flush();
         }
     }
+    for (const auto& borderRenderInfo : display.borderInfoList) {
+        SkPaint p;
+        // TODO (b/225977175): Use specified color
+        p.setColor(SkColor4f{.fR = 255 / 255.0f,
+                             .fG = 128 / 255.0f,
+                             .fB = 0 / 255.0f,
+                             .fA = 255 / 255.0f});
+        p.setAntiAlias(true);
+        p.setStyle(SkPaint::kStroke_Style);
+        // TODO (b/225977175): Use specified width
+        p.setStrokeWidth(20);
+        SkRegion sk_region;
+        SkPath path;
+
+        // Construct a final SkRegion using Regions
+        for (const auto& r : borderRenderInfo.combinedRegion) {
+            sk_region.op({r.left, r.top, r.right, r.bottom}, SkRegion::kUnion_Op);
+        }
+
+        sk_region.getBoundaryPath(&path);
+        canvas->drawPath(path, p);
+        path.close();
+    }
+
     surfaceAutoSaveRestore.restore();
     mCapture->endCapture();
     {

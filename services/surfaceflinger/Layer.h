@@ -895,6 +895,8 @@ public:
 
     bool setStretchEffect(const StretchEffect& effect);
     StretchEffect getStretchEffect() const;
+    bool enableBorder(bool shouldEnable);
+    bool isBorderEnabled();
 
     virtual bool setBufferCrop(const Rect& /* bufferCrop */) { return false; }
     virtual bool setDestinationFrame(const Rect& /* destinationFrame */) { return false; }
@@ -1143,7 +1145,10 @@ private:
     bool mIsAtRoot = false;
 
     uint32_t mLayerCreationFlags;
+
     bool findInHierarchy(const sp<Layer>&);
+
+    bool mBorderEnabled = false;
 };
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate);

@@ -32,6 +32,9 @@ namespace android::compositionengine {
 using Layers = std::vector<sp<compositionengine::LayerFE>>;
 using Outputs = std::vector<std::shared_ptr<compositionengine::Output>>;
 
+struct BorderRenderInfo {
+    std::vector<int32_t> layerIds;
+};
 /**
  * A parameter object for refreshing a set of outputs
  */
@@ -90,6 +93,8 @@ struct CompositionRefreshArgs {
 
     // If set, a frame has been scheduled for that time.
     std::optional<std::chrono::steady_clock::time_point> scheduledFrameTime;
+
+    std::vector<BorderRenderInfo> borderInfoList;
 };
 
 } // namespace android::compositionengine
