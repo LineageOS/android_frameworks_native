@@ -1611,7 +1611,9 @@ void SensorService::cleanupConnection(SensorEventConnection* c) {
             } else {
                 ALOGE("sensor interface of handle=0x%08x is null!", handle);
             }
-            c->removeSensor(handle);
+            if (c->removeSensor(handle)) {
+                BatteryService::disableSensor(c->getUid(), handle);
+            }
         }
         SensorRecord* rec = mActiveSensors.valueAt(i);
         ALOGE_IF(!rec, "mActiveSensors[%zu] is null (handle=0x%08x)!", i, handle);
@@ -1631,7 +1633,6 @@ void SensorService::cleanupConnection(SensorEventConnection* c) {
     }
     c->updateLooperRegistration(mLooper);
     mConnectionHolder.removeEventConnection(connection);
-    BatteryService::cleanup(c->getUid());
     if (c->needsWakeLock()) {
         checkWakeLockStateLocked(&connLock);
     }
