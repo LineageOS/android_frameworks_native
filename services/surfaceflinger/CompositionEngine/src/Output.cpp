@@ -753,8 +753,13 @@ void Output::updateCompositionStateForBorder(
         for (const auto& id : borderInfo.layerIds) {
             info.combinedRegion.orSelf(*(layerVisibleRegionMap[id]));
         }
-        outputCompositionState.borderInfoList.emplace_back(std::move(info));
-        clientComposeTopLayer |= !info.combinedRegion.isEmpty();
+
+        if (!info.combinedRegion.isEmpty()) {
+            info.width = borderInfo.width;
+            info.color = borderInfo.color;
+            outputCompositionState.borderInfoList.emplace_back(std::move(info));
+            clientComposeTopLayer = true;
+        }
     }
 
     // In this situation we must client compose the top layer instead of using hwc
@@ -1218,6 +1223,8 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     clientCompositionDisplay.colorTransform = outputState.colorTransformMatrix;
     for (auto& info : outputState.borderInfoList) {
         renderengine::BorderRenderInfo borderInfo;
+        borderInfo.width = info.width;
+        borderInfo.color = info.color;
         borderInfo.combinedRegion = info.combinedRegion;
         clientCompositionDisplay.borderInfoList.emplace_back(std::move(borderInfo));
     }

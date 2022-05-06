@@ -33,6 +33,8 @@ using Layers = std::vector<sp<compositionengine::LayerFE>>;
 using Outputs = std::vector<std::shared_ptr<compositionengine::Output>>;
 
 struct BorderRenderInfo {
+    float width = 0;
+    half4 color;
     std::vector<int32_t> layerIds;
 };
 /**

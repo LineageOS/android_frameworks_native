@@ -22,10 +22,13 @@ namespace android {
 namespace renderengine {
 
 struct BorderRenderInfo {
+    float width = 0;
+    half4 color;
     Region combinedRegion;
 
     bool operator==(const BorderRenderInfo& rhs) const {
-        return (combinedRegion.hasSameRects(rhs.combinedRegion));
+        return (width == rhs.width && color == rhs.color &&
+                combinedRegion.hasSameRects(rhs.combinedRegion));
     }
 };
 

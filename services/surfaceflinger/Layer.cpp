@@ -1157,16 +1157,26 @@ StretchEffect Layer::getStretchEffect() const {
     return StretchEffect{};
 }
 
-bool Layer::enableBorder(bool shouldEnable) {
-    if (mBorderEnabled == shouldEnable) {
+bool Layer::enableBorder(bool shouldEnable, float width, const half4& color) {
+    if (mBorderEnabled == shouldEnable && mBorderWidth == width && mBorderColor == color) {
         return false;
     }
     mBorderEnabled = shouldEnable;
+    mBorderWidth = width;
+    mBorderColor = color;
     return true;
 }
 
 bool Layer::isBorderEnabled() {
     return mBorderEnabled;
+}
+
+float Layer::getBorderWidth() {
+    return mBorderWidth;
+}
+
+const half4& Layer::getBorderColor() {
+    return mBorderColor;
 }
 
 bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool* transactionNeeded) {

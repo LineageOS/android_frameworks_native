@@ -36,7 +36,7 @@ protected:
 
         const auto display = SurfaceComposerClient::getInternalDisplayToken();
         ASSERT_FALSE(display == nullptr);
-
+        mColorOrange = toHalf4({255, 140, 0, 255});
         mParentLayer = createColorLayer("Parent layer", Color::RED);
 
         mContainerLayer = mClient->createSurface(String8("Container Layer"), 0 /* width */,
@@ -82,6 +82,7 @@ protected:
     std::function<half3(Color)> toHalf3;
     std::function<half4(Color)> toHalf4;
     sp<SurfaceControl> mParentLayer, mContainerLayer, mEffectLayer1, mEffectLayer2;
+    half4 mColorOrange;
 };
 
 TEST_F(LayerBorderTest, OverlappingVisibleRegions) {
@@ -89,7 +90,7 @@ TEST_F(LayerBorderTest, OverlappingVisibleRegions) {
         t.setCrop(mEffectLayer1, Rect(0, 0, 400, 400));
         t.setCrop(mEffectLayer2, Rect(200, 200, 600, 600));
 
-        t.enableBorder(mContainerLayer, true);
+        t.enableBorder(mContainerLayer, true, 20, mColorOrange);
         t.show(mEffectLayer1);
         t.show(mEffectLayer2);
         t.show(mContainerLayer);
@@ -101,7 +102,7 @@ TEST_F(LayerBorderTest, PartiallyCoveredVisibleRegion) {
         t.setCrop(mEffectLayer1, Rect(0, 0, 400, 400));
         t.setCrop(mEffectLayer2, Rect(200, 200, 600, 600));
 
-        t.enableBorder(mEffectLayer1, true);
+        t.enableBorder(mEffectLayer1, true, 20, mColorOrange);
         t.show(mEffectLayer1);
         t.show(mEffectLayer2);
         t.show(mContainerLayer);
@@ -113,7 +114,7 @@ TEST_F(LayerBorderTest, NonOverlappingVisibleRegion) {
         t.setCrop(mEffectLayer1, Rect(0, 0, 200, 200));
         t.setCrop(mEffectLayer2, Rect(400, 400, 600, 600));
 
-        t.enableBorder(mContainerLayer, true);
+        t.enableBorder(mContainerLayer, true, 20, mColorOrange);
         t.show(mEffectLayer1);
         t.show(mEffectLayer2);
         t.show(mContainerLayer);
@@ -125,7 +126,7 @@ TEST_F(LayerBorderTest, EmptyVisibleRegion) {
         t.setCrop(mEffectLayer1, Rect(200, 200, 400, 400));
         t.setCrop(mEffectLayer2, Rect(0, 0, 600, 600));
 
-        t.enableBorder(mEffectLayer1, true);
+        t.enableBorder(mEffectLayer1, true, 20, mColorOrange);
         t.show(mEffectLayer1);
         t.show(mEffectLayer2);
         t.show(mContainerLayer);
@@ -140,7 +141,7 @@ TEST_F(LayerBorderTest, ZOrderAdjustment) {
         t.setLayer(mEffectLayer1, 30);
         t.setLayer(mEffectLayer2, 20);
 
-        t.enableBorder(mEffectLayer1, true);
+        t.enableBorder(mEffectLayer1, true, 20, mColorOrange);
         t.show(mEffectLayer1);
         t.show(mEffectLayer2);
         t.show(mContainerLayer);
@@ -169,7 +170,7 @@ TEST_F(LayerBorderTest, GrandChildHierarchy) {
         t.setCrop(effectLayer3, Rect(400, 400, 800, 800));
         t.setColor(effectLayer3, toHalf3(Color::BLUE));
 
-        t.enableBorder(mContainerLayer, true);
+        t.enableBorder(mContainerLayer, true, 20, mColorOrange);
         t.show(mEffectLayer1);
         t.show(mEffectLayer2);
         t.show(effectLayer3);
@@ -183,7 +184,7 @@ TEST_F(LayerBorderTest, TransparentAlpha) {
         t.setCrop(mEffectLayer2, Rect(200, 200, 600, 600));
         t.setAlpha(mEffectLayer1, 0.0f);
 
-        t.enableBorder(mEffectLayer1, true);
+        t.enableBorder(mContainerLayer, true, 20, mColorOrange);
         t.show(mEffectLayer1);
         t.show(mEffectLayer2);
         t.show(mContainerLayer);
@@ -196,7 +197,7 @@ TEST_F(LayerBorderTest, SemiTransparentAlpha) {
         t.setCrop(mEffectLayer2, Rect(200, 200, 600, 600));
         t.setAlpha(mEffectLayer2, 0.5f);
 
-        t.enableBorder(mEffectLayer2, true);
+        t.enableBorder(mEffectLayer2, true, 20, mColorOrange);
         t.show(mEffectLayer1);
         t.show(mEffectLayer2);
         t.show(mContainerLayer);
@@ -208,7 +209,7 @@ TEST_F(LayerBorderTest, InvisibleLayers) {
         t.setCrop(mEffectLayer1, Rect(0, 0, 400, 400));
         t.setCrop(mEffectLayer2, Rect(200, 200, 600, 600));
 
-        t.enableBorder(mContainerLayer, true);
+        t.enableBorder(mContainerLayer, true, 20, mColorOrange);
         t.hide(mEffectLayer2);
         t.show(mContainerLayer);
     });
@@ -237,7 +238,43 @@ TEST_F(LayerBorderTest, BufferStateLayer) {
         t.setBuffer(bufferStateLayer, buffer);
         t.setPosition(bufferStateLayer, 100, 100);
         t.show(bufferStateLayer);
-        t.enableBorder(mContainerLayer, true);
+        t.enableBorder(mContainerLayer, true, 20, mColorOrange);
+    });
+}
+
+TEST_F(LayerBorderTest, CustomWidth) {
+    asTransaction([&](Transaction& t) {
+        t.setCrop(mEffectLayer1, Rect(0, 0, 400, 400));
+        t.setCrop(mEffectLayer2, Rect(200, 200, 600, 600));
+
+        t.enableBorder(mContainerLayer, true, 50, mColorOrange);
+        t.show(mEffectLayer1);
+        t.show(mEffectLayer2);
+        t.show(mContainerLayer);
+    });
+}
+
+TEST_F(LayerBorderTest, CustomColor) {
+    asTransaction([&](Transaction& t) {
+        t.setCrop(mEffectLayer1, Rect(0, 0, 400, 400));
+        t.setCrop(mEffectLayer2, Rect(200, 200, 600, 600));
+
+        t.enableBorder(mContainerLayer, true, 20, toHalf4({255, 0, 255, 255}));
+        t.show(mEffectLayer1);
+        t.show(mEffectLayer2);
+        t.show(mContainerLayer);
+    });
+}
+
+TEST_F(LayerBorderTest, CustomWidthAndColorAndOpacity) {
+    asTransaction([&](Transaction& t) {
+        t.setCrop(mEffectLayer1, Rect(0, 0, 200, 200));
+        t.setCrop(mEffectLayer2, Rect(400, 400, 600, 600));
+
+        t.enableBorder(mContainerLayer, true, 40, toHalf4({255, 255, 0, 128}));
+        t.show(mEffectLayer1);
+        t.show(mEffectLayer2);
+        t.show(mContainerLayer);
     });
 }
 

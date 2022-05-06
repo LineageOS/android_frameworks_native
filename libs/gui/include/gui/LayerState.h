@@ -295,6 +295,9 @@ struct layer_state_t {
 
     // Flag to indicate if border needs to be enabled on the layer
     bool borderEnabled;
+    float borderWidth;
+    half4 borderColor;
+
     // Stretch effect to be applied to this layer
     StretchEffect stretchEffect;
 
