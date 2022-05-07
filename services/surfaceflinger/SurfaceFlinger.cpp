@@ -444,6 +444,11 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     }
 
     mIgnoreHdrCameraLayers = ignore_hdr_camera_layers(false);
+
+    // Power hint session mode, representing which hint(s) to send: early, late, or both)
+    mPowerHintSessionMode =
+            {.late = base::GetBoolProperty("debug.sf.send_late_power_session_hint"s, true),
+             .early = base::GetBoolProperty("debug.sf.send_early_power_session_hint"s, true)};
 }
 
 LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
@@ -1991,12 +1996,6 @@ nsecs_t SurfaceFlinger::calculateExpectedPresentTime(DisplayStatInfo stats) cons
 
 bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expectedVsyncTime)
         FTL_FAKE_GUARD(kMainThreadContext) {
-    // we set this once at the beginning of commit to ensure consistency throughout the whole frame
-    mPowerHintSessionData.sessionEnabled = mPowerAdvisor->usePowerHintSession();
-    if (mPowerHintSessionData.sessionEnabled) {
-        mPowerHintSessionData.commitStart = systemTime();
-    }
-
     // calculate the expected present time once and use the cached
     // value throughout this frame to make sure all layers are
     // seeing this same value.
@@ -2010,10 +2009,6 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     const nsecs_t lastScheduledPresentTime = mScheduledPresentTime;
     mScheduledPresentTime = expectedVsyncTime;
 
-    if (mPowerHintSessionData.sessionEnabled) {
-        mPowerAdvisor->setTargetWorkDuration(mExpectedPresentTime -
-                                             mPowerHintSessionData.commitStart);
-    }
     const auto vsyncIn = [&] {
         if (!ATRACE_ENABLED()) return 0.f;
         return (mExpectedPresentTime - systemTime()) / 1e6f;
@@ -2086,6 +2081,30 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
         if ((hwcFrameMissed && !gpuFrameMissed) || mPropagateBackpressureClientComposition) {
             scheduleCommit(FrameHint::kNone);
             return false;
+        }
+    }
+
+    // Save this once per commit + composite to ensure consistency
+    mPowerHintSessionEnabled = mPowerAdvisor->usePowerHintSession();
+    if (mPowerHintSessionEnabled) {
+        nsecs_t vsyncPeriod;
+        {
+            Mutex::Autolock lock(mStateLock);
+            vsyncPeriod = getVsyncPeriodFromHWC();
+        }
+        mPowerAdvisor->setCommitStart(frameTime);
+        mPowerAdvisor->setExpectedPresentTime(mExpectedPresentTime);
+        const nsecs_t idealSfWorkDuration =
+                mVsyncModulator->getVsyncConfig().sfWorkDuration.count();
+        // Frame delay is how long we should have minus how long we actually have
+        mPowerAdvisor->setFrameDelay(idealSfWorkDuration - (mExpectedPresentTime - frameTime));
+        mPowerAdvisor->setTotalFrameTargetWorkDuration(idealSfWorkDuration);
+        mPowerAdvisor->setTargetWorkDuration(vsyncPeriod);
+
+        // Send early hint here to make sure there's not another frame pending
+        if (mPowerHintSessionMode.early) {
+            // Send a rough prediction for this frame based on last frame's timing info
+            mPowerAdvisor->sendPredictedWorkDuration();
         }
     }
 
@@ -2165,16 +2184,15 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId)
         FTL_FAKE_GUARD(kMainThreadContext) {
     ATRACE_FORMAT("%s %" PRId64, __func__, vsyncId);
 
-    if (mPowerHintSessionData.sessionEnabled) {
-        mPowerHintSessionData.compositeStart = systemTime();
-    }
-
     compositionengine::CompositionRefreshArgs refreshArgs;
     const auto& displays = FTL_FAKE_GUARD(mStateLock, mDisplays);
     refreshArgs.outputs.reserve(displays.size());
+    std::vector<DisplayId> displayIds;
     for (const auto& [_, display] : displays) {
         refreshArgs.outputs.push_back(display->getCompositionDisplay());
+        displayIds.push_back(display->getId());
     }
+    mPowerAdvisor->setDisplays(displayIds);
     mDrawingState.traverseInZOrder([&refreshArgs](Layer* layer) {
         if (auto layerFE = layer->getCompositionEngineLayerFE())
             refreshArgs.layers.push_back(layerFE);
@@ -2222,11 +2240,14 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId)
 
     mCompositionEngine->present(refreshArgs);
 
-    if (mPowerHintSessionData.sessionEnabled) {
-        mPowerHintSessionData.presentEnd = systemTime();
-    }
-
     mTimeStats->recordFrameDuration(frameTime, systemTime());
+
+    // Send a power hint hint after presentation is finished
+    if (mPowerHintSessionEnabled) {
+        if (mPowerHintSessionMode.late) {
+            mPowerAdvisor->sendActualWorkDuration();
+        }
+    }
 
     if (mScheduler->onPostComposition(presentTime)) {
         scheduleComposite(FrameHint::kNone);
@@ -2272,11 +2293,8 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId)
         scheduleCommit(FrameHint::kNone);
     }
 
-    // calculate total render time for performance hinting if adpf cpu hint is enabled,
-    if (mPowerHintSessionData.sessionEnabled) {
-        const nsecs_t flingerDuration =
-                (mPowerHintSessionData.presentEnd - mPowerHintSessionData.commitStart);
-        mPowerAdvisor->sendActualWorkDuration(flingerDuration, mPowerHintSessionData.presentEnd);
+    if (mPowerHintSessionEnabled) {
+        mPowerAdvisor->setCompositeEnd(systemTime());
     }
 }
 

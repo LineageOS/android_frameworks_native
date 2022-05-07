@@ -27,6 +27,7 @@
 #include <compositionengine/LayerFE.h>
 #include <renderengine/LayerSettings.h>
 #include <ui/Fence.h>
+#include <ui/FenceTime.h>
 #include <ui/GraphicTypes.h>
 #include <ui/LayerStack.h>
 #include <ui/Region.h>
@@ -311,6 +312,8 @@ protected:
             const Region& flashRegion,
             std::vector<LayerFE::LayerSettings>& clientCompositionLayers) = 0;
     virtual void setExpensiveRenderingExpected(bool enabled) = 0;
+    virtual void setHintSessionGpuFence(std::unique_ptr<FenceTime>&& gpuFence) = 0;
+    virtual bool isPowerHintSessionEnabled() = 0;
     virtual void cacheClientCompositionRequests(uint32_t cacheSize) = 0;
     virtual bool canPredictCompositionStrategy(const CompositionRefreshArgs&) = 0;
 };
