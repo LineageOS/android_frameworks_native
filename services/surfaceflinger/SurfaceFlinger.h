@@ -49,6 +49,7 @@
 #include <utils/Trace.h>
 #include <utils/threads.h>
 
+#include <compositionengine/FenceResult.h>
 #include <compositionengine/OutputColorSetting.h>
 #include <scheduler/Fps.h>
 
@@ -867,14 +868,15 @@ private:
     // Boot animation, on/off animations and screen capture
     void startBootAnim();
 
-    std::shared_future<renderengine::RenderEngineResult> captureScreenCommon(
-            RenderAreaFuture, TraverseLayersFunction, ui::Size bufferSize, ui::PixelFormat,
-            bool allowProtected, bool grayscale, const sp<IScreenCaptureListener>&);
-    std::shared_future<renderengine::RenderEngineResult> captureScreenCommon(
+    std::shared_future<FenceResult> captureScreenCommon(RenderAreaFuture, TraverseLayersFunction,
+                                                        ui::Size bufferSize, ui::PixelFormat,
+                                                        bool allowProtected, bool grayscale,
+                                                        const sp<IScreenCaptureListener>&);
+    std::shared_future<FenceResult> captureScreenCommon(
             RenderAreaFuture, TraverseLayersFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, const sp<IScreenCaptureListener>&);
-    std::shared_future<renderengine::RenderEngineResult> renderScreenImpl(
+    std::shared_future<FenceResult> renderScreenImpl(
             const RenderArea&, TraverseLayersFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool canCaptureBlackoutContent,
             bool regionSampling, bool grayscale, ScreenCaptureResults&) EXCLUDES(mStateLock);
