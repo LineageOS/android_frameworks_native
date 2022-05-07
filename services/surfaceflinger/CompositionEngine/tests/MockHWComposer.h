@@ -137,6 +137,7 @@ public:
     MOCK_METHOD(bool, hasDisplayIdleTimerCapability, (PhysicalDisplayId), (const, override));
     MOCK_METHOD(Hwc2::AidlTransform, getPhysicalDisplayOrientation, (PhysicalDisplayId),
                 (const, override));
+    MOCK_METHOD(bool, getValidateSkipped, (HalDisplayId), (const, override));
 };
 
 } // namespace mock
