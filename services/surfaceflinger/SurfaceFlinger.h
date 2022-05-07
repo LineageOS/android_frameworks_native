@@ -1098,8 +1098,6 @@ private:
 
     void dumpVSync(std::string& result) const REQUIRES(mStateLock);
     void dumpStaticScreenStats(std::string& result) const;
-    // Not const because each Layer needs to query Fences and cache timestamps.
-    void dumpFrameEventsLocked(std::string& result);
 
     void dumpCompositionDisplays(std::string& result) const REQUIRES(mStateLock);
     void dumpDisplays(std::string& result) const REQUIRES(mStateLock);

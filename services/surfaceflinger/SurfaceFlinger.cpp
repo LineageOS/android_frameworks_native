@@ -4974,7 +4974,6 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 {"--displays"s, dumper(&SurfaceFlinger::dumpDisplays)},
                 {"--dispsync"s, dumper([this](std::string& s) { mScheduler->dumpVsync(s); })},
                 {"--edid"s, argsDumper(&SurfaceFlinger::dumpRawDisplayIdentificationData)},
-                {"--frame-events"s, dumper(&SurfaceFlinger::dumpFrameEventsLocked)},
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
                 {"--list"s, dumper(&SurfaceFlinger::listLayersLocked)},
@@ -5139,13 +5138,6 @@ void SurfaceFlinger::dumpStaticScreenStats(std::string& result) const {
             static_cast<float>(getBE().mFrameBuckets[SurfaceFlingerBE::NUM_BUCKETS - 1]) / getBE().mTotalTime;
     StringAppendF(&result, "  %zd+ frames: %.3f s (%.1f%%)\n", SurfaceFlingerBE::NUM_BUCKETS - 1,
                   bucketTimeSec, percent);
-}
-
-void SurfaceFlinger::dumpFrameEventsLocked(std::string& result) {
-    result.append("Layer frame timestamps:\n");
-    // Traverse all layers to dump frame-events for each layer
-    mCurrentState.traverseInZOrder(
-        [&] (Layer* layer) { layer->dumpFrameEvents(result); });
 }
 
 void SurfaceFlinger::dumpCompositionDisplays(std::string& result) const {

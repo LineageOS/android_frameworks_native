@@ -146,8 +146,6 @@ void LayerFuzzer::invokeBufferStateLayer() {
     const bool ownsHandle = mFdp.ConsumeBool();
     sp<NativeHandle> nativeHandle = sp<NativeHandle>::make(testHandle, ownsHandle);
     layer->setSidebandStream(nativeHandle);
-    layer->addFrameEvent(fence, mFdp.ConsumeIntegral<int64_t>() /*postedTime*/,
-                         mFdp.ConsumeIntegral<int64_t>() /*requestedTime*/);
     layer->computeSourceBounds(getFuzzedFloatRect(&mFdp));
 
     layer->fenceHasSignaled();

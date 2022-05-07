@@ -179,15 +179,6 @@ void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     }
 
     mDrawingState.callbackHandles = {};
-
-    std::shared_ptr<FenceTime> releaseFenceTime = std::make_shared<FenceTime>(releaseFence);
-    {
-        Mutex::Autolock lock(mFrameEventHistoryMutex);
-        if (mPreviousFrameNumber != 0) {
-            mFrameEventHistory.addRelease(mPreviousFrameNumber, dequeueReadyTime,
-                                          std::move(releaseFenceTime));
-        }
-    }
 }
 
 void BufferStateLayer::finalizeFrameEventHistory(const std::shared_ptr<FenceTime>& glDoneFence,
@@ -347,19 +338,6 @@ bool BufferStateLayer::setPosition(float x, float y) {
     return true;
 }
 
-bool BufferStateLayer::addFrameEvent(const sp<Fence>& acquireFence, nsecs_t postedTime,
-                                     nsecs_t desiredPresentTime) {
-    Mutex::Autolock lock(mFrameEventHistoryMutex);
-    mAcquireTimeline.updateSignalTimes();
-    std::shared_ptr<FenceTime> acquireFenceTime =
-            std::make_shared<FenceTime>((acquireFence ? acquireFence : Fence::NO_FENCE));
-    NewFrameEventsEntry newTimestamps = {mDrawingState.frameNumber, postedTime, desiredPresentTime,
-                                         acquireFenceTime};
-    mFrameEventHistory.setProducerWantsEvents();
-    mFrameEventHistory.addQueue(newTimestamps);
-    return true;
-}
-
 bool BufferStateLayer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
                                  const BufferData& bufferData, nsecs_t postTime,
                                  nsecs_t desiredPresentTime, bool isAutoTimestamp,
@@ -445,8 +423,6 @@ bool BufferStateLayer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>&
 
     using LayerUpdateType = scheduler::LayerHistory::LayerUpdateType;
     mFlinger->mScheduler->recordLayerHistory(this, presentTime, LayerUpdateType::Buffer);
-
-    addFrameEvent(mDrawingState.acquireFence, postTime, isAutoTimestamp ? 0 : desiredPresentTime);
 
     setFrameTimelineVsyncForBufferTransaction(info, postTime);
 
@@ -727,14 +703,10 @@ status_t BufferStateLayer::updateActiveBuffer() {
     return NO_ERROR;
 }
 
-status_t BufferStateLayer::updateFrameNumber(nsecs_t latchTime) {
+status_t BufferStateLayer::updateFrameNumber() {
     // TODO(marissaw): support frame history events
     mPreviousFrameNumber = mCurrentFrameNumber;
     mCurrentFrameNumber = mDrawingState.frameNumber;
-    {
-        Mutex::Autolock lock(mFrameEventHistoryMutex);
-        mFrameEventHistory.addLatch(mCurrentFrameNumber, latchTime);
-    }
     return NO_ERROR;
 }
 
