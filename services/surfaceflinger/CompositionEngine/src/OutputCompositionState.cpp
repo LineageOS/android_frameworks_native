@@ -62,14 +62,18 @@ void OutputCompositionState::dump(std::string& out) const {
     dumpVal(out, "sdrWhitePointNits", sdrWhitePointNits);
     dumpVal(out, "clientTargetBrightness", clientTargetBrightness);
     dumpVal(out, "displayBrightness", displayBrightness);
-
     out.append("\n   ");
     dumpVal(out, "compositionStrategyPredictionState", ftl::enum_string(strategyPrediction));
+    out.append("\n   ");
 
     out.append("\n   ");
     dumpVal(out, "treate170mAsSrgb", treat170mAsSrgb);
 
-    out += '\n';
+    out.append("\n");
+    for (const auto& borderRenderInfo : borderInfoList) {
+        dumpVal(out, "borderRegion", borderRenderInfo.combinedRegion);
+    }
+    out.append("\n");
 }
 
 } // namespace android::compositionengine::impl

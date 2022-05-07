@@ -450,6 +450,27 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
     }
 }
 
+void TransactionCompletedListener::onTransactionQueueStalled() {
+      std::unordered_map<void*, std::function<void()>> callbackCopy;
+      {
+          std::scoped_lock<std::mutex> lock(mMutex);
+          callbackCopy = mQueueStallListeners;
+      }
+      for (auto const& it : callbackCopy) {
+          it.second();
+      }
+}
+
+void TransactionCompletedListener::addQueueStallListener(std::function<void()> stallListener,
+                                                         void* id) {
+    std::scoped_lock<std::mutex> lock(mMutex);
+    mQueueStallListeners[id] = stallListener;
+}
+void TransactionCompletedListener::removeQueueStallListener(void *id) {
+    std::scoped_lock<std::mutex> lock(mMutex);
+    mQueueStallListeners.erase(id);
+}
+
 void TransactionCompletedListener::onReleaseBuffer(ReleaseCallbackId callbackId,
                                                    sp<Fence> releaseFence,
                                                    uint32_t currentMaxAcquiredBufferCount) {
@@ -1913,6 +1934,23 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDropI
 
     s->what |= layer_state_t::eDropInputModeChanged;
     s->dropInputMode = mode;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::enableBorder(
+        const sp<SurfaceControl>& sc, bool shouldEnable, float width, const half4& color) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eRenderBorderChanged;
+    s->borderEnabled = shouldEnable;
+    s->borderWidth = width;
+    s->borderColor = color;
 
     registerSurfaceControlForCallback(sc);
     return *this;

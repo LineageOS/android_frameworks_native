@@ -801,7 +801,7 @@ private:
         Ready,
         ReadyUnsignaled,
     };
-    TransactionReadiness transactionIsReadyToBeApplied(
+    TransactionReadiness transactionIsReadyToBeApplied(TransactionState& state,
             const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
             uid_t originUid, const Vector<ComposerState>& states,
             const std::unordered_map<

@@ -166,6 +166,17 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, bool updateDestinati
     mCurrentMaxAcquiredBufferCount = mMaxAcquiredBuffers;
     mNumAcquired = 0;
     mNumFrameAvailable = 0;
+
+    TransactionCompletedListener::getInstance()->addQueueStallListener(
+        [&]() {
+            std::function<void(bool)> callbackCopy;
+            {
+                std::unique_lock _lock{mMutex};
+                callbackCopy = mTransactionHangCallback;
+            }
+            if (callbackCopy) callbackCopy(true);
+        }, this);
+
     BQA_LOGV("BLASTBufferQueue created");
 }
 
@@ -176,6 +187,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
 }
 
 BLASTBufferQueue::~BLASTBufferQueue() {
+    TransactionCompletedListener::getInstance()->removeQueueStallListener(this);
     if (mPendingTransactions.empty()) {
         return;
     }
@@ -1112,6 +1124,11 @@ void BLASTBufferQueue::abandon() {
 bool BLASTBufferQueue::isSameSurfaceControl(const sp<SurfaceControl>& surfaceControl) const {
     std::unique_lock _lock{mMutex};
     return SurfaceControl::isSameSurface(mSurfaceControl, surfaceControl);
+}
+
+void BLASTBufferQueue::setTransactionHangCallback(std::function<void(bool)> callback) {
+    std::unique_lock _lock{mMutex};
+    mTransactionHangCallback = callback;
 }
 
 } // namespace android

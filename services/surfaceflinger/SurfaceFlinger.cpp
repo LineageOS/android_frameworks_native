@@ -156,6 +156,10 @@
 #define NO_THREAD_SAFETY_ANALYSIS \
     _Pragma("GCC error \"Prefer <ftl/fake_guard.h> or MutexUtils.h helpers.\"")
 
+// To enable layer borders in the system, change the below flag to true.
+#undef DOES_CONTAIN_BORDER
+#define DOES_CONTAIN_BORDER false
+
 namespace android {
 
 using namespace std::string_literals;
@@ -2169,6 +2173,22 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId)
         if (auto layerFE = layer->getCompositionEngineLayerFE())
             refreshArgs.layers.push_back(layerFE);
     });
+
+    if (DOES_CONTAIN_BORDER) {
+        refreshArgs.borderInfoList.clear();
+        mDrawingState.traverse([&refreshArgs](Layer* layer) {
+            if (layer->isBorderEnabled()) {
+                compositionengine::BorderRenderInfo info;
+                info.width = layer->getBorderWidth();
+                info.color = layer->getBorderColor();
+                layer->traverse(LayerVector::StateSet::Drawing, [&info](Layer* ilayer) {
+                    info.layerIds.push_back(ilayer->getSequence());
+                });
+                refreshArgs.borderInfoList.emplace_back(std::move(info));
+            }
+        });
+    }
+
     refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
     for (auto layer : mLayersWithQueuedFrames) {
         if (auto layerFE = layer->getCompositionEngineLayerFE())
@@ -3711,12 +3731,13 @@ int SurfaceFlinger::flushPendingTransactionQueues(
 
             auto& transaction = transactionQueue.front();
             const auto ready =
-                    transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
-                                                  transaction.isAutoTimestamp,
-                                                  transaction.desiredPresentTime,
-                                                  transaction.originUid, transaction.states,
-                                                  bufferLayersReadyToPresent, transactions.size(),
-                                                  tryApplyUnsignaled);
+                transactionIsReadyToBeApplied(transaction,
+                                              transaction.frameTimelineInfo,
+                                              transaction.isAutoTimestamp,
+                                              transaction.desiredPresentTime,
+                                              transaction.originUid, transaction.states,
+                                              bufferLayersReadyToPresent, transactions.size(),
+                                              tryApplyUnsignaled);
             ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
             if (ready == TransactionReadiness::NotReady) {
                 setTransactionFlags(eTransactionFlushNeeded);
@@ -3793,7 +3814,7 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                         return TransactionReadiness::NotReady;
                     }
 
-                    return transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
+                    return transactionIsReadyToBeApplied(transaction, transaction.frameTimelineInfo,
                                                          transaction.isAutoTimestamp,
                                                          transaction.desiredPresentTime,
                                                          transaction.originUid, transaction.states,
@@ -3955,7 +3976,7 @@ bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_s
     return true;
 }
 
-auto SurfaceFlinger::transactionIsReadyToBeApplied(
+auto SurfaceFlinger::transactionIsReadyToBeApplied(TransactionState& transaction,
         const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
         uid_t originUid, const Vector<ComposerState>& states,
         const std::unordered_map<
@@ -3984,8 +4005,10 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
     }
 
     bool fenceUnsignaled = false;
+    auto queueProcessTime = systemTime();
     for (const ComposerState& state : states) {
         const layer_state_t& s = state.state;
+
         sp<Layer> layer = nullptr;
         if (s.surface) {
             layer = fromHandle(s.surface).promote();
@@ -4021,6 +4044,15 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
                  s.bufferData->acquireFence->getStatus() == Fence::Status::Unsignaled);
 
         if (fenceUnsignaled && !allowLatchUnsignaled) {
+            if (!transaction.sentFenceTimeoutWarning &&
+                queueProcessTime - transaction.queueTime > std::chrono::nanoseconds(4s).count()) {
+                transaction.sentFenceTimeoutWarning = true;
+                auto listener = s.bufferData->releaseBufferListener;
+                if (listener) {
+                    listener->onTransactionQueueStalled();
+                }
+            }
+
             ATRACE_NAME("fence unsignaled");
             return TransactionReadiness::NotReady;
         }
@@ -4040,6 +4072,8 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
 }
 
 void SurfaceFlinger::queueTransaction(TransactionState& state) {
+    state.queueTime = systemTime();
+
     Mutex::Autolock lock(mQueueLock);
 
     // Generate a CountDownLatch pending state if this is a synchronous transaction.
@@ -4428,6 +4462,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
     if (what & layer_state_t::eBlurRegionsChanged) {
         if (layer->setBlurRegions(s.blurRegions)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eRenderBorderChanged) {
+        if (layer->enableBorder(s.borderEnabled, s.borderWidth, s.borderColor)) {
+            flags |= eTraversalNeeded;
+        }
     }
     if (what & layer_state_t::eLayerStackChanged) {
         ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
@@ -6731,7 +6770,7 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
                                        BlurSetting::Disabled
                              : compositionengine::LayerFE::ClientCompositionTargetSettings::
                                        BlurSetting::Enabled,
-                isHdrDataspace(dataspace) ? displayBrightnessNits : sdrWhitePointNits,
+                isHdrLayer(layer) ? displayBrightnessNits : sdrWhitePointNits,
 
         };
         std::vector<compositionengine::LayerFE::LayerSettings> results =
@@ -6746,7 +6785,7 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
                 if (regionSampling) {
                     settings.backgroundBlurRadius = 0;
                 }
-                captureResults.capturedHdrLayers |= isHdrDataspace(settings.sourceDataspace);
+                captureResults.capturedHdrLayers |= isHdrLayer(layer);
             }
 
             clientCompositionLayers.insert(clientCompositionLayers.end(),
