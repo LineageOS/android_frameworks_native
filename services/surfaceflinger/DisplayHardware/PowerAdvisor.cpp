@@ -174,7 +174,7 @@ bool PowerAdvisor::isPowerHintSessionRunning() {
     return mPowerHintSessionRunning;
 }
 
-void PowerAdvisor::setTargetWorkDuration(int64_t targetDurationNanos) {
+void PowerAdvisor::setTargetWorkDuration(int64_t targetDuration) {
     if (!usePowerHintSession()) {
         ALOGV("Power hint session target duration cannot be set, skipping");
         return;
@@ -183,26 +183,44 @@ void PowerAdvisor::setTargetWorkDuration(int64_t targetDurationNanos) {
         std::lock_guard lock(mPowerHalMutex);
         HalWrapper* const halWrapper = getPowerHal();
         if (halWrapper != nullptr) {
-            halWrapper->setTargetWorkDuration(targetDurationNanos - kTargetSafetyMargin.count());
+            halWrapper->setTargetWorkDuration(targetDuration);
         }
     }
 }
 
-void PowerAdvisor::sendActualWorkDuration(int64_t actualDurationNanos, nsecs_t timeStampNanos) {
+void PowerAdvisor::sendActualWorkDuration() {
     if (!mBootFinished || !usePowerHintSession()) {
         ALOGV("Actual work duration power hint cannot be sent, skipping");
         return;
     }
-    {
+    const std::optional<nsecs_t> actualDuration = estimateWorkDuration(false);
+    if (actualDuration.has_value()) {
         std::lock_guard lock(mPowerHalMutex);
         HalWrapper* const halWrapper = getPowerHal();
         if (halWrapper != nullptr) {
-            halWrapper->sendActualWorkDuration(actualDurationNanos, timeStampNanos);
+            halWrapper->sendActualWorkDuration(*actualDuration + kTargetSafetyMargin.count(),
+                                               systemTime());
         }
     }
 }
 
-// needs to be set after the flag is known but before PowerAdvisor enters onBootFinished
+void PowerAdvisor::sendPredictedWorkDuration() {
+    if (!mBootFinished || !usePowerHintSession()) {
+        ALOGV("Actual work duration power hint cannot be sent, skipping");
+        return;
+    }
+
+    const std::optional<nsecs_t> predictedDuration = estimateWorkDuration(true);
+
+    if (predictedDuration.has_value()) {
+        std::lock_guard lock(mPowerHalMutex);
+        HalWrapper* const halWrapper = getPowerHal();
+        if (halWrapper != nullptr) {
+            halWrapper->sendActualWorkDuration(*predictedDuration, systemTime());
+        }
+    }
+}
+
 void PowerAdvisor::enablePowerHint(bool enabled) {
     mPowerHintEnabled = enabled;
 }
@@ -220,6 +238,282 @@ bool PowerAdvisor::startPowerHintSession(const std::vector<int32_t>& threadIds) 
         }
     }
     return mPowerHintSessionRunning;
+}
+
+void PowerAdvisor::setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime) {
+    DisplayTimingData& displayData = mDisplayTimingData[displayId];
+    if (displayData.gpuEndFenceTime) {
+        nsecs_t signalTime = displayData.gpuEndFenceTime->getSignalTime();
+        if (signalTime != Fence::SIGNAL_TIME_INVALID && signalTime != Fence::SIGNAL_TIME_PENDING) {
+            for (auto&& [_, otherDisplayData] : mDisplayTimingData) {
+                // If the previous display started before us but ended after we should have
+                // started, then it likely delayed our start time and we must compensate for that.
+                // Displays finishing earlier should have already made their way through this call
+                // and swapped their timing into "lastValid" from "latest", so we check that here.
+                if (!otherDisplayData.lastValidGpuStartTime.has_value()) continue;
+                if ((*otherDisplayData.lastValidGpuStartTime < *displayData.gpuStartTime) &&
+                    (*otherDisplayData.lastValidGpuEndTime > *displayData.gpuStartTime)) {
+                    displayData.lastValidGpuStartTime = *otherDisplayData.lastValidGpuEndTime;
+                    break;
+                }
+            }
+            displayData.lastValidGpuStartTime = displayData.gpuStartTime;
+            displayData.lastValidGpuEndTime = signalTime;
+        }
+    }
+    displayData.gpuEndFenceTime = std::move(fenceTime);
+    displayData.gpuStartTime = systemTime();
+}
+
+void PowerAdvisor::setValidateTiming(DisplayId displayId, nsecs_t validateStartTime,
+                                     nsecs_t validateEndTime) {
+    DisplayTimingData& displayData = mDisplayTimingData[displayId];
+    displayData.validateStartTime = validateStartTime;
+    displayData.validateEndTime = validateEndTime;
+}
+
+void PowerAdvisor::setPresentTiming(DisplayId displayId, nsecs_t presentStartTime,
+                                    nsecs_t presentEndTime) {
+    DisplayTimingData& displayData = mDisplayTimingData[displayId];
+    displayData.presentStartTime = presentStartTime;
+    displayData.presentEndTime = presentEndTime;
+}
+
+void PowerAdvisor::setSkippedValidate(DisplayId displayId, bool skipped) {
+    mDisplayTimingData[displayId].skippedValidate = skipped;
+}
+
+void PowerAdvisor::setRequiresClientComposition(DisplayId displayId,
+                                                bool requiresClientComposition) {
+    mDisplayTimingData[displayId].usedClientComposition = requiresClientComposition;
+}
+
+void PowerAdvisor::setExpectedPresentTime(nsecs_t expectedPresentTime) {
+    mExpectedPresentTimes.append(expectedPresentTime);
+}
+
+void PowerAdvisor::setFrameDelay(nsecs_t frameDelayDuration) {
+    mFrameDelayDuration = frameDelayDuration;
+}
+
+void PowerAdvisor::setPresentDelayedTime(
+        DisplayId displayId, std::chrono::steady_clock::time_point earliestFrameStartTime) {
+    mDisplayTimingData[displayId].presentDelayedTime =
+            (earliestFrameStartTime - std::chrono::steady_clock::now()).count() + systemTime();
+}
+
+void PowerAdvisor::setCommitStart(nsecs_t commitStartTime) {
+    mCommitStartTimes.append(commitStartTime);
+}
+
+void PowerAdvisor::setCompositeEnd(nsecs_t compositeEnd) {
+    mLastCompositeEndTime = compositeEnd;
+    // calculate the postcomp time here as well
+    std::vector<DisplayId>&& displays = getOrderedDisplayIds(&DisplayTimingData::presentEndTime);
+    DisplayTimingData& timingData = mDisplayTimingData[displays.back()];
+    mLastPostcompDuration = compositeEnd -
+            (timingData.skippedValidate ? *timingData.validateEndTime : *timingData.presentEndTime);
+}
+
+void PowerAdvisor::setDisplays(std::vector<DisplayId>& displayIds) {
+    mDisplayIds = displayIds;
+}
+
+void PowerAdvisor::setTotalFrameTargetWorkDuration(nsecs_t targetDuration) {
+    mTotalFrameTargetDuration = targetDuration;
+}
+
+std::vector<DisplayId> PowerAdvisor::getOrderedDisplayIds(
+        std::optional<nsecs_t> DisplayTimingData::*sortBy) {
+    std::vector<DisplayId> sortedDisplays;
+    std::copy_if(mDisplayIds.begin(), mDisplayIds.end(), std::back_inserter(sortedDisplays),
+                 [&](DisplayId id) {
+                     return mDisplayTimingData.count(id) &&
+                             (mDisplayTimingData[id].*sortBy).has_value();
+                 });
+    std::sort(sortedDisplays.begin(), sortedDisplays.end(), [&](DisplayId idA, DisplayId idB) {
+        return *(mDisplayTimingData[idA].*sortBy) < *(mDisplayTimingData[idB].*sortBy);
+    });
+    return sortedDisplays;
+}
+
+std::optional<nsecs_t> PowerAdvisor::estimateWorkDuration(bool earlyHint) {
+    if (earlyHint && (!mExpectedPresentTimes.isFull() || !mCommitStartTimes.isFull())) {
+        return std::nullopt;
+    }
+
+    // Tracks when we finish presenting to hwc
+    nsecs_t estimatedEndTime = mCommitStartTimes[0];
+
+    // How long we spent this frame not doing anything, waiting for fences or vsync
+    nsecs_t idleDuration = 0;
+
+    // Most recent previous gpu end time in the current frame, probably from a prior display, used
+    // as the start time for the next gpu operation if it ran over time since it probably blocked
+    std::optional<nsecs_t> previousValidGpuEndTime;
+
+    // The currently estimated gpu end time for the frame,
+    // used to accumulate gpu time as we iterate over the active displays
+    std::optional<nsecs_t> estimatedGpuEndTime;
+
+    // If we're predicting at the start of the frame, we use last frame as our reference point
+    // If we're predicting at the end of the frame, we use the current frame as a reference point
+    nsecs_t referenceFrameStartTime = (earlyHint ? mCommitStartTimes[-1] : mCommitStartTimes[0]);
+
+    // We need an idea of when the last present fence fired and how long it made us wait
+    // If we're predicting at the start of the frame, we want frame n-2's present fence time
+    // If we're predicting at the end of the frame we want frame n-1's present time
+    nsecs_t referenceFenceTime =
+            (earlyHint ? mExpectedPresentTimes[-2] : mExpectedPresentTimes[-1]);
+    // The timing info for the previously calculated display, if there was one
+    std::optional<DisplayTimeline> previousDisplayReferenceTiming;
+    std::vector<DisplayId>&& displayIds =
+            getOrderedDisplayIds(&DisplayTimingData::presentStartTime);
+    DisplayTimeline referenceTiming, estimatedTiming;
+
+    // Iterate over the displays in the same order they are presented
+    for (DisplayId displayId : displayIds) {
+        if (mDisplayTimingData.count(displayId) == 0) {
+            continue;
+        }
+
+        auto& displayData = mDisplayTimingData.at(displayId);
+        referenceTiming = displayData.calculateDisplayTimeline(referenceFenceTime);
+
+        // If this is the first display, add the pre-present time to the total
+        if (!previousDisplayReferenceTiming.has_value()) {
+            estimatedEndTime += referenceTiming.prePresentTime - referenceFrameStartTime;
+        } else { // Otherwise add last display's postprocessing time to the total
+            estimatedEndTime += referenceTiming.prePresentTime -
+                    previousDisplayReferenceTiming->postPresentTime;
+        }
+
+        estimatedTiming = referenceTiming.estimateTimelineFromReference(mExpectedPresentTimes[-1],
+                                                                        estimatedEndTime);
+        // Update predicted present finish time with this display's present time
+        estimatedEndTime = estimatedTiming.postPresentTime;
+
+        // Track how long we spent waiting for the fence, can be excluded from the timing estimate
+        idleDuration += estimatedTiming.probablyWaitsForFence
+                ? mExpectedPresentTimes[-1] - estimatedTiming.preFenceWaitTime
+                : 0;
+
+        // Track how long we spent waiting to present, can be excluded from the timing estimate
+        idleDuration +=
+                !earlyHint ? referenceTiming.presentStartTime - referenceTiming.prePresentTime : 0;
+
+        // Estimate the reference frame's gpu timing
+        auto gpuTiming = displayData.estimateGpuTiming(previousValidGpuEndTime);
+        if (gpuTiming.has_value()) {
+            previousValidGpuEndTime = gpuTiming->startTime + gpuTiming->duration;
+
+            // Estimate the prediction frame's gpu end time from the reference frame
+            estimatedGpuEndTime =
+                    std::max(estimatedTiming.prePresentTime, estimatedGpuEndTime.value_or(0)) +
+                    gpuTiming->duration;
+        }
+        previousDisplayReferenceTiming = referenceTiming;
+    }
+    ATRACE_INT64("Idle duration", idleDuration);
+
+    // Don't count time spent idly waiting in the estimate as we could do more work in that time
+    estimatedEndTime -= idleDuration;
+
+    // We finish the frame when both present and the gpu are done, so wait for the later of the two
+    // Also add the frame delay duration since the target did not move while we were delayed
+    nsecs_t totalDuration = mFrameDelayDuration +
+            std::max(estimatedEndTime, estimatedGpuEndTime.value_or(0)) - mCommitStartTimes[0];
+
+    // We finish SurfaceFlinger when post-composition finishes, so add that in here
+    nsecs_t flingerDuration = estimatedEndTime + mLastPostcompDuration - mCommitStartTimes[0];
+    nsecs_t combinedDuration = combineTimingEstimates(totalDuration, flingerDuration);
+
+    return std::make_optional(combinedDuration);
+}
+
+nsecs_t PowerAdvisor::combineTimingEstimates(nsecs_t totalDuration, nsecs_t flingerDuration) {
+    nsecs_t targetDuration;
+    {
+        std::lock_guard lock(mPowerHalMutex);
+        targetDuration = *getPowerHal()->getTargetWorkDuration();
+    }
+    if (!mTotalFrameTargetDuration.has_value()) return flingerDuration;
+
+    // Normalize total to the flinger target (vsync period) since that's how often we actually send
+    // hints
+    nsecs_t normalizedTotalDuration = (targetDuration * totalDuration) / *mTotalFrameTargetDuration;
+    return std::max(flingerDuration, normalizedTotalDuration);
+}
+
+PowerAdvisor::DisplayTimeline PowerAdvisor::DisplayTimeline::estimateTimelineFromReference(
+        nsecs_t fenceTime, nsecs_t displayStartTime) {
+    DisplayTimeline estimated;
+    estimated.prePresentTime = displayStartTime;
+
+    // We don't predict waiting for vsync alignment yet
+    estimated.presentStartTime = estimated.prePresentTime;
+
+    // For now just re-use last frame's post-present duration and assume it will not change much
+    // How long we expect to run before we start waiting for the fence
+    estimated.preFenceWaitTime = estimated.presentStartTime + (preFenceWaitTime - presentStartTime);
+    estimated.probablyWaitsForFence = fenceTime > estimated.preFenceWaitTime;
+    estimated.postPresentTime = postFenceDuration +
+            (estimated.probablyWaitsForFence ? fenceTime : estimated.preFenceWaitTime);
+    return estimated;
+}
+
+PowerAdvisor::DisplayTimeline PowerAdvisor::DisplayTimingData::calculateDisplayTimeline(
+        nsecs_t fenceTime) {
+    DisplayTimeline timeline;
+    // How long between calling present from flinger and trying to wait on the fence in HWC
+    const nsecs_t preFenceWaitDelay =
+            (skippedValidate ? kPrefenceDelaySkippedValidate : kPrefenceDelayValidated).count();
+
+    // Did our reference frame wait for an earliest present time before calling the HWC
+    const bool waitedOnPresentTime = presentDelayedTime.has_value() &&
+            *presentDelayedTime > *presentStartTime && *presentDelayedTime < *presentEndTime;
+
+    // Use validate start here if we skipped it because we did validate + present together
+    timeline.prePresentTime = skippedValidate ? *validateStartTime : *presentStartTime;
+
+    // Use validate end here if we skipped it because we did validate + present together
+    timeline.postPresentTime = skippedValidate ? *validateEndTime : *presentEndTime;
+
+    // When we think we started waiting for the fence after calling into present
+    // This is after any time spent waiting for the earliest present time
+    timeline.presentStartTime =
+            (waitedOnPresentTime ? *presentDelayedTime : timeline.prePresentTime);
+    timeline.preFenceWaitTime = timeline.presentStartTime + preFenceWaitDelay;
+    timeline.probablyWaitsForFence =
+            fenceTime > timeline.preFenceWaitTime && fenceTime < timeline.postPresentTime;
+
+    // How long we ran after we finished waiting for the fence but before present happened
+    timeline.postFenceDuration = timeline.postPresentTime -
+            (timeline.probablyWaitsForFence ? fenceTime : timeline.preFenceWaitTime);
+    return timeline;
+}
+
+std::optional<PowerAdvisor::GpuTimeline> PowerAdvisor::DisplayTimingData::estimateGpuTiming(
+        std::optional<nsecs_t> previousEnd) {
+    if (!(usedClientComposition && lastValidGpuStartTime.has_value() && gpuEndFenceTime)) {
+        return std::nullopt;
+    }
+    const nsecs_t latestGpuStartTime = std::max(previousEnd.value_or(0), *gpuStartTime);
+    const nsecs_t latestGpuEndTime = gpuEndFenceTime->getSignalTime();
+    nsecs_t gpuDuration = 0;
+    if (latestGpuEndTime != Fence::SIGNAL_TIME_INVALID &&
+        latestGpuEndTime != Fence::SIGNAL_TIME_PENDING) {
+        // If we know how long the most recent gpu duration was, use that
+        gpuDuration = latestGpuEndTime - latestGpuStartTime;
+    } else if (lastValidGpuEndTime.has_value()) {
+        // If we don't have the fence data, use the most recent information we do have
+        gpuDuration = *lastValidGpuEndTime - *lastValidGpuStartTime;
+        if (latestGpuEndTime == Fence::SIGNAL_TIME_PENDING) {
+            // If pending but went over the previous duration, use current time as the end
+            gpuDuration = std::max(gpuDuration, systemTime() - latestGpuStartTime);
+        }
+    }
+    return GpuTimeline{.duration = gpuDuration, .startTime = latestGpuStartTime};
 }
 
 class HidlPowerHalWrapper : public PowerAdvisor::HalWrapper {
@@ -303,6 +597,10 @@ AidlPowerHalWrapper::AidlPowerHalWrapper(sp<IPower> powerHal) : mPowerHal(std::m
     }
 
     mSupportsPowerHint = checkPowerHintSessionSupported();
+
+    mAllowedActualDeviation =
+            base::GetIntProperty<nsecs_t>("debug.sf.allowed_actual_deviation",
+                                          std::chrono::nanoseconds(250us).count());
 }
 
 AidlPowerHalWrapper::~AidlPowerHalWrapper() {
@@ -310,7 +608,7 @@ AidlPowerHalWrapper::~AidlPowerHalWrapper() {
         mPowerHintSession->close();
         mPowerHintSession = nullptr;
     }
-};
+}
 
 std::unique_ptr<PowerAdvisor::HalWrapper> AidlPowerHalWrapper::connect() {
     // This only waits if the service is actually declared
@@ -348,7 +646,7 @@ bool AidlPowerHalWrapper::notifyDisplayUpdateImminent() {
     return ret.isOk();
 }
 
-// only version 2+ of the aidl supports power hint sessions, hidl has no support
+// Only version 2+ of the aidl supports power hint sessions, hidl has no support
 bool AidlPowerHalWrapper::supportsPowerHintSession() {
     return mSupportsPowerHint;
 }
@@ -402,30 +700,14 @@ bool AidlPowerHalWrapper::startPowerHintSession() {
     return isPowerHintSessionRunning();
 }
 
-bool AidlPowerHalWrapper::shouldSetTargetDuration(int64_t targetDurationNanos) {
-    if (targetDurationNanos <= 0) {
-        return false;
-    }
-    // report if the change in target from our last submission to now exceeds the threshold
-    return abs(1.0 -
-               static_cast<double>(mLastTargetDurationSent) /
-                       static_cast<double>(targetDurationNanos)) >= kAllowedTargetDeviationPercent;
-}
-
-void AidlPowerHalWrapper::setTargetWorkDuration(int64_t targetDurationNanos) {
+void AidlPowerHalWrapper::setTargetWorkDuration(int64_t targetDuration) {
     ATRACE_CALL();
-    mTargetDuration = targetDurationNanos;
-    if (sTraceHintSessionData) ATRACE_INT64("Time target", targetDurationNanos);
-    if (!sNormalizeTarget && isPowerHintSessionRunning() &&
-        shouldSetTargetDuration(targetDurationNanos)) {
-        if (mLastActualDurationSent.has_value()) {
-            // update the error term here since we are actually sending an update to powerhal
-            if (sTraceHintSessionData)
-                ATRACE_INT64("Target error term", targetDurationNanos - *mLastActualDurationSent);
-        }
-        ALOGV("Sending target time: %" PRId64 "ns", targetDurationNanos);
-        mLastTargetDurationSent = targetDurationNanos;
-        auto ret = mPowerHintSession->updateTargetWorkDuration(targetDurationNanos);
+    mTargetDuration = targetDuration;
+    if (sTraceHintSessionData) ATRACE_INT64("Time target", targetDuration);
+    if (isPowerHintSessionRunning() && (targetDuration != mLastTargetDurationSent)) {
+        ALOGV("Sending target time: %" PRId64 "ns", targetDuration);
+        mLastTargetDurationSent = targetDuration;
+        auto ret = mPowerHintSession->updateTargetWorkDuration(targetDuration);
         if (!ret.isOk()) {
             ALOGW("Failed to set power hint target work duration with error: %s",
                   ret.exceptionMessage().c_str());
@@ -434,8 +716,8 @@ void AidlPowerHalWrapper::setTargetWorkDuration(int64_t targetDurationNanos) {
     }
 }
 
-bool AidlPowerHalWrapper::shouldReportActualDurationsNow() {
-    // report if we have never reported before or are approaching a stale session
+bool AidlPowerHalWrapper::shouldReportActualDurations() {
+    // Report if we have never reported before or are approaching a stale session
     if (!mLastActualDurationSent.has_value() ||
         (systemTime() - mLastActualReportTimestamp) > kStaleTimeout.count()) {
         return true;
@@ -444,65 +726,42 @@ bool AidlPowerHalWrapper::shouldReportActualDurationsNow() {
     if (!mActualDuration.has_value()) {
         return false;
     }
-
-    // duration of most recent timing
-    const double mostRecentActualDuration = static_cast<double>(*mActualDuration);
-    // duration of the last timing actually reported to the powerhal
-    const double lastReportedActualDuration = static_cast<double>(*mLastActualDurationSent);
-
-    // report if the change in duration from then to now exceeds the threshold
-    return abs(1.0 - mostRecentActualDuration / lastReportedActualDuration) >=
-            kAllowedActualDeviationPercent;
+    // Report if the change in actual duration exceeds the threshold
+    return abs(*mActualDuration - *mLastActualDurationSent) > mAllowedActualDeviation;
 }
 
-void AidlPowerHalWrapper::sendActualWorkDuration(int64_t actualDurationNanos,
-                                                 nsecs_t timeStampNanos) {
+void AidlPowerHalWrapper::sendActualWorkDuration(int64_t actualDuration, nsecs_t timestamp) {
     ATRACE_CALL();
 
-    if (actualDurationNanos < 0 || !isPowerHintSessionRunning()) {
+    if (actualDuration < 0 || !isPowerHintSessionRunning()) {
         ALOGV("Failed to send actual work duration, skipping");
         return;
     }
-    nsecs_t reportedDuration = actualDurationNanos;
+    const nsecs_t reportedDuration = actualDuration;
 
-    // normalize the sent values to a pre-set target
-    if (sNormalizeTarget) {
-        reportedDuration += mLastTargetDurationSent - mTargetDuration;
-    } else {
-        // when target duration change is within deviation and not updated, adjust the actual
-        // duration proportionally based on the difference, e.g. if new target is 5ms longer than
-        // last reported but actual duration is the same as last target, we want to report a smaller
-        // actual work duration now to indicate that we are overshooting
-        if (mLastTargetDurationSent != kDefaultTarget.count() && mTargetDuration != 0) {
-            reportedDuration =
-                    static_cast<int64_t>(static_cast<long double>(mLastTargetDurationSent) /
-                                         mTargetDuration * actualDurationNanos);
-            mActualDuration = reportedDuration;
-        }
-    }
     mActualDuration = reportedDuration;
     WorkDuration duration;
     duration.durationNanos = reportedDuration;
-    duration.timeStampNanos = timeStampNanos;
+    duration.timeStampNanos = timestamp;
     mPowerHintQueue.push_back(duration);
 
     if (sTraceHintSessionData) {
-        ATRACE_INT64("Measured duration", actualDurationNanos);
-        ATRACE_INT64("Target error term", mTargetDuration - actualDurationNanos);
+        ATRACE_INT64("Measured duration", actualDuration);
+        ATRACE_INT64("Target error term", actualDuration - mTargetDuration);
 
         ATRACE_INT64("Reported duration", reportedDuration);
         ATRACE_INT64("Reported target", mLastTargetDurationSent);
-        ATRACE_INT64("Reported target error term", mLastTargetDurationSent - reportedDuration);
+        ATRACE_INT64("Reported target error term", reportedDuration - mLastTargetDurationSent);
     }
 
     ALOGV("Sending actual work duration of: %" PRId64 " on reported target: %" PRId64
           " with error: %" PRId64,
-          reportedDuration, mLastTargetDurationSent, mLastTargetDurationSent - reportedDuration);
+          reportedDuration, mLastTargetDurationSent, reportedDuration - mLastTargetDurationSent);
 
     // This rate limiter queues similar duration reports to the powerhal into
     // batches to avoid excessive binder calls. The criteria to send a given batch
     // are outlined in shouldReportActualDurationsNow()
-    if (shouldReportActualDurationsNow()) {
+    if (shouldReportActualDurations()) {
         ALOGV("Sending hint update batch");
         mLastActualReportTimestamp = systemTime();
         auto ret = mPowerHintSession->reportActualWorkDuration(mPowerHintQueue);
@@ -512,8 +771,8 @@ void AidlPowerHalWrapper::sendActualWorkDuration(int64_t actualDurationNanos,
             mShouldReconnectHal = true;
         }
         mPowerHintQueue.clear();
-        // we save the non-normalized value here to detect % changes
-        mLastActualDurationSent = reportedDuration;
+        // We save the actual duration here for rate limiting
+        mLastActualDurationSent = actualDuration;
     }
 }
 
@@ -529,11 +788,12 @@ std::optional<int64_t> AidlPowerHalWrapper::getTargetWorkDuration() {
     return mTargetDuration;
 }
 
+void AidlPowerHalWrapper::setAllowedActualDeviation(nsecs_t allowedDeviation) {
+    mAllowedActualDeviation = allowedDeviation;
+}
+
 const bool AidlPowerHalWrapper::sTraceHintSessionData =
         base::GetBoolProperty(std::string("debug.sf.trace_hint_sessions"), false);
-
-const bool AidlPowerHalWrapper::sNormalizeTarget =
-        base::GetBoolProperty(std::string("debug.sf.normalize_hint_session_durations"), false);
 
 PowerAdvisor::HalWrapper* PowerAdvisor::getPowerHal() {
     static std::unique_ptr<HalWrapper> sHalWrapper = nullptr;
@@ -543,7 +803,7 @@ PowerAdvisor::HalWrapper* PowerAdvisor::getPowerHal() {
         return nullptr;
     }
 
-    // grab old hint session values before we destroy any existing wrapper
+    // Grab old hint session values before we destroy any existing wrapper
     std::vector<int32_t> oldPowerHintSessionThreadIds;
     std::optional<int64_t> oldTargetWorkDuration;
 
@@ -560,7 +820,7 @@ PowerAdvisor::HalWrapper* PowerAdvisor::getPowerHal() {
 
     if (sHalWrapper != nullptr) {
         auto wrapper = sHalWrapper.get();
-        // if the wrapper is fine, return it, but if it indicates a reconnect, remake it
+        // If the wrapper is fine, return it, but if it indicates a reconnect, remake it
         if (!wrapper->shouldReconnectHAL()) {
             return wrapper;
         }
@@ -568,7 +828,7 @@ PowerAdvisor::HalWrapper* PowerAdvisor::getPowerHal() {
         sHalWrapper = nullptr;
     }
 
-    // at this point, we know for sure there is no running session
+    // At this point, we know for sure there is no running session
     mPowerHintSessionRunning = false;
 
     // First attempt to connect to the AIDL Power HAL
@@ -579,13 +839,12 @@ PowerAdvisor::HalWrapper* PowerAdvisor::getPowerHal() {
         sHalWrapper = HidlPowerHalWrapper::connect();
     } else {
         ALOGD("Successfully connecting AIDL Power HAL");
-        // if AIDL, pass on any existing hint session values
-        // thread ids always safe to set
+        // If AIDL, pass on any existing hint session values
         sHalWrapper->setPowerHintSessionThreadIds(oldPowerHintSessionThreadIds);
-        // only set duration and start if duration is defined
+        // Only set duration and start if duration is defined
         if (oldTargetWorkDuration.has_value()) {
             sHalWrapper->setTargetWorkDuration(*oldTargetWorkDuration);
-            // only start if possible to run and both threadids and duration are defined
+            // Only start if possible to run and both threadids and duration are defined
             if (usePowerHintSession() && !oldPowerHintSessionThreadIds.empty()) {
                 mPowerHintSessionRunning = sHalWrapper->startPowerHintSession();
             }
