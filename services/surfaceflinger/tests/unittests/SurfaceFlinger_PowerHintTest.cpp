@@ -74,6 +74,7 @@ void SurfaceFlingerPowerHintTest::SetUp() {
     mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
     mFlinger.setupTimeStats(std::shared_ptr<TimeStats>(mTimeStats));
     mFlinger.setupComposer(std::unique_ptr<Hwc2::Composer>(mComposer));
+    mFlinger.setPowerHintSessionMode(true, true);
     mFlinger.setupPowerAdvisor(std::unique_ptr<Hwc2::PowerAdvisor>(mPowerAdvisor));
     static constexpr bool kIsPrimary = true;
     FakeHwcDisplayInjector(DEFAULT_DISPLAY_ID, hal::DisplayType::PHYSICAL, kIsPrimary)
@@ -142,10 +143,7 @@ TEST_F(SurfaceFlingerPowerHintTest, sendDurationsIncludingHwcWaitTime) {
                 std::this_thread::sleep_for(mockHwcRunTime);
                 return hardware::graphics::composer::V2_1::Error::NONE;
             });
-    EXPECT_CALL(*mPowerAdvisor,
-                sendActualWorkDuration(Gt(mockHwcRunTime.count()),
-                                       Gt(now + mockHwcRunTime.count())))
-            .Times(1);
+    EXPECT_CALL(*mPowerAdvisor, sendActualWorkDuration()).Times(1);
     static constexpr bool kVsyncId = 123; // arbitrary
     mFlinger.commitAndComposite(now, kVsyncId, now + mockVsyncPeriod.count());
 }

@@ -140,6 +140,8 @@ protected:
           std::vector<LayerFE*> &outLayerFEs) override;
     void appendRegionFlashRequests(const Region&, std::vector<LayerFE::LayerSettings>&) override;
     void setExpensiveRenderingExpected(bool enabled) override;
+    void setHintSessionGpuFence(std::unique_ptr<FenceTime>&& gpuFence) override;
+    bool isPowerHintSessionEnabled() override;
     void dumpBase(std::string&) const;
 
     // Implemented by the final implementation for the final state it uses.
