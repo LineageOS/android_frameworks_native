@@ -166,9 +166,6 @@ enum class LatchUnsignaledConfig {
 using DisplayColorSetting = compositionengine::OutputColorSetting;
 
 struct SurfaceFlingerBE {
-    FenceTimeline mGlCompositionDoneTimeline;
-    FenceTimeline mDisplayTimeline;
-
     // protected by mCompositorTimingLock;
     mutable std::mutex mCompositorTimingLock;
     CompositorTiming mCompositorTiming;
