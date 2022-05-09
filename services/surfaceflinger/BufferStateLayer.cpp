@@ -73,7 +73,7 @@ BufferStateLayer::~BufferStateLayer() {
 // -----------------------------------------------------------------------
 // Interface implementation for Layer
 // -----------------------------------------------------------------------
-void BufferStateLayer::onLayerDisplayed(std::shared_future<FenceResult> futureFenceResult) {
+void BufferStateLayer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult) {
     // If we are displayed on multiple displays in a single composition cycle then we would
     // need to do careful tracking to enable the use of the mLastClientCompositionFence.
     //  For example we can only use it if all the displays are client comp, and we need

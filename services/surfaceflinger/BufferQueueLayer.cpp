@@ -48,7 +48,7 @@ BufferQueueLayer::~BufferQueueLayer() {
 // Interface implementation for Layer
 // -----------------------------------------------------------------------
 
-void BufferQueueLayer::onLayerDisplayed(std::shared_future<FenceResult> futureFenceResult) {
+void BufferQueueLayer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult) {
     const sp<Fence> releaseFence = futureFenceResult.get().value_or(Fence::NO_FENCE);
     mConsumer->setReleaseFence(releaseFence);
 

@@ -42,7 +42,7 @@ public:
     // Implements Layer.
     const char* getType() const override { return "BufferQueueLayer"; }
 
-    void onLayerDisplayed(std::shared_future<FenceResult>) override;
+    void onLayerDisplayed(ftl::SharedFuture<FenceResult>) override;
 
     // If a buffer was replaced this frame, release the former buffer
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;
