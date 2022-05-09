@@ -22,7 +22,8 @@
 
 #include <utils/Timers.h>
 
-namespace android::inputdispatcher {
+namespace android {
+namespace inputdispatcher {
 
 static constexpr int32_t INVALID_POINTER_INDEX = -1;
 
@@ -125,8 +126,13 @@ private:
 
     static bool shouldCancelKey(const KeyMemento& memento, const CancelationOptions& options);
     static bool shouldCancelMotion(const MotionMemento& memento, const CancelationOptions& options);
+
+    // Synthesizes pointer cancel events for a particular set of pointers.
+    std::vector<std::unique_ptr<MotionEntry>> synthesizeCancelationEventsForPointers(
+            const MotionMemento& memento, const BitSet32 pointerIds, nsecs_t currentTime);
 };
 
-} // namespace android::inputdispatcher
+} // namespace inputdispatcher
+} // namespace android
 
 #endif // _UI_INPUT_INPUTDISPATCHER_INPUTSTATE_H

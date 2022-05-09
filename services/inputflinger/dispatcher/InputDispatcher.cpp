@@ -2195,6 +2195,15 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
 
             tempTouchState.addOrUpdateWindow(windowHandle, targetFlags, pointerIds);
         }
+
+        // If any existing window is pilfering pointers from newly added window, remove it
+        BitSet32 canceledPointers = BitSet32(0);
+        for (const TouchedWindow& window : tempTouchState.windows) {
+            if (window.isPilferingPointers) {
+                canceledPointers |= window.pointerIds;
+            }
+        }
+        tempTouchState.cancelPointersForNonPilferingWindows(canceledPointers);
     } else {
         /* Case 2: Pointer move, up, cancel or non-splittable pointer down. */
 
@@ -5579,16 +5588,20 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
     }
 
     TouchState& state = *statePtr;
-
+    TouchedWindow& window = *windowPtr;
     // Send cancel events to all the input channels we're stealing from.
     CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
                                "input channel stole pointer stream");
     options.deviceId = state.deviceId;
     options.displayId = state.displayId;
+    if (state.split) {
+        // If split pointers then selectively cancel pointers otherwise cancel all pointers
+        options.pointerIds = window.pointerIds;
+    }
     std::string canceledWindows;
-    for (const TouchedWindow& window : state.windows) {
+    for (const TouchedWindow& w : state.windows) {
         const std::shared_ptr<InputChannel> channel =
-                getInputChannelLocked(window.windowHandle->getToken());
+                getInputChannelLocked(w.windowHandle->getToken());
         if (channel != nullptr && channel->getConnectionToken() != token) {
             synthesizeCancelationEventsForInputChannelLocked(channel, options);
             canceledWindows += canceledWindows.empty() ? "[" : ", ";
@@ -5600,8 +5613,14 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
           canceledWindows.c_str());
 
     // Prevent the gesture from being sent to any other windows.
-    state.filterWindowsExcept(token);
-    state.preventNewTargets = true;
+    // This only blocks relevant pointers to be sent to other windows
+    window.isPilferingPointers = true;
+
+    if (state.split) {
+        state.cancelPointersForWindowsExcept(window.pointerIds, token);
+    } else {
+        state.filterWindowsExcept(token);
+    }
     return OK;
 }
 
