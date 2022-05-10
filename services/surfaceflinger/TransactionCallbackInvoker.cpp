@@ -184,6 +184,7 @@ void TransactionCallbackInvoker::addPresentFence(const sp<Fence>& presentFence) 
 void TransactionCallbackInvoker::sendCallbacks(bool onCommitOnly) {
     // For each listener
     auto completedTransactionsItr = mCompletedTransactions.begin();
+    BackgroundExecutor::Callbacks callbacks;
     while (completedTransactionsItr != mCompletedTransactions.end()) {
         auto& [listener, transactionStatsDeque] = *completedTransactionsItr;
         ListenerStats listenerStats;
@@ -218,7 +219,7 @@ void TransactionCallbackInvoker::sendCallbacks(bool onCommitOnly) {
                 // keep it as an IBinder due to consistency reasons: if we
                 // interface_cast at the IPC boundary when reading a Parcel,
                 // we get pointers that compare unequal in the SF process.
-                BackgroundExecutor::getInstance().execute([stats = std::move(listenerStats)]() {
+                callbacks.emplace_back([stats = std::move(listenerStats)]() {
                     interface_cast<ITransactionCompletedListener>(stats.listener)
                             ->onTransactionCompleted(stats);
                 });
@@ -230,6 +231,8 @@ void TransactionCallbackInvoker::sendCallbacks(bool onCommitOnly) {
     if (mPresentFence) {
         mPresentFence.clear();
     }
+
+    BackgroundExecutor::getInstance().sendCallbacks(std::move(callbacks));
 }
 
 // -----------------------------------------------------------------------
