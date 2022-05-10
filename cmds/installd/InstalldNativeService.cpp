@@ -1960,17 +1960,43 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
 #endif // GRANULAR_LOCKS
             FTS *fts;
             FTSENT *p;
+
+            // Create a list of data paths whose children have cache directories
             auto ce_path = create_data_user_ce_path(uuid_, userId);
             auto de_path = create_data_user_de_path(uuid_, userId);
             auto media_path = findDataMediaPath(uuid, userId) + "/Android/data/";
-            char *argv[] = { (char*) ce_path.c_str(), (char*) de_path.c_str(),
-                    (char*) media_path.c_str(), nullptr };
+            auto ce_sdk_path = create_data_misc_sdk_sandbox_path(uuid_, /*isCeData=*/true, userId);
+            auto de_sdk_path = create_data_misc_sdk_sandbox_path(uuid_, /*isCeData=*/false, userId);
+
+            std::vector<std::string> dataPaths = {ce_path, de_path, media_path};
+            foreach_subdir(ce_sdk_path, [&ce_sdk_path, &dataPaths](const std::string subDir) {
+                const auto fullpath = ce_sdk_path + "/" + subDir;
+                dataPaths.push_back(fullpath);
+            });
+            foreach_subdir(de_sdk_path, [&de_sdk_path, &dataPaths](const std::string subDir) {
+                const auto fullpath = de_sdk_path + "/" + subDir;
+                dataPaths.push_back((char*)fullpath.c_str());
+            });
+
+            char* argv[dataPaths.size() + 1];
+            for (unsigned int i = 0; i < dataPaths.size(); i++) {
+                argv[i] = (char*)dataPaths[i].c_str();
+            }
+            argv[dataPaths.size()] = nullptr;
+
             if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nullptr))) {
                 return error("Failed to fts_open");
             }
             while ((p = fts_read(fts)) != nullptr) {
                 if (p->fts_info == FTS_D && p->fts_level == 1) {
                     uid_t uid = p->fts_statp->st_uid;
+
+                    // If uid belongs to sdk sandbox, then the cache should be attributed to the
+                    // original client app.
+                    const auto client_uid = multiuser_convert_sdk_sandbox_to_app_uid(uid);
+                    const bool isSandboxUid = (client_uid != (uid_t)-1);
+                    if (isSandboxUid) uid = client_uid;
+
                     if (multiuser_get_app_id(uid) == AID_MEDIA_RW) {
                         uid = (multiuser_get_app_id(p->fts_statp->st_gid) - AID_EXT_GID_START)
                                 + AID_APP_START;
