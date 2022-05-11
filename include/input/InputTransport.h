@@ -452,8 +452,11 @@ private:
  */
 class InputConsumer {
 public:
-    /* Creates a consumer associated with an input channel. */
+    /* Create a consumer associated with an input channel. */
     explicit InputConsumer(const std::shared_ptr<InputChannel>& channel);
+    /* Create a consumer associated with an input channel, override resampling system property */
+    explicit InputConsumer(const std::shared_ptr<InputChannel>& channel,
+                           bool enableTouchResampling);
 
     /* Destroys the consumer and releases its input channel. */
     ~InputConsumer();

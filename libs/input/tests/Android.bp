@@ -16,6 +16,7 @@ cc_test {
         "InputDevice_test.cpp",
         "InputEvent_test.cpp",
         "InputPublisherAndConsumer_test.cpp",
+        "TouchResampling_test.cpp",
         "TouchVideoFrame_test.cpp",
         "VelocityTracker_test.cpp",
         "VerifiedInputEvent_test.cpp",

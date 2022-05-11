@@ -16,17 +16,10 @@
 
 #include "TestHelpers.h"
 
-#include <unistd.h>
-#include <sys/mman.h>
-#include <time.h>
-
 #include <attestation/HmacKeyManager.h>
-#include <cutils/ashmem.h>
 #include <gtest/gtest.h>
 #include <gui/constants.h>
 #include <input/InputTransport.h>
-#include <utils/StopWatch.h>
-#include <utils/Timers.h>
 
 using android::base::Result;
 

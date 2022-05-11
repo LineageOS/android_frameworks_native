@@ -51,7 +51,7 @@ static const nsecs_t NANOS_PER_MS = 1000000;
 
 // Latency added during resampling.  A few milliseconds doesn't hurt much but
 // reduces the impact of mispredicted touch positions.
-static const nsecs_t RESAMPLE_LATENCY = 5 * NANOS_PER_MS;
+const std::chrono::duration RESAMPLE_LATENCY = 5ms;
 
 // Minimum time difference between consecutive samples before attempting to resample.
 static const nsecs_t RESAMPLE_MIN_DELTA = 2 * NANOS_PER_MS;
@@ -721,7 +721,11 @@ android::base::Result<InputPublisher::ConsumerResponse> InputPublisher::receiveC
 // --- InputConsumer ---
 
 InputConsumer::InputConsumer(const std::shared_ptr<InputChannel>& channel)
-      : mResampleTouch(isTouchResamplingEnabled()), mChannel(channel), mMsgDeferred(false) {}
+      : InputConsumer(channel, isTouchResamplingEnabled()) {}
+
+InputConsumer::InputConsumer(const std::shared_ptr<InputChannel>& channel,
+                             bool enableTouchResampling)
+      : mResampleTouch(enableTouchResampling), mChannel(channel), mMsgDeferred(false) {}
 
 InputConsumer::~InputConsumer() {
 }
@@ -751,7 +755,10 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory, bool consum
             // Receive a fresh message.
             status_t result = mChannel->receiveMessage(&mMsg);
             if (result == OK) {
-                mConsumeTimes.emplace(mMsg.header.seq, systemTime(SYSTEM_TIME_MONOTONIC));
+                const auto [_, inserted] =
+                        mConsumeTimes.emplace(mMsg.header.seq, systemTime(SYSTEM_TIME_MONOTONIC));
+                LOG_ALWAYS_FATAL_IF(!inserted, "Already have a consume time for seq=%" PRIu32,
+                                    mMsg.header.seq);
             }
             if (result) {
                 // Consume the next batched event unless batches are being held for later.
@@ -918,7 +925,7 @@ status_t InputConsumer::consumeBatch(InputEventFactoryInterface* factory,
 
         nsecs_t sampleTime = frameTime;
         if (mResampleTouch) {
-            sampleTime -= RESAMPLE_LATENCY;
+            sampleTime -= std::chrono::nanoseconds(RESAMPLE_LATENCY).count();
         }
         ssize_t split = findSampleNoLaterThan(batch, sampleTime);
         if (split < 0) {
@@ -1163,6 +1170,11 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
 #if DEBUG_RESAMPLING
         ALOGD("Not resampled, insufficient data.");
 #endif
+        return;
+    }
+
+    if (current->eventTime == sampleTime) {
+        // Prevents having 2 events with identical times and coordinates.
         return;
     }
 
