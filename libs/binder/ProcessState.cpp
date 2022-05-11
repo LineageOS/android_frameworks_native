@@ -294,11 +294,16 @@ ProcessState::handle_entry* ProcessState::lookupHandleLocked(int32_t handle)
     return &mHandleToObject.editItemAt(handle);
 }
 
+// see b/166779391: cannot change the VNDK interface, so access like this
+extern sp<BBinder> the_context_object;
+
 sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
 {
     sp<IBinder> result;
 
     AutoMutex _l(mLock);
+
+    if (handle == 0 && the_context_object != nullptr) return the_context_object;
 
     handle_entry* e = lookupHandleLocked(handle);
 

@@ -447,6 +447,12 @@ TEST_F(BinderLibTest, CannotUseBinderAfterFork) {
     EXPECT_DEATH({ ProcessState::self(); }, "libbinder ProcessState can not be used after fork");
 }
 
+TEST_F(BinderLibTest, AddManagerToManager) {
+    sp<IServiceManager> sm = defaultServiceManager();
+    sp<IBinder> binder = IInterface::asBinder(sm);
+    EXPECT_EQ(NO_ERROR, sm->addService(String16("binderLibTest-manager"), binder));
+}
+
 TEST_F(BinderLibTest, WasParceled) {
     auto binder = sp<BBinder>::make();
     EXPECT_FALSE(binder->wasParceled());
