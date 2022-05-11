@@ -166,6 +166,10 @@ struct OutputCompositionState {
     bool treat170mAsSrgb = false;
 
     std::vector<renderengine::BorderRenderInfo> borderInfoList;
+
+    uint64_t lastOutputLayerHash = 0;
+    uint64_t outputLayerHash = 0;
+
     // Debugging
     void dump(std::string& result) const;
 };
