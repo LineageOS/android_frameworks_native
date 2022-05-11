@@ -578,6 +578,27 @@ bool isWindowOwnedBy(const sp<WindowInfoHandle>& windowHandle, int32_t pid, int3
     return false;
 }
 
+// Checks targeted injection using the window's owner's uid.
+// Returns an empty string if an entry can be sent to the given window, or an error message if the
+// entry is a targeted injection whose uid target doesn't match the window owner.
+std::optional<std::string> verifyTargetedInjection(const sp<WindowInfoHandle>& window,
+                                                   const EventEntry& entry) {
+    if (entry.injectionState == nullptr || !entry.injectionState->targetUid) {
+        // The event was not injected, or the injected event does not target a window.
+        return {};
+    }
+    const int32_t uid = *entry.injectionState->targetUid;
+    if (window == nullptr) {
+        return StringPrintf("No valid window target for injection into uid %d.", uid);
+    }
+    if (entry.injectionState->targetUid != window->getInfo()->ownerUid) {
+        return StringPrintf("Injected event targeted at uid %d would be dispatched to window '%s' "
+                            "owned by uid %d.",
+                            uid, window->getName().c_str(), window->getInfo()->ownerUid);
+    }
+    return {};
+}
+
 } // namespace
 
 // --- InputDispatcher ---
@@ -1036,6 +1057,8 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
 
     switch (entry.type) {
         case EventEntry::Type::KEY: {
+            LOG_ALWAYS_FATAL_IF((entry.policyFlags & POLICY_FLAG_TRUSTED) == 0,
+                                "Unexpected untrusted event.");
             // Optimize app switch latency.
             // If the application takes too long to catch up then we drop all events preceding
             // the app switch key.
@@ -1073,6 +1096,8 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
         }
 
         case EventEntry::Type::MOTION: {
+            LOG_ALWAYS_FATAL_IF((entry.policyFlags & POLICY_FLAG_TRUSTED) == 0,
+                                "Unexpected untrusted event.");
             if (shouldPruneInboundQueueLocked(static_cast<MotionEntry&>(entry))) {
                 mNextUnblockedEvent = mInboundQueue.back();
                 needWake = true;
@@ -1720,8 +1745,7 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, std::shared_ptr<
     }
 
     setInjectionResult(*entry, injectionResult);
-    if (injectionResult == InputEventInjectionResult::PERMISSION_DENIED) {
-        ALOGW("Permission denied, dropping the motion (isPointer=%s)", toString(isPointerEvent));
+    if (injectionResult == InputEventInjectionResult::TARGET_MISMATCH) {
         return true;
     }
     if (injectionResult != InputEventInjectionResult::SUCCEEDED) {
@@ -1972,9 +1996,10 @@ InputEventInjectionResult InputDispatcher::findFocusedWindowTargetsLocked(
     // we have a valid, non-null focused window
     resetNoFocusedWindowTimeoutLocked();
 
-    // Check permissions.
-    if (!checkInjectionPermission(focusedWindowHandle, entry.injectionState)) {
-        return InputEventInjectionResult::PERMISSION_DENIED;
+    // Verify targeted injection.
+    if (const auto err = verifyTargetedInjection(focusedWindowHandle, entry); err) {
+        ALOGW("Dropping injected event: %s", (*err).c_str());
+        return InputEventInjectionResult::TARGET_MISMATCH;
     }
 
     if (focusedWindowHandle->getInfo()->inputConfig.test(
@@ -2040,11 +2065,6 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
         nsecs_t currentTime, const MotionEntry& entry, std::vector<InputTarget>& inputTargets,
         nsecs_t* nextWakeupTime, bool* outConflictingPointerActions) {
     ATRACE_CALL();
-    enum InjectionPermission {
-        INJECTION_PERMISSION_UNKNOWN,
-        INJECTION_PERMISSION_GRANTED,
-        INJECTION_PERMISSION_DENIED
-    };
 
     // For security reasons, we defer updating the touch state until we are sure that
     // event injection will be allowed.
@@ -2054,7 +2074,6 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
 
     // Update the touch state as needed based on the properties of the touch event.
     InputEventInjectionResult injectionResult = InputEventInjectionResult::PENDING;
-    InjectionPermission injectionPermission = INJECTION_PERMISSION_UNKNOWN;
     sp<WindowInfoHandle> newHoverWindowHandle(mLastHoverWindowHandle);
     sp<WindowInfoHandle> newTouchedWindowHandle;
 
@@ -2103,7 +2122,7 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
               "in display %" PRId32,
               displayId);
         // TODO: test multiple simultaneous input streams.
-        injectionResult = InputEventInjectionResult::PERMISSION_DENIED;
+        injectionResult = InputEventInjectionResult::FAILED;
         switchedDevice = false;
         wrongDevice = true;
         goto Failed;
@@ -2134,6 +2153,14 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
                   displayId);
             // Try to assign the pointer to the first foreground window we find, if there is one.
             newTouchedWindowHandle = tempTouchState.getFirstForegroundWindowHandle();
+        }
+
+        // Verify targeted injection.
+        if (const auto err = verifyTargetedInjection(newTouchedWindowHandle, entry); err) {
+            ALOGW("Dropping injected touch event: %s", (*err).c_str());
+            injectionResult = os::InputEventInjectionResult::TARGET_MISMATCH;
+            newTouchedWindowHandle = nullptr;
+            goto Failed;
         }
 
         // Figure out whether splitting will be allowed for this window.
@@ -2178,6 +2205,11 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
 
         for (const sp<WindowInfoHandle>& windowHandle : newTouchedWindows) {
             const WindowInfo& info = *windowHandle->getInfo();
+
+            // Skip spy window targets that are not valid for targeted injection.
+            if (const auto err = verifyTargetedInjection(windowHandle, entry); err) {
+                continue;
+            }
 
             if (info.inputConfig.test(WindowInfo::InputConfig::PAUSE_DISPATCHING)) {
                 ALOGI("Not sending touch event to %s because it is paused",
@@ -2272,6 +2304,14 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             newTouchedWindowHandle =
                     findTouchedWindowAtLocked(displayId, x, y, &tempTouchState, isStylus);
 
+            // Verify targeted injection.
+            if (const auto err = verifyTargetedInjection(newTouchedWindowHandle, entry); err) {
+                ALOGW("Dropping injected event: %s", (*err).c_str());
+                injectionResult = os::InputEventInjectionResult::TARGET_MISMATCH;
+                newTouchedWindowHandle = nullptr;
+                goto Failed;
+            }
+
             // Drop touch events if requested by input feature
             if (newTouchedWindowHandle != nullptr &&
                 shouldDropInput(entry, newTouchedWindowHandle)) {
@@ -2363,19 +2403,26 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
         goto Failed;
     }
 
-    // Check permission to inject into all touched foreground windows.
-    if (std::any_of(tempTouchState.windows.begin(), tempTouchState.windows.end(),
-                    [this, &entry](const TouchedWindow& touchedWindow) {
-                        return (touchedWindow.targetFlags & InputTarget::FLAG_FOREGROUND) != 0 &&
-                                !checkInjectionPermission(touchedWindow.windowHandle,
-                                                          entry.injectionState);
-                    })) {
-        injectionResult = InputEventInjectionResult::PERMISSION_DENIED;
-        injectionPermission = INJECTION_PERMISSION_DENIED;
-        goto Failed;
+    // Ensure that all touched windows are valid for injection.
+    if (entry.injectionState != nullptr) {
+        std::string errs;
+        for (const TouchedWindow& touchedWindow : tempTouchState.windows) {
+            if (touchedWindow.targetFlags & InputTarget::FLAG_DISPATCH_AS_OUTSIDE) {
+                // Allow ACTION_OUTSIDE events generated by targeted injection to be
+                // dispatched to any uid, since the coords will be zeroed out later.
+                continue;
+            }
+            const auto err = verifyTargetedInjection(touchedWindow.windowHandle, entry);
+            if (err) errs += "\n  - " + *err;
+        }
+        if (!errs.empty()) {
+            ALOGW("Dropping targeted injection: At least one touched window is not owned by uid "
+                  "%d:%s",
+                  *entry.injectionState->targetUid, errs.c_str());
+            injectionResult = InputEventInjectionResult::TARGET_MISMATCH;
+            goto Failed;
+        }
     }
-    // Permission granted to inject into all touched foreground windows.
-    injectionPermission = INJECTION_PERMISSION_GRANTED;
 
     // Check whether windows listening for outside touches are owned by the same UID. If it is
     // set the policy flag that we will not reveal coordinate information to this window.
@@ -2441,19 +2488,6 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
     tempTouchState.filterNonAsIsTouchWindows();
 
 Failed:
-    // Check injection permission once and for all.
-    if (injectionPermission == INJECTION_PERMISSION_UNKNOWN) {
-        if (checkInjectionPermission(nullptr, entry.injectionState)) {
-            injectionPermission = INJECTION_PERMISSION_GRANTED;
-        } else {
-            injectionPermission = INJECTION_PERMISSION_DENIED;
-        }
-    }
-
-    if (injectionPermission != INJECTION_PERMISSION_GRANTED) {
-        return injectionResult;
-    }
-
     // Update final pieces of touch state if the injector had permission.
     if (!wrongDevice) {
         if (switchedDevice) {
@@ -2683,26 +2717,6 @@ void InputDispatcher::addGlobalMonitoringTargetsLocked(std::vector<InputTarget>&
         target.setDefaultPointerTransform(target.displayTransform);
         inputTargets.push_back(target);
     }
-}
-
-bool InputDispatcher::checkInjectionPermission(const sp<WindowInfoHandle>& windowHandle,
-                                               const InjectionState* injectionState) {
-    if (injectionState &&
-        (windowHandle == nullptr ||
-         windowHandle->getInfo()->ownerUid != injectionState->injectorUid) &&
-        !hasInjectionPermission(injectionState->injectorPid, injectionState->injectorUid)) {
-        if (windowHandle != nullptr) {
-            ALOGW("Permission denied: injecting event from pid %d uid %d to window %s "
-                  "owned by uid %d",
-                  injectionState->injectorPid, injectionState->injectorUid,
-                  windowHandle->getName().c_str(), windowHandle->getInfo()->ownerUid);
-        } else {
-            ALOGW("Permission denied: injecting event from pid %d uid %d",
-                  injectionState->injectorPid, injectionState->injectorUid);
-        }
-        return false;
-    }
-    return true;
 }
 
 /**
@@ -4223,20 +4237,20 @@ void InputDispatcher::notifyPointerCaptureChanged(const NotifyPointerCaptureChan
     }
 }
 
-InputEventInjectionResult InputDispatcher::injectInputEvent(
-        const InputEvent* event, int32_t injectorPid, int32_t injectorUid,
-        InputEventInjectionSync syncMode, std::chrono::milliseconds timeout, uint32_t policyFlags) {
+InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* event,
+                                                            std::optional<int32_t> targetUid,
+                                                            InputEventInjectionSync syncMode,
+                                                            std::chrono::milliseconds timeout,
+                                                            uint32_t policyFlags) {
     if (DEBUG_INBOUND_EVENT_DETAILS) {
-        ALOGD("injectInputEvent - eventType=%d, injectorPid=%d, injectorUid=%d, "
-              "syncMode=%d, timeout=%lld, policyFlags=0x%08x",
-              event->getType(), injectorPid, injectorUid, syncMode, timeout.count(), policyFlags);
+        ALOGD("injectInputEvent - eventType=%d, targetUid=%s, syncMode=%d, timeout=%lld, "
+              "policyFlags=0x%08x",
+              event->getType(), targetUid ? std::to_string(*targetUid).c_str() : "none", syncMode,
+              timeout.count(), policyFlags);
     }
     nsecs_t endTime = now() + std::chrono::duration_cast<std::chrono::nanoseconds>(timeout).count();
 
-    policyFlags |= POLICY_FLAG_INJECTED;
-    if (hasInjectionPermission(injectorPid, injectorUid)) {
-        policyFlags |= POLICY_FLAG_TRUSTED;
-    }
+    policyFlags |= POLICY_FLAG_INJECTED | POLICY_FLAG_TRUSTED;
 
     // For all injected events, set device id = VIRTUAL_KEYBOARD_ID. The only exception is events
     // that have gone through the InputFilter. If the event passed through the InputFilter, assign
@@ -4377,7 +4391,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
             return InputEventInjectionResult::FAILED;
     }
 
-    InjectionState* injectionState = new InjectionState(injectorPid, injectorUid);
+    InjectionState* injectionState = new InjectionState(targetUid);
     if (syncMode == InputEventInjectionSync::NONE) {
         injectionState->injectionIsAsync = true;
     }
@@ -4449,8 +4463,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(
     } // release lock
 
     if (DEBUG_INJECTION) {
-        ALOGD("injectInputEvent - Finished with result %d. injectorPid=%d, injectorUid=%d",
-              injectionResult, injectorPid, injectorUid);
+        ALOGD("injectInputEvent - Finished with result %d.", injectionResult);
     }
 
     return injectionResult;
@@ -4489,19 +4502,12 @@ std::unique_ptr<VerifiedInputEvent> InputDispatcher::verifyInputEvent(const Inpu
     return result;
 }
 
-bool InputDispatcher::hasInjectionPermission(int32_t injectorPid, int32_t injectorUid) {
-    return injectorUid == 0 ||
-            mPolicy->checkInjectEventsPermissionNonReentrant(injectorPid, injectorUid);
-}
-
 void InputDispatcher::setInjectionResult(EventEntry& entry,
                                          InputEventInjectionResult injectionResult) {
     InjectionState* injectionState = entry.injectionState;
     if (injectionState) {
         if (DEBUG_INJECTION) {
-            ALOGD("Setting input event injection result to %d.  "
-                  "injectorPid=%d, injectorUid=%d",
-                  injectionResult, injectionState->injectorPid, injectionState->injectorUid);
+            ALOGD("Setting input event injection result to %d.", injectionResult);
         }
 
         if (injectionState->injectionIsAsync && !(entry.policyFlags & POLICY_FLAG_FILTERED)) {
@@ -4510,11 +4516,11 @@ void InputDispatcher::setInjectionResult(EventEntry& entry,
                 case InputEventInjectionResult::SUCCEEDED:
                     ALOGV("Asynchronous input event injection succeeded.");
                     break;
+                case InputEventInjectionResult::TARGET_MISMATCH:
+                    ALOGV("Asynchronous input event injection target mismatch.");
+                    break;
                 case InputEventInjectionResult::FAILED:
                     ALOGW("Asynchronous input event injection failed.");
-                    break;
-                case InputEventInjectionResult::PERMISSION_DENIED:
-                    ALOGW("Asynchronous input event injection permission denied.");
                     break;
                 case InputEventInjectionResult::TIMED_OUT:
                     ALOGW("Asynchronous input event injection timed out.");
