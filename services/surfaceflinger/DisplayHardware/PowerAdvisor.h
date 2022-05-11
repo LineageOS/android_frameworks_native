@@ -160,9 +160,9 @@ private:
     bool mNotifiedExpensiveRendering = false;
 
     SurfaceFlinger& mFlinger;
-    const bool mUseScreenUpdateTimer;
     std::atomic_bool mSendUpdateImminent = true;
-    scheduler::OneShotTimer mScreenUpdateTimer;
+    std::atomic<nsecs_t> mLastScreenUpdatedTime = 0;
+    std::optional<scheduler::OneShotTimer> mScreenUpdateTimer;
 
     // Higher-level timing data used for estimation
     struct DisplayTimeline {
