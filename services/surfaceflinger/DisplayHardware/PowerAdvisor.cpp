@@ -80,22 +80,33 @@ void traceExpensiveRendering(bool enabled) {
 
 } // namespace
 
-PowerAdvisor::PowerAdvisor(SurfaceFlinger& flinger)
-      : mFlinger(flinger),
-        mUseScreenUpdateTimer(getUpdateTimeout() > 0),
-        mScreenUpdateTimer(
-                "UpdateImminentTimer", OneShotTimer::Interval(getUpdateTimeout()),
-                /* resetCallback */ [this] { mSendUpdateImminent.store(false); },
-                /* timeoutCallback */
-                [this] {
-                    mSendUpdateImminent.store(true);
-                    mFlinger.disableExpensiveRendering();
-                }) {}
+PowerAdvisor::PowerAdvisor(SurfaceFlinger& flinger) : mFlinger(flinger) {
+    if (getUpdateTimeout()) {
+        mScreenUpdateTimer.emplace("UpdateImminentTimer",
+                                   OneShotTimer::Interval(getUpdateTimeout()),
+                                   /* resetCallback */ nullptr,
+                                   /* timeoutCallback */
+                                   [this] {
+                                       const nsecs_t timeSinceLastUpdate =
+                                               systemTime() - mLastScreenUpdatedTime.load();
+                                       if (timeSinceLastUpdate < getUpdateTimeout()) {
+                                           // We may try to disable expensive rendering and allow
+                                           // for sending DISPLAY_UPDATE_IMMINENT hints too early if
+                                           // we idled very shortly after updating the screen, so
+                                           // make sure we wait enough time.
+                                           std::this_thread::sleep_for(std::chrono::nanoseconds(
+                                                   getUpdateTimeout() - timeSinceLastUpdate));
+                                       }
+                                       mSendUpdateImminent.store(true);
+                                       mFlinger.disableExpensiveRendering();
+                                   });
+    }
+}
 
 void PowerAdvisor::init() {
     // Defer starting the screen update timer until SurfaceFlinger finishes construction.
-    if (mUseScreenUpdateTimer) {
-        mScreenUpdateTimer.start();
+    if (mScreenUpdateTimer) {
+        mScreenUpdateTimer->start();
     }
 }
 
@@ -135,7 +146,7 @@ void PowerAdvisor::notifyDisplayUpdateImminent() {
         return;
     }
 
-    if (mSendUpdateImminent.load()) {
+    if (mSendUpdateImminent.exchange(false)) {
         std::lock_guard lock(mPowerHalMutex);
         HalWrapper* const halWrapper = getPowerHal();
         if (halWrapper == nullptr) {
@@ -147,10 +158,18 @@ void PowerAdvisor::notifyDisplayUpdateImminent() {
             mReconnectPowerHal = true;
             return;
         }
+
+        if (mScreenUpdateTimer) {
+            mScreenUpdateTimer->reset();
+        } else {
+            // If we don't have a screen update timer, then we don't throttle power hal calls so
+            // flip this bit back to allow for calling into power hal again.
+            mSendUpdateImminent.store(true);
+        }
     }
 
-    if (mUseScreenUpdateTimer) {
-        mScreenUpdateTimer.reset();
+    if (mScreenUpdateTimer) {
+        mLastScreenUpdatedTime.store(systemTime());
     }
 }
 
