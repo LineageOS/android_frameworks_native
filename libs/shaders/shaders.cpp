@@ -78,7 +78,7 @@ void generateEOTF(ui::Dataspace dataspace, std::string& shader) {
             shader.append(R"(
 
                 float EOTF_sRGB(float srgb) {
-                    return srgb <= 0.08125 ? srgb / 4.50 : pow((srgb + 0.099) / 1.099, 0.45);
+                    return srgb <= 0.08125 ? srgb / 4.50 : pow((srgb + 0.099) / 1.099, 1 / 0.45);
                 }
 
                 float3 EOTF_sRGB(float3 srgb) {
