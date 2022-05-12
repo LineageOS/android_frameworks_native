@@ -415,6 +415,8 @@ bool ProcessState::isDriverFeatureEnabled(const DriverFeature feature) {
     static const char* const names[] = {
         [static_cast<int>(DriverFeature::ONEWAY_SPAM_DETECTION)] =
             DRIVER_FEATURES_PATH "oneway_spam_detection",
+        [static_cast<int>(DriverFeature::EXTENDED_ERROR)] =
+            DRIVER_FEATURES_PATH "extended_error",
     };
     int fd = open(names[static_cast<int>(feature)], O_RDONLY | O_CLOEXEC);
     char on;

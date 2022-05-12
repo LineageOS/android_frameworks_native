@@ -216,6 +216,7 @@ private:
     static  void                freeBuffer(Parcel* parcel,
                                            const uint8_t* data, size_t dataSize,
                                            const binder_size_t* objects, size_t objectsSize);
+    static  void                logExtendedError();
 
     const   sp<ProcessState>    mProcess;
             Vector<BBinder*>    mPendingStrongDerefs;
