@@ -267,7 +267,8 @@ enum {
      * {@link ASENSOR_TYPE_HEAD_TRACKER}
      * reporting-mode: continuous
      *
-     * Measures the orientation and rotational velocity of a user's head.
+     * Measures the orientation and rotational velocity of a user's head. Only for internal use
+     * within the Android system.
      */
     ASENSOR_TYPE_HEAD_TRACKER = 37,
     /**
