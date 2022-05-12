@@ -373,7 +373,7 @@ private:
     status_t cleanupWithoutDisableLocked(const sp<SensorEventConnection>& connection, int handle);
     void cleanupAutoDisabledSensorLocked(const sp<SensorEventConnection>& connection,
             sensors_event_t const* buffer, const int count);
-    static bool canAccessSensor(const Sensor& sensor, const char* operation,
+    bool canAccessSensor(const Sensor& sensor, const char* operation,
             const String16& opPackageName);
     static bool hasPermissionForSensor(const Sensor& sensor);
     static int getTargetSdkVersion(const String16& opPackageName);
@@ -491,6 +491,10 @@ private:
     wp<const SensorEventConnection> * mMapFlushEventsToConnections;
     std::unordered_map<int, SensorServiceUtil::RecentEventLogger*> mRecentEvent;
     Mode mCurrentOperatingMode;
+
+    // true if the head tracker sensor type is currently restricted to system usage only
+    // (can only be unrestricted for testing, via shell cmd)
+    bool mHtRestricted = true;
 
     // This packagaName is set when SensorService is in RESTRICTED or DATA_INJECTION mode. Only
     // applications with this packageName are allowed to activate/deactivate or call flush on
