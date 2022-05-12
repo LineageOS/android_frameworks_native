@@ -157,7 +157,7 @@ int32_t SensorService::SensorDirectConnection::configureChannel(int handle, int 
     }
 
     const Sensor& s = si->getSensor();
-    if (!SensorService::canAccessSensor(s, "config direct channel", mOpPackageName)) {
+    if (!mService->canAccessSensor(s, "config direct channel", mOpPackageName)) {
         return PERMISSION_DENIED;
     }
 
