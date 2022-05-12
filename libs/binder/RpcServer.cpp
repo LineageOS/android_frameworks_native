@@ -392,7 +392,7 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
                 }
             } while (server->mSessions.end() != server->mSessions.find(sessionId));
 
-            session = RpcSession::make();
+            session = sp<RpcSession>::make(nullptr);
             session->setMaxIncomingThreads(server->mMaxThreads);
             if (!session->setProtocolVersion(protocolVersion)) return;
 
