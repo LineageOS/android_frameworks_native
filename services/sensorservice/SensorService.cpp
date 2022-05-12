@@ -814,6 +814,12 @@ status_t SensorService::shellCommand(int in, int out, int err, Vector<String16>&
         return handleResetUidState(args, err);
     } else if (args[0] == String16("get-uid-state")) {
         return handleGetUidState(args, out, err);
+    } else if (args[0] == String16("unrestrict-ht")) {
+        mHtRestricted = false;
+        return NO_ERROR;
+    } else if (args[0] == String16("restrict-ht")) {
+        mHtRestricted = true;
+        return NO_ERROR;
     } else if (args.size() == 1 && args[0] == String16("help")) {
         printHelp(out);
         return NO_ERROR;
@@ -1338,11 +1344,11 @@ Vector<Sensor> SensorService::getSensorList(const String16& opPackageName) {
 Vector<Sensor> SensorService::getDynamicSensorList(const String16& opPackageName) {
     Vector<Sensor> accessibleSensorList;
     mSensors.forEachSensor(
-            [&opPackageName, &accessibleSensorList] (const Sensor& sensor) -> bool {
+            [this, &opPackageName, &accessibleSensorList] (const Sensor& sensor) -> bool {
                 if (sensor.isDynamicSensor()) {
-                    if (canAccessSensor(sensor, "getDynamicSensorList", opPackageName)) {
+                    if (canAccessSensor(sensor, "can't see", opPackageName)) {
                         accessibleSensorList.add(sensor);
-                    } else {
+                    } else if (sensor.getType() != SENSOR_TYPE_HEAD_TRACKER) {
                         ALOGI("Skipped sensor %s because it requires permission %s and app op %" PRId32,
                               sensor.getName().string(),
                               sensor.getRequiredPermission().string(),
@@ -1989,6 +1995,20 @@ status_t SensorService::flushSensor(const sp<SensorEventConnection>& connection,
 
 bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
         const String16& opPackageName) {
+    // Special case for Head Tracker sensor type: currently restricted to system usage only, unless
+    // the restriction is specially lifted for testing
+    if (sensor.getType() == SENSOR_TYPE_HEAD_TRACKER &&
+            !isAudioServerOrSystemServerUid(IPCThreadState::self()->getCallingUid())) {
+        if (!mHtRestricted) {
+            ALOGI("Permitting access to HT sensor type outside system (%s)",
+                  String8(opPackageName).string());
+        } else {
+            ALOGW("%s %s a sensor (%s) as a non-system client", String8(opPackageName).string(),
+                  operation, sensor.getName().string());
+            return false;
+        }
+    }
+
     // Check if a permission is required for this sensor
     if (sensor.getRequiredPermission().length() <= 0) {
         return true;
