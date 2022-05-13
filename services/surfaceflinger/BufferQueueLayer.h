@@ -103,7 +103,7 @@ private:
                             nsecs_t expectedPresentTime) override;
 
     status_t updateActiveBuffer() override;
-    status_t updateFrameNumber(nsecs_t latchTime) override;
+    status_t updateFrameNumber() override;
     void setFrameTimelineInfoForBuffer(const FrameTimelineInfo& frameTimelineInfo) override;
 
     sp<Layer> createClone() override;
