@@ -108,7 +108,6 @@ cc_defaults {
         // In particular, DO NOT add libutils nor anything "above" libui
         "libgraphicsenv",
         "libnativewindow",
-        "libbacktrace",
         "libbase",
     ],
 }
@@ -165,6 +164,7 @@ cc_library_shared {
         "libnativeloader_lazy",
         "libutils",
         "libSurfaceFlingerProp",
+        "libunwindstack",
     ],
     static_libs: [
         "libEGL_getProcAddress",
