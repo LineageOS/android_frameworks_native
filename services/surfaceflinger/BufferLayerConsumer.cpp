@@ -471,18 +471,6 @@ void BufferLayerConsumer::onBufferAvailable(const BufferItem& item) {
     }
 }
 
-void BufferLayerConsumer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
-                                                   FrameEventHistoryDelta* outDelta) {
-    Mutex::Autolock lock(mMutex);
-
-    if (mAbandoned) {
-        // Nothing to do if we're already abandoned.
-        return;
-    }
-
-    mLayer->addAndGetFrameTimestamps(newTimestamps, outDelta);
-}
-
 void BufferLayerConsumer::abandonLocked() {
     BLC_LOGV("abandonLocked");
     mCurrentTextureBuffer = nullptr;
