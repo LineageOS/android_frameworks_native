@@ -151,10 +151,8 @@ Layer::Layer(const LayerCreationArgs& args)
         mDrawingState.color.g = -1.0_hf;
         mDrawingState.color.b = -1.0_hf;
     }
-
     CompositorTiming compositorTiming;
     args.flinger->getCompositorTiming(&compositorTiming);
-    mFrameEventHistory.initializeCompositorTiming(compositorTiming);
     mFrameTracker.setDisplayRefreshPeriod(compositorTiming.interval);
 
     mCallingPid = args.callingPid;
@@ -1532,51 +1530,15 @@ void Layer::getFrameStats(FrameStats* outStats) const {
     mFrameTracker.getStats(outStats);
 }
 
-void Layer::dumpFrameEvents(std::string& result) {
-    StringAppendF(&result, "- Layer %s (%s, %p)\n", getName().c_str(), getType(), this);
-    Mutex::Autolock lock(mFrameEventHistoryMutex);
-    mFrameEventHistory.checkFencesForCompletion();
-    mFrameEventHistory.dump(result);
-}
-
 void Layer::dumpCallingUidPid(std::string& result) const {
     StringAppendF(&result, "Layer %s (%s) callingPid:%d callingUid:%d ownerUid:%d\n",
                   getName().c_str(), getType(), mCallingPid, mCallingUid, mOwnerUid);
 }
 
 void Layer::onDisconnect() {
-    Mutex::Autolock lock(mFrameEventHistoryMutex);
-    mFrameEventHistory.onDisconnect();
     const int32_t layerId = getSequence();
     mFlinger->mTimeStats->onDestroy(layerId);
     mFlinger->mFrameTracer->onDestroy(layerId);
-}
-
-void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
-                                     FrameEventHistoryDelta* outDelta) {
-    if (newTimestamps) {
-        mFlinger->mTimeStats->setPostTime(getSequence(), newTimestamps->frameNumber,
-                                          getName().c_str(), mOwnerUid, newTimestamps->postedTime,
-                                          getGameMode());
-        mFlinger->mTimeStats->setAcquireFence(getSequence(), newTimestamps->frameNumber,
-                                              newTimestamps->acquireFence);
-    }
-
-    Mutex::Autolock lock(mFrameEventHistoryMutex);
-    if (newTimestamps) {
-        // If there are any unsignaled fences in the aquire timeline at this
-        // point, the previously queued frame hasn't been latched yet. Go ahead
-        // and try to get the signal time here so the syscall is taken out of
-        // the main thread's critical path.
-        mAcquireTimeline.updateSignalTimes();
-        // Push the new fence after updating since it's likely still pending.
-        mAcquireTimeline.push(newTimestamps->acquireFence);
-        mFrameEventHistory.addQueue(*newTimestamps);
-    }
-
-    if (outDelta) {
-        mFrameEventHistory.getAndResetDelta(outDelta);
-    }
 }
 
 size_t Layer::getChildrenCount() const {

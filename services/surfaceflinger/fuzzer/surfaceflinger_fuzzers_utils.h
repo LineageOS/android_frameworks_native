@@ -456,9 +456,6 @@ public:
         mFlinger->dumpStaticScreenStats(result);
 
         result = fdp->ConsumeRandomLengthString().c_str();
-        mFlinger->dumpFrameEventsLocked(result);
-
-        result = fdp->ConsumeRandomLengthString().c_str();
         mFlinger->dumpRawDisplayIdentificationData(dumpArgs, result);
 
         LayersProto layersProto = mFlinger->dumpDrawingStateProto(fdp->ConsumeIntegral<uint32_t>());
