@@ -162,7 +162,8 @@ bool SensorService::SensorEventConnection::addSensor(int32_t handle) {
     Mutex::Autolock _l(mConnectionLock);
     sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
     if (si == nullptr ||
-        !canAccessSensor(si->getSensor(), "Add to SensorEventConnection: ", mOpPackageName) ||
+        !mService->canAccessSensor(si->getSensor(), "Add to SensorEventConnection: ",
+                                   mOpPackageName) ||
         mSensorInfo.count(handle) > 0) {
         return false;
     }

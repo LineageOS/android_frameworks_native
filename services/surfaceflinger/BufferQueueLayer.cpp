@@ -67,19 +67,9 @@ void BufferQueueLayer::setTransformHint(ui::Transform::RotationFlags displayTran
     mConsumer->setTransformHint(mTransformHint);
 }
 
-void BufferQueueLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
+void BufferQueueLayer::releasePendingBuffer(nsecs_t) {
     if (!mConsumer->releasePendingBuffer()) {
         return;
-    }
-
-    auto releaseFenceTime = std::make_shared<FenceTime>(mConsumer->getPrevFinalReleaseFence());
-    mReleaseTimeline.updateSignalTimes();
-    mReleaseTimeline.push(releaseFenceTime);
-
-    Mutex::Autolock lock(mFrameEventHistoryMutex);
-    if (mPreviousFrameNumber != 0) {
-        mFrameEventHistory.addRelease(mPreviousFrameNumber, dequeueReadyTime,
-                                      std::move(releaseFenceTime));
     }
 }
 
@@ -320,14 +310,9 @@ status_t BufferQueueLayer::updateActiveBuffer() {
     return NO_ERROR;
 }
 
-status_t BufferQueueLayer::updateFrameNumber(nsecs_t latchTime) {
+status_t BufferQueueLayer::updateFrameNumber() {
     mPreviousFrameNumber = mCurrentFrameNumber;
     mCurrentFrameNumber = mConsumer->getFrameNumber();
-
-    {
-        Mutex::Autolock lock(mFrameEventHistoryMutex);
-        mFrameEventHistory.addLatch(mCurrentFrameNumber, latchTime);
-    }
     return NO_ERROR;
 }
 
