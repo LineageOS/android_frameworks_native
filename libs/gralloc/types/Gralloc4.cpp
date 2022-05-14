@@ -196,35 +196,6 @@ status_t encodeMetadataType(const MetadataType& input, OutputHidlVec* output);
 status_t validateMetadataType(InputHidlVec* input, const MetadataType& expectedMetadataType);
 
 /**
- * Private helper functions
- */
-template <class T>
-status_t encodeInteger(const T& input, OutputHidlVec* output) {
-    static_assert(std::is_same<T, uint32_t>::value || std::is_same<T, int32_t>::value ||
-                  std::is_same<T, uint64_t>::value || std::is_same<T, int64_t>::value ||
-                  std::is_same<T, float>::value || std::is_same<T, double>::value);
-    if (!output) {
-        return BAD_VALUE;
-    }
-
-    const uint8_t* tmp = reinterpret_cast<const uint8_t*>(&input);
-    return output->encode(tmp, sizeof(input));
-}
-
-template <class T>
-status_t decodeInteger(InputHidlVec* input, T* output) {
-    static_assert(std::is_same<T, uint32_t>::value || std::is_same<T, int32_t>::value ||
-                  std::is_same<T, uint64_t>::value || std::is_same<T, int64_t>::value ||
-                  std::is_same<T, float>::value || std::is_same<T, double>::value);
-    if (!output) {
-        return BAD_VALUE;
-    }
-
-    uint8_t* tmp = reinterpret_cast<uint8_t*>(output);
-    return input->decode(tmp, sizeof(*output));
-}
-
-/**
  * encode/encodeMetadata are the main encoding functions. They take in T and uses the encodeHelper
  * function to turn T into the hidl_vec byte stream.
  *
@@ -280,45 +251,10 @@ status_t encodeMetadata(const MetadataType& metadataType, const T& input, hidl_v
 template <class T>
 status_t encodeOptionalMetadata(const MetadataType& metadataType, const std::optional<T>& input,
                         hidl_vec<uint8_t>* output, EncodeHelper<T> encodeHelper) {
-    OutputHidlVec outputHidlVec{output};
-
-    status_t err = encodeMetadataType(metadataType, &outputHidlVec);
-    if (err) {
-        return err;
+    if (!input) {
+        return NO_ERROR;
     }
-
-    err = encodeInteger<uint32_t>(input.has_value() ? 1 : 0, &outputHidlVec);
-    if (err) {
-        return err;
-    }
-
-    if (input) {
-        err = encodeHelper(*input, &outputHidlVec);
-        if (err) {
-            return err;
-        }
-    }
-
-    err = outputHidlVec.resize();
-    if (err) {
-        return err;
-    }
-
-    err = encodeMetadataType(metadataType, &outputHidlVec);
-    if (err) {
-        return err;
-    }
-
-    err = encodeInteger<uint32_t>(input.has_value() ? 1 : 0, &outputHidlVec);
-    if (err) {
-        return err;
-    }
-
-    if (input) {
-        return encodeHelper(*input, &outputHidlVec);
-    }
-
-    return NO_ERROR;
+    return encodeMetadata(metadataType, *input, output, encodeHelper);
 }
 
 /**
@@ -379,36 +315,45 @@ status_t decodeOptionalMetadata(const MetadataType& metadataType, const hidl_vec
     if (!output) {
         return BAD_VALUE;
     }
-
-    InputHidlVec inputHidlVec{&input};
-
-    status_t err = validateMetadataType(&inputHidlVec, metadataType);
-    if (err) {
-        return err;
+    if (input.size() <= 0) {
+        output->reset();
+        return NO_ERROR;
     }
-
-    uint32_t present = 0;
-    err = decodeInteger<uint32_t>(&inputHidlVec, &present);
-    if (err) {
-        return err;
-    }
-
-    if (present) {
-        T tmp;
-        err = decodeHelper(&inputHidlVec, &tmp);
-        if (err) {
-            return err;
-        }
-
+    T tmp;
+    status_t err = decodeMetadata(metadataType, input, &tmp, decodeHelper);
+    if (!err) {
         *output = tmp;
     }
+    return err;
+}
 
-    err = inputHidlVec.hasRemainingData();
-    if (err) {
+/**
+ * Private helper functions
+ */
+template <class T>
+status_t encodeInteger(const T& input, OutputHidlVec* output) {
+    static_assert(std::is_same<T, uint32_t>::value || std::is_same<T, int32_t>::value ||
+                  std::is_same<T, uint64_t>::value || std::is_same<T, int64_t>::value ||
+                  std::is_same<T, float>::value || std::is_same<T, double>::value);
+    if (!output) {
         return BAD_VALUE;
     }
 
-    return NO_ERROR;
+    const uint8_t* tmp = reinterpret_cast<const uint8_t*>(&input);
+    return output->encode(tmp, sizeof(input));
+}
+
+template <class T>
+status_t decodeInteger(InputHidlVec* input, T* output) {
+    static_assert(std::is_same<T, uint32_t>::value || std::is_same<T, int32_t>::value ||
+                  std::is_same<T, uint64_t>::value || std::is_same<T, int64_t>::value ||
+                  std::is_same<T, float>::value || std::is_same<T, double>::value);
+    if (!output) {
+        return BAD_VALUE;
+    }
+
+    uint8_t* tmp = reinterpret_cast<uint8_t*>(output);
+    return input->decode(tmp, sizeof(*output));
 }
 
 status_t encodeString(const std::string& input, OutputHidlVec* output) {
