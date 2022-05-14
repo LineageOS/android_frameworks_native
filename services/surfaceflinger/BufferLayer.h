@@ -192,7 +192,7 @@ private:
                                     nsecs_t expectedPresentTime) = 0;
 
     virtual status_t updateActiveBuffer() = 0;
-    virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
+    virtual status_t updateFrameNumber() = 0;
 
     // We generate InputWindowHandles for all non-cursor buffered layers regardless of whether they
     // have an InputChannel. This is to enable the InputDispatcher to do PID based occlusion

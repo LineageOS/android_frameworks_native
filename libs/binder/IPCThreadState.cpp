@@ -989,6 +989,7 @@ finish:
         if (acquireResult) *acquireResult = err;
         if (reply) reply->setError(err);
         mLastError = err;
+        logExtendedError();
     }
 
     return err;
@@ -1441,6 +1442,23 @@ status_t IPCThreadState::freeze(pid_t pid, bool enable, uint32_t timeout_ms) {
     // Call again to poll for completion.
     //
     return ret;
+}
+
+void IPCThreadState::logExtendedError() {
+    struct binder_extended_error ee = {.command = BR_OK};
+
+    if (!ProcessState::isDriverFeatureEnabled(ProcessState::DriverFeature::EXTENDED_ERROR))
+        return;
+
+#if defined(__ANDROID__)
+    if (ioctl(self()->mProcess->mDriverFD, BINDER_GET_EXTENDED_ERROR, &ee) < 0) {
+        ALOGE("Failed to get extended error: %s", strerror(errno));
+        return;
+    }
+#endif
+
+    ALOGE_IF(ee.command != BR_OK, "Binder transaction failure: %d/%d/%d",
+             ee.id, ee.command, ee.param);
 }
 
 void IPCThreadState::freeBuffer(Parcel* parcel, const uint8_t* data,
