@@ -164,6 +164,9 @@ struct OutputCompositionState {
 
     bool treat170mAsSrgb = false;
 
+    uint64_t lastOutputLayerHash = 0;
+    uint64_t outputLayerHash = 0;
+
     // Debugging
     void dump(std::string& result) const;
 };
