@@ -167,18 +167,19 @@ impl::EventThread::ThrottleVsyncCallback Scheduler::makeThrottleVsyncCallback() 
 impl::EventThread::GetVsyncPeriodFunction Scheduler::makeGetVsyncPeriodFunction() const {
     return [this](uid_t uid) {
         const Fps refreshRate = holdRefreshRateConfigs()->getActiveMode()->getFps();
-        const nsecs_t basePeriod = refreshRate.getPeriodNsecs();
+        const auto currentPeriod =
+                mVsyncSchedule->getTracker().currentPeriod() ?: refreshRate.getPeriodNsecs();
 
         const auto frameRate = getFrameRateOverride(uid);
         if (!frameRate.has_value()) {
-            return basePeriod;
+            return currentPeriod;
         }
 
         const auto divisor = RefreshRateConfigs::getFrameRateDivisor(refreshRate, *frameRate);
         if (divisor <= 1) {
-            return basePeriod;
+            return currentPeriod;
         }
-        return basePeriod * divisor;
+        return currentPeriod * divisor;
     };
 }
 
