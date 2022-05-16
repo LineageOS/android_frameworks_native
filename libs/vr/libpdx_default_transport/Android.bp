@@ -26,7 +26,10 @@ cc_defaults {
 cc_defaults {
     name: "pdx_use_transport_servicefs",
     export_include_dirs: ["private/servicefs"],
-    whole_static_libs: ["libpdx_servicefs", "libservicefs"],
+    whole_static_libs: [
+        "libpdx_servicefs",
+        "libservicefs",
+    ],
 }
 
 cc_defaults {
