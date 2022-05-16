@@ -24,6 +24,14 @@
       "name": "libinputservice_test"
     },
     {
+      "name": "CtsHardwareTestCases",
+      "options": [
+        {
+          "include-filter": "android.hardware.input.cts.tests"
+        }
+      ]
+    },
+    {
       "name": "CtsInputTestCases"
     },
     {
@@ -31,6 +39,7 @@
       "options": [
         {
           "include-filter": "android.view.cts.MotionEventTest",
+          "include-filter": "android.view.cts.PointerCaptureTest",
           "include-filter": "android.view.cts.VerifyInputEventTest"
         }
       ]
@@ -41,6 +50,14 @@
         {
           "include-filter": "android.view.VerifiedKeyEventTest",
           "include-filter": "android.view.VerifiedMotionEventTest"
+        }
+      ]
+    },
+    {
+      "name": "FrameworksServicesTests",
+      "options": [
+        {
+          "include-filter": "com.android.server.input"
         }
       ]
     },
