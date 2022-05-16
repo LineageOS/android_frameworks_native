@@ -24,7 +24,7 @@ cc_fuzz {
     shared_libs: [
         "libutils",
         "liblog",
-        "libcutils"
+        "libcutils",
     ],
 }
 
@@ -45,7 +45,7 @@ cc_fuzz {
     shared_libs: [
         "libutils",
         "liblog",
-        "libcutils"
+        "libcutils",
     ],
 }
 
@@ -66,6 +66,6 @@ cc_fuzz {
     shared_libs: [
         "libutils",
         "liblog",
-        "libcutils"
+        "libcutils",
     ],
 }
