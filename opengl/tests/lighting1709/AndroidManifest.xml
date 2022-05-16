@@ -2,7 +2,7 @@
         package="com.android.lightingtest">
 
     <application>
-        <activity android:name="ClearActivity" android:label="LightingTest">
+        <activity android:name="ClearActivity" android:label="LightingTest" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.DEFAULT" />
