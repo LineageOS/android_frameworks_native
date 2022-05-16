@@ -1248,9 +1248,14 @@ TEST_P(BinderRpc, Callbacks) {
                             proc.rootIface->doCallback(cb, callbackIsOneway, delayed, kTestString));
                 }
 
-                using std::literals::chrono_literals::operator""s;
-                std::unique_lock<std::mutex> _l(cb->mMutex);
-                cb->mCv.wait_for(_l, 1s, [&] { return !cb->mValues.empty(); });
+                // if both transactions are synchronous and the response is sent back on the
+                // same thread, everything should have happened in a nested call. Otherwise,
+                // the callback will be processed on another thread.
+                if (callIsOneway || callbackIsOneway || delayed) {
+                    using std::literals::chrono_literals::operator""s;
+                    std::unique_lock<std::mutex> _l(cb->mMutex);
+                    cb->mCv.wait_for(_l, 1s, [&] { return !cb->mValues.empty(); });
+                }
 
                 EXPECT_EQ(cb->mValues.size(), 1)
                         << "callIsOneway: " << callIsOneway
