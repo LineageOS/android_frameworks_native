@@ -100,6 +100,11 @@ static void verifyNotForked(bool forked) {
 
 sp<ProcessState> ProcessState::init(const char *driver, bool requireDefault)
 {
+#ifdef BINDER_IPC_32BIT
+    LOG_ALWAYS_FATAL("32-bit binder IPC is not supported for new devices starting in Android P. If "
+                     "you do need to use this mode, please see b/232423610 or file an issue with "
+                     "AOSP upstream as otherwise this will be removed soon.");
+#endif
 
     if (driver == nullptr) {
         std::lock_guard<std::mutex> l(gProcessMutex);
