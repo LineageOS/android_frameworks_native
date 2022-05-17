@@ -31,6 +31,7 @@
 #include <binder/RpcServer.h>
 #include <binder/RpcTransportRaw.h>
 #include <log/log.h>
+#include <utils/Compat.h>
 
 #include "FdTrigger.h"
 #include "RpcSocketAddress.h"
