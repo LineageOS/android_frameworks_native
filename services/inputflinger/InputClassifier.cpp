@@ -367,7 +367,7 @@ void MotionClassifier::dump(std::string& dump) {
 
 // --- InputClassifier ---
 
-InputClassifier::InputClassifier(InputListenerInterface& listener) : mListener(listener) {}
+InputClassifier::InputClassifier(InputListenerInterface& listener) : mQueuedListener(listener) {}
 
 void InputClassifier::onBinderDied(void* cookie) {
     InputClassifier* classifier = static_cast<InputClassifier*>(cookie);
@@ -417,55 +417,67 @@ void InputClassifier::setMotionClassifierEnabled(bool enabled) {
 
 void InputClassifier::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
     // pass through
-    mListener.notifyConfigurationChanged(args);
+    mQueuedListener.notifyConfigurationChanged(args);
+    mQueuedListener.flush();
 }
 
 void InputClassifier::notifyKey(const NotifyKeyArgs* args) {
     // pass through
-    mListener.notifyKey(args);
+    mQueuedListener.notifyKey(args);
+    mQueuedListener.flush();
 }
 
 void InputClassifier::notifyMotion(const NotifyMotionArgs* args) {
-    std::scoped_lock lock(mLock);
-    // MotionClassifier is only used for touch events, for now
-    const bool sendToMotionClassifier = mMotionClassifier && isTouchEvent(*args);
-    if (!sendToMotionClassifier) {
-        mListener.notifyMotion(args);
-        return;
-    }
-
-    NotifyMotionArgs newArgs(*args);
-    newArgs.classification = mMotionClassifier->classify(newArgs);
-    mListener.notifyMotion(&newArgs);
+    { // acquire lock
+        std::scoped_lock lock(mLock);
+        // MotionClassifier is only used for touch events, for now
+        const bool sendToMotionClassifier = mMotionClassifier && isTouchEvent(*args);
+        if (!sendToMotionClassifier) {
+            mQueuedListener.notifyMotion(args);
+        } else {
+            NotifyMotionArgs newArgs(*args);
+            newArgs.classification = mMotionClassifier->classify(newArgs);
+            mQueuedListener.notifyMotion(&newArgs);
+        }
+    } // release lock
+    mQueuedListener.flush();
 }
 
 void InputClassifier::notifySensor(const NotifySensorArgs* args) {
     // pass through
-    mListener.notifySensor(args);
+    mQueuedListener.notifySensor(args);
+    mQueuedListener.flush();
 }
 
 void InputClassifier::notifyVibratorState(const NotifyVibratorStateArgs* args) {
     // pass through
-    mListener.notifyVibratorState(args);
+    mQueuedListener.notifyVibratorState(args);
+    mQueuedListener.flush();
 }
 
 void InputClassifier::notifySwitch(const NotifySwitchArgs* args) {
     // pass through
-    mListener.notifySwitch(args);
+    mQueuedListener.notifySwitch(args);
+    mQueuedListener.flush();
 }
 
 void InputClassifier::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
-    std::scoped_lock lock(mLock);
-    if (mMotionClassifier) {
-        mMotionClassifier->reset(*args);
-    }
+    { // acquire lock
+        std::scoped_lock lock(mLock);
+        if (mMotionClassifier) {
+            mMotionClassifier->reset(*args);
+        }
+    } // release lock
+
     // continue to next stage
-    mListener.notifyDeviceReset(args);
+    mQueuedListener.notifyDeviceReset(args);
+    mQueuedListener.flush();
 }
 
 void InputClassifier::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
     // pass through
-    mListener.notifyPointerCaptureChanged(args);
+    mQueuedListener.notifyPointerCaptureChanged(args);
+    mQueuedListener.flush();
 }
 
 void InputClassifier::setMotionClassifierLocked(
@@ -488,6 +500,10 @@ void InputClassifier::dump(std::string& dump) {
         dump += INDENT2 "<nullptr>";
     }
     dump += "\n";
+}
+
+void InputClassifier::monitor() {
+    std::scoped_lock lock(mLock);
 }
 
 InputClassifier::~InputClassifier() {
