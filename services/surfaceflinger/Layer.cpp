@@ -211,7 +211,7 @@ LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, sp<Client> client,
  * Layer.  So, the implementation is done in BufferLayer.  When called on a
  * EffectLayer object, it's essentially a NOP.
  */
-void Layer::onLayerDisplayed(std::shared_future<FenceResult>) {}
+void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult>) {}
 
 void Layer::removeRelativeZ(const std::vector<Layer*>& layersInTree) {
     if (mDrawingState.zOrderRelativeOf == nullptr) {
