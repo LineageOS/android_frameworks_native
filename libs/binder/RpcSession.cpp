@@ -34,6 +34,7 @@
 #include <binder/RpcServer.h>
 #include <binder/RpcTransportRaw.h>
 #include <binder/Stability.h>
+#include <utils/Compat.h>
 #include <utils/String8.h>
 
 #include "FdTrigger.h"
