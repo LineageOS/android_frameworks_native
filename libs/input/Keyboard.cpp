@@ -20,15 +20,22 @@
 #include <unistd.h>
 #include <limits.h>
 
-#include <input/Keyboard.h>
-#include <input/InputEventLabels.h>
-#include <input/KeyLayoutMap.h>
-#include <input/KeyCharacterMap.h>
 #include <input/InputDevice.h>
+#include <input/InputEventLabels.h>
+#include <input/KeyCharacterMap.h>
+#include <input/KeyLayoutMap.h>
+#include <input/Keyboard.h>
+#include <log/log.h>
 #include <utils/Errors.h>
-#include <utils/Log.h>
 
 namespace android {
+
+static std::string getPath(const InputDeviceIdentifier& deviceIdentifier, const std::string& name,
+                           InputDeviceConfigurationFileType type) {
+    return name.empty()
+            ? getInputDeviceConfigurationFilePathByDeviceIdentifier(deviceIdentifier, type)
+            : getInputDeviceConfigurationFilePathByName(name, type);
+}
 
 // --- KeyMap ---
 
@@ -111,11 +118,25 @@ status_t KeyMap::loadKeyLayout(const InputDeviceIdentifier& deviceIdentifier,
     }
 
     base::Result<std::shared_ptr<KeyLayoutMap>> ret = KeyLayoutMap::load(path);
+    if (ret.ok()) {
+        keyLayoutMap = *ret;
+        keyLayoutFile = path;
+        return OK;
+    }
+
+    // Try to load fallback layout if the regular layout could not be loaded due to missing
+    // kernel modules
+    std::string fallbackPath(
+            getInputDeviceConfigurationFilePathByDeviceIdentifier(deviceIdentifier,
+                                                                  InputDeviceConfigurationFileType::
+                                                                          KEY_LAYOUT,
+                                                                  "_fallback"));
+    ret = KeyLayoutMap::load(fallbackPath);
     if (!ret.ok()) {
         return ret.error().code();
     }
     keyLayoutMap = *ret;
-    keyLayoutFile = path;
+    keyLayoutFile = fallbackPath;
     return OK;
 }
 
@@ -136,14 +157,6 @@ status_t KeyMap::loadKeyCharacterMap(const InputDeviceIdentifier& deviceIdentifi
     keyCharacterMapFile = path;
     return OK;
 }
-
-std::string KeyMap::getPath(const InputDeviceIdentifier& deviceIdentifier,
-        const std::string& name, InputDeviceConfigurationFileType type) {
-    return name.empty()
-            ? getInputDeviceConfigurationFilePathByDeviceIdentifier(deviceIdentifier, type)
-            : getInputDeviceConfigurationFilePathByName(name, type);
-}
-
 
 // --- Global functions ---
 
