@@ -172,77 +172,67 @@ base::Result<std::pair<InputDeviceSensorType, int32_t>> KeyLayoutMap::mapSensor(
 
 const KeyLayoutMap::Key* KeyLayoutMap::getKey(int32_t scanCode, int32_t usageCode) const {
     if (usageCode) {
-        ssize_t index = mKeysByUsageCode.indexOfKey(usageCode);
-        if (index >= 0) {
-            return &mKeysByUsageCode.valueAt(index);
+        auto it = mKeysByUsageCode.find(usageCode);
+        if (it != mKeysByUsageCode.end()) {
+            return &it->second;
         }
     }
     if (scanCode) {
-        ssize_t index = mKeysByScanCode.indexOfKey(scanCode);
-        if (index >= 0) {
-            return &mKeysByScanCode.valueAt(index);
+        auto it = mKeysByScanCode.find(scanCode);
+        if (it != mKeysByScanCode.end()) {
+            return &it->second;
         }
     }
     return nullptr;
 }
 
-status_t KeyLayoutMap::findScanCodesForKey(
-        int32_t keyCode, std::vector<int32_t>* outScanCodes) const {
-    const size_t N = mKeysByScanCode.size();
-    for (size_t i=0; i<N; i++) {
-        if (mKeysByScanCode.valueAt(i).keyCode == keyCode) {
-            outScanCodes->push_back(mKeysByScanCode.keyAt(i));
+std::vector<int32_t> KeyLayoutMap::findScanCodesForKey(int32_t keyCode) const {
+    std::vector<int32_t> scanCodes;
+    for (const auto& [scanCode, key] : mKeysByScanCode) {
+        if (keyCode == key.keyCode) {
+            scanCodes.push_back(scanCode);
         }
     }
-    return NO_ERROR;
+    return scanCodes;
 }
 
-status_t KeyLayoutMap::mapAxis(int32_t scanCode, AxisInfo* outAxisInfo) const {
-    ssize_t index = mAxes.indexOfKey(scanCode);
-    if (index < 0) {
+std::optional<AxisInfo> KeyLayoutMap::mapAxis(int32_t scanCode) const {
+    auto it = mAxes.find(scanCode);
+    if (it == mAxes.end()) {
         ALOGD_IF(DEBUG_MAPPING, "mapAxis: scanCode=%d ~ Failed.", scanCode);
-        return NAME_NOT_FOUND;
+        return std::nullopt;
     }
 
-    *outAxisInfo = mAxes.valueAt(index);
-
+    const AxisInfo& axisInfo = it->second;
     ALOGD_IF(DEBUG_MAPPING,
              "mapAxis: scanCode=%d ~ Result mode=%d, axis=%d, highAxis=%d, "
              "splitValue=%d, flatOverride=%d.",
-             scanCode, outAxisInfo->mode, outAxisInfo->axis, outAxisInfo->highAxis,
-             outAxisInfo->splitValue, outAxisInfo->flatOverride);
-
-    return NO_ERROR;
+             scanCode, axisInfo.mode, axisInfo.axis, axisInfo.highAxis, axisInfo.splitValue,
+             axisInfo.flatOverride);
+    return axisInfo;
 }
 
-status_t KeyLayoutMap::findScanCodeForLed(int32_t ledCode, int32_t* outScanCode) const {
-    const size_t N = mLedsByScanCode.size();
-    for (size_t i = 0; i < N; i++) {
-        if (mLedsByScanCode.valueAt(i).ledCode == ledCode) {
-            *outScanCode = mLedsByScanCode.keyAt(i);
-            ALOGD_IF(DEBUG_MAPPING, "findScanCodeForLed: ledCode=%d, scanCode=%d.", ledCode,
-                     *outScanCode);
-            return NO_ERROR;
-        }
-    }
-    ALOGD_IF(DEBUG_MAPPING, "findScanCodeForLed: ledCode=%d ~ Not found.", ledCode);
-    return NAME_NOT_FOUND;
-}
-
-status_t KeyLayoutMap::findUsageCodeForLed(int32_t ledCode, int32_t* outUsageCode) const {
-    const size_t N = mLedsByUsageCode.size();
-    for (size_t i = 0; i < N; i++) {
-        if (mLedsByUsageCode.valueAt(i).ledCode == ledCode) {
-            *outUsageCode = mLedsByUsageCode.keyAt(i);
-            ALOGD_IF(DEBUG_MAPPING, "%s: ledCode=%d, usage=%x.", __func__, ledCode, *outUsageCode);
-            return NO_ERROR;
+std::optional<int32_t> KeyLayoutMap::findScanCodeForLed(int32_t ledCode) const {
+    for (const auto& [scanCode, led] : mLedsByScanCode) {
+        if (led.ledCode == ledCode) {
+            ALOGD_IF(DEBUG_MAPPING, "%s: ledCode=%d, scanCode=%d.", __func__, ledCode, scanCode);
+            return scanCode;
         }
     }
     ALOGD_IF(DEBUG_MAPPING, "%s: ledCode=%d ~ Not found.", __func__, ledCode);
-
-    return NAME_NOT_FOUND;
+    return std::nullopt;
 }
 
+std::optional<int32_t> KeyLayoutMap::findUsageCodeForLed(int32_t ledCode) const {
+    for (const auto& [usageCode, led] : mLedsByUsageCode) {
+        if (led.ledCode == ledCode) {
+            ALOGD_IF(DEBUG_MAPPING, "%s: ledCode=%d, usage=%x.", __func__, ledCode, usageCode);
+            return usageCode;
+        }
+    }
+    ALOGD_IF(DEBUG_MAPPING, "%s: ledCode=%d ~ Not found.", __func__, ledCode);
+    return std::nullopt;
+}
 
 // --- KeyLayoutMap::Parser ---
 
@@ -314,8 +304,9 @@ status_t KeyLayoutMap::Parser::parseKey() {
                 mapUsage ? "usage" : "scan code", codeToken.string());
         return BAD_VALUE;
     }
-    KeyedVector<int32_t, Key>& map = mapUsage ? mMap->mKeysByUsageCode : mMap->mKeysByScanCode;
-    if (map.indexOfKey(code) >= 0) {
+    std::unordered_map<int32_t, Key>& map =
+            mapUsage ? mMap->mKeysByUsageCode : mMap->mKeysByScanCode;
+    if (map.find(code) != map.end()) {
         ALOGE("%s: Duplicate entry for key %s '%s'.", mTokenizer->getLocation().string(),
                 mapUsage ? "usage" : "scan code", codeToken.string());
         return BAD_VALUE;
@@ -356,7 +347,7 @@ status_t KeyLayoutMap::Parser::parseKey() {
     Key key;
     key.keyCode = keyCode;
     key.flags = flags;
-    map.add(code, key);
+    map.insert({code, key});
     return NO_ERROR;
 }
 
@@ -369,7 +360,7 @@ status_t KeyLayoutMap::Parser::parseAxis() {
                 scanCodeToken.string());
         return BAD_VALUE;
     }
-    if (mMap->mAxes.indexOfKey(scanCode) >= 0) {
+    if (mMap->mAxes.find(scanCode) != mMap->mAxes.end()) {
         ALOGE("%s: Duplicate entry for axis scan code '%s'.", mTokenizer->getLocation().string(),
                 scanCodeToken.string());
         return BAD_VALUE;
@@ -455,8 +446,7 @@ status_t KeyLayoutMap::Parser::parseAxis() {
              "splitValue=%d, flatOverride=%d.",
              scanCode, axisInfo.mode, axisInfo.axis, axisInfo.highAxis, axisInfo.splitValue,
              axisInfo.flatOverride);
-
-    mMap->mAxes.add(scanCode, axisInfo);
+    mMap->mAxes.insert({scanCode, axisInfo});
     return NO_ERROR;
 }
 
@@ -476,8 +466,9 @@ status_t KeyLayoutMap::Parser::parseLed() {
         return BAD_VALUE;
     }
 
-    KeyedVector<int32_t, Led>& map = mapUsage ? mMap->mLedsByUsageCode : mMap->mLedsByScanCode;
-    if (map.indexOfKey(code) >= 0) {
+    std::unordered_map<int32_t, Led>& map =
+            mapUsage ? mMap->mLedsByUsageCode : mMap->mLedsByScanCode;
+    if (map.find(code) != map.end()) {
         ALOGE("%s: Duplicate entry for led %s '%s'.", mTokenizer->getLocation().string(),
                 mapUsage ? "usage" : "scan code", codeToken.string());
         return BAD_VALUE;
@@ -497,7 +488,7 @@ status_t KeyLayoutMap::Parser::parseLed() {
 
     Led led;
     led.ledCode = ledCode;
-    map.add(code, led);
+    map.insert({code, led});
     return NO_ERROR;
 }
 

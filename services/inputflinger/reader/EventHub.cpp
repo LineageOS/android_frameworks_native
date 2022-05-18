@@ -449,8 +449,7 @@ bool EventHub::Device::hasKeycodeLocked(int keycode) const {
         return false;
     }
 
-    std::vector<int32_t> scanCodes;
-    keyMap.keyLayoutMap->findScanCodesForKey(keycode, &scanCodes);
+    std::vector<int32_t> scanCodes = keyMap.keyLayoutMap->findScanCodesForKey(keycode);
     const size_t N = scanCodes.size();
     for (size_t i = 0; i < N && i <= KEY_MAX; i++) {
         int32_t sc = scanCodes[i];
@@ -545,10 +544,10 @@ status_t EventHub::Device::mapLed(int32_t led, int32_t* outScanCode) const {
         return NAME_NOT_FOUND;
     }
 
-    int32_t scanCode;
-    if (keyMap.keyLayoutMap->findScanCodeForLed(led, &scanCode) != NAME_NOT_FOUND) {
-        if (scanCode >= 0 && scanCode <= LED_MAX && ledBitmask.test(scanCode)) {
-            *outScanCode = scanCode;
+    std::optional<int32_t> scanCode = keyMap.keyLayoutMap->findScanCodeForLed(led);
+    if (scanCode.has_value()) {
+        if (*scanCode >= 0 && *scanCode <= LED_MAX && ledBitmask.test(*scanCode)) {
+            *outScanCode = *scanCode;
             return NO_ERROR;
         }
     }
@@ -862,8 +861,7 @@ int32_t EventHub::getKeyCodeState(int32_t deviceId, int32_t keyCode) const {
 
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr && device->hasValidFd() && device->keyMap.haveKeyLayout()) {
-        std::vector<int32_t> scanCodes;
-        device->keyMap.keyLayoutMap->findScanCodesForKey(keyCode, &scanCodes);
+        std::vector<int32_t> scanCodes = device->keyMap.keyLayoutMap->findScanCodesForKey(keyCode);
         if (scanCodes.size() != 0) {
             if (device->readDeviceBitMask(EVIOCGKEY(0), device->keyState) >= 0) {
                 for (size_t i = 0; i < scanCodes.size(); i++) {
@@ -921,20 +919,16 @@ bool EventHub::markSupportedKeyCodes(int32_t deviceId, size_t numCodes, const in
 
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr && device->keyMap.haveKeyLayout()) {
-        std::vector<int32_t> scanCodes;
         for (size_t codeIndex = 0; codeIndex < numCodes; codeIndex++) {
-            scanCodes.clear();
+            std::vector<int32_t> scanCodes =
+                    device->keyMap.keyLayoutMap->findScanCodesForKey(keyCodes[codeIndex]);
 
-            status_t err = device->keyMap.keyLayoutMap->findScanCodesForKey(keyCodes[codeIndex],
-                                                                            &scanCodes);
-            if (!err) {
-                // check the possible scan codes identified by the layout map against the
-                // map of codes actually emitted by the driver
-                for (size_t sc = 0; sc < scanCodes.size(); sc++) {
-                    if (device->keyBitmask.test(scanCodes[sc])) {
-                        outFlags[codeIndex] = 1;
-                        break;
-                    }
+            // check the possible scan codes identified by the layout map against the
+            // map of codes actually emitted by the driver
+            for (size_t sc = 0; sc < scanCodes.size(); sc++) {
+                if (device->keyBitmask.test(scanCodes[sc])) {
+                    outFlags[codeIndex] = 1;
+                    break;
                 }
             }
         }
@@ -988,14 +982,15 @@ status_t EventHub::mapAxis(int32_t deviceId, int32_t scanCode, AxisInfo* outAxis
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
 
-    if (device != nullptr && device->keyMap.haveKeyLayout()) {
-        status_t err = device->keyMap.keyLayoutMap->mapAxis(scanCode, outAxisInfo);
-        if (err == NO_ERROR) {
-            return NO_ERROR;
-        }
+    if (device == nullptr || !device->keyMap.haveKeyLayout()) {
+        return NAME_NOT_FOUND;
     }
-
-    return NAME_NOT_FOUND;
+    std::optional<AxisInfo> info = device->keyMap.keyLayoutMap->mapAxis(scanCode);
+    if (!info.has_value()) {
+        return NAME_NOT_FOUND;
+    }
+    *outAxisInfo = *info;
+    return NO_ERROR;
 }
 
 base::Result<std::pair<InputDeviceSensorType, int32_t>> EventHub::mapSensor(int32_t deviceId,
