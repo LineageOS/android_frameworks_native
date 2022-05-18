@@ -355,12 +355,15 @@ void RegionSamplingThread::captureSample() {
                                                              WRITEABLE);
     }
 
-    auto captureScreenResultFuture =
-            mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
-                                         true /* regionSampling */, false /* grayscale */, nullptr);
-    auto& captureScreenResult = captureScreenResultFuture.get();
-    if (captureScreenResult.drawFence.ok()) {
-        sync_wait(captureScreenResult.drawFence.get(), -1);
+    constexpr bool kRegionSampling = true;
+    constexpr bool kGrayscale = false;
+
+    if (const auto fenceResult =
+                mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
+                                             kRegionSampling, kGrayscale, nullptr)
+                        .get();
+        fenceResult.ok()) {
+        fenceResult.value()->waitForever(LOG_TAG);
     }
 
     std::vector<Descriptor> activeDescriptors;
