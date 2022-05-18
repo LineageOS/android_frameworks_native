@@ -6396,10 +6396,10 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
         traverseLayersInLayerStack(layerStack, args.uid, visitor);
     };
 
-    auto captureResultFuture = captureScreenCommon(std::move(renderAreaFuture), traverseLayers,
-                                                   reqSize, args.pixelFormat, args.allowProtected,
-                                                   args.grayscale, captureListener);
-    return captureResultFuture.get().status;
+    auto future = captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
+                                      args.pixelFormat, args.allowProtected, args.grayscale,
+                                      captureListener);
+    return fenceStatus(future.get());
 }
 
 status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
@@ -6438,11 +6438,14 @@ status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
         ALOGE("capture screen must provide a capture listener callback");
         return BAD_VALUE;
     }
-    auto captureResultFuture =
-            captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
-                                ui::PixelFormat::RGBA_8888, false /* allowProtected */,
-                                false /* grayscale */, captureListener);
-    return captureResultFuture.get().status;
+
+    constexpr bool kAllowProtected = false;
+    constexpr bool kGrayscale = false;
+
+    auto future = captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
+                                      ui::PixelFormat::RGBA_8888, kAllowProtected, kGrayscale,
+                                      captureListener);
+    return fenceStatus(future.get());
 }
 
 status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
@@ -6554,13 +6557,13 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         return BAD_VALUE;
     }
 
-    auto captureResultFuture = captureScreenCommon(std::move(renderAreaFuture), traverseLayers,
-                                                   reqSize, args.pixelFormat, args.allowProtected,
-                                                   args.grayscale, captureListener);
-    return captureResultFuture.get().status;
+    auto future = captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
+                                      args.pixelFormat, args.allowProtected, args.grayscale,
+                                      captureListener);
+    return fenceStatus(future.get());
 }
 
-std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::captureScreenCommon(
+std::shared_future<FenceResult> SurfaceFlinger::captureScreenCommon(
         RenderAreaFuture renderAreaFuture, TraverseLayersFunction traverseLayers,
         ui::Size bufferSize, ui::PixelFormat reqPixelFormat, bool allowProtected, bool grayscale,
         const sp<IScreenCaptureListener>& captureListener) {
@@ -6570,7 +6573,7 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::captureScre
         ALOGE("Attempted to capture screen with size (%" PRId32 ", %" PRId32
               ") that exceeds render target size limit.",
               bufferSize.getWidth(), bufferSize.getHeight());
-        return ftl::yield<renderengine::RenderEngineResult>({BAD_VALUE, base::unique_fd()}).share();
+        return ftl::yield<FenceResult>(base::unexpected(BAD_VALUE)).share();
     }
 
     // Loop over all visible layers to see whether there's any protected layer. A protected layer is
@@ -6612,7 +6615,7 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::captureScre
                                false /* regionSampling */, grayscale, captureListener);
 }
 
-std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::captureScreenCommon(
+std::shared_future<FenceResult> SurfaceFlinger::captureScreenCommon(
         RenderAreaFuture renderAreaFuture, TraverseLayersFunction traverseLayers,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
         bool grayscale, const sp<IScreenCaptureListener>& captureListener) {
@@ -6620,59 +6623,53 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::captureScre
 
     bool canCaptureBlackoutContent = hasCaptureBlackoutContentPermission();
 
-    auto scheduleResultFuture = mScheduler->schedule([=,
-                                                      renderAreaFuture =
-                                                              std::move(renderAreaFuture)]() mutable
-                                                     -> std::shared_future<
-                                                             renderengine::RenderEngineResult> {
+    auto future = mScheduler->schedule([=, renderAreaFuture = std::move(renderAreaFuture)]() mutable
+                                       -> std::shared_future<FenceResult> {
         ScreenCaptureResults captureResults;
         std::unique_ptr<RenderArea> renderArea = renderAreaFuture.get();
         if (!renderArea) {
             ALOGW("Skipping screen capture because of invalid render area.");
             captureResults.result = NO_MEMORY;
             captureListener->onScreenCaptureCompleted(captureResults);
-            return ftl::yield<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()})
-                    .share();
+            return ftl::yield<FenceResult>(base::unexpected(NO_ERROR)).share();
         }
 
-        std::shared_future<renderengine::RenderEngineResult> renderEngineResultFuture;
-
+        std::shared_future<FenceResult> renderFuture;
         renderArea->render([&] {
-            renderEngineResultFuture =
-                    renderScreenImpl(*renderArea, traverseLayers, buffer,
-                                           canCaptureBlackoutContent, regionSampling, grayscale,
-                                           captureResults);
+            renderFuture =
+                    renderScreenImpl(*renderArea, traverseLayers, buffer, canCaptureBlackoutContent,
+                                     regionSampling, grayscale, captureResults);
         });
-        // spring up a thread to unblock SF main thread and wait for
-        // RenderEngineResult to be available
-        if (captureListener != nullptr) {
+
+        if (captureListener) {
+            // TODO: The future returned by std::async blocks the main thread. Return a chain of
+            // futures to the Binder thread instead.
             std::async([=]() mutable {
                 ATRACE_NAME("captureListener is nonnull!");
-                auto& [status, drawFence] = renderEngineResultFuture.get();
-                captureResults.result = status;
-                captureResults.fence = new Fence(dup(drawFence));
+                auto fenceResult = renderFuture.get();
+                // TODO(b/232535621): Change ScreenCaptureResults to store a FenceResult.
+                captureResults.result = fenceStatus(fenceResult);
+                captureResults.fence = std::move(fenceResult).value_or(Fence::NO_FENCE);
                 captureListener->onScreenCaptureCompleted(captureResults);
             });
         }
-        return renderEngineResultFuture;
+        return renderFuture;
     });
 
-    // flatten scheduleResultFuture object to single shared_future object
-    if (captureListener == nullptr) {
-        std::future<renderengine::RenderEngineResult> captureScreenResultFuture =
-                ftl::chain(std::move(scheduleResultFuture))
-                        .then([=](std::shared_future<renderengine::RenderEngineResult> futureObject)
-                                      -> renderengine::RenderEngineResult {
-                            auto& [status, drawFence] = futureObject.get();
-                            return {status, base::unique_fd(dup(drawFence))};
-                        });
-        return captureScreenResultFuture.share();
-    } else {
-        return ftl::yield<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}).share();
+    if (captureListener) {
+        return ftl::yield<FenceResult>(base::unexpected(NO_ERROR)).share();
     }
+
+    // Flatten nested futures.
+    std::future<FenceResult> chain =
+            ftl::chain(std::move(future)).then([](std::shared_future<FenceResult> future) {
+                return future.get();
+            });
+
+    return chain.share();
 }
 
-std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScreenImpl(
+std::shared_future<FenceResult> SurfaceFlinger::renderScreenImpl(
         const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer,
         bool canCaptureBlackoutContent, bool regionSampling, bool grayscale,
@@ -6691,8 +6688,7 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
     // the impetus on WindowManager to not persist them.
     if (captureResults.capturedSecureLayers && !canCaptureBlackoutContent) {
         ALOGW("FB is protected: PERMISSION_DENIED");
-        return ftl::yield<renderengine::RenderEngineResult>({PERMISSION_DENIED, base::unique_fd()})
-                .share();
+        return ftl::yield<FenceResult>(base::unexpected(PERMISSION_DENIED)).share();
     }
 
     captureResults.buffer = buffer->getBuffer();
@@ -6813,23 +6809,22 @@ std::shared_future<renderengine::RenderEngineResult> SurfaceFlinger::renderScree
     base::unique_fd bufferFence;
     getRenderEngine().useProtectedContext(useProtected);
 
-    const constexpr bool kUseFramebufferCache = false;
-    std::future<renderengine::RenderEngineResult> drawLayersResult =
-            getRenderEngine().drawLayers(clientCompositionDisplay, clientRenderEngineLayers, buffer,
-                                         kUseFramebufferCache, std::move(bufferFence));
+    constexpr bool kUseFramebufferCache = false;
+    std::future<FenceResult> chain =
+            ftl::chain(getRenderEngine().drawLayers(clientCompositionDisplay,
+                                                    clientRenderEngineLayers, buffer,
+                                                    kUseFramebufferCache, std::move(bufferFence)))
+                    .then(&toFenceResult);
 
-    std::shared_future<renderengine::RenderEngineResult> drawLayersResultFuture =
-            drawLayersResult.share(); // drawLayersResult will be moved to shared one
-
+    const auto future = chain.share();
     for (auto* layer : renderedLayers) {
-        // make a copy of shared_future object for each layer
-        layer->onLayerDisplayed(drawLayersResultFuture);
+        layer->onLayerDisplayed(future);
     }
 
     // Always switch back to unprotected context.
     getRenderEngine().useProtectedContext(false);
 
-    return drawLayersResultFuture;
+    return future;
 }
 
 void SurfaceFlinger::windowInfosReported() {
