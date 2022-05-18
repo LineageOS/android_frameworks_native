@@ -1257,34 +1257,31 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     // probably to encapsulate the output buffer into a structure that dispatches resource cleanup
     // over to RenderEngine, in which case this flag can be removed from the drawLayers interface.
     const bool useFramebufferCache = outputState.layerFilter.toInternalDisplay;
-    auto [status, drawFence] =
-            renderEngine
-                    .drawLayers(clientCompositionDisplay, clientRenderEngineLayers, tex,
-                                useFramebufferCache, std::move(fd))
-                    .get();
 
-    if (status != NO_ERROR && mClientCompositionRequestCache) {
+    auto fenceResult =
+            toFenceResult(renderEngine
+                                  .drawLayers(clientCompositionDisplay, clientRenderEngineLayers,
+                                              tex, useFramebufferCache, std::move(fd))
+                                  .get());
+
+    if (mClientCompositionRequestCache && fenceStatus(fenceResult) != NO_ERROR) {
         // If rendering was not successful, remove the request from the cache.
         mClientCompositionRequestCache->remove(tex->getBuffer()->getId());
     }
 
-    auto& timeStats = getCompositionEngine().getTimeStats();
-    if (drawFence.get() < 0) {
-        timeStats.recordRenderEngineDuration(renderEngineStart, systemTime());
+    const auto fence = std::move(fenceResult).value_or(Fence::NO_FENCE);
+
+    if (auto& timeStats = getCompositionEngine().getTimeStats(); fence->isValid()) {
+        timeStats.recordRenderEngineDuration(renderEngineStart, std::make_shared<FenceTime>(fence));
     } else {
-        timeStats.recordRenderEngineDuration(renderEngineStart,
-                                             std::make_shared<FenceTime>(
-                                                     new Fence(dup(drawFence.get()))));
+        timeStats.recordRenderEngineDuration(renderEngineStart, systemTime());
     }
 
-    if (clientCompositionLayersFE.size() > 0) {
-        sp<Fence> clientCompFence = new Fence(dup(drawFence.get()));
-        for (auto clientComposedLayer : clientCompositionLayersFE) {
-            clientComposedLayer->setWasClientComposed(clientCompFence);
-        }
+    for (auto* clientComposedLayer : clientCompositionLayersFE) {
+        clientComposedLayer->setWasClientComposed(fence);
     }
 
-    return std::move(drawFence);
+    return base::unique_fd(fence->dup());
 }
 
 std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
@@ -1441,19 +1438,15 @@ void Output::postFramebuffer() {
                     Fence::merge("LayerRelease", releaseFence, frame.clientTargetAcquireFence);
         }
         layer->getLayerFE().onLayerDisplayed(
-                ftl::yield<renderengine::RenderEngineResult>(
-                        {NO_ERROR, base::unique_fd(releaseFence->dup())})
-                        .share());
+                ftl::yield<FenceResult>(std::move(releaseFence)).share());
     }
 
     // We've got a list of layers needing fences, that are disjoint with
     // OutputLayersOrderedByZ.  The best we can do is to
     // supply them with the present fence.
     for (auto& weakLayer : mReleasedLayers) {
-        if (auto layer = weakLayer.promote(); layer != nullptr) {
-            layer->onLayerDisplayed(ftl::yield<renderengine::RenderEngineResult>(
-                                            {NO_ERROR, base::unique_fd(frame.presentFence->dup())})
-                                            .share());
+        if (const auto layer = weakLayer.promote()) {
+            layer->onLayerDisplayed(ftl::yield<FenceResult>(frame.presentFence).share());
         }
     }
 
