@@ -21,7 +21,6 @@
 #include <stdint.h>
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
-#include <utils/RefBase.h>
 #include <utils/Tokenizer.h>
 
 #include <input/InputDevice.h>
@@ -66,7 +65,6 @@ struct AxisInfo {
 class KeyLayoutMap {
 public:
     static base::Result<std::shared_ptr<KeyLayoutMap>> load(const std::string& filename);
-    static base::Result<std::shared_ptr<KeyLayoutMap>> load(Tokenizer* tokenizer);
     static base::Result<std::shared_ptr<KeyLayoutMap>> loadContents(const std::string& filename,
                                                                     const char* contents);
 
@@ -84,6 +82,8 @@ public:
     virtual ~KeyLayoutMap();
 
 private:
+    static base::Result<std::shared_ptr<KeyLayoutMap>> load(Tokenizer* tokenizer);
+
     struct Key {
         int32_t keyCode;
         uint32_t flags;
