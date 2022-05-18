@@ -24,7 +24,6 @@
 #include <thread>
 #include <vector>
 
-#include <android-base/file.h>
 #include <android-base/hex.h>
 #include <android-base/scopeguard.h>
 #include <binder/Parcel.h>
@@ -37,6 +36,7 @@
 #include "RpcSocketAddress.h"
 #include "RpcState.h"
 #include "RpcWireFormat.h"
+#include "Utils.h"
 
 namespace android {
 
@@ -381,10 +381,9 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
                     return;
                 }
 
-                base::unique_fd fd(TEMP_FAILURE_RETRY(
-                        open("/dev/urandom", O_RDONLY | O_CLOEXEC | O_NOFOLLOW)));
-                if (!base::ReadFully(fd, sessionId.data(), sessionId.size())) {
-                    ALOGE("Could not read from /dev/urandom to create session ID");
+                auto status = getRandomBytes(sessionId.data(), sessionId.size());
+                if (status != OK) {
+                    ALOGE("Failed to read random session ID: %s", strerror(-status));
                     return;
                 }
             } while (server->mSessions.end() != server->mSessions.find(sessionId));
