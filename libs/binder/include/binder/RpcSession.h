@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <android-base/threads.h>
 #include <android-base/unique_fd.h>
 #include <binder/IBinder.h>
 #include <binder/RpcTransport.h>
@@ -211,7 +212,7 @@ private:
 
         // whether this or another thread is currently using this fd to make
         // or receive transactions.
-        std::optional<pid_t> exclusiveTid;
+        std::optional<uint64_t> exclusiveTid;
 
         bool allowNested = false;
     };
@@ -276,7 +277,7 @@ private:
         const sp<RpcConnection>& get() { return mConnection; }
 
     private:
-        static void findConnection(pid_t tid, sp<RpcConnection>* exclusive,
+        static void findConnection(uint64_t tid, sp<RpcConnection>* exclusive,
                                    sp<RpcConnection>* available,
                                    std::vector<sp<RpcConnection>>& sockets,
                                    size_t socketsIndexHint);
