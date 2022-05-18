@@ -245,15 +245,14 @@ void CompositionTest::captureScreenComposition() {
                                                                       HAL_PIXEL_FORMAT_RGBA_8888, 1,
                                                                       usage);
 
-    auto result = mFlinger.renderScreenImpl(*renderArea, traverseLayers, mCaptureScreenBuffer,
+    auto future = mFlinger.renderScreenImpl(*renderArea, traverseLayers, mCaptureScreenBuffer,
                                             forSystem, regionSampling);
-    EXPECT_TRUE(result.valid());
+    ASSERT_TRUE(future.valid());
+    const auto fenceResult = future.get();
 
-    auto& [status, drawFence] = result.get();
-
-    EXPECT_EQ(NO_ERROR, status);
-    if (drawFence.ok()) {
-        sync_wait(drawFence.get(), -1);
+    EXPECT_EQ(NO_ERROR, fenceStatus(fenceResult));
+    if (fenceResult.ok()) {
+        fenceResult.value()->waitForever(LOG_TAG);
     }
 
     LayerCase::cleanup(this);
