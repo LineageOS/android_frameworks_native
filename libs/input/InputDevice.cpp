@@ -53,33 +53,39 @@ static void appendInputDeviceConfigurationFileRelativePath(std::string& path,
 }
 
 std::string getInputDeviceConfigurationFilePathByDeviceIdentifier(
-        const InputDeviceIdentifier& deviceIdentifier,
-        InputDeviceConfigurationFileType type) {
+        const InputDeviceIdentifier& deviceIdentifier, InputDeviceConfigurationFileType type,
+        const char* suffix) {
     if (deviceIdentifier.vendor !=0 && deviceIdentifier.product != 0) {
         if (deviceIdentifier.version != 0) {
             // Try vendor product version.
-            std::string versionPath = getInputDeviceConfigurationFilePathByName(
-                    StringPrintf("Vendor_%04x_Product_%04x_Version_%04x",
-                            deviceIdentifier.vendor, deviceIdentifier.product,
-                            deviceIdentifier.version),
-                    type);
+            std::string versionPath =
+                    getInputDeviceConfigurationFilePathByName(StringPrintf("Vendor_%04x_Product_%"
+                                                                           "04x_Version_%04x%s",
+                                                                           deviceIdentifier.vendor,
+                                                                           deviceIdentifier.product,
+                                                                           deviceIdentifier.version,
+                                                                           suffix),
+                                                              type);
             if (!versionPath.empty()) {
                 return versionPath;
             }
         }
 
         // Try vendor product.
-        std::string productPath = getInputDeviceConfigurationFilePathByName(
-                StringPrintf("Vendor_%04x_Product_%04x",
-                        deviceIdentifier.vendor, deviceIdentifier.product),
-                type);
+        std::string productPath =
+                getInputDeviceConfigurationFilePathByName(StringPrintf("Vendor_%04x_Product_%04x%s",
+                                                                       deviceIdentifier.vendor,
+                                                                       deviceIdentifier.product,
+                                                                       suffix),
+                                                          type);
         if (!productPath.empty()) {
             return productPath;
         }
     }
 
     // Try device name.
-    return getInputDeviceConfigurationFilePathByName(deviceIdentifier.getCanonicalName(), type);
+    return getInputDeviceConfigurationFilePathByName(deviceIdentifier.getCanonicalName() + suffix,
+                                                     type);
 }
 
 std::string getInputDeviceConfigurationFilePathByName(

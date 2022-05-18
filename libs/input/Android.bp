@@ -64,6 +64,7 @@ cc_library {
         "libbase",
         "liblog",
         "libcutils",
+        "libvintf",
     ],
 
     static_libs: [
