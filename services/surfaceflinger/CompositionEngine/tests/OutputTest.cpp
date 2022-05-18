@@ -3218,15 +3218,15 @@ TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
     // would not survive certain calls like Fence::merge() which would return a
     // new instance.
     EXPECT_CALL(*mLayer1.layerFE, onLayerDisplayed(_))
-            .WillOnce([&layer1Fence](std::shared_future<FenceResult> futureFenceResult) {
+            .WillOnce([&layer1Fence](ftl::SharedFuture<FenceResult> futureFenceResult) {
                 EXPECT_EQ(FenceResult(layer1Fence), futureFenceResult.get());
             });
     EXPECT_CALL(*mLayer2.layerFE, onLayerDisplayed(_))
-            .WillOnce([&layer2Fence](std::shared_future<FenceResult> futureFenceResult) {
+            .WillOnce([&layer2Fence](ftl::SharedFuture<FenceResult> futureFenceResult) {
                 EXPECT_EQ(FenceResult(layer2Fence), futureFenceResult.get());
             });
     EXPECT_CALL(*mLayer3.layerFE, onLayerDisplayed(_))
-            .WillOnce([&layer3Fence](std::shared_future<FenceResult> futureFenceResult) {
+            .WillOnce([&layer3Fence](ftl::SharedFuture<FenceResult> futureFenceResult) {
                 EXPECT_EQ(FenceResult(layer3Fence), futureFenceResult.get());
             });
 
@@ -3285,15 +3285,15 @@ TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
 
     // Each released layer should be given the presentFence.
     EXPECT_CALL(*releasedLayer1, onLayerDisplayed(_))
-            .WillOnce([&presentFence](std::shared_future<FenceResult> futureFenceResult) {
+            .WillOnce([&presentFence](ftl::SharedFuture<FenceResult> futureFenceResult) {
                 EXPECT_EQ(FenceResult(presentFence), futureFenceResult.get());
             });
     EXPECT_CALL(*releasedLayer2, onLayerDisplayed(_))
-            .WillOnce([&presentFence](std::shared_future<FenceResult> futureFenceResult) {
+            .WillOnce([&presentFence](ftl::SharedFuture<FenceResult> futureFenceResult) {
                 EXPECT_EQ(FenceResult(presentFence), futureFenceResult.get());
             });
     EXPECT_CALL(*releasedLayer3, onLayerDisplayed(_))
-            .WillOnce([&presentFence](std::shared_future<FenceResult> futureFenceResult) {
+            .WillOnce([&presentFence](ftl::SharedFuture<FenceResult> futureFenceResult) {
                 EXPECT_EQ(FenceResult(presentFence), futureFenceResult.get());
             });
 
