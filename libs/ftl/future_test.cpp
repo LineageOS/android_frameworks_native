@@ -42,9 +42,9 @@ TEST(Future, Example) {
   }
   {
     auto future = ftl::yield(123);
-    std::future<char> futures[] = {ftl::yield('a'), ftl::yield('b')};
+    ftl::Future<char> futures[] = {ftl::yield('a'), ftl::yield('b')};
 
-    std::future<char> chain = ftl::chain(std::move(future))
+    ftl::Future<char> chain = ftl::Future(std::move(future))
                                   .then([](int x) { return static_cast<size_t>(x % 2); })
                                   .then([&futures](size_t i) { return std::move(futures[i]); });
 
@@ -71,7 +71,7 @@ TEST(Future, Chain) {
     return ByteVector{str.begin(), str.end()};
   });
 
-  std::packaged_task<std::future<ByteVector>(ByteVector)> decrement_bytes(
+  std::packaged_task<ftl::Future<ByteVector>(ByteVector)> decrement_bytes(
       [](ByteVector bytes) { return ftl::defer(decrement, std::move(bytes)); });
 
   auto fetch = fetch_string.get_future();
@@ -81,7 +81,7 @@ TEST(Future, Chain) {
 
   EXPECT_EQ(
       "hello, world",
-      ftl::chain(std::move(fetch))
+      ftl::Future(std::move(fetch))
           .then([](const char* str) { return std::string(str); })
           .then([&](std::string str) {
             auto append = append_string.get_future();
@@ -93,7 +93,7 @@ TEST(Future, Chain) {
             decrement_thread = std::thread(std::move(decrement_bytes), std::move(bytes));
             return decrement;
           })
-          .then([](std::future<ByteVector> bytes) { return bytes; })
+          .then([](ftl::Future<ByteVector> bytes) { return bytes; })
           .then([](const ByteVector& bytes) { return std::string(bytes.begin(), bytes.end()); })
           .get());
 
