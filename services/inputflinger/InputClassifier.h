@@ -96,6 +96,9 @@ public:
      */
     virtual void dump(std::string& dump) = 0;
 
+    /* Called by the heatbeat to ensures that the classifier has not deadlocked. */
+    virtual void monitor() = 0;
+
     InputClassifierInterface() { }
     virtual ~InputClassifierInterface() { }
 };
@@ -247,6 +250,7 @@ public:
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 
     void dump(std::string& dump) override;
+    void monitor() override;
 
     ~InputClassifier();
 
@@ -257,7 +261,7 @@ private:
     // Protect access to mMotionClassifier, since it may become null via a hidl callback
     std::mutex mLock;
     // The next stage to pass input events to
-    InputListenerInterface& mListener;
+    QueuedInputListener mQueuedListener;
 
     std::unique_ptr<MotionClassifierInterface> mMotionClassifier GUARDED_BY(mLock);
     std::future<void> mInitializeMotionClassifier GUARDED_BY(mLock);
