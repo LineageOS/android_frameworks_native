@@ -465,4 +465,22 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_MergeBuffers_Different_Processes) {
     ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBufferCallbackId));
 }
 
+TEST_F(ReleaseBufferCallbackTest, SetBuffer_OverwriteBuffersWithNull) {
+    sp<SurfaceControl> layer = createBufferStateLayer();
+    ReleaseBufferCallbackHelper* releaseCallback = getReleaseBufferCallbackHelper();
+
+    sp<GraphicBuffer> firstBuffer = getBuffer();
+    ReleaseCallbackId firstBufferCallbackId(firstBuffer->getId(), generateFrameNumber());
+
+    // Create transaction with a buffer.
+    Transaction transaction;
+    transaction.setBuffer(layer, firstBuffer, std::nullopt, firstBufferCallbackId.framenumber,
+                          releaseCallback->getCallback());
+
+    // Call setBuffer on the same transaction with a null buffer.
+    transaction.setBuffer(layer, nullptr, std::nullopt, 0, releaseCallback->getCallback());
+
+    ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBufferCallbackId));
+}
+
 } // namespace android
