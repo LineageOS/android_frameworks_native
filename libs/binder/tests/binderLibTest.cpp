@@ -82,6 +82,7 @@ static char binderserverarg[] = "--binderserver";
 static constexpr int kSchedPolicy = SCHED_RR;
 static constexpr int kSchedPriority = 7;
 static constexpr int kSchedPriorityMore = 8;
+static constexpr int kKernelThreads = 15;
 
 static String16 binderLibTestServiceName = String16("test.binderLib");
 
@@ -115,6 +116,12 @@ enum BinderLibTestTranscationCode {
     BINDER_LIB_TEST_ECHO_VECTOR,
     BINDER_LIB_TEST_REJECT_OBJECTS,
     BINDER_LIB_TEST_CAN_GET_SID,
+    BINDER_LIB_TEST_GET_MAX_THREAD_COUNT,
+    BINDER_LIB_TEST_SET_MAX_THREAD_COUNT,
+    BINDER_LIB_TEST_LOCK_UNLOCK,
+    BINDER_LIB_TEST_PROCESS_LOCK,
+    BINDER_LIB_TEST_UNLOCK_AFTER_MS,
+    BINDER_LIB_TEST_PROCESS_TEMPORARY_LOCK
 };
 
 pid_t start_server_process(int arg2, bool usePoll = false)
@@ -1232,6 +1239,76 @@ TEST(ServiceNotifications, Unregister) {
     EXPECT_EQ(sm->unregisterForNotifications(String16("RogerRafa"), cb), OK);
 }
 
+TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
+    Parcel data, reply;
+    sp<IBinder> server = addServer();
+    ASSERT_TRUE(server != nullptr);
+    EXPECT_THAT(server->transact(BINDER_LIB_TEST_GET_MAX_THREAD_COUNT, data, &reply),
+                StatusEq(NO_ERROR));
+    int32_t replyi = reply.readInt32();
+    // Expect 16 threads: kKernelThreads = 15 + Pool thread == 16
+    EXPECT_TRUE(replyi == kKernelThreads || replyi == kKernelThreads + 1);
+    EXPECT_THAT(server->transact(BINDER_LIB_TEST_PROCESS_LOCK, data, &reply), NO_ERROR);
+
+    /*
+     * This will use all threads in the pool expect the main pool thread.
+     * The service should run fine without locking, and the thread count should
+     * not exceed 16 (15 Max + pool thread).
+     */
+    std::vector<std::thread> ts;
+    for (size_t i = 0; i < kKernelThreads - 1; i++) {
+        ts.push_back(std::thread([&] {
+            EXPECT_THAT(server->transact(BINDER_LIB_TEST_LOCK_UNLOCK, data, &reply), NO_ERROR);
+        }));
+    }
+
+    data.writeInt32(1);
+    // Give a chance for all threads to be used
+    EXPECT_THAT(server->transact(BINDER_LIB_TEST_UNLOCK_AFTER_MS, data, &reply), NO_ERROR);
+
+    for (auto &t : ts) {
+        t.join();
+    }
+
+    EXPECT_THAT(server->transact(BINDER_LIB_TEST_GET_MAX_THREAD_COUNT, data, &reply),
+                StatusEq(NO_ERROR));
+    replyi = reply.readInt32();
+    // No more than 16 threads should exist.
+    EXPECT_EQ(replyi, kKernelThreads + 1);
+}
+
+size_t epochMillis() {
+    using std::chrono::duration_cast;
+    using std::chrono::milliseconds;
+    using std::chrono::seconds;
+    using std::chrono::system_clock;
+    return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+}
+
+TEST_F(BinderLibTest, HangingServices) {
+    Parcel data, reply;
+    sp<IBinder> server = addServer();
+    ASSERT_TRUE(server != nullptr);
+    int32_t delay = 1000; // ms
+    data.writeInt32(delay);
+    EXPECT_THAT(server->transact(BINDER_LIB_TEST_PROCESS_TEMPORARY_LOCK, data, &reply), NO_ERROR);
+    std::vector<std::thread> ts;
+    size_t epochMsBefore = epochMillis();
+    for (size_t i = 0; i < kKernelThreads + 1; i++) {
+        ts.push_back(std::thread([&] {
+            EXPECT_THAT(server->transact(BINDER_LIB_TEST_LOCK_UNLOCK, data, &reply), NO_ERROR);
+        }));
+    }
+
+    for (auto &t : ts) {
+        t.join();
+    }
+    size_t epochMsAfter = epochMillis();
+
+    // deadlock occurred and threads only finished after 1s passed.
+    EXPECT_GE(epochMsAfter, epochMsBefore + delay);
+}
+
 class BinderLibRpcTestBase : public BinderLibTest {
 public:
     void SetUp() override {
@@ -1638,9 +1715,39 @@ public:
             case BINDER_LIB_TEST_CAN_GET_SID: {
                 return IPCThreadState::self()->getCallingSid() == nullptr ? BAD_VALUE : NO_ERROR;
             }
+            case BINDER_LIB_TEST_GET_MAX_THREAD_COUNT: {
+                reply->writeInt32(ProcessState::self()->getThreadPoolMaxTotalThreadCount());
+                return NO_ERROR;
+            }
+            case BINDER_LIB_TEST_PROCESS_LOCK: {
+                blockMutex.lock();
+                return NO_ERROR;
+            }
+            case BINDER_LIB_TEST_LOCK_UNLOCK: {
+                std::lock_guard<std::mutex> _l(blockMutex);
+                return NO_ERROR;
+            }
+            case BINDER_LIB_TEST_UNLOCK_AFTER_MS: {
+                int32_t ms = data.readInt32();
+                return unlockInMs(ms);
+            }
+            case BINDER_LIB_TEST_PROCESS_TEMPORARY_LOCK: {
+                blockMutex.lock();
+                std::thread t([&] {
+                    unlockInMs(data.readInt32());
+                }); // start local thread to unlock in 1s
+                t.detach();
+                return NO_ERROR;
+            }
             default:
                 return UNKNOWN_TRANSACTION;
         };
+    }
+
+    status_t unlockInMs(int32_t ms) {
+        usleep(ms * 1000);
+        blockMutex.unlock();
+        return NO_ERROR;
     }
 
 private:
@@ -1653,6 +1760,7 @@ private:
     sp<IBinder> m_strongRef;
     sp<IBinder> m_callback;
     bool m_exitOnDestroy;
+    std::mutex blockMutex;
 };
 
 int run_server(int index, int readypipefd, bool usePoll)
@@ -1754,6 +1862,7 @@ int run_server(int index, int readypipefd, bool usePoll)
              }
         }
     } else {
+        ProcessState::self()->setThreadPoolMaxThreadCount(kKernelThreads);
         ProcessState::self()->startThreadPool();
         IPCThreadState::self()->joinThreadPool();
     }

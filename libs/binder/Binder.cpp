@@ -539,7 +539,7 @@ status_t BBinder::setRpcClientDebug(android::base::unique_fd socketFd,
         return UNEXPECTED_NULL;
     }
 
-    size_t binderThreadPoolMaxCount = ProcessState::self()->getThreadPoolMaxThreadCount();
+    size_t binderThreadPoolMaxCount = ProcessState::self()->getThreadPoolMaxTotalThreadCount();
     if (binderThreadPoolMaxCount <= 1) {
         ALOGE("%s: ProcessState thread pool max count is %zu. RPC is disabled for this service "
               "because RPC requires the service to support multithreading.",
