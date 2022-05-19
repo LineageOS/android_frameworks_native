@@ -1369,7 +1369,10 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                 }
             }
 
-            outLayerFEs.push_back(&layerFE);
+            if (clientComposition) {
+                outLayerFEs.push_back(&layerFE);
+            }
+
             clientCompositionLayers.insert(clientCompositionLayers.end(),
                                            std::make_move_iterator(results.begin()),
                                            std::make_move_iterator(results.end()));
