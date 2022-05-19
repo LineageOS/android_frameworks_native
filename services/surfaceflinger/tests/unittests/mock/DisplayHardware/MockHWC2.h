@@ -80,7 +80,7 @@ public:
     MOCK_METHOD(hal::Error, presentOrValidate,
                 (nsecs_t, uint32_t *, uint32_t *, android::sp<android::Fence> *, uint32_t *),
                 (override));
-    MOCK_METHOD(std::future<hal::Error>, setDisplayBrightness,
+    MOCK_METHOD(ftl::Future<hal::Error>, setDisplayBrightness,
                 (float, float, const Hwc2::Composer::DisplayBrightnessOptions &), (override));
     MOCK_METHOD(hal::Error, setActiveConfigWithConstraints,
                 (hal::HWConfigId, const hal::VsyncPeriodChangeConstraints &,

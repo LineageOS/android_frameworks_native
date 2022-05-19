@@ -16,10 +16,11 @@
 
 #pragma once
 
-#include <future>
 #include <optional>
 #include <ostream>
 #include <unordered_set>
+
+#include <compositionengine/FenceResult.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
@@ -27,11 +28,11 @@
 #pragma clang diagnostic ignored "-Wextra"
 
 #include <renderengine/LayerSettings.h>
-#include <renderengine/RenderEngine.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
+#include <ftl/future.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
@@ -156,7 +157,7 @@ public:
             ClientCompositionTargetSettings&) = 0;
 
     // Called after the layer is displayed to update the presentation fence
-    virtual void onLayerDisplayed(std::shared_future<renderengine::RenderEngineResult>) = 0;
+    virtual void onLayerDisplayed(ftl::SharedFuture<FenceResult>) = 0;
 
     // Gets some kind of identifier for the layer for debug purposes.
     virtual const char* getDebugName() const = 0;

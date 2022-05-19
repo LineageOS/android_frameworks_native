@@ -28,6 +28,7 @@
 #include <android/gui/ISurfaceComposerClient.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
+#include <ftl/future.h>
 #include <ftl/small_map.h>
 #include <gui/BufferQueue.h>
 #include <gui/FrameTimestamps.h>
@@ -50,6 +51,7 @@
 #include <utils/Trace.h>
 #include <utils/threads.h>
 
+#include <compositionengine/FenceResult.h>
 #include <compositionengine/OutputColorSetting.h>
 #include <scheduler/Fps.h>
 
@@ -77,7 +79,6 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
-#include <future>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -392,7 +393,7 @@ private:
     using VsyncModulator = scheduler::VsyncModulator;
     using TransactionSchedule = scheduler::TransactionSchedule;
     using TraverseLayersFunction = std::function<void(const LayerVector::Visitor&)>;
-    using RenderAreaFuture = std::future<std::unique_ptr<RenderArea>>;
+    using RenderAreaFuture = ftl::Future<std::unique_ptr<RenderArea>>;
     using DumpArgs = Vector<String16>;
     using Dumper = std::function<void(const DumpArgs&, bool asProto, std::string&)>;
 
@@ -856,14 +857,15 @@ private:
     // Boot animation, on/off animations and screen capture
     void startBootAnim();
 
-    std::shared_future<renderengine::RenderEngineResult> captureScreenCommon(
-            RenderAreaFuture, TraverseLayersFunction, ui::Size bufferSize, ui::PixelFormat,
-            bool allowProtected, bool grayscale, const sp<IScreenCaptureListener>&);
-    std::shared_future<renderengine::RenderEngineResult> captureScreenCommon(
+    ftl::SharedFuture<FenceResult> captureScreenCommon(RenderAreaFuture, TraverseLayersFunction,
+                                                       ui::Size bufferSize, ui::PixelFormat,
+                                                       bool allowProtected, bool grayscale,
+                                                       const sp<IScreenCaptureListener>&);
+    ftl::SharedFuture<FenceResult> captureScreenCommon(
             RenderAreaFuture, TraverseLayersFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, const sp<IScreenCaptureListener>&);
-    std::shared_future<renderengine::RenderEngineResult> renderScreenImpl(
+    ftl::SharedFuture<FenceResult> renderScreenImpl(
             const RenderArea&, TraverseLayersFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool canCaptureBlackoutContent,
             bool regionSampling, bool grayscale, ScreenCaptureResults&) EXCLUDES(mStateLock);

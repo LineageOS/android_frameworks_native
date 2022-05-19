@@ -48,9 +48,8 @@ BufferQueueLayer::~BufferQueueLayer() {
 // Interface implementation for Layer
 // -----------------------------------------------------------------------
 
-void BufferQueueLayer::onLayerDisplayed(
-        std::shared_future<renderengine::RenderEngineResult> futureRenderEngineResult) {
-    sp<Fence> releaseFence = new Fence(dup(futureRenderEngineResult.get().drawFence));
+void BufferQueueLayer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult) {
+    const sp<Fence> releaseFence = futureFenceResult.get().value_or(Fence::NO_FENCE);
     mConsumer->setReleaseFence(releaseFence);
 
     // Prevent tracing the same release multiple times.

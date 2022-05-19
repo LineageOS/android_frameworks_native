@@ -39,8 +39,15 @@ class RpcTransport {
 public:
     virtual ~RpcTransport() = default;
 
-    // replacement of ::recv(MSG_PEEK). Error code may not be set if TLS is enabled.
-    [[nodiscard]] virtual status_t peek(void *buf, size_t size, size_t *out_size) = 0;
+    /**
+     * Poll the transport to check whether there is any data ready to read.
+     *
+     * Return:
+     *   OK - There is data available on this transport
+     *   WOULDBLOCK - No data is available
+     *   error - any other error
+     */
+    [[nodiscard]] virtual status_t pollRead(void) = 0;
 
     /**
      * Read (or write), but allow to be interrupted by a trigger.

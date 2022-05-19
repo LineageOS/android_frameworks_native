@@ -18,7 +18,6 @@
 
 #include <condition_variable>
 #include <deque>
-#include <future>
 #include <mutex>
 #include <queue>
 #include <thread>
@@ -26,10 +25,10 @@
 #include <unordered_set>
 
 #include <android-base/thread_annotations.h>
-
 #include <binder/IBinder.h>
+#include <compositionengine/FenceResult.h>
+#include <ftl/future.h>
 #include <gui/ITransactionCompletedListener.h>
-#include <renderengine/RenderEngine.h>
 #include <ui/Fence.h>
 
 namespace android {
@@ -46,7 +45,7 @@ public:
     bool releasePreviousBuffer = false;
     std::string name;
     sp<Fence> previousReleaseFence;
-    std::vector<std::shared_future<renderengine::RenderEngineResult>> previousReleaseFences;
+    std::vector<ftl::SharedFuture<FenceResult>> previousReleaseFences;
     std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence = -1;
     nsecs_t latchTime = -1;
     uint32_t transformHint = 0;

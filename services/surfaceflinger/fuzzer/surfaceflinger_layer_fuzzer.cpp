@@ -21,6 +21,7 @@
 #include <LayerRejecter.h>
 #include <LayerRenderArea.h>
 #include <MonitoredProducer.h>
+#include <ftl/future.h>
 #include <fuzzer/FuzzedDataProvider.h>
 #include <gui/IProducerListener.h>
 #include <gui/LayerDebugInfo.h>
@@ -119,11 +120,11 @@ void LayerFuzzer::invokeBufferStateLayer() {
     const CompositorTiming compositor = {mFdp.ConsumeIntegral<int64_t>(),
                                          mFdp.ConsumeIntegral<int64_t>(),
                                          mFdp.ConsumeIntegral<int64_t>()};
-    std::packaged_task<renderengine::RenderEngineResult()> renderResult([&] {
-        return renderengine::RenderEngineResult{mFdp.ConsumeIntegral<int32_t>(),
-                                                base::unique_fd(fence->get())};
-    });
-    layer->onLayerDisplayed(renderResult.get_future());
+
+    layer->onLayerDisplayed(ftl::yield<FenceResult>(fence).share());
+    layer->onLayerDisplayed(
+            ftl::yield<FenceResult>(base::unexpected(mFdp.ConsumeIntegral<status_t>())).share());
+
     layer->releasePendingBuffer(mFdp.ConsumeIntegral<int64_t>());
     layer->finalizeFrameEventHistory(fenceTime, compositor);
     layer->onPostComposition(nullptr, fenceTime, fenceTime, compositor);
