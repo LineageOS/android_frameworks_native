@@ -16,9 +16,11 @@
 
 #pragma once
 
+#include <Tracing/LocklessStack.h>
 #include <android-base/thread_annotations.h>
+#include <ftl/small_vector.h>
+#include <semaphore.h>
 #include <utils/Singleton.h>
-#include <condition_variable>
 #include <mutex>
 #include <queue>
 #include <thread>
@@ -30,13 +32,26 @@ class BackgroundExecutor : public Singleton<BackgroundExecutor> {
 public:
     BackgroundExecutor();
     ~BackgroundExecutor();
-    void execute(std::function<void()>);
+    using Callbacks = ftl::SmallVector<std::function<void()>, 10>;
+    // Queues callbacks onto a work queue to be executed by a background thread.
+    // Note that this is not thread-safe - a single producer is assumed.
+    void sendCallbacks(Callbacks&& tasks);
 
 private:
-    std::mutex mMutex;
-    std::condition_variable mWorkAvailableCv GUARDED_BY(mMutex);
-    bool mDone GUARDED_BY(mMutex) = false;
-    std::vector<std::function<void()>> mTasks GUARDED_BY(mMutex);
+    sem_t mSemaphore;
+    std::atomic_bool mDone = false;
+
+    // Sequence number for work items.
+    // Work items are batched by sequence number. Work items for earlier sequence numbers are
+    // executed first. Work items with the same sequence number are executed in the same order they
+    // were added to the stack (meaning the stack must reverse the order after popping from the
+    // queue)
+    int32_t mSequence = 0;
+    struct Work {
+        int32_t sequence = 0;
+        Callbacks tasks;
+    };
+    LocklessStack<Work> mWorks;
     std::thread mThread;
 };
 

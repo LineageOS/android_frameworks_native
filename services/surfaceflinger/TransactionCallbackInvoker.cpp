@@ -133,10 +133,10 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
     if (surfaceControl) {
         sp<Fence> prevFence = nullptr;
 
-        for (const auto& futureStruct : handle->previousReleaseFences) {
-            sp<Fence> currentFence = sp<Fence>::make(dup(futureStruct.get().drawFence));
+        for (const auto& future : handle->previousReleaseFences) {
+            sp<Fence> currentFence = future.get().value_or(Fence::NO_FENCE);
             if (prevFence == nullptr && currentFence->getStatus() != Fence::Status::Invalid) {
-                prevFence = currentFence;
+                prevFence = std::move(currentFence);
                 handle->previousReleaseFence = prevFence;
             } else if (prevFence != nullptr) {
                 // If both fences are signaled or both are unsignaled, we need to merge
@@ -147,7 +147,7 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
                     snprintf(fenceName, 32, "%.28s", handle->name.c_str());
                     sp<Fence> mergedFence = Fence::merge(fenceName, prevFence, currentFence);
                     if (mergedFence->isValid()) {
-                        handle->previousReleaseFence = mergedFence;
+                        handle->previousReleaseFence = std::move(mergedFence);
                         prevFence = handle->previousReleaseFence;
                     }
                 } else if (currentFence->getStatus() == Fence::Status::Unsignaled) {
@@ -158,11 +158,12 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
                     // by this point, they will have both signaled and only the timestamp
                     // will be slightly off; any dependencies after this point will
                     // already have been met.
-                    handle->previousReleaseFence = currentFence;
+                    handle->previousReleaseFence = std::move(currentFence);
                 }
             }
         }
-        handle->previousReleaseFences = {};
+        handle->previousReleaseFences.clear();
+
         FrameEventHistoryStats eventStats(handle->frameNumber,
                                           handle->gpuCompositionDoneFence->getSnapshot().fence,
                                           handle->compositorTiming, handle->refreshStartTime,
@@ -184,6 +185,7 @@ void TransactionCallbackInvoker::addPresentFence(const sp<Fence>& presentFence) 
 void TransactionCallbackInvoker::sendCallbacks(bool onCommitOnly) {
     // For each listener
     auto completedTransactionsItr = mCompletedTransactions.begin();
+    BackgroundExecutor::Callbacks callbacks;
     while (completedTransactionsItr != mCompletedTransactions.end()) {
         auto& [listener, transactionStatsDeque] = *completedTransactionsItr;
         ListenerStats listenerStats;
@@ -218,7 +220,7 @@ void TransactionCallbackInvoker::sendCallbacks(bool onCommitOnly) {
                 // keep it as an IBinder due to consistency reasons: if we
                 // interface_cast at the IPC boundary when reading a Parcel,
                 // we get pointers that compare unequal in the SF process.
-                BackgroundExecutor::getInstance().execute([stats = std::move(listenerStats)]() {
+                callbacks.emplace_back([stats = std::move(listenerStats)]() {
                     interface_cast<ITransactionCompletedListener>(stats.listener)
                             ->onTransactionCompleted(stats);
                 });
@@ -230,6 +232,8 @@ void TransactionCallbackInvoker::sendCallbacks(bool onCommitOnly) {
     if (mPresentFence) {
         mPresentFence.clear();
     }
+
+    BackgroundExecutor::getInstance().sendCallbacks(std::move(callbacks));
 }
 
 // -----------------------------------------------------------------------

@@ -1340,14 +1340,14 @@ TEST_F(FlattenerTest, flattenLayers_skipsColorLayers) {
     EXPECT_NE(nullptr, overrideBuffer4);
 }
 
-TEST_F(FlattenerTest, flattenLayers_skips_DISPLAY_DECORATION) {
+TEST_F(FlattenerTest, flattenLayers_includes_DISPLAY_DECORATION) {
     auto& layerState1 = mTestLayers[0]->layerState;
     const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
 
     auto& layerState2 = mTestLayers[1]->layerState;
     const auto& overrideBuffer2 = layerState2->getOutputLayer()->getState().overrideInfo.buffer;
 
-    // The third layer uses DISPLAY_DECORATION, which should never be cached.
+    // The third layer uses DISPLAY_DECORATION, which should be cached.
     auto& layerState3 = mTestLayers[2]->layerState;
     const auto& overrideBuffer3 = layerState3->getOutputLayer()->getState().overrideInfo.buffer;
     mTestLayers[2]->layerFECompositionState.compositionType =
@@ -1388,7 +1388,7 @@ TEST_F(FlattenerTest, flattenLayers_skips_DISPLAY_DECORATION) {
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
-    EXPECT_EQ(nullptr, overrideBuffer3);
+    EXPECT_EQ(overrideBuffer1, overrideBuffer3);
 }
 
 } // namespace

@@ -64,9 +64,10 @@ using scheduler::OneShotTimer;
 PowerAdvisor::~PowerAdvisor() = default;
 
 namespace {
-int32_t getUpdateTimeout() {
+std::chrono::milliseconds getUpdateTimeout() {
     // Default to a timeout of 80ms if nothing else is specified
-    static int32_t timeout = sysprop::display_update_imminent_timeout_ms(80);
+    static std::chrono::milliseconds timeout =
+            std::chrono::milliseconds(sysprop::display_update_imminent_timeout_ms(80));
     return timeout;
 }
 
@@ -81,21 +82,23 @@ void traceExpensiveRendering(bool enabled) {
 } // namespace
 
 PowerAdvisor::PowerAdvisor(SurfaceFlinger& flinger) : mFlinger(flinger) {
-    if (getUpdateTimeout()) {
-        mScreenUpdateTimer.emplace("UpdateImminentTimer",
-                                   OneShotTimer::Interval(getUpdateTimeout()),
+    if (getUpdateTimeout() > 0ms) {
+        mScreenUpdateTimer.emplace("UpdateImminentTimer", getUpdateTimeout(),
                                    /* resetCallback */ nullptr,
                                    /* timeoutCallback */
                                    [this] {
-                                       const nsecs_t timeSinceLastUpdate =
-                                               systemTime() - mLastScreenUpdatedTime.load();
-                                       if (timeSinceLastUpdate < getUpdateTimeout()) {
+                                       while (true) {
+                                           auto timeSinceLastUpdate = std::chrono::nanoseconds(
+                                                   systemTime() - mLastScreenUpdatedTime.load());
+                                           if (timeSinceLastUpdate >= getUpdateTimeout()) {
+                                               break;
+                                           }
                                            // We may try to disable expensive rendering and allow
                                            // for sending DISPLAY_UPDATE_IMMINENT hints too early if
                                            // we idled very shortly after updating the screen, so
                                            // make sure we wait enough time.
-                                           std::this_thread::sleep_for(std::chrono::nanoseconds(
-                                                   getUpdateTimeout() - timeSinceLastUpdate));
+                                           std::this_thread::sleep_for(getUpdateTimeout() -
+                                                                       timeSinceLastUpdate);
                                        }
                                        mSendUpdateImminent.store(true);
                                        mFlinger.disableExpensiveRendering();
