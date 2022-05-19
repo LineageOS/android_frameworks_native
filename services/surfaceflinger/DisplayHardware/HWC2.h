@@ -18,6 +18,7 @@
 
 #include <android-base/expected.h>
 #include <android-base/thread_annotations.h>
+#include <ftl/future.h>
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
 #include <ui/HdrCapabilities.h>
@@ -28,7 +29,6 @@
 #include <utils/Timers.h>
 
 #include <functional>
-#include <future>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -147,7 +147,7 @@ public:
                                                        uint32_t* outNumRequests,
                                                        android::sp<android::Fence>* outPresentFence,
                                                        uint32_t* state) = 0;
-    [[nodiscard]] virtual std::future<hal::Error> setDisplayBrightness(
+    [[nodiscard]] virtual ftl::Future<hal::Error> setDisplayBrightness(
             float brightness, float brightnessNits,
             const Hwc2::Composer::DisplayBrightnessOptions& options) = 0;
     [[nodiscard]] virtual hal::Error setActiveConfigWithConstraints(
@@ -229,7 +229,7 @@ public:
                                  uint32_t* outNumRequests,
                                  android::sp<android::Fence>* outPresentFence,
                                  uint32_t* state) override;
-    std::future<hal::Error> setDisplayBrightness(
+    ftl::Future<hal::Error> setDisplayBrightness(
             float brightness, float brightnessNits,
             const Hwc2::Composer::DisplayBrightnessOptions& options) override;
     hal::Error setActiveConfigWithConstraints(hal::HWConfigId configId,
