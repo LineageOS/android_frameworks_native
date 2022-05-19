@@ -153,11 +153,11 @@ typedef struct {
     uint32_t uid;
 
     // The start time of the period in nanoseconds. The clock must be
-    // CLOCK_MONOTONIC, as returned by the ktime_get_ns(void) function.
+    // CLOCK_MONOTONIC_RAW, as returned by the ktime_get_raw_ns(void) function.
     uint64_t start_time_ns;
 
     // The end time of the period in nanoseconds. The clock must be
-    // CLOCK_MONOTONIC, as returned by the ktime_get_ns(void) function.
+    // CLOCK_MONOTONIC_RAW, as returned by the ktime_get_raw_ns(void) function.
     uint64_t end_time_ns;
 
     // The amount of time the GPU was running GPU work for |uid| during the
