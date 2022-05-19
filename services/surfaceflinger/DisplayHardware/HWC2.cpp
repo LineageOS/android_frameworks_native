@@ -27,7 +27,6 @@
 #include "HWC2.h"
 
 #include <android/configuration.h>
-#include <ftl/future.h>
 #include <ui/Fence.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
@@ -543,7 +542,7 @@ Error Display::presentOrValidate(nsecs_t expectedPresentTime, uint32_t* outNumTy
     return error;
 }
 
-std::future<Error> Display::setDisplayBrightness(
+ftl::Future<Error> Display::setDisplayBrightness(
         float brightness, float brightnessNits,
         const Hwc2::Composer::DisplayBrightnessOptions& options) {
     return ftl::defer([composer = &mComposer, id = mId, brightness, brightnessNits, options] {

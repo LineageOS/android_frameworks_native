@@ -1693,7 +1693,7 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
     }
 
     const char* const whence = __func__;
-    return ftl::chain(mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) {
+    return ftl::Future(mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) {
                if (const auto display = getDisplayDeviceLocked(displayToken)) {
                    const bool supportsDisplayBrightnessCommand =
                            getHwComposer().getComposer()->isSupported(
@@ -1731,7 +1731,7 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
                    return ftl::yield<status_t>(NAME_NOT_FOUND);
                }
            }))
-            .then([](std::future<status_t> task) { return task; })
+            .then([](ftl::Future<status_t> task) { return task; })
             .get();
 }
 
@@ -3226,12 +3226,12 @@ void SurfaceFlinger::updateInputFlinger() {
     if (!updateWindowInfo && mInputWindowCommands.empty()) {
         return;
     }
-    BackgroundExecutor::getInstance().execute([updateWindowInfo,
-                                               windowInfos = std::move(windowInfos),
-                                               displayInfos = std::move(displayInfos),
-                                               inputWindowCommands =
-                                                       std::move(mInputWindowCommands),
-                                               inputFlinger = mInputFlinger, this]() {
+    BackgroundExecutor::getInstance().sendCallbacks({[updateWindowInfo,
+                                                      windowInfos = std::move(windowInfos),
+                                                      displayInfos = std::move(displayInfos),
+                                                      inputWindowCommands =
+                                                              std::move(mInputWindowCommands),
+                                                      inputFlinger = mInputFlinger, this]() {
         ATRACE_NAME("BackgroundExecutor::updateInputFlinger");
         if (updateWindowInfo) {
             mWindowInfosListenerInvoker->windowInfosChanged(windowInfos, displayInfos,
@@ -3244,7 +3244,7 @@ void SurfaceFlinger::updateInputFlinger() {
         for (const auto& focusRequest : inputWindowCommands.focusRequests) {
             inputFlinger->setFocusedWindow(focusRequest);
         }
-    });
+    }});
 
     mInputWindowCommands.clear();
 }
@@ -6578,7 +6578,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     return fenceStatus(future.get());
 }
 
-std::shared_future<FenceResult> SurfaceFlinger::captureScreenCommon(
+ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
         RenderAreaFuture renderAreaFuture, TraverseLayersFunction traverseLayers,
         ui::Size bufferSize, ui::PixelFormat reqPixelFormat, bool allowProtected, bool grayscale,
         const sp<IScreenCaptureListener>& captureListener) {
@@ -6630,7 +6630,7 @@ std::shared_future<FenceResult> SurfaceFlinger::captureScreenCommon(
                                false /* regionSampling */, grayscale, captureListener);
 }
 
-std::shared_future<FenceResult> SurfaceFlinger::captureScreenCommon(
+ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
         RenderAreaFuture renderAreaFuture, TraverseLayersFunction traverseLayers,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
         bool grayscale, const sp<IScreenCaptureListener>& captureListener) {
@@ -6639,7 +6639,7 @@ std::shared_future<FenceResult> SurfaceFlinger::captureScreenCommon(
     bool canCaptureBlackoutContent = hasCaptureBlackoutContentPermission();
 
     auto future = mScheduler->schedule([=, renderAreaFuture = std::move(renderAreaFuture)]() mutable
-                                       -> std::shared_future<FenceResult> {
+                                       -> ftl::SharedFuture<FenceResult> {
         ScreenCaptureResults captureResults;
         std::unique_ptr<RenderArea> renderArea = renderAreaFuture.get();
         if (!renderArea) {
@@ -6649,7 +6649,7 @@ std::shared_future<FenceResult> SurfaceFlinger::captureScreenCommon(
             return ftl::yield<FenceResult>(base::unexpected(NO_ERROR)).share();
         }
 
-        std::shared_future<FenceResult> renderFuture;
+        ftl::SharedFuture<FenceResult> renderFuture;
         renderArea->render([&] {
             renderFuture =
                     renderScreenImpl(*renderArea, traverseLayers, buffer, canCaptureBlackoutContent,
@@ -6676,15 +6676,14 @@ std::shared_future<FenceResult> SurfaceFlinger::captureScreenCommon(
     }
 
     // Flatten nested futures.
-    std::future<FenceResult> chain =
-            ftl::chain(std::move(future)).then([](std::shared_future<FenceResult> future) {
-                return future.get();
-            });
+    auto chain = ftl::Future(std::move(future)).then([](ftl::SharedFuture<FenceResult> future) {
+        return future;
+    });
 
     return chain.share();
 }
 
-std::shared_future<FenceResult> SurfaceFlinger::renderScreenImpl(
+ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer,
         bool canCaptureBlackoutContent, bool regionSampling, bool grayscale,
@@ -6825,10 +6824,10 @@ std::shared_future<FenceResult> SurfaceFlinger::renderScreenImpl(
     getRenderEngine().useProtectedContext(useProtected);
 
     constexpr bool kUseFramebufferCache = false;
-    std::future<FenceResult> chain =
-            ftl::chain(getRenderEngine().drawLayers(clientCompositionDisplay,
-                                                    clientRenderEngineLayers, buffer,
-                                                    kUseFramebufferCache, std::move(bufferFence)))
+    auto chain =
+            ftl::Future(getRenderEngine().drawLayers(clientCompositionDisplay,
+                                                     clientRenderEngineLayers, buffer,
+                                                     kUseFramebufferCache, std::move(bufferFence)))
                     .then(&toFenceResult);
 
     const auto future = chain.share();
