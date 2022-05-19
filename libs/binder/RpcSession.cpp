@@ -43,7 +43,7 @@
 #include "RpcWireFormat.h"
 #include "Utils.h"
 
-#ifndef __ANDROID_RECOVERY__
+#if defined(__ANDROID__) && !defined(__ANDROID_RECOVERY__)
 #include <android_runtime/vm.h>
 #include <jni.h>
 #endif
@@ -316,7 +316,7 @@ RpcSession::PreJoinSetupResult RpcSession::preJoinSetup(
 }
 
 namespace {
-#ifdef __ANDROID_RECOVERY__
+#if !defined(__ANDROID__) || defined(__ANDROID_RECOVERY__)
 class JavaThreadAttacher {};
 #else
 // RAII object for attaching / detaching current thread to JVM if Android Runtime exists. If
