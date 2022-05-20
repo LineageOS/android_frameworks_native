@@ -39,11 +39,11 @@ public:
 
     /**
      * Dump the state of the interaction blocker.
-     * This method may be called on any thread (usually by the input manager).
+     * This method may be called on any thread (usually by the input manager on a binder thread).
      */
     virtual void dump(std::string& dump) = 0;
 
-    /* Called by the heatbeat to ensures that the dispatcher has not deadlocked. */
+    /* Called by the heatbeat to ensures that the blocker has not deadlocked. */
     virtual void monitor() = 0;
 
     UnwantedInteractionBlockerInterface() {}
