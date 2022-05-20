@@ -19,6 +19,7 @@
 #include <map>
 #include <set>
 
+#include <android-base/thread_annotations.h>
 #include "include/UnwantedInteractionBlockerInterface.h"
 #include "ui/events/ozone/evdev/touch_filter/neural_stylus_palm_detection_filter_util.h"
 #include "ui/events/ozone/evdev/touch_filter/palm_detection_filter.h"
@@ -86,18 +87,20 @@ public:
     ~UnwantedInteractionBlocker();
 
 private:
+    std::mutex mLock;
     // The next stage to pass input events to
-    InputListenerInterface& mListener;
+
+    QueuedInputListener mQueuedListener;
     const bool mEnablePalmRejection;
 
     // When stylus is down, ignore touch
-    PreferStylusOverTouchBlocker mPreferStylusOverTouchBlocker;
+    PreferStylusOverTouchBlocker mPreferStylusOverTouchBlocker GUARDED_BY(mLock);
 
     // Detect and reject unwanted palms on screen
     // Use a separate palm rejector for every touch device.
-    std::map<int32_t /*deviceId*/, PalmRejector> mPalmRejectors;
+    std::map<int32_t /*deviceId*/, PalmRejector> mPalmRejectors GUARDED_BY(mLock);
     // TODO(b/210159205): delete this when simultaneous stylus and touch is supported
-    void notifyMotionInner(const NotifyMotionArgs* args);
+    void notifyMotionLocked(const NotifyMotionArgs* args) REQUIRES(mLock);
 };
 
 class SlotState {
