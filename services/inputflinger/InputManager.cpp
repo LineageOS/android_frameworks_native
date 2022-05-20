@@ -62,8 +62,8 @@ InputManager::InputManager(
         const sp<InputDispatcherPolicyInterface>& dispatcherPolicy) {
     mDispatcher = createInputDispatcher(dispatcherPolicy);
     mClassifier = std::make_unique<InputClassifier>(*mDispatcher);
-    mUnwantedInteractionBlocker = std::make_unique<UnwantedInteractionBlocker>(*mClassifier);
-    mReader = createInputReader(readerPolicy, *mUnwantedInteractionBlocker);
+    mBlocker = std::make_unique<UnwantedInteractionBlocker>(*mClassifier);
+    mReader = createInputReader(readerPolicy, *mBlocker);
 }
 
 InputManager::~InputManager() {
@@ -111,7 +111,7 @@ InputReaderInterface& InputManager::getReader() {
 }
 
 UnwantedInteractionBlockerInterface& InputManager::getUnwantedInteractionBlocker() {
-    return *mUnwantedInteractionBlocker;
+    return *mBlocker;
 }
 
 InputClassifierInterface& InputManager::getClassifier() {
@@ -120,6 +120,13 @@ InputClassifierInterface& InputManager::getClassifier() {
 
 InputDispatcherInterface& InputManager::getDispatcher() {
     return *mDispatcher;
+}
+
+void InputManager::monitor() {
+    mReader->monitor();
+    mBlocker->monitor();
+    mClassifier->monitor();
+    mDispatcher->monitor();
 }
 
 // Used by tests only.
