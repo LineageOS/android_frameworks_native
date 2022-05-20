@@ -2106,7 +2106,7 @@ Dumpstate::RunStatus Dumpstate::DumpTraces(const char** path) {
     int timeout_failures = 0;
     bool dalvik_found = false;
 
-    const std::set<int> hal_pids = get_interesting_hal_pids();
+    const std::set<int> hal_pids = get_interesting_pids();
 
     struct dirent* d;
     while ((d = readdir(proc.get()))) {
