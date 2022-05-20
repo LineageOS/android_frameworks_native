@@ -27,8 +27,6 @@
 #include <ftl/enum.h>
 #include <gui/SurfaceComposerClient.h>
 #include <input/InputDevice.h>
-#include <log/log.h>
-#include <log/log_event_list.h>
 #include <powermanager/PowerManager.h>
 #include <unistd.h>
 #include <utils/Trace.h>
@@ -42,6 +40,7 @@
 #include <sstream>
 
 #include "Connection.h"
+#include "DebugConfig.h"
 #include "InputDispatcher.h"
 
 #define INDENT "  "
@@ -65,79 +64,6 @@ using android::os::InputEventInjectionSync;
 namespace android::inputdispatcher {
 
 namespace {
-
-/**
- * Log detailed debug messages about each inbound event notification to the dispatcher.
- * Enable this via "adb shell setprop log.tag.InputDispatcherInboundEvent DEBUG" (requires restart)
- */
-const bool DEBUG_INBOUND_EVENT_DETAILS =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "InboundEvent", ANDROID_LOG_INFO);
-
-/**
- * Log detailed debug messages about each outbound event processed by the dispatcher.
- * Enable this via "adb shell setprop log.tag.InputDispatcherOutboundEvent DEBUG" (requires restart)
- */
-const bool DEBUG_OUTBOUND_EVENT_DETAILS =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "OutboundEvent", ANDROID_LOG_INFO);
-
-/**
- * Log debug messages about the dispatch cycle.
- * Enable this via "adb shell setprop log.tag.InputDispatcherDispatchCycle DEBUG" (requires restart)
- */
-const bool DEBUG_DISPATCH_CYCLE =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "DispatchCycle", ANDROID_LOG_INFO);
-
-/**
- * Log debug messages about channel creation
- * Enable this via "adb shell setprop log.tag.InputDispatcherChannelCreation DEBUG" (requires
- * restart)
- */
-const bool DEBUG_CHANNEL_CREATION =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "ChannelCreation", ANDROID_LOG_INFO);
-
-/**
- * Log debug messages about input event injection.
- * Enable this via "adb shell setprop log.tag.InputDispatcherInjection DEBUG" (requires restart)
- */
-const bool DEBUG_INJECTION =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Injection", ANDROID_LOG_INFO);
-
-/**
- * Log debug messages about input focus tracking.
- * Enable this via "adb shell setprop log.tag.InputDispatcherFocus DEBUG" (requires restart)
- */
-const bool DEBUG_FOCUS =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Focus", ANDROID_LOG_INFO);
-
-/**
- * Log debug messages about touch mode event
- * Enable this via "adb shell setprop log.tag.InputDispatcherTouchMode DEBUG" (requires restart)
- */
-const bool DEBUG_TOUCH_MODE =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "TouchMode", ANDROID_LOG_INFO);
-
-/**
- * Log debug messages about touch occlusion
- * Enable this via "adb shell setprop log.tag.InputDispatcherTouchOcclusion DEBUG" (requires
- * restart)
- */
-const bool DEBUG_TOUCH_OCCLUSION =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "TouchOcclusion", ANDROID_LOG_INFO);
-
-/**
- * Log debug messages about the app switch latency optimization.
- * Enable this via "adb shell setprop log.tag.InputDispatcherAppSwitch DEBUG" (requires restart)
- */
-const bool DEBUG_APP_SWITCH =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "AppSwitch", ANDROID_LOG_INFO);
-
-/**
- * Log debug messages about hover events.
- * Enable this via "adb shell setprop log.tag.InputDispatcherHover DEBUG" (requires restart)
- */
-const bool DEBUG_HOVER =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Hover", ANDROID_LOG_INFO);
-
 // Temporarily releases a held mutex for the lifetime of the instance.
 // Named to match std::scoped_lock
 class scoped_unlock {
