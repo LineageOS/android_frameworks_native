@@ -175,6 +175,10 @@ void ProcessState::childPostFork() {
     // the thread handler is installed
     if (gProcess) {
         gProcess->mForked = true;
+
+        // "O_CLOFORK"
+        close(gProcess->mDriverFD);
+        gProcess->mDriverFD = -1;
     }
     gProcessMutex.unlock();
 }
