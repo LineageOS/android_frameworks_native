@@ -187,7 +187,6 @@ void ProcessState::startThreadPool()
             ALOGW("Extra binder thread started, but 0 threads requested. Do not use "
                   "*startThreadPool when zero threads are requested.");
         }
-
         mThreadPoolStarted = true;
         spawnPooledThread(true);
     }
@@ -391,6 +390,7 @@ void ProcessState::spawnPooledThread(bool isMain)
         ALOGV("Spawning new pooled thread, name=%s\n", name.string());
         sp<Thread> t = sp<PoolThread>::make(isMain);
         t->run(name.string());
+        mKernelStartedThreads++;
     }
 }
 
@@ -407,12 +407,20 @@ status_t ProcessState::setThreadPoolMaxThreadCount(size_t maxThreads) {
     return result;
 }
 
-size_t ProcessState::getThreadPoolMaxThreadCount() const {
+size_t ProcessState::getThreadPoolMaxTotalThreadCount() const {
     // may actually be one more than this, if join is called
-    if (mThreadPoolStarted) return mMaxThreads;
+    if (mThreadPoolStarted) {
+        return mCurrentThreads < mKernelStartedThreads
+                ? mMaxThreads
+                : mMaxThreads + mCurrentThreads - mKernelStartedThreads;
+    }
     // must not be initialized or maybe has poll thread setup, we
     // currently don't track this in libbinder
-    return 0;
+    LOG_ALWAYS_FATAL_IF(mKernelStartedThreads != 0,
+                        "Expecting 0 kernel started threads but have"
+                        " %zu",
+                        mKernelStartedThreads);
+    return mCurrentThreads;
 }
 
 #define DRIVER_FEATURES_PATH "/dev/binderfs/features/"
@@ -498,6 +506,8 @@ ProcessState::ProcessState(const char* driver)
         mExecutingThreadsCount(0),
         mWaitingForThreads(0),
         mMaxThreads(DEFAULT_MAX_BINDER_THREADS),
+        mCurrentThreads(0),
+        mKernelStartedThreads(0),
         mStarvationStartTimeMs(0),
         mForked(false),
         mThreadPoolStarted(false),

@@ -17,11 +17,28 @@
 #define LOG_TAG "PrintTools"
 
 #include <input/PrintTools.h>
+#include <sstream>
 
 namespace android {
 
 const char* toString(bool value) {
     return value ? "true" : "false";
+}
+
+std::string addLinePrefix(std::string str, const std::string& prefix) {
+    std::stringstream ss;
+    bool newLineStarted = true;
+    for (const auto& ch : str) {
+        if (newLineStarted) {
+            ss << prefix;
+            newLineStarted = false;
+        }
+        if (ch == '\n') {
+            newLineStarted = true;
+        }
+        ss << ch;
+    }
+    return ss.str();
 }
 
 } // namespace android
