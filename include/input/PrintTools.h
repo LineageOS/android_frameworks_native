@@ -58,4 +58,13 @@ std::string dumpMap(const std::map<K, V>& map, std::string (*keyToString)(const 
 
 const char* toString(bool value);
 
+/**
+ * Add "prefix" to the beginning of each line in the provided string
+ * "str".
+ * The string 'str' is typically multi-line.
+ * The most common use case for this function is to add some padding
+ * when dumping state.
+ */
+std::string addLinePrefix(std::string str, const std::string& prefix);
+
 } // namespace android
