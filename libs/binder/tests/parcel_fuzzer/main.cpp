@@ -83,19 +83,14 @@ void doReadFuzz(const char* backend, const std::vector<ParcelRead<P>>& reads,
     FUZZ_LOG() << "input: " << HexString(p.data(), p.dataSize());
     FUZZ_LOG() << "instructions: " << HexString(instructions.data(), instructions.size());
 
-    for (size_t i = 0; i + 1 < instructions.size(); i += 2) {
-        uint8_t a = instructions[i];
-        uint8_t readIdx = a % reads.size();
+    FuzzedDataProvider instructionsProvider(instructions.data(), instructions.size());
+    while (instructionsProvider.remaining_bytes() > 0) {
+        uint8_t idx = instructionsProvider.ConsumeIntegralInRange<uint8_t>(0, reads.size() - 1);
 
-        uint8_t b = instructions[i + 1];
+        FUZZ_LOG() << "Instruction " << idx << " avail: " << p.dataAvail()
+                   << " pos: " << p.dataPosition() << " cap: " << p.dataCapacity();
 
-        FUZZ_LOG() << "Instruction: " << (i / 2) + 1 << "/" << instructions.size() / 2
-                   << " cmd: " << static_cast<size_t>(a) << " (" << static_cast<size_t>(readIdx)
-                   << ") arg: " << static_cast<size_t>(b) << " size: " << p.dataSize()
-                   << " avail: " << p.dataAvail() << " pos: " << p.dataPosition()
-                   << " cap: " << p.dataCapacity();
-
-        reads[readIdx](p, b);
+        reads[idx](p, instructionsProvider);
     }
 }
 
