@@ -509,6 +509,9 @@ private:
 
     std::mutex mIdleTimerCallbacksMutex;
     std::optional<IdleTimerCallbacks> mIdleTimerCallbacks GUARDED_BY(mIdleTimerCallbacksMutex);
+
+    // RefreshRate mode pointer for opportunistically entering idle state (60 Hz)
+    std::unique_ptr<const RefreshRate> idleRefreshRate;
 };
 
 } // namespace android::scheduler
