@@ -223,17 +223,20 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
                                                    GlobalSignals* outSignalsConsidered) const {
     std::lock_guard lock(mLock);
 
-    if (auto cached = getCachedBestRefreshRate(layers, globalSignals, outSignalsConsidered)) {
+    bool expired = false;
+
+    if (auto cached = getCachedBestRefreshRate(layers, globalSignals, outSignalsConsidered, &expired)) {
         return *cached;
     }
 
     GlobalSignals signalsConsidered;
-    RefreshRate result = getBestRefreshRateLocked(layers, globalSignals, &signalsConsidered);
+    RefreshRate result = getBestRefreshRateLocked(layers, globalSignals, &signalsConsidered, expired);
     lastBestRefreshRateInvocation.emplace(
             GetBestRefreshRateInvocation{.layerRequirements = layers,
                                          .globalSignals = globalSignals,
                                          .outSignalsConsidered = signalsConsidered,
-                                         .resultingBestRefreshRate = result});
+                                         .resultingBestRefreshRate = result,
+                                         .lastTimestamp = systemTime(SYSTEM_TIME_MONOTONIC)});
     if (outSignalsConsidered) {
         *outSignalsConsidered = signalsConsidered;
     }
@@ -242,10 +245,16 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
 
 std::optional<RefreshRate> RefreshRateConfigs::getCachedBestRefreshRate(
         const std::vector<LayerRequirement>& layers, const GlobalSignals& globalSignals,
-        GlobalSignals* outSignalsConsidered) const {
+        GlobalSignals* outSignalsConsidered, bool *expired) const {
     const bool sameAsLastCall = lastBestRefreshRateInvocation &&
             lastBestRefreshRateInvocation->layerRequirements == layers &&
             lastBestRefreshRateInvocation->globalSignals == globalSignals;
+    const auto curTime = systemTime(SYSTEM_TIME_MONOTONIC);
+
+    if ((curTime - lastBestRefreshRateInvocation->lastTimestamp) >= EXPIRE_TIMEOUT) {
+        *expired = true;
+        return {};
+    }
 
     if (sameAsLastCall) {
         if (outSignalsConsidered) {
@@ -259,7 +268,7 @@ std::optional<RefreshRate> RefreshRateConfigs::getCachedBestRefreshRate(
 
 RefreshRate RefreshRateConfigs::getBestRefreshRateLocked(
         const std::vector<LayerRequirement>& layers, const GlobalSignals& globalSignals,
-        GlobalSignals* outSignalsConsidered) const {
+        GlobalSignals* outSignalsConsidered, const bool expired) const {
     ATRACE_CALL();
     ALOGV("getBestRefreshRate %zu layers", layers.size());
     static bool localIsIdle;
@@ -418,8 +427,20 @@ RefreshRate RefreshRateConfigs::getBestRefreshRateLocked(
                 continue;
             }
 
-            const auto layerScore =
+            float layerScore;
+
+            if (layer.vote == LayerVoteType::Heuristic && expired &&
+                scores[i].refreshRate->getFps().greaterThanWithMargin(Fps(60.0f))) {
+                // Time for heuristic layer to keep consuming high refresh rate has been expired
+                ALOGV("%s expired to keep using %s", formatLayerInfo(layer, weight).c_str(),
+                      scores[i].refreshRate->getName().c_str());
+                layerScore = 0;
+                localIsIdle = true;
+            } else {
+                layerScore =
                     calculateLayerScoreLocked(layer, *scores[i].refreshRate, isSeamlessSwitch);
+            }
+
             ALOGV("%s gives %s score of %.2f", formatLayerInfo(layer, weight).c_str(),
                   scores[i].refreshRate->getName().c_str(), layerScore);
             scores[i].score += weight * layerScore;
