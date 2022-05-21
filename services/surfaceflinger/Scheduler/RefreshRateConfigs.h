@@ -406,12 +406,14 @@ private:
 
     std::optional<RefreshRate> getCachedBestRefreshRate(const std::vector<LayerRequirement>& layers,
                                                         const GlobalSignals& globalSignals,
-                                                        GlobalSignals* outSignalsConsidered) const
+                                                        GlobalSignals* outSignalsConsidered,
+                                                        bool *expired) const
             REQUIRES(mLock);
 
     RefreshRate getBestRefreshRateLocked(const std::vector<LayerRequirement>& layers,
                                          const GlobalSignals& globalSignals,
-                                         GlobalSignals* outSignalsConsidered) const REQUIRES(mLock);
+                                         GlobalSignals* outSignalsConsidered,
+                                         const bool expired) const REQUIRES(mLock);
 
     // Returns the refresh rate with the highest score in the collection specified from begin
     // to end. If there are more than one with the same highest refresh rate, the first one is
@@ -490,9 +492,12 @@ private:
         GlobalSignals globalSignals;
         GlobalSignals outSignalsConsidered;
         RefreshRate resultingBestRefreshRate;
+        nsecs_t lastTimestamp;
     };
     mutable std::optional<GetBestRefreshRateInvocation> lastBestRefreshRateInvocation
             GUARDED_BY(mLock);
+
+    static constexpr nsecs_t EXPIRE_TIMEOUT = std::chrono::duration_cast<std::chrono::nanoseconds>(2s).count();
 
     // Timer that records time between requests for next vsync.
     std::optional<scheduler::OneShotTimer> mIdleTimer;
