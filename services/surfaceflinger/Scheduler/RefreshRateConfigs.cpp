@@ -338,7 +338,8 @@ RefreshRate RefreshRateConfigs::getBestRefreshRateLocked(
     }
 
     if (layers.empty() || noVoteLayers == layers.size()) {
-        return getMaxRefreshRateByPolicyLocked();
+        ALOGV("No layers - choose %s", getCurrentRefreshRateByPolicyLocked().getName().c_str());
+        return getCurrentRefreshRateByPolicyLocked();
     }
 
     // Only if all layers want Min we should return Min
