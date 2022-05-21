@@ -18,6 +18,7 @@
 #include "UnwantedInteractionBlocker.h"
 
 #include <android-base/stringprintf.h>
+#include <input/PrintTools.h>
 #include <inttypes.h>
 #include <linux/input-event-codes.h>
 #include <linux/input.h>
@@ -80,47 +81,6 @@ static int getLinuxToolType(int32_t toolType) {
     return MT_TOOL_FINGER;
 }
 
-static std::string addPrefix(std::string str, const std::string& prefix) {
-    std::stringstream ss;
-    bool newLineStarted = true;
-    for (const auto& ch : str) {
-        if (newLineStarted) {
-            ss << prefix;
-            newLineStarted = false;
-        }
-        if (ch == '\n') {
-            newLineStarted = true;
-        }
-        ss << ch;
-    }
-    return ss.str();
-}
-
-template <typename T>
-static std::string dumpSet(const std::set<T>& v) {
-    static_assert(std::is_integral<T>::value, "Only integral types can be printed.");
-    std::string out;
-    for (const T& entry : v) {
-        out += out.empty() ? "{" : ", ";
-        out += android::base::StringPrintf("%i", entry);
-    }
-    return out.empty() ? "{}" : (out + "}");
-}
-
-template <typename K, typename V>
-static std::string dumpMap(const std::map<K, V>& map) {
-    static_assert(std::is_integral<K>::value, "Keys should have integral type to be printed.");
-    static_assert(std::is_integral<V>::value, "Values should have integral type to be printed.");
-    std::string out;
-    for (const auto& [k, v] : map) {
-        if (!out.empty()) {
-            out += "\n";
-        }
-        out += android::base::StringPrintf("%i : %i", static_cast<int>(k), static_cast<int>(v));
-    }
-    return out;
-}
-
 static std::string dumpDeviceInfo(const AndroidPalmFilterDeviceInfo& info) {
     std::string out;
     out += StringPrintf("max_x = %.2f\n", info.max_x);
@@ -166,10 +126,6 @@ static int32_t resolveActionForPointer(uint8_t pointerIndex, int32_t action) {
     // When POINTER_DOWN or POINTER_UP happens, it's actually a MOVE for all of the other
     // pointers
     return AMOTION_EVENT_ACTION_MOVE;
-}
-
-static const char* toString(bool value) {
-    return value ? "true" : "false";
 }
 
 std::string toString(const ::ui::InProgressTouchEvdev& touch) {
@@ -356,69 +312,87 @@ UnwantedInteractionBlocker::UnwantedInteractionBlocker(InputListenerInterface& l
 
 UnwantedInteractionBlocker::UnwantedInteractionBlocker(InputListenerInterface& listener,
                                                        bool enablePalmRejection)
-      : mListener(listener), mEnablePalmRejection(enablePalmRejection) {}
+      : mQueuedListener(listener), mEnablePalmRejection(enablePalmRejection) {}
 
 void UnwantedInteractionBlocker::notifyConfigurationChanged(
         const NotifyConfigurationChangedArgs* args) {
-    mListener.notifyConfigurationChanged(args);
+    mQueuedListener.notifyConfigurationChanged(args);
+    mQueuedListener.flush();
 }
 
 void UnwantedInteractionBlocker::notifyKey(const NotifyKeyArgs* args) {
-    mListener.notifyKey(args);
+    mQueuedListener.notifyKey(args);
+    mQueuedListener.flush();
 }
 
 void UnwantedInteractionBlocker::notifyMotion(const NotifyMotionArgs* args) {
-    const std::vector<NotifyMotionArgs> processedArgs =
-            mPreferStylusOverTouchBlocker.processMotion(*args);
-    for (const NotifyMotionArgs& loopArgs : processedArgs) {
-        notifyMotionInner(&loopArgs);
-    }
+    { // acquire lock
+        std::scoped_lock lock(mLock);
+        const std::vector<NotifyMotionArgs> processedArgs =
+                mPreferStylusOverTouchBlocker.processMotion(*args);
+        for (const NotifyMotionArgs& loopArgs : processedArgs) {
+            notifyMotionLocked(&loopArgs);
+        }
+    } // release lock
+
+    // Call out to the next stage without holding the lock
+    mQueuedListener.flush();
 }
 
-void UnwantedInteractionBlocker::notifyMotionInner(const NotifyMotionArgs* args) {
+void UnwantedInteractionBlocker::notifyMotionLocked(const NotifyMotionArgs* args) {
     auto it = mPalmRejectors.find(args->deviceId);
     const bool sendToPalmRejector = it != mPalmRejectors.end() && isFromTouchscreen(args->source);
     if (!sendToPalmRejector) {
-        mListener.notifyMotion(args);
+        mQueuedListener.notifyMotion(args);
         return;
     }
 
-    const std::vector<NotifyMotionArgs> newMotions = it->second.processMotion(*args);
-    for (const NotifyMotionArgs& newArgs : newMotions) {
-        mListener.notifyMotion(&newArgs);
+    std::vector<NotifyMotionArgs> processedArgs = it->second.processMotion(*args);
+    for (const NotifyMotionArgs& loopArgs : processedArgs) {
+        mQueuedListener.notifyMotion(&loopArgs);
     }
 }
 
 void UnwantedInteractionBlocker::notifySwitch(const NotifySwitchArgs* args) {
-    mListener.notifySwitch(args);
+    mQueuedListener.notifySwitch(args);
+    mQueuedListener.flush();
 }
 
 void UnwantedInteractionBlocker::notifySensor(const NotifySensorArgs* args) {
-    mListener.notifySensor(args);
+    mQueuedListener.notifySensor(args);
+    mQueuedListener.flush();
 }
 
 void UnwantedInteractionBlocker::notifyVibratorState(const NotifyVibratorStateArgs* args) {
-    mListener.notifyVibratorState(args);
+    mQueuedListener.notifyVibratorState(args);
+    mQueuedListener.flush();
 }
 void UnwantedInteractionBlocker::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
-    auto it = mPalmRejectors.find(args->deviceId);
-    if (it != mPalmRejectors.end()) {
-        AndroidPalmFilterDeviceInfo info = it->second.getPalmFilterDeviceInfo();
-        // Re-create the object instead of resetting it
-        mPalmRejectors.erase(it);
-        mPalmRejectors.emplace(args->deviceId, info);
-    }
-    mListener.notifyDeviceReset(args);
-    mPreferStylusOverTouchBlocker.notifyDeviceReset(*args);
+    { // acquire lock
+        std::scoped_lock lock(mLock);
+        auto it = mPalmRejectors.find(args->deviceId);
+        if (it != mPalmRejectors.end()) {
+            AndroidPalmFilterDeviceInfo info = it->second.getPalmFilterDeviceInfo();
+            // Re-create the object instead of resetting it
+            mPalmRejectors.erase(it);
+            mPalmRejectors.emplace(args->deviceId, info);
+        }
+        mQueuedListener.notifyDeviceReset(args);
+        mPreferStylusOverTouchBlocker.notifyDeviceReset(*args);
+    } // release lock
+    // Send events to the next stage without holding the lock
+    mQueuedListener.flush();
 }
 
 void UnwantedInteractionBlocker::notifyPointerCaptureChanged(
         const NotifyPointerCaptureChangedArgs* args) {
-    mListener.notifyPointerCaptureChanged(args);
+    mQueuedListener.notifyPointerCaptureChanged(args);
+    mQueuedListener.flush();
 }
 
 void UnwantedInteractionBlocker::notifyInputDevicesChanged(
         const std::vector<InputDeviceInfo>& inputDevices) {
+    std::scoped_lock lock(mLock);
     if (!mEnablePalmRejection) {
         // Palm rejection is disabled. Don't create any palm rejector objects.
         return;
@@ -450,20 +424,23 @@ void UnwantedInteractionBlocker::notifyInputDevicesChanged(
 }
 
 void UnwantedInteractionBlocker::dump(std::string& dump) {
+    std::scoped_lock lock(mLock);
     dump += "UnwantedInteractionBlocker:\n";
     dump += "  mPreferStylusOverTouchBlocker:\n";
-    dump += addPrefix(mPreferStylusOverTouchBlocker.dump(), "    ");
+    dump += addLinePrefix(mPreferStylusOverTouchBlocker.dump(), "    ");
     dump += StringPrintf("  mEnablePalmRejection: %s\n", toString(mEnablePalmRejection));
     dump += StringPrintf("  isPalmRejectionEnabled (flag value): %s\n",
                          toString(isPalmRejectionEnabled()));
     dump += mPalmRejectors.empty() ? "  mPalmRejectors: None\n" : "  mPalmRejectors:\n";
     for (const auto& [deviceId, palmRejector] : mPalmRejectors) {
         dump += StringPrintf("    deviceId = %" PRId32 ":\n", deviceId);
-        dump += addPrefix(palmRejector.dump(), "      ");
+        dump += addLinePrefix(palmRejector.dump(), "      ");
     }
 }
 
-void UnwantedInteractionBlocker::monitor() {}
+void UnwantedInteractionBlocker::monitor() {
+    std::scoped_lock lock(mLock);
+}
 
 UnwantedInteractionBlocker::~UnwantedInteractionBlocker() {}
 
@@ -529,9 +506,9 @@ std::optional<size_t> SlotState::getSlotForPointerId(int32_t pointerId) const {
 
 std::string SlotState::dump() const {
     std::string out = "mSlotsByPointerId:\n";
-    out += addPrefix(dumpMap(mSlotsByPointerId), "  ") + "\n";
+    out += addLinePrefix(dumpMap(mSlotsByPointerId), "  ") + "\n";
     out += "mPointerIdsBySlot:\n";
-    out += addPrefix(dumpMap(mPointerIdsBySlot), "  ") + "\n";
+    out += addLinePrefix(dumpMap(mPointerIdsBySlot), "  ") + "\n";
     return out;
 }
 
@@ -689,9 +666,9 @@ const AndroidPalmFilterDeviceInfo& PalmRejector::getPalmFilterDeviceInfo() {
 std::string PalmRejector::dump() const {
     std::string out;
     out += "mDeviceInfo:\n";
-    out += addPrefix(dumpDeviceInfo(mDeviceInfo), "  ");
+    out += addLinePrefix(dumpDeviceInfo(mDeviceInfo), "  ");
     out += "mSlotState:\n";
-    out += addPrefix(mSlotState.dump(), "  ");
+    out += addLinePrefix(mSlotState.dump(), "  ");
     out += "mSuppressedPointerIds: ";
     out += dumpSet(mSuppressedPointerIds) + "\n";
     return out;

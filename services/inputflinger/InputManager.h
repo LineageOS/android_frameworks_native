@@ -90,6 +90,9 @@ public:
 
     /* Gets the input dispatcher. */
     virtual InputDispatcherInterface& getDispatcher() = 0;
+
+    /* Check that the input stages have not deadlocked. */
+    virtual void monitor() = 0;
 };
 
 class InputManager : public InputManagerInterface, public BnInputFlinger {
@@ -108,6 +111,7 @@ public:
     UnwantedInteractionBlockerInterface& getUnwantedInteractionBlocker() override;
     InputClassifierInterface& getClassifier() override;
     InputDispatcherInterface& getDispatcher() override;
+    void monitor() override;
 
     status_t dump(int fd, const Vector<String16>& args) override;
     binder::Status createInputChannel(const std::string& name, InputChannel* outChannel) override;
@@ -117,7 +121,7 @@ public:
 private:
     std::unique_ptr<InputReaderInterface> mReader;
 
-    std::unique_ptr<UnwantedInteractionBlockerInterface> mUnwantedInteractionBlocker;
+    std::unique_ptr<UnwantedInteractionBlockerInterface> mBlocker;
 
     std::unique_ptr<InputClassifierInterface> mClassifier;
 
