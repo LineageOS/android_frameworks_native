@@ -581,10 +581,21 @@ void Scheduler::setIgnorePresentFences(bool ignore) {
 
 void Scheduler::registerLayer(Layer* layer) {
     scheduler::LayerHistory::LayerVoteType voteType;
+    const auto windowType = layer->getWindowType();
 
-    if (!mOptions.useContentDetection || layer->getWindowType() == WindowInfo::Type::STATUS_BAR) {
+    if (!mOptions.useContentDetection ||
+        windowType == WindowInfo::Type::STATUS_BAR ||
+        windowType == WindowInfo::Type::SYSTEM_ALERT ||
+        windowType == WindowInfo::Type::TOAST ||
+        windowType == WindowInfo::Type::SYSTEM_DIALOG ||
+        windowType == WindowInfo::Type::KEYGUARD_DIALOG ||
+        windowType == WindowInfo::Type::INPUT_METHOD ||
+        windowType == WindowInfo::Type::INPUT_METHOD_DIALOG ||
+        windowType == WindowInfo::Type::NAVIGATION_BAR ||
+        windowType == WindowInfo::Type::VOLUME_OVERLAY ||
+        windowType == WindowInfo::Type::NAVIGATION_BAR_PANEL) {
         voteType = scheduler::LayerHistory::LayerVoteType::NoVote;
-    } else if (layer->getWindowType() == WindowInfo::Type::WALLPAPER) {
+    } else if (windowType == WindowInfo::Type::WALLPAPER) {
         // Running Wallpaper at Min is considered as part of content detection.
         voteType = scheduler::LayerHistory::LayerVoteType::Min;
     } else {
