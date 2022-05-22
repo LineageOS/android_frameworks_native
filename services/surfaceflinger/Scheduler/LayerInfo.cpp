@@ -137,11 +137,6 @@ std::optional<nsecs_t> LayerInfo::calculateAverageFrameTime() const {
     const bool isMissingPresentTime =
             std::any_of(mFrameTimes.begin(), mFrameTimes.end(),
                         [](auto frame) { return frame.presentTime == 0; });
-    if (isMissingPresentTime && !mLastRefreshRate.reported.isValid()) {
-        // If there are no presentation timestamps and we haven't calculated
-        // one in the past then we can't calculate the refresh rate
-        return std::nullopt;
-    }
 
     // Calculate the average frame time based on presentation timestamps. If those
     // doesn't exist, we look at the time the buffer was queued only. We can do that only if
