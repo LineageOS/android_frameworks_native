@@ -213,8 +213,8 @@ private:
     // the refresh rate calculated is consistent with past values
     class RefreshRateHistory {
     public:
-        static constexpr auto HISTORY_SIZE = 90;
-        static constexpr std::chrono::nanoseconds HISTORY_DURATION = 2s;
+        static constexpr auto HISTORY_SIZE = 30;
+        static constexpr std::chrono::nanoseconds HISTORY_DURATION = 300ms;
 
         RefreshRateHistory(const std::string& name) : mName(name) {}
 
@@ -253,7 +253,7 @@ private:
         const std::string mName;
         mutable std::optional<HeuristicTraceTagData> mHeuristicTraceTagData;
         std::deque<RefreshRateData> mRefreshRates;
-        static constexpr float MARGIN_CONSISTENT_FPS = 1.0;
+        static constexpr float MARGIN_CONSISTENT_FPS = 5.0;
     };
 
     bool isFrequent(nsecs_t now) const;
