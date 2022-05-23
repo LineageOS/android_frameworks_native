@@ -18,6 +18,7 @@
 #define LOG_TAG "gpuservice_unittest"
 
 #include <unistd.h>
+#include <binder/ProcessState.h>
 #include <cutils/properties.h>
 #include <gmock/gmock.h>
 #include <gpustats/GpuStats.h>
@@ -79,6 +80,10 @@ public:
     void SetUp() override {
         mCpuVulkanVersion = property_get_int32("ro.cpuvulkan.version", 0);
         mGlesVersion = property_get_int32("ro.opengles.version", 0);
+
+        // start the thread pool
+        sp<ProcessState> ps(ProcessState::self());
+        ps->startThreadPool();
     }
 
     std::unique_ptr<GpuStats> mGpuStats = std::make_unique<GpuStats>();

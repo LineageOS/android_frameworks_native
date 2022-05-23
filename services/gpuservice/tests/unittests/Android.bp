@@ -35,6 +35,7 @@ cc_test {
     header_libs: ["bpf_headers"],
     shared_libs: [
         "libbase",
+        "libbinder",
         "libbpf_bcc",
         "libcutils",
         "libgfxstats",
