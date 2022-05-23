@@ -829,7 +829,8 @@ status_t Dumpstate::AddZipEntryFromFd(const std::string& entry_name, int fd,
 
     // Logging statement  below is useful to time how long each entry takes, but it's too verbose.
     // MYLOGD("Adding zip entry %s\n", entry_name.c_str());
-    int32_t err = zip_writer_->StartEntryWithTime(valid_name.c_str(), ZipWriter::kCompress,
+    size_t flags = ZipWriter::kCompress | ZipWriter::kDefaultCompression;
+    int32_t err = zip_writer_->StartEntryWithTime(valid_name.c_str(), flags,
                                                   get_mtime(fd, ds.now_));
     if (err != 0) {
         MYLOGE("zip_writer_->StartEntryWithTime(%s): %s\n", valid_name.c_str(),
@@ -921,7 +922,8 @@ void Dumpstate::AddDir(const std::string& dir, bool recursive) {
 
 bool Dumpstate::AddTextZipEntry(const std::string& entry_name, const std::string& content) {
     MYLOGD("Adding zip text entry %s\n", entry_name.c_str());
-    int32_t err = zip_writer_->StartEntryWithTime(entry_name.c_str(), ZipWriter::kCompress, ds.now_);
+    size_t flags = ZipWriter::kCompress | ZipWriter::kDefaultCompression;
+    int32_t err = zip_writer_->StartEntryWithTime(entry_name.c_str(), flags, ds.now_);
     if (err != 0) {
         MYLOGE("zip_writer_->StartEntryWithTime(%s): %s\n", entry_name.c_str(),
                ZipWriter::ErrorCodeString(err));
