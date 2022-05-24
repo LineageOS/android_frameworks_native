@@ -71,6 +71,7 @@ TEST(WindowInfo, Parcelling) {
     i.applicationInfo.name = "ApplicationFooBar";
     i.applicationInfo.token = new BBinder();
     i.applicationInfo.dispatchingTimeoutMillis = 0x12345678ABCD;
+    i.isClone = true;
 
     Parcel p;
     i.writeToParcel(&p);
@@ -101,6 +102,7 @@ TEST(WindowInfo, Parcelling) {
     ASSERT_EQ(i.replaceTouchableRegionWithCrop, i2.replaceTouchableRegionWithCrop);
     ASSERT_EQ(i.touchableRegionCropHandle, i2.touchableRegionCropHandle);
     ASSERT_EQ(i.applicationInfo, i2.applicationInfo);
+    ASSERT_EQ(i.isClone, i2.isClone);
 }
 
 TEST(InputApplicationInfo, Parcelling) {
