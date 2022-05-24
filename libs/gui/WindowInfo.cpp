@@ -76,7 +76,7 @@ bool WindowInfo::operator==(const WindowInfo& info) const {
             info.inputConfig == inputConfig && info.displayId == displayId &&
             info.replaceTouchableRegionWithCrop == replaceTouchableRegionWithCrop &&
             info.applicationInfo == applicationInfo && info.layoutParamsType == layoutParamsType &&
-            info.layoutParamsFlags == layoutParamsFlags;
+            info.layoutParamsFlags == layoutParamsFlags && info.isClone == isClone;
 }
 
 status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
@@ -124,7 +124,8 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->write(touchableRegion) ?:
         parcel->writeBool(replaceTouchableRegionWithCrop) ?:
         parcel->writeStrongBinder(touchableRegionCropHandle.promote()) ?:
-        parcel->writeStrongBinder(windowToken);
+        parcel->writeStrongBinder(windowToken) ?:
+        parcel->writeBool(isClone);
     // clang-format on
     return status;
 }
@@ -175,7 +176,8 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
         parcel->read(touchableRegion) ?:
         parcel->readBool(&replaceTouchableRegionWithCrop) ?:
         parcel->readNullableStrongBinder(&touchableRegionCropHandleSp) ?:
-        parcel->readNullableStrongBinder(&windowToken);
+        parcel->readNullableStrongBinder(&windowToken) ?:
+        parcel->readBool(&isClone);
     // clang-format on
 
     if (status != OK) {
