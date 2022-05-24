@@ -1497,6 +1497,13 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
 
     releaseBufferIfOverwriting(*s);
 
+    if (buffer == nullptr) {
+        s->what &= ~layer_state_t::eBufferChanged;
+        s->bufferData = nullptr;
+        mContainsBuffer = false;
+        return *this;
+    }
+
     std::shared_ptr<BufferData> bufferData = std::make_shared<BufferData>();
     bufferData->buffer = buffer;
     uint64_t frameNumber = sc->resolveFrameNumber(optFrameNumber);
