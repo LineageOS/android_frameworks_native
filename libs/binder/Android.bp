@@ -60,11 +60,15 @@ cc_library_headers {
 //
 // Currently, these are only on system android (not vendor, not host)
 // TODO(b/183654927) - move these into separate libraries
-libbinder_device_interface_sources = [
-    "IPermissionController.cpp",
-    "PermissionCache.cpp",
-    "PermissionController.cpp",
-]
+
+filegroup {
+    name: "libbinder_device_interface_sources",
+    srcs: [
+        "IPermissionController.cpp",
+        "PermissionCache.cpp",
+        "PermissionController.cpp",
+    ],
+}
 
 cc_library {
     name: "libbinder",
@@ -126,19 +130,20 @@ cc_library {
         "TextOutput.cpp",
         "Utils.cpp",
         ":libbinder_aidl",
+        ":libbinder_device_interface_sources",
     ],
 
     target: {
         android: {
-            srcs: libbinder_device_interface_sources,
-
             // NOT static to keep the wire protocol unfrozen
             static: {
                 enabled: false,
             },
         },
         vendor: {
-            exclude_srcs: libbinder_device_interface_sources,
+            exclude_srcs: [
+                ":libbinder_device_interface_sources",
+            ],
         },
         darwin: {
             enabled: false,
@@ -366,6 +371,7 @@ filegroup {
 
 cc_library {
     name: "libbatterystats_aidl",
+    host_supported: true,
     srcs: [
         "IBatteryStats.cpp",
     ],
@@ -378,6 +384,7 @@ cc_library {
 
 cc_library {
     name: "libprocessinfoservice_aidl",
+    host_supported: true,
     srcs: [
         "IProcessInfoService.cpp",
         "ProcessInfoService.cpp",
