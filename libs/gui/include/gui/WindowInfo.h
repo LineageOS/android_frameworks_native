@@ -236,6 +236,8 @@ struct WindowInfo : public Parcelable {
 
     void setInputConfig(ftl::Flags<InputConfig> config, bool value);
 
+    bool isClone = false;
+
     void addTouchableRegion(const Rect& region);
 
     bool touchableRegionContainsPoint(int32_t x, int32_t y) const;
