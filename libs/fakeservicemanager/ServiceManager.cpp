@@ -94,4 +94,8 @@ status_t ServiceManager::unregisterForNotifications(const String16&,
     return INVALID_OPERATION;
 }
 
+std::vector<IServiceManager::ServiceDebugInfo> ServiceManager::getServiceDebugInfo() {
+    std::vector<IServiceManager::ServiceDebugInfo> ret;
+    return ret;
+}
 }  // namespace android
