@@ -233,11 +233,15 @@ const std::string kCurrentRepr =
         "0100000025000000|03000000|00000000|ffffffff|03000000|00000000|00000000|"
         "07000000020000003a0044000000000000000000|f8ffffff020000003a002f00000000000000000008000000";
 
+TEST(RpcWire, V0) {
+    checkRepr(kCurrentRepr, 0);
+}
+
 TEST(RpcWire, CurrentVersion) {
     checkRepr(kCurrentRepr, RPC_WIRE_PROTOCOL_VERSION);
 }
 
-static_assert(RPC_WIRE_PROTOCOL_VERSION == 0,
+static_assert(RPC_WIRE_PROTOCOL_VERSION == RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL,
               "If the binder wire protocol is updated, this test should test additional versions. "
               "The binder wire protocol should only be updated on upstream AOSP.");
 

@@ -131,7 +131,10 @@ struct RpcWireTransaction {
 
     uint64_t asyncNumber;
 
-    uint32_t reserved[4];
+    // The size of the Parcel data directly following RpcWireTransaction.
+    uint32_t parcelDataSize;
+
+    uint32_t reserved[3];
 
     uint8_t data[];
 };
@@ -139,8 +142,23 @@ static_assert(sizeof(RpcWireTransaction) == 40);
 
 struct RpcWireReply {
     int32_t status; // transact return
+
+    // -- Fields below only transmitted starting at protocol version 1 --
+
+    // The size of the Parcel data directly following RpcWireReply.
+    uint32_t parcelDataSize;
+
+    uint32_t reserved[3];
+
+    // Byte size of RpcWireReply in the wire protocol.
+    static size_t wireSize(uint32_t protocolVersion) {
+        if (protocolVersion == 0) {
+            return sizeof(int32_t);
+        }
+        return sizeof(RpcWireReply);
+    }
 };
-static_assert(sizeof(RpcWireReply) == 4);
+static_assert(sizeof(RpcWireReply) == 20);
 
 #pragma clang diagnostic pop
 
