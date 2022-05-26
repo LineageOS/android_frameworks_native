@@ -20,27 +20,65 @@
 #define LOG_TAG "InputReader"
 
 //#define LOG_NDEBUG 0
+#include <log/log.h>
+#include <log/log_event_list.h>
 
-// Log debug messages for each raw event received from the EventHub.
-static constexpr bool DEBUG_RAW_EVENTS = false;
+namespace android {
+/**
+ * Log debug messages for each raw event received from the EventHub.
+ * Enable this via "adb shell setprop log.tag.InputReaderRawEvents DEBUG" (requires restart)
+ */
+const bool DEBUG_RAW_EVENTS =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "RawEvents", ANDROID_LOG_INFO);
 
-// Log debug messages about virtual key processing.
-static constexpr bool DEBUG_VIRTUAL_KEYS = false;
+/**
+ * Log debug messages about virtual key processing.
+ * Enable this via "adb shell setprop log.tag.InputReaderVirtualKeys DEBUG" (requires restart)
+ */
+const bool DEBUG_VIRTUAL_KEYS =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "VirtualKeys", ANDROID_LOG_INFO);
 
-// Log debug messages about pointers.
-static constexpr bool DEBUG_POINTERS = false;
+/**
+ * Log debug messages about pointers.
+ * Enable this via "adb shell setprop log.tag.InputReaderPointers DEBUG" (requires restart)
+ */
+const bool DEBUG_POINTERS =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Pointers", ANDROID_LOG_INFO);
 
-// Log debug messages about pointer assignment calculations.
-static constexpr bool DEBUG_POINTER_ASSIGNMENT = false;
+/**
+ * Log debug messages about pointer assignment calculations.
+ * Enable this via "adb shell setprop log.tag.InputReaderPointerAssignment DEBUG" (requires restart)
+ */
+const bool DEBUG_POINTER_ASSIGNMENT =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "PointerAssignment", ANDROID_LOG_INFO);
+/**
+ * Log debug messages about gesture detection.
+ * Enable this via "adb shell setprop log.tag.InputReaderGestures DEBUG" (requires restart)
+ */
+const bool DEBUG_GESTURES =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Gestures", ANDROID_LOG_INFO);
 
-// Log debug messages about gesture detection.
-static constexpr bool DEBUG_GESTURES = false;
+/**
+ * Log debug messages about the vibrator.
+ * Enable this via "adb shell setprop log.tag.InputReaderVibrator DEBUG" (requires restart)
+ */
+const bool DEBUG_VIBRATOR =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Vibrator", ANDROID_LOG_INFO);
 
-// Log debug messages about the vibrator.
-static constexpr bool DEBUG_VIBRATOR = false;
+/**
+ * Log debug messages about fusing stylus data.
+ * Enable this via "adb shell setprop log.tag.InputReaderStylusFusion DEBUG" (requires restart)
+ */
+const bool DEBUG_STYLUS_FUSION =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "StylusFusion", ANDROID_LOG_INFO);
 
-// Log debug messages about fusing stylus data.
-static constexpr bool DEBUG_STYLUS_FUSION = false;
+/**
+ * Log detailed debug messages about input device lights.
+ * Enable this via "adb shell setprop log.tag.InputReaderLightDetails DEBUG" (requires restart)
+ */
+const bool DEBUG_LIGHT_DETAILS =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "LightDetails", ANDROID_LOG_INFO);
+} // namespace android
 
 #define INDENT "  "
 #define INDENT2 "    "
