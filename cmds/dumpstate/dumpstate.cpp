@@ -1650,7 +1650,7 @@ static Dumpstate::RunStatus dumpstate() {
 
     DumpPacketStats();
 
-    RunDumpsys("EBPF MAP STATS", {"netd", "trafficcontroller"});
+    RunDumpsys("EBPF MAP STATS", {"connectivity", "trafficcontroller"});
 
     DoKmsg();
 
