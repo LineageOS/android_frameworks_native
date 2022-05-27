@@ -65,6 +65,7 @@ class ServiceManagerMock : public IServiceManager {
                                              const sp<LocalRegistrationCallback>&));
     MOCK_METHOD2(unregisterForNotifications, status_t(const String16&,
                                              const sp<LocalRegistrationCallback>&));
+    MOCK_METHOD0(getServiceDebugInfo, std::vector<ServiceDebugInfo>());
   protected:
     MOCK_METHOD0(onAsBinder, IBinder*());
 };
