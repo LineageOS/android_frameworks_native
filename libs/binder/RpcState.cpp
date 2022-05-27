@@ -493,14 +493,13 @@ status_t RpcState::transactAddress(const sp<RpcSession::RpcConnection>& connecti
         }
     }
 
-    LOG_ALWAYS_FATAL_IF(std::numeric_limits<int32_t>::max() - sizeof(RpcWireHeader) -
-                                        sizeof(RpcWireTransaction) <
-                                data.dataSize(),
+    uint32_t bodySize;
+    LOG_ALWAYS_FATAL_IF(__builtin_add_overflow(sizeof(RpcWireTransaction), data.dataSize(),
+                                               &bodySize),
                         "Too much data %zu", data.dataSize());
-
     RpcWireHeader command{
             .command = RPC_COMMAND_TRANSACT,
-            .bodySize = static_cast<uint32_t>(sizeof(RpcWireTransaction) + data.dataSize()),
+            .bodySize = bodySize,
     };
 
     RpcWireTransaction transaction{
@@ -940,14 +939,12 @@ processTransactInternalTailCall:
         replyStatus = flushExcessBinderRefs(session, addr, target);
     }
 
-    LOG_ALWAYS_FATAL_IF(std::numeric_limits<int32_t>::max() - sizeof(RpcWireHeader) -
-                                        sizeof(RpcWireReply) <
-                                reply.dataSize(),
+    uint32_t bodySize;
+    LOG_ALWAYS_FATAL_IF(__builtin_add_overflow(sizeof(RpcWireReply), reply.dataSize(), &bodySize),
                         "Too much data for reply %zu", reply.dataSize());
-
     RpcWireHeader cmdReply{
             .command = RPC_COMMAND_REPLY,
-            .bodySize = static_cast<uint32_t>(sizeof(RpcWireReply) + reply.dataSize()),
+            .bodySize = bodySize,
     };
     RpcWireReply rpcReply{
             .status = replyStatus,
