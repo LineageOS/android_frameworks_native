@@ -26,9 +26,10 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-class MemoryHeapBase : public virtual BnMemoryHeap
+class MemoryHeapBase : public BnMemoryHeap
 {
 public:
+    static constexpr auto MEMFD_ALLOW_SEALING_FLAG = 0x00000800;
     enum {
         READ_ONLY = IMemoryHeap::READ_ONLY,
         // memory won't be mapped locally, but will be mapped in the remote
@@ -48,7 +49,7 @@ public:
         // Clients of shared files can seal at anytime via syscall, leading to
         // TOC/TOU issues if additional seals prevent access from the creating
         // process. Alternatively, seccomp fcntl().
-        MEMFD_ALLOW_SEALING = 0x00000800
+        MEMFD_ALLOW_SEALING = FORCE_MEMFD | MEMFD_ALLOW_SEALING_FLAG
     };
 
     /*
