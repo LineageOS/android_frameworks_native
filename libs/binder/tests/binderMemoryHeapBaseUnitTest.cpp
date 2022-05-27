@@ -23,6 +23,7 @@ using namespace android;
 #ifdef __BIONIC__
 TEST(MemoryHeapBase, ForceMemfdRespected) {
     auto mHeap = sp<MemoryHeapBase>::make(10, MemoryHeapBase::FORCE_MEMFD, "Test mapping");
+    ASSERT_NE(mHeap.get(), nullptr);
     int fd = mHeap->getHeapID();
     EXPECT_NE(fd, -1);
     EXPECT_FALSE(ashmem_valid(fd));
@@ -33,6 +34,7 @@ TEST(MemoryHeapBase, MemfdSealed) {
     auto mHeap = sp<MemoryHeapBase>::make(8192,
                                           MemoryHeapBase::FORCE_MEMFD,
                                           "Test mapping");
+    ASSERT_NE(mHeap.get(), nullptr);
     int fd = mHeap->getHeapID();
     EXPECT_NE(fd, -1);
     EXPECT_EQ(fcntl(fd, F_GET_SEALS), F_SEAL_SEAL);
@@ -43,6 +45,7 @@ TEST(MemoryHeapBase, MemfdUnsealed) {
                                           MemoryHeapBase::FORCE_MEMFD |
                                           MemoryHeapBase::MEMFD_ALLOW_SEALING,
                                           "Test mapping");
+    ASSERT_NE(mHeap.get(), nullptr);
     int fd = mHeap->getHeapID();
     EXPECT_NE(fd, -1);
     EXPECT_EQ(fcntl(fd, F_GET_SEALS), 0);
@@ -53,6 +56,7 @@ TEST(MemoryHeapBase, MemfdSealedProtected) {
                                           MemoryHeapBase::FORCE_MEMFD |
                                           MemoryHeapBase::READ_ONLY,
                                           "Test mapping");
+    ASSERT_NE(mHeap.get(), nullptr);
     int fd = mHeap->getHeapID();
     EXPECT_NE(fd, -1);
     EXPECT_EQ(fcntl(fd, F_GET_SEALS), F_SEAL_SEAL | F_SEAL_FUTURE_WRITE);
@@ -64,6 +68,7 @@ TEST(MemoryHeapBase, MemfdUnsealedProtected) {
                                           MemoryHeapBase::READ_ONLY |
                                           MemoryHeapBase::MEMFD_ALLOW_SEALING,
                                           "Test mapping");
+    ASSERT_NE(mHeap.get(), nullptr);
     int fd = mHeap->getHeapID();
     EXPECT_NE(fd, -1);
     EXPECT_EQ(fcntl(fd, F_GET_SEALS), F_SEAL_FUTURE_WRITE);
@@ -74,6 +79,7 @@ TEST(MemoryHeapBase, HostMemfdExpected) {
     auto mHeap = sp<MemoryHeapBase>::make(8192,
                                           MemoryHeapBase::READ_ONLY,
                                           "Test mapping");
+    ASSERT_NE(mHeap.get(), nullptr);
     int fd = mHeap->getHeapID();
     void* ptr = mHeap->getBase();
     EXPECT_NE(ptr, MAP_FAILED);
@@ -87,6 +93,7 @@ TEST(MemoryHeapBase,HostMemfdException) {
                                           MemoryHeapBase::READ_ONLY |
                                           MemoryHeapBase::MEMFD_ALLOW_SEALING,
                                           "Test mapping");
+    ASSERT_NE(mHeap.get(), nullptr);
     int fd = mHeap->getHeapID();
     void* ptr = mHeap->getBase();
     EXPECT_EQ(mHeap->getFlags(), MemoryHeapBase::READ_ONLY);
