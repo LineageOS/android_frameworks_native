@@ -73,20 +73,20 @@ struct BigStruct {
     uint8_t data[1337];
 };
 
-#define PARCEL_READ_WITH_STATUS(T, FUN) \
-    [] (const ::android::Parcel& p, uint8_t /*data*/) {\
-        FUZZ_LOG() << "about to read " #T " using " #FUN " with status";\
-        T t{};\
-        status_t status = p.FUN(&t);\
-        FUZZ_LOG() << #T " status: " << status /* << " value: " << t*/;\
+#define PARCEL_READ_WITH_STATUS(T, FUN)                                  \
+    [](const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {   \
+        FUZZ_LOG() << "about to read " #T " using " #FUN " with status"; \
+        T t{};                                                           \
+        status_t status = p.FUN(&t);                                     \
+        FUZZ_LOG() << #T " status: " << status /* << " value: " << t*/;  \
     }
 
-#define PARCEL_READ_NO_STATUS(T, FUN) \
-    [] (const ::android::Parcel& p, uint8_t /*data*/) {\
-        FUZZ_LOG() << "about to read " #T " using " #FUN " with no status";\
-        T t = p.FUN();\
-        (void) t;\
-        FUZZ_LOG() << #T " done " /* << " value: " << t*/;\
+#define PARCEL_READ_NO_STATUS(T, FUN)                                       \
+    [](const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {      \
+        FUZZ_LOG() << "about to read " #T " using " #FUN " with no status"; \
+        T t = p.FUN();                                                      \
+        (void)t;                                                            \
+        FUZZ_LOG() << #T " done " /* << " value: " << t*/;                  \
     }
 
 #define PARCEL_READ_OPT_STATUS(T, FUN) \
@@ -102,7 +102,9 @@ std::vector<ParcelRead<::android::Parcel>> BINDER_PARCEL_READ_FUNCTIONS {
     PARCEL_READ_NO_STATUS(size_t, dataPosition),
     PARCEL_READ_NO_STATUS(size_t, dataCapacity),
     PARCEL_READ_NO_STATUS(::android::binder::Status, enforceNoDataAvail),
-    [] (const ::android::Parcel& p, uint8_t pos) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& provider) {
+        // aborts on larger values
+        size_t pos = provider.ConsumeIntegralInRange<size_t>(0, INT32_MAX);
         FUZZ_LOG() << "about to setDataPosition: " << pos;
         p.setDataPosition(pos);
         FUZZ_LOG() << "setDataPosition done";
@@ -111,13 +113,13 @@ std::vector<ParcelRead<::android::Parcel>> BINDER_PARCEL_READ_FUNCTIONS {
     PARCEL_READ_NO_STATUS(size_t, hasFileDescriptors),
     PARCEL_READ_NO_STATUS(std::vector<android::sp<android::IBinder>>, debugReadAllStrongBinders),
     PARCEL_READ_NO_STATUS(std::vector<int>, debugReadAllFileDescriptors),
-    [] (const ::android::Parcel& p, uint8_t len) {
-        std::string interface(len, 'a');
+    [] (const ::android::Parcel& p, FuzzedDataProvider& provider) {
+        std::string interface = provider.ConsumeRandomLengthString();
         FUZZ_LOG() << "about to enforceInterface: " << interface;
         bool b = p.enforceInterface(::android::String16(interface.c_str()));
         FUZZ_LOG() << "enforced interface: " << b;
     },
-    [] (const ::android::Parcel& p, uint8_t /*len*/) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
         FUZZ_LOG() << "about to checkInterface";
         android::sp<android::IBinder> aBinder = new android::BBinder();
         bool b = p.checkInterface(aBinder.get());
@@ -125,13 +127,16 @@ std::vector<ParcelRead<::android::Parcel>> BINDER_PARCEL_READ_FUNCTIONS {
     },
     PARCEL_READ_NO_STATUS(size_t, objectsCount),
     PARCEL_READ_NO_STATUS(status_t, errorCheck),
-    [] (const ::android::Parcel& p, uint8_t len) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& provider) {
+        // Read at least a bit. Unbounded allocation would OOM.
+        size_t len = provider.ConsumeIntegralInRange<size_t>(0, 1024);
         FUZZ_LOG() << "about to read void*";
         std::vector<uint8_t> data(len);
         status_t status = p.read(data.data(), len);
         FUZZ_LOG() << "read status: " << status;
     },
-    [] (const ::android::Parcel& p, uint8_t len) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& provider) {
+        size_t len = provider.ConsumeIntegral<size_t>();
         FUZZ_LOG() << "about to readInplace";
         const void* r = p.readInplace(len);
         FUZZ_LOG() << "readInplace done. pointer: " << r << " bytes: " << (r ? HexString(r, len) : "null");
@@ -149,13 +154,13 @@ std::vector<ParcelRead<::android::Parcel>> BINDER_PARCEL_READ_FUNCTIONS {
     PARCEL_READ_WITH_STATUS(std::string, readUtf8FromUtf16),
     PARCEL_READ_WITH_STATUS(std::unique_ptr<std::string>, readUtf8FromUtf16),
     PARCEL_READ_WITH_STATUS(std::optional<std::string>, readUtf8FromUtf16),
-    [] (const ::android::Parcel& p, uint8_t /*data*/) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
         FUZZ_LOG() << "about to read c-str";
         const char* str = p.readCString();
         FUZZ_LOG() << "read c-str: " << (str ? str : "<empty string>");
     },
     PARCEL_READ_OPT_STATUS(android::String8, readString8),
-    [] (const ::android::Parcel& p, uint8_t /*data*/) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
         FUZZ_LOG() << "about to readString8Inplace";
         size_t outLen = 0;
         const char* str = p.readString8Inplace(&outLen);
@@ -165,7 +170,7 @@ std::vector<ParcelRead<::android::Parcel>> BINDER_PARCEL_READ_FUNCTIONS {
     PARCEL_READ_OPT_STATUS(android::String16, readString16),
     PARCEL_READ_WITH_STATUS(std::unique_ptr<android::String16>, readString16),
     PARCEL_READ_WITH_STATUS(std::optional<android::String16>, readString16),
-    [] (const ::android::Parcel& p, uint8_t /*data*/) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
         FUZZ_LOG() << "about to readString16Inplace";
         size_t outLen = 0;
         const char16_t* str = p.readString16Inplace(&outLen);
@@ -263,13 +268,13 @@ std::vector<ParcelRead<::android::Parcel>> BINDER_PARCEL_READ_FUNCTIONS {
     PARCEL_READ_WITH_STATUS(std::optional<std::array<std::array<std::optional<ExampleParcelable> COMMA 3> COMMA 4>>, readFixedArray),
 #undef COMMA
 
-    [] (const android::Parcel& p, uint8_t /*len*/) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
         FUZZ_LOG() << "about to read flattenable";
         ExampleFlattenable f;
         status_t status = p.read(f);
         FUZZ_LOG() << "read flattenable: " << status;
     },
-    [] (const android::Parcel& p, uint8_t /*len*/) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
         FUZZ_LOG() << "about to read lite flattenable";
         ExampleLightFlattenable f;
         status_t status = p.read(f);
@@ -284,7 +289,7 @@ std::vector<ParcelRead<::android::Parcel>> BINDER_PARCEL_READ_FUNCTIONS {
     PARCEL_READ_WITH_STATUS(std::unique_ptr<std::vector<BigStruct>>, resizeOutVector),
 
     PARCEL_READ_NO_STATUS(int32_t, readExceptionCode),
-    [] (const android::Parcel& p, uint8_t /*len*/) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
         FUZZ_LOG() << "about to readNativeHandle";
         native_handle_t* t = p.readNativeHandle();
         FUZZ_LOG() << "readNativeHandle: " << t;
@@ -303,15 +308,16 @@ std::vector<ParcelRead<::android::Parcel>> BINDER_PARCEL_READ_FUNCTIONS {
     PARCEL_READ_WITH_STATUS(std::optional<std::vector<android::base::unique_fd>>, readUniqueFileDescriptorVector),
     PARCEL_READ_WITH_STATUS(std::vector<android::base::unique_fd>, readUniqueFileDescriptorVector),
 
-    [] (const android::Parcel& p, uint8_t len) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& provider) {
+        size_t len = provider.ConsumeIntegral<size_t>();
         FUZZ_LOG() << "about to readBlob";
         ::android::Parcel::ReadableBlob blob;
         status_t status = p.readBlob(len, &blob);
         FUZZ_LOG() << "readBlob status: " << status;
     },
-    [] (const android::Parcel& p, uint8_t options) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& provider) {
         FUZZ_LOG() << "about to readObject";
-        bool nullMetaData = options & 0x1;
+        bool nullMetaData = provider.ConsumeBool();
         const void* obj = static_cast<const void*>(p.readObject(nullMetaData));
         FUZZ_LOG() << "readObject: " << obj;
     },
@@ -319,20 +325,19 @@ std::vector<ParcelRead<::android::Parcel>> BINDER_PARCEL_READ_FUNCTIONS {
     PARCEL_READ_NO_STATUS(size_t, getOpenAshmemSize),
 
     // additional parcelable objects defined in libbinder
-    [] (const ::android::Parcel& p, uint8_t data) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& provider) {
         using ::android::os::ParcelableHolder;
         using ::android::Parcelable;
         FUZZ_LOG() << "about to read ParcelableHolder using readParcelable with status";
-        Parcelable::Stability stability = Parcelable::Stability::STABILITY_LOCAL;
-        if ( (data & 1) == 1 ) {
-            stability = Parcelable::Stability::STABILITY_VINTF;
-        }
+        Parcelable::Stability stability = provider.ConsumeBool()
+            ? Parcelable::Stability::STABILITY_LOCAL
+            : Parcelable::Stability::STABILITY_VINTF;
         ParcelableHolder t = ParcelableHolder(stability);
         status_t status = p.readParcelable(&t);
         FUZZ_LOG() << "ParcelableHolder status: " << status;
     },
     PARCEL_READ_WITH_STATUS(android::os::PersistableBundle, readParcelable),
-    [] (const ::android::Parcel& p, uint8_t /* data */) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
         FUZZ_LOG() << "about to call hasFileDescriptorsInRange() with status";
         size_t offset = p.readUint32();
         size_t length = p.readUint32();
@@ -340,7 +345,7 @@ std::vector<ParcelRead<::android::Parcel>> BINDER_PARCEL_READ_FUNCTIONS {
         status_t status = p.hasFileDescriptorsInRange(offset, length, &result);
         FUZZ_LOG() << " status: " << status  << " result: " << result;
     },
-    [] (const ::android::Parcel& p, uint8_t /* data */) {
+    [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
         FUZZ_LOG() << "about to call compareDataInRange() with status";
         size_t thisOffset = p.readUint32();
         size_t otherOffset = p.readUint32();
