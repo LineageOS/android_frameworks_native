@@ -70,7 +70,7 @@ binder_status_t ISomeInterface::readFromParcel(const AParcel* parcel,
 }
 
 #define PARCEL_READ(T, FUN)                                              \
-    [](const NdkParcelAdapter& p, uint8_t /*data*/) {                    \
+    [](const NdkParcelAdapter& p, FuzzedDataProvider& /*provider*/) {    \
         FUZZ_LOG() << "about to read " #T " using " #FUN " with status"; \
         T t{};                                                           \
         binder_status_t status = FUN(p.aParcel(), &t);                   \
@@ -80,32 +80,37 @@ binder_status_t ISomeInterface::readFromParcel(const AParcel* parcel,
 // clang-format off
 std::vector<ParcelRead<NdkParcelAdapter>> BINDER_NDK_PARCEL_READ_FUNCTIONS{
         // methods from binder_parcel.h
-        [](const NdkParcelAdapter& p, uint8_t pos) {
+        [](const NdkParcelAdapter& p, FuzzedDataProvider& provider) {
+            // aborts on larger values
+            size_t pos = provider.ConsumeIntegralInRange<size_t>(0, INT32_MAX);
             FUZZ_LOG() << "about to set data position to " << pos;
             binder_status_t status = AParcel_setDataPosition(p.aParcel(), pos);
             FUZZ_LOG() << "set data position: " << status;
         },
-        [](const NdkParcelAdapter& p, uint8_t /*data*/) {
+        [](const NdkParcelAdapter& p, FuzzedDataProvider& /*provider*/) {
             FUZZ_LOG() << "about to read status header";
             ndk::ScopedAStatus t;
             binder_status_t status = AParcel_readStatusHeader(p.aParcel(), t.getR());
             FUZZ_LOG() << "read status header: " << status;
         },
-        [](const NdkParcelAdapter& p, uint8_t /*data*/) {
+        [](const NdkParcelAdapter& p, FuzzedDataProvider& /*provider*/) {
             FUZZ_LOG() << "about to getDataSize the parcel";
             AParcel_getDataSize(p.aParcel());
             FUZZ_LOG() << "getDataSize done";
         },
-        [](const NdkParcelAdapter& p, uint8_t data) {
+        [](const NdkParcelAdapter& p, FuzzedDataProvider& provider) {
             FUZZ_LOG() << "about to read a ParcelableHolder";
-            ndk::AParcelableHolder ph {(data % 2 == 1) ? ndk::STABILITY_LOCAL : ndk::STABILITY_VINTF};
+            ndk::AParcelableHolder ph {provider.ConsumeBool() ? ndk::STABILITY_LOCAL : ndk::STABILITY_VINTF};
             binder_status_t status = AParcel_readParcelable(p.aParcel(), &ph);
             FUZZ_LOG() << "read the ParcelableHolder: " << status;
         },
-        [](const NdkParcelAdapter& p, uint8_t data) {
-            FUZZ_LOG() << "about to appendFrom";
+        [](const NdkParcelAdapter& p, FuzzedDataProvider& provider) {
+            size_t offset = provider.ConsumeIntegral<size_t>();
+            size_t pos = provider.ConsumeIntegral<size_t>();
+            FUZZ_LOG() << "about to appendFrom " << pos;
+            // TODO: create random parcel
             AParcel* parcel = AParcel_create();
-            binder_status_t status = AParcel_appendFrom(p.aParcel(), parcel, 0, data);
+            binder_status_t status = AParcel_appendFrom(p.aParcel(), parcel, offset, pos);
             AParcel_delete(parcel);
             FUZZ_LOG() << "appendFrom: " << status;
         },
