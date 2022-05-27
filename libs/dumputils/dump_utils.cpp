@@ -20,6 +20,7 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
+#include <binder/IServiceManager.h>
 #include <dumputils/dump_utils.h>
 #include <log/log.h>
 
@@ -52,8 +53,8 @@ static const char* debuggable_native_processes_to_dump[] = {
         NULL,
 };
 
-/* list of hal interface to dump containing process during native dumps */
-static const char* hal_interfaces_to_dump[] {
+/* list of hidl hal interface to dump containing process during native dumps */
+static const char* hidl_hal_interfaces_to_dump[] {
         "android.hardware.audio@4.0::IDevicesFactory",
         "android.hardware.audio@5.0::IDevicesFactory",
         "android.hardware.audio@6.0::IDevicesFactory",
@@ -82,6 +83,11 @@ static const char* hal_interfaces_to_dump[] {
         NULL,
 };
 
+/* list of hal interface to dump containing process during native dumps */
+static const std::vector<std::string> aidl_interfaces_to_dump {
+        "android.hardware.camera.provider.ICameraProvider",
+};
+
 /* list of extra hal interfaces to dump containing process during native dumps */
 // This is filled when dumpstate is called.
 static std::set<const std::string> extra_hal_interfaces_to_dump;
@@ -104,7 +110,7 @@ static void read_extra_hals_to_dump_from_property() {
 
 // check if interface is included in either default hal list or extra hal list
 bool should_dump_hal_interface(const std::string& interface) {
-    for (const char** i = hal_interfaces_to_dump; *i; i++) {
+    for (const char** i = hidl_hal_interfaces_to_dump; *i; i++) {
         if (interface == *i) {
             return true;
         }
@@ -130,14 +136,26 @@ bool should_dump_native_traces(const char* path) {
     return false;
 }
 
-std::set<int> get_interesting_hal_pids() {
+static void get_interesting_aidl_pids(std::set<int> &pids) {
+    using ServiceDebugInfo = android::IServiceManager::ServiceDebugInfo;
+    auto sm = android::defaultServiceManager();
+    std::vector<ServiceDebugInfo> serviceDebugInfos = sm->getServiceDebugInfo();
+    for (const auto & serviceDebugInfo : serviceDebugInfos) {
+        for (const auto &aidl_prefix : aidl_interfaces_to_dump) {
+            // Check for prefix match with aidl interface to dump
+            if (serviceDebugInfo.name.rfind(aidl_prefix, 0) == 0) {
+                pids.insert(serviceDebugInfo.pid);
+            }
+        }
+    }
+}
+
+static void get_interesting_hidl_pids(std::set<int> &pids) {
     using android::hidl::manager::V1_0::IServiceManager;
     using android::sp;
     using android::hardware::Return;
 
     sp<IServiceManager> manager = IServiceManager::getService();
-    std::set<int> pids;
-
     read_extra_hals_to_dump_from_property();
 
     Return<void> ret = manager->debugDump([&](auto& hals) {
@@ -146,11 +164,9 @@ std::set<int> get_interesting_hal_pids() {
                 continue;
             }
 
-            if (!should_dump_hal_interface(info.interfaceName)) {
-                continue;
+            if (should_dump_hal_interface(info.interfaceName)) {
+                pids.insert(info.pid);
             }
-
-            pids.insert(info.pid);
         }
     });
 
@@ -158,7 +174,14 @@ std::set<int> get_interesting_hal_pids() {
         ALOGE("Could not get list of HAL PIDs: %s\n", ret.description().c_str());
     }
 
-    return pids; // whether it was okay or not
+    return;
+}
+
+std::set<int> get_interesting_pids() {
+    std::set<int> interesting_pids;
+    get_interesting_hidl_pids(interesting_pids);
+    get_interesting_aidl_pids(interesting_pids);
+    return interesting_pids;
 }
 
 bool IsZygote(int pid) {
