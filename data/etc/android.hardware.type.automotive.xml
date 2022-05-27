@@ -17,6 +17,4 @@
 <!-- These features determine that the device running android is a car. -->
 <permissions>
     <feature name="android.hardware.type.automotive" />
-    <!-- TODO: Revert this after enabling work profiles refer b/170332519 -->
-    <unavailable-feature name="android.software.managed_users"/>
 </permissions>
