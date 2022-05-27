@@ -1280,7 +1280,7 @@ TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
                 StatusEq(NO_ERROR));
     replyi = reply.readInt32();
     // No more than 16 threads should exist.
-    EXPECT_EQ(replyi, kKernelThreads + 1);
+    EXPECT_TRUE(replyi == kKernelThreads || replyi == kKernelThreads + 1);
 }
 
 size_t epochMillis() {
@@ -1726,11 +1726,11 @@ public:
                 return NO_ERROR;
             }
             case BINDER_LIB_TEST_PROCESS_LOCK: {
-                blockMutex.lock();
+                m_blockMutex.lock();
                 return NO_ERROR;
             }
             case BINDER_LIB_TEST_LOCK_UNLOCK: {
-                std::lock_guard<std::mutex> _l(blockMutex);
+                std::lock_guard<std::mutex> _l(m_blockMutex);
                 return NO_ERROR;
             }
             case BINDER_LIB_TEST_UNLOCK_AFTER_MS: {
@@ -1738,10 +1738,11 @@ public:
                 return unlockInMs(ms);
             }
             case BINDER_LIB_TEST_PROCESS_TEMPORARY_LOCK: {
-                blockMutex.lock();
-                std::thread t([&] {
-                    unlockInMs(data.readInt32());
-                }); // start local thread to unlock in 1s
+                m_blockMutex.lock();
+                sp<BinderLibTestService> thisService = this;
+                int32_t value = data.readInt32();
+                // start local thread to unlock in 1s
+                std::thread t([=] { thisService->unlockInMs(value); });
                 t.detach();
                 return NO_ERROR;
             }
@@ -1752,7 +1753,7 @@ public:
 
     status_t unlockInMs(int32_t ms) {
         usleep(ms * 1000);
-        blockMutex.unlock();
+        m_blockMutex.unlock();
         return NO_ERROR;
     }
 
@@ -1766,7 +1767,7 @@ private:
     sp<IBinder> m_strongRef;
     sp<IBinder> m_callback;
     bool m_exitOnDestroy;
-    std::mutex blockMutex;
+    std::mutex m_blockMutex;
 };
 
 int run_server(int index, int readypipefd, bool usePoll)
