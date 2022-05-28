@@ -74,7 +74,7 @@ MemoryHeapBase::MemoryHeapBase(size_t size, uint32_t flags, char const * name)
         fd = memfd_create_region(name ? name : "MemoryHeapBase", size);
         if (fd < 0 || (mapfd(fd, true, size) != NO_ERROR)) return;
         const int SEAL_FLAGS = ((mFlags & READ_ONLY) ? F_SEAL_FUTURE_WRITE : 0) |
-                ((mFlags & MEMFD_ALLOW_SEALING) ? 0 : F_SEAL_SEAL);
+                ((mFlags & MEMFD_ALLOW_SEALING_FLAG) ? 0 : F_SEAL_SEAL);
         if (SEAL_FLAGS && (fcntl(fd, F_ADD_SEALS, SEAL_FLAGS) == -1)) {
             ALOGE("MemoryHeapBase: MemFD %s sealing with flags %x failed with error  %s", name,
                   SEAL_FLAGS, strerror(errno));
@@ -85,11 +85,8 @@ MemoryHeapBase::MemoryHeapBase(size_t size, uint32_t flags, char const * name)
         }
         return;
 #else
-        mFlags &= ~(FORCE_MEMFD | MEMFD_ALLOW_SEALING);
+        mFlags &= ~(FORCE_MEMFD | MEMFD_ALLOW_SEALING_FLAG);
 #endif
-    }
-    if (mFlags & MEMFD_ALLOW_SEALING) {
-      LOG_ALWAYS_FATAL("Invalid Flags. MEMFD_ALLOW_SEALING only valid with FORCE_MEMFD.");
     }
     fd = ashmem_create_region(name ? name : "MemoryHeapBase", size);
     ALOGE_IF(fd < 0, "MemoryHeapBase: error creating ashmem region: %s", strerror(errno));
@@ -103,7 +100,7 @@ MemoryHeapBase::MemoryHeapBase(const char* device, size_t size, uint32_t flags)
     : mFD(-1), mSize(0), mBase(MAP_FAILED), mFlags(flags),
       mDevice(nullptr), mNeedUnmap(false), mOffset(0)
 {
-    if (flags & (FORCE_MEMFD | MEMFD_ALLOW_SEALING)) {
+    if (flags & (FORCE_MEMFD | MEMFD_ALLOW_SEALING_FLAG)) {
         LOG_ALWAYS_FATAL("FORCE_MEMFD, MEMFD_ALLOW_SEALING only valid with creating constructor");
     }
     int open_flags = O_RDWR;
@@ -125,7 +122,7 @@ MemoryHeapBase::MemoryHeapBase(int fd, size_t size, uint32_t flags, off_t offset
     : mFD(-1), mSize(0), mBase(MAP_FAILED), mFlags(flags),
       mDevice(nullptr), mNeedUnmap(false), mOffset(0)
 {
-    if (flags & (FORCE_MEMFD | MEMFD_ALLOW_SEALING)) {
+    if (flags & (FORCE_MEMFD | MEMFD_ALLOW_SEALING_FLAG)) {
         LOG_ALWAYS_FATAL("FORCE_MEMFD, MEMFD_ALLOW_SEALING only valid with creating constructor");
     }
     const size_t pagesize = getpagesize();
