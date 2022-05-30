@@ -225,7 +225,7 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
 
     bool expired = false;
 
-    if (auto cached = getCachedBestRefreshRate(layers, globalSignals, outSignalsConsidered, &expired)) {
+    if (auto cached = getCachedBestRefreshRate(layers, globalSignals, outSignalsConsidered, expired)) {
         return *cached;
     }
 
@@ -245,14 +245,14 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
 
 std::optional<RefreshRate> RefreshRateConfigs::getCachedBestRefreshRate(
         const std::vector<LayerRequirement>& layers, const GlobalSignals& globalSignals,
-        GlobalSignals* outSignalsConsidered, bool *expired) const {
+        GlobalSignals* outSignalsConsidered, bool &expired) const {
     const bool sameAsLastCall = lastBestRefreshRateInvocation &&
             lastBestRefreshRateInvocation->layerRequirements == layers &&
             lastBestRefreshRateInvocation->globalSignals == globalSignals;
     const auto curTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
     if ((curTime - lastBestRefreshRateInvocation->lastTimestamp) >= EXPIRE_TIMEOUT) {
-        *expired = true;
+        expired = true;
         return {};
     }
 

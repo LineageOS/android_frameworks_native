@@ -407,7 +407,7 @@ private:
     std::optional<RefreshRate> getCachedBestRefreshRate(const std::vector<LayerRequirement>& layers,
                                                         const GlobalSignals& globalSignals,
                                                         GlobalSignals* outSignalsConsidered,
-                                                        bool *expired) const
+                                                        bool &expired) const
             REQUIRES(mLock);
 
     RefreshRate getBestRefreshRateLocked(const std::vector<LayerRequirement>& layers,
