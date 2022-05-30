@@ -34,6 +34,24 @@
       "parentUuid": "41ef8427_1e44b211",
       "revId": "81525e2b9da4183ee83705f5677a65c96227ce3c",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "8639dba0_dcbacd40",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 6360
+      },
+      "writtenOn": "2022-05-30T03:37:28Z",
+      "side": 1,
+      "message": "Thanks.\n\nOn \"sweet\" device, users experience screen flickering due to rate change with content fps detection. I also tried props which modifies idle time from gs101 but didn\u0027t help. Perhaps, need to test higher values (say 4000 ms) as suggested by Alex.",
+      "parentUuid": "bb701222_5be18cca",
+      "revId": "81525e2b9da4183ee83705f5677a65c96227ce3c",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
