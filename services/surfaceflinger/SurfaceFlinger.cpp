@@ -7394,6 +7394,8 @@ binder::Status SurfaceComposerAIDL::getStaticDisplayInfo(const sp<IBinder>& disp
         dinfo.manufacturerPnpId =
                 std::vector<uint8_t>(dpi->manufacturerPnpId.begin(), dpi->manufacturerPnpId.end());
         dinfo.productId = dpi->productId;
+        dinfo.relativeAddress =
+                std::vector<uint8_t>(dpi->relativeAddress.begin(), dpi->relativeAddress.end());
         if (const auto* model =
                     std::get_if<DeviceProductInfo::ModelYear>(&dpi->manufactureOrModelDate)) {
             gui::DeviceProductInfo::ModelYear modelYear;
