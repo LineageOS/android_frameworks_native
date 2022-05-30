@@ -16,6 +16,24 @@
       "message": "Changing min rate and max rate from 120 Hz to 60 Hz \u003d\u003e Rate changes to 60 Hz\nChanging min rate and max rate from 60 Hz to 120 Hz \u003d\u003e Rate stuck at 60 Hz\n\nPlease check if issue on your devices. Prop for content fps detection is disabled.",
       "revId": "81525e2b9da4183ee83705f5677a65c96227ce3c",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "bb701222_5be18cca",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 7434
+      },
+      "writtenOn": "2022-05-30T00:36:14Z",
+      "side": 1,
+      "message": "This patch depends you have a working PowerHAL with touch boost enabled. Make sure it\u0027s working correctly and you don\u0027t have some sort of hack disabling touch boost under frameworks/base\u0027s PowerManagerService.\n\n(Frankly, your experience will be pretty poor already if you have touch boost disabled with AOSP\u0027s vanilla VRR implementation.)\n\nAlso, I\u0027m not sure if it makes sense for content fps detection (heuristic) to be disabled. Why did you do that?",
+      "parentUuid": "41ef8427_1e44b211",
+      "revId": "81525e2b9da4183ee83705f5677a65c96227ce3c",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
