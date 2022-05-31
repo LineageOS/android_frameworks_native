@@ -77,8 +77,6 @@ cc_library {
         "include-private",
     ],
 
-    clang: true,
-
     cflags: [
         "-Wall",
         "-Werror",
