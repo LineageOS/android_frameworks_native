@@ -99,6 +99,25 @@ void doReadFuzz(const char* backend, const std::vector<ParcelRead<P>>& reads,
     }
 }
 
+// Append two random parcels.
+template <typename P>
+void doAppendFuzz(const char* backend, FuzzedDataProvider&& provider) {
+    int32_t start = provider.ConsumeIntegral<int32_t>();
+    int32_t len = provider.ConsumeIntegral<int32_t>();
+
+    std::vector<uint8_t> bytes = provider.ConsumeBytes<uint8_t>(
+            provider.ConsumeIntegralInRange<size_t>(0, provider.remaining_bytes()));
+
+    P p0, p1;
+    fillRandomParcel(&p0, FuzzedDataProvider(bytes.data(), bytes.size()));
+    fillRandomParcel(&p1, std::move(provider));
+
+    FUZZ_LOG() << "backend: " << backend;
+    FUZZ_LOG() << "start: " << start << " len: " << len;
+
+    p0.appendFrom(&p1, start, len);
+}
+
 void* NothingClass_onCreate(void* args) {
     return args;
 }
@@ -147,6 +166,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             [](FuzzedDataProvider&& provider) {
                 doReadFuzz<NdkParcelAdapter>("binder_ndk", BINDER_NDK_PARCEL_READ_FUNCTIONS,
                                              std::move(provider));
+            },
+            [](FuzzedDataProvider&& provider) {
+                doAppendFuzz<::android::Parcel>("binder", std::move(provider));
+            },
+            [](FuzzedDataProvider&& provider) {
+                doAppendFuzz<NdkParcelAdapter>("binder_ndk", std::move(provider));
             },
     };
 

@@ -43,6 +43,10 @@ public:
         return aParcel()->get()->setData(buffer, len);
     }
 
+    android::status_t appendFrom(const NdkParcelAdapter* parcel, int32_t start, int32_t len) {
+        return AParcel_appendFrom(parcel->aParcel(), aParcel(), start, len);
+    }
+
 private:
     ndk::ScopedAParcel mParcel;
 };
