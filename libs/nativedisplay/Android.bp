@@ -33,7 +33,7 @@ license {
 
 cc_library_headers {
     name: "libnativedisplay_headers",
-    export_include_dirs: ["include",],
+    export_include_dirs: ["include"],
 }
 
 cc_library_shared {
