@@ -31,8 +31,6 @@ cc_library_static {
         "HmacKeyManager.cpp",
     ],
 
-    clang: true,
-
     shared_libs: [
         "liblog",
         "libcrypto",
