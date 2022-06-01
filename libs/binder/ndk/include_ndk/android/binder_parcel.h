@@ -59,6 +59,11 @@ void AParcel_delete(AParcel* parcel) __INTRODUCED_IN(29);
 /**
  * Sets the position within the parcel.
  *
+ * This must be called with a position that has been previously returned from
+ * AParcel_getDataPosition. If writes are made after setting the data position, they must
+ * be made in the exact same sequence used before resetting data position. Writing over
+ * objects such as binders or file descriptors is not supported.
+ *
  * Available since API level 29.
  *
  * \param parcel The parcel of which to set the position.
