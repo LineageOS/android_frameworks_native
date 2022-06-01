@@ -35,14 +35,15 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <mutex>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
+#include <mutex>
 
 #define BINDER_VM_SIZE ((1 * 1024 * 1024) - sysconf(_SC_PAGE_SIZE) * 2)
 #define DEFAULT_MAX_BINDER_THREADS 15
@@ -399,7 +400,9 @@ void ProcessState::spawnPooledThread(bool isMain)
         ALOGV("Spawning new pooled thread, name=%s\n", name.string());
         sp<Thread> t = sp<PoolThread>::make(isMain);
         t->run(name.string());
+        pthread_mutex_lock(&mThreadCountLock);
         mKernelStartedThreads++;
+        pthread_mutex_unlock(&mThreadCountLock);
     }
 }
 
