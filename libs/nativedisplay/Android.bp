@@ -43,8 +43,6 @@ cc_library_shared {
         "include-private",
     ],
 
-    clang: true,
-
     cflags: [
         "-Wall",
         "-Werror",
