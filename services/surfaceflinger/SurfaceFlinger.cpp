@@ -6747,6 +6747,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     clientCompositionDisplay.orientation = rotation;
 
     clientCompositionDisplay.outputDataspace = dataspace;
+    clientCompositionDisplay.currentLuminanceNits = displayBrightnessNits;
     clientCompositionDisplay.maxLuminance = DisplayDevice::sDefaultMaxLumiance;
     clientCompositionDisplay.renderIntent =
             static_cast<aidl::android::hardware::graphics::composer3::RenderIntent>(renderIntent);
