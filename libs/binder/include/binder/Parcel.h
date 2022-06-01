@@ -76,6 +76,11 @@ public:
     size_t              dataCapacity() const;
 
     status_t            setDataSize(size_t size);
+
+    // this must only be used to set a data position that was previously returned from
+    // dataPosition(). If writes are made, the exact same types of writes must be made (e.g.
+    // auto i = p.dataPosition(); p.writeInt32(0); p.setDataPosition(i); p.writeInt32(1);).
+    // Writing over objects, such as file descriptors and binders, is not supported.
     void                setDataPosition(size_t pos) const;
     status_t            setDataCapacity(size_t size);
 
