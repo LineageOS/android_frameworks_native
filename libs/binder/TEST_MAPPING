@@ -83,5 +83,10 @@
     {
       "name": "rustBinderSerializationTest"
     }
+  ],
+ "hwasan-presubmit": [
+    {
+      "name": "binderLibTest"
+    }
   ]
 }
