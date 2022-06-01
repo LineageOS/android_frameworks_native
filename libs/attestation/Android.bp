@@ -28,10 +28,8 @@ cc_library_static {
         "-Werror",
     ],
     srcs: [
-        "HmacKeyManager.cpp"
+        "HmacKeyManager.cpp",
     ],
-
-    clang: true,
 
     shared_libs: [
         "liblog",

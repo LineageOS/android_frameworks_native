@@ -118,7 +118,7 @@ interface ISurfaceComposer {
      * Returns display statistics for a given display
      * intended to be used by the media framework to properly schedule
      * video frames */
-    DisplayStatInfo getDisplayStats(IBinder display);
+    DisplayStatInfo getDisplayStats(@nullable IBinder display);
 
     /**
      * Get transactional state of given display.
