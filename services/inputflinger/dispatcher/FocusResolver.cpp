@@ -13,15 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#define LOG_TAG "FocusResolver"
+#define LOG_TAG "InputDispatcher"
 #define ATRACE_TAG ATRACE_TAG_INPUT
 
 #define INDENT "  "
 #define INDENT2 "    "
-
-// Log debug messages about input focus tracking.
-static constexpr bool DEBUG_FOCUS = false;
 
 #include <inttypes.h>
 
@@ -29,8 +25,8 @@ static constexpr bool DEBUG_FOCUS = false;
 #include <binder/Binder.h>
 #include <ftl/enum.h>
 #include <gui/WindowInfo.h>
-#include <log/log.h>
 
+#include "DebugConfig.h"
 #include "FocusResolver.h"
 
 using android::gui::FocusRequest;
