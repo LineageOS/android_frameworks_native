@@ -31,7 +31,7 @@ sourceFiles = [
     "vr_flinger.cpp",
 ]
 
-includeFiles = [ "include" ]
+includeFiles = ["include"]
 
 staticLibraries = [
     "libdisplay",
