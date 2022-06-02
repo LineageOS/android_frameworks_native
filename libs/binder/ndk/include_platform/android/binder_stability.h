@@ -98,9 +98,9 @@ static inline void AIBinder_forceDowngradeToLocalStability(AIBinder* binder) {
  * This interface has system<->vendor stability
  */
 // b/227835797 - can't use __INTRODUCED_IN(30) because old targets load this code
-#if __ANDROID_MIN_SDK_VERSION__ < 30
+#if defined(__ANDROID_MIN_SDK_VERSION__) && __ANDROID_MIN_SDK_VERSION__ < 30
 __attribute__((weak))
-#endif  // __ANDROID_MIN_SDK_VERSION__ < 30
+#endif  // defined(__ANDROID_MIN_SDK_VERSION__) && __ANDROID_MIN_SDK_VERSION__ < 30
 void AIBinder_markVintfStability(AIBinder* binder);
 
 __END_DECLS
