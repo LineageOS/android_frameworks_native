@@ -58,8 +58,6 @@ cc_library {
         "VirtualKeyMap.cpp",
     ],
 
-    clang: true,
-
     header_libs: ["jni_headers"],
     export_header_lib_headers: ["jni_headers"],
 

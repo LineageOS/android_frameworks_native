@@ -316,7 +316,6 @@ filegroup {
 cc_defaults {
     name: "libgui_bufferqueue-defaults",
 
-    clang: true,
     cflags: [
         "-Wall",
         "-Werror",

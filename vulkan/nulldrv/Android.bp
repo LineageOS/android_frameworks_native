@@ -27,7 +27,6 @@ cc_library_shared {
     proprietary: true,
     relative_install_path: "hw",
 
-    clang: true,
     cflags: [
         "-fvisibility=hidden",
         "-fstrict-aliasing",

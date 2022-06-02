@@ -26,7 +26,6 @@ cc_library_static {
 
 cc_test {
     name: "broadcast_ring_tests",
-    clang: true,
     cflags: [
         "-Wall",
         "-Wextra",
