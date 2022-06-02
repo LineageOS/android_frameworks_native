@@ -72,8 +72,6 @@ cc_defaults {
         },
     },
 
-    clang: true,
-
     tidy: true,
     tidy_checks: [
         "-*",
@@ -128,7 +126,6 @@ cc_library_headers {
 cc_test_host {
     name: "run_dex2oat_test",
     test_suites: ["general-tests"],
-    clang: true,
     srcs: [
         "run_dex2oat_test.cpp",
         "run_dex2oat.cpp",
@@ -188,7 +185,6 @@ cc_binary {
         "-Wall",
         "-Werror",
     ],
-    clang: true,
 
     srcs: [
         "otapreopt_chroot.cpp",

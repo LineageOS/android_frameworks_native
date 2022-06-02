@@ -15,7 +15,6 @@ cc_test {
     name: "libgui_test",
     test_suites: ["device-tests"],
 
-    clang: true,
     cflags: [
         "-Wall",
         "-Werror",
@@ -73,7 +72,6 @@ cc_test {
     name: "libgui_multilib_test",
     test_suites: ["device-tests"],
 
-    clang: true,
     cflags: [
         "-Wall",
         "-Werror",
@@ -100,7 +98,6 @@ cc_test {
     name: "SurfaceParcelable_test",
     test_suites: ["device-tests"],
 
-    clang: true,
     cflags: [
         "-Wall",
         "-Werror",
@@ -129,7 +126,6 @@ cc_test {
 cc_test {
     name: "SamplingDemo",
 
-    clang: true,
     cflags: [
         "-Wall",
         "-Werror",

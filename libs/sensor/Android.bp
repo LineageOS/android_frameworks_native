@@ -24,7 +24,6 @@ package {
 cc_library_shared {
     name: "libsensor",
 
-    clang: true,
     cflags: [
         "-Wall",
         "-Werror",
