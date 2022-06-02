@@ -49,10 +49,11 @@ static_assert(sizeof(IBinder) == 12);
 static_assert(sizeof(BBinder) == 20);
 #endif
 
+// global b/c b/230079120 - consistent symbol table
 #ifdef BINDER_RPC_DEV_SERVERS
-constexpr const bool kEnableRpcDevServers = true;
+bool kEnableRpcDevServers = true;
 #else
-constexpr const bool kEnableRpcDevServers = false;
+bool kEnableRpcDevServers = false;
 #endif
 
 // Log any reply transactions for which the data exceeds this size
@@ -156,7 +157,7 @@ status_t IBinder::getDebugPid(pid_t* out) {
 
 status_t IBinder::setRpcClientDebug(android::base::unique_fd socketFd,
                                     const sp<IBinder>& keepAliveBinder) {
-    if constexpr (!kEnableRpcDevServers) {
+    if (!kEnableRpcDevServers) {
         ALOGW("setRpcClientDebug disallowed because RPC is not enabled");
         return INVALID_OPERATION;
     }
@@ -201,6 +202,7 @@ public:
     RpcServerLink(const sp<RpcServer>& rpcServer, const sp<IBinder>& keepAliveBinder,
                   const wp<BBinder>& binder)
           : mRpcServer(rpcServer), mKeepAliveBinder(keepAliveBinder), mBinder(binder) {}
+    virtual ~RpcServerLink();
     void binderDied(const wp<IBinder>&) override {
         LOG_RPC_DETAIL("RpcServerLink: binder died, shutting down RpcServer");
         if (mRpcServer == nullptr) {
@@ -226,6 +228,7 @@ private:
     sp<IBinder> mKeepAliveBinder; // hold to avoid automatically unlinking
     wp<BBinder> mBinder;
 };
+BBinder::RpcServerLink::~RpcServerLink() {}
 
 class BBinder::Extras
 {
@@ -496,7 +499,7 @@ void BBinder::setParceled() {
 }
 
 status_t BBinder::setRpcClientDebug(const Parcel& data) {
-    if constexpr (!kEnableRpcDevServers) {
+    if (!kEnableRpcDevServers) {
         ALOGW("%s: disallowed because RPC is not enabled", __PRETTY_FUNCTION__);
         return INVALID_OPERATION;
     }
@@ -521,7 +524,7 @@ status_t BBinder::setRpcClientDebug(const Parcel& data) {
 
 status_t BBinder::setRpcClientDebug(android::base::unique_fd socketFd,
                                     const sp<IBinder>& keepAliveBinder) {
-    if constexpr (!kEnableRpcDevServers) {
+    if (!kEnableRpcDevServers) {
         ALOGW("%s: disallowed because RPC is not enabled", __PRETTY_FUNCTION__);
         return INVALID_OPERATION;
     }
