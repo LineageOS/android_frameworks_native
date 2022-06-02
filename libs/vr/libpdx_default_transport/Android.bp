@@ -9,7 +9,6 @@ package {
 
 cc_defaults {
     name: "pdx_default_transport_compiler_defaults",
-    clang: true,
     cflags: [
         "-Wall",
         "-Wextra",

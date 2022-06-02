@@ -199,7 +199,6 @@ cc_library {
         "libbinder_headers",
     ],
 
-    clang: true,
     sanitize: {
         misc_undefined: ["integer"],
     },

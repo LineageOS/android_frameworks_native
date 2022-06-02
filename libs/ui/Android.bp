@@ -36,7 +36,6 @@ cc_library_headers {
 
 cc_defaults {
     name: "libui-defaults",
-    clang: true,
     cflags: [
         "-Wall",
         "-Werror",
@@ -111,7 +110,6 @@ cc_library_shared {
     },
     double_loadable: true,
 
-    clang: true,
     cflags: [
         "-Wall",
         "-Werror",
