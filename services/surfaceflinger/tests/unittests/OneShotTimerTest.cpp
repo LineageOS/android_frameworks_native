@@ -130,6 +130,40 @@ TEST_F(OneShotTimerTest, DISABLED_resetBackToBackTest) {
     EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
 }
 
+// TODO(b/186417847) This test is new and passes locally, but may be flaky
+TEST_F(OneShotTimerTest, DISABLED_resetBackToBackSlowAdvanceTest) {
+    fake::FakeClock* clock = new fake::FakeClock();
+    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 1ms,
+                                                           mResetTimerCallback.getInvocable(),
+                                                           mExpiredTimerCallback.getInvocable(),
+                                                           std::unique_ptr<fake::FakeClock>(clock));
+    mIdleTimer->start();
+    EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
+
+    mIdleTimer->reset();
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
+
+    clock->advanceTime(200us);
+    mIdleTimer->reset();
+
+    // Normally we would check that the timer callbacks weren't invoked here
+    // after resetting the timer, but we need to precisely control the timing of
+    // this test, and checking that callbacks weren't invoked requires non-zero
+    // time.
+
+    clock->advanceTime(1500us);
+    EXPECT_TRUE(mExpiredTimerCallback.waitForCall(1100us).has_value());
+    mIdleTimer->reset();
+    EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
+
+    mIdleTimer->stop();
+    clock->advanceTime(2ms);
+    // Final quick check that no more callback were observed.
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
+}
+
 TEST_F(OneShotTimerTest, startNotCalledTest) {
     fake::FakeClock* clock = new fake::FakeClock();
     mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 1ms,
