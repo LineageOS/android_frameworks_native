@@ -37,7 +37,6 @@ cc_library_shared {
             "vulkan_headers",
         ],
     },
-    clang: true,
     sanitize: {
         misc_undefined: ["integer"],
     },

@@ -9,7 +9,6 @@ package {
 
 cc_fuzz {
     name: "libpdx_service_dispatcher_fuzzer",
-    clang: true,
     srcs: [
         "service_dispatcher_fuzzer.cpp",
     ],
@@ -30,7 +29,6 @@ cc_fuzz {
 
 cc_fuzz {
     name: "libpdx_message_fuzzer",
-    clang: true,
     srcs: [
         "message_fuzzer.cpp",
     ],
@@ -51,7 +49,6 @@ cc_fuzz {
 
 cc_fuzz {
     name: "libpdx_serialization_fuzzer",
-    clang: true,
     srcs: [
         "serialization_fuzzer.cpp",
     ],
