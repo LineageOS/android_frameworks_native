@@ -2238,6 +2238,10 @@ status_t SurfaceComposerClient::getStaticDisplayInfo(const sp<IBinder>& display,
             size_t count = std::max<size_t>(kMaxPnpIdSize, dpi->manufacturerPnpId.size());
             std::copy_n(dpi->manufacturerPnpId.begin(), count, info.manufacturerPnpId.begin());
         }
+        if (dpi->relativeAddress.size() > 0) {
+            std::copy(dpi->relativeAddress.begin(), dpi->relativeAddress.end(),
+                      std::back_inserter(info.relativeAddress));
+        }
         info.productId = dpi->productId;
         if (date.getTag() == Tag::modelYear) {
             DeviceProductInfo::ModelYear modelYear;

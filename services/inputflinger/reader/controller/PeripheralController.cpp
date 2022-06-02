@@ -22,9 +22,6 @@
 #include "../Macros.h"
 #include "PeripheralController.h"
 
-// Log detailed debug messages about input device lights.
-static constexpr bool DEBUG_LIGHT_DETAILS = false;
-
 namespace android {
 
 static inline int32_t getAlpha(int32_t color) {
