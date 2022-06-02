@@ -118,16 +118,17 @@ void OneShotTimer::loop() {
         auto triggerTime = mClock->now() + mInterval;
         state = TimerState::WAITING;
         while (true) {
-            mWaiting = true;
-            constexpr auto zero = std::chrono::steady_clock::duration::zero();
-            // Wait for mInterval time to check if we need to reset or drop into the idle state.
-            struct timespec ts;
-            calculateTimeoutTime(std::chrono::nanoseconds(mInterval), &ts);
-            int result = sem_clockwait(&mSemaphore, CLOCK_MONOTONIC, &ts);
-            if (result && errno != ETIMEDOUT && errno != EINTR) {
-                std::stringstream ss;
-                ss << "sem_clockwait failed (" << errno << ")";
-                LOG_ALWAYS_FATAL("%s", ss.str().c_str());
+            // Wait until triggerTime time to check if we need to reset or drop into the idle state.
+            if (const auto triggerInterval = triggerTime - mClock->now(); triggerInterval > 0ns) {
+                mWaiting = true;
+                struct timespec ts;
+                calculateTimeoutTime(triggerInterval, &ts);
+                int result = sem_clockwait(&mSemaphore, CLOCK_MONOTONIC, &ts);
+                if (result && errno != ETIMEDOUT && errno != EINTR) {
+                    std::stringstream ss;
+                    ss << "sem_clockwait failed (" << errno << ")";
+                    LOG_ALWAYS_FATAL("%s", ss.str().c_str());
+                }
             }
 
             mWaiting = false;
@@ -136,7 +137,7 @@ void OneShotTimer::loop() {
                 break;
             }
 
-            if (state == TimerState::WAITING && (triggerTime - mClock->now()) <= zero) {
+            if (state == TimerState::WAITING && (triggerTime - mClock->now()) <= 0ns) {
                 triggerTimeout = true;
                 state = TimerState::IDLE;
                 break;
