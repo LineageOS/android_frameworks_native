@@ -171,6 +171,8 @@ struct WindowInfo : public Parcelable {
                 static_cast<uint32_t>(os::InputConfig::SPY),
         INTERCEPTS_STYLUS =
                 static_cast<uint32_t>(os::InputConfig::INTERCEPTS_STYLUS),
+        CLONE =
+                static_cast<uint32_t>(os::InputConfig::CLONE),
         // clang-format on
     };
 
@@ -235,8 +237,6 @@ struct WindowInfo : public Parcelable {
     ftl::Flags<Flag> layoutParamsFlags;
 
     void setInputConfig(ftl::Flags<InputConfig> config, bool value);
-
-    bool isClone = false;
 
     void addTouchableRegion(const Rect& region);
 
