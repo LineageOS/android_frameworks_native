@@ -111,7 +111,6 @@ cc_library_static {
     name: "librenderengine",
     defaults: ["librenderengine_defaults"],
     double_loadable: true,
-    clang: true,
     cflags: [
         "-fvisibility=hidden",
         "-Werror=format",
