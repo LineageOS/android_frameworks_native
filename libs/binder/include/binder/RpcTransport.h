@@ -20,8 +20,10 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 
+#include <android-base/function_ref.h>
 #include <android-base/unique_fd.h>
 #include <utils/Errors.h>
 
@@ -65,10 +67,10 @@ public:
      */
     [[nodiscard]] virtual status_t interruptableWriteFully(
             FdTrigger *fdTrigger, iovec *iovs, int niovs,
-            const std::function<status_t()> &altPoll) = 0;
+            const std::optional<android::base::function_ref<status_t()>> &altPoll) = 0;
     [[nodiscard]] virtual status_t interruptableReadFully(
             FdTrigger *fdTrigger, iovec *iovs, int niovs,
-            const std::function<status_t()> &altPoll) = 0;
+            const std::optional<android::base::function_ref<status_t()>> &altPoll) = 0;
 
 protected:
     RpcTransport() = default;

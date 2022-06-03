@@ -311,7 +311,7 @@ RpcState::CommandData::CommandData(size_t size) : mSize(size) {
 
 status_t RpcState::rpcSend(const sp<RpcSession::RpcConnection>& connection,
                            const sp<RpcSession>& session, const char* what, iovec* iovs, int niovs,
-                           const std::function<status_t()>& altPoll) {
+                           const std::optional<android::base::function_ref<status_t()>>& altPoll) {
     for (int i = 0; i < niovs; i++) {
         LOG_RPC_DETAIL("Sending %s (part %d of %d) on RpcTransport %p: %s",
                        what, i + 1, niovs, connection->rpcTransport.get(),
@@ -335,7 +335,7 @@ status_t RpcState::rpcRec(const sp<RpcSession::RpcConnection>& connection,
                           const sp<RpcSession>& session, const char* what, iovec* iovs, int niovs) {
     if (status_t status =
                 connection->rpcTransport->interruptableReadFully(session->mShutdownTrigger.get(),
-                                                                 iovs, niovs, {});
+                                                                 iovs, niovs, std::nullopt);
         status != OK) {
         LOG_RPC_DETAIL("Failed to read %s (%d iovs) on RpcTransport %p, error: %s", what, niovs,
                        connection->rpcTransport.get(), statusToString(status).c_str());
@@ -369,7 +369,7 @@ status_t RpcState::sendConnectionInit(const sp<RpcSession::RpcConnection>& conne
             .msg = RPC_CONNECTION_INIT_OKAY,
     };
     iovec iov{&init, sizeof(init)};
-    return rpcSend(connection, session, "connection init", &iov, 1);
+    return rpcSend(connection, session, "connection init", &iov, 1, std::nullopt);
 }
 
 status_t RpcState::readConnectionInit(const sp<RpcSession::RpcConnection>& connection,
@@ -516,31 +516,32 @@ status_t RpcState::transactAddress(const sp<RpcSession::RpcConnection>& connecti
 
     // Oneway calls have no sync point, so if many are sent before, whether this
     // is a twoway or oneway transaction, they may have filled up the socket.
-    // So, make sure we drain them before polling.
-    std::function<status_t()> drainRefs = [&] {
-        if (waitUs > kWaitLogUs) {
-            ALOGE("Cannot send command, trying to process pending refcounts. Waiting %zuus. Too "
-                  "many oneway calls?",
-                  waitUs);
-        }
-
-        if (waitUs > 0) {
-            usleep(waitUs);
-            waitUs = std::min(kWaitMaxUs, waitUs * 2);
-        } else {
-            waitUs = 1;
-        }
-
-        return drainCommands(connection, session, CommandType::CONTROL_ONLY);
-    };
+    // So, make sure we drain them before polling
 
     iovec iovs[]{
             {&command, sizeof(RpcWireHeader)},
             {&transaction, sizeof(RpcWireTransaction)},
             {const_cast<uint8_t*>(data.data()), data.dataSize()},
     };
-    if (status_t status =
-                rpcSend(connection, session, "transaction", iovs, arraysize(iovs), drainRefs);
+    if (status_t status = rpcSend(connection, session, "transaction", iovs, arraysize(iovs),
+                                  [&] {
+                                      if (waitUs > kWaitLogUs) {
+                                          ALOGE("Cannot send command, trying to process pending "
+                                                "refcounts. Waiting %zuus. Too "
+                                                "many oneway calls?",
+                                                waitUs);
+                                      }
+
+                                      if (waitUs > 0) {
+                                          usleep(waitUs);
+                                          waitUs = std::min(kWaitMaxUs, waitUs * 2);
+                                      } else {
+                                          waitUs = 1;
+                                      }
+
+                                      return drainCommands(connection, session,
+                                                           CommandType::CONTROL_ONLY);
+                                  });
         status != OK) {
         // TODO(b/167966510): need to undo onBinderLeaving - we know the
         // refcount isn't successfully transferred.
@@ -643,7 +644,7 @@ status_t RpcState::sendDecStrongToTarget(const sp<RpcSession::RpcConnection>& co
             .bodySize = sizeof(RpcDecStrong),
     };
     iovec iovs[]{{&cmd, sizeof(cmd)}, {&body, sizeof(body)}};
-    return rpcSend(connection, session, "dec ref", iovs, arraysize(iovs));
+    return rpcSend(connection, session, "dec ref", iovs, arraysize(iovs), std::nullopt);
 }
 
 status_t RpcState::getAndExecuteCommand(const sp<RpcSession::RpcConnection>& connection,
@@ -958,7 +959,7 @@ processTransactInternalTailCall:
             {&rpcReply, sizeof(RpcWireReply)},
             {const_cast<uint8_t*>(reply.data()), reply.dataSize()},
     };
-    return rpcSend(connection, session, "reply", iovs, arraysize(iovs));
+    return rpcSend(connection, session, "reply", iovs, arraysize(iovs), std::nullopt);
 }
 
 status_t RpcState::processDecStrong(const sp<RpcSession::RpcConnection>& connection,

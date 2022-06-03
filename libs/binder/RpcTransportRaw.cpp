@@ -52,9 +52,10 @@ public:
     }
 
     template <typename SendOrReceive>
-    status_t interruptableReadOrWrite(FdTrigger* fdTrigger, iovec* iovs, int niovs,
-                                      SendOrReceive sendOrReceiveFun, const char* funName,
-                                      int16_t event, const std::function<status_t()>& altPoll) {
+    status_t interruptableReadOrWrite(
+            FdTrigger* fdTrigger, iovec* iovs, int niovs, SendOrReceive sendOrReceiveFun,
+            const char* funName, int16_t event,
+            const std::optional<android::base::function_ref<status_t()>>& altPoll) {
         MAYBE_WAIT_IN_FLAKE_MODE;
 
         if (niovs < 0) {
@@ -129,7 +130,7 @@ public:
             }
 
             if (altPoll) {
-                if (status_t status = altPoll(); status != OK) return status;
+                if (status_t status = (*altPoll)(); status != OK) return status;
                 if (fdTrigger->isTriggered()) {
                     return DEAD_OBJECT;
                 }
@@ -142,14 +143,16 @@ public:
         }
     }
 
-    status_t interruptableWriteFully(FdTrigger* fdTrigger, iovec* iovs, int niovs,
-                                     const std::function<status_t()>& altPoll) override {
+    status_t interruptableWriteFully(
+            FdTrigger* fdTrigger, iovec* iovs, int niovs,
+            const std::optional<android::base::function_ref<status_t()>>& altPoll) override {
         return interruptableReadOrWrite(fdTrigger, iovs, niovs, sendmsg, "sendmsg", POLLOUT,
                                         altPoll);
     }
 
-    status_t interruptableReadFully(FdTrigger* fdTrigger, iovec* iovs, int niovs,
-                                    const std::function<status_t()>& altPoll) override {
+    status_t interruptableReadFully(
+            FdTrigger* fdTrigger, iovec* iovs, int niovs,
+            const std::optional<android::base::function_ref<status_t()>>& altPoll) override {
         return interruptableReadOrWrite(fdTrigger, iovs, niovs, recvmsg, "recvmsg", POLLIN,
                                         altPoll);
     }
