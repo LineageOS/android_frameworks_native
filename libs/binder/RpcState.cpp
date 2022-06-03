@@ -601,10 +601,8 @@ status_t RpcState::waitForReply(const sp<RpcSession::RpcConnection>& connection,
     if (rpcReply->status != OK) return rpcReply->status;
 
     data.release();
-    reply->ipcSetDataReference(rpcReply->data, command.bodySize - offsetof(RpcWireReply, data),
-                               nullptr, 0, cleanup_reply_data);
-
-    reply->markForRpc(session);
+    reply->rpcSetDataReference(session, rpcReply->data,
+                               command.bodySize - offsetof(RpcWireReply, data), cleanup_reply_data);
 
     return OK;
 }
@@ -824,11 +822,9 @@ processTransactInternalTailCall:
         // transaction->data is owned by this function. Parcel borrows this data and
         // only holds onto it for the duration of this function call. Parcel will be
         // deleted before the 'transactionData' object.
-        data.ipcSetDataReference(transaction->data,
+        data.rpcSetDataReference(session, transaction->data,
                                  transactionData.size() - offsetof(RpcWireTransaction, data),
-                                 nullptr /*object*/, 0 /*objectCount*/,
                                  do_nothing_to_transact_data);
-        data.markForRpc(session);
 
         if (target) {
             bool origAllowNested = connection->allowNested;
