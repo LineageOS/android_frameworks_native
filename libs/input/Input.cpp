@@ -22,7 +22,9 @@
 #include <inttypes.h>
 #include <string.h>
 
+#include <android-base/logging.h>
 #include <android-base/stringprintf.h>
+#include <cutils/compiler.h>
 #include <gui/constants.h>
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
@@ -542,7 +544,14 @@ void MotionEvent::setCursorPosition(float x, float y) {
 }
 
 const PointerCoords* MotionEvent::getRawPointerCoords(size_t pointerIndex) const {
-    return &mSamplePointerCoords[getHistorySize() * getPointerCount() + pointerIndex];
+    if (CC_UNLIKELY(pointerIndex < 0 || pointerIndex >= getPointerCount())) {
+        LOG(FATAL) << __func__ << ": Invalid pointer index " << pointerIndex << " for " << *this;
+    }
+    const size_t position = getHistorySize() * getPointerCount() + pointerIndex;
+    if (CC_UNLIKELY(position < 0 || position >= mSamplePointerCoords.size())) {
+        LOG(FATAL) << __func__ << ": Invalid array index " << position << " for " << *this;
+    }
+    return &mSamplePointerCoords[position];
 }
 
 float MotionEvent::getRawAxisValue(int32_t axis, size_t pointerIndex) const {
@@ -555,7 +564,18 @@ float MotionEvent::getAxisValue(int32_t axis, size_t pointerIndex) const {
 
 const PointerCoords* MotionEvent::getHistoricalRawPointerCoords(
         size_t pointerIndex, size_t historicalIndex) const {
-    return &mSamplePointerCoords[historicalIndex * getPointerCount() + pointerIndex];
+    if (CC_UNLIKELY(pointerIndex < 0 || pointerIndex >= getPointerCount())) {
+        LOG(FATAL) << __func__ << ": Invalid pointer index " << pointerIndex << " for " << *this;
+    }
+    if (CC_UNLIKELY(historicalIndex < 0 || historicalIndex > getHistorySize())) {
+        LOG(FATAL) << __func__ << ": Invalid historical index " << historicalIndex << " for "
+                   << *this;
+    }
+    const size_t position = historicalIndex * getPointerCount() + pointerIndex;
+    if (CC_UNLIKELY(position < 0 || position >= mSamplePointerCoords.size())) {
+        LOG(FATAL) << __func__ << ": Invalid array index " << position << " for " << *this;
+    }
+    return &mSamplePointerCoords[position];
 }
 
 float MotionEvent::getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
@@ -900,6 +920,53 @@ PointerCoords MotionEvent::calculateTransformedCoords(uint32_t source,
                      transformAngle(transform,
                                     coords.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION)));
 
+    return out;
+}
+
+std::ostream& operator<<(std::ostream& out, const MotionEvent& event) {
+    out << "MotionEvent { action=" << MotionEvent::actionToString(event.getAction());
+    if (event.getActionButton() != 0) {
+        out << ", actionButton=" << std::to_string(event.getActionButton());
+    }
+    const size_t pointerCount = event.getPointerCount();
+    for (size_t i = 0; i < pointerCount; i++) {
+        out << ", id[" << i << "]=" << event.getPointerId(i);
+        float x = event.getX(i);
+        float y = event.getY(i);
+        if (x != 0 || y != 0) {
+            out << ", x[" << i << "]=" << x;
+            out << ", y[" << i << "]=" << y;
+        }
+        int toolType = event.getToolType(i);
+        if (toolType != AMOTION_EVENT_TOOL_TYPE_FINGER) {
+            out << ", toolType[" << i << "]=" << toolType;
+        }
+    }
+    if (event.getButtonState() != 0) {
+        out << ", buttonState=" << event.getButtonState();
+    }
+    if (event.getClassification() != MotionClassification::NONE) {
+        out << ", classification=" << motionClassificationToString(event.getClassification());
+    }
+    if (event.getMetaState() != 0) {
+        out << ", metaState=" << event.getMetaState();
+    }
+    if (event.getEdgeFlags() != 0) {
+        out << ", edgeFlags=" << event.getEdgeFlags();
+    }
+    if (pointerCount != 1) {
+        out << ", pointerCount=" << pointerCount;
+    }
+    if (event.getHistorySize() != 0) {
+        out << ", historySize=" << event.getHistorySize();
+    }
+    out << ", eventTime=" << event.getEventTime();
+    out << ", downTime=" << event.getDownTime();
+    out << ", deviceId=" << event.getDeviceId();
+    out << ", source=" << inputEventSourceToString(event.getSource());
+    out << ", displayId=" << event.getDisplayId();
+    out << ", eventId=" << event.getId();
+    out << "}";
     return out;
 }
 
