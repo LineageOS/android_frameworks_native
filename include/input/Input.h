@@ -837,6 +837,8 @@ protected:
     std::vector<PointerCoords> mSamplePointerCoords;
 };
 
+std::ostream& operator<<(std::ostream& out, const MotionEvent& event);
+
 /*
  * Focus events.
  */
