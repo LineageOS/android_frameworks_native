@@ -15,8 +15,11 @@
  */
 
 #include <android-base/logging.h>
-#include <binder/Parcel.h>
+#include <binder/Binder.h>
 #include <binder/IServiceManager.h>
+#include <binder/Parcel.h>
+#include <binder/RpcServer.h>
+#include <binder/RpcSession.h>
 #include <gtest/gtest.h>
 #include <utils/CallStack.h>
 
@@ -124,12 +127,18 @@ DestructionAction ScopeDisallowMalloc() {
     });
 }
 
-using android::IBinder;
-using android::Parcel;
-using android::String16;
+using android::BBinder;
 using android::defaultServiceManager;
-using android::sp;
+using android::IBinder;
 using android::IServiceManager;
+using android::OK;
+using android::Parcel;
+using android::RpcServer;
+using android::RpcSession;
+using android::sp;
+using android::status_t;
+using android::statusToString;
+using android::String16;
 
 static sp<IBinder> GetRemoteBinder() {
     // This gets binder representing the service manager
@@ -173,6 +182,34 @@ TEST(BinderAllocation, SmallTransaction) {
     manager->checkService(empty_descriptor);
 
     EXPECT_EQ(mallocs, 1);
+}
+
+TEST(RpcBinderAllocation, SetupRpcServer) {
+    std::string tmp = getenv("TMPDIR") ?: "/tmp";
+    std::string addr = tmp + "/binderRpcBenchmark";
+    (void)unlink(addr.c_str());
+    auto server = RpcServer::make();
+    server->setRootObject(sp<BBinder>::make());
+
+    CHECK_EQ(OK, server->setupUnixDomainServer(addr.c_str()));
+
+    std::thread([server]() { server->join(); }).detach();
+
+    status_t status;
+    auto session = RpcSession::make();
+    status = session->setupUnixDomainClient(addr.c_str());
+    CHECK_EQ(status, OK) << "Could not connect: " << addr << ": " << statusToString(status).c_str();
+
+    auto remoteBinder = session->getRootObject();
+
+    size_t mallocs = 0, totalBytes = 0;
+    const auto on_malloc = OnMalloc([&](size_t bytes) {
+        mallocs++;
+        totalBytes += bytes;
+    });
+    CHECK_EQ(OK, remoteBinder->pingBinder());
+    EXPECT_EQ(mallocs, 4);
+    EXPECT_EQ(totalBytes, 108);
 }
 
 int main(int argc, char** argv) {
