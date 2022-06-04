@@ -20,6 +20,7 @@
 #include <map> // for legacy reasons
 #include <string>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 #include <android-base/unique_fd.h>
@@ -605,15 +606,19 @@ private:
     size_t              ipcDataSize() const;
     uintptr_t           ipcObjects() const;
     size_t              ipcObjectsCount() const;
-    void                ipcSetDataReference(const uint8_t* data, size_t dataSize,
-                                            const binder_size_t* objects, size_t objectsCount,
-                                            release_func relFunc);
+    void ipcSetDataReference(const uint8_t* data, size_t dataSize, const binder_size_t* objects,
+                             size_t objectsCount, release_func relFunc);
+    void rpcSetDataReference(const sp<RpcSession>& session, const uint8_t* data, size_t dataSize,
+                             release_func relFunc);
 
     status_t            finishWrite(size_t len);
     void                releaseObjects();
     void                acquireObjects();
     status_t            growData(size_t len);
+    // Clear the Parcel and set the capacity to `desired`.
+    // Doesn't reset the RPC session association.
     status_t            restartWrite(size_t desired);
+    // Set the capacity to `desired`, truncating the Parcel if necessary.
     status_t            continueWrite(size_t desired);
     status_t            writePointer(uintptr_t val);
     status_t            readPointer(uintptr_t *pArg) const;
@@ -1252,19 +1257,40 @@ private:
     uint8_t*            mData;
     size_t              mDataSize;
     size_t              mDataCapacity;
-    mutable size_t      mDataPos;
-    binder_size_t*      mObjects;
-    size_t              mObjectsSize;
-    size_t              mObjectsCapacity;
-    mutable size_t      mNextObjectHint;
-    mutable bool        mObjectsSorted;
+    mutable size_t mDataPos;
 
-    mutable bool        mRequestHeaderPresent;
+    // Fields only needed when parcelling for "kernel Binder".
+    struct KernelFields {
+        binder_size_t* mObjects = nullptr;
+        size_t mObjectsSize = 0;
+        size_t mObjectsCapacity = 0;
+        mutable size_t mNextObjectHint = 0;
 
-    mutable size_t      mWorkSourceRequestHeaderPosition;
+        mutable size_t mWorkSourceRequestHeaderPosition = 0;
+        mutable bool mRequestHeaderPresent = false;
 
-    mutable bool        mFdsKnown;
-    mutable bool        mHasFds;
+        mutable bool mObjectsSorted = false;
+        mutable bool mFdsKnown = true;
+        mutable bool mHasFds = false;
+    };
+    // Fields only needed when parcelling for RPC Binder.
+    struct RpcFields {
+        RpcFields(const sp<RpcSession>& session);
+
+        // Should always be non-null.
+        const sp<RpcSession> mSession;
+    };
+    std::variant<KernelFields, RpcFields> mVariantFields;
+
+    // Pointer to KernelFields in mVariantFields if present.
+    KernelFields* maybeKernelFields() { return std::get_if<KernelFields>(&mVariantFields); }
+    const KernelFields* maybeKernelFields() const {
+        return std::get_if<KernelFields>(&mVariantFields);
+    }
+    // Pointer to RpcFields in mVariantFields if present.
+    RpcFields* maybeRpcFields() { return std::get_if<RpcFields>(&mVariantFields); }
+    const RpcFields* maybeRpcFields() const { return std::get_if<RpcFields>(&mVariantFields); }
+
     bool                mAllowFds;
 
     // if this parcelable is involved in a secure transaction, force the
@@ -1273,7 +1299,6 @@ private:
 
     release_func        mOwner;
 
-    sp<RpcSession> mSession;
     size_t mReserved;
 
     class Blob {
