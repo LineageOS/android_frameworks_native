@@ -2500,7 +2500,7 @@ void InputDispatcher::finishDragAndDrop(int32_t displayId, float x, float y) {
 }
 
 void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
-    if (!mDragState) {
+    if (!mDragState || mDragState->dragWindow->getInfo()->displayId != entry.displayId) {
         return;
     }
 
@@ -4758,9 +4758,11 @@ void InputDispatcher::setInputWindowsLocked(
 
         // If drag window is gone, it would receive a cancel event and broadcast the DRAG_END. We
         // could just clear the state here.
-        if (mDragState &&
+        if (mDragState && mDragState->dragWindow->getInfo()->displayId == displayId &&
             std::find(windowHandles.begin(), windowHandles.end(), mDragState->dragWindow) ==
                     windowHandles.end()) {
+            ALOGI("Drag window went away: %s", mDragState->dragWindow->getName().c_str());
+            sendDropWindowCommandLocked(nullptr, 0, 0);
             mDragState.reset();
         }
     }

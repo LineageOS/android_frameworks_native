@@ -151,6 +151,10 @@ static void release_object(const sp<ProcessState>& proc, const flat_binder_objec
     ALOGE("Invalid object type 0x%08x", obj.hdr.type);
 }
 
+Parcel::RpcFields::RpcFields(const sp<RpcSession>& session) : mSession(session) {
+    LOG_ALWAYS_FATAL_IF(mSession == nullptr);
+}
+
 status_t Parcel::finishFlattenBinder(const sp<IBinder>& binder)
 {
     internal::Stability::tryMarkCompilationUnit(binder.get());
@@ -182,13 +186,14 @@ status_t Parcel::flattenBinder(const sp<IBinder>& binder) {
     if (binder) local = binder->localBinder();
     if (local) local->setParceled();
 
-    if (isForRpc()) {
+    if (const auto* rpcFields = maybeRpcFields()) {
         if (binder) {
             status_t status = writeInt32(1); // non-null
             if (status != OK) return status;
             uint64_t address;
             // TODO(b/167966510): need to undo this if the Parcel is not sent
-            status = mSession->state()->onBinderLeaving(mSession, binder, &address);
+            status = rpcFields->mSession->state()->onBinderLeaving(rpcFields->mSession, binder,
+                                                                   &address);
             if (status != OK) return status;
             status = writeUint64(address);
             if (status != OK) return status;
@@ -259,9 +264,7 @@ status_t Parcel::flattenBinder(const sp<IBinder>& binder) {
 
 status_t Parcel::unflattenBinder(sp<IBinder>* out) const
 {
-    if (isForRpc()) {
-        LOG_ALWAYS_FATAL_IF(mSession == nullptr, "RpcSession required to read from remote parcel");
-
+    if (const auto* rpcFields = maybeRpcFields()) {
         int32_t isPresent;
         status_t status = readInt32(&isPresent);
         if (status != OK) return status;
@@ -271,10 +274,14 @@ status_t Parcel::unflattenBinder(sp<IBinder>* out) const
         if (isPresent & 1) {
             uint64_t addr;
             if (status_t status = readUint64(&addr); status != OK) return status;
-            if (status_t status = mSession->state()->onBinderEntering(mSession, addr, &binder);
+            if (status_t status =
+                        rpcFields->mSession->state()->onBinderEntering(rpcFields->mSession, addr,
+                                                                       &binder);
                 status != OK)
                 return status;
-            if (status_t status = mSession->state()->flushExcessBinderRefs(mSession, addr, binder);
+            if (status_t status =
+                        rpcFields->mSession->state()->flushExcessBinderRefs(rpcFields->mSession,
+                                                                            addr, binder);
                 status != OK)
                 return status;
         }
@@ -378,8 +385,10 @@ void Parcel::setDataPosition(size_t pos) const
     }
 
     mDataPos = pos;
-    mNextObjectHint = 0;
-    mObjectsSorted = false;
+    if (const auto* kernelFields = maybeKernelFields()) {
+        kernelFields->mNextObjectHint = 0;
+        kernelFields->mObjectsSorted = false;
+    }
 }
 
 status_t Parcel::setDataCapacity(size_t size)
@@ -406,25 +415,27 @@ status_t Parcel::setData(const uint8_t* buffer, size_t len)
     if (err == NO_ERROR) {
         memcpy(const_cast<uint8_t*>(data()), buffer, len);
         mDataSize = len;
-        mFdsKnown = false;
+        if (auto* kernelFields = maybeKernelFields()) {
+            kernelFields->mFdsKnown = false;
+        }
     }
     return err;
 }
 
-status_t Parcel::appendFrom(const Parcel *parcel, size_t offset, size_t len)
-{
-    if (mSession != parcel->mSession) {
+status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
+    if (isForRpc() != parcel->isForRpc()) {
         ALOGE("Cannot append Parcel from one context to another. They may be different formats, "
               "and objects are specific to a context.");
         return BAD_TYPE;
     }
+    if (isForRpc() && maybeRpcFields()->mSession != parcel->maybeRpcFields()->mSession) {
+        ALOGE("Cannot append Parcels from different sessions");
+        return BAD_TYPE;
+    }
 
     status_t err;
-    const uint8_t *data = parcel->mData;
-    const binder_size_t *objects = parcel->mObjects;
-    size_t size = parcel->mObjectsSize;
+    const uint8_t* data = parcel->mData;
     int startPos = mDataPos;
-    int firstIndex = -1, lastIndex = -2;
 
     if (len == 0) {
         return NO_ERROR;
@@ -443,18 +454,6 @@ status_t Parcel::appendFrom(const Parcel *parcel, size_t offset, size_t len)
         return BAD_VALUE;
     }
 
-    // Count objects in range
-    for (int i = 0; i < (int) size; i++) {
-        size_t off = objects[i];
-        if ((off >= offset) && (off + sizeof(flat_binder_object) <= offset + len)) {
-            if (firstIndex == -1) {
-                firstIndex = i;
-            }
-            lastIndex = i;
-        }
-    }
-    int numObjects = lastIndex - firstIndex + 1;
-
     if ((mDataSize+len) > mDataCapacity) {
         // grow data
         err = growData(len);
@@ -470,43 +469,63 @@ status_t Parcel::appendFrom(const Parcel *parcel, size_t offset, size_t len)
 
     err = NO_ERROR;
 
-    if (numObjects > 0) {
-        const sp<ProcessState> proc(ProcessState::self());
-        // grow objects
-        if (mObjectsCapacity < mObjectsSize + numObjects) {
-            if ((size_t) numObjects > SIZE_MAX - mObjectsSize) return NO_MEMORY; // overflow
-            if (mObjectsSize + numObjects > SIZE_MAX / 3) return NO_MEMORY; // overflow
-            size_t newSize = ((mObjectsSize + numObjects)*3)/2;
-            if (newSize > SIZE_MAX / sizeof(binder_size_t)) return NO_MEMORY; // overflow
-            binder_size_t *objects =
-                (binder_size_t*)realloc(mObjects, newSize*sizeof(binder_size_t));
-            if (objects == (binder_size_t*)nullptr) {
-                return NO_MEMORY;
+    if (auto* kernelFields = maybeKernelFields()) {
+        auto* otherKernelFields = parcel->maybeKernelFields();
+        LOG_ALWAYS_FATAL_IF(otherKernelFields == nullptr);
+
+        const binder_size_t* objects = otherKernelFields->mObjects;
+        size_t size = otherKernelFields->mObjectsSize;
+        // Count objects in range
+        int firstIndex = -1, lastIndex = -2;
+        for (int i = 0; i < (int)size; i++) {
+            size_t off = objects[i];
+            if ((off >= offset) && (off + sizeof(flat_binder_object) <= offset + len)) {
+                if (firstIndex == -1) {
+                    firstIndex = i;
+                }
+                lastIndex = i;
             }
-            mObjects = objects;
-            mObjectsCapacity = newSize;
         }
+        int numObjects = lastIndex - firstIndex + 1;
+        if (numObjects > 0) {
+            const sp<ProcessState> proc(ProcessState::self());
+            // grow objects
+            if (kernelFields->mObjectsCapacity < kernelFields->mObjectsSize + numObjects) {
+                if ((size_t)numObjects > SIZE_MAX - kernelFields->mObjectsSize)
+                    return NO_MEMORY; // overflow
+                if (kernelFields->mObjectsSize + numObjects > SIZE_MAX / 3)
+                    return NO_MEMORY; // overflow
+                size_t newSize = ((kernelFields->mObjectsSize + numObjects) * 3) / 2;
+                if (newSize > SIZE_MAX / sizeof(binder_size_t)) return NO_MEMORY; // overflow
+                binder_size_t* objects = (binder_size_t*)realloc(kernelFields->mObjects,
+                                                                 newSize * sizeof(binder_size_t));
+                if (objects == (binder_size_t*)nullptr) {
+                    return NO_MEMORY;
+                }
+                kernelFields->mObjects = objects;
+                kernelFields->mObjectsCapacity = newSize;
+            }
 
-        // append and acquire objects
-        int idx = mObjectsSize;
-        for (int i = firstIndex; i <= lastIndex; i++) {
-            size_t off = objects[i] - offset + startPos;
-            mObjects[idx++] = off;
-            mObjectsSize++;
+            // append and acquire objects
+            int idx = kernelFields->mObjectsSize;
+            for (int i = firstIndex; i <= lastIndex; i++) {
+                size_t off = objects[i] - offset + startPos;
+                kernelFields->mObjects[idx++] = off;
+                kernelFields->mObjectsSize++;
 
-            flat_binder_object* flat
-                = reinterpret_cast<flat_binder_object*>(mData + off);
-            acquire_object(proc, *flat, this);
+                flat_binder_object* flat = reinterpret_cast<flat_binder_object*>(mData + off);
+                acquire_object(proc, *flat, this);
 
-            if (flat->hdr.type == BINDER_TYPE_FD) {
-                // If this is a file descriptor, we need to dup it so the
-                // new Parcel now owns its own fd, and can declare that we
-                // officially know we have fds.
-                flat->handle = fcntl(flat->handle, F_DUPFD_CLOEXEC, 0);
-                flat->cookie = 1;
-                mHasFds = mFdsKnown = true;
-                if (!mAllowFds) {
-                    err = FDS_NOT_ALLOWED;
+                if (flat->hdr.type == BINDER_TYPE_FD) {
+                    // If this is a file descriptor, we need to dup it so the
+                    // new Parcel now owns its own fd, and can declare that we
+                    // officially know we have fds.
+                    flat->handle = fcntl(flat->handle, F_DUPFD_CLOEXEC, 0);
+                    flat->cookie = 1;
+                    kernelFields->mHasFds = kernelFields->mFdsKnown = true;
+                    if (!mAllowFds) {
+                        err = FDS_NOT_ALLOWED;
+                    }
                 }
             }
         }
@@ -563,18 +582,27 @@ void Parcel::restoreAllowFds(bool lastValue)
 
 bool Parcel::hasFileDescriptors() const
 {
-    if (!mFdsKnown) {
+    if (const auto* rpcFields = maybeRpcFields()) {
+        return false;
+    }
+    auto* kernelFields = maybeKernelFields();
+    if (!kernelFields->mFdsKnown) {
         scanForFds();
     }
-    return mHasFds;
+    return kernelFields->mHasFds;
 }
 
 std::vector<sp<IBinder>> Parcel::debugReadAllStrongBinders() const {
     std::vector<sp<IBinder>> ret;
 
+    const auto* kernelFields = maybeKernelFields();
+    if (kernelFields == nullptr) {
+        return ret;
+    }
+
     size_t initPosition = dataPosition();
-    for (size_t i = 0; i < mObjectsSize; i++) {
-        binder_size_t offset = mObjects[i];
+    for (size_t i = 0; i < kernelFields->mObjectsSize; i++) {
+        binder_size_t offset = kernelFields->mObjects[i];
         const flat_binder_object* flat =
                 reinterpret_cast<const flat_binder_object*>(mData + offset);
         if (flat->hdr.type != BINDER_TYPE_BINDER) continue;
@@ -592,9 +620,14 @@ std::vector<sp<IBinder>> Parcel::debugReadAllStrongBinders() const {
 std::vector<int> Parcel::debugReadAllFileDescriptors() const {
     std::vector<int> ret;
 
+    const auto* kernelFields = maybeKernelFields();
+    if (kernelFields == nullptr) {
+        return ret;
+    }
+
     size_t initPosition = dataPosition();
-    for (size_t i = 0; i < mObjectsSize; i++) {
-        binder_size_t offset = mObjects[i];
+    for (size_t i = 0; i < kernelFields->mObjectsSize; i++) {
+        binder_size_t offset = kernelFields->mObjects[i];
         const flat_binder_object* flat =
                 reinterpret_cast<const flat_binder_object*>(mData + offset);
         if (flat->hdr.type != BINDER_TYPE_FD) continue;
@@ -611,6 +644,10 @@ std::vector<int> Parcel::debugReadAllFileDescriptors() const {
 }
 
 status_t Parcel::hasFileDescriptorsInRange(size_t offset, size_t len, bool* result) const {
+    const auto* kernelFields = maybeKernelFields();
+    if (kernelFields == nullptr) {
+        return BAD_TYPE;
+    }
     if (len > INT32_MAX || offset > INT32_MAX) {
         // Don't accept size_t values which may have come from an inadvertent conversion from a
         // negative int.
@@ -621,12 +658,15 @@ status_t Parcel::hasFileDescriptorsInRange(size_t offset, size_t len, bool* resu
         return BAD_VALUE;
     }
     *result = false;
-    for (size_t i = 0; i < mObjectsSize; i++) {
-        size_t pos = mObjects[i];
+    for (size_t i = 0; i < kernelFields->mObjectsSize; i++) {
+        size_t pos = kernelFields->mObjects[i];
         if (pos < offset) continue;
         if (pos + sizeof(flat_binder_object) > offset + len) {
-          if (mObjectsSorted) break;
-          else continue;
+            if (kernelFields->mObjectsSorted) {
+                break;
+            } else {
+                continue;
+            }
         }
         const flat_binder_object* flat = reinterpret_cast<const flat_binder_object*>(mData + pos);
         if (flat->hdr.type == BINDER_TYPE_FD) {
@@ -654,20 +694,24 @@ void Parcel::markForRpc(const sp<RpcSession>& session) {
     LOG_ALWAYS_FATAL_IF(mData != nullptr && mOwner == nullptr,
                         "format must be set before data is written OR on IPC data");
 
-    LOG_ALWAYS_FATAL_IF(session == nullptr, "markForRpc requires session");
-    mSession = session;
+    mVariantFields.emplace<RpcFields>(session);
 }
 
 bool Parcel::isForRpc() const {
-    return mSession != nullptr;
+    return std::holds_alternative<RpcFields>(mVariantFields);
 }
 
 void Parcel::updateWorkSourceRequestHeaderPosition() const {
+    auto* kernelFields = maybeKernelFields();
+    if (kernelFields == nullptr) {
+        return;
+    }
+
     // Only update the request headers once. We only want to point
     // to the first headers read/written.
-    if (!mRequestHeaderPresent) {
-        mWorkSourceRequestHeaderPosition = dataPosition();
-        mRequestHeaderPresent = true;
+    if (!kernelFields->mRequestHeaderPresent) {
+        kernelFields->mWorkSourceRequestHeaderPosition = dataPosition();
+        kernelFields->mRequestHeaderPresent = true;
     }
 }
 
@@ -686,7 +730,7 @@ status_t Parcel::writeInterfaceToken(const String16& interface)
 }
 
 status_t Parcel::writeInterfaceToken(const char16_t* str, size_t len) {
-    if (CC_LIKELY(!isForRpc())) {
+    if (auto* kernelFields = maybeKernelFields()) {
         const IPCThreadState* threadState = IPCThreadState::self();
         writeInt32(threadState->getStrictModePolicy() | STRICT_MODE_PENALTY_GATHER);
         updateWorkSourceRequestHeaderPosition();
@@ -701,12 +745,16 @@ status_t Parcel::writeInterfaceToken(const char16_t* str, size_t len) {
 
 bool Parcel::replaceCallingWorkSourceUid(uid_t uid)
 {
-    if (!mRequestHeaderPresent) {
+    auto* kernelFields = maybeKernelFields();
+    if (kernelFields == nullptr) {
+        return false;
+    }
+    if (!kernelFields->mRequestHeaderPresent) {
         return false;
     }
 
     const size_t initialPosition = dataPosition();
-    setDataPosition(mWorkSourceRequestHeaderPosition);
+    setDataPosition(kernelFields->mWorkSourceRequestHeaderPosition);
     status_t err = writeInt32(uid);
     setDataPosition(initialPosition);
     return err == NO_ERROR;
@@ -714,12 +762,16 @@ bool Parcel::replaceCallingWorkSourceUid(uid_t uid)
 
 uid_t Parcel::readCallingWorkSourceUid() const
 {
-    if (!mRequestHeaderPresent) {
+    auto* kernelFields = maybeKernelFields();
+    if (kernelFields == nullptr) {
+        return false;
+    }
+    if (!kernelFields->mRequestHeaderPresent) {
         return IPCThreadState::kUnsetWorkSource;
     }
 
     const size_t initialPosition = dataPosition();
-    setDataPosition(mWorkSourceRequestHeaderPosition);
+    setDataPosition(kernelFields->mWorkSourceRequestHeaderPosition);
     uid_t uid = readInt32();
     setDataPosition(initialPosition);
     return uid;
@@ -740,7 +792,7 @@ bool Parcel::enforceInterface(const char16_t* interface,
                               size_t len,
                               IPCThreadState* threadState) const
 {
-    if (CC_LIKELY(!isForRpc())) {
+    if (auto* kernelFields = maybeKernelFields()) {
         // StrictModePolicy.
         int32_t strictPolicy = readInt32();
         if (threadState == nullptr) {
@@ -795,7 +847,10 @@ binder::Status Parcel::enforceNoDataAvail() const {
 
 size_t Parcel::objectsCount() const
 {
-    return mObjectsSize;
+    if (const auto* kernelFields = maybeKernelFields()) {
+        return kernelFields->mObjectsSize;
+    }
+    return 0;
 }
 
 status_t Parcel::errorCheck() const
@@ -1401,8 +1456,11 @@ status_t Parcel::write(const FlattenableHelperInterface& val)
 
 status_t Parcel::writeObject(const flat_binder_object& val, bool nullMetaData)
 {
+    auto* kernelFields = maybeKernelFields();
+    LOG_ALWAYS_FATAL_IF(kernelFields == nullptr, "Can't write flat_binder_object to RPC Parcel");
+
     const bool enoughData = (mDataPos+sizeof(val)) <= mDataCapacity;
-    const bool enoughObjects = mObjectsSize < mObjectsCapacity;
+    const bool enoughObjects = kernelFields->mObjectsSize < kernelFields->mObjectsCapacity;
     if (enoughData && enoughObjects) {
 restart_write:
         *reinterpret_cast<flat_binder_object*>(mData+mDataPos) = val;
@@ -1413,14 +1471,14 @@ restart_write:
                 // fail before modifying our object index
                 return FDS_NOT_ALLOWED;
             }
-            mHasFds = mFdsKnown = true;
+            kernelFields->mHasFds = kernelFields->mFdsKnown = true;
         }
 
         // Need to write meta-data?
         if (nullMetaData || val.binder != 0) {
-            mObjects[mObjectsSize] = mDataPos;
+            kernelFields->mObjects[kernelFields->mObjectsSize] = mDataPos;
             acquire_object(ProcessState::self(), val, this);
-            mObjectsSize++;
+            kernelFields->mObjectsSize++;
         }
 
         return finishWrite(sizeof(flat_binder_object));
@@ -1431,14 +1489,15 @@ restart_write:
         if (err != NO_ERROR) return err;
     }
     if (!enoughObjects) {
-        if (mObjectsSize > SIZE_MAX - 2) return NO_MEMORY; // overflow
-        if ((mObjectsSize + 2) > SIZE_MAX / 3) return NO_MEMORY; // overflow
-        size_t newSize = ((mObjectsSize+2)*3)/2;
+        if (kernelFields->mObjectsSize > SIZE_MAX - 2) return NO_MEMORY;       // overflow
+        if ((kernelFields->mObjectsSize + 2) > SIZE_MAX / 3) return NO_MEMORY; // overflow
+        size_t newSize = ((kernelFields->mObjectsSize + 2) * 3) / 2;
         if (newSize > SIZE_MAX / sizeof(binder_size_t)) return NO_MEMORY; // overflow
-        binder_size_t* objects = (binder_size_t*)realloc(mObjects, newSize*sizeof(binder_size_t));
+        binder_size_t* objects =
+                (binder_size_t*)realloc(kernelFields->mObjects, newSize * sizeof(binder_size_t));
         if (objects == nullptr) return NO_MEMORY;
-        mObjects = objects;
-        mObjectsCapacity = newSize;
+        kernelFields->mObjects = objects;
+        kernelFields->mObjectsCapacity = newSize;
     }
 
     goto restart_write;
@@ -1452,54 +1511,64 @@ status_t Parcel::writeNoException()
 
 status_t Parcel::validateReadData(size_t upperBound) const
 {
+    const auto* kernelFields = maybeKernelFields();
+    if (kernelFields == nullptr) {
+        // Can't validate RPC Parcel reads because the location of binder
+        // objects is unknown.
+        return OK;
+    }
+
     // Don't allow non-object reads on object data
-    if (mObjectsSorted || mObjectsSize <= 1) {
-data_sorted:
+    if (kernelFields->mObjectsSorted || kernelFields->mObjectsSize <= 1) {
+    data_sorted:
         // Expect to check only against the next object
-        if (mNextObjectHint < mObjectsSize && upperBound > mObjects[mNextObjectHint]) {
+        if (kernelFields->mNextObjectHint < kernelFields->mObjectsSize &&
+            upperBound > kernelFields->mObjects[kernelFields->mNextObjectHint]) {
             // For some reason the current read position is greater than the next object
             // hint. Iterate until we find the right object
-            size_t nextObject = mNextObjectHint;
+            size_t nextObject = kernelFields->mNextObjectHint;
             do {
-                if (mDataPos < mObjects[nextObject] + sizeof(flat_binder_object)) {
+                if (mDataPos < kernelFields->mObjects[nextObject] + sizeof(flat_binder_object)) {
                     // Requested info overlaps with an object
                     ALOGE("Attempt to read from protected data in Parcel %p", this);
                     return PERMISSION_DENIED;
                 }
                 nextObject++;
-            } while (nextObject < mObjectsSize && upperBound > mObjects[nextObject]);
-            mNextObjectHint = nextObject;
+            } while (nextObject < kernelFields->mObjectsSize &&
+                     upperBound > kernelFields->mObjects[nextObject]);
+            kernelFields->mNextObjectHint = nextObject;
         }
         return NO_ERROR;
     }
     // Quickly determine if mObjects is sorted.
-    binder_size_t* currObj = mObjects + mObjectsSize - 1;
+    binder_size_t* currObj = kernelFields->mObjects + kernelFields->mObjectsSize - 1;
     binder_size_t* prevObj = currObj;
-    while (currObj > mObjects) {
+    while (currObj > kernelFields->mObjects) {
         prevObj--;
         if(*prevObj > *currObj) {
             goto data_unsorted;
         }
         currObj--;
     }
-    mObjectsSorted = true;
+    kernelFields->mObjectsSorted = true;
     goto data_sorted;
 
 data_unsorted:
     // Insertion Sort mObjects
     // Great for mostly sorted lists. If randomly sorted or reverse ordered mObjects become common,
     // switch to std::sort(mObjects, mObjects + mObjectsSize);
-    for (binder_size_t* iter0 = mObjects + 1; iter0 < mObjects + mObjectsSize; iter0++) {
+    for (binder_size_t* iter0 = kernelFields->mObjects + 1;
+         iter0 < kernelFields->mObjects + kernelFields->mObjectsSize; iter0++) {
         binder_size_t temp = *iter0;
         binder_size_t* iter1 = iter0 - 1;
-        while (iter1 >= mObjects && *iter1 > temp) {
+        while (iter1 >= kernelFields->mObjects && *iter1 > temp) {
             *(iter1 + 1) = *iter1;
             iter1--;
         }
         *(iter1 + 1) = temp;
     }
-    mNextObjectHint = 0;
-    mObjectsSorted = true;
+    kernelFields->mNextObjectHint = 0;
+    kernelFields->mObjectsSorted = true;
     goto data_sorted;
 }
 
@@ -1513,7 +1582,8 @@ status_t Parcel::read(void* outData, size_t len) const
 
     if ((mDataPos+pad_size(len)) >= mDataPos && (mDataPos+pad_size(len)) <= mDataSize
             && len <= pad_size(len)) {
-        if (mObjectsSize > 0) {
+        const auto* kernelFields = maybeKernelFields();
+        if (kernelFields != nullptr && kernelFields->mObjectsSize > 0) {
             status_t err = validateReadData(mDataPos + pad_size(len));
             if(err != NO_ERROR) {
                 // Still increment the data position by the expected length
@@ -1540,7 +1610,8 @@ const void* Parcel::readInplace(size_t len) const
 
     if ((mDataPos+pad_size(len)) >= mDataPos && (mDataPos+pad_size(len)) <= mDataSize
             && len <= pad_size(len)) {
-        if (mObjectsSize > 0) {
+        const auto* kernelFields = maybeKernelFields();
+        if (kernelFields != nullptr && kernelFields->mObjectsSize > 0) {
             status_t err = validateReadData(mDataPos + pad_size(len));
             if(err != NO_ERROR) {
                 // Still increment the data position by the expected length
@@ -1587,7 +1658,8 @@ status_t Parcel::readAligned(T *pArg) const {
     static_assert(std::is_trivially_copyable_v<T>);
 
     if ((mDataPos+sizeof(T)) <= mDataSize) {
-        if (mObjectsSize > 0) {
+        const auto* kernelFields = maybeKernelFields();
+        if (kernelFields != nullptr && kernelFields->mObjectsSize > 0) {
             status_t err = validateReadData(mDataPos + sizeof(T));
             if(err != NO_ERROR) {
                 // Still increment the data position by the expected length
@@ -2132,6 +2204,11 @@ status_t Parcel::read(FlattenableHelperInterface& val) const
 }
 const flat_binder_object* Parcel::readObject(bool nullMetaData) const
 {
+    const auto* kernelFields = maybeKernelFields();
+    if (kernelFields == nullptr) {
+        return nullptr;
+    }
+
     const size_t DPOS = mDataPos;
     if ((DPOS+sizeof(flat_binder_object)) <= mDataSize) {
         const flat_binder_object* obj
@@ -2146,9 +2223,9 @@ const flat_binder_object* Parcel::readObject(bool nullMetaData) const
         }
 
         // Ensure that this object is valid...
-        binder_size_t* const OBJS = mObjects;
-        const size_t N = mObjectsSize;
-        size_t opos = mNextObjectHint;
+        binder_size_t* const OBJS = kernelFields->mObjects;
+        const size_t N = kernelFields->mObjectsSize;
+        size_t opos = kernelFields->mNextObjectHint;
 
         if (N > 0) {
             ALOGV("Parcel %p looking for obj at %zu, hint=%zu",
@@ -2167,7 +2244,7 @@ const flat_binder_object* Parcel::readObject(bool nullMetaData) const
                 // Found it!
                 ALOGV("Parcel %p found obj %zu at index %zu with forward search",
                      this, DPOS, opos);
-                mNextObjectHint = opos+1;
+                kernelFields->mNextObjectHint = opos + 1;
                 ALOGV("readObject Setting data pos of %p to %zu", this, mDataPos);
                 return obj;
             }
@@ -2180,7 +2257,7 @@ const flat_binder_object* Parcel::readObject(bool nullMetaData) const
                 // Found it!
                 ALOGV("Parcel %p found obj %zu at index %zu with backward search",
                      this, DPOS, opos);
-                mNextObjectHint = opos+1;
+                kernelFields->mNextObjectHint = opos + 1;
                 ALOGV("readObject Setting data pos of %p to %zu", this, mDataPos);
                 return obj;
             }
@@ -2191,16 +2268,19 @@ const flat_binder_object* Parcel::readObject(bool nullMetaData) const
     return nullptr;
 }
 
-void Parcel::closeFileDescriptors()
-{
-    size_t i = mObjectsSize;
+void Parcel::closeFileDescriptors() {
+    auto* kernelFields = maybeKernelFields();
+    if (kernelFields == nullptr) {
+        return;
+    }
+    size_t i = kernelFields->mObjectsSize;
     if (i > 0) {
         //ALOGI("Closing file descriptors for %zu objects...", i);
     }
     while (i > 0) {
         i--;
-        const flat_binder_object* flat
-            = reinterpret_cast<flat_binder_object*>(mData+mObjects[i]);
+        const flat_binder_object* flat =
+                reinterpret_cast<flat_binder_object*>(mData + kernelFields->mObjects[i]);
         if (flat->hdr.type == BINDER_TYPE_FD) {
             //ALOGI("Closing fd: %ld", flat->handle);
             close(flat->handle);
@@ -2220,35 +2300,43 @@ size_t Parcel::ipcDataSize() const
 
 uintptr_t Parcel::ipcObjects() const
 {
-    return reinterpret_cast<uintptr_t>(mObjects);
+    if (const auto* kernelFields = maybeKernelFields()) {
+        return reinterpret_cast<uintptr_t>(kernelFields->mObjects);
+    }
+    return 0;
 }
 
 size_t Parcel::ipcObjectsCount() const
 {
-    return mObjectsSize;
+    if (const auto* kernelFields = maybeKernelFields()) {
+        return kernelFields->mObjectsSize;
+    }
+    return 0;
 }
 
-void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize,
-    const binder_size_t* objects, size_t objectsCount, release_func relFunc)
-{
+void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize, const binder_size_t* objects,
+                                 size_t objectsCount, release_func relFunc) {
     // this code uses 'mOwner == nullptr' to understand whether it owns memory
     LOG_ALWAYS_FATAL_IF(relFunc == nullptr, "must provide cleanup function");
 
     freeData();
 
+    auto* kernelFields = maybeKernelFields();
+    LOG_ALWAYS_FATAL_IF(kernelFields == nullptr); // guaranteed by freeData.
+
     mData = const_cast<uint8_t*>(data);
     mDataSize = mDataCapacity = dataSize;
-    mObjects = const_cast<binder_size_t*>(objects);
-    mObjectsSize = mObjectsCapacity = objectsCount;
+    kernelFields->mObjects = const_cast<binder_size_t*>(objects);
+    kernelFields->mObjectsSize = kernelFields->mObjectsCapacity = objectsCount;
     mOwner = relFunc;
 
     binder_size_t minOffset = 0;
-    for (size_t i = 0; i < mObjectsSize; i++) {
-        binder_size_t offset = mObjects[i];
+    for (size_t i = 0; i < kernelFields->mObjectsSize; i++) {
+        binder_size_t offset = kernelFields->mObjects[i];
         if (offset < minOffset) {
             ALOGE("%s: bad object offset %" PRIu64 " < %" PRIu64 "\n",
                   __func__, (uint64_t)offset, (uint64_t)minOffset);
-            mObjectsSize = 0;
+            kernelFields->mObjectsSize = 0;
             break;
         }
         const flat_binder_object* flat
@@ -2266,12 +2354,27 @@ void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize,
 
             // WARNING: callers of ipcSetDataReference need to make sure they
             // don't rely on mObjectsSize in their release_func.
-            mObjectsSize = 0;
+            kernelFields->mObjectsSize = 0;
             break;
         }
         minOffset = offset + sizeof(flat_binder_object);
     }
     scanForFds();
+}
+
+void Parcel::rpcSetDataReference(const sp<RpcSession>& session, const uint8_t* data,
+                                 size_t dataSize, release_func relFunc) {
+    // this code uses 'mOwner == nullptr' to understand whether it owns memory
+    LOG_ALWAYS_FATAL_IF(relFunc == nullptr, "must provide cleanup function");
+
+    LOG_ALWAYS_FATAL_IF(session == nullptr);
+
+    freeData();
+    markForRpc(session);
+
+    mData = const_cast<uint8_t*>(data);
+    mDataSize = mDataCapacity = dataSize;
+    mOwner = relFunc;
 }
 
 void Parcel::print(TextOutput& to, uint32_t /*flags*/) const
@@ -2284,14 +2387,16 @@ void Parcel::print(TextOutput& to, uint32_t /*flags*/) const
     } else if (dataSize() > 0) {
         const uint8_t* DATA = data();
         to << indent << HexDump(DATA, dataSize()) << dedent;
-        const binder_size_t* OBJS = mObjects;
-        const size_t N = objectsCount();
-        for (size_t i=0; i<N; i++) {
-            const flat_binder_object* flat
-                = reinterpret_cast<const flat_binder_object*>(DATA+OBJS[i]);
-            to << endl << "Object #" << i << " @ " << (void*)OBJS[i] << ": "
-                << TypeCode(flat->hdr.type & 0x7f7f7f00)
-                << " = " << flat->binder;
+        if (const auto* kernelFields = maybeKernelFields()) {
+            const binder_size_t* OBJS = kernelFields->mObjects;
+            const size_t N = objectsCount();
+            for (size_t i = 0; i < N; i++) {
+                const flat_binder_object* flat =
+                        reinterpret_cast<const flat_binder_object*>(DATA + OBJS[i]);
+                to << endl
+                   << "Object #" << i << " @ " << (void*)OBJS[i] << ": "
+                   << TypeCode(flat->hdr.type & 0x7f7f7f00) << " = " << flat->binder;
+            }
         }
     } else {
         to << "NULL";
@@ -2302,34 +2407,42 @@ void Parcel::print(TextOutput& to, uint32_t /*flags*/) const
 
 void Parcel::releaseObjects()
 {
-    size_t i = mObjectsSize;
+    auto* kernelFields = maybeKernelFields();
+    if (kernelFields == nullptr) {
+        return;
+    }
+
+    size_t i = kernelFields->mObjectsSize;
     if (i == 0) {
         return;
     }
     sp<ProcessState> proc(ProcessState::self());
     uint8_t* const data = mData;
-    binder_size_t* const objects = mObjects;
+    binder_size_t* const objects = kernelFields->mObjects;
     while (i > 0) {
         i--;
-        const flat_binder_object* flat
-            = reinterpret_cast<flat_binder_object*>(data+objects[i]);
+        const flat_binder_object* flat = reinterpret_cast<flat_binder_object*>(data + objects[i]);
         release_object(proc, *flat, this);
     }
 }
 
 void Parcel::acquireObjects()
 {
-    size_t i = mObjectsSize;
+    auto* kernelFields = maybeKernelFields();
+    if (kernelFields == nullptr) {
+        return;
+    }
+
+    size_t i = kernelFields->mObjectsSize;
     if (i == 0) {
         return;
     }
     const sp<ProcessState> proc(ProcessState::self());
     uint8_t* const data = mData;
-    binder_size_t* const objects = mObjects;
+    binder_size_t* const objects = kernelFields->mObjects;
     while (i > 0) {
         i--;
-        const flat_binder_object* flat
-            = reinterpret_cast<flat_binder_object*>(data+objects[i]);
+        const flat_binder_object* flat = reinterpret_cast<flat_binder_object*>(data + objects[i]);
         acquire_object(proc, *flat, this);
     }
 }
@@ -2345,7 +2458,9 @@ void Parcel::freeDataNoInit()
     if (mOwner) {
         LOG_ALLOC("Parcel %p: freeing other owner data", this);
         //ALOGI("Freeing data ref of %p (pid=%d)", this, getpid());
-        mOwner(this, mData, mDataSize, mObjects, mObjectsSize);
+        auto* kernelFields = maybeKernelFields();
+        mOwner(this, mData, mDataSize, kernelFields ? kernelFields->mObjects : nullptr,
+               kernelFields ? kernelFields->mObjectsSize : 0);
     } else {
         LOG_ALLOC("Parcel %p: freeing allocated data", this);
         releaseObjects();
@@ -2358,7 +2473,8 @@ void Parcel::freeDataNoInit()
             }
             free(mData);
         }
-        if (mObjects) free(mObjects);
+        auto* kernelFields = maybeKernelFields();
+        if (kernelFields && kernelFields->mObjects) free(kernelFields->mObjects);
     }
 }
 
@@ -2433,13 +2549,15 @@ status_t Parcel::restartWrite(size_t desired)
     ALOGV("restartWrite Setting data size of %p to %zu", this, mDataSize);
     ALOGV("restartWrite Setting data pos of %p to %zu", this, mDataPos);
 
-    free(mObjects);
-    mObjects = nullptr;
-    mObjectsSize = mObjectsCapacity = 0;
-    mNextObjectHint = 0;
-    mObjectsSorted = false;
-    mHasFds = false;
-    mFdsKnown = true;
+    if (auto* kernelFields = maybeKernelFields()) {
+        free(kernelFields->mObjects);
+        kernelFields->mObjects = nullptr;
+        kernelFields->mObjectsSize = kernelFields->mObjectsCapacity = 0;
+        kernelFields->mNextObjectHint = 0;
+        kernelFields->mObjectsSorted = false;
+        kernelFields->mHasFds = false;
+        kernelFields->mFdsKnown = true;
+    }
     mAllowFds = true;
 
     return NO_ERROR;
@@ -2453,16 +2571,17 @@ status_t Parcel::continueWrite(size_t desired)
         return BAD_VALUE;
     }
 
+    auto* kernelFields = maybeKernelFields();
+
     // If shrinking, first adjust for any objects that appear
     // after the new data size.
-    size_t objectsSize = mObjectsSize;
-    if (desired < mDataSize) {
+    size_t objectsSize = kernelFields ? kernelFields->mObjectsSize : 0;
+    if (kernelFields && desired < mDataSize) {
         if (desired == 0) {
             objectsSize = 0;
         } else {
             while (objectsSize > 0) {
-                if (mObjects[objectsSize-1] < desired)
-                    break;
+                if (kernelFields->mObjects[objectsSize - 1] < desired) break;
                 objectsSize--;
             }
         }
@@ -2495,20 +2614,21 @@ status_t Parcel::continueWrite(size_t desired)
 
             // Little hack to only acquire references on objects
             // we will be keeping.
-            size_t oldObjectsSize = mObjectsSize;
-            mObjectsSize = objectsSize;
+            size_t oldObjectsSize = kernelFields->mObjectsSize;
+            kernelFields->mObjectsSize = objectsSize;
             acquireObjects();
-            mObjectsSize = oldObjectsSize;
+            kernelFields->mObjectsSize = oldObjectsSize;
         }
 
         if (mData) {
             memcpy(data, mData, mDataSize < desired ? mDataSize : desired);
         }
-        if (objects && mObjects) {
-            memcpy(objects, mObjects, objectsSize*sizeof(binder_size_t));
+        if (objects && kernelFields && kernelFields->mObjects) {
+            memcpy(objects, kernelFields->mObjects, objectsSize * sizeof(binder_size_t));
         }
         //ALOGI("Freeing data ref of %p (pid=%d)", this, getpid());
-        mOwner(this, mData, mDataSize, mObjects, mObjectsSize);
+        mOwner(this, mData, mDataSize, kernelFields ? kernelFields->mObjects : nullptr,
+               kernelFields ? kernelFields->mObjectsSize : 0);
         mOwner = nullptr;
 
         LOG_ALLOC("Parcel %p: taking ownership of %zu capacity", this, desired);
@@ -2516,43 +2636,46 @@ status_t Parcel::continueWrite(size_t desired)
         gParcelGlobalAllocCount++;
 
         mData = data;
-        mObjects = objects;
         mDataSize = (mDataSize < desired) ? mDataSize : desired;
         ALOGV("continueWrite Setting data size of %p to %zu", this, mDataSize);
         mDataCapacity = desired;
-        mObjectsSize = mObjectsCapacity = objectsSize;
-        mNextObjectHint = 0;
-        mObjectsSorted = false;
+        if (kernelFields) {
+            kernelFields->mObjects = objects;
+            kernelFields->mObjectsSize = kernelFields->mObjectsCapacity = objectsSize;
+            kernelFields->mNextObjectHint = 0;
+            kernelFields->mObjectsSorted = false;
+        }
 
     } else if (mData) {
-        if (objectsSize < mObjectsSize) {
+        if (kernelFields && objectsSize < kernelFields->mObjectsSize) {
             // Need to release refs on any objects we are dropping.
             const sp<ProcessState> proc(ProcessState::self());
-            for (size_t i=objectsSize; i<mObjectsSize; i++) {
-                const flat_binder_object* flat
-                    = reinterpret_cast<flat_binder_object*>(mData+mObjects[i]);
+            for (size_t i = objectsSize; i < kernelFields->mObjectsSize; i++) {
+                const flat_binder_object* flat =
+                        reinterpret_cast<flat_binder_object*>(mData + kernelFields->mObjects[i]);
                 if (flat->hdr.type == BINDER_TYPE_FD) {
                     // will need to rescan because we may have lopped off the only FDs
-                    mFdsKnown = false;
+                    kernelFields->mFdsKnown = false;
                 }
                 release_object(proc, *flat, this);
             }
 
             if (objectsSize == 0) {
-                free(mObjects);
-                mObjects = nullptr;
-                mObjectsCapacity = 0;
+                free(kernelFields->mObjects);
+                kernelFields->mObjects = nullptr;
+                kernelFields->mObjectsCapacity = 0;
             } else {
                 binder_size_t* objects =
-                    (binder_size_t*)realloc(mObjects, objectsSize*sizeof(binder_size_t));
+                        (binder_size_t*)realloc(kernelFields->mObjects,
+                                                objectsSize * sizeof(binder_size_t));
                 if (objects) {
-                    mObjects = objects;
-                    mObjectsCapacity = objectsSize;
+                    kernelFields->mObjects = objects;
+                    kernelFields->mObjectsCapacity = objectsSize;
                 }
             }
-            mObjectsSize = objectsSize;
-            mNextObjectHint = 0;
-            mObjectsSorted = false;
+            kernelFields->mObjectsSize = objectsSize;
+            kernelFields->mNextObjectHint = 0;
+            kernelFields->mObjectsSorted = false;
         }
 
         // We own the data, so we can just do a realloc().
@@ -2588,9 +2711,12 @@ status_t Parcel::continueWrite(size_t desired)
             return NO_MEMORY;
         }
 
-        if(!(mDataCapacity == 0 && mObjects == nullptr
-             && mObjectsCapacity == 0)) {
-            ALOGE("continueWrite: %zu/%p/%zu/%zu", mDataCapacity, mObjects, mObjectsCapacity, desired);
+        if (!(mDataCapacity == 0 &&
+              (kernelFields == nullptr ||
+               (kernelFields->mObjects == nullptr && kernelFields->mObjectsCapacity == 0)))) {
+            ALOGE("continueWrite: %zu/%p/%zu/%zu", mDataCapacity,
+                  kernelFields ? kernelFields->mObjects : nullptr,
+                  kernelFields ? kernelFields->mObjectsCapacity : 0, desired);
         }
 
         LOG_ALLOC("Parcel %p: allocating with %zu capacity", this, desired);
@@ -2617,19 +2743,10 @@ void Parcel::initState()
     mDataPos = 0;
     ALOGV("initState Setting data size of %p to %zu", this, mDataSize);
     ALOGV("initState Setting data pos of %p to %zu", this, mDataPos);
-    mSession = nullptr;
-    mObjects = nullptr;
-    mObjectsSize = 0;
-    mObjectsCapacity = 0;
-    mNextObjectHint = 0;
-    mObjectsSorted = false;
-    mHasFds = false;
-    mFdsKnown = true;
+    mVariantFields.emplace<KernelFields>();
     mAllowFds = true;
     mDeallocZero = false;
     mOwner = nullptr;
-    mWorkSourceRequestHeaderPosition = 0;
-    mRequestHeaderPresent = false;
 
     // racing multiple init leads only to multiple identical write
     if (gMaxFds == 0) {
@@ -2645,9 +2762,13 @@ void Parcel::initState()
 }
 
 void Parcel::scanForFds() const {
-    status_t status = hasFileDescriptorsInRange(0, dataSize(), &mHasFds);
+    auto* kernelFields = maybeKernelFields();
+    if (kernelFields == nullptr) {
+        return;
+    }
+    status_t status = hasFileDescriptorsInRange(0, dataSize(), &kernelFields->mHasFds);
     ALOGE_IF(status != NO_ERROR, "Error %d calling hasFileDescriptorsInRange()", status);
-    mFdsKnown = true;
+    kernelFields->mFdsKnown = true;
 }
 
 size_t Parcel::getBlobAshmemSize() const
@@ -2660,10 +2781,15 @@ size_t Parcel::getBlobAshmemSize() const
 
 size_t Parcel::getOpenAshmemSize() const
 {
+    auto* kernelFields = maybeKernelFields();
+    if (kernelFields == nullptr) {
+        return 0;
+    }
+
     size_t openAshmemSize = 0;
-    for (size_t i = 0; i < mObjectsSize; i++) {
+    for (size_t i = 0; i < kernelFields->mObjectsSize; i++) {
         const flat_binder_object* flat =
-                reinterpret_cast<const flat_binder_object*>(mData + mObjects[i]);
+                reinterpret_cast<const flat_binder_object*>(mData + kernelFields->mObjects[i]);
 
         // cookie is compared against zero for historical reasons
         // > obj.cookie = takeOwnership ? 1 : 0;
