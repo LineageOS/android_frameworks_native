@@ -391,6 +391,71 @@ void DisplayState::merge(const DisplayState& other) {
     }
 }
 
+void layer_state_t::sanitize(int32_t permissions) {
+    // TODO: b/109894387
+    //
+    // SurfaceFlinger's renderer is not prepared to handle cropping in the face of arbitrary
+    // rotation. To see the problem observe that if we have a square parent, and a child
+    // of the same size, then we rotate the child 45 degrees around its center, the child
+    // must now be cropped to a non rectangular 8 sided region.
+    //
+    // Of course we can fix this in the future. For now, we are lucky, SurfaceControl is
+    // private API, and arbitrary rotation is used in limited use cases, for instance:
+    // - WindowManager only uses rotation in one case, which is on a top level layer in which
+    //   cropping is not an issue.
+    // - Launcher, as a privileged app, uses this to transition an application to PiP
+    //   (picture-in-picture) mode.
+    //
+    // However given that abuse of rotation matrices could lead to surfaces extending outside
+    // of cropped areas, we need to prevent non-root clients without permission
+    // ACCESS_SURFACE_FLINGER nor ROTATE_SURFACE_FLINGER
+    // (a.k.a. everyone except WindowManager / tests / Launcher) from setting non rectangle
+    // preserving transformations.
+    if (what & eMatrixChanged) {
+        if (!(permissions & Permission::ROTATE_SURFACE_FLINGER)) {
+            ui::Transform t;
+            t.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
+            if (!t.preserveRects()) {
+                what &= ~eMatrixChanged;
+                ALOGE("Stripped non rect preserving matrix in sanitize");
+            }
+        }
+    }
+
+    if (what & layer_state_t::eInputInfoChanged) {
+        if (!(permissions & Permission::ACCESS_SURFACE_FLINGER)) {
+            what &= ~eInputInfoChanged;
+            ALOGE("Stripped attempt to set eInputInfoChanged in sanitize");
+        }
+    }
+    if (what & layer_state_t::eTrustedOverlayChanged) {
+        if (!(permissions & Permission::ACCESS_SURFACE_FLINGER)) {
+            what &= ~eTrustedOverlayChanged;
+            ALOGE("Stripped attempt to set eTrustedOverlay in sanitize");
+        }
+    }
+    if (what & layer_state_t::eDropInputModeChanged) {
+        if (!(permissions & Permission::ACCESS_SURFACE_FLINGER)) {
+            what &= ~eDropInputModeChanged;
+            ALOGE("Stripped attempt to set eDropInputModeChanged in sanitize");
+        }
+    }
+    if (what & layer_state_t::eFrameRateSelectionPriority) {
+        if (!(permissions & Permission::ACCESS_SURFACE_FLINGER)) {
+            what &= ~eFrameRateSelectionPriority;
+            ALOGE("Stripped attempt to set eFrameRateSelectionPriority in sanitize");
+        }
+    }
+    if (what & layer_state_t::eFrameRateChanged) {
+        if (!ValidateFrameRate(frameRate, frameRateCompatibility,
+                               changeFrameRateStrategy,
+                               "layer_state_t::sanitize",
+                               permissions & Permission::ACCESS_SURFACE_FLINGER)) {
+            what &= ~eFrameRateChanged; // logged in ValidateFrameRate
+        }
+    }
+}
+
 void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & ePositionChanged) {
         what |= ePositionChanged;

@@ -1766,6 +1766,10 @@ binder::Status InstalldNativeService::getAppSize(const std::optional<std::string
         const std::vector<std::string>& codePaths, std::vector<int64_t>* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
+    if (packageNames.size() != ceDataInodes.size()) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                         "packageNames/ceDataInodes size mismatch.");
+    }
     for (const auto& packageName : packageNames) {
         CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     }

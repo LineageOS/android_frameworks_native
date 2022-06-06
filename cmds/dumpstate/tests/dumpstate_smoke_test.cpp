@@ -240,11 +240,11 @@ TEST_F(ZippedBugreportGenerationTest, Is1MBMBinSize) {
     EXPECT_GE(st.st_size, 1000000 /* 1MB */);
 }
 
-TEST_F(ZippedBugreportGenerationTest, TakesBetween30And300Seconds) {
-    EXPECT_GE(duration, 30s) << "Expected completion in more than 30s. Actual time "
-                             << duration.count() << " s.";
+TEST_F(ZippedBugreportGenerationTest, TakesBetween20And300Seconds) {
+    EXPECT_GE(duration, 20s) << "Expected completion in more than 20s. Actual time "
+                             << duration.count() << " ms.";
     EXPECT_LE(duration, 300s) << "Expected completion in less than 300s. Actual time "
-                              << duration.count() << " s.";
+                              << duration.count() << " ms.";
 }
 
 /**
