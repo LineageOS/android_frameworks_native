@@ -248,6 +248,12 @@ public:
     bool isProtected() const {
         return getOutputLayer()->getLayerFE().getCompositionState()->hasProtectedContent;
     }
+
+    bool hasSolidColorCompositionType() const {
+        return getOutputLayer()->getLayerFE().getCompositionState()->compositionType ==
+                aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR;
+    }
+
     float getFps() const { return getOutputLayer()->getLayerFE().getCompositionState()->fps; }
 
     void dump(std::string& result) const;
