@@ -25,7 +25,7 @@ package {
 
 cc_defaults {
     name: "libui_tools_default",
-    clang_cflags: [
+    cflags: [
         "-Wall",
         "-Wextra",
         "-Werror",
