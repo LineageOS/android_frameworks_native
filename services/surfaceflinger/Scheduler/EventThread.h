@@ -88,7 +88,8 @@ public:
 private:
     virtual void onFirstRef();
     EventThread* const mEventThread;
-    gui::BitTube mChannel;
+    std::mutex mLock;
+    gui::BitTube mChannel GUARDED_BY(mLock);
 };
 
 class EventThread {
