@@ -289,7 +289,8 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
     RpcConnectionHeader header;
     if (status == OK) {
         iovec iov{&header, sizeof(header)};
-        status = client->interruptableReadFully(server->mShutdownTrigger.get(), &iov, 1, {});
+        status = client->interruptableReadFully(server->mShutdownTrigger.get(), &iov, 1,
+                                                std::nullopt);
         if (status != OK) {
             ALOGE("Failed to read ID for client connecting to RPC server: %s",
                   statusToString(status).c_str());
@@ -303,8 +304,8 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
             if (header.sessionIdSize == kSessionIdBytes) {
                 sessionId.resize(header.sessionIdSize);
                 iovec iov{sessionId.data(), sessionId.size()};
-                status =
-                        client->interruptableReadFully(server->mShutdownTrigger.get(), &iov, 1, {});
+                status = client->interruptableReadFully(server->mShutdownTrigger.get(), &iov, 1,
+                                                        std::nullopt);
                 if (status != OK) {
                     ALOGE("Failed to read session ID for client connecting to RPC server: %s",
                           statusToString(status).c_str());
@@ -334,7 +335,8 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
             };
 
             iovec iov{&response, sizeof(response)};
-            status = client->interruptableWriteFully(server->mShutdownTrigger.get(), &iov, 1, {});
+            status = client->interruptableWriteFully(server->mShutdownTrigger.get(), &iov, 1,
+                                                     std::nullopt);
             if (status != OK) {
                 ALOGE("Failed to send new session response: %s", statusToString(status).c_str());
                 // still need to cleanup before we can return
