@@ -147,6 +147,8 @@ public:
 
     bool hasProtectedLayers() const;
 
+    bool hasSolidColorLayers() const;
+
 private:
     CachedSet() = default;
 
