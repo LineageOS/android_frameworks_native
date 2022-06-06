@@ -1657,6 +1657,13 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, std::shared_ptr<
     InputEventInjectionResult injectionResult;
     if (isPointerEvent) {
         // Pointer event.  (eg. touchscreen)
+
+        if (mDragState &&
+            (entry->action & AMOTION_EVENT_ACTION_MASK) == AMOTION_EVENT_ACTION_POINTER_DOWN) {
+            // If drag and drop ongoing and pointer down occur: pilfer drag window pointers
+            pilferPointersLocked(mDragState->dragWindow->getToken());
+        }
+
         injectionResult =
                 findTouchedWindowTargetsLocked(currentTime, *entry, inputTargets, nextWakeupTime,
                                                &conflictingPointerActions);
@@ -5575,7 +5582,10 @@ void InputDispatcher::removeMonitorChannelLocked(const sp<IBinder>& connectionTo
 
 status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
     std::scoped_lock _l(mLock);
+    return pilferPointersLocked(token);
+}
 
+status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
     const std::shared_ptr<InputChannel> requestingChannel = getInputChannelLocked(token);
     if (!requestingChannel) {
         ALOGW("Attempted to pilfer pointers from an un-registered channel or invalid token");
