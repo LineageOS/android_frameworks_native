@@ -1300,6 +1300,7 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
         const auto& layerState = layer->getState();
         const auto* layerFEState = layer->getLayerFE().getCompositionState();
         auto& layerFE = layer->getLayerFE();
+        layerFE.setWasClientComposed(nullptr);
 
         const Region clip(viewportRegion.intersect(layerState.visibleRegion));
         ALOGV("Layer: %s", layerFE.getDebugName());
