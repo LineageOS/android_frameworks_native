@@ -47,8 +47,6 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle, int
         }
     }
 
-    if (preventNewTargets) return; // Don't add new TouchedWindows.
-
     TouchedWindow touchedWindow;
     touchedWindow.windowHandle = windowHandle;
     touchedWindow.targetFlags = targetFlags;
@@ -77,6 +75,27 @@ void TouchState::filterNonAsIsTouchWindows() {
             windows.erase(windows.begin() + i);
         }
     }
+}
+
+void TouchState::cancelPointersForWindowsExcept(const BitSet32 pointerIds,
+                                                const sp<IBinder>& token) {
+    if (pointerIds.isEmpty()) return;
+    std::for_each(windows.begin(), windows.end(), [&pointerIds, &token](TouchedWindow& w) {
+        if (w.windowHandle->getToken() != token) {
+            w.pointerIds &= BitSet32(~pointerIds.value);
+        }
+    });
+    std::erase_if(windows, [](const TouchedWindow& w) { return w.pointerIds.isEmpty(); });
+}
+
+void TouchState::cancelPointersForNonPilferingWindows(const BitSet32 pointerIds) {
+    if (pointerIds.isEmpty()) return;
+    std::for_each(windows.begin(), windows.end(), [&pointerIds](TouchedWindow& w) {
+        if (!w.isPilferingPointers) {
+            w.pointerIds &= BitSet32(~pointerIds.value);
+        }
+    });
+    std::erase_if(windows, [](const TouchedWindow& w) { return w.pointerIds.isEmpty(); });
 }
 
 void TouchState::filterWindowsExcept(const sp<IBinder>& token) {

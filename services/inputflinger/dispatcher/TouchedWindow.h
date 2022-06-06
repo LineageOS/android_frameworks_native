@@ -30,6 +30,7 @@ struct TouchedWindow {
     sp<gui::WindowInfoHandle> windowHandle;
     int32_t targetFlags;
     BitSet32 pointerIds; // zero unless target flag FLAG_SPLIT is set
+    bool isPilferingPointers = false;
 };
 
 } // namespace inputdispatcher
