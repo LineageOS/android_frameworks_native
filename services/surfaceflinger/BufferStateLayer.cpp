@@ -79,10 +79,10 @@ void BufferStateLayer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFen
     //  For example we can only use it if all the displays are client comp, and we need
     //  to merge all the client comp fences. We could do this, but for now we just
     // disable the optimization when a layer is composed on multiple displays.
-    if (mAlreadyDisplayedThisCompose) {
+    if (mClearClientCompositionFenceOnLayerDisplayed) {
         mLastClientCompositionFence = nullptr;
     } else {
-        mAlreadyDisplayedThisCompose = true;
+        mClearClientCompositionFenceOnLayerDisplayed = true;
     }
 
     // The previous release fence notifies the client that SurfaceFlinger is done with the previous
