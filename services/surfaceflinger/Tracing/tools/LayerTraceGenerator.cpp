@@ -142,6 +142,14 @@ public:
         transact(1033, data, &reply, 0 /* flags */);
     }
 
+    void setLayerTraceSize(int32_t sizeInKb) {
+        Parcel data;
+        Parcel reply;
+        data.writeInterfaceToken(String16("android.ui.ISurfaceComposer"));
+        data.writeInt32(sizeInKb);
+        transact(1029, data, &reply, 0 /* flags */);
+    }
+
     void startLayerTracing(int64_t traceStartTime) {
         Parcel data;
         Parcel reply;
@@ -206,6 +214,7 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
     mFlinger.mutableMaxRenderTargetSize() = 16384;
 
     flinger->setLayerTracingFlags(LayerTracing::TRACE_INPUT | LayerTracing::TRACE_BUFFERS);
+    flinger->setLayerTraceSize(512 * 1024); // 512MB buffer size
     flinger->startLayerTracing(traceFile.entry(0).elapsed_realtime_nanos());
     std::unique_ptr<TraceGenFlingerDataMapper> mapper =
             std::make_unique<TraceGenFlingerDataMapper>();

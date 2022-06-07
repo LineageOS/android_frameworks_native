@@ -282,6 +282,8 @@ const String16 sInternalSystemWindow("android.permission.INTERNAL_SYSTEM_WINDOW"
 
 const char* KERNEL_IDLE_TIMER_PROP = "graphics.display.kernel_idle_timer.enabled";
 
+static const int MAX_TRACING_MEMORY = 1024 * 1024 * 1024; // 1GB
+
 // ---------------------------------------------------------------------------
 int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
 bool SurfaceFlinger::useHwcForRgbToYuv;
