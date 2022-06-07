@@ -349,6 +349,23 @@ TEST_F(VSyncReactorTest, addResyncSamplePeriodChanges) {
     }
 }
 
+TEST_F(VSyncReactorTest, addHwVsyncTimestampDozePreempt) {
+    bool periodFlushed = false;
+    nsecs_t const newPeriod = 4000;
+
+    mReactor.startPeriodTransition(newPeriod);
+
+    auto time = 0;
+    // If the power mode is not DOZE or DOZE_SUSPEND, it is still collecting timestamps.
+    EXPECT_TRUE(mReactor.addHwVsyncTimestamp(time, std::nullopt, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+
+    // Set power mode to DOZE to trigger period flushing.
+    mReactor.setDisplayPowerMode(hal::PowerMode::DOZE);
+    EXPECT_FALSE(mReactor.addHwVsyncTimestamp(time, std::nullopt, &periodFlushed));
+    EXPECT_TRUE(periodFlushed);
+}
+
 TEST_F(VSyncReactorTest, addPresentFenceWhileAwaitingPeriodConfirmationRequestsHwVsync) {
     auto time = 0;
     bool periodFlushed = false;
