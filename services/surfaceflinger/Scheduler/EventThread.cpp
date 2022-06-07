@@ -171,6 +171,11 @@ void EventThreadConnection::onFirstRef() {
 }
 
 status_t EventThreadConnection::stealReceiveChannel(gui::BitTube* outChannel) {
+    std::scoped_lock lock(mLock);
+    if (mChannel.initCheck() != NO_ERROR) {
+        return NAME_NOT_FOUND;
+    }
+
     outChannel->setReceiveFd(mChannel.moveReceiveFd());
     outChannel->setSendFd(base::unique_fd(dup(mChannel.getSendFd())));
     return NO_ERROR;
