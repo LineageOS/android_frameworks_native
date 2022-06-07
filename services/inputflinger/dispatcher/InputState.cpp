@@ -286,19 +286,30 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizeCancelationEvents
 
     for (const MotionMemento& memento : mMotionMementos) {
         if (shouldCancelMotion(memento, options)) {
-            const int32_t action = memento.hovering ? AMOTION_EVENT_ACTION_HOVER_EXIT
-                                                    : AMOTION_EVENT_ACTION_CANCEL;
-            events.push_back(
-                    std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime,
-                                                  memento.deviceId, memento.source,
-                                                  memento.displayId, memento.policyFlags, action,
-                                                  0 /*actionButton*/, memento.flags, AMETA_NONE,
-                                                  0 /*buttonState*/, MotionClassification::NONE,
-                                                  AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
-                                                  memento.yPrecision, memento.xCursorPosition,
-                                                  memento.yCursorPosition, memento.downTime,
-                                                  memento.pointerCount, memento.pointerProperties,
-                                                  memento.pointerCoords));
+            if (options.pointerIds == std::nullopt) {
+                const int32_t action = memento.hovering ? AMOTION_EVENT_ACTION_HOVER_EXIT
+                                                        : AMOTION_EVENT_ACTION_CANCEL;
+                events.push_back(
+                        std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime,
+                                                      memento.deviceId, memento.source,
+                                                      memento.displayId, memento.policyFlags,
+                                                      action, 0 /*actionButton*/, memento.flags,
+                                                      AMETA_NONE, 0 /*buttonState*/,
+                                                      MotionClassification::NONE,
+                                                      AMOTION_EVENT_EDGE_FLAG_NONE,
+                                                      memento.xPrecision, memento.yPrecision,
+                                                      memento.xCursorPosition,
+                                                      memento.yCursorPosition, memento.downTime,
+                                                      memento.pointerCount,
+                                                      memento.pointerProperties,
+                                                      memento.pointerCoords));
+            } else {
+                std::vector<std::unique_ptr<MotionEntry>> pointerCancelEvents =
+                        synthesizeCancelationEventsForPointers(memento, options.pointerIds.value(),
+                                                               currentTime);
+                events.insert(events.end(), std::make_move_iterator(pointerCancelEvents.begin()),
+                              std::make_move_iterator(pointerCancelEvents.end()));
+            }
         }
     }
     return events;
@@ -356,6 +367,73 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizePointerDownEvents
         memento.firstNewPointerIdx = INVALID_POINTER_INDEX;
     }
 
+    return events;
+}
+
+std::vector<std::unique_ptr<MotionEntry>> InputState::synthesizeCancelationEventsForPointers(
+        const MotionMemento& memento, const BitSet32 pointerIds, nsecs_t currentTime) {
+    std::vector<std::unique_ptr<MotionEntry>> events;
+    std::vector<uint32_t> canceledPointerIndices;
+    std::vector<PointerProperties> pointerProperties(MAX_POINTERS);
+    std::vector<PointerCoords> pointerCoords(MAX_POINTERS);
+    for (uint32_t pointerIdx = 0; pointerIdx < memento.pointerCount; pointerIdx++) {
+        uint32_t pointerId = uint32_t(memento.pointerProperties[pointerIdx].id);
+        pointerProperties[pointerIdx].copyFrom(memento.pointerProperties[pointerIdx]);
+        pointerCoords[pointerIdx].copyFrom(memento.pointerCoords[pointerIdx]);
+        if (pointerIds.hasBit(pointerId)) {
+            canceledPointerIndices.push_back(pointerIdx);
+        }
+    }
+
+    if (canceledPointerIndices.size() == memento.pointerCount) {
+        const int32_t action =
+                memento.hovering ? AMOTION_EVENT_ACTION_HOVER_EXIT : AMOTION_EVENT_ACTION_CANCEL;
+        events.push_back(
+                std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime, memento.deviceId,
+                                              memento.source, memento.displayId,
+                                              memento.policyFlags, action, 0 /*actionButton*/,
+                                              memento.flags, AMETA_NONE, 0 /*buttonState*/,
+                                              MotionClassification::NONE,
+                                              AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
+                                              memento.yPrecision, memento.xCursorPosition,
+                                              memento.yCursorPosition, memento.downTime,
+                                              memento.pointerCount, memento.pointerProperties,
+                                              memento.pointerCoords));
+    } else {
+        // If we aren't canceling all pointers, we need to generated ACTION_POINTER_UP with
+        // FLAG_CANCELED for each of the canceled pointers. For each event, we must remove the
+        // previously canceled pointers from PointerProperties and PointerCoords, and update
+        // pointerCount appropriately. For convenience, sort the canceled pointer indices so that we
+        // can just slide the remaining pointers to the beginning of the array when a pointer is
+        // canceled.
+        std::sort(canceledPointerIndices.begin(), canceledPointerIndices.end(),
+                  std::greater<uint32_t>());
+
+        uint32_t pointerCount = memento.pointerCount;
+        for (const uint32_t pointerIdx : canceledPointerIndices) {
+            const int32_t action = pointerCount == 1 ? AMOTION_EVENT_ACTION_CANCEL
+                                                     : AMOTION_EVENT_ACTION_POINTER_UP |
+                            (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+            events.push_back(
+                    std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime,
+                                                  memento.deviceId, memento.source,
+                                                  memento.displayId, memento.policyFlags, action,
+                                                  0 /*actionButton*/,
+                                                  memento.flags | AMOTION_EVENT_FLAG_CANCELED,
+                                                  AMETA_NONE, 0 /*buttonState*/,
+                                                  MotionClassification::NONE,
+                                                  AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
+                                                  memento.yPrecision, memento.xCursorPosition,
+                                                  memento.yCursorPosition, memento.downTime,
+                                                  pointerCount, pointerProperties.data(),
+                                                  pointerCoords.data()));
+
+            // Cleanup pointer information
+            pointerProperties.erase(pointerProperties.begin() + pointerIdx);
+            pointerCoords.erase(pointerCoords.begin() + pointerIdx);
+            pointerCount--;
+        }
+    }
     return events;
 }
 

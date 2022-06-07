@@ -208,8 +208,8 @@ TEST(RpcBinderAllocation, SetupRpcServer) {
         totalBytes += bytes;
     });
     CHECK_EQ(OK, remoteBinder->pingBinder());
-    EXPECT_EQ(mallocs, 4);
-    EXPECT_EQ(totalBytes, 108);
+    EXPECT_EQ(mallocs, 3);
+    EXPECT_EQ(totalBytes, 60);
 }
 
 int main(int argc, char** argv) {

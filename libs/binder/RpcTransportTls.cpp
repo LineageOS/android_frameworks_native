@@ -181,9 +181,10 @@ public:
     // |sslError| should be from Ssl::getError().
     // If |sslError| is WANT_READ / WANT_WRITE, poll for POLLIN / POLLOUT respectively. Otherwise
     // return error. Also return error if |fdTrigger| is triggered before or during poll().
-    status_t pollForSslError(android::base::borrowed_fd fd, int sslError, FdTrigger* fdTrigger,
-                             const char* fnString, int additionalEvent,
-                             const std::function<status_t()>& altPoll) {
+    status_t pollForSslError(
+            android::base::borrowed_fd fd, int sslError, FdTrigger* fdTrigger, const char* fnString,
+            int additionalEvent,
+            const std::optional<android::base::function_ref<status_t()>>& altPoll) {
         switch (sslError) {
             case SSL_ERROR_WANT_READ:
                 return handlePoll(POLLIN | additionalEvent, fd, fdTrigger, fnString, altPoll);
@@ -198,10 +199,11 @@ private:
     bool mHandled = false;
 
     status_t handlePoll(int event, android::base::borrowed_fd fd, FdTrigger* fdTrigger,
-                        const char* fnString, const std::function<status_t()>& altPoll) {
+                        const char* fnString,
+                        const std::optional<android::base::function_ref<status_t()>>& altPoll) {
         status_t ret;
         if (altPoll) {
-            ret = altPoll();
+            ret = (*altPoll)();
             if (fdTrigger->isTriggered()) ret = DEAD_OBJECT;
         } else {
             ret = fdTrigger->triggerablePoll(fd, event);
@@ -278,10 +280,12 @@ public:
     RpcTransportTls(android::base::unique_fd socket, Ssl ssl)
           : mSocket(std::move(socket)), mSsl(std::move(ssl)) {}
     status_t pollRead(void) override;
-    status_t interruptableWriteFully(FdTrigger* fdTrigger, iovec* iovs, int niovs,
-                                     const std::function<status_t()>& altPoll) override;
-    status_t interruptableReadFully(FdTrigger* fdTrigger, iovec* iovs, int niovs,
-                                    const std::function<status_t()>& altPoll) override;
+    status_t interruptableWriteFully(
+            FdTrigger* fdTrigger, iovec* iovs, int niovs,
+            const std::optional<android::base::function_ref<status_t()>>& altPoll) override;
+    status_t interruptableReadFully(
+            FdTrigger* fdTrigger, iovec* iovs, int niovs,
+            const std::optional<android::base::function_ref<status_t()>>& altPoll) override;
 
 private:
     android::base::unique_fd mSocket;
@@ -307,8 +311,9 @@ status_t RpcTransportTls::pollRead(void) {
     return OK;
 }
 
-status_t RpcTransportTls::interruptableWriteFully(FdTrigger* fdTrigger, iovec* iovs, int niovs,
-                                                  const std::function<status_t()>& altPoll) {
+status_t RpcTransportTls::interruptableWriteFully(
+        FdTrigger* fdTrigger, iovec* iovs, int niovs,
+        const std::optional<android::base::function_ref<status_t()>>& altPoll) {
     MAYBE_WAIT_IN_FLAKE_MODE;
 
     if (niovs < 0) return BAD_VALUE;
@@ -349,8 +354,9 @@ status_t RpcTransportTls::interruptableWriteFully(FdTrigger* fdTrigger, iovec* i
     return OK;
 }
 
-status_t RpcTransportTls::interruptableReadFully(FdTrigger* fdTrigger, iovec* iovs, int niovs,
-                                                 const std::function<status_t()>& altPoll) {
+status_t RpcTransportTls::interruptableReadFully(
+        FdTrigger* fdTrigger, iovec* iovs, int niovs,
+        const std::optional<android::base::function_ref<status_t()>>& altPoll) {
     MAYBE_WAIT_IN_FLAKE_MODE;
 
     if (niovs < 0) return BAD_VALUE;
@@ -415,8 +421,8 @@ bool setFdAndDoHandshake(Ssl* ssl, android::base::borrowed_fd fd, FdTrigger* fdT
             return false;
         }
         int sslError = ssl->getError(ret);
-        status_t pollStatus =
-                errorQueue.pollForSslError(fd, sslError, fdTrigger, "SSL_do_handshake", 0, {});
+        status_t pollStatus = errorQueue.pollForSslError(fd, sslError, fdTrigger,
+                                                         "SSL_do_handshake", 0, std::nullopt);
         if (pollStatus != OK) return false;
     }
 }

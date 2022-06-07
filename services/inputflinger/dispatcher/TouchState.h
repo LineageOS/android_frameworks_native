@@ -31,7 +31,6 @@ namespace inputdispatcher {
 struct TouchState {
     bool down = false;
     bool split = false;
-    bool preventNewTargets = false;
 
     // id of the device that is currently down, others are rejected
     int32_t deviceId = -1;
@@ -52,6 +51,13 @@ struct TouchState {
     void removeWindowByToken(const sp<IBinder>& token);
     void filterNonAsIsTouchWindows();
     void filterWindowsExcept(const sp<IBinder>& token);
+
+    // Cancel pointers for current set of windows except the window with particular binder token.
+    void cancelPointersForWindowsExcept(const BitSet32 pointerIds, const sp<IBinder>& token);
+    // Cancel pointers for current set of non-pilfering windows i.e. windows with isPilferingWindow
+    // set to false.
+    void cancelPointersForNonPilferingWindows(const BitSet32 pointerIds);
+
     sp<android::gui::WindowInfoHandle> getFirstForegroundWindowHandle() const;
     bool isSlippery() const;
     sp<android::gui::WindowInfoHandle> getWallpaperWindow() const;

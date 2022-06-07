@@ -17,9 +17,11 @@
 #ifndef _UI_INPUT_INPUTDISPATCHER_CANCELLATIONOPTIONS_H
 #define _UI_INPUT_INPUTDISPATCHER_CANCELLATIONOPTIONS_H
 
+#include <utils/BitSet.h>
 #include <optional>
 
-namespace android::inputdispatcher {
+namespace android {
+namespace inputdispatcher {
 
 /* Specifies which events are to be canceled and why. */
 struct CancelationOptions {
@@ -45,9 +47,13 @@ struct CancelationOptions {
     // The specific display id of events to cancel, or nullopt to cancel events on any display.
     std::optional<int32_t> displayId = std::nullopt;
 
+    // The specific pointers to cancel, or nullopt to cancel all pointer events
+    std::optional<BitSet32> pointerIds = std::nullopt;
+
     CancelationOptions(Mode mode, const char* reason) : mode(mode), reason(reason) {}
 };
 
-} // namespace android::inputdispatcher
+} // namespace inputdispatcher
+} // namespace android
 
 #endif // _UI_INPUT_INPUTDISPATCHER_CANCELLATIONOPTIONS_H
