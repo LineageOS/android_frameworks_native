@@ -64,20 +64,20 @@ public:
     virtual bool startPowerHintSession(const std::vector<int32_t>& threadIds) = 0;
     // Provides PowerAdvisor with a copy of the gpu fence so it can determine the gpu end time
     virtual void setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime) = 0;
-    // Reports the start and end times of a present call this frame for a given display
-    virtual void setValidateTiming(DisplayId displayId, nsecs_t validateStartTime,
-                                   nsecs_t validateEndTime) = 0;
-    // Reports the start and end times of a present call this frame for a given display
-    virtual void setPresentTiming(DisplayId displayId, nsecs_t presentStartTime,
-                                  nsecs_t presentEndTime) = 0;
+    // Reports the start and end times of a hwc validate call this frame for a given display
+    virtual void setHwcValidateTiming(DisplayId displayId, nsecs_t validateStartTime,
+                                      nsecs_t validateEndTime) = 0;
+    // Reports the start and end times of a hwc present call this frame for a given display
+    virtual void setHwcPresentTiming(DisplayId displayId, nsecs_t presentStartTime,
+                                     nsecs_t presentEndTime) = 0;
     virtual void setExpectedPresentTime(nsecs_t expectedPresentTime) = 0;
     // Reports whether a display used client composition this frame
     virtual void setRequiresClientComposition(DisplayId displayId,
                                               bool requiresClientComposition) = 0;
     // Reports whether a given display skipped validation this frame
     virtual void setSkippedValidate(DisplayId displayId, bool skipped) = 0;
-    // Reports how much a given display delayed its present call this frame
-    virtual void setPresentDelayedTime(
+    // Reports when a hwc present is delayed, and the time that it will resume
+    virtual void setHwcPresentDelayedTime(
             DisplayId displayId, std::chrono::steady_clock::time_point earliestFrameStartTime) = 0;
     // Reports the start delay for SurfaceFlinger this frame
     virtual void setFrameDelay(nsecs_t frameDelayDuration) = 0;
@@ -132,14 +132,14 @@ public:
     void enablePowerHint(bool enabled) override;
     bool startPowerHintSession(const std::vector<int32_t>& threadIds) override;
     void setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime);
-    void setValidateTiming(DisplayId displayId, nsecs_t valiateStartTime,
-                           nsecs_t validateEndTime) override;
-    void setPresentTiming(DisplayId displayId, nsecs_t presentStartTime,
-                          nsecs_t presentEndTime) override;
+    void setHwcValidateTiming(DisplayId displayId, nsecs_t valiateStartTime,
+                              nsecs_t validateEndTime) override;
+    void setHwcPresentTiming(DisplayId displayId, nsecs_t presentStartTime,
+                             nsecs_t presentEndTime) override;
     void setSkippedValidate(DisplayId displayId, bool skipped) override;
     void setRequiresClientComposition(DisplayId displayId, bool requiresClientComposition) override;
     void setExpectedPresentTime(nsecs_t expectedPresentTime) override;
-    void setPresentDelayedTime(
+    void setHwcPresentDelayedTime(
             DisplayId displayId,
             std::chrono::steady_clock::time_point earliestFrameStartTime) override;
 
@@ -166,17 +166,19 @@ private:
 
     // Higher-level timing data used for estimation
     struct DisplayTimeline {
-        nsecs_t prePresentTime = -1;
-        nsecs_t postPresentTime = -1;
-        // Usually equals prePresentTime but can be delayed if we wait for the next valid vsync
-        nsecs_t presentStartTime = -1;
-        // When we think we started waiting for the fence after calling into present and
+        // The start of hwc present, or the start of validate if it happened there instead
+        nsecs_t hwcPresentStartTime = -1;
+        // The end of hwc present or validate, whichever one actually presented
+        nsecs_t hwcPresentEndTime = -1;
+        // How long the actual hwc present was delayed after hwcPresentStartTime
+        nsecs_t hwcPresentDelayDuration = 0;
+        // When we think we started waiting for the release fence after calling into hwc present and
         // after potentially waiting for the earliest present time
-        nsecs_t preFenceWaitTime = -1;
-        // How long we ran after we finished waiting for the fence but before present happened
-        nsecs_t postFenceDuration = 0;
+        nsecs_t releaseFenceWaitStartTime = -1;
+        // How long we ran after we finished waiting for the fence but before hwc present finished
+        nsecs_t postReleaseFenceHwcPresentDuration = 0;
         // Are we likely to have waited for the present fence during composition
-        bool probablyWaitsForFence = false;
+        bool probablyWaitsForReleaseFence = false;
         // Estimate one frame's timeline from that of a previous frame
         DisplayTimeline estimateTimelineFromReference(nsecs_t fenceTime, nsecs_t displayStartTime);
     };
@@ -192,11 +194,11 @@ private:
         std::optional<nsecs_t> gpuStartTime;
         std::optional<nsecs_t> lastValidGpuEndTime;
         std::optional<nsecs_t> lastValidGpuStartTime;
-        std::optional<nsecs_t> presentStartTime;
-        std::optional<nsecs_t> presentEndTime;
-        std::optional<nsecs_t> validateStartTime;
-        std::optional<nsecs_t> validateEndTime;
-        std::optional<nsecs_t> presentDelayedTime;
+        std::optional<nsecs_t> hwcPresentStartTime;
+        std::optional<nsecs_t> hwcPresentEndTime;
+        std::optional<nsecs_t> hwcValidateStartTime;
+        std::optional<nsecs_t> hwcValidateEndTime;
+        std::optional<nsecs_t> hwcPresentDelayedTime;
         bool usedClientComposition = false;
         bool skippedValidate = false;
         // Calculate high-level timing milestones from more granular display timing data
@@ -258,13 +260,13 @@ private:
 
     // An adjustable safety margin which moves the "target" earlier to allow flinger to
     // go a bit over without dropping a frame, especially since we can't measure
-    // the exact time HWC finishes composition so "actual" durations are measured
+    // the exact time hwc finishes composition so "actual" durations are measured
     // from the end of present() instead, which is a bit later.
     static constexpr const std::chrono::nanoseconds kTargetSafetyMargin = 1ms;
 
     // How long we expect hwc to run after the present call until it waits for the fence
-    static constexpr const std::chrono::nanoseconds kPrefenceDelayValidated = 150us;
-    static constexpr const std::chrono::nanoseconds kPrefenceDelaySkippedValidate = 250us;
+    static constexpr const std::chrono::nanoseconds kFenceWaitStartDelayValidated = 150us;
+    static constexpr const std::chrono::nanoseconds kFenceWaitStartDelaySkippedValidate = 250us;
 };
 
 class AidlPowerHalWrapper : public PowerAdvisor::HalWrapper {
