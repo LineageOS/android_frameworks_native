@@ -469,12 +469,17 @@ std::vector<tonemap::ShaderUniform> buildLinearEffectUniforms(
         float currentDisplayLuminanceNits, float maxLuminance, AHardwareBuffer* buffer,
         aidl::android::hardware::graphics::composer3::RenderIntent renderIntent) {
     std::vector<tonemap::ShaderUniform> uniforms;
-    if (linearEffect.inputDataspace == linearEffect.outputDataspace) {
+
+    const ui::Dataspace inputDataspace = linearEffect.fakeInputDataspace == ui::Dataspace::UNKNOWN
+            ? linearEffect.inputDataspace
+            : linearEffect.fakeInputDataspace;
+
+    if (inputDataspace == linearEffect.outputDataspace) {
         uniforms.push_back({.name = "in_rgbToXyz", .value = buildUniformValue<mat4>(mat4())});
         uniforms.push_back(
                 {.name = "in_xyzToRgb", .value = buildUniformValue<mat4>(colorTransform)});
     } else {
-        ColorSpace inputColorSpace = toColorSpace(linearEffect.inputDataspace);
+        ColorSpace inputColorSpace = toColorSpace(inputDataspace);
         ColorSpace outputColorSpace = toColorSpace(linearEffect.outputDataspace);
         uniforms.push_back({.name = "in_rgbToXyz",
                             .value = buildUniformValue<mat4>(mat4(inputColorSpace.getRGBtoXYZ()))});
