@@ -85,8 +85,10 @@ private:
     std::unordered_map<int, proto::LayerCreationArgs> mCreatedLayers GUARDED_BY(mTraceLock);
     std::unordered_map<BBinder* /* layerHandle */, int32_t /* layerId */> mLayerHandles
             GUARDED_BY(mTraceLock);
-    std::vector<int32_t /* layerId */> mRemovedLayerHandles GUARDED_BY(mTraceLock);
+    std::vector<std::pair<BBinder* /* layerHandle */, int32_t /* layerId */>> mRemovedLayerHandles
+            GUARDED_BY(mTraceLock);
     std::map<int32_t /* layerId */, TracingLayerState> mStartingStates GUARDED_BY(mTraceLock);
+    std::set<int32_t /* layerId */> mRemovedLayerHandlesAtStart GUARDED_BY(mTraceLock);
     TransactionProtoParser mProtoParser GUARDED_BY(mTraceLock);
     // Parses the transaction to proto without holding any tracing locks so we can generate proto
     // in the binder thread without any contention.
