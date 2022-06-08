@@ -1194,6 +1194,11 @@ int main(int argc, char **argv)
     bool traceStream = false;
     bool onlyUserspace = false;
 
+    fprintf(stderr,
+            "** Warning: atrace will end vendor support in the next Android Release. **\n"
+            "** Perfetto is the suggested replacement tool. It will gain vendor      **\n"
+            "** support. See https://perfetto.dev/docs/quickstart/android-tracing    **\n\n");
+
     if (argc == 2 && 0 == strcmp(argv[1], "--help")) {
         showHelp(argv[0]);
         exit(0);
