@@ -248,7 +248,7 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
                     (dataMapper->mLayerHandles.find(tracingArgs.parentId) ==
                      dataMapper->mLayerHandles.end())) {
                     args.addToRoot = false;
-                } else {
+                } else if (tracingArgs.parentId != -1) {
                     parentHandle = dataMapper->getLayerHandle(tracingArgs.parentId);
                 }
                 mFlinger.createLayer(args, &outHandle, parentHandle, &outLayerId,
