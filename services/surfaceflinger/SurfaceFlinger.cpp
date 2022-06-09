@@ -4947,7 +4947,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     if (isDisplayActiveLocked(display)) {
         mTimeStats->setPowerMode(mode);
         mRefreshRateStats->setPowerMode(mode);
-        mScheduler->setDisplayPowerState(mode == hal::PowerMode::ON);
+        mScheduler->setDisplayPowerMode(mode);
     }
 
     ALOGD("Finished setting power mode %d on display %s", mode, to_string(displayId).c_str());
