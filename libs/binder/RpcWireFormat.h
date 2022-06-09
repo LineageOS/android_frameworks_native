@@ -139,7 +139,6 @@ static_assert(sizeof(RpcWireTransaction) == 40);
 
 struct RpcWireReply {
     int32_t status; // transact return
-    uint8_t data[];
 };
 static_assert(sizeof(RpcWireReply) == 4);
 
