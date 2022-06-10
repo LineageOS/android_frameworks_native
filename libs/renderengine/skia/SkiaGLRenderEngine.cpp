@@ -779,15 +779,9 @@ void SkiaGLRenderEngine::drawLayersInternal(
         const DisplaySettings& display, const std::vector<LayerSettings>& layers,
         const std::shared_ptr<ExternalTexture>& buffer, const bool /*useFramebufferCache*/,
         base::unique_fd&& bufferFence) {
-    ATRACE_NAME("SkiaGL::drawLayers");
+    ATRACE_NAME("SkiaGL::drawLayersInternal");
 
     std::lock_guard<std::mutex> lock(mRenderingMutex);
-    if (layers.empty()) {
-        ALOGV("Drawing empty layer stack");
-        resultPromise->set_value({NO_ERROR, base::unique_fd()});
-        return;
-    }
-
     if (buffer == nullptr) {
         ALOGE("No output buffer provided. Aborting GPU composition.");
         resultPromise->set_value({BAD_VALUE, base::unique_fd()});
