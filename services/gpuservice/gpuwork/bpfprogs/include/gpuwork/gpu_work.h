@@ -49,6 +49,8 @@ typedef struct {
     // negative duration.
     uint32_t error_count;
 
+    // Needed to make 32-bit arch struct size match 64-bit BPF arch struct size.
+    uint32_t padding0;
 } UidTrackingInfo;
 
 typedef struct {
