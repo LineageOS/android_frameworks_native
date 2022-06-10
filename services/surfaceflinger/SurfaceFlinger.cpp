@@ -2168,7 +2168,7 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
 
     if (mLayerTracingEnabled && !mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
         // This will block and tracing should only be enabled for debugging.
-        mLayerTracing.notify(mVisibleRegionsDirty, frameTime);
+        mLayerTracing.notify(mVisibleRegionsDirty, frameTime, vsyncId);
     }
 
     persistDisplayBrightness(mustComposite);
@@ -2295,7 +2295,7 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId)
     mLayersWithQueuedFrames.clear();
     if (mLayerTracingEnabled && mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
         // This will block and should only be used for debugging.
-        mLayerTracing.notify(mVisibleRegionsDirty, frameTime);
+        mLayerTracing.notify(mVisibleRegionsDirty, frameTime, vsyncId);
     }
 
     mVisibleRegionsWereDirtyThisFrame = mVisibleRegionsDirty; // Cache value for use in post-comp
@@ -5846,7 +5846,8 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                                 (fixedStartingTime) ? fixedStartingTime : systemTime();
                         mScheduler
                                 ->schedule([&]() FTL_FAKE_GUARD(mStateLock) {
-                                    mLayerTracing.notify("start", startingTime);
+                                    mLayerTracing.notify(true /* visibleRegionDirty */,
+                                                         startingTime, -1 /* vsyncId */);
                                 })
                                 .wait();
                     }
