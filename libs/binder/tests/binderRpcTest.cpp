@@ -650,8 +650,11 @@ public:
                 .proc = createRpcTestSocketServerProcess(
                         options,
                         [&](const sp<RpcServer>& server) {
-                            server->setPerSessionRootObject([&](const sockaddr* addr,
-                                                                socklen_t len) {
+                            server->setPerSessionRootObject([&](const void* addrPtr, size_t len) {
+                                // UNIX sockets with abstract addresses return
+                                // sizeof(sa_family_t)==2 in addrlen
+                                CHECK_GE(len, sizeof(sa_family_t));
+                                const sockaddr* addr = reinterpret_cast<const sockaddr*>(addrPtr);
                                 sp<MyBinderRpcTest> service = sp<MyBinderRpcTest>::make();
                                 switch (addr->sa_family) {
                                     case AF_UNIX:

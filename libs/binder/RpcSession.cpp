@@ -715,6 +715,7 @@ bool RpcSession::setForServer(const wp<RpcServer>& server, const wp<EventListene
     LOG_ALWAYS_FATAL_IF(mEventListener != nullptr);
     LOG_ALWAYS_FATAL_IF(eventListener == nullptr);
     LOG_ALWAYS_FATAL_IF(mShutdownTrigger != nullptr);
+    LOG_ALWAYS_FATAL_IF(mCtx != nullptr);
 
     mShutdownTrigger = FdTrigger::make();
     if (mShutdownTrigger == nullptr) return false;
