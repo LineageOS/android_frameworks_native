@@ -554,11 +554,12 @@ void Scheduler::onTouchHint() {
     }
 }
 
-void Scheduler::setDisplayPowerState(bool normal) {
+void Scheduler::setDisplayPowerMode(hal::PowerMode powerMode) {
     {
         std::lock_guard<std::mutex> lock(mPolicyLock);
-        mPolicy.isDisplayPowerStateNormal = normal;
+        mPolicy.displayPowerMode = powerMode;
     }
+    mVsyncSchedule->getController().setDisplayPowerMode(powerMode);
 
     if (mDisplayPowerTimer) {
         mDisplayPowerTimer->reset();
@@ -706,7 +707,8 @@ auto Scheduler::chooseDisplayMode() -> std::pair<DisplayModePtr, GlobalSignals> 
     // If Display Power is not in normal operation we want to be in performance mode. When coming
     // back to normal mode, a grace period is given with DisplayPowerTimer.
     if (mDisplayPowerTimer &&
-        (!mPolicy.isDisplayPowerStateNormal || mPolicy.displayPowerTimer == TimerState::Reset)) {
+        (mPolicy.displayPowerMode != hal::PowerMode::ON ||
+         mPolicy.displayPowerTimer == TimerState::Reset)) {
         constexpr GlobalSignals kNoSignals;
         return {configs->getMaxRefreshRateByPolicy(), kNoSignals};
     }
