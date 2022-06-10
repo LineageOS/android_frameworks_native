@@ -101,6 +101,7 @@ cc_defaults {
         "libhidlbase",
         "liblog",
         "libutils",
+        "libvintf",
         "libbinderdebug",
         "packagemanager_aidl-cpp",
     ],
