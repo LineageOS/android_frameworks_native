@@ -964,23 +964,19 @@ status_t RpcState::processDecStrong(const sp<RpcSession::RpcConnection>& connect
                                     const sp<RpcSession>& session, const RpcWireHeader& command) {
     LOG_ALWAYS_FATAL_IF(command.command != RPC_COMMAND_DEC_STRONG, "command: %d", command.command);
 
-    CommandData commandData(command.bodySize);
-    if (!commandData.valid()) {
-        return NO_MEMORY;
-    }
-    iovec iov{commandData.data(), commandData.size()};
-    if (status_t status = rpcRec(connection, session, "dec ref body", &iov, 1); status != OK)
-        return status;
-
     if (command.bodySize != sizeof(RpcDecStrong)) {
         ALOGE("Expecting %zu but got %" PRId32 " bytes for RpcDecStrong. Terminating!",
               sizeof(RpcDecStrong), command.bodySize);
         (void)session->shutdownAndWait(false);
         return BAD_VALUE;
     }
-    RpcDecStrong* body = reinterpret_cast<RpcDecStrong*>(commandData.data());
 
-    uint64_t addr = RpcWireAddress::toRaw(body->address);
+    RpcDecStrong body;
+    iovec iov{&body, sizeof(RpcDecStrong)};
+    if (status_t status = rpcRec(connection, session, "dec ref body", &iov, 1); status != OK)
+        return status;
+
+    uint64_t addr = RpcWireAddress::toRaw(body.address);
     std::unique_lock<std::mutex> _l(mNodeMutex);
     auto it = mNodeForAddress.find(addr);
     if (it == mNodeForAddress.end()) {
@@ -998,19 +994,19 @@ status_t RpcState::processDecStrong(const sp<RpcSession::RpcConnection>& connect
         return BAD_VALUE;
     }
 
-    if (it->second.timesSent < body->amount) {
+    if (it->second.timesSent < body.amount) {
         ALOGE("Record of sending binder %zu times, but requested decStrong for %" PRIu64 " of %u",
-              it->second.timesSent, addr, body->amount);
+              it->second.timesSent, addr, body.amount);
         return OK;
     }
 
     LOG_ALWAYS_FATAL_IF(it->second.sentRef == nullptr, "Inconsistent state, lost ref for %" PRIu64,
                         addr);
 
-    LOG_RPC_DETAIL("Processing dec strong of %" PRIu64 " by %u from %zu", addr, body->amount,
+    LOG_RPC_DETAIL("Processing dec strong of %" PRIu64 " by %u from %zu", addr, body.amount,
                    it->second.timesSent);
 
-    it->second.timesSent -= body->amount;
+    it->second.timesSent -= body.amount;
     sp<IBinder> tempHold = tryEraseNode(it);
     _l.unlock();
     tempHold = nullptr; // destructor may make binder calls on this session
