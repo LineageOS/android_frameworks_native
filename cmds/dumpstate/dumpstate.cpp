@@ -88,6 +88,7 @@
 #include <private/android_logger.h>
 #include <serviceutils/PriorityDumper.h>
 #include <utils/StrongPointer.h>
+#include <vintf/VintfObject.h>
 #include "DumpstateInternal.h"
 #include "DumpstateService.h"
 #include "dumpstate.h"
@@ -1396,6 +1397,23 @@ static void DumpHals(int out_fd = STDOUT_FILENO) {
     }
 }
 
+// Dump all of the files that make up the vendor interface.
+// See the files listed in dumpFileList() for the latest list of files.
+static void DumpVintf() {
+    const auto vintfFiles = android::vintf::details::dumpFileList();
+    for (const auto vintfFile : vintfFiles) {
+        struct stat st;
+        if (stat(vintfFile.c_str(), &st) == 0) {
+            if (S_ISDIR(st.st_mode)) {
+                ds.AddDir(vintfFile, true /* recursive */);
+            } else {
+                ds.EnqueueAddZipEntryAndCleanupIfNeeded(ZIP_ROOT_DIR + vintfFile,
+                        vintfFile);
+            }
+        }
+    }
+}
+
 static void DumpExternalFragmentationInfo() {
     struct stat st;
     if (stat("/proc/buddyinfo", &st) != 0) {
@@ -1620,6 +1638,8 @@ static Dumpstate::RunStatus dumpstate() {
     } else {
         do_dmesg();
     }
+
+    DumpVintf();
 
     RunCommand("LIST OF OPEN FILES", {"lsof"}, CommandOptions::AS_ROOT);
 
