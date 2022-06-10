@@ -125,9 +125,17 @@ public:
      */
     void setRootObjectWeak(const wp<IBinder>& binder);
     /**
-     * Allows a root object to be created for each session
+     * Allows a root object to be created for each session.
+     *
+     * Takes one argument: a callable that is invoked once per new session.
+     * The callable takes two arguments: a type-erased pointer to an OS- and
+     * transport-specific address structure, e.g., sockaddr_vm for vsock, and
+     * an integer representing the size in bytes of that structure. The
+     * callable should validate the size, then cast the type-erased pointer
+     * to a pointer to the actual type of the address, e.g., const void* to
+     * const sockaddr_vm*.
      */
-    void setPerSessionRootObject(std::function<sp<IBinder>(const sockaddr*, socklen_t)>&& object);
+    void setPerSessionRootObject(std::function<sp<IBinder>(const void*, size_t)>&& object);
     sp<IBinder> getRootObject();
 
     /**
@@ -177,8 +185,9 @@ private:
     void onSessionAllIncomingThreadsEnded(const sp<RpcSession>& session) override;
     void onSessionIncomingThreadEnded() override;
 
+    static constexpr size_t kRpcAddressSize = 128;
     static void establishConnection(sp<RpcServer>&& server, base::unique_fd clientFd,
-                                    const sockaddr_storage addr, socklen_t addrLen);
+                                    std::array<uint8_t, kRpcAddressSize> addr, size_t addrLen);
     [[nodiscard]] status_t setupSocketServer(const RpcSocketAddress& address);
 
     const std::unique_ptr<RpcTransportCtx> mCtx;
@@ -192,7 +201,7 @@ private:
     std::map<std::thread::id, std::thread> mConnectingThreads;
     sp<IBinder> mRootObject;
     wp<IBinder> mRootObjectWeak;
-    std::function<sp<IBinder>(const sockaddr*, socklen_t)> mRootObjectFactory;
+    std::function<sp<IBinder>(const void*, size_t)> mRootObjectFactory;
     std::map<std::vector<uint8_t>, sp<RpcSession>> mSessions;
     std::unique_ptr<FdTrigger> mShutdownTrigger;
     std::condition_variable mShutdownCv;
