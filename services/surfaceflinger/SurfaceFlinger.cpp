@@ -3199,7 +3199,7 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
                 }
             }
 
-            if (!hintDisplay) {
+            if (!hintDisplay && mDisplays.size() > 0) {
                 // NOTE: TEMPORARY FIX ONLY. Real fix should cause layers to
                 // redraw after transform hint changes. See bug 8508397.
 
@@ -3209,7 +3209,11 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
                 hintDisplay = getDefaultDisplayDeviceLocked();
             }
 
-            layer->updateTransformHint(hintDisplay->getTransformHint());
+            if (hintDisplay) {
+                layer->updateTransformHint(hintDisplay->getTransformHint());
+            } else {
+                ALOGW("Ignoring transform hint update for %s", layer->getDebugName());
+            }
         });
     }
 
