@@ -1264,7 +1264,9 @@ TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
     std::vector<std::thread> ts;
     for (size_t i = 0; i < kKernelThreads - 1; i++) {
         ts.push_back(std::thread([&] {
-            EXPECT_THAT(server->transact(BINDER_LIB_TEST_LOCK_UNLOCK, data, &reply), NO_ERROR);
+            Parcel local_reply;
+            EXPECT_THAT(server->transact(BINDER_LIB_TEST_LOCK_UNLOCK, data, &local_reply),
+                        NO_ERROR);
         }));
     }
 
@@ -1302,7 +1304,9 @@ TEST_F(BinderLibTest, HangingServices) {
     size_t epochMsBefore = epochMillis();
     for (size_t i = 0; i < kKernelThreads + 1; i++) {
         ts.push_back(std::thread([&] {
-            EXPECT_THAT(server->transact(BINDER_LIB_TEST_LOCK_UNLOCK, data, &reply), NO_ERROR);
+            Parcel local_reply;
+            EXPECT_THAT(server->transact(BINDER_LIB_TEST_LOCK_UNLOCK, data, &local_reply),
+                        NO_ERROR);
         }));
     }
 
