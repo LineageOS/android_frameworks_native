@@ -544,17 +544,12 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         mDispatchEnabled(false),
         mDispatchFrozen(false),
         mInputFilterEnabled(false),
-        // mInTouchMode will be initialized by the WindowManager to the default device config.
-        // To avoid leaking stack in case that call never comes, and for tests,
-        // initialize it here anyways.
-        mInTouchMode(kDefaultInTouchMode),
         mMaximumObscuringOpacityForTouch(1.0f),
         mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
         mWindowTokenWithPointerCapture(nullptr),
         mStaleEventTimeout(staleEventTimeout),
         mLatencyAggregator(),
-        mLatencyTracker(&mLatencyAggregator),
-        kPerDisplayTouchModeEnabled(mPolicy->isPerDisplayTouchModeEnabled()) {
+        mLatencyTracker(&mLatencyAggregator) {
     mLooper = sp<Looper>::make(false);
     mReporter = createInputReporter();
 
@@ -562,7 +557,6 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
     SurfaceComposerClient::getDefault()->addWindowInfosListener(mWindowInfoListener);
 
     mKeyRepeatState.lastKeyEntry = nullptr;
-
     policy->getDispatcherConfiguration(&mConfig);
 }
 
@@ -1435,7 +1429,7 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
 void InputDispatcher::dispatchTouchModeChangeLocked(nsecs_t currentTime,
                                                     const std::shared_ptr<TouchModeEntry>& entry) {
     const std::vector<sp<WindowInfoHandle>>& windowHandles =
-            getWindowHandlesLocked(mFocusedDisplayId);
+            getWindowHandlesLocked(entry->displayId);
     if (windowHandles.empty()) {
         return;
     }
@@ -1452,7 +1446,6 @@ std::vector<InputTarget> InputDispatcher::getInputTargetsFromWindowHandlesLocked
         const std::vector<sp<WindowInfoHandle>>& windowHandles) const {
     std::vector<InputTarget> inputTargets;
     for (const sp<WindowInfoHandle>& handle : windowHandles) {
-        // TODO(b/193718270): Due to performance concerns, consider notifying visible windows only.
         const sp<IBinder>& token = handle->getToken();
         if (token == nullptr) {
             continue;
@@ -5012,14 +5005,19 @@ bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid,
     bool needWake = false;
     {
         std::scoped_lock lock(mLock);
-        if (mInTouchMode == inTouchMode) {
+        ALOGD_IF(DEBUG_TOUCH_MODE,
+                 "Request to change touch mode to %s (calling pid=%d, uid=%d, "
+                 "hasPermission=%s, target displayId=%d, mTouchModePerDisplay[displayId]=%s)",
+                 toString(inTouchMode), pid, uid, toString(hasPermission), displayId,
+                 mTouchModePerDisplay.count(displayId) == 0
+                         ? "not set"
+                         : std::to_string(mTouchModePerDisplay[displayId]).c_str());
+
+        // TODO(b/198499018): Ensure that WM can guarantee that touch mode is properly set when
+        // display is created.
+        auto touchModeIt = mTouchModePerDisplay.find(displayId);
+        if (touchModeIt != mTouchModePerDisplay.end() && touchModeIt->second == inTouchMode) {
             return false;
-        }
-        if (DEBUG_TOUCH_MODE) {
-            ALOGD("Request to change touch mode from %s to %s (calling pid=%d, uid=%d, "
-                  "hasPermission=%s, target displayId=%d, perDisplayTouchModeEnabled=%s)",
-                  toString(mInTouchMode), toString(inTouchMode), pid, uid, toString(hasPermission),
-                  displayId, toString(kPerDisplayTouchModeEnabled));
         }
         if (!hasPermission) {
             if (!focusedWindowIsOwnedByLocked(pid, uid) &&
@@ -5030,11 +5028,9 @@ bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid,
                 return false;
             }
         }
-
-        // TODO(b/198499018): Store touch mode per display (kPerDisplayTouchModeEnabled)
-        mInTouchMode = inTouchMode;
-
-        auto entry = std::make_unique<TouchModeEntry>(mIdGenerator.nextId(), now(), inTouchMode);
+        mTouchModePerDisplay[displayId] = inTouchMode;
+        auto entry = std::make_unique<TouchModeEntry>(mIdGenerator.nextId(), now(), inTouchMode,
+                                                      displayId);
         needWake = enqueueInboundEventLocked(std::move(entry));
     } // release lock
 
@@ -5472,6 +5468,16 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                              ns2ms(mAppSwitchDueTime - now()));
     } else {
         dump += INDENT "AppSwitch: not pending\n";
+    }
+
+    if (!mTouchModePerDisplay.empty()) {
+        dump += INDENT "TouchModePerDisplay:\n";
+        for (const auto& [displayId, touchMode] : mTouchModePerDisplay) {
+            dump += StringPrintf(INDENT2 "Display: %" PRId32 " TouchMode: %s\n", displayId,
+                                 std::to_string(touchMode).c_str());
+        }
+    } else {
+        dump += INDENT "TouchModePerDisplay: <none>\n";
     }
 
     dump += INDENT "Configuration:\n";
@@ -6366,6 +6372,8 @@ void InputDispatcher::displayRemoved(int32_t displayId) {
         mFocusResolver.displayRemoved(displayId);
         // Reset pointer capture eligibility, regardless of previous state.
         std::erase(mIneligibleDisplaysForPointerCapture, displayId);
+        // Remove the associated touch mode state.
+        mTouchModePerDisplay.erase(displayId);
     } // release lock
 
     // Wake up poll loop since it may need to make new input dispatching choices.
