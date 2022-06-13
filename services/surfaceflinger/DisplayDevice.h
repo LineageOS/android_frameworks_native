@@ -249,6 +249,10 @@ public:
     nsecs_t getVsyncPeriodFromHWC() const;
     nsecs_t getRefreshTimestamp() const;
 
+    status_t setRefreshRatePolicy(
+            const std::optional<scheduler::RefreshRateConfigs::Policy>& policy,
+            bool overridePolicy);
+
     // release HWC resources (if any) for removable displays
     void disconnect();
 
@@ -303,6 +307,8 @@ private:
     TracedOrdinal<bool> mDesiredActiveModeChanged
             GUARDED_BY(mActiveModeLock) = {"DesiredActiveModeChanged", false};
     ActiveModeInfo mUpcomingActiveMode GUARDED_BY(kMainThreadContext);
+
+    std::atomic_int mNumModeSwitchesInPolicy = 0;
 };
 
 struct DisplayDeviceState {
