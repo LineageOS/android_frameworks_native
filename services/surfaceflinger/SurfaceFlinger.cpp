@@ -2170,6 +2170,7 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
         // This will block and tracing should only be enabled for debugging.
         mLayerTracing.notify(mVisibleRegionsDirty, frameTime, vsyncId);
     }
+    mLastCommittedVsyncId = vsyncId;
 
     persistDisplayBrightness(mustComposite);
 
@@ -5847,7 +5848,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                         mScheduler
                                 ->schedule([&]() FTL_FAKE_GUARD(mStateLock) {
                                     mLayerTracing.notify(true /* visibleRegionDirty */,
-                                                         startingTime, -1 /* vsyncId */);
+                                                         startingTime, mLastCommittedVsyncId);
                                 })
                                 .wait();
                     }

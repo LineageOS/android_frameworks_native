@@ -1266,6 +1266,8 @@ private:
     const std::unique_ptr<FrameTracer> mFrameTracer;
     const std::unique_ptr<frametimeline::FrameTimeline> mFrameTimeline;
 
+    int64_t mLastCommittedVsyncId = -1;
+
     // If blurs should be enabled on this device.
     bool mSupportsBlur = false;
     // If blurs are considered expensive and should require high GPU frequency.
