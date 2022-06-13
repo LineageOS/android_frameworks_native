@@ -465,12 +465,12 @@ int32_t InputDevice::getState(uint32_t sourceMask, int32_t code, GetStateFunc ge
     return result;
 }
 
-bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-                                        const int32_t* keyCodes, uint8_t* outFlags) {
+bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, const std::vector<int32_t>& keyCodes,
+                                        uint8_t* outFlags) {
     bool result = false;
-    for_each_mapper([&result, sourceMask, numCodes, keyCodes, outFlags](InputMapper& mapper) {
+    for_each_mapper([&result, sourceMask, keyCodes, outFlags](InputMapper& mapper) {
         if (sourcesMatchMask(mapper.getSources(), sourceMask)) {
-            result |= mapper.markSupportedKeyCodes(sourceMask, numCodes, keyCodes, outFlags);
+            result |= mapper.markSupportedKeyCodes(sourceMask, keyCodes, outFlags);
         }
     });
     return result;
