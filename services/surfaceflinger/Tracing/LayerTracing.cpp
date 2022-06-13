@@ -129,8 +129,8 @@ void LayerTracing::notify(bool visibleRegionDirty, int64_t time, int64_t vsyncId
         entry.set_excludes_composition_state(true);
     }
     mFlinger.dumpDisplayProto(entry);
-    mBuffer->emplace(std::move(entry));
     entry.set_vsync_id(vsyncId);
+    mBuffer->emplace(std::move(entry));
 }
 
 } // namespace android
