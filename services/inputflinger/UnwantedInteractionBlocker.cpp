@@ -512,6 +512,13 @@ std::string SlotState::dump() const {
     return out;
 }
 
+class AndroidPalmRejectionModel : public ::ui::OneDeviceTrainNeuralStylusPalmDetectionFilterModel {
+public:
+    AndroidPalmRejectionModel()
+          : ::ui::OneDeviceTrainNeuralStylusPalmDetectionFilterModel(/*default version*/ "",
+                                                                     std::vector<float>()) {}
+};
+
 PalmRejector::PalmRejector(const AndroidPalmFilterDeviceInfo& info,
                            std::unique_ptr<::ui::PalmDetectionFilter> filter)
       : mSharedPalmState(std::make_unique<::ui::SharedPalmDetectionFilterState>()),
@@ -523,8 +530,7 @@ PalmRejector::PalmRejector(const AndroidPalmFilterDeviceInfo& info,
         return;
     }
     std::unique_ptr<::ui::NeuralStylusPalmDetectionFilterModel> model =
-            std::make_unique<::ui::OneDeviceTrainNeuralStylusPalmDetectionFilterModel>(
-                    std::vector<float>());
+            std::make_unique<AndroidPalmRejectionModel>();
     mPalmDetectionFilter =
             std::make_unique<::ui::NeuralStylusPalmDetectionFilter>(mDeviceInfo, std::move(model),
                                                                     mSharedPalmState.get());
