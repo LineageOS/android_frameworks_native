@@ -6887,9 +6887,7 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         return NO_ERROR;
     }
 
-    status_t setPolicyResult = overridePolicy
-            ? display->refreshRateConfigs().setOverridePolicy(policy)
-            : display->refreshRateConfigs().setDisplayManagerPolicy(*policy);
+    const status_t setPolicyResult = display->setRefreshRatePolicy(policy, overridePolicy);
     if (setPolicyResult < 0) {
         return BAD_VALUE;
     }
