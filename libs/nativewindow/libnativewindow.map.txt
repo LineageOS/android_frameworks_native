@@ -21,6 +21,7 @@ LIBNATIVEWINDOW {
     ANativeWindow_cancelBuffer; # llndk
     ANativeWindow_dequeueBuffer; # llndk
     ANativeWindow_getBuffersDataSpace; # introduced=28
+    ANativeWindow_getBuffersDefaultDataSpace; # introduced=34
     ANativeWindow_getFormat;
     ANativeWindow_getHeight;
     ANativeWindow_getLastDequeueDuration; # apex # introduced=30
