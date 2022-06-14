@@ -498,8 +498,13 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
         inputInfo.replaceTouchableRegionWithCrop =
                 windowInfoProto.replace_touchable_region_with_crop();
         int64_t layerId = windowInfoProto.crop_layer_id();
-        inputInfo.touchableRegionCropHandle =
-                mMapper->getLayerHandle(static_cast<int32_t>(layerId));
+        if (layerId != -1) {
+            inputInfo.touchableRegionCropHandle =
+                    mMapper->getLayerHandle(static_cast<int32_t>(layerId));
+        } else {
+            inputInfo.touchableRegionCropHandle = nullptr;
+        }
+
         layer.windowInfoHandle = sp<gui::WindowInfoHandle>::make(inputInfo);
     }
     if (proto.what() & layer_state_t::eBackgroundColorChanged) {

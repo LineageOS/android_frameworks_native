@@ -16,6 +16,7 @@
 
 #undef LOG_TAG
 #define LOG_TAG "LayerTraceGenerator"
+//#define LOG_NDEBUG 0
 
 #include <TestableSurfaceFlinger.h>
 #include <Tracing/TransactionProtoParser.h>
@@ -227,9 +228,10 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
     for (int i = 0; i < traceFile.entry_size(); i++) {
         proto::TransactionTraceEntry entry = traceFile.entry(i);
         ALOGV("    Entry %04d/%04d for time=%" PRId64 " vsyncid=%" PRId64
-              " layers +%d -%d transactions=%d",
+              " layers +%d -%d handles -%d transactions=%d",
               i, traceFile.entry_size(), entry.elapsed_realtime_nanos(), entry.vsync_id(),
-              entry.added_layers_size(), entry.removed_layers_size(), entry.transactions_size());
+              entry.added_layers_size(), entry.removed_layers_size(),
+              entry.removed_layer_handles_size(), entry.transactions_size());
 
         for (int j = 0; j < entry.added_layers_size(); j++) {
             // create layers
@@ -248,7 +250,7 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
                     (dataMapper->mLayerHandles.find(tracingArgs.parentId) ==
                      dataMapper->mLayerHandles.end())) {
                     args.addToRoot = false;
-                } else {
+                } else if (tracingArgs.parentId != -1) {
                     parentHandle = dataMapper->getLayerHandle(tracingArgs.parentId);
                 }
                 mFlinger.createLayer(args, &outHandle, parentHandle, &outLayerId,
@@ -275,13 +277,13 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
                                          transaction.listenerCallbacks, transaction.id);
         }
 
-        for (int j = 0; j < entry.removed_layer_handles_size(); j++) {
-            dataMapper->mLayerHandles.erase(entry.removed_layer_handles(j));
-        }
-
         frameTime = entry.elapsed_realtime_nanos();
         vsyncId = entry.vsync_id();
         mFlinger.commit(frameTime, vsyncId);
+
+        for (int j = 0; j < entry.removed_layer_handles_size(); j++) {
+            dataMapper->mLayerHandles.erase(entry.removed_layer_handles(j));
+        }
     }
 
     flinger->stopLayerTracing(outputLayersTracePath);

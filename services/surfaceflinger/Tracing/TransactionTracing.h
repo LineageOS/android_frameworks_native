@@ -64,6 +64,7 @@ public:
                             int mirrorFromId);
     void onLayerRemoved(int layerId);
     void onHandleRemoved(BBinder* layerHandle);
+    void onLayerAddedToDrawingState(int layerId, int64_t vsyncId);
     void dump(std::string&) const;
     static constexpr auto CONTINUOUS_TRACING_BUFFER_SIZE = 512 * 1024;
     static constexpr auto ACTIVE_TRACING_BUFFER_SIZE = 100 * 1024 * 1024;
@@ -81,11 +82,13 @@ private:
             GUARDED_BY(mTraceLock);
     LocklessStack<proto::TransactionState> mTransactionQueue;
     nsecs_t mStartingTimestamp GUARDED_BY(mTraceLock);
-    std::vector<proto::LayerCreationArgs> mCreatedLayers GUARDED_BY(mTraceLock);
+    std::unordered_map<int, proto::LayerCreationArgs> mCreatedLayers GUARDED_BY(mTraceLock);
     std::unordered_map<BBinder* /* layerHandle */, int32_t /* layerId */> mLayerHandles
             GUARDED_BY(mTraceLock);
-    std::vector<int32_t /* layerId */> mRemovedLayerHandles GUARDED_BY(mTraceLock);
+    std::vector<std::pair<BBinder* /* layerHandle */, int32_t /* layerId */>> mRemovedLayerHandles
+            GUARDED_BY(mTraceLock);
     std::map<int32_t /* layerId */, TracingLayerState> mStartingStates GUARDED_BY(mTraceLock);
+    std::set<int32_t /* layerId */> mRemovedLayerHandlesAtStart GUARDED_BY(mTraceLock);
     TransactionProtoParser mProtoParser GUARDED_BY(mTraceLock);
     // Parses the transaction to proto without holding any tracing locks so we can generate proto
     // in the binder thread without any contention.
@@ -100,6 +103,7 @@ private:
     std::condition_variable mTransactionsAddedToBufferCv;
     struct CommittedTransactions {
         std::vector<uint64_t> transactionIds;
+        std::vector<int32_t> createdLayerIds;
         int64_t vsyncId;
         int64_t timestamp;
     };
@@ -117,7 +121,7 @@ private:
     void tryPushToTracingThread() EXCLUDES(mMainThreadLock);
     void addStartingStateToProtoLocked(proto::TransactionTraceFile& proto) REQUIRES(mTraceLock);
     void updateStartingStateLocked(const proto::TransactionTraceEntry& entry) REQUIRES(mTraceLock);
-
+    CommittedTransactions& findOrCreateCommittedTransactionRecord(int64_t vsyncId);
     // TEST
     // Wait until all the committed transactions for the specified vsync id are added to the buffer.
     void flush(int64_t vsyncId) EXCLUDES(mMainThreadLock);
