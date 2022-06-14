@@ -25,6 +25,7 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
+#include <ftl/fake_guard.h>
 #include <gui/WindowInfo.h>
 #include <system/window.h>
 #include <ui/DisplayStatInfo.h>
@@ -94,9 +95,13 @@ void Scheduler::startTimers() {
 }
 
 void Scheduler::setRefreshRateConfigs(std::shared_ptr<RefreshRateConfigs> configs) {
+    // The current RefreshRateConfigs instance may outlive this call, so unbind its idle timer.
     {
-        // The current RefreshRateConfigs instance may outlive this call, so unbind its idle timer.
-        std::scoped_lock lock(mRefreshRateConfigsLock);
+        // mRefreshRateConfigsLock is not locked here to avoid the deadlock
+        // as the callback can attempt to acquire the lock before stopIdleTimer can finish
+        // the execution. It's safe to FakeGuard as main thread is the only thread that
+        // writes to the mRefreshRateConfigs.
+        ftl::FakeGuard guard(mRefreshRateConfigsLock);
         if (mRefreshRateConfigs) {
             mRefreshRateConfigs->stopIdleTimer();
             mRefreshRateConfigs->clearIdleTimerCallbacks();
