@@ -87,7 +87,8 @@ static_assert(sizeof(Parcel) == 60);
 static std::atomic<size_t> gParcelGlobalAllocCount;
 static std::atomic<size_t> gParcelGlobalAllocSize;
 
-static size_t gMaxFds = 0;
+// Maximum number of file descriptors per Parcel.
+constexpr size_t kMaxFds = 1024;
 
 // Maximum size of a blob to transfer in-place.
 static const size_t BLOB_INPLACE_LIMIT = 16 * 1024;
@@ -1416,7 +1417,7 @@ status_t Parcel::write(const FlattenableHelperInterface& val)
     const size_t len = val.getFlattenedSize();
     const size_t fd_count = val.getFdCount();
 
-    if ((len > INT32_MAX) || (fd_count >= gMaxFds)) {
+    if ((len > INT32_MAX) || (fd_count > kMaxFds)) {
         // don't accept size_t values which may have come from an
         // inadvertent conversion from a negative int.
         return BAD_VALUE;
@@ -2158,7 +2159,7 @@ status_t Parcel::read(FlattenableHelperInterface& val) const
     const size_t len = this->readInt32();
     const size_t fd_count = this->readInt32();
 
-    if ((len > INT32_MAX) || (fd_count >= gMaxFds)) {
+    if ((len > INT32_MAX) || (fd_count > kMaxFds)) {
         // don't accept size_t values which may have come from an
         // inadvertent conversion from a negative int.
         return BAD_VALUE;
@@ -2747,18 +2748,6 @@ void Parcel::initState()
     mAllowFds = true;
     mDeallocZero = false;
     mOwner = nullptr;
-
-    // racing multiple init leads only to multiple identical write
-    if (gMaxFds == 0) {
-        struct rlimit result;
-        if (!getrlimit(RLIMIT_NOFILE, &result)) {
-            gMaxFds = (size_t)result.rlim_cur;
-            //ALOGI("parcel fd limit set to %zu", gMaxFds);
-        } else {
-            ALOGW("Unable to getrlimit: %s", strerror(errno));
-            gMaxFds = 1024;
-        }
-    }
 }
 
 void Parcel::scanForFds() const {
