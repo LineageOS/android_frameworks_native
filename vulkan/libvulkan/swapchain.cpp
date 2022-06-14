@@ -805,10 +805,6 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         }
     }
 
-    // NOTE: Any new formats that are added must be coordinated across different
-    // Android users.  This includes the ANGLE team (a layered implementation of
-    // OpenGL-ES).
-
     VkResult result = VK_SUCCESS;
     if (formats) {
         uint32_t transfer_count = all_formats.size();
