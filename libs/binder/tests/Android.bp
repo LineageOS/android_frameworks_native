@@ -141,6 +141,7 @@ aidl_interface {
     unstable: true,
     srcs: [
         "BinderRpcTestClientInfo.aidl",
+        "BinderRpcTestServerConfig.aidl",
         "BinderRpcTestServerInfo.aidl",
         "IBinderRpcCallback.aidl",
         "IBinderRpcSession.aidl",
@@ -185,22 +186,15 @@ cc_library_static {
 }
 
 cc_defaults {
-    name: "binderRpcTest_defaults",
+    name: "binderRpcTest_common_defaults",
     host_supported: true,
     target: {
         darwin: {
             enabled: false,
         },
-        android: {
-            test_suites: ["vts"],
-        },
     },
     defaults: [
         "binder_test_defaults",
-    ],
-
-    srcs: [
-        "binderRpcTest.cpp",
     ],
 
     static_libs: [
@@ -209,18 +203,50 @@ cc_defaults {
         "binderRpcTestIface-cpp",
         "binderRpcTestIface-ndk",
     ],
+}
+
+cc_defaults {
+    name: "binderRpcTest_service_defaults",
+    defaults: [
+        "binderRpcTest_common_defaults",
+    ],
+    gtest: false,
+    auto_gen_config: false,
+    srcs: [
+        "binderRpcTestCommon.cpp",
+        "binderRpcTestService.cpp",
+    ],
+}
+
+cc_defaults {
+    name: "binderRpcTest_defaults",
+    target: {
+        android: {
+            test_suites: ["vts"],
+        },
+    },
+    defaults: [
+        "binderRpcTest_common_defaults",
+    ],
+
+    srcs: [
+        "binderRpcTest.cpp",
+        "binderRpcTestCommon.cpp",
+    ],
 
     test_suites: ["general-tests"],
     require_root: true,
+
+    data_bins: [
+        "binder_rpc_test_service",
+        "binder_rpc_test_service_no_kernel",
+        "binder_rpc_test_service_single_threaded",
+        "binder_rpc_test_service_single_threaded_no_kernel",
+    ],
 }
 
-cc_test {
-    name: "binderRpcTest",
-    defaults: [
-        "binderRpcTest_defaults",
-        "libbinder_tls_shared_deps",
-    ],
-
+cc_defaults {
+    name: "binderRpcTest_shared_defaults",
     cflags: [
         "-DBINDER_WITH_KERNEL_IPC",
     ],
@@ -254,6 +280,66 @@ cc_defaults {
         // Disable tests that require shared libraries,
         // e.g., libbinder.so or libbinder_ndk.so
         "-DBINDER_TEST_NO_SHARED_LIBS",
+    ],
+}
+
+cc_test {
+    // The module name cannot start with "binderRpcTest" because
+    // then atest tries to execute it as part of binderRpcTest
+    name: "binder_rpc_test_service",
+    defaults: [
+        "binderRpcTest_service_defaults",
+        "binderRpcTest_shared_defaults",
+        "libbinder_tls_shared_deps",
+    ],
+}
+
+cc_test {
+    name: "binder_rpc_test_service_no_kernel",
+    defaults: [
+        "binderRpcTest_service_defaults",
+        "binderRpcTest_static_defaults",
+    ],
+    static_libs: [
+        "libbinder_rpc_no_kernel",
+    ],
+}
+
+cc_test {
+    name: "binder_rpc_test_service_single_threaded",
+    defaults: [
+        "binderRpcTest_service_defaults",
+        "binderRpcTest_static_defaults",
+    ],
+    cflags: [
+        "-DBINDER_RPC_SINGLE_THREADED",
+        "-DBINDER_WITH_KERNEL_IPC",
+    ],
+    static_libs: [
+        "libbinder_rpc_single_threaded",
+    ],
+}
+
+cc_test {
+    name: "binder_rpc_test_service_single_threaded_no_kernel",
+    defaults: [
+        "binderRpcTest_service_defaults",
+        "binderRpcTest_static_defaults",
+    ],
+    cflags: [
+        "-DBINDER_RPC_SINGLE_THREADED",
+    ],
+    static_libs: [
+        "libbinder_rpc_single_threaded_no_kernel",
+    ],
+}
+
+cc_test {
+    name: "binderRpcTest",
+    defaults: [
+        "binderRpcTest_defaults",
+        "binderRpcTest_shared_defaults",
+        "libbinder_tls_shared_deps",
     ],
 }
 
