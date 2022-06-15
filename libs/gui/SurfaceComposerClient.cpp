@@ -897,6 +897,10 @@ void SurfaceComposerClient::Transaction::clear() {
     mApplyToken = nullptr;
 }
 
+uint64_t SurfaceComposerClient::Transaction::getId() {
+    return mId;
+}
+
 void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
 
