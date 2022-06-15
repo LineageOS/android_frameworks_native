@@ -235,6 +235,9 @@ public:
         // Priority of the layer assigned by Window Manager.
         int32_t frameRateSelectionPriority;
 
+        // Default frame rate compatibility used to set the layer refresh rate votetype.
+        FrameRateCompatibility defaultFrameRateCompatibility;
+
         FrameRate frameRate;
 
         // The combined frame rate of parents / children of this layer
@@ -438,6 +441,7 @@ public:
     virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
     virtual bool setColorSpaceAgnostic(const bool agnostic);
     virtual bool setDimmingEnabled(const bool dimmingEnabled);
+    virtual bool setDefaultFrameRateCompatibility(FrameRateCompatibility compatibility);
     virtual bool setFrameRateSelectionPriority(int32_t priority);
     virtual bool setFixedTransformHint(ui::Transform::RotationFlags fixedTransformHint);
     virtual void setAutoRefresh(bool /* autoRefresh */) {}
@@ -446,6 +450,9 @@ public:
     //  If the variable is not set on the layer, it traverses up the tree to inherit the frame
     //  rate priority from its parent.
     virtual int32_t getFrameRateSelectionPriority() const;
+    //
+    virtual FrameRateCompatibility getDefaultFrameRateCompatibility() const;
+    //
     virtual ui::Dataspace getDataSpace() const { return ui::Dataspace::UNKNOWN; }
 
     virtual sp<compositionengine::LayerFE> getCompositionEngineLayerFE() const;

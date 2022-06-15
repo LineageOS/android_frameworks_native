@@ -63,6 +63,7 @@ layer_state_t::layer_state_t()
         frameRate(0.0f),
         frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
         changeFrameRateStrategy(ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS),
+        defaultFrameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
         fixedTransformHint(ui::Transform::ROT_INVALID),
         autoRefresh(false),
         isTrustedOverlay(false),
@@ -137,6 +138,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeFloat, frameRate);
     SAFE_PARCEL(output.writeByte, frameRateCompatibility);
     SAFE_PARCEL(output.writeByte, changeFrameRateStrategy);
+    SAFE_PARCEL(output.writeByte, defaultFrameRateCompatibility);
     SAFE_PARCEL(output.writeUint32, fixedTransformHint);
     SAFE_PARCEL(output.writeBool, autoRefresh);
     SAFE_PARCEL(output.writeBool, dimmingEnabled);
@@ -257,6 +259,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readFloat, &frameRate);
     SAFE_PARCEL(input.readByte, &frameRateCompatibility);
     SAFE_PARCEL(input.readByte, &changeFrameRateStrategy);
+    SAFE_PARCEL(input.readByte, &defaultFrameRateCompatibility);
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
     SAFE_PARCEL(input.readBool, &autoRefresh);
@@ -572,6 +575,10 @@ void layer_state_t::merge(const layer_state_t& other) {
         borderEnabled = other.borderEnabled;
         borderWidth = other.borderWidth;
         borderColor = other.borderColor;
+    }
+    if (other.what & eDefaultFrameRateCompatibilityChanged) {
+        what |= eDefaultFrameRateCompatibilityChanged;
+        defaultFrameRateCompatibility = other.defaultFrameRateCompatibility;
     }
     if (other.what & eFrameRateSelectionPriority) {
         what |= eFrameRateSelectionPriority;

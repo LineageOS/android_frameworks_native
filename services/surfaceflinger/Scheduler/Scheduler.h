@@ -178,6 +178,7 @@ public:
     void recordLayerHistory(Layer*, nsecs_t presentTime, LayerHistory::LayerUpdateType updateType)
             EXCLUDES(mRefreshRateConfigsLock);
     void setModeChangePending(bool pending);
+    void setDefaultFrameRateCompatibility(Layer*);
     void deregisterLayer(Layer*);
 
     // Detects content using layer history, and selects a matching refresh rate.

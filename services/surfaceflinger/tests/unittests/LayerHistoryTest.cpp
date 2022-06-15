@@ -141,6 +141,54 @@ protected:
 
 namespace {
 
+TEST_F(LayerHistoryTest, singleLayerNoVoteDefaultCompatibility) {
+    const auto layer = createLayer();
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
+    EXPECT_CALL(*layer, getDefaultFrameRateCompatibility())
+            .WillOnce(Return(LayerInfo::FrameRateCompatibility::NoVote));
+
+    EXPECT_EQ(1, layerCount());
+    EXPECT_EQ(0, activeLayerCount());
+
+    nsecs_t time = systemTime();
+
+    // No layers returned if no layers are active.
+    EXPECT_TRUE(summarizeLayerHistory(time).empty());
+    EXPECT_EQ(0, activeLayerCount());
+
+    history().record(layer.get(), 0, time, LayerHistory::LayerUpdateType::Buffer);
+    history().setDefaultFrameRateCompatibility(layer.get(), true /* contentDetectionEnabled */);
+
+    EXPECT_TRUE(summarizeLayerHistory(time).empty());
+    EXPECT_EQ(1, activeLayerCount());
+}
+
+TEST_F(LayerHistoryTest, singleLayerMinVoteDefaultCompatibility) {
+    const auto layer = createLayer();
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
+    EXPECT_CALL(*layer, getDefaultFrameRateCompatibility())
+            .WillOnce(Return(LayerInfo::FrameRateCompatibility::Min));
+
+    EXPECT_EQ(1, layerCount());
+    EXPECT_EQ(0, activeLayerCount());
+
+    nsecs_t time = systemTime();
+
+    EXPECT_TRUE(summarizeLayerHistory(time).empty());
+    EXPECT_EQ(0, activeLayerCount());
+
+    history().record(layer.get(), 0, time, LayerHistory::LayerUpdateType::Buffer);
+    history().setDefaultFrameRateCompatibility(layer.get(), true /* contentDetectionEnabled */);
+
+    auto summary = summarizeLayerHistory(time);
+    ASSERT_EQ(1, summarizeLayerHistory(time).size());
+
+    EXPECT_EQ(LayerHistory::LayerVoteType::Min, summarizeLayerHistory(time)[0].vote);
+    EXPECT_EQ(1, activeLayerCount());
+}
+
 TEST_F(LayerHistoryTest, oneLayer) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));

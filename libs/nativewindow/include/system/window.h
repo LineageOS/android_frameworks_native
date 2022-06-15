@@ -1034,6 +1034,11 @@ enum {
      * This surface is ignored while choosing the refresh rate.
      */
     ANATIVEWINDOW_FRAME_RATE_NO_VOTE,
+
+    /**
+     * This surface will vote for the minimum refresh rate.
+     */
+    ANATIVEWINDOW_FRAME_RATE_MIN
 };
 
 static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate,
