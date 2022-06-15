@@ -37,7 +37,6 @@
 #include <system/window.h>
 #include <utils/String8.h>
 
-#include "BufferQueueLayer.h"
 #include "ContainerLayer.h"
 #include "DisplayRenderArea.h"
 #include "EffectLayer.h"
@@ -492,65 +491,31 @@ struct BaseLayerProperties {
     static constexpr IComposerClient::BlendMode BLENDMODE =
             IComposerClient::BlendMode::PREMULTIPLIED;
 
-    static void enqueueBuffer(CompositionTest*, sp<BufferQueueLayer> layer) {
-        auto producer = layer->getProducer();
-
-        IGraphicBufferProducer::QueueBufferOutput qbo;
-        status_t result = producer->connect(nullptr, NATIVE_WINDOW_API_EGL, false, &qbo);
-        if (result != NO_ERROR) {
-            ALOGE("Failed to connect() (%d)", result);
-            return;
-        }
-
-        int slot;
-        sp<Fence> fence;
-        result = producer->dequeueBuffer(&slot, &fence, LayerProperties::WIDTH,
-                                         LayerProperties::HEIGHT, LayerProperties::FORMAT,
-                                         LayerProperties::USAGE, nullptr, nullptr);
-        if (result != IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION) {
-            ALOGE("Failed to dequeueBuffer() (%d)", result);
-            return;
-        }
-
-        sp<GraphicBuffer> buffer;
-        result = producer->requestBuffer(slot, &buffer);
-        if (result != NO_ERROR) {
-            ALOGE("Failed to requestBuffer() (%d)", result);
-            return;
-        }
-
-        IGraphicBufferProducer::QueueBufferInput qbi(systemTime(), false /* isAutoTimestamp */,
-                                                     LayerProperties::DATASPACE,
-                                                     Rect(LayerProperties::WIDTH,
-                                                          LayerProperties::HEIGHT),
-                                                     LayerProperties::SCALING_MODE,
-                                                     LayerProperties::TRANSFORM, Fence::NO_FENCE);
-        result = producer->queueBuffer(slot, qbi, &qbo);
-        if (result != NO_ERROR) {
-            ALOGE("Failed to queueBuffer (%d)", result);
-            return;
-        }
-    }
-
-    static void setupLatchedBuffer(CompositionTest* test, sp<BufferQueueLayer> layer) {
-        // TODO: Eliminate the complexity of actually creating a buffer
-        layer->setSizeForTest(LayerProperties::WIDTH, LayerProperties::HEIGHT);
-        status_t err =
-                layer->setDefaultBufferProperties(LayerProperties::WIDTH, LayerProperties::HEIGHT,
-                                                  LayerProperties::FORMAT);
-        ASSERT_EQ(NO_ERROR, err);
+    static void setupLatchedBuffer(CompositionTest* test, sp<BufferStateLayer> layer) {
         Mock::VerifyAndClear(test->mRenderEngine);
 
-        EXPECT_CALL(*test->mFlinger.scheduler(), scheduleFrame()).Times(1);
-        enqueueBuffer(test, layer);
-        Mock::VerifyAndClearExpectations(test->mFlinger.scheduler());
+        const auto buffer = std::make_shared<
+                renderengine::mock::FakeExternalTexture>(LayerProperties::WIDTH,
+                                                         LayerProperties::HEIGHT,
+                                                         DEFAULT_TEXTURE_ID,
+                                                         LayerProperties::FORMAT,
+                                                         LayerProperties::USAGE |
+                                                                 GraphicBuffer::USAGE_HW_TEXTURE);
+
+        auto& layerDrawingState = test->mFlinger.mutableLayerDrawingState(layer);
+        layerDrawingState.crop = Rect(0, 0, LayerProperties::HEIGHT, LayerProperties::WIDTH);
+        layerDrawingState.buffer = buffer;
+        layerDrawingState.acquireFence = Fence::NO_FENCE;
+        layerDrawingState.dataspace = ui::Dataspace::UNKNOWN;
+        layer->setSurfaceDamageRegion(
+                Region(Rect(LayerProperties::HEIGHT, LayerProperties::WIDTH)));
 
         bool ignoredRecomputeVisibleRegions;
         layer->latchBuffer(ignoredRecomputeVisibleRegions, 0, 0);
         Mock::VerifyAndClear(test->mRenderEngine);
     }
 
-    static void setupLayerState(CompositionTest* test, sp<BufferQueueLayer> layer) {
+    static void setupLayerState(CompositionTest* test, sp<BufferStateLayer> layer) {
         setupLatchedBuffer(test, layer);
     }
 
@@ -736,7 +701,7 @@ struct SidebandLayerProperties : public BaseLayerProperties<SidebandLayerPropert
     using Base = BaseLayerProperties<SidebandLayerProperties>;
     static constexpr IComposerClient::BlendMode BLENDMODE = IComposerClient::BlendMode::NONE;
 
-    static void setupLayerState(CompositionTest* test, sp<BufferQueueLayer> layer) {
+    static void setupLayerState(CompositionTest* test, sp<BufferStateLayer> layer) {
         sp<NativeHandle> stream =
                 NativeHandle::create(reinterpret_cast<native_handle_t*>(DEFAULT_SIDEBAND_STREAM),
                                      false);
@@ -818,14 +783,14 @@ struct SecureLayerProperties : public CommonSecureLayerProperties<SecureLayerPro
 struct CursorLayerProperties : public BaseLayerProperties<CursorLayerProperties> {
     using Base = BaseLayerProperties<CursorLayerProperties>;
 
-    static void setupLayerState(CompositionTest* test, sp<BufferQueueLayer> layer) {
+    static void setupLayerState(CompositionTest* test, sp<BufferStateLayer> layer) {
         Base::setupLayerState(test, layer);
         test->mFlinger.setLayerPotentialCursor(layer, true);
     }
 };
 
 struct NoLayerVariant {
-    using FlingerLayerType = sp<BufferQueueLayer>;
+    using FlingerLayerType = sp<BufferStateLayer>;
 
     static FlingerLayerType createLayer(CompositionTest*) { return FlingerLayerType(); }
     static void injectLayer(CompositionTest*, FlingerLayerType) {}
@@ -932,17 +897,17 @@ struct EffectLayerVariant : public BaseLayerVariant<LayerProperties> {
 template <typename LayerProperties>
 struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
     using Base = BaseLayerVariant<LayerProperties>;
-    using FlingerLayerType = sp<BufferQueueLayer>;
+    using FlingerLayerType = sp<BufferStateLayer>;
 
     static FlingerLayerType createLayer(CompositionTest* test) {
         test->mFlinger.mutableTexturePool().push_back(DEFAULT_TEXTURE_ID);
 
         FlingerLayerType layer =
-                Base::template createLayerWithFactory<BufferQueueLayer>(test, [test]() {
+                Base::template createLayerWithFactory<BufferStateLayer>(test, [test]() {
                     LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-layer",
                                            LayerProperties::LAYER_FLAGS, LayerMetadata());
                     args.textureName = test->mFlinger.mutableTexturePool().back();
-                    return new BufferQueueLayer(args);
+                    return new BufferStateLayer(args);
                 });
 
         LayerProperties::setupLayerState(test, layer);

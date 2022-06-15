@@ -109,8 +109,8 @@ sp<ContainerLayer> DefaultFactory::createContainerLayer(const LayerCreationArgs&
     return new ContainerLayer(args);
 }
 
-sp<BufferQueueLayer> DefaultFactory::createBufferQueueLayer(const LayerCreationArgs& args) {
-    return new BufferQueueLayer(args);
+sp<BufferQueueLayer> DefaultFactory::createBufferQueueLayer(const LayerCreationArgs&) {
+    return nullptr;
 }
 
 sp<BufferStateLayer> DefaultFactory::createBufferStateLayer(const LayerCreationArgs& args) {
