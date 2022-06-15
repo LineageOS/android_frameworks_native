@@ -457,6 +457,10 @@ public:
         // Clears the contents of the transaction without applying it.
         void clear();
 
+        // Returns the current id of the transaction.
+        // The id is updated every time the transaction is applied.
+        uint64_t getId();
+
         status_t apply(bool synchronous = false, bool oneWay = false);
         // Merge another transaction in to this one, clearing other
         // as if it had been applied.

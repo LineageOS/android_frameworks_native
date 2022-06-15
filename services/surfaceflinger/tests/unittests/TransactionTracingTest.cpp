@@ -127,6 +127,8 @@ protected:
             std::vector<TransactionState> transactions;
             transactions.emplace_back(transaction);
             VSYNC_ID_FIRST_LAYER_CHANGE = ++mVsyncId;
+            mTracing.onLayerAddedToDrawingState(mParentLayerId, VSYNC_ID_FIRST_LAYER_CHANGE);
+            mTracing.onLayerAddedToDrawingState(mChildLayerId, VSYNC_ID_FIRST_LAYER_CHANGE);
             mTracing.addCommittedTransactions(transactions, VSYNC_ID_FIRST_LAYER_CHANGE);
             flush(VSYNC_ID_FIRST_LAYER_CHANGE);
         }
@@ -238,6 +240,8 @@ protected:
         const sp<IBinder> fakeMirrorLayerHandle = new BBinder();
         mTracing.onMirrorLayerAdded(fakeMirrorLayerHandle->localBinder(), mMirrorLayerId, "Mirror",
                                     mLayerId);
+        mTracing.onLayerAddedToDrawingState(mLayerId, mVsyncId);
+        mTracing.onLayerAddedToDrawingState(mMirrorLayerId, mVsyncId);
 
         // add some layer transaction
         {
@@ -257,7 +261,7 @@ protected:
 
             std::vector<TransactionState> transactions;
             transactions.emplace_back(transaction);
-            mTracing.addCommittedTransactions(transactions, ++mVsyncId);
+            mTracing.addCommittedTransactions(transactions, mVsyncId);
             flush(mVsyncId);
         }
     }

@@ -2056,6 +2056,11 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
         mGpuFrameMissedCount++;
     }
 
+    if (mTracingEnabledChanged) {
+        mLayerTracingEnabled = mLayerTracing.isEnabled();
+        mTracingEnabledChanged = false;
+    }
+
     // If we are in the middle of a mode change and the fence hasn't
     // fired yet just wait for the next commit.
     if (mSetActiveModePending) {
@@ -2104,11 +2109,6 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
         }
     }
 
-    if (mTracingEnabledChanged) {
-        mLayerTracingEnabled = mLayerTracing.isEnabled();
-        mTracingEnabledChanged = false;
-    }
-
     if (mRefreshRateOverlaySpinner) {
         Mutex::Autolock lock(mStateLock);
         if (const auto display = getDefaultDisplayDeviceLocked()) {
@@ -2123,7 +2123,7 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
 
         bool needsTraversal = false;
         if (clearTransactionFlags(eTransactionFlushNeeded)) {
-            needsTraversal |= commitCreatedLayers();
+            needsTraversal |= commitCreatedLayers(vsyncId);
             needsTraversal |= flushTransactionQueues(vsyncId);
         }
 
@@ -6887,9 +6887,7 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         return NO_ERROR;
     }
 
-    status_t setPolicyResult = overridePolicy
-            ? display->refreshRateConfigs().setOverridePolicy(policy)
-            : display->refreshRateConfigs().setDisplayManagerPolicy(*policy);
+    const status_t setPolicyResult = display->setRefreshRatePolicy(policy, overridePolicy);
     if (setPolicyResult < 0) {
         return BAD_VALUE;
     }
@@ -7155,7 +7153,7 @@ int SurfaceFlinger::getMaxAcquiredBufferCountForRefreshRate(Fps refreshRate) con
     return calculateMaxAcquiredBufferCount(refreshRate, presentLatency);
 }
 
-void SurfaceFlinger::handleLayerCreatedLocked(const LayerCreatedState& state) {
+void SurfaceFlinger::handleLayerCreatedLocked(const LayerCreatedState& state, int64_t vsyncId) {
     sp<Layer> layer = state.layer.promote();
     if (!layer) {
         ALOGD("Layer was destroyed soon after creation %p", state.layer.unsafe_get());
@@ -7185,7 +7183,9 @@ void SurfaceFlinger::handleLayerCreatedLocked(const LayerCreatedState& state) {
     }
 
     layer->updateTransformHint(mActiveDisplayTransformHint);
-
+    if (mTransactionTracing) {
+        mTransactionTracing->onLayerAddedToDrawingState(layer->getSequence(), vsyncId);
+    }
     mInterceptor->saveSurfaceCreation(layer);
 }
 
@@ -7269,7 +7269,7 @@ std::shared_ptr<renderengine::ExternalTexture> SurfaceFlinger::getExternalTextur
     return buffer;
 }
 
-bool SurfaceFlinger::commitCreatedLayers() {
+bool SurfaceFlinger::commitCreatedLayers(int64_t vsyncId) {
     std::vector<LayerCreatedState> createdLayers;
     {
         std::scoped_lock<std::mutex> lock(mCreatedLayersLock);
@@ -7282,7 +7282,7 @@ bool SurfaceFlinger::commitCreatedLayers() {
 
     Mutex::Autolock _l(mStateLock);
     for (const auto& createdLayer : createdLayers) {
-        handleLayerCreatedLocked(createdLayer);
+        handleLayerCreatedLocked(createdLayer, vsyncId);
     }
     createdLayers.clear();
     mLayersAdded = true;

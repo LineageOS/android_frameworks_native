@@ -83,6 +83,37 @@ protected:
 
 std::vector<std::filesystem::path> TransactionTraceTestSuite::sTransactionTraces{};
 
+struct LayerInfo {
+    int id;
+    std::string name;
+    int parent;
+    int z;
+    uint64_t curr_frame;
+    float x;
+    float y;
+};
+
+bool operator==(const LayerInfo& lh, const LayerInfo& rh) {
+    return std::make_tuple(lh.id, lh.name, lh.parent, lh.z, lh.curr_frame) ==
+            std::make_tuple(rh.id, rh.name, rh.parent, rh.z, rh.curr_frame);
+}
+
+bool compareById(const LayerInfo& a, const LayerInfo& b) {
+    return a.id < b.id;
+}
+
+inline void PrintTo(const LayerInfo& info, ::std::ostream* os) {
+    *os << "Layer [" << info.id << "] name=" << info.name << " parent=" << info.parent
+        << " z=" << info.z << " curr_frame=" << info.curr_frame << " x=" << info.x
+        << " y=" << info.y;
+}
+
+struct find_id : std::unary_function<LayerInfo, bool> {
+    int id;
+    find_id(int id) : id(id) {}
+    bool operator()(LayerInfo const& m) const { return m.id == id; }
+};
+
 TEST_P(TransactionTraceTestSuite, validateEndState) {
     ASSERT_GT(mActualLayersTraceProto.entry_size(), 0);
     ASSERT_GT(mExpectedLayersTraceProto.entry_size(), 0);
@@ -92,19 +123,64 @@ TEST_P(TransactionTraceTestSuite, validateEndState) {
     auto actualLastEntry = mActualLayersTraceProto.entry(mActualLayersTraceProto.entry_size() - 1);
 
     EXPECT_EQ(expectedLastEntry.layers().layers_size(), actualLastEntry.layers().layers_size());
-    for (int i = 0;
-         i < expectedLastEntry.layers().layers_size() && i < actualLastEntry.layers().layers_size();
-         i++) {
-        auto expectedLayer = expectedLastEntry.layers().layers(i);
-        auto actualLayer = actualLastEntry.layers().layers(i);
-        EXPECT_EQ(expectedLayer.id(), actualLayer.id());
-        EXPECT_EQ(expectedLayer.name(), actualLayer.name());
-        EXPECT_EQ(expectedLayer.parent(), actualLayer.parent());
-        EXPECT_EQ(expectedLayer.z(), actualLayer.z());
-        EXPECT_EQ(expectedLayer.curr_frame(), actualLayer.curr_frame());
-        ALOGV("Validating %s[%d] parent=%d z=%d frame=%" PRIu64, expectedLayer.name().c_str(),
-              expectedLayer.id(), expectedLayer.parent(), expectedLayer.z(),
-              expectedLayer.curr_frame());
+
+    std::vector<LayerInfo> expectedLayers;
+    expectedLayers.reserve(static_cast<size_t>(expectedLastEntry.layers().layers_size()));
+    for (int i = 0; i < expectedLastEntry.layers().layers_size(); i++) {
+        auto layer = expectedLastEntry.layers().layers(i);
+        expectedLayers.push_back({layer.id(), layer.name(), layer.parent(), layer.z(),
+                                  layer.curr_frame(),
+                                  layer.has_position() ? layer.position().x() : -1,
+                                  layer.has_position() ? layer.position().y() : -1});
+    }
+    std::sort(expectedLayers.begin(), expectedLayers.end(), compareById);
+
+    std::vector<LayerInfo> actualLayers;
+    actualLayers.reserve(static_cast<size_t>(actualLastEntry.layers().layers_size()));
+    for (int i = 0; i < actualLastEntry.layers().layers_size(); i++) {
+        auto layer = actualLastEntry.layers().layers(i);
+        actualLayers.push_back({layer.id(), layer.name(), layer.parent(), layer.z(),
+                                layer.curr_frame(),
+                                layer.has_position() ? layer.position().x() : -1,
+                                layer.has_position() ? layer.position().y() : -1});
+    }
+    std::sort(actualLayers.begin(), actualLayers.end(), compareById);
+
+    size_t i = 0;
+    for (; i < actualLayers.size() && i < expectedLayers.size(); i++) {
+        auto it = std::find_if(actualLayers.begin(), actualLayers.end(),
+                               find_id(expectedLayers[i].id));
+        EXPECT_NE(it, actualLayers.end());
+        EXPECT_EQ(expectedLayers[i], *it);
+        ALOGV("Validating %s[%d] parent=%d z=%d frame=%" PRIu64, expectedLayers[i].name.c_str(),
+              expectedLayers[i].id, expectedLayers[i].parent, expectedLayers[i].z,
+              expectedLayers[i].curr_frame);
+    }
+
+    EXPECT_EQ(expectedLayers.size(), actualLayers.size());
+
+    if (i < actualLayers.size()) {
+        for (size_t j = 0; j < actualLayers.size(); j++) {
+            if (std::find_if(expectedLayers.begin(), expectedLayers.end(),
+                             find_id(actualLayers[j].id)) == expectedLayers.end()) {
+                ALOGD("actualLayers [%d]:%s parent=%d z=%d frame=%" PRIu64, actualLayers[j].id,
+                      actualLayers[j].name.c_str(), actualLayers[j].parent, actualLayers[j].z,
+                      actualLayers[j].curr_frame);
+            }
+        }
+        FAIL();
+    }
+
+    if (i < expectedLayers.size()) {
+        for (size_t j = 0; j < expectedLayers.size(); j++) {
+            if (std::find_if(actualLayers.begin(), actualLayers.end(),
+                             find_id(expectedLayers[j].id)) == actualLayers.end()) {
+                ALOGD("expectedLayers [%d]:%s parent=%d z=%d frame=%" PRIu64, expectedLayers[j].id,
+                      expectedLayers[j].name.c_str(), expectedLayers[j].parent, expectedLayers[j].z,
+                      expectedLayers[j].curr_frame);
+            }
+        }
+        FAIL();
     }
 }
 

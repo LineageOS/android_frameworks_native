@@ -211,6 +211,7 @@ status_t DisplayDevice::initiateModeChange(const ActiveModeInfo& info,
               to_string(getId()).c_str());
         return BAD_VALUE;
     }
+    mNumModeSwitchesInPolicy++;
     mUpcomingActiveMode = info;
     ATRACE_INT(mActiveModeFPSHwcTrace.c_str(), info.mode->getFps().getIntValue());
     return mHwComposer.setActiveModeWithConstraints(getPhysicalId(), info.mode->getHwcId(),
@@ -535,6 +536,27 @@ void DisplayDevice::clearDesiredActiveModeState() {
     std::scoped_lock lock(mActiveModeLock);
     mDesiredActiveMode.event = scheduler::DisplayModeEvent::None;
     mDesiredActiveModeChanged = false;
+}
+
+status_t DisplayDevice::setRefreshRatePolicy(
+        const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy) {
+    const auto oldPolicy = mRefreshRateConfigs->getCurrentPolicy();
+    const status_t setPolicyResult = overridePolicy
+            ? mRefreshRateConfigs->setOverridePolicy(policy)
+            : mRefreshRateConfigs->setDisplayManagerPolicy(*policy);
+
+    if (setPolicyResult == OK) {
+        const int numModeChanges = mNumModeSwitchesInPolicy.exchange(0);
+
+        ALOGI("Display %s policy changed\n"
+              "Previous: {%s}\n"
+              "Current:  {%s}\n"
+              "%d mode changes were performed under the previous policy",
+              to_string(getId()).c_str(), oldPolicy.toString().c_str(),
+              policy ? policy->toString().c_str() : "null", numModeChanges);
+    }
+
+    return setPolicyResult;
 }
 
 std::atomic<int32_t> DisplayDeviceState::sNextSequenceId(1);

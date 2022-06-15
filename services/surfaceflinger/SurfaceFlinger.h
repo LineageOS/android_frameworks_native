@@ -1405,8 +1405,9 @@ private:
     // A temporay pool that store the created layers and will be added to current state in main
     // thread.
     std::vector<LayerCreatedState> mCreatedLayers GUARDED_BY(mCreatedLayersLock);
-    bool commitCreatedLayers();
-    void handleLayerCreatedLocked(const LayerCreatedState& state) REQUIRES(mStateLock);
+    bool commitCreatedLayers(int64_t vsyncId);
+    void handleLayerCreatedLocked(const LayerCreatedState& state, int64_t vsyncId)
+            REQUIRES(mStateLock);
 
     std::atomic<ui::Transform::RotationFlags> mActiveDisplayTransformHint;
 
