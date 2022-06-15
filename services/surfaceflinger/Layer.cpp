@@ -2221,6 +2221,37 @@ Rect Layer::getInputBounds() const {
     return getCroppedBufferSize(getDrawingState());
 }
 
+// Applies the given transform to the region, while protecting against overflows caused by any
+// offsets. If applying the offset in the transform to any of the Rects in the region would result
+// in an overflow, they are not added to the output Region.
+static Region transformTouchableRegionSafely(const ui::Transform& t, const Region& r,
+                                             const std::string& debugWindowName) {
+    // Round the translation using the same rounding strategy used by ui::Transform.
+    const auto tx = static_cast<int32_t>(t.tx() + 0.5);
+    const auto ty = static_cast<int32_t>(t.ty() + 0.5);
+
+    ui::Transform transformWithoutOffset = t;
+    transformWithoutOffset.set(0.f, 0.f);
+
+    const Region transformed = transformWithoutOffset.transform(r);
+
+    // Apply the translation to each of the Rects in the region while discarding any that overflow.
+    Region ret;
+    for (const auto& rect : transformed) {
+        Rect newRect;
+        if (__builtin_add_overflow(rect.left, tx, &newRect.left) ||
+            __builtin_add_overflow(rect.top, ty, &newRect.top) ||
+            __builtin_add_overflow(rect.right, tx, &newRect.right) ||
+            __builtin_add_overflow(rect.bottom, ty, &newRect.bottom)) {
+            ALOGE("Applying transform to touchable region of window '%s' resulted in an overflow.",
+                  debugWindowName.c_str());
+            continue;
+        }
+        ret.orSelf(newRect);
+    }
+    return ret;
+}
+
 void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& screenToDisplay) {
     Rect tmpBounds = getInputBounds();
     if (!tmpBounds.isValid()) {
@@ -2283,7 +2314,8 @@ void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& screenToDi
     info.transform = inputToDisplay.inverse();
 
     // The touchable region is specified in the input coordinate space. Change it to display space.
-    info.touchableRegion = inputToDisplay.transform(info.touchableRegion);
+    info.touchableRegion =
+            transformTouchableRegionSafely(inputToDisplay, info.touchableRegion, mName);
 }
 
 void Layer::fillTouchOcclusionMode(WindowInfo& info) {
