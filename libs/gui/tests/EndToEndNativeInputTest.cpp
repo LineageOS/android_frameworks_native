@@ -566,6 +566,55 @@ TEST_F(InputSurfacesTest, input_respects_scaled_surface_insets_overflow) {
     bgSurface->expectTap(12, 24);
 }
 
+TEST_F(InputSurfacesTest, touchable_region) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+
+    surface->mInputInfo.touchableRegion.set(Rect{19, 29, 21, 31});
+
+    surface->showAt(11, 22);
+
+    // A tap within the surface but outside the touchable region should not be sent to the surface.
+    injectTap(20, 30);
+    EXPECT_EQ(surface->consumeEvent(200 /*timeoutMs*/), nullptr);
+
+    injectTap(31, 52);
+    surface->expectTap(20, 30);
+}
+
+TEST_F(InputSurfacesTest, input_respects_touchable_region_offset_overflow) {
+    std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
+    bgSurface->showAt(100, 100);
+
+    // Set the touchable region to the values at the limit of its corresponding type.
+    // Since the surface is offset from the origin, the touchable region will be transformed into
+    // display space, which would trigger an overflow or an underflow. Ensure that we are protected
+    // against such a situation.
+    fgSurface->mInputInfo.touchableRegion.orSelf(Rect{INT32_MIN, INT32_MIN, INT32_MAX, INT32_MAX});
+
+    fgSurface->showAt(100, 100);
+
+    // Expect no crash for overflow. The overflowed touchable region is ignored, so the background
+    // surface receives touch.
+    injectTap(112, 124);
+    bgSurface->expectTap(12, 24);
+}
+
+TEST_F(InputSurfacesTest, input_respects_scaled_touchable_region_overflow) {
+    std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
+    bgSurface->showAt(0, 0);
+
+    fgSurface->mInputInfo.touchableRegion.orSelf(Rect{INT32_MIN, INT32_MIN, INT32_MAX, INT32_MAX});
+    fgSurface->showAt(0, 0);
+
+    fgSurface->doTransaction([&](auto &t, auto &sc) { t.setMatrix(sc, 2.0, 0, 0, 2.0); });
+
+    // Expect no crash for overflow.
+    injectTap(12, 24);
+    fgSurface->expectTap(6, 12);
+}
+
 // Ensure we ignore transparent region when getting screen bounds when positioning input frame.
 TEST_F(InputSurfacesTest, input_ignores_transparent_region) {
     std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
