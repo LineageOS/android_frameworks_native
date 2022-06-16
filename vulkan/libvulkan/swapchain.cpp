@@ -1843,6 +1843,11 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
             if (swapchain_result != VK_SUCCESS) {
                 OrphanSwapchain(device, &swapchain);
             }
+            // Android will only return VK_SUBOPTIMAL_KHR for vkQueuePresentKHR,
+            // and only when the window's transform/rotation changes.  Extent
+            // changes will not cause VK_SUBOPTIMAL_KHR because of the
+            // application issues that were caused when the following transform
+            // change was added.
             int window_transform_hint;
             err = window->query(window, NATIVE_WINDOW_TRANSFORM_HINT,
                                 &window_transform_hint);
