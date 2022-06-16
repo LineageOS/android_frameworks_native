@@ -18,6 +18,7 @@
 #define LOG_TAG "gpuservice_unittest"
 
 #include <android-base/stringprintf.h>
+#define BPF_MAP_MAKE_VISIBLE_FOR_TESTING
 #include <bpf/BpfMap.h>
 #include <gmock/gmock.h>
 #include <gpumem/GpuMem.h>
