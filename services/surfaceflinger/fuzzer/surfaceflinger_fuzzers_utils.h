@@ -30,7 +30,6 @@
 #include <ui/DisplayStatInfo.h>
 #include <ui/DynamicDisplayInfo.h>
 
-#include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
@@ -354,10 +353,6 @@ public:
 
     std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine() override {
         return compositionengine::impl::createCompositionEngine();
-    }
-
-    sp<BufferQueueLayer> createBufferQueueLayer(const LayerCreationArgs &) override {
-        return nullptr;
     }
 
     sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs &) override {

@@ -30,7 +30,6 @@ namespace android {
 
 typedef int32_t PixelFormat;
 
-class BufferQueueLayer;
 class BufferLayerConsumer;
 class BufferStateLayer;
 class ContainerLayer;
@@ -98,7 +97,6 @@ public:
 
     virtual std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine() = 0;
 
-    virtual sp<BufferQueueLayer> createBufferQueueLayer(const LayerCreationArgs& args) = 0;
     virtual sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs& args) = 0;
     virtual sp<EffectLayer> createEffectLayer(const LayerCreationArgs& args) = 0;
     virtual sp<ContainerLayer> createContainerLayer(const LayerCreationArgs& args) = 0;

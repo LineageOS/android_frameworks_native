@@ -105,10 +105,6 @@ public:
         return new EffectLayer(args);
     }
 
-    sp<BufferQueueLayer> createBufferQueueLayer(const LayerCreationArgs&) override {
-        return nullptr;
-    }
-
     std::unique_ptr<FrameTracer> createFrameTracer() override {
         return std::make_unique<testing::NiceMock<mock::FrameTracer>>();
     }

@@ -24,7 +24,6 @@
 #include <gtest/gtest.h>
 #include <gui/LayerMetadata.h>
 
-#include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
 #include "EffectLayer.h"
 #include "FpsReporter.h"

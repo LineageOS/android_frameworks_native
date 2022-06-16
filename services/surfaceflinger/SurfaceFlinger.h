@@ -373,7 +373,6 @@ protected:
 
 private:
     friend class BufferLayer;
-    friend class BufferQueueLayer;
     friend class BufferStateLayer;
     friend class Client;
     friend class FpsReporter;
@@ -822,10 +821,6 @@ private:
                          const sp<IBinder>& parentHandle, int32_t* outLayerId,
                          const sp<Layer>& parentLayer = nullptr,
                          uint32_t* outTransformHint = nullptr);
-
-    status_t createBufferQueueLayer(LayerCreationArgs& args, PixelFormat& format,
-                                    sp<IBinder>* outHandle, sp<IGraphicBufferProducer>* outGbp,
-                                    sp<Layer>* outLayer);
 
     status_t createBufferStateLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
                                     sp<Layer>* outLayer);
