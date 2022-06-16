@@ -590,6 +590,14 @@ public:
         void setAnimationTransaction();
         void setEarlyWakeupStart();
         void setEarlyWakeupEnd();
+
+        /**
+         * Strip the transaction of all permissioned requests, required when
+         * accepting transactions across process boundaries.
+         *
+         * TODO (b/213644870): Remove all permissioned things from Transaction
+         */
+        void sanitize();
     };
 
     status_t clearLayerFrameStats(const sp<IBinder>& token) const;
