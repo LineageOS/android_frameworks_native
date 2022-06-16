@@ -113,6 +113,7 @@ cc_library {
         "abseil-*",
         "android-*",
         "bugprone-*",
+        "-bugprone-branch-clone", // b/155034972
         "cert-*",
         "clang-analyzer-*",
         "-clang-analyzer-core.CallAndMessage",
