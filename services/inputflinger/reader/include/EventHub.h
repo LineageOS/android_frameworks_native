@@ -311,7 +311,7 @@ public:
     /*
      * Examine key input devices for specific framework keycode support
      */
-    virtual bool markSupportedKeyCodes(int32_t deviceId, size_t numCodes, const int32_t* keyCodes,
+    virtual bool markSupportedKeyCodes(int32_t deviceId, const std::vector<int32_t>& keyCodes,
                                        uint8_t* outFlags) const = 0;
 
     virtual bool hasScanCode(int32_t deviceId, int32_t scanCode) const = 0;
@@ -488,7 +488,7 @@ public:
     status_t getAbsoluteAxisValue(int32_t deviceId, int32_t axis,
                                   int32_t* outValue) const override final;
 
-    bool markSupportedKeyCodes(int32_t deviceId, size_t numCodes, const int32_t* keyCodes,
+    bool markSupportedKeyCodes(int32_t deviceId, const std::vector<int32_t>& keyCodes,
                                uint8_t* outFlags) const override final;
 
     size_t getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize) override final;

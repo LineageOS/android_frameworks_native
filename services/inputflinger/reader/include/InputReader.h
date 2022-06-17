@@ -73,7 +73,7 @@ public:
 
     void toggleCapsLockState(int32_t deviceId) override;
 
-    bool hasKeys(int32_t deviceId, uint32_t sourceMask, size_t numCodes, const int32_t* keyCodes,
+    bool hasKeys(int32_t deviceId, uint32_t sourceMask, const std::vector<int32_t>& keyCodes,
                  uint8_t* outFlags) override;
 
     void requestRefreshConfiguration(uint32_t changes) override;
@@ -237,8 +237,9 @@ private:
     typedef int32_t (InputDevice::*GetStateFunc)(uint32_t sourceMask, int32_t code);
     int32_t getStateLocked(int32_t deviceId, uint32_t sourceMask, int32_t code,
                            GetStateFunc getStateFunc) REQUIRES(mLock);
-    bool markSupportedKeyCodesLocked(int32_t deviceId, uint32_t sourceMask, size_t numCodes,
-                                     const int32_t* keyCodes, uint8_t* outFlags) REQUIRES(mLock);
+    bool markSupportedKeyCodesLocked(int32_t deviceId, uint32_t sourceMask,
+                                     const std::vector<int32_t>& keyCodes, uint8_t* outFlags)
+            REQUIRES(mLock);
 
     // find an InputDevice from an InputDevice id
     InputDevice* findInputDeviceLocked(int32_t deviceId) const REQUIRES(mLock);

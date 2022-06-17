@@ -379,9 +379,10 @@ int32_t KeyboardInputMapper::getKeyCodeForKeyLocation(int32_t locationKeyCode) c
     return getDeviceContext().getKeyCodeForKeyLocation(locationKeyCode);
 }
 
-bool KeyboardInputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-                                                const int32_t* keyCodes, uint8_t* outFlags) {
-    return getDeviceContext().markSupportedKeyCodes(numCodes, keyCodes, outFlags);
+bool KeyboardInputMapper::markSupportedKeyCodes(uint32_t sourceMask,
+                                                const std::vector<int32_t>& keyCodes,
+                                                uint8_t* outFlags) {
+    return getDeviceContext().markSupportedKeyCodes(keyCodes, outFlags);
 }
 
 int32_t KeyboardInputMapper::getMetaState() {
@@ -433,13 +434,12 @@ void KeyboardInputMapper::updateLedState(bool reset) {
     mMetaState |= getContext()->getLedMetaState();
 
     constexpr int32_t META_NUM = 3;
-    const std::array<int32_t, META_NUM> keyCodes = {AKEYCODE_CAPS_LOCK, AKEYCODE_NUM_LOCK,
-                                                    AKEYCODE_SCROLL_LOCK};
+    const std::vector<int32_t> keyCodes{AKEYCODE_CAPS_LOCK, AKEYCODE_NUM_LOCK,
+                                        AKEYCODE_SCROLL_LOCK};
     const std::array<int32_t, META_NUM> metaCodes = {AMETA_CAPS_LOCK_ON, AMETA_NUM_LOCK_ON,
                                                      AMETA_SCROLL_LOCK_ON};
     std::array<uint8_t, META_NUM> flags = {0, 0, 0};
-    bool hasKeyLayout =
-            getDeviceContext().markSupportedKeyCodes(META_NUM, keyCodes.data(), flags.data());
+    bool hasKeyLayout = getDeviceContext().markSupportedKeyCodes(keyCodes, flags.data());
     // If the device doesn't have the physical meta key it shouldn't generate the corresponding
     // meta state.
     if (hasKeyLayout) {

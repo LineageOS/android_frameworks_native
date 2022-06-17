@@ -88,7 +88,7 @@ public:
     int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
     int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode);
     int32_t getKeyCodeForKeyLocation(int32_t locationKeyCode) const;
-    bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes, const int32_t* keyCodes,
+    bool markSupportedKeyCodes(uint32_t sourceMask, const std::vector<int32_t>& keyCodes,
                                uint8_t* outFlags);
     void vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token);
     void cancelVibrate(int32_t token);
@@ -324,9 +324,9 @@ public:
     inline status_t getAbsoluteAxisValue(int32_t code, int32_t* outValue) const {
         return mEventHub->getAbsoluteAxisValue(mId, code, outValue);
     }
-    inline bool markSupportedKeyCodes(size_t numCodes, const int32_t* keyCodes,
+    inline bool markSupportedKeyCodes(const std::vector<int32_t>& keyCodes,
                                       uint8_t* outFlags) const {
-        return mEventHub->markSupportedKeyCodes(mId, numCodes, keyCodes, outFlags);
+        return mEventHub->markSupportedKeyCodes(mId, keyCodes, outFlags);
     }
     inline bool hasScanCode(int32_t scanCode) const {
         return mEventHub->hasScanCode(mId, scanCode);

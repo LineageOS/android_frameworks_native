@@ -36,8 +36,8 @@ public:
 
     virtual int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode) override;
     virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;
-    virtual bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-                                       const int32_t* keyCodes, uint8_t* outFlags) override;
+    virtual bool markSupportedKeyCodes(uint32_t sourceMask, const std::vector<int32_t>& keyCodes,
+                                       uint8_t* outFlags) override;
     virtual int32_t getKeyCodeForKeyLocation(int32_t locationKeyCode) const override;
 
     virtual int32_t getMetaState() override;
