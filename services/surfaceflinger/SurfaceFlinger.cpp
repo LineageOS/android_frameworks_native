@@ -106,7 +106,6 @@
 #include <ui/DisplayIdentification.h>
 #include "BackgroundExecutor.h"
 #include "BufferLayer.h"
-#include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
 #include "Client.h"
 #include "Colorizer.h"
@@ -4756,42 +4755,6 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
 
     *outLayerId = layer->sequence;
     return result;
-}
-
-status_t SurfaceFlinger::createBufferQueueLayer(LayerCreationArgs& args, PixelFormat& format,
-                                                sp<IBinder>* handle,
-                                                sp<IGraphicBufferProducer>* gbp,
-                                                sp<Layer>* outLayer) {
-    // initialize the surfaces
-    switch (format) {
-    case PIXEL_FORMAT_TRANSPARENT:
-    case PIXEL_FORMAT_TRANSLUCENT:
-        format = PIXEL_FORMAT_RGBA_8888;
-        break;
-    case PIXEL_FORMAT_OPAQUE:
-        format = PIXEL_FORMAT_RGBX_8888;
-        break;
-    }
-
-    sp<BufferQueueLayer> layer;
-    args.textureName = getNewTexture();
-    {
-        // Grab the SF state lock during this since it's the only safe way to access
-        // RenderEngine when creating a BufferLayerConsumer
-        // TODO: Check if this lock is still needed here
-        Mutex::Autolock lock(mStateLock);
-        layer = getFactory().createBufferQueueLayer(args);
-    }
-
-    status_t err = layer->setDefaultBufferProperties(0, 0, format);
-    if (err == NO_ERROR) {
-        *handle = layer->getHandle();
-        *gbp = layer->getProducer();
-        *outLayer = layer;
-    }
-
-    ALOGE_IF(err, "createBufferQueueLayer() failed (%s)", strerror(-err));
-    return err;
 }
 
 status_t SurfaceFlinger::createBufferStateLayer(LayerCreationArgs& args, sp<IBinder>* handle,

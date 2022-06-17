@@ -23,7 +23,6 @@
 #include <ui/GraphicBuffer.h>
 
 #include "BufferLayerConsumer.h"
-#include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
@@ -107,10 +106,6 @@ std::unique_ptr<compositionengine::CompositionEngine> DefaultFactory::createComp
 
 sp<ContainerLayer> DefaultFactory::createContainerLayer(const LayerCreationArgs& args) {
     return new ContainerLayer(args);
-}
-
-sp<BufferQueueLayer> DefaultFactory::createBufferQueueLayer(const LayerCreationArgs&) {
-    return nullptr;
 }
 
 sp<BufferStateLayer> DefaultFactory::createBufferStateLayer(const LayerCreationArgs& args) {

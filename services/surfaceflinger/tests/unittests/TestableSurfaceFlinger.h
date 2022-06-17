@@ -29,7 +29,6 @@
 #include <compositionengine/mock/DisplaySurface.h>
 #include <gui/ScreenCaptureResults.h>
 
-#include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
@@ -132,10 +131,6 @@ public:
 
     std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine() override {
         return compositionengine::impl::createCompositionEngine();
-    }
-
-    sp<BufferQueueLayer> createBufferQueueLayer(const LayerCreationArgs&) override {
-        return nullptr;
     }
 
     sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs&) override {
