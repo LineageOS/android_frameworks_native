@@ -17,6 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "gpuservice_unittest"
 
+#define BPF_MAP_MAKE_VISIBLE_FOR_TESTING
 #include <bpf/BpfMap.h>
 #include <gpumem/GpuMem.h>
 #include <gtest/gtest.h>
