@@ -35,8 +35,6 @@ class SurfaceFrame;
  */
 class BufferQueueLayer : public BufferLayer {
 public:
-    // Only call while mStateLock is held
-    explicit BufferQueueLayer(const LayerCreationArgs&);
     ~BufferQueueLayer() override;
 
     // Implements Layer.
@@ -92,6 +90,8 @@ protected:
     };
 
 private:
+    // Goodbye
+    explicit BufferQueueLayer(const LayerCreationArgs&);
 
     bool latchSidebandStream(bool& recomputeVisibleRegions) override;
     void setTransformHint(ui::Transform::RotationFlags displayTransformHint) override;

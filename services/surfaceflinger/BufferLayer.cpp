@@ -738,10 +738,14 @@ sp<GraphicBuffer> BufferLayer::getBuffer() const {
 }
 
 void BufferLayer::getDrawingTransformMatrix(bool filteringEnabled, float outMatrix[16]) {
-    GLConsumer::computeTransformMatrix(outMatrix,
-                                       mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getBuffer()
-                                                           : nullptr,
-                                       mBufferInfo.mCrop, mBufferInfo.mTransform, filteringEnabled);
+    sp<GraphicBuffer> buffer = getBuffer();
+    if (!buffer) {
+        ALOGE("Buffer should not be null!");
+        return;
+    }
+    GLConsumer::computeTransformMatrix(outMatrix, buffer->getWidth(), buffer->getHeight(),
+                                       buffer->getPixelFormat(), mBufferInfo.mCrop,
+                                       mBufferInfo.mTransform, filteringEnabled);
 }
 
 void BufferLayer::setInitialValuesForClone(const sp<Layer>& clonedFrom) {
