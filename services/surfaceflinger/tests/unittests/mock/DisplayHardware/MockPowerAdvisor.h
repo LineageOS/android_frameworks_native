@@ -43,17 +43,17 @@ public:
     MOCK_METHOD(bool, startPowerHintSession, (const std::vector<int32_t>& threadIds), (override));
     MOCK_METHOD(void, setGpuFenceTime,
                 (DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime), (override));
-    MOCK_METHOD(void, setValidateTiming,
+    MOCK_METHOD(void, setHwcValidateTiming,
                 (DisplayId displayId, nsecs_t valiateStartTime, nsecs_t validateEndTime),
                 (override));
-    MOCK_METHOD(void, setPresentTiming,
+    MOCK_METHOD(void, setHwcPresentTiming,
                 (DisplayId displayId, nsecs_t presentStartTime, nsecs_t presentEndTime),
                 (override));
     MOCK_METHOD(void, setSkippedValidate, (DisplayId displayId, bool skipped), (override));
     MOCK_METHOD(void, setRequiresClientComposition,
                 (DisplayId displayId, bool requiresClientComposition), (override));
     MOCK_METHOD(void, setExpectedPresentTime, (nsecs_t expectedPresentTime), (override));
-    MOCK_METHOD(void, setPresentDelayedTime,
+    MOCK_METHOD(void, setHwcPresentDelayedTime,
                 (DisplayId displayId,
                  std::chrono::steady_clock::time_point earliestFrameStartTime));
     MOCK_METHOD(void, setFrameDelay, (nsecs_t frameDelayDuration), (override));
