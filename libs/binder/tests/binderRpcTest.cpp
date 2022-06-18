@@ -755,7 +755,7 @@ TEST_P(BinderRpc, AppendSeparateFormats) {
     p1.markForBinder(proc1.rootBinder);
     p1.writeInt32(3);
 
-    EXPECT_EQ(BAD_TYPE, p1.appendFrom(&pRaw, 0, p1.dataSize()));
+    EXPECT_EQ(BAD_TYPE, p1.appendFrom(&pRaw, 0, pRaw.dataSize()));
     EXPECT_EQ(BAD_TYPE, pRaw.appendFrom(&p1, 0, p1.dataSize()));
 
     Parcel p2;
