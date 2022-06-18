@@ -335,11 +335,16 @@ impl<T: Remotable> InterfaceClassMethods for Binder<T> {
         // We don't own this file, so we need to be careful not to drop it.
         let file = ManuallyDrop::new(File::from_raw_fd(fd));
 
-        if args.is_null() {
+        if args.is_null() && num_args != 0 {
             return StatusCode::UNEXPECTED_NULL as status_t;
         }
-        let args = slice::from_raw_parts(args, num_args as usize);
-        let args: Vec<_> = args.iter().map(|s| CStr::from_ptr(*s)).collect();
+
+        let args = if args.is_null() || num_args == 0 {
+            vec![]
+        } else {
+            slice::from_raw_parts(args, num_args as usize)
+                .iter().map(|s| CStr::from_ptr(*s)).collect()
+        };
 
         let object = sys::AIBinder_getUserData(binder);
         let binder: &T = &*(object as *const T);
