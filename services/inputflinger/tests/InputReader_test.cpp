@@ -887,13 +887,13 @@ private:
     }
 
     // Return true if the device has non-empty key layout.
-    bool markSupportedKeyCodes(int32_t deviceId, size_t numCodes, const int32_t* keyCodes,
+    bool markSupportedKeyCodes(int32_t deviceId, const std::vector<int32_t>& keyCodes,
                                uint8_t* outFlags) const override {
         bool result = false;
         Device* device = getDevice(deviceId);
         if (device) {
             result = device->keysByScanCode.size() > 0 || device->keysByUsageCode.size() > 0;
-            for (size_t i = 0; i < numCodes; i++) {
+            for (size_t i = 0; i < keyCodes.size(); i++) {
                 for (size_t j = 0; j < device->keysByScanCode.size(); j++) {
                     if (keyCodes[i] == device->keysByScanCode.valueAt(j).keyCode) {
                         outFlags[i] = 1;
@@ -1209,9 +1209,9 @@ private:
     }
 
     // Return true if the device has non-empty key layout.
-    bool markSupportedKeyCodes(uint32_t, size_t numCodes, const int32_t* keyCodes,
+    bool markSupportedKeyCodes(uint32_t, const std::vector<int32_t>& keyCodes,
                                uint8_t* outFlags) override {
-        for (size_t i = 0; i < numCodes; i++) {
+        for (size_t i = 0; i < keyCodes.size(); i++) {
             for (size_t j = 0; j < mSupportedKeyCodes.size(); j++) {
                 if (keyCodes[i] == mSupportedKeyCodes[j]) {
                     outFlags[i] = 1;
@@ -1855,34 +1855,37 @@ TEST_F(InputReaderTest, MarkSupportedKeyCodes_ForwardsRequestsToMappers) {
     mapper.addSupportedKeyCode(AKEYCODE_A);
     mapper.addSupportedKeyCode(AKEYCODE_B);
 
-    const int32_t keyCodes[4] = { AKEYCODE_A, AKEYCODE_B, AKEYCODE_1, AKEYCODE_2 };
+    const std::vector<int32_t> keyCodes{AKEYCODE_A, AKEYCODE_B, AKEYCODE_1, AKEYCODE_2};
     uint8_t flags[4] = { 0, 0, 0, 1 };
 
-    ASSERT_FALSE(mReader->hasKeys(0, AINPUT_SOURCE_ANY, 4, keyCodes, flags))
+    ASSERT_FALSE(mReader->hasKeys(0, AINPUT_SOURCE_ANY, keyCodes, flags))
             << "Should return false when device id is >= 0 but unknown.";
     ASSERT_TRUE(!flags[0] && !flags[1] && !flags[2] && !flags[3]);
 
     flags[3] = 1;
-    ASSERT_FALSE(mReader->hasKeys(deviceId, AINPUT_SOURCE_TRACKBALL, 4, keyCodes, flags))
+    ASSERT_FALSE(mReader->hasKeys(deviceId, AINPUT_SOURCE_TRACKBALL, keyCodes, flags))
             << "Should return false when device id is valid but the sources are not supported by "
                "the device.";
     ASSERT_TRUE(!flags[0] && !flags[1] && !flags[2] && !flags[3]);
 
     flags[3] = 1;
-    ASSERT_TRUE(mReader->hasKeys(deviceId, AINPUT_SOURCE_KEYBOARD | AINPUT_SOURCE_TRACKBALL, 4,
+    ASSERT_TRUE(mReader->hasKeys(deviceId, AINPUT_SOURCE_KEYBOARD | AINPUT_SOURCE_TRACKBALL,
                                  keyCodes, flags))
             << "Should return value provided by mapper when device id is valid and the device "
                "supports some of the sources.";
     ASSERT_TRUE(flags[0] && flags[1] && !flags[2] && !flags[3]);
 
     flags[3] = 1;
-    ASSERT_FALSE(mReader->hasKeys(-1, AINPUT_SOURCE_TRACKBALL, 4, keyCodes, flags))
-            << "Should return false when the device id is < 0 but the sources are not supported by any device.";
+    ASSERT_FALSE(mReader->hasKeys(-1, AINPUT_SOURCE_TRACKBALL, keyCodes, flags))
+            << "Should return false when the device id is < 0 but the sources are not supported by "
+               "any device.";
     ASSERT_TRUE(!flags[0] && !flags[1] && !flags[2] && !flags[3]);
 
     flags[3] = 1;
-    ASSERT_TRUE(mReader->hasKeys(-1, AINPUT_SOURCE_KEYBOARD | AINPUT_SOURCE_TRACKBALL, 4, keyCodes, flags))
-            << "Should return value provided by mapper when device id is < 0 and one of the devices supports some of the sources.";
+    ASSERT_TRUE(
+            mReader->hasKeys(-1, AINPUT_SOURCE_KEYBOARD | AINPUT_SOURCE_TRACKBALL, keyCodes, flags))
+            << "Should return value provided by mapper when device id is < 0 and one of the "
+               "devices supports some of the sources.";
     ASSERT_TRUE(flags[0] && flags[1] && !flags[2] && !flags[3]);
 }
 
@@ -2718,9 +2721,9 @@ TEST_F(InputDeviceTest, WhenNoMappersAreRegistered_DeviceIsIgnored) {
     ASSERT_EQ(AKEY_STATE_UNKNOWN, mDevice->getSwitchState(AINPUT_SOURCE_KEYBOARD, 0))
             << "Ignored device should return unknown switch state.";
 
-    const int32_t keyCodes[2] = { AKEYCODE_A, AKEYCODE_B };
+    const std::vector<int32_t> keyCodes{AKEYCODE_A, AKEYCODE_B};
     uint8_t flags[2] = { 0, 1 };
-    ASSERT_FALSE(mDevice->markSupportedKeyCodes(AINPUT_SOURCE_KEYBOARD, 2, keyCodes, flags))
+    ASSERT_FALSE(mDevice->markSupportedKeyCodes(AINPUT_SOURCE_KEYBOARD, keyCodes, flags))
             << "Ignored device should never mark any key codes.";
     ASSERT_EQ(0, flags[0]) << "Flag for unsupported key should be unchanged.";
     ASSERT_EQ(1, flags[1]) << "Flag for unsupported key should be unchanged.";
@@ -2795,16 +2798,16 @@ TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRe
     ASSERT_EQ(AKEY_STATE_DOWN, mDevice->getSwitchState(AINPUT_SOURCE_KEYBOARD, 4))
             << "Should query mapper when source is supported.";
 
-    const int32_t keyCodes[4] = { AKEYCODE_A, AKEYCODE_B, AKEYCODE_1, AKEYCODE_2 };
+    const std::vector<int32_t> keyCodes{AKEYCODE_A, AKEYCODE_B, AKEYCODE_1, AKEYCODE_2};
     uint8_t flags[4] = { 0, 0, 0, 1 };
-    ASSERT_FALSE(mDevice->markSupportedKeyCodes(AINPUT_SOURCE_TRACKBALL, 4, keyCodes, flags))
+    ASSERT_FALSE(mDevice->markSupportedKeyCodes(AINPUT_SOURCE_TRACKBALL, keyCodes, flags))
             << "Should do nothing when source is unsupported.";
     ASSERT_EQ(0, flags[0]) << "Flag should be unchanged when source is unsupported.";
     ASSERT_EQ(0, flags[1]) << "Flag should be unchanged when source is unsupported.";
     ASSERT_EQ(0, flags[2]) << "Flag should be unchanged when source is unsupported.";
     ASSERT_EQ(1, flags[3]) << "Flag should be unchanged when source is unsupported.";
 
-    ASSERT_TRUE(mDevice->markSupportedKeyCodes(AINPUT_SOURCE_KEYBOARD, 4, keyCodes, flags))
+    ASSERT_TRUE(mDevice->markSupportedKeyCodes(AINPUT_SOURCE_KEYBOARD, keyCodes, flags))
             << "Should query mapper when source is supported.";
     ASSERT_EQ(1, flags[0]) << "Flag for supported key should be set.";
     ASSERT_EQ(1, flags[1]) << "Flag for supported key should be set.";
@@ -3726,9 +3729,8 @@ TEST_F(KeyboardInputMapperTest, MarkSupportedKeyCodes) {
 
     mFakeEventHub->addKey(EVENTHUB_ID, KEY_A, 0, AKEYCODE_A, 0);
 
-    const int32_t keyCodes[2] = { AKEYCODE_A, AKEYCODE_B };
     uint8_t flags[2] = { 0, 0 };
-    ASSERT_TRUE(mapper.markSupportedKeyCodes(AINPUT_SOURCE_ANY, 1, keyCodes, flags));
+    ASSERT_TRUE(mapper.markSupportedKeyCodes(AINPUT_SOURCE_ANY, {AKEYCODE_A, AKEYCODE_B}, flags));
     ASSERT_TRUE(flags[0]);
     ASSERT_FALSE(flags[1]);
 }
@@ -5363,9 +5365,9 @@ TEST_F(SingleTouchInputMapperTest, MarkSupportedKeyCodes) {
     prepareVirtualKeys();
     SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
 
-    const int32_t keys[2] = { AKEYCODE_HOME, AKEYCODE_A };
     uint8_t flags[2] = { 0, 0 };
-    ASSERT_TRUE(mapper.markSupportedKeyCodes(AINPUT_SOURCE_ANY, 2, keys, flags));
+    ASSERT_TRUE(
+            mapper.markSupportedKeyCodes(AINPUT_SOURCE_ANY, {AKEYCODE_HOME, AKEYCODE_A}, flags));
     ASSERT_TRUE(flags[0]);
     ASSERT_FALSE(flags[1]);
 }

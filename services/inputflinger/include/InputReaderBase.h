@@ -95,7 +95,7 @@ public:
 
     /* Determine whether physical keys exist for the given framework-domain key codes. */
     virtual bool hasKeys(int32_t deviceId, uint32_t sourceMask,
-            size_t numCodes, const int32_t* keyCodes, uint8_t* outFlags) = 0;
+                         const std::vector<int32_t>& keyCodes, uint8_t* outFlags) = 0;
 
     /* Requests that a reconfiguration of all input devices.
      * The changes flag is a bitfield that indicates what has changed and whether

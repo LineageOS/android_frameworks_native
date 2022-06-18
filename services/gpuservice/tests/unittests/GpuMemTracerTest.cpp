@@ -17,6 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "gpuservice_unittest"
 
+#define BPF_MAP_MAKE_VISIBLE_FOR_TESTING
 #include <bpf/BpfMap.h>
 #include <gpumem/GpuMem.h>
 #include <gtest/gtest.h>
@@ -64,11 +65,11 @@ public:
         mTestableGpuMem = TestableGpuMem(mGpuMem.get());
 
         errno = 0;
-        mTestMap = bpf::BpfMap<uint64_t, uint64_t>(BPF_MAP_TYPE_HASH, TEST_MAP_SIZE,
-                                                   BPF_F_NO_PREALLOC);
+        mTestMap = std::move(bpf::BpfMap<uint64_t, uint64_t>(BPF_MAP_TYPE_HASH,
+                                                             TEST_MAP_SIZE,
+                                                             BPF_F_NO_PREALLOC));
 
         EXPECT_EQ(0, errno);
-        EXPECT_LE(0, mTestMap.getMap().get());
         EXPECT_TRUE(mTestMap.isValid());
     }
 

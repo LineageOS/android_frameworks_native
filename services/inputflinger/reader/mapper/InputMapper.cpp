@@ -55,8 +55,8 @@ int32_t InputMapper::getKeyCodeForKeyLocation(int32_t locationKeyCode) const {
     return AKEYCODE_UNKNOWN;
 }
 
-bool InputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-                                        const int32_t* keyCodes, uint8_t* outFlags) {
+bool InputMapper::markSupportedKeyCodes(uint32_t sourceMask, const std::vector<int32_t>& keyCodes,
+                                        uint8_t* outFlags) {
     return false;
 }
 

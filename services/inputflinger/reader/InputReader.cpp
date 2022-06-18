@@ -561,28 +561,28 @@ void InputReader::toggleCapsLockState(int32_t deviceId) {
     device->updateMetaState(AKEYCODE_CAPS_LOCK);
 }
 
-bool InputReader::hasKeys(int32_t deviceId, uint32_t sourceMask, size_t numCodes,
-                          const int32_t* keyCodes, uint8_t* outFlags) {
+bool InputReader::hasKeys(int32_t deviceId, uint32_t sourceMask,
+                          const std::vector<int32_t>& keyCodes, uint8_t* outFlags) {
     std::scoped_lock _l(mLock);
 
-    memset(outFlags, 0, numCodes);
-    return markSupportedKeyCodesLocked(deviceId, sourceMask, numCodes, keyCodes, outFlags);
+    memset(outFlags, 0, keyCodes.size());
+    return markSupportedKeyCodesLocked(deviceId, sourceMask, keyCodes, outFlags);
 }
 
 bool InputReader::markSupportedKeyCodesLocked(int32_t deviceId, uint32_t sourceMask,
-                                              size_t numCodes, const int32_t* keyCodes,
+                                              const std::vector<int32_t>& keyCodes,
                                               uint8_t* outFlags) {
     bool result = false;
     if (deviceId >= 0) {
         InputDevice* device = findInputDeviceLocked(deviceId);
         if (device && !device->isIgnored() && sourcesMatchMask(device->getSources(), sourceMask)) {
-            result = device->markSupportedKeyCodes(sourceMask, numCodes, keyCodes, outFlags);
+            result = device->markSupportedKeyCodes(sourceMask, keyCodes, outFlags);
         }
     } else {
         for (auto& devicePair : mDevices) {
             std::shared_ptr<InputDevice>& device = devicePair.second;
             if (!device->isIgnored() && sourcesMatchMask(device->getSources(), sourceMask)) {
-                result |= device->markSupportedKeyCodes(sourceMask, numCodes, keyCodes, outFlags);
+                result |= device->markSupportedKeyCodes(sourceMask, keyCodes, outFlags);
             }
         }
     }

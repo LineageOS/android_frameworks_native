@@ -4021,10 +4021,11 @@ int32_t TouchInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCode
     return AKEY_STATE_UNKNOWN;
 }
 
-bool TouchInputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-                                             const int32_t* keyCodes, uint8_t* outFlags) {
+bool TouchInputMapper::markSupportedKeyCodes(uint32_t sourceMask,
+                                             const std::vector<int32_t>& keyCodes,
+                                             uint8_t* outFlags) {
     for (const VirtualKey& virtualKey : mVirtualKeys) {
-        for (size_t i = 0; i < numCodes; i++) {
+        for (size_t i = 0; i < keyCodes.size(); i++) {
             if (virtualKey.keyCode == keyCodes[i]) {
                 outFlags[i] = 1;
             }
