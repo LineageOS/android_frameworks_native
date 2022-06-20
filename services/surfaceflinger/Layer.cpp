@@ -1586,8 +1586,10 @@ ssize_t Layer::removeChild(const sp<Layer>& layer) {
 void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
     for (const sp<Layer>& child : mDrawingChildren) {
         child->mDrawingParent = newParent;
+        const float parentShadowRadius =
+                newParent->canDrawShadows() ? 0.f : newParent->mEffectiveShadowRadius;
         child->computeBounds(newParent->mBounds, newParent->mEffectiveTransform,
-                             newParent->mEffectiveShadowRadius);
+                             parentShadowRadius);
     }
 }
 
