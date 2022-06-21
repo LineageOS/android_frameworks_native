@@ -20,6 +20,7 @@
 
 #include <map>
 #include <optional>
+#include <vector>
 
 namespace android {
 
@@ -58,6 +59,9 @@ public:
 
     status_t unregisterForNotifications(const String16& name,
                                         const sp<LocalRegistrationCallback>& callback) override;
+
+    std::vector<IServiceManager::ServiceDebugInfo> getServiceDebugInfo() override;
+
 private:
     std::map<String16, sp<IBinder>> mNameToService;
 };
