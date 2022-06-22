@@ -106,7 +106,6 @@ class CountDownLatch {
 public:
     enum {
         eSyncTransaction = 1 << 0,
-        eSyncInputWindows = 1 << 1,
     };
     explicit CountDownLatch(uint32_t flags) : mFlags(flags) {}
 

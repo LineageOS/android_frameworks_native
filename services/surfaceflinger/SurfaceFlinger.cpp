@@ -341,7 +341,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
         mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)),
         mPowerAdvisor(std::make_unique<Hwc2::impl::PowerAdvisor>(*this)),
-        mWindowInfosListenerInvoker(sp<WindowInfosListenerInvoker>::make(*this)) {
+        mWindowInfosListenerInvoker(sp<WindowInfosListenerInvoker>::make()) {
     ALOGI("Using HWComposer service: %s", mHwcServiceName.c_str());
 }
 
@@ -3273,12 +3273,17 @@ void SurfaceFlinger::updateInputFlinger() {
                                                       inputFlinger = mInputFlinger, this]() {
         ATRACE_NAME("BackgroundExecutor::updateInputFlinger");
         if (updateWindowInfo) {
-            mWindowInfosListenerInvoker->windowInfosChanged(windowInfos, displayInfos,
-                                                            inputWindowCommands.syncInputWindows);
-        } else if (inputWindowCommands.syncInputWindows) {
-            // If the caller requested to sync input windows, but there are no
-            // changes to input windows, notify immediately.
-            windowInfosReported();
+            mWindowInfosListenerInvoker
+                    ->windowInfosChanged(windowInfos, displayInfos,
+                                         inputWindowCommands.windowInfosReportedListeners);
+        } else {
+            // If there are listeners but no changes to input windows, call the listeners
+            // immediately.
+            for (const auto& listener : inputWindowCommands.windowInfosReportedListeners) {
+                if (IInterface::asBinder(listener)->isBinderAlive()) {
+                    listener->onWindowInfosReported();
+                }
+            }
         }
         for (const auto& focusRequest : inputWindowCommands.focusRequests) {
             inputFlinger->setFocusedWindow(focusRequest);
@@ -4101,11 +4106,9 @@ void SurfaceFlinger::queueTransaction(TransactionState& state) {
     Mutex::Autolock lock(mQueueLock);
 
     // Generate a CountDownLatch pending state if this is a synchronous transaction.
-    if ((state.flags & eSynchronous) || state.inputWindowCommands.syncInputWindows) {
-        state.transactionCommittedSignal = std::make_shared<CountDownLatch>(
-                (state.inputWindowCommands.syncInputWindows
-                         ? (CountDownLatch::eSyncInputWindows | CountDownLatch::eSyncTransaction)
-                         : CountDownLatch::eSyncTransaction));
+    if (state.flags & eSynchronous) {
+        state.transactionCommittedSignal =
+                std::make_shared<CountDownLatch>(CountDownLatch::eSyncTransaction);
     }
 
     mTransactionQueue.emplace_back(state);
@@ -6801,11 +6804,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     getRenderEngine().useProtectedContext(false);
 
     return future;
-}
-
-void SurfaceFlinger::windowInfosReported() {
-    Mutex::Autolock _l(mStateLock);
-    signalSynchronousTransactions(CountDownLatch::eSyncInputWindows);
 }
 
 // ---------------------------------------------------------------------------
