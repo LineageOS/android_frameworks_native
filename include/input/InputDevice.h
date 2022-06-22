@@ -295,6 +295,8 @@ enum class InputDeviceConfigurationFileType : int32_t {
 /*
  * Gets the path of an input device configuration file, if one is available.
  * Considers both system provided and user installed configuration files.
+ * The optional suffix is appended to the end of the file name (before the
+ * extension).
  *
  * The device identifier is used to construct several default configuration file
  * names to try based on the device name, vendor, product, and version.
@@ -302,8 +304,8 @@ enum class InputDeviceConfigurationFileType : int32_t {
  * Returns an empty string if not found.
  */
 extern std::string getInputDeviceConfigurationFilePathByDeviceIdentifier(
-        const InputDeviceIdentifier& deviceIdentifier,
-        InputDeviceConfigurationFileType type);
+        const InputDeviceIdentifier& deviceIdentifier, InputDeviceConfigurationFileType type,
+        const char* suffix = "");
 
 /*
  * Gets the path of an input device configuration file, if one is available.
