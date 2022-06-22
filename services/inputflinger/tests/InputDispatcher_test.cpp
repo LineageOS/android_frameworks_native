@@ -6094,6 +6094,7 @@ protected:
     sp<FakeWindowHandle> mWindow;
     sp<FakeWindowHandle> mSecondWindow;
     sp<FakeWindowHandle> mDragWindow;
+    sp<FakeWindowHandle> mSpyWindow;
 
     void SetUp() override {
         InputDispatcherTest::SetUp();
@@ -6104,8 +6105,13 @@ protected:
         mSecondWindow = new FakeWindowHandle(mApp, mDispatcher, "TestWindow2", ADISPLAY_ID_DEFAULT);
         mSecondWindow->setFrame(Rect(100, 0, 200, 100));
 
+        mSpyWindow = new FakeWindowHandle(mApp, mDispatcher, "SpyWindow", ADISPLAY_ID_DEFAULT);
+        mSpyWindow->setSpy(true);
+        mSpyWindow->setTrustedOverlay(true);
+        mSpyWindow->setFrame(Rect(0, 0, 200, 100));
+
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApp);
-        mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow, mSecondWindow}}});
+        mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mSpyWindow, mWindow, mSecondWindow}}});
     }
 
     void injectDown() {
@@ -6116,6 +6122,8 @@ protected:
 
         // Window should receive motion event.
         mWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+        // Spy window should also receive motion event
+        mSpyWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT);
     }
 
     // Start performing drag, we will create a drag window and transfer touch to it.
@@ -6128,8 +6136,9 @@ protected:
 
         // The drag window covers the entire display
         mDragWindow = new FakeWindowHandle(mApp, mDispatcher, "DragWindow", ADISPLAY_ID_DEFAULT);
+        mDragWindow->setTouchableRegion(Region{{0, 0, 0, 0}});
         mDispatcher->setInputWindows(
-                {{ADISPLAY_ID_DEFAULT, {mDragWindow, mWindow, mSecondWindow}}});
+                {{ADISPLAY_ID_DEFAULT, {mDragWindow, mSpyWindow, mWindow, mSecondWindow}}});
 
         // Transfer touch focus to the drag window
         bool transferred =
@@ -6205,6 +6214,30 @@ TEST_F(InputDispatcherDragTests, DragEnterAndDragExit) {
     mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherDragTests, DragEnterAndPointerDownPilfersPointers) {
+    performDrag();
+
+    // No cancel event after drag start
+    mSpyWindow->assertNoEvents();
+
+    const MotionEvent secondFingerDownEvent =
+            MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
+                    .pointer(PointerBuilder(/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/* id */ 1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(60).y(60))
+                    .build();
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
+                                InputEventInjectionSync::WAIT_FOR_RESULT))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    // Receives cancel for first pointer after next pointer down
+    mSpyWindow->consumeMotionCancel();
+    mSpyWindow->consumeMotionDown();
+
+    mSpyWindow->assertNoEvents();
 }
 
 TEST_F(InputDispatcherDragTests, DragAndDrop) {
