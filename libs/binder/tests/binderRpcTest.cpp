@@ -99,17 +99,19 @@ TEST(BinderRpcParcel, EntireParcelFormatted) {
     EXPECT_DEATH(p.markForBinder(sp<BBinder>::make()), "");
 }
 
-class BinderRpcSimple : public ::testing::TestWithParam<RpcSecurity> {
+class BinderRpcServerOnly : public ::testing::TestWithParam<std::tuple<RpcSecurity, uint32_t>> {
 public:
     static std::string PrintTestParam(const ::testing::TestParamInfo<ParamType>& info) {
-        return newFactory(info.param)->toCString();
+        return std::string(newFactory(std::get<0>(info.param))->toCString()) + "_serverV" +
+                std::to_string(std::get<1>(info.param));
     }
 };
 
-TEST_P(BinderRpcSimple, SetExternalServerTest) {
+TEST_P(BinderRpcServerOnly, SetExternalServerTest) {
     base::unique_fd sink(TEMP_FAILURE_RETRY(open("/dev/null", O_RDWR)));
     int sinkFd = sink.get();
-    auto server = RpcServer::make(newFactory(GetParam()));
+    auto server = RpcServer::make(newFactory(std::get<0>(GetParam())));
+    server->setProtocolVersion(std::get<1>(GetParam()));
     ASSERT_FALSE(server->hasServer());
     ASSERT_EQ(OK, server->setupExternalServer(std::move(sink)));
     ASSERT_TRUE(server->hasServer());
@@ -480,7 +482,8 @@ static base::unique_fd connectTo(const RpcSocketAddress& addr) {
     return serverFd;
 }
 
-class BinderRpc : public ::testing::TestWithParam<std::tuple<SocketType, RpcSecurity>> {
+class BinderRpc
+      : public ::testing::TestWithParam<std::tuple<SocketType, RpcSecurity, uint32_t, uint32_t>> {
 public:
     struct Options {
         size_t numThreads = 1;
@@ -490,8 +493,9 @@ public:
     };
 
     static inline std::string PrintParamInfo(const testing::TestParamInfo<ParamType>& info) {
-        auto [type, security] = info.param;
-        return PrintToString(type) + "_" + newFactory(security)->toCString();
+        auto [type, security, clientVersion, serverVersion] = info.param;
+        return PrintToString(type) + "_" + newFactory(security)->toCString() + "_clientV" +
+                std::to_string(clientVersion) + "_serverV" + std::to_string(serverVersion);
     }
 
     static inline void writeString(android::base::borrowed_fd fd, std::string_view str) {
@@ -533,16 +537,19 @@ public:
 
         SocketType socketType = std::get<0>(GetParam());
         RpcSecurity rpcSecurity = std::get<1>(GetParam());
+        uint32_t clientVersion = std::get<2>(GetParam());
+        uint32_t serverVersion = std::get<3>(GetParam());
 
         unsigned int vsockPort = allocateVsockPort();
         std::string addr = allocateSocketAddress();
 
         auto ret = ProcessSession{
-                .host = Process([&](android::base::borrowed_fd writeEnd,
+                .host = Process([=](android::base::borrowed_fd writeEnd,
                                     android::base::borrowed_fd readEnd) {
                     auto certVerifier = std::make_shared<RpcCertificateVerifierSimple>();
                     sp<RpcServer> server = RpcServer::make(newFactory(rpcSecurity, certVerifier));
 
+                    server->setProtocolVersion(serverVersion);
                     server->setMaxThreads(options.numThreads);
 
                     unsigned int outPort = 0;
@@ -618,6 +625,7 @@ public:
         status_t status;
 
         for (const auto& session : sessions) {
+            CHECK(session->setProtocolVersion(clientVersion));
             session->setMaxIncomingThreads(options.numIncomingConnections);
             session->setMaxOutgoingThreads(options.numOutgoingConnections);
 
@@ -1420,9 +1428,20 @@ static std::vector<SocketType> testSocketTypes(bool hasPreconnected = true) {
     return ret;
 }
 
+static std::vector<uint32_t> testVersions() {
+    std::vector<uint32_t> versions;
+    for (size_t i = 0; i < RPC_WIRE_PROTOCOL_VERSION_NEXT; i++) {
+        versions.push_back(i);
+    }
+    versions.push_back(RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL);
+    return versions;
+}
+
 INSTANTIATE_TEST_CASE_P(PerSocket, BinderRpc,
                         ::testing::Combine(::testing::ValuesIn(testSocketTypes()),
-                                           ::testing::ValuesIn(RpcSecurityValues())),
+                                           ::testing::ValuesIn(RpcSecurityValues()),
+                                           ::testing::ValuesIn(testVersions()),
+                                           ::testing::ValuesIn(testVersions())),
                         BinderRpc::PrintParamInfo);
 
 class BinderRpcServerRootObject
@@ -1476,9 +1495,10 @@ private:
     bool mValue = false;
 };
 
-TEST_P(BinderRpcSimple, Shutdown) {
+TEST_P(BinderRpcServerOnly, Shutdown) {
     auto addr = allocateSocketAddress();
-    auto server = RpcServer::make(newFactory(GetParam()));
+    auto server = RpcServer::make(newFactory(std::get<0>(GetParam())));
+    server->setProtocolVersion(std::get<1>(GetParam()));
     ASSERT_EQ(OK, server->setupUnixDomainServer(addr.c_str()));
     auto joinEnds = std::make_shared<OneOffSignal>();
 
@@ -1548,12 +1568,17 @@ TEST(BinderRpc, Java) {
     ASSERT_EQ(OK, rpcBinder->pingBinder());
 }
 
-INSTANTIATE_TEST_CASE_P(BinderRpc, BinderRpcSimple, ::testing::ValuesIn(RpcSecurityValues()),
-                        BinderRpcSimple::PrintTestParam);
+INSTANTIATE_TEST_CASE_P(BinderRpc, BinderRpcServerOnly,
+                        ::testing::Combine(::testing::ValuesIn(RpcSecurityValues()),
+                                           ::testing::ValuesIn(testVersions())),
+                        BinderRpcServerOnly::PrintTestParam);
 
 class RpcTransportTestUtils {
 public:
-    using Param = std::tuple<SocketType, RpcSecurity, std::optional<RpcCertificateFormat>>;
+    // Only parameterized only server version because `RpcSession` is bypassed
+    // in the client half of the tests.
+    using Param =
+            std::tuple<SocketType, RpcSecurity, std::optional<RpcCertificateFormat>, uint32_t>;
     using ConnectToServer = std::function<base::unique_fd()>;
 
     // A server that handles client socket connections.
@@ -1565,8 +1590,9 @@ public:
         [[nodiscard]] AssertionResult setUp(
                 const Param& param,
                 std::unique_ptr<RpcAuth> auth = std::make_unique<RpcAuthSelfSigned>()) {
-            auto [socketType, rpcSecurity, certificateFormat] = param;
+            auto [socketType, rpcSecurity, certificateFormat, serverVersion] = param;
             auto rpcServer = RpcServer::make(newFactory(rpcSecurity));
+            rpcServer->setProtocolVersion(serverVersion);
             switch (socketType) {
                 case SocketType::PRECONNECTED: {
                     return AssertionFailure() << "Not supported by this test";
@@ -1696,7 +1722,8 @@ public:
         explicit Client(ConnectToServer connectToServer) : mConnectToServer(connectToServer) {}
         Client(Client&&) = default;
         [[nodiscard]] AssertionResult setUp(const Param& param) {
-            auto [socketType, rpcSecurity, certificateFormat] = param;
+            auto [socketType, rpcSecurity, certificateFormat, serverVersion] = param;
+            (void)serverVersion;
             mFdTrigger = FdTrigger::make();
             mCtx = newFactory(rpcSecurity, mCertVerifier)->newClientCtx();
             if (mCtx == nullptr) return AssertionFailure() << "newClientCtx";
@@ -1767,23 +1794,28 @@ public:
     using Server = RpcTransportTestUtils::Server;
     using Client = RpcTransportTestUtils::Client;
     static inline std::string PrintParamInfo(const testing::TestParamInfo<ParamType>& info) {
-        auto [socketType, rpcSecurity, certificateFormat] = info.param;
+        auto [socketType, rpcSecurity, certificateFormat, serverVersion] = info.param;
         auto ret = PrintToString(socketType) + "_" + newFactory(rpcSecurity)->toCString();
         if (certificateFormat.has_value()) ret += "_" + PrintToString(*certificateFormat);
+        ret += "_serverV" + std::to_string(serverVersion);
         return ret;
     }
     static std::vector<ParamType> getRpcTranportTestParams() {
         std::vector<ParamType> ret;
-        for (auto socketType : testSocketTypes(false /* hasPreconnected */)) {
-            for (auto rpcSecurity : RpcSecurityValues()) {
-                switch (rpcSecurity) {
-                    case RpcSecurity::RAW: {
-                        ret.emplace_back(socketType, rpcSecurity, std::nullopt);
-                    } break;
-                    case RpcSecurity::TLS: {
-                        ret.emplace_back(socketType, rpcSecurity, RpcCertificateFormat::PEM);
-                        ret.emplace_back(socketType, rpcSecurity, RpcCertificateFormat::DER);
-                    } break;
+        for (auto serverVersion : testVersions()) {
+            for (auto socketType : testSocketTypes(false /* hasPreconnected */)) {
+                for (auto rpcSecurity : RpcSecurityValues()) {
+                    switch (rpcSecurity) {
+                        case RpcSecurity::RAW: {
+                            ret.emplace_back(socketType, rpcSecurity, std::nullopt, serverVersion);
+                        } break;
+                        case RpcSecurity::TLS: {
+                            ret.emplace_back(socketType, rpcSecurity, RpcCertificateFormat::PEM,
+                                             serverVersion);
+                            ret.emplace_back(socketType, rpcSecurity, RpcCertificateFormat::DER,
+                                             serverVersion);
+                        } break;
+                    }
                 }
             }
         }
@@ -1791,7 +1823,8 @@ public:
     }
     template <typename A, typename B>
     status_t trust(const A& a, const B& b) {
-        auto [socketType, rpcSecurity, certificateFormat] = GetParam();
+        auto [socketType, rpcSecurity, certificateFormat, serverVersion] = GetParam();
+        (void)serverVersion;
         return RpcTransportTestUtils::trust(rpcSecurity, certificateFormat, a, b);
     }
 };
@@ -1827,7 +1860,8 @@ TEST_P(RpcTransportTest, MultipleClients) {
 }
 
 TEST_P(RpcTransportTest, UntrustedServer) {
-    auto [socketType, rpcSecurity, certificateFormat] = GetParam();
+    auto [socketType, rpcSecurity, certificateFormat, serverVersion] = GetParam();
+    (void)serverVersion;
 
     auto untrustedServer = std::make_unique<Server>();
     ASSERT_TRUE(untrustedServer->setUp(GetParam()));
@@ -1845,7 +1879,9 @@ TEST_P(RpcTransportTest, UntrustedServer) {
     client.run(handshakeOk);
 }
 TEST_P(RpcTransportTest, MaliciousServer) {
-    auto [socketType, rpcSecurity, certificateFormat] = GetParam();
+    auto [socketType, rpcSecurity, certificateFormat, serverVersion] = GetParam();
+    (void)serverVersion;
+
     auto validServer = std::make_unique<Server>();
     ASSERT_TRUE(validServer->setUp(GetParam()));
 
@@ -1868,7 +1904,9 @@ TEST_P(RpcTransportTest, MaliciousServer) {
 }
 
 TEST_P(RpcTransportTest, UntrustedClient) {
-    auto [socketType, rpcSecurity, certificateFormat] = GetParam();
+    auto [socketType, rpcSecurity, certificateFormat, serverVersion] = GetParam();
+    (void)serverVersion;
+
     auto server = std::make_unique<Server>();
     ASSERT_TRUE(server->setUp(GetParam()));
 
@@ -1887,7 +1925,9 @@ TEST_P(RpcTransportTest, UntrustedClient) {
 }
 
 TEST_P(RpcTransportTest, MaliciousClient) {
-    auto [socketType, rpcSecurity, certificateFormat] = GetParam();
+    auto [socketType, rpcSecurity, certificateFormat, serverVersion] = GetParam();
+    (void)serverVersion;
+
     auto server = std::make_unique<Server>();
     ASSERT_TRUE(server->setUp(GetParam()));
 
@@ -1973,23 +2013,24 @@ INSTANTIATE_TEST_CASE_P(BinderRpc, RpcTransportTest,
                         RpcTransportTest::PrintParamInfo);
 
 class RpcTransportTlsKeyTest
-      : public testing::TestWithParam<std::tuple<SocketType, RpcCertificateFormat, RpcKeyFormat>> {
+      : public testing::TestWithParam<
+                std::tuple<SocketType, RpcCertificateFormat, RpcKeyFormat, uint32_t>> {
 public:
     template <typename A, typename B>
     status_t trust(const A& a, const B& b) {
-        auto [socketType, certificateFormat, keyFormat] = GetParam();
+        auto [socketType, certificateFormat, keyFormat, serverVersion] = GetParam();
+        (void)serverVersion;
         return RpcTransportTestUtils::trust(RpcSecurity::TLS, certificateFormat, a, b);
     }
     static std::string PrintParamInfo(const testing::TestParamInfo<ParamType>& info) {
-        auto [socketType, certificateFormat, keyFormat] = info.param;
-        auto ret = PrintToString(socketType) + "_certificate_" + PrintToString(certificateFormat) +
-                "_key_" + PrintToString(keyFormat);
-        return ret;
+        auto [socketType, certificateFormat, keyFormat, serverVersion] = info.param;
+        return PrintToString(socketType) + "_certificate_" + PrintToString(certificateFormat) +
+                "_key_" + PrintToString(keyFormat) + "_serverV" + std::to_string(serverVersion);
     };
 };
 
 TEST_P(RpcTransportTlsKeyTest, PreSignedCertificate) {
-    auto [socketType, certificateFormat, keyFormat] = GetParam();
+    auto [socketType, certificateFormat, keyFormat, serverVersion] = GetParam();
 
     std::vector<uint8_t> pkeyData, certData;
     {
@@ -2004,8 +2045,8 @@ TEST_P(RpcTransportTlsKeyTest, PreSignedCertificate) {
     auto desPkey = deserializeUnencryptedPrivatekey(pkeyData, keyFormat);
     auto desCert = deserializeCertificate(certData, certificateFormat);
     auto auth = std::make_unique<RpcAuthPreSigned>(std::move(desPkey), std::move(desCert));
-    auto utilsParam =
-            std::make_tuple(socketType, RpcSecurity::TLS, std::make_optional(certificateFormat));
+    auto utilsParam = std::make_tuple(socketType, RpcSecurity::TLS,
+                                      std::make_optional(certificateFormat), serverVersion);
 
     auto server = std::make_unique<RpcTransportTestUtils::Server>();
     ASSERT_TRUE(server->setUp(utilsParam, std::move(auth)));
@@ -2024,7 +2065,8 @@ INSTANTIATE_TEST_CASE_P(
         BinderRpc, RpcTransportTlsKeyTest,
         testing::Combine(testing::ValuesIn(testSocketTypes(false /* hasPreconnected*/)),
                          testing::Values(RpcCertificateFormat::PEM, RpcCertificateFormat::DER),
-                         testing::Values(RpcKeyFormat::PEM, RpcKeyFormat::DER)),
+                         testing::Values(RpcKeyFormat::PEM, RpcKeyFormat::DER),
+                         testing::ValuesIn(testVersions())),
         RpcTransportTlsKeyTest::PrintParamInfo);
 
 } // namespace android
