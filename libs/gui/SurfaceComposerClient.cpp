@@ -660,6 +660,7 @@ SurfaceComposerClient::Transaction::createFromParcel(const Parcel* parcel) {
 
 
 status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel) {
+    const uint64_t transactionId = parcel->readUint64();
     const uint32_t forceSynchronous = parcel->readUint32();
     const uint32_t transactionNestCount = parcel->readUint32();
     const bool animation = parcel->readBool();
@@ -737,6 +738,7 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     inputWindowCommands.read(*parcel);
 
     // Parsing was successful. Update the object.
+    mId = transactionId;
     mForceSynchronous = forceSynchronous;
     mTransactionNestCount = transactionNestCount;
     mAnimation = animation;
@@ -768,6 +770,7 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
 
     const_cast<SurfaceComposerClient::Transaction*>(this)->cacheBuffers();
 
+    parcel->writeUint64(mId);
     parcel->writeUint32(mForceSynchronous);
     parcel->writeUint32(mTransactionNestCount);
     parcel->writeBool(mAnimation);
