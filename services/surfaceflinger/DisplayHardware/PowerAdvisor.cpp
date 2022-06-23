@@ -238,7 +238,8 @@ void PowerAdvisor::sendPredictedWorkDuration() {
         std::lock_guard lock(mPowerHalMutex);
         HalWrapper* const halWrapper = getPowerHal();
         if (halWrapper != nullptr) {
-            halWrapper->sendActualWorkDuration(*predictedDuration, systemTime());
+            halWrapper->sendActualWorkDuration(*predictedDuration + kTargetSafetyMargin.count(),
+                                               systemTime());
         }
     }
 }
