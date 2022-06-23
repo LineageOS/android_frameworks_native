@@ -264,6 +264,7 @@ private:
     sp<RpcConnection> assignIncomingConnectionToThisThread(
             std::unique_ptr<RpcTransport> rpcTransport);
     [[nodiscard]] bool removeIncomingConnection(const sp<RpcConnection>& connection);
+    void clearConnectionTid(const sp<RpcConnection>& connection);
 
     [[nodiscard]] status_t initShutdownTrigger();
 
