@@ -44,6 +44,8 @@
 #include "TouchVideoDevice.h"
 #include "VibrationElement.h"
 
+struct inotify_event;
+
 namespace android {
 
 /* Number of colors : {red, green, blue} */
@@ -648,7 +650,8 @@ private:
     status_t scanDirLocked(const std::string& dirname) REQUIRES(mLock);
     status_t scanVideoDirLocked(const std::string& dirname) REQUIRES(mLock);
     void scanDevicesLocked() REQUIRES(mLock);
-    status_t readNotifyLocked() REQUIRES(mLock);
+    base::Result<void> readNotifyLocked() REQUIRES(mLock);
+    void handleNotifyEventLocked(const inotify_event&) REQUIRES(mLock);
 
     Device* getDeviceByDescriptorLocked(const std::string& descriptor) const REQUIRES(mLock);
     Device* getDeviceLocked(int32_t deviceId) const REQUIRES(mLock);

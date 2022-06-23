@@ -687,6 +687,7 @@ EventHub::EventHub(void)
     LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance: %s", strerror(errno));
 
     mINotifyFd = inotify_init1(IN_CLOEXEC);
+    LOG_ALWAYS_FATAL_IF(mINotifyFd < 0, "Could not create inotify instance: %s", strerror(errno));
 
     std::error_code errorCode;
     bool isDeviceInotifyAdded = false;
@@ -1723,7 +1724,10 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
         // before closing the devices.
         if (mPendingINotify && mPendingEventIndex >= mPendingEventCount) {
             mPendingINotify = false;
-            readNotifyLocked();
+            const auto res = readNotifyLocked();
+            if (!res.ok()) {
+                ALOGW("Failed to read from inotify: %s", res.error().message().c_str());
+            }
             deviceChanged = true;
         }
 
@@ -2413,53 +2417,56 @@ void EventHub::closeDeviceLocked(Device& device) {
     mDevices.erase(device.id);
 }
 
-status_t EventHub::readNotifyLocked() {
-    int res;
-    char event_buf[512];
-    int event_size;
-    int event_pos = 0;
-    struct inotify_event* event;
+base::Result<void> EventHub::readNotifyLocked() {
+    static constexpr auto EVENT_SIZE = static_cast<ssize_t>(sizeof(inotify_event));
+    uint8_t eventBuffer[512];
+    ssize_t sizeRead;
 
     ALOGV("EventHub::readNotify nfd: %d\n", mINotifyFd);
-    res = read(mINotifyFd, event_buf, sizeof(event_buf));
-    if (res < (int)sizeof(*event)) {
-        if (errno == EINTR) return 0;
-        ALOGW("could not get event, %s\n", strerror(errno));
-        return -1;
-    }
+    do {
+        sizeRead = read(mINotifyFd, eventBuffer, sizeof(eventBuffer));
+    } while (sizeRead < 0 && errno == EINTR);
 
-    while (res >= (int)sizeof(*event)) {
-        event = (struct inotify_event*)(event_buf + event_pos);
-        if (event->len) {
-            if (event->wd == mDeviceInputWd) {
-                std::string filename = std::string(DEVICE_INPUT_PATH) + "/" + event->name;
-                if (event->mask & IN_CREATE) {
-                    openDeviceLocked(filename);
-                } else {
-                    ALOGI("Removing device '%s' due to inotify event\n", filename.c_str());
-                    closeDeviceByPathLocked(filename);
-                }
-            } else if (event->wd == mDeviceWd) {
-                if (isV4lTouchNode(event->name)) {
-                    std::string filename = std::string(DEVICE_PATH) + "/" + event->name;
-                    if (event->mask & IN_CREATE) {
-                        openVideoDeviceLocked(filename);
-                    } else {
-                        ALOGI("Removing video device '%s' due to inotify event", filename.c_str());
-                        closeVideoDeviceByPathLocked(filename);
-                    }
-                } else if (strcmp(event->name, "input") == 0 && event->mask & IN_CREATE) {
-                    addDeviceInputInotify();
-                }
-            } else {
-                LOG_ALWAYS_FATAL("Unexpected inotify event, wd = %i", event->wd);
-            }
-        }
-        event_size = sizeof(*event) + event->len;
-        res -= event_size;
-        event_pos += event_size;
+    if (sizeRead < EVENT_SIZE) return Errorf("could not get event, %s", strerror(errno));
+
+    for (ssize_t eventPos = 0; sizeRead >= EVENT_SIZE;) {
+        const inotify_event* event;
+        event = (const inotify_event*)(eventBuffer + eventPos);
+        if (event->len == 0) continue;
+
+        handleNotifyEventLocked(*event);
+
+        const ssize_t eventSize = EVENT_SIZE + event->len;
+        sizeRead -= eventSize;
+        eventPos += eventSize;
     }
-    return 0;
+    return {};
+}
+
+void EventHub::handleNotifyEventLocked(const inotify_event& event) {
+    if (event.wd == mDeviceInputWd) {
+        std::string filename = std::string(DEVICE_INPUT_PATH) + "/" + event.name;
+        if (event.mask & IN_CREATE) {
+            openDeviceLocked(filename);
+        } else {
+            ALOGI("Removing device '%s' due to inotify event\n", filename.c_str());
+            closeDeviceByPathLocked(filename);
+        }
+    } else if (event.wd == mDeviceWd) {
+        if (isV4lTouchNode(event.name)) {
+            std::string filename = std::string(DEVICE_PATH) + "/" + event.name;
+            if (event.mask & IN_CREATE) {
+                openVideoDeviceLocked(filename);
+            } else {
+                ALOGI("Removing video device '%s' due to inotify event", filename.c_str());
+                closeVideoDeviceByPathLocked(filename);
+            }
+        } else if (strcmp(event.name, "input") == 0 && event.mask & IN_CREATE) {
+            addDeviceInputInotify();
+        }
+    } else {
+        LOG_ALWAYS_FATAL("Unexpected inotify event, wd = %i", event.wd);
+    }
 }
 
 status_t EventHub::scanDirLocked(const std::string& dirname) {
