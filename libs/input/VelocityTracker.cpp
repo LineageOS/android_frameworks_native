@@ -27,6 +27,8 @@
 #include <utils/BitSet.h>
 #include <utils/Timers.h>
 
+using std::literals::chrono_literals::operator""ms;
+
 namespace android {
 
 /**
@@ -57,8 +59,14 @@ static const nsecs_t NANOS_PER_MS = 1000000;
 // Some input devices do not send ACTION_MOVE events in the case where a pointer has
 // stopped.  We need to detect this case so that we can accurately predict the
 // velocity after the pointer starts moving again.
-static const nsecs_t ASSUME_POINTER_STOPPED_TIME = 40 * NANOS_PER_MS;
+static const std::chrono::duration ASSUME_POINTER_STOPPED_TIME = 40ms;
 
+static std::string toString(std::chrono::nanoseconds t) {
+    std::stringstream stream;
+    stream.precision(1);
+    stream << std::fixed << std::chrono::duration<float, std::milli>(t).count() << " ms";
+    return stream.str();
+}
 
 static float vectorDot(const float* a, const float* b, uint32_t m) {
     float r = 0;
@@ -146,18 +154,14 @@ std::unique_ptr<VelocityTrackerStrategy> VelocityTracker::createStrategy(
         VelocityTracker::Strategy strategy) {
     switch (strategy) {
         case VelocityTracker::Strategy::IMPULSE:
-            if (DEBUG_STRATEGY) {
-                ALOGI("Initializing impulse strategy");
-            }
+            ALOGI_IF(DEBUG_STRATEGY, "Initializing impulse strategy");
             return std::make_unique<ImpulseVelocityTrackerStrategy>();
 
         case VelocityTracker::Strategy::LSQ1:
             return std::make_unique<LeastSquaresVelocityTrackerStrategy>(1);
 
         case VelocityTracker::Strategy::LSQ2:
-            if (DEBUG_STRATEGY && !DEBUG_IMPULSE) {
-                ALOGI("Initializing lsq2 strategy");
-            }
+            ALOGI_IF(DEBUG_STRATEGY && !DEBUG_IMPULSE, "Initializing lsq2 strategy");
             return std::make_unique<LeastSquaresVelocityTrackerStrategy>(2);
 
         case VelocityTracker::Strategy::LSQ3:
@@ -221,12 +225,11 @@ void VelocityTracker::addMovement(nsecs_t eventTime, BitSet32 idBits,
         idBits.clearLastMarkedBit();
     }
 
-    if ((mCurrentPointerIdBits.value & idBits.value)
-            && eventTime >= mLastEventTime + ASSUME_POINTER_STOPPED_TIME) {
-        if (DEBUG_VELOCITY) {
-            ALOGD("VelocityTracker: stopped for %0.3f ms, clearing state.",
-                  (eventTime - mLastEventTime) * 0.000001f);
-        }
+    if ((mCurrentPointerIdBits.value & idBits.value) &&
+        std::chrono::nanoseconds(eventTime - mLastEventTime) > ASSUME_POINTER_STOPPED_TIME) {
+        ALOGD_IF(DEBUG_VELOCITY, "VelocityTracker: stopped for %s, clearing state.",
+                 toString(std::chrono::nanoseconds(eventTime - mLastEventTime)).c_str());
+
         // We have not received any movements for too long.  Assume that all pointers
         // have stopped.
         mStrategy->clear();
@@ -281,8 +284,18 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
     case AMOTION_EVENT_ACTION_MOVE:
     case AMOTION_EVENT_ACTION_HOVER_MOVE:
         break;
-    default:
-        // Ignore all other actions because they do not convey any new information about
+    case AMOTION_EVENT_ACTION_POINTER_UP:
+    case AMOTION_EVENT_ACTION_UP: {
+        std::chrono::nanoseconds delaySinceLastEvent(event->getEventTime() - mLastEventTime);
+        if (delaySinceLastEvent > ASSUME_POINTER_STOPPED_TIME) {
+            ALOGD_IF(DEBUG_VELOCITY,
+                     "VelocityTracker: stopped for %s, clearing state upon pointer liftoff.",
+                     toString(delaySinceLastEvent).c_str());
+            // We have not received any movements for too long.  Assume that all pointers
+            // have stopped.
+            mStrategy->clear();
+        }
+        // These actions because they do not convey any new information about
         // pointer movement.  We also want to preserve the last known velocity of the pointers.
         // Note that ACTION_UP and ACTION_POINTER_UP always report the last known position
         // of the pointers that went up.  ACTION_POINTER_UP does include the new position of
@@ -290,6 +303,10 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
         // information if any of them actually moved.  Since we don't know how many pointers
         // will be going up at once it makes sense to just wait for the following ACTION_MOVE
         // before adding the movement.
+        return;
+    }
+    default:
+        // Ignore all other actions.
         return;
     }
 
@@ -438,10 +455,10 @@ void LeastSquaresVelocityTrackerStrategy::addMovement(
 static bool solveLeastSquares(const std::vector<float>& x, const std::vector<float>& y,
                               const std::vector<float>& w, uint32_t n, float* outB, float* outDet) {
     const size_t m = x.size();
-    if (DEBUG_STRATEGY) {
-        ALOGD("solveLeastSquares: m=%d, n=%d, x=%s, y=%s, w=%s", int(m), int(n),
-              vectorToString(x).c_str(), vectorToString(y).c_str(), vectorToString(w).c_str());
-    }
+
+    ALOGD_IF(DEBUG_STRATEGY, "solveLeastSquares: m=%d, n=%d, x=%s, y=%s, w=%s", int(m), int(n),
+             vectorToString(x).c_str(), vectorToString(y).c_str(), vectorToString(w).c_str());
+
     LOG_ALWAYS_FATAL_IF(m != y.size() || m != w.size(), "Mismatched vector sizes");
 
     // Expand the X vector to a matrix A, pre-multiplied by the weights.
@@ -452,9 +469,9 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
             a[i][h] = a[i - 1][h] * x[h];
         }
     }
-    if (DEBUG_STRATEGY) {
-        ALOGD("  - a=%s", matrixToString(&a[0][0], m, n, false /*rowMajor*/).c_str());
-    }
+
+    ALOGD_IF(DEBUG_STRATEGY, "  - a=%s",
+             matrixToString(&a[0][0], m, n, false /*rowMajor*/).c_str());
 
     // Apply the Gram-Schmidt process to A to obtain its QR decomposition.
     float q[n][m]; // orthonormal basis, column-major order
@@ -473,9 +490,7 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
         float norm = vectorNorm(&q[j][0], m);
         if (norm < 0.000001f) {
             // vectors are linearly dependent or zero so no solution
-            if (DEBUG_STRATEGY) {
-                ALOGD("  - no solution, norm=%f", norm);
-            }
+            ALOGD_IF(DEBUG_STRATEGY, "  - no solution, norm=%f", norm);
             return false;
         }
 
@@ -518,9 +533,8 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
         }
         outB[i] /= r[i][i];
     }
-    if (DEBUG_STRATEGY) {
-        ALOGD("  - b=%s", vectorToString(outB, n).c_str());
-    }
+
+    ALOGD_IF(DEBUG_STRATEGY, "  - b=%s", vectorToString(outB, n).c_str());
 
     // Calculate the coefficient of determination as 1 - (SSerr / SStot) where
     // SSerr is the residual sum of squares (variance of the error),
@@ -546,11 +560,11 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
         sstot += w[h] * w[h] * var * var;
     }
     *outDet = sstot > 0.000001f ? 1.0f - (sserr / sstot) : 1;
-    if (DEBUG_STRATEGY) {
-        ALOGD("  - sserr=%f", sserr);
-        ALOGD("  - sstot=%f", sstot);
-        ALOGD("  - det=%f", *outDet);
-    }
+
+    ALOGD_IF(DEBUG_STRATEGY, "  - sserr=%f", sserr);
+    ALOGD_IF(DEBUG_STRATEGY, "  - sstot=%f", sstot);
+    ALOGD_IF(DEBUG_STRATEGY, "  - det=%f", *outDet);
+
     return true;
 }
 
@@ -673,11 +687,11 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
             outEstimator->time = newestMovement.eventTime;
             outEstimator->degree = degree;
             outEstimator->confidence = xdet * ydet;
-            if (DEBUG_STRATEGY) {
-                ALOGD("estimate: degree=%d, xCoeff=%s, yCoeff=%s, confidence=%f",
-                      int(outEstimator->degree), vectorToString(outEstimator->xCoeff, n).c_str(),
-                      vectorToString(outEstimator->yCoeff, n).c_str(), outEstimator->confidence);
-            }
+
+            ALOGD_IF(DEBUG_STRATEGY, "estimate: degree=%d, xCoeff=%s, yCoeff=%s, confidence=%f",
+                     int(outEstimator->degree), vectorToString(outEstimator->xCoeff, n).c_str(),
+                     vectorToString(outEstimator->yCoeff, n).c_str(), outEstimator->confidence);
+
             return true;
         }
     }
@@ -1185,9 +1199,10 @@ bool ImpulseVelocityTrackerStrategy::getEstimator(uint32_t id,
     outEstimator->time = newestMovement.eventTime;
     outEstimator->degree = 2; // similar results to 2nd degree fit
     outEstimator->confidence = 1;
-    if (DEBUG_STRATEGY) {
-        ALOGD("velocity: (%.1f, %.1f)", outEstimator->xCoeff[1], outEstimator->yCoeff[1]);
-    }
+
+    ALOGD_IF(DEBUG_STRATEGY, "velocity: (%.1f, %.1f)", outEstimator->xCoeff[1],
+             outEstimator->yCoeff[1]);
+
     if (DEBUG_IMPULSE) {
         // TODO(b/134179997): delete this block once the switch to 'impulse' is complete.
         // Calculate the lsq2 velocity for the same inputs to allow runtime comparisons

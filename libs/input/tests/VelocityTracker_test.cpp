@@ -26,7 +26,9 @@
 #include <gui/constants.h>
 #include <input/VelocityTracker.h>
 
-using namespace std::chrono_literals;
+using std::literals::chrono_literals::operator""ms;
+using std::literals::chrono_literals::operator""ns;
+using std::literals::chrono_literals::operator""us;
 using android::base::StringPrintf;
 
 namespace android {
@@ -149,8 +151,7 @@ static std::vector<MotionEvent> createMotionEventStream(
         if (i == 0) {
             action = AMOTION_EVENT_ACTION_DOWN;
             EXPECT_EQ(1U, pointerCount) << "First event should only have 1 pointer";
-        } else if (i == motions.size() - 1) {
-            EXPECT_EQ(1U, pointerCount) << "Last event should only have 1 pointer";
+        } else if ((i == motions.size() - 1) && pointerCount == 1) {
             action = AMOTION_EVENT_ACTION_UP;
         } else {
             const MotionEventEntry& previousEntry = motions[i-1];
@@ -195,7 +196,7 @@ static std::vector<MotionEvent> createMotionEventStream(
 
 static void computeAndCheckVelocity(const VelocityTracker::Strategy strategy,
                                     const std::vector<MotionEventEntry>& motions, int32_t axis,
-                                    float targetVelocity) {
+                                    float targetVelocity, uint32_t pointerId = DEFAULT_POINTER_ID) {
     VelocityTracker vt(strategy);
     float Vx, Vy;
 
@@ -204,7 +205,7 @@ static void computeAndCheckVelocity(const VelocityTracker::Strategy strategy,
         vt.addMovement(&event);
     }
 
-    vt.getVelocity(DEFAULT_POINTER_ID, &Vx, &Vy);
+    vt.getVelocity(pointerId, &Vx, &Vy);
 
     switch (axis) {
     case AMOTION_EVENT_AXIS_X:
@@ -846,10 +847,68 @@ TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_ThreeFi
 
     // Velocity should actually be zero, but we expect 0.016 here instead.
     // This is close enough to zero, and is likely caused by division by a very small number.
-    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X, -0.016);
-    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_Y, -0.016);
+    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X, 0);
+    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_Y, 0);
     computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X, 0);
     computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_Y, 0);
+}
+
+/**
+ * ================= Pointer liftoff ===============================================================
+ */
+
+/**
+ * The last movement of a pointer is always ACTION_POINTER_UP or ACTION_UP. If there's a short delay
+ * between the last ACTION_MOVE and the next ACTION_POINTER_UP or ACTION_UP, velocity should not be
+ * affected by the liftoff.
+ */
+TEST_F(VelocityTrackerTest, ShortDelayBeforeActionUp) {
+    std::vector<MotionEventEntry> motions = {
+            {0ms, {{10, 0}}}, {10ms, {{20, 0}}}, {20ms, {{30, 0}}}, {30ms, {{30, 0}}}, // ACTION_UP
+    };
+    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X,
+                            1000);
+    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X, 1000);
+}
+
+/**
+ * The last movement of a single pointer is ACTION_UP. If there's a long delay between the last
+ * ACTION_MOVE and the final ACTION_UP, velocity should be reported as zero because the pointer
+ * should be assumed to have stopped.
+ */
+TEST_F(VelocityTrackerTest, LongDelayBeforeActionUp) {
+    std::vector<MotionEventEntry> motions = {
+            {0ms, {{10, 0}}},
+            {10ms, {{20, 0}}},
+            {20ms, {{30, 0}}},
+            {3000ms, {{30, 0}}}, // ACTION_UP
+    };
+    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X, 0);
+    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X, 0);
+}
+
+/**
+ * The last movement of a pointer is always ACTION_POINTER_UP or ACTION_UP. If there's a long delay
+ * before ACTION_POINTER_UP event, the movement should be assumed to have stopped.
+ * The final velocity should be reported as zero for all pointers.
+ */
+TEST_F(VelocityTrackerTest, LongDelayBeforeActionPointerUp) {
+    std::vector<MotionEventEntry> motions = {
+            {0ms, {{10, 0}}},
+            {10ms, {{20, 0}, {100, 0}}},
+            {20ms, {{30, 0}, {200, 0}}},
+            {30ms, {{30, 0}, {300, 0}}},
+            {40ms, {{30, 0}, {400, 0}}},
+            {3000ms, {{30, 0}}}, // ACTION_POINTER_UP
+    };
+    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X, 0,
+                            /*pointerId*/ 0);
+    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X, 0,
+                            /*pointerId*/ 0);
+    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X, 0,
+                            /*pointerId*/ 1);
+    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X, 0,
+                            /*pointerId*/ 1);
 }
 
 /**
