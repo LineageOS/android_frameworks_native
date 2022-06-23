@@ -255,6 +255,8 @@ private:
 
     void removeConnectionLocked(const sp<Connection>& connection) REQUIRES(mLock);
 
+    status_t pilferPointersLocked(const sp<IBinder>& token) REQUIRES(mLock);
+
     template <typename T>
     struct StrongPointerHash {
         std::size_t operator()(const sp<T>& b) const { return std::hash<T*>{}(b.get()); }
