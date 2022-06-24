@@ -167,7 +167,7 @@ void setDefaultServiceManager(const sp<IServiceManager>& sm) {
     }
 }
 
-#if !defined(__ANDROID_VNDK__) && defined(__ANDROID__)
+#if !defined(__ANDROID_VNDK__)
 // IPermissionController is not accessible to vendors
 
 bool checkCallingPermission(const String16& permission)
