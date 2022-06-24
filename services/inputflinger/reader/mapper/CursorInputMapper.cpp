@@ -203,7 +203,8 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         }
     }
 
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+    if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO) ||
+        configurePointerCapture) {
         mOrientation = DISPLAY_ORIENTATION_0;
         const bool isOrientedDevice =
                 (mParameters.orientationAware && mParameters.hasAssociatedDisplay);
@@ -212,8 +213,9 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         // anything if the device is already orientation-aware. If the device is not
         // orientation-aware, then we need to apply the inverse rotation of the display so that
         // when the display rotation is applied later as a part of the per-window transform, we
-        // get the expected screen coordinates.
-        if (!isOrientedDevice) {
+        // get the expected screen coordinates. When pointer capture is enabled, we do not apply any
+        // rotations and report values directly from the input device.
+        if (!isOrientedDevice && mParameters.mode != Parameters::Mode::POINTER_RELATIVE) {
             std::optional<DisplayViewport> internalViewport =
                     config->getDisplayViewportByType(ViewportType::INTERNAL);
             if (internalViewport) {
