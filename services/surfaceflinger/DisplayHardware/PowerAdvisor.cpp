@@ -420,8 +420,11 @@ std::optional<nsecs_t> PowerAdvisor::estimateWorkDuration(bool earlyHint) {
                     previousDisplayReferenceTiming->hwcPresentEndTime;
         }
 
-        estimatedTiming = referenceTiming.estimateTimelineFromReference(lastFramePresentTime,
-                                                                        estimatedEndTime);
+        // Late hint can re-use reference timing here since it's estimating its own reference frame
+        estimatedTiming = earlyHint
+                ? referenceTiming.estimateTimelineFromReference(lastFramePresentTime,
+                                                                estimatedEndTime)
+                : referenceTiming;
 
         // Update predicted present finish time with this display's present time
         estimatedEndTime = estimatedTiming.hwcPresentEndTime;
