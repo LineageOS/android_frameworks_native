@@ -315,6 +315,10 @@ void PowerAdvisor::setExpectedPresentTime(nsecs_t expectedPresentTime) {
     mExpectedPresentTimes.append(expectedPresentTime);
 }
 
+void PowerAdvisor::setPresentFenceTime(nsecs_t presentFenceTime) {
+    mLastPresentFenceTime = presentFenceTime;
+}
+
 void PowerAdvisor::setFrameDelay(nsecs_t frameDelayDuration) {
     mFrameDelayDuration = frameDelayDuration;
 }
@@ -384,11 +388,11 @@ std::optional<nsecs_t> PowerAdvisor::estimateWorkDuration(bool earlyHint) {
     // If we're predicting at the end of the frame, we use the current frame as a reference point
     nsecs_t referenceFrameStartTime = (earlyHint ? mCommitStartTimes[-1] : mCommitStartTimes[0]);
 
-    // We need an idea of when the last present fence fired and how long it made us wait
-    // If we're predicting at the start of the frame, we want frame n-2's present fence time
-    // If we're predicting at the end of the frame we want frame n-1's present time
-    nsecs_t referenceFenceTime =
-            (earlyHint ? mExpectedPresentTimes[-2] : mExpectedPresentTimes[-1]);
+    // When the prior frame should be presenting to the display
+    // If we're predicting at the start of the frame, we use last frame's expected present time
+    // If we're predicting at the end of the frame, the present fence time is already known
+    nsecs_t lastFramePresentTime = (earlyHint ? mExpectedPresentTimes[-1] : mLastPresentFenceTime);
+
     // The timing info for the previously calculated display, if there was one
     std::optional<DisplayTimeline> previousDisplayReferenceTiming;
     std::vector<DisplayId>&& displayIds =
@@ -402,7 +406,11 @@ std::optional<nsecs_t> PowerAdvisor::estimateWorkDuration(bool earlyHint) {
         }
 
         auto& displayData = mDisplayTimingData.at(displayId);
-        referenceTiming = displayData.calculateDisplayTimeline(referenceFenceTime);
+
+        // mLastPresentFenceTime should always be the time of the reference frame, since it will be
+        // the previous frame's present fence if called at the start, and current frame's if called
+        // at the end
+        referenceTiming = displayData.calculateDisplayTimeline(mLastPresentFenceTime);
 
         // If this is the first display, include the duration before hwc present starts
         if (!previousDisplayReferenceTiming.has_value()) {
@@ -412,14 +420,15 @@ std::optional<nsecs_t> PowerAdvisor::estimateWorkDuration(bool earlyHint) {
                     previousDisplayReferenceTiming->hwcPresentEndTime;
         }
 
-        estimatedTiming = referenceTiming.estimateTimelineFromReference(mExpectedPresentTimes[-1],
+        estimatedTiming = referenceTiming.estimateTimelineFromReference(lastFramePresentTime,
                                                                         estimatedEndTime);
+
         // Update predicted present finish time with this display's present time
         estimatedEndTime = estimatedTiming.hwcPresentEndTime;
 
         // Track how long we spent waiting for the fence, can be excluded from the timing estimate
-        idleDuration += estimatedTiming.probablyWaitsForReleaseFence
-                ? mExpectedPresentTimes[-1] - estimatedTiming.releaseFenceWaitStartTime
+        idleDuration += estimatedTiming.probablyWaitsForPresentFence
+                ? lastFramePresentTime - estimatedTiming.presentFenceWaitStartTime
                 : 0;
 
         // Track how long we spent waiting to present, can be excluded from the timing estimate
@@ -476,15 +485,15 @@ PowerAdvisor::DisplayTimeline PowerAdvisor::DisplayTimeline::estimateTimelineFro
     // We don't predict waiting for vsync alignment yet
     estimated.hwcPresentDelayDuration = 0;
 
-    // For now just re-use last frame's post-present duration and assume it will not change much
     // How long we expect to run before we start waiting for the fence
-    // If it's the early hint we exclude time we spent waiting for a vsync, otherwise don't
-    estimated.releaseFenceWaitStartTime = estimated.hwcPresentStartTime +
-            (releaseFenceWaitStartTime - (hwcPresentStartTime + hwcPresentDelayDuration));
-    estimated.probablyWaitsForReleaseFence = fenceTime > estimated.releaseFenceWaitStartTime;
-    estimated.hwcPresentEndTime = postReleaseFenceHwcPresentDuration +
-            (estimated.probablyWaitsForReleaseFence ? fenceTime
-                                                    : estimated.releaseFenceWaitStartTime);
+    // For now just re-use last frame's post-present duration and assume it will not change much
+    // Excludes time spent waiting for vsync since that's not going to be consistent
+    estimated.presentFenceWaitStartTime = estimated.hwcPresentStartTime +
+            (presentFenceWaitStartTime - (hwcPresentStartTime + hwcPresentDelayDuration));
+    estimated.probablyWaitsForPresentFence = fenceTime > estimated.presentFenceWaitStartTime;
+    estimated.hwcPresentEndTime = postPresentFenceHwcPresentDuration +
+            (estimated.probablyWaitsForPresentFence ? fenceTime
+                                                    : estimated.presentFenceWaitStartTime);
     return estimated;
 }
 
@@ -510,16 +519,16 @@ PowerAdvisor::DisplayTimeline PowerAdvisor::DisplayTimingData::calculateDisplayT
     // How long hwc present was delayed waiting for the next appropriate vsync
     timeline.hwcPresentDelayDuration =
             (waitedOnHwcPresentTime ? *hwcPresentDelayedTime - *hwcPresentStartTime : 0);
-    // When we started waiting for the release fence after calling into hwc present
-    timeline.releaseFenceWaitStartTime =
+    // When we started waiting for the present fence after calling into hwc present
+    timeline.presentFenceWaitStartTime =
             timeline.hwcPresentStartTime + timeline.hwcPresentDelayDuration + fenceWaitStartDelay;
-    timeline.probablyWaitsForReleaseFence = fenceTime > timeline.releaseFenceWaitStartTime &&
+    timeline.probablyWaitsForPresentFence = fenceTime > timeline.presentFenceWaitStartTime &&
             fenceTime < timeline.hwcPresentEndTime;
 
     // How long we ran after we finished waiting for the fence but before hwc present finished
-    timeline.postReleaseFenceHwcPresentDuration = timeline.hwcPresentEndTime -
-            (timeline.probablyWaitsForReleaseFence ? fenceTime
-                                                   : timeline.releaseFenceWaitStartTime);
+    timeline.postPresentFenceHwcPresentDuration = timeline.hwcPresentEndTime -
+            (timeline.probablyWaitsForPresentFence ? fenceTime
+                                                   : timeline.presentFenceWaitStartTime);
     return timeline;
 }
 
