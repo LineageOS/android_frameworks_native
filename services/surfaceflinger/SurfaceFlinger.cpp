@@ -2256,6 +2256,7 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId)
 
     // Send a power hint hint after presentation is finished
     if (mPowerHintSessionEnabled) {
+        mPowerAdvisor->setPresentFenceTime(mPreviousPresentFences[0].fenceTime->getSignalTime());
         if (mPowerHintSessionMode.late) {
             mPowerAdvisor->sendActualWorkDuration();
         }
