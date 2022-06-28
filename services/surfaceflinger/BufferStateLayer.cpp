@@ -34,6 +34,8 @@
 #include "FrameTracer/FrameTracer.h"
 #include "TimeStats/TimeStats.h"
 
+#define EARLY_RELEASE_ENABLED false
+
 namespace android {
 
 using PresentState = frametimeline::SurfaceFrame::PresentState;
@@ -373,7 +375,7 @@ bool BufferStateLayer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>&
               addSurfaceFrameDroppedForBuffer(mDrawingState.bufferSurfaceFrameTX);
               mDrawingState.bufferSurfaceFrameTX.reset();
             }
-        } else if (mLastClientCompositionFence != nullptr) {
+        } else if (EARLY_RELEASE_ENABLED && mLastClientCompositionFence != nullptr) {
             callReleaseBufferCallback(mDrawingState.releaseBufferListener,
                                       mDrawingState.buffer->getBuffer(), mDrawingState.frameNumber,
                                       mLastClientCompositionFence,
