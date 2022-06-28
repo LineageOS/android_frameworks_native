@@ -2256,6 +2256,7 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId)
 
     // Send a power hint hint after presentation is finished
     if (mPowerHintSessionEnabled) {
+        mPowerAdvisor->setPresentFenceTime(mPreviousPresentFences[0].fenceTime->getSignalTime());
         if (mPowerHintSessionMode.late) {
             mPowerAdvisor->sendActualWorkDuration();
         }
@@ -3114,6 +3115,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
     const KeyedVector<wp<IBinder>, DisplayDeviceState>& draw(mDrawingState.displays);
     if (!curr.isIdenticalTo(draw)) {
         mVisibleRegionsDirty = true;
+        mUpdateInputInfo = true;
 
         // find the displays that were removed
         // (ie: in drawing state but not in current state)
@@ -3158,6 +3160,7 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
     if (mSomeChildrenChanged) {
         mVisibleRegionsDirty = true;
         mSomeChildrenChanged = false;
+        mUpdateInputInfo = true;
     }
 
     // Update transform hint.
@@ -3221,6 +3224,7 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
         mLayersAdded = false;
         // Layers have been added.
         mVisibleRegionsDirty = true;
+        mUpdateInputInfo = true;
     }
 
     // some layers might have been removed, so
@@ -3228,6 +3232,7 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
     if (mLayersRemoved) {
         mLayersRemoved = false;
         mVisibleRegionsDirty = true;
+        mUpdateInputInfo = true;
         mDrawingState.traverseInZOrder([&](Layer* layer) {
             if (mLayersPendingRemoval.indexOf(layer) >= 0) {
                 // this layer is not visible anymore
@@ -3252,14 +3257,14 @@ void SurfaceFlinger::updateInputFlinger() {
     std::vector<WindowInfo> windowInfos;
     std::vector<DisplayInfo> displayInfos;
     bool updateWindowInfo = false;
-    if (mVisibleRegionsDirty || mInputInfoChanged) {
-        mInputInfoChanged = false;
+    if (mUpdateInputInfo) {
+        mUpdateInputInfo = false;
         updateWindowInfo = true;
         buildWindowInfos(windowInfos, displayInfos);
-    }
-    if (!updateWindowInfo && mInputWindowCommands.empty()) {
+    } else if (mInputWindowCommands.empty()) {
         return;
     }
+
     BackgroundExecutor::getInstance().sendCallbacks({[updateWindowInfo,
                                                       windowInfos = std::move(windowInfos),
                                                       displayInfos = std::move(displayInfos),
@@ -4608,7 +4613,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     if (what & layer_state_t::eDropInputModeChanged) {
         if (layer->setDropInputMode(s.dropInputMode)) {
             flags |= eTraversalNeeded;
-            mInputInfoChanged = true;
+            mUpdateInputInfo = true;
         }
     }
     // This has to happen after we reparent children because when we reparent to null we remove

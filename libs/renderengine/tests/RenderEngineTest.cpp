@@ -1606,6 +1606,36 @@ TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
     drawEmptyLayers();
 }
 
+TEST_P(RenderEngineTest, drawLayers_fillRedBufferAndEmptyBuffer) {
+    const auto& renderEngineFactory = GetParam();
+    if (renderEngineFactory->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        // GLES-specific test
+        return;
+    }
+
+    initializeRenderEngine();
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = fullscreenRect();
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+
+    // add a red layer
+    renderengine::LayerSettings layerOne{
+            .geometry.boundaries = fullscreenRect().toFloatRect(),
+            .source.solidColor = half3(1.0f, 0.0f, 0.0f),
+            .alpha = 1.f,
+    };
+
+    std::vector<renderengine::LayerSettings> layersFirst{layerOne};
+    invokeDraw(settings, layersFirst);
+    expectBufferColor(fullscreenRect(), 255, 0, 0, 255);
+
+    // re-draw with an empty layer above it, and we get a transparent black one
+    std::vector<renderengine::LayerSettings> layersSecond;
+    invokeDraw(settings, layersSecond);
+    expectBufferColor(fullscreenRect(), 0, 0, 0, 0);
+}
+
 TEST_P(RenderEngineTest, drawLayers_withoutBuffers_withColorTransform) {
     initializeRenderEngine();
 
