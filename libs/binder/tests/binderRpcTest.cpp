@@ -202,6 +202,10 @@ public:
         }
         return Status::ok();
     }
+    Status getNullBinder(sp<IBinder>* out) override {
+        out->clear();
+        return Status::ok();
+    }
     Status pingMe(const sp<IBinder>& binder, int32_t* out) override {
         if (binder == nullptr) {
             std::cout << "Received null binder!" << std::endl;
@@ -800,6 +804,13 @@ TEST_P(BinderRpc, SendAndGetResultBackBig) {
     std::string doubled;
     EXPECT_OK(proc.rootIface->doubleString(single, &doubled));
     EXPECT_EQ(single + single, doubled);
+}
+
+TEST_P(BinderRpc, InvalidNullBinderReturn) {
+    auto proc = createRpcTestSocketServerProcess({});
+
+    sp<IBinder> outBinder;
+    EXPECT_EQ(proc.rootIface->getNullBinder(&outBinder).transactionError(), UNEXPECTED_NULL);
 }
 
 TEST_P(BinderRpc, CallMeBack) {
