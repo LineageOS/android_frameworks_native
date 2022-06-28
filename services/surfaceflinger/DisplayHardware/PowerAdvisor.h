@@ -70,7 +70,10 @@ public:
     // Reports the start and end times of a hwc present call this frame for a given display
     virtual void setHwcPresentTiming(DisplayId displayId, nsecs_t presentStartTime,
                                      nsecs_t presentEndTime) = 0;
+    // Reports the expected time that the current frame will present to the display
     virtual void setExpectedPresentTime(nsecs_t expectedPresentTime) = 0;
+    // Reports the most recent present fence time once it's known at the end of the frame
+    virtual void setPresentFenceTime(nsecs_t presentFenceTime) = 0;
     // Reports whether a display used client composition this frame
     virtual void setRequiresClientComposition(DisplayId displayId,
                                               bool requiresClientComposition) = 0;
@@ -139,6 +142,7 @@ public:
     void setSkippedValidate(DisplayId displayId, bool skipped) override;
     void setRequiresClientComposition(DisplayId displayId, bool requiresClientComposition) override;
     void setExpectedPresentTime(nsecs_t expectedPresentTime) override;
+    void setPresentFenceTime(nsecs_t presentFenceTime) override;
     void setHwcPresentDelayedTime(
             DisplayId displayId,
             std::chrono::steady_clock::time_point earliestFrameStartTime) override;
@@ -172,13 +176,13 @@ private:
         nsecs_t hwcPresentEndTime = -1;
         // How long the actual hwc present was delayed after hwcPresentStartTime
         nsecs_t hwcPresentDelayDuration = 0;
-        // When we think we started waiting for the release fence after calling into hwc present and
+        // When we think we started waiting for the present fence after calling into hwc present and
         // after potentially waiting for the earliest present time
-        nsecs_t releaseFenceWaitStartTime = -1;
+        nsecs_t presentFenceWaitStartTime = -1;
         // How long we ran after we finished waiting for the fence but before hwc present finished
-        nsecs_t postReleaseFenceHwcPresentDuration = 0;
+        nsecs_t postPresentFenceHwcPresentDuration = 0;
         // Are we likely to have waited for the present fence during composition
-        bool probablyWaitsForReleaseFence = false;
+        bool probablyWaitsForPresentFence = false;
         // Estimate one frame's timeline from that of a previous frame
         DisplayTimeline estimateTimelineFromReference(nsecs_t fenceTime, nsecs_t displayStartTime);
     };
@@ -248,7 +252,9 @@ private:
     // Buffer of recent commit start times
     RingBuffer<nsecs_t, 2> mCommitStartTimes;
     // Buffer of recent expected present times
-    RingBuffer<nsecs_t, 3> mExpectedPresentTimes;
+    RingBuffer<nsecs_t, 2> mExpectedPresentTimes;
+    // Most recent present fence time, set at the end of the frame once known
+    nsecs_t mLastPresentFenceTime = -1;
     // Target for the entire pipeline including gpu
     std::optional<nsecs_t> mTotalFrameTargetDuration;
     // Updated list of display IDs
@@ -258,10 +264,8 @@ private:
     std::optional<bool> mSupportsPowerHint;
     bool mPowerHintSessionRunning = false;
 
-    // An adjustable safety margin which moves the "target" earlier to allow flinger to
-    // go a bit over without dropping a frame, especially since we can't measure
-    // the exact time hwc finishes composition so "actual" durations are measured
-    // from the end of present() instead, which is a bit later.
+    // An adjustable safety margin which pads the "actual" value sent to PowerHAL,
+    // encouraging more aggressive boosting to give SurfaceFlinger a larger margin for error
     static constexpr const std::chrono::nanoseconds kTargetSafetyMargin = 1ms;
 
     // How long we expect hwc to run after the present call until it waits for the fence
