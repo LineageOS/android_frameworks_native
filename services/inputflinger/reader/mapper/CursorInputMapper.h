@@ -74,10 +74,17 @@ private:
 
     // Immutable configuration parameters.
     struct Parameters {
-        enum Mode {
-            MODE_POINTER,
-            MODE_POINTER_RELATIVE,
-            MODE_NAVIGATION,
+        enum class Mode {
+            // In POINTER mode, the device is a mouse that controls the mouse cursor on the screen,
+            // reporting absolute screen locations using SOURCE_MOUSE.
+            POINTER,
+            // A mouse device in POINTER mode switches to the POINTER_RELATIVE mode when Pointer
+            // Capture is enabled, and reports relative values only using SOURCE_MOUSE_RELATIVE.
+            POINTER_RELATIVE,
+            // A device in NAVIGATION mode emits relative values using SOURCE_TRACKBALL.
+            NAVIGATION,
+
+            ftl_last = NAVIGATION,
         };
 
         Mode mode;

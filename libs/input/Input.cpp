@@ -64,9 +64,10 @@ float transformAngle(const ui::Transform& transform, float angleRadians) {
 }
 
 bool shouldDisregardTransformation(uint32_t source) {
-    // Do not apply any transformations to axes from joysticks or touchpads.
+    // Do not apply any transformations to axes from joysticks, touchpads, or relative mice.
     return isFromSource(source, AINPUT_SOURCE_CLASS_JOYSTICK) ||
-            isFromSource(source, AINPUT_SOURCE_CLASS_POSITION);
+            isFromSource(source, AINPUT_SOURCE_CLASS_POSITION) ||
+            isFromSource(source, AINPUT_SOURCE_MOUSE_RELATIVE);
 }
 
 bool shouldDisregardOffset(uint32_t source) {
