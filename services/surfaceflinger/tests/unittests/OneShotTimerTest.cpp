@@ -94,7 +94,8 @@ TEST_F(OneShotTimerTest, resetTest) {
     EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
 }
 
-TEST_F(OneShotTimerTest, resetBackToBackTest) {
+// TODO(b/186417847) This test is flaky. Reenable once fixed.
+TEST_F(OneShotTimerTest, DISABLED_resetBackToBackTest) {
     fake::FakeClock* clock = new fake::FakeClock();
     mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 1ms,
                                                            mResetTimerCallback.getInvocable(),
