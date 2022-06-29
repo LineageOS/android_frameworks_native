@@ -69,9 +69,7 @@ private:
     bool mPreviouslyConnected GUARDED_BY(mMutex);
 };
 
-class BLASTBufferQueue
-    : public ConsumerBase::FrameAvailableListener, public BufferItemConsumer::BufferFreedListener
-{
+class BLASTBufferQueue : public ConsumerBase::FrameAvailableListener {
 public:
     BLASTBufferQueue(const std::string& name, bool updateDestinationFrame = true);
     BLASTBufferQueue(const std::string& name, const sp<SurfaceControl>& surface, int width,
@@ -83,7 +81,6 @@ public:
     sp<Surface> getSurface(bool includeSurfaceControlHandle);
     bool isSameSurfaceControl(const sp<SurfaceControl>& surfaceControl) const;
 
-    void onBufferFreed(const wp<GraphicBuffer>&/* graphicBuffer*/) override { /* TODO */ }
     void onFrameReplaced(const BufferItem& item) override;
     void onFrameAvailable(const BufferItem& item) override;
     void onFrameDequeued(const uint64_t) override;
