@@ -31,7 +31,7 @@ sourceFiles = [
     "vr_flinger.cpp",
 ]
 
-includeFiles = [ "include" ]
+includeFiles = ["include"]
 
 staticLibraries = [
     "libdisplay",
@@ -83,8 +83,6 @@ headerLibraries = [
 cc_library_static {
     srcs: sourceFiles,
     export_include_dirs: includeFiles,
-
-    clang: true,
     cflags: [
         "-DLOG_TAG=\"vr_flinger\"",
         "-DTRACE=0",
