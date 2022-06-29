@@ -33,27 +33,26 @@ public:
     MOCK_METHOD0(miniDump, std::string());
     MOCK_METHOD0(incrementTotalFrames, void());
     MOCK_METHOD0(incrementMissedFrames, void());
-    MOCK_METHOD0(incrementClientCompositionFrames, void());
-    MOCK_METHOD0(incrementClientCompositionReusedFrames, void());
     MOCK_METHOD0(incrementRefreshRateSwitches, void());
-    MOCK_METHOD0(incrementCompositionStrategyChanges, void());
     MOCK_METHOD1(recordDisplayEventConnectionCount, void(int32_t));
     MOCK_METHOD2(recordFrameDuration, void(nsecs_t, nsecs_t));
     MOCK_METHOD2(recordRenderEngineDuration, void(nsecs_t, nsecs_t));
     MOCK_METHOD2(recordRenderEngineDuration, void(nsecs_t, const std::shared_ptr<FenceTime>&));
-    MOCK_METHOD6(setPostTime, void(int32_t, uint64_t, const std::string&, uid_t, nsecs_t, int32_t));
+    MOCK_METHOD(void, setPostTime,
+                (int32_t, uint64_t, const std::string&, uid_t, nsecs_t, GameMode), (override));
     MOCK_METHOD2(incrementLatchSkipped, void(int32_t layerId, LatchSkipReason reason));
     MOCK_METHOD1(incrementBadDesiredPresent, void(int32_t layerId));
     MOCK_METHOD3(setLatchTime, void(int32_t, uint64_t, nsecs_t));
     MOCK_METHOD3(setDesiredTime, void(int32_t, uint64_t, nsecs_t));
     MOCK_METHOD3(setAcquireTime, void(int32_t, uint64_t, nsecs_t));
     MOCK_METHOD3(setAcquireFence, void(int32_t, uint64_t, const std::shared_ptr<FenceTime>&));
-    MOCK_METHOD7(setPresentTime,
-                 void(int32_t, uint64_t, nsecs_t, Fps, std::optional<Fps>, SetFrameRateVote,
-                      int32_t));
-    MOCK_METHOD7(setPresentFence,
-                 void(int32_t, uint64_t, const std::shared_ptr<FenceTime>&, Fps, std::optional<Fps>,
-                      SetFrameRateVote, int32_t));
+    MOCK_METHOD(void, setPresentTime,
+                (int32_t, uint64_t, nsecs_t, Fps, std::optional<Fps>, SetFrameRateVote, GameMode),
+                (override));
+    MOCK_METHOD(void, setPresentFence,
+                (int32_t, uint64_t, const std::shared_ptr<FenceTime>&, Fps, std::optional<Fps>,
+                 SetFrameRateVote, GameMode),
+                (override));
     MOCK_METHOD1(incrementJankyFrames, void(const JankyFramesInfo&));
     MOCK_METHOD1(onDestroy, void(int32_t));
     MOCK_METHOD2(removeTimeRecord, void(int32_t, uint64_t));
@@ -61,6 +60,8 @@ public:
                  void(hardware::graphics::composer::V2_4::IComposerClient::PowerMode));
     MOCK_METHOD2(recordRefreshRate, void(uint32_t, nsecs_t));
     MOCK_METHOD1(setPresentFenceGlobal, void(const std::shared_ptr<FenceTime>&));
+    MOCK_METHOD(void, pushCompositionStrategyState,
+                (const android::TimeStats::ClientCompositionRecord&), (override));
 };
 
 } // namespace android::mock

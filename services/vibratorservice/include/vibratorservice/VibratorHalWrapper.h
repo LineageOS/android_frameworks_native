@@ -69,9 +69,9 @@ public:
     bool isFailed() const { return !mUnsupported && !mValue.has_value(); }
     bool isUnsupported() const { return mUnsupported; }
     const char* errorMessage() const { return mErrorMessage.c_str(); }
-    bool checkAndLogFailure(const char* functionName) const {
+    bool isFailedLogged(const char* functionNameForLogging) const {
         if (isFailed()) {
-            ALOGE("%s failed: %s", functionName, errorMessage());
+            ALOGE("Vibrator HAL %s failed: %s", functionNameForLogging, errorMessage());
             return true;
         }
         return false;
@@ -107,9 +107,9 @@ public:
     bool isFailed() const { return !mUnsupported && mFailed; }
     bool isUnsupported() const { return mUnsupported; }
     const char* errorMessage() const { return mErrorMessage.c_str(); }
-    bool checkAndLogFailure(const char* functionName) const {
+    bool isFailedLogged(const char* functionNameForLogging) const {
         if (isFailed()) {
-            ALOGE("%s failed: %s", functionName, errorMessage());
+            ALOGE("Vibrator HAL %s failed: %s", functionNameForLogging, errorMessage());
             return true;
         }
         return false;
@@ -192,21 +192,21 @@ public:
     const HalResult<float> qFactor;
     const HalResult<std::vector<float>> maxAmplitudes;
 
-    bool checkAndLogFailure(const char*) const {
-        return capabilities.checkAndLogFailure("getCapabilities") ||
-                supportedEffects.checkAndLogFailure("getSupportedEffects") ||
-                supportedBraking.checkAndLogFailure("getSupportedBraking") ||
-                supportedPrimitives.checkAndLogFailure("getSupportedPrimitives") ||
-                primitiveDurations.checkAndLogFailure("getPrimitiveDuration") ||
-                primitiveDelayMax.checkAndLogFailure("getPrimitiveDelayMax") ||
-                pwlePrimitiveDurationMax.checkAndLogFailure("getPwlePrimitiveDurationMax") ||
-                compositionSizeMax.checkAndLogFailure("getCompositionSizeMax") ||
-                pwleSizeMax.checkAndLogFailure("getPwleSizeMax") ||
-                minFrequency.checkAndLogFailure("getMinFrequency") ||
-                resonantFrequency.checkAndLogFailure("getResonantFrequency") ||
-                frequencyResolution.checkAndLogFailure("getFrequencyResolution") ||
-                qFactor.checkAndLogFailure("getQFactor") ||
-                maxAmplitudes.checkAndLogFailure("getMaxAmplitudes");
+    bool isFailedLogged(const char*) const {
+        return capabilities.isFailedLogged("getCapabilities") ||
+                supportedEffects.isFailedLogged("getSupportedEffects") ||
+                supportedBraking.isFailedLogged("getSupportedBraking") ||
+                supportedPrimitives.isFailedLogged("getSupportedPrimitives") ||
+                primitiveDurations.isFailedLogged("getPrimitiveDuration") ||
+                primitiveDelayMax.isFailedLogged("getPrimitiveDelayMax") ||
+                pwlePrimitiveDurationMax.isFailedLogged("getPwlePrimitiveDurationMax") ||
+                compositionSizeMax.isFailedLogged("getCompositionSizeMax") ||
+                pwleSizeMax.isFailedLogged("getPwleSizeMax") ||
+                minFrequency.isFailedLogged("getMinFrequency") ||
+                resonantFrequency.isFailedLogged("getResonantFrequency") ||
+                frequencyResolution.isFailedLogged("getFrequencyResolution") ||
+                qFactor.isFailedLogged("getQFactor") ||
+                maxAmplitudes.isFailedLogged("getMaxAmplitudes");
     }
 };
 

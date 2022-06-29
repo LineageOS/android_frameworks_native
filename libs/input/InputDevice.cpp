@@ -21,7 +21,7 @@
 #include <ctype.h>
 
 #include <android-base/stringprintf.h>
-#include <ftl/NamedEnum.h>
+#include <ftl/enum.h>
 #include <input/InputDevice.h>
 #include <input/InputEventLabels.h>
 
@@ -214,10 +214,8 @@ void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t control
 
 const InputDeviceInfo::MotionRange* InputDeviceInfo::getMotionRange(
         int32_t axis, uint32_t source) const {
-    size_t numRanges = mMotionRanges.size();
-    for (size_t i = 0; i < numRanges; i++) {
-        const MotionRange& range = mMotionRanges[i];
-        if (range.axis == axis && range.source == source) {
+    for (const MotionRange& range : mMotionRanges) {
+        if (range.axis == axis && isFromSource(range.source, source)) {
             return &range;
         }
     }
@@ -241,7 +239,7 @@ void InputDeviceInfo::addMotionRange(const MotionRange& range) {
 void InputDeviceInfo::addSensorInfo(const InputDeviceSensorInfo& info) {
     if (mSensors.find(info.type) != mSensors.end()) {
         ALOGW("Sensor type %s already exists, will be replaced by new sensor added.",
-              NamedEnum::string(info.type).c_str());
+              ftl::enum_string(info.type).c_str());
     }
     mSensors.insert_or_assign(info.type, info);
 }
@@ -258,6 +256,13 @@ void InputDeviceInfo::addLightInfo(const InputDeviceLightInfo& info) {
         ALOGW("Light id %d already exists, will be replaced by new light added.", info.id);
     }
     mLights.insert_or_assign(info.id, info);
+}
+
+void InputDeviceInfo::setKeyboardType(int32_t keyboardType) {
+    static_assert(AINPUT_KEYBOARD_TYPE_NONE < AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC);
+    static_assert(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC < AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    // There can be multiple subdevices with different keyboard types, set it to the highest type
+    mKeyboardType = std::max(mKeyboardType, keyboardType);
 }
 
 std::vector<InputDeviceSensorInfo> InputDeviceInfo::getSensors() {

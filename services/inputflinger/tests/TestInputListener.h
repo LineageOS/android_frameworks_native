@@ -28,12 +28,10 @@ namespace android {
 // --- TestInputListener ---
 
 class TestInputListener : public InputListenerInterface {
-protected:
-    virtual ~TestInputListener();
-
 public:
     TestInputListener(std::chrono::milliseconds eventHappenedTimeout = 0ms,
                       std::chrono::milliseconds eventDidNotHappenTimeout = 0ms);
+    virtual ~TestInputListener();
 
     void assertNotifyConfigurationChangedWasCalled(
             NotifyConfigurationChangedArgs* outEventArgs = nullptr);

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <gui/DisplayInfo.h>
 #include <gui/WindowInfo.h>
 #include <utils/RefBase.h>
 
@@ -23,6 +24,7 @@ namespace android::gui {
 
 class WindowInfosListener : public virtual RefBase {
 public:
-    virtual void onWindowInfosChanged(const std::vector<WindowInfo>& /*windowInfos*/) = 0;
+    virtual void onWindowInfosChanged(const std::vector<WindowInfo>&,
+                                      const std::vector<DisplayInfo>&) = 0;
 };
 } // namespace android::gui

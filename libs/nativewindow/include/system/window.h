@@ -1018,6 +1018,24 @@ static inline int native_window_set_auto_prerotation(struct ANativeWindow* windo
     return window->perform(window, NATIVE_WINDOW_SET_AUTO_PREROTATION, autoPrerotation);
 }
 
+/*
+ * Internal extension of ANativeWindow_FrameRateCompatibility.
+ */
+enum {
+    /**
+     * This surface belongs to an app on the High Refresh Rate Deny list, and needs the display
+     * to operate at the exact frame rate.
+     *
+     * Keep in sync with Surface.java constant.
+     */
+    ANATIVEWINDOW_FRAME_RATE_EXACT = 100,
+
+    /**
+     * This surface is ignored while choosing the refresh rate.
+     */
+    ANATIVEWINDOW_FRAME_RATE_NO_VOTE,
+};
+
 static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate,
                                         int8_t compatibility, int8_t changeFrameRateStrategy) {
     return window->perform(window, NATIVE_WINDOW_SET_FRAME_RATE, (double)frameRate,
@@ -1025,10 +1043,11 @@ static inline int native_window_set_frame_rate(struct ANativeWindow* window, flo
 }
 
 static inline int native_window_set_frame_timeline_info(struct ANativeWindow* window,
-                                                         int64_t frameTimelineVsyncId,
-                                                         int32_t inputEventId) {
-    return window->perform(window, NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO,
-                           frameTimelineVsyncId, inputEventId);
+                                                        int64_t frameTimelineVsyncId,
+                                                        int32_t inputEventId,
+                                                        int64_t startTimeNanos) {
+    return window->perform(window, NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO, frameTimelineVsyncId,
+                           inputEventId, startTimeNanos);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1089,10 +1108,13 @@ static inline int ANativeWindow_getLastQueuedBuffer2(ANativeWindow* window,
 /**
  * Retrieves an identifier for the next frame to be queued by this window.
  *
- * \return the next frame id.
+ * Frame ids start at 1 and are incremented on each new frame until the underlying surface changes,
+ * in which case the frame id is reset to 1.
+ *
+ * \return the next frame id (0 being uninitialized).
  */
-static inline int64_t ANativeWindow_getNextFrameId(ANativeWindow* window) {
-    int64_t value;
+static inline uint64_t ANativeWindow_getNextFrameId(ANativeWindow* window) {
+    uint64_t value;
     window->perform(window, NATIVE_WINDOW_GET_NEXT_FRAME_ID, &value);
     return value;
 }

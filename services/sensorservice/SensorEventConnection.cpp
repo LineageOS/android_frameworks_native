@@ -44,7 +44,6 @@ SensorService::SensorEventConnection::SensorEventConnection(
       mCacheSize(0), mMaxCacheSize(0), mTimeOfLastEventDrop(0), mEventsDropped(0),
       mPackageName(packageName), mOpPackageName(opPackageName), mAttributionTag(attributionTag),
       mTargetSdk(kTargetSdkUnknown), mDestroyed(false) {
-    mIsRateCappedBasedOnPermission = mService->isRateCappedBasedOnPermission(mOpPackageName);
     mUserId = multiuser_get_user_id(mUid);
     mChannel = new BitTube(mService->mSocketBufferSize);
 #if DEBUG_CONNECTIONS
@@ -163,7 +162,8 @@ bool SensorService::SensorEventConnection::addSensor(int32_t handle) {
     Mutex::Autolock _l(mConnectionLock);
     sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
     if (si == nullptr ||
-        !canAccessSensor(si->getSensor(), "Add to SensorEventConnection: ", mOpPackageName) ||
+        !mService->canAccessSensor(si->getSensor(), "Add to SensorEventConnection: ",
+                                   mOpPackageName) ||
         mSensorInfo.count(handle) > 0) {
         return false;
     }
@@ -706,8 +706,8 @@ status_t SensorService::SensorEventConnection::enableDisable(
         err = mService->enable(this, handle, samplingPeriodNs, maxBatchReportLatencyNs,
                                reservedFlags, mOpPackageName);
         if (err == OK && isSensorCapped) {
-            if (!mIsRateCappedBasedOnPermission ||
-                        requestedSamplingPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) {
+            if ((requestedSamplingPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) ||
+                !isRateCappedBasedOnPermission()) {
                 mMicSamplingPeriodBackup[handle] = requestedSamplingPeriodNs;
             } else {
                 mMicSamplingPeriodBackup[handle] = SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS;
@@ -745,8 +745,8 @@ status_t SensorService::SensorEventConnection::setEventRate(int handle, nsecs_t 
     }
     status_t ret = mService->setEventRate(this, handle, samplingPeriodNs, mOpPackageName);
     if (ret == OK && isSensorCapped) {
-        if (!mIsRateCappedBasedOnPermission ||
-                    requestedSamplingPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) {
+        if ((requestedSamplingPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) ||
+            !isRateCappedBasedOnPermission()) {
             mMicSamplingPeriodBackup[handle] = requestedSamplingPeriodNs;
         } else {
             mMicSamplingPeriodBackup[handle] = SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS;
@@ -867,7 +867,7 @@ int SensorService::SensorEventConnection::handleEvent(int fd, int events, void* 
             } else if (numBytesRead == sizeof(uint32_t)) {
                 uint32_t numAcks = 0;
                 memcpy(&numAcks, buf, numBytesRead);
-                // Sanity check to ensure  there are no read errors in recv, numAcks is always
+                // Check to ensure  there are no read errors in recv, numAcks is always
                 // within the range and not zero. If any of the above don't hold reset
                 // mWakeLockRefCount to zero.
                 if (numAcks > 0 && numAcks < mWakeLockRefCount) {

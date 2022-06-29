@@ -19,6 +19,7 @@
 
 namespace android {
 
+using gui::DisplayInfo;
 using gui::IWindowInfosReportedListener;
 using gui::WindowInfo;
 using gui::WindowInfosListener;
@@ -30,7 +31,8 @@ sp<WindowInfosListenerReporter> WindowInfosListenerReporter::getInstance() {
 
 status_t WindowInfosListenerReporter::addWindowInfosListener(
         const sp<WindowInfosListener>& windowInfosListener,
-        const sp<ISurfaceComposer>& surfaceComposer) {
+        const sp<ISurfaceComposer>& surfaceComposer,
+        std::pair<std::vector<gui::WindowInfo>, std::vector<gui::DisplayInfo>>* outInitialInfo) {
     status_t status = OK;
     {
         std::scoped_lock lock(mListenersMutex);
@@ -40,6 +42,11 @@ status_t WindowInfosListenerReporter::addWindowInfosListener(
 
         if (status == OK) {
             mWindowInfosListeners.insert(windowInfosListener);
+        }
+
+        if (outInitialInfo != nullptr) {
+            outInitialInfo->first = mLastWindowInfos;
+            outInitialInfo->second = mLastDisplayInfos;
         }
     }
 
@@ -54,6 +61,10 @@ status_t WindowInfosListenerReporter::removeWindowInfosListener(
         std::scoped_lock lock(mListenersMutex);
         if (mWindowInfosListeners.size() == 1) {
             status = surfaceComposer->removeWindowInfosListener(this);
+            // Clear the last stored state since we're disabling updates and don't want to hold
+            // stale values
+            mLastWindowInfos.clear();
+            mLastDisplayInfos.clear();
         }
 
         if (status == OK) {
@@ -65,20 +76,22 @@ status_t WindowInfosListenerReporter::removeWindowInfosListener(
 }
 
 binder::Status WindowInfosListenerReporter::onWindowInfosChanged(
-        const std::vector<WindowInfo>& windowInfos,
+        const std::vector<WindowInfo>& windowInfos, const std::vector<DisplayInfo>& displayInfos,
         const sp<IWindowInfosReportedListener>& windowInfosReportedListener) {
-    std::unordered_set<sp<WindowInfosListener>, ISurfaceComposer::SpHash<WindowInfosListener>>
-            windowInfosListeners;
+    std::unordered_set<sp<WindowInfosListener>, SpHash<WindowInfosListener>> windowInfosListeners;
 
     {
         std::scoped_lock lock(mListenersMutex);
         for (auto listener : mWindowInfosListeners) {
             windowInfosListeners.insert(listener);
         }
+
+        mLastWindowInfos = windowInfos;
+        mLastDisplayInfos = displayInfos;
     }
 
     for (auto listener : windowInfosListeners) {
-        listener->onWindowInfosChanged(windowInfos);
+        listener->onWindowInfosChanged(windowInfos, displayInfos);
     }
 
     if (windowInfosReportedListener) {

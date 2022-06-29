@@ -56,21 +56,28 @@ public:
     void useProtectedContext(bool useProtectedContext) override;
     void cleanupPostRender() override;
 
-    status_t drawLayers(const DisplaySettings& display,
-                        const std::vector<const LayerSettings*>& layers,
-                        const std::shared_ptr<ExternalTexture>& buffer,
-                        const bool useFramebufferCache, base::unique_fd&& bufferFence,
-                        base::unique_fd* drawFence) override;
+    std::future<RenderEngineResult> drawLayers(const DisplaySettings& display,
+                                               const std::vector<LayerSettings>& layers,
+                                               const std::shared_ptr<ExternalTexture>& buffer,
+                                               const bool useFramebufferCache,
+                                               base::unique_fd&& bufferFence) override;
 
     void cleanFramebufferCache() override;
     int getContextPriority() override;
     bool supportsBackgroundBlur() override;
     void onActiveDisplaySizeChanged(ui::Size size) override;
+    std::optional<pid_t> getRenderEngineTid() const override;
+    void setEnableTracing(bool tracingEnabled) override;
 
 protected:
     void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable) override;
     void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
     bool canSkipPostRenderCleanup() const override;
+    void drawLayersInternal(const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+                            const DisplaySettings& display,
+                            const std::vector<LayerSettings>& layers,
+                            const std::shared_ptr<ExternalTexture>& buffer,
+                            const bool useFramebufferCache, base::unique_fd&& bufferFence) override;
 
 private:
     void threadMain(CreateInstanceFactory factory);

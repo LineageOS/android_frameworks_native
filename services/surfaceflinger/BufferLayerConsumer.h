@@ -236,8 +236,7 @@ private:
     // IConsumerListener interface
     void onDisconnect() override;
     void onSidebandStreamChanged() override;
-    void addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
-                                  FrameEventHistoryDelta* outDelta) override;
+    void addAndGetFrameTimestamps(const NewFrameEventsEntry*, FrameEventHistoryDelta*) override {}
 
     // computeCurrentTransformMatrixLocked computes the transform matrix for the
     // current texture.  It uses mCurrentTransform and the current GraphicBuffer

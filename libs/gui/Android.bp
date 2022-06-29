@@ -37,6 +37,12 @@ cc_library_headers {
         "android.hardware.graphics.bufferqueue@2.0",
     ],
     min_sdk_version: "29",
+    // TODO(b/218719284) can media use be constrained to libgui_bufferqueue_static?
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media.swcodec",
+        "test_com.android.media.swcodec",
+    ],
 }
 
 cc_library_headers {
@@ -55,7 +61,7 @@ cc_library_headers {
 filegroup {
     name: "guiconstants_aidl",
     srcs: [
-        "android/**/DropInputMode.aidl",
+        "android/gui/DropInputMode.aidl",
         "android/**/TouchOcclusionMode.aidl",
     ],
 }
@@ -66,11 +72,14 @@ cc_library_static {
     host_supported: true,
     srcs: [
         ":guiconstants_aidl",
+        ":inputconstants_aidl",
+        "android/gui/DisplayInfo.aidl",
         "android/gui/FocusRequest.aidl",
         "android/gui/InputApplicationInfo.aidl",
         "android/gui/IWindowInfosListener.aidl",
         "android/gui/IWindowInfosReportedListener.aidl",
         "android/gui/WindowInfo.aidl",
+        "DisplayInfo.cpp",
         "WindowInfo.cpp",
     ],
 
@@ -178,11 +187,9 @@ cc_library_shared {
         "FrameTimelineInfo.cpp",
         "GLConsumer.cpp",
         "IConsumerListener.cpp",
-        "IDisplayEventConnection.cpp",
         "IGraphicBufferConsumer.cpp",
         "IGraphicBufferProducer.cpp",
         "IProducerListener.cpp",
-        "IRegionSamplingListener.cpp",
         "ISurfaceComposer.cpp",
         "ISurfaceComposerClient.cpp",
         "ITransactionCompletedListener.cpp",
@@ -197,6 +204,7 @@ cc_library_shared {
         "SurfaceComposerClient.cpp",
         "SyncFeatures.cpp",
         "TransactionTracing.cpp",
+        "VsyncEventData.cpp",
         "view/Surface.cpp",
         "WindowInfosListenerReporter.cpp",
         "bufferqueue/1.0/B2HProducerListener.cpp",
@@ -336,6 +344,7 @@ cc_defaults {
         "android.hardware.graphics.bufferqueue@2.0",
         "android.hardware.graphics.common@1.1",
         "android.hardware.graphics.common@1.2",
+        "android.hardware.graphics.common-V3-ndk",
         "android.hidl.token@1.0-utils",
         "libbase",
         "libcutils",

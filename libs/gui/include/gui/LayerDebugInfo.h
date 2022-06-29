@@ -64,7 +64,6 @@ public:
     int32_t mActiveBufferStride = 0;
     PixelFormat mActiveBufferFormat = PIXEL_FORMAT_NONE;
     int32_t mNumQueuedFrames = -1;
-    bool mRefreshPending = false;
     bool mIsOpaque = false;
     bool mContentDirty = false;
     StretchEffect mStretchEffect = {};

@@ -30,12 +30,19 @@ size_t eventSizeBySensorType(int type) {
         case SENSOR_TYPE_POSE_6DOF:
             return 16;
 
+        case SENSOR_TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED:
+        case SENSOR_TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED:
+            return 9;
+
         case SENSOR_TYPE_ROTATION_VECTOR:
         case SENSOR_TYPE_GEOMAGNETIC_ROTATION_VECTOR:
             return 5;
 
         case SENSOR_TYPE_MAGNETIC_FIELD_UNCALIBRATED:
+        case SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED:
         case SENSOR_TYPE_GYROSCOPE_UNCALIBRATED:
+        case SENSOR_TYPE_ACCELEROMETER_LIMITED_AXES:
+        case SENSOR_TYPE_GYROSCOPE_LIMITED_AXES:
             return 6;
 
         case SENSOR_TYPE_GAME_ROTATION_VECTOR:
@@ -57,6 +64,12 @@ size_t eventSizeBySensorType(int type) {
         case SENSOR_TYPE_LOW_LATENCY_OFFBODY_DETECT:
         case SENSOR_TYPE_HINGE_ANGLE:
             return 1;
+
+        case SENSOR_TYPE_HEAD_TRACKER:
+            return 7;
+
+        case SENSOR_TYPE_HEADING:
+            return 2;
 
         default:
             return 3;

@@ -25,13 +25,6 @@ interface IInputConstants
     // android.os.InputConstants.DEFAULT_DISPATCHING_TIMEOUT_MILLIS.
     const int UNMULTIPLIED_DEFAULT_DISPATCHING_TIMEOUT_MILLIS = 5000; // 5 seconds
 
-    // Compatibility changes.
-    /**
-      * TODO(b/157929241): remove this before closing the bug. This is needed temporarily
-      * to identify apps that are using this flag.
-      */
-    const long BLOCK_FLAG_SLIPPERY = 157929241;
-
     // Indicate invalid battery capacity
     const int INVALID_BATTERY_CAPACITY = -1;
 
@@ -53,4 +46,7 @@ interface IInputConstants
      * set of flags, including in input/Input.h and in android/input.h.
      */
     const int INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT = 0x800;
+
+    /* The default pointer acceleration value. */
+    const int DEFAULT_POINTER_ACCELERATION = 3;
 }

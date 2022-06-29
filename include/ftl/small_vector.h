@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <ftl/array_traits.h>
+#include <ftl/details/array_traits.h>
 #include <ftl/static_vector.h>
 
 #include <algorithm>
@@ -36,6 +36,9 @@ struct is_small_vector;
 // time by avoiding heap allocation and increasing probability of cache hits. The standard API is
 // augmented by an unstable_erase operation that does not preserve order, and a replace operation
 // that destructively emplaces.
+//
+// Unlike std::vector, T does not require copy/move assignment, so may be an object with const data
+// members, or be const itself.
 //
 // SmallVector<T, 0> is a specialization that thinly wraps std::vector.
 //
@@ -73,7 +76,7 @@ struct is_small_vector;
 //   assert(strings[2] == "???");
 //
 template <typename T, std::size_t N>
-class SmallVector final : ArrayTraits<T>, ArrayComparators<SmallVector> {
+class SmallVector final : details::ArrayTraits<T>, details::ArrayComparators<SmallVector> {
   using Static = StaticVector<T, N>;
   using Dynamic = SmallVector<T, 0>;
 
@@ -105,10 +108,9 @@ class SmallVector final : ArrayTraits<T>, ArrayComparators<SmallVector> {
   SmallVector(Arg&& arg, Args&&... args)
       : vector_(std::in_place_type<Static>, std::forward<Arg>(arg), std::forward<Args>(args)...) {}
 
-  // Copies at most N elements from a smaller convertible vector.
-  template <typename U, std::size_t M, typename = std::enable_if_t<M <= N>>
-  SmallVector(const SmallVector<U, M>& other)
-      : SmallVector(kIteratorRange, other.begin(), other.end()) {}
+  // Copies or moves elements from a smaller convertible vector.
+  template <typename U, std::size_t M, typename = std::enable_if_t<(M > 0)>>
+  SmallVector(SmallVector<U, M> other) : vector_(convert(std::move(other))) {}
 
   void swap(SmallVector& other) { vector_.swap(other.vector_); }
 
@@ -150,8 +152,6 @@ class SmallVector final : ArrayTraits<T>, ArrayComparators<SmallVector> {
 
   DISPATCH(reference, back, noexcept)
   DISPATCH(const_reference, back, const)
-
-#undef DISPATCH
 
   reference operator[](size_type i) {
     return dynamic() ? std::get<Dynamic>(vector_)[i] : std::get<Static>(vector_)[i];
@@ -214,13 +214,15 @@ class SmallVector final : ArrayTraits<T>, ArrayComparators<SmallVector> {
   //
   // The last() and end() iterators are invalidated.
   //
-  void pop_back() {
-    if (dynamic()) {
-      std::get<Dynamic>(vector_).pop_back();
-    } else {
-      std::get<Static>(vector_).pop_back();
-    }
-  }
+  DISPATCH(void, pop_back, noexcept)
+
+  // Removes all elements.
+  //
+  // All iterators are invalidated.
+  //
+  DISPATCH(void, clear, noexcept)
+
+#undef DISPATCH
 
   // Erases an element, but does not preserve order. Rather than shifting subsequent elements,
   // this moves the last element to the slot of the erased element.
@@ -235,7 +237,30 @@ class SmallVector final : ArrayTraits<T>, ArrayComparators<SmallVector> {
     }
   }
 
+  // Extracts the elements as std::vector.
+  std::vector<T> promote() && {
+    if (dynamic()) {
+      return std::get<Dynamic>(std::move(vector_)).promote();
+    } else {
+      return {std::make_move_iterator(begin()), std::make_move_iterator(end())};
+    }
+  }
+
  private:
+  template <typename, std::size_t>
+  friend class SmallVector;
+
+  template <typename U, std::size_t M>
+  static std::variant<Static, Dynamic> convert(SmallVector<U, M>&& other) {
+    using Other = SmallVector<U, M>;
+
+    if (other.dynamic()) {
+      return std::get<typename Other::Dynamic>(std::move(other.vector_));
+    } else {
+      return std::get<typename Other::Static>(std::move(other.vector_));
+    }
+  }
+
   template <auto InsertStatic, auto InsertDynamic, typename... Args>
   auto insert(Args&&... args) {
     if (Dynamic* const vector = std::get_if<Dynamic>(&vector_)) {
@@ -266,12 +291,13 @@ class SmallVector final : ArrayTraits<T>, ArrayComparators<SmallVector> {
 
 // Partial specialization without static storage.
 template <typename T>
-class SmallVector<T, 0> final : ArrayTraits<T>,
-                                ArrayIterators<SmallVector<T, 0>, T>,
+class SmallVector<T, 0> final : details::ArrayTraits<T>,
+                                details::ArrayComparators<SmallVector>,
+                                details::ArrayIterators<SmallVector<T, 0>, T>,
                                 std::vector<T> {
-  using ArrayTraits<T>::construct_at;
+  using details::ArrayTraits<T>::replace_at;
 
-  using Iter = ArrayIterators<SmallVector, T>;
+  using Iter = details::ArrayIterators<SmallVector, T>;
   using Impl = std::vector<T>;
 
   friend Iter;
@@ -291,7 +317,29 @@ class SmallVector<T, 0> final : ArrayTraits<T>,
   FTL_ARRAY_TRAIT(T, const_iterator);
   FTL_ARRAY_TRAIT(T, const_reverse_iterator);
 
+  // See std::vector for underlying constructors.
   using Impl::Impl;
+
+  // Copies and moves a vector, respectively.
+  SmallVector(const SmallVector&) = default;
+  SmallVector(SmallVector&&) = default;
+
+  // Constructs elements in place. See StaticVector for underlying constructor.
+  template <typename U, std::size_t... Sizes, typename... Types>
+  SmallVector(InitializerList<U, std::index_sequence<Sizes...>, Types...>&& list)
+      : SmallVector(SmallVector<T, sizeof...(Sizes)>(std::move(list))) {}
+
+  // Copies or moves elements from a convertible vector.
+  template <typename U, std::size_t M>
+  SmallVector(SmallVector<U, M> other) : Impl(convert(std::move(other))) {}
+
+  SmallVector& operator=(SmallVector other) {
+    // Define copy/move assignment in terms of copy/move construction.
+    swap(other);
+    return *this;
+  }
+
+  void swap(SmallVector& other) { Impl::swap(other); }
 
   using Impl::empty;
   using Impl::max_size;
@@ -324,10 +372,7 @@ class SmallVector<T, 0> final : ArrayTraits<T>,
 
   template <typename... Args>
   reference replace(const_iterator it, Args&&... args) {
-    value_type element{std::forward<Args>(args)...};
-    std::destroy_at(it);
-    // This is only safe because exceptions are disabled.
-    return *construct_at(it, std::move(element));
+    return replace_at(it, std::forward<Args>(args)...);
   }
 
   template <typename... Args>
@@ -345,14 +390,34 @@ class SmallVector<T, 0> final : ArrayTraits<T>,
     return true;
   }
 
+  using Impl::clear;
   using Impl::pop_back;
 
   void unstable_erase(iterator it) {
-    if (it != last()) std::iter_swap(it, last());
+    if (it != last()) replace(it, std::move(back()));
     pop_back();
   }
 
-  void swap(SmallVector& other) { Impl::swap(other); }
+  std::vector<T> promote() && { return std::move(*this); }
+
+ private:
+  template <typename U, std::size_t M>
+  static Impl convert(SmallVector<U, M>&& other) {
+    if constexpr (std::is_constructible_v<Impl, std::vector<U>&&>) {
+      return std::move(other).promote();
+    } else {
+      SmallVector vector(other.size());
+
+      // Consistently with StaticVector, T only requires copy/move construction from U, rather than
+      // copy/move assignment.
+      auto it = vector.begin();
+      for (auto& element : other) {
+        vector.replace(it++, std::move(element));
+      }
+
+      return vector;
+    }
+  }
 };
 
 template <typename>

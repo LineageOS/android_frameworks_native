@@ -22,8 +22,13 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
+inputflinger_tidy_checks = [
+    "android-*",
+]
+
 cc_defaults {
     name: "inputflinger_defaults",
+    cpp_std: "c++20",
     cflags: [
         "-Wall",
         "-Wextra",
@@ -37,6 +42,11 @@ cc_defaults {
     sanitize: {
         misc_undefined: ["bounds"],
     },
+    tidy: true,
+    tidy_checks: [
+        "-*", // Disable all checks not explicitly enabled for now
+    ] + inputflinger_tidy_checks,
+    tidy_checks_as_errors: inputflinger_tidy_checks,
 }
 
 /////////////////////////////////////////////////
@@ -47,7 +57,9 @@ filegroup {
     name: "libinputflinger_sources",
     srcs: [
         "InputClassifier.cpp",
-        "InputClassifierConverter.cpp",
+        "InputCommonConverter.cpp",
+        "PreferStylusOverTouchBlocker.cpp",
+        "UnwantedInteractionBlocker.cpp",
         "InputManager.cpp",
     ],
 }
@@ -56,9 +68,11 @@ cc_defaults {
     name: "libinputflinger_defaults",
     srcs: [":libinputflinger_sources"],
     shared_libs: [
-        "android.hardware.input.classifier@1.0",
+        "android.hardware.input.processor-V1-ndk",
         "libbase",
         "libbinder",
+        "libbinder_ndk",
+        "libchrome",
         "libcrypto",
         "libcutils",
         "libhidlbase",
@@ -71,12 +85,11 @@ cc_defaults {
         "libstatssocket",
         "libutils",
         "libui",
-        "lib-platform-compat-native-api",
         "server_configurable_flags",
-        "InputFlingerProperties",
     ],
     static_libs: [
         "libattestation",
+        "libpalmrejection",
     ],
 }
 
@@ -125,7 +138,7 @@ filegroup {
         "InputListener.cpp",
         "InputReaderBase.cpp",
         "InputThread.cpp",
-        "VibrationElement.cpp"
+        "VibrationElement.cpp",
     ],
 }
 

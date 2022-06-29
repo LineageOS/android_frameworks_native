@@ -44,6 +44,8 @@ struct StretchEffect : public LightFlattenablePod<StretchEffect> {
         mappedChildBounds == other.mappedChildBounds;
   }
 
+  bool operator!=(const StretchEffect& other) const { return !(*this == other); }
+
   static bool isZero(float value) {
     constexpr float NON_ZERO_EPSILON = 0.001f;
     return fabsf(value) <= NON_ZERO_EPSILON;

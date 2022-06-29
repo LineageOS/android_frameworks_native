@@ -29,6 +29,7 @@
 #include <private/android/AHardwareBufferHelpers.h>
 #include <stdlib.h>
 #include <string.h>
+#include <aidl/android/hardware/graphics/common/PixelFormat.h>
 
 #include <condition_variable>
 #include <deque>
@@ -564,9 +565,11 @@ void convertAttribs(const EGLAttrib* attribList, std::vector<EGLint>& newList) {
     newList.push_back(EGL_NONE);
 }
 
+using PixelFormat = aidl::android::hardware::graphics::common::PixelFormat;
+
 // Gets the native pixel format corrsponding to the passed EGLConfig.
 void getNativePixelFormat(EGLDisplay dpy, egl_connection_t* cnx, EGLConfig config,
-                          android_pixel_format* format) {
+                          PixelFormat* format) {
     // Set the native window's buffers format to match what this config requests.
     // Whether to use sRGB gamma is not part of the EGLconfig, but is part
     // of our native format. So if sRGB gamma is requested, we have to
@@ -599,28 +602,30 @@ void getNativePixelFormat(EGLDisplay dpy, egl_connection_t* cnx, EGLConfig confi
     //    strip colorspace from attribs.
     // endif
     if (a == 0) {
-        if (colorDepth <= 16) {
-            *format = HAL_PIXEL_FORMAT_RGB_565;
+        if (8 == r && 0 == g && 0 == b) {
+            *format = PixelFormat::R_8;
+        } else if (colorDepth <= 16) {
+            *format = PixelFormat::RGB_565;
         } else {
             if (componentType == EGL_COLOR_COMPONENT_TYPE_FIXED_EXT) {
                 if (colorDepth > 24) {
-                    *format = HAL_PIXEL_FORMAT_RGBA_1010102;
+                    *format = PixelFormat::RGBA_1010102;
                 } else {
-                    *format = HAL_PIXEL_FORMAT_RGBX_8888;
+                    *format = PixelFormat::RGBX_8888;
                 }
             } else {
-                *format = HAL_PIXEL_FORMAT_RGBA_FP16;
+                *format = PixelFormat::RGBA_FP16;
             }
         }
     } else {
         if (componentType == EGL_COLOR_COMPONENT_TYPE_FIXED_EXT) {
             if (colorDepth > 24) {
-                *format = HAL_PIXEL_FORMAT_RGBA_1010102;
+                *format = PixelFormat::RGBA_1010102;
             } else {
-                *format = HAL_PIXEL_FORMAT_RGBA_8888;
+                *format = PixelFormat::RGBA_8888;
             }
         } else {
-            *format = HAL_PIXEL_FORMAT_RGBA_FP16;
+            *format = PixelFormat::RGBA_FP16;
         }
     }
 }
@@ -678,7 +683,7 @@ EGLSurface eglCreateWindowSurfaceTmpl(egl_display_t* dp, egl_connection_t* cnx, 
     }
 
     EGLDisplay iDpy = dp->disp.dpy;
-    android_pixel_format format;
+    PixelFormat format;
     getNativePixelFormat(iDpy, cnx, config, &format);
 
     // now select correct colorspace and dataspace based on user's attribute list
@@ -694,7 +699,7 @@ EGLSurface eglCreateWindowSurfaceTmpl(egl_display_t* dp, egl_connection_t* cnx, 
     attrib_list = strippedAttribList.data();
 
     if (!cnx->useAngle) {
-        int err = native_window_set_buffers_format(window, format);
+        int err = native_window_set_buffers_format(window, static_cast<int>(format));
         if (err != 0) {
             ALOGE("error setting native window pixel format: %s (%d)", strerror(-err), err);
             native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
@@ -818,7 +823,7 @@ EGLSurface eglCreatePbufferSurfaceImpl(EGLDisplay dpy, EGLConfig config,
     if (!dp) return EGL_NO_SURFACE;
 
     EGLDisplay iDpy = dp->disp.dpy;
-    android_pixel_format format;
+    PixelFormat format;
     getNativePixelFormat(iDpy, cnx, config, &format);
 
     // Select correct colorspace based on user's attribute list

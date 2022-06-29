@@ -41,6 +41,7 @@
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
 #include <renderengine/RenderEngine.h>
+#include <renderengine/impl/ExternalTexture.h>
 #include <utils/Log.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
@@ -208,8 +209,9 @@ status_t BufferLayerConsumer::acquireBufferLocked(BufferItem* item, nsecs_t pres
         if (mImages[item->mSlot] == nullptr || mImages[item->mSlot]->getBuffer() == nullptr ||
             mImages[item->mSlot]->getBuffer()->getId() != item->mGraphicBuffer->getId()) {
             mImages[item->mSlot] = std::make_shared<
-                    renderengine::ExternalTexture>(item->mGraphicBuffer, mRE,
-                                                   renderengine::ExternalTexture::Usage::READABLE);
+                    renderengine::impl::ExternalTexture>(item->mGraphicBuffer, mRE,
+                                                         renderengine::impl::ExternalTexture::
+                                                                 Usage::READABLE);
         }
     }
 
@@ -438,7 +440,7 @@ void BufferLayerConsumer::onDisconnect() {
 }
 
 void BufferLayerConsumer::onSidebandStreamChanged() {
-    FrameAvailableListener* unsafeFrameAvailableListener = nullptr;
+    [[maybe_unused]] FrameAvailableListener* unsafeFrameAvailableListener = nullptr;
     {
         Mutex::Autolock lock(mFrameAvailableMutex);
         unsafeFrameAvailableListener = mFrameAvailableListener.unsafe_get();
@@ -462,22 +464,11 @@ void BufferLayerConsumer::onBufferAvailable(const BufferItem& item) {
         if (oldImage == nullptr || oldImage->getBuffer() == nullptr ||
             oldImage->getBuffer()->getId() != item.mGraphicBuffer->getId()) {
             mImages[item.mSlot] = std::make_shared<
-                    renderengine::ExternalTexture>(item.mGraphicBuffer, mRE,
-                                                   renderengine::ExternalTexture::Usage::READABLE);
+                    renderengine::impl::ExternalTexture>(item.mGraphicBuffer, mRE,
+                                                         renderengine::impl::ExternalTexture::
+                                                                 Usage::READABLE);
         }
     }
-}
-
-void BufferLayerConsumer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
-                                                   FrameEventHistoryDelta* outDelta) {
-    Mutex::Autolock lock(mMutex);
-
-    if (mAbandoned) {
-        // Nothing to do if we're already abandoned.
-        return;
-    }
-
-    mLayer->addAndGetFrameTimestamps(newTimestamps, outDelta);
 }
 
 void BufferLayerConsumer::abandonLocked() {

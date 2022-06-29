@@ -29,19 +29,6 @@ void AChoreographer_initJVM(JNIEnv* env);
 // for consumption by callbacks.
 void AChoreographer_signalRefreshRateCallbacks(int64_t vsyncPeriod);
 
-// Returns the vsync id of the last frame callback. Client are expected to call
-// this function from their frame callback function to get the vsyncId and pass
-// it together with a buffer or transaction to the Surface Composer. Calling
-// this function from anywhere else will return an undefined value.
-int64_t AChoreographer_getVsyncId(const AChoreographer* choreographer);
-
-// Returns the deadline timestamp (in CLOCK_MONOTONIC) of the last frame callback.
-// Client are expected to call this function from their frame callback function
-// to get the deadline and use it to know whether a frame is likely to miss
-// presentation. Calling this function from anywhere else will return an undefined
-// value.
-int64_t AChoreographer_getFrameDeadline(const AChoreographer* choreographer);
-
 // Returns the current interval in ns between frames.
 // Client are expected to call this function from their frame callback function.
 // Calling this function from anywhere else will return an undefined value.
@@ -63,11 +50,30 @@ void AChoreographer_routePostFrameCallback64(AChoreographer* choreographer,
 void AChoreographer_routePostFrameCallbackDelayed64(AChoreographer* choreographer,
                                                     AChoreographer_frameCallback64 callback,
                                                     void* data, uint32_t delayMillis);
+void AChoreographer_routePostVsyncCallback(AChoreographer* choreographer,
+                                           AChoreographer_vsyncCallback callback, void* data);
 void AChoreographer_routeRegisterRefreshRateCallback(AChoreographer* choreographer,
                                                      AChoreographer_refreshRateCallback callback,
                                                      void* data);
 void AChoreographer_routeUnregisterRefreshRateCallback(AChoreographer* choreographer,
                                                        AChoreographer_refreshRateCallback callback,
                                                        void* data);
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimeNanos(
+        const AChoreographerFrameCallbackData* data);
+size_t AChoreographerFrameCallbackData_routeGetFrameTimelinesLength(
+        const AChoreographerFrameCallbackData* data);
+size_t AChoreographerFrameCallbackData_routeGetPreferredFrameTimelineIndex(
+        const AChoreographerFrameCallbackData* data);
+AVsyncId AChoreographerFrameCallbackData_routeGetFrameTimelineVsyncId(
+        const AChoreographerFrameCallbackData* data, size_t index);
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineExpectedPresentationTimeNanos(
+        const AChoreographerFrameCallbackData* data, size_t index);
+int64_t AChoreographerFrameCallbackData_routeGetFrameTimelineDeadlineNanos(
+        const AChoreographerFrameCallbackData* data, size_t index);
+
+// Gets the start time (dispatch time) in nanos of the callback, given a vsync ID. This does not
+// account for clients that use multiple choreographers, because callbacks that give the same vsync
+// ID may be dispatched at different times.
+int64_t AChoreographer_getStartTimeNanosForVsyncId(AVsyncId vsyncId);
 
 } // namespace android

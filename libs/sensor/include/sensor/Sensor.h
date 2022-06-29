@@ -96,11 +96,8 @@ public:
     bool isDirectChannelTypeSupported(int32_t sharedMemType) const;
     int32_t getReportingMode() const;
 
-    // Note that after setId() has been called, getUuid() no longer
-    // returns the UUID.
-    // TODO(b/29547335): Remove getUuid(), add getUuidIndex(), and
-    //     make sure setId() doesn't change the UuidIndex.
     const uuid_t& getUuid() const;
+    void  anonymizeUuid();
     int32_t getId() const;
     void setId(int32_t id);
 
@@ -132,10 +129,8 @@ private:
     int32_t mRequiredAppOp;
     int32_t mMaxDelay;
     uint32_t mFlags;
-    // TODO(b/29547335): Get rid of this field and replace with an index.
-    //     The index will be into a separate global vector of UUIDs.
-    //     Also add an mId field (and change flatten/unflatten appropriately).
     uuid_t  mUuid;
+    int32_t mId;
     static void flattenString8(void*& buffer, size_t& size, const String8& string8);
     static bool unflattenString8(void const*& buffer, size_t& size, String8& outputString8);
 };

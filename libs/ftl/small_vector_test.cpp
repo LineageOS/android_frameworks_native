@@ -138,6 +138,116 @@ TEST(SmallVector, Construct) {
   }
 }
 
+TEST(SmallVector, Copy) {
+  {
+    // Same capacity.
+    const SmallVector vector = {"snow"s, "cone"s};
+
+    SmallVector<const std::string, 2> copy(vector);
+    EXPECT_EQ(copy, vector);
+
+    // The vector is assignable even if T is const.
+    const SmallVector<std::string, 2> other = {"tiramisu"s};
+    copy = other;
+    EXPECT_EQ(copy, other);
+  }
+  {
+    // From smaller capacity.
+    const SmallVector vector = {"snow"s, "cone"s};
+
+    SmallVector<const std::string, 3> copy(vector);
+    EXPECT_EQ(copy, vector);
+
+    // The vector is assignable even if T is const.
+    const SmallVector other = {"tiramisu"s};
+    copy = other;
+    EXPECT_EQ(copy, other);
+  }
+  {
+    // To zero capacity.
+    const SmallVector vector = {"snow"s, "cone"s};
+
+    SmallVector<const std::string, 0> copy(vector);
+    EXPECT_EQ(copy, vector);
+
+    // The vector is assignable even if T is const.
+    const SmallVector other = {"tiramisu"s};
+    copy = other;
+    EXPECT_EQ(copy, other);
+  }
+  {
+    // From/to zero capacity.
+    const SmallVector<std::string, 0> vector = {"snow"s, "cone"s};
+
+    SmallVector<const std::string, 0> copy(vector);
+    EXPECT_EQ(copy, vector);
+
+    // The vector is assignable even if T is const.
+    const SmallVector<std::string, 0> other = {"tiramisu"s};
+    copy = other;
+    EXPECT_EQ(copy, other);
+  }
+}
+
+TEST(SmallVector, Move) {
+  {
+    // Same capacity.
+    SmallVector vector = {"snow"s, "cone"s};
+
+    SmallVector<const std::string, 2> move(std::move(vector));
+    EXPECT_TRUE(vector.empty());
+    EXPECT_EQ(move, (SmallVector{"snow"s, "cone"s}));
+
+    // The vector is assignable even if T is const.
+    SmallVector<std::string, 2> other = {"tiramisu"s};
+    move = std::move(other);
+    EXPECT_TRUE(other.empty());
+    EXPECT_EQ(move, (SmallVector{"tiramisu"s}));
+  }
+  {
+    // From smaller capacity.
+    SmallVector vector = {"snow"s, "cone"s};
+
+    SmallVector<const std::string, 3> move(std::move(vector));
+    EXPECT_TRUE(vector.empty());
+    EXPECT_EQ(move, (SmallVector{"snow"s, "cone"s}));
+
+    // The vector is assignable even if T is const.
+    SmallVector other = {"tiramisu"s};
+    move = std::move(other);
+    EXPECT_TRUE(other.empty());
+    EXPECT_EQ(move, (SmallVector{"tiramisu"s}));
+  }
+  {
+    // To zero capacity.
+    SmallVector vector = {"snow"s, "cone"s};
+
+    SmallVector<const std::string, 0> move(std::move(vector));
+    EXPECT_TRUE(vector.empty());
+    EXPECT_EQ(move, (SmallVector{"snow"s, "cone"s}));
+
+    // The vector is assignable even if T is const.
+    SmallVector other = {"tiramisu"s};
+    move = std::move(other);
+    EXPECT_TRUE(other.empty());
+    EXPECT_EQ(move, (SmallVector{"tiramisu"s}));
+  }
+  {
+    // From/to zero capacity.
+    SmallVector<std::string, 0> vector = {"snow"s, "cone"s};
+
+    SmallVector<const std::string, 0> move(std::move(vector));
+    EXPECT_TRUE(vector.empty());
+    EXPECT_EQ(move, (SmallVector{"snow"s, "cone"s}));
+
+    // The vector is assignable even if T is const.
+    SmallVector<std::string, 0> other = {"tiramisu"s};
+    move = std::move(other);
+    EXPECT_TRUE(other.empty());
+    EXPECT_EQ(move, (SmallVector{"tiramisu"s}));
+  }
+}
+
 TEST(SmallVector, String) {
   SmallVector<char, 10> chars;
   char c = 'a';
@@ -366,21 +476,20 @@ struct DestroyCounts {
   bool alive = true;
 };
 
-void swap(DestroyCounts& lhs, DestroyCounts& rhs) {
-  std::swap(lhs.alive, rhs.alive);
-}
-
 }  // namespace
 
 TEST(SmallVector, Destroy) {
   int live = 0;
   int dead = 0;
-
-  { SmallVector<DestroyCounts, 3> counts; }
+  {
+    // Empty.
+    SmallVector<DestroyCounts, 3> counts;
+  }
   EXPECT_EQ(0, live);
   EXPECT_EQ(0, dead);
 
   {
+    // Static.
     SmallVector<DestroyCounts, 3> counts;
     counts.emplace_back(live, dead);
     counts.emplace_back(live, dead);
@@ -393,6 +502,7 @@ TEST(SmallVector, Destroy) {
 
   live = 0;
   {
+    // Dynamic.
     SmallVector<DestroyCounts, 3> counts;
     counts.emplace_back(live, dead);
     counts.emplace_back(live, dead);
@@ -406,12 +516,13 @@ TEST(SmallVector, Destroy) {
 
   live = dead = 0;
   {
+    // Copy.
     SmallVector<DestroyCounts, 2> counts;
     counts.emplace_back(live, dead);
     counts.emplace_back(live, dead);
     counts.emplace_back(live, dead);
 
-    auto copy = counts;
+    const auto copy = counts;
     EXPECT_TRUE(copy.dynamic());
   }
   EXPECT_EQ(6, live);
@@ -419,12 +530,13 @@ TEST(SmallVector, Destroy) {
 
   live = dead = 0;
   {
+    // Move.
     SmallVector<DestroyCounts, 2> counts;
     counts.emplace_back(live, dead);
     counts.emplace_back(live, dead);
     counts.emplace_back(live, dead);
 
-    auto move = std::move(counts);
+    const auto move = std::move(counts);
     EXPECT_TRUE(move.dynamic());
   }
   EXPECT_EQ(3, live);
@@ -432,6 +544,7 @@ TEST(SmallVector, Destroy) {
 
   live = dead = 0;
   {
+    // Swap.
     SmallVector<DestroyCounts, 2> counts1;
     counts1.emplace_back(live, dead);
     counts1.emplace_back(live, dead);
@@ -448,7 +561,10 @@ TEST(SmallVector, Destroy) {
 
     swap(counts1, counts2);
 
+    EXPECT_EQ(1u, counts1.size());
     EXPECT_FALSE(counts1.dynamic());
+
+    EXPECT_EQ(3u, counts2.size());
     EXPECT_TRUE(counts2.dynamic());
 
     EXPECT_EQ(0, live);
@@ -457,6 +573,89 @@ TEST(SmallVector, Destroy) {
     dead = 0;
   }
   EXPECT_EQ(4, live);
+  EXPECT_EQ(0, dead);
+}
+
+TEST(SmallVector, Clear) {
+  int live = 0;
+  int dead = 0;
+
+  SmallVector<DestroyCounts, 2> counts;
+  {
+    // Static.
+    counts.emplace_back(live, dead);
+    counts.emplace_back(live, dead);
+
+    counts.clear();
+
+    EXPECT_TRUE(counts.empty());
+    EXPECT_FALSE(counts.dynamic());
+  }
+  EXPECT_EQ(2, live);
+  EXPECT_EQ(0, dead);
+
+  live = 0;
+  {
+    // Dynamic.
+    counts.emplace_back(live, dead);
+    counts.emplace_back(live, dead);
+    counts.emplace_back(live, dead);
+
+    counts.clear();
+
+    EXPECT_TRUE(counts.empty());
+    EXPECT_TRUE(counts.dynamic());
+  }
+  EXPECT_EQ(3, live);
+  EXPECT_EQ(2, dead);
+}
+
+TEST(SmallVector, Promote) {
+  {
+    const std::vector vector = {"snow"s, "cone"s};
+    EXPECT_EQ(vector, SmallVector("snow"s, "cone"s).promote());
+    EXPECT_EQ(vector, (SmallVector<std::string, 0>({"snow"s, "cone"s}).promote()));
+  }
+
+  int live = 0;
+  int dead = 0;
+
+  std::vector<DestroyCounts> vector;
+  {
+    // Static.
+    SmallVector<DestroyCounts, 3> counts;
+    counts.emplace_back(live, dead);
+    counts.emplace_back(live, dead);
+
+    vector = std::move(counts).promote();
+
+    ASSERT_EQ(2u, vector.size());
+    EXPECT_TRUE(vector[0].alive);
+    EXPECT_TRUE(vector[1].alive);
+  }
+  EXPECT_EQ(0, live);
+  EXPECT_EQ(2, dead);
+
+  vector.clear();
+  live = dead = 0;
+  {
+    // Dynamic.
+    SmallVector<DestroyCounts, 2> counts;
+    counts.emplace_back(live, dead);
+    counts.emplace_back(live, dead);
+    counts.emplace_back(live, dead);
+
+    EXPECT_EQ(2, dead);
+    dead = 0;
+
+    vector = std::move(counts).promote();
+
+    ASSERT_EQ(3u, vector.size());
+    EXPECT_TRUE(vector[0].alive);
+    EXPECT_TRUE(vector[1].alive);
+    EXPECT_TRUE(vector[2].alive);
+  }
+  EXPECT_EQ(0, live);
   EXPECT_EQ(0, dead);
 }
 

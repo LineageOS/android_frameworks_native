@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include <android-base/thread_annotations.h>
-#include <array>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -25,10 +23,14 @@
 #include <string_view>
 #include <unordered_map>
 
-#include "SchedulerUtils.h"
+#include <android-base/thread_annotations.h>
+
 #include "VSyncDispatch.h"
 
 namespace android::scheduler {
+
+class TimeKeeper;
+class VSyncTracker;
 
 // VSyncDispatchTimerQueueEntry is a helper class representing internal state for each entry in
 // VSyncDispatchTimerQueue hoisted to public for unit testing.
@@ -38,7 +40,7 @@ public:
     // Valid transition: disarmed -> armed ( when scheduled )
     // Valid transition: armed -> running -> disarmed ( when timer is called)
     // Valid transition: armed -> disarmed ( when cancelled )
-    VSyncDispatchTimerQueueEntry(std::string const& name, VSyncDispatch::Callback const& fn,
+    VSyncDispatchTimerQueueEntry(std::string name, VSyncDispatch::Callback,
                                  nsecs_t minVsyncDistance);
     std::string_view name() const;
 
@@ -47,10 +49,9 @@ public:
     std::optional<nsecs_t> lastExecutedVsyncTarget() const;
 
     // This moves the state from disarmed->armed and will calculate the wakeupTime.
-    ScheduleResult schedule(VSyncDispatch::ScheduleTiming timing, VSyncTracker& tracker,
-                            nsecs_t now);
+    ScheduleResult schedule(VSyncDispatch::ScheduleTiming, VSyncTracker&, nsecs_t now);
     // This will update armed entries with the latest vsync information. Entry remains armed.
-    void update(VSyncTracker& tracker, nsecs_t now);
+    void update(VSyncTracker&, nsecs_t now);
 
     // This will return empty if not armed, or the next calculated wakeup time if armed.
     // It will not update the wakeupTime.
@@ -83,11 +84,11 @@ public:
     void dump(std::string& result) const;
 
 private:
-    std::string const mName;
-    VSyncDispatch::Callback const mCallback;
+    const std::string mName;
+    const VSyncDispatch::Callback mCallback;
 
     VSyncDispatch::ScheduleTiming mScheduleTiming;
-    nsecs_t const mMinVsyncDistance;
+    const nsecs_t mMinVsyncDistance;
 
     struct ArmingInfo {
         nsecs_t mActualWakeupTime;
@@ -117,19 +118,19 @@ public:
     //                                  should be grouped into one wakeup.
     // \param[in] minVsyncDistance      The minimum distance between two vsync estimates before the
     //                                  vsyncs are considered the same vsync event.
-    explicit VSyncDispatchTimerQueue(std::unique_ptr<TimeKeeper> tk, VSyncTracker& tracker,
-                                     nsecs_t timerSlack, nsecs_t minVsyncDistance);
+    VSyncDispatchTimerQueue(std::unique_ptr<TimeKeeper>, VSyncTracker&, nsecs_t timerSlack,
+                            nsecs_t minVsyncDistance);
     ~VSyncDispatchTimerQueue();
 
-    CallbackToken registerCallback(Callback const& callbackFn, std::string callbackName) final;
-    void unregisterCallback(CallbackToken token) final;
-    ScheduleResult schedule(CallbackToken token, ScheduleTiming scheduleTiming) final;
-    CancelResult cancel(CallbackToken token) final;
-    void dump(std::string& result) const final;
+    CallbackToken registerCallback(Callback, std::string callbackName) final;
+    void unregisterCallback(CallbackToken) final;
+    ScheduleResult schedule(CallbackToken, ScheduleTiming) final;
+    CancelResult cancel(CallbackToken) final;
+    void dump(std::string&) const final;
 
 private:
-    VSyncDispatchTimerQueue(VSyncDispatchTimerQueue const&) = delete;
-    VSyncDispatchTimerQueue& operator=(VSyncDispatchTimerQueue const&) = delete;
+    VSyncDispatchTimerQueue(const VSyncDispatchTimerQueue&) = delete;
+    VSyncDispatchTimerQueue& operator=(const VSyncDispatchTimerQueue&) = delete;
 
     using CallbackMap =
             std::unordered_map<CallbackToken, std::shared_ptr<VSyncDispatchTimerQueueEntry>>;
@@ -152,17 +153,6 @@ private:
 
     CallbackMap mCallbacks GUARDED_BY(mMutex);
     nsecs_t mIntendedWakeupTime GUARDED_BY(mMutex) = kInvalidTime;
-
-    struct TraceBuffer {
-        static constexpr char const kTraceNamePrefix[] = "-alarm in:";
-        static constexpr char const kTraceNameSeparator[] = " for vs:";
-        static constexpr size_t kMaxNamePrint = 4;
-        static constexpr size_t kNumTsPrinted = 2;
-        static constexpr size_t maxlen = kMaxNamePrint + arrayLen(kTraceNamePrefix) +
-                arrayLen(kTraceNameSeparator) - 1 + (kNumTsPrinted * max64print);
-        std::array<char, maxlen> str_buffer;
-        void note(std::string_view name, nsecs_t in, nsecs_t vs);
-    } mTraceBuffer GUARDED_BY(mMutex);
 
     // For debugging purposes
     nsecs_t mLastTimerCallback GUARDED_BY(mMutex) = kInvalidTime;

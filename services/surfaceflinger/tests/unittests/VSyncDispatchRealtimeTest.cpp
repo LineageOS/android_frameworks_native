@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-#include "Scheduler/TimeKeeper.h"
-#include "Scheduler/Timer.h"
-#include "Scheduler/VSyncDispatchTimerQueue.h"
-#include "Scheduler/VSyncTracker.h"
+#include <thread>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <thread>
+
+#include <scheduler/Timer.h>
+
+#include "Scheduler/VSyncDispatchTimerQueue.h"
+#include "Scheduler/VSyncTracker.h"
 
 using namespace testing;
 using namespace std::literals;

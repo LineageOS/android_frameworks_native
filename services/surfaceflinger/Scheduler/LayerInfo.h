@@ -16,16 +16,19 @@
 
 #pragma once
 
+#include <chrono>
+#include <deque>
+#include <optional>
+#include <string>
+#include <unordered_map>
+
 #include <ui/Transform.h>
 #include <utils/Timers.h>
 
-#include <chrono>
-#include <deque>
+#include <scheduler/Seamlessness.h>
 
 #include "LayerHistory.h"
 #include "RefreshRateConfigs.h"
-#include "Scheduler/Seamlessness.h"
-#include "SchedulerUtils.h"
 
 namespace android {
 
@@ -51,7 +54,7 @@ class LayerInfo {
     // is within a threshold. If a layer is infrequent, its average refresh rate is disregarded in
     // favor of a low refresh rate.
     static constexpr size_t kFrequentLayerWindowSize = 3;
-    static constexpr Fps kMinFpsForFrequentLayer{10.0f};
+    static constexpr Fps kMinFpsForFrequentLayer = 10_Hz;
     static constexpr auto kMaxPeriodForFrequentLayerNs =
             std::chrono::nanoseconds(kMinFpsForFrequentLayer.getPeriodNsecs()) + 1ms;
 
@@ -62,7 +65,7 @@ public:
     // Holds information about the layer vote
     struct LayerVote {
         LayerHistory::LayerVoteType type = LayerHistory::LayerVoteType::Heuristic;
-        Fps fps{0.0f};
+        Fps fps;
         Seamlessness seamlessness = Seamlessness::Default;
     };
 
@@ -78,6 +81,8 @@ public:
 
         NoVote, // Layer doesn't have any requirements for the refresh rate and
                 // should not be considered when the display refresh rate is determined.
+
+        ftl_last = NoVote
     };
 
     // Encapsulates the frame rate and compatibility of the layer. This information will be used
@@ -86,19 +91,17 @@ public:
         using Seamlessness = scheduler::Seamlessness;
 
         Fps rate;
-        FrameRateCompatibility type;
-        Seamlessness seamlessness;
+        FrameRateCompatibility type = FrameRateCompatibility::Default;
+        Seamlessness seamlessness = Seamlessness::Default;
 
-        FrameRate()
-              : rate(0),
-                type(FrameRateCompatibility::Default),
-                seamlessness(Seamlessness::Default) {}
+        FrameRate() = default;
+
         FrameRate(Fps rate, FrameRateCompatibility type,
                   Seamlessness seamlessness = Seamlessness::OnlySeamless)
               : rate(rate), type(type), seamlessness(getSeamlessness(rate, seamlessness)) {}
 
         bool operator==(const FrameRate& other) const {
-            return rate.equalsWithMargin(other.rate) && type == other.type &&
+            return isApproxEqual(rate, other.rate) && type == other.type &&
                     seamlessness == other.seamlessness;
         }
 
@@ -151,7 +154,7 @@ public:
     void setDefaultLayerVote(LayerHistory::LayerVoteType type) { mDefaultVote = type; }
 
     // Resets the layer vote to its default.
-    void resetLayerVote() { mLayerVote = {mDefaultVote, Fps(0.0f), Seamlessness::Default}; }
+    void resetLayerVote() { mLayerVote = {mDefaultVote, Fps(), Seamlessness::Default}; }
 
     std::string getName() const { return mName; }
 
@@ -173,6 +176,9 @@ public:
 
     // Returns a C string for tracing a vote
     const char* getTraceTag(LayerHistory::LayerVoteType type) const;
+
+    // Return the framerate of this layer.
+    Fps getFps(nsecs_t now) const;
 
     void onLayerInactive(nsecs_t now) {
         // Mark mFrameTimeValidSince to now to ignore all previous frame times.
@@ -201,9 +207,9 @@ private:
     // Holds information about the calculated and reported refresh rate
     struct RefreshRateHeuristicData {
         // Rate calculated on the layer
-        Fps calculated{0.0f};
+        Fps calculated;
         // Last reported rate for LayerInfo::getRefreshRate()
-        Fps reported{0.0f};
+        Fps reported;
         // Whether the last reported rate for LayerInfo::getRefreshRate()
         // was due to animation or infrequent updates
         bool animatingOrInfrequent = false;
@@ -229,14 +235,8 @@ private:
 
         // Holds the refresh rate when it was calculated
         struct RefreshRateData {
-            Fps refreshRate{0.0f};
+            Fps refreshRate;
             nsecs_t timestamp = 0;
-
-            bool operator<(const RefreshRateData& other) const {
-                // We don't need comparison with margins since we are using
-                // this to find the min and max refresh rates.
-                return refreshRate.getValue() < other.refreshRate.getValue();
-            }
         };
 
         // Holds tracing strings
@@ -268,7 +268,7 @@ private:
 
     // Used for sanitizing the heuristic data. If two frames are less than
     // this period apart from each other they'll be considered as duplicates.
-    static constexpr nsecs_t kMinPeriodBetweenFrames = Fps(240.f).getPeriodNsecs();
+    static constexpr nsecs_t kMinPeriodBetweenFrames = (240_Hz).getPeriodNsecs();
     // Used for sanitizing the heuristic data. If two frames are more than
     // this period apart from each other, the interval between them won't be
     // taken into account when calculating average frame rate.

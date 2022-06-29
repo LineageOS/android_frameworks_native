@@ -45,8 +45,8 @@ int LayerVector::do_compare(const void* lhs, const void* rhs) const
     const auto& lState = l->getDrawingState();
     const auto& rState = r->getDrawingState();
 
-    uint32_t ls = lState.layerStack;
-    uint32_t rs = rState.layerStack;
+    const auto ls = lState.layerStack;
+    const auto rs = rState.layerStack;
     if (ls != rs)
         return (ls > rs) ? 1 : -1;
 

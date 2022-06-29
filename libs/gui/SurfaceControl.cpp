@@ -70,6 +70,7 @@ SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
     mLayerId = other->mLayerId;
     mWidth = other->mWidth;
     mHeight = other->mHeight;
+    mFormat = other->mFormat;
     mCreateFlags = other->mCreateFlags;
 }
 
@@ -278,6 +279,19 @@ sp<SurfaceControl> SurfaceControl::getParentingLayer() {
         return mBbqChild;
     }
     return this;
+}
+
+uint64_t SurfaceControl::resolveFrameNumber(const std::optional<uint64_t>& frameNumber) {
+    if (frameNumber.has_value()) {
+        auto ret = frameNumber.value();
+        // Set the fallback to something far enough ahead that in the unlikely event of mixed
+        // "real" frame numbers and fallback frame numbers, we still won't collide in any
+        // meaningful capacity
+        mFallbackFrameNumber = ret + 100;
+        return ret;
+    } else {
+        return mFallbackFrameNumber++;
+    }
 }
 
 // ----------------------------------------------------------------------------

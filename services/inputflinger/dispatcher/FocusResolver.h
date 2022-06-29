@@ -77,6 +77,8 @@ private:
         NO_WINDOW,
         NOT_FOCUSABLE,
         NOT_VISIBLE,
+
+        ftl_last = NOT_VISIBLE
     };
 
     // Checks if the window token can be focused on a display. The token can be focused if there is

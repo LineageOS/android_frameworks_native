@@ -22,8 +22,7 @@
 #include <compositionengine/mock/Output.h>
 #include <gmock/gmock.h>
 #include <system/window.h>
-
-#include "DisplayHardware/DisplayIdentification.h"
+#include <ui/DisplayIdentification.h>
 
 namespace android::compositionengine::mock {
 
@@ -35,12 +34,14 @@ public:
     MOCK_CONST_METHOD0(getId, DisplayId());
     MOCK_CONST_METHOD0(isSecure, bool());
     MOCK_CONST_METHOD0(isVirtual, bool());
+    MOCK_CONST_METHOD0(getPreferredBootHwcConfigId, int32_t());
 
     MOCK_METHOD0(disconnect, void());
 
     MOCK_METHOD1(createDisplayColorProfile, void(const DisplayColorProfileCreationArgs&));
     MOCK_METHOD1(createRenderSurface, void(const RenderSurfaceCreationArgs&));
     MOCK_METHOD1(createClientCompositionCache, void(uint32_t));
+    MOCK_METHOD1(setPredictCompositionStrategy, void(bool));
 };
 
 } // namespace android::compositionengine::mock

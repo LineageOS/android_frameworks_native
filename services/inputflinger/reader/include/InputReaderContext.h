@@ -55,7 +55,7 @@ public:
     virtual void dispatchExternalStylusState(const StylusState& outState) = 0;
 
     virtual InputReaderPolicyInterface* getPolicy() = 0;
-    virtual InputListenerInterface* getListener() = 0;
+    virtual InputListenerInterface& getListener() = 0;
     virtual EventHubInterface* getEventHub() = 0;
 
     virtual int32_t getNextId() = 0;

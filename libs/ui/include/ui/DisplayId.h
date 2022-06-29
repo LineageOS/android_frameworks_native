@@ -38,11 +38,21 @@ struct DisplayId {
 
     uint64_t value;
 
+    // For deserialization.
+    static constexpr std::optional<DisplayId> fromValue(uint64_t);
+
+    // As above, but also upcast to Id.
+    template <typename Id>
+    static constexpr std::optional<Id> fromValue(uint64_t value) {
+        if (const auto id = Id::tryCast(DisplayId(value))) {
+            return id;
+        }
+        return {};
+    }
+
 protected:
     explicit constexpr DisplayId(uint64_t id) : value(id) {}
 };
-
-static_assert(sizeof(DisplayId) == sizeof(uint64_t));
 
 inline bool operator==(DisplayId lhs, DisplayId rhs) {
     return lhs.value == rhs.value;
@@ -80,11 +90,8 @@ struct PhysicalDisplayId : DisplayId {
 
     // TODO(b/162612135) Remove default constructor
     PhysicalDisplayId() = default;
-    // TODO(b/162612135) Remove constructor
-    explicit constexpr PhysicalDisplayId(uint64_t id) : DisplayId(id) {}
 
     constexpr uint16_t getManufacturerId() const { return static_cast<uint16_t>(value >> 40); }
-
     constexpr uint8_t getPort() const { return static_cast<uint8_t>(value); }
 
 private:
@@ -96,10 +103,9 @@ private:
     explicit constexpr PhysicalDisplayId(DisplayId other) : DisplayId(other) {}
 };
 
-static_assert(sizeof(PhysicalDisplayId) == sizeof(uint64_t));
-
 struct VirtualDisplayId : DisplayId {
     using BaseId = uint32_t;
+
     // Flag indicating that this virtual display is backed by the GPU.
     static constexpr uint64_t FLAG_GPU = 1ULL << 61;
 
@@ -163,10 +169,23 @@ private:
     explicit constexpr HalDisplayId(DisplayId other) : DisplayId(other) {}
 };
 
+constexpr std::optional<DisplayId> DisplayId::fromValue(uint64_t value) {
+    if (const auto id = fromValue<PhysicalDisplayId>(value)) {
+        return id;
+    }
+    if (const auto id = fromValue<VirtualDisplayId>(value)) {
+        return id;
+    }
+    return {};
+}
+
+static_assert(sizeof(DisplayId) == sizeof(uint64_t));
+static_assert(sizeof(HalDisplayId) == sizeof(uint64_t));
 static_assert(sizeof(VirtualDisplayId) == sizeof(uint64_t));
+
+static_assert(sizeof(PhysicalDisplayId) == sizeof(uint64_t));
 static_assert(sizeof(HalVirtualDisplayId) == sizeof(uint64_t));
 static_assert(sizeof(GpuVirtualDisplayId) == sizeof(uint64_t));
-static_assert(sizeof(HalDisplayId) == sizeof(uint64_t));
 
 } // namespace android
 

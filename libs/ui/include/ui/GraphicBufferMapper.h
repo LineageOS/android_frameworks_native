@@ -121,11 +121,20 @@ public:
     status_t getPlaneLayouts(buffer_handle_t bufferHandle,
                              std::vector<ui::PlaneLayout>* outPlaneLayouts);
     status_t getDataspace(buffer_handle_t bufferHandle, ui::Dataspace* outDataspace);
+    status_t setDataspace(buffer_handle_t bufferHandle, ui::Dataspace dataspace);
     status_t getBlendMode(buffer_handle_t bufferHandle, ui::BlendMode* outBlendMode);
     status_t getSmpte2086(buffer_handle_t bufferHandle, std::optional<ui::Smpte2086>* outSmpte2086);
+    status_t setSmpte2086(buffer_handle_t bufferHandle, std::optional<ui::Smpte2086> smpte2086);
     status_t getCta861_3(buffer_handle_t bufferHandle, std::optional<ui::Cta861_3>* outCta861_3);
+    status_t setCta861_3(buffer_handle_t bufferHandle, std::optional<ui::Cta861_3> cta861_3);
     status_t getSmpte2094_40(buffer_handle_t bufferHandle,
                              std::optional<std::vector<uint8_t>>* outSmpte2094_40);
+    status_t setSmpte2094_40(buffer_handle_t bufferHandle,
+                             std::optional<std::vector<uint8_t>> smpte2094_40);
+    status_t getSmpte2094_10(buffer_handle_t bufferHandle,
+                             std::optional<std::vector<uint8_t>>* outSmpte2094_10);
+    status_t setSmpte2094_10(buffer_handle_t bufferHandle,
+                             std::optional<std::vector<uint8_t>> smpte2094_10);
 
     /**
      * Gets the default metadata for a gralloc buffer allocated with the given parameters.

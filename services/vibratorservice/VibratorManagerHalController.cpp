@@ -45,7 +45,7 @@ static constexpr int MAX_RETRIES = 1;
 template <typename T>
 HalResult<T> ManagerHalController::processHalResult(HalResult<T> result, const char* functionName) {
     if (result.isFailed()) {
-        ALOGE("%s failed: %s", functionName, result.errorMessage());
+        ALOGE("VibratorManager HAL %s failed: %s", functionName, result.errorMessage());
         std::lock_guard<std::mutex> lock(mConnectedHalMutex);
         mConnectedHal->tryReconnect();
     }

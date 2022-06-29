@@ -28,10 +28,12 @@
 #pragma clang diagnostic ignored "-Wconversion"
 #pragma clang diagnostic ignored "-Wextra"
 
+#include <ui/DisplayIdentification.h>
 #include "DisplayHardware/ComposerHal.h"
-#include "DisplayHardware/DisplayIdentification.h"
 
 #include "LayerFE.h"
+
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
@@ -112,7 +114,8 @@ public:
     virtual bool isHardwareCursor() const = 0;
 
     // Applies a HWC device requested composition type change
-    virtual void applyDeviceCompositionTypeChange(Hwc2::IComposerClient::Composition) = 0;
+    virtual void applyDeviceCompositionTypeChange(
+            aidl::android::hardware::graphics::composer3::Composition) = 0;
 
     // Prepares to apply any HWC device layer requests
     virtual void prepareForDeviceLayerRequests() = 0;

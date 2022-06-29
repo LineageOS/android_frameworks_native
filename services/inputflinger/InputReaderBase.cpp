@@ -19,12 +19,12 @@
 //#define LOG_NDEBUG 0
 
 #include "InputReaderBase.h"
-#include <ftl/NamedEnum.h>
 #include "input/DisplayViewport.h"
 #include "input/Input.h"
 
-#include <android/log.h>
 #include <android-base/stringprintf.h>
+#include <android/log.h>
+#include <ftl/enum.h>
 
 #define INDENT "  "
 #define INDENT2 "    "
@@ -117,7 +117,7 @@ std::optional<DisplayViewport> InputReaderConfiguration::getDisplayViewportByTyp
     }
     if (count > 1) {
         ALOGW("Found %zu viewports with type %s, but expected 1 at most", count,
-              NamedEnum::string(type).c_str());
+              ftl::enum_string(type).c_str());
     }
     return result;
 }

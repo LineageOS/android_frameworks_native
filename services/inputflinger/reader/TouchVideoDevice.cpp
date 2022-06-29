@@ -49,7 +49,7 @@ TouchVideoDevice::TouchVideoDevice(int fd, std::string&& name, std::string&& dev
 };
 
 std::unique_ptr<TouchVideoDevice> TouchVideoDevice::create(std::string devicePath) {
-    unique_fd fd(open(devicePath.c_str(), O_RDWR | O_NONBLOCK));
+    unique_fd fd(open(devicePath.c_str(), O_RDWR | O_NONBLOCK | O_CLOEXEC));
     if (fd.get() == INVALID_FD) {
         ALOGE("Could not open video device %s: %s", devicePath.c_str(), strerror(errno));
         return nullptr;

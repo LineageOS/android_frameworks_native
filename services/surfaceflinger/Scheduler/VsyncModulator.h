@@ -25,6 +25,8 @@
 #include <binder/IBinder.h>
 #include <utils/Timers.h>
 
+#include "../WpHash.h"
+
 namespace android::scheduler {
 
 // State machine controlled by transaction flags. VsyncModulator switches to early phase offsets
@@ -107,11 +109,16 @@ public:
 
     [[nodiscard]] VsyncConfigOpt onDisplayRefresh(bool usedGpuComposition);
 
+    [[nodiscard]] bool isVsyncConfigDefault() const;
+
 protected:
     // Called from unit tests as well
     void binderDied(const wp<IBinder>&) override EXCLUDES(mMutex);
 
 private:
+    enum class VsyncConfigType { Early, EarlyGpu, Late };
+
+    VsyncConfigType getNextVsyncConfigType() const REQUIRES(mMutex);
     const VsyncConfig& getNextVsyncConfig() const REQUIRES(mMutex);
     [[nodiscard]] VsyncConfig updateVsyncConfig() EXCLUDES(mMutex);
     [[nodiscard]] VsyncConfig updateVsyncConfigLocked() REQUIRES(mMutex);
@@ -123,12 +130,6 @@ private:
 
     using Schedule = TransactionSchedule;
     std::atomic<Schedule> mTransactionSchedule = Schedule::Late;
-
-    struct WpHash {
-        size_t operator()(const wp<IBinder>& p) const {
-            return std::hash<IBinder*>()(p.unsafe_get());
-        }
-    };
 
     std::unordered_set<wp<IBinder>, WpHash> mEarlyWakeupRequests GUARDED_BY(mMutex);
     std::atomic<bool> mRefreshRateChangePending = false;
