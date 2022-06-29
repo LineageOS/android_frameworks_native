@@ -279,7 +279,7 @@ protected:
     }
 
     bool waitForHotplugEvent(Display displayId, bool connected) {
-        return waitForHotplugEvent(PhysicalDisplayId(displayId), connected);
+        return waitForHotplugEvent(physicalIdFromHwcDisplayId(displayId), connected);
     }
 
     bool waitForHotplugEvent(PhysicalDisplayId displayId, bool connected) {
@@ -305,7 +305,7 @@ protected:
     }
 
     bool waitForModeChangedEvent(Display display, int32_t modeId) {
-        PhysicalDisplayId displayId(display);
+        PhysicalDisplayId displayId = physicalIdFromHwcDisplayId(display);
         int waitCount = 20;
         while (waitCount--) {
             while (!mReceivedDisplayEvents.empty()) {
@@ -363,7 +363,7 @@ protected:
 
             {
                 TransactionScope ts(*mFakeComposerClient);
-                ts.setDisplayLayerStack(display, 0);
+                ts.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
 
                 ts.setLayer(surfaceControl, INT32_MAX - 2).show(surfaceControl);
             }
@@ -426,7 +426,7 @@ protected:
 
             {
                 TransactionScope ts(*mFakeComposerClient);
-                ts.setDisplayLayerStack(display, 0);
+                ts.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
 
                 ts.setLayer(surfaceControl, INT32_MAX - 2).show(surfaceControl);
             }
@@ -479,7 +479,7 @@ protected:
 
             {
                 TransactionScope ts(*mFakeComposerClient);
-                ts.setDisplayLayerStack(display, 0);
+                ts.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
 
                 ts.setLayer(surfaceControl, INT32_MAX - 2).show(surfaceControl);
             }
@@ -534,7 +534,7 @@ protected:
 
             {
                 TransactionScope ts(*mFakeComposerClient);
-                ts.setDisplayLayerStack(display, 0);
+                ts.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
 
                 ts.setLayer(surfaceControl, INT32_MAX - 2).show(surfaceControl);
             }
@@ -586,7 +586,7 @@ protected:
 
             {
                 TransactionScope ts(*mFakeComposerClient);
-                ts.setDisplayLayerStack(display, 0);
+                ts.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
 
                 ts.setLayer(surfaceControl, INT32_MAX - 2).show(surfaceControl);
             }
@@ -651,7 +651,7 @@ protected:
 
             {
                 TransactionScope ts(*mFakeComposerClient);
-                ts.setDisplayLayerStack(display, 0);
+                ts.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
 
                 ts.setLayer(surfaceControl, INT32_MAX - 2).show(surfaceControl);
             }
@@ -703,7 +703,7 @@ protected:
 
             {
                 TransactionScope ts(*mFakeComposerClient);
-                ts.setDisplayLayerStack(display, 0);
+                ts.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
 
                 ts.setLayer(surfaceControl, INT32_MAX - 2).show(surfaceControl);
             }
@@ -750,7 +750,7 @@ protected:
 
             {
                 TransactionScope ts(*mFakeComposerClient);
-                ts.setDisplayLayerStack(display, 0);
+                ts.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
 
                 ts.setLayer(surfaceControl, INT32_MAX - 2).show(surfaceControl);
             }
@@ -797,7 +797,7 @@ protected:
 
             {
                 TransactionScope ts(*mFakeComposerClient);
-                ts.setDisplayLayerStack(display, 0);
+                ts.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
 
                 ts.setLayer(surfaceControl, INT32_MAX - 2).show(surfaceControl);
             }
@@ -1195,7 +1195,7 @@ protected:
         fillSurfaceRGBA8(mFGSurfaceControl, RED);
 
         Transaction t;
-        t.setDisplayLayerStack(display, 0);
+        t.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
 
         t.setLayer(mBGSurfaceControl, INT32_MAX - 2);
         t.show(mBGSurfaceControl);
@@ -1342,7 +1342,7 @@ protected:
         ALOGD("TransactionTest::SetLayerStack");
         {
             TransactionScope ts(*sFakeComposer);
-            ts.setLayerStack(mFGSurfaceControl, 1);
+            ts.setLayerStack(mFGSurfaceControl, ui::LayerStack{1});
         }
 
         // Foreground layer should have disappeared.

@@ -1,4 +1,3 @@
-
 /*
  * Copyright (C) 2007 The Android Open Source Project
  *
@@ -18,7 +17,6 @@
 #pragma once
 
 #include <android/gui/DropInputMode.h>
-#include <compositionengine/LayerFE.h>
 #include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
@@ -39,6 +37,10 @@
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
+#include <compositionengine/LayerFE.h>
+#include <scheduler/Fps.h>
+#include <scheduler/Seamlessness.h>
+
 #include <chrono>
 #include <cstdint>
 #include <list>
@@ -49,15 +51,13 @@
 #include "ClientCache.h"
 #include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/HWComposer.h"
-#include "Fps.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "RenderArea.h"
 #include "Scheduler/LayerInfo.h"
-#include "Scheduler/Seamlessness.h"
 #include "SurfaceFlinger.h"
-#include "SurfaceTracing.h"
+#include "Tracing/LayerTracing.h"
 #include "TransactionCallbackInvoker.h"
 
 using namespace android::surfaceflinger;
@@ -85,20 +85,19 @@ class SurfaceFrame;
 } // namespace frametimeline
 
 struct LayerCreationArgs {
-    LayerCreationArgs(SurfaceFlinger*, sp<Client>, std::string name, uint32_t w, uint32_t h,
-                      uint32_t flags, LayerMetadata);
+    LayerCreationArgs(SurfaceFlinger*, sp<Client>, std::string name, uint32_t flags, LayerMetadata);
 
     SurfaceFlinger* flinger;
     const sp<Client> client;
     std::string name;
-    uint32_t w;
-    uint32_t h;
     uint32_t flags;
     LayerMetadata metadata;
 
     pid_t callingPid;
     uid_t callingUid;
     uint32_t textureName;
+    std::optional<uint32_t> sequence = std::nullopt;
+    bool addToRoot = true;
 };
 
 class Layer : public virtual RefBase, compositionengine::LayerFE {
@@ -152,12 +151,7 @@ public:
         Geometry requested_legacy;
         int32_t z;
 
-        // The identifier of the layer stack this layer belongs to. A layer can
-        // only be associated to a single layer stack. A layer stack is a
-        // z-ordered group of layers which can be associated to one or more
-        // displays. Using the same layer stack on different displays is a way
-        // to achieve mirroring.
-        uint32_t layerStack;
+        ui::LayerStack layerStack;
 
         uint32_t flags;
         uint8_t reserved[2];
@@ -285,6 +279,10 @@ public:
         sp<IBinder> releaseBufferEndpoint;
 
         gui::DropInputMode dropInputMode;
+
+        bool autoRefresh = false;
+
+        bool dimmingEnabled = true;
     };
 
     /*
@@ -332,7 +330,6 @@ public:
 
     static bool isLayerFocusedBasedOnPriority(int32_t priority);
     static void miniDumpHeader(std::string& result);
-    static std::string frameRateCompatibilityString(FrameRateCompatibility compatibility);
 
     // Provide unique string for each class type in the Layer hierarchy
     virtual const char* getType() const = 0;
@@ -371,8 +368,7 @@ public:
     // Set a 2x2 transformation matrix on the layer. This transform
     // will be applied after parent transforms, but before any final
     // producer specified transform.
-    virtual bool setMatrix(const layer_state_t::matrix22_t& matrix,
-                           bool allowNonRectPreservingTransforms);
+    virtual bool setMatrix(const layer_state_t::matrix22_t& matrix);
 
     // This second set of geometry attributes are controlled by
     // setGeometryAppliesWithResize, and their default mode is to be
@@ -408,8 +404,8 @@ public:
     virtual bool setTransparentRegionHint(const Region& transparent);
     virtual bool setTrustedOverlay(bool);
     virtual bool setFlags(uint32_t flags, uint32_t mask);
-    virtual bool setLayerStack(uint32_t layerStack);
-    virtual uint32_t getLayerStack() const;
+    virtual bool setLayerStack(ui::LayerStack);
+    virtual ui::LayerStack getLayerStack() const;
     virtual bool setMetadata(const LayerMetadata& data);
     virtual void setChildrenDrawingParent(const sp<Layer>&);
     virtual bool reparent(const sp<IBinder>& newParentHandle);
@@ -417,36 +413,28 @@ public:
     virtual mat4 getColorTransform() const;
     virtual bool hasColorTransform() const;
     virtual bool isColorSpaceAgnostic() const { return mDrawingState.colorSpaceAgnostic; }
+    virtual bool isDimmingEnabled() const { return getDrawingState().dimmingEnabled; };
 
     // Used only to set BufferStateLayer state
     virtual bool setTransform(uint32_t /*transform*/) { return false; };
     virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
-    virtual bool setBuffer(const std::shared_ptr<renderengine::ExternalTexture>& /*buffer*/,
-                           const sp<Fence>& /*acquireFence*/, nsecs_t /*postTime*/,
+    virtual bool setBuffer(std::shared_ptr<renderengine::ExternalTexture>& /* buffer */,
+                           const BufferData& /* bufferData */, nsecs_t /* postTime */,
                            nsecs_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
-                           const client_cache_t& /*clientCacheId*/, uint64_t /* frameNumber */,
                            std::optional<nsecs_t> /* dequeueTime */,
-                           const FrameTimelineInfo& /*info*/,
-                           const sp<ITransactionCompletedListener>& /* releaseBufferListener */,
-                           const sp<IBinder>& /* releaseBufferEndpoint */) {
+                           const FrameTimelineInfo& /*info*/) {
         return false;
     };
-    virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
     virtual bool setDataspace(ui::Dataspace /*dataspace*/) { return false; };
     virtual bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/) { return false; };
     virtual bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/) { return false; };
     virtual bool setApi(int32_t /*api*/) { return false; };
     virtual bool setSidebandStream(const sp<NativeHandle>& /*sidebandStream*/) { return false; };
     virtual bool setTransactionCompletedListeners(
-            const std::vector<sp<CallbackHandle>>& /*handles*/) {
-        return false;
-    };
-    virtual bool addFrameEvent(const sp<Fence>& /*acquireFence*/, nsecs_t /*postedTime*/,
-                               nsecs_t /*requestedPresentTime*/) {
-        return false;
-    }
+            const std::vector<sp<CallbackHandle>>& /*handles*/);
     virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
     virtual bool setColorSpaceAgnostic(const bool agnostic);
+    virtual bool setDimmingEnabled(const bool dimmingEnabled);
     virtual bool setFrameRateSelectionPriority(int32_t priority);
     virtual bool setFixedTransformHint(ui::Transform::RotationFlags fixedTransformHint);
     virtual void setAutoRefresh(bool /* autoRefresh */) {}
@@ -532,18 +520,14 @@ public:
 
     virtual bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const { return false; }
 
-    virtual uint64_t getHeadFrameNumber(nsecs_t /* expectedPresentTime */) const { return 0; }
-
     /*
      * called after composition.
      * returns true if the layer latched a new buffer this frame.
      */
-    virtual bool onPostComposition(const DisplayDevice*,
+    virtual void onPostComposition(const DisplayDevice*,
                                    const std::shared_ptr<FenceTime>& /*glDoneFence*/,
                                    const std::shared_ptr<FenceTime>& /*presentFence*/,
-                                   const CompositorTiming&) {
-        return false;
-    }
+                                   const CompositorTiming&) {}
 
     // If a buffer was replaced this frame, release the former buffer
     virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) { }
@@ -562,8 +546,6 @@ public:
         return false;
     }
 
-    virtual bool isBufferLatched() const { return false; }
-
     virtual void latchAndReleaseBuffer() {}
 
     /*
@@ -578,6 +560,9 @@ public:
     virtual uint32_t getBufferTransform() const { return 0; }
 
     virtual sp<GraphicBuffer> getBuffer() const { return nullptr; }
+    virtual const std::shared_ptr<renderengine::ExternalTexture>& getExternalTexture() const {
+        return mDrawingState.buffer;
+    };
 
     virtual ui::Transform::RotationFlags getTransformHint() const { return ui::Transform::ROT_0; }
 
@@ -603,10 +588,6 @@ public:
         return parentBounds;
     }
     virtual FrameRate getFrameRateForLayerTree() const;
-
-    virtual std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool /*forceFlush*/) {
-        return {};
-    }
 
     virtual bool getTransformToDisplayInverse() const { return false; }
 
@@ -635,7 +616,13 @@ public:
     void prepareCompositionState(compositionengine::LayerFE::StateSubset subset) override;
     std::vector<compositionengine::LayerFE::LayerSettings> prepareClientCompositionList(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
-    void onLayerDisplayed(const sp<Fence>& releaseFence) override;
+    void onLayerDisplayed(ftl::SharedFuture<FenceResult>) override;
+
+    void setWasClientComposed(const sp<Fence>& fence) override {
+        mLastClientCompositionFence = fence;
+        mClearClientCompositionFenceOnLayerDisplayed = false;
+    }
+
     const char* getDebugName() const override;
 
     bool setShadowRadius(float shadowRadius);
@@ -648,13 +635,12 @@ public:
     bool isLegacyDataSpace() const;
 
     uint32_t getTransactionFlags() const { return mTransactionFlags; }
-    uint32_t getTransactionFlags(uint32_t flags);
-    uint32_t setTransactionFlags(uint32_t flags);
 
-    // Deprecated, please use compositionengine::Output::belongsInOutput()
-    // instead.
-    // TODO(lpique): Move the remaining callers (screencap) to the new function.
-    bool belongsToDisplay(uint32_t layerStack) const { return getLayerStack() == layerStack; }
+    // Sets the masked bits.
+    void setTransactionFlags(uint32_t mask);
+
+    // Clears and returns the masked bits.
+    uint32_t clearTransactionFlags(uint32_t mask);
 
     FloatRect getBounds(const Region& activeTransparentRegion) const;
     FloatRect getBounds() const;
@@ -687,23 +673,29 @@ public:
      */
     bool isHiddenByPolicy() const;
 
+    // True if the layer should be skipped in screenshots, screen recordings,
+    // and mirroring to external or virtual displays.
+    bool isInternalDisplayOverlay() const;
+
+    ui::LayerFilter getOutputFilter() const {
+        return {getLayerStack(), isInternalDisplayOverlay()};
+    }
+
     bool isRemovedFromCurrentState() const;
 
-    LayerProto* writeToProto(LayersProto& layersProto, uint32_t traceFlags, const DisplayDevice*);
+    LayerProto* writeToProto(LayersProto& layersProto, uint32_t traceFlags);
 
     // Write states that are modified by the main thread. This includes drawing
     // state as well as buffer data. This should be called in the main or tracing
     // thread.
-    void writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags, const DisplayDevice*);
+    void writeToProtoDrawingState(LayerProto* layerInfo);
     // Write drawing or current state. If writing current state, the caller should hold the
     // external mStateLock. If writing drawing state, this function should be called on the
     // main or tracing thread.
     void writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet,
-                                 uint32_t traceFlags = SurfaceTracing::TRACE_ALL);
+                                 uint32_t traceFlags = LayerTracing::TRACE_ALL);
 
     gui::WindowInfo::Type getWindowType() const { return mWindowType; }
-
-    bool getPrimaryDisplayOnly() const;
 
     void updateMirrorInfo();
 
@@ -747,16 +739,14 @@ public:
 
     void miniDump(std::string& result, const DisplayDevice&) const;
     void dumpFrameStats(std::string& result) const;
-    void dumpFrameEvents(std::string& result);
     void dumpCallingUidPid(std::string& result) const;
     void clearFrameStats();
     void logFrameStats();
     void getFrameStats(FrameStats* outStats) const;
     void onDisconnect();
-    void addAndGetFrameTimestamps(const NewFrameEventsEntry* newEntry,
-                                  FrameEventHistoryDelta* outDelta);
 
     ui::Transform getTransform() const;
+    bool isTransformValid() const;
 
     // Returns the Alpha of the Surface, accounting for the Alpha
     // of parent Surfaces in the hierarchy (alpha's will be multiplied
@@ -854,18 +844,19 @@ public:
     bool getPremultipledAlpha() const;
     void setInputInfo(const gui::WindowInfo& info);
 
-    gui::WindowInfo fillInputInfo(const sp<DisplayDevice>& display);
+    gui::WindowInfo fillInputInfo(const ui::Transform& displayTransform, bool displayIsSecure);
+
     /**
      * Returns whether this layer has an explicitly set input-info.
      */
     bool hasInputInfo() const;
 
-    // Sets the parent's gameMode for this layer and all its children. Parent's gameMode is applied
-    // only to layers that do not have the GAME_MODE_METADATA set by WMShell. Any layer(along with
-    // its children) that has the metadata set will use the gameMode from the metadata.
-    void setGameModeForTree(int32_t parentGameMode);
-    void setGameMode(int32_t gameMode) { mGameMode = gameMode; };
-    int32_t getGameMode() const { return mGameMode; }
+    // Sets the GameMode for the tree rooted at this layer. A layer in the tree inherits this
+    // GameMode unless it (or an ancestor) has GAME_MODE_METADATA.
+    void setGameModeForTree(GameMode);
+
+    void setGameMode(GameMode gameMode) { mGameMode = gameMode; }
+    GameMode getGameMode() const { return mGameMode; }
 
     virtual uid_t getOwnerUid() const { return mOwnerUid; }
 
@@ -886,7 +877,7 @@ public:
     // Layer serial number.  This gives layers an explicit ordering, so we
     // have a stable sort order when their layer stack and Z-order are
     // the same.
-    int32_t sequence{sSequence++};
+    const int32_t sequence;
 
     bool mPendingHWCDestroy{false};
 
@@ -900,6 +891,8 @@ public:
     virtual std::atomic<int32_t>* getPendingBufferCounter() { return nullptr; }
     virtual std::string getPendingBufferCounterName() { return ""; }
     virtual bool updateGeometry() { return false; }
+
+    virtual bool simpleBufferUpdate(const layer_state_t&) const { return false; }
 
 protected:
     friend class impl::SurfaceInterceptor;
@@ -961,6 +954,19 @@ protected:
     bool usingRelativeZ(LayerVector::StateSet) const;
 
     virtual ui::Transform getInputTransform() const;
+    /**
+     * Get the bounds in layer space within which this layer can receive input.
+     *
+     * These bounds are used to:
+     * - Determine the input frame for the layer to be used for occlusion detection; and
+     * - Determine the coordinate space within which the layer will receive input. The top-left of
+     *   this rect will be the origin of the coordinate space that the input events sent to the
+     *   layer will be in (prior to accounting for surface insets).
+     *
+     * The layer can still receive touch input if these bounds are invalid if
+     * "replaceTouchableRegionWithCrop" is specified. In this case, the layer will receive input
+     * in this layer's space, regardless of the specified crop layer.
+     */
     virtual Rect getInputBounds() const;
 
     // constant
@@ -981,13 +987,6 @@ protected:
 
     // Timestamp history for UIAutomation. Thread safe.
     FrameTracker mFrameTracker;
-
-    // Timestamp history for the consumer to query.
-    // Accessed by both consumer and producer on main and binder threads.
-    Mutex mFrameEventHistoryMutex;
-    ConsumerFrameEventHistory mFrameEventHistory;
-    FenceTimeline mAcquireTimeline;
-    FenceTimeline mReleaseTimeline;
 
     // main thread
     sp<NativeHandle> mSidebandStream;
@@ -1036,13 +1035,16 @@ protected:
 
     mutable bool mDrawingStateModified = false;
 
+    sp<Fence> mLastClientCompositionFence;
+    bool mClearClientCompositionFenceOnLayerDisplayed = false;
 private:
     virtual void setTransformHint(ui::Transform::RotationFlags) {}
 
     // Returns true if the layer can draw shadows on its border.
     virtual bool canDrawShadows() const { return true; }
 
-    Hwc2::IComposerClient::Composition getCompositionType(const DisplayDevice&) const;
+    aidl::android::hardware::graphics::composer3::Composition getCompositionType(
+            const DisplayDevice&) const;
 
     /**
      * Returns an unsorted vector of all layers that are part of this tree.
@@ -1078,8 +1080,8 @@ private:
     // hasInputInfo() or no-op if no such parent is found.
     void fillTouchOcclusionMode(gui::WindowInfo& info);
 
-    // Fills in the frame and transform info for the gui::WindowInfo
-    void fillInputFrameInfo(gui::WindowInfo& info, const ui::Transform& toNonRotatedDisplay);
+    // Fills in the frame and transform info for the gui::WindowInfo.
+    void fillInputFrameInfo(gui::WindowInfo&, const ui::Transform& screenToDisplay);
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling, which is
@@ -1115,14 +1117,16 @@ private:
     // shadow radius is the set shadow radius, otherwise its the parent's shadow radius.
     float mEffectiveShadowRadius = 0.f;
 
-    // Game mode for the layer. Set by WindowManagerShell, game mode is used in
-    // metrics(SurfaceFlingerStats).
-    int32_t mGameMode = 0;
+    // Game mode for the layer. Set by WindowManagerShell and recorded by SurfaceFlingerStats.
+    GameMode mGameMode = GameMode::Unsupported;
 
     // A list of regions on this layer that should have blurs.
     const std::vector<BlurRegion> getBlurRegions() const;
 
     bool mIsAtRoot = false;
+
+    uint32_t mLayerCreationFlags;
+    bool findInHierarchy(const sp<Layer>&);
 };
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate);

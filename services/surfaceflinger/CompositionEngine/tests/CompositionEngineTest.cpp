@@ -203,9 +203,9 @@ TEST_F(CompositionEngineUpdateCursorAsyncTest, handlesMultipleLayersBeingCursorL
  */
 
 struct CompositionTestPreComposition : public CompositionEngineTest {
-    sp<StrictMock<mock::LayerFE>> mLayer1FE{new StrictMock<mock::LayerFE>()};
-    sp<StrictMock<mock::LayerFE>> mLayer2FE{new StrictMock<mock::LayerFE>()};
-    sp<StrictMock<mock::LayerFE>> mLayer3FE{new StrictMock<mock::LayerFE>()};
+    sp<StrictMock<mock::LayerFE>> mLayer1FE = sp<StrictMock<mock::LayerFE>>::make();
+    sp<StrictMock<mock::LayerFE>> mLayer2FE = sp<StrictMock<mock::LayerFE>>::make();
+    sp<StrictMock<mock::LayerFE>> mLayer3FE = sp<StrictMock<mock::LayerFE>>::make();
 };
 
 TEST_F(CompositionTestPreComposition, preCompositionSetsFrameTimestamp) {

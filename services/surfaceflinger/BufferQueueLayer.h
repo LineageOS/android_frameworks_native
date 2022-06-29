@@ -42,9 +42,7 @@ public:
     // Implements Layer.
     const char* getType() const override { return "BufferQueueLayer"; }
 
-    void onLayerDisplayed(const sp<Fence>& releaseFence) override;
-
-    std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush) override;
+    void onLayerDisplayed(ftl::SharedFuture<FenceResult>) override;
 
     // If a buffer was replaced this frame, release the former buffer
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;
@@ -62,6 +60,11 @@ public:
 
     status_t setDefaultBufferProperties(uint32_t w, uint32_t h, PixelFormat format);
     sp<IGraphicBufferProducer> getProducer() const;
+
+    void setSizeForTest(uint32_t w, uint32_t h) {
+        mDrawingState.active_legacy.w = w;
+        mDrawingState.active_legacy.h = h;
+    }
 
 protected:
     void gatherBufferInfo() override;
@@ -89,7 +92,6 @@ protected:
     };
 
 private:
-    uint64_t getFrameNumber(nsecs_t expectedPresentTime) const override;
 
     bool latchSidebandStream(bool& recomputeVisibleRegions) override;
     void setTransformHint(ui::Transform::RotationFlags displayTransformHint) override;
@@ -100,7 +102,7 @@ private:
                             nsecs_t expectedPresentTime) override;
 
     status_t updateActiveBuffer() override;
-    status_t updateFrameNumber(nsecs_t latchTime) override;
+    status_t updateFrameNumber() override;
     void setFrameTimelineInfoForBuffer(const FrameTimelineInfo& frameTimelineInfo) override;
 
     sp<Layer> createClone() override;

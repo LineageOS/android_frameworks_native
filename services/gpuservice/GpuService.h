@@ -28,6 +28,10 @@
 
 namespace android {
 
+namespace gpuwork {
+class GpuWork;
+}
+
 class GpuMem;
 class GpuStats;
 class GpuMemTracer;
@@ -77,6 +81,7 @@ private:
      * Attributes
      */
     std::shared_ptr<GpuMem> mGpuMem;
+    std::shared_ptr<gpuwork::GpuWork> mGpuWork;
     std::unique_ptr<GpuStats> mGpuStats;
     std::unique_ptr<GpuMemTracer> mGpuMemTracer;
     std::mutex mLock;

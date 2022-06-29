@@ -14,85 +14,68 @@
  * limitations under the License.
  */
 
-#include "Fps.h"
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+
+#include <scheduler/Fps.h>
+
+#include "FpsOps.h"
 
 namespace android {
 
 TEST(FpsTest, construct) {
-    Fps fpsDefault;
-    EXPECT_FALSE(fpsDefault.isValid());
+    EXPECT_FALSE(Fps().isValid());
 
-    Fps fps1(60.0f);
-    EXPECT_TRUE(fps1.isValid());
-    Fps fps2 = Fps::fromPeriodNsecs(static_cast<nsecs_t>(1e9f / 60.0f));
-    EXPECT_TRUE(fps2.isValid());
-    EXPECT_TRUE(fps1.equalsWithMargin(fps2));
+    EXPECT_FALSE((0_Hz).isValid());
+    EXPECT_TRUE((120_Hz).isValid());
+    EXPECT_TRUE((0.5_Hz).isValid());
+
+    EXPECT_FALSE(Fps::fromPeriodNsecs(0).isValid());
+
+    const Fps fps = Fps::fromPeriodNsecs(16'666'667);
+    EXPECT_TRUE(fps.isValid());
+    EXPECT_EQ(fps, 60_Hz);
 }
 
 TEST(FpsTest, compare) {
-    constexpr float kEpsilon = 1e-4f;
-    const Fps::EqualsInBuckets equalsInBuckets;
-    const Fps::EqualsWithMargin equalsWithMargin;
+    EXPECT_EQ(60_Hz, 60_Hz);
+    EXPECT_EQ(60_Hz, 59.9999_Hz);
+    EXPECT_EQ(60_Hz, 60.0001_Hz);
 
-    EXPECT_TRUE(Fps(60.0f).equalsWithMargin(Fps(60.f)));
-    EXPECT_TRUE(Fps(60.0f).equalsWithMargin(Fps(60.f - kEpsilon)));
-    EXPECT_TRUE(Fps(60.0f).equalsWithMargin(Fps(60.f + kEpsilon)));
+    EXPECT_LE(60_Hz, 60_Hz);
+    EXPECT_LE(60_Hz, 59.9999_Hz);
+    EXPECT_LE(60_Hz, 60.0001_Hz);
 
-    EXPECT_TRUE(equalsInBuckets(Fps(60.0f), Fps(60.0f)));
-    EXPECT_TRUE(equalsInBuckets(Fps(60.0f), Fps(60.0f - kEpsilon)));
-    EXPECT_TRUE(equalsInBuckets(Fps(60.0f), Fps(60.0f + kEpsilon)));
+    EXPECT_GE(60_Hz, 60_Hz);
+    EXPECT_GE(60_Hz, 59.9999_Hz);
+    EXPECT_GE(60_Hz, 60.0001_Hz);
 
-    EXPECT_TRUE(equalsWithMargin(Fps(60.0f), Fps(60.0f)));
-    EXPECT_TRUE(equalsWithMargin(Fps(60.0f), Fps(60.0f - kEpsilon)));
-    EXPECT_TRUE(equalsWithMargin(Fps(60.0f), Fps(60.0f + kEpsilon)));
-
-    EXPECT_TRUE(Fps(60.0f).lessThanOrEqualWithMargin(Fps(60.f + kEpsilon)));
-    EXPECT_TRUE(Fps(60.0f).lessThanOrEqualWithMargin(Fps(60.f)));
-    EXPECT_TRUE(Fps(60.0f).lessThanOrEqualWithMargin(Fps(60.f - kEpsilon)));
-
-    EXPECT_TRUE(Fps(60.0f).greaterThanOrEqualWithMargin(Fps(60.f + kEpsilon)));
-    EXPECT_TRUE(Fps(60.0f).greaterThanOrEqualWithMargin(Fps(60.f)));
-    EXPECT_TRUE(Fps(60.0f).greaterThanOrEqualWithMargin(Fps(60.f - kEpsilon)));
-
-    // Fps with difference of 1 should be different
-    EXPECT_FALSE(Fps(60.0f).equalsWithMargin(Fps(61.f)));
-    EXPECT_TRUE(Fps(60.0f).lessThanWithMargin(Fps(61.f)));
-    EXPECT_TRUE(Fps(60.0f).greaterThanWithMargin(Fps(59.f)));
+    // Fps with difference of 1 should be different.
+    EXPECT_NE(60_Hz, 61_Hz);
+    EXPECT_LT(60_Hz, 61_Hz);
+    EXPECT_GT(60_Hz, 59_Hz);
 
     // These are common refresh rates which should be different.
-    EXPECT_FALSE(Fps(60.0f).equalsWithMargin(Fps(59.94f)));
-    EXPECT_TRUE(Fps(60.0f).greaterThanWithMargin(Fps(59.94f)));
-    EXPECT_FALSE(equalsInBuckets(Fps(60.0f), Fps(59.94f)));
-    EXPECT_FALSE(equalsWithMargin(Fps(60.0f), Fps(59.94f)));
-    EXPECT_NE(std::hash<Fps>()(Fps(60.0f)), std::hash<Fps>()(Fps(59.94f)));
-
-    EXPECT_FALSE(Fps(30.0f).equalsWithMargin(Fps(29.97f)));
-    EXPECT_TRUE(Fps(30.0f).greaterThanWithMargin(Fps(29.97f)));
-    EXPECT_FALSE(equalsInBuckets(Fps(30.0f), Fps(29.97f)));
-    EXPECT_FALSE(equalsWithMargin(Fps(30.0f), Fps(29.97f)));
-    EXPECT_NE(std::hash<Fps>()(Fps(30.0f)), std::hash<Fps>()(Fps(29.97f)));
+    EXPECT_NE(60_Hz, 59.94_Hz);
+    EXPECT_GT(60_Hz, 59.94_Hz);
+    EXPECT_NE(30_Hz, 29.97_Hz);
+    EXPECT_GT(30_Hz, 29.97_Hz);
 }
 
 TEST(FpsTest, getIntValue) {
-    EXPECT_EQ(30, Fps(30.1f).getIntValue());
-    EXPECT_EQ(31, Fps(30.9f).getIntValue());
-    EXPECT_EQ(31, Fps(30.5f).getIntValue());
+    EXPECT_EQ(30, (30.1_Hz).getIntValue());
+    EXPECT_EQ(31, (30.9_Hz).getIntValue());
+    EXPECT_EQ(31, (30.5_Hz).getIntValue());
 }
 
-TEST(FpsTest, equalsInBucketsImpliesEqualHashes) {
-    constexpr float kStep = 1e-4f;
-    const Fps::EqualsInBuckets equals;
-    for (float fps = 30.0f; fps < 31.0f; fps += kStep) {
-        const Fps left(fps);
-        const Fps right(fps + kStep);
-        if (equals(left, right)) {
-            ASSERT_EQ(std::hash<Fps>()(left), std::hash<Fps>()(right))
-                    << "left= " << left << " right=" << right;
-        }
-    }
+TEST(FpsTest, range) {
+    const auto fps = Fps::fromPeriodNsecs(16'666'665);
+
+    EXPECT_TRUE((FpsRange{60.000004_Hz, 60.000004_Hz}.includes(fps)));
+    EXPECT_TRUE((FpsRange{59_Hz, 60.1_Hz}.includes(fps)));
+    EXPECT_FALSE((FpsRange{75_Hz, 90_Hz}.includes(fps)));
+    EXPECT_FALSE((FpsRange{60.0011_Hz, 90_Hz}.includes(fps)));
+    EXPECT_FALSE((FpsRange{50_Hz, 59.998_Hz}.includes(fps)));
 }
 
 } // namespace android

@@ -65,7 +65,7 @@ public:
 
                 SurfaceComposerClient::Transaction t;
                 t.setDisplaySurface(vDisplay, producer);
-                t.setDisplayLayerStack(vDisplay, 0);
+                t.setDisplayLayerStack(vDisplay, ui::DEFAULT_LAYER_STACK);
                 t.setDisplayProjection(vDisplay, displayState.orientation,
                                        Rect(displayState.layerStackSpaceRect), Rect(resolution));
                 t.apply();
@@ -79,7 +79,8 @@ public:
 
                 BufferItem item;
                 itemConsumer->acquireBuffer(&item, 0, true);
-                auto sc = std::make_unique<ScreenCapture>(item.mGraphicBuffer);
+                constexpr bool kContainsHdr = false;
+                auto sc = std::make_unique<ScreenCapture>(item.mGraphicBuffer, kContainsHdr);
                 itemConsumer->releaseBuffer(item);
                 SurfaceComposerClient::destroyDisplay(vDisplay);
                 return sc;

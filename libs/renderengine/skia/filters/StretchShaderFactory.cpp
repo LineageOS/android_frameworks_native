@@ -184,7 +184,7 @@ static const SkString stretchShader = SkString(R"(
         );
         coord.x = (outU - uScrollX) * viewportWidth;
         coord.y = (outV - uScrollY) * viewportHeight;
-        return sample(uContentTexture, coord);
+        return uContentTexture.eval(coord);
     })");
 
 const float INTERPOLATION_STRENGTH_VALUE = 0.7f;
@@ -238,7 +238,7 @@ sk_sp<SkShader> StretchShaderFactory::createSkShader(const sk_sp<SkShader>& inpu
     mBuilder->uniform("viewportWidth").set(&viewportWidth, 1);
     mBuilder->uniform("viewportHeight").set(&viewportHeight, 1);
 
-    return mBuilder->makeShader(nullptr, false);
+    return mBuilder->makeShader();
 }
 
 } // namespace skia

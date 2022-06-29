@@ -50,11 +50,6 @@ struct DisplayConfigImpl {
     int32_t height{0};
 
     /**
-     * The display density.
-     */
-    float density{0};
-
-    /**
      * The refresh rate of the display configuration, in frames per second.
      */
     float fps{0.0};
@@ -168,8 +163,8 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
             const ui::DisplayMode& mode = modes[j];
             modesPerDisplay[i].emplace_back(
                     DisplayConfigImpl{static_cast<size_t>(mode.id), mode.resolution.getWidth(),
-                                      mode.resolution.getHeight(), staticInfo.density,
-                                      mode.refreshRate, mode.sfVsyncOffset, mode.appVsyncOffset});
+                                      mode.resolution.getHeight(), mode.refreshRate,
+                                      mode.sfVsyncOffset, mode.appVsyncOffset});
         }
     }
 
@@ -281,12 +276,6 @@ int ADisplay_getCurrentConfig(ADisplay* display, ADisplayConfig** outConfig) {
     }
 
     return NAME_NOT_FOUND;
-}
-
-float ADisplayConfig_getDensity(ADisplayConfig* config) {
-    CHECK_NOT_NULL(config);
-
-    return reinterpret_cast<DisplayConfigImpl*>(config)->density;
 }
 
 int32_t ADisplayConfig_getWidth(ADisplayConfig* config) {

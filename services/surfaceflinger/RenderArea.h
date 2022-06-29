@@ -4,6 +4,7 @@
 #include <ui/Transform.h>
 
 #include <functional>
+#include "Layer.h"
 
 namespace android {
 
@@ -84,6 +85,10 @@ public:
 
     // Returns the source display viewport.
     const Rect& getLayerStackSpaceRect() const { return mLayerStackSpaceRect; }
+
+    // If this is a LayerRenderArea, return the root layer of the
+    // capture operation.
+    virtual sp<Layer> getParentLayer() const { return nullptr; }
 
 protected:
     const bool mAllowSecureLayers;

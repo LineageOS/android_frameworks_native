@@ -36,17 +36,11 @@ class CompositionEngine;
 struct DisplayCreationArgs {
     DisplayId id;
 
-    // Unset for virtual displays
-    std::optional<ui::DisplayConnectionType> connectionType;
-
     // Size of the display in pixels
-    ui::Size pixels = ui::Size::INVALID;
+    ui::Size pixels = ui::kInvalidSize;
 
     // True if this display should be considered secure
     bool isSecure = false;
-
-    // Gives the initial layer stack id to be used for the display
-    uint32_t layerStackId = ~0u;
 
     // Optional pointer to the power advisor interface, if one is needed for
     // this display.
@@ -69,11 +63,6 @@ public:
         return *this;
     }
 
-    DisplayCreationArgsBuilder& setConnectionType(ui::DisplayConnectionType connectionType) {
-        mArgs.connectionType = connectionType;
-        return *this;
-    }
-
     DisplayCreationArgsBuilder& setPixels(ui::Size pixels) {
         mArgs.pixels = pixels;
         return *this;
@@ -81,11 +70,6 @@ public:
 
     DisplayCreationArgsBuilder& setIsSecure(bool isSecure) {
         mArgs.isSecure = isSecure;
-        return *this;
-    }
-
-    DisplayCreationArgsBuilder& setLayerStackId(uint32_t layerStackId) {
-        mArgs.layerStackId = layerStackId;
         return *this;
     }
 

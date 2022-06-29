@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
+#include "DebugConfig.h"
 #include "input/InputDevice.h"
 
 #include "InputState.h"
 
+#include <cinttypes>
 #include "InputDispatcher.h"
 
 namespace android::inputdispatcher {
@@ -100,11 +102,11 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
                 mMotionMementos.erase(mMotionMementos.begin() + index);
                 return true;
             }
-#if DEBUG_OUTBOUND_EVENT_DETAILS
-            ALOGD("Dropping inconsistent motion up or cancel event: deviceId=%d, source=%08x, "
-                  "displayId=%" PRId32 ", actionMasked=%d",
-                  entry.deviceId, entry.source, entry.displayId, actionMasked);
-#endif
+            if (DEBUG_OUTBOUND_EVENT_DETAILS) {
+                ALOGD("Dropping inconsistent motion up or cancel event: deviceId=%d, source=%08x, "
+                      "displayId=%" PRId32 ", actionMasked=%d",
+                      entry.deviceId, entry.source, entry.displayId, actionMasked);
+            }
             return false;
         }
 
@@ -157,11 +159,11 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
                     return true;
                 }
             }
-#if DEBUG_OUTBOUND_EVENT_DETAILS
-            ALOGD("Dropping inconsistent motion pointer up/down or move event: "
-                  "deviceId=%d, source=%08x, displayId=%" PRId32 ", actionMasked=%d",
-                  entry.deviceId, entry.source, entry.displayId, actionMasked);
-#endif
+            if (DEBUG_OUTBOUND_EVENT_DETAILS) {
+                ALOGD("Dropping inconsistent motion pointer up/down or move event: "
+                      "deviceId=%d, source=%08x, displayId=%" PRId32 ", actionMasked=%d",
+                      entry.deviceId, entry.source, entry.displayId, actionMasked);
+            }
             return false;
         }
 
@@ -171,11 +173,11 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
                 mMotionMementos.erase(mMotionMementos.begin() + index);
                 return true;
             }
-#if DEBUG_OUTBOUND_EVENT_DETAILS
-            ALOGD("Dropping inconsistent motion hover exit event: deviceId=%d, source=%08x, "
-                  "displayId=%" PRId32,
-                  entry.deviceId, entry.source, entry.displayId);
-#endif
+            if (DEBUG_OUTBOUND_EVENT_DETAILS) {
+                ALOGD("Dropping inconsistent motion hover exit event: deviceId=%d, source=%08x, "
+                      "displayId=%" PRId32,
+                      entry.deviceId, entry.source, entry.displayId);
+            }
             return false;
         }
 
@@ -296,8 +298,7 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizeCancelationEvents
                                                   memento.yPrecision, memento.xCursorPosition,
                                                   memento.yCursorPosition, memento.downTime,
                                                   memento.pointerCount, memento.pointerProperties,
-                                                  memento.pointerCoords, 0 /*xOffset*/,
-                                                  0 /*yOffset*/));
+                                                  memento.pointerCoords));
         }
     }
     return events;
@@ -349,8 +350,7 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizePointerDownEvents
                                                   AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
                                                   memento.yPrecision, memento.xCursorPosition,
                                                   memento.yCursorPosition, memento.downTime,
-                                                  pointerCount, pointerProperties, pointerCoords,
-                                                  0 /*xOffset*/, 0 /*yOffset*/));
+                                                  pointerCount, pointerProperties, pointerCoords));
         }
 
         memento.firstNewPointerIdx = INVALID_POINTER_INDEX;

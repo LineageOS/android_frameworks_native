@@ -17,7 +17,7 @@
 #ifndef _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERFACTORY_H
 #define _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERFACTORY_H
 
-#include <utils/RefBase.h>
+#include <utils/StrongPointer.h>
 
 #include "InputDispatcherInterface.h"
 #include "InputDispatcherPolicyInterface.h"
@@ -25,7 +25,7 @@
 namespace android {
 
 // This factory method is used to encapsulate implementation details in internal header files.
-sp<InputDispatcherInterface> createInputDispatcher(
+std::unique_ptr<InputDispatcherInterface> createInputDispatcher(
         const sp<InputDispatcherPolicyInterface>& policy);
 
 } // namespace android

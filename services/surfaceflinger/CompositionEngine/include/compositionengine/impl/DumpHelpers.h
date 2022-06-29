@@ -17,11 +17,13 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <type_traits>
 
 #include <math/mat4.h>
 #include <ui/FloatRect.h>
+#include <ui/LayerStack.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/StretchEffect.h>
@@ -52,13 +54,23 @@ void dumpVal(std::string& out, const char* name, const std::string& valueName, E
     dumpVal(out, name, valueName, static_cast<std::underlying_type_t<EnumType>>(value));
 }
 
-void dumpVal(std::string& out, const char* name, const FloatRect& rect);
-void dumpVal(std::string& out, const char* name, const Rect& rect);
-void dumpVal(std::string& out, const char* name, const Region& region);
-void dumpVal(std::string& out, const char* name, const ui::Transform&);
-void dumpVal(std::string& out, const char* name, const ui::Size&);
+void dumpVal(std::string& out, const char* name, ui::LayerFilter);
+void dumpVal(std::string& out, const char* name, ui::Size);
 
-void dumpVal(std::string& out, const char* name, const mat4& tr);
+void dumpVal(std::string& out, const char* name, const FloatRect&);
+void dumpVal(std::string& out, const char* name, const Rect&);
+void dumpVal(std::string& out, const char* name, const Region&);
+void dumpVal(std::string& out, const char* name, const ui::Transform&);
+void dumpVal(std::string& out, const char* name, const mat4&);
 void dumpVal(std::string& out, const char* name, const StretchEffect&);
+
+template <typename T>
+void dumpVal(std::string& out, const char* name, std::optional<T> value) {
+    if (value.has_value()) {
+        return dumpVal(out, name, *value);
+    } else {
+        return dumpVal(out, name, "nullopt");
+    }
+}
 
 } // namespace android::compositionengine::impl

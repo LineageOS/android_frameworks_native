@@ -110,6 +110,15 @@ status_t Gralloc2Mapper::validateBufferDescriptorInfo(
               descriptorInfo->usage & ~validUsageBits);
         return BAD_VALUE;
     }
+
+    // Gralloc2 implementations never understand non-BLOB with GPU_DATA_BUFFER
+    // and do not reliably reject it.
+    if (descriptorInfo->usage & BufferUsage::GPU_DATA_BUFFER &&
+        descriptorInfo->format != hardware::graphics::common::V1_1::PixelFormat::BLOB) {
+        ALOGE("gralloc2 does not support non-BLOB pixel formats with GPU_DATA_BUFFER usage");
+        return BAD_VALUE;
+    }
+
     return NO_ERROR;
 }
 

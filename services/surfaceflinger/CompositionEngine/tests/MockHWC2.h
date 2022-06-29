@@ -32,6 +32,8 @@
 #include <ui/GraphicTypes.h>
 #include "DisplayHardware/HWC2.h"
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
@@ -56,8 +58,9 @@ public:
                        const android::sp<android::Fence>&));
     MOCK_METHOD1(setSurfaceDamage, Error(const android::Region&));
     MOCK_METHOD1(setBlendMode, Error(hal::BlendMode));
-    MOCK_METHOD1(setColor, Error(hal::Color));
-    MOCK_METHOD1(setCompositionType, Error(hal::Composition));
+    MOCK_METHOD1(setColor, Error(aidl::android::hardware::graphics::composer3::Color));
+    MOCK_METHOD1(setCompositionType,
+                 Error(aidl::android::hardware::graphics::composer3::Composition));
     MOCK_METHOD1(setDataspace, Error(android::ui::Dataspace));
     MOCK_METHOD2(setPerFrameMetadata, Error(const int32_t, const android::HdrMetadata&));
     MOCK_METHOD1(setDisplayFrame, Error(const android::Rect&));
@@ -71,6 +74,8 @@ public:
     MOCK_METHOD1(setColorTransform, Error(const android::mat4&));
     MOCK_METHOD3(setLayerGenericMetadata,
                  Error(const std::string&, bool, const std::vector<uint8_t>&));
+    MOCK_METHOD1(setBrightness, Error(float));
+    MOCK_METHOD1(setBlockingRegion, Error(const android::Region&));
 };
 
 } // namespace mock

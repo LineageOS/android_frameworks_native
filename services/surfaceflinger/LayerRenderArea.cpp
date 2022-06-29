@@ -26,18 +26,12 @@
 namespace android {
 namespace {
 
-struct ReparentForDrawing {
-    const sp<Layer>& oldParent;
-
-    ReparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent,
-                       const Rect& drawingBounds)
-          : oldParent(oldParent) {
+void reparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent,
+                   const Rect& drawingBounds) {
         // Compute and cache the bounds for the new parent layer.
         newParent->computeBounds(drawingBounds.toFloatRect(), ui::Transform(),
-                                 0.f /* shadowRadius */);
+            0.f /* shadowRadius */);
         oldParent->setChildrenDrawingParent(newParent);
-    }
-    ~ReparentForDrawing() { oldParent->setChildrenDrawingParent(oldParent); }
 };
 
 } // namespace
@@ -112,15 +106,21 @@ void LayerRenderArea::render(std::function<void()> drawLayers) {
         }
         drawLayers();
     } else {
-        uint32_t w = static_cast<uint32_t>(getWidth());
-        uint32_t h = static_cast<uint32_t>(getHeight());
         // In the "childrenOnly" case we reparent the children to a screenshot
         // layer which has no properties set and which does not draw.
+        //  We hold the statelock as the reparent-for-drawing operation modifies the
+        //  hierarchy and there could be readers on Binder threads, like dump.
         sp<ContainerLayer> screenshotParentLayer = mFlinger.getFactory().createContainerLayer(
-                {&mFlinger, nullptr, "Screenshot Parent"s, w, h, 0, LayerMetadata()});
-
-        ReparentForDrawing reparent(mLayer, screenshotParentLayer, sourceCrop);
+                  {&mFlinger, nullptr, "Screenshot Parent"s, 0, LayerMetadata()});
+        {
+            Mutex::Autolock _l(mFlinger.mStateLock);
+            reparentForDrawing(mLayer, screenshotParentLayer, sourceCrop);
+        }
         drawLayers();
+        {
+            Mutex::Autolock _l(mFlinger.mStateLock);
+            mLayer->setChildrenDrawingParent(mLayer);
+        }
     }
 }
 

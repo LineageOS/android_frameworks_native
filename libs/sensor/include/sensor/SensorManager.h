@@ -58,6 +58,7 @@ public:
 
     ssize_t getSensorList(Sensor const* const** list);
     ssize_t getDynamicSensorList(Vector<Sensor>& list);
+    ssize_t getDynamicSensorList(Sensor const* const** list);
     Sensor const* getDefaultSensor(int type);
     sp<SensorEventQueue> createEventQueue(
         String8 packageName = String8(""), int mode = 0, String16 attributionTag = String16(""));
@@ -83,6 +84,8 @@ private:
     sp<ISensorServer> mSensorServer;
     Sensor const** mSensorList;
     Vector<Sensor> mSensors;
+    Sensor const** mDynamicSensorList = nullptr;
+    Vector<Sensor> mDynamicSensors;
     sp<IBinder::DeathRecipient> mDeathObserver;
     const String16 mOpPackageName;
     std::unordered_map<int, sp<ISensorEventConnection>> mDirectConnection;

@@ -20,9 +20,10 @@
 namespace android::test {
 
 #define CHECK_OFFSET(type, member, expected_offset) \
-    static_assert((offsetof(type, member) == (expected_offset)), "")
+    static_assert((offsetof(type, member) == (expected_offset)))
 
 TEST(DisplayEventStructLayoutTest, TestEventAlignment) {
+    static_assert(std::is_pod<DisplayEventReceiver::Event::VSync>::value);
     CHECK_OFFSET(DisplayEventReceiver::Event, vsync, 24);
     CHECK_OFFSET(DisplayEventReceiver::Event, hotplug, 24);
     CHECK_OFFSET(DisplayEventReceiver::Event, modeChange, 24);
@@ -32,10 +33,29 @@ TEST(DisplayEventStructLayoutTest, TestEventAlignment) {
     CHECK_OFFSET(DisplayEventReceiver::Event::Header, timestamp, 16);
 
     CHECK_OFFSET(DisplayEventReceiver::Event::VSync, count, 0);
-    CHECK_OFFSET(DisplayEventReceiver::Event::VSync, expectedVSyncTimestamp, 8);
-    CHECK_OFFSET(DisplayEventReceiver::Event::VSync, deadlineTimestamp, 16);
-    CHECK_OFFSET(DisplayEventReceiver::Event::VSync, frameInterval, 24);
-    CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncId, 32);
+    CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncData.frameInterval, 8);
+    CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncData.preferredFrameTimelineIndex, 16);
+    CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncData.frameTimelines, 24);
+    CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncData.frameTimelines[0].vsyncId, 24);
+    CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncData.frameTimelines[0].deadlineTimestamp,
+                 32);
+    CHECK_OFFSET(DisplayEventReceiver::Event::VSync,
+                 vsyncData.frameTimelines[0].expectedPresentationTime, 40);
+    // Also test the offsets of the last frame timeline. A loop is not used because the non-const
+    // index cannot be used in static_assert.
+    const int lastFrameTimelineOffset = /* Start of array */ 24 +
+            (VsyncEventData::kFrameTimelinesLength - 1) * /* Size of FrameTimeline */ 24;
+    CHECK_OFFSET(DisplayEventReceiver::Event::VSync,
+                 vsyncData.frameTimelines[VsyncEventData::kFrameTimelinesLength - 1].vsyncId,
+                 lastFrameTimelineOffset);
+    CHECK_OFFSET(DisplayEventReceiver::Event::VSync,
+                 vsyncData.frameTimelines[VsyncEventData::kFrameTimelinesLength - 1]
+                         .deadlineTimestamp,
+                 lastFrameTimelineOffset + 8);
+    CHECK_OFFSET(DisplayEventReceiver::Event::VSync,
+                 vsyncData.frameTimelines[VsyncEventData::kFrameTimelinesLength - 1]
+                         .expectedPresentationTime,
+                 lastFrameTimelineOffset + 16);
 
     CHECK_OFFSET(DisplayEventReceiver::Event::Hotplug, connected, 0);
 

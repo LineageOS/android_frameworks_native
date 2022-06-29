@@ -22,6 +22,8 @@
 
 #include <unordered_map>
 
+#include "WpHash.h"
+
 namespace android {
 
 class Layer;
@@ -54,11 +56,6 @@ public:
 
 private:
     mutable std::mutex mMutex;
-    struct WpHash {
-        size_t operator()(const wp<IBinder>& p) const {
-            return std::hash<IBinder*>()(p.unsafe_get());
-        }
-    };
 
     std::unordered_map<wp<IBinder>, sp<gui::ITunnelModeEnabledListener>, WpHash> mListeners
             GUARDED_BY(mMutex);

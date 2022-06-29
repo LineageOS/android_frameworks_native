@@ -46,9 +46,8 @@ TEST_F(OnInitializeDisplaysTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
     // We expect a call to get the active display config.
     Case::Display::setupHwcGetActiveConfigCallExpectations(this);
 
-    // We expect invalidate() to be invoked once to trigger display transaction
-    // processing.
-    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+    // We expect a scheduled commit for the display transaction.
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
 
@@ -63,15 +62,11 @@ TEST_F(OnInitializeDisplaysTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
     // The primary display should have a current state
     ASSERT_TRUE(hasCurrentDisplayState(primaryDisplay.token()));
     const auto& primaryDisplayState = getCurrentDisplayState(primaryDisplay.token());
-    // The layer stack state should be set to zero
-    EXPECT_EQ(0u, primaryDisplayState.layerStack);
-    // The orientation state should be set to zero
+
+    // The primary display state should be reset
+    EXPECT_EQ(ui::DEFAULT_LAYER_STACK, primaryDisplayState.layerStack);
     EXPECT_EQ(ui::ROTATION_0, primaryDisplayState.orientation);
-
-    // The orientedDisplaySpaceRect state should be set to INVALID
     EXPECT_EQ(Rect::INVALID_RECT, primaryDisplayState.orientedDisplaySpaceRect);
-
-    // The layerStackSpaceRect state should be set to INVALID
     EXPECT_EQ(Rect::INVALID_RECT, primaryDisplayState.layerStackSpaceRect);
 
     // The width and height should both be zero

@@ -62,12 +62,12 @@ enum {
     PIXEL_FORMAT_RGBA_4444    = 7,                             // 16-bit ARGB
     PIXEL_FORMAT_RGBA_FP16    = HAL_PIXEL_FORMAT_RGBA_FP16,    // 64-bit RGBA
     PIXEL_FORMAT_RGBA_1010102 = HAL_PIXEL_FORMAT_RGBA_1010102, // 32-bit RGBA
+    PIXEL_FORMAT_R_8          = 0x38,
 };
 
 typedef int32_t PixelFormat;
 
 uint32_t bytesPerPixel(PixelFormat format);
-uint32_t bitsPerPixel(PixelFormat format);
 
 }; // namespace android
 

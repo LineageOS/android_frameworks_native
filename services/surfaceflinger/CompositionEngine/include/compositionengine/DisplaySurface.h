@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cinttypes>
+
 #include <ui/Size.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
@@ -47,13 +49,8 @@ public:
     // before composition takes place. The DisplaySurface can use the
     // composition type to decide how to manage the flow of buffers between
     // GPU and HWC for this frame.
-    enum CompositionType {
-        COMPOSITION_UNKNOWN = 0,
-        COMPOSITION_GPU = 1,
-        COMPOSITION_HWC = 2,
-        COMPOSITION_MIXED = COMPOSITION_GPU | COMPOSITION_HWC
-    };
-    virtual status_t prepareFrame(CompositionType compositionType) = 0;
+    enum class CompositionType : uint8_t { Unknown = 0, Gpu = 0b1, Hwc = 0b10, Mixed = Gpu | Hwc };
+    virtual status_t prepareFrame(CompositionType) = 0;
 
     // Inform the surface that GPU composition is complete for this frame, and
     // the surface should make sure that HWComposer has the correct buffer for
@@ -75,6 +72,9 @@ public:
     virtual void resizeBuffers(const ui::Size&) = 0;
 
     virtual const sp<Fence>& getClientTargetAcquireFence() const = 0;
+
+    // Returns true if the render surface supports client composition prediction.
+    virtual bool supportsCompositionStrategyPrediction() const;
 };
 
 } // namespace compositionengine

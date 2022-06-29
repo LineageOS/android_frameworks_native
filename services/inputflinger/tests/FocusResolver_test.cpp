@@ -37,12 +37,16 @@ public:
                      bool visible) {
         mInfo.token = token;
         mInfo.name = name;
-        mInfo.visible = visible;
-        mInfo.focusable = focusable;
+        setFocusable(focusable);
+        setVisible(visible);
     }
 
-    void setFocusable(bool focusable) { mInfo.focusable = focusable; }
-    void setVisible(bool visible) { mInfo.visible = visible; }
+    void setFocusable(bool focusable) {
+        mInfo.setInputConfig(gui::WindowInfo::InputConfig::NOT_FOCUSABLE, !focusable);
+    }
+    void setVisible(bool visible) {
+        mInfo.setInputConfig(gui::WindowInfo::InputConfig::NOT_VISIBLE, !visible);
+    }
 };
 
 TEST(FocusResolverTest, SetFocusedWindow) {
@@ -78,6 +82,30 @@ TEST(FocusResolverTest, SetFocusedWindow) {
     request.token = unfocusableWindowToken;
     changes = focusResolver.setFocusedWindow(request, windows);
     ASSERT_FALSE(changes);
+}
+
+TEST(FocusResolverTest, RemoveFocusFromFocusedWindow) {
+    sp<IBinder> focusableWindowToken = new BBinder();
+    std::vector<sp<WindowInfoHandle>> windows;
+    windows.push_back(new FakeWindowHandle("Focusable", focusableWindowToken, true /* focusable */,
+                                           true /* visible */));
+
+    FocusRequest request;
+    request.displayId = 42;
+    request.token = focusableWindowToken;
+    FocusResolver focusResolver;
+    // Focusable window gets focus.
+    request.token = focusableWindowToken;
+    std::optional<FocusResolver::FocusChanges> changes =
+            focusResolver.setFocusedWindow(request, windows);
+    ASSERT_FOCUS_CHANGE(changes, nullptr, focusableWindowToken);
+
+    // Window token of a request is null, focus should be revoked.
+    request.token = NULL;
+    changes = focusResolver.setFocusedWindow(request, windows);
+    ASSERT_EQ(focusableWindowToken, changes->oldFocus);
+    ASSERT_EQ(nullptr, changes->newFocus);
+    ASSERT_FOCUS_CHANGE(changes, focusableWindowToken, nullptr);
 }
 
 TEST(FocusResolverTest, SetFocusedMirroredWindow) {

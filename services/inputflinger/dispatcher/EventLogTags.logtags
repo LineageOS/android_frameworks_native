@@ -37,6 +37,7 @@
 
 62000 input_interaction (windows|4)
 62001 input_focus (window|3),(reason|3)
+62003 input_cancel (window|3),(reason|3)
 
 # NOTE - the range 1000000-2000000 is reserved for partners and others who
 # want to define their own log tags without conflicting with the core platform.

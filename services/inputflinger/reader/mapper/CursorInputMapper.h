@@ -56,7 +56,7 @@ public:
     explicit CursorInputMapper(InputDeviceContext& deviceContext);
     virtual ~CursorInputMapper();
 
-    virtual uint32_t getSources() override;
+    virtual uint32_t getSources() const override;
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
     virtual void dump(std::string& dump) override;
     virtual void configure(nsecs_t when, const InputReaderConfiguration* config,
@@ -105,8 +105,6 @@ private:
     VelocityControl mWheelYVelocityControl;
 
     int32_t mOrientation;
-    int32_t mDisplayWidth;
-    int32_t mDisplayHeight;
 
     std::shared_ptr<PointerControllerInterface> mPointerController;
 

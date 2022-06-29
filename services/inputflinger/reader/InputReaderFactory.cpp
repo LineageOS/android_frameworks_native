@@ -20,9 +20,9 @@
 
 namespace android {
 
-sp<InputReaderInterface> createInputReader(const sp<InputReaderPolicyInterface>& policy,
-                                           const sp<InputListenerInterface>& listener) {
-    return new InputReader(std::make_unique<EventHub>(), policy, listener);
+std::unique_ptr<InputReaderInterface> createInputReader(
+        const sp<InputReaderPolicyInterface>& policy, InputListenerInterface& listener) {
+    return std::make_unique<InputReader>(std::make_unique<EventHub>(), policy, listener);
 }
 
 } // namespace android

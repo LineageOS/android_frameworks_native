@@ -35,7 +35,7 @@ struct DynamicDisplayInfo : LightFlattenable<DynamicDisplayInfo> {
     // This struct is going to be serialized over binder, so
     // we can't use size_t because it may have different width
     // in the client process.
-    int32_t activeDisplayModeId;
+    ui::DisplayModeId activeDisplayModeId;
 
     std::vector<ui::ColorMode> supportedColorModes;
     ui::ColorMode activeColorMode;
@@ -48,6 +48,9 @@ struct DynamicDisplayInfo : LightFlattenable<DynamicDisplayInfo> {
     // True if the display reports support for Game Content Type.
     // For more information, see the HDMI 1.4 specification.
     bool gameContentTypeSupported;
+
+    // The boot display mode preferred by the implementation.
+    ui::DisplayModeId preferredBootDisplayMode;
 
     std::optional<ui::DisplayMode> getActiveDisplayMode() const;
 

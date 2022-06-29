@@ -763,7 +763,8 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetLayerStackBasic) {
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, 32, 32));
 
-    Transaction().setLayerStack(layer, mDisplayLayerStack + 1).apply();
+    const auto layerStack = ui::LayerStack::fromValue(mDisplayLayerStack.id + 1);
+    Transaction().setLayerStack(layer, layerStack).apply();
     {
         SCOPED_TRACE("non-existing layer stack");
         getScreenCapture()->expectColor(mDisplayRect, Color::BLACK);

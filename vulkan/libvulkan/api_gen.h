@@ -60,6 +60,7 @@ struct InstanceDispatchTable {
     PFN_vkGetPhysicalDeviceExternalFenceProperties GetPhysicalDeviceExternalFenceProperties;
     PFN_vkEnumeratePhysicalDeviceGroups EnumeratePhysicalDeviceGroups;
     PFN_vkGetPhysicalDevicePresentRectanglesKHR GetPhysicalDevicePresentRectanglesKHR;
+    PFN_vkGetPhysicalDeviceToolProperties GetPhysicalDeviceToolProperties;
     // clang-format on
 };
 
@@ -207,6 +208,9 @@ struct DeviceDispatchTable {
     PFN_vkGetBufferMemoryRequirements2 GetBufferMemoryRequirements2;
     PFN_vkGetImageMemoryRequirements2 GetImageMemoryRequirements2;
     PFN_vkGetImageSparseMemoryRequirements2 GetImageSparseMemoryRequirements2;
+    PFN_vkGetDeviceBufferMemoryRequirements GetDeviceBufferMemoryRequirements;
+    PFN_vkGetDeviceImageMemoryRequirements GetDeviceImageMemoryRequirements;
+    PFN_vkGetDeviceImageSparseMemoryRequirements GetDeviceImageSparseMemoryRequirements;
     PFN_vkCreateSamplerYcbcrConversion CreateSamplerYcbcrConversion;
     PFN_vkDestroySamplerYcbcrConversion DestroySamplerYcbcrConversion;
     PFN_vkGetDeviceQueue2 GetDeviceQueue2;
@@ -225,6 +229,39 @@ struct DeviceDispatchTable {
     PFN_vkGetBufferOpaqueCaptureAddress GetBufferOpaqueCaptureAddress;
     PFN_vkGetBufferDeviceAddress GetBufferDeviceAddress;
     PFN_vkGetDeviceMemoryOpaqueCaptureAddress GetDeviceMemoryOpaqueCaptureAddress;
+    PFN_vkCmdSetCullMode CmdSetCullMode;
+    PFN_vkCmdSetFrontFace CmdSetFrontFace;
+    PFN_vkCmdSetPrimitiveTopology CmdSetPrimitiveTopology;
+    PFN_vkCmdSetViewportWithCount CmdSetViewportWithCount;
+    PFN_vkCmdSetScissorWithCount CmdSetScissorWithCount;
+    PFN_vkCmdBindVertexBuffers2 CmdBindVertexBuffers2;
+    PFN_vkCmdSetDepthTestEnable CmdSetDepthTestEnable;
+    PFN_vkCmdSetDepthWriteEnable CmdSetDepthWriteEnable;
+    PFN_vkCmdSetDepthCompareOp CmdSetDepthCompareOp;
+    PFN_vkCmdSetDepthBoundsTestEnable CmdSetDepthBoundsTestEnable;
+    PFN_vkCmdSetStencilTestEnable CmdSetStencilTestEnable;
+    PFN_vkCmdSetStencilOp CmdSetStencilOp;
+    PFN_vkCmdSetRasterizerDiscardEnable CmdSetRasterizerDiscardEnable;
+    PFN_vkCmdSetDepthBiasEnable CmdSetDepthBiasEnable;
+    PFN_vkCmdSetPrimitiveRestartEnable CmdSetPrimitiveRestartEnable;
+    PFN_vkCreatePrivateDataSlot CreatePrivateDataSlot;
+    PFN_vkDestroyPrivateDataSlot DestroyPrivateDataSlot;
+    PFN_vkSetPrivateData SetPrivateData;
+    PFN_vkGetPrivateData GetPrivateData;
+    PFN_vkCmdCopyBuffer2 CmdCopyBuffer2;
+    PFN_vkCmdCopyImage2 CmdCopyImage2;
+    PFN_vkCmdBlitImage2 CmdBlitImage2;
+    PFN_vkCmdCopyBufferToImage2 CmdCopyBufferToImage2;
+    PFN_vkCmdCopyImageToBuffer2 CmdCopyImageToBuffer2;
+    PFN_vkCmdResolveImage2 CmdResolveImage2;
+    PFN_vkCmdSetEvent2 CmdSetEvent2;
+    PFN_vkCmdResetEvent2 CmdResetEvent2;
+    PFN_vkCmdWaitEvents2 CmdWaitEvents2;
+    PFN_vkCmdPipelineBarrier2 CmdPipelineBarrier2;
+    PFN_vkQueueSubmit2 QueueSubmit2;
+    PFN_vkCmdWriteTimestamp2 CmdWriteTimestamp2;
+    PFN_vkCmdBeginRendering CmdBeginRendering;
+    PFN_vkCmdEndRendering CmdEndRendering;
     // clang-format on
 };
 

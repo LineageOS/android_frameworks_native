@@ -14,47 +14,45 @@
  * limitations under the License.
  */
 
-#include "WindowInfosListenerInvoker.h"
+#include <ftl/small_vector.h>
 #include <gui/ISurfaceComposer.h>
-#include <unordered_set>
+
 #include "SurfaceFlinger.h"
+#include "WindowInfosListenerInvoker.h"
 
 namespace android {
 
+using gui::DisplayInfo;
 using gui::IWindowInfosListener;
 using gui::WindowInfo;
 
-struct WindowInfosReportedListener : gui::BnWindowInfosReportedListener {
-    explicit WindowInfosReportedListener(std::function<void()> listenerCb)
-          : mListenerCb(listenerCb) {}
+struct WindowInfosListenerInvoker::WindowInfosReportedListener
+      : gui::BnWindowInfosReportedListener {
+    explicit WindowInfosReportedListener(WindowInfosListenerInvoker& invoker) : mInvoker(invoker) {}
 
     binder::Status onWindowInfosReported() override {
-        if (mListenerCb != nullptr) {
-            mListenerCb();
-        }
+        mInvoker.windowInfosReported();
         return binder::Status::ok();
     }
 
-    std::function<void()> mListenerCb;
+    WindowInfosListenerInvoker& mInvoker;
 };
 
-WindowInfosListenerInvoker::WindowInfosListenerInvoker(const sp<SurfaceFlinger>& sf) : mSf(sf) {
-    mWindowInfosReportedListener =
-            new WindowInfosReportedListener([&]() { windowInfosReported(); });
-}
+WindowInfosListenerInvoker::WindowInfosListenerInvoker(SurfaceFlinger& flinger)
+      : mFlinger(flinger),
+        mWindowInfosReportedListener(sp<WindowInfosReportedListener>::make(*this)) {}
 
-void WindowInfosListenerInvoker::addWindowInfosListener(
-        const sp<IWindowInfosListener>& windowInfosListener) {
-    sp<IBinder> asBinder = IInterface::asBinder(windowInfosListener);
-
+void WindowInfosListenerInvoker::addWindowInfosListener(sp<IWindowInfosListener> listener) {
+    sp<IBinder> asBinder = IInterface::asBinder(listener);
     asBinder->linkToDeath(this);
+
     std::scoped_lock lock(mListenersMutex);
-    mWindowInfosListeners.emplace(asBinder, windowInfosListener);
+    mWindowInfosListeners.try_emplace(asBinder, std::move(listener));
 }
 
 void WindowInfosListenerInvoker::removeWindowInfosListener(
-        const sp<IWindowInfosListener>& windowInfosListener) {
-    sp<IBinder> asBinder = IInterface::asBinder(windowInfosListener);
+        const sp<IWindowInfosListener>& listener) {
+    sp<IBinder> asBinder = IInterface::asBinder(listener);
 
     std::scoped_lock lock(mListenersMutex);
     asBinder->unlinkToDeath(this);
@@ -67,21 +65,20 @@ void WindowInfosListenerInvoker::binderDied(const wp<IBinder>& who) {
 }
 
 void WindowInfosListenerInvoker::windowInfosChanged(const std::vector<WindowInfo>& windowInfos,
+                                                    const std::vector<DisplayInfo>& displayInfos,
                                                     bool shouldSync) {
-    std::unordered_set<sp<IWindowInfosListener>, ISurfaceComposer::SpHash<IWindowInfosListener>>
-            windowInfosListeners;
-
+    ftl::SmallVector<const sp<IWindowInfosListener>, kStaticCapacity> windowInfosListeners;
     {
         std::scoped_lock lock(mListenersMutex);
         for (const auto& [_, listener] : mWindowInfosListeners) {
-            windowInfosListeners.insert(listener);
+            windowInfosListeners.push_back(listener);
         }
     }
 
     mCallbacksPending = windowInfosListeners.size();
 
     for (const auto& listener : windowInfosListeners) {
-        listener->onWindowInfosChanged(windowInfos,
+        listener->onWindowInfosChanged(windowInfos, displayInfos,
                                        shouldSync ? mWindowInfosReportedListener : nullptr);
     }
 }
@@ -89,7 +86,7 @@ void WindowInfosListenerInvoker::windowInfosChanged(const std::vector<WindowInfo
 void WindowInfosListenerInvoker::windowInfosReported() {
     mCallbacksPending--;
     if (mCallbacksPending == 0) {
-        mSf->windowInfosReported();
+        mFlinger.windowInfosReported();
     }
 }
 

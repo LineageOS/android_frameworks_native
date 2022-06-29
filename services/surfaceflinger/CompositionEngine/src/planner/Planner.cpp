@@ -97,7 +97,7 @@ void Planner::plan(
         if (const auto layerEntry = mPreviousLayers.find(id); layerEntry != mPreviousLayers.end()) {
             // Track changes from previous info
             LayerState& state = layerEntry->second;
-            Flags<LayerStateField> differences = state.update(layer);
+            ftl::Flags<LayerStateField> differences = state.update(layer);
             if (differences.get() == 0) {
                 state.incrementFramesSinceBufferUpdate();
             } else {
@@ -193,7 +193,7 @@ void Planner::reportFinalPlan(
 
         finalPlan.addLayerType(
                 forcedOrRequestedClient
-                        ? hardware::graphics::composer::hal::Composition::CLIENT
+                        ? aidl::android::hardware::graphics::composer3::Composition::CLIENT
                         : layer->getLayerFE().getCompositionState()->compositionType);
     }
 

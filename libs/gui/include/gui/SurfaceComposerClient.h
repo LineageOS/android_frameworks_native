@@ -19,11 +19,13 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <set>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 
 #include <binder/IBinder.h>
 
+#include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Singleton.h>
 #include <utils/SortedVector.h>
@@ -45,36 +47,40 @@
 #include <gui/WindowInfosListenerReporter.h>
 #include <math/vec3.h>
 
+#include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+
 namespace android {
 
 class HdrCapabilities;
 class ISurfaceComposerClient;
 class IGraphicBufferProducer;
-class IRegionSamplingListener;
 class ITunnelModeEnabledListener;
 class Region;
 
+using gui::DisplayCaptureArgs;
+using gui::IRegionSamplingListener;
+using gui::LayerCaptureArgs;
+
 struct SurfaceControlStats {
-    SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime, nsecs_t acquireTime,
+    SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime,
+                        std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence,
                         const sp<Fence>& presentFence, const sp<Fence>& prevReleaseFence,
-                        uint32_t hint, FrameEventHistoryStats eventStats, uint32_t currentMaxAcquiredBufferCount)
+                        uint32_t hint, FrameEventHistoryStats eventStats)
           : surfaceControl(sc),
             latchTime(latchTime),
-            acquireTime(acquireTime),
+            acquireTimeOrFence(std::move(acquireTimeOrFence)),
             presentFence(presentFence),
             previousReleaseFence(prevReleaseFence),
             transformHint(hint),
-            frameEventStats(eventStats),
-            currentMaxAcquiredBufferCount(currentMaxAcquiredBufferCount) {}
+            frameEventStats(eventStats) {}
 
     sp<SurfaceControl> surfaceControl;
     nsecs_t latchTime = -1;
-    nsecs_t acquireTime = -1;
+    std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence = -1;
     sp<Fence> presentFence;
     sp<Fence> previousReleaseFence;
     uint32_t transformHint = 0;
     FrameEventHistoryStats frameEventStats;
-    uint32_t currentMaxAcquiredBufferCount = 0;
 };
 
 using TransactionCompletedCallbackTakesContext =
@@ -86,12 +92,28 @@ using TransactionCompletedCallback =
                            const std::vector<SurfaceControlStats>& /*stats*/)>;
 using ReleaseBufferCallback =
         std::function<void(const ReleaseCallbackId&, const sp<Fence>& /*releaseFence*/,
-                           uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount)>;
+                           std::optional<uint32_t> currentMaxAcquiredBufferCount)>;
 
 using SurfaceStatsCallback =
         std::function<void(void* /*context*/, nsecs_t /*latchTime*/,
                            const sp<Fence>& /*presentFence*/,
                            const SurfaceStats& /*stats*/)>;
+
+// ---------------------------------------------------------------------------
+
+class ReleaseCallbackThread {
+public:
+    void addReleaseCallback(const ReleaseCallbackId, sp<Fence>);
+    void threadMain();
+
+private:
+    std::thread mThread;
+    std::mutex mMutex;
+    bool mStarted GUARDED_BY(mMutex) = false;
+    std::condition_variable mReleaseCallbackPending;
+    std::queue<std::tuple<const ReleaseCallbackId, const sp<Fence>>> mCallbackInfos
+            GUARDED_BY(mMutex);
+};
 
 // ---------------------------------------------------------------------------
 
@@ -150,6 +172,17 @@ public:
     // Sets the active color mode for the given display
     static status_t setActiveColorMode(const sp<IBinder>& display,
             ui::ColorMode colorMode);
+
+    // Gets if boot display mode operations are supported on a device
+    static status_t getBootDisplayModeSupport(bool* support);
+    // Sets the user-preferred display mode that a device should boot in
+    static status_t setBootDisplayMode(const sp<IBinder>& display, ui::DisplayModeId);
+    // Clears the user-preferred display mode
+    static status_t clearBootDisplayMode(const sp<IBinder>& display);
+
+    // Sets the frame rate of a particular app (uid). This is currently called
+    // by GameManager.
+    static status_t setOverrideFrameRate(uid_t uid, float frameRate);
 
     // Switches on/off Auto Low Latency Mode on the connected display. This should only be
     // called if the connected display supports Auto Low Latency Mode as reported by
@@ -256,6 +289,18 @@ public:
     static status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
                                             float lightPosY, float lightPosZ, float lightRadius);
 
+    /*
+     * Returns whether and how a display supports DISPLAY_DECORATION layers.
+     *
+     * displayToken
+     *      The token of the display.
+     *
+     * Returns how a display supports DISPLAY_DECORATION layers, or nullopt if
+     * it does not.
+     */
+    static std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>
+    getDisplayDecorationSupport(const sp<IBinder>& displayToken);
+
     // ------------------------------------------------------------------------
     // surface creation / destruction
 
@@ -350,8 +395,7 @@ public:
 
     class Transaction : public Parcelable {
     private:
-        static std::atomic<uint32_t> idCounter;
-        int64_t generateId();
+        void releaseBufferIfOverwriting(const layer_state_t& state);
 
     protected:
         std::unordered_map<sp<IBinder>, ComposerState, IBinderHash> mComposerStates;
@@ -401,9 +445,7 @@ public:
 
         void cacheBuffers();
         void registerSurfaceControlForCallback(const sp<SurfaceControl>& sc);
-        void setReleaseBufferCallback(layer_state_t*, const ReleaseCallbackId&,
-                                      ReleaseBufferCallback);
-        void removeReleaseBufferCallback(layer_state_t*);
+        void setReleaseBufferCallback(BufferData*, ReleaseBufferCallback);
 
     public:
         Transaction();
@@ -419,7 +461,7 @@ public:
         // Clears the contents of the transaction without applying it.
         void clear();
 
-        status_t apply(bool synchronous = false);
+        status_t apply(bool synchronous = false, bool oneWay = false);
         // Merge another transaction in to this one, clearing other
         // as if it had been applied.
         Transaction& merge(Transaction&& other);
@@ -449,6 +491,7 @@ public:
                 uint32_t flags, uint32_t mask);
         Transaction& setTransparentRegionHint(const sp<SurfaceControl>& sc,
                 const Region& transparentRegion);
+        Transaction& setDimmingEnabled(const sp<SurfaceControl>& sc, bool dimmingEnabled);
         Transaction& setAlpha(const sp<SurfaceControl>& sc,
                 float alpha);
         Transaction& setMatrix(const sp<SurfaceControl>& sc,
@@ -459,7 +502,7 @@ public:
                                              int backgroundBlurRadius);
         Transaction& setBlurRegions(const sp<SurfaceControl>& sc,
                                     const std::vector<BlurRegion>& regions);
-        Transaction& setLayerStack(const sp<SurfaceControl>& sc, uint32_t layerStack);
+        Transaction& setLayerStack(const sp<SurfaceControl>&, ui::LayerStack);
         Transaction& setMetadata(const sp<SurfaceControl>& sc, uint32_t key, const Parcel& p);
 
         /// Reparents the current layer to the new parent handle. The new parent must not be null.
@@ -475,10 +518,31 @@ public:
         Transaction& setTransformToDisplayInverse(const sp<SurfaceControl>& sc,
                                                   bool transformToDisplayInverse);
         Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
-                               const ReleaseCallbackId& id = ReleaseCallbackId::INVALID_ID,
+                               const std::optional<sp<Fence>>& fence = std::nullopt,
+                               const std::optional<uint64_t>& frameNumber = std::nullopt,
                                ReleaseBufferCallback callback = nullptr);
-        Transaction& setCachedBuffer(const sp<SurfaceControl>& sc, int32_t bufferId);
-        Transaction& setAcquireFence(const sp<SurfaceControl>& sc, const sp<Fence>& fence);
+        std::shared_ptr<BufferData> getAndClearBuffer(const sp<SurfaceControl>& sc);
+
+        /**
+         * If this transaction, has a a buffer set for the given SurfaceControl
+         * mark that buffer as ordered after a given barrierFrameNumber.
+         *
+         * SurfaceFlinger will refuse to apply this transaction until after
+         * the frame in barrierFrameNumber has been applied. This transaction may
+         * be applied in the same frame as the barrier buffer or after.
+         *
+         * This is only designed to be used to handle switches between multiple
+         * apply tokens, as explained in the comment for BLASTBufferQueue::mAppliedLastTransaction.
+         *
+         * Has to be called after setBuffer.
+         *
+         * WARNING:
+         * This API is very dangerous to the caller, as if you invoke it without
+         * a frameNumber you have not yet submitted, you can dead-lock your
+         * SurfaceControl's transaction queue.
+         */
+        Transaction& setBufferHasBarrier(const sp<SurfaceControl>& sc,
+                                         uint64_t barrierFrameNumber);
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
         Transaction& setHdrMetadata(const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata);
         Transaction& setSurfaceDamageRegion(const sp<SurfaceControl>& sc,
@@ -503,8 +567,6 @@ public:
 
         // ONLY FOR BLAST ADAPTER
         Transaction& notifyProducerDisconnect(const sp<SurfaceControl>& sc);
-        // Set the framenumber generated by the graphics producer to mimic BufferQueue behaviour.
-        Transaction& setFrameNumber(const sp<SurfaceControl>& sc, uint64_t frameNumber);
 
         Transaction& setInputWindowInfo(const sp<SurfaceControl>& sc, const gui::WindowInfo& info);
         Transaction& setFocusedWindow(const gui::FocusRequest& request);
@@ -570,7 +632,7 @@ public:
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
 
-        void setDisplayLayerStack(const sp<IBinder>& token, uint32_t layerStack);
+        void setDisplayLayerStack(const sp<IBinder>& token, ui::LayerStack);
 
         void setDisplayFlags(const sp<IBinder>& token, uint32_t flags);
 
@@ -635,8 +697,14 @@ public:
     static status_t removeTunnelModeEnabledListener(
             const sp<gui::ITunnelModeEnabledListener>& listener);
 
-    status_t addWindowInfosListener(const sp<gui::WindowInfosListener>& windowInfosListener);
+    status_t addWindowInfosListener(
+            const sp<gui::WindowInfosListener>& windowInfosListener,
+            std::pair<std::vector<gui::WindowInfo>, std::vector<gui::DisplayInfo>>* outInitialInfo =
+                    nullptr);
     status_t removeWindowInfosListener(const sp<gui::WindowInfosListener>& windowInfosListener);
+
+protected:
+    ReleaseCallbackThread mReleaseCallbackThread;
 
 private:
     virtual void onFirstRef();
@@ -650,12 +718,9 @@ private:
 
 class ScreenshotClient {
 public:
-    static status_t captureDisplay(const DisplayCaptureArgs& captureArgs,
-                                   const sp<IScreenCaptureListener>& captureListener);
-    static status_t captureDisplay(uint64_t displayOrLayerStack,
-                                   const sp<IScreenCaptureListener>& captureListener);
-    static status_t captureLayers(const LayerCaptureArgs& captureArgs,
-                                  const sp<IScreenCaptureListener>& captureListener);
+    static status_t captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&);
+    static status_t captureDisplay(DisplayId, const sp<IScreenCaptureListener>&);
+    static status_t captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&);
 };
 
 // ---------------------------------------------------------------------------
@@ -707,6 +772,7 @@ protected:
     // This is protected by mSurfaceStatsListenerMutex, but GUARDED_BY isn't supported for
     // std::recursive_mutex
     std::multimap<int32_t, SurfaceStatsCallbackEntry> mSurfaceStatsListeners;
+    std::unordered_map<void*, std::function<void()>> mQueueStallListeners;
 
 public:
     static sp<TransactionCompletedListener> getInstance();
@@ -723,6 +789,9 @@ public:
     void addSurfaceControlToCallbacks(
             const sp<SurfaceControl>& surfaceControl,
             const std::unordered_set<CallbackId, CallbackIdHash>& callbackIds);
+
+    void addQueueStallListener(std::function<void()> stallListener, void* id);
+    void removeQueueStallListener(void *id);
 
     /*
      * Adds a jank listener to be informed about SurfaceFlinger's jank classification for a specific
@@ -741,15 +810,18 @@ public:
     void removeSurfaceStatsListener(void* context, void* cookie);
 
     void setReleaseBufferCallback(const ReleaseCallbackId&, ReleaseBufferCallback);
-    void removeReleaseBufferCallback(const ReleaseCallbackId&);
 
     // BnTransactionCompletedListener overrides
     void onTransactionCompleted(ListenerStats stats) override;
-    void onReleaseBuffer(ReleaseCallbackId, sp<Fence> releaseFence, uint32_t transformHint,
+    void onReleaseBuffer(ReleaseCallbackId, sp<Fence> releaseFence,
                          uint32_t currentMaxAcquiredBufferCount) override;
+
+    void removeReleaseBufferCallback(const ReleaseCallbackId& callbackId);
 
     // For Testing Only
     static void setInstance(const sp<TransactionCompletedListener>&);
+
+    void onTransactionQueueStalled() override;
 
 private:
     ReleaseBufferCallback popReleaseBufferCallbackLocked(const ReleaseCallbackId&);

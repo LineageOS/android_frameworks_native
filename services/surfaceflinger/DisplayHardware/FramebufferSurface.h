@@ -26,7 +26,7 @@
 #include <ui/DisplayId.h>
 #include <ui/Size.h>
 
-#include "DisplayIdentification.h"
+#include <ui/DisplayIdentification.h>
 
 // ---------------------------------------------------------------------------
 namespace android {

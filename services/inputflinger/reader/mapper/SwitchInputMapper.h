@@ -26,7 +26,7 @@ public:
     explicit SwitchInputMapper(InputDeviceContext& deviceContext);
     virtual ~SwitchInputMapper();
 
-    virtual uint32_t getSources() override;
+    virtual uint32_t getSources() const override;
     virtual void process(const RawEvent* rawEvent) override;
 
     virtual int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode) override;

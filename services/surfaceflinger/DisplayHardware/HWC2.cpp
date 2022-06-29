@@ -27,7 +27,6 @@
 #include "HWC2.h"
 
 #include <android/configuration.h>
-#include <ftl/future.h>
 #include <ui/Fence.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
@@ -37,7 +36,10 @@
 #include <iterator>
 #include <set>
 
-#include "ComposerHal.h"
+using aidl::android::hardware::graphics::composer3::Color;
+using aidl::android::hardware::graphics::composer3::Composition;
+using AidlCapability = aidl::android::hardware::graphics::composer3::Capability;
+using aidl::android::hardware::graphics::composer3::DisplayCapability;
 
 namespace android {
 
@@ -71,7 +73,7 @@ Display::~Display() = default;
 namespace impl {
 
 Display::Display(android::Hwc2::Composer& composer,
-                 const std::unordered_set<Capability>& capabilities, HWDisplayId id,
+                 const std::unordered_set<AidlCapability>& capabilities, HWDisplayId id,
                  DisplayType type)
       : mComposer(composer), mCapabilities(capabilities), mId(id), mType(type) {
     ALOGV("Created display %" PRIu64, id);
@@ -142,12 +144,23 @@ void Display::onLayerDestroyed(hal::HWLayerId layerId) {
 bool Display::isVsyncPeriodSwitchSupported() const {
     ALOGV("[%" PRIu64 "] isVsyncPeriodSwitchSupported()", mId);
 
-    return mComposer.isVsyncPeriodSwitchSupported();
+    return mComposer.isSupported(android::Hwc2::Composer::OptionalFeature::RefreshRateSwitching);
+}
+
+bool Display::hasDisplayIdleTimerCapability() const {
+    bool isCapabilitySupported = false;
+    return mComposer.hasDisplayIdleTimerCapability(mId, &isCapabilitySupported) == Error::NONE &&
+            isCapabilitySupported;
+}
+
+Error Display::getPhysicalDisplayOrientation(Hwc2::AidlTransform* outTransform) const {
+    auto error = mComposer.getPhysicalDisplayOrientation(mId, outTransform);
+    return static_cast<Error>(error);
 }
 
 Error Display::getChangedCompositionTypes(std::unordered_map<HWC2::Layer*, Composition>* outTypes) {
     std::vector<Hwc2::Layer> layerIds;
-    std::vector<Hwc2::IComposerClient::Composition> types;
+    std::vector<Composition> types;
     auto intError = mComposer.getChangedCompositionTypes(
             mId, &layerIds, &types);
     uint32_t numElements = layerIds.size();
@@ -283,8 +296,21 @@ Error Display::getConnectionType(ui::DisplayConnectionType* outType) const {
     return Error::NONE;
 }
 
+bool Display::hasCapability(DisplayCapability capability) const {
+    std::scoped_lock lock(mDisplayCapabilitiesMutex);
+    if (mDisplayCapabilities) {
+        return mDisplayCapabilities->count(capability) > 0;
+    }
+
+    ALOGW("Can't query capability %s."
+          " Display Capabilities were not queried from HWC yet",
+          to_string(capability).c_str());
+
+    return false;
+}
+
 Error Display::supportsDoze(bool* outSupport) const {
-    *outSupport = mDisplayCapabilities.count(DisplayCapability::DOZE) > 0;
+    *outSupport = hasCapability(DisplayCapability::DOZE);
     return Error::NONE;
 }
 
@@ -421,8 +447,8 @@ Error Display::setColorMode(ColorMode mode, RenderIntent renderIntent)
     return static_cast<Error>(intError);
 }
 
-Error Display::setColorTransform(const android::mat4& matrix, ColorTransform hint) {
-    auto intError = mComposer.setColorTransform(mId, matrix.asArray(), hint);
+Error Display::setColorTransform(const android::mat4& matrix) {
+    auto intError = mComposer.setColorTransform(mId, matrix.asArray());
     return static_cast<Error>(intError);
 }
 
@@ -443,21 +469,25 @@ Error Display::setPowerMode(PowerMode mode)
 
     if (mode == PowerMode::ON) {
         std::call_once(mDisplayCapabilityQueryFlag, [this]() {
-            std::vector<Hwc2::DisplayCapability> tmpCapabilities;
+            std::vector<DisplayCapability> tmpCapabilities;
             auto error =
                     static_cast<Error>(mComposer.getDisplayCapabilities(mId, &tmpCapabilities));
             if (error == Error::NONE) {
+                std::scoped_lock lock(mDisplayCapabilitiesMutex);
+                mDisplayCapabilities.emplace();
                 for (auto capability : tmpCapabilities) {
-                    mDisplayCapabilities.emplace(static_cast<DisplayCapability>(capability));
+                    mDisplayCapabilities->emplace(capability);
                 }
             } else if (error == Error::UNSUPPORTED) {
-                if (mCapabilities.count(Capability::SKIP_CLIENT_COLOR_TRANSFORM)) {
-                    mDisplayCapabilities.emplace(DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM);
+                std::scoped_lock lock(mDisplayCapabilitiesMutex);
+                mDisplayCapabilities.emplace();
+                if (mCapabilities.count(AidlCapability::SKIP_CLIENT_COLOR_TRANSFORM)) {
+                    mDisplayCapabilities->emplace(DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM);
                 }
                 bool dozeSupport = false;
                 error = static_cast<Error>(mComposer.getDozeSupport(mId, &dozeSupport));
                 if (error == Error::NONE && dozeSupport) {
-                    mDisplayCapabilities.emplace(DisplayCapability::DOZE);
+                    mDisplayCapabilities->emplace(DisplayCapability::DOZE);
                 }
             }
         });
@@ -473,11 +503,11 @@ Error Display::setVsyncEnabled(Vsync enabled)
     return static_cast<Error>(intError);
 }
 
-Error Display::validate(uint32_t* outNumTypes, uint32_t* outNumRequests)
-{
+Error Display::validate(nsecs_t expectedPresentTime, uint32_t* outNumTypes,
+                        uint32_t* outNumRequests) {
     uint32_t numTypes = 0;
     uint32_t numRequests = 0;
-    auto intError = mComposer.validateDisplay(mId, &numTypes, &numRequests);
+    auto intError = mComposer.validateDisplay(mId, expectedPresentTime, &numTypes, &numRequests);
     auto error = static_cast<Error>(intError);
     if (error != Error::NONE && !hasChangesError(error)) {
         return error;
@@ -488,14 +518,14 @@ Error Display::validate(uint32_t* outNumTypes, uint32_t* outNumRequests)
     return error;
 }
 
-Error Display::presentOrValidate(uint32_t* outNumTypes, uint32_t* outNumRequests,
-                                 sp<android::Fence>* outPresentFence, uint32_t* state) {
-
+Error Display::presentOrValidate(nsecs_t expectedPresentTime, uint32_t* outNumTypes,
+                                 uint32_t* outNumRequests, sp<android::Fence>* outPresentFence,
+                                 uint32_t* state) {
     uint32_t numTypes = 0;
     uint32_t numRequests = 0;
     int32_t presentFenceFd = -1;
-    auto intError = mComposer.presentOrValidateDisplay(
-            mId, &numTypes, &numRequests, &presentFenceFd, state);
+    auto intError = mComposer.presentOrValidateDisplay(mId, expectedPresentTime, &numTypes,
+                                                       &numRequests, &presentFenceFd, state);
     auto error = static_cast<Error>(intError);
     if (error != Error::NONE && !hasChangesError(error)) {
         return error;
@@ -512,11 +542,29 @@ Error Display::presentOrValidate(uint32_t* outNumTypes, uint32_t* outNumRequests
     return error;
 }
 
-std::future<Error> Display::setDisplayBrightness(float brightness) {
-    return ftl::defer([composer = &mComposer, id = mId, brightness] {
-        const auto intError = composer->setDisplayBrightness(id, brightness);
+ftl::Future<Error> Display::setDisplayBrightness(
+        float brightness, float brightnessNits,
+        const Hwc2::Composer::DisplayBrightnessOptions& options) {
+    return ftl::defer([composer = &mComposer, id = mId, brightness, brightnessNits, options] {
+        const auto intError =
+                composer->setDisplayBrightness(id, brightness, brightnessNits, options);
         return static_cast<Error>(intError);
     });
+}
+
+Error Display::setBootDisplayConfig(hal::HWConfigId configId) {
+    auto intError = mComposer.setBootDisplayConfig(mId, configId);
+    return static_cast<Error>(intError);
+}
+
+Error Display::clearBootDisplayConfig() {
+    auto intError = mComposer.clearBootDisplayConfig(mId);
+    return static_cast<Error>(intError);
+}
+
+Error Display::getPreferredBootDisplayConfig(hal::HWConfigId* configId) const {
+    auto intError = mComposer.getPreferredBootDisplayConfig(mId, configId);
+    return static_cast<Error>(intError);
 }
 
 Error Display::setAutoLowLatencyMode(bool on) {
@@ -538,8 +586,22 @@ Error Display::setContentType(ContentType contentType) {
     return static_cast<Error>(intError);
 }
 
-Error Display::getClientTargetProperty(ClientTargetProperty* outClientTargetProperty) {
+Error Display::getClientTargetProperty(
+        aidl::android::hardware::graphics::composer3::ClientTargetPropertyWithBrightness*
+                outClientTargetProperty) {
     const auto error = mComposer.getClientTargetProperty(mId, outClientTargetProperty);
+    return static_cast<Error>(error);
+}
+
+Error Display::getDisplayDecorationSupport(
+        std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
+                support) {
+    const auto error = mComposer.getDisplayDecorationSupport(mId, support);
+    return static_cast<Error>(error);
+}
+
+Error Display::setIdleTimerEnabled(std::chrono::milliseconds timeout) {
+    const auto error = mComposer.setIdleTimerEnabled(mId, timeout);
     return static_cast<Error>(error);
 }
 
@@ -562,12 +624,28 @@ std::shared_ptr<HWC2::Layer> Display::getLayerById(HWLayerId id) const {
 
 // Layer methods
 
+namespace {
+std::vector<Hwc2::IComposerClient::Rect> convertRegionToHwcRects(const Region& region) {
+    size_t rectCount = 0;
+    Rect const* rectArray = region.getArray(&rectCount);
+
+    std::vector<Hwc2::IComposerClient::Rect> hwcRects;
+    hwcRects.reserve(rectCount);
+    for (size_t rect = 0; rect < rectCount; ++rect) {
+        hwcRects.push_back({rectArray[rect].left, rectArray[rect].top, rectArray[rect].right,
+                            rectArray[rect].bottom});
+    }
+    return hwcRects;
+}
+} // namespace
+
 Layer::~Layer() = default;
 
 namespace impl {
 
-Layer::Layer(android::Hwc2::Composer& composer, const std::unordered_set<Capability>& capabilities,
-             HWC2::Display& display, HWLayerId layerId)
+Layer::Layer(android::Hwc2::Composer& composer,
+             const std::unordered_set<AidlCapability>& capabilities, HWC2::Display& display,
+             HWLayerId layerId)
       : mComposer(composer),
         mCapabilities(capabilities),
         mDisplay(&display),
@@ -652,15 +730,7 @@ Error Layer::setSurfaceDamage(const Region& damage)
         intError = mComposer.setLayerSurfaceDamage(mDisplay->getId(), mId,
                                                    std::vector<Hwc2::IComposerClient::Rect>());
     } else {
-        size_t rectCount = 0;
-        auto rectArray = damage.getArray(&rectCount);
-
-        std::vector<Hwc2::IComposerClient::Rect> hwcRects;
-        for (size_t rect = 0; rect < rectCount; ++rect) {
-            hwcRects.push_back({rectArray[rect].left, rectArray[rect].top,
-                    rectArray[rect].right, rectArray[rect].bottom});
-        }
-
+        const auto hwcRects = convertRegionToHwcRects(damage);
         intError = mComposer.setLayerSurfaceDamage(mDisplay->getId(), mId, hwcRects);
     }
 
@@ -805,7 +875,7 @@ Error Layer::setSidebandStream(const native_handle_t* stream)
         return Error::BAD_DISPLAY;
     }
 
-    if (mCapabilities.count(Capability::SIDEBAND_STREAM) == 0) {
+    if (mCapabilities.count(AidlCapability::SIDEBAND_STREAM) == 0) {
         ALOGE("Attempted to call setSidebandStream without checking that the "
                 "device supports sideband streams");
         return Error::UNSUPPORTED;
@@ -848,16 +918,7 @@ Error Layer::setVisibleRegion(const Region& region)
         return Error::NONE;
     }
     mVisibleRegion = region;
-
-    size_t rectCount = 0;
-    auto rectArray = region.getArray(&rectCount);
-
-    std::vector<Hwc2::IComposerClient::Rect> hwcRects;
-    for (size_t rect = 0; rect < rectCount; ++rect) {
-        hwcRects.push_back({rectArray[rect].left, rectArray[rect].top,
-                rectArray[rect].right, rectArray[rect].bottom});
-    }
-
+    const auto hwcRects = convertRegionToHwcRects(region);
     auto intError = mComposer.setLayerVisibleRegion(mDisplay->getId(), mId, hwcRects);
     return static_cast<Error>(intError);
 }
@@ -899,6 +960,31 @@ Error Layer::setLayerGenericMetadata(const std::string& name, bool mandatory,
 
     auto intError =
             mComposer.setLayerGenericMetadata(mDisplay->getId(), mId, name, mandatory, value);
+    return static_cast<Error>(intError);
+}
+
+// AIDL HAL
+Error Layer::setBrightness(float brightness) {
+    if (CC_UNLIKELY(!mDisplay)) {
+        return Error::BAD_DISPLAY;
+    }
+
+    auto intError = mComposer.setLayerBrightness(mDisplay->getId(), mId, brightness);
+    return static_cast<Error>(intError);
+}
+
+Error Layer::setBlockingRegion(const Region& region) {
+    if (CC_UNLIKELY(!mDisplay)) {
+        return Error::BAD_DISPLAY;
+    }
+
+    if (region.isRect() && mBlockingRegion.isRect() &&
+        (region.getBounds() == mBlockingRegion.getBounds())) {
+        return Error::NONE;
+    }
+    mBlockingRegion = region;
+    const auto hwcRects = convertRegionToHwcRects(region);
+    const auto intError = mComposer.setLayerBlockingRegion(mDisplay->getId(), mId, hwcRects);
     return static_cast<Error>(intError);
 }
 

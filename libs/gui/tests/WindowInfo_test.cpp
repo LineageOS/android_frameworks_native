@@ -49,8 +49,8 @@ TEST(WindowInfo, Parcelling) {
     i.windowToken = new BBinder();
     i.id = 1;
     i.name = "Foobar";
-    i.flags = WindowInfo::Flag::SLIPPERY;
-    i.type = WindowInfo::Type::INPUT_METHOD;
+    i.layoutParamsFlags = WindowInfo::Flag::SLIPPERY;
+    i.layoutParamsType = WindowInfo::Type::INPUT_METHOD;
     i.dispatchingTimeout = 12s;
     i.frameLeft = 93;
     i.frameTop = 34;
@@ -60,25 +60,18 @@ TEST(WindowInfo, Parcelling) {
     i.globalScaleFactor = 0.3;
     i.alpha = 0.7;
     i.transform.set({0.4, -1, 100, 0.5, 0, 40, 0, 0, 1});
-    i.displayOrientation = ui::Transform::ROT_0;
-    i.displayWidth = 1000;
-    i.displayHeight = 2000;
-    i.visible = false;
-    i.focusable = false;
-    i.hasWallpaper = false;
-    i.paused = false;
     i.touchOcclusionMode = TouchOcclusionMode::ALLOW;
     i.ownerPid = 19;
     i.ownerUid = 24;
     i.packageName = "com.example.package";
-    i.inputFeatures = WindowInfo::Feature::DISABLE_USER_ACTIVITY;
+    i.inputConfig = WindowInfo::InputConfig::NOT_FOCUSABLE;
     i.displayId = 34;
-    i.portalToDisplayId = 2;
     i.replaceTouchableRegionWithCrop = true;
     i.touchableRegionCropHandle = touchableRegionCropHandle;
     i.applicationInfo.name = "ApplicationFooBar";
     i.applicationInfo.token = new BBinder();
     i.applicationInfo.dispatchingTimeoutMillis = 0x12345678ABCD;
+    i.isClone = true;
 
     Parcel p;
     i.writeToParcel(&p);
@@ -89,8 +82,8 @@ TEST(WindowInfo, Parcelling) {
     ASSERT_EQ(i.windowToken, i2.windowToken);
     ASSERT_EQ(i.id, i2.id);
     ASSERT_EQ(i.name, i2.name);
-    ASSERT_EQ(i.flags, i2.flags);
-    ASSERT_EQ(i.type, i2.type);
+    ASSERT_EQ(i.layoutParamsFlags, i2.layoutParamsFlags);
+    ASSERT_EQ(i.layoutParamsType, i2.layoutParamsType);
     ASSERT_EQ(i.dispatchingTimeout, i2.dispatchingTimeout);
     ASSERT_EQ(i.frameLeft, i2.frameLeft);
     ASSERT_EQ(i.frameTop, i2.frameTop);
@@ -100,22 +93,16 @@ TEST(WindowInfo, Parcelling) {
     ASSERT_EQ(i.globalScaleFactor, i2.globalScaleFactor);
     ASSERT_EQ(i.alpha, i2.alpha);
     ASSERT_EQ(i.transform, i2.transform);
-    ASSERT_EQ(i.displayWidth, i2.displayWidth);
-    ASSERT_EQ(i.displayHeight, i2.displayHeight);
-    ASSERT_EQ(i.visible, i2.visible);
-    ASSERT_EQ(i.focusable, i2.focusable);
-    ASSERT_EQ(i.hasWallpaper, i2.hasWallpaper);
-    ASSERT_EQ(i.paused, i2.paused);
     ASSERT_EQ(i.touchOcclusionMode, i2.touchOcclusionMode);
     ASSERT_EQ(i.ownerPid, i2.ownerPid);
     ASSERT_EQ(i.ownerUid, i2.ownerUid);
     ASSERT_EQ(i.packageName, i2.packageName);
-    ASSERT_EQ(i.inputFeatures, i2.inputFeatures);
+    ASSERT_EQ(i.inputConfig, i2.inputConfig);
     ASSERT_EQ(i.displayId, i2.displayId);
-    ASSERT_EQ(i.portalToDisplayId, i2.portalToDisplayId);
     ASSERT_EQ(i.replaceTouchableRegionWithCrop, i2.replaceTouchableRegionWithCrop);
     ASSERT_EQ(i.touchableRegionCropHandle, i2.touchableRegionCropHandle);
     ASSERT_EQ(i.applicationInfo, i2.applicationInfo);
+    ASSERT_EQ(i.isClone, i2.isClone);
 }
 
 TEST(InputApplicationInfo, Parcelling) {
