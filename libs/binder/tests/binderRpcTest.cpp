@@ -23,6 +23,7 @@
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/properties.h>
+#include <android-base/stringprintf.h>
 #include <android/binder_auto_utils.h>
 #include <android/binder_libbinder.h>
 #include <binder/Binder.h>
@@ -331,6 +332,16 @@ public:
 };
 sp<IBinder> MyBinderRpcTest::mHeldBinder;
 
+static std::string WaitStatusToString(int wstatus) {
+    if (WIFEXITED(wstatus)) {
+        return base::StringPrintf("exit status %d", WEXITSTATUS(wstatus));
+    }
+    if (WIFSIGNALED(wstatus)) {
+        return base::StringPrintf("term signal %d", WTERMSIG(wstatus));
+    }
+    return base::StringPrintf("unexpected state %d", wstatus);
+}
+
 class Process {
 public:
     Process(Process&&) = default;
@@ -351,13 +362,25 @@ public:
     }
     ~Process() {
         if (mPid != 0) {
-            waitpid(mPid, nullptr, 0);
+            int wstatus;
+            waitpid(mPid, &wstatus, 0);
+            if (mCustomExitStatusCheck) {
+                mCustomExitStatusCheck(wstatus);
+            } else {
+                EXPECT_TRUE(WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == 0)
+                        << "server process failed: " << WaitStatusToString(wstatus);
+            }
         }
     }
     android::base::borrowed_fd readEnd() { return mReadEnd; }
     android::base::borrowed_fd writeEnd() { return mWriteEnd; }
 
+    void setCustomExitStatusCheck(std::function<void(int wstatus)> f) {
+        mCustomExitStatusCheck = std::move(f);
+    }
+
 private:
+    std::function<void(int wstatus)> mCustomExitStatusCheck;
     pid_t mPid = 0;
     android::base::unique_fd mReadEnd;
     android::base::unique_fd mWriteEnd;
@@ -1297,6 +1320,12 @@ TEST_P(BinderRpc, Callbacks) {
                 // need to manually shut it down
                 EXPECT_TRUE(proc.proc.sessions.at(0).session->shutdownAndWait(true));
 
+                proc.proc.host.setCustomExitStatusCheck([](int wstatus) {
+                    // Flaky. Sometimes gets SIGABRT.
+                    EXPECT_TRUE((WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == 0) ||
+                                (WIFSIGNALED(wstatus) && WTERMSIG(wstatus) == SIGABRT))
+                            << "server process failed: " << WaitStatusToString(wstatus);
+                });
                 proc.expectAlreadyShutdown = true;
             }
         }
@@ -1326,6 +1355,10 @@ TEST_P(BinderRpc, Die) {
         EXPECT_EQ(DEAD_OBJECT, proc.rootIface->die(doDeathCleanup).transactionError())
                 << "Do death cleanup: " << doDeathCleanup;
 
+        proc.proc.host.setCustomExitStatusCheck([](int wstatus) {
+            EXPECT_TRUE(WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == 1)
+                    << "server process failed incorrectly: " << WaitStatusToString(wstatus);
+        });
         proc.expectAlreadyShutdown = true;
     }
 }
@@ -1349,6 +1382,10 @@ TEST_P(BinderRpc, UseKernelBinderCallingId) {
     // second time! we catch the error :)
     EXPECT_EQ(DEAD_OBJECT, proc.rootIface->useKernelBinderCallingId().transactionError());
 
+    proc.proc.host.setCustomExitStatusCheck([](int wstatus) {
+        EXPECT_TRUE(WIFSIGNALED(wstatus) && WTERMSIG(wstatus) == SIGABRT)
+                << "server process failed incorrectly: " << WaitStatusToString(wstatus);
+    });
     proc.expectAlreadyShutdown = true;
 }
 
