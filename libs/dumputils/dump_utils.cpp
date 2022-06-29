@@ -85,7 +85,19 @@ static const char* hidl_hal_interfaces_to_dump[] {
 
 /* list of hal interface to dump containing process during native dumps */
 static const std::vector<std::string> aidl_interfaces_to_dump {
+        "android.hardware.automotive.audiocontrol.IAudioControl",
+        "android.hardware.automotive.evs.IEvsEnumerator",
+        "android.hardware.biometrics.face.IBiometricsFace",
+        "android.hardware.biometrics.fingerprint.IBiometricsFingerprint",
         "android.hardware.camera.provider.ICameraProvider",
+        "android.hardware.drm.IDrmFactory",
+        "android.hardware.graphics.allocator.IAllocator",
+        "android.hardware.graphics.composer3.IComposer",
+        "android.hardware.health.IHealth",
+        "android.hardware.neuralnetworks.IDevice",
+        "android.hardware.power.IPower",
+        "android.hardware.power.stats.IPowerStats",
+        "android.hardware.sensors.ISensors",
 };
 
 /* list of extra hal interfaces to dump containing process during native dumps */
