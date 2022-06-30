@@ -184,21 +184,25 @@ private:
             const std::optional<android::base::function_ref<status_t()>>& altPoll,
             const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds =
                     nullptr);
-    [[nodiscard]] status_t rpcRec(const sp<RpcSession::RpcConnection>& connection,
-                                  const sp<RpcSession>& session, const char* what, iovec* iovs,
-                                  int niovs);
+    [[nodiscard]] status_t rpcRec(
+            const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
+            const char* what, iovec* iovs, int niovs,
+            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds = nullptr);
 
     [[nodiscard]] status_t waitForReply(const sp<RpcSession::RpcConnection>& connection,
                                         const sp<RpcSession>& session, Parcel* reply);
-    [[nodiscard]] status_t processCommand(const sp<RpcSession::RpcConnection>& connection,
-                                          const sp<RpcSession>& session,
-                                          const RpcWireHeader& command, CommandType type);
-    [[nodiscard]] status_t processTransact(const sp<RpcSession::RpcConnection>& connection,
-                                           const sp<RpcSession>& session,
-                                           const RpcWireHeader& command);
-    [[nodiscard]] status_t processTransactInternal(const sp<RpcSession::RpcConnection>& connection,
-                                                   const sp<RpcSession>& session,
-                                                   CommandData transactionData);
+    [[nodiscard]] status_t processCommand(
+            const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
+            const RpcWireHeader& command, CommandType type,
+            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds);
+    [[nodiscard]] status_t processTransact(
+            const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
+            const RpcWireHeader& command,
+            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds);
+    [[nodiscard]] status_t processTransactInternal(
+            const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
+            CommandData transactionData,
+            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds);
     [[nodiscard]] status_t processDecStrong(const sp<RpcSession::RpcConnection>& connection,
                                             const sp<RpcSession>& session,
                                             const RpcWireHeader& command);

@@ -2000,7 +2000,7 @@ public:
             iovec readMessageIov{readMessage.data(), readMessage.size()};
             status_t readStatus =
                     mClientTransport->interruptableReadFully(mFdTrigger.get(), &readMessageIov, 1,
-                                                             std::nullopt, false);
+                                                             std::nullopt, nullptr);
             if (readStatus != OK) {
                 return AssertionFailure() << statusToString(readStatus);
             }
