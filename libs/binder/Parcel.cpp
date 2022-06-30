@@ -2486,11 +2486,11 @@ void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize, const bin
     scanForFds();
 }
 
-status_t Parcel::rpcSetDataReference(const sp<RpcSession>& session, const uint8_t* data,
-                                     size_t dataSize, const uint32_t* objectTable,
-                                     size_t objectTableSize,
-                                     std::vector<base::unique_fd> ancillaryFds,
-                                     release_func relFunc) {
+status_t Parcel::rpcSetDataReference(
+        const sp<RpcSession>& session, const uint8_t* data, size_t dataSize,
+        const uint32_t* objectTable, size_t objectTableSize,
+        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds,
+        release_func relFunc) {
     // this code uses 'mOwner == nullptr' to understand whether it owns memory
     LOG_ALWAYS_FATAL_IF(relFunc == nullptr, "must provide cleanup function");
 
@@ -2518,10 +2518,7 @@ status_t Parcel::rpcSetDataReference(const sp<RpcSession>& session, const uint8_
     }
     if (!ancillaryFds.empty()) {
         rpcFields->mFds = std::make_unique<decltype(rpcFields->mFds)::element_type>();
-        rpcFields->mFds->reserve(ancillaryFds.size());
-        for (auto& fd : ancillaryFds) {
-            rpcFields->mFds->push_back(std::move(fd));
-        }
+        *rpcFields->mFds = std::move(ancillaryFds);
     }
 
     return OK;
