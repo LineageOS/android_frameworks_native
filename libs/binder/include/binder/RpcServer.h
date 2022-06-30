@@ -203,8 +203,8 @@ private:
     size_t mMaxThreads = 1;
     std::optional<uint32_t> mProtocolVersion;
     // A mode is supported if the N'th bit is on, where N is the mode enum's value.
-    std::bitset<8> mSupportedFileDescriptorTransportModes =
-            (1 << static_cast<unsigned long>(RpcSession::FileDescriptorTransportMode::NONE));
+    std::bitset<8> mSupportedFileDescriptorTransportModes = std::bitset<8>().set(
+            static_cast<size_t>(RpcSession::FileDescriptorTransportMode::NONE));
     base::unique_fd mServer; // socket we are accepting sessions on
 
     std::mutex mLock; // for below
