@@ -288,12 +288,7 @@ public:
     status_t interruptableReadFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
             const std::optional<android::base::function_ref<status_t()>>& altPoll,
-            bool enableAncillaryFds) override;
-
-    status_t consumePendingAncillaryData(std::vector<base::unique_fd>* fds) override {
-        (void)fds;
-        return OK;
-    }
+            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) override;
 
 private:
     android::base::unique_fd mSocket;
@@ -368,8 +363,8 @@ status_t RpcTransportTls::interruptableWriteFully(
 status_t RpcTransportTls::interruptableReadFully(
         FdTrigger* fdTrigger, iovec* iovs, int niovs,
         const std::optional<android::base::function_ref<status_t()>>& altPoll,
-        bool enableAncillaryFds) {
-    (void)enableAncillaryFds;
+        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
+    (void)ancillaryFds;
 
     MAYBE_WAIT_IN_FLAKE_MODE;
 
