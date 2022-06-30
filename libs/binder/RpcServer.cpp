@@ -300,7 +300,7 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
     if (status == OK) {
         iovec iov{&header, sizeof(header)};
         status = client->interruptableReadFully(server->mShutdownTrigger.get(), &iov, 1,
-                                                std::nullopt, /*enableAncillaryFds=*/false);
+                                                std::nullopt, /*ancillaryFds=*/nullptr);
         if (status != OK) {
             ALOGE("Failed to read ID for client connecting to RPC server: %s",
                   statusToString(status).c_str());
@@ -315,7 +315,7 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
                 sessionId.resize(header.sessionIdSize);
                 iovec iov{sessionId.data(), sessionId.size()};
                 status = client->interruptableReadFully(server->mShutdownTrigger.get(), &iov, 1,
-                                                        std::nullopt, /*enableAncillaryFds=*/false);
+                                                        std::nullopt, /*ancillaryFds=*/nullptr);
                 if (status != OK) {
                     ALOGE("Failed to read session ID for client connecting to RPC server: %s",
                           statusToString(status).c_str());

@@ -109,6 +109,10 @@ enum : uint32_t {
 
 // serialization is like:
 // |RpcWireHeader|struct desginated by 'command'| (over and over again)
+//
+// When file descriptors are included in out-of-band data (e.g. in unix domain
+// sockets), they are always paired with the RpcWireHeader bytes of the
+// transaction or reply the file descriptors belong to.
 
 struct RpcWireHeader {
     uint32_t command; // RPC_COMMAND_*
