@@ -1503,6 +1503,7 @@ private:
 
     bool mAllowHwcForVDS = false;
     bool mAllowHwcForWFD = false;
+    int mFirstApiLevel = 0;
 
     // returns the framerate of the layer with the given sequence ID
     float getLayerFramerate(nsecs_t now, int32_t id) const {
