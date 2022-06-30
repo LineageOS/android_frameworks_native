@@ -95,6 +95,18 @@ public:
     [[nodiscard]] bool setProtocolVersion(uint32_t version);
     std::optional<uint32_t> getProtocolVersion();
 
+    enum class FileDescriptorTransportMode : uint8_t {
+        NONE = 0,
+        // Send file descriptors via unix domain socket ancillary data.
+        UNIX = 1,
+    };
+
+    /**
+     * Set the transport for sending and receiving file descriptors.
+     */
+    void setFileDescriptorTransportMode(FileDescriptorTransportMode mode);
+    FileDescriptorTransportMode getFileDescriptorTransportMode();
+
     /**
      * This should be called once per thread, matching 'join' in the remote
      * process.
@@ -314,7 +326,7 @@ private:
     // For a more complicated case, the client might itself open up a thread to
     // serve calls to the server at all times (e.g. if it hosts a callback)
 
-    wp<RpcServer> mForServer; // maybe null, for client sessions
+    wp<RpcServer> mForServer;                      // maybe null, for client sessions
     sp<WaitForShutdownListener> mShutdownListener; // used for client sessions
     wp<EventListener> mEventListener; // mForServer if server, mShutdownListener if client
 
@@ -333,6 +345,7 @@ private:
     size_t mMaxIncomingThreads = 0;
     size_t mMaxOutgoingThreads = kDefaultMaxOutgoingThreads;
     std::optional<uint32_t> mProtocolVersion;
+    FileDescriptorTransportMode mFileDescriptorTransportMode = FileDescriptorTransportMode::NONE;
 
     std::condition_variable mAvailableConnectionCv; // for mWaitingThreads
 
