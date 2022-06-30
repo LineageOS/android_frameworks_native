@@ -37,6 +37,7 @@
 #include <utils/String8.h>
 
 #include "FdTrigger.h"
+#include "OS.h"
 #include "RpcSocketAddress.h"
 #include "RpcState.h"
 #include "RpcWireFormat.h"
