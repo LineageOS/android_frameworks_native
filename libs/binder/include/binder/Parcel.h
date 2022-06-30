@@ -608,8 +608,11 @@ private:
     size_t              ipcObjectsCount() const;
     void ipcSetDataReference(const uint8_t* data, size_t dataSize, const binder_size_t* objects,
                              size_t objectsCount, release_func relFunc);
-    void rpcSetDataReference(const sp<RpcSession>& session, const uint8_t* data, size_t dataSize,
-                             release_func relFunc);
+    // Takes ownership even when an error is returned.
+    status_t rpcSetDataReference(const sp<RpcSession>& session, const uint8_t* data,
+                                 size_t dataSize, const uint32_t* objectTable,
+                                 size_t objectTableSize, std::vector<base::unique_fd> ancillaryFds,
+                                 release_func relFunc);
 
     status_t            finishWrite(size_t len);
     void                releaseObjects();
@@ -620,6 +623,7 @@ private:
     status_t            restartWrite(size_t desired);
     // Set the capacity to `desired`, truncating the Parcel if necessary.
     status_t            continueWrite(size_t desired);
+    status_t truncateRpcObjects(size_t newObjectsSize);
     status_t            writePointer(uintptr_t val);
     status_t            readPointer(uintptr_t *pArg) const;
     uintptr_t           readPointer() const;
@@ -1279,6 +1283,23 @@ private:
 
         // Should always be non-null.
         const sp<RpcSession> mSession;
+
+        enum ObjectType : int32_t {
+            TYPE_BINDER_NULL = 0,
+            TYPE_BINDER = 1,
+            // FD to be passed via native transport (Trusty IPC or UNIX domain socket).
+            TYPE_NATIVE_FILE_DESCRIPTOR = 2,
+        };
+
+        // Sorted.
+        std::vector<uint32_t> mObjectPositions;
+
+        // File descriptors referenced by the parcel data. Should be indexed
+        // using the offsets in the parcel data. Don't assume the list is in the
+        // same order as `mObjectPositions`.
+        //
+        // Boxed to save space. Lazy allocated.
+        std::unique_ptr<std::vector<std::variant<base::unique_fd, base::borrowed_fd>>> mFds;
     };
     std::variant<KernelFields, RpcFields> mVariantFields;
 
