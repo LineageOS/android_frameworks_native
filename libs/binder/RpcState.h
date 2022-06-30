@@ -181,7 +181,9 @@ private:
     [[nodiscard]] status_t rpcSend(
             const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
             const char* what, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll);
+            const std::optional<android::base::function_ref<status_t()>>& altPoll,
+            const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds =
+                    nullptr);
     [[nodiscard]] status_t rpcRec(const sp<RpcSession::RpcConnection>& connection,
                                   const sp<RpcSession>& session, const char* what, iovec* iovs,
                                   int niovs);
@@ -200,6 +202,10 @@ private:
     [[nodiscard]] status_t processDecStrong(const sp<RpcSession::RpcConnection>& connection,
                                             const sp<RpcSession>& session,
                                             const RpcWireHeader& command);
+
+    // Whether `parcel` is compatible with `session`.
+    [[nodiscard]] static status_t validateParcel(const sp<RpcSession>& session,
+                                                 const Parcel& parcel, std::string* errorMsg);
 
     struct BinderNode {
         // Two cases:
