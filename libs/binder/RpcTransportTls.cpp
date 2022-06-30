@@ -282,10 +282,18 @@ public:
     status_t pollRead(void) override;
     status_t interruptableWriteFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll) override;
+            const std::optional<android::base::function_ref<status_t()>>& altPoll,
+            const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds)
+            override;
     status_t interruptableReadFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll) override;
+            const std::optional<android::base::function_ref<status_t()>>& altPoll,
+            bool enableAncillaryFds) override;
+
+    status_t consumePendingAncillaryData(std::vector<base::unique_fd>* fds) override {
+        (void)fds;
+        return OK;
+    }
 
 private:
     android::base::unique_fd mSocket;
@@ -313,7 +321,10 @@ status_t RpcTransportTls::pollRead(void) {
 
 status_t RpcTransportTls::interruptableWriteFully(
         FdTrigger* fdTrigger, iovec* iovs, int niovs,
-        const std::optional<android::base::function_ref<status_t()>>& altPoll) {
+        const std::optional<android::base::function_ref<status_t()>>& altPoll,
+        const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
+    (void)ancillaryFds;
+
     MAYBE_WAIT_IN_FLAKE_MODE;
 
     if (niovs < 0) return BAD_VALUE;
@@ -356,7 +367,10 @@ status_t RpcTransportTls::interruptableWriteFully(
 
 status_t RpcTransportTls::interruptableReadFully(
         FdTrigger* fdTrigger, iovec* iovs, int niovs,
-        const std::optional<android::base::function_ref<status_t()>>& altPoll) {
+        const std::optional<android::base::function_ref<status_t()>>& altPoll,
+        bool enableAncillaryFds) {
+    (void)enableAncillaryFds;
+
     MAYBE_WAIT_IN_FLAKE_MODE;
 
     if (niovs < 0) return BAD_VALUE;
