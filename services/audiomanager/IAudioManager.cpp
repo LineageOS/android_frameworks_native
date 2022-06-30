@@ -141,6 +141,17 @@ public:
         data.writeInt32((int32_t) sessionId);
         return remote()->transact(PLAYER_SESSION_ID, data, &reply, IBinder::FLAG_ONEWAY);
     }
+
+    virtual status_t portEvent(audio_port_handle_t portId, player_state_t event,
+            const std::unique_ptr<os::PersistableBundle>& extras) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioManager::getInterfaceDescriptor());
+        data.writeInt32((int32_t) portId);
+        data.writeInt32((int32_t) event);
+        // TODO: replace PersistableBundle with own struct
+        data.writeNullableParcelable(extras);
+        return remote()->transact(PORT_EVENT, data, &reply, IBinder::FLAG_ONEWAY);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioManager, "android.media.IAudioService");
