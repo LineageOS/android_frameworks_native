@@ -346,11 +346,14 @@ status_t RpcState::rpcSend(
     return OK;
 }
 
-status_t RpcState::rpcRec(const sp<RpcSession::RpcConnection>& connection,
-                          const sp<RpcSession>& session, const char* what, iovec* iovs, int niovs) {
-    if (status_t status = connection->rpcTransport->interruptableReadFully(
-                session->mShutdownTrigger.get(), iovs, niovs, std::nullopt,
-                enableAncillaryFds(session->getFileDescriptorTransportMode()));
+status_t RpcState::rpcRec(
+        const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
+        const char* what, iovec* iovs, int niovs,
+        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
+    if (status_t status =
+                connection->rpcTransport->interruptableReadFully(session->mShutdownTrigger.get(),
+                                                                 iovs, niovs, std::nullopt,
+                                                                 ancillaryFds);
         status != OK) {
         LOG_RPC_DETAIL("Failed to read %s (%d iovs) on RpcTransport %p, error: %s", what, niovs,
                        connection->rpcTransport.get(), statusToString(status).c_str());
@@ -370,7 +373,7 @@ status_t RpcState::readNewSessionResponse(const sp<RpcSession::RpcConnection>& c
                                           const sp<RpcSession>& session, uint32_t* version) {
     RpcNewSessionResponse response;
     iovec iov{&response, sizeof(response)};
-    if (status_t status = rpcRec(connection, session, "new session response", &iov, 1);
+    if (status_t status = rpcRec(connection, session, "new session response", &iov, 1, nullptr);
         status != OK) {
         return status;
     }
@@ -391,7 +394,8 @@ status_t RpcState::readConnectionInit(const sp<RpcSession::RpcConnection>& conne
                                       const sp<RpcSession>& session) {
     RpcOutgoingConnectionInit init;
     iovec iov{&init, sizeof(init)};
-    if (status_t status = rpcRec(connection, session, "connection init", &iov, 1); status != OK)
+    if (status_t status = rpcRec(connection, session, "connection init", &iov, 1, nullptr);
+        status != OK)
         return status;
 
     static_assert(sizeof(init.msg) == sizeof(RPC_CONNECTION_INIT_OKAY));
@@ -589,18 +593,26 @@ static void cleanup_reply_data(Parcel* p, const uint8_t* data, size_t dataSize,
 
 status_t RpcState::waitForReply(const sp<RpcSession::RpcConnection>& connection,
                                 const sp<RpcSession>& session, Parcel* reply) {
+    std::vector<std::variant<base::unique_fd, base::borrowed_fd>> ancillaryFds;
     RpcWireHeader command;
     while (true) {
         iovec iov{&command, sizeof(command)};
-        if (status_t status = rpcRec(connection, session, "command header (for reply)", &iov, 1);
+        if (status_t status = rpcRec(connection, session, "command header (for reply)", &iov, 1,
+                                     enableAncillaryFds(session->getFileDescriptorTransportMode())
+                                             ? &ancillaryFds
+                                             : nullptr);
             status != OK)
             return status;
 
         if (command.command == RPC_COMMAND_REPLY) break;
 
-        if (status_t status = processCommand(connection, session, command, CommandType::ANY);
+        if (status_t status = processCommand(connection, session, command, CommandType::ANY,
+                                             std::move(ancillaryFds));
             status != OK)
             return status;
+
+        // Reset to avoid spurious use-after-move warning from clang-tidy.
+        ancillaryFds = decltype(ancillaryFds)();
     }
 
     const size_t rpcReplyWireSize = RpcWireReply::wireSize(session->getProtocolVersion().value());
@@ -622,16 +634,9 @@ status_t RpcState::waitForReply(const sp<RpcSession::RpcConnection>& connection,
             {&rpcReply, rpcReplyWireSize},
             {data.data(), data.size()},
     };
-    if (status_t status = rpcRec(connection, session, "reply body", iovs, arraysize(iovs));
+    if (status_t status = rpcRec(connection, session, "reply body", iovs, arraysize(iovs), nullptr);
         status != OK)
         return status;
-
-    // Check if the reply came with any ancillary data.
-    std::vector<base::unique_fd> pendingFds;
-    if (status_t status = connection->rpcTransport->consumePendingAncillaryData(&pendingFds);
-        status != OK) {
-        return status;
-    }
 
     if (rpcReply.status != OK) return rpcReply.status;
 
@@ -655,7 +660,7 @@ status_t RpcState::waitForReply(const sp<RpcSession::RpcConnection>& connection,
     data.release();
     return reply->rpcSetDataReference(session, parcelSpan.data, parcelSpan.size,
                                       objectTableSpan.data, objectTableSpan.size,
-                                      std::move(pendingFds), cleanup_reply_data);
+                                      std::move(ancillaryFds), cleanup_reply_data);
 }
 
 status_t RpcState::sendDecStrongToTarget(const sp<RpcSession::RpcConnection>& connection,
@@ -698,13 +703,17 @@ status_t RpcState::getAndExecuteCommand(const sp<RpcSession::RpcConnection>& con
                                         const sp<RpcSession>& session, CommandType type) {
     LOG_RPC_DETAIL("getAndExecuteCommand on RpcTransport %p", connection->rpcTransport.get());
 
+    std::vector<std::variant<base::unique_fd, base::borrowed_fd>> ancillaryFds;
     RpcWireHeader command;
     iovec iov{&command, sizeof(command)};
-    if (status_t status = rpcRec(connection, session, "command header (for server)", &iov, 1);
+    if (status_t status =
+                rpcRec(connection, session, "command header (for server)", &iov, 1,
+                       enableAncillaryFds(session->getFileDescriptorTransportMode()) ? &ancillaryFds
+                                                                                     : nullptr);
         status != OK)
         return status;
 
-    return processCommand(connection, session, command, type);
+    return processCommand(connection, session, command, type, std::move(ancillaryFds));
 }
 
 status_t RpcState::drainCommands(const sp<RpcSession::RpcConnection>& connection,
@@ -720,9 +729,10 @@ status_t RpcState::drainCommands(const sp<RpcSession::RpcConnection>& connection
     return OK;
 }
 
-status_t RpcState::processCommand(const sp<RpcSession::RpcConnection>& connection,
-                                  const sp<RpcSession>& session, const RpcWireHeader& command,
-                                  CommandType type) {
+status_t RpcState::processCommand(
+        const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
+        const RpcWireHeader& command, CommandType type,
+        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds) {
     IPCThreadState* kernelBinderState = IPCThreadState::selfOrNull();
     IPCThreadState::SpGuard spGuard{
             .address = __builtin_frame_address(0),
@@ -741,7 +751,7 @@ status_t RpcState::processCommand(const sp<RpcSession::RpcConnection>& connectio
     switch (command.command) {
         case RPC_COMMAND_TRANSACT:
             if (type != CommandType::ANY) return BAD_TYPE;
-            return processTransact(connection, session, command);
+            return processTransact(connection, session, command, std::move(ancillaryFds));
         case RPC_COMMAND_DEC_STRONG:
             return processDecStrong(connection, session, command);
     }
@@ -755,8 +765,10 @@ status_t RpcState::processCommand(const sp<RpcSession::RpcConnection>& connectio
     (void)session->shutdownAndWait(false);
     return DEAD_OBJECT;
 }
-status_t RpcState::processTransact(const sp<RpcSession::RpcConnection>& connection,
-                                   const sp<RpcSession>& session, const RpcWireHeader& command) {
+status_t RpcState::processTransact(
+        const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
+        const RpcWireHeader& command,
+        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds) {
     LOG_ALWAYS_FATAL_IF(command.command != RPC_COMMAND_TRANSACT, "command: %d", command.command);
 
     CommandData transactionData(command.bodySize);
@@ -764,10 +776,12 @@ status_t RpcState::processTransact(const sp<RpcSession::RpcConnection>& connecti
         return NO_MEMORY;
     }
     iovec iov{transactionData.data(), transactionData.size()};
-    if (status_t status = rpcRec(connection, session, "transaction body", &iov, 1); status != OK)
+    if (status_t status = rpcRec(connection, session, "transaction body", &iov, 1, nullptr);
+        status != OK)
         return status;
 
-    return processTransactInternal(connection, session, std::move(transactionData));
+    return processTransactInternal(connection, session, std::move(transactionData),
+                                   std::move(ancillaryFds));
 }
 
 static void do_nothing_to_transact_data(Parcel* p, const uint8_t* data, size_t dataSize,
@@ -779,9 +793,10 @@ static void do_nothing_to_transact_data(Parcel* p, const uint8_t* data, size_t d
     (void)objectsCount;
 }
 
-status_t RpcState::processTransactInternal(const sp<RpcSession::RpcConnection>& connection,
-                                           const sp<RpcSession>& session,
-                                           CommandData transactionData) {
+status_t RpcState::processTransactInternal(
+        const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
+        CommandData transactionData,
+        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds) {
     // for 'recursive' calls to this, we have already read and processed the
     // binder from the transaction data and taken reference counts into account,
     // so it is cached here.
@@ -869,13 +884,6 @@ processTransactInternalTailCall:
     reply.markForRpc(session);
 
     if (replyStatus == OK) {
-        // Check if the transaction came with any ancillary data.
-        std::vector<base::unique_fd> pendingFds;
-        if (status_t status = connection->rpcTransport->consumePendingAncillaryData(&pendingFds);
-            status != OK) {
-            return status;
-        }
-
         Span<const uint8_t> parcelSpan = {transaction->data,
                                           transactionData.size() -
                                                   offsetof(RpcWireTransaction, data)};
@@ -901,9 +909,12 @@ processTransactInternalTailCall:
         // only holds onto it for the duration of this function call. Parcel will be
         // deleted before the 'transactionData' object.
 
-        replyStatus = data.rpcSetDataReference(session, parcelSpan.data, parcelSpan.size,
-                                               objectTableSpan.data, objectTableSpan.size,
-                                               std::move(pendingFds), do_nothing_to_transact_data);
+        replyStatus =
+                data.rpcSetDataReference(session, parcelSpan.data, parcelSpan.size,
+                                         objectTableSpan.data, objectTableSpan.size,
+                                         std::move(ancillaryFds), do_nothing_to_transact_data);
+        // Reset to avoid spurious use-after-move warning from clang-tidy.
+        ancillaryFds = std::remove_reference<decltype(ancillaryFds)>::type();
 
         if (replyStatus == OK) {
             if (target) {
@@ -1073,7 +1084,8 @@ status_t RpcState::processDecStrong(const sp<RpcSession::RpcConnection>& connect
 
     RpcDecStrong body;
     iovec iov{&body, sizeof(RpcDecStrong)};
-    if (status_t status = rpcRec(connection, session, "dec ref body", &iov, 1); status != OK)
+    if (status_t status = rpcRec(connection, session, "dec ref body", &iov, 1, nullptr);
+        status != OK)
         return status;
 
     uint64_t addr = RpcWireAddress::toRaw(body.address);
