@@ -78,9 +78,14 @@ public:
     virtual void reset(const NotifyDeviceResetArgs& args) = 0;
 
     /**
-     * Dump the state of the motion classifier
+     * Dump the state of the motion classifier.
      */
     virtual void dump(std::string& dump) = 0;
+
+    /**
+     * Called by the heartbeat to ensure the HAL is still processing normally.
+     */
+    virtual void monitor() = 0;
 };
 
 /**
@@ -96,7 +101,7 @@ public:
      */
     virtual void dump(std::string& dump) = 0;
 
-    /* Called by the heatbeat to ensures that the classifier has not deadlocked. */
+    /** Called by the heartbeat to ensure that the classifier has not deadlocked. */
     virtual void monitor() = 0;
 
     InputClassifierInterface() { }
@@ -155,13 +160,14 @@ public:
     virtual void reset(const NotifyDeviceResetArgs& args) override;
 
     virtual void dump(std::string& dump) override;
+    virtual void monitor() override;
 
 private:
     friend class MotionClassifierTest; // to create MotionClassifier with a test HAL implementation
     explicit MotionClassifier(
             std::shared_ptr<aidl::android::hardware::input::processor::IInputProcessor> service);
 
-    // The events that need to be sent to the HAL.
+    /** The events that need to be sent to the HAL. */
     BlockingQueue<ClassifierEvent> mEvents;
     /**
      * Add an event to the queue mEvents.

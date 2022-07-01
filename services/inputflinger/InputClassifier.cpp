@@ -331,20 +331,9 @@ void MotionClassifier::reset(const NotifyDeviceResetArgs& args) {
     enqueueEvent(std::make_unique<NotifyDeviceResetArgs>(args));
 }
 
-const char* MotionClassifier::getServiceStatus() REQUIRES(mLock) {
-    if (!mService) {
-        return "null";
-    }
-
-    if (AIBinder_ping(mService->asBinder().get()) == STATUS_OK) {
-        return "running";
-    }
-    return "not responding";
-}
-
 void MotionClassifier::dump(std::string& dump) {
     std::scoped_lock lock(mLock);
-    dump += StringPrintf(INDENT2 "mService status: %s\n", getServiceStatus());
+    dump += StringPrintf(INDENT2 "mService connected: %s\n", mService ? "true" : "false");
     dump += StringPrintf(INDENT2 "mEvents: %zu element(s) (max=%zu)\n",
             mEvents.size(), MAX_EVENTS);
     dump += INDENT2 "mClassifications, mLastDownTimes:\n";
@@ -362,6 +351,18 @@ void MotionClassifier::dump(std::string& dump) {
         const nsecs_t downTime = getValueForKey(mLastDownTimes, deviceId, static_cast<nsecs_t>(0));
         dump += StringPrintf("\n" INDENT4 "%" PRId32 "\t%s\t%" PRId64,
                 deviceId, motionClassificationToString(classification), downTime);
+    }
+}
+
+void MotionClassifier::monitor() {
+    std::scoped_lock lock(mLock);
+    if (mService) {
+        // Ping the HAL service to ensure it is alive and not blocked.
+        const binder_status_t status = AIBinder_ping(mService->asBinder().get());
+        if (status != STATUS_OK) {
+            ALOGW("IInputProcessor HAL is not responding; binder ping result: %s",
+                  AStatus_getDescription(AStatus_fromStatus(status)));
+        }
     }
 }
 
@@ -504,6 +505,7 @@ void InputClassifier::dump(std::string& dump) {
 
 void InputClassifier::monitor() {
     std::scoped_lock lock(mLock);
+    if (mMotionClassifier) mMotionClassifier->monitor();
 }
 
 InputClassifier::~InputClassifier() {
