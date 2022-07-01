@@ -18,6 +18,7 @@
 #include <android-base/unique_fd.h>
 #include <binder/IBinder.h>
 #include <binder/RpcSession.h>
+#include <binder/RpcThreads.h>
 #include <binder/RpcTransport.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
@@ -207,16 +208,17 @@ private:
             static_cast<size_t>(RpcSession::FileDescriptorTransportMode::NONE));
     base::unique_fd mServer; // socket we are accepting sessions on
 
-    std::mutex mLock; // for below
-    std::unique_ptr<std::thread> mJoinThread;
+    RpcMutex mLock; // for below
+    std::unique_ptr<RpcMaybeThread> mJoinThread;
     bool mJoinThreadRunning = false;
-    std::map<std::thread::id, std::thread> mConnectingThreads;
+    std::map<RpcMaybeThread::id, RpcMaybeThread> mConnectingThreads;
+
     sp<IBinder> mRootObject;
     wp<IBinder> mRootObjectWeak;
     std::function<sp<IBinder>(const void*, size_t)> mRootObjectFactory;
     std::map<std::vector<uint8_t>, sp<RpcSession>> mSessions;
     std::unique_ptr<FdTrigger> mShutdownTrigger;
-    std::condition_variable mShutdownCv;
+    RpcConditionVariable mShutdownCv;
 };
 
 } // namespace android

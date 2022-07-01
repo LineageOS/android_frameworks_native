@@ -19,6 +19,7 @@
 #include <binder/IBinder.h>
 #include <binder/Parcel.h>
 #include <binder/RpcSession.h>
+#include <binder/RpcThreads.h>
 
 #include <map>
 #include <optional>
@@ -268,7 +269,7 @@ private:
     // false - session shutdown, halt
     [[nodiscard]] bool nodeProgressAsyncNumber(BinderNode* node);
 
-    std::mutex mNodeMutex;
+    RpcMutex mNodeMutex;
     bool mTerminated = false;
     uint32_t mNextId = 0;
     // binders known by both sides of a session
