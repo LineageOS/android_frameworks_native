@@ -192,7 +192,7 @@ private:
         mSpotsByDisplay[displayId] = newSpots;
     }
 
-    void clearSpots() override {}
+    void clearSpots() override { mSpotsByDisplay.clear(); }
 
     std::map<int32_t, std::vector<int32_t>> mSpotsByDisplay;
 };
@@ -7959,7 +7959,8 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
 
     // Default device will reconfigure above, need additional reconfiguration for another device.
     device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
-                       InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+                       InputReaderConfiguration::CHANGE_DISPLAY_INFO |
+                               InputReaderConfiguration::CHANGE_SHOW_TOUCHES);
 
     // Two fingers down at default display.
     int32_t x1 = 100, y1 = 125, x2 = 300, y2 = 500;
@@ -7986,6 +7987,13 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
     iter = fakePointerController->getSpots().find(SECONDARY_DISPLAY_ID);
     ASSERT_TRUE(iter != fakePointerController->getSpots().end());
     ASSERT_EQ(size_t(2), iter->second.size());
+
+    // Disable the show touches configuration and ensure the spots are cleared.
+    mFakePolicy->setShowTouches(false);
+    device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                       InputReaderConfiguration::CHANGE_SHOW_TOUCHES);
+
+    ASSERT_TRUE(fakePointerController->getSpots().empty());
 }
 
 TEST_F(MultiTouchInputMapperTest, VideoFrames_ReceivedByListener) {
