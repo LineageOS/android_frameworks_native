@@ -159,7 +159,6 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, bool updateDestinati
     id++;
     mBufferItemConsumer->setName(String8(consumerName.c_str()));
     mBufferItemConsumer->setFrameAvailableListener(this);
-    mBufferItemConsumer->setBufferFreedListener(this);
 
     ComposerServiceAIDL::getComposerService()->getMaxAcquiredBufferCount(&mMaxAcquiredBuffers);
     mBufferItemConsumer->setMaxAcquiredBufferCount(mMaxAcquiredBuffers);
@@ -1120,7 +1119,6 @@ void BLASTBufferQueue::abandon() {
     if (mBufferItemConsumer != nullptr) {
         mBufferItemConsumer->abandon();
         mBufferItemConsumer->setFrameAvailableListener(nullptr);
-        mBufferItemConsumer->setBufferFreedListener(nullptr);
     }
     mBufferItemConsumer = nullptr;
     mConsumer = nullptr;
