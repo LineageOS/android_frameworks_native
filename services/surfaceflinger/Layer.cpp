@@ -2152,7 +2152,7 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
         layerInfo->set_owner_uid(mOwnerUid);
     }
 
-    if (traceFlags & SurfaceTracing::TRACE_INPUT) {
+    if (traceFlags & SurfaceTracing::TRACE_INPUT && needsInputInfo()) {
         InputWindowInfo info;
         if (useDrawing) {
             info = fillInputInfo({nullptr});
@@ -2400,7 +2400,8 @@ sp<Layer> Layer::getClonedRoot() {
 }
 
 bool Layer::hasInputInfo() const {
-    return mDrawingState.inputInfo.token != nullptr;
+    return mDrawingState.inputInfo.token != nullptr ||
+            mDrawingState.inputInfo.inputFeatures.test(InputWindowInfo::Feature::NO_INPUT_CHANNEL);
 }
 
 bool Layer::canReceiveInput() const {
