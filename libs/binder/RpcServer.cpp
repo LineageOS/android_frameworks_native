@@ -122,6 +122,14 @@ void RpcServer::setProtocolVersion(uint32_t version) {
     mProtocolVersion = version;
 }
 
+void RpcServer::setSupportedFileDescriptorTransportModes(
+        const std::vector<RpcSession::FileDescriptorTransportMode>& modes) {
+    mSupportedFileDescriptorTransportModes.reset();
+    for (RpcSession::FileDescriptorTransportMode mode : modes) {
+        mSupportedFileDescriptorTransportModes.set(static_cast<size_t>(mode));
+    }
+}
+
 void RpcServer::setRootObject(const sp<IBinder>& binder) {
     std::lock_guard<std::mutex> _l(mLock);
     mRootObjectFactory = nullptr;
@@ -292,7 +300,7 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
     if (status == OK) {
         iovec iov{&header, sizeof(header)};
         status = client->interruptableReadFully(server->mShutdownTrigger.get(), &iov, 1,
-                                                std::nullopt);
+                                                std::nullopt, /*enableAncillaryFds=*/false);
         if (status != OK) {
             ALOGE("Failed to read ID for client connecting to RPC server: %s",
                   statusToString(status).c_str());
@@ -307,7 +315,7 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
                 sessionId.resize(header.sessionIdSize);
                 iovec iov{sessionId.data(), sessionId.size()};
                 status = client->interruptableReadFully(server->mShutdownTrigger.get(), &iov, 1,
-                                                        std::nullopt);
+                                                        std::nullopt, /*enableAncillaryFds=*/false);
                 if (status != OK) {
                     ALOGE("Failed to read session ID for client connecting to RPC server: %s",
                           statusToString(status).c_str());
@@ -338,7 +346,7 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
 
             iovec iov{&response, sizeof(response)};
             status = client->interruptableWriteFully(server->mShutdownTrigger.get(), &iov, 1,
-                                                     std::nullopt);
+                                                     std::nullopt, nullptr);
             if (status != OK) {
                 ALOGE("Failed to send new session response: %s", statusToString(status).c_str());
                 // still need to cleanup before we can return
@@ -395,6 +403,17 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
             session = sp<RpcSession>::make(nullptr);
             session->setMaxIncomingThreads(server->mMaxThreads);
             if (!session->setProtocolVersion(protocolVersion)) return;
+
+            if (server->mSupportedFileDescriptorTransportModes.test(
+                        header.fileDescriptorTransportMode)) {
+                session->setFileDescriptorTransportMode(
+                        static_cast<RpcSession::FileDescriptorTransportMode>(
+                                header.fileDescriptorTransportMode));
+            } else {
+                ALOGE("Rejecting connection: FileDescriptorTransportMode is not supported: %hhu",
+                      header.fileDescriptorTransportMode);
+                return;
+            }
 
             // if null, falls back to server root
             sp<IBinder> sessionSpecificRoot;

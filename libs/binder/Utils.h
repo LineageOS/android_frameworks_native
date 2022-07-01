@@ -60,6 +60,17 @@ struct Span {
         size = offset;
         return rest;
     }
+
+    // Returns nullopt if the byte size of `this` isn't evenly divisible by sizeof(U).
+    template <typename U>
+    std::optional<Span<U>> reinterpret() const {
+        // Only allow casting from bytes for simplicity.
+        static_assert(std::is_same_v<std::remove_const_t<T>, uint8_t>);
+        if (size % sizeof(U) != 0) {
+            return std::nullopt;
+        }
+        return Span<U>{reinterpret_cast<U*>(data), size / sizeof(U)};
+    }
 };
 
 }   // namespace android
