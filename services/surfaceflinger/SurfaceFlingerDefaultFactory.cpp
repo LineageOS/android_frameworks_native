@@ -23,7 +23,6 @@
 #include <ui/GraphicBuffer.h>
 
 #include "BufferStateLayer.h"
-#include "ContainerLayer.h"
 #include "DisplayDevice.h"
 #include "EffectLayer.h"
 #include "FrameTracer/FrameTracer.h"
@@ -88,10 +87,6 @@ std::unique_ptr<surfaceflinger::NativeWindowSurface> DefaultFactory::createNativ
 
 std::unique_ptr<compositionengine::CompositionEngine> DefaultFactory::createCompositionEngine() {
     return compositionengine::impl::createCompositionEngine();
-}
-
-sp<ContainerLayer> DefaultFactory::createContainerLayer(const LayerCreationArgs& args) {
-    return new ContainerLayer(args);
 }
 
 sp<BufferStateLayer> DefaultFactory::createBufferStateLayer(const LayerCreationArgs& args) {

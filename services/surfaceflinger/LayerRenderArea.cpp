@@ -17,8 +17,8 @@
 #include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
 
-#include "ContainerLayer.h"
 #include "DisplayDevice.h"
+#include "EffectLayer.h"
 #include "Layer.h"
 #include "LayerRenderArea.h"
 #include "SurfaceFlinger.h"
@@ -110,8 +110,9 @@ void LayerRenderArea::render(std::function<void()> drawLayers) {
         // layer which has no properties set and which does not draw.
         //  We hold the statelock as the reparent-for-drawing operation modifies the
         //  hierarchy and there could be readers on Binder threads, like dump.
-        sp<ContainerLayer> screenshotParentLayer = mFlinger.getFactory().createContainerLayer(
-                  {&mFlinger, nullptr, "Screenshot Parent"s, 0, LayerMetadata()});
+        sp<EffectLayer> screenshotParentLayer = mFlinger.getFactory().createEffectLayer(
+                {&mFlinger, nullptr, "Screenshot Parent"s, ISurfaceComposerClient::eNoColorFill,
+                 LayerMetadata()});
         {
             Mutex::Autolock _l(mFlinger.mStateLock);
             reparentForDrawing(mLayer, screenshotParentLayer, sourceCrop);

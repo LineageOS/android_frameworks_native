@@ -80,10 +80,6 @@ public:
         return compositionengine::impl::createCompositionEngine();
     }
 
-    sp<ContainerLayer> createContainerLayer(const LayerCreationArgs& args) {
-        return sp<ContainerLayer>::make(args);
-    }
-
     sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs& args) {
         return new BufferStateLayer(args);
     }
