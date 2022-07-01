@@ -86,6 +86,7 @@ static const char* hidl_hal_interfaces_to_dump[] {
 /* list of hal interface to dump containing process during native dumps */
 static const std::vector<std::string> aidl_interfaces_to_dump {
         "android.hardware.camera.provider.ICameraProvider",
+        "android.hardware.input.processor.IInputProcessor",
 };
 
 /* list of extra hal interfaces to dump containing process during native dumps */
