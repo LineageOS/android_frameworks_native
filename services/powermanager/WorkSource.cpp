@@ -28,9 +28,16 @@ status_t WorkSource::readFromParcel(const android::Parcel *parcel) {
         return BAD_VALUE;
     }
     int32_t num;
+    int32_t workChainCount;
     status_t ret = parcel->readInt32(&num)
                 ?: parcel->readInt32Vector(&mUids)
-                ?: parcel->readString16Vector(&mNames);
+                ?: parcel->readString16Vector(&mNames)
+                ?: parcel->readInt32(&workChainCount);
+
+    if (ret == OK && workChainCount > 0) {
+        // We don't yet support WorkChains in native WorkSources.
+        return BAD_VALUE;
+    }
 
     return ret;
 }
@@ -43,7 +50,8 @@ status_t WorkSource::writeToParcel(android::Parcel *parcel) const {
 
     return parcel->writeInt32(mUids.size())
         ?: parcel->writeInt32Vector(mUids)
-        ?: parcel->writeString16Vector(mNames);
+        ?: parcel->writeString16Vector(mNames)
+        ?: parcel->writeInt32(-1);
 }
 
 } // namespace android::os
