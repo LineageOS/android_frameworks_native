@@ -26,21 +26,39 @@ using gui::DisplayInfo;
 using gui::IWindowInfosListener;
 using gui::WindowInfo;
 
-struct WindowInfosListenerInvoker::WindowInfosReportedListener
-      : gui::BnWindowInfosReportedListener {
-    explicit WindowInfosReportedListener(WindowInfosListenerInvoker& invoker) : mInvoker(invoker) {}
+struct WindowInfosListenerInvoker::WindowInfosReportedListener : gui::BnWindowInfosReportedListener,
+                                                                 DeathRecipient {
+    explicit WindowInfosReportedListener(
+            size_t callbackCount,
+            const std::unordered_set<sp<gui::IWindowInfosReportedListener>,
+                                     SpHash<gui::IWindowInfosReportedListener>>&
+                    windowInfosReportedListeners)
+          : mCallbacksPending(callbackCount),
+            mWindowInfosReportedListeners(windowInfosReportedListeners) {}
 
     binder::Status onWindowInfosReported() override {
-        mInvoker.windowInfosReported();
+        // TODO(b/222421815) There could potentially be callbacks that we don't need to wait for
+        // before calling the WindowInfosReportedListeners coming from InputWindowCommands. Filter
+        // the list of callbacks down to those from system server.
+        if (--mCallbacksPending == 0) {
+            for (const auto& listener : mWindowInfosReportedListeners) {
+                sp<IBinder> asBinder = IInterface::asBinder(listener);
+                if (asBinder->isBinderAlive()) {
+                    listener->onWindowInfosReported();
+                }
+            }
+        }
         return binder::Status::ok();
     }
 
-    WindowInfosListenerInvoker& mInvoker;
-};
+    void binderDied(const wp<IBinder>&) { onWindowInfosReported(); }
 
-WindowInfosListenerInvoker::WindowInfosListenerInvoker(SurfaceFlinger& flinger)
-      : mFlinger(flinger),
-        mWindowInfosReportedListener(sp<WindowInfosReportedListener>::make(*this)) {}
+private:
+    std::atomic<size_t> mCallbacksPending;
+    std::unordered_set<sp<gui::IWindowInfosReportedListener>,
+                       SpHash<gui::IWindowInfosReportedListener>>
+            mWindowInfosReportedListeners;
+};
 
 void WindowInfosListenerInvoker::addWindowInfosListener(sp<IWindowInfosListener> listener) {
     sp<IBinder> asBinder = IInterface::asBinder(listener);
@@ -64,9 +82,11 @@ void WindowInfosListenerInvoker::binderDied(const wp<IBinder>& who) {
     mWindowInfosListeners.erase(who);
 }
 
-void WindowInfosListenerInvoker::windowInfosChanged(const std::vector<WindowInfo>& windowInfos,
-                                                    const std::vector<DisplayInfo>& displayInfos,
-                                                    bool shouldSync) {
+void WindowInfosListenerInvoker::windowInfosChanged(
+        const std::vector<WindowInfo>& windowInfos, const std::vector<DisplayInfo>& displayInfos,
+        const std::unordered_set<sp<gui::IWindowInfosReportedListener>,
+                                 SpHash<gui::IWindowInfosReportedListener>>&
+                windowInfosReportedListeners) {
     ftl::SmallVector<const sp<IWindowInfosListener>, kStaticCapacity> windowInfosListeners;
     {
         std::scoped_lock lock(mListenersMutex);
@@ -75,18 +95,25 @@ void WindowInfosListenerInvoker::windowInfosChanged(const std::vector<WindowInfo
         }
     }
 
-    mCallbacksPending = windowInfosListeners.size();
-
+    auto windowInfosReportedListener = windowInfosReportedListeners.empty()
+            ? nullptr
+            : sp<WindowInfosReportedListener>::make(windowInfosListeners.size(),
+                                                    windowInfosReportedListeners);
     for (const auto& listener : windowInfosListeners) {
-        listener->onWindowInfosChanged(windowInfos, displayInfos,
-                                       shouldSync ? mWindowInfosReportedListener : nullptr);
-    }
-}
+        sp<IBinder> asBinder = IInterface::asBinder(listener);
 
-void WindowInfosListenerInvoker::windowInfosReported() {
-    mCallbacksPending--;
-    if (mCallbacksPending == 0) {
-        mFlinger.windowInfosReported();
+        // linkToDeath is used here to ensure that the windowInfosReportedListeners
+        // are called even if one of the windowInfosListeners dies before
+        // calling onWindowInfosReported.
+        if (windowInfosReportedListener) {
+            asBinder->linkToDeath(windowInfosReportedListener);
+        }
+
+        auto status = listener->onWindowInfosChanged(windowInfos, displayInfos,
+                                                     windowInfosReportedListener);
+        if (!status.isOk()) {
+            windowInfosReportedListener->onWindowInfosReported();
+        }
     }
 }
 

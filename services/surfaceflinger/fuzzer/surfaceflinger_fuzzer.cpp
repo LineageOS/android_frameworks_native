@@ -151,7 +151,6 @@ void SurfaceFlingerFuzzer::invokeFlinger() {
     sp<IBinder> handle = defaultServiceManager()->checkService(
             String16(mFdp.ConsumeRandomLengthString().c_str()));
     mFlinger->fromHandle(handle);
-    mFlinger->windowInfosReported();
     mFlinger->disableExpensiveRendering();
 }
 
