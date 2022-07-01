@@ -48,6 +48,7 @@
 
 #include <poll.h>
 #include <sys/prctl.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include "../FdTrigger.h"
@@ -1652,20 +1653,90 @@ TEST_P(BinderRpc, AidlDelegatorTest) {
 static bool testSupportVsockLoopback() {
     // We don't need to enable TLS to know if vsock is supported.
     unsigned int vsockPort = allocateVsockPort();
-    sp<RpcServer> server = RpcServer::make(RpcTransportCtxFactoryRaw::make());
-    if (status_t status = server->setupVsockServer(vsockPort); status != OK) {
-        if (status == -EAFNOSUPPORT) {
-            return false;
-        }
-        LOG_ALWAYS_FATAL("Could not setup vsock server: %s", statusToString(status).c_str());
-    }
-    server->start();
 
-    sp<RpcSession> session = RpcSession::make(RpcTransportCtxFactoryRaw::make());
-    status_t status = session->setupVsockClient(VMADDR_CID_LOCAL, vsockPort);
-    while (!server->shutdown()) usleep(10000);
-    ALOGE("Detected vsock loopback supported: %s", statusToString(status).c_str());
-    return status == OK;
+    android::base::unique_fd serverFd(
+            TEMP_FAILURE_RETRY(socket(AF_VSOCK, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0)));
+    LOG_ALWAYS_FATAL_IF(serverFd == -1, "Could not create socket: %s", strerror(errno));
+
+    sockaddr_vm serverAddr{
+            .svm_family = AF_VSOCK,
+            .svm_port = vsockPort,
+            .svm_cid = VMADDR_CID_ANY,
+    };
+    int ret = TEMP_FAILURE_RETRY(
+            bind(serverFd.get(), reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)));
+    LOG_ALWAYS_FATAL_IF(0 != ret, "Could not bind socket to port %u: %s", vsockPort,
+                        strerror(errno));
+
+    ret = TEMP_FAILURE_RETRY(listen(serverFd.get(), 1 /*backlog*/));
+    LOG_ALWAYS_FATAL_IF(0 != ret, "Could not listen socket on port %u: %s", vsockPort,
+                        strerror(errno));
+
+    // Try to connect to the server using the VMADDR_CID_LOCAL cid
+    // to see if the kernel supports it. It's safe to use a blocking
+    // connect because vsock sockets have a 2 second connection timeout,
+    // and they return ETIMEDOUT after that.
+    android::base::unique_fd connectFd(
+            TEMP_FAILURE_RETRY(socket(AF_VSOCK, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0)));
+    LOG_ALWAYS_FATAL_IF(connectFd == -1, "Could not create socket for port %u: %s", vsockPort,
+                        strerror(errno));
+
+    bool success = false;
+    sockaddr_vm connectAddr{
+            .svm_family = AF_VSOCK,
+            .svm_port = vsockPort,
+            .svm_cid = VMADDR_CID_LOCAL,
+    };
+    ret = TEMP_FAILURE_RETRY(connect(connectFd.get(), reinterpret_cast<sockaddr*>(&connectAddr),
+                                     sizeof(connectAddr)));
+    if (ret != 0 && (errno == EAGAIN || errno == EINPROGRESS)) {
+        android::base::unique_fd acceptFd;
+        while (true) {
+            pollfd pfd[]{
+                    {.fd = serverFd.get(), .events = POLLIN, .revents = 0},
+                    {.fd = connectFd.get(), .events = POLLOUT, .revents = 0},
+            };
+            ret = TEMP_FAILURE_RETRY(poll(pfd, arraysize(pfd), -1));
+            LOG_ALWAYS_FATAL_IF(ret < 0, "Error polling: %s", strerror(errno));
+
+            if (pfd[0].revents & POLLIN) {
+                sockaddr_vm acceptAddr;
+                socklen_t acceptAddrLen = sizeof(acceptAddr);
+                ret = TEMP_FAILURE_RETRY(accept4(serverFd.get(),
+                                                 reinterpret_cast<sockaddr*>(&acceptAddr),
+                                                 &acceptAddrLen, SOCK_CLOEXEC));
+                LOG_ALWAYS_FATAL_IF(ret < 0, "Could not accept4 socket: %s", strerror(errno));
+                LOG_ALWAYS_FATAL_IF(acceptAddrLen != static_cast<socklen_t>(sizeof(acceptAddr)),
+                                    "Truncated address");
+
+                // Store the fd in acceptFd so we keep the connection alive
+                // while polling connectFd
+                acceptFd.reset(ret);
+            }
+
+            if (pfd[1].revents & POLLOUT) {
+                // Connect either succeeded or timed out
+                int connectErrno;
+                socklen_t connectErrnoLen = sizeof(connectErrno);
+                int ret = getsockopt(connectFd.get(), SOL_SOCKET, SO_ERROR, &connectErrno,
+                                     &connectErrnoLen);
+                LOG_ALWAYS_FATAL_IF(ret == -1,
+                                    "Could not getsockopt() after connect() "
+                                    "on non-blocking socket: %s.",
+                                    strerror(errno));
+
+                // We're done, this is all we wanted
+                success = connectErrno == 0;
+                break;
+            }
+        }
+    } else {
+        success = ret == 0;
+    }
+
+    ALOGE("Detected vsock loopback supported: %s", success ? "yes" : "no");
+
+    return success;
 }
 
 static std::vector<SocketType> testSocketTypes(bool hasPreconnected = true) {
