@@ -1945,8 +1945,11 @@ half4 Layer::getColor() const {
 }
 
 int32_t Layer::getBackgroundBlurRadius() const {
-    const auto& p = mDrawingParent.promote();
+    if (getDrawingState().backgroundBlurRadius == 0) {
+        return 0;
+    }
 
+    const auto& p = mDrawingParent.promote();
     half parentAlpha = (p != nullptr) ? p->getAlpha() : 1.0_hf;
     return parentAlpha * getDrawingState().backgroundBlurRadius;
 }

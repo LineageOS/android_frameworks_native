@@ -4623,11 +4623,11 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
                                         pendingBufferCounter);
             }
         } break;
+        case ISurfaceComposerClient::eFXSurfaceContainer:
+            args.flags |= ISurfaceComposerClient::eNoColorFill;
+            FMT_FALLTHROUGH;
         case ISurfaceComposerClient::eFXSurfaceEffect:
             result = createEffectLayer(args, outHandle, &layer);
-            break;
-        case ISurfaceComposerClient::eFXSurfaceContainer:
-            result = createContainerLayer(args, outHandle, &layer);
             break;
         default:
             result = BAD_VALUE;
