@@ -38,6 +38,7 @@
 #include <linux/sched.h>
 #endif
 
+#include "BuildFlags.h"
 #include "RpcState.h"
 
 namespace android {
@@ -162,6 +163,10 @@ status_t IBinder::setRpcClientDebug(android::base::unique_fd socketFd,
                                     const sp<IBinder>& keepAliveBinder) {
     if (!kEnableRpcDevServers) {
         ALOGW("setRpcClientDebug disallowed because RPC is not enabled");
+        return INVALID_OPERATION;
+    }
+    if (!kEnableKernelIpc) {
+        ALOGW("setRpcClientDebug disallowed because kernel binder is not enabled");
         return INVALID_OPERATION;
     }
 
@@ -515,6 +520,10 @@ status_t BBinder::setRpcClientDebug(const Parcel& data) {
         ALOGW("%s: disallowed because RPC is not enabled", __PRETTY_FUNCTION__);
         return INVALID_OPERATION;
     }
+    if (!kEnableKernelIpc) {
+        ALOGW("setRpcClientDebug disallowed because kernel binder is not enabled");
+        return INVALID_OPERATION;
+    }
     uid_t uid = IPCThreadState::self()->getCallingUid();
     if (uid != AID_ROOT) {
         ALOGE("%s: not allowed because client %" PRIu32 " is not root", __PRETTY_FUNCTION__, uid);
@@ -538,6 +547,10 @@ status_t BBinder::setRpcClientDebug(android::base::unique_fd socketFd,
                                     const sp<IBinder>& keepAliveBinder) {
     if (!kEnableRpcDevServers) {
         ALOGW("%s: disallowed because RPC is not enabled", __PRETTY_FUNCTION__);
+        return INVALID_OPERATION;
+    }
+    if (!kEnableKernelIpc) {
+        ALOGW("setRpcClientDebug disallowed because kernel binder is not enabled");
         return INVALID_OPERATION;
     }
 
