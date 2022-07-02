@@ -22,4 +22,10 @@ constexpr bool kEnableRpcThreads = false;
 constexpr bool kEnableRpcThreads = true;
 #endif
 
+#ifdef BINDER_WITH_KERNEL_IPC
+constexpr bool kEnableKernelIpc = true;
+#else  // BINDER_WITH_KERNEL_IPC
+constexpr bool kEnableKernelIpc = false;
+#endif // BINDER_WITH_KERNEL_IPC
+
 } // namespace android
