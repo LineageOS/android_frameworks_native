@@ -55,7 +55,11 @@ public:
     [[nodiscard]] status_t triggerablePoll(base::borrowed_fd fd, int16_t event);
 
 private:
+#ifdef BINDER_RPC_SINGLE_THREADED
+    bool mTriggered = false;
+#else
     base::unique_fd mWrite;
     base::unique_fd mRead;
+#endif
 };
 } // namespace android
