@@ -1053,6 +1053,10 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
             mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
         }
     } else {
+        if (mPointerController != nullptr && mDeviceMode == DeviceMode::DIRECT &&
+            !mConfig.showTouches) {
+            mPointerController->clearSpots();
+        }
         mPointerController.reset();
     }
 

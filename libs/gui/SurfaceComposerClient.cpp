@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <android/gui/BnWindowInfosReportedListener.h>
 #include <android/gui/DisplayState.h>
 #include <android/gui/ISurfaceComposerClient.h>
 #include <android/gui/IWindowInfosListener.h>
@@ -635,7 +636,8 @@ SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
         mDesiredPresentTime(other.mDesiredPresentTime),
         mIsAutoTimestamp(other.mIsAutoTimestamp),
         mFrameTimelineInfo(other.mFrameTimelineInfo),
-        mApplyToken(other.mApplyToken) {
+        mApplyToken(other.mApplyToken),
+        mWindowInfosReportedEvent(other.mWindowInfosReportedEvent) {
     mDisplayStates = other.mDisplayStates;
     mComposerStates = other.mComposerStates;
     mInputWindowCommands = other.mInputWindowCommands;
@@ -879,6 +881,9 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
     mEarlyWakeupStart = mEarlyWakeupStart || other.mEarlyWakeupStart;
     mEarlyWakeupEnd = mEarlyWakeupEnd || other.mEarlyWakeupEnd;
     mApplyToken = other.mApplyToken;
+    if (other.mWindowInfosReportedEvent) {
+        mWindowInfosReportedEvent = std::move(other.mWindowInfosReportedEvent);
+    }
 
     mergeFrameTimelineInfo(mFrameTimelineInfo, other.mFrameTimelineInfo);
 
@@ -901,6 +906,7 @@ void SurfaceComposerClient::Transaction::clear() {
     mIsAutoTimestamp = true;
     clearFrameTimelineInfo(mFrameTimelineInfo);
     mApplyToken = nullptr;
+    mWindowInfosReportedEvent = nullptr;
 }
 
 uint64_t SurfaceComposerClient::Transaction::getId() {
@@ -1046,6 +1052,10 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
                             {} /*uncacheBuffer - only set in doUncacheBufferTransaction*/,
                             hasListenerCallbacks, listenerCallbacks, mId);
     mId = generateId();
+
+    if (mWindowInfosReportedEvent && !mWindowInfosReportedEvent->wait()) {
+        ALOGE("Timed out waiting for window infos to be reported.");
+    }
 
     // Clear the current states and flags
     clear();
@@ -1733,8 +1743,25 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFocus
     return *this;
 }
 
+class NotifyWindowInfosReported : public gui::BnWindowInfosReportedListener {
+public:
+    NotifyWindowInfosReported(
+            std::shared_ptr<SurfaceComposerClient::Event> windowInfosReportedEvent)
+          : mWindowInfosReportedEvent(windowInfosReportedEvent) {}
+
+    binder::Status onWindowInfosReported() {
+        mWindowInfosReportedEvent->set();
+        return binder::Status::ok();
+    }
+
+private:
+    std::shared_ptr<SurfaceComposerClient::Event> mWindowInfosReportedEvent;
+};
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::syncInputWindows() {
-    mInputWindowCommands.syncInputWindows = true;
+    mWindowInfosReportedEvent = std::make_shared<Event>();
+    mInputWindowCommands.windowInfosReportedListeners.insert(
+            sp<NotifyWindowInfosReported>::make(mWindowInfosReportedEvent));
     return *this;
 }
 
@@ -2807,6 +2834,19 @@ void ReleaseCallbackThread::threadMain() {
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------------
+
+void SurfaceComposerClient::Event::set() {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mComplete = true;
+    mConditionVariable.notify_all();
+}
+
+bool SurfaceComposerClient::Event::wait() {
+    std::unique_lock<std::mutex> lock(mMutex);
+    return mConditionVariable.wait_for(lock, sTimeout, [this] { return mComplete; });
 }
 
 } // namespace android

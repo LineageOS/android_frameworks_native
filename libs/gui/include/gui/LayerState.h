@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <android/gui/IWindowInfosReportedListener.h>
 #include <android/native_window.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ITransactionCompletedListener.h>
@@ -359,7 +360,9 @@ struct DisplayState {
 
 struct InputWindowCommands {
     std::vector<gui::FocusRequest> focusRequests;
-    bool syncInputWindows{false};
+    std::unordered_set<sp<gui::IWindowInfosReportedListener>,
+                       SpHash<gui::IWindowInfosReportedListener>>
+            windowInfosReportedListeners;
 
     // Merges the passed in commands and returns true if there were any changes.
     bool merge(const InputWindowCommands& other);

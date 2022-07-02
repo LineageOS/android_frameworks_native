@@ -664,29 +664,44 @@ bool InputWindowCommands::merge(const InputWindowCommands& other) {
     changes |= !other.focusRequests.empty();
     focusRequests.insert(focusRequests.end(), std::make_move_iterator(other.focusRequests.begin()),
                          std::make_move_iterator(other.focusRequests.end()));
-    changes |= other.syncInputWindows && !syncInputWindows;
-    syncInputWindows |= other.syncInputWindows;
+    changes |= !other.windowInfosReportedListeners.empty();
+    windowInfosReportedListeners.insert(other.windowInfosReportedListeners.begin(),
+                                        other.windowInfosReportedListeners.end());
     return changes;
 }
 
 bool InputWindowCommands::empty() const {
-    return focusRequests.empty() && !syncInputWindows;
+    return focusRequests.empty() && windowInfosReportedListeners.empty();
 }
 
 void InputWindowCommands::clear() {
     focusRequests.clear();
-    syncInputWindows = false;
+    windowInfosReportedListeners.clear();
 }
 
 status_t InputWindowCommands::write(Parcel& output) const {
     SAFE_PARCEL(output.writeParcelableVector, focusRequests);
-    SAFE_PARCEL(output.writeBool, syncInputWindows);
+
+    SAFE_PARCEL(output.writeInt32, windowInfosReportedListeners.size());
+    for (const auto& listener : windowInfosReportedListeners) {
+        SAFE_PARCEL(output.writeStrongBinder, listener);
+    }
+
     return NO_ERROR;
 }
 
 status_t InputWindowCommands::read(const Parcel& input) {
     SAFE_PARCEL(input.readParcelableVector, &focusRequests);
-    SAFE_PARCEL(input.readBool, &syncInputWindows);
+
+    int listenerSize = 0;
+    SAFE_PARCEL_READ_SIZE(input.readInt32, &listenerSize, input.dataSize());
+    windowInfosReportedListeners.reserve(listenerSize);
+    for (int i = 0; i < listenerSize; i++) {
+        sp<gui::IWindowInfosReportedListener> listener;
+        SAFE_PARCEL(input.readStrongBinder, &listener);
+        windowInfosReportedListeners.insert(listener);
+    }
+
     return NO_ERROR;
 }
 

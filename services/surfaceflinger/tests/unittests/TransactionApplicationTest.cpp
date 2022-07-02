@@ -107,22 +107,20 @@ public:
         EXPECT_EQ(info.desiredPresentTime, state.desiredPresentTime);
     }
 
-    void setupSingle(TransactionInfo& transaction, uint32_t flags, bool syncInputWindows,
-                     int64_t desiredPresentTime, bool isAutoTimestamp,
-                     const FrameTimelineInfo& frameTimelineInfo) {
+    void setupSingle(TransactionInfo& transaction, uint32_t flags, int64_t desiredPresentTime,
+                     bool isAutoTimestamp, const FrameTimelineInfo& frameTimelineInfo) {
         mTransactionNumber++;
         transaction.flags |= flags; // ISurfaceComposer::eSynchronous;
-        transaction.inputWindowCommands.syncInputWindows = syncInputWindows;
         transaction.desiredPresentTime = desiredPresentTime;
         transaction.isAutoTimestamp = isAutoTimestamp;
         transaction.frameTimelineInfo = frameTimelineInfo;
     }
 
-    void NotPlacedOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
+    void NotPlacedOnTransactionQueue(uint32_t flags) {
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
         EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
         TransactionInfo transaction;
-        setupSingle(transaction, flags, syncInputWindows,
+        setupSingle(transaction, flags,
                     /*desiredPresentTime*/ systemTime(), /*isAutoTimestamp*/ true,
                     FrameTimelineInfo{});
         nsecs_t applicationTime = systemTime();
@@ -133,12 +131,10 @@ public:
                                      transaction.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
                                      transaction.id);
 
-        // If transaction is synchronous or syncs input windows, SF
-        // applyTransactionState should time out (5s) wating for SF to commit
-        // the transaction or to receive a signal that syncInputWindows has
-        // completed.  If this is animation, it should not time out waiting.
+        // If transaction is synchronous, SF applyTransactionState should time out (5s) wating for
+        // SF to commit the transaction. If this is animation, it should not time out waiting.
         nsecs_t returnedTime = systemTime();
-        if (flags & ISurfaceComposer::eSynchronous || syncInputWindows) {
+        if (flags & ISurfaceComposer::eSynchronous) {
             EXPECT_GE(returnedTime, applicationTime + mFlinger.getAnimationTransactionTimeout());
         } else {
             EXPECT_LE(returnedTime, applicationTime + mFlinger.getAnimationTransactionTimeout());
@@ -148,7 +144,7 @@ public:
         EXPECT_EQ(1u, transactionQueue.size());
     }
 
-    void PlaceOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
+    void PlaceOnTransactionQueue(uint32_t flags) {
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
         EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
@@ -156,8 +152,8 @@ public:
         // but afterwards it will look like the desired present time has passed
         nsecs_t time = systemTime();
         TransactionInfo transaction;
-        setupSingle(transaction, flags, syncInputWindows,
-                    /*desiredPresentTime*/ time + s2ns(1), false, FrameTimelineInfo{});
+        setupSingle(transaction, flags, /*desiredPresentTime*/ time + s2ns(1), false,
+                    FrameTimelineInfo{});
         nsecs_t applicationSentTime = systemTime();
         mFlinger.setTransactionState(transaction.frameTimelineInfo, transaction.states,
                                      transaction.displays, transaction.flags,
@@ -167,7 +163,7 @@ public:
                                      transaction.id);
 
         nsecs_t returnedTime = systemTime();
-        if ((flags & ISurfaceComposer::eSynchronous) || syncInputWindows) {
+        if (flags & ISurfaceComposer::eSynchronous) {
             EXPECT_GE(systemTime(),
                       applicationSentTime + mFlinger.getAnimationTransactionTimeout());
         } else {
@@ -179,25 +175,21 @@ public:
         EXPECT_EQ(1u, transactionQueue.size());
     }
 
-    void BlockedByPriorTransaction(uint32_t flags, bool syncInputWindows) {
+    void BlockedByPriorTransaction(uint32_t flags) {
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
         nsecs_t time = systemTime();
-        if (!syncInputWindows) {
-            EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(2);
-        } else {
-            EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
-        }
+        EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(2);
+
         // transaction that should go on the pending thread
         TransactionInfo transactionA;
-        setupSingle(transactionA, /*flags*/ 0, /*syncInputWindows*/ false,
-                    /*desiredPresentTime*/ time + s2ns(1), false, FrameTimelineInfo{});
+        setupSingle(transactionA, /*flags*/ 0, /*desiredPresentTime*/ time + s2ns(1), false,
+                    FrameTimelineInfo{});
 
         // transaction that would not have gone on the pending thread if not
         // blocked
         TransactionInfo transactionB;
-        setupSingle(transactionB, flags, syncInputWindows,
-                    /*desiredPresentTime*/ systemTime(), /*isAutoTimestamp*/ true,
-                    FrameTimelineInfo{});
+        setupSingle(transactionB, flags, /*desiredPresentTime*/ systemTime(),
+                    /*isAutoTimestamp*/ true, FrameTimelineInfo{});
 
         nsecs_t applicationSentTime = systemTime();
         mFlinger.setTransactionState(transactionA.frameTimelineInfo, transactionA.states,
@@ -226,8 +218,7 @@ public:
         // if this is an animation, this thread should be blocked for 5s
         // in setTransactionState waiting for transactionA to flush.  Otherwise,
         // the transaction should be placed on the pending queue
-        if (flags & (ISurfaceComposer::eSynchronous) ||
-            syncInputWindows) {
+        if (flags & ISurfaceComposer::eSynchronous) {
             EXPECT_GE(systemTime(),
                       applicationSentTime + mFlinger.getAnimationTransactionTimeout());
         } else {
@@ -253,8 +244,8 @@ TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
     EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     TransactionInfo transactionA; // transaction to go on pending queue
-    setupSingle(transactionA, /*flags*/ 0, /*syncInputWindows*/ false,
-                /*desiredPresentTime*/ s2ns(1), false, FrameTimelineInfo{});
+    setupSingle(transactionA, /*flags*/ 0, /*desiredPresentTime*/ s2ns(1), false,
+                FrameTimelineInfo{});
     mFlinger.setTransactionState(transactionA.frameTimelineInfo, transactionA.states,
                                  transactionA.displays, transactionA.flags, transactionA.applyToken,
                                  transactionA.inputWindowCommands, transactionA.desiredPresentTime,
@@ -285,31 +276,23 @@ TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
 }
 
 TEST_F(TransactionApplicationTest, NotPlacedOnTransactionQueue_Synchronous) {
-    NotPlacedOnTransactionQueue(ISurfaceComposer::eSynchronous, /*syncInputWindows*/ false);
+    NotPlacedOnTransactionQueue(ISurfaceComposer::eSynchronous);
 }
 
 TEST_F(TransactionApplicationTest, NotPlacedOnTransactionQueue_SyncInputWindows) {
-    NotPlacedOnTransactionQueue(/*flags*/ 0, /*syncInputWindows*/ true);
+    NotPlacedOnTransactionQueue(/*flags*/ 0);
 }
 
 TEST_F(TransactionApplicationTest, PlaceOnTransactionQueue_Synchronous) {
-    PlaceOnTransactionQueue(ISurfaceComposer::eSynchronous, /*syncInputWindows*/ false);
+    PlaceOnTransactionQueue(ISurfaceComposer::eSynchronous);
 }
 
 TEST_F(TransactionApplicationTest, PlaceOnTransactionQueue_SyncInputWindows) {
-    PlaceOnTransactionQueue(/*flags*/ 0, /*syncInputWindows*/ true);
+    PlaceOnTransactionQueue(/*flags*/ 0);
 }
 
 TEST_F(TransactionApplicationTest, BlockWithPriorTransaction_Synchronous) {
-    BlockedByPriorTransaction(ISurfaceComposer::eSynchronous, /*syncInputWindows*/ false);
-}
-
-TEST_F(TransactionApplicationTest, BlockWithPriorTransaction_Animation) {
-    BlockedByPriorTransaction(ISurfaceComposer::eSynchronous, /*syncInputWindows*/ false);
-}
-
-TEST_F(TransactionApplicationTest, BlockWithPriorTransaction_SyncInputWindows) {
-    BlockedByPriorTransaction(/*flags*/ 0, /*syncInputWindows*/ true);
+    BlockedByPriorTransaction(ISurfaceComposer::eSynchronous);
 }
 
 TEST_F(TransactionApplicationTest, FromHandle) {
@@ -359,13 +342,11 @@ public:
                                           const std::vector<ComposerState>& states) {
         TransactionInfo transaction;
         const uint32_t kFlags = ISurfaceComposer::eSynchronous;
-        const bool kSyncInputWindows = false;
         const nsecs_t kDesiredPresentTime = systemTime();
         const bool kIsAutoTimestamp = true;
         const auto kFrameTimelineInfo = FrameTimelineInfo{};
 
-        setupSingle(transaction, kFlags, kSyncInputWindows, kDesiredPresentTime, kIsAutoTimestamp,
-                    kFrameTimelineInfo);
+        setupSingle(transaction, kFlags, kDesiredPresentTime, kIsAutoTimestamp, kFrameTimelineInfo);
         transaction.applyToken = applyToken;
         for (const auto& state : states) {
             transaction.states.push_back(state);

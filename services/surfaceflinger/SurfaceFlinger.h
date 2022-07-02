@@ -333,7 +333,6 @@ public:
     // If set, disables reusing client composition buffers. This can be set by
     // debug.sf.disable_client_composition_cache
     bool mDisableClientCompositionCache = false;
-    void windowInfosReported();
 
     // Disables expensive rendering for all displays
     // This is scheduled on the main thread

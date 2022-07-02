@@ -609,10 +609,11 @@ private:
     void ipcSetDataReference(const uint8_t* data, size_t dataSize, const binder_size_t* objects,
                              size_t objectsCount, release_func relFunc);
     // Takes ownership even when an error is returned.
-    status_t rpcSetDataReference(const sp<RpcSession>& session, const uint8_t* data,
-                                 size_t dataSize, const uint32_t* objectTable,
-                                 size_t objectTableSize, std::vector<base::unique_fd> ancillaryFds,
-                                 release_func relFunc);
+    status_t rpcSetDataReference(
+            const sp<RpcSession>& session, const uint8_t* data, size_t dataSize,
+            const uint32_t* objectTable, size_t objectTableSize,
+            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds,
+            release_func relFunc);
 
     status_t            finishWrite(size_t len);
     void                releaseObjects();
