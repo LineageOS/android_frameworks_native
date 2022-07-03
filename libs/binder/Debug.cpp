@@ -15,6 +15,7 @@
  */
 
 #include "Debug.h"
+#include "BuildFlags.h"
 
 #include <binder/ProcessState.h>
 
@@ -301,6 +302,11 @@ void printHexData(int32_t indent, const void *buf, size_t length,
 }
 
 ssize_t getBinderKernelReferences(size_t count, uintptr_t* buf) {
+    if constexpr (!kEnableKernelIpc) {
+        LOG_ALWAYS_FATAL("Binder kernel driver disabled at build time");
+        return 0;
+    }
+
     sp<ProcessState> proc = ProcessState::selfOrNull();
     if (proc.get() == nullptr) {
         return 0;
