@@ -58,6 +58,8 @@ static constexpr int32_t POINTER_1_DOWN =
         AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 static constexpr int32_t POINTER_2_DOWN =
         AMOTION_EVENT_ACTION_POINTER_DOWN | (2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+static constexpr int32_t POINTER_3_DOWN =
+        AMOTION_EVENT_ACTION_POINTER_DOWN | (3 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 static constexpr int32_t POINTER_1_UP =
         AMOTION_EVENT_ACTION_POINTER_UP | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 
@@ -1939,6 +1941,77 @@ TEST_F(InputDispatcherTest, SplitWorksWhenNonTouchableWindowIsTouched) {
     mDispatcher->notifyMotion(&(args = generateTouchArgs(POINTER_1_DOWN, {{50, 50}, {150, 50}})));
     mDispatcher->waitForIdle();
     window2->consumeMotionDown();
+}
+
+/**
+ * When splitting touch events the downTime should be adjusted such that the downTime corresponds
+ * to the event time of the first ACTION_DOWN sent to the particular window.
+ */
+TEST_F(InputDispatcherTest, SplitTouchesSendCorrectActionDownTime) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window1 =
+            new FakeWindowHandle(application, mDispatcher, "Window1", DISPLAY_ID);
+    window1->setTouchableRegion(Region{{0, 0, 100, 100}});
+    sp<FakeWindowHandle> window2 =
+            new FakeWindowHandle(application, mDispatcher, "Window2", DISPLAY_ID);
+    window2->setTouchableRegion(Region{{100, 0, 200, 100}});
+
+    mDispatcher->setInputWindows({{DISPLAY_ID, {window1, window2}}});
+
+    NotifyMotionArgs args;
+    // Touch down on the first window
+    mDispatcher->notifyMotion(&(args = generateTouchArgs(AMOTION_EVENT_ACTION_DOWN, {{50, 50}})));
+
+    mDispatcher->waitForIdle();
+    InputEvent* inputEvent1 = window1->consume();
+    window2->assertNoEvents();
+    MotionEvent& motionEvent1 = static_cast<MotionEvent&>(*inputEvent1);
+    nsecs_t downTimeForWindow1 = motionEvent1.getDownTime();
+    ASSERT_EQ(motionEvent1.getDownTime(), motionEvent1.getEventTime());
+
+    // Now touch down on the window with another pointer
+    mDispatcher->notifyMotion(&(args = generateTouchArgs(POINTER_1_DOWN, {{50, 50}, {150, 50}})));
+    mDispatcher->waitForIdle();
+    InputEvent* inputEvent2 = window2->consume();
+    MotionEvent& motionEvent2 = static_cast<MotionEvent&>(*inputEvent2);
+    nsecs_t downTimeForWindow2 = motionEvent2.getDownTime();
+    ASSERT_NE(downTimeForWindow1, downTimeForWindow2);
+    ASSERT_EQ(motionEvent2.getDownTime(), motionEvent2.getEventTime());
+
+    // Now move the pointer on the second window
+    mDispatcher->notifyMotion(
+            &(args = generateTouchArgs(AMOTION_EVENT_ACTION_MOVE, {{50, 50}, {151, 51}})));
+    mDispatcher->waitForIdle();
+    InputEvent* inputEvent3 = window2->consume();
+    MotionEvent& motionEvent3 = static_cast<MotionEvent&>(*inputEvent3);
+    ASSERT_EQ(motionEvent3.getDownTime(), downTimeForWindow2);
+
+    // Now add new touch down on the second window
+    mDispatcher->notifyMotion(
+            &(args = generateTouchArgs(POINTER_2_DOWN, {{50, 50}, {151, 51}, {150, 50}})));
+    mDispatcher->waitForIdle();
+    InputEvent* inputEvent4 = window2->consume();
+    MotionEvent& motionEvent4 = static_cast<MotionEvent&>(*inputEvent4);
+    ASSERT_EQ(motionEvent4.getDownTime(), downTimeForWindow2);
+
+    // TODO(b/232530217): do not send the unnecessary MOVE event and delete the next line
+    window1->consumeMotionMove();
+    window1->assertNoEvents();
+
+    // Now move the pointer on the first window
+    mDispatcher->notifyMotion(
+            &(args = generateTouchArgs(AMOTION_EVENT_ACTION_MOVE, {{51, 51}, {151, 51}})));
+    mDispatcher->waitForIdle();
+    InputEvent* inputEvent5 = window1->consume();
+    MotionEvent& motionEvent5 = static_cast<MotionEvent&>(*inputEvent5);
+    ASSERT_EQ(motionEvent5.getDownTime(), downTimeForWindow1);
+
+    mDispatcher->notifyMotion(&(
+            args = generateTouchArgs(POINTER_3_DOWN, {{51, 51}, {151, 51}, {150, 50}, {50, 50}})));
+    mDispatcher->waitForIdle();
+    InputEvent* inputEvent6 = window1->consume();
+    MotionEvent& motionEvent6 = static_cast<MotionEvent&>(*inputEvent6);
+    ASSERT_EQ(motionEvent6.getDownTime(), downTimeForWindow1);
 }
 
 TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {

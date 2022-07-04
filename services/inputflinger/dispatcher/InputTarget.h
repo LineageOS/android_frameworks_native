@@ -106,6 +106,9 @@ struct InputTarget {
     // The subset of pointer ids to include in motion events dispatched to this input target
     // if FLAG_SPLIT is set.
     BitSet32 pointerIds;
+    // Event time for the first motion event (ACTION_DOWN) dispatched to this input target if
+    // FLAG_SPLIT is set.
+    std::optional<nsecs_t> firstDownTimeInTarget;
     // The data is stored by the pointerId. Use the bit position of pointerIds to look up
     // Transform per pointerId.
     ui::Transform pointerTransforms[MAX_POINTERS];

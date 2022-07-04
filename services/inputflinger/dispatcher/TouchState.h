@@ -47,7 +47,8 @@ struct TouchState {
 
     void reset();
     void addOrUpdateWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
-                           int32_t targetFlags, BitSet32 pointerIds);
+                           int32_t targetFlags, BitSet32 pointerIds,
+                           std::optional<nsecs_t> eventTime = std::nullopt);
     void removeWindowByToken(const sp<IBinder>& token);
     void filterNonAsIsTouchWindows();
     void filterWindowsExcept(const sp<IBinder>& token);
