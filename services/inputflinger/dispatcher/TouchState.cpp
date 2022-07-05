@@ -30,7 +30,7 @@ void TouchState::reset() {
 }
 
 void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle, int32_t targetFlags,
-                                   BitSet32 pointerIds) {
+                                   BitSet32 pointerIds, std::optional<nsecs_t> eventTime) {
     if (targetFlags & InputTarget::FLAG_SPLIT) {
         split = true;
     }
@@ -42,7 +42,13 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle, int
             if (targetFlags & InputTarget::FLAG_DISPATCH_AS_SLIPPERY_EXIT) {
                 touchedWindow.targetFlags &= ~InputTarget::FLAG_DISPATCH_AS_IS;
             }
+            // For cases like hover enter/exit or DISPATCH_AS_OUTSIDE a touch window might not have
+            // downTime set initially. Need to update existing window when an pointer is down for
+            // the window.
             touchedWindow.pointerIds.value |= pointerIds.value;
+            if (!touchedWindow.firstDownTimeInTarget.has_value()) {
+                touchedWindow.firstDownTimeInTarget = eventTime;
+            }
             return;
         }
     }
@@ -51,6 +57,7 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle, int
     touchedWindow.windowHandle = windowHandle;
     touchedWindow.targetFlags = targetFlags;
     touchedWindow.pointerIds = pointerIds;
+    touchedWindow.firstDownTimeInTarget = eventTime;
     windows.push_back(touchedWindow);
 }
 
