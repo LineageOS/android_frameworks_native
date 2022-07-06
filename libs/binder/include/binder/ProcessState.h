@@ -29,6 +29,10 @@ namespace android {
 
 class IPCThreadState;
 
+/**
+ * Kernel binder process state. All operations here refer to kernel binder. This
+ * object is allocated per process.
+ */
 class ProcessState : public virtual RefBase {
 public:
     static sp<ProcessState> self();
