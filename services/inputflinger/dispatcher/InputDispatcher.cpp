@@ -553,7 +553,8 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         mWindowTokenWithPointerCapture(nullptr),
         mStaleEventTimeout(staleEventTimeout),
         mLatencyAggregator(),
-        mLatencyTracker(&mLatencyAggregator) {
+        mLatencyTracker(&mLatencyAggregator),
+        kPerDisplayTouchModeEnabled(mPolicy->isPerDisplayTouchModeEnabled()) {
     mLooper = new Looper(false);
     mReporter = createInputReporter();
 
@@ -4987,8 +4988,8 @@ void InputDispatcher::setInputFilterEnabled(bool enabled) {
     mLooper->wake();
 }
 
-bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid,
-                                     bool hasPermission) {
+bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission,
+                                     int32_t displayId) {
     bool needWake = false;
     {
         std::scoped_lock lock(mLock);
@@ -4997,8 +4998,9 @@ bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid,
         }
         if (DEBUG_TOUCH_MODE) {
             ALOGD("Request to change touch mode from %s to %s (calling pid=%d, uid=%d, "
-                  "hasPermission=%s)",
-                  toString(mInTouchMode), toString(inTouchMode), pid, uid, toString(hasPermission));
+                  "hasPermission=%s, target displayId=%d, perDisplayTouchModeEnabled=%s)",
+                  toString(mInTouchMode), toString(inTouchMode), pid, uid, toString(hasPermission),
+                  displayId, toString(kPerDisplayTouchModeEnabled));
         }
         if (!hasPermission) {
             if (!focusedWindowIsOwnedByLocked(pid, uid) &&
@@ -5010,7 +5012,7 @@ bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid,
             }
         }
 
-        // TODO(b/198499018): Store touch mode per display.
+        // TODO(b/198499018): Store touch mode per display (kPerDisplayTouchModeEnabled)
         mInTouchMode = inTouchMode;
 
         auto entry = std::make_unique<TouchModeEntry>(mIdGenerator.nextId(), now(), inTouchMode);

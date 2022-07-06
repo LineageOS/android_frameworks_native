@@ -119,7 +119,8 @@ public:
     void setFocusedDisplay(int32_t displayId) override;
     void setInputDispatchMode(bool enabled, bool frozen) override;
     void setInputFilterEnabled(bool enabled) override;
-    bool setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission) override;
+    bool setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission,
+                        int32_t displayId) override;
     void setMaximumObscuringOpacityForTouch(float opacity) override;
 
     bool transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
@@ -684,6 +685,9 @@ private:
     // Check window ownership
     bool focusedWindowIsOwnedByLocked(int32_t pid, int32_t uid) REQUIRES(mLock);
     bool recentWindowsAreOwnedByLocked(int32_t pid, int32_t uid) REQUIRES(mLock);
+
+    // Per display touch mode enabled
+    const bool kPerDisplayTouchModeEnabled;
 
     sp<InputReporterInterface> mReporter;
 };
