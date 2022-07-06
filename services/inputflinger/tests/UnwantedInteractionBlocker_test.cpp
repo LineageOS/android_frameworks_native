@@ -388,7 +388,7 @@ TEST(GetTouchesTest, ConvertDownEvent) {
     expected.reported_tool_type = ::ui::EventPointerType::kTouch;
     expected.stylus_button = false;
 
-    ASSERT_EQ(expected, touches[0]) << toString(touches[0]);
+    ASSERT_EQ(expected, touches[0]) << touches[0];
 }
 
 // --- UnwantedInteractionBlockerTest ---
