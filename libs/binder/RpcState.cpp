@@ -736,7 +736,8 @@ status_t RpcState::processCommand(
     IPCThreadState* kernelBinderState = IPCThreadState::selfOrNull();
     IPCThreadState::SpGuard spGuard{
             .address = __builtin_frame_address(0),
-            .context = "processing binder RPC command",
+            .context = "processing binder RPC command (where RpcServer::setPerSessionRootObject is "
+                       "used to distinguish callers)",
     };
     const IPCThreadState::SpGuard* origGuard;
     if (kernelBinderState != nullptr) {
