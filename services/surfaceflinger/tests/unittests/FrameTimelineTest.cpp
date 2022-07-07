@@ -2342,4 +2342,38 @@ TEST_F(FrameTimelineTest, computeFps_averagesOverMultipleFrames) {
     EXPECT_EQ(mFrameTimeline->computeFps({sLayerIdOne}), 5.0f);
 }
 
+TEST_F(FrameTimelineTest, getMinTime) {
+    // Use SurfaceFrame::getBaseTime to test the getMinTime.
+    FrameTimelineInfo ftInfo;
+
+    // Valid prediction state test.
+    ftInfo.vsyncId = 0L;
+    mTokenManager->generateTokenForPredictions({10});
+    auto surfaceFrame =
+            mFrameTimeline->createSurfaceFrameForToken(ftInfo, sPidOne, sUidOne, sLayerIdOne,
+                                                       sLayerNameOne, sLayerNameOne,
+                                                       /*isBuffer*/ true, sGameMode);
+    ASSERT_EQ(surfaceFrame->getBaseTime(), 10);
+
+    // Test prediction state which is not valid.
+    ftInfo.vsyncId = FrameTimelineInfo::INVALID_VSYNC_ID;
+    surfaceFrame = mFrameTimeline->createSurfaceFrameForToken(ftInfo, sPidOne, sUidOne, sLayerIdOne,
+                                                              sLayerNameOne, sLayerNameOne,
+                                                              /*isBuffer*/ true, sGameMode);
+    // Start time test.
+    surfaceFrame->setActualStartTime(200);
+    ASSERT_EQ(surfaceFrame->getBaseTime(), 200);
+
+    // End time test.
+    surfaceFrame->setAcquireFenceTime(100);
+    ASSERT_EQ(surfaceFrame->getBaseTime(), 100);
+
+    // Present time test.
+    auto presentFence = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
+    mFrameTimeline->addSurfaceFrame(surfaceFrame);
+    presentFence->signalForTest(std::chrono::nanoseconds(50ns).count());
+    mFrameTimeline->setSfPresent(50, presentFence);
+    ASSERT_EQ(surfaceFrame->getBaseTime(), 50);
+}
 } // namespace android::frametimeline
