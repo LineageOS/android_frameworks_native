@@ -853,7 +853,15 @@ bool BufferStateLayer::bufferNeedsFiltering() const {
     }
 
     const Rect layerSize{getBounds()};
-    return layerSize.width() != bufferWidth || layerSize.height() != bufferHeight;
+    int32_t layerWidth = layerSize.getWidth();
+    int32_t layerHeight = layerSize.getHeight();
+
+    // Align the layer orientation with the buffer before comparism
+    if (mTransformHint & ui::Transform::ROT_90) {
+        std::swap(layerWidth, layerHeight);
+    }
+
+    return layerWidth != bufferWidth || layerHeight != bufferHeight;
 }
 
 void BufferStateLayer::decrementPendingBufferCount() {
