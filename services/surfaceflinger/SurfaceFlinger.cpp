@@ -6624,23 +6624,20 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
         });
 
         if (captureListener) {
-            // TODO: The future returned by std::async blocks the main thread. Return a chain of
-            // futures to the Binder thread instead.
-            std::async([=]() mutable {
-                ATRACE_NAME("captureListener is nonnull!");
-                auto fenceResult = renderFuture.get();
-                // TODO(b/232535621): Change ScreenCaptureResults to store a FenceResult.
-                captureResults.result = fenceStatus(fenceResult);
-                captureResults.fence = std::move(fenceResult).value_or(Fence::NO_FENCE);
-                captureListener->onScreenCaptureCompleted(captureResults);
-            });
+            // Defer blocking on renderFuture back to the Binder thread.
+            return ftl::Future(std::move(renderFuture))
+                    .then([captureListener, captureResults = std::move(captureResults)](
+                                  FenceResult fenceResult) mutable -> FenceResult {
+                        // TODO(b/232535621): Change ScreenCaptureResults to store a FenceResult.
+                        captureResults.result = fenceStatus(fenceResult);
+                        captureResults.fence = std::move(fenceResult).value_or(Fence::NO_FENCE);
+                        captureListener->onScreenCaptureCompleted(captureResults);
+                        return base::unexpected(NO_ERROR);
+                    })
+                    .share();
         }
         return renderFuture;
     });
-
-    if (captureListener) {
-        return ftl::yield<FenceResult>(base::unexpected(NO_ERROR)).share();
-    }
 
     // Flatten nested futures.
     auto chain = ftl::Future(std::move(future)).then([](ftl::SharedFuture<FenceResult> future) {
