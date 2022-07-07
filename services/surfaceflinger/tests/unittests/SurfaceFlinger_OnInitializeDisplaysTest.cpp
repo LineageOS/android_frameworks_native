@@ -85,12 +85,6 @@ TEST_F(OnInitializeDisplaysTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
 
     // The display transaction needed flag should be set.
     EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
-
-    // The compositor timing should be set to default values
-    const auto& compositorTiming = mFlinger.getCompositorTiming();
-    EXPECT_EQ(-DEFAULT_VSYNC_PERIOD, compositorTiming.deadline);
-    EXPECT_EQ(DEFAULT_VSYNC_PERIOD, compositorTiming.interval);
-    EXPECT_EQ(DEFAULT_VSYNC_PERIOD, compositorTiming.presentLatency);
 }
 
 } // namespace

@@ -958,10 +958,12 @@ private:
      * Compositing
      */
     void postComposition();
+
+    // Returns the composite-to-present latency of the latest presented frame.
+    nsecs_t trackPresentLatency(nsecs_t compositeTime, std::shared_ptr<FenceTime> presentFenceTime);
+
     void getCompositorTiming(CompositorTiming* compositorTiming);
-    void updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
-                                std::shared_ptr<FenceTime>& presentFenceTime);
-    void setCompositorTimingSnapped(const DisplayStatInfo& stats,
+    void setCompositorTimingSnapped(nsecs_t vsyncDeadline, nsecs_t vsyncPeriod,
                                     nsecs_t compositeToPresentLatency);
 
     void postFrame() REQUIRES(kMainThreadContext);
@@ -997,31 +999,17 @@ private:
         getHwComposer().setVsyncEnabled(id, enabled);
     }
 
-    struct FenceWithFenceTime {
-        sp<Fence> fence = Fence::NO_FENCE;
-        std::shared_ptr<FenceTime> fenceTime = FenceTime::NO_FENCE;
-    };
+    using FenceTimePtr = std::shared_ptr<FenceTime>;
 
-    // Gets the fence for the previous frame.
-    // Must be called on the main thread.
-    FenceWithFenceTime previousFrameFence();
+    const FenceTimePtr& getPreviousPresentFence(nsecs_t frameTime, Period)
+            REQUIRES(kMainThreadContext);
 
-    // Whether the previous frame has not yet been presented to the display.
-    // If graceTimeMs is positive, this method waits for at most the provided
-    // grace period before reporting if the frame missed.
-    // Must be called on the main thread.
-    bool previousFramePending(int graceTimeMs = 0);
-
-    // Returns the previous time that the frame was presented. If the frame has
-    // not been presented yet, then returns Fence::SIGNAL_TIME_PENDING. If there
-    // is no pending frame, then returns Fence::SIGNAL_TIME_INVALID.
-    // Must be called on the main thread.
-    nsecs_t previousFramePresentTime();
+    // Blocks the thread waiting for up to graceTimeMs in case the fence is about to signal.
+    static bool isFencePending(const FenceTimePtr&, int graceTimeMs);
 
     // Calculates the expected present time for this frame. For negative offsets, performs a
     // correction using the predicted vsync for the next frame instead.
-
-    nsecs_t calculateExpectedPresentTime(DisplayStatInfo) const;
+    TimePoint calculateExpectedPresentTime(nsecs_t frameTime) const;
 
     /*
      * Display identification
@@ -1209,7 +1197,7 @@ private:
     std::unordered_set<sp<Layer>, SpHash<Layer>> mLayersWithQueuedFrames;
     // Tracks layers that need to update a display's dirty region.
     std::vector<sp<Layer>> mLayersPendingRefresh;
-    std::array<FenceWithFenceTime, 2> mPreviousPresentFences;
+
     // True if in the previous frame at least one layer was composed via the GPU.
     bool mHadClientComposition = false;
     // True if in the previous frame at least one layer was composed via HW Composer.
@@ -1345,6 +1333,12 @@ private:
     sp<VsyncModulator> mVsyncModulator;
 
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
+
+    struct FenceWithFenceTime {
+        sp<Fence> fence = Fence::NO_FENCE;
+        FenceTimePtr fenceTime = FenceTime::NO_FENCE;
+    };
+    std::array<FenceWithFenceTime, 2> mPreviousPresentFences;
 
     std::atomic<nsecs_t> mExpectedPresentTime = 0;
     nsecs_t mScheduledPresentTime = 0;

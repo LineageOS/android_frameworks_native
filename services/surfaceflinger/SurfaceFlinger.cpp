@@ -1055,12 +1055,14 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* stats) {
-    if (!stats) {
+status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* outStats) {
+    if (!outStats) {
         return BAD_VALUE;
     }
 
-    *stats = mScheduler->getDisplayStatInfo(systemTime());
+    const auto& schedule = mScheduler->getVsyncSchedule();
+    outStats->vsyncTime = schedule.vsyncDeadlineAfter(scheduler::SchedulerClock::now()).ns();
+    outStats->vsyncPeriod = schedule.period().ns();
     return NO_ERROR;
 }
 
@@ -1569,12 +1571,10 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
 
 status_t SurfaceFlinger::injectVSync(nsecs_t when) {
     Mutex::Autolock lock(mStateLock);
-    const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(when);
-    const auto expectedPresent = calculateExpectedPresentTime(stats);
-    return mScheduler->injectVSync(when, /*expectedVSyncTime=*/expectedPresent,
-                                   /*deadlineTimestamp=*/expectedPresent)
-            ? NO_ERROR
-            : BAD_VALUE;
+    const nsecs_t expectedPresentTime = calculateExpectedPresentTime(when).ns();
+    const nsecs_t deadlineTimestamp = expectedPresentTime;
+    return mScheduler->injectVSync(when, expectedPresentTime, deadlineTimestamp) ? NO_ERROR
+                                                                                 : BAD_VALUE;
 }
 
 status_t SurfaceFlinger::getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers) {
@@ -1951,18 +1951,15 @@ void SurfaceFlinger::setVsyncEnabled(bool enabled) {
     }));
 }
 
-SurfaceFlinger::FenceWithFenceTime SurfaceFlinger::previousFrameFence() {
-    const auto now = systemTime();
-    const auto vsyncPeriod = mScheduler->getDisplayStatInfo(now).vsyncPeriod;
-    const bool expectedPresentTimeIsTheNextVsync = mExpectedPresentTime - now <= vsyncPeriod;
-    return expectedPresentTimeIsTheNextVsync ? mPreviousPresentFences[0]
-                                             : mPreviousPresentFences[1];
+auto SurfaceFlinger::getPreviousPresentFence(nsecs_t frameTime, Period vsyncPeriod)
+        -> const FenceTimePtr& {
+    const bool isTwoVsyncsAhead = mExpectedPresentTime - frameTime > vsyncPeriod.ns();
+    const size_t i = static_cast<size_t>(isTwoVsyncsAhead);
+    return mPreviousPresentFences[i].fenceTime;
 }
 
-bool SurfaceFlinger::previousFramePending(int graceTimeMs) {
+bool SurfaceFlinger::isFencePending(const FenceTimePtr& fence, int graceTimeMs) {
     ATRACE_CALL();
-    const std::shared_ptr<FenceTime>& fence = previousFrameFence().fenceTime;
-
     if (fence == FenceTime::NO_FENCE) {
         return false;
     }
@@ -1973,36 +1970,31 @@ bool SurfaceFlinger::previousFramePending(int graceTimeMs) {
     return status == -ETIME;
 }
 
-nsecs_t SurfaceFlinger::previousFramePresentTime() {
-    const std::shared_ptr<FenceTime>& fence = previousFrameFence().fenceTime;
+TimePoint SurfaceFlinger::calculateExpectedPresentTime(nsecs_t frameTime) const {
+    const auto& schedule = mScheduler->getVsyncSchedule();
 
-    if (fence == FenceTime::NO_FENCE) {
-        return Fence::SIGNAL_TIME_INVALID;
+    const TimePoint vsyncDeadline = schedule.vsyncDeadlineAfter(TimePoint::fromNs(frameTime));
+    if (mVsyncModulator->getVsyncConfig().sfOffset > 0) {
+        return vsyncDeadline;
     }
 
-    return fence->getSignalTime();
-}
-
-nsecs_t SurfaceFlinger::calculateExpectedPresentTime(DisplayStatInfo stats) const {
-    // Inflate the expected present time if we're targetting the next vsync.
-    return mVsyncModulator->getVsyncConfig().sfOffset > 0 ? stats.vsyncTime
-                                                          : stats.vsyncTime + stats.vsyncPeriod;
+    // Inflate the expected present time if we're targeting the next vsync.
+    return vsyncDeadline + schedule.period();
 }
 
 bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expectedVsyncTime)
         FTL_FAKE_GUARD(kMainThreadContext) {
-    // calculate the expected present time once and use the cached
-    // value throughout this frame to make sure all layers are
-    // seeing this same value.
-    if (expectedVsyncTime >= frameTime) {
-        mExpectedPresentTime = expectedVsyncTime;
-    } else {
-        const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(frameTime);
-        mExpectedPresentTime = calculateExpectedPresentTime(stats);
-    }
-
+    // The expectedVsyncTime, which was predicted when this frame was scheduled, is normally in the
+    // future relative to frameTime, but may not be for delayed frames. Adjust mExpectedPresentTime
+    // accordingly, but not mScheduledPresentTime.
     const nsecs_t lastScheduledPresentTime = mScheduledPresentTime;
     mScheduledPresentTime = expectedVsyncTime;
+
+    // Calculate the expected present time once and use the cached value throughout this frame to
+    // make sure all layers are seeing this same value.
+    mExpectedPresentTime = expectedVsyncTime >= frameTime
+            ? expectedVsyncTime
+            : calculateExpectedPresentTime(frameTime).ns();
 
     const auto vsyncIn = [&] {
         if (!ATRACE_ENABLED()) return 0.f;
@@ -2010,6 +2002,9 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     }();
     ATRACE_FORMAT("%s %" PRId64 " vsyncIn %.2fms%s", __func__, vsyncId, vsyncIn,
                   mExpectedPresentTime == expectedVsyncTime ? "" : " (adjusted)");
+
+    const Period vsyncPeriod = mScheduler->getVsyncSchedule().period();
+    const FenceTimePtr& previousPresentFence = getPreviousPresentFence(frameTime, vsyncPeriod);
 
     // When Backpressure propagation is enabled we want to give a small grace period
     // for the present fence to fire instead of just giving up on this frame to handle cases
@@ -2019,7 +2014,8 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
 
     // Pending frames may trigger backpressure propagation.
     const TracedOrdinal<bool> framePending = {"PrevFramePending",
-                                              previousFramePending(graceTimeForPresentFenceMs)};
+                                              isFencePending(previousPresentFence,
+                                                             graceTimeForPresentFenceMs)};
 
     // Frame missed counts for metrics tracking.
     // A frame is missed if the prior frame is still pending. If no longer pending,
@@ -2029,9 +2025,8 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     // Add some slop to correct for drift. This should generally be
     // smaller than a typical frame duration, but should not be so small
     // that it reports reasonable drift as a missed frame.
-    const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(systemTime());
-    const nsecs_t frameMissedSlop = stats.vsyncPeriod / 2;
-    const nsecs_t previousPresentTime = previousFramePresentTime();
+    const nsecs_t frameMissedSlop = vsyncPeriod.ns() / 2;
+    const nsecs_t previousPresentTime = previousPresentFence->getSignalTime();
     const TracedOrdinal<bool> frameMissed = {"PrevFrameMissed",
                                              framePending ||
                                                      (previousPresentTime >= 0 &&
@@ -2118,7 +2113,7 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     // Composite if transactions were committed, or if requested by HWC.
     bool mustComposite = mMustComposite.exchange(false);
     {
-        mFrameTimeline->setSfWakeUp(vsyncId, frameTime, Fps::fromPeriodNsecs(stats.vsyncPeriod));
+        mFrameTimeline->setSfWakeUp(vsyncId, frameTime, Fps::fromPeriodNsecs(vsyncPeriod.ns()));
 
         bool needsTraversal = false;
         if (clearTransactionFlags(eTransactionFlushNeeded)) {
@@ -2239,7 +2234,9 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId)
     }
 
     const auto expectedPresentTime = mExpectedPresentTime.load();
-    const auto prevVsyncTime = mScheduler->getPreviousVsyncFrom(expectedPresentTime);
+    const auto prevVsyncTime =
+            TimePoint::fromNs(expectedPresentTime) - mScheduler->getVsyncSchedule().period();
+
     const auto hwcMinWorkDuration = mVsyncConfiguration->getCurrentConfigs().hwcMinWorkDuration;
     refreshArgs.earliestPresentTime = prevVsyncTime - hwcMinWorkDuration;
     refreshArgs.previousPresentFence = mPreviousPresentFences[0].fenceTime;
@@ -2326,11 +2323,11 @@ void SurfaceFlinger::updateLayerGeometry() {
     mLayersPendingRefresh.clear();
 }
 
-void SurfaceFlinger::updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
-                                            std::shared_ptr<FenceTime>& presentFenceTime) {
+nsecs_t SurfaceFlinger::trackPresentLatency(nsecs_t compositeTime,
+                                            std::shared_ptr<FenceTime> presentFenceTime) {
     // Update queue of past composite+present times and determine the
     // most recently known composite to present latency.
-    getBE().mCompositePresentTimes.push({compositeTime, presentFenceTime});
+    getBE().mCompositePresentTimes.push({compositeTime, std::move(presentFenceTime)});
     nsecs_t compositeToPresentLatency = -1;
     while (!getBE().mCompositePresentTimes.empty()) {
         SurfaceFlingerBE::CompositePresentTime& cpt = getBE().mCompositePresentTimes.front();
@@ -2349,13 +2346,13 @@ void SurfaceFlinger::updateCompositorTiming(const DisplayStatInfo& stats, nsecs_
         getBE().mCompositePresentTimes.pop();
     }
 
-    setCompositorTimingSnapped(stats, compositeToPresentLatency);
+    return compositeToPresentLatency;
 }
 
-void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
+void SurfaceFlinger::setCompositorTimingSnapped(nsecs_t vsyncDeadline, nsecs_t vsyncPeriod,
                                                 nsecs_t compositeToPresentLatency) {
     // Avoid division by 0 by defaulting to 60Hz
-    const auto vsyncPeriod = stats.vsyncPeriod ?: (60_Hz).getPeriodNsecs();
+    vsyncPeriod = vsyncPeriod ?: (60_Hz).getPeriodNsecs();
 
     // Integer division and modulo round toward 0 not -inf, so we need to
     // treat negative and positive offsets differently.
@@ -2381,7 +2378,7 @@ void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
             (extraVsyncs > 0) ? idealLatency + (extraVsyncs * vsyncPeriod) : idealLatency;
 
     std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
-    getBE().mCompositorTiming.deadline = stats.vsyncTime - idealLatency;
+    getBE().mCompositorTiming.deadline = vsyncDeadline - idealLatency;
     getBE().mCompositorTiming.interval = vsyncPeriod;
     getBE().mCompositorTiming.presentLatency = snappedCompositeToPresentLatency;
 }
@@ -2470,13 +2467,18 @@ void SurfaceFlinger::postComposition() {
     mFrameTimeline->setSfPresent(/* sfPresentTime */ now, mPreviousPresentFences[0].fenceTime,
                                  glCompositionDoneFenceTime);
 
-    const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(now);
-
     // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
     // be sampled a little later than when we started doing work for this frame,
-    // but that should be okay since updateCompositorTiming has snapping logic.
-    updateCompositorTiming(stats, mCompositionEngine->getLastFrameRefreshTimestamp(),
-                           mPreviousPresentFences[0].fenceTime);
+    // but that should be okay since setCompositorTimingSnapped has snapping logic.
+    const nsecs_t compositeTime = mCompositionEngine->getLastFrameRefreshTimestamp();
+    const nsecs_t presentLatency =
+            trackPresentLatency(compositeTime, mPreviousPresentFences[0].fenceTime);
+
+    const auto& schedule = mScheduler->getVsyncSchedule();
+    const TimePoint vsyncDeadline = schedule.vsyncDeadlineAfter(TimePoint::fromNs(now));
+    const Period vsyncPeriod = schedule.period();
+    setCompositorTimingSnapped(vsyncDeadline.ns(), vsyncPeriod.ns(), presentLatency);
+
     CompositorTiming compositorTiming;
     {
         std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
@@ -2593,7 +2595,7 @@ void SurfaceFlinger::postComposition() {
         mHasPoweredOff = false;
     } else {
         nsecs_t elapsedTime = currentTime - getBE().mLastSwapTime;
-        size_t numPeriods = static_cast<size_t>(elapsedTime / stats.vsyncPeriod);
+        const size_t numPeriods = static_cast<size_t>(elapsedTime / vsyncPeriod.ns());
         if (numPeriods < SurfaceFlingerBE::NUM_BUCKETS - 1) {
             getBE().mFrameBuckets[numPeriods] += elapsedTime;
         } else {
@@ -3470,8 +3472,8 @@ void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
                                              mInterceptor->saveVSyncEvent(timestamp);
                                          });
 
-    mScheduler->initVsync(mScheduler->getVsyncDispatch(), *mFrameTimeline->getTokenManager(),
-                          configs.late.sfWorkDuration);
+    mScheduler->initVsync(mScheduler->getVsyncSchedule().getDispatch(),
+                          *mFrameTimeline->getTokenManager(), configs.late.sfWorkDuration);
 
     mRegionSamplingThread =
             new RegionSamplingThread(*this, RegionSamplingThread::EnvironmentTimingTunables());
@@ -3941,10 +3943,10 @@ bool SurfaceFlinger::transactionFlushNeeded() {
 bool SurfaceFlinger::frameIsEarly(nsecs_t expectedPresentTime, int64_t vsyncId) const {
     // The amount of time SF can delay a frame if it is considered early based
     // on the VsyncModulator::VsyncConfig::appWorkDuration
-    constexpr static std::chrono::nanoseconds kEarlyLatchMaxThreshold = 100ms;
+    constexpr std::chrono::nanoseconds kEarlyLatchMaxThreshold = 100ms;
 
-    const auto currentVsyncPeriod = mScheduler->getDisplayStatInfo(systemTime()).vsyncPeriod;
-    const auto earlyLatchVsyncThreshold = currentVsyncPeriod / 2;
+    const nsecs_t currentVsyncPeriod = mScheduler->getVsyncSchedule().period().ns();
+    const nsecs_t earlyLatchVsyncThreshold = currentVsyncPeriod / 2;
 
     const auto prediction = mFrameTimeline->getTokenManager()->getPredictionsForToken(vsyncId);
     if (!prediction.has_value()) {
@@ -4839,10 +4841,6 @@ void SurfaceFlinger::onInitializeDisplays() {
     const nsecs_t vsyncPeriod = display->refreshRateConfigs().getActiveMode()->getVsyncPeriod();
     mAnimFrameTracker.setDisplayRefreshPeriod(vsyncPeriod);
     mActiveDisplayTransformHint = display->getTransformHint();
-    // Use phase of 0 since phase is not known.
-    // Use latency of 0, which will snap to the ideal latency.
-    DisplayStatInfo stats{0 /* vsyncTime */, vsyncPeriod};
-    setCompositorTimingSnapped(stats, 0);
 }
 
 void SurfaceFlinger::initializeDisplays() {

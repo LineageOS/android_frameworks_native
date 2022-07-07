@@ -32,9 +32,8 @@
 #include <ui/GraphicTypes.h>
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
-#include <ui/DisplayStatInfo.h>
-
 #include <scheduler/Features.h>
+#include <scheduler/Time.h>
 
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
@@ -150,8 +149,6 @@ public:
     void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration);
 
-    DisplayStatInfo getDisplayStatInfo(nsecs_t now);
-
     // Returns injector handle if injection has toggled, or an invalid handle otherwise.
     ConnectionHandle enableVSyncInjection(bool enable);
     // Returns false if injection is disabled.
@@ -190,13 +187,11 @@ public:
 
     void setDisplayPowerMode(hal::PowerMode powerMode);
 
-    VSyncDispatch& getVsyncDispatch() { return mVsyncSchedule->getDispatch(); }
+    VsyncSchedule& getVsyncSchedule() { return *mVsyncSchedule; }
 
     // Returns true if a given vsync timestamp is considered valid vsync
     // for a given uid
     bool isVsyncValid(nsecs_t expectedVsyncTimestamp, uid_t uid) const;
-
-    std::chrono::steady_clock::time_point getPreviousVsyncFrom(nsecs_t expectedPresentTime) const;
 
     void dump(std::string&) const;
     void dump(ConnectionHandle, std::string&) const;

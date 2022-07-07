@@ -535,11 +535,6 @@ public:
         mFlinger->setVsyncConfig(vsyncConfig, fdp->ConsumeIntegral<nsecs_t>());
     }
 
-    void updateCompositorTiming(FuzzedDataProvider *fdp) {
-        std::shared_ptr<FenceTime> presentFenceTime = FenceTime::NO_FENCE;
-        mFlinger->updateCompositorTiming({}, fdp->ConsumeIntegral<nsecs_t>(), presentFenceTime);
-    }
-
     void getCompositorTiming() {
         CompositorTiming compositorTiming;
         mFlinger->getCompositorTiming(&compositorTiming);
@@ -641,9 +636,11 @@ public:
 
         getCompositorTiming();
 
-        updateCompositorTiming(&mFdp);
+        mFlinger->trackPresentLatency(mFdp.ConsumeIntegral<nsecs_t>(), FenceTime::NO_FENCE);
+        mFlinger->setCompositorTimingSnapped(mFdp.ConsumeIntegral<nsecs_t>(),
+                                             mFdp.ConsumeIntegral<nsecs_t>(),
+                                             mFdp.ConsumeIntegral<nsecs_t>());
 
-        mFlinger->setCompositorTimingSnapped({}, mFdp.ConsumeIntegral<nsecs_t>());
         FTL_FAKE_GUARD(kMainThreadContext, mFlinger->postFrame());
         mFlinger->calculateExpectedPresentTime({});
 
