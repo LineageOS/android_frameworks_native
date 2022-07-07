@@ -28,6 +28,10 @@ typedef  int  uid_t;
 // ---------------------------------------------------------------------------
 namespace android {
 
+/**
+ * Kernel binder thread state. All operations here refer to kernel binder. This
+ * object is allocated per-thread.
+ */
 class IPCThreadState
 {
 public:
