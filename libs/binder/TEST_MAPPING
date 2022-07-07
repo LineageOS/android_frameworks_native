@@ -28,9 +28,6 @@
       "name": "binderLibTest"
     },
     {
-      "name": "binderRpcTest"
-    },
-    {
       "name": "binderStabilityTest"
     },
     {
@@ -84,7 +81,12 @@
       "name": "rustBinderSerializationTest"
     }
   ],
- "hwasan-presubmit": [
+  "presubmit-large": [
+    {
+      "name": "binderRpcTest"
+    }
+  ],
+  "hwasan-presubmit": [
     {
       "name": "binderLibTest"
     }
