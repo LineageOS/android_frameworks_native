@@ -193,6 +193,13 @@ int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) {
     return query(window, NATIVE_WINDOW_DATASPACE);
 }
 
+int32_t ANativeWindow_getBuffersDefaultDataSpace(ANativeWindow* window) {
+    if (!window || !query(window, NATIVE_WINDOW_IS_VALID)) {
+        return -EINVAL;
+    }
+    return query(window, NATIVE_WINDOW_DEFAULT_DATASPACE);
+}
+
 int32_t ANativeWindow_setFrameRate(ANativeWindow* window, float frameRate, int8_t compatibility) {
     return ANativeWindow_setFrameRateWithChangeStrategy(window, frameRate, compatibility,
         ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS);
