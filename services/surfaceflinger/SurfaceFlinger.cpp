@@ -1886,11 +1886,6 @@ void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t t
     }
 }
 
-void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
-    std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
-    *compositorTiming = getBE().mCompositorTiming;
-}
-
 void SurfaceFlinger::onComposerHalHotplug(hal::HWDisplayId hwcDisplayId,
                                           hal::Connection connection) {
     const bool connected = connection == hal::Connection::CONNECTED;
@@ -2349,8 +2344,8 @@ nsecs_t SurfaceFlinger::trackPresentLatency(nsecs_t compositeTime,
     return compositeToPresentLatency;
 }
 
-void SurfaceFlinger::setCompositorTimingSnapped(nsecs_t vsyncDeadline, nsecs_t vsyncPeriod,
-                                                nsecs_t compositeToPresentLatency) {
+CompositorTiming SurfaceFlinger::makeCompositorTiming(nsecs_t vsyncDeadline, nsecs_t vsyncPeriod,
+                                                      nsecs_t compositeToPresentLatency) {
     // Avoid division by 0 by defaulting to 60Hz
     vsyncPeriod = vsyncPeriod ?: (60_Hz).getPeriodNsecs();
 
@@ -2377,10 +2372,9 @@ void SurfaceFlinger::setCompositorTimingSnapped(nsecs_t vsyncDeadline, nsecs_t v
     const nsecs_t snappedCompositeToPresentLatency =
             (extraVsyncs > 0) ? idealLatency + (extraVsyncs * vsyncPeriod) : idealLatency;
 
-    std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
-    getBE().mCompositorTiming.deadline = vsyncDeadline - idealLatency;
-    getBE().mCompositorTiming.interval = vsyncPeriod;
-    getBE().mCompositorTiming.presentLatency = snappedCompositeToPresentLatency;
+    return {.deadline = vsyncDeadline - idealLatency,
+            .interval = vsyncPeriod,
+            .presentLatency = snappedCompositeToPresentLatency};
 }
 
 bool SurfaceFlinger::isHdrLayer(Layer* layer) const {
@@ -2469,7 +2463,7 @@ void SurfaceFlinger::postComposition() {
 
     // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
     // be sampled a little later than when we started doing work for this frame,
-    // but that should be okay since setCompositorTimingSnapped has snapping logic.
+    // but that should be okay since makeCompositorTiming has snapping logic.
     const nsecs_t compositeTime = mCompositionEngine->getLastFrameRefreshTimestamp();
     const nsecs_t presentLatency =
             trackPresentLatency(compositeTime, mPreviousPresentFences[0].fenceTime);
@@ -2477,13 +2471,9 @@ void SurfaceFlinger::postComposition() {
     const auto& schedule = mScheduler->getVsyncSchedule();
     const TimePoint vsyncDeadline = schedule.vsyncDeadlineAfter(TimePoint::fromNs(now));
     const Period vsyncPeriod = schedule.period();
-    setCompositorTimingSnapped(vsyncDeadline.ns(), vsyncPeriod.ns(), presentLatency);
 
-    CompositorTiming compositorTiming;
-    {
-        std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
-        compositorTiming = getBE().mCompositorTiming;
-    }
+    const CompositorTiming compositorTiming =
+            makeCompositorTiming(vsyncDeadline.ns(), vsyncPeriod.ns(), presentLatency);
 
     for (const auto& layer: mLayersWithQueuedFrames) {
         layer->onPostComposition(display, glCompositionDoneFenceTime,

@@ -168,10 +168,6 @@ enum class LatchUnsignaledConfig {
 using DisplayColorSetting = compositionengine::OutputColorSetting;
 
 struct SurfaceFlingerBE {
-    // protected by mCompositorTimingLock;
-    mutable std::mutex mCompositorTimingLock;
-    CompositorTiming mCompositorTiming;
-
     // Only accessed from the main thread.
     struct CompositePresentTime {
         nsecs_t composite = -1;
@@ -962,9 +958,8 @@ private:
     // Returns the composite-to-present latency of the latest presented frame.
     nsecs_t trackPresentLatency(nsecs_t compositeTime, std::shared_ptr<FenceTime> presentFenceTime);
 
-    void getCompositorTiming(CompositorTiming* compositorTiming);
-    void setCompositorTimingSnapped(nsecs_t vsyncDeadline, nsecs_t vsyncPeriod,
-                                    nsecs_t compositeToPresentLatency);
+    CompositorTiming makeCompositorTiming(nsecs_t vsyncDeadline, nsecs_t vsyncPeriod,
+                                          nsecs_t compositeToPresentLatency);
 
     void postFrame() REQUIRES(kMainThreadContext);
 

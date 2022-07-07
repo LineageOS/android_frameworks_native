@@ -535,11 +535,6 @@ public:
         mFlinger->setVsyncConfig(vsyncConfig, fdp->ConsumeIntegral<nsecs_t>());
     }
 
-    void getCompositorTiming() {
-        CompositorTiming compositorTiming;
-        mFlinger->getCompositorTiming(&compositorTiming);
-    }
-
     sp<IBinder> fuzzBoot(FuzzedDataProvider *fdp) {
         mFlinger->callingThreadHasUnscopedSurfaceFlingerAccess(fdp->ConsumeBool());
         const sp<Client> client = new Client(mFlinger);
@@ -634,12 +629,10 @@ public:
 
         mFlinger->postComposition();
 
-        getCompositorTiming();
-
         mFlinger->trackPresentLatency(mFdp.ConsumeIntegral<nsecs_t>(), FenceTime::NO_FENCE);
-        mFlinger->setCompositorTimingSnapped(mFdp.ConsumeIntegral<nsecs_t>(),
-                                             mFdp.ConsumeIntegral<nsecs_t>(),
-                                             mFdp.ConsumeIntegral<nsecs_t>());
+        mFlinger->makeCompositorTiming(mFdp.ConsumeIntegral<nsecs_t>(),
+                                       mFdp.ConsumeIntegral<nsecs_t>(),
+                                       mFdp.ConsumeIntegral<nsecs_t>());
 
         FTL_FAKE_GUARD(kMainThreadContext, mFlinger->postFrame());
         mFlinger->calculateExpectedPresentTime({});
