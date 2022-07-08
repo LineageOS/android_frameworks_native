@@ -87,7 +87,6 @@ cc_defaults {
         "FdTrigger.cpp",
         "IInterface.cpp",
         "IResultReceiver.cpp",
-        "IShellCallback.cpp",
         "OS.cpp",
         "Parcel.cpp",
         "ParcelFileDescriptor.cpp",
@@ -234,6 +233,7 @@ cc_library {
 
     srcs: [
         "IMemory.cpp",
+        "IShellCallback.cpp",
         "LazyServiceRegistrar.cpp",
         "MemoryBase.cpp",
         "MemoryDealer.cpp",
