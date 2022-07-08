@@ -630,9 +630,6 @@ public:
         mFlinger->postComposition();
 
         mFlinger->trackPresentLatency(mFdp.ConsumeIntegral<nsecs_t>(), FenceTime::NO_FENCE);
-        mFlinger->makeCompositorTiming(mFdp.ConsumeIntegral<nsecs_t>(),
-                                       mFdp.ConsumeIntegral<nsecs_t>(),
-                                       mFdp.ConsumeIntegral<nsecs_t>());
 
         FTL_FAKE_GUARD(kMainThreadContext, mFlinger->postFrame());
         mFlinger->calculateExpectedPresentTime({});

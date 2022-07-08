@@ -193,6 +193,7 @@ cc_library_shared {
         "BufferHubConsumer.cpp",
         "BufferHubProducer.cpp",
         "BufferItemConsumer.cpp",
+        "CompositorTiming.cpp",
         "ConsumerBase.cpp",
         "CpuConsumer.cpp",
         "DebugEGLImageTracker.cpp",

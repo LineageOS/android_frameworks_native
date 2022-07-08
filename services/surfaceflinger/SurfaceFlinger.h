@@ -31,6 +31,7 @@
 #include <ftl/future.h>
 #include <ftl/small_map.h>
 #include <gui/BufferQueue.h>
+#include <gui/CompositorTiming.h>
 #include <gui/FrameTimestamps.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ITransactionCompletedListener.h>
@@ -957,9 +958,6 @@ private:
 
     // Returns the composite-to-present latency of the latest presented frame.
     nsecs_t trackPresentLatency(nsecs_t compositeTime, std::shared_ptr<FenceTime> presentFenceTime);
-
-    CompositorTiming makeCompositorTiming(nsecs_t vsyncDeadline, nsecs_t vsyncPeriod,
-                                          nsecs_t compositeToPresentLatency);
 
     void postFrame() REQUIRES(kMainThreadContext);
 

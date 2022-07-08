@@ -24,6 +24,7 @@ cc_test {
         "BLASTBufferQueue_test.cpp",
         "BufferItemConsumer_test.cpp",
         "BufferQueue_test.cpp",
+        "CompositorTiming_test.cpp",
         "CpuConsumer_test.cpp",
         "EndToEndNativeInputTest.cpp",
         "DisplayInfo_test.cpp",

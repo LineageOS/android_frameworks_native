@@ -2344,39 +2344,6 @@ nsecs_t SurfaceFlinger::trackPresentLatency(nsecs_t compositeTime,
     return compositeToPresentLatency;
 }
 
-CompositorTiming SurfaceFlinger::makeCompositorTiming(nsecs_t vsyncDeadline, nsecs_t vsyncPeriod,
-                                                      nsecs_t compositeToPresentLatency) {
-    // Avoid division by 0 by defaulting to 60Hz
-    vsyncPeriod = vsyncPeriod ?: (60_Hz).getPeriodNsecs();
-
-    // Integer division and modulo round toward 0 not -inf, so we need to
-    // treat negative and positive offsets differently.
-    nsecs_t idealLatency = (mVsyncConfiguration->getCurrentConfigs().late.sfOffset > 0)
-            ? (vsyncPeriod -
-               (mVsyncConfiguration->getCurrentConfigs().late.sfOffset % vsyncPeriod))
-            : ((-mVsyncConfiguration->getCurrentConfigs().late.sfOffset) % vsyncPeriod);
-
-    // Just in case mVsyncConfiguration->getCurrentConfigs().late.sf == -vsyncInterval.
-    if (idealLatency <= 0) {
-        idealLatency = vsyncPeriod;
-    }
-
-    // Snap the latency to a value that removes scheduling jitter from the
-    // composition and present times, which often have >1ms of jitter.
-    // Reducing jitter is important if an app attempts to extrapolate
-    // something (such as user input) to an accurate diasplay time.
-    // Snapping also allows an app to precisely calculate
-    // mVsyncConfiguration->getCurrentConfigs().late.sf with (presentLatency % interval).
-    const nsecs_t bias = vsyncPeriod / 2;
-    const int64_t extraVsyncs = ((compositeToPresentLatency - idealLatency + bias) / vsyncPeriod);
-    const nsecs_t snappedCompositeToPresentLatency =
-            (extraVsyncs > 0) ? idealLatency + (extraVsyncs * vsyncPeriod) : idealLatency;
-
-    return {.deadline = vsyncDeadline - idealLatency,
-            .interval = vsyncPeriod,
-            .presentLatency = snappedCompositeToPresentLatency};
-}
-
 bool SurfaceFlinger::isHdrLayer(Layer* layer) const {
     // Treat all layers as non-HDR if:
     // 1. They do not have a valid HDR dataspace. Currently we treat those as PQ or HLG. and
@@ -2463,7 +2430,7 @@ void SurfaceFlinger::postComposition() {
 
     // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
     // be sampled a little later than when we started doing work for this frame,
-    // but that should be okay since makeCompositorTiming has snapping logic.
+    // but that should be okay since CompositorTiming has snapping logic.
     const nsecs_t compositeTime = mCompositionEngine->getLastFrameRefreshTimestamp();
     const nsecs_t presentLatency =
             trackPresentLatency(compositeTime, mPreviousPresentFences[0].fenceTime);
@@ -2471,9 +2438,10 @@ void SurfaceFlinger::postComposition() {
     const auto& schedule = mScheduler->getVsyncSchedule();
     const TimePoint vsyncDeadline = schedule.vsyncDeadlineAfter(TimePoint::fromNs(now));
     const Period vsyncPeriod = schedule.period();
+    const nsecs_t vsyncPhase = mVsyncConfiguration->getCurrentConfigs().late.sfOffset;
 
-    const CompositorTiming compositorTiming =
-            makeCompositorTiming(vsyncDeadline.ns(), vsyncPeriod.ns(), presentLatency);
+    const CompositorTiming compositorTiming(vsyncDeadline.ns(), vsyncPeriod.ns(), vsyncPhase,
+                                            presentLatency);
 
     for (const auto& layer: mLayersWithQueuedFrames) {
         layer->onPostComposition(display, glCompositionDoneFenceTime,
