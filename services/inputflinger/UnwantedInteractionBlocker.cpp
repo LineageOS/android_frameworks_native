@@ -517,7 +517,7 @@ public:
     AndroidPalmRejectionModel()
           : ::ui::OneDeviceTrainNeuralStylusPalmDetectionFilterModel(/*default version*/ "",
                                                                      std::vector<float>()) {
-        config_.resample_touch = true;
+        config_.resample_period = ::ui::kResamplePeriod;
     }
 };
 
