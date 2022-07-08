@@ -503,8 +503,8 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
 
     err = NO_ERROR;
 
-#ifdef BINDER_WITH_KERNEL_IPC
     if (auto* kernelFields = maybeKernelFields()) {
+#ifdef BINDER_WITH_KERNEL_IPC
         auto* otherKernelFields = parcel->maybeKernelFields();
         LOG_ALWAYS_FATAL_IF(otherKernelFields == nullptr);
 
@@ -564,6 +564,10 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
                 }
             }
         }
+#else
+        LOG_ALWAYS_FATAL("Binder kernel driver disabled at build time");
+        return INVALID_OPERATION;
+#endif // BINDER_WITH_KERNEL_IPC
     } else {
         auto* rpcFields = maybeRpcFields();
         LOG_ALWAYS_FATAL_IF(rpcFields == nullptr);
@@ -622,7 +626,6 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
             }
         }
     }
-#endif // BINDER_WITH_KERNEL_IPC
 
     return err;
 }
