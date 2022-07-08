@@ -167,7 +167,6 @@ cc_library_static {
         "libbinder_tls_shared_deps",
     ],
     shared_libs: [
-        "libbinder",
         "libbase",
         "liblog",
     ],
@@ -185,8 +184,8 @@ cc_library_static {
     ],
 }
 
-cc_test {
-    name: "binderRpcTest",
+cc_defaults {
+    name: "binderRpcTest_defaults",
     host_supported: true,
     target: {
         darwin: {
@@ -198,12 +197,34 @@ cc_test {
     },
     defaults: [
         "binder_test_defaults",
-        "libbinder_tls_shared_deps",
     ],
 
     srcs: [
         "binderRpcTest.cpp",
     ],
+
+    static_libs: [
+        "libbinder_tls_static",
+        "libbinder_tls_test_utils",
+        "binderRpcTestIface-cpp",
+        "binderRpcTestIface-ndk",
+    ],
+
+    test_suites: ["general-tests"],
+    require_root: true,
+}
+
+cc_test {
+    name: "binderRpcTest",
+    defaults: [
+        "binderRpcTest_defaults",
+        "libbinder_tls_shared_deps",
+    ],
+
+    cflags: [
+        "-DBINDER_WITH_KERNEL_IPC",
+    ],
+
     shared_libs: [
         "libbinder",
         "libbinder_ndk",
@@ -212,14 +233,68 @@ cc_test {
         "libcutils",
         "liblog",
     ],
-    static_libs: [
-        "libbinder_tls_static",
-        "libbinder_tls_test_utils",
-        "binderRpcTestIface-cpp",
-        "binderRpcTestIface-ndk",
+}
+
+cc_defaults {
+    name: "binderRpcTest_static_defaults",
+
+    shared_libs: [
+        "libutils",
+        // libcrypto_static is not visible to this module
+        "libcrypto",
     ],
-    test_suites: ["general-tests"],
-    require_root: true,
+    static_libs: [
+        "libbase",
+        "libcutils",
+        "liblog",
+        "libssl",
+    ],
+
+    cflags: [
+        // Disable tests that require shared libraries,
+        // e.g., libbinder.so or libbinder_ndk.so
+        "-DBINDER_TEST_NO_SHARED_LIBS",
+    ],
+}
+
+cc_test {
+    name: "binderRpcTestNoKernel",
+    defaults: [
+        "binderRpcTest_defaults",
+        "binderRpcTest_static_defaults",
+    ],
+    static_libs: [
+        "libbinder_rpc_no_kernel",
+    ],
+}
+
+cc_test {
+    name: "binderRpcTestSingleThreaded",
+    defaults: [
+        "binderRpcTest_defaults",
+        "binderRpcTest_static_defaults",
+    ],
+    cflags: [
+        "-DBINDER_RPC_SINGLE_THREADED",
+        "-DBINDER_WITH_KERNEL_IPC",
+    ],
+    static_libs: [
+        "libbinder_rpc_single_threaded",
+    ],
+}
+
+cc_test {
+    name: "binderRpcTestSingleThreadedNoKernel",
+    defaults: [
+        "binderRpcTest_defaults",
+        "binderRpcTest_static_defaults",
+    ],
+    cflags: [
+        "-DBINDER_RPC_SINGLE_THREADED",
+    ],
+    static_libs: [
+        "libbinder_rpc_single_threaded_no_kernel",
+    ],
 }
 
 cc_test {
