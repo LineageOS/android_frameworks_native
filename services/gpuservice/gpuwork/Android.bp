@@ -55,6 +55,6 @@ cc_library_shared {
     ],
     required: [
         "bpfloader",
-        "gpu_work.o",
+        "gpuWork.o",
     ],
 }
