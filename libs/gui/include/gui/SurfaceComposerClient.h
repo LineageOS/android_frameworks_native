@@ -601,6 +601,9 @@ public:
         Transaction& setFrameRate(const sp<SurfaceControl>& sc, float frameRate,
                                   int8_t compatibility, int8_t changeFrameRateStrategy);
 
+        Transaction& setDefaultFrameRateCompatibility(const sp<SurfaceControl>& sc,
+                                                      int8_t compatibility);
+
         // Set by window manager indicating the layer and all its children are
         // in a different orientation than the display. The hint suggests that
         // the graphic producers should receive a transform hint as if the

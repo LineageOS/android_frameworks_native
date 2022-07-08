@@ -72,6 +72,20 @@ void trace(const LayerInfo& info, LayerHistory::LayerVoteType type, int fps) {
 
     ALOGD("%s: %s @ %d Hz", __FUNCTION__, info.getName().c_str(), fps);
 }
+
+LayerHistory::LayerVoteType getVoteType(LayerInfo::FrameRateCompatibility compatibility,
+                                        bool contentDetectionEnabled) {
+    LayerHistory::LayerVoteType voteType;
+    if (!contentDetectionEnabled || compatibility == LayerInfo::FrameRateCompatibility::NoVote) {
+        voteType = LayerHistory::LayerVoteType::NoVote;
+    } else if (compatibility == LayerInfo::FrameRateCompatibility::Min) {
+        voteType = LayerHistory::LayerVoteType::Min;
+    } else {
+        voteType = LayerHistory::LayerVoteType::Heuristic;
+    }
+    return voteType;
+}
+
 } // namespace
 
 LayerHistory::LayerHistory()
@@ -81,10 +95,12 @@ LayerHistory::LayerHistory()
 
 LayerHistory::~LayerHistory() = default;
 
-void LayerHistory::registerLayer(Layer* layer, LayerVoteType type) {
+void LayerHistory::registerLayer(Layer* layer, bool contentDetectionEnabled) {
     std::lock_guard lock(mLock);
     LOG_ALWAYS_FATAL_IF(findLayer(layer->getSequence()).first != LayerStatus::NotFound,
                         "%s already registered", layer->getName().c_str());
+    LayerVoteType type =
+            getVoteType(layer->getDefaultFrameRateCompatibility(), contentDetectionEnabled);
     auto info = std::make_unique<LayerInfo>(layer->getName(), layer->getOwnerUid(), type);
 
     // The layer can be placed on either map, it is assumed that partitionLayers() will be called
@@ -130,6 +146,22 @@ void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
                 {id, std::make_pair(layerPair->first, std::move(layerPair->second))});
         mInactiveLayerInfos.erase(id);
     }
+}
+
+void LayerHistory::setDefaultFrameRateCompatibility(Layer* layer, bool contentDetectionEnabled) {
+    std::lock_guard lock(mLock);
+    auto id = layer->getSequence();
+
+    auto [found, layerPair] = findLayer(id);
+    if (found == LayerStatus::NotFound) {
+        // Offscreen layer
+        ALOGV("%s: %s not registered", __func__, layer->getName().c_str());
+        return;
+    }
+
+    const auto& info = layerPair->second;
+    info->setDefaultLayerVote(
+            getVoteType(layer->getDefaultFrameRateCompatibility(), contentDetectionEnabled));
 }
 
 auto LayerHistory::summarize(const RefreshRateConfigs& configs, nsecs_t now) -> Summary {
@@ -203,6 +235,8 @@ void LayerHistory::partitionLayers(nsecs_t now) {
                 switch (frameRate.type) {
                     case Layer::FrameRateCompatibility::Default:
                         return LayerVoteType::ExplicitDefault;
+                    case Layer::FrameRateCompatibility::Min:
+                        return LayerVoteType::Min;
                     case Layer::FrameRateCompatibility::ExactOrMultiple:
                         return LayerVoteType::ExplicitExactOrMultiple;
                     case Layer::FrameRateCompatibility::NoVote:
