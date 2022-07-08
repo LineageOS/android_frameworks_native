@@ -648,13 +648,14 @@ status_t BBinder::onTransact(
             for (int i = 0; i < argc && data.dataAvail() > 0; i++) {
                args.add(data.readString16());
             }
-            sp<IShellCallback> shellCallback = IShellCallback::asInterface(
-                    data.readStrongBinder());
+            sp<IBinder> shellCallbackBinder = data.readStrongBinder();
             sp<IResultReceiver> resultReceiver = IResultReceiver::asInterface(
                     data.readStrongBinder());
 
             // XXX can't add virtuals until binaries are updated.
-            //return shellCommand(in, out, err, args, resultReceiver);
+            // sp<IShellCallback> shellCallback = IShellCallback::asInterface(
+            //        shellCallbackBinder);
+            // return shellCommand(in, out, err, args, resultReceiver);
             (void)in;
             (void)out;
             (void)err;
