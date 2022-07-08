@@ -15,6 +15,7 @@
  */
 
 #define LOG_TAG "dumpstate"
+#define ATRACE_TAG ATRACE_TAG_ALWAYS
 
 #include <dirent.h>
 #include <errno.h>
@@ -76,6 +77,7 @@
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
 #include <cutils/sockets.h>
+#include <cutils/trace.h>
 #include <debuggerd/client.h>
 #include <dumpsys.h>
 #include <dumputils/dump_utils.h>
@@ -3098,7 +3100,9 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     TEMP_FAILURE_RETRY(dup2(dup_stdout_fd, fileno(stdout)));
 
     // Zip the (now complete) .tmp file within the internal directory.
+    ATRACE_BEGIN("FinalizeFile");
     FinalizeFile();
+    ATRACE_END();
 
     // Share the final file with the caller if the user has consented or Shell is the caller.
     Dumpstate::RunStatus status = Dumpstate::RunStatus::OK;
@@ -3409,6 +3413,9 @@ DurationReporter::DurationReporter(const std::string& title, bool logcat_only, b
         duration_fd_(duration_fd) {
     if (!title_.empty()) {
         started_ = Nanotime();
+        if (title_.find("SHOW MAP") == std::string::npos) {
+            ATRACE_ASYNC_BEGIN(title_.c_str(), 0);
+        }
     }
 }
 
@@ -3422,6 +3429,9 @@ DurationReporter::~DurationReporter() {
             // Use "Yoda grammar" to make it easier to grep|sort sections.
             dprintf(duration_fd_, "------ %.3fs was the duration of '%s' ------\n",
                     elapsed, title_.c_str());
+        }
+        if (title_.find("SHOW MAP") == std::string::npos) {
+            ATRACE_ASYNC_END(title_.c_str(), 0);
         }
     }
 }
