@@ -1148,6 +1148,7 @@ TEST_F(BLASTBufferQueueTest, SyncNextTransactionDropBuffer) {
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
+    sync.apply();
 }
 
 // This test will currently fail because the old surfacecontrol will steal the last presented buffer
