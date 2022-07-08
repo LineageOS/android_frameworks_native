@@ -70,21 +70,9 @@ filegroup {
     ],
 }
 
-cc_library {
-    name: "libbinder",
-
-    version_script: "libbinder.map",
-
-    // for vndbinder
-    vendor_available: true,
-    vndk: {
-        enabled: true,
-    },
-    recovery_available: true,
-    double_loadable: true,
+cc_defaults {
+    name: "libbinder_defaults",
     host_supported: true,
-    // TODO(b/153609531): remove when no longer needed.
-    native_bridge_supported: true,
 
     // TODO(b/31559095): get headers from bionic on host
     include_dirs: [
@@ -92,71 +80,30 @@ cc_library {
         "bionic/libc/kernel/uapi/",
     ],
 
-    // libbinder does not offer a stable wire protocol.
-    // if a second copy of it is installed, then it may break after security
-    // or dessert updates. Instead, apex users should use libbinder_ndk.
-    apex_available: [
-        "//apex_available:platform",
-    ],
-
     srcs: [
         "Binder.cpp",
         "BpBinder.cpp",
-        "BufferedTextOutput.cpp",
         "Debug.cpp",
         "FdTrigger.cpp",
         "IInterface.cpp",
-        "IMemory.cpp",
-        "IPCThreadState.cpp",
         "IResultReceiver.cpp",
-        "IServiceManager.cpp",
         "IShellCallback.cpp",
-        "LazyServiceRegistrar.cpp",
-        "MemoryBase.cpp",
-        "MemoryDealer.cpp",
-        "MemoryHeapBase.cpp",
         "Parcel.cpp",
-        "ParcelableHolder.cpp",
         "ParcelFileDescriptor.cpp",
-        "PersistableBundle.cpp",
-        "ProcessState.cpp",
         "RpcSession.cpp",
         "RpcServer.cpp",
         "RpcState.cpp",
         "RpcTransportRaw.cpp",
-        "Static.cpp",
         "Stability.cpp",
         "Status.cpp",
         "TextOutput.cpp",
         "Utils.cpp",
-        ":libbinder_aidl",
-        ":libbinder_device_interface_sources",
     ],
 
     target: {
-        android: {
-            // NOT static to keep the wire protocol unfrozen
-            static: {
-                enabled: false,
-            },
-        },
-        vendor: {
-            exclude_srcs: [
-                ":libbinder_device_interface_sources",
-            ],
-        },
-        darwin: {
-            enabled: false,
-        },
         host: {
             srcs: [
-                "ServiceManagerHost.cpp",
                 "UtilsHost.cpp",
-            ],
-        },
-        recovery: {
-            exclude_header_libs: [
-                "libandroid_runtime_vm_headers",
             ],
         },
     },
@@ -166,7 +113,6 @@ cc_library {
     },
 
     cflags: [
-        "-Wall",
         "-Wextra",
         "-Wextra-semi",
         "-Werror",
@@ -174,7 +120,6 @@ cc_library {
         "-Wreorder-init-list",
         "-DANDROID_BASE_UNIQUE_FD_DISABLE_IMPLICIT_CONVERSION",
         "-DANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION",
-        "-DBINDER_WITH_KERNEL_IPC",
     ],
     product_variables: {
         binder32bit: {
@@ -230,8 +175,123 @@ cc_library {
         "performance*",
         "portability*",
     ],
+}
+
+cc_defaults {
+    name: "libbinder_kernel_defaults",
+    srcs: [
+        "BufferedTextOutput.cpp",
+        "IPCThreadState.cpp",
+        "IServiceManager.cpp",
+        "ProcessState.cpp",
+        "Static.cpp",
+        ":libbinder_aidl",
+        ":libbinder_device_interface_sources",
+    ],
+    target: {
+        vendor: {
+            exclude_srcs: [
+                ":libbinder_device_interface_sources",
+            ],
+        },
+        host: {
+            srcs: [
+                "ServiceManagerHost.cpp",
+            ],
+        },
+    },
+    cflags: [
+        "-DBINDER_WITH_KERNEL_IPC",
+    ],
+}
+
+cc_library {
+    name: "libbinder",
+    defaults: [
+        "libbinder_defaults",
+        "libbinder_kernel_defaults",
+    ],
+
+    version_script: "libbinder.map",
+
+    // for vndbinder
+    vendor_available: true,
+    vndk: {
+        enabled: true,
+    },
+    recovery_available: true,
+    double_loadable: true,
+    // TODO(b/153609531): remove when no longer needed.
+    native_bridge_supported: true,
+
+    // libbinder does not offer a stable wire protocol.
+    // if a second copy of it is installed, then it may break after security
+    // or dessert updates. Instead, apex users should use libbinder_ndk.
+    apex_available: [
+        "//apex_available:platform",
+    ],
+
+    srcs: [
+        "IMemory.cpp",
+        "LazyServiceRegistrar.cpp",
+        "MemoryBase.cpp",
+        "MemoryDealer.cpp",
+        "MemoryHeapBase.cpp",
+        "ParcelableHolder.cpp",
+        "PersistableBundle.cpp",
+    ],
+
+    target: {
+        android: {
+            // NOT static to keep the wire protocol unfrozen
+            static: {
+                enabled: false,
+            },
+        },
+        darwin: {
+            enabled: false,
+        },
+        recovery: {
+            exclude_header_libs: [
+                "libandroid_runtime_vm_headers",
+            ],
+        },
+    },
 
     afdo: true,
+}
+
+cc_library_static {
+    name: "libbinder_rpc_no_kernel",
+    defaults: ["libbinder_defaults"],
+    visibility: [
+        ":__subpackages__",
+    ],
+}
+
+cc_library_static {
+    name: "libbinder_rpc_single_threaded",
+    defaults: [
+        "libbinder_defaults",
+        "libbinder_kernel_defaults",
+    ],
+    cflags: [
+        "-DBINDER_RPC_SINGLE_THREADED",
+    ],
+    visibility: [
+        ":__subpackages__",
+    ],
+}
+
+cc_library_static {
+    name: "libbinder_rpc_single_threaded_no_kernel",
+    defaults: ["libbinder_defaults"],
+    cflags: [
+        "-DBINDER_RPC_SINGLE_THREADED",
+    ],
+    visibility: [
+        ":__subpackages__",
+    ],
 }
 
 cc_defaults {
