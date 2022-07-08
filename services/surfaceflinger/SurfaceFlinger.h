@@ -55,6 +55,7 @@
 #include <compositionengine/FenceResult.h>
 #include <compositionengine/OutputColorSetting.h>
 #include <scheduler/Fps.h>
+#include <scheduler/PresentLatencyTracker.h>
 
 #include "ClientCache.h"
 #include "DisplayDevice.h"
@@ -169,13 +170,6 @@ enum class LatchUnsignaledConfig {
 using DisplayColorSetting = compositionengine::OutputColorSetting;
 
 struct SurfaceFlingerBE {
-    // Only accessed from the main thread.
-    struct CompositePresentTime {
-        nsecs_t composite = -1;
-        std::shared_ptr<FenceTime> display = FenceTime::NO_FENCE;
-    };
-    std::queue<CompositePresentTime> mCompositePresentTimes;
-
     static const size_t NUM_BUCKETS = 8; // < 1-7, 7+
     nsecs_t mFrameBuckets[NUM_BUCKETS] = {};
     nsecs_t mTotalTime = 0;
@@ -954,11 +948,7 @@ private:
     /*
      * Compositing
      */
-    void postComposition();
-
-    // Returns the composite-to-present latency of the latest presented frame.
-    nsecs_t trackPresentLatency(nsecs_t compositeTime, std::shared_ptr<FenceTime> presentFenceTime);
-
+    void postComposition() REQUIRES(kMainThreadContext);
     void postFrame() REQUIRES(kMainThreadContext);
 
     /*
@@ -1326,6 +1316,7 @@ private:
     sp<VsyncModulator> mVsyncModulator;
 
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
+    scheduler::PresentLatencyTracker mPresentLatencyTracker GUARDED_BY(kMainThreadContext);
 
     struct FenceWithFenceTime {
         sp<Fence> fence = Fence::NO_FENCE;

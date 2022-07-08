@@ -32,13 +32,13 @@ static_assert(SchedulerClock::is_steady);
 struct Duration;
 
 struct TimePoint : scheduler::SchedulerClock::time_point {
-    explicit TimePoint(const Duration&);
+    explicit constexpr TimePoint(const Duration&);
 
     // Implicit conversion from std::chrono counterpart.
     constexpr TimePoint(scheduler::SchedulerClock::time_point p)
           : scheduler::SchedulerClock::time_point(p) {}
 
-    static TimePoint fromNs(nsecs_t);
+    static constexpr TimePoint fromNs(nsecs_t);
 
     nsecs_t ns() const;
 };
@@ -47,16 +47,16 @@ struct Duration : TimePoint::duration {
     // Implicit conversion from std::chrono counterpart.
     constexpr Duration(TimePoint::duration d) : TimePoint::duration(d) {}
 
-    static Duration fromNs(nsecs_t ns) { return {std::chrono::nanoseconds(ns)}; }
+    static constexpr Duration fromNs(nsecs_t ns) { return {std::chrono::nanoseconds(ns)}; }
 
     nsecs_t ns() const { return std::chrono::nanoseconds(*this).count(); }
 };
 
 using Period = Duration;
 
-inline TimePoint::TimePoint(const Duration& d) : scheduler::SchedulerClock::time_point(d) {}
+constexpr TimePoint::TimePoint(const Duration& d) : scheduler::SchedulerClock::time_point(d) {}
 
-inline TimePoint TimePoint::fromNs(nsecs_t ns) {
+constexpr TimePoint TimePoint::fromNs(nsecs_t ns) {
     return TimePoint(Duration::fromNs(ns));
 }
 

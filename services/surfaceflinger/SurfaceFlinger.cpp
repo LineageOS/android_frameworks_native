@@ -2318,32 +2318,6 @@ void SurfaceFlinger::updateLayerGeometry() {
     mLayersPendingRefresh.clear();
 }
 
-nsecs_t SurfaceFlinger::trackPresentLatency(nsecs_t compositeTime,
-                                            std::shared_ptr<FenceTime> presentFenceTime) {
-    // Update queue of past composite+present times and determine the
-    // most recently known composite to present latency.
-    getBE().mCompositePresentTimes.push({compositeTime, std::move(presentFenceTime)});
-    nsecs_t compositeToPresentLatency = -1;
-    while (!getBE().mCompositePresentTimes.empty()) {
-        SurfaceFlingerBE::CompositePresentTime& cpt = getBE().mCompositePresentTimes.front();
-        // Cached values should have been updated before calling this method,
-        // which helps avoid duplicate syscalls.
-        nsecs_t displayTime = cpt.display->getCachedSignalTime();
-        if (displayTime == Fence::SIGNAL_TIME_PENDING) {
-            break;
-        }
-        compositeToPresentLatency = displayTime - cpt.composite;
-        getBE().mCompositePresentTimes.pop();
-    }
-
-    // Don't let mCompositePresentTimes grow unbounded, just in case.
-    while (getBE().mCompositePresentTimes.size() > 16) {
-        getBE().mCompositePresentTimes.pop();
-    }
-
-    return compositeToPresentLatency;
-}
-
 bool SurfaceFlinger::isHdrLayer(Layer* layer) const {
     // Treat all layers as non-HDR if:
     // 1. They do not have a valid HDR dataspace. Currently we treat those as PQ or HLG. and
@@ -2431,9 +2405,11 @@ void SurfaceFlinger::postComposition() {
     // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
     // be sampled a little later than when we started doing work for this frame,
     // but that should be okay since CompositorTiming has snapping logic.
-    const nsecs_t compositeTime = mCompositionEngine->getLastFrameRefreshTimestamp();
-    const nsecs_t presentLatency =
-            trackPresentLatency(compositeTime, mPreviousPresentFences[0].fenceTime);
+    const TimePoint compositeTime =
+            TimePoint::fromNs(mCompositionEngine->getLastFrameRefreshTimestamp());
+    const Duration presentLatency =
+            mPresentLatencyTracker.trackPendingFrame(compositeTime,
+                                                     mPreviousPresentFences[0].fenceTime);
 
     const auto& schedule = mScheduler->getVsyncSchedule();
     const TimePoint vsyncDeadline = schedule.vsyncDeadlineAfter(TimePoint::fromNs(now));
@@ -2441,7 +2417,7 @@ void SurfaceFlinger::postComposition() {
     const nsecs_t vsyncPhase = mVsyncConfiguration->getCurrentConfigs().late.sfOffset;
 
     const CompositorTiming compositorTiming(vsyncDeadline.ns(), vsyncPeriod.ns(), vsyncPhase,
-                                            presentLatency);
+                                            presentLatency.ns());
 
     for (const auto& layer: mLayersWithQueuedFrames) {
         layer->onPostComposition(display, glCompositionDoneFenceTime,

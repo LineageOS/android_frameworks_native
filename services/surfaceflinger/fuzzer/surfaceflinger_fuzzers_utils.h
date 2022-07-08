@@ -627,11 +627,9 @@ public:
 
         mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(mFdp.ConsumeIntegral<uid_t>());
 
-        mFlinger->postComposition();
-
-        mFlinger->trackPresentLatency(mFdp.ConsumeIntegral<nsecs_t>(), FenceTime::NO_FENCE);
-
+        FTL_FAKE_GUARD(kMainThreadContext, mFlinger->postComposition());
         FTL_FAKE_GUARD(kMainThreadContext, mFlinger->postFrame());
+
         mFlinger->calculateExpectedPresentTime({});
 
         mFlinger->enableHalVirtualDisplays(mFdp.ConsumeBool());
