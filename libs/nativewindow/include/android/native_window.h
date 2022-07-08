@@ -227,6 +227,16 @@ int32_t ANativeWindow_setBuffersDataSpace(ANativeWindow* window, int32_t dataSpa
  */
 int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) __INTRODUCED_IN(28);
 
+/**
+ * Get the default dataspace of the buffers in window as set by the consumer.
+ *
+ * Available since API level 34.
+ *
+ * \return the dataspace of buffers in window, ADATASPACE_UNKNOWN is returned if
+ * dataspace is unknown, or -EINVAL if window is invalid.
+ */
+int32_t ANativeWindow_getBuffersDefaultDataSpace(ANativeWindow* window) __INTRODUCED_IN(34);
+
 /** Compatibility value for ANativeWindow_setFrameRate. */
 enum ANativeWindow_FrameRateCompatibility {
     /**

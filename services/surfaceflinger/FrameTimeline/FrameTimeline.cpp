@@ -289,7 +289,7 @@ nsecs_t getMinTime(PredictionState predictionState, TimelineItem predictions,
         minTime = std::min(minTime, actuals.endTime);
     }
     if (actuals.presentTime != 0) {
-        minTime = std::min(minTime, actuals.endTime);
+        minTime = std::min(minTime, actuals.presentTime);
     }
     return minTime;
 }
