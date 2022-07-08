@@ -84,6 +84,15 @@
   "presubmit-large": [
     {
       "name": "binderRpcTest"
+    },
+    {
+      "name": "binderRpcTestNoKernel"
+    },
+    {
+      "name": "binderRpcTestSingleThreaded"
+    },
+    {
+      "name": "binderRpcTestSingleThreadedNoKernel"
     }
   ],
   "hwasan-presubmit": [
