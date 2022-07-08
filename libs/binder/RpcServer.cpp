@@ -420,7 +420,9 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
             session->setMaxIncomingThreads(server->mMaxThreads);
             if (!session->setProtocolVersion(protocolVersion)) return;
 
-            if (server->mSupportedFileDescriptorTransportModes.test(
+            if (header.fileDescriptorTransportMode <
+                        server->mSupportedFileDescriptorTransportModes.size() &&
+                server->mSupportedFileDescriptorTransportModes.test(
                         header.fileDescriptorTransportMode)) {
                 session->setFileDescriptorTransportMode(
                         static_cast<RpcSession::FileDescriptorTransportMode>(
