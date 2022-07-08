@@ -15,11 +15,10 @@
  */
 
 #include <stddef.h>
+#include <sys/uio.h>
 #include <cstdint>
 #include <optional>
 
-#include <android-base/result.h>
-#include <android-base/unique_fd.h>
 #include <log/log.h>
 #include <utils/Errors.h>
 
@@ -35,10 +34,6 @@ namespace android {
 
 // avoid optimizations
 void zeroMemory(uint8_t* data, size_t size);
-
-android::base::Result<void> setNonBlocking(android::base::borrowed_fd fd);
-
-status_t getRandomBytes(uint8_t* data, size_t size);
 
 // View of contiguous sequence. Similar to std::span.
 template <typename T>
