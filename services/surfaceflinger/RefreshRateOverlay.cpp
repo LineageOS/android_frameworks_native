@@ -16,9 +16,10 @@
 
 #include <algorithm>
 
-#include "RefreshRateOverlay.h"
+#include "BackgroundExecutor.h"
 #include "Client.h"
 #include "Layer.h"
+#include "RefreshRateOverlay.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
@@ -55,6 +56,14 @@ SurfaceComposerClient::Transaction createTransaction(const sp<SurfaceControl>& s
 }
 
 } // namespace
+
+SurfaceControlHolder::~SurfaceControlHolder() {
+    // Hand the sp<SurfaceControl> to the helper thread to release the last
+    // reference. This makes sure that the SurfaceControl is destructed without
+    // SurfaceFlinger::mStateLock held.
+    BackgroundExecutor::getInstance().sendCallbacks(
+            {[sc = std::move(mSurfaceControl)]() mutable { sc.clear(); }});
+}
 
 void RefreshRateOverlay::SevenSegmentDrawer::drawSegment(Segment segment, int left, SkColor color,
                                                          SkCanvas& canvas) {
@@ -210,21 +219,27 @@ auto RefreshRateOverlay::SevenSegmentDrawer::draw(int number, SkColor color,
     return buffers;
 }
 
+std::unique_ptr<SurfaceControlHolder> createSurfaceControlHolder() {
+    sp<SurfaceControl> surfaceControl =
+            SurfaceComposerClient::getDefault()
+                    ->createSurface(String8("RefreshRateOverlay"), kBufferWidth, kBufferHeight,
+                                    PIXEL_FORMAT_RGBA_8888,
+                                    ISurfaceComposerClient::eFXSurfaceBufferState);
+    return std::make_unique<SurfaceControlHolder>(std::move(surfaceControl));
+}
+
 RefreshRateOverlay::RefreshRateOverlay(FpsRange fpsRange, bool showSpinner)
       : mFpsRange(fpsRange),
         mShowSpinner(showSpinner),
-        mSurfaceControl(SurfaceComposerClient::getDefault()
-                                ->createSurface(String8("RefreshRateOverlay"), kBufferWidth,
-                                                kBufferHeight, PIXEL_FORMAT_RGBA_8888,
-                                                ISurfaceComposerClient::eFXSurfaceBufferState)) {
+        mSurfaceControl(createSurfaceControlHolder()) {
     if (!mSurfaceControl) {
         ALOGE("%s: Failed to create buffer state layer", __func__);
         return;
     }
 
-    createTransaction(mSurfaceControl)
-            .setLayer(mSurfaceControl, INT32_MAX - 2)
-            .setTrustedOverlay(mSurfaceControl, true)
+    createTransaction(mSurfaceControl->get())
+            .setLayer(mSurfaceControl->get(), INT32_MAX - 2)
+            .setTrustedOverlay(mSurfaceControl->get(), true)
             .apply();
 }
 
@@ -233,7 +248,7 @@ auto RefreshRateOverlay::getOrCreateBuffers(Fps fps) -> const Buffers& {
     if (!mSurfaceControl) return kNoBuffers;
 
     const auto transformHint =
-            static_cast<ui::Transform::RotationFlags>(mSurfaceControl->getTransformHint());
+            static_cast<ui::Transform::RotationFlags>(mSurfaceControl->get()->getTransformHint());
 
     // Tell SurfaceFlinger about the pre-rotation on the buffer.
     const auto transform = [&] {
@@ -247,7 +262,9 @@ auto RefreshRateOverlay::getOrCreateBuffers(Fps fps) -> const Buffers& {
         }
     }();
 
-    createTransaction(mSurfaceControl).setTransform(mSurfaceControl, transform).apply();
+    createTransaction(mSurfaceControl->get())
+            .setTransform(mSurfaceControl->get(), transform)
+            .apply();
 
     BufferCache::const_iterator it = mBufferCache.find({fps.getIntValue(), transformHint});
     if (it == mBufferCache.end()) {
@@ -289,21 +306,21 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
     Rect frame((3 * width) >> 4, height >> 5);
     frame.offsetBy(width >> 5, height >> 4);
 
-    createTransaction(mSurfaceControl)
-            .setMatrix(mSurfaceControl, frame.getWidth() / static_cast<float>(kBufferWidth), 0, 0,
-                       frame.getHeight() / static_cast<float>(kBufferHeight))
-            .setPosition(mSurfaceControl, frame.left, frame.top)
+    createTransaction(mSurfaceControl->get())
+            .setMatrix(mSurfaceControl->get(), frame.getWidth() / static_cast<float>(kBufferWidth),
+                       0, 0, frame.getHeight() / static_cast<float>(kBufferHeight))
+            .setPosition(mSurfaceControl->get(), frame.left, frame.top)
             .apply();
 }
 
 void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
-    createTransaction(mSurfaceControl).setLayerStack(mSurfaceControl, stack).apply();
+    createTransaction(mSurfaceControl->get()).setLayerStack(mSurfaceControl->get(), stack).apply();
 }
 
 void RefreshRateOverlay::changeRefreshRate(Fps fps) {
     mCurrentFps = fps;
     const auto buffer = getOrCreateBuffers(fps)[mFrame];
-    createTransaction(mSurfaceControl).setBuffer(mSurfaceControl, buffer).apply();
+    createTransaction(mSurfaceControl->get()).setBuffer(mSurfaceControl->get(), buffer).apply();
 }
 
 void RefreshRateOverlay::animate() {
@@ -312,7 +329,7 @@ void RefreshRateOverlay::animate() {
     const auto& buffers = getOrCreateBuffers(*mCurrentFps);
     mFrame = (mFrame + 1) % buffers.size();
     const auto buffer = buffers[mFrame];
-    createTransaction(mSurfaceControl).setBuffer(mSurfaceControl, buffer).apply();
+    createTransaction(mSurfaceControl->get()).setBuffer(mSurfaceControl->get(), buffer).apply();
 }
 
 } // namespace android
