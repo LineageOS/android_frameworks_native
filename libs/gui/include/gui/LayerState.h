@@ -166,7 +166,7 @@ struct layer_state_t {
         eTransformToDisplayInverseChanged = 0x00080000,
         eCropChanged = 0x00100000,
         eBufferChanged = 0x00200000,
-        /* unused 0x00400000, */
+        eDefaultFrameRateCompatibilityChanged = 0x00400000,
         eDataspaceChanged = 0x00800000,
         eHdrMetadataChanged = 0x01000000,
         eSurfaceDamageRegionChanged = 0x02000000,
@@ -275,6 +275,9 @@ struct layer_state_t {
     float frameRate;
     int8_t frameRateCompatibility;
     int8_t changeFrameRateStrategy;
+
+    // Default frame rate compatibility used to set the layer refresh rate votetype.
+    int8_t defaultFrameRateCompatibility;
 
     // Set by window manager indicating the layer and all its children are
     // in a different orientation than the display. The hint suggests that

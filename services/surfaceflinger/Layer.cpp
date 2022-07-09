@@ -148,6 +148,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mDrawingState.isTrustedOverlay = false;
     mDrawingState.dropInputMode = gui::DropInputMode::NONE;
     mDrawingState.dimmingEnabled = true;
+    mDrawingState.defaultFrameRateCompatibility = FrameRateCompatibility::Default;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
@@ -1099,6 +1100,19 @@ int32_t Layer::getFrameRateSelectionPriority() const {
     }
 
     return Layer::PRIORITY_UNSET;
+}
+
+bool Layer::setDefaultFrameRateCompatibility(FrameRateCompatibility compatibility) {
+    if (mDrawingState.defaultFrameRateCompatibility == compatibility) return false;
+    mDrawingState.defaultFrameRateCompatibility = compatibility;
+    mDrawingState.modified = true;
+    mFlinger->mScheduler->setDefaultFrameRateCompatibility(this);
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+scheduler::LayerInfo::FrameRateCompatibility Layer::getDefaultFrameRateCompatibility() const {
+    return mDrawingState.defaultFrameRateCompatibility;
 }
 
 bool Layer::isLayerFocusedBasedOnPriority(int32_t priority) {
@@ -2643,6 +2657,8 @@ Layer::FrameRateCompatibility Layer::FrameRate::convertCompatibility(int8_t comp
             return FrameRateCompatibility::ExactOrMultiple;
         case ANATIVEWINDOW_FRAME_RATE_EXACT:
             return FrameRateCompatibility::Exact;
+        case ANATIVEWINDOW_FRAME_RATE_MIN:
+            return FrameRateCompatibility::Min;
         case ANATIVEWINDOW_FRAME_RATE_NO_VOTE:
             return FrameRateCompatibility::NoVote;
         default:

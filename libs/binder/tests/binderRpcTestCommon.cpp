@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-#include "Utils.h"
-
-#include <string.h>
+#include "binderRpcTestCommon.h"
 
 namespace android {
 
-void zeroMemory(uint8_t* data, size_t size) {
-    memset(data, 0, size);
-}
+std::atomic<int32_t> MyBinderRpcSession::gNum;
+sp<IBinder> MyBinderRpcTest::mHeldBinder;
 
 } // namespace android

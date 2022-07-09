@@ -497,24 +497,10 @@ void Scheduler::addPresentFence(std::shared_ptr<FenceTime> fence) {
 }
 
 void Scheduler::registerLayer(Layer* layer) {
-    using WindowType = gui::WindowInfo::Type;
-
-    scheduler::LayerHistory::LayerVoteType voteType;
-
-    if (!mFeatures.test(Feature::kContentDetection) ||
-        layer->getWindowType() == WindowType::STATUS_BAR) {
-        voteType = scheduler::LayerHistory::LayerVoteType::NoVote;
-    } else if (layer->getWindowType() == WindowType::WALLPAPER) {
-        // Running Wallpaper at Min is considered as part of content detection.
-        voteType = scheduler::LayerHistory::LayerVoteType::Min;
-    } else {
-        voteType = scheduler::LayerHistory::LayerVoteType::Heuristic;
-    }
-
     // If the content detection feature is off, we still keep the layer history,
     // since we use it for other features (like Frame Rate API), so layers
     // still need to be registered.
-    mLayerHistory.registerLayer(layer, voteType);
+    mLayerHistory.registerLayer(layer, mFeatures.test(Feature::kContentDetection));
 }
 
 void Scheduler::deregisterLayer(Layer* layer) {
@@ -533,6 +519,11 @@ void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime,
 
 void Scheduler::setModeChangePending(bool pending) {
     mLayerHistory.setModeChangePending(pending);
+}
+
+void Scheduler::setDefaultFrameRateCompatibility(Layer* layer) {
+    mLayerHistory.setDefaultFrameRateCompatibility(layer,
+                                                   mFeatures.test(Feature::kContentDetection));
 }
 
 void Scheduler::chooseRefreshRateForContent() {

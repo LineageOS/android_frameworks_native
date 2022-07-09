@@ -45,6 +45,14 @@
       ]
     },
     {
+      "name": "CtsWidgetTestCases",
+      "options": [
+        {
+          "include-filter": "android.widget.cts.NumberPickerTest"
+        }
+      ]
+    },
+    {
       "name": "FrameworksCoreTests",
       "options": [
         {
@@ -120,6 +128,14 @@
           "include-filter": "android.view.cts.MotionEventTest",
           "include-filter": "android.view.cts.PointerCaptureTest",
           "include-filter": "android.view.cts.VerifyInputEventTest"
+        }
+      ]
+    },
+    {
+      "name": "CtsWidgetTestCases",
+      "options": [
+        {
+          "include-filter": "android.widget.cts.NumberPickerTest"
         }
       ]
     },

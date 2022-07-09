@@ -4566,6 +4566,14 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     if (what & layer_state_t::eShadowRadiusChanged) {
         if (layer->setShadowRadius(s.shadowRadius)) flags |= eTraversalNeeded;
     }
+    if (what & layer_state_t::eDefaultFrameRateCompatibilityChanged) {
+        const auto compatibility =
+                Layer::FrameRate::convertCompatibility(s.defaultFrameRateCompatibility);
+
+        if (layer->setDefaultFrameRateCompatibility(compatibility)) {
+            flags |= eTraversalNeeded;
+        }
+    }
     if (what & layer_state_t::eFrameRateSelectionPriority) {
         if (layer->setFrameRateSelectionPriority(s.frameRateSelectionPriority)) {
             flags |= eTraversalNeeded;
