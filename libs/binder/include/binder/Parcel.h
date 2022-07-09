@@ -1184,10 +1184,20 @@ private:
         c->clear(); // must clear before resizing/reserving otherwise move ctors may be called.
         if constexpr (is_pointer_equivalent_array_v<T>) {
             // could consider POD without gaps and alignment of 4.
-            auto data = reinterpret_cast<const T*>(
-                    readInplace(static_cast<size_t>(size) * sizeof(T)));
+            size_t dataLen;
+            if (__builtin_mul_overflow(size, sizeof(T), &dataLen)) {
+                return -EOVERFLOW;
+            }
+            auto data = reinterpret_cast<const T*>(readInplace(dataLen));
             if (data == nullptr) return BAD_VALUE;
-            c->insert(c->begin(), data, data + size); // insert should do a reserve().
+            // std::vector::insert and similar methods will require type-dependent
+            // byte alignment when inserting from a const iterator such as `data`,
+            // e.g. 8 byte alignment for int64_t, and so will not work if `data`
+            // is 4 byte aligned (which is all Parcel guarantees). Copying
+            // the contents into the vector directly, where possible, circumvents
+            // this.
+            c->resize(size);
+            memcpy(c->data(), data, dataLen);
         } else if constexpr (std::is_same_v<T, bool>
                 || std::is_same_v<T, char16_t>) {
             c->reserve(size); // avoids default initialization
