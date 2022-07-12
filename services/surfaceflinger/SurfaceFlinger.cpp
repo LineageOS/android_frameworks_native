@@ -1450,18 +1450,6 @@ void SurfaceFlinger::setGameContentType(const sp<IBinder>& displayToken, bool on
     }));
 }
 
-status_t SurfaceFlinger::clearAnimationFrameStats() {
-    Mutex::Autolock _l(mStateLock);
-    mAnimFrameTracker.clearStats();
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::getAnimationFrameStats(FrameStats* outStats) const {
-    Mutex::Autolock _l(mStateLock);
-    mAnimFrameTracker.getStats(outStats);
-    return NO_ERROR;
-}
-
 status_t SurfaceFlinger::overrideHdrTypes(const sp<IBinder>& displayToken,
                                           const std::vector<ui::Hdr>& hdrTypes) {
     Mutex::Autolock lock(mStateLock);
@@ -2497,22 +2485,7 @@ void SurfaceFlinger::postComposition() {
         }
     }
 
-    if (mAnimCompositionPending) {
-        mAnimCompositionPending = false;
-
-        if (mPreviousPresentFences[0].fenceTime->isValid()) {
-            mAnimFrameTracker.setActualPresentFence(mPreviousPresentFences[0].fenceTime);
-        } else if (isDisplayConnected) {
-            // The HWC doesn't support present fences, so use the refresh
-            // timestamp instead.
-            const nsecs_t presentTime = display->getRefreshTimestamp();
-            mAnimFrameTracker.setActualPresentTime(presentTime);
-        }
-        mAnimFrameTracker.advanceFrame();
-    }
-
     mTimeStats->incrementTotalFrames();
-
     mTimeStats->setPresentFenceGlobal(mPreviousPresentFences[0].fenceTime);
 
     const size_t sfConnections = mScheduler->getEventThreadConnectionCount(mSfConnectionHandle);
@@ -3181,7 +3154,6 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
 
     doCommitTransactions();
     signalSynchronousTransactions(CountDownLatch::eSyncTransaction);
-    mAnimTransactionPending = false;
 }
 
 void SurfaceFlinger::updateInputFlinger() {
@@ -3468,10 +3440,6 @@ void SurfaceFlinger::doCommitTransactions() {
         }
         mLayersPendingRemoval.clear();
     }
-
-    // If this transaction is part of a window animation then the next frame
-    // we composite should be considered an animation as well.
-    mAnimCompositionPending = mAnimTransactionPending;
 
     mDrawingState = mCurrentState;
     // clear the "changed" flags in current state
@@ -4217,10 +4185,6 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
         if (transactionFlags) {
             setTransactionFlags(transactionFlags);
         }
-
-        if (flags & eAnimation) {
-            mAnimTransactionPending = true;
-        }
     }
 
     return needsTraversal;
@@ -4772,8 +4736,7 @@ void SurfaceFlinger::onInitializeDisplays() {
                           {}, mPid, getuid(), transactionId);
 
     setPowerModeInternal(display, hal::PowerMode::ON);
-    const nsecs_t vsyncPeriod = display->refreshRateConfigs().getActiveMode()->getVsyncPeriod();
-    mAnimFrameTracker.setDisplayRefreshPeriod(vsyncPeriod);
+
     mActiveDisplayTransformHint = display->getTransformHint();
 }
 
@@ -4985,17 +4948,14 @@ void SurfaceFlinger::listLayersLocked(std::string& result) const {
 
 void SurfaceFlinger::dumpStatsLocked(const DumpArgs& args, std::string& result) const {
     StringAppendF(&result, "%" PRId64 "\n", getVsyncPeriodFromHWC());
+    if (args.size() < 2) return;
 
-    if (args.size() > 1) {
-        const auto name = String8(args[1]);
-        mCurrentState.traverseInZOrder([&](Layer* layer) {
-            if (layer->getName() == name.string()) {
-                layer->dumpFrameStats(result);
-            }
-        });
-    } else {
-        mAnimFrameTracker.dumpStats(result);
-    }
+    const auto name = String8(args[1]);
+    mCurrentState.traverseInZOrder([&](Layer* layer) {
+        if (layer->getName() == name.string()) {
+            layer->dumpFrameStats(result);
+        }
+    });
 }
 
 void SurfaceFlinger::clearStatsLocked(const DumpArgs& args, std::string&) {
@@ -5007,8 +4967,6 @@ void SurfaceFlinger::clearStatsLocked(const DumpArgs& args, std::string&) {
             layer->clearFrameStats();
         }
     });
-
-    mAnimFrameTracker.clearStats();
 }
 
 void SurfaceFlinger::dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const {
@@ -5020,11 +4978,7 @@ void SurfaceFlinger::dumpFrameTimeline(const DumpArgs& args, std::string& result
 }
 
 void SurfaceFlinger::logFrameStats() {
-    mDrawingState.traverse([&](Layer* layer) {
-        layer->logFrameStats();
-    });
-
-    mAnimFrameTracker.logAndResetStats("<win-anim>");
+    mDrawingState.traverse([&](Layer* layer) { layer->logFrameStats(); });
 }
 
 void SurfaceFlinger::appendSfConfigString(std::string& result) const {
@@ -7514,40 +7468,6 @@ binder::Status SurfaceComposerAIDL::captureDisplayById(
 binder::Status SurfaceComposerAIDL::captureLayers(
         const LayerCaptureArgs& args, const sp<IScreenCaptureListener>& captureListener) {
     status_t status = mFlinger->captureLayers(args, captureListener);
-    return binderStatusFromStatusT(status);
-}
-
-binder::Status SurfaceComposerAIDL::clearAnimationFrameStats() {
-    status_t status = checkAccessPermission();
-    if (status == OK) {
-        status = mFlinger->clearAnimationFrameStats();
-    }
-    return binderStatusFromStatusT(status);
-}
-
-binder::Status SurfaceComposerAIDL::getAnimationFrameStats(gui::FrameStats* outStats) {
-    status_t status = checkAccessPermission();
-    if (status != OK) {
-        return binderStatusFromStatusT(status);
-    }
-
-    FrameStats stats;
-    status = mFlinger->getAnimationFrameStats(&stats);
-    if (status == NO_ERROR) {
-        outStats->refreshPeriodNano = stats.refreshPeriodNano;
-        outStats->desiredPresentTimesNano.reserve(stats.desiredPresentTimesNano.size());
-        for (const auto& t : stats.desiredPresentTimesNano) {
-            outStats->desiredPresentTimesNano.push_back(t);
-        }
-        outStats->actualPresentTimesNano.reserve(stats.actualPresentTimesNano.size());
-        for (const auto& t : stats.actualPresentTimesNano) {
-            outStats->actualPresentTimesNano.push_back(t);
-        }
-        outStats->frameReadyTimesNano.reserve(stats.frameReadyTimesNano.size());
-        for (const auto& t : stats.frameReadyTimesNano) {
-            outStats->frameReadyTimesNano.push_back(t);
-        }
-    }
     return binderStatusFromStatusT(status);
 }
 

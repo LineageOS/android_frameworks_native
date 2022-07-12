@@ -562,8 +562,6 @@ private:
     void setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on);
     void setGameContentType(const sp<IBinder>& displayToken, bool on);
     void setPowerMode(const sp<IBinder>& displayToken, int mode);
-    status_t clearAnimationFrameStats();
-    status_t getAnimationFrameStats(FrameStats* outStats) const;
     status_t overrideHdrTypes(const sp<IBinder>& displayToken,
                               const std::vector<ui::Hdr>& hdrTypes);
     status_t onPullAtom(const int32_t atomId, std::string* pulledData, bool* success);
@@ -1125,7 +1123,6 @@ private:
     State mCurrentState{LayerVector::StateSet::Current};
     std::atomic<int32_t> mTransactionFlags = 0;
     std::vector<std::shared_ptr<CountDownLatch>> mTransactionCommittedSignals;
-    bool mAnimTransactionPending = false;
     std::atomic<uint32_t> mUniqueTransactionId = 1;
     SortedVector<sp<Layer>> mLayersPendingRemoval;
 
@@ -1172,8 +1169,6 @@ private:
     bool mSomeChildrenChanged;
     bool mSomeDataspaceChanged = false;
     bool mForceTransactionDisplayChange = false;
-
-    bool mAnimCompositionPending = false;
 
     // Tracks layers that have pending frames which are candidates for being
     // latched.
@@ -1242,9 +1237,6 @@ private:
     std::atomic<uint32_t> mGpuFrameMissedCount = 0;
 
     TransactionCallbackInvoker mTransactionCallbackInvoker;
-
-    // Thread-safe.
-    FrameTracker mAnimFrameTracker;
 
     // We maintain a pool of pre-generated texture names to hand out to avoid
     // layer creation needing to run on the main thread (which it would
@@ -1451,8 +1443,13 @@ public:
     binder::Status captureDisplayById(int64_t, const sp<IScreenCaptureListener>&) override;
     binder::Status captureLayers(const LayerCaptureArgs&,
                                  const sp<IScreenCaptureListener>&) override;
-    binder::Status clearAnimationFrameStats() override;
-    binder::Status getAnimationFrameStats(gui::FrameStats* outStats) override;
+
+    // TODO(b/239076119): Remove deprecated AIDL.
+    [[deprecated]] binder::Status clearAnimationFrameStats() override { return deprecated(); }
+    [[deprecated]] binder::Status getAnimationFrameStats(gui::FrameStats*) override {
+        return deprecated();
+    }
+
     binder::Status overrideHdrTypes(const sp<IBinder>& display,
                                     const std::vector<int32_t>& hdrTypes) override;
     binder::Status onPullAtom(int32_t atomId, gui::PullAtomData* outPullData) override;
@@ -1517,6 +1514,11 @@ public:
             const sp<gui::IWindowInfosListener>& windowInfosListener) override;
 
 private:
+    static binder::Status deprecated() {
+        using binder::Status;
+        return Status::fromExceptionCode(Status::EX_UNSUPPORTED_OPERATION, "Deprecated");
+    }
+
     static const constexpr bool kUsePermissionCache = true;
     status_t checkAccessPermission(bool usePermissionCache = kUsePermissionCache);
     status_t checkControlDisplayBrightnessPermission();

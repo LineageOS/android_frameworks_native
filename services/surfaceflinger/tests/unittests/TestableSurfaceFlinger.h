@@ -493,7 +493,6 @@ public:
      * Read-only access to private data to assert post-conditions.
      */
 
-    const auto& getAnimFrameTracker() const { return mFlinger->mAnimFrameTracker; }
     const auto& getHasPoweredOff() const { return mFlinger->mHasPoweredOff; }
     const auto& getVisibleRegionsDirty() const { return mFlinger->mVisibleRegionsDirty; }
     auto& getHwComposer() const {

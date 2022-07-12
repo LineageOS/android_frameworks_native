@@ -582,7 +582,6 @@ public:
         mFlinger->setAutoLowLatencyMode(display, mFdp.ConsumeBool());
         mFlinger->setGameContentType(display, mFdp.ConsumeBool());
         mFlinger->setPowerMode(display, mFdp.ConsumeIntegral<int>());
-        mFlinger->clearAnimationFrameStats();
 
         overrideHdrTypes(display, &mFdp);
 
