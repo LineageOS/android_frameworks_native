@@ -56,6 +56,7 @@
 #include <compositionengine/OutputColorSetting.h>
 #include <scheduler/Fps.h>
 #include <scheduler/PresentLatencyTracker.h>
+#include <scheduler/Time.h>
 
 #include "ClientCache.h"
 #include "DisplayDevice.h"
@@ -174,7 +175,7 @@ struct SurfaceFlingerBE {
     static const size_t NUM_BUCKETS = 8; // < 1-7, 7+
     nsecs_t mFrameBuckets[NUM_BUCKETS] = {};
     nsecs_t mTotalTime = 0;
-    std::atomic<nsecs_t> mLastSwapTime = 0;
+    TimePoint mLastPresentTime;
 };
 
 class SurfaceFlinger : public BnSurfaceComposer,
@@ -385,10 +386,6 @@ private:
     using RenderAreaFuture = ftl::Future<std::unique_ptr<RenderArea>>;
     using DumpArgs = Vector<String16>;
     using Dumper = std::function<void(const DumpArgs&, bool asProto, std::string&)>;
-
-    // This value is specified in number of frames.  Log frame stats at most
-    // every half hour.
-    enum { LOG_FRAME_STATS_PERIOD =  30*60*60 };
 
     class State {
     public:
@@ -938,7 +935,6 @@ private:
      * Compositing
      */
     void postComposition() REQUIRES(kMainThreadContext);
-    void postFrame() REQUIRES(kMainThreadContext);
 
     /*
      * Display management
@@ -1038,7 +1034,7 @@ private:
     void clearStatsLocked(const DumpArgs& args, std::string& result);
     void dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const;
     void dumpFrameTimeline(const DumpArgs& args, std::string& result) const;
-    void logFrameStats() REQUIRES(kMainThreadContext);
+    void logFrameStats(TimePoint now) REQUIRES(kMainThreadContext);
 
     void dumpVSync(std::string& result) const REQUIRES(mStateLock);
     void dumpStaticScreenStats(std::string& result) const;

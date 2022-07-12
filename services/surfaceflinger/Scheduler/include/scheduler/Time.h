@@ -32,6 +32,7 @@ static_assert(SchedulerClock::is_steady);
 struct Duration;
 
 struct TimePoint : scheduler::SchedulerClock::time_point {
+    constexpr TimePoint() = default;
     explicit constexpr TimePoint(const Duration&);
 
     // Implicit conversion from std::chrono counterpart.

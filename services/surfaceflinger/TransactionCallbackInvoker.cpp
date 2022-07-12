@@ -178,8 +178,8 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
     return NO_ERROR;
 }
 
-void TransactionCallbackInvoker::addPresentFence(const sp<Fence>& presentFence) {
-    mPresentFence = presentFence;
+void TransactionCallbackInvoker::addPresentFence(sp<Fence> presentFence) {
+    mPresentFence = std::move(presentFence);
 }
 
 void TransactionCallbackInvoker::sendCallbacks(bool onCommitOnly) {

@@ -259,7 +259,6 @@ public:
     /* ------------------------------------------------------------------------
      * Debugging
      */
-    uint32_t getPageFlipCount() const;
     std::string getDebugName() const;
     void dump(std::string& result) const;
 
