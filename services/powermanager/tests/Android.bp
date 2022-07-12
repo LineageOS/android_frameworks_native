@@ -31,6 +31,7 @@ cc_test {
         "PowerHalWrapperAidlTest.cpp",
         "PowerHalWrapperHidlV1_0Test.cpp",
         "PowerHalWrapperHidlV1_1Test.cpp",
+        "WorkSourceTest.cpp",
     ],
     cflags: [
         "-Wall",
