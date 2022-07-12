@@ -354,7 +354,7 @@ cc_defaults {
     },
 
     whole_static_libs: [
-        "LibGuiProperties",
+        "libLibGuiProperties",
     ],
 
     shared_libs: [
