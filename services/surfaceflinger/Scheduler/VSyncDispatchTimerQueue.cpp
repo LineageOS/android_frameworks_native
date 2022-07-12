@@ -100,14 +100,8 @@ ScheduleResult VSyncDispatchTimerQueueEntry::schedule(VSyncDispatch::ScheduleTim
         return getExpectedCallbackTime(nextVsyncTime, timing);
     }
 
-    bool const alreadyDispatchedForVsync = mLastDispatchTime &&
-            ((*mLastDispatchTime + mMinVsyncDistance) >= nextVsyncTime &&
-             (*mLastDispatchTime - mMinVsyncDistance) <= nextVsyncTime);
-    if (alreadyDispatchedForVsync) {
-        nextVsyncTime =
-                tracker.nextAnticipatedVSyncTimeFrom(*mLastDispatchTime + mMinVsyncDistance);
-        nextWakeupTime = nextVsyncTime - timing.workDuration - timing.readyDuration;
-    }
+    nextVsyncTime = adjustVsyncIfNeeded(tracker, nextVsyncTime);
+    nextWakeupTime = nextVsyncTime - timing.workDuration - timing.readyDuration;
 
     auto const nextReadyTime = nextVsyncTime - timing.readyDuration;
     mScheduleTiming = timing;
@@ -123,6 +117,25 @@ bool VSyncDispatchTimerQueueEntry::hasPendingWorkloadUpdate() const {
     return mWorkloadUpdateInfo.has_value();
 }
 
+nsecs_t VSyncDispatchTimerQueueEntry::adjustVsyncIfNeeded(VSyncTracker& tracker,
+                                                          nsecs_t nextVsyncTime) const {
+    bool const alreadyDispatchedForVsync = mLastDispatchTime &&
+            ((*mLastDispatchTime + mMinVsyncDistance) >= nextVsyncTime &&
+             (*mLastDispatchTime - mMinVsyncDistance) <= nextVsyncTime);
+    const nsecs_t currentPeriod = tracker.currentPeriod();
+    bool const nextVsyncTooClose = mLastDispatchTime &&
+            (nextVsyncTime - *mLastDispatchTime + mMinVsyncDistance) <= currentPeriod;
+    if (alreadyDispatchedForVsync) {
+        return tracker.nextAnticipatedVSyncTimeFrom(*mLastDispatchTime + mMinVsyncDistance);
+    }
+
+    if (nextVsyncTooClose) {
+        return tracker.nextAnticipatedVSyncTimeFrom(*mLastDispatchTime + currentPeriod);
+    }
+
+    return nextVsyncTime;
+}
+
 void VSyncDispatchTimerQueueEntry::update(VSyncTracker& tracker, nsecs_t now) {
     if (!mArmedInfo && !mWorkloadUpdateInfo) {
         return;
@@ -136,7 +149,9 @@ void VSyncDispatchTimerQueueEntry::update(VSyncTracker& tracker, nsecs_t now) {
     const auto earliestReadyBy = now + mScheduleTiming.workDuration + mScheduleTiming.readyDuration;
     const auto earliestVsync = std::max(earliestReadyBy, mScheduleTiming.earliestVsync);
 
-    const auto nextVsyncTime = tracker.nextAnticipatedVSyncTimeFrom(earliestVsync);
+    const auto nextVsyncTime =
+            adjustVsyncIfNeeded(tracker, /*nextVsyncTime*/
+                                tracker.nextAnticipatedVSyncTimeFrom(earliestVsync));
     const auto nextReadyTime = nextVsyncTime - mScheduleTiming.readyDuration;
     const auto nextWakeupTime = nextReadyTime - mScheduleTiming.workDuration;
 
