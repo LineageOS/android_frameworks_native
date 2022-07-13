@@ -7,6 +7,22 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
+aidl_interface {
+    name: "binderReadParcelIface",
+    host_supported: true,
+    unstable: true,
+    srcs: [
+        "EmptyParcelable.aidl",
+        "SingleDataParcelable.aidl",
+        "GenericDataParcelable.aidl",
+    ],
+    backend: {
+        java: {
+            enabled: false,
+        },
+    },
+}
+
 cc_fuzz {
     name: "binder_parcel_fuzzer",
     host_supported: true,
@@ -29,6 +45,8 @@ cc_fuzz {
         "libcutils",
         "libhidlbase",
         "liblog",
+        "binderReadParcelIface-cpp",
+        "binderReadParcelIface-ndk",
     ],
 
     target: {
