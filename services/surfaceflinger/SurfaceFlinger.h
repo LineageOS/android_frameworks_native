@@ -377,7 +377,6 @@ private:
     friend class FpsReporter;
     friend class TunnelModeEnabledReporter;
     friend class Layer;
-    friend class MonitoredProducer;
     friend class RefreshRateOverlay;
     friend class RegionSamplingThread;
     friend class LayerRenderArea;

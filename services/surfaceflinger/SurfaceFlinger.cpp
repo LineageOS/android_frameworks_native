@@ -129,7 +129,6 @@
 #include "LayerProtoHelper.h"
 #include "LayerRenderArea.h"
 #include "LayerVector.h"
-#include "MonitoredProducer.h"
 #include "MutexUtils.h"
 #include "NativeWindowSurface.h"
 #include "RefreshRateOverlay.h"

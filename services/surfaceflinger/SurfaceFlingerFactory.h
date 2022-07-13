@@ -85,12 +85,6 @@ public:
     virtual void createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
                                    sp<IGraphicBufferConsumer>* outConsumer,
                                    bool consumerIsSurfaceFlinger) = 0;
-    virtual sp<IGraphicBufferProducer> createMonitoredProducer(const sp<IGraphicBufferProducer>&,
-                                                               const sp<SurfaceFlinger>&,
-                                                               const wp<Layer>&) = 0;
-    virtual sp<BufferLayerConsumer> createBufferLayerConsumer(const sp<IGraphicBufferConsumer>&,
-                                                              renderengine::RenderEngine&,
-                                                              uint32_t tex, Layer*) = 0;
 
     virtual std::unique_ptr<surfaceflinger::NativeWindowSurface> createNativeWindowSurface(
             const sp<IGraphicBufferProducer>&) = 0;
