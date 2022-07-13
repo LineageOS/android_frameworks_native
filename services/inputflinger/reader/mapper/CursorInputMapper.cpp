@@ -225,18 +225,17 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
 
 void CursorInputMapper::configureParameters() {
     mParameters.mode = Parameters::Mode::POINTER;
-    String8 cursorModeString;
-    if (getDeviceContext().getConfiguration().tryGetProperty(String8("cursor.mode"),
-                                                             cursorModeString)) {
+    std::string cursorModeString;
+    if (getDeviceContext().getConfiguration().tryGetProperty("cursor.mode", cursorModeString)) {
         if (cursorModeString == "navigation") {
             mParameters.mode = Parameters::Mode::NAVIGATION;
         } else if (cursorModeString != "pointer" && cursorModeString != "default") {
-            ALOGW("Invalid value for cursor.mode: '%s'", cursorModeString.string());
+            ALOGW("Invalid value for cursor.mode: '%s'", cursorModeString.c_str());
         }
     }
 
     mParameters.orientationAware = false;
-    getDeviceContext().getConfiguration().tryGetProperty(String8("cursor.orientationAware"),
+    getDeviceContext().getConfiguration().tryGetProperty("cursor.orientationAware",
                                                          mParameters.orientationAware);
 
     mParameters.hasAssociatedDisplay = false;

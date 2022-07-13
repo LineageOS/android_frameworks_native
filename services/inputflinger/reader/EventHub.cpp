@@ -502,7 +502,7 @@ status_t EventHub::Device::loadKeyMapLocked() {
 bool EventHub::Device::isExternalDeviceLocked() {
     if (configuration) {
         bool value;
-        if (configuration->tryGetProperty(String8("device.internal"), value)) {
+        if (configuration->tryGetProperty("device.internal", value)) {
             return !value;
         }
     }
@@ -512,7 +512,7 @@ bool EventHub::Device::isExternalDeviceLocked() {
 bool EventHub::Device::deviceHasMicLocked() {
     if (configuration) {
         bool value;
-        if (configuration->tryGetProperty(String8("audio.mic"), value)) {
+        if (configuration->tryGetProperty("audio.mic", value)) {
             return value;
         }
     }
@@ -2076,10 +2076,9 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
     }
 
     // See if this is a rotary encoder type device.
-    String8 deviceType = String8();
-    if (device->configuration &&
-        device->configuration->tryGetProperty(String8("device.type"), deviceType)) {
-        if (!deviceType.compare(String8("rotaryEncoder"))) {
+    std::string deviceType;
+    if (device->configuration && device->configuration->tryGetProperty("device.type", deviceType)) {
+        if (deviceType == "rotaryEncoder") {
             device->classes |= InputDeviceClass::ROTARY_ENCODER;
         }
     }

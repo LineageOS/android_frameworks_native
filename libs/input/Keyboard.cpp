@@ -49,25 +49,23 @@ status_t KeyMap::load(const InputDeviceIdentifier& deviceIdentifier,
         const PropertyMap* deviceConfiguration) {
     // Use the configured key layout if available.
     if (deviceConfiguration) {
-        String8 keyLayoutName;
-        if (deviceConfiguration->tryGetProperty(String8("keyboard.layout"),
-                keyLayoutName)) {
+        std::string keyLayoutName;
+        if (deviceConfiguration->tryGetProperty("keyboard.layout", keyLayoutName)) {
             status_t status = loadKeyLayout(deviceIdentifier, keyLayoutName.c_str());
             if (status == NAME_NOT_FOUND) {
                 ALOGE("Configuration for keyboard device '%s' requested keyboard layout '%s' but "
-                        "it was not found.",
-                        deviceIdentifier.name.c_str(), keyLayoutName.string());
+                      "it was not found.",
+                      deviceIdentifier.name.c_str(), keyLayoutName.c_str());
             }
         }
 
-        String8 keyCharacterMapName;
-        if (deviceConfiguration->tryGetProperty(String8("keyboard.characterMap"),
-                keyCharacterMapName)) {
+        std::string keyCharacterMapName;
+        if (deviceConfiguration->tryGetProperty("keyboard.characterMap", keyCharacterMapName)) {
             status_t status = loadKeyCharacterMap(deviceIdentifier, keyCharacterMapName.c_str());
             if (status == NAME_NOT_FOUND) {
                 ALOGE("Configuration for keyboard device '%s' requested keyboard character "
-                        "map '%s' but it was not found.",
-                        deviceIdentifier.name.c_str(), keyCharacterMapName.string());
+                      "map '%s' but it was not found.",
+                      deviceIdentifier.name.c_str(), keyCharacterMapName.c_str());
             }
         }
 
@@ -165,7 +163,7 @@ bool isKeyboardSpecialFunction(const PropertyMap* config) {
         return false;
     }
     bool isSpecialFunction = false;
-    config->tryGetProperty(String8("keyboard.specialFunction"), isSpecialFunction);
+    config->tryGetProperty("keyboard.specialFunction", isSpecialFunction);
     return isSpecialFunction;
 }
 
@@ -180,8 +178,7 @@ bool isEligibleBuiltInKeyboard(const InputDeviceIdentifier& deviceIdentifier,
 
     if (deviceConfiguration) {
         bool builtIn = false;
-        if (deviceConfiguration->tryGetProperty(String8("keyboard.builtIn"), builtIn)
-                && builtIn) {
+        if (deviceConfiguration->tryGetProperty("keyboard.builtIn", builtIn) && builtIn) {
             return true;
         }
     }

@@ -546,7 +546,7 @@ public:
         enqueueEvent(ARBITRARY_TIME, READ_TIME, 0, EventHubInterface::FINISHED_DEVICE_SCAN, 0, 0);
     }
 
-    void addConfigurationProperty(int32_t deviceId, const String8& key, const String8& value) {
+    void addConfigurationProperty(int32_t deviceId, const char* key, const char* value) {
         Device* device = getDevice(deviceId);
         device->configuration.addProperty(key, value);
     }
@@ -2731,7 +2731,7 @@ TEST_F(InputDeviceTest, WhenNoMappersAreRegistered_DeviceIsIgnored) {
 
 TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRequestsToMappers) {
     // Configuration.
-    mFakeEventHub->addConfigurationProperty(EVENTHUB_ID, String8("key"), String8("value"));
+    mFakeEventHub->addConfigurationProperty(EVENTHUB_ID, "key", "value");
 
     FakeInputMapper& mapper1 =
             mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD);
@@ -2752,10 +2752,10 @@ TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRe
     InputReaderConfiguration config;
     mDevice->configure(ARBITRARY_TIME, &config, 0);
 
-    String8 propertyValue;
-    ASSERT_TRUE(mDevice->getConfiguration().tryGetProperty(String8("key"), propertyValue))
+    std::string propertyValue;
+    ASSERT_TRUE(mDevice->getConfiguration().tryGetProperty("key", propertyValue))
             << "Device should have read configuration during configuration phase.";
-    ASSERT_STREQ("value", propertyValue.string());
+    ASSERT_EQ("value", propertyValue);
 
     ASSERT_NO_FATAL_FAILURE(mapper1.assertConfigureWasCalled());
     ASSERT_NO_FATAL_FAILURE(mapper2.assertConfigureWasCalled());
@@ -2953,7 +2953,7 @@ protected:
     }
 
     void addConfigurationProperty(const char* key, const char* value) {
-        mFakeEventHub->addConfigurationProperty(EVENTHUB_ID, String8(key), String8(value));
+        mFakeEventHub->addConfigurationProperty(EVENTHUB_ID, key, value);
     }
 
     void configureDevice(uint32_t changes) {

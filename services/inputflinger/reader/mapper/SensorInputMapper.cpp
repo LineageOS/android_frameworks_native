@@ -64,7 +64,7 @@ uint32_t SensorInputMapper::getSources() const {
 template <typename T>
 bool SensorInputMapper::tryGetProperty(std::string keyName, T& outValue) {
     const auto& config = getDeviceContext().getConfiguration();
-    return config.tryGetProperty(String8(keyName.c_str()), outValue);
+    return config.tryGetProperty(keyName, outValue);
 }
 
 void SensorInputMapper::parseSensorConfiguration(InputDeviceSensorType sensorType, int32_t absCode,
