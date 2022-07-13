@@ -87,7 +87,7 @@ struct Geometry {
     // rectangle to figure out how to apply the radius for this layer. The crop rectangle will be
     // in local layer coordinate space, so we have to take the layer transform into account when
     // walking up the tree.
-    float roundedCornersRadius = 0.0;
+    vec2 roundedCornersRadius = vec2(0.0f, 0.0f);
 
     // Rectangle within which corners will be rounded.
     FloatRect roundedCornersCrop = FloatRect();
@@ -258,7 +258,8 @@ static inline void PrintTo(const Geometry& settings, ::std::ostream* os) {
     PrintTo(settings.boundaries, os);
     *os << "\n    .positionTransform = ";
     PrintMatrix(settings.positionTransform, os);
-    *os << "\n    .roundedCornersRadius = " << settings.roundedCornersRadius;
+    *os << "\n    .roundedCornersRadiusX = " << settings.roundedCornersRadius.x;
+    *os << "\n    .roundedCornersRadiusY = " << settings.roundedCornersRadius.y;
     *os << "\n    .roundedCornersCrop = ";
     PrintTo(settings.roundedCornersCrop, os);
     *os << "\n}";

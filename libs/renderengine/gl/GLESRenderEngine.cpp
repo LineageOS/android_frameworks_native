@@ -921,7 +921,8 @@ void GLESRenderEngine::handleRoundedCorners(const DisplaySettings& display,
 
     // Finally, we cut the layer into 3 parts, with top and bottom parts having rounded corners
     // and the middle part without rounded corners.
-    const int32_t radius = ceil(layer.geometry.roundedCornersRadius);
+    const int32_t radius = ceil(
+            (layer.geometry.roundedCornersRadius.x + layer.geometry.roundedCornersRadius.y) / 2.0);
     const Rect topRect(bounds.left, bounds.top, bounds.right, bounds.top + radius);
     setScissor(topRect);
     drawMesh(mesh);
@@ -1266,23 +1267,24 @@ void GLESRenderEngine::drawLayersInternal(
 
         const half3 solidColor = layer.source.solidColor;
         const half4 color = half4(solidColor.r, solidColor.g, solidColor.b, layer.alpha);
+        const float radius =
+                (layer.geometry.roundedCornersRadius.x + layer.geometry.roundedCornersRadius.y) /
+                2.0f;
         // Buffer sources will have a black solid color ignored in the shader,
         // so in that scenario the solid color passed here is arbitrary.
-        setupLayerBlending(usePremultipliedAlpha, isOpaque, disableTexture, color,
-                           layer.geometry.roundedCornersRadius);
+        setupLayerBlending(usePremultipliedAlpha, isOpaque, disableTexture, color, radius);
         if (layer.disableBlending) {
             glDisable(GL_BLEND);
         }
         setSourceDataSpace(layer.sourceDataspace);
 
         if (layer.shadow.length > 0.0f) {
-            handleShadow(layer.geometry.boundaries, layer.geometry.roundedCornersRadius,
-                         layer.shadow);
+            handleShadow(layer.geometry.boundaries, radius, layer.shadow);
         }
         // We only want to do a special handling for rounded corners when having rounded corners
         // is the only reason it needs to turn on blending, otherwise, we handle it like the
         // usual way since it needs to turn on blending anyway.
-        else if (layer.geometry.roundedCornersRadius > 0.0 && color.a >= 1.0f && isOpaque) {
+        else if (radius > 0.0 && color.a >= 1.0f && isOpaque) {
             handleRoundedCorners(display, layer, mesh);
         } else {
             drawMesh(mesh);
