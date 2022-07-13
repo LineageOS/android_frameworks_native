@@ -930,7 +930,7 @@ TEST_P(BinderRpcThreads, OnewayCallQueueing) {
 
     size_t epochMsAfter = epochMillis();
 
-    EXPECT_GT(epochMsAfter, epochMsBefore + kSleepMs * kNumSleeps);
+    EXPECT_GE(epochMsAfter, epochMsBefore + kSleepMs * kNumSleeps);
 
     saturateThreadPool(1 + kNumExtraServerThreads, proc.rootIface);
 }
