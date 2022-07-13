@@ -18,9 +18,7 @@
 #include <Client.h>
 #include <DisplayDevice.h>
 #include <EffectLayer.h>
-#include <LayerRejecter.h>
 #include <LayerRenderArea.h>
-#include <MonitoredProducer.h>
 #include <ftl/future.h>
 #include <fuzzer/FuzzedDataProvider.h>
 #include <gui/IProducerListener.h>

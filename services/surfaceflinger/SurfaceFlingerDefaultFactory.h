@@ -38,12 +38,6 @@ public:
     void createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
                            sp<IGraphicBufferConsumer>* outConsumer,
                            bool consumerIsSurfaceFlinger) override;
-    sp<IGraphicBufferProducer> createMonitoredProducer(const sp<IGraphicBufferProducer>&,
-                                                       const sp<SurfaceFlinger>&,
-                                                       const wp<Layer>&) override;
-    sp<BufferLayerConsumer> createBufferLayerConsumer(const sp<IGraphicBufferConsumer>&,
-                                                      renderengine::RenderEngine&, uint32_t tex,
-                                                      Layer*) override;
     std::unique_ptr<surfaceflinger::NativeWindowSurface> createNativeWindowSurface(
             const sp<IGraphicBufferProducer>&) override;
     std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine() override;

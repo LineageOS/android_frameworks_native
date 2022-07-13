@@ -71,19 +71,6 @@ public:
                            sp<IGraphicBufferConsumer>* /* outConsumer */,
                            bool /* consumerIsSurfaceFlinger */) override {}
 
-    sp<IGraphicBufferProducer> createMonitoredProducer(
-            const sp<IGraphicBufferProducer>& /* producer */,
-            const sp<SurfaceFlinger>& /* flinger */, const wp<Layer>& /* layer */) override {
-        return nullptr;
-    }
-
-    sp<BufferLayerConsumer> createBufferLayerConsumer(
-            const sp<IGraphicBufferConsumer>& /* consumer */,
-            renderengine::RenderEngine& /* renderEngine */, uint32_t /* textureName */,
-            Layer* /* layer */) override {
-        return nullptr;
-    }
-
     std::unique_ptr<surfaceflinger::NativeWindowSurface> createNativeWindowSurface(
             const sp<IGraphicBufferProducer>& /* producer */) override {
         return nullptr;

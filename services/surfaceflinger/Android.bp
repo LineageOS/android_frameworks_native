@@ -142,7 +142,6 @@ filegroup {
     srcs: [
         "BackgroundExecutor.cpp",
         "BufferLayer.cpp",
-        "BufferLayerConsumer.cpp",
         "BufferStateLayer.cpp",
         "ClientCache.cpp",
         "Client.cpp",
@@ -168,10 +167,8 @@ filegroup {
         "WindowInfosListenerInvoker.cpp",
         "Layer.cpp",
         "LayerProtoHelper.cpp",
-        "LayerRejecter.cpp",
         "LayerRenderArea.cpp",
         "LayerVector.cpp",
-        "MonitoredProducer.cpp",
         "NativeWindowSurface.cpp",
         "RefreshRateOverlay.cpp",
         "RegionSamplingThread.cpp",

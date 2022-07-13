@@ -53,7 +53,6 @@
 #include "DisplayHardware/HWComposer.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
-#include "MonitoredProducer.h"
 #include "RenderArea.h"
 #include "Scheduler/LayerInfo.h"
 #include "SurfaceFlinger.h"

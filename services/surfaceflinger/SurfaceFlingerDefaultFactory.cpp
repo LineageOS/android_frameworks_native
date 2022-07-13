@@ -22,14 +22,12 @@
 #include <cutils/properties.h>
 #include <ui/GraphicBuffer.h>
 
-#include "BufferLayerConsumer.h"
 #include "BufferStateLayer.h"
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
 #include "EffectLayer.h"
 #include "FrameTracer/FrameTracer.h"
 #include "Layer.h"
-#include "MonitoredProducer.h"
 #include "NativeWindowSurface.h"
 #include "StartPropertySetThread.h"
 #include "SurfaceFlingerDefaultFactory.h"
@@ -81,18 +79,6 @@ void DefaultFactory::createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
                                        sp<IGraphicBufferConsumer>* outConsumer,
                                        bool consumerIsSurfaceFlinger) {
     BufferQueue::createBufferQueue(outProducer, outConsumer, consumerIsSurfaceFlinger);
-}
-
-sp<IGraphicBufferProducer> DefaultFactory::createMonitoredProducer(
-        const sp<IGraphicBufferProducer>& producer, const sp<SurfaceFlinger>& flinger,
-        const wp<Layer>& layer) {
-    return new MonitoredProducer(producer, flinger, layer);
-}
-
-sp<BufferLayerConsumer> DefaultFactory::createBufferLayerConsumer(
-        const sp<IGraphicBufferConsumer>& consumer, renderengine::RenderEngine& renderEngine,
-        uint32_t textureName, Layer* layer) {
-    return new BufferLayerConsumer(consumer, renderEngine, textureName, layer);
 }
 
 std::unique_ptr<surfaceflinger::NativeWindowSurface> DefaultFactory::createNativeWindowSurface(
