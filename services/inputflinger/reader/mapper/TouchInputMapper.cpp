@@ -415,15 +415,15 @@ void TouchInputMapper::configureParameters() {
             ? Parameters::GestureMode::SINGLE_TOUCH
             : Parameters::GestureMode::MULTI_TOUCH;
 
-    String8 gestureModeString;
-    if (getDeviceContext().getConfiguration().tryGetProperty(String8("touch.gestureMode"),
+    std::string gestureModeString;
+    if (getDeviceContext().getConfiguration().tryGetProperty("touch.gestureMode",
                                                              gestureModeString)) {
         if (gestureModeString == "single-touch") {
             mParameters.gestureMode = Parameters::GestureMode::SINGLE_TOUCH;
         } else if (gestureModeString == "multi-touch") {
             mParameters.gestureMode = Parameters::GestureMode::MULTI_TOUCH;
         } else if (gestureModeString != "default") {
-            ALOGW("Invalid value for touch.gestureMode: '%s'", gestureModeString.string());
+            ALOGW("Invalid value for touch.gestureMode: '%s'", gestureModeString.c_str());
         }
     }
 
@@ -445,8 +445,8 @@ void TouchInputMapper::configureParameters() {
 
     mParameters.hasButtonUnderPad = getDeviceContext().hasInputProperty(INPUT_PROP_BUTTONPAD);
 
-    String8 deviceTypeString;
-    if (getDeviceContext().getConfiguration().tryGetProperty(String8("touch.deviceType"),
+    std::string deviceTypeString;
+    if (getDeviceContext().getConfiguration().tryGetProperty("touch.deviceType",
                                                              deviceTypeString)) {
         if (deviceTypeString == "touchScreen") {
             mParameters.deviceType = Parameters::DeviceType::TOUCH_SCREEN;
@@ -457,17 +457,17 @@ void TouchInputMapper::configureParameters() {
         } else if (deviceTypeString == "pointer") {
             mParameters.deviceType = Parameters::DeviceType::POINTER;
         } else if (deviceTypeString != "default") {
-            ALOGW("Invalid value for touch.deviceType: '%s'", deviceTypeString.string());
+            ALOGW("Invalid value for touch.deviceType: '%s'", deviceTypeString.c_str());
         }
     }
 
     mParameters.orientationAware = mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN;
-    getDeviceContext().getConfiguration().tryGetProperty(String8("touch.orientationAware"),
+    getDeviceContext().getConfiguration().tryGetProperty("touch.orientationAware",
                                                          mParameters.orientationAware);
 
     mParameters.orientation = Parameters::Orientation::ORIENTATION_0;
-    String8 orientationString;
-    if (getDeviceContext().getConfiguration().tryGetProperty(String8("touch.orientation"),
+    std::string orientationString;
+    if (getDeviceContext().getConfiguration().tryGetProperty("touch.orientation",
                                                              orientationString)) {
         if (mParameters.deviceType != Parameters::DeviceType::TOUCH_SCREEN) {
             ALOGW("The configuration 'touch.orientation' is only supported for touchscreens.");
@@ -478,7 +478,7 @@ void TouchInputMapper::configureParameters() {
         } else if (orientationString == "ORIENTATION_270") {
             mParameters.orientation = Parameters::Orientation::ORIENTATION_270;
         } else if (orientationString != "ORIENTATION_0") {
-            ALOGW("Invalid value for touch.orientation: '%s'", orientationString.string());
+            ALOGW("Invalid value for touch.orientation: '%s'", orientationString.c_str());
         }
     }
 
@@ -490,8 +490,8 @@ void TouchInputMapper::configureParameters() {
         mParameters.hasAssociatedDisplay = true;
         if (mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN) {
             mParameters.associatedDisplayIsExternal = getDeviceContext().isExternal();
-            String8 uniqueDisplayId;
-            getDeviceContext().getConfiguration().tryGetProperty(String8("touch.displayId"),
+            std::string uniqueDisplayId;
+            getDeviceContext().getConfiguration().tryGetProperty("touch.displayId",
                                                                  uniqueDisplayId);
             mParameters.uniqueDisplayId = uniqueDisplayId.c_str();
         }
@@ -504,7 +504,7 @@ void TouchInputMapper::configureParameters() {
     // Normally we don't do this for internal touch screens to prevent them from waking
     // up in your pocket but you can enable it using the input device configuration.
     mParameters.wake = getDeviceContext().isExternal();
-    getDeviceContext().getConfiguration().tryGetProperty(String8("touch.wake"), mParameters.wake);
+    getDeviceContext().getConfiguration().tryGetProperty("touch.wake", mParameters.wake);
 }
 
 void TouchInputMapper::dumpParameters(std::string& dump) {
@@ -1192,8 +1192,8 @@ void TouchInputMapper::parseCalibration() {
 
     // Size
     out.sizeCalibration = Calibration::SizeCalibration::DEFAULT;
-    String8 sizeCalibrationString;
-    if (in.tryGetProperty(String8("touch.size.calibration"), sizeCalibrationString)) {
+    std::string sizeCalibrationString;
+    if (in.tryGetProperty("touch.size.calibration", sizeCalibrationString)) {
         if (sizeCalibrationString == "none") {
             out.sizeCalibration = Calibration::SizeCalibration::NONE;
         } else if (sizeCalibrationString == "geometric") {
@@ -1205,18 +1205,18 @@ void TouchInputMapper::parseCalibration() {
         } else if (sizeCalibrationString == "area") {
             out.sizeCalibration = Calibration::SizeCalibration::AREA;
         } else if (sizeCalibrationString != "default") {
-            ALOGW("Invalid value for touch.size.calibration: '%s'", sizeCalibrationString.string());
+            ALOGW("Invalid value for touch.size.calibration: '%s'", sizeCalibrationString.c_str());
         }
     }
 
-    out.haveSizeScale = in.tryGetProperty(String8("touch.size.scale"), out.sizeScale);
-    out.haveSizeBias = in.tryGetProperty(String8("touch.size.bias"), out.sizeBias);
-    out.haveSizeIsSummed = in.tryGetProperty(String8("touch.size.isSummed"), out.sizeIsSummed);
+    out.haveSizeScale = in.tryGetProperty("touch.size.scale", out.sizeScale);
+    out.haveSizeBias = in.tryGetProperty("touch.size.bias", out.sizeBias);
+    out.haveSizeIsSummed = in.tryGetProperty("touch.size.isSummed", out.sizeIsSummed);
 
     // Pressure
     out.pressureCalibration = Calibration::PressureCalibration::DEFAULT;
-    String8 pressureCalibrationString;
-    if (in.tryGetProperty(String8("touch.pressure.calibration"), pressureCalibrationString)) {
+    std::string pressureCalibrationString;
+    if (in.tryGetProperty("touch.pressure.calibration", pressureCalibrationString)) {
         if (pressureCalibrationString == "none") {
             out.pressureCalibration = Calibration::PressureCalibration::NONE;
         } else if (pressureCalibrationString == "physical") {
@@ -1225,16 +1225,16 @@ void TouchInputMapper::parseCalibration() {
             out.pressureCalibration = Calibration::PressureCalibration::AMPLITUDE;
         } else if (pressureCalibrationString != "default") {
             ALOGW("Invalid value for touch.pressure.calibration: '%s'",
-                  pressureCalibrationString.string());
+                  pressureCalibrationString.c_str());
         }
     }
 
-    out.havePressureScale = in.tryGetProperty(String8("touch.pressure.scale"), out.pressureScale);
+    out.havePressureScale = in.tryGetProperty("touch.pressure.scale", out.pressureScale);
 
     // Orientation
     out.orientationCalibration = Calibration::OrientationCalibration::DEFAULT;
-    String8 orientationCalibrationString;
-    if (in.tryGetProperty(String8("touch.orientation.calibration"), orientationCalibrationString)) {
+    std::string orientationCalibrationString;
+    if (in.tryGetProperty("touch.orientation.calibration", orientationCalibrationString)) {
         if (orientationCalibrationString == "none") {
             out.orientationCalibration = Calibration::OrientationCalibration::NONE;
         } else if (orientationCalibrationString == "interpolated") {
@@ -1243,36 +1243,36 @@ void TouchInputMapper::parseCalibration() {
             out.orientationCalibration = Calibration::OrientationCalibration::VECTOR;
         } else if (orientationCalibrationString != "default") {
             ALOGW("Invalid value for touch.orientation.calibration: '%s'",
-                  orientationCalibrationString.string());
+                  orientationCalibrationString.c_str());
         }
     }
 
     // Distance
     out.distanceCalibration = Calibration::DistanceCalibration::DEFAULT;
-    String8 distanceCalibrationString;
-    if (in.tryGetProperty(String8("touch.distance.calibration"), distanceCalibrationString)) {
+    std::string distanceCalibrationString;
+    if (in.tryGetProperty("touch.distance.calibration", distanceCalibrationString)) {
         if (distanceCalibrationString == "none") {
             out.distanceCalibration = Calibration::DistanceCalibration::NONE;
         } else if (distanceCalibrationString == "scaled") {
             out.distanceCalibration = Calibration::DistanceCalibration::SCALED;
         } else if (distanceCalibrationString != "default") {
             ALOGW("Invalid value for touch.distance.calibration: '%s'",
-                  distanceCalibrationString.string());
+                  distanceCalibrationString.c_str());
         }
     }
 
-    out.haveDistanceScale = in.tryGetProperty(String8("touch.distance.scale"), out.distanceScale);
+    out.haveDistanceScale = in.tryGetProperty("touch.distance.scale", out.distanceScale);
 
     out.coverageCalibration = Calibration::CoverageCalibration::DEFAULT;
-    String8 coverageCalibrationString;
-    if (in.tryGetProperty(String8("touch.coverage.calibration"), coverageCalibrationString)) {
+    std::string coverageCalibrationString;
+    if (in.tryGetProperty("touch.coverage.calibration", coverageCalibrationString)) {
         if (coverageCalibrationString == "none") {
             out.coverageCalibration = Calibration::CoverageCalibration::NONE;
         } else if (coverageCalibrationString == "box") {
             out.coverageCalibration = Calibration::CoverageCalibration::BOX;
         } else if (coverageCalibrationString != "default") {
             ALOGW("Invalid value for touch.coverage.calibration: '%s'",
-                  coverageCalibrationString.string());
+                  coverageCalibrationString.c_str());
         }
     }
 }

@@ -18,10 +18,8 @@
 #define _UTILS_PROPERTY_MAP_H
 
 #include <android-base/result.h>
-#include <utils/Errors.h>
-#include <utils/KeyedVector.h>
-#include <utils/String8.h>
 #include <utils/Tokenizer.h>
+#include <unordered_map>
 
 namespace android {
 
@@ -58,30 +56,27 @@ public:
     /* Adds a property.
      * Replaces the property with the same key if it is already present.
      */
-    void addProperty(const String8& key, const String8& value);
-
-    /* Returns true if the property map contains the specified key. */
-    bool hasProperty(const String8& key) const;
+    void addProperty(const std::string& key, const std::string& value);
 
     /* Gets the value of a property and parses it.
      * Returns true and sets outValue if the key was found and its value was parsed successfully.
      * Otherwise returns false and does not modify outValue.  (Also logs a warning.)
      */
-    bool tryGetProperty(const String8& key, String8& outValue) const;
-    bool tryGetProperty(const String8& key, bool& outValue) const;
-    bool tryGetProperty(const String8& key, int32_t& outValue) const;
-    bool tryGetProperty(const String8& key, float& outValue) const;
+    bool tryGetProperty(const std::string& key, std::string& outValue) const;
+    bool tryGetProperty(const std::string& key, bool& outValue) const;
+    bool tryGetProperty(const std::string& key, int32_t& outValue) const;
+    bool tryGetProperty(const std::string& key, float& outValue) const;
 
     /* Adds all values from the specified property map. */
     void addAll(const PropertyMap* map);
-
-    /* Gets the underlying property map. */
-    inline const KeyedVector<String8, String8>& getProperties() const { return mProperties; }
 
     /* Loads a property map from a file. */
     static android::base::Result<std::unique_ptr<PropertyMap>> load(const char* filename);
 
 private:
+    /* Returns true if the property map contains the specified key. */
+    bool hasProperty(const std::string& key) const;
+
     class Parser {
         PropertyMap* mMap;
         Tokenizer* mTokenizer;
@@ -95,11 +90,11 @@ private:
         status_t parseType();
         status_t parseKey();
         status_t parseKeyProperty();
-        status_t parseModifier(const String8& token, int32_t* outMetaState);
+        status_t parseModifier(const std::string& token, int32_t* outMetaState);
         status_t parseCharacterLiteral(char16_t* outCharacter);
     };
 
-    KeyedVector<String8, String8> mProperties;
+    std::unordered_map<std::string, std::string> mProperties;
 };
 
 } // namespace android

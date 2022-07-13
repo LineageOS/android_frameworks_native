@@ -36,7 +36,6 @@
 #include <sys/epoll.h>
 #include <utils/BitSet.h>
 #include <utils/Errors.h>
-#include <utils/KeyedVector.h>
 #include <utils/List.h>
 #include <utils/Log.h>
 #include <utils/Mutex.h>

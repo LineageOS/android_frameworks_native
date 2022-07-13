@@ -40,10 +40,10 @@ void RotaryEncoderInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
 
     if (mRotaryEncoderScrollAccumulator.haveRelativeVWheel()) {
         float res = 0.0f;
-        if (!getDeviceContext().getConfiguration().tryGetProperty(String8("device.res"), res)) {
+        if (!getDeviceContext().getConfiguration().tryGetProperty("device.res", res)) {
             ALOGW("Rotary Encoder device configuration file didn't specify resolution!\n");
         }
-        if (!getDeviceContext().getConfiguration().tryGetProperty(String8("device.scalingFactor"),
+        if (!getDeviceContext().getConfiguration().tryGetProperty("device.scalingFactor",
                                                                   mScalingFactor)) {
             ALOGW("Rotary Encoder device configuration file didn't specify scaling factor,"
                   "default to 1.0!\n");
