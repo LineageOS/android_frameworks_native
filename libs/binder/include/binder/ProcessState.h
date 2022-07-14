@@ -130,7 +130,7 @@ private:
     void* mVMStart;
 
     // Protects thread count and wait variables below.
-    pthread_mutex_t mThreadCountLock;
+    mutable pthread_mutex_t mThreadCountLock;
     // Broadcast whenever mWaitingForThreads > 0
     pthread_cond_t mThreadCountDecrement;
     // Number of binder threads current executing a command.
