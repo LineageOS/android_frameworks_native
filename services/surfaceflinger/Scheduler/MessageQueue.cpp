@@ -30,7 +30,7 @@
 
 namespace android::impl {
 
-void MessageQueue::Handler::dispatchFrame(int64_t vsyncId, nsecs_t expectedVsyncTime) {
+void MessageQueue::Handler::dispatchFrame(VsyncId vsyncId, TimePoint expectedVsyncTime) {
     if (!mFramePending.exchange(true)) {
         mVsyncId = vsyncId;
         mExpectedVsyncTime = expectedVsyncTime;
@@ -44,16 +44,7 @@ bool MessageQueue::Handler::isFramePending() const {
 
 void MessageQueue::Handler::handleMessage(const Message&) {
     mFramePending.store(false);
-
-    const nsecs_t frameTime = systemTime();
-    auto& compositor = mQueue.mCompositor;
-
-    if (!compositor.commit(frameTime, mVsyncId, mExpectedVsyncTime)) {
-        return;
-    }
-
-    compositor.composite(frameTime, mVsyncId);
-    compositor.sample();
+    mQueue.onFrameSignal(mQueue.mCompositor, mVsyncId, mExpectedVsyncTime);
 }
 
 MessageQueue::MessageQueue(ICompositor& compositor)
@@ -102,16 +93,17 @@ void MessageQueue::vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, ns
     // Trace VSYNC-sf
     mVsync.value = (mVsync.value + 1) % 2;
 
+    const auto expectedVsyncTime = TimePoint::fromNs(vsyncTime);
     {
         std::lock_guard lock(mVsync.mutex);
-        mVsync.lastCallbackTime = std::chrono::nanoseconds(vsyncTime);
+        mVsync.lastCallbackTime = expectedVsyncTime;
         mVsync.scheduledFrameTime.reset();
     }
 
-    const auto vsyncId = mVsync.tokenManager->generateTokenForPredictions(
-            {targetWakeupTime, readyTime, vsyncTime});
+    const auto vsyncId = VsyncId{mVsync.tokenManager->generateTokenForPredictions(
+            {targetWakeupTime, readyTime, vsyncTime})};
 
-    mHandler->dispatchFrame(vsyncId, vsyncTime);
+    mHandler->dispatchFrame(vsyncId, expectedVsyncTime);
 }
 
 void MessageQueue::initVsync(scheduler::VSyncDispatch& dispatch,
@@ -133,9 +125,10 @@ void MessageQueue::setDuration(std::chrono::nanoseconds workDuration) {
     std::lock_guard lock(mVsync.mutex);
     mVsync.workDuration = workDuration;
     if (mVsync.scheduledFrameTime) {
-        mVsync.scheduledFrameTime = mVsync.registration->schedule(
-                {mVsync.workDuration.get().count(),
-                 /*readyDuration=*/0, mVsync.lastCallbackTime.count()});
+        mVsync.scheduledFrameTime =
+                mVsync.registration->schedule({.workDuration = mVsync.workDuration.get().count(),
+                                               .readyDuration = 0,
+                                               .earliestVsync = mVsync.lastCallbackTime.ns()});
     }
 }
 
@@ -171,7 +164,7 @@ void MessageQueue::scheduleFrame() {
     {
         std::lock_guard lock(mInjector.mutex);
         if (CC_UNLIKELY(mInjector.connection)) {
-            ALOGD("%s while injecting VSYNC", __FUNCTION__);
+            ALOGD("%s while injecting VSYNC", __func__);
             mInjector.connection->requestNextVsync();
             return;
         }
@@ -181,7 +174,7 @@ void MessageQueue::scheduleFrame() {
     mVsync.scheduledFrameTime =
             mVsync.registration->schedule({.workDuration = mVsync.workDuration.get().count(),
                                            .readyDuration = 0,
-                                           .earliestVsync = mVsync.lastCallbackTime.count()});
+                                           .earliestVsync = mVsync.lastCallbackTime.ns()});
 }
 
 void MessageQueue::injectorCallback() {
@@ -190,9 +183,10 @@ void MessageQueue::injectorCallback() {
     while ((n = DisplayEventReceiver::getEvents(&mInjector.tube, buffer, 8)) > 0) {
         for (int i = 0; i < n; i++) {
             if (buffer[i].header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC) {
-                auto& vsync = buffer[i].vsync;
-                mHandler->dispatchFrame(vsync.vsyncData.preferredVsyncId(),
-                                        vsync.vsyncData.preferredExpectedPresentationTime());
+                auto& vsync = buffer[i].vsync.vsyncData;
+                mHandler->dispatchFrame(VsyncId{vsync.preferredVsyncId()},
+                                        TimePoint::fromNs(
+                                                vsync.preferredExpectedPresentationTime()));
                 break;
             }
         }
