@@ -44,6 +44,7 @@ cc_binary {
     defaults: ["servicemanager_defaults"],
     init_rc: ["servicemanager.rc"],
     srcs: ["main.cpp"],
+    bootstrap: true,
 }
 
 cc_binary {
