@@ -358,6 +358,14 @@ status_t BpBinder::linkToDeath(
     LOG_ALWAYS_FATAL_IF(recipient == nullptr,
                         "linkToDeath(): recipient must be non-NULL");
 
+    if (ProcessState::self()->getThreadPoolMaxTotalThreadCount() == 0) {
+        ALOGW("Linking to death on %s but there are no threads (yet?) listening to incoming "
+              "transactions. See ProcessState::startThreadPool and "
+              "ProcessState::setThreadPoolMaxThreadCount. Generally you should setup the binder "
+              "threadpool before other initialization steps.",
+              String8(getInterfaceDescriptor()).c_str());
+    }
+
     {
         AutoMutex _l(mLock);
 
