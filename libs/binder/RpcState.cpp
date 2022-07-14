@@ -258,7 +258,9 @@ void RpcState::clear() {
     mTerminated = true;
     for (auto& [address, node] : mNodeForAddress) {
         sp<IBinder> binder = node.binder.promote();
-        LOG_ALWAYS_FATAL_IF(binder == nullptr, "Binder %p expected to be owned.", binder.get());
+        LOG_ALWAYS_FATAL_IF(binder == nullptr,
+                            "Binder expected to be owned with address: %" PRIu64 " %s", address,
+                            node.toString().c_str());
 
         if (node.sentRef != nullptr) {
             tempHoldBinder.push_back(node.sentRef);
@@ -275,29 +277,32 @@ void RpcState::dumpLocked() {
     ALOGE("DUMP OF RpcState %p", this);
     ALOGE("DUMP OF RpcState (%zu nodes)", mNodeForAddress.size());
     for (const auto& [address, node] : mNodeForAddress) {
-        sp<IBinder> binder = node.binder.promote();
-
-        const char* desc;
-        if (binder) {
-            if (binder->remoteBinder()) {
-                if (binder->remoteBinder()->isRpcBinder()) {
-                    desc = "(rpc binder proxy)";
-                } else {
-                    desc = "(binder proxy)";
-                }
-            } else {
-                desc = "(local binder)";
-            }
-        } else {
-            desc = "(null)";
-        }
-
-        ALOGE("- BINDER NODE: %p times sent:%zu times recd: %zu a: %" PRIu64 " type: %s",
-              node.binder.unsafe_get(), node.timesSent, node.timesRecd, address, desc);
+        ALOGE("- address: %" PRIu64 " %s", address, node.toString().c_str());
     }
     ALOGE("END DUMP OF RpcState");
 }
 
+std::string RpcState::BinderNode::toString() const {
+    sp<IBinder> strongBinder = this->binder.promote();
+
+    const char* desc;
+    if (strongBinder) {
+        if (strongBinder->remoteBinder()) {
+            if (strongBinder->remoteBinder()->isRpcBinder()) {
+                desc = "(rpc binder proxy)";
+            } else {
+                desc = "(binder proxy)";
+            }
+        } else {
+            desc = "(local binder)";
+        }
+    } else {
+        desc = "(not promotable)";
+    }
+
+    return StringPrintf("node{%p times sent: %zu times recd: %zu type: %s}",
+                        this->binder.unsafe_get(), this->timesSent, this->timesRecd, desc);
+}
 
 RpcState::CommandData::CommandData(size_t size) : mSize(size) {
     // The maximum size for regular binder is 1MB for all concurrent
