@@ -2231,13 +2231,16 @@ void TouchInputMapper::cookPointerData() {
                     toolMinor = toolMajor;
                 }
 
-                mCalibration.applySizeScaleAndBias(&touchMajor);
-                mCalibration.applySizeScaleAndBias(&touchMinor);
-                mCalibration.applySizeScaleAndBias(&toolMajor);
-                mCalibration.applySizeScaleAndBias(&toolMinor);
+                mCalibration.applySizeScaleAndBias(touchMajor);
+                mCalibration.applySizeScaleAndBias(touchMinor);
+                mCalibration.applySizeScaleAndBias(toolMajor);
+                mCalibration.applySizeScaleAndBias(toolMinor);
                 size *= mSizeScale;
                 break;
-            default:
+            case Calibration::SizeCalibration::DEFAULT:
+                LOG_ALWAYS_FATAL("Resolution should not be 'DEFAULT' at this point");
+                break;
+            case Calibration::SizeCalibration::NONE:
                 touchMajor = 0;
                 touchMinor = 0;
                 toolMajor = 0;

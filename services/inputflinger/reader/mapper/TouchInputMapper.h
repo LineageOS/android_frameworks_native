@@ -291,15 +291,15 @@ protected:
 
         CoverageCalibration coverageCalibration;
 
-        inline void applySizeScaleAndBias(float* outSize) const {
+        inline void applySizeScaleAndBias(float& outSize) const {
             if (sizeScale) {
-                *outSize *= *sizeScale;
+                outSize *= *sizeScale;
             }
             if (sizeBias) {
-                *outSize += *sizeBias;
+                outSize += *sizeBias;
             }
-            if (*outSize < 0) {
-                *outSize = 0;
+            if (outSize < 0) {
+                outSize = 0;
             }
         }
     } mCalibration;
