@@ -599,6 +599,7 @@ Rect BLASTBufferQueue::computeCrop(const BufferItem& item) {
 }
 
 void BLASTBufferQueue::acquireAndReleaseBuffer() {
+    BBQ_TRACE();
     BufferItem bufferItem;
     status_t status =
             mBufferItemConsumer->acquireBuffer(&bufferItem, 0 /* expectedPresent */, false);
@@ -612,6 +613,7 @@ void BLASTBufferQueue::acquireAndReleaseBuffer() {
 }
 
 void BLASTBufferQueue::flushAndWaitForFreeBuffer(std::unique_lock<std::mutex>& lock) {
+    BBQ_TRACE();
     if (!mSyncedFrameNumbers.empty() && mNumFrameAvailable > 0) {
         // We are waiting on a previous sync's transaction callback so allow another sync
         // transaction to proceed.
@@ -642,8 +644,8 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     bool waitForTransactionCallback = !mSyncedFrameNumbers.empty();
 
     {
-        BBQ_TRACE();
         std::unique_lock _lock{mMutex};
+        BBQ_TRACE();
         const bool syncTransactionSet = mTransactionReadyCallback != nullptr;
         BQA_LOGV("onFrameAvailable-start syncTransactionSet=%s", boolToString(syncTransactionSet));
 

@@ -135,6 +135,11 @@ private:
 
     bool simpleBufferUpdate(const layer_state_t& s) const override;
 
+    void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
+                                   const sp<GraphicBuffer>& buffer, uint64_t framenumber,
+                                   const sp<Fence>& releaseFence,
+                                   uint32_t currentMaxAcquiredBufferCount);
+
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     uint64_t mPreviousReleasedFrameNumber = 0;
 

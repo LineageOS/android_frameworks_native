@@ -30,6 +30,7 @@
 #include <renderengine/Image.h>
 #include "TunnelModeEnabledReporter.h"
 
+#include <gui/TraceUtils.h>
 #include "EffectLayer.h"
 #include "FrameTracer/FrameTracer.h"
 #include "TimeStats/TimeStats.h"
@@ -39,19 +40,20 @@
 namespace android {
 
 using PresentState = frametimeline::SurfaceFrame::PresentState;
-namespace {
-void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
-                               const sp<GraphicBuffer>& buffer, uint64_t framenumber,
-                               const sp<Fence>& releaseFence,
-                               uint32_t currentMaxAcquiredBufferCount) {
+
+void BufferStateLayer::callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
+                                                 const sp<GraphicBuffer>& buffer,
+                                                 uint64_t framenumber,
+                                                 const sp<Fence>& releaseFence,
+                                                 uint32_t currentMaxAcquiredBufferCount) {
     if (!listener) {
         return;
     }
+    ATRACE_FORMAT_INSTANT("callReleaseBufferCallback %s - %" PRIu64, getDebugName(), framenumber);
     listener->onReleaseBuffer({buffer->getId(), framenumber},
                               releaseFence ? releaseFence : Fence::NO_FENCE,
                               currentMaxAcquiredBufferCount);
 }
-} // namespace
 
 BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args)
       : BufferLayer(args), mHwcSlotGenerator(new HwcSlotGenerator()) {
@@ -145,6 +147,8 @@ void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
         handle->dequeueReadyTime = dequeueReadyTime;
         handle->currentMaxAcquiredBufferCount =
                 mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(mOwnerUid);
+        ATRACE_FORMAT_INSTANT("releasePendingBuffer %s - %" PRIu64, getDebugName(),
+                              handle->previousReleaseCallbackId.framenumber);
     }
 
     for (auto& handle : mDrawingState.callbackHandles) {

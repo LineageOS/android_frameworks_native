@@ -37,6 +37,7 @@
 #include <gui/GLConsumer.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
+#include <gui/TraceUtils.h>
 #include <renderengine/RenderEngine.h>
 #include <ui/DebugUtils.h>
 #include <utils/Errors.h>
@@ -456,7 +457,8 @@ bool BufferLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
 
 bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
                               nsecs_t expectedPresentTime) {
-    ATRACE_CALL();
+    ATRACE_FORMAT_INSTANT("latchBuffer %s - %" PRIu64, getDebugName(),
+                          getDrawingState().frameNumber);
 
     bool refreshRequired = latchSidebandStream(recomputeVisibleRegions);
 
