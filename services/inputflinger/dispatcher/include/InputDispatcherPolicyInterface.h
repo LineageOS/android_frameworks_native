@@ -137,6 +137,9 @@ public:
 
     /* Notifies the policy that the drag window has moved over to another window */
     virtual void notifyDropWindow(const sp<IBinder>& token, float x, float y) = 0;
+
+    /* If touch mode is enabled per display or global */
+    virtual bool isPerDisplayTouchModeEnabled() = 0;
 };
 
 } // namespace android
