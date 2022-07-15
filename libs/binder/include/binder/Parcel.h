@@ -598,9 +598,9 @@ public:
     void                print(TextOutput& to, uint32_t flags = 0) const;
 
 private:
-    typedef void        (*release_func)(Parcel* parcel,
-                                        const uint8_t* data, size_t dataSize,
-                                        const binder_size_t* objects, size_t objectsSize);
+    // `objects` and `objectsSize` always 0 for RPC Parcels.
+    typedef void (*release_func)(const uint8_t* data, size_t dataSize, const binder_size_t* objects,
+                                 size_t objectsSize);
 
     uintptr_t           ipcData() const;
     size_t              ipcDataSize() const;
