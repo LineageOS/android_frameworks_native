@@ -2195,10 +2195,7 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
 
             // Update the temporary touch state.
             BitSet32 pointerIds;
-            if (isSplit) {
-                uint32_t pointerId = entry.pointerProperties[pointerIndex].id;
-                pointerIds.markBit(pointerId);
-            }
+            pointerIds.markBit(entry.pointerProperties[pointerIndex].id);
 
             tempTouchState.addOrUpdateWindow(windowHandle, targetFlags, pointerIds);
         }
@@ -2275,9 +2272,7 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
                 }
 
                 BitSet32 pointerIds;
-                if (isSplit) {
-                    pointerIds.markBit(entry.pointerProperties[0].id);
-                }
+                pointerIds.markBit(entry.pointerProperties[0].id);
                 tempTouchState.addOrUpdateWindow(newTouchedWindowHandle, targetFlags, pointerIds);
             }
         }
@@ -2453,21 +2448,28 @@ Failed:
             }
         } else if (maskedAction == AMOTION_EVENT_ACTION_POINTER_UP) {
             // One pointer went up.
-            if (isSplit) {
-                int32_t pointerIndex = getMotionEventActionPointerIndex(action);
-                uint32_t pointerId = entry.pointerProperties[pointerIndex].id;
+            int32_t pointerIndex = getMotionEventActionPointerIndex(action);
+            uint32_t pointerId = entry.pointerProperties[pointerIndex].id;
 
-                for (size_t i = 0; i < tempTouchState.windows.size();) {
-                    TouchedWindow& touchedWindow = tempTouchState.windows[i];
-                    if (touchedWindow.targetFlags & InputTarget::FLAG_SPLIT) {
-                        touchedWindow.pointerIds.clearBit(pointerId);
-                        if (touchedWindow.pointerIds.isEmpty()) {
-                            tempTouchState.windows.erase(tempTouchState.windows.begin() + i);
-                            continue;
-                        }
-                    }
-                    i += 1;
+            for (size_t i = 0; i < tempTouchState.windows.size();) {
+                TouchedWindow& touchedWindow = tempTouchState.windows[i];
+                touchedWindow.pointerIds.clearBit(pointerId);
+                if (touchedWindow.pointerIds.isEmpty()) {
+                    tempTouchState.windows.erase(tempTouchState.windows.begin() + i);
+                    continue;
                 }
+                i += 1;
+            }
+        } else if (!isSplit && maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN) {
+            // If no split, we suppose all touched windows should receive pointer down.
+            const int32_t pointerIndex = getMotionEventActionPointerIndex(action);
+            for (size_t i = 0; i < tempTouchState.windows.size(); i++) {
+                TouchedWindow& touchedWindow = tempTouchState.windows[i];
+                // Ignore drag window for it should just track one pointer.
+                if (mDragState && mDragState->dragWindow == touchedWindow.windowHandle) {
+                    continue;
+                }
+                touchedWindow.pointerIds.markBit(entry.pointerProperties[pointerIndex].id);
             }
         }
 
@@ -5087,14 +5089,13 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
 
         // Store the dragging window.
         if (isDragDrop) {
-            if (pointerIds.count() > 1) {
-                ALOGW("The drag and drop cannot be started when there is more than 1 pointer on the"
-                      " window.");
+            if (pointerIds.count() != 1) {
+                ALOGW("The drag and drop cannot be started when there is no pointer or more than 1"
+                      " pointer on the window.");
                 return false;
             }
-            // If the window didn't not support split or the source is mouse, the pointerIds count
-            // would be 0, so we have to track the pointer 0.
-            const int32_t id = pointerIds.count() == 0 ? 0 : pointerIds.firstMarkedBit();
+            // Track the pointer id for drag window and generate the drag state.
+            const int32_t id = pointerIds.firstMarkedBit();
             mDragState = std::make_unique<DragState>(toWindowHandle, id);
         }
 
