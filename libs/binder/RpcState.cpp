@@ -643,14 +643,21 @@ status_t RpcState::waitForReply(const sp<RpcSession::RpcConnection>& connection,
     Span<const uint32_t> objectTableSpan;
     if (session->getProtocolVersion().value() >=
         RPC_WIRE_PROTOCOL_VERSION_RPC_HEADER_FEATURE_EXPLICIT_PARCEL_SIZE) {
-        Span<const uint8_t> objectTableBytes = parcelSpan.splitOff(rpcReply.parcelDataSize);
+        std::optional<Span<const uint8_t>> objectTableBytes =
+                parcelSpan.splitOff(rpcReply.parcelDataSize);
+        if (!objectTableBytes.has_value()) {
+            ALOGE("Parcel size larger than available bytes: %" PRId32 " vs %zu. Terminating!",
+                  rpcReply.parcelDataSize, parcelSpan.byteSize());
+            (void)session->shutdownAndWait(false);
+            return BAD_VALUE;
+        }
         std::optional<Span<const uint32_t>> maybeSpan =
-                objectTableBytes.reinterpret<const uint32_t>();
+                objectTableBytes->reinterpret<const uint32_t>();
         if (!maybeSpan.has_value()) {
             ALOGE("Bad object table size inferred from RpcWireReply. Saw bodySize=%" PRId32
                   " sizeofHeader=%zu parcelSize=%" PRId32 " objectTableBytesSize=%zu. Terminating!",
                   command.bodySize, rpcReplyWireSize, rpcReply.parcelDataSize,
-                  objectTableBytes.size);
+                  objectTableBytes->size);
             return BAD_VALUE;
         }
         objectTableSpan = *maybeSpan;
@@ -893,15 +900,22 @@ processTransactInternalTailCall:
         Span<const uint32_t> objectTableSpan;
         if (session->getProtocolVersion().value() >
             RPC_WIRE_PROTOCOL_VERSION_RPC_HEADER_FEATURE_EXPLICIT_PARCEL_SIZE) {
-            Span<const uint8_t> objectTableBytes = parcelSpan.splitOff(transaction->parcelDataSize);
+            std::optional<Span<const uint8_t>> objectTableBytes =
+                    parcelSpan.splitOff(transaction->parcelDataSize);
+            if (!objectTableBytes.has_value()) {
+                ALOGE("Parcel size (%" PRId32 ") greater than available bytes (%zu). Terminating!",
+                      transaction->parcelDataSize, parcelSpan.byteSize());
+                (void)session->shutdownAndWait(false);
+                return BAD_VALUE;
+            }
             std::optional<Span<const uint32_t>> maybeSpan =
-                    objectTableBytes.reinterpret<const uint32_t>();
+                    objectTableBytes->reinterpret<const uint32_t>();
             if (!maybeSpan.has_value()) {
                 ALOGE("Bad object table size inferred from RpcWireTransaction. Saw bodySize=%zu "
                       "sizeofHeader=%zu parcelSize=%" PRId32
                       " objectTableBytesSize=%zu. Terminating!",
                       transactionData.size(), sizeof(RpcWireTransaction),
-                      transaction->parcelDataSize, objectTableBytes.size);
+                      transaction->parcelDataSize, objectTableBytes->size);
                 return BAD_VALUE;
             }
             objectTableSpan = *maybeSpan;
