@@ -68,6 +68,14 @@ VsyncSchedule::VsyncSchedule(TrackerPtr tracker, DispatchPtr dispatch, Controlle
 VsyncSchedule::VsyncSchedule(VsyncSchedule&&) = default;
 VsyncSchedule::~VsyncSchedule() = default;
 
+Period VsyncSchedule::period() const {
+    return Period::fromNs(mTracker->currentPeriod());
+}
+
+TimePoint VsyncSchedule::vsyncDeadlineAfter(TimePoint timePoint) const {
+    return TimePoint::fromNs(mTracker->nextAnticipatedVSyncTimeFrom(timePoint.ns()));
+}
+
 void VsyncSchedule::dump(std::string& out) const {
     out.append("VsyncController:\n");
     mController->dump(out);

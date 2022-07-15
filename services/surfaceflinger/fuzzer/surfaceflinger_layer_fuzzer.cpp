@@ -115,17 +115,18 @@ void LayerFuzzer::invokeBufferStateLayer() {
     sp<Fence> fence = sp<Fence>::make();
     const std::shared_ptr<FenceTime> fenceTime = std::make_shared<FenceTime>(fence);
 
-    const CompositorTiming compositor = {mFdp.ConsumeIntegral<int64_t>(),
-                                         mFdp.ConsumeIntegral<int64_t>(),
-                                         mFdp.ConsumeIntegral<int64_t>()};
+    const CompositorTiming compositorTiming(mFdp.ConsumeIntegral<int64_t>(),
+                                            mFdp.ConsumeIntegral<int64_t>(),
+                                            mFdp.ConsumeIntegral<int64_t>(),
+                                            mFdp.ConsumeIntegral<int64_t>());
 
     layer->onLayerDisplayed(ftl::yield<FenceResult>(fence).share());
     layer->onLayerDisplayed(
             ftl::yield<FenceResult>(base::unexpected(mFdp.ConsumeIntegral<status_t>())).share());
 
     layer->releasePendingBuffer(mFdp.ConsumeIntegral<int64_t>());
-    layer->finalizeFrameEventHistory(fenceTime, compositor);
-    layer->onPostComposition(nullptr, fenceTime, fenceTime, compositor);
+    layer->finalizeFrameEventHistory(fenceTime, compositorTiming);
+    layer->onPostComposition(nullptr, fenceTime, fenceTime, compositorTiming);
     layer->isBufferDue(mFdp.ConsumeIntegral<int64_t>());
 
     layer->setTransform(mFdp.ConsumeIntegral<uint32_t>());
