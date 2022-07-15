@@ -29,6 +29,7 @@
 namespace android {
 
 class FdTrigger;
+class RpcServerTrusty;
 class RpcSocketAddress;
 
 /**
@@ -189,6 +190,7 @@ public:
     ~RpcServer();
 
 private:
+    friend RpcServerTrusty;
     friend sp<RpcServer>;
     explicit RpcServer(std::unique_ptr<RpcTransportCtx> ctx);
 
@@ -196,8 +198,10 @@ private:
     void onSessionIncomingThreadEnded() override;
 
     static constexpr size_t kRpcAddressSize = 128;
-    static void establishConnection(sp<RpcServer>&& server, base::unique_fd clientFd,
-                                    std::array<uint8_t, kRpcAddressSize> addr, size_t addrLen);
+    static void establishConnection(
+            sp<RpcServer>&& server, base::unique_fd clientFd,
+            std::array<uint8_t, kRpcAddressSize> addr, size_t addrLen,
+            std::function<void(sp<RpcSession>&&, RpcSession::PreJoinSetupResult&&)>&& joinFn);
     [[nodiscard]] status_t setupSocketServer(const RpcSocketAddress& address);
 
     const std::unique_ptr<RpcTransportCtx> mCtx;
