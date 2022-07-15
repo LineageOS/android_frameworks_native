@@ -586,13 +586,12 @@ status_t RpcState::transactAddress(const sp<RpcSession::RpcConnection>& connecti
     return waitForReply(connection, session, reply);
 }
 
-static void cleanup_reply_data(Parcel* p, const uint8_t* data, size_t dataSize,
-                               const binder_size_t* objects, size_t objectsCount) {
-    (void)p;
+static void cleanup_reply_data(const uint8_t* data, size_t dataSize, const binder_size_t* objects,
+                               size_t objectsCount) {
     delete[] const_cast<uint8_t*>(data);
     (void)dataSize;
     LOG_ALWAYS_FATAL_IF(objects != nullptr);
-    LOG_ALWAYS_FATAL_IF(objectsCount != 0, "%zu objects remaining", objectsCount);
+    (void)objectsCount;
 }
 
 status_t RpcState::waitForReply(const sp<RpcSession::RpcConnection>& connection,
@@ -799,9 +798,8 @@ status_t RpcState::processTransact(
                                    std::move(ancillaryFds));
 }
 
-static void do_nothing_to_transact_data(Parcel* p, const uint8_t* data, size_t dataSize,
+static void do_nothing_to_transact_data(const uint8_t* data, size_t dataSize,
                                         const binder_size_t* objects, size_t objectsCount) {
-    (void)p;
     (void)data;
     (void)dataSize;
     (void)objects;
