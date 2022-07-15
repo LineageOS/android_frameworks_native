@@ -258,6 +258,8 @@ private:
         //
 
         // (no additional data specific to remote binders)
+
+        std::string toString() const;
     };
 
     // checks if there is any reference left to a node and erases it. If erase
