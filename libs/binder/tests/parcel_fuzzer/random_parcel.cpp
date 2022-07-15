@@ -39,23 +39,24 @@ static void fillRandomParcelData(Parcel* p, FuzzedDataProvider&& provider) {
     CHECK(OK == p->write(data.data(), data.size()));
 }
 
-void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider,
-                      const RandomParcelOptions& options) {
+void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider, RandomParcelOptions* options) {
+    CHECK_NE(options, nullptr);
+
     if (provider.ConsumeBool()) {
         auto session = RpcSession::make(RpcTransportCtxFactoryRaw::make());
         CHECK_EQ(OK, session->addNullDebuggingClient());
         p->markForRpc(session);
 
-        if (options.writeHeader) {
-            options.writeHeader(p, provider);
+        if (options->writeHeader) {
+            options->writeHeader(p, provider);
         }
 
         fillRandomParcelData(p, std::move(provider));
         return;
     }
 
-    if (options.writeHeader) {
-        options.writeHeader(p, provider);
+    if (options->writeHeader) {
+        options->writeHeader(p, provider);
     }
 
     while (provider.remaining_bytes() > 0) {
@@ -69,15 +70,21 @@ void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider,
                 },
                 // write FD
                 [&]() {
-                    if (options.extraFds.size() > 0 && provider.ConsumeBool()) {
-                        const base::unique_fd& fd = options.extraFds.at(
+                    if (options->extraFds.size() > 0 && provider.ConsumeBool()) {
+                        const base::unique_fd& fd = options->extraFds.at(
                                 provider.ConsumeIntegralInRange<size_t>(0,
-                                                                        options.extraFds.size() -
+                                                                        options->extraFds.size() -
                                                                                 1));
                         CHECK(OK == p->writeFileDescriptor(fd.get(), false /*takeOwnership*/));
                     } else {
-                        base::unique_fd fd = getRandomFd(&provider);
-                        CHECK(OK == p->writeFileDescriptor(fd.release(), true /*takeOwnership*/));
+                        std::vector<base::unique_fd> fds = getRandomFds(&provider);
+                        CHECK(OK ==
+                              p->writeFileDescriptor(fds.begin()->release(),
+                                                     true /*takeOwnership*/));
+
+                        options->extraFds.insert(options->extraFds.end(),
+                                                 std::make_move_iterator(fds.begin() + 1),
+                                                 std::make_move_iterator(fds.end()));
                     }
                 },
                 // write binder
@@ -98,10 +105,10 @@ void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider,
                                 return IInterface::asBinder(defaultServiceManager());
                             },
                             [&]() -> sp<IBinder> {
-                                if (options.extraBinders.size() > 0 && provider.ConsumeBool()) {
-                                    return options.extraBinders.at(
+                                if (options->extraBinders.size() > 0 && provider.ConsumeBool()) {
+                                    return options->extraBinders.at(
                                             provider.ConsumeIntegralInRange<
-                                                    size_t>(0, options.extraBinders.size() - 1));
+                                                    size_t>(0, options->extraBinders.size() - 1));
                                 } else {
                                     return nullptr;
                                 }
