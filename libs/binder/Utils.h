@@ -48,9 +48,11 @@ struct Span {
     // Truncates `this` to a length of `offset` and returns a span with the
     // remainder.
     //
-    // Aborts if offset > size.
-    Span<T> splitOff(size_t offset) {
-        LOG_ALWAYS_FATAL_IF(offset > size);
+    // `std::nullopt` iff offset > size.
+    std::optional<Span<T>> splitOff(size_t offset) {
+        if (offset > size) {
+            return std::nullopt;
+        }
         Span<T> rest = {data + offset, size - offset};
         size = offset;
         return rest;
