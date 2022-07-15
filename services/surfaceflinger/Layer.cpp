@@ -62,7 +62,6 @@
 #include <mutex>
 #include <sstream>
 
-#include "BufferLayer.h"
 #include "Colorizer.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWComposer.h"

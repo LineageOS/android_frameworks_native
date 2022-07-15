@@ -105,7 +105,6 @@
 
 #include <ui/DisplayIdentification.h>
 #include "BackgroundExecutor.h"
-#include "BufferLayer.h"
 #include "BufferStateLayer.h"
 #include "Client.h"
 #include "Colorizer.h"
