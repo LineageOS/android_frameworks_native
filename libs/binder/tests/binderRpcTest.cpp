@@ -1029,13 +1029,6 @@ TEST_P(BinderRpc, Callbacks) {
                 // since this session has an incoming connection w/ a threadpool, we
                 // need to manually shut it down
                 EXPECT_TRUE(proc.proc.sessions.at(0).session->shutdownAndWait(true));
-
-                proc.proc.host.setCustomExitStatusCheck([](int wstatus) {
-                    // Flaky. Sometimes gets SIGABRT.
-                    EXPECT_TRUE((WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == 0) ||
-                                (WIFSIGNALED(wstatus) && WTERMSIG(wstatus) == SIGABRT))
-                            << "server process failed: " << WaitStatusToString(wstatus);
-                });
                 proc.expectAlreadyShutdown = true;
             }
         }
