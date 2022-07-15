@@ -1310,7 +1310,7 @@ TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
      * not exceed 16 (15 Max + pool thread).
      */
     std::vector<std::thread> ts;
-    for (size_t i = 0; i < kKernelThreads - 1; i++) {
+    for (size_t i = 0; i < kKernelThreads; i++) {
         ts.push_back(std::thread([&] {
             Parcel local_reply;
             EXPECT_THAT(server->transact(BINDER_LIB_TEST_LOCK_UNLOCK, data, &local_reply),
@@ -1318,7 +1318,7 @@ TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
         }));
     }
 
-    data.writeInt32(1);
+    data.writeInt32(100);
     // Give a chance for all threads to be used
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_UNLOCK_AFTER_MS, data, &reply), NO_ERROR);
 
@@ -1329,8 +1329,7 @@ TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_GET_MAX_THREAD_COUNT, data, &reply),
                 StatusEq(NO_ERROR));
     replyi = reply.readInt32();
-    // No more than 16 threads should exist.
-    EXPECT_TRUE(replyi == kKernelThreads || replyi == kKernelThreads + 1);
+    EXPECT_EQ(replyi, kKernelThreads + 1);
 }
 
 size_t epochMillis() {
