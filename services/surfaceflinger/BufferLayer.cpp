@@ -53,7 +53,6 @@
 #include "Colorizer.h"
 #include "DisplayDevice.h"
 #include "FrameTracer/FrameTracer.h"
-#include "LayerRejecter.h"
 #include "TimeStats/TimeStats.h"
 
 namespace android {

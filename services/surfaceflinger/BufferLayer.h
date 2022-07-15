@@ -34,14 +34,12 @@
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
-#include "BufferLayerConsumer.h"
 #include "Client.h"
 #include "DisplayHardware/HWComposer.h"
 #include "FrameTimeline.h"
 #include "FrameTracker.h"
 #include "Layer.h"
 #include "LayerVector.h"
-#include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
 
 namespace android {

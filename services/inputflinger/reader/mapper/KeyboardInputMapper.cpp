@@ -160,7 +160,7 @@ void KeyboardInputMapper::configure(nsecs_t when, const InputReaderConfiguration
 
 static void mapStemKey(int32_t keyCode, const PropertyMap& config, char const* property) {
     int32_t mapped = 0;
-    if (config.tryGetProperty(String8(property), mapped) && mapped > 0) {
+    if (config.tryGetProperty(property, mapped) && mapped > 0) {
         for (size_t i = 0; i < stemKeyRotationMapSize; i++) {
             if (stemKeyRotationMap[i][0] == keyCode) {
                 stemKeyRotationMap[i][1] = mapped;
@@ -173,7 +173,7 @@ static void mapStemKey(int32_t keyCode, const PropertyMap& config, char const* p
 void KeyboardInputMapper::configureParameters() {
     mParameters.orientationAware = false;
     const PropertyMap& config = getDeviceContext().getConfiguration();
-    config.tryGetProperty(String8("keyboard.orientationAware"), mParameters.orientationAware);
+    config.tryGetProperty("keyboard.orientationAware", mParameters.orientationAware);
 
     if (mParameters.orientationAware) {
         mapStemKey(AKEYCODE_STEM_PRIMARY, config, "keyboard.rotated.stem_primary");
@@ -183,10 +183,10 @@ void KeyboardInputMapper::configureParameters() {
     }
 
     mParameters.handlesKeyRepeat = false;
-    config.tryGetProperty(String8("keyboard.handlesKeyRepeat"), mParameters.handlesKeyRepeat);
+    config.tryGetProperty("keyboard.handlesKeyRepeat", mParameters.handlesKeyRepeat);
 
     mParameters.doNotWakeByDefault = false;
-    config.tryGetProperty(String8("keyboard.doNotWakeByDefault"), mParameters.doNotWakeByDefault);
+    config.tryGetProperty("keyboard.doNotWakeByDefault", mParameters.doNotWakeByDefault);
 }
 
 void KeyboardInputMapper::dumpParameters(std::string& dump) {
