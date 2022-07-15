@@ -373,7 +373,11 @@ public:
         mConfig.defaultPointerDisplayId = pointerDisplayId;
     }
 
+    void setPointerGestureEnabled(bool enabled) { mConfig.pointerGesturesEnabled = enabled; }
+
     float getPointerGestureMovementSpeedRatio() { return mConfig.pointerGestureMovementSpeedRatio; }
+
+    float getPointerGestureZoomSpeedRatio() { return mConfig.pointerGestureZoomSpeedRatio; }
 
     void setVelocityControlParams(const VelocityControlParameters& params) {
         mConfig.pointerVelocityControlParameters = params;
@@ -9462,6 +9466,258 @@ TEST_F(MultiTouchInputMapperTest, WhenCapturedAndNotCaptured_GetSources) {
     mFakePolicy->setPointerCapture(true);
     configureDevice(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
     ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
+}
+
+class MultiTouchPointerModeTest : public MultiTouchInputMapperTest {
+protected:
+    float mPointerMovementScale;
+    float mPointerXZoomScale;
+    void preparePointerMode(int xAxisResolution, int yAxisResolution) {
+        addConfigurationProperty("touch.deviceType", "pointer");
+        std::shared_ptr<FakePointerController> fakePointerController =
+                std::make_shared<FakePointerController>();
+        fakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
+        fakePointerController->setPosition(0, 0);
+        fakePointerController->setButtonState(0);
+        prepareDisplay(DISPLAY_ORIENTATION_0);
+
+        prepareAxes(POSITION);
+        prepareAbsoluteAxisResolution(xAxisResolution, yAxisResolution);
+        // In order to enable swipe and freeform gesture in pointer mode, pointer capture
+        // needs to be disabled, and the pointer gesture needs to be enabled.
+        mFakePolicy->setPointerCapture(false);
+        mFakePolicy->setPointerGestureEnabled(true);
+        mFakePolicy->setPointerController(fakePointerController);
+
+        float rawDiagonal = hypotf(RAW_X_MAX - RAW_X_MIN, RAW_Y_MAX - RAW_Y_MIN);
+        float displayDiagonal = hypotf(DISPLAY_WIDTH, DISPLAY_HEIGHT);
+        mPointerMovementScale =
+                mFakePolicy->getPointerGestureMovementSpeedRatio() * displayDiagonal / rawDiagonal;
+        mPointerXZoomScale =
+                mFakePolicy->getPointerGestureZoomSpeedRatio() * displayDiagonal / rawDiagonal;
+    }
+
+    void prepareAbsoluteAxisResolution(int xAxisResolution, int yAxisResolution) {
+        mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_POSITION_X, RAW_X_MIN, RAW_X_MAX,
+                                       /*flat*/ 0,
+                                       /*fuzz*/ 0, /*resolution*/ xAxisResolution);
+        mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_POSITION_Y, RAW_Y_MIN, RAW_Y_MAX,
+                                       /*flat*/ 0,
+                                       /*fuzz*/ 0, /*resolution*/ yAxisResolution);
+    }
+};
+
+/**
+ * Two fingers down on a pointer mode touch pad. The width
+ * of the two finger is larger than 1/4 of the touch pack diagnal length. However, it
+ * is smaller than the fixed min physical length 30mm. Two fingers' distance must
+ * be greater than the both value to be freeform gesture, so that after two
+ * fingers start to move downwards, the gesture should be swipe.
+ */
+TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthSwipe) {
+    // The min freeform gesture width is 25units/mm x 30mm = 750
+    // which is greater than fraction of the diagnal length of the touchpad (349).
+    // Thus, MaxSwipWidth is 750.
+    preparePointerMode(25 /*xResolution*/, 25 /*yResolution*/);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+    NotifyMotionArgs motionArgs;
+
+    // Two fingers down at once.
+    // The two fingers are 450 units apart, expects the current gesture to be PRESS
+    // Pointer's initial position is used the [0,0] coordinate.
+    int32_t x1 = 100, y1 = 125, x2 = 550, y2 = 125;
+
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1, y1);
+    processMTSync(mapper);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2, y2);
+    processMTSync(mapper);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(1U, motionArgs.pointerCount);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(motionArgs.pointerCoords[0], 0, 0, 1, 0, 0, 0, 0, 0, 0, 0));
+
+    // It should be recognized as a SWIPE gesture when two fingers start to move down,
+    // that there should be 1 pointer.
+    int32_t movingDistance = 200;
+    y1 += movingDistance;
+    y2 += movingDistance;
+
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1, y1);
+    processMTSync(mapper);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2, y2);
+    processMTSync(mapper);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(1U, motionArgs.pointerCount);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0], 0,
+                                                movingDistance * mPointerMovementScale, 1, 0, 0, 0,
+                                                0, 0, 0, 0));
+}
+
+/**
+ * Two fingers down on a pointer mode touch pad. The width of the two finger is larger
+ * than the minimum freeform gesture width, 30mm. However, it is smaller than 1/4 of
+ * the touch pack diagnal length. Two fingers' distance must be greater than the both
+ * value to be freeform gesture, so that after two fingers start to move downwards,
+ * the gesture should be swipe.
+ */
+TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthLowResolutionSwipe) {
+    // The min freeform gesture width is 5units/mm x 30mm = 150
+    // which is greater than fraction of the diagnal length of the touchpad (349).
+    // Thus, MaxSwipWidth is the fraction of the diagnal length, 349.
+    preparePointerMode(5 /*xResolution*/, 5 /*yResolution*/);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+    NotifyMotionArgs motionArgs;
+
+    // Two fingers down at once.
+    // The two fingers are 250 units apart, expects the current gesture to be PRESS
+    // Pointer's initial position is used the [0,0] coordinate.
+    int32_t x1 = 100, y1 = 125, x2 = 350, y2 = 125;
+
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1, y1);
+    processMTSync(mapper);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2, y2);
+    processMTSync(mapper);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(1U, motionArgs.pointerCount);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(motionArgs.pointerCoords[0], 0, 0, 1, 0, 0, 0, 0, 0, 0, 0));
+
+    // It should be recognized as a SWIPE gesture when two fingers start to move down,
+    // and there should be 1 pointer.
+    int32_t movingDistance = 200;
+    y1 += movingDistance;
+    y2 += movingDistance;
+
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1, y1);
+    processMTSync(mapper);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2, y2);
+    processMTSync(mapper);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(1U, motionArgs.pointerCount);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    // New coordinate is the scaled relative coordinate from the initial coordinate.
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0], 0,
+                                                movingDistance * mPointerMovementScale, 1, 0, 0, 0,
+                                                0, 0, 0, 0));
+}
+
+/**
+ * Touch the touch pad with two fingers with a distance wider than the minimum freeform
+ * gesture width and 1/4 of the diagnal length of the touchpad. Expect to receive
+ * freeform gestures after two fingers start to move downwards.
+ */
+TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthFreeform) {
+    preparePointerMode(25 /*xResolution*/, 25 /*yResolution*/);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    NotifyMotionArgs motionArgs;
+
+    // Two fingers down at once. Wider than the max swipe width.
+    // The gesture is expected to be PRESS, then transformed to FREEFORM
+    int32_t x1 = 100, y1 = 125, x2 = 900, y2 = 125;
+
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1, y1);
+    processMTSync(mapper);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2, y2);
+    processMTSync(mapper);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(1U, motionArgs.pointerCount);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    // One pointer for PRESS, and its coordinate is used as the origin for pointer coordinates.
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(motionArgs.pointerCoords[0], 0, 0, 1, 0, 0, 0, 0, 0, 0, 0));
+
+    int32_t movingDistance = 200;
+
+    // Move two fingers down, expect a cancel event because gesture is changing to freeform,
+    // then two down events for two pointers.
+    y1 += movingDistance;
+    y2 += movingDistance;
+
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1, y1);
+    processMTSync(mapper);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2, y2);
+    processMTSync(mapper);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    // The previous PRESS gesture is cancelled, because it is transformed to freeform
+    ASSERT_EQ(1U, motionArgs.pointerCount);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_CANCEL, motionArgs.action);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_EQ(1U, motionArgs.pointerCount);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_EQ(2U, motionArgs.pointerCount);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_DOWN, motionArgs.action & AMOTION_EVENT_ACTION_MASK);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    // Two pointers' scaled relative coordinates from their initial centroid.
+    // Initial y coordinates are 0 as y1 and y2 have the same value.
+    float cookedX1 = (x1 - x2) / 2 * mPointerXZoomScale;
+    float cookedX2 = (x2 - x1) / 2 * mPointerXZoomScale;
+    // When pointers move,  the new coordinates equal to the initial coordinates plus
+    // scaled moving distance.
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0], cookedX1,
+                                                movingDistance * mPointerMovementScale, 1, 0, 0, 0,
+                                                0, 0, 0, 0));
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[1], cookedX2,
+                                                movingDistance * mPointerMovementScale, 1, 0, 0, 0,
+                                                0, 0, 0, 0));
+
+    // Move two fingers down again, expect one MOVE motion event.
+    y1 += movingDistance;
+    y2 += movingDistance;
+
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1, y1);
+    processMTSync(mapper);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2, y2);
+    processMTSync(mapper);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(2U, motionArgs.pointerCount);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0], cookedX1,
+                                                movingDistance * 2 * mPointerMovementScale, 1, 0, 0,
+                                                0, 0, 0, 0, 0));
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[1], cookedX2,
+                                                movingDistance * 2 * mPointerMovementScale, 1, 0, 0,
+                                                0, 0, 0, 0, 0));
 }
 
 // --- JoystickInputMapperTest ---
