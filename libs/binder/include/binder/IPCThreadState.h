@@ -217,9 +217,8 @@ private:
             void                clearCaller();
 
     static  void                threadDestructor(void *st);
-    static  void                freeBuffer(Parcel* parcel,
-                                           const uint8_t* data, size_t dataSize,
-                                           const binder_size_t* objects, size_t objectsSize);
+    static void freeBuffer(const uint8_t* data, size_t dataSize, const binder_size_t* objects,
+                           size_t objectsSize);
     static  void                logExtendedError();
 
     const   sp<ProcessState>    mProcess;
