@@ -42,7 +42,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "gpuwork/gpu_work.h"
+#include "gpuwork/gpuWork.h"
 
 #define ONE_MS_IN_NS (10000000)
 
@@ -128,11 +128,11 @@ void GpuWork::initialize() {
     {
         std::lock_guard<std::mutex> lock(mMutex);
 
-        if (!getBpfMap("/sys/fs/bpf/map_gpu_work_gpu_work_map", &mGpuWorkMap)) {
+        if (!getBpfMap("/sys/fs/bpf/map_gpuWork_gpu_work_map", &mGpuWorkMap)) {
             return;
         }
 
-        if (!getBpfMap("/sys/fs/bpf/map_gpu_work_gpu_work_global_data", &mGpuWorkGlobalDataMap)) {
+        if (!getBpfMap("/sys/fs/bpf/map_gpuWork_gpu_work_global_data", &mGpuWorkGlobalDataMap)) {
             return;
         }
 
@@ -140,7 +140,7 @@ void GpuWork::initialize() {
     }
 
     // Attach the tracepoint.
-    if (!attachTracepoint("/sys/fs/bpf/prog_gpu_work_tracepoint_power_gpu_work_period", "power",
+    if (!attachTracepoint("/sys/fs/bpf/prog_gpuWork_tracepoint_power_gpu_work_period", "power",
                           "gpu_work_period")) {
         return;
     }

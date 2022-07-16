@@ -27,7 +27,7 @@
 #include <functional>
 #include <thread>
 
-#include "gpuwork/gpu_work.h"
+#include "gpuwork/gpuWork.h"
 
 namespace android {
 namespace gpuwork {
