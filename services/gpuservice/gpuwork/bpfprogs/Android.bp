@@ -17,8 +17,8 @@ package {
 }
 
 bpf {
-    name: "gpu_work.o",
-    srcs: ["gpu_work.c"],
+    name: "gpuWork.o",
+    srcs: ["gpuWork.c"],
     cflags: [
         "-Wall",
         "-Werror",
