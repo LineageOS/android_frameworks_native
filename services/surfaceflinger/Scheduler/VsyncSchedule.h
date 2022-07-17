@@ -20,6 +20,7 @@
 #include <string>
 
 #include <scheduler/Features.h>
+#include <scheduler/Time.h>
 
 namespace android::scheduler {
 
@@ -37,6 +38,9 @@ public:
     explicit VsyncSchedule(FeatureFlags);
     VsyncSchedule(VsyncSchedule&&);
     ~VsyncSchedule();
+
+    Period period() const;
+    TimePoint vsyncDeadlineAfter(TimePoint) const;
 
     // TODO(b/185535769): Hide behind API.
     const VsyncTracker& getTracker() const { return *mTracker; }

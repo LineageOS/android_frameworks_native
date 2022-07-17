@@ -132,7 +132,8 @@ public:
      *
      * Returns true when changing touch mode state.
      */
-    virtual bool setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission) = 0;
+    virtual bool setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission,
+                                int32_t displayId) = 0;
 
     /**
      * Sets the maximum allowed obscuring opacity by UID to propagate touches.

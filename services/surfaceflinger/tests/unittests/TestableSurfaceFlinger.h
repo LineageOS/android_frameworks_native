@@ -489,8 +489,6 @@ public:
     }
     auto& getCompositionEngine() const { return mFlinger->getCompositionEngine(); }
 
-    const auto& getCompositorTiming() const { return mFlinger->getBE().mCompositorTiming; }
-
     mock::FrameTracer* getFrameTracer() const {
         return static_cast<mock::FrameTracer*>(mFlinger->mFrameTracer.get());
     }

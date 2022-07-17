@@ -500,6 +500,11 @@ private:
         verify(*mFilteredEvent);
         mFilteredEvent = nullptr;
     }
+
+    bool isPerDisplayTouchModeEnabled() {
+        // TODO(b/198499018): Make this a regular property once per display touch mode is enabled
+        return false;
+    }
 };
 
 // --- InputDispatcherTest ---
@@ -3293,7 +3298,7 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
 
     SCOPED_TRACE("Disable touch mode");
     mDispatcher->setInTouchMode(false, windowInfo.ownerPid, windowInfo.ownerUid,
-                                /* hasPermission */ true);
+                                true /*hasPermission*/, ADISPLAY_ID_DEFAULT);
     window->consumeTouchModeEvent(false);
     window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
@@ -3307,7 +3312,7 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
 
     SCOPED_TRACE("Enable touch mode again");
     mDispatcher->setInTouchMode(true, windowInfo.ownerPid, windowInfo.ownerUid,
-                                /* hasPermission */ true);
+                                true /*hasPermission*/, ADISPLAY_ID_DEFAULT);
     window->consumeTouchModeEvent(true);
     window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
@@ -6715,14 +6720,15 @@ protected:
 
         // Set initial touch mode to InputDispatcher::kDefaultInTouchMode.
         if (mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode, WINDOW_PID,
-                                        WINDOW_UID, /* hasPermission */ true)) {
+                                        WINDOW_UID, true /*hasPermission*/, ADISPLAY_ID_DEFAULT)) {
             mWindow->consumeTouchModeEvent(InputDispatcher::kDefaultInTouchMode);
             mSecondWindow->consumeTouchModeEvent(InputDispatcher::kDefaultInTouchMode);
         }
     }
 
     void changeAndVerifyTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission) {
-        ASSERT_TRUE(mDispatcher->setInTouchMode(inTouchMode, pid, uid, hasPermission));
+        ASSERT_TRUE(mDispatcher->setInTouchMode(inTouchMode, pid, uid, hasPermission,
+                                                ADISPLAY_ID_DEFAULT));
         mWindow->consumeTouchModeEvent(inTouchMode);
         mSecondWindow->consumeTouchModeEvent(inTouchMode);
     }
@@ -6731,7 +6737,7 @@ protected:
 TEST_F(InputDispatcherTouchModeChangedTests, FocusedWindowCanChangeTouchMode) {
     const WindowInfo& windowInfo = *mWindow->getInfo();
     changeAndVerifyTouchMode(!InputDispatcher::kDefaultInTouchMode, windowInfo.ownerPid,
-                             windowInfo.ownerUid, /* hasPermission */ false);
+                             windowInfo.ownerUid, false /*hasPermission*/);
 }
 
 TEST_F(InputDispatcherTouchModeChangedTests, NonFocusedWindowOwnerCannotChangeTouchMode) {
@@ -6740,7 +6746,8 @@ TEST_F(InputDispatcherTouchModeChangedTests, NonFocusedWindowOwnerCannotChangeTo
     int32_t ownerUid = windowInfo.ownerUid;
     mWindow->setOwnerInfo(/* pid */ -1, /* uid */ -1);
     ASSERT_FALSE(mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode, ownerPid,
-                                             ownerUid, /* hasPermission */ false));
+                                             ownerUid, false /*hasPermission*/,
+                                             ADISPLAY_ID_DEFAULT));
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
 }
@@ -6751,14 +6758,14 @@ TEST_F(InputDispatcherTouchModeChangedTests, NonWindowOwnerMayChangeTouchModeOnP
     int32_t ownerUid = windowInfo.ownerUid;
     mWindow->setOwnerInfo(/* pid */ -1, /* uid */ -1);
     changeAndVerifyTouchMode(!InputDispatcher::kDefaultInTouchMode, ownerPid, ownerUid,
-                             /* hasPermission */ true);
+                             true /*hasPermission*/);
 }
 
 TEST_F(InputDispatcherTouchModeChangedTests, EventIsNotGeneratedIfNotChangingTouchMode) {
     const WindowInfo& windowInfo = *mWindow->getInfo();
     ASSERT_FALSE(mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode,
                                              windowInfo.ownerPid, windowInfo.ownerUid,
-                                             /* hasPermission */ true));
+                                             true /*hasPermission*/, ADISPLAY_ID_DEFAULT));
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
 }
@@ -6777,7 +6784,7 @@ TEST_F(InputDispatcherTouchModeChangedTests, CanChangeTouchModeWhenOwningLastInt
     const WindowInfo& windowInfo = *mWindow->getInfo();
     ASSERT_TRUE(mDispatcher->setInTouchMode(!InputDispatcher::kDefaultInTouchMode,
                                             windowInfo.ownerPid, windowInfo.ownerUid,
-                                            /* hasPermission= */ false));
+                                            false /*hasPermission*/, ADISPLAY_ID_DEFAULT));
 }
 
 class InputDispatcherSpyWindowTest : public InputDispatcherTest {

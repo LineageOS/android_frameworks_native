@@ -28,7 +28,6 @@
 #include <ftl/fake_guard.h>
 #include <gui/WindowInfo.h>
 #include <system/window.h>
-#include <ui/DisplayStatInfo.h>
 #include <utils/Timers.h>
 #include <utils/Trace.h>
 
@@ -172,8 +171,7 @@ impl::EventThread::ThrottleVsyncCallback Scheduler::makeThrottleVsyncCallback() 
 impl::EventThread::GetVsyncPeriodFunction Scheduler::makeGetVsyncPeriodFunction() const {
     return [this](uid_t uid) {
         const Fps refreshRate = holdRefreshRateConfigs()->getActiveMode()->getFps();
-        const auto currentPeriod =
-                mVsyncSchedule->getTracker().currentPeriod() ?: refreshRate.getPeriodNsecs();
+        const nsecs_t currentPeriod = mVsyncSchedule->period().ns() ?: refreshRate.getPeriodNsecs();
 
         const auto frameRate = getFrameRateOverride(uid);
         if (!frameRate.has_value()) {
@@ -359,12 +357,6 @@ void Scheduler::setDuration(ConnectionHandle handle, std::chrono::nanoseconds wo
         thread = mConnections[handle].thread.get();
     }
     thread->setDuration(workDuration, readyDuration);
-}
-
-DisplayStatInfo Scheduler::getDisplayStatInfo(nsecs_t now) {
-    const auto vsyncTime = mVsyncSchedule->getTracker().nextAnticipatedVSyncTimeFrom(now);
-    const auto vsyncPeriod = mVsyncSchedule->getTracker().currentPeriod();
-    return DisplayStatInfo{.vsyncTime = vsyncTime, .vsyncPeriod = vsyncPeriod};
 }
 
 ConnectionHandle Scheduler::enableVSyncInjection(bool enable) {
@@ -765,13 +757,6 @@ void Scheduler::setPreferredRefreshRateForUid(FrameRateOverride frameRateOverrid
     }
 
     mFrameRateOverrideMappings.setPreferredRefreshRateForUid(frameRateOverride);
-}
-
-std::chrono::steady_clock::time_point Scheduler::getPreviousVsyncFrom(
-        nsecs_t expectedPresentTime) const {
-    const auto presentTime = std::chrono::nanoseconds(expectedPresentTime);
-    const auto vsyncPeriod = std::chrono::nanoseconds(mVsyncSchedule->getTracker().currentPeriod());
-    return std::chrono::steady_clock::time_point(presentTime - vsyncPeriod);
 }
 
 } // namespace android::scheduler

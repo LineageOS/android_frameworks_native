@@ -62,7 +62,6 @@
 #include <mutex>
 #include <sstream>
 
-#include "BufferLayer.h"
 #include "Colorizer.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWComposer.h"
@@ -154,9 +153,9 @@ Layer::Layer(const LayerCreationArgs& args)
         mDrawingState.color.g = -1.0_hf;
         mDrawingState.color.b = -1.0_hf;
     }
-    CompositorTiming compositorTiming;
-    args.flinger->getCompositorTiming(&compositorTiming);
-    mFrameTracker.setDisplayRefreshPeriod(compositorTiming.interval);
+
+    mFrameTracker.setDisplayRefreshPeriod(
+            args.flinger->mScheduler->getVsyncPeriodFromRefreshRateConfigs());
 
     mCallingPid = args.callingPid;
     mCallingUid = args.callingUid;

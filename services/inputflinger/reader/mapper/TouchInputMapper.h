@@ -527,7 +527,9 @@ private:
     float mPointerXZoomScale;
     float mPointerYZoomScale;
 
-    // The maximum swipe width.
+    // The maximum swipe width between pointers to detect a swipe gesture
+    // in the number of pixels.Touches that are wider than this are translated
+    // into freeform gestures.
     float mPointerGestureMaxSwipeWidth;
 
     struct PointerDistanceHeapElement {

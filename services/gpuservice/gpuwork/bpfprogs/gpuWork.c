@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "include/gpuwork/gpu_work.h"
+#include "include/gpuwork/gpuWork.h"
 
 #include <linux/bpf.h>
 #include <stddef.h>

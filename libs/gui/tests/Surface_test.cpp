@@ -1087,20 +1087,30 @@ class GetFrameTimestampsTest : public ::testing::Test {
 protected:
     struct FenceAndFenceTime {
         explicit FenceAndFenceTime(FenceToFenceTimeMap& fenceMap)
-           : mFence(new Fence),
-             mFenceTime(fenceMap.createFenceTimeForTest(mFence)) {}
-        sp<Fence> mFence { nullptr };
-        std::shared_ptr<FenceTime> mFenceTime { nullptr };
+              : mFenceTime(fenceMap.createFenceTimeForTest(mFence)) {}
+
+        sp<Fence> mFence = sp<Fence>::make();
+        std::shared_ptr<FenceTime> mFenceTime;
     };
+
+    static CompositorTiming makeCompositorTiming(nsecs_t deadline = 1'000'000'000,
+                                                 nsecs_t interval = 16'666'667,
+                                                 nsecs_t presentLatency = 50'000'000) {
+        CompositorTiming timing;
+        timing.deadline = deadline;
+        timing.interval = interval;
+        timing.presentLatency = presentLatency;
+        return timing;
+    }
 
     struct RefreshEvents {
         RefreshEvents(FenceToFenceTimeMap& fenceMap, nsecs_t refreshStart)
-          : mFenceMap(fenceMap),
-            kCompositorTiming(
-                {refreshStart, refreshStart + 1, refreshStart + 2 }),
-            kStartTime(refreshStart + 3),
-            kGpuCompositionDoneTime(refreshStart + 4),
-            kPresentTime(refreshStart + 5) {}
+              : mFenceMap(fenceMap),
+                kCompositorTiming(
+                        makeCompositorTiming(refreshStart, refreshStart + 1, refreshStart + 2)),
+                kStartTime(refreshStart + 3),
+                kGpuCompositionDoneTime(refreshStart + 4),
+                kPresentTime(refreshStart + 5) {}
 
         void signalPostCompositeFences() {
             mFenceMap.signalAllForTest(
@@ -1110,8 +1120,8 @@ protected:
 
         FenceToFenceTimeMap& mFenceMap;
 
-        FenceAndFenceTime mGpuCompositionDone { mFenceMap };
-        FenceAndFenceTime mPresent { mFenceMap };
+        FenceAndFenceTime mGpuCompositionDone{mFenceMap};
+        FenceAndFenceTime mPresent{mFenceMap};
 
         const CompositorTiming kCompositorTiming;
 
@@ -1377,11 +1387,7 @@ TEST_F(GetFrameTimestampsTest, DefaultDisabled) {
 // This test verifies that the frame timestamps are retrieved if explicitly
 // enabled via native_window_enable_frame_timestamps.
 TEST_F(GetFrameTimestampsTest, EnabledSimple) {
-    CompositorTiming initialCompositorTiming {
-        1000000000, // 1s deadline
-        16666667, // 16ms interval
-        50000000, // 50ms present latency
-    };
+    const CompositorTiming initialCompositorTiming = makeCompositorTiming();
     mCfeh->initializeCompositorTiming(initialCompositorTiming);
 
     enableFrameTimestamps();
@@ -1520,11 +1526,7 @@ TEST_F(GetFrameTimestampsTest, SnapToNextTickOverflow) {
 // This verifies the compositor timing is updated by refresh events
 // and piggy backed on a queue, dequeue, and enabling of timestamps..
 TEST_F(GetFrameTimestampsTest, CompositorTimingUpdatesBasic) {
-    CompositorTiming initialCompositorTiming {
-        1000000000, // 1s deadline
-        16666667, // 16ms interval
-        50000000, // 50ms present latency
-    };
+    const CompositorTiming initialCompositorTiming = makeCompositorTiming();
     mCfeh->initializeCompositorTiming(initialCompositorTiming);
 
     enableFrameTimestamps();
@@ -1605,11 +1607,7 @@ TEST_F(GetFrameTimestampsTest, CompositorTimingUpdatesBasic) {
 // This verifies the compositor deadline properly snaps to the the next
 // deadline based on the current time.
 TEST_F(GetFrameTimestampsTest, CompositorTimingDeadlineSnaps) {
-    CompositorTiming initialCompositorTiming {
-        1000000000, // 1s deadline
-        16666667, // 16ms interval
-        50000000, // 50ms present latency
-    };
+    const CompositorTiming initialCompositorTiming = makeCompositorTiming();
     mCfeh->initializeCompositorTiming(initialCompositorTiming);
 
     enableFrameTimestamps();

@@ -258,7 +258,9 @@ void RpcState::clear() {
     mTerminated = true;
     for (auto& [address, node] : mNodeForAddress) {
         sp<IBinder> binder = node.binder.promote();
-        LOG_ALWAYS_FATAL_IF(binder == nullptr, "Binder %p expected to be owned.", binder.get());
+        LOG_ALWAYS_FATAL_IF(binder == nullptr,
+                            "Binder expected to be owned with address: %" PRIu64 " %s", address,
+                            node.toString().c_str());
 
         if (node.sentRef != nullptr) {
             tempHoldBinder.push_back(node.sentRef);
@@ -275,29 +277,32 @@ void RpcState::dumpLocked() {
     ALOGE("DUMP OF RpcState %p", this);
     ALOGE("DUMP OF RpcState (%zu nodes)", mNodeForAddress.size());
     for (const auto& [address, node] : mNodeForAddress) {
-        sp<IBinder> binder = node.binder.promote();
-
-        const char* desc;
-        if (binder) {
-            if (binder->remoteBinder()) {
-                if (binder->remoteBinder()->isRpcBinder()) {
-                    desc = "(rpc binder proxy)";
-                } else {
-                    desc = "(binder proxy)";
-                }
-            } else {
-                desc = "(local binder)";
-            }
-        } else {
-            desc = "(null)";
-        }
-
-        ALOGE("- BINDER NODE: %p times sent:%zu times recd: %zu a: %" PRIu64 " type: %s",
-              node.binder.unsafe_get(), node.timesSent, node.timesRecd, address, desc);
+        ALOGE("- address: %" PRIu64 " %s", address, node.toString().c_str());
     }
     ALOGE("END DUMP OF RpcState");
 }
 
+std::string RpcState::BinderNode::toString() const {
+    sp<IBinder> strongBinder = this->binder.promote();
+
+    const char* desc;
+    if (strongBinder) {
+        if (strongBinder->remoteBinder()) {
+            if (strongBinder->remoteBinder()->isRpcBinder()) {
+                desc = "(rpc binder proxy)";
+            } else {
+                desc = "(binder proxy)";
+            }
+        } else {
+            desc = "(local binder)";
+        }
+    } else {
+        desc = "(not promotable)";
+    }
+
+    return StringPrintf("node{%p times sent: %zu times recd: %zu type: %s}",
+                        this->binder.unsafe_get(), this->timesSent, this->timesRecd, desc);
+}
 
 RpcState::CommandData::CommandData(size_t size) : mSize(size) {
     // The maximum size for regular binder is 1MB for all concurrent
@@ -581,13 +586,12 @@ status_t RpcState::transactAddress(const sp<RpcSession::RpcConnection>& connecti
     return waitForReply(connection, session, reply);
 }
 
-static void cleanup_reply_data(Parcel* p, const uint8_t* data, size_t dataSize,
-                               const binder_size_t* objects, size_t objectsCount) {
-    (void)p;
+static void cleanup_reply_data(const uint8_t* data, size_t dataSize, const binder_size_t* objects,
+                               size_t objectsCount) {
     delete[] const_cast<uint8_t*>(data);
     (void)dataSize;
     LOG_ALWAYS_FATAL_IF(objects != nullptr);
-    LOG_ALWAYS_FATAL_IF(objectsCount != 0, "%zu objects remaining", objectsCount);
+    (void)objectsCount;
 }
 
 status_t RpcState::waitForReply(const sp<RpcSession::RpcConnection>& connection,
@@ -643,14 +647,21 @@ status_t RpcState::waitForReply(const sp<RpcSession::RpcConnection>& connection,
     Span<const uint32_t> objectTableSpan;
     if (session->getProtocolVersion().value() >=
         RPC_WIRE_PROTOCOL_VERSION_RPC_HEADER_FEATURE_EXPLICIT_PARCEL_SIZE) {
-        Span<const uint8_t> objectTableBytes = parcelSpan.splitOff(rpcReply.parcelDataSize);
+        std::optional<Span<const uint8_t>> objectTableBytes =
+                parcelSpan.splitOff(rpcReply.parcelDataSize);
+        if (!objectTableBytes.has_value()) {
+            ALOGE("Parcel size larger than available bytes: %" PRId32 " vs %zu. Terminating!",
+                  rpcReply.parcelDataSize, parcelSpan.byteSize());
+            (void)session->shutdownAndWait(false);
+            return BAD_VALUE;
+        }
         std::optional<Span<const uint32_t>> maybeSpan =
-                objectTableBytes.reinterpret<const uint32_t>();
+                objectTableBytes->reinterpret<const uint32_t>();
         if (!maybeSpan.has_value()) {
             ALOGE("Bad object table size inferred from RpcWireReply. Saw bodySize=%" PRId32
                   " sizeofHeader=%zu parcelSize=%" PRId32 " objectTableBytesSize=%zu. Terminating!",
                   command.bodySize, rpcReplyWireSize, rpcReply.parcelDataSize,
-                  objectTableBytes.size);
+                  objectTableBytes->size);
             return BAD_VALUE;
         }
         objectTableSpan = *maybeSpan;
@@ -787,9 +798,8 @@ status_t RpcState::processTransact(
                                    std::move(ancillaryFds));
 }
 
-static void do_nothing_to_transact_data(Parcel* p, const uint8_t* data, size_t dataSize,
+static void do_nothing_to_transact_data(const uint8_t* data, size_t dataSize,
                                         const binder_size_t* objects, size_t objectsCount) {
-    (void)p;
     (void)data;
     (void)dataSize;
     (void)objects;
@@ -893,15 +903,22 @@ processTransactInternalTailCall:
         Span<const uint32_t> objectTableSpan;
         if (session->getProtocolVersion().value() >
             RPC_WIRE_PROTOCOL_VERSION_RPC_HEADER_FEATURE_EXPLICIT_PARCEL_SIZE) {
-            Span<const uint8_t> objectTableBytes = parcelSpan.splitOff(transaction->parcelDataSize);
+            std::optional<Span<const uint8_t>> objectTableBytes =
+                    parcelSpan.splitOff(transaction->parcelDataSize);
+            if (!objectTableBytes.has_value()) {
+                ALOGE("Parcel size (%" PRId32 ") greater than available bytes (%zu). Terminating!",
+                      transaction->parcelDataSize, parcelSpan.byteSize());
+                (void)session->shutdownAndWait(false);
+                return BAD_VALUE;
+            }
             std::optional<Span<const uint32_t>> maybeSpan =
-                    objectTableBytes.reinterpret<const uint32_t>();
+                    objectTableBytes->reinterpret<const uint32_t>();
             if (!maybeSpan.has_value()) {
                 ALOGE("Bad object table size inferred from RpcWireTransaction. Saw bodySize=%zu "
                       "sizeofHeader=%zu parcelSize=%" PRId32
                       " objectTableBytesSize=%zu. Terminating!",
                       transactionData.size(), sizeof(RpcWireTransaction),
-                      transaction->parcelDataSize, objectTableBytes.size);
+                      transaction->parcelDataSize, objectTableBytes->size);
                 return BAD_VALUE;
             }
             objectTableSpan = *maybeSpan;

@@ -972,18 +972,15 @@ status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
                             freeBuffer);
                     } else {
                         err = *reinterpret_cast<const status_t*>(tr.data.ptr.buffer);
-                        freeBuffer(nullptr,
-                            reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer),
-                            tr.data_size,
-                            reinterpret_cast<const binder_size_t*>(tr.data.ptr.offsets),
-                            tr.offsets_size/sizeof(binder_size_t));
+                        freeBuffer(reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer),
+                                   tr.data_size,
+                                   reinterpret_cast<const binder_size_t*>(tr.data.ptr.offsets),
+                                   tr.offsets_size / sizeof(binder_size_t));
                     }
                 } else {
-                    freeBuffer(nullptr,
-                        reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer),
-                        tr.data_size,
-                        reinterpret_cast<const binder_size_t*>(tr.data.ptr.offsets),
-                        tr.offsets_size/sizeof(binder_size_t));
+                    freeBuffer(reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer), tr.data_size,
+                               reinterpret_cast<const binder_size_t*>(tr.data.ptr.offsets),
+                               tr.offsets_size / sizeof(binder_size_t));
                     continue;
                 }
             }
@@ -1473,17 +1470,13 @@ void IPCThreadState::logExtendedError() {
              ee.id, ee.command, ee.param);
 }
 
-void IPCThreadState::freeBuffer(Parcel* parcel, const uint8_t* data,
-                                size_t /*dataSize*/,
-                                const binder_size_t* /*objects*/,
-                                size_t /*objectsSize*/)
-{
+void IPCThreadState::freeBuffer(const uint8_t* data, size_t /*dataSize*/,
+                                const binder_size_t* /*objects*/, size_t /*objectsSize*/) {
     //ALOGI("Freeing parcel %p", &parcel);
     IF_LOG_COMMANDS() {
         alog << "Writing BC_FREE_BUFFER for " << data << endl;
     }
     ALOG_ASSERT(data != NULL, "Called with NULL data");
-    if (parcel != nullptr) parcel->closeFileDescriptors();
     IPCThreadState* state = self();
     state->mOut.writeInt32(BC_FREE_BUFFER);
     state->mOut.writePointer((uintptr_t)data);
