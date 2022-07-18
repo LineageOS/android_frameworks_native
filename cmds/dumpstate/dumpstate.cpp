@@ -1508,7 +1508,6 @@ static void DumpCheckins(int out_fd = STDOUT_FILENO) {
     dprintf(out_fd, "========================================================\n");
 
     RunDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"}, out_fd);
-    RunDumpsys("CHECKIN MEMINFO", {"meminfo", "--checkin"}, out_fd);
     RunDumpsys("CHECKIN NETSTATS", {"netstats", "--checkin"}, out_fd);
     RunDumpsys("CHECKIN PROCSTATS", {"procstats", "-c"}, out_fd);
     RunDumpsys("CHECKIN USAGESTATS", {"usagestats", "-c"}, out_fd);
