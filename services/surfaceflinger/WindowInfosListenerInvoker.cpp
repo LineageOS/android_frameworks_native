@@ -111,7 +111,7 @@ void WindowInfosListenerInvoker::windowInfosChanged(
 
         auto status = listener->onWindowInfosChanged(windowInfos, displayInfos,
                                                      windowInfosReportedListener);
-        if (!status.isOk()) {
+        if (windowInfosReportedListener && !status.isOk()) {
             windowInfosReportedListener->onWindowInfosReported();
         }
     }
