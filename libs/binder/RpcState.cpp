@@ -244,33 +244,31 @@ void RpcState::clear() {
                             "New state should be impossible after terminating!");
         return;
     }
+    mTerminated = true;
 
     if (SHOULD_LOG_RPC_DETAIL) {
         ALOGE("RpcState::clear()");
         dumpLocked();
     }
 
-    // if the destructor of a binder object makes another RPC call, then calling
-    // decStrong could deadlock. So, we must hold onto these binders until
-    // mNodeMutex is no longer taken.
-    std::vector<sp<IBinder>> tempHoldBinder;
-
-    mTerminated = true;
+    // invariants
     for (auto& [address, node] : mNodeForAddress) {
-        sp<IBinder> binder = node.binder.promote();
-        LOG_ALWAYS_FATAL_IF(binder == nullptr,
-                            "Binder expected to be owned with address: %" PRIu64 " %s", address,
-                            node.toString().c_str());
-
-        if (node.sentRef != nullptr) {
-            tempHoldBinder.push_back(node.sentRef);
+        bool guaranteedHaveBinder = node.timesSent > 0;
+        if (guaranteedHaveBinder) {
+            LOG_ALWAYS_FATAL_IF(node.sentRef == nullptr,
+                                "Binder expected to be owned with address: %" PRIu64 " %s", address,
+                                node.toString().c_str());
         }
     }
 
-    mNodeForAddress.clear();
+    // if the destructor of a binder object makes another RPC call, then calling
+    // decStrong could deadlock. So, we must hold onto these binders until
+    // mNodeMutex is no longer taken.
+    auto temp = std::move(mNodeForAddress);
+    mNodeForAddress.clear(); // RpcState isn't reusable, but for future/explicit
 
     _l.unlock();
-    tempHoldBinder.clear(); // explicit
+    temp.clear(); // explicit
 }
 
 void RpcState::dumpLocked() {
