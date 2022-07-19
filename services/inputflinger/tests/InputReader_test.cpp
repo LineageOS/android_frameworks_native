@@ -6251,6 +6251,36 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenAbsPressureIsPresent_HoversIfItsV
             toDisplayX(150), toDisplayY(250), 0, 0, 0, 0, 0, 0, 0, 0));
 }
 
+TEST_F(SingleTouchInputMapperTest,
+       Process_WhenViewportDisplayIdChanged_TouchIsCanceledAndDeviceIsReset) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareButtons();
+    prepareAxes(POSITION);
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    NotifyMotionArgs motionArgs;
+
+    // Down.
+    int32_t x = 100;
+    int32_t y = 200;
+    processDown(mapper, x, y);
+    processSync(mapper);
+
+    // We should receive a down event
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+
+    // Change display id
+    clearViewports();
+    prepareSecondaryDisplay(ViewportType::INTERNAL);
+
+    // We should receive a cancel event
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_CANCEL, motionArgs.action);
+    // Then receive reset called
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());
+}
+
 // --- MultiTouchInputMapperTest ---
 
 class MultiTouchInputMapperTest : public TouchInputMapperTest {
@@ -8064,6 +8094,10 @@ TEST_F(MultiTouchInputMapperTest, VideoFrames_WhenNotOrientationAware_AreRotated
         // window's coordinate space.
         frames[0].rotate(getInverseRotation(orientation));
         ASSERT_EQ(frames, motionArgs.videoFrames);
+
+        // Release finger.
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     }
 }
 
