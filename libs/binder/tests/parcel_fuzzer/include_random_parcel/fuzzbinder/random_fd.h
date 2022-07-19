@@ -19,10 +19,14 @@
 #include <android-base/unique_fd.h>
 #include <fuzzer/FuzzedDataProvider.h>
 
+#include <vector>
+
 namespace android {
 
 // always valid or aborts
 // get a random FD for use in fuzzing, of a few different specific types
-base::unique_fd getRandomFd(FuzzedDataProvider* provider);
+//
+// may return multiple FDs (e.g. pipe), but will always return at least one
+std::vector<base::unique_fd> getRandomFds(FuzzedDataProvider* provider);
 
 } // namespace android
