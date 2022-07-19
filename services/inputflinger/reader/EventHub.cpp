@@ -1261,7 +1261,8 @@ static std::string generateDescriptor(InputDeviceIdentifier& identifier) {
     if (!identifier.uniqueId.empty()) {
         rawDescriptor += "uniqueId:";
         rawDescriptor += identifier.uniqueId;
-    } else if (identifier.nonce != 0) {
+    }
+    if (identifier.nonce != 0) {
         rawDescriptor += StringPrintf("nonce:%04x", identifier.nonce);
     }
 
@@ -1289,16 +1290,20 @@ void EventHub::assignDescriptorLocked(InputDeviceIdentifier& identifier) {
     // of Android. In practice we sometimes get devices that cannot be uniquely
     // identified. In this case we enforce uniqueness between connected devices.
     // Ideally, we also want the descriptor to be short and relatively opaque.
+    // Note that we explicitly do not use the path or location for external devices
+    // as their path or location will change as they are plugged/unplugged or moved
+    // to different ports. We do fallback to using name and location in the case of
+    // internal devices which are detected by the vendor and product being 0 in
+    // generateDescriptor. If two identical descriptors are detected we will fallback
+    // to using a 'nonce' and incrementing it until the new descriptor no longer has
+    // a match with any existing descriptors.
 
     identifier.nonce = 0;
     std::string rawDescriptor = generateDescriptor(identifier);
-    if (identifier.uniqueId.empty()) {
-        // If it didn't have a unique id check for conflicts and enforce
-        // uniqueness if necessary.
-        while (getDeviceByDescriptorLocked(identifier.descriptor) != nullptr) {
-            identifier.nonce++;
-            rawDescriptor = generateDescriptor(identifier);
-        }
+    // Enforce that the generated descriptor is unique.
+    while (hasDeviceWithDescriptorLocked(identifier.descriptor)) {
+        identifier.nonce++;
+        rawDescriptor = generateDescriptor(identifier);
     }
     ALOGV("Created descriptor: raw=%s, cooked=%s", rawDescriptor.c_str(),
           identifier.descriptor.c_str());
@@ -1373,13 +1378,22 @@ std::vector<int32_t> EventHub::getVibratorIds(int32_t deviceId) {
     return vibrators;
 }
 
-EventHub::Device* EventHub::getDeviceByDescriptorLocked(const std::string& descriptor) const {
-    for (const auto& [id, device] : mDevices) {
+/**
+ * Checks both mDevices and mOpeningDevices for a device with the descriptor passed.
+ */
+bool EventHub::hasDeviceWithDescriptorLocked(const std::string& descriptor) const {
+    for (const auto& device : mOpeningDevices) {
         if (descriptor == device->identifier.descriptor) {
-            return device.get();
+            return true;
         }
     }
-    return nullptr;
+
+    for (const auto& [id, device] : mDevices) {
+        if (descriptor == device->identifier.descriptor) {
+            return true;
+        }
+    }
+    return false;
 }
 
 EventHub::Device* EventHub::getDeviceLocked(int32_t deviceId) const {
