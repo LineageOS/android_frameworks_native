@@ -64,7 +64,11 @@ void CursorMotionAccumulator::finishSync() {
 CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext)
       : InputMapper(deviceContext) {}
 
-CursorInputMapper::~CursorInputMapper() {}
+CursorInputMapper::~CursorInputMapper() {
+    if (mPointerController != nullptr) {
+        mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
+    }
+}
 
 uint32_t CursorInputMapper::getSources() {
     return mSource;
