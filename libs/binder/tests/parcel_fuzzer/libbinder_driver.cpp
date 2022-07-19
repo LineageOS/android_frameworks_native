@@ -44,7 +44,7 @@ void fuzzService(const sp<IBinder>& binder, FuzzedDataProvider&& provider) {
 
         std::vector<uint8_t> subData = provider.ConsumeBytes<uint8_t>(
                 provider.ConsumeIntegralInRange<size_t>(0, provider.remaining_bytes()));
-        fillRandomParcel(&data, FuzzedDataProvider(subData.data(), subData.size()), options);
+        fillRandomParcel(&data, FuzzedDataProvider(subData.data(), subData.size()), &options);
 
         Parcel reply;
         (void)target->transact(code, data, &reply, flags);
