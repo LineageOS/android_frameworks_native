@@ -390,6 +390,10 @@ void TouchInputMapper::configure(nsecs_t when, const InputReaderConfiguration* c
     }
 
     if (changes && resetNeeded) {
+        // If device was reset, cancel touch event and update touch spot state.
+        cancelTouch(mCurrentRawState.when, mCurrentRawState.readTime);
+        mCurrentCookedState.clear();
+        updateTouchSpots();
         // Send reset, unless this is the first time the device has been configured,
         // in which case the reader will call reset itself after all mappers are ready.
         NotifyDeviceResetArgs args(getContext()->getNextId(), when, getDeviceId());
@@ -941,6 +945,7 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
     bool skipViewportUpdate = false;
     if (viewportChanged) {
         const bool viewportOrientationChanged = mViewport.orientation != newViewport->orientation;
+        const bool viewportDisplayIdChanged = mViewport.displayId != newViewport->displayId;
         mViewport = *newViewport;
 
         if (mDeviceMode == DeviceMode::DIRECT || mDeviceMode == DeviceMode::POINTER) {
@@ -1016,8 +1021,9 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
                     : getInverseRotation(mViewport.orientation);
             // For orientation-aware devices that work in the un-rotated coordinate space, the
             // viewport update should be skipped if it is only a change in the orientation.
-            skipViewportUpdate = mParameters.orientationAware && mDisplayWidth == oldDisplayWidth &&
-                    mDisplayHeight == oldDisplayHeight && viewportOrientationChanged;
+            skipViewportUpdate = !viewportDisplayIdChanged && mParameters.orientationAware &&
+                    mDisplayWidth == oldDisplayWidth && mDisplayHeight == oldDisplayHeight &&
+                    viewportOrientationChanged;
 
             // Apply the input device orientation for the device.
             mInputDeviceOrientation =
@@ -1926,6 +1932,10 @@ void TouchInputMapper::dispatchVirtualKey(nsecs_t when, nsecs_t readTime, uint32
 }
 
 void TouchInputMapper::abortTouches(nsecs_t when, nsecs_t readTime, uint32_t policyFlags) {
+    if (mCurrentMotionAborted) {
+        // Current motion event was already aborted.
+        return;
+    }
     BitSet32 currentIdBits = mCurrentCookedState.cookedPointerData.touchingIdBits;
     if (!currentIdBits.isEmpty()) {
         int32_t metaState = getContext()->getGlobalMetaState();
