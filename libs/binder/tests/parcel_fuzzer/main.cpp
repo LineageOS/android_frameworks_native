@@ -35,17 +35,22 @@
 #include <sys/time.h>
 
 using android::fillRandomParcel;
+using android::RandomParcelOptions;
 using android::sp;
 using android::base::HexString;
 
-void fillRandomParcel(::android::hardware::Parcel* p, FuzzedDataProvider&& provider) {
+void fillRandomParcel(::android::hardware::Parcel* p, FuzzedDataProvider&& provider,
+                      RandomParcelOptions* options) {
     // TODO: functionality to create random parcels for libhwbinder parcels
+    (void)options;
+
     std::vector<uint8_t> input = provider.ConsumeRemainingBytes<uint8_t>();
     p->setData(input.data(), input.size());
 }
-static void fillRandomParcel(NdkParcelAdapter* p, FuzzedDataProvider&& provider) {
+static void fillRandomParcel(NdkParcelAdapter* p, FuzzedDataProvider&& provider,
+                             RandomParcelOptions* options) {
     // fill underlying parcel using functions to fill random libbinder parcel
-    fillRandomParcel(p->parcel(), std::move(provider));
+    fillRandomParcel(p->parcel(), std::move(provider), options);
 }
 
 template <typename P, typename B>
@@ -55,9 +60,11 @@ void doTransactFuzz(const char* backend, const sp<B>& binder, FuzzedDataProvider
 
     FUZZ_LOG() << "backend: " << backend;
 
+    RandomParcelOptions options;
+
     P reply;
     P data;
-    fillRandomParcel(&data, std::move(provider));
+    fillRandomParcel(&data, std::move(provider), &options);
     (void)binder->transact(code, data, &reply, flag);
 }
 
@@ -73,8 +80,10 @@ void doReadFuzz(const char* backend, const std::vector<ParcelRead<P>>& reads,
     std::vector<uint8_t> instructions = provider.ConsumeBytes<uint8_t>(
             provider.ConsumeIntegralInRange<size_t>(0, maxInstructions));
 
+    RandomParcelOptions options;
+
     P p;
-    fillRandomParcel(&p, std::move(provider));
+    fillRandomParcel(&p, std::move(provider), &options);
 
     // since we are only using a byte to index
     CHECK(reads.size() <= 255) << reads.size();
@@ -103,9 +112,12 @@ void doAppendFuzz(const char* backend, FuzzedDataProvider&& provider) {
     std::vector<uint8_t> bytes = provider.ConsumeBytes<uint8_t>(
             provider.ConsumeIntegralInRange<size_t>(0, provider.remaining_bytes()));
 
+    // same options so that FDs and binders could be shared in both Parcels
+    RandomParcelOptions options;
+
     P p0, p1;
-    fillRandomParcel(&p0, FuzzedDataProvider(bytes.data(), bytes.size()));
-    fillRandomParcel(&p1, std::move(provider));
+    fillRandomParcel(&p0, FuzzedDataProvider(bytes.data(), bytes.size()), &options);
+    fillRandomParcel(&p1, std::move(provider), &options);
 
     FUZZ_LOG() << "backend: " << backend;
     FUZZ_LOG() << "start: " << start << " len: " << len;
