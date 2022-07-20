@@ -33,10 +33,13 @@ struct RandomParcelOptions {
 /**
  * Fill parcel data, including some random binder objects and FDs
  *
+ * May insert additional FDs/binders if they own data related to the Parcel (e.g. the other
+ * end of a pipe).
+ *
  * p - the Parcel to fill
  * provider - takes ownership and completely consumes provider
  * writeHeader - optional function to write a specific header once the format of the parcel is
  *     picked (for instance, to write an interface header)
  */
-void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider, const RandomParcelOptions& = {});
+void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider, RandomParcelOptions* options);
 } // namespace android
