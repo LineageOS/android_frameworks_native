@@ -297,6 +297,8 @@ enum class MotionClassification : uint8_t {
  */
 const char* motionClassificationToString(MotionClassification classification);
 
+const char* motionToolTypeToString(int32_t toolType);
+
 /**
  * Portion of FrameMetrics timeline of interest to input code.
  */
