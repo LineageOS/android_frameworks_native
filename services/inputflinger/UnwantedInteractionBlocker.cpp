@@ -516,7 +516,9 @@ class AndroidPalmRejectionModel : public ::ui::OneDeviceTrainNeuralStylusPalmDet
 public:
     AndroidPalmRejectionModel()
           : ::ui::OneDeviceTrainNeuralStylusPalmDetectionFilterModel(/*default version*/ "",
-                                                                     std::vector<float>()) {}
+                                                                     std::vector<float>()) {
+        config_.resample_touch = true;
+    }
 };
 
 PalmRejector::PalmRejector(const AndroidPalmFilterDeviceInfo& info,
