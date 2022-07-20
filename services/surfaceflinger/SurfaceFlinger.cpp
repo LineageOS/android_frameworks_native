@@ -3753,6 +3753,8 @@ int SurfaceFlinger::flushPendingTransactionQueues(
 
             transactions.emplace_back(std::move(transaction));
             transactionQueue.pop();
+            mPendingTransactionCount--;
+            ATRACE_INT("TransactionQueue", mPendingTransactionCount.load());
         }
 
         if (transactionQueue.empty()) {
@@ -3776,8 +3778,6 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
     {
         Mutex::Autolock _l(mStateLock);
         {
-            Mutex::Autolock _l(mQueueLock);
-
             int lastTransactionsPendingBarrier = 0;
             int transactionsPendingBarrier = 0;
             // First collect transactions from the pending transaction queues.
@@ -3790,8 +3790,12 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
             // Second, collect transactions from the transaction queue.
             // Here as well we are not allowing unsignaled buffers for the same
             // reason as above.
-            while (!mTransactionQueue.empty()) {
-                auto& transaction = mTransactionQueue.front();
+            while (!mLocklessTransactionQueue.isEmpty()) {
+                auto maybeTransaction = mLocklessTransactionQueue.pop();
+                if (!maybeTransaction.has_value()) {
+                    break;
+                }
+                auto transaction = maybeTransaction.value();
                 const bool pendingTransactions =
                         mPendingTransactionQueues.find(transaction.applyToken) !=
                         mPendingTransactionQueues.end();
@@ -3829,9 +3833,9 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
                         }
                     });
                     transactions.emplace_back(std::move(transaction));
+                    mPendingTransactionCount--;
+                    ATRACE_INT("TransactionQueue", mPendingTransactionCount.load());
                 }
-                mTransactionQueue.pop_front();
-                ATRACE_INT("TransactionQueue", mTransactionQueue.size());
             }
 
             // Transactions with a buffer pending on a barrier may be on a different applyToken
@@ -3892,8 +3896,7 @@ bool SurfaceFlinger::applyTransactions(std::vector<TransactionState>& transactio
 }
 
 bool SurfaceFlinger::transactionFlushNeeded() {
-    Mutex::Autolock _l(mQueueLock);
-    return !mPendingTransactionQueues.empty() || !mTransactionQueue.empty();
+    return !mPendingTransactionQueues.empty() || !mLocklessTransactionQueue.isEmpty();
 }
 
 bool SurfaceFlinger::frameIsEarly(nsecs_t expectedPresentTime, int64_t vsyncId) const {
@@ -4060,17 +4063,15 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(TransactionState& transaction
 
 void SurfaceFlinger::queueTransaction(TransactionState& state) {
     state.queueTime = systemTime();
-
-    Mutex::Autolock lock(mQueueLock);
-
     // Generate a CountDownLatch pending state if this is a synchronous transaction.
     if (state.flags & eSynchronous) {
         state.transactionCommittedSignal =
                 std::make_shared<CountDownLatch>(CountDownLatch::eSyncTransaction);
     }
 
-    mTransactionQueue.emplace_back(state);
-    ATRACE_INT("TransactionQueue", mTransactionQueue.size());
+    mLocklessTransactionQueue.push(state);
+    mPendingTransactionCount++;
+    ATRACE_INT("TransactionQueue", mPendingTransactionCount.load());
 
     const auto schedule = [](uint32_t flags) {
         if (flags & eEarlyWakeupEnd) return TransactionSchedule::EarlyEnd;

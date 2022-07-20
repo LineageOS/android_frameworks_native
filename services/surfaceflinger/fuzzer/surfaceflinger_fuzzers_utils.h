@@ -727,7 +727,7 @@ public:
         return mFlinger->setPowerModeInternal(display, mode);
     }
 
-    auto &getTransactionQueue() { return mFlinger->mTransactionQueue; }
+    auto &getTransactionQueue() { return mFlinger->mLocklessTransactionQueue; }
     auto &getPendingTransactionQueue() { return mFlinger->mPendingTransactionQueues; }
 
     auto setTransactionState(

@@ -65,6 +65,7 @@
 #include "FlagManager.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
+#include "LocklessQueue.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
@@ -762,13 +763,13 @@ private:
             std::vector<TransactionState>& transactions,
             std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
             std::unordered_set<sp<IBinder>, SpHash<IBinder>>& applyTokensWithUnsignaledTransactions,
-            bool tryApplyUnsignaled) REQUIRES(mStateLock, mQueueLock);
+            bool tryApplyUnsignaled) REQUIRES(mStateLock);
 
     int flushUnsignaledPendingTransactionQueues(
             std::vector<TransactionState>& transactions,
             std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
             std::unordered_set<sp<IBinder>, SpHash<IBinder>>& applyTokensWithUnsignaledTransactions)
-            REQUIRES(mStateLock, mQueueLock);
+            REQUIRES(mStateLock);
 
     uint32_t setClientStateLocked(const FrameTimelineInfo&, ComposerState&,
                                   int64_t desiredPresentTime, bool isAutoTimestamp,
@@ -1098,7 +1099,7 @@ private:
     status_t CheckTransactCodeCredentials(uint32_t code);
 
     // Add transaction to the Transaction Queue
-    void queueTransaction(TransactionState& state) EXCLUDES(mQueueLock);
+    void queueTransaction(TransactionState& state);
     void waitForSynchronousTransaction(const CountDownLatch& transactionCommittedSignal);
     void signalSynchronousTransactions(const uint32_t flag);
 
@@ -1262,11 +1263,11 @@ private:
     uint32_t mTexturePoolSize = 0;
     std::vector<uint32_t> mTexturePool;
 
-    mutable Mutex mQueueLock;
     Condition mTransactionQueueCV;
     std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash>
-            mPendingTransactionQueues GUARDED_BY(mQueueLock);
-    std::deque<TransactionState> mTransactionQueue GUARDED_BY(mQueueLock);
+            mPendingTransactionQueues;
+    LocklessQueue<TransactionState> mLocklessTransactionQueue;
+    std::atomic<size_t> mPendingTransactionCount = 0;
     /*
      * Feature prototyping
      */
