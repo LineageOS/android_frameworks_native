@@ -4470,6 +4470,14 @@ void InputDispatcher::transformMotionEntryForInjectionLocked(
     if (it == mDisplayInfos.end()) return;
     const auto& transformToDisplay = it->second.transform.inverse() * injectedTransform;
 
+    if (entry.xCursorPosition != AMOTION_EVENT_INVALID_CURSOR_POSITION &&
+        entry.yCursorPosition != AMOTION_EVENT_INVALID_CURSOR_POSITION) {
+        const vec2 cursor =
+                MotionEvent::calculateTransformedXY(entry.source, transformToDisplay,
+                                                    {entry.xCursorPosition, entry.yCursorPosition});
+        entry.xCursorPosition = cursor.x;
+        entry.yCursorPosition = cursor.y;
+    }
     for (uint32_t i = 0; i < entry.pointerCount; i++) {
         entry.pointerCoords[i] =
                 MotionEvent::calculateTransformedCoords(entry.source, transformToDisplay,
