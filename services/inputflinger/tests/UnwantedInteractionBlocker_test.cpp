@@ -47,6 +47,10 @@ constexpr int MOVE = AMOTION_EVENT_ACTION_MOVE;
 constexpr int UP = AMOTION_EVENT_ACTION_UP;
 constexpr int CANCEL = AMOTION_EVENT_ACTION_CANCEL;
 
+static nsecs_t toNs(std::chrono::nanoseconds duration) {
+    return duration.count();
+}
+
 struct PointerData {
     float x;
     float y;
@@ -384,7 +388,7 @@ TEST(GetTouchesTest, ConvertDownEvent) {
     expected.reported_tool_type = ::ui::EventPointerType::kTouch;
     expected.stylus_button = false;
 
-    ASSERT_EQ(expected, touches[0]) << toString(touches[0]);
+    ASSERT_EQ(expected, touches[0]) << touches[0];
 }
 
 // --- UnwantedInteractionBlockerTest ---
@@ -630,41 +634,41 @@ TEST_F(PalmRejectorTestDeathTest, InconsistentEventCausesACrash) {
  */
 TEST_F(PalmRejectorTest, TwoPointersAreCanceled) {
     std::vector<NotifyMotionArgs> argsList;
-    constexpr nsecs_t downTime = 255955749837000;
+    const nsecs_t downTime = toNs(0ms);
 
     mPalmRejector->processMotion(
             generateMotionArgs(downTime, downTime, DOWN, {{1342.0, 613.0, 79.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955759313000, MOVE, {{1406.0, 650.0, 52.0}}));
+            generateMotionArgs(downTime, toNs(8ms), MOVE, {{1406.0, 650.0, 52.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955766361000, MOVE, {{1429.0, 672.0, 46.0}}));
+            generateMotionArgs(downTime, toNs(16ms), MOVE, {{1429.0, 672.0, 46.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955775989000, MOVE, {{1417.0, 685.0, 41.0}}));
+            generateMotionArgs(downTime, toNs(24ms), MOVE, {{1417.0, 685.0, 41.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955775989000, POINTER_1_DOWN,
+            generateMotionArgs(downTime, toNs(32ms), POINTER_1_DOWN,
                                {{1417.0, 685.0, 41.0}, {1062.0, 697.0, 10.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955783039000, MOVE,
+            generateMotionArgs(downTime, toNs(40ms), MOVE,
                                {{1414.0, 702.0, 41.0}, {1059.0, 731.0, 12.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955792536000, MOVE,
+            generateMotionArgs(downTime, toNs(48ms), MOVE,
                                {{1415.0, 719.0, 44.0}, {1060.0, 760.0, 11.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955799474000, MOVE,
+            generateMotionArgs(downTime, toNs(56ms), MOVE,
                                {{1421.0, 733.0, 42.0}, {1065.0, 769.0, 13.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955809177000, MOVE,
+            generateMotionArgs(downTime, toNs(64ms), MOVE,
                                {{1426.0, 742.0, 43.0}, {1068.0, 771.0, 13.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955816131000, MOVE,
+            generateMotionArgs(downTime, toNs(72ms), MOVE,
                                {{1430.0, 748.0, 45.0}, {1069.0, 772.0, 13.0}}));
     argsList = mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955825907000, MOVE,
+            generateMotionArgs(downTime, toNs(80ms), MOVE,
                                {{1432.0, 750.0, 44.0}, {1069.0, 772.0, 13.0}}));
     ASSERT_EQ(1u, argsList.size());
     ASSERT_EQ(0 /* No FLAG_CANCELED */, argsList[0].flags);
     argsList = mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955832736000, MOVE,
+            generateMotionArgs(downTime, toNs(88ms), MOVE,
                                {{1433.0, 751.0, 44.0}, {1070.0, 771.0, 13.0}}));
     ASSERT_EQ(2u, argsList.size());
     ASSERT_EQ(POINTER_0_UP, argsList[0].action);
@@ -674,94 +678,94 @@ TEST_F(PalmRejectorTest, TwoPointersAreCanceled) {
     ASSERT_EQ(0, argsList[1].flags);
 
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955842432000, MOVE,
+            generateMotionArgs(downTime, toNs(96ms), MOVE,
                                {{1433.0, 751.0, 42.0}, {1071.0, 770.0, 13.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955849380000, MOVE,
+            generateMotionArgs(downTime, toNs(104ms), MOVE,
                                {{1433.0, 751.0, 45.0}, {1072.0, 769.0, 13.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955859046000, MOVE,
+            generateMotionArgs(downTime, toNs(112ms), MOVE,
                                {{1433.0, 751.0, 43.0}, {1072.0, 768.0, 13.0}}));
     argsList = mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955869823000, MOVE,
+            generateMotionArgs(downTime, toNs(120ms), MOVE,
                                {{1433.0, 751.0, 45.0}, {1072.0, 767.0, 13.0}}));
     ASSERT_EQ(1u, argsList.size());
     ASSERT_EQ(AMOTION_EVENT_ACTION_CANCEL, argsList[0].action);
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955875641000, MOVE,
+            generateMotionArgs(downTime, toNs(128ms), MOVE,
                                {{1433.0, 751.0, 43.0}, {1072.0, 766.0, 13.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955882693000, MOVE,
+            generateMotionArgs(downTime, toNs(136ms), MOVE,
                                {{1433.0, 750.0, 44.0}, {1072.0, 765.0, 13.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955892324000, MOVE,
+            generateMotionArgs(downTime, toNs(144ms), MOVE,
                                {{1433.0, 750.0, 42.0}, {1072.0, 763.0, 14.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955899425000, MOVE,
+            generateMotionArgs(downTime, toNs(152ms), MOVE,
                                {{1434.0, 750.0, 44.0}, {1073.0, 761.0, 14.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955909400000, MOVE,
+            generateMotionArgs(downTime, toNs(160ms), MOVE,
                                {{1435.0, 750.0, 43.0}, {1073.0, 759.0, 15.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955915885000, MOVE,
+            generateMotionArgs(downTime, toNs(168ms), MOVE,
                                {{1436.0, 750.0, 45.0}, {1074.0, 757.0, 15.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955925607000, MOVE,
+            generateMotionArgs(downTime, toNs(176ms), MOVE,
                                {{1436.0, 750.0, 44.0}, {1074.0, 755.0, 15.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955932580000, MOVE,
+            generateMotionArgs(downTime, toNs(184ms), MOVE,
                                {{1436.0, 750.0, 45.0}, {1074.0, 753.0, 15.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955942231000, MOVE,
+            generateMotionArgs(downTime, toNs(192ms), MOVE,
                                {{1436.0, 749.0, 44.0}, {1074.0, 751.0, 15.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955949204000, MOVE,
+            generateMotionArgs(downTime, toNs(200ms), MOVE,
                                {{1435.0, 748.0, 45.0}, {1074.0, 749.0, 15.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955959103000, MOVE,
+            generateMotionArgs(downTime, toNs(208ms), MOVE,
                                {{1434.0, 746.0, 44.0}, {1074.0, 747.0, 14.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955965884000, MOVE,
+            generateMotionArgs(downTime, toNs(216ms), MOVE,
                                {{1433.0, 744.0, 44.0}, {1075.0, 745.0, 14.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955975649000, MOVE,
+            generateMotionArgs(downTime, toNs(224ms), MOVE,
                                {{1431.0, 741.0, 43.0}, {1075.0, 742.0, 13.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955982537000, MOVE,
+            generateMotionArgs(downTime, toNs(232ms), MOVE,
                                {{1428.0, 738.0, 43.0}, {1076.0, 739.0, 12.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955992284000, MOVE,
+            generateMotionArgs(downTime, toNs(240ms), MOVE,
                                {{1400.0, 726.0, 54.0}, {1076.0, 739.0, 13.0}}));
     argsList = mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955999348000, POINTER_1_UP,
+            generateMotionArgs(downTime, toNs(248ms), POINTER_1_UP,
                                {{1362.0, 716.0, 55.0}, {1076.0, 739.0, 13.0}}));
     ASSERT_TRUE(argsList.empty());
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255955999348000, MOVE, {{1362.0, 716.0, 55.0}}));
+            generateMotionArgs(downTime, toNs(256ms), MOVE, {{1362.0, 716.0, 55.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255956008885000, MOVE, {{1347.0, 707.0, 54.0}}));
+            generateMotionArgs(downTime, toNs(264ms), MOVE, {{1347.0, 707.0, 54.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255956015791000, MOVE, {{1340.0, 698.0, 54.0}}));
+            generateMotionArgs(downTime, toNs(272ms), MOVE, {{1340.0, 698.0, 54.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255956025804000, MOVE, {{1338.0, 694.0, 55.0}}));
+            generateMotionArgs(downTime, toNs(280ms), MOVE, {{1338.0, 694.0, 55.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255956032314000, MOVE, {{1336.0, 690.0, 53.0}}));
+            generateMotionArgs(downTime, toNs(288ms), MOVE, {{1336.0, 690.0, 53.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255956042329000, MOVE, {{1334.0, 685.0, 47.0}}));
+            generateMotionArgs(downTime, toNs(296ms), MOVE, {{1334.0, 685.0, 47.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255956048979000, MOVE, {{1333.0, 679.0, 46.0}}));
+            generateMotionArgs(downTime, toNs(304ms), MOVE, {{1333.0, 679.0, 46.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255956058813000, MOVE, {{1332.0, 672.0, 45.0}}));
+            generateMotionArgs(downTime, toNs(312ms), MOVE, {{1332.0, 672.0, 45.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255956065592000, MOVE, {{1333.0, 666.0, 40.0}}));
+            generateMotionArgs(downTime, toNs(320ms), MOVE, {{1333.0, 666.0, 40.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255956075276000, MOVE, {{1336.0, 661.0, 24.0}}));
+            generateMotionArgs(downTime, toNs(328ms), MOVE, {{1336.0, 661.0, 24.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255956082198000, MOVE, {{1338.0, 656.0, 16.0}}));
+            generateMotionArgs(downTime, toNs(336ms), MOVE, {{1338.0, 656.0, 16.0}}));
     mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255956092059000, MOVE, {{1341.0, 649.0, 1.0}}));
+            generateMotionArgs(downTime, toNs(344ms), MOVE, {{1341.0, 649.0, 1.0}}));
     argsList = mPalmRejector->processMotion(
-            generateMotionArgs(downTime, 255956098764000, UP, {{1341.0, 649.0, 1.0}}));
+            generateMotionArgs(downTime, toNs(352ms), UP, {{1341.0, 649.0, 1.0}}));
     ASSERT_TRUE(argsList.empty());
 }
 
