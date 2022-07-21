@@ -89,12 +89,12 @@ LIBBINDER_NDK { # introduced=29
     AStatus_getStatus;
     AStatus_isOk;
     AStatus_newOk;
-    ABinderProcess_joinThreadPool; # apex llndk
-    ABinderProcess_setThreadPoolMaxThreadCount; # apex llndk
-    ABinderProcess_startThreadPool; # apex llndk
-    AServiceManager_addService; # apex llndk
-    AServiceManager_checkService; # apex llndk
-    AServiceManager_getService; # apex llndk
+    ABinderProcess_joinThreadPool; # systemapi llndk
+    ABinderProcess_setThreadPoolMaxThreadCount; # systemapi llndk
+    ABinderProcess_startThreadPool; # systemapi llndk
+    AServiceManager_addService; # systemapi llndk
+    AServiceManager_checkService; # systemapi llndk
+    AServiceManager_getService; # systemapi llndk
 };
 
 LIBBINDER_NDK30 { # introduced=30
@@ -105,30 +105,30 @@ LIBBINDER_NDK30 { # introduced=30
     AStatus_deleteDescription;
     AParcel_fromJavaParcel;
 
-    AIBinder_markSystemStability; # apex
+    AIBinder_markSystemStability; # systemapi
     AIBinder_markVendorStability; # llndk
-    AIBinder_markVintfStability; # apex llndk
-    AIBinder_Class_setHandleShellCommand; # apex llndk
+    AIBinder_markVintfStability; # systemapi llndk
+    AIBinder_Class_setHandleShellCommand; # systemapi llndk
 };
 
 LIBBINDER_NDK31 { # introduced=31
   global:
-    ABinderProcess_handlePolledCommands; # apex
-    ABinderProcess_setupPolling; # apex
-    AIBinder_getCallingSid; # apex
-    AIBinder_setRequestingSid; # apex
+    ABinderProcess_handlePolledCommands; # systemapi
+    ABinderProcess_setupPolling; # systemapi
+    AIBinder_getCallingSid; # systemapi
+    AIBinder_setRequestingSid; # systemapi
     AParcel_markSensitive; # systemapi llndk
-    AServiceManager_forEachDeclaredInstance; # apex llndk
-    AServiceManager_forceLazyServicesPersist; # apex llndk
-    AServiceManager_isDeclared; # apex llndk
-    AServiceManager_isUpdatableViaApex; # apex
+    AServiceManager_forEachDeclaredInstance; # systemapi llndk
+    AServiceManager_forceLazyServicesPersist; # systemapi llndk
+    AServiceManager_isDeclared; # systemapi llndk
+    AServiceManager_isUpdatableViaApex; # systemapi
     AServiceManager_reRegister; # llndk
-    AServiceManager_registerLazyService; # apex llndk
+    AServiceManager_registerLazyService; # systemapi llndk
     AServiceManager_setActiveServicesCallback; # llndk
     AServiceManager_tryUnregister; # llndk
-    AServiceManager_waitForService; # apex llndk
+    AServiceManager_waitForService; # systemapi llndk
 
-    AIBinder_forceDowngradeToSystemStability; # apex
+    AIBinder_forceDowngradeToSystemStability; # systemapi
     AIBinder_forceDowngradeToVendorStability; # llndk
 
     AIBinder_Class_getDescriptor;
@@ -146,8 +146,8 @@ LIBBINDER_NDK33 { # introduced=33
     AIBinder_Class_disableInterfaceTokenHeader;
     AIBinder_DeathRecipient_setOnUnlinked;
     AIBinder_isHandlingTransaction;
-    AIBinder_setInheritRt; # apex llndk
-    AIBinder_setMinSchedulerPolicy; # apex llndk
+    AIBinder_setInheritRt; # systemapi llndk
+    AIBinder_setMinSchedulerPolicy; # systemapi llndk
     AParcel_marshal;
     AParcel_unmarshal;
 };
