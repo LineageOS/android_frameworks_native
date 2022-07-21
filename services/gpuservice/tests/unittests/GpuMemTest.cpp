@@ -90,8 +90,8 @@ TEST_F(GpuMemTest, validGpuMemTotalBpfPaths) {
     EXPECT_EQ(mTestableGpuMem.getGpuMemTraceGroup(), "gpu_mem");
     EXPECT_EQ(mTestableGpuMem.getGpuMemTotalTracepoint(), "gpu_mem_total");
     EXPECT_EQ(mTestableGpuMem.getGpuMemTotalProgPath(),
-              "/sys/fs/bpf/prog_gpu_mem_tracepoint_gpu_mem_gpu_mem_total");
-    EXPECT_EQ(mTestableGpuMem.getGpuMemTotalMapPath(), "/sys/fs/bpf/map_gpu_mem_gpu_mem_total_map");
+              "/sys/fs/bpf/prog_gpuMem_tracepoint_gpu_mem_gpu_mem_total");
+    EXPECT_EQ(mTestableGpuMem.getGpuMemTotalMapPath(), "/sys/fs/bpf/map_gpuMem_gpu_mem_total_map");
 }
 
 TEST_F(GpuMemTest, bpfInitializationFailed) {
