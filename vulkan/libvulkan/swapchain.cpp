@@ -763,7 +763,11 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
     // We must support R8G8B8A8
     std::vector<VkSurfaceFormatKHR> all_formats = {
         {VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
-        {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}};
+        {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
+        // Also allow to use PASS_THROUGH + HAL_DATASPACE_ARBITRARY
+        {VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_PASS_THROUGH_EXT},
+        {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_PASS_THROUGH_EXT},
+    };
 
     if (colorspace_ext) {
         all_formats.emplace_back(VkSurfaceFormatKHR{

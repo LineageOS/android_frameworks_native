@@ -285,6 +285,10 @@ private:
     int dispatchGetLastQueuedBuffer2(va_list args);
     int dispatchSetFrameTimelineInfo(va_list args);
 
+    std::mutex mNameMutex;
+    std::string mName;
+    const char* getDebugName();
+
 protected:
     virtual int dequeueBuffer(ANativeWindowBuffer** buffer, int* fenceFd);
     virtual int cancelBuffer(ANativeWindowBuffer* buffer, int fenceFd);

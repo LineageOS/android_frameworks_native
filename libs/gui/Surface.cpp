@@ -30,9 +30,10 @@
 #include <android/gui/DisplayStatInfo.h>
 #include <android/native_window.h>
 
+#include <gui/TraceUtils.h>
 #include <utils/Log.h>
-#include <utils/Trace.h>
 #include <utils/NativeHandle.h>
+#include <utils/Trace.h>
 
 #include <ui/DynamicDisplayInfo.h>
 #include <ui/Fence.h>
@@ -637,7 +638,7 @@ void Surface::getDequeueBufferInputLocked(
 }
 
 int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
-    ATRACE_CALL();
+    ATRACE_FORMAT("dequeueBuffer - %s", getDebugName());
     ALOGV("Surface::dequeueBuffer");
 
     IGraphicBufferProducer::DequeueBufferInput dqInput;
@@ -2649,6 +2650,14 @@ sp<IBinder> Surface::getSurfaceControlHandle() const {
 void Surface::destroy() {
     Mutex::Autolock lock(mMutex);
     mSurfaceControlHandle = nullptr;
+}
+
+const char* Surface::getDebugName() {
+    std::unique_lock lock{mNameMutex};
+    if (mName.empty()) {
+        mName = getConsumerName();
+    }
+    return mName.c_str();
 }
 
 }; // namespace android
