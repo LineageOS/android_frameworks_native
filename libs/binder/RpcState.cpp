@@ -226,6 +226,30 @@ status_t RpcState::flushExcessBinderRefs(const sp<RpcSession>& session, uint64_t
     return OK;
 }
 
+status_t RpcState::sendObituaries(const sp<RpcSession>& session) {
+    RpcMutexUniqueLock _l(mNodeMutex);
+
+    // Gather strong pointers to all of the remote binders for this session so
+    // we hold the strong references. remoteBinder() returns a raw pointer.
+    // Send the obituaries and drop the strong pointers outside of the lock so
+    // the destructors and the onBinderDied calls are not done while locked.
+    std::vector<sp<IBinder>> remoteBinders;
+    for (const auto& [_, binderNode] : mNodeForAddress) {
+        if (auto binder = binderNode.binder.promote()) {
+            remoteBinders.push_back(std::move(binder));
+        }
+    }
+    _l.unlock();
+
+    for (const auto& binder : remoteBinders) {
+        if (binder->remoteBinder() &&
+            binder->remoteBinder()->getPrivateAccessor().rpcSession() == session) {
+            binder->remoteBinder()->sendObituary();
+        }
+    }
+    return OK;
+}
+
 size_t RpcState::countBinders() {
     RpcMutexLockGuard _l(mNodeMutex);
     return mNodeForAddress.size();
