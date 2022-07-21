@@ -387,22 +387,6 @@ public:
         std::unordered_set<sp<SurfaceControl>, SCHash> surfaceControls;
     };
 
-    // TODO(b/222421815) this class should be removed when
-    // SurfaceComposerClient::Transaction::syncInputWindows is removed and replaced with a method
-    // for adding callbacks to InputWindowCommands.
-    class Event {
-    private:
-        static constexpr std::chrono::seconds sTimeout{5};
-
-        bool mComplete = false;
-        std::condition_variable mConditionVariable;
-        std::mutex mMutex;
-
-    public:
-        void set();
-        bool wait();
-    };
-
     class Transaction : public Parcelable {
     private:
         void releaseBufferIfOverwriting(const layer_state_t& state);
@@ -451,8 +435,6 @@ public:
 
         InputWindowCommands mInputWindowCommands;
         int mStatus = NO_ERROR;
-
-        std::shared_ptr<Event> mWindowInfosReportedEvent = nullptr;
 
         layer_state_t* getLayerState(const sp<SurfaceControl>& sc);
         DisplayState& getDisplayState(const sp<IBinder>& token);
@@ -588,7 +570,9 @@ public:
 
         Transaction& setInputWindowInfo(const sp<SurfaceControl>& sc, const gui::WindowInfo& info);
         Transaction& setFocusedWindow(const gui::FocusRequest& request);
-        Transaction& syncInputWindows();
+
+        Transaction& addWindowInfosReportedListener(
+                sp<gui::IWindowInfosReportedListener> windowInfosReportedListener);
 
         // Set a color transform matrix on the given layer on the built-in display.
         Transaction& setColorTransform(const sp<SurfaceControl>& sc, const mat3& matrix,
