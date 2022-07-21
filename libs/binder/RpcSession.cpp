@@ -223,6 +223,11 @@ bool RpcSession::shutdownAndWait(bool wait) {
 
     _l.unlock();
 
+    if (status_t res = state()->sendObituaries(sp<RpcSession>::fromExisting(this)); res != OK) {
+        ALOGE("Failed to send obituaries as the RpcSession is shutting down: %s",
+              statusToString(res).c_str());
+    }
+
     mRpcBinderState->clear();
 
     return true;
