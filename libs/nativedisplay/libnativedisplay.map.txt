@@ -1,25 +1,25 @@
 LIBNATIVEDISPLAY {
   global:
-    AChoreographer_getInstance; # apex # introduced=30
-    AChoreographer_postFrameCallback; # apex # introduced=30
-    AChoreographer_postFrameCallbackDelayed; # apex # introduced=30
-    AChoreographer_postFrameCallback64; # apex # introduced=30
-    AChoreographer_postFrameCallbackDelayed64; # apex # introduced=30
-    AChoreographer_registerRefreshRateCallback; # apex # introduced=30
-    AChoreographer_unregisterRefreshRateCallback; # apex # introduced=30
-    AChoreographer_postVsyncCallback; # apex # introduced=33
-    AChoreographerFrameCallbackData_getFrameTimeNanos; # apex # introduced=33
-    AChoreographerFrameCallbackData_getFrameTimelinesLength; # apex # introduced=33
-    AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex; # apex # introduced=33
-    AChoreographerFrameCallbackData_getFrameTimelineVsyncId; # apex # introduced=33
-    AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentationTimeNanos; # apex # introduced=33
-    AChoreographerFrameCallbackData_getFrameTimelineDeadlineNanos; # apex # introduced=33
-    AChoreographer_create; # apex # introduced=30
-    AChoreographer_destroy; # apex # introduced=30
-    AChoreographer_getFd; # apex # introduced=30
-    AChoreographer_handlePendingEvents; # apex # introduced=30
-    ASurfaceTexture_fromSurfaceTexture; # apex # introduced=30
-    ASurfaceTexture_release; # apex # introduced=30
+    AChoreographer_getInstance; # systemapi # introduced=30
+    AChoreographer_postFrameCallback; # systemapi # introduced=30
+    AChoreographer_postFrameCallbackDelayed; # systemapi # introduced=30
+    AChoreographer_postFrameCallback64; # systemapi # introduced=30
+    AChoreographer_postFrameCallbackDelayed64; # systemapi # introduced=30
+    AChoreographer_registerRefreshRateCallback; # systemapi # introduced=30
+    AChoreographer_unregisterRefreshRateCallback; # systemapi # introduced=30
+    AChoreographer_postVsyncCallback; # systemapi # introduced=33
+    AChoreographerFrameCallbackData_getFrameTimeNanos; # systemapi # introduced=33
+    AChoreographerFrameCallbackData_getFrameTimelinesLength; # systemapi # introduced=33
+    AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex; # systemapi # introduced=33
+    AChoreographerFrameCallbackData_getFrameTimelineVsyncId; # systemapi # introduced=33
+    AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentationTimeNanos; # systemapi # introduced=33
+    AChoreographerFrameCallbackData_getFrameTimelineDeadlineNanos; # systemapi # introduced=33
+    AChoreographer_create; # systemapi # introduced=30
+    AChoreographer_destroy; # systemapi # introduced=30
+    AChoreographer_getFd; # systemapi # introduced=30
+    AChoreographer_handlePendingEvents; # systemapi # introduced=30
+    ASurfaceTexture_fromSurfaceTexture; # systemapi # introduced=30
+    ASurfaceTexture_release; # systemapi # introduced=30
   local:
     *;
 };
