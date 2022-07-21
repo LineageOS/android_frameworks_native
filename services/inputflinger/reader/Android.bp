@@ -71,7 +71,7 @@ cc_defaults {
         "libstatslog",
         "libui",
         "libutils",
-        "PlatformProperties",
+        "libPlatformProperties",
     ],
     static_libs: [
         "libc++fs",
