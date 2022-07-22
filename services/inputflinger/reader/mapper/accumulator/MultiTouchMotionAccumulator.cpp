@@ -154,18 +154,18 @@ void MultiTouchMotionAccumulator::warnIfNotInUse(const RawEvent& event, const Sl
 
 // --- MultiTouchMotionAccumulator::Slot ---
 
-int32_t MultiTouchMotionAccumulator::Slot::getToolType() const {
+ToolType MultiTouchMotionAccumulator::Slot::getToolType() const {
     if (mHaveAbsMtToolType) {
         switch (mAbsMtToolType) {
             case MT_TOOL_FINGER:
-                return AMOTION_EVENT_TOOL_TYPE_FINGER;
+                return ToolType::FINGER;
             case MT_TOOL_PEN:
-                return AMOTION_EVENT_TOOL_TYPE_STYLUS;
+                return ToolType::STYLUS;
             case MT_TOOL_PALM:
-                return AMOTION_EVENT_TOOL_TYPE_PALM;
+                return ToolType::PALM;
         }
     }
-    return AMOTION_EVENT_TOOL_TYPE_UNKNOWN;
+    return ToolType::UNKNOWN;
 }
 
 } // namespace android

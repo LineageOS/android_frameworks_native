@@ -24,11 +24,11 @@ static std::pair<bool, bool> checkToolType(const NotifyMotionArgs& args) {
     bool hasTouch = false;
     for (size_t i = 0; i < args.pointerCount; i++) {
         // Make sure we are canceling stylus pointers
-        const int32_t toolType = args.pointerProperties[i].toolType;
+        const ToolType toolType = args.pointerProperties[i].toolType;
         if (isStylusToolType(toolType)) {
             hasStylus = true;
         }
-        if (toolType == AMOTION_EVENT_TOOL_TYPE_FINGER) {
+        if (toolType == ToolType::FINGER) {
             hasTouch = true;
         }
     }

@@ -128,7 +128,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                     StylusState state{fdp->ConsumeIntegral<nsecs_t>(),
                                       fdp->ConsumeFloatingPoint<float>(),
                                       fdp->ConsumeIntegral<uint32_t>(),
-                                      fdp->ConsumeIntegral<int32_t>()};
+                                      getFuzzedToolType(*fdp)};
                     std::list<NotifyArgs> unused = mapper.updateExternalStylusState(state);
                 },
                 [&]() -> void { mapper.getAssociatedDisplayId(); },

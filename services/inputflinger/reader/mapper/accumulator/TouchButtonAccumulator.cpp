@@ -141,21 +141,21 @@ uint32_t TouchButtonAccumulator::getButtonState() const {
     return result;
 }
 
-int32_t TouchButtonAccumulator::getToolType() const {
+ToolType TouchButtonAccumulator::getToolType() const {
     if (mBtnToolMouse || mBtnToolLens) {
-        return AMOTION_EVENT_TOOL_TYPE_MOUSE;
+        return ToolType::MOUSE;
     }
     if (mBtnToolRubber) {
-        return AMOTION_EVENT_TOOL_TYPE_ERASER;
+        return ToolType::ERASER;
     }
     if (mBtnToolPen || mBtnToolBrush || mBtnToolPencil || mBtnToolAirbrush) {
-        return AMOTION_EVENT_TOOL_TYPE_STYLUS;
+        return ToolType::STYLUS;
     }
     if (mBtnToolFinger || mBtnToolDoubleTap || mBtnToolTripleTap || mBtnToolQuadTap ||
         mBtnToolQuintTap) {
-        return AMOTION_EVENT_TOOL_TYPE_FINGER;
+        return ToolType::FINGER;
     }
-    return AMOTION_EVENT_TOOL_TYPE_UNKNOWN;
+    return ToolType::UNKNOWN;
 }
 
 bool TouchButtonAccumulator::isToolActive() const {

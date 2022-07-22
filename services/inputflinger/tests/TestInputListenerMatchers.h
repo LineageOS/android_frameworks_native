@@ -138,8 +138,8 @@ MATCHER_P(WithPressure, pressure, "InputEvent with specified pressure") {
 
 MATCHER_P(WithToolType, toolType, "InputEvent with specified tool type") {
     const auto argToolType = arg.pointerProperties[0].toolType;
-    *result_listener << "expected tool type " << motionToolTypeToString(toolType) << ", but got "
-                     << motionToolTypeToString(argToolType);
+    *result_listener << "expected tool type " << ftl::enum_string(toolType) << ", but got "
+                     << ftl::enum_string(argToolType);
     return argToolType == toolType;
 }
 
