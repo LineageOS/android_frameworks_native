@@ -1416,6 +1416,8 @@ private:
         bool early = false;
     } mPowerHintSessionMode;
 
+    void startPowerHintSession() const;
+
     nsecs_t mAnimationTransactionTimeout = s2ns(5);
 
     friend class SurfaceComposerAIDL;
