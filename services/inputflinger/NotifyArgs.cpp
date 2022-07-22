@@ -161,9 +161,9 @@ std::string NotifyMotionArgs::dump() const {
                 StringPrintf("id=%" PRIu32 " x=%.1f y=%.1f pressure=%.1f", pointerProperties[i].id,
                              pointerCoords[i].getX(), pointerCoords[i].getY(),
                              pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE));
-        const int32_t toolType = pointerProperties[i].toolType;
-        if (toolType != AMOTION_EVENT_TOOL_TYPE_FINGER) {
-            coords += StringPrintf(" toolType=%s", motionToolTypeToString(toolType));
+        const ToolType toolType = pointerProperties[i].toolType;
+        if (toolType != ToolType::FINGER) {
+            coords += StringPrintf(" toolType=%s", ftl::enum_string(toolType).c_str());
         }
         const float major = pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR);
         const float minor = pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR);

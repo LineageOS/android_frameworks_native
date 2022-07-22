@@ -212,7 +212,7 @@ static std::vector<MotionEvent> createTouchMotionEventStream(
             coords[pointerIndex].isResampled = position.isResampled;
 
             properties[pointerIndex].id = pointerId;
-            properties[pointerIndex].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+            properties[pointerIndex].toolType = ToolType::FINGER;
             pointerIndex++;
         }
         EXPECT_EQ(pointerIndex, pointerCount);

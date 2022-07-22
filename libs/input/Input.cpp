@@ -79,25 +79,6 @@ const char* motionClassificationToString(MotionClassification classification) {
     }
 }
 
-const char* motionToolTypeToString(int32_t toolType) {
-    switch (toolType) {
-        case AMOTION_EVENT_TOOL_TYPE_UNKNOWN:
-            return "UNKNOWN";
-        case AMOTION_EVENT_TOOL_TYPE_FINGER:
-            return "FINGER";
-        case AMOTION_EVENT_TOOL_TYPE_STYLUS:
-            return "STYLUS";
-        case AMOTION_EVENT_TOOL_TYPE_MOUSE:
-            return "MOUSE";
-        case AMOTION_EVENT_TOOL_TYPE_ERASER:
-            return "ERASER";
-        case AMOTION_EVENT_TOOL_TYPE_PALM:
-            return "PALM";
-        default:
-            return "INVALID";
-    }
-}
-
 // --- IdGenerator ---
 #if defined(__ANDROID__)
 [[maybe_unused]]
@@ -256,8 +237,8 @@ bool isFromSource(uint32_t source, uint32_t test) {
     return (source & test) == test;
 }
 
-bool isStylusToolType(uint32_t toolType) {
-    return toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS || toolType == AMOTION_EVENT_TOOL_TYPE_ERASER;
+bool isStylusToolType(ToolType toolType) {
+    return toolType == ToolType::STYLUS || toolType == ToolType::ERASER;
 }
 
 VerifiedKeyEvent verifiedKeyEventFromKeyEvent(const KeyEvent& event) {
@@ -810,7 +791,7 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
         mPointerProperties.push_back({});
         PointerProperties& properties = mPointerProperties.back();
         properties.id = parcel->readInt32();
-        properties.toolType = parcel->readInt32();
+        properties.toolType = static_cast<ToolType>(parcel->readInt32());
     }
 
     while (sampleCount > 0) {
@@ -866,7 +847,7 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
     for (size_t i = 0; i < pointerCount; i++) {
         const PointerProperties& properties = mPointerProperties[i];
         parcel->writeInt32(properties.id);
-        parcel->writeInt32(properties.toolType);
+        parcel->writeInt32(static_cast<int32_t>(properties.toolType));
     }
 
     const PointerCoords* pc = mSamplePointerCoords.data();
@@ -1030,9 +1011,9 @@ std::ostream& operator<<(std::ostream& out, const MotionEvent& event) {
             out << ", x[" << i << "]=" << x;
             out << ", y[" << i << "]=" << y;
         }
-        int toolType = event.getToolType(i);
-        if (toolType != AMOTION_EVENT_TOOL_TYPE_FINGER) {
-            out << ", toolType[" << i << "]=" << toolType;
+        ToolType toolType = event.getToolType(i);
+        if (toolType != ToolType::FINGER) {
+            out << ", toolType[" << i << "]=" << ftl::enum_string(toolType);
         }
     }
     if (event.getButtonState() != 0) {

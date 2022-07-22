@@ -30,6 +30,7 @@
 #include <log/log.h>
 
 #include <attestation/HmacKeyManager.h>
+#include <ftl/enum.h>
 #include <input/TfLiteMotionPredictor.h>
 
 namespace android {
@@ -108,10 +109,10 @@ android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
         return {};
     }
 
-    const int32_t toolType = event.getPointerProperties(0)->toolType;
-    if (toolType != AMOTION_EVENT_TOOL_TYPE_STYLUS) {
+    const ToolType toolType = event.getPointerProperties(0)->toolType;
+    if (toolType != ToolType::STYLUS) {
         ALOGD_IF(isDebug(), "Prediction not supported for non-stylus tool: %s",
-                 motionToolTypeToString(toolType));
+                 ftl::enum_string(toolType).c_str());
         return {};
     }
 

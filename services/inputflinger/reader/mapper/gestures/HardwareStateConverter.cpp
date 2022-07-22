@@ -85,7 +85,7 @@ SelfContainedHardwareState HardwareStateConverter::produceHardwareState(nsecs_t 
         MultiTouchMotionAccumulator::Slot slot = mMotionAccumulator.getSlot(i);
         // Some touchpads continue to report contacts even after they've identified them as palms.
         // We want to exclude these contacts from the HardwareStates.
-        if (!slot.isInUse() || slot.getToolType() == AMOTION_EVENT_TOOL_TYPE_PALM) {
+        if (!slot.isInUse() || slot.getToolType() == ToolType::PALM) {
             continue;
         }
 
