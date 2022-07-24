@@ -2518,17 +2518,9 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
     }
 
     const int32_t opCode = sensor.getRequiredAppOp();
-    int targetSdkVersion = getTargetSdkVersion(opPackageName);
 
     bool canAccess = false;
-    if (targetSdkVersion > 0 && targetSdkVersion <= __ANDROID_API_P__ &&
-            (sensor.getType() == SENSOR_TYPE_STEP_COUNTER ||
-             sensor.getType() == SENSOR_TYPE_STEP_DETECTOR)) {
-        // Allow access to step sensors if the application targets pre-Q, which is before the
-        // requirement to hold the AR permission to access Step Counter and Step Detector events
-        // was introduced.
-        canAccess = true;
-    } else if (IPCThreadState::self()->getCallingUid() == AID_SYSTEM) {
+    if (IPCThreadState::self()->getCallingUid() == AID_SYSTEM) {
         // Allow access if it is requested from system.
         canAccess = true;
     } else if (hasPermissionForSensor(sensor)) {
@@ -2542,6 +2534,20 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
         } else {
             canAccess = true;
         }
+    } else {
+        int targetSdkVersion = getTargetSdkVersion(opPackageName);
+        if (targetSdkVersion > 0 && targetSdkVersion <= __ANDROID_API_P__ &&
+            (sensor.getType() == SENSOR_TYPE_STEP_COUNTER ||
+             sensor.getType() == SENSOR_TYPE_STEP_DETECTOR)) {
+
+            // upstream allows access to these sensors without the ACTIVITY_RECOGNITION permission
+            // for targetSdk < 29 apps, enforce the OTHER_SENSORS permission instead
+            const String16 requiredPermission("android.permission.OTHER_SENSORS");
+
+            // copied from hasPermissionForSensor() below
+            canAccess = checkPermission(requiredPermission,
+                IPCThreadState::self()->getCallingPid(), IPCThreadState::self()->getCallingUid());
+         }
     }
 
     if (!canAccess) {
