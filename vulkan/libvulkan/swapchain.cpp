@@ -1218,11 +1218,15 @@ VkResult CreateSwapchainKHR(VkDevice device,
               native_pixel_format, strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
-    err = native_window_set_buffers_data_space(window, native_dataspace);
-    if (err != android::OK) {
-        ALOGE("native_window_set_buffers_data_space(%d) failed: %s (%d)",
-              native_dataspace, strerror(-err), err);
-        return VK_ERROR_SURFACE_LOST_KHR;
+
+    /* Respect consumer default dataspace upon HAL_DATASPACE_ARBITRARY. */
+    if (native_dataspace != HAL_DATASPACE_ARBITRARY) {
+        err = native_window_set_buffers_data_space(window, native_dataspace);
+        if (err != android::OK) {
+            ALOGE("native_window_set_buffers_data_space(%d) failed: %s (%d)",
+                  native_dataspace, strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
     }
 
     err = native_window_set_buffers_dimensions(
