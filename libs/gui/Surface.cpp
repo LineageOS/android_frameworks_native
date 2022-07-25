@@ -1943,6 +1943,7 @@ int Surface::disconnect(int api, IGraphicBufferProducer::DisconnectMode mode) {
         mReqHeight = 0;
         mReqUsage = 0;
         mCrop.clear();
+        mDataSpace = Dataspace::UNKNOWN;
         mScalingMode = NATIVE_WINDOW_SCALING_MODE_FREEZE;
         mTransform = 0;
         mStickyTransform = 0;
