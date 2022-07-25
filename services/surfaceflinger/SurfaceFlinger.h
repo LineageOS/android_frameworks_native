@@ -55,6 +55,7 @@
 #include <compositionengine/FenceResult.h>
 #include <compositionengine/OutputColorSetting.h>
 #include <scheduler/Fps.h>
+#include <scheduler/PresentLatencyTracker.h>
 
 #include "ClientCache.h"
 #include "DisplayDevice.h"
@@ -169,13 +170,6 @@ enum class LatchUnsignaledConfig {
 using DisplayColorSetting = compositionengine::OutputColorSetting;
 
 struct SurfaceFlingerBE {
-    // Only accessed from the main thread.
-    struct CompositePresentTime {
-        nsecs_t composite = -1;
-        std::shared_ptr<FenceTime> display = FenceTime::NO_FENCE;
-    };
-    std::queue<CompositePresentTime> mCompositePresentTimes;
-
     static const size_t NUM_BUCKETS = 8; // < 1-7, 7+
     nsecs_t mFrameBuckets[NUM_BUCKETS] = {};
     nsecs_t mTotalTime = 0;
@@ -567,8 +561,6 @@ private:
     void setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on);
     void setGameContentType(const sp<IBinder>& displayToken, bool on);
     void setPowerMode(const sp<IBinder>& displayToken, int mode);
-    status_t clearAnimationFrameStats();
-    status_t getAnimationFrameStats(FrameStats* outStats) const;
     status_t overrideHdrTypes(const sp<IBinder>& displayToken,
                               const std::vector<ui::Hdr>& hdrTypes);
     status_t onPullAtom(const int32_t atomId, std::string* pulledData, bool* success);
@@ -953,11 +945,7 @@ private:
     /*
      * Compositing
      */
-    void postComposition();
-
-    // Returns the composite-to-present latency of the latest presented frame.
-    nsecs_t trackPresentLatency(nsecs_t compositeTime, std::shared_ptr<FenceTime> presentFenceTime);
-
+    void postComposition() REQUIRES(kMainThreadContext);
     void postFrame() REQUIRES(kMainThreadContext);
 
     /*
@@ -1134,7 +1122,6 @@ private:
     State mCurrentState{LayerVector::StateSet::Current};
     std::atomic<int32_t> mTransactionFlags = 0;
     std::vector<std::shared_ptr<CountDownLatch>> mTransactionCommittedSignals;
-    bool mAnimTransactionPending = false;
     std::atomic<uint32_t> mUniqueTransactionId = 1;
     SortedVector<sp<Layer>> mLayersPendingRemoval;
 
@@ -1181,8 +1168,6 @@ private:
     bool mSomeChildrenChanged;
     bool mSomeDataspaceChanged = false;
     bool mForceTransactionDisplayChange = false;
-
-    bool mAnimCompositionPending = false;
 
     // Tracks layers that have pending frames which are candidates for being
     // latched.
@@ -1251,9 +1236,6 @@ private:
     std::atomic<uint32_t> mGpuFrameMissedCount = 0;
 
     TransactionCallbackInvoker mTransactionCallbackInvoker;
-
-    // Thread-safe.
-    FrameTracker mAnimFrameTracker;
 
     // We maintain a pool of pre-generated texture names to hand out to avoid
     // layer creation needing to run on the main thread (which it would
@@ -1325,6 +1307,7 @@ private:
     sp<VsyncModulator> mVsyncModulator;
 
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
+    scheduler::PresentLatencyTracker mPresentLatencyTracker GUARDED_BY(kMainThreadContext);
 
     struct FenceWithFenceTime {
         sp<Fence> fence = Fence::NO_FENCE;
@@ -1459,8 +1442,13 @@ public:
     binder::Status captureDisplayById(int64_t, const sp<IScreenCaptureListener>&) override;
     binder::Status captureLayers(const LayerCaptureArgs&,
                                  const sp<IScreenCaptureListener>&) override;
-    binder::Status clearAnimationFrameStats() override;
-    binder::Status getAnimationFrameStats(gui::FrameStats* outStats) override;
+
+    // TODO(b/239076119): Remove deprecated AIDL.
+    [[deprecated]] binder::Status clearAnimationFrameStats() override { return deprecated(); }
+    [[deprecated]] binder::Status getAnimationFrameStats(gui::FrameStats*) override {
+        return deprecated();
+    }
+
     binder::Status overrideHdrTypes(const sp<IBinder>& display,
                                     const std::vector<int32_t>& hdrTypes) override;
     binder::Status onPullAtom(int32_t atomId, gui::PullAtomData* outPullData) override;
@@ -1525,6 +1513,11 @@ public:
             const sp<gui::IWindowInfosListener>& windowInfosListener) override;
 
 private:
+    static binder::Status deprecated() {
+        using binder::Status;
+        return Status::fromExceptionCode(Status::EX_UNSUPPORTED_OPERATION, "Deprecated");
+    }
+
     static const constexpr bool kUsePermissionCache = true;
     status_t checkAccessPermission(bool usePermissionCache = kUsePermissionCache);
     status_t checkControlDisplayBrightnessPermission();

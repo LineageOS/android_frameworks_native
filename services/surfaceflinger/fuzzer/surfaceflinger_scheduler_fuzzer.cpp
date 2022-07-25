@@ -19,6 +19,8 @@
 #include <fuzzer/FuzzedDataProvider.h>
 #include <processgroup/sched_policy.h>
 
+#include <scheduler/PresentLatencyTracker.h>
+
 #include "Scheduler/DispSyncSource.h"
 #include "Scheduler/OneShotTimer.h"
 #include "Scheduler/VSyncDispatchTimerQueue.h"
@@ -58,6 +60,7 @@ public:
 private:
     void fuzzRefreshRateSelection();
     void fuzzRefreshRateConfigs();
+    void fuzzPresentLatencyTracker();
     void fuzzVSyncModulator();
     void fuzzVSyncPredictor();
     void fuzzVSyncReactor();
@@ -382,9 +385,16 @@ void SchedulerFuzzer::fuzzRefreshRateConfigs() {
     refreshRateStats.setPowerMode(mFdp.PickValueInArray(kPowerModes));
 }
 
+void SchedulerFuzzer::fuzzPresentLatencyTracker() {
+    scheduler::PresentLatencyTracker tracker;
+    tracker.trackPendingFrame(TimePoint::fromNs(mFdp.ConsumeIntegral<nsecs_t>()),
+                              FenceTime::NO_FENCE);
+}
+
 void SchedulerFuzzer::process() {
     fuzzRefreshRateSelection();
     fuzzRefreshRateConfigs();
+    fuzzPresentLatencyTracker();
     fuzzVSyncModulator();
     fuzzVSyncPredictor();
     fuzzVSyncReactor();

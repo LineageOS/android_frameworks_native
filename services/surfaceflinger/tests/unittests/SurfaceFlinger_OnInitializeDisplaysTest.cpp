@@ -78,11 +78,6 @@ TEST_F(OnInitializeDisplaysTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
     auto displayDevice = primaryDisplay.mutableDisplayDevice();
     EXPECT_EQ(PowerMode::ON, displayDevice->getPowerMode());
 
-    // The display refresh period should be set in the orientedDisplaySpaceRect tracker.
-    FrameStats stats;
-    mFlinger.getAnimFrameTracker().getStats(&stats);
-    EXPECT_EQ(DEFAULT_VSYNC_PERIOD, stats.refreshPeriodNano);
-
     // The display transaction needed flag should be set.
     EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
 }
