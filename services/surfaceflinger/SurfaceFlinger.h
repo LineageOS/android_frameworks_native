@@ -1444,9 +1444,11 @@ public:
                                  const sp<IScreenCaptureListener>&) override;
 
     // TODO(b/239076119): Remove deprecated AIDL.
-    [[deprecated]] binder::Status clearAnimationFrameStats() override { return deprecated(); }
+    [[deprecated]] binder::Status clearAnimationFrameStats() override {
+        return binder::Status::ok();
+    }
     [[deprecated]] binder::Status getAnimationFrameStats(gui::FrameStats*) override {
-        return deprecated();
+        return binder::Status::ok();
     }
 
     binder::Status overrideHdrTypes(const sp<IBinder>& display,
@@ -1513,11 +1515,6 @@ public:
             const sp<gui::IWindowInfosListener>& windowInfosListener) override;
 
 private:
-    static binder::Status deprecated() {
-        using binder::Status;
-        return Status::fromExceptionCode(Status::EX_UNSUPPORTED_OPERATION, "Deprecated");
-    }
-
     static const constexpr bool kUsePermissionCache = true;
     status_t checkAccessPermission(bool usePermissionCache = kUsePermissionCache);
     status_t checkControlDisplayBrightnessPermission();
