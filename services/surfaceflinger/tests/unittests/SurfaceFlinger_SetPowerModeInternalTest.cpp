@@ -140,7 +140,6 @@ struct TransitionOffToOnVariant : public TransitionVariantCommon<PowerMode::OFF,
 
     static void verifyPostconditions(DisplayTransactionTest* test) {
         EXPECT_TRUE(test->mFlinger.getVisibleRegionsDirty());
-        EXPECT_TRUE(test->mFlinger.getHasPoweredOff());
     }
 };
 
@@ -155,7 +154,6 @@ struct TransitionOffToDozeSuspendVariant
 
     static void verifyPostconditions(DisplayTransactionTest* test) {
         EXPECT_TRUE(test->mFlinger.getVisibleRegionsDirty());
-        EXPECT_TRUE(test->mFlinger.getHasPoweredOff());
     }
 };
 

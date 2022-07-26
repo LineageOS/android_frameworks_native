@@ -2492,20 +2492,6 @@ void SurfaceFlinger::postComposition() {
         return;
     }
 
-    if (mHasPoweredOff) {
-        mHasPoweredOff = false;
-    } else {
-        const Duration elapsedTime = presentTime - getBE().mLastPresentTime;
-        const size_t numPeriods = static_cast<size_t>(elapsedTime.ns() / vsyncPeriod.ns());
-        if (numPeriods < SurfaceFlingerBE::NUM_BUCKETS - 1) {
-            getBE().mFrameBuckets[numPeriods] += elapsedTime.ns();
-        } else {
-            getBE().mFrameBuckets[SurfaceFlingerBE::NUM_BUCKETS - 1] += elapsedTime.ns();
-        }
-        getBE().mTotalTime += elapsedTime.ns();
-    }
-    getBE().mLastPresentTime = presentTime;
-
     // Cleanup any outstanding resources due to rendering a prior frame.
     getRenderEngine().cleanupPostRender();
 
@@ -4756,7 +4742,6 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         }
 
         mVisibleRegionsDirty = true;
-        mHasPoweredOff = true;
         scheduleComposite(FrameHint::kActive);
     } else if (mode == hal::PowerMode::OFF) {
         // Turn off the display
@@ -4846,7 +4831,6 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
                 {"--list"s, dumper(&SurfaceFlinger::listLayersLocked)},
                 {"--planner"s, argsDumper(&SurfaceFlinger::dumpPlannerInfo)},
-                {"--static-screen"s, dumper(&SurfaceFlinger::dumpStaticScreenStats)},
                 {"--timestats"s, protoDumper(&SurfaceFlinger::dumpTimeStats)},
                 {"--vsync"s, dumper(&SurfaceFlinger::dumpVSync)},
                 {"--wide-color"s, dumper(&SurfaceFlinger::dumpWideColorInfo)},
@@ -4987,21 +4971,6 @@ void SurfaceFlinger::dumpPlannerInfo(const DumpArgs& args, std::string& result) 
         const auto compositionDisplay = display->getCompositionDisplay();
         compositionDisplay->dumpPlannerInfo(args, result);
     }
-}
-
-void SurfaceFlinger::dumpStaticScreenStats(std::string& result) const {
-    result.append("Static screen stats:\n");
-    for (size_t b = 0; b < SurfaceFlingerBE::NUM_BUCKETS - 1; ++b) {
-        float bucketTimeSec = getBE().mFrameBuckets[b] / 1e9;
-        float percent = 100.0f *
-                static_cast<float>(getBE().mFrameBuckets[b]) / getBE().mTotalTime;
-        StringAppendF(&result, "  < %zd frames: %.3f s (%.1f%%)\n", b + 1, bucketTimeSec, percent);
-    }
-    float bucketTimeSec = getBE().mFrameBuckets[SurfaceFlingerBE::NUM_BUCKETS - 1] / 1e9;
-    float percent = 100.0f *
-            static_cast<float>(getBE().mFrameBuckets[SurfaceFlingerBE::NUM_BUCKETS - 1]) / getBE().mTotalTime;
-    StringAppendF(&result, "  %zd+ frames: %.3f s (%.1f%%)\n", SurfaceFlingerBE::NUM_BUCKETS - 1,
-                  bucketTimeSec, percent);
 }
 
 void SurfaceFlinger::dumpCompositionDisplays(std::string& result) const {
@@ -5197,9 +5166,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     result.append("Scheduler:\n");
     colorizer.reset(result);
     dumpVSync(result);
-    result.append("\n");
-
-    dumpStaticScreenStats(result);
     result.append("\n");
 
     StringAppendF(&result, "Total missed frame count: %u\n", mFrameMissedCount.load());
