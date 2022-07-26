@@ -124,7 +124,8 @@ impl ThreadState {
     /// kernel is too old to support this feature.
     pub fn with_calling_sid<T, F>(check_permission: F) -> T
     where
-        for<'a> F: FnOnce(Option<&'a std::ffi::CStr>) -> T {
+        for<'a> F: FnOnce(Option<&'a std::ffi::CStr>) -> T,
+    {
         // Safety: AIBinder_getCallingSid returns a c-string pointer
         // that is valid for a transaction. Also, the string returned
         // is thread local. By restricting the lifetime of the CStr

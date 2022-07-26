@@ -28,22 +28,22 @@
 //!
 //! [`Tokio`]: crate::Tokio
 
-use binder::{BinderAsyncPool, BoxFuture, FromIBinder, StatusCode, Strong};
 use binder::binder_impl::BinderAsyncRuntime;
+use binder::{BinderAsyncPool, BoxFuture, FromIBinder, StatusCode, Strong};
 use std::future::Future;
 
 /// Retrieve an existing service for a particular interface, sleeping for a few
 /// seconds if it doesn't yet exist.
-pub async fn get_interface<T: FromIBinder + ?Sized + 'static>(name: &str) -> Result<Strong<T>, StatusCode> {
+pub async fn get_interface<T: FromIBinder + ?Sized + 'static>(
+    name: &str,
+) -> Result<Strong<T>, StatusCode> {
     if binder::is_handling_transaction() {
         // See comment in the BinderAsyncPool impl.
         return binder::get_interface::<T>(name);
     }
 
     let name = name.to_string();
-    let res = tokio::task::spawn_blocking(move || {
-        binder::get_interface::<T>(&name)
-    }).await;
+    let res = tokio::task::spawn_blocking(move || binder::get_interface::<T>(&name)).await;
 
     // The `is_panic` branch is not actually reachable in Android as we compile
     // with `panic = abort`.
@@ -58,16 +58,16 @@ pub async fn get_interface<T: FromIBinder + ?Sized + 'static>(name: &str) -> Res
 
 /// Retrieve an existing service for a particular interface, or start it if it
 /// is configured as a dynamic service and isn't yet started.
-pub async fn wait_for_interface<T: FromIBinder + ?Sized + 'static>(name: &str) -> Result<Strong<T>, StatusCode> {
+pub async fn wait_for_interface<T: FromIBinder + ?Sized + 'static>(
+    name: &str,
+) -> Result<Strong<T>, StatusCode> {
     if binder::is_handling_transaction() {
         // See comment in the BinderAsyncPool impl.
         return binder::wait_for_interface::<T>(name);
     }
 
     let name = name.to_string();
-    let res = tokio::task::spawn_blocking(move || {
-        binder::wait_for_interface::<T>(&name)
-    }).await;
+    let res = tokio::task::spawn_blocking(move || binder::wait_for_interface::<T>(&name)).await;
 
     // The `is_panic` branch is not actually reachable in Android as we compile
     // with `panic = abort`.
