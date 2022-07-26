@@ -27,6 +27,7 @@
 #include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 
 #include <android-base/logging.h>
 #include <android-base/macros.h>
@@ -502,6 +503,11 @@ private:
         int dexopt_result = Dexopt();
         if (dexopt_result == 0) {
             return 0;
+        }
+
+        if (WIFSIGNALED(dexopt_result)) {
+            LOG(WARNING) << "Interrupted by signal " << WTERMSIG(dexopt_result) ;
+            return dexopt_result;
         }
 
         // If this was a profile-guided run, we may have profile version issues. Try to downgrade,
