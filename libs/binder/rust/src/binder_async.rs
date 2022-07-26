@@ -41,7 +41,10 @@ pub trait BinderAsyncPool {
     /// boxed `Future` trait object, and including `after_spawn` in the trait function
     /// allows the caller to avoid double-boxing if they want to do anything to the value
     /// returned from the spawned thread.
-    fn spawn<'a, F1, F2, Fut, A, B, E>(spawn_me: F1, after_spawn: F2) -> BoxFuture<'a, Result<B, E>>
+    fn spawn<'a, F1, F2, Fut, A, B, E>(
+        spawn_me: F1,
+        after_spawn: F2,
+    ) -> BoxFuture<'a, Result<B, E>>
     where
         F1: FnOnce() -> A,
         F2: FnOnce(A) -> Fut,
