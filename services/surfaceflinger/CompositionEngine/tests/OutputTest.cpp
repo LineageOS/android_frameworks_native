@@ -3227,7 +3227,6 @@ TEST_F(OutputPostFramebufferTest, ifEnabledMustFlipThenPresentThenSendPresentCom
     // setup below are satisfied in the specific order.
     InSequence seq;
 
-    EXPECT_CALL(*mRenderSurface, flip());
     EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 
@@ -3250,7 +3249,6 @@ TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
     frameFences.layerFences.emplace(&mLayer2.hwc2Layer, layer2Fence);
     frameFences.layerFences.emplace(&mLayer3.hwc2Layer, layer3Fence);
 
-    EXPECT_CALL(*mRenderSurface, flip());
     EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 
@@ -3284,7 +3282,6 @@ TEST_F(OutputPostFramebufferTest, releaseFencesIncludeClientTargetAcquireFence) 
     frameFences.layerFences.emplace(&mLayer2.hwc2Layer, sp<Fence>::make());
     frameFences.layerFences.emplace(&mLayer3.hwc2Layer, sp<Fence>::make());
 
-    EXPECT_CALL(*mRenderSurface, flip());
     EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 
@@ -3320,7 +3317,6 @@ TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
     Output::FrameFences frameFences;
     frameFences.presentFence = presentFence;
 
-    EXPECT_CALL(*mRenderSurface, flip());
     EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 

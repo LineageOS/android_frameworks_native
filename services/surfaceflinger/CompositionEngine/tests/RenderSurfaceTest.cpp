@@ -362,17 +362,5 @@ TEST_F(RenderSurfaceTest, onPresentDisplayCompletedForwardsSignal) {
     mSurface.onPresentDisplayCompleted();
 }
 
-/*
- * RenderSurface::flip()
- */
-
-TEST_F(RenderSurfaceTest, flipForwardsSignal) {
-    mSurface.setPageFlipCountForTest(500);
-
-    mSurface.flip();
-
-    EXPECT_EQ(501u, mSurface.getPageFlipCount());
-}
-
 } // namespace
 } // namespace android::compositionengine
