@@ -17,7 +17,7 @@
 //! Trait definitions for binder objects
 
 use crate::error::{status_t, Result, StatusCode};
-use crate::parcel::{Parcel, BorrowedParcel};
+use crate::parcel::{BorrowedParcel, Parcel};
 use crate::proxy::{DeathRecipient, SpIBinder, WpIBinder};
 use crate::sys;
 
@@ -133,7 +133,7 @@ impl TryFrom<i32> for Stability {
         match stability {
             0 => Ok(Local),
             1 => Ok(Vintf),
-            _ => Err(StatusCode::BAD_VALUE)
+            _ => Err(StatusCode::BAD_VALUE),
         }
     }
 }
@@ -158,7 +158,12 @@ pub trait Remotable: Send + Sync {
     /// Handle and reply to a request to invoke a transaction on this object.
     ///
     /// `reply` may be [`None`] if the sender does not expect a reply.
-    fn on_transact(&self, code: TransactionCode, data: &BorrowedParcel<'_>, reply: &mut BorrowedParcel<'_>) -> Result<()>;
+    fn on_transact(
+        &self,
+        code: TransactionCode,
+        data: &BorrowedParcel<'_>,
+        reply: &mut BorrowedParcel<'_>,
+    ) -> Result<()>;
 
     /// Handle a request to invoke the dump transaction on this
     /// object.
@@ -454,28 +459,19 @@ impl<I: FromIBinder + ?Sized> Weak<I> {
     /// Construct a new weak reference from a strong reference
     fn new(binder: &Strong<I>) -> Self {
         let weak_binder = binder.as_binder().downgrade();
-        Weak {
-            weak_binder,
-            interface_type: PhantomData,
-        }
+        Weak { weak_binder, interface_type: PhantomData }
     }
 
     /// Upgrade this weak reference to a strong reference if the binder object
     /// is still alive
     pub fn upgrade(&self) -> Result<Strong<I>> {
-        self.weak_binder
-            .promote()
-            .ok_or(StatusCode::DEAD_OBJECT)
-            .and_then(FromIBinder::try_from)
+        self.weak_binder.promote().ok_or(StatusCode::DEAD_OBJECT).and_then(FromIBinder::try_from)
     }
 }
 
 impl<I: FromIBinder + ?Sized> Clone for Weak<I> {
     fn clone(&self) -> Self {
-        Self {
-            weak_binder: self.weak_binder.clone(),
-            interface_type: PhantomData,
-        }
+        Self { weak_binder: self.weak_binder.clone(), interface_type: PhantomData }
     }
 }
 
@@ -614,7 +610,12 @@ pub trait InterfaceClassMethods {
     /// contains a `T` pointer in its user data. fd should be a non-owned file
     /// descriptor, and args must be an array of null-terminated string
     /// poiinters with length num_args.
-    unsafe extern "C" fn on_dump(binder: *mut sys::AIBinder, fd: i32, args: *mut *const c_char, num_args: u32) -> status_t;
+    unsafe extern "C" fn on_dump(
+        binder: *mut sys::AIBinder,
+        fd: i32,
+        args: *mut *const c_char,
+        num_args: u32,
+    ) -> status_t;
 }
 
 /// Interface for transforming a generic SpIBinder into a specific remote
