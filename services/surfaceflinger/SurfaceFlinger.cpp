@@ -686,22 +686,21 @@ void SurfaceFlinger::bootFinished() {
 
         readPersistentProperties();
         mPowerAdvisor->onBootFinished();
-        const bool powerHintEnabled = mFlagManager.use_adpf_cpu_hint();
-        mPowerAdvisor->enablePowerHint(powerHintEnabled);
-        const bool powerHintUsed = mPowerAdvisor->usePowerHintSession();
-        ALOGD("Power hint is %s",
-              powerHintUsed ? "supported" : (powerHintEnabled ? "unsupported" : "disabled"));
-        if (powerHintUsed) {
-            std::optional<pid_t> renderEngineTid = getRenderEngine().getRenderEngineTid();
-            std::vector<int32_t> tidList;
-            tidList.emplace_back(gettid());
-            if (renderEngineTid.has_value()) {
-                tidList.emplace_back(*renderEngineTid);
-            }
-            if (!mPowerAdvisor->startPowerHintSession(tidList)) {
-                ALOGW("Cannot start power hint session");
+
+        // try to enable power hint session again using mendel flag now that boot is finished,
+        // but only if we didn't already try earlier
+        if (!mPowerAdvisor->usePowerHintSession() && mFlagManager.use_adpf_cpu_hint()) {
+            mPowerAdvisor->enablePowerHint(true);
+            // check again to make sure it's actually supported
+            if (mPowerAdvisor->usePowerHintSession()) {
+                startPowerHintSession();
             }
         }
+
+        ALOGD("Power hint session is %s",
+              mPowerAdvisor->usePowerHintSession()
+                      ? "enabled"
+                      : (!mPowerAdvisor->supportsPowerHintSession() ? "unsupported" : "disabled"));
 
         mBootStage = BootStage::FINISHED;
 
@@ -825,6 +824,11 @@ void SurfaceFlinger::init() {
     initializeDisplays();
 
     mPowerAdvisor->init();
+
+    mPowerAdvisor->enablePowerHint(mFlagManager.use_adpf_cpu_hint());
+    if (mPowerAdvisor->usePowerHintSession()) {
+        startPowerHintSession();
+    }
 
     char primeShaderCache[PROPERTY_VALUE_MAX];
     property_get("service.sf.prime_shader_cache", primeShaderCache, "1");
@@ -7151,6 +7155,18 @@ bool SurfaceFlinger::commitCreatedLayers(int64_t vsyncId) {
     createdLayers.clear();
     mLayersAdded = true;
     return true;
+}
+
+void SurfaceFlinger::startPowerHintSession() const {
+    std::optional<pid_t> renderEngineTid = getRenderEngine().getRenderEngineTid();
+    std::vector<int32_t> tidList;
+    tidList.emplace_back(gettid());
+    if (renderEngineTid.has_value()) {
+        tidList.emplace_back(*renderEngineTid);
+    }
+    if (!mPowerAdvisor->startPowerHintSession(tidList)) {
+        ALOGW("Cannot start power hint session");
+    }
 }
 
 // gui::ISurfaceComposer
