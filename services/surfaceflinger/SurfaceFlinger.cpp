@@ -1448,18 +1448,6 @@ void SurfaceFlinger::setGameContentType(const sp<IBinder>& displayToken, bool on
     }));
 }
 
-status_t SurfaceFlinger::clearAnimationFrameStats() {
-    Mutex::Autolock _l(mStateLock);
-    mAnimFrameTracker.clearStats();
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::getAnimationFrameStats(FrameStats* outStats) const {
-    Mutex::Autolock _l(mStateLock);
-    mAnimFrameTracker.getStats(outStats);
-    return NO_ERROR;
-}
-
 status_t SurfaceFlinger::overrideHdrTypes(const sp<IBinder>& displayToken,
                                           const std::vector<ui::Hdr>& hdrTypes) {
     Mutex::Autolock lock(mStateLock);
@@ -2316,32 +2304,6 @@ void SurfaceFlinger::updateLayerGeometry() {
     mLayersPendingRefresh.clear();
 }
 
-nsecs_t SurfaceFlinger::trackPresentLatency(nsecs_t compositeTime,
-                                            std::shared_ptr<FenceTime> presentFenceTime) {
-    // Update queue of past composite+present times and determine the
-    // most recently known composite to present latency.
-    getBE().mCompositePresentTimes.push({compositeTime, std::move(presentFenceTime)});
-    nsecs_t compositeToPresentLatency = -1;
-    while (!getBE().mCompositePresentTimes.empty()) {
-        SurfaceFlingerBE::CompositePresentTime& cpt = getBE().mCompositePresentTimes.front();
-        // Cached values should have been updated before calling this method,
-        // which helps avoid duplicate syscalls.
-        nsecs_t displayTime = cpt.display->getCachedSignalTime();
-        if (displayTime == Fence::SIGNAL_TIME_PENDING) {
-            break;
-        }
-        compositeToPresentLatency = displayTime - cpt.composite;
-        getBE().mCompositePresentTimes.pop();
-    }
-
-    // Don't let mCompositePresentTimes grow unbounded, just in case.
-    while (getBE().mCompositePresentTimes.size() > 16) {
-        getBE().mCompositePresentTimes.pop();
-    }
-
-    return compositeToPresentLatency;
-}
-
 bool SurfaceFlinger::isHdrLayer(Layer* layer) const {
     // Treat all layers as non-HDR if:
     // 1. They do not have a valid HDR dataspace. Currently we treat those as PQ or HLG. and
@@ -2429,9 +2391,11 @@ void SurfaceFlinger::postComposition() {
     // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
     // be sampled a little later than when we started doing work for this frame,
     // but that should be okay since CompositorTiming has snapping logic.
-    const nsecs_t compositeTime = mCompositionEngine->getLastFrameRefreshTimestamp();
-    const nsecs_t presentLatency =
-            trackPresentLatency(compositeTime, mPreviousPresentFences[0].fenceTime);
+    const TimePoint compositeTime =
+            TimePoint::fromNs(mCompositionEngine->getLastFrameRefreshTimestamp());
+    const Duration presentLatency =
+            mPresentLatencyTracker.trackPendingFrame(compositeTime,
+                                                     mPreviousPresentFences[0].fenceTime);
 
     const auto& schedule = mScheduler->getVsyncSchedule();
     const TimePoint vsyncDeadline = schedule.vsyncDeadlineAfter(TimePoint::fromNs(now));
@@ -2439,7 +2403,7 @@ void SurfaceFlinger::postComposition() {
     const nsecs_t vsyncPhase = mVsyncConfiguration->getCurrentConfigs().late.sfOffset;
 
     const CompositorTiming compositorTiming(vsyncDeadline.ns(), vsyncPeriod.ns(), vsyncPhase,
-                                            presentLatency);
+                                            presentLatency.ns());
 
     for (const auto& layer: mLayersWithQueuedFrames) {
         layer->onPostComposition(display, glCompositionDoneFenceTime,
@@ -2519,22 +2483,7 @@ void SurfaceFlinger::postComposition() {
         }
     }
 
-    if (mAnimCompositionPending) {
-        mAnimCompositionPending = false;
-
-        if (mPreviousPresentFences[0].fenceTime->isValid()) {
-            mAnimFrameTracker.setActualPresentFence(mPreviousPresentFences[0].fenceTime);
-        } else if (isDisplayConnected) {
-            // The HWC doesn't support present fences, so use the refresh
-            // timestamp instead.
-            const nsecs_t presentTime = display->getRefreshTimestamp();
-            mAnimFrameTracker.setActualPresentTime(presentTime);
-        }
-        mAnimFrameTracker.advanceFrame();
-    }
-
     mTimeStats->incrementTotalFrames();
-
     mTimeStats->setPresentFenceGlobal(mPreviousPresentFences[0].fenceTime);
 
     const size_t sfConnections = mScheduler->getEventThreadConnectionCount(mSfConnectionHandle);
@@ -3203,7 +3152,6 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
 
     doCommitTransactions();
     signalSynchronousTransactions(CountDownLatch::eSyncTransaction);
-    mAnimTransactionPending = false;
 }
 
 void SurfaceFlinger::updateInputFlinger() {
@@ -3490,10 +3438,6 @@ void SurfaceFlinger::doCommitTransactions() {
         }
         mLayersPendingRemoval.clear();
     }
-
-    // If this transaction is part of a window animation then the next frame
-    // we composite should be considered an animation as well.
-    mAnimCompositionPending = mAnimTransactionPending;
 
     mDrawingState = mCurrentState;
     // clear the "changed" flags in current state
@@ -4239,10 +4183,6 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
         if (transactionFlags) {
             setTransactionFlags(transactionFlags);
         }
-
-        if (flags & eAnimation) {
-            mAnimTransactionPending = true;
-        }
     }
 
     return needsTraversal;
@@ -4802,8 +4742,7 @@ void SurfaceFlinger::onInitializeDisplays() {
                           {}, mPid, getuid(), transactionId);
 
     setPowerModeInternal(display, hal::PowerMode::ON);
-    const nsecs_t vsyncPeriod = display->refreshRateConfigs().getActiveMode()->getVsyncPeriod();
-    mAnimFrameTracker.setDisplayRefreshPeriod(vsyncPeriod);
+
     mActiveDisplayTransformHint = display->getTransformHint();
 }
 
@@ -5015,17 +4954,14 @@ void SurfaceFlinger::listLayersLocked(std::string& result) const {
 
 void SurfaceFlinger::dumpStatsLocked(const DumpArgs& args, std::string& result) const {
     StringAppendF(&result, "%" PRId64 "\n", getVsyncPeriodFromHWC());
+    if (args.size() < 2) return;
 
-    if (args.size() > 1) {
-        const auto name = String8(args[1]);
-        mCurrentState.traverseInZOrder([&](Layer* layer) {
-            if (layer->getName() == name.string()) {
-                layer->dumpFrameStats(result);
-            }
-        });
-    } else {
-        mAnimFrameTracker.dumpStats(result);
-    }
+    const auto name = String8(args[1]);
+    mCurrentState.traverseInZOrder([&](Layer* layer) {
+        if (layer->getName() == name.string()) {
+            layer->dumpFrameStats(result);
+        }
+    });
 }
 
 void SurfaceFlinger::clearStatsLocked(const DumpArgs& args, std::string&) {
@@ -5037,8 +4973,6 @@ void SurfaceFlinger::clearStatsLocked(const DumpArgs& args, std::string&) {
             layer->clearFrameStats();
         }
     });
-
-    mAnimFrameTracker.clearStats();
 }
 
 void SurfaceFlinger::dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const {
@@ -5050,11 +4984,7 @@ void SurfaceFlinger::dumpFrameTimeline(const DumpArgs& args, std::string& result
 }
 
 void SurfaceFlinger::logFrameStats() {
-    mDrawingState.traverse([&](Layer* layer) {
-        layer->logFrameStats();
-    });
-
-    mAnimFrameTracker.logAndResetStats("<win-anim>");
+    mDrawingState.traverse([&](Layer* layer) { layer->logFrameStats(); });
 }
 
 void SurfaceFlinger::appendSfConfigString(std::string& result) const {
@@ -6549,8 +6479,13 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
                                              1 /* layerCount */, usage, "screenshot");
 
     const status_t bufferStatus = buffer->initCheck();
-    LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "captureScreenCommon: Buffer failed to allocate: %d",
-                        bufferStatus);
+    if (bufferStatus != OK) {
+        // Animations may end up being really janky, but don't crash here.
+        // Otherwise an irreponsible process may cause an SF crash by allocating
+        // too much.
+        ALOGE("%s: Buffer failed to allocate: %d", __func__, bufferStatus);
+        return ftl::yield<FenceResult>(base::unexpected(bufferStatus)).share();
+    }
     const std::shared_ptr<renderengine::ExternalTexture> texture = std::make_shared<
             renderengine::impl::ExternalTexture>(buffer, getRenderEngine(),
                                                  renderengine::impl::ExternalTexture::Usage::
@@ -7544,40 +7479,6 @@ binder::Status SurfaceComposerAIDL::captureDisplayById(
 binder::Status SurfaceComposerAIDL::captureLayers(
         const LayerCaptureArgs& args, const sp<IScreenCaptureListener>& captureListener) {
     status_t status = mFlinger->captureLayers(args, captureListener);
-    return binderStatusFromStatusT(status);
-}
-
-binder::Status SurfaceComposerAIDL::clearAnimationFrameStats() {
-    status_t status = checkAccessPermission();
-    if (status == OK) {
-        status = mFlinger->clearAnimationFrameStats();
-    }
-    return binderStatusFromStatusT(status);
-}
-
-binder::Status SurfaceComposerAIDL::getAnimationFrameStats(gui::FrameStats* outStats) {
-    status_t status = checkAccessPermission();
-    if (status != OK) {
-        return binderStatusFromStatusT(status);
-    }
-
-    FrameStats stats;
-    status = mFlinger->getAnimationFrameStats(&stats);
-    if (status == NO_ERROR) {
-        outStats->refreshPeriodNano = stats.refreshPeriodNano;
-        outStats->desiredPresentTimesNano.reserve(stats.desiredPresentTimesNano.size());
-        for (const auto& t : stats.desiredPresentTimesNano) {
-            outStats->desiredPresentTimesNano.push_back(t);
-        }
-        outStats->actualPresentTimesNano.reserve(stats.actualPresentTimesNano.size());
-        for (const auto& t : stats.actualPresentTimesNano) {
-            outStats->actualPresentTimesNano.push_back(t);
-        }
-        outStats->frameReadyTimesNano.reserve(stats.frameReadyTimesNano.size());
-        for (const auto& t : stats.frameReadyTimesNano) {
-            outStats->frameReadyTimesNano.push_back(t);
-        }
-    }
     return binderStatusFromStatusT(status);
 }
 

@@ -168,3 +168,38 @@ cc_library_shared {
         "libinputflinger_headers",
     ],
 }
+
+// This target will build everything 'input-related'. This could be useful for
+// large refactorings of the input code. This is similar to 'm checkbuild', but
+// just for input code.
+// Use 'm checkinput' to build, and then (optionally) use 'm installclean' to
+// remove any of the installed artifacts that you may not want on your actual
+// build.
+phony {
+    name: "checkinput",
+    required: [
+        // native targets
+        "libinput",
+        "libinputflinger",
+        "inputflinger_tests",
+        "inputflinger_benchmarks",
+        "libinput_tests",
+        "libpalmrejection_test",
+        "libandroid_runtime",
+        "libinputservice_test",
+        "Bug-115739809",
+        "StructLayout_test",
+
+        // Java/Kotlin targets
+        "CtsWindowManagerDeviceTestCases",
+        "InputTests",
+        "CtsHardwareTestCases",
+        "CtsInputTestCases",
+        "CtsViewTestCases",
+        "CtsWidgetTestCases",
+        "FrameworksCoreTests",
+        "FrameworksServicesTests",
+        "CtsSecurityTestCases",
+        "CtsSecurityBulletinHostTestCases",
+    ],
+}
