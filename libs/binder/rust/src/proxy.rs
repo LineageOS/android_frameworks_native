@@ -22,7 +22,8 @@ use crate::binder::{
 };
 use crate::error::{status_result, Result, StatusCode};
 use crate::parcel::{
-    Parcel, BorrowedParcel, Deserialize, DeserializeArray, DeserializeOption, Serialize, SerializeArray, SerializeOption,
+    BorrowedParcel, Deserialize, DeserializeArray, DeserializeOption, Parcel, Serialize,
+    SerializeArray, SerializeOption,
 };
 use crate::sys;
 
@@ -431,10 +432,7 @@ impl SerializeArray for SpIBinder {}
 
 impl Deserialize for SpIBinder {
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<SpIBinder> {
-        parcel
-            .read_binder()
-            .transpose()
-            .unwrap_or(Err(StatusCode::UNEXPECTED_NULL))
+        parcel.read_binder().transpose().unwrap_or(Err(StatusCode::UNEXPECTED_NULL))
     }
 }
 
@@ -610,7 +608,10 @@ impl DeathRecipient {
             //
             // All uses of linkToDeath in this file correctly increment the
             // ref-count that this onUnlinked callback will decrement.
-            sys::AIBinder_DeathRecipient_setOnUnlinked(recipient, Some(Self::cookie_decr_refcount::<F>));
+            sys::AIBinder_DeathRecipient_setOnUnlinked(
+                recipient,
+                Some(Self::cookie_decr_refcount::<F>),
+            );
         }
         DeathRecipient {
             recipient,
