@@ -125,9 +125,7 @@ void LayerFuzzer::invokeBufferStateLayer() {
             ftl::yield<FenceResult>(base::unexpected(mFdp.ConsumeIntegral<status_t>())).share());
 
     layer->releasePendingBuffer(mFdp.ConsumeIntegral<int64_t>());
-    layer->finalizeFrameEventHistory(fenceTime, compositorTiming);
     layer->onPostComposition(nullptr, fenceTime, fenceTime, compositorTiming);
-    layer->isBufferDue(mFdp.ConsumeIntegral<int64_t>());
 
     layer->setTransform(mFdp.ConsumeIntegral<uint32_t>());
     layer->setTransformToDisplayInverse(mFdp.ConsumeBool());
@@ -151,7 +149,6 @@ void LayerFuzzer::invokeBufferStateLayer() {
     layer->computeSourceBounds(getFuzzedFloatRect(&mFdp));
 
     layer->fenceHasSignaled();
-    layer->framePresentTimeIsCurrent(mFdp.ConsumeIntegral<int64_t>());
     layer->onPreComposition(mFdp.ConsumeIntegral<int64_t>());
     const std::vector<sp<CallbackHandle>> callbacks;
     layer->setTransactionCompletedListeners(callbacks);

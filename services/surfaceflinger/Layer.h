@@ -528,8 +528,6 @@ public:
 
     virtual bool isHdrY410() const { return false; }
 
-    virtual bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const { return false; }
-
     /*
      * called after composition.
      * returns true if the layer latched a new buffer this frame.
@@ -542,17 +540,13 @@ public:
     // If a buffer was replaced this frame, release the former buffer
     virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) { }
 
-    virtual void finalizeFrameEventHistory(const std::shared_ptr<FenceTime>& /*glDoneFence*/,
-                                           const CompositorTiming& /*compositorTiming*/) {}
-
     /*
      * latchBuffer - called each time the screen is redrawn and returns whether
      * the visible regions need to be recomputed (this is a fairly heavy
      * operation, so this should be set only if needed). Typically this is used
      * to figure out if the content or size of a surface has changed.
      */
-    virtual bool latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/,
-                             nsecs_t /*expectedPresentTime*/) {
+    virtual bool latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/) {
         return false;
     }
 
@@ -925,11 +919,6 @@ protected:
     virtual void preparePerFrameCompositionState();
     virtual void commitTransaction(State& stateToCommit);
     virtual void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>&) {}
-
-    // Returns mCurrentScaling mode (originating from the
-    // Client) or mOverrideScalingMode mode (originating from
-    // the Surface Controller) if set.
-    virtual uint32_t getEffectiveScalingMode() const { return 0; }
 
     sp<compositionengine::LayerFE> asLayerFE() const;
     sp<Layer> getClonedFrom() { return mClonedFrom != nullptr ? mClonedFrom.promote() : nullptr; }

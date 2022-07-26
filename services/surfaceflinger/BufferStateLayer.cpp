@@ -25,7 +25,6 @@
 
 #include <FrameTimeline/FrameTimeline.h>
 #include <compositionengine/CompositionEngine.h>
-#include <compositionengine/LayerFECompositionState.h>
 #include <gui/BufferQueue.h>
 #include <private/gui/SyncFeatures.h>
 #include <renderengine/Image.h>
@@ -71,22 +70,64 @@ namespace android {
 
 using PresentState = frametimeline::SurfaceFrame::PresentState;
 using gui::WindowInfo;
-void BufferStateLayer::callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
-                                                 const sp<GraphicBuffer>& buffer,
-                                                 uint64_t framenumber,
-                                                 const sp<Fence>& releaseFence,
-                                                 uint32_t currentMaxAcquiredBufferCount) {
-    if (!listener) {
-        return;
-    }
-    ATRACE_FORMAT_INSTANT("callReleaseBufferCallback %s - %" PRIu64, getDebugName(), framenumber);
-    listener->onReleaseBuffer({buffer->getId(), framenumber},
-                              releaseFence ? releaseFence : Fence::NO_FENCE,
-                              currentMaxAcquiredBufferCount);
-}
-
 namespace {
 static constexpr float defaultMaxLuminance = 1000.0;
+
+constexpr mat4 inverseOrientation(uint32_t transform) {
+    const mat4 flipH(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1);
+    const mat4 flipV(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1);
+    const mat4 rot90(0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1);
+    mat4 tr;
+
+    if (transform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
+        tr = tr * rot90;
+    }
+    if (transform & NATIVE_WINDOW_TRANSFORM_FLIP_H) {
+        tr = tr * flipH;
+    }
+    if (transform & NATIVE_WINDOW_TRANSFORM_FLIP_V) {
+        tr = tr * flipV;
+    }
+    return inverse(tr);
+}
+
+bool assignTransform(ui::Transform* dst, ui::Transform& from) {
+    if (*dst == from) {
+        return false;
+    }
+    *dst = from;
+    return true;
+}
+
+TimeStats::SetFrameRateVote frameRateToSetFrameRateVotePayload(Layer::FrameRate frameRate) {
+    using FrameRateCompatibility = TimeStats::SetFrameRateVote::FrameRateCompatibility;
+    using Seamlessness = TimeStats::SetFrameRateVote::Seamlessness;
+    const auto frameRateCompatibility = [frameRate] {
+        switch (frameRate.type) {
+            case Layer::FrameRateCompatibility::Default:
+                return FrameRateCompatibility::Default;
+            case Layer::FrameRateCompatibility::ExactOrMultiple:
+                return FrameRateCompatibility::ExactOrMultiple;
+            default:
+                return FrameRateCompatibility::Undefined;
+        }
+    }();
+
+    const auto seamlessness = [frameRate] {
+        switch (frameRate.seamlessness) {
+            case scheduler::Seamlessness::OnlySeamless:
+                return Seamlessness::ShouldBeSeamless;
+            case scheduler::Seamlessness::SeamedAndSeamless:
+                return Seamlessness::NotRequired;
+            default:
+                return Seamlessness::Undefined;
+        }
+    }();
+
+    return TimeStats::SetFrameRateVote{.frameRate = frameRate.rate.getValue(),
+                                       .frameRateCompatibility = frameRateCompatibility,
+                                       .seamlessness = seamlessness};
+}
 } // namespace
 
 BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args)
@@ -97,7 +138,6 @@ BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args)
     ALOGV("Creating Layer %s", getDebugName());
 
     mPremultipliedAlpha = !(args.flags & ISurfaceComposerClient::eNonPremultiplied);
-
     mPotentialCursor = args.flags & ISurfaceComposerClient::eCursorWindow;
     mProtectedByApp = args.flags & ISurfaceComposerClient::eProtectedByApp;
     mDrawingState.dataspace = ui::Dataspace::V0_SRGB;
@@ -125,6 +165,20 @@ BufferStateLayer::~BufferStateLayer() {
     const int32_t layerId = getSequence();
     mFlinger->mTimeStats->onDestroy(layerId);
     mFlinger->mFrameTracer->onDestroy(layerId);
+}
+
+void BufferStateLayer::callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
+                                                 const sp<GraphicBuffer>& buffer,
+                                                 uint64_t framenumber,
+                                                 const sp<Fence>& releaseFence,
+                                                 uint32_t currentMaxAcquiredBufferCount) {
+    if (!listener) {
+        return;
+    }
+    ATRACE_FORMAT_INSTANT("callReleaseBufferCallback %s - %" PRIu64, getDebugName(), framenumber);
+    listener->onReleaseBuffer({buffer->getId(), framenumber},
+                              releaseFence ? releaseFence : Fence::NO_FENCE,
+                              currentMaxAcquiredBufferCount);
 }
 
 // -----------------------------------------------------------------------
@@ -239,14 +293,6 @@ void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     mDrawingState.callbackHandles = {};
 }
 
-void BufferStateLayer::finalizeFrameEventHistory(const std::shared_ptr<FenceTime>& glDoneFence,
-                                                 const CompositorTiming& compositorTiming) {
-    for (const auto& handle : mDrawingState.callbackHandles) {
-        handle->gpuCompositionDoneFence = glDoneFence;
-        handle->compositorTiming = compositorTiming;
-    }
-}
-
 bool BufferStateLayer::willPresentCurrentTransaction() const {
     // Returns true if the most recent Transaction applied to CurrentState will be presented.
     return (getSidebandStreamChanged() || getAutoRefresh() ||
@@ -304,14 +350,6 @@ bool BufferStateLayer::setDestinationFrame(const Rect& destinationFrame) {
 
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
-    return true;
-}
-
-static bool assignTransform(ui::Transform* dst, ui::Transform& from) {
-    if (*dst == from) {
-        return false;
-    }
-    *dst = from;
     return true;
 }
 
@@ -641,14 +679,6 @@ bool BufferStateLayer::fenceHasSignaled() const {
     return fenceSignaled;
 }
 
-bool BufferStateLayer::framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const {
-    if (!hasFrameUpdate() || isRemovedFromCurrentState()) {
-        return true;
-    }
-
-    return mDrawingState.isAutoTimestamp || mDrawingState.desiredPresentTime <= expectedPresentTime;
-}
-
 bool BufferStateLayer::onPreComposition(nsecs_t refreshStartTime) {
     for (const auto& handle : mDrawingState.callbackHandles) {
         handle->refreshStartTime = refreshStartTime;
@@ -685,8 +715,7 @@ bool BufferStateLayer::hasFrameUpdate() const {
     return (mDrawingStateModified || mDrawingState.modified) && (c.buffer != nullptr || c.bgColorLayer != nullptr);
 }
 
-status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime,
-                                          nsecs_t /*expectedPresentTime*/) {
+void BufferStateLayer::updateTexImage(nsecs_t latchTime) {
     const State& s(getDrawingState());
 
     if (!s.buffer) {
@@ -695,7 +724,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
                 handle->latchTime = latchTime;
             }
         }
-        return NO_ERROR;
+        return;
     }
 
     for (auto& handle : mDrawingState.callbackHandles) {
@@ -734,135 +763,36 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     mDrawingState.callbackHandles = remainingHandles;
 
     mDrawingStateModified = false;
-
-    return NO_ERROR;
 }
 
-status_t BufferStateLayer::updateActiveBuffer() {
-    const State& s(getDrawingState());
-
-    if (s.buffer == nullptr) {
-        return BAD_VALUE;
-    }
-
-    if (!mBufferInfo.mBuffer || !s.buffer->hasSameBuffer(*mBufferInfo.mBuffer)) {
+void BufferStateLayer::gatherBufferInfo() {
+    if (!mBufferInfo.mBuffer || !mDrawingState.buffer->hasSameBuffer(*mBufferInfo.mBuffer)) {
         decrementPendingBufferCount();
     }
 
     mPreviousReleaseCallbackId = {getCurrentBufferId(), mBufferInfo.mFrameNumber};
-    mBufferInfo.mBuffer = s.buffer;
-    mBufferInfo.mFence = s.acquireFence;
-    mBufferInfo.mFrameNumber = s.frameNumber;
-
-    return NO_ERROR;
-}
-
-status_t BufferStateLayer::updateFrameNumber() {
-    // TODO(marissaw): support frame history events
-    mPreviousFrameNumber = mCurrentFrameNumber;
-    mCurrentFrameNumber = mDrawingState.frameNumber;
-    return NO_ERROR;
-}
-
-void BufferStateLayer::HwcSlotGenerator::bufferErased(const client_cache_t& clientCacheId) {
-    std::lock_guard lock(mMutex);
-    if (!clientCacheId.isValid()) {
-        ALOGE("invalid process, failed to erase buffer");
-        return;
-    }
-    eraseBufferLocked(clientCacheId);
-}
-
-int BufferStateLayer::HwcSlotGenerator::getHwcCacheSlot(const client_cache_t& clientCacheId) {
-    std::lock_guard<std::mutex> lock(mMutex);
-    auto itr = mCachedBuffers.find(clientCacheId);
-    if (itr == mCachedBuffers.end()) {
-        return addCachedBuffer(clientCacheId);
-    }
-    auto& [hwcCacheSlot, counter] = itr->second;
-    counter = mCounter++;
-    return hwcCacheSlot;
-}
-
-int BufferStateLayer::HwcSlotGenerator::addCachedBuffer(const client_cache_t& clientCacheId)
-        REQUIRES(mMutex) {
-    if (!clientCacheId.isValid()) {
-        ALOGE("invalid process, returning invalid slot");
-        return BufferQueue::INVALID_BUFFER_SLOT;
-    }
-
-    ClientCache::getInstance().registerErasedRecipient(clientCacheId, wp<ErasedRecipient>(this));
-
-    int hwcCacheSlot = getFreeHwcCacheSlot();
-    mCachedBuffers[clientCacheId] = {hwcCacheSlot, mCounter++};
-    return hwcCacheSlot;
-}
-
-int BufferStateLayer::HwcSlotGenerator::getFreeHwcCacheSlot() REQUIRES(mMutex) {
-    if (mFreeHwcCacheSlots.empty()) {
-        evictLeastRecentlyUsed();
-    }
-
-    int hwcCacheSlot = mFreeHwcCacheSlots.top();
-    mFreeHwcCacheSlots.pop();
-    return hwcCacheSlot;
-}
-
-void BufferStateLayer::HwcSlotGenerator::evictLeastRecentlyUsed() REQUIRES(mMutex) {
-    uint64_t minCounter = UINT_MAX;
-    client_cache_t minClientCacheId = {};
-    for (const auto& [clientCacheId, slotCounter] : mCachedBuffers) {
-        const auto& [hwcCacheSlot, counter] = slotCounter;
-        if (counter < minCounter) {
-            minCounter = counter;
-            minClientCacheId = clientCacheId;
-        }
-    }
-    eraseBufferLocked(minClientCacheId);
-
-    ClientCache::getInstance().unregisterErasedRecipient(minClientCacheId, this);
-}
-
-void BufferStateLayer::HwcSlotGenerator::eraseBufferLocked(const client_cache_t& clientCacheId)
-        REQUIRES(mMutex) {
-    auto itr = mCachedBuffers.find(clientCacheId);
-    if (itr == mCachedBuffers.end()) {
-        return;
-    }
-    auto& [hwcCacheSlot, counter] = itr->second;
-
-    // TODO send to hwc cache and resources
-
-    mFreeHwcCacheSlots.push(hwcCacheSlot);
-    mCachedBuffers.erase(clientCacheId);
-}
-
-void BufferStateLayer::gatherBufferInfo() {
+    mBufferInfo.mBuffer = mDrawingState.buffer;
+    mBufferInfo.mFence = mDrawingState.acquireFence;
+    mBufferInfo.mFrameNumber = mDrawingState.frameNumber;
     mBufferInfo.mPixelFormat =
             !mBufferInfo.mBuffer ? PIXEL_FORMAT_NONE : mBufferInfo.mBuffer->getPixelFormat();
     mBufferInfo.mFrameLatencyNeeded = true;
-
-    const State& s(getDrawingState());
-    mBufferInfo.mDesiredPresentTime = s.desiredPresentTime;
-    mBufferInfo.mFenceTime = std::make_shared<FenceTime>(s.acquireFence);
-    mBufferInfo.mFence = s.acquireFence;
-    mBufferInfo.mTransform = s.bufferTransform;
+    mBufferInfo.mDesiredPresentTime = mDrawingState.desiredPresentTime;
+    mBufferInfo.mFenceTime = std::make_shared<FenceTime>(mDrawingState.acquireFence);
+    mBufferInfo.mFence = mDrawingState.acquireFence;
+    mBufferInfo.mTransform = mDrawingState.bufferTransform;
     auto lastDataspace = mBufferInfo.mDataspace;
-    mBufferInfo.mDataspace = translateDataspace(s.dataspace);
+    mBufferInfo.mDataspace = translateDataspace(mDrawingState.dataspace);
     if (lastDataspace != mBufferInfo.mDataspace) {
         mFlinger->mSomeDataspaceChanged = true;
     }
-    mBufferInfo.mCrop = computeBufferCrop(s);
+    mBufferInfo.mCrop = computeBufferCrop(mDrawingState);
     mBufferInfo.mScaleMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
-    mBufferInfo.mSurfaceDamage = s.surfaceDamageRegion;
-    mBufferInfo.mHdrMetadata = s.hdrMetadata;
-    mBufferInfo.mApi = s.api;
-    mBufferInfo.mTransformToDisplayInverse = s.transformToDisplayInverse;
-    mBufferInfo.mBufferSlot = mHwcSlotGenerator->getHwcCacheSlot(s.clientCacheId);
-}
-
-uint32_t BufferStateLayer::getEffectiveScalingMode() const {
-   return NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
+    mBufferInfo.mSurfaceDamage = mDrawingState.surfaceDamageRegion;
+    mBufferInfo.mHdrMetadata = mDrawingState.hdrMetadata;
+    mBufferInfo.mApi = mDrawingState.api;
+    mBufferInfo.mTransformToDisplayInverse = mDrawingState.transformToDisplayInverse;
+    mBufferInfo.mBufferSlot = mHwcSlotGenerator->getHwcCacheSlot(mDrawingState.clientCacheId);
 }
 
 Rect BufferStateLayer::computeBufferCrop(const State& s) {
@@ -1178,32 +1108,6 @@ bool BufferStateLayer::isVisible() const {
             (mBufferInfo.mBuffer != nullptr || mSidebandStream != nullptr);
 }
 
-bool BufferStateLayer::isFixedSize() const {
-    return true;
-}
-
-bool BufferStateLayer::usesSourceCrop() const {
-    return true;
-}
-
-static constexpr mat4 inverseOrientation(uint32_t transform) {
-    const mat4 flipH(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1);
-    const mat4 flipV(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1);
-    const mat4 rot90(0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1);
-    mat4 tr;
-
-    if (transform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
-        tr = tr * rot90;
-    }
-    if (transform & NATIVE_WINDOW_TRANSFORM_FLIP_H) {
-        tr = tr * flipH;
-    }
-    if (transform & NATIVE_WINDOW_TRANSFORM_FLIP_V) {
-        tr = tr * flipV;
-    }
-    return inverse(tr);
-}
-
 std::optional<compositionengine::LayerFE::LayerSettings> BufferStateLayer::prepareClientComposition(
         compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
     ATRACE_CALL();
@@ -1373,38 +1277,6 @@ void BufferStateLayer::preparePerFrameCompositionState() {
     compositionState->sidebandStreamHasFrame = false;
 }
 
-namespace {
-TimeStats::SetFrameRateVote frameRateToSetFrameRateVotePayload(Layer::FrameRate frameRate) {
-    using FrameRateCompatibility = TimeStats::SetFrameRateVote::FrameRateCompatibility;
-    using Seamlessness = TimeStats::SetFrameRateVote::Seamlessness;
-    const auto frameRateCompatibility = [frameRate] {
-        switch (frameRate.type) {
-            case Layer::FrameRateCompatibility::Default:
-                return FrameRateCompatibility::Default;
-            case Layer::FrameRateCompatibility::ExactOrMultiple:
-                return FrameRateCompatibility::ExactOrMultiple;
-            default:
-                return FrameRateCompatibility::Undefined;
-        }
-    }();
-
-    const auto seamlessness = [frameRate] {
-        switch (frameRate.seamlessness) {
-            case scheduler::Seamlessness::OnlySeamless:
-                return Seamlessness::ShouldBeSeamless;
-            case scheduler::Seamlessness::SeamedAndSeamless:
-                return Seamlessness::NotRequired;
-            default:
-                return Seamlessness::Undefined;
-        }
-    }();
-
-    return TimeStats::SetFrameRateVote{.frameRate = frameRate.rate.getValue(),
-                                       .frameRateCompatibility = frameRateCompatibility,
-                                       .seamlessness = seamlessness};
-}
-} // namespace
-
 void BufferStateLayer::onPostComposition(const DisplayDevice* display,
                                          const std::shared_ptr<FenceTime>& glDoneFence,
                                          const std::shared_ptr<FenceTime>& presentFence,
@@ -1413,8 +1285,10 @@ void BufferStateLayer::onPostComposition(const DisplayDevice* display,
     // composition.
     if (!mBufferInfo.mFrameLatencyNeeded) return;
 
-    // Update mFrameEventHistory.
-    finalizeFrameEventHistory(glDoneFence, compositorTiming);
+    for (const auto& handle : mDrawingState.callbackHandles) {
+        handle->gpuCompositionDoneFence = glDoneFence;
+        handle->compositorTiming = compositorTiming;
+    }
 
     // Update mFrameTracker.
     nsecs_t desiredPresentTime = mBufferInfo.mDesiredPresentTime;
@@ -1480,8 +1354,7 @@ void BufferStateLayer::onPostComposition(const DisplayDevice* display,
     mBufferInfo.mFrameLatencyNeeded = false;
 }
 
-bool BufferStateLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                                   nsecs_t expectedPresentTime) {
+bool BufferStateLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) {
     ATRACE_FORMAT_INSTANT("latchBuffer %s - %" PRIu64, getDebugName(),
                           getDrawingState().frameNumber);
 
@@ -1499,27 +1372,16 @@ bool BufferStateLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchT
         return false;
     }
 
+    updateTexImage(latchTime);
+    if (mDrawingState.buffer == nullptr) {
+        return false;
+    }
+
     // Capture the old state of the layer for comparisons later
-    const State& s(getDrawingState());
-    const bool oldOpacity = isOpaque(s);
-
     BufferInfo oldBufferInfo = mBufferInfo;
-
-    status_t err = updateTexImage(recomputeVisibleRegions, latchTime, expectedPresentTime);
-    if (err != NO_ERROR) {
-        return false;
-    }
-
-    err = updateActiveBuffer();
-    if (err != NO_ERROR) {
-        return false;
-    }
-
-    err = updateFrameNumber();
-    if (err != NO_ERROR) {
-        return false;
-    }
-
+    const bool oldOpacity = isOpaque(mDrawingState);
+    mPreviousFrameNumber = mCurrentFrameNumber;
+    mCurrentFrameNumber = mDrawingState.frameNumber;
     gatherBufferInfo();
 
     if (oldBufferInfo.mBuffer == nullptr) {
@@ -1544,7 +1406,7 @@ bool BufferStateLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchT
         }
     }
 
-    if (oldOpacity != isOpaque(s)) {
+    if (oldOpacity != isOpaque(mDrawingState)) {
         recomputeVisibleRegions = true;
     }
 
@@ -1628,7 +1490,7 @@ bool BufferStateLayer::needsFilteringForScreenshots(
 void BufferStateLayer::latchAndReleaseBuffer() {
     if (hasReadyFrame()) {
         bool ignored = false;
-        latchBuffer(ignored, systemTime(), 0 /* expectedPresentTime */);
+        latchBuffer(ignored, systemTime());
     }
     releasePendingBuffer(systemTime());
 }

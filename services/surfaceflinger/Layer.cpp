@@ -2112,8 +2112,6 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo) {
     layerInfo->set_dataspace(dataspaceDetails(static_cast<android_dataspace>(getDataSpace())));
     layerInfo->set_queued_frames(getQueuedFrameCount());
     layerInfo->set_curr_frame(mCurrentFrameNumber);
-    layerInfo->set_effective_scaling_mode(getEffectiveScalingMode());
-
     layerInfo->set_requested_corner_radius(getDrawingState().cornerRadius);
     layerInfo->set_corner_radius(
             (getRoundedCornerState().radius.x + getRoundedCornerState().radius.y) / 2.0);
