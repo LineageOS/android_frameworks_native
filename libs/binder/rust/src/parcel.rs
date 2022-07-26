@@ -22,10 +22,10 @@ use crate::proxy::SpIBinder;
 use crate::sys;
 
 use std::convert::TryInto;
+use std::fmt;
 use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
 use std::ptr::{self, NonNull};
-use std::fmt;
 
 mod file_descriptor;
 mod parcelable;
@@ -33,8 +33,8 @@ mod parcelable_holder;
 
 pub use self::file_descriptor::ParcelFileDescriptor;
 pub use self::parcelable::{
-    Deserialize, DeserializeArray, DeserializeOption, Serialize, SerializeArray, SerializeOption,
-    Parcelable, NON_NULL_PARCELABLE_FLAG, NULL_PARCELABLE_FLAG,
+    Deserialize, DeserializeArray, DeserializeOption, Parcelable, Serialize, SerializeArray,
+    SerializeOption, NON_NULL_PARCELABLE_FLAG, NULL_PARCELABLE_FLAG,
 };
 pub use self::parcelable_holder::{ParcelableHolder, ParcelableMetadata};
 
@@ -78,9 +78,7 @@ impl Parcel {
             // a valid pointer. If it fails, the process will crash.
             sys::AParcel_create()
         };
-        Self {
-            ptr: NonNull::new(ptr).expect("AParcel_create returned null pointer")
-        }
+        Self { ptr: NonNull::new(ptr).expect("AParcel_create returned null pointer") }
     }
 
     /// Create an owned reference to a parcel object from a raw pointer.
@@ -116,10 +114,7 @@ impl Parcel {
         // lifetime of the returned `BorrowedParcel` is tied to `self`, so the
         // borrow checker will ensure that the `AParcel` can only be accessed
         // via the `BorrowParcel` until it goes out of scope.
-        BorrowedParcel {
-            ptr: self.ptr,
-            _lifetime: PhantomData,
-        }
+        BorrowedParcel { ptr: self.ptr, _lifetime: PhantomData }
     }
 
     /// Get an immutable borrowed view into the contents of this `Parcel`.
@@ -127,9 +122,7 @@ impl Parcel {
         // Safety: Parcel and BorrowedParcel are both represented in the same
         // way as a NonNull<sys::AParcel> due to their use of repr(transparent),
         // so casting references as done here is valid.
-        unsafe {
-            &*(self as *const Parcel as *const BorrowedParcel<'_>)
-        }
+        unsafe { &*(self as *const Parcel as *const BorrowedParcel<'_>) }
     }
 }
 
@@ -165,10 +158,7 @@ impl<'a> BorrowedParcel<'a> {
     /// since this is a mutable borrow, it must have exclusive access to the
     /// AParcel for the duration of the borrow.
     pub unsafe fn from_raw(ptr: *mut sys::AParcel) -> Option<BorrowedParcel<'a>> {
-        Some(Self {
-            ptr: NonNull::new(ptr)?,
-            _lifetime: PhantomData,
-        })
+        Some(Self { ptr: NonNull::new(ptr)?, _lifetime: PhantomData })
     }
 
     /// Get a sub-reference to this reference to the parcel.
@@ -177,10 +167,7 @@ impl<'a> BorrowedParcel<'a> {
         // lifetime of the returned `BorrowedParcel` is tied to `self`, so the
         // borrow checker will ensure that the `AParcel` can only be accessed
         // via the `BorrowParcel` until it goes out of scope.
-        BorrowedParcel {
-            ptr: self.ptr,
-            _lifetime: PhantomData,
-        }
+        BorrowedParcel { ptr: self.ptr, _lifetime: PhantomData }
     }
 }
 
@@ -269,7 +256,7 @@ impl<'a> BorrowedParcel<'a> {
     /// ```
     pub fn sized_write<F>(&mut self, f: F) -> Result<()>
     where
-        for<'b> F: FnOnce(&'b mut WritableSubParcel<'b>) -> Result<()>
+        for<'b> F: FnOnce(&'b mut WritableSubParcel<'b>) -> Result<()>,
     {
         let start = self.get_data_position();
         self.write(&0i32)?;
@@ -324,17 +311,17 @@ impl<'a> BorrowedParcel<'a> {
     ///
     /// This appends `size` bytes of data from `other` starting at offset
     /// `start` to the current parcel, or returns an error if not possible.
-    pub fn append_from(&mut self, other: &impl AsNative<sys::AParcel>, start: i32, size: i32) -> Result<()> {
+    pub fn append_from(
+        &mut self,
+        other: &impl AsNative<sys::AParcel>,
+        start: i32,
+        size: i32,
+    ) -> Result<()> {
         let status = unsafe {
             // Safety: `Parcel::appendFrom` from C++ checks that `start`
             // and `size` are in bounds, and returns an error otherwise.
             // Both `self` and `other` always contain valid pointers.
-            sys::AParcel_appendFrom(
-                other.as_native(),
-                self.as_native_mut(),
-                start,
-                size,
-            )
+            sys::AParcel_appendFrom(other.as_native(), self.as_native_mut(), start, size)
         };
         status_result(status)
     }
@@ -406,7 +393,7 @@ impl Parcel {
     /// ```
     pub fn sized_write<F>(&mut self, f: F) -> Result<()>
     where
-        for<'b> F: FnOnce(&'b mut WritableSubParcel<'b>) -> Result<()>
+        for<'b> F: FnOnce(&'b mut WritableSubParcel<'b>) -> Result<()>,
     {
         self.borrowed().sized_write(f)
     }
@@ -438,7 +425,12 @@ impl Parcel {
     ///
     /// This appends `size` bytes of data from `other` starting at offset
     /// `start` to the current parcel, or returns an error if not possible.
-    pub fn append_from(&mut self, other: &impl AsNative<sys::AParcel>, start: i32, size: i32) -> Result<()> {
+    pub fn append_from(
+        &mut self,
+        other: &impl AsNative<sys::AParcel>,
+        start: i32,
+        size: i32,
+    ) -> Result<()> {
         self.borrowed().append_from(other, start, size)
     }
 
@@ -492,7 +484,7 @@ impl<'a> BorrowedParcel<'a> {
     ///
     pub fn sized_read<F>(&self, f: F) -> Result<()>
     where
-        for<'b> F: FnOnce(ReadableSubParcel<'b>) -> Result<()>
+        for<'b> F: FnOnce(ReadableSubParcel<'b>) -> Result<()>,
     {
         let start = self.get_data_position();
         let parcelable_size: i32 = self.read()?;
@@ -500,17 +492,13 @@ impl<'a> BorrowedParcel<'a> {
             return Err(StatusCode::BAD_VALUE);
         }
 
-        let end = start.checked_add(parcelable_size)
-            .ok_or(StatusCode::BAD_VALUE)?;
+        let end = start.checked_add(parcelable_size).ok_or(StatusCode::BAD_VALUE)?;
         if end > self.get_data_size() {
             return Err(StatusCode::NOT_ENOUGH_DATA);
         }
 
         let subparcel = ReadableSubParcel {
-            parcel: BorrowedParcel {
-                ptr: self.ptr,
-                _lifetime: PhantomData,
-            },
+            parcel: BorrowedParcel { ptr: self.ptr, _lifetime: PhantomData },
             end_position: end,
         };
         f(subparcel)?;
@@ -633,7 +621,7 @@ impl Parcel {
     ///
     pub fn sized_read<F>(&self, f: F) -> Result<()>
     where
-        for<'b> F: FnOnce(ReadableSubParcel<'b>) -> Result<()>
+        for<'b> F: FnOnce(ReadableSubParcel<'b>) -> Result<()>,
     {
         self.borrowed_ref().sized_read(f)
     }
@@ -716,15 +704,13 @@ impl Drop for Parcel {
 
 impl fmt::Debug for Parcel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Parcel")
-            .finish()
+        f.debug_struct("Parcel").finish()
     }
 }
 
 impl<'a> fmt::Debug for BorrowedParcel<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BorrowedParcel")
-            .finish()
+        f.debug_struct("BorrowedParcel").finish()
     }
 }
 
@@ -813,10 +799,7 @@ fn test_read_data() {
         assert!(parcel.set_data_position(start).is_ok());
     }
 
-    assert_eq!(
-        parcel.read::<f32>().unwrap(),
-        1143139100000000000000000000.0
-    );
+    assert_eq!(parcel.read::<f32>().unwrap(), 1143139100000000000000000000.0);
     assert_eq!(parcel.read::<f32>().unwrap(), 40.043392);
 
     unsafe {
@@ -842,10 +825,7 @@ fn test_utf8_utf16_conversions() {
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
-    assert_eq!(
-        parcel.read::<Option<String>>().unwrap().unwrap(),
-        "Hello, Binder!",
-    );
+    assert_eq!(parcel.read::<Option<String>>().unwrap().unwrap(), "Hello, Binder!",);
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
@@ -864,13 +844,7 @@ fn test_utf8_utf16_conversions() {
 
     assert!(parcel.write(&["str1", "str2", "str3"][..]).is_ok());
     assert!(parcel
-        .write(
-            &[
-                String::from("str4"),
-                String::from("str5"),
-                String::from("str6"),
-            ][..]
-        )
+        .write(&[String::from("str4"), String::from("str5"), String::from("str6"),][..])
         .is_ok());
 
     let s1 = "Hello, Binder!";
@@ -882,14 +856,8 @@ fn test_utf8_utf16_conversions() {
         assert!(parcel.set_data_position(start).is_ok());
     }
 
-    assert_eq!(
-        parcel.read::<Vec<String>>().unwrap(),
-        ["str1", "str2", "str3"]
-    );
-    assert_eq!(
-        parcel.read::<Vec<String>>().unwrap(),
-        ["str4", "str5", "str6"]
-    );
+    assert_eq!(parcel.read::<Vec<String>>().unwrap(), ["str1", "str2", "str3"]);
+    assert_eq!(parcel.read::<Vec<String>>().unwrap(), ["str4", "str5", "str6"]);
     assert_eq!(parcel.read::<Vec<String>>().unwrap(), [s1, s2, s3]);
 }
 
@@ -900,9 +868,9 @@ fn test_sized_write() {
 
     let arr = [1i32, 2i32, 3i32];
 
-    parcel.sized_write(|subparcel| {
-        subparcel.write(&arr[..])
-    }).expect("Could not perform sized write");
+    parcel
+        .sized_write(|subparcel| subparcel.write(&arr[..]))
+        .expect("Could not perform sized write");
 
     // i32 sub-parcel length + i32 array length + 3 i32 elements
     let expected_len = 20i32;
@@ -913,15 +881,9 @@ fn test_sized_write() {
         parcel.set_data_position(start).unwrap();
     }
 
-    assert_eq!(
-        expected_len,
-        parcel.read().unwrap(),
-    );
+    assert_eq!(expected_len, parcel.read().unwrap(),);
 
-    assert_eq!(
-        parcel.read::<Vec<i32>>().unwrap(),
-        &arr,
-    );
+    assert_eq!(parcel.read::<Vec<i32>>().unwrap(), &arr,);
 }
 
 #[test]

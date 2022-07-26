@@ -23,7 +23,7 @@ use binder::{
 };
 // Import from impl API for testing only, should not be necessary as long as you
 // are using AIDL.
-use binder::binder_impl::{BorrowedParcel, Binder, TransactionCode};
+use binder::binder_impl::{Binder, BorrowedParcel, TransactionCode};
 
 use std::ffi::{c_void, CStr, CString};
 use std::sync::Once;
@@ -64,13 +64,7 @@ macro_rules! assert_eq {
 macro_rules! assert {
     ($expr:expr) => {
         if !$expr {
-            eprintln!(
-                "assertion failed: `{:?}`, {}:{}:{}",
-                $expr,
-                file!(),
-                line!(),
-                column!()
-            );
+            eprintln!("assertion failed: `{:?}`, {}:{}:{}", $expr, file!(), line!(), column!());
             return Err(StatusCode::FAILED_TRANSACTION);
         }
     };
@@ -119,9 +113,7 @@ fn on_transact(
         bindings::Transaction_TEST_BOOL => {
             assert!(parcel.read::<bool>()?);
             assert!(!parcel.read::<bool>()?);
-            assert_eq!(parcel.read::<Vec<bool>>()?, unsafe {
-                bindings::TESTDATA_BOOL
-            });
+            assert_eq!(parcel.read::<Vec<bool>>()?, unsafe { bindings::TESTDATA_BOOL });
             assert_eq!(parcel.read::<Option<Vec<bool>>>()?, None);
 
             reply.write(&true)?;
@@ -148,9 +140,7 @@ fn on_transact(
             assert_eq!(parcel.read::<u16>()?, 0);
             assert_eq!(parcel.read::<u16>()?, 1);
             assert_eq!(parcel.read::<u16>()?, u16::max_value());
-            assert_eq!(parcel.read::<Vec<u16>>()?, unsafe {
-                bindings::TESTDATA_CHARS
-            });
+            assert_eq!(parcel.read::<Vec<u16>>()?, unsafe { bindings::TESTDATA_CHARS });
             assert_eq!(parcel.read::<Option<Vec<u16>>>()?, None);
 
             reply.write(&0u16)?;
@@ -163,9 +153,7 @@ fn on_transact(
             assert_eq!(parcel.read::<i32>()?, 0);
             assert_eq!(parcel.read::<i32>()?, 1);
             assert_eq!(parcel.read::<i32>()?, i32::max_value());
-            assert_eq!(parcel.read::<Vec<i32>>()?, unsafe {
-                bindings::TESTDATA_I32
-            });
+            assert_eq!(parcel.read::<Vec<i32>>()?, unsafe { bindings::TESTDATA_I32 });
             assert_eq!(parcel.read::<Option<Vec<i32>>>()?, None);
 
             reply.write(&0i32)?;
@@ -178,9 +166,7 @@ fn on_transact(
             assert_eq!(parcel.read::<i64>()?, 0);
             assert_eq!(parcel.read::<i64>()?, 1);
             assert_eq!(parcel.read::<i64>()?, i64::max_value());
-            assert_eq!(parcel.read::<Vec<i64>>()?, unsafe {
-                bindings::TESTDATA_I64
-            });
+            assert_eq!(parcel.read::<Vec<i64>>()?, unsafe { bindings::TESTDATA_I64 });
             assert_eq!(parcel.read::<Option<Vec<i64>>>()?, None);
 
             reply.write(&0i64)?;
@@ -193,9 +179,7 @@ fn on_transact(
             assert_eq!(parcel.read::<u64>()?, 0);
             assert_eq!(parcel.read::<u64>()?, 1);
             assert_eq!(parcel.read::<u64>()?, u64::max_value());
-            assert_eq!(parcel.read::<Vec<u64>>()?, unsafe {
-                bindings::TESTDATA_U64
-            });
+            assert_eq!(parcel.read::<Vec<u64>>()?, unsafe { bindings::TESTDATA_U64 });
             assert_eq!(parcel.read::<Option<Vec<u64>>>()?, None);
 
             reply.write(&0u64)?;
@@ -232,16 +216,9 @@ fn on_transact(
             let s: Option<String> = parcel.read()?;
             assert_eq!(s, None);
             let s: Option<Vec<Option<String>>> = parcel.read()?;
-            for (s, expected) in s
-                .unwrap()
-                .iter()
-                .zip(unsafe { bindings::TESTDATA_STRS }.iter())
-            {
-                let expected = unsafe {
-                    expected
-                        .as_ref()
-                        .and_then(|e| CStr::from_ptr(e).to_str().ok())
-                };
+            for (s, expected) in s.unwrap().iter().zip(unsafe { bindings::TESTDATA_STRS }.iter()) {
+                let expected =
+                    unsafe { expected.as_ref().and_then(|e| CStr::from_ptr(e).to_str().ok()) };
                 assert_eq!(s.as_deref(), expected);
             }
             let s: Option<Vec<Option<String>>> = parcel.read()?;
@@ -252,10 +229,7 @@ fn on_transact(
                     .iter()
                     .map(|s| {
                         s.as_ref().map(|s| {
-                            CStr::from_ptr(s)
-                                .to_str()
-                                .expect("String was not UTF-8")
-                                .to_owned()
+                            CStr::from_ptr(s).to_str().expect("String was not UTF-8").to_owned()
                         })
                     })
                     .collect()
@@ -284,12 +258,8 @@ fn on_transact(
             assert!(ibinders[1].is_none());
             assert!(parcel.read::<Option<Vec<Option<SpIBinder>>>>()?.is_none());
 
-            let service = unsafe {
-                SERVICE
-                    .as_ref()
-                    .expect("Global binder service not initialized")
-                    .clone()
-            };
+            let service =
+                unsafe { SERVICE.as_ref().expect("Global binder service not initialized").clone() };
             reply.write(&service)?;
             reply.write(&(None as Option<&SpIBinder>))?;
             reply.write(&[Some(&service), None][..])?;
@@ -300,10 +270,7 @@ fn on_transact(
             assert!(status.is_ok());
             let status: Status = parcel.read()?;
             assert_eq!(status.exception_code(), ExceptionCode::NULL_POINTER);
-            assert_eq!(
-                status.get_description(),
-                "Status(-4, EX_NULL_POINTER): 'a status message'"
-            );
+            assert_eq!(status.get_description(), "Status(-4, EX_NULL_POINTER): 'a status message'");
             let status: Status = parcel.read()?;
             assert_eq!(status.service_specific_error(), 42);
             assert_eq!(
