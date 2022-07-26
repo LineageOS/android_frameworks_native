@@ -561,6 +561,9 @@ impl Drop for WpIBinder {
 /// The cookie in this struct represents an Arc<F> for the owned callback.
 /// This struct owns a ref-count of it, and so does every binder that we
 /// have been linked with.
+///
+/// Dropping the `DeathRecipient` will `unlink_to_death` any binders it is
+/// currently linked to.
 #[repr(C)]
 pub struct DeathRecipient {
     recipient: *mut sys::AIBinder_DeathRecipient,
