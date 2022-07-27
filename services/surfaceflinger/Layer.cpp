@@ -78,7 +78,6 @@
 namespace android {
 namespace {
 constexpr int kDumpTableRowLength = 159;
-const ui::Transform kIdentityTransform;
 } // namespace
 
 using namespace ftl::flag_operators;
@@ -2210,8 +2209,7 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
     if ((traceFlags & LayerTracing::TRACE_INPUT) && needsInputInfo()) {
         WindowInfo info;
         if (useDrawing) {
-            info = fillInputInfo(
-                    InputDisplayArgs{.transform = &kIdentityTransform, .isSecure = true});
+            info = fillInputInfo(ui::Transform(), /* displayIsSecure */ true);
         } else {
             info = state.inputInfo;
         }
@@ -2418,7 +2416,7 @@ void Layer::handleDropInputMode(gui::WindowInfo& info) const {
     }
 }
 
-WindowInfo Layer::fillInputInfo(const InputDisplayArgs& displayArgs) {
+WindowInfo Layer::fillInputInfo(const ui::Transform& displayTransform, bool displayIsSecure) {
     if (!hasInputInfo()) {
         mDrawingState.inputInfo.name = getName();
         mDrawingState.inputInfo.ownerUid = mOwnerUid;
@@ -2427,20 +2425,11 @@ WindowInfo Layer::fillInputInfo(const InputDisplayArgs& displayArgs) {
         mDrawingState.inputInfo.displayId = getLayerStack().id;
     }
 
-    const ui::Transform& displayTransform =
-            displayArgs.transform != nullptr ? *displayArgs.transform : kIdentityTransform;
-
     WindowInfo info = mDrawingState.inputInfo;
     info.id = sequence;
     info.displayId = getLayerStack().id;
 
     fillInputFrameInfo(info, displayTransform);
-
-    if (displayArgs.transform == nullptr) {
-        // Do not let the window receive touches if it is not associated with a valid display
-        // transform. We still allow the window to receive keys and prevent ANRs.
-        info.inputConfig |= WindowInfo::InputConfig::NOT_TOUCHABLE;
-    }
 
     // For compatibility reasons we let layers which can receive input
     // receive input before they have actually submitted a buffer. Because
@@ -2459,7 +2448,7 @@ WindowInfo Layer::fillInputInfo(const InputDisplayArgs& displayArgs) {
 
     // If the window will be blacked out on a display because the display does not have the secure
     // flag and the layer has the secure flag set, then drop input.
-    if (!displayArgs.isSecure && isSecure()) {
+    if (!displayIsSecure && isSecure()) {
         info.inputConfig |= WindowInfo::InputConfig::DROP_INPUT;
     }
 
