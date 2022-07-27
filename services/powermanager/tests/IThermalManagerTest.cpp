@@ -33,39 +33,43 @@ using namespace android;
 using namespace android::os;
 using namespace std::chrono_literals;
 
-class IThermalServiceTest : public testing::Test,
-                            public BnThermalStatusListener{
+class IThermalServiceTestListener : public BnThermalStatusListener {
+    public:
+        virtual binder::Status onStatusChange(int status) override;
+        std::condition_variable mCondition;
+        int mListenerStatus = 0;
+        std::mutex mMutex;
+};
+
+binder::Status IThermalServiceTestListener::onStatusChange(int status) {
+    std::unique_lock<std::mutex> lock(mMutex);
+    mListenerStatus = status;
+    ALOGI("IThermalServiceTestListener::notifyListener %d", mListenerStatus);
+    mCondition.notify_all();
+    return binder::Status::ok();
+}
+
+class IThermalServiceTest : public testing::Test {
     public:
         IThermalServiceTest();
         void setThermalOverride(int level);
-        virtual binder::Status onStatusChange(int status) override;
         int getStatusFromService();
         void SetUp() override;
         void TearDown() override;
     protected:
         sp<IThermalService> mThermalSvc;
-        std::condition_variable mCondition;
-        int mListenerStatus;
         int mServiceStatus;
-        std::mutex mMutex;
+        sp<IThermalServiceTestListener> mCallback;
 };
 
 IThermalServiceTest::IThermalServiceTest()
- : mListenerStatus(0),
-   mServiceStatus(0) {
+ : mServiceStatus(0),
+   mCallback(sp<IThermalServiceTestListener>::make()) {
 }
 
 void IThermalServiceTest::setThermalOverride(int level) {
     std::string cmdStr = "cmd thermalservice override-status " + std::to_string(level);
     system(cmdStr.c_str());
-}
-
-binder::Status IThermalServiceTest::onStatusChange(int status) {
-    std::unique_lock<std::mutex> lock(mMutex);
-    mListenerStatus = status;
-    ALOGI("IThermalServiceTest::notifyListener %d", mListenerStatus);
-    mCondition.notify_all();
-    return binder::Status::ok();
 }
 
 int IThermalServiceTest::getStatusFromService() {
@@ -87,19 +91,19 @@ void IThermalServiceTest::SetUp() {
     mThermalSvc = interface_cast<IThermalService>(binder);
     EXPECT_NE(mThermalSvc, nullptr);
     // Lock mutex for operation, so listener will only be processed after wait_for is called
-    std::unique_lock<std::mutex> lock(mMutex);
+    std::unique_lock<std::mutex> lock(mCallback->mMutex);
     bool success = false;
-    binder::Status ret = mThermalSvc->registerThermalStatusListener(this, &success);
+    binder::Status ret = mThermalSvc->registerThermalStatusListener(mCallback, &success);
     // Check the result
     ASSERT_TRUE(success);
     ASSERT_TRUE(ret.isOk());
     // Wait for listener called after registration, shouldn't timeout
-    EXPECT_NE(mCondition.wait_for(lock, 1s), std::cv_status::timeout);
+    EXPECT_NE(mCallback->mCondition.wait_for(lock, 1s), std::cv_status::timeout);
 }
 
 void IThermalServiceTest::TearDown() {
     bool success = false;
-    binder::Status ret = mThermalSvc->unregisterThermalStatusListener(this, &success);
+    binder::Status ret = mThermalSvc->unregisterThermalStatusListener(mCallback, &success);
     ASSERT_TRUE(success);
     ASSERT_TRUE(ret.isOk());
 }
@@ -114,14 +118,14 @@ class IThermalListenerTest : public IThermalServiceTest, public testing::WithPar
 TEST_P(IThermalListenerTest, TestListener) {
     int level = GetParam();
     // Lock mutex for operation, so listener will only be processed after wait_for is called
-    std::unique_lock<std::mutex> lock(mMutex);
+    std::unique_lock<std::mutex> lock(mCallback->mMutex);
     // Set the override thermal status
     setThermalOverride(level);
     // Wait for listener called, shouldn't timeout
-    EXPECT_NE(mCondition.wait_for(lock, 1s), std::cv_status::timeout);
+    EXPECT_NE(mCallback->mCondition.wait_for(lock, 1s), std::cv_status::timeout);
     // Check the result
-    EXPECT_EQ(level, mListenerStatus);
-    ALOGI("Thermal listener status %d, expecting %d", mListenerStatus, level);
+    EXPECT_EQ(level, mCallback->mListenerStatus);
+    ALOGI("Thermal listener status %d, expecting %d", mCallback->mListenerStatus, level);
 }
 
 INSTANTIATE_TEST_SUITE_P(TestListenerLevels, IThermalListenerTest, testing::Range(
