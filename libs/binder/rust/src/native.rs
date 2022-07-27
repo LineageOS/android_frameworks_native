@@ -97,10 +97,7 @@ impl<T: Remotable> Binder<T> {
             // ends.
             sys::AIBinder_new(class.into(), rust_object as *mut c_void)
         };
-        let mut binder = Binder {
-            ibinder,
-            rust_object,
-        };
+        let mut binder = Binder { ibinder, rust_object };
         binder.mark_stability(stability);
         binder
     }
@@ -343,7 +340,9 @@ impl<T: Remotable> InterfaceClassMethods for Binder<T> {
             vec![]
         } else {
             slice::from_raw_parts(args, num_args as usize)
-                .iter().map(|s| CStr::from_ptr(*s)).collect()
+                .iter()
+                .map(|s| CStr::from_ptr(*s))
+                .collect()
         };
 
         let object = sys::AIBinder_getUserData(binder);
@@ -418,10 +417,7 @@ impl<B: Remotable> TryFrom<SpIBinder> for Binder<B> {
         // We are transferring the ownership of the AIBinder into the new Binder
         // object.
         let mut ibinder = ManuallyDrop::new(ibinder);
-        Ok(Binder {
-            ibinder: ibinder.as_native_mut(),
-            rust_object: userdata as *mut B,
-        })
+        Ok(Binder { ibinder: ibinder.as_native_mut(), rust_object: userdata as *mut B })
     }
 }
 
