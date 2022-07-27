@@ -3264,11 +3264,11 @@ void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (!layer->needsInputInfo()) return;
 
-        // Do not create WindowInfos for windows on displays that cannot receive input.
-        if (const auto opt = displayInputInfos.get(layer->getLayerStack())) {
-            const auto& info = opt->get();
-            outWindowInfos.push_back(layer->fillInputInfo(info.transform, info.isSecure));
-        }
+        const auto opt = displayInputInfos.get(layer->getLayerStack(),
+                                               [](const auto& info) -> Layer::InputDisplayArgs {
+                                                   return {&info.transform, info.isSecure};
+                                               });
+        outWindowInfos.push_back(layer->fillInputInfo(opt.value_or(Layer::InputDisplayArgs{})));
     });
 
     sNumWindowInfos = outWindowInfos.size();
