@@ -6371,13 +6371,6 @@ void InputDispatcher::onWindowInfosChanged(const std::vector<WindowInfo>& window
 
     { // acquire lock
         std::scoped_lock _l(mLock);
-
-        // Ensure that we have an entry created for all existing displays so that if a displayId has
-        // no windows, we can tell that the windows were removed from the display.
-        for (const auto& [displayId, _] : mWindowHandlesByDisplay) {
-            handlesPerDisplay[displayId];
-        }
-
         mDisplayInfos.clear();
         for (const auto& displayInfo : displayInfos) {
             mDisplayInfos.emplace(displayInfo.displayId, displayInfo);

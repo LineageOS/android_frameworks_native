@@ -2370,35 +2370,6 @@ TEST_F(InputDispatcherTest, ActionOutsideSentOnlyWhenAWindowIsTouched) {
     thirdWindow->consumeMotionDown();
 }
 
-TEST_F(InputDispatcherTest, OnWindowInfosChanged_RemoveAllWindowsOnDisplay) {
-    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> window =
-            new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
-    window->setFocusable(true);
-
-    mDispatcher->onWindowInfosChanged({*window->getInfo()}, {});
-    setFocusedWindow(window);
-
-    window->consumeFocusEvent(true);
-
-    NotifyKeyArgs keyDown = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
-    NotifyKeyArgs keyUp = generateKeyArgs(AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT);
-    mDispatcher->notifyKey(&keyDown);
-    mDispatcher->notifyKey(&keyUp);
-
-    window->consumeKeyDown(ADISPLAY_ID_DEFAULT);
-    window->consumeKeyUp(ADISPLAY_ID_DEFAULT);
-
-    // All windows are removed from the display. Ensure that we can no longer dispatch to it.
-    mDispatcher->onWindowInfosChanged({}, {});
-
-    window->consumeFocusEvent(false);
-
-    mDispatcher->notifyKey(&keyDown);
-    mDispatcher->notifyKey(&keyUp);
-    window->assertNoEvents();
-}
-
 /**
  * Ensure the correct coordinate spaces are used by InputDispatcher.
  *
