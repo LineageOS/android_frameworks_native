@@ -332,7 +332,7 @@ private:
     static const bool sTraceHintSessionData;
     static constexpr const std::chrono::nanoseconds kDefaultTarget = 16ms;
     // Amount of time after the last message was sent before the session goes stale
-    // actually 100ms but we use 80 here to ideally avoid going stale
+    // actually 100ms but we use 80 here to give some slack
     static constexpr const std::chrono::nanoseconds kStaleTimeout = 80ms;
 };
 
