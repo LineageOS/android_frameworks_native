@@ -49,6 +49,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     });
 
     sp<RpcSession> session = RpcSession::make();
+    session->setMaxIncomingThreads(1);
     status_t status;
     for (size_t tries = 0; tries < 5; tries++) {
         usleep(10000);
