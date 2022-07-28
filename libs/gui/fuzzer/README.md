@@ -3,6 +3,7 @@
 ## Table of contents
 + [libgui_surfaceComposer_fuzzer](#SurfaceComposer)
 + [libgui_surfaceComposerClient_fuzzer](#SurfaceComposerClient)
++ [libgui_parcelable_fuzzer](#Libgui_Parcelable)
 
 # <a name="libgui_surfaceComposer_fuzzer"></a> Fuzzer for SurfaceComposer
 
@@ -98,4 +99,26 @@ SurfaceComposerClient supports the following data sources:
 ```
   $ adb sync data
   $ adb shell /data/fuzz/arm64/libgui_surfaceComposerClient_fuzzer/libgui_surfaceComposerClient_fuzzer
+```
+
+# <a name="libgui_parcelable_fuzzer"></a> Fuzzer for Libgui_Parcelable
+
+Libgui_Parcelable supports the following parameters:
+1. LayerMetadataKey (parameter name:`key`)
+2. Dataspace (parameter name:`mDataspace`)
+
+| Parameter| Valid Values| Configured Value|
+|------------- |-------------| ----- |
+|`key`| 0.`view::LayerMetadataKey::METADATA_OWNER_UID`, 1.`view::LayerMetadataKey::METADATA_WINDOW_TYPE`, 2.`view::LayerMetadataKey::METADATA_TASK_ID`, 3.`view::LayerMetadataKey::METADATA_MOUSE_CURSOR`, 4.`view::LayerMetadataKey::METADATA_ACCESSIBILITY_ID`, 5.`view::LayerMetadataKey::METADATA_OWNER_PID`, 6.`view::LayerMetadataKey::METADATA_DEQUEUE_TIME`, 7.`view::LayerMetadataKey::METADATA_GAME_MODE`, |Value obtained from FuzzedDataProvider|
+|`mDataSpace`| 0.`ui::Dataspace::UNKNOWN`, 1.`ui::Dataspace::ARBITRARY`, 2.`ui::Dataspace::STANDARD_SHIFT`, 3.`ui::Dataspace::STANDARD_MASK`, 4.`ui::Dataspace::STANDARD_UNSPECIFIED`, 5.`ui::Dataspace::STANDARD_BT709`, 6.`ui::Dataspace::STANDARD_BT601_625`, 7.`ui::Dataspace::STANDARD_BT601_625_UNADJUSTED`, 8.`ui::Dataspace::STANDARD_BT601_525`, 9.`ui::Dataspace::STANDARD_BT601_525_UNADJUSTED`, 10.`ui::Dataspace::STANDARD_BT2020`, 11.`ui::Dataspace::STANDARD_BT2020_CONSTANT_LUMINANCE`, 12.`ui::Dataspace::STANDARD_BT470M`, 13.`ui::Dataspace::STANDARD_FILM`, 14.`ui::Dataspace::STANDARD_DCI_P3`, 15.`ui::Dataspace::STANDARD_ADOBE_RGB`, 16.`ui::Dataspace::TRANSFER_SHIFT`, 17.`ui::Dataspace::TRANSFER_MASK`, 18.`ui::Dataspace::TRANSFER_UNSPECIFIED`, 19.`ui::Dataspace::TRANSFER_LINEAR`, 20.`ui::Dataspace::TRANSFER_SRGB`, 21.`ui::Dataspace::TRANSFER_SMPTE_170M`, 22.`ui::Dataspace::TRANSFER_GAMMA2_2`, 23.`ui::Dataspace::TRANSFER_GAMMA2_6`, 24.`ui::Dataspace::TRANSFER_GAMMA2_8`, 25.`ui::Dataspace::TRANSFER_ST2084`, 26.`ui::Dataspace::TRANSFER_HLG`, 27.`ui::Dataspace::RANGE_SHIFT`, 28.`ui::Dataspace::RANGE_MASK`, 29.`ui::Dataspace::RANGE_UNSPECIFIED`, 30.`ui::Dataspace::RANGE_FULL`, 31.`ui::Dataspace::RANGE_LIMITED`, 32.`ui::Dataspace::RANGE_EXTENDED`, 33.`ui::Dataspace::SRGB_LINEAR`, 34.`ui::Dataspace::V0_SRGB_LINEAR`, 35.`ui::Dataspace::V0_SCRGB_LINEAR`, 36.`ui::Dataspace::SRGB`, 37.`ui::Dataspace::V0_SRGB`, 38.`ui::Dataspace::V0_SCRGB`, 39.`ui::Dataspace::JFIF`, 40.`ui::Dataspace::V0_JFIF`, 41.`ui::Dataspace::BT601_625`, 42.`ui::Dataspace::V0_BT601_625`, 43.`ui::Dataspace::BT601_525`, 44.`ui::Dataspace::V0_BT601_525`, 45.`ui::Dataspace::BT709`, 46.`ui::Dataspace::V0_BT709`, 47.`ui::Dataspace::DCI_P3_LINEAR`, 48.`ui::Dataspace::DCI_P3`, 49.`ui::Dataspace::DISPLAY_P3_LINEAR`, 50.`ui::Dataspace::DISPLAY_P3`, 51.`ui::Dataspace::ADOBE_RGB`, 52.`ui::Dataspace::BT2020_LINEAR`, 53.`ui::Dataspace::BT2020`, 54.`ui::Dataspace::BT2020_PQ`, 55.`ui::Dataspace::DEPTH`, 56.`ui::Dataspace::SENSOR`, 57.`ui::Dataspace::BT2020_ITU`, 58.`ui::Dataspace::BT2020_ITU_PQ`, 59.`ui::Dataspace::BT2020_ITU_HLG`, 60.`ui::Dataspace::BT2020_HLG`, 61.`ui::Dataspace::DISPLAY_BT2020`, 62.`ui::Dataspace::DYNAMIC_DEPTH`, 63.`ui::Dataspace::JPEG_APP_SEGMENTS`, 64.`ui::Dataspace::HEIF`, |Value obtained from FuzzedDataProvider|
+
+#### Steps to run
+1. Build the fuzzer
+```
+  $ mm -j$(nproc) libgui_fuzzer
+```
+2. Run on device
+```
+  $ adb sync data
+  $ adb shell /data/fuzz/arm64/libgui_fuzzer/libgui_fuzzer
 ```
