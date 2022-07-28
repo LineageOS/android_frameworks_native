@@ -759,9 +759,10 @@ void AidlPowerHalWrapper::setTargetWorkDuration(int64_t targetDuration) {
 }
 
 bool AidlPowerHalWrapper::shouldReportActualDurations() {
-    // Report if we have never reported before or are approaching a stale session
+    // Report if we have never reported before or will go stale next frame
     if (!mLastActualDurationSent.has_value() ||
-        (systemTime() - mLastActualReportTimestamp) > kStaleTimeout.count()) {
+        (mLastTargetDurationSent + systemTime() - mLastActualReportTimestamp) >
+                kStaleTimeout.count()) {
         return true;
     }
 
