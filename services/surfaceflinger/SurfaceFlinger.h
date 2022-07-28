@@ -524,7 +524,6 @@ private:
         Mutex::Autolock lock(mStateLock);
         return getPhysicalDisplayIdsLocked();
     }
-    status_t getPrimaryPhysicalDisplayId(PhysicalDisplayId*) const EXCLUDES(mStateLock);
 
     sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const;
     status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
@@ -1420,7 +1419,6 @@ public:
                                  sp<IBinder>* outDisplay) override;
     binder::Status destroyDisplay(const sp<IBinder>& display) override;
     binder::Status getPhysicalDisplayIds(std::vector<int64_t>* outDisplayIds) override;
-    binder::Status getPrimaryPhysicalDisplayId(int64_t* outDisplayId) override;
     binder::Status getPhysicalDisplayToken(int64_t displayId, sp<IBinder>* outDisplay) override;
     binder::Status setPowerMode(const sp<IBinder>& display, int mode) override;
     binder::Status getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) override;

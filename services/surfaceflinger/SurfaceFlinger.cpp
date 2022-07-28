@@ -607,12 +607,6 @@ std::vector<PhysicalDisplayId> SurfaceFlinger::getPhysicalDisplayIdsLocked() con
     return displayIds;
 }
 
-status_t SurfaceFlinger::getPrimaryPhysicalDisplayId(PhysicalDisplayId* id) const {
-    Mutex::Autolock lock(mStateLock);
-    *id = getPrimaryDisplayIdLocked();
-    return NO_ERROR;
-}
-
 sp<IBinder> SurfaceFlinger::getPhysicalDisplayToken(PhysicalDisplayId displayId) const {
     Mutex::Autolock lock(mStateLock);
     return getPhysicalDisplayTokenLocked(displayId);
@@ -7228,20 +7222,6 @@ binder::Status SurfaceComposerAIDL::getPhysicalDisplayIds(std::vector<int64_t>* 
     }
     *outDisplayIds = displayIds;
     return binder::Status::ok();
-}
-
-binder::Status SurfaceComposerAIDL::getPrimaryPhysicalDisplayId(int64_t* outDisplayId) {
-    status_t status = checkAccessPermission();
-    if (status != OK) {
-        return binderStatusFromStatusT(status);
-    }
-
-    PhysicalDisplayId id;
-    status = mFlinger->getPrimaryPhysicalDisplayId(&id);
-    if (status == NO_ERROR) {
-        *outDisplayId = id.value;
-    }
-    return binderStatusFromStatusT(status);
 }
 
 binder::Status SurfaceComposerAIDL::getPhysicalDisplayToken(int64_t displayId,
