@@ -127,7 +127,6 @@ public:
                          dequeueTime, FrameTimelineInfo{});
 
         commitTransaction(layer.get());
-        bool computeVisisbleRegions;
         nsecs_t latchTime = 25;
         EXPECT_CALL(*mFlinger.getFrameTracer(),
                     traceFence(layerId, bufferId, frameNumber, _,
@@ -135,7 +134,7 @@ public:
         EXPECT_CALL(*mFlinger.getFrameTracer(),
                     traceTimestamp(layerId, bufferId, frameNumber, latchTime,
                                    FrameTracer::FrameEvent::LATCH, /*duration*/ 0));
-        layer->updateTexImage(computeVisisbleRegions, latchTime, /*expectedPresentTime*/ 0);
+        layer->updateTexImage(latchTime);
 
         auto glDoneFence = fenceFactory.createFenceTimeForTest(fence);
         auto presentFence = fenceFactory.createFenceTimeForTest(fence);

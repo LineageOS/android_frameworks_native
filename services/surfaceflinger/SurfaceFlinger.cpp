@@ -3488,8 +3488,6 @@ bool SurfaceFlinger::latchBuffers() {
     bool frameQueued = false;
     bool newDataLatched = false;
 
-    const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
-
     // Store the set of layers that need updates. This set must not change as
     // buffers are being latched, as this could result in a deadlock.
     // Example: Two producers share the same command stream and:
@@ -3509,12 +3507,7 @@ bool SurfaceFlinger::latchBuffers() {
 
         if (layer->hasReadyFrame()) {
             frameQueued = true;
-            if (layer->shouldPresentNow(expectedPresentTime)) {
-                mLayersWithQueuedFrames.emplace(layer);
-            } else {
-                ATRACE_NAME("!layer->shouldPresentNow()");
-                layer->useEmptyDamage();
-            }
+            mLayersWithQueuedFrames.emplace(layer);
         } else {
             layer->useEmptyDamage();
         }
@@ -3535,7 +3528,7 @@ bool SurfaceFlinger::latchBuffers() {
         Mutex::Autolock lock(mStateLock);
 
         for (const auto& layer : mLayersWithQueuedFrames) {
-            if (layer->latchBuffer(visibleRegions, latchTime, expectedPresentTime)) {
+            if (layer->latchBuffer(visibleRegions, latchTime)) {
                 mLayersPendingRefresh.push_back(layer);
                 newDataLatched = true;
             }

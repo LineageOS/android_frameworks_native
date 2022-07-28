@@ -163,6 +163,7 @@ filegroup {
         "FrameTracer/FrameTracer.cpp",
         "FrameTracker.cpp",
         "HdrLayerInfoReporter.cpp",
+        "HwcSlotGenerator.cpp",
         "WindowInfosListenerInvoker.cpp",
         "Layer.cpp",
         "LayerProtoHelper.cpp",

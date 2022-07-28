@@ -26,8 +26,7 @@ namespace android {
 
 class SlotGenerationTest : public testing::Test {
 protected:
-    sp<BufferStateLayer::HwcSlotGenerator> mHwcSlotGenerator =
-            sp<BufferStateLayer::HwcSlotGenerator>::make();
+    sp<HwcSlotGenerator> mHwcSlotGenerator = sp<HwcSlotGenerator>::make();
     sp<GraphicBuffer> mBuffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
     sp<GraphicBuffer> mBuffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
     sp<GraphicBuffer> mBuffer3{new GraphicBuffer(10, 10, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
