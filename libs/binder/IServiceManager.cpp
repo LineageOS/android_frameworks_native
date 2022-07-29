@@ -21,6 +21,7 @@
 #include <inttypes.h>
 #include <unistd.h>
 
+#include <android-base/properties.h>
 #include <android/os/BnServiceCallback.h>
 #include <android/os/IServiceManager.h>
 #include <binder/IPCThreadState.h>
@@ -140,6 +141,16 @@ protected:
 sp<IServiceManager> defaultServiceManager()
 {
     std::call_once(gSmOnce, []() {
+#if defined(__BIONIC__) && !defined(__ANDROID_VNDK__)
+        /* wait for service manager */ {
+            using std::literals::chrono_literals::operator""s;
+            using android::base::WaitForProperty;
+            while (!WaitForProperty("servicemanager.ready", "true", 1s)) {
+                ALOGE("Waited for servicemanager.ready for a second, waiting another...");
+            }
+        }
+#endif
+
         sp<AidlServiceManager> sm = nullptr;
         while (sm == nullptr) {
             sm = interface_cast<AidlServiceManager>(ProcessState::self()->getContextObject(nullptr));
