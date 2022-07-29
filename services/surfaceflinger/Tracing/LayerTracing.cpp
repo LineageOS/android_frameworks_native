@@ -89,6 +89,9 @@ LayersTraceFileProto LayerTracing::createTraceFileProto() const {
     LayersTraceFileProto fileProto;
     fileProto.set_magic_number(uint64_t(LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_H) << 32 |
                                LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_L);
+    auto timeOffsetNs = static_cast<std::uint64_t>(systemTime(SYSTEM_TIME_REALTIME) -
+                                                   systemTime(SYSTEM_TIME_MONOTONIC));
+    fileProto.set_real_to_elapsed_time_offset_nanos(timeOffsetNs);
     return fileProto;
 }
 
