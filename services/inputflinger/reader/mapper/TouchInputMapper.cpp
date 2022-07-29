@@ -395,6 +395,10 @@ void TouchInputMapper::configure(nsecs_t when, const InputReaderConfiguration* c
     }
 
     if (changes && resetNeeded) {
+        // If device was reset, cancel touch event and update touch spot state.
+        cancelTouch(mCurrentRawState.when, mCurrentRawState.readTime);
+        mCurrentCookedState.clear();
+        updateTouchSpots();
         // Send reset, unless this is the first time the device has been configured,
         // in which case the reader will call reset itself after all mappers are ready.
         NotifyDeviceResetArgs args(getContext()->getNextId(), when, getDeviceId());
@@ -679,6 +683,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     bool skipViewportUpdate = false;
     if (viewportChanged) {
         bool viewportOrientationChanged = mViewport.orientation != newViewport->orientation;
+        const bool viewportDisplayIdChanged = mViewport.displayId != newViewport->displayId;
         mViewport = *newViewport;
 
         if (mDeviceMode == DeviceMode::DIRECT || mDeviceMode == DeviceMode::POINTER) {
@@ -792,6 +797,8 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mSurfaceTop = 0;
             mSurfaceOrientation = DISPLAY_ORIENTATION_0;
         }
+        // If displayId changed, do not skip viewport update.
+        skipViewportUpdate &= !viewportDisplayIdChanged;
     }
 
     // If moving between pointer modes, need to reset some state.
@@ -1927,6 +1934,10 @@ void TouchInputMapper::dispatchVirtualKey(nsecs_t when, nsecs_t readTime, uint32
 }
 
 void TouchInputMapper::abortTouches(nsecs_t when, nsecs_t readTime, uint32_t policyFlags) {
+    if (mCurrentMotionAborted) {
+        // Current motion event was already aborted.
+        return;
+    }
     BitSet32 currentIdBits = mCurrentCookedState.cookedPointerData.touchingIdBits;
     if (!currentIdBits.isEmpty()) {
         int32_t metaState = getContext()->getGlobalMetaState();
