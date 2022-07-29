@@ -69,8 +69,8 @@ static ::base::TimeTicks toChromeTimestamp(nsecs_t eventTime) {
 static bool isPalmRejectionEnabled() {
     std::string value = toLower(
             server_configurable_flags::GetServerConfigurableFlag(INPUT_NATIVE_BOOT,
-                                                                 PALM_REJECTION_ENABLED, "false"));
-    if (value == "true" || value == "1") {
+                                                                 PALM_REJECTION_ENABLED, "0"));
+    if (value == "1") {
         return true;
     }
     return false;
