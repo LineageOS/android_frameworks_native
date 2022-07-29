@@ -2,6 +2,8 @@
 
 ## Table of contents
 + [libgui_surfaceComposer_fuzzer](#SurfaceComposer)
++ [libgui_surfaceComposerClient_fuzzer](#SurfaceComposerClient)
++ [libgui_parcelable_fuzzer](#Libgui_Parcelable)
 
 # <a name="libgui_surfaceComposer_fuzzer"></a> Fuzzer for SurfaceComposer
 
@@ -39,4 +41,84 @@ SurfaceComposer supports the following parameters:
 ```
   $ adb sync data
   $ adb shell /data/fuzz/arm64/libgui_surfaceComposer_fuzzer/libgui_surfaceComposer_fuzzer
+```
+
+# <a name="libgui_surfaceComposerClient_fuzzer"></a> Fuzzer for SurfaceComposerClient
+
+SurfaceComposerClient supports the following data sources:
+1. SurfaceWidth (parameter name:`width`)
+2. SurfaceHeight (parameter name:`height`)
+3. TransactionStateFlags (parameter name:`flags`)
+4. TransformHint (parameter name:`outTransformHint`)
+5. SurfacePixelFormat (parameter name:`format`)
+6. LayerId (parameter name:`outLayerId`)
+7. SurfaceComposerClientTags (parameter name:`surfaceTag`)
+8. DefaultMode (parameter name:`defaultMode`)
+9. PrimaryRefreshRateMin (parameter name:`primaryRefreshRateMin`)
+10. PrimaryRefreshRateMax (parameter name:`primaryRefreshRateMax`)
+11. AppRefreshRateMin (parameter name:`appRefreshRateMin`)
+12. AppRefreshRateMax (parameter name:`appRefreshRateMax`)
+13. DisplayPowerMode (parameter name:`mode`)
+14. CacheId (parameter name:`cacheId`)
+15. DisplayBrightness (parameter name:`brightness`)
+16. PowerBoostID (parameter name:`boostId`)
+17. AtomId (parameter name:`atomId`)
+18. ComponentMask (parameter name:`componentMask`)
+19. MaxFrames (parameter name:`maxFrames`)
+20. TaskId (parameter name:`taskId`)
+21. Alpha (parameter name:`aplha`)
+22. CornerRadius (parameter name:`cornerRadius`)
+23. BackgroundBlurRadius (parameter name:`backgroundBlurRadius`)
+24. Half3Color (parameter name:`color`)
+25. LayerStack (parameter name:`layerStack`)
+26. Dataspace (parameter name:`dataspace`)
+27. Api (parameter name:`api`)
+28. Priority (parameter name:`priority`)
+29. TouchableRegionPointX (parameter name:`pointX`)
+30. TouchableRegionPointY (parameter name:`pointY`)
+31. ColorMode (parameter name:`colorMode`)
+32. WindowInfoFlags (parameter name:`flags`)
+33. WindowInfoTransformOrientation (parameter name:`transform`)
+
+| Parameter| Valid Values| Configured Value|
+|------------- |-------------| ----- |
+|`surfaceTag`| 0.`Tag::CREATE_SURFACE`, 1.`Tag::CREATE_WITH_SURFACE_PARENT`, 2.`Tag::CLEAR_LAYER_FRAME_STATS`, 3.`Tag::GET_LAYER_FRAME_STATS`, 4.`Tag::MIRROR_SURFACE`, 5.`Tag::LAST` |Value obtained from FuzzedDataProvider|
+|`mode`| 0.`gui::TouchOcclusionMode::BLOCK_UNTRUSTED`, 1.`gui::TouchOcclusionMode::USE_OPACITY`, 2.`gui::TouchOcclusionMode::ALLOW` |Value obtained from FuzzedDataProvider|
+|`boostId`| 0.`hardware::power::Boost::INTERACTION`, 1.`hardware::power::Boost::DISPLAY_UPDATE_IMMINENT`, 2.`hardware::power::Boost::ML_ACC`, 3.`hardware::power::Boost::AUDIO_LAUNCH`, 4.`hardware::power::Boost::CAMERA_LAUNCH`, 5.`hardware::power::Boost::CAMERA_SHOT` |Value obtained from FuzzedDataProvider|
+|`colorMode`|0.`ui::ColorMode::NATIVE`, 1.`ui::ColorMode::STANDARD_BT601_625`, 2.`ui::ColorMode::STANDARD_BT601_625_UNADJUSTED`, 3.`ui::ColorMode::STANDARD_BT601_525`, 4.`ui::ColorMode::STANDARD_BT601_525_UNADJUSTED`, 5.`ui::ColorMode::STANDARD_BT709`, 6.`ui::ColorMode::DCI_P3`, 7.`ui::ColorMode::SRGB`, 8.`ui::ColorMode::ADOBE_RGB`, 9.`ui::ColorMode::DISPLAY_P3`, 10.`ui::ColorMode::BT2020`, 11.`ui::ColorMode::BT2100_PQ`, 12.`ui::ColorMode::BT2100_HLG`, 13.`ui::ColorMode::DISPLAY_BT2020` |Value obtained from FuzzedDataProvider|
+|`flags`|0 .`gui::WindowInfo::Flag::ALLOW_LOCK_WHILE_SCREEN_ON`, 1.`gui::WindowInfo::Flag::DIM_BEHIND`, 2.`gui::WindowInfo::Flag::BLUR_BEHIND`, 3.`gui::WindowInfo::Flag::NOT_FOCUSABLE`, 4.`gui::WindowInfo::Flag::NOT_TOUCHABLE`, 5.`gui::WindowInfo::Flag::NOT_TOUCH_MODAL`, 6.`gui::WindowInfo::Flag::TOUCHABLE_WHEN_WAKING`, 7.`gui::WindowInfo::Flag::KEEP_SCREEN_ON`, 8.`gui::WindowInfo::Flag::LAYOUT_IN_SCREEN`, 9.`gui::WindowInfo::Flag::LAYOUT_NO_LIMITS`, 10.`gui::WindowInfo::Flag::FULLSCREEN`, 11.`gui::WindowInfo::Flag::FORCE_NOT_FULLSCREEN`, 12.`gui::WindowInfo::Flag::DITHER`, 13.`gui::WindowInfo::Flag::SECURE`, 14.`gui::WindowInfo::Flag::SCALED`, 15.`gui::WindowInfo::Flag::IGNORE_CHEEK_PRESSES`, 16.`gui::WindowInfo::Flag::LAYOUT_INSET_DECOR`, 17.`gui::WindowInfo::Flag::ALT_FOCUSABLE_IM`, 18.`gui::WindowInfo::Flag::WATCH_OUTSIDE_TOUCH`, 19.`gui::WindowInfo::Flag::SHOW_WHEN_LOCKED`, 20.`gui::WindowInfo::Flag::SHOW_WALLPAPER`, 21.`gui::WindowInfo::Flag::TURN_SCREEN_ON`, 22.`gui::WindowInfo::Flag::DISMISS_KEYGUARD`, 23.`gui::WindowInfo::Flag::SPLIT_TOUCH`, 24.`gui::WindowInfo::Flag::HARDWARE_ACCELERATED`, 25.`gui::WindowInfo::Flag::LAYOUT_IN_OVERSCAN`, 26.`gui::WindowInfo::Flag::TRANSLUCENT_STATUS`, 27.`gui::WindowInfo::Flag::TRANSLUCENT_NAVIGATION`, 28.`gui::WindowInfo::Flag::LOCAL_FOCUS_MODE`, 29.`gui::WindowInfo::Flag::SLIPPERY`, 30.`gui::WindowInfo::Flag::LAYOUT_ATTACHED_IN_DECOR`, 31.`gui::WindowInfo::Flag::DRAWS_SYSTEM_BAR_BACKGROUNDS`, |Value obtained from FuzzedDataProvider|
+|`dataspace`| 0.`ui::Dataspace::UNKNOWN`, 1.`ui::Dataspace::ARBITRARY`, 2.`ui::Dataspace::STANDARD_SHIFT`, 3.`ui::Dataspace::STANDARD_MASK`, 4.`ui::Dataspace::STANDARD_UNSPECIFIED`, 5.`ui::Dataspace::STANDARD_BT709`, 6.`ui::Dataspace::STANDARD_BT601_625`, 7.`ui::Dataspace::STANDARD_BT601_625_UNADJUSTED`, 8.`ui::Dataspace::STANDARD_BT601_525`, 9.`ui::Dataspace::STANDARD_BT601_525_UNADJUSTED`, 10.`ui::Dataspace::STANDARD_BT2020`, 11.`ui::Dataspace::STANDARD_BT2020_CONSTANT_LUMINANCE`, 12.`ui::Dataspace::STANDARD_BT470M`, 13.`ui::Dataspace::STANDARD_FILM`, 14.`ui::Dataspace::STANDARD_DCI_P3`, 15.`ui::Dataspace::STANDARD_ADOBE_RGB`, 16.`ui::Dataspace::TRANSFER_SHIFT`, 17.`ui::Dataspace::TRANSFER_MASK`, 18.`ui::Dataspace::TRANSFER_UNSPECIFIED`, 19.`ui::Dataspace::TRANSFER_LINEAR`, 20.`ui::Dataspace::TRANSFER_SRGB`, 21.`ui::Dataspace::TRANSFER_SMPTE_170M`, 22.`ui::Dataspace::TRANSFER_GAMMA2_2`, 23.`ui::Dataspace::TRANSFER_GAMMA2_6`, 24.`ui::Dataspace::TRANSFER_GAMMA2_8`, 25.`ui::Dataspace::TRANSFER_ST2084`, 26.`ui::Dataspace::TRANSFER_HLG`, 27.`ui::Dataspace::RANGE_SHIFT`, 28.`ui::Dataspace::RANGE_MASK`, 29.`ui::Dataspace::RANGE_UNSPECIFIED`, 30.`ui::Dataspace::RANGE_FULL`, 31.`ui::Dataspace::RANGE_LIMITED`, 32.`ui::Dataspace::RANGE_EXTENDED`, 33.`ui::Dataspace::SRGB_LINEAR`, 34.`ui::Dataspace::V0_SRGB_LINEAR`, 35.`ui::Dataspace::V0_SCRGB_LINEAR`, 36.`ui::Dataspace::SRGB`, 37.`ui::Dataspace::V0_SRGB`, 38.`ui::Dataspace::V0_SCRGB`, 39.`ui::Dataspace::JFIF`, 40.`ui::Dataspace::V0_JFIF`, 41.`ui::Dataspace::BT601_625`, 42.`ui::Dataspace::V0_BT601_625`, 43.`ui::Dataspace::BT601_525`, 44.`ui::Dataspace::V0_BT601_525`, 45.`ui::Dataspace::BT709`, 46.`ui::Dataspace::V0_BT709`, 47.`ui::Dataspace::DCI_P3_LINEAR`, 48.`ui::Dataspace::DCI_P3`, 49.`ui::Dataspace::DISPLAY_P3_LINEAR`, 50.`ui::Dataspace::DISPLAY_P3`, 51.`ui::Dataspace::ADOBE_RGB`, 52.`ui::Dataspace::BT2020_LINEAR`, 53.`ui::Dataspace::BT2020`, 54.`ui::Dataspace::BT2020_PQ`, 55.`ui::Dataspace::DEPTH`, 56.`ui::Dataspace::SENSOR`, 57.`ui::Dataspace::BT2020_ITU`, 58.`ui::Dataspace::BT2020_ITU_PQ`, 59.`ui::Dataspace::BT2020_ITU_HLG`, 60.`ui::Dataspace::BT2020_HLG`, 61.`ui::Dataspace::DISPLAY_BT2020`, 62.`ui::Dataspace::DYNAMIC_DEPTH`, 63.`ui::Dataspace::JPEG_APP_SEGMENTS`, 64.`ui::Dataspace::HEIF`, |Value obtained from FuzzedDataProvider|
+|`transform`| 0.`ui::Transform::ROT_0`, 1.`ui::Transform::FLIP_H`, 2.`ui::Transform::FLIP_V`, 3.`ui::Transform::ROT_90`, 4.`ui::Transform::ROT_180`, 5.`ui::Transform::ROT_270` |Value obtained from FuzzedDataProvider|
+
+#### Steps to run
+1. Build the fuzzer
+```
+  $ mm -j$(nproc) libgui_surfaceComposerClient_fuzzer
+```
+2. To run on device
+```
+  $ adb sync data
+  $ adb shell /data/fuzz/arm64/libgui_surfaceComposerClient_fuzzer/libgui_surfaceComposerClient_fuzzer
+```
+
+# <a name="libgui_parcelable_fuzzer"></a> Fuzzer for Libgui_Parcelable
+
+Libgui_Parcelable supports the following parameters:
+1. LayerMetadataKey (parameter name:`key`)
+2. Dataspace (parameter name:`mDataspace`)
+
+| Parameter| Valid Values| Configured Value|
+|------------- |-------------| ----- |
+|`key`| 0.`view::LayerMetadataKey::METADATA_OWNER_UID`, 1.`view::LayerMetadataKey::METADATA_WINDOW_TYPE`, 2.`view::LayerMetadataKey::METADATA_TASK_ID`, 3.`view::LayerMetadataKey::METADATA_MOUSE_CURSOR`, 4.`view::LayerMetadataKey::METADATA_ACCESSIBILITY_ID`, 5.`view::LayerMetadataKey::METADATA_OWNER_PID`, 6.`view::LayerMetadataKey::METADATA_DEQUEUE_TIME`, 7.`view::LayerMetadataKey::METADATA_GAME_MODE`, |Value obtained from FuzzedDataProvider|
+|`mDataSpace`| 0.`ui::Dataspace::UNKNOWN`, 1.`ui::Dataspace::ARBITRARY`, 2.`ui::Dataspace::STANDARD_SHIFT`, 3.`ui::Dataspace::STANDARD_MASK`, 4.`ui::Dataspace::STANDARD_UNSPECIFIED`, 5.`ui::Dataspace::STANDARD_BT709`, 6.`ui::Dataspace::STANDARD_BT601_625`, 7.`ui::Dataspace::STANDARD_BT601_625_UNADJUSTED`, 8.`ui::Dataspace::STANDARD_BT601_525`, 9.`ui::Dataspace::STANDARD_BT601_525_UNADJUSTED`, 10.`ui::Dataspace::STANDARD_BT2020`, 11.`ui::Dataspace::STANDARD_BT2020_CONSTANT_LUMINANCE`, 12.`ui::Dataspace::STANDARD_BT470M`, 13.`ui::Dataspace::STANDARD_FILM`, 14.`ui::Dataspace::STANDARD_DCI_P3`, 15.`ui::Dataspace::STANDARD_ADOBE_RGB`, 16.`ui::Dataspace::TRANSFER_SHIFT`, 17.`ui::Dataspace::TRANSFER_MASK`, 18.`ui::Dataspace::TRANSFER_UNSPECIFIED`, 19.`ui::Dataspace::TRANSFER_LINEAR`, 20.`ui::Dataspace::TRANSFER_SRGB`, 21.`ui::Dataspace::TRANSFER_SMPTE_170M`, 22.`ui::Dataspace::TRANSFER_GAMMA2_2`, 23.`ui::Dataspace::TRANSFER_GAMMA2_6`, 24.`ui::Dataspace::TRANSFER_GAMMA2_8`, 25.`ui::Dataspace::TRANSFER_ST2084`, 26.`ui::Dataspace::TRANSFER_HLG`, 27.`ui::Dataspace::RANGE_SHIFT`, 28.`ui::Dataspace::RANGE_MASK`, 29.`ui::Dataspace::RANGE_UNSPECIFIED`, 30.`ui::Dataspace::RANGE_FULL`, 31.`ui::Dataspace::RANGE_LIMITED`, 32.`ui::Dataspace::RANGE_EXTENDED`, 33.`ui::Dataspace::SRGB_LINEAR`, 34.`ui::Dataspace::V0_SRGB_LINEAR`, 35.`ui::Dataspace::V0_SCRGB_LINEAR`, 36.`ui::Dataspace::SRGB`, 37.`ui::Dataspace::V0_SRGB`, 38.`ui::Dataspace::V0_SCRGB`, 39.`ui::Dataspace::JFIF`, 40.`ui::Dataspace::V0_JFIF`, 41.`ui::Dataspace::BT601_625`, 42.`ui::Dataspace::V0_BT601_625`, 43.`ui::Dataspace::BT601_525`, 44.`ui::Dataspace::V0_BT601_525`, 45.`ui::Dataspace::BT709`, 46.`ui::Dataspace::V0_BT709`, 47.`ui::Dataspace::DCI_P3_LINEAR`, 48.`ui::Dataspace::DCI_P3`, 49.`ui::Dataspace::DISPLAY_P3_LINEAR`, 50.`ui::Dataspace::DISPLAY_P3`, 51.`ui::Dataspace::ADOBE_RGB`, 52.`ui::Dataspace::BT2020_LINEAR`, 53.`ui::Dataspace::BT2020`, 54.`ui::Dataspace::BT2020_PQ`, 55.`ui::Dataspace::DEPTH`, 56.`ui::Dataspace::SENSOR`, 57.`ui::Dataspace::BT2020_ITU`, 58.`ui::Dataspace::BT2020_ITU_PQ`, 59.`ui::Dataspace::BT2020_ITU_HLG`, 60.`ui::Dataspace::BT2020_HLG`, 61.`ui::Dataspace::DISPLAY_BT2020`, 62.`ui::Dataspace::DYNAMIC_DEPTH`, 63.`ui::Dataspace::JPEG_APP_SEGMENTS`, 64.`ui::Dataspace::HEIF`, |Value obtained from FuzzedDataProvider|
+
+#### Steps to run
+1. Build the fuzzer
+```
+  $ mm -j$(nproc) libgui_fuzzer
+```
+2. Run on device
+```
+  $ adb sync data
+  $ adb shell /data/fuzz/arm64/libgui_fuzzer/libgui_fuzzer
 ```

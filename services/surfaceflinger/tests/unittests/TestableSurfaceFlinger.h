@@ -421,7 +421,7 @@ public:
         return mFlinger->SurfaceFlinger::getDisplayNativePrimaries(displayToken, primaries);
     }
 
-    auto& getTransactionQueue() { return mFlinger->mTransactionQueue; }
+    auto& getTransactionQueue() { return mFlinger->mLocklessTransactionQueue; }
     auto& getPendingTransactionQueue() { return mFlinger->mPendingTransactionQueues; }
     auto& getTransactionCommittedSignals() { return mFlinger->mTransactionCommittedSignals; }
 

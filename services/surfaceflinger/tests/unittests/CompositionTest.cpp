@@ -511,7 +511,7 @@ struct BaseLayerProperties {
                 Region(Rect(LayerProperties::HEIGHT, LayerProperties::WIDTH)));
 
         bool ignoredRecomputeVisibleRegions;
-        layer->latchBuffer(ignoredRecomputeVisibleRegions, 0, 0);
+        layer->latchBuffer(ignoredRecomputeVisibleRegions, 0);
         Mock::VerifyAndClear(test->mRenderEngine);
     }
 

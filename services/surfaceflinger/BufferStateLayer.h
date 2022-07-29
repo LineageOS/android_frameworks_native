@@ -40,6 +40,7 @@
 #include "DisplayHardware/HWComposer.h"
 #include "FrameTimeline.h"
 #include "FrameTracker.h"
+#include "HwcSlotGenerator.h"
 #include "Layer.h"
 #include "LayerVector.h"
 #include "SurfaceFlinger.h"
@@ -74,10 +75,7 @@ public:
     // GRALLOC_USAGE_PROTECTED sense.
     bool isProtected() const override;
 
-    // isFixedSize - true if content has a fixed size
-    bool isFixedSize() const override;
-
-    bool usesSourceCrop() const override;
+    bool usesSourceCrop() const override { return true; }
 
     bool isHdrY410() const override;
 
@@ -89,12 +87,8 @@ public:
     // the visible regions need to be recomputed (this is a fairly heavy
     // operation, so this should be set only if needed). Typically this is used
     // to figure out if the content or size of a surface has changed.
-    bool latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                     nsecs_t expectedPresentTime) override;
+    bool latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) override;
     bool hasReadyFrame() const override;
-
-    // Returns the current scaling mode
-    uint32_t getEffectiveScalingMode() const override;
 
     // Calls latchBuffer if the buffer has a frame queued and then releases the buffer.
     // This is used if the buffer is just latched and releases to free up the buffer
@@ -121,14 +115,6 @@ public:
     void onLayerDisplayed(ftl::SharedFuture<FenceResult>) override;
 
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;
-
-    void finalizeFrameEventHistory(const std::shared_ptr<FenceTime>& glDoneFence,
-                                   const CompositorTiming& compositorTiming) override;
-
-    // Returns true if the next buffer should be presented at the expected present time,
-    // overridden by BufferStateLayer and BufferQueueLayer for implementation
-    // specific logic
-    bool isBufferDue(nsecs_t /*expectedPresentTime*/) const { return true; }
 
     Region getActiveTransparentRegion(const Layer::State& s) const override {
         return s.transparentRegionHint;
@@ -166,16 +152,12 @@ public:
     bool updateGeometry() override;
 
     bool fenceHasSignaled() const;
-    bool framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const;
     bool onPreComposition(nsecs_t) override;
 
     // See mPendingBufferTransactions
     void decrementPendingBufferCount();
     std::atomic<int32_t>* getPendingBufferCounter() override { return &mPendingBufferTransactions; }
     std::string getPendingBufferCounterName() override { return mBlastTransactionName; }
-
-    // Returns true if the next buffer should be presented at the expected present time
-    bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const override { return true; }
 
 protected:
     void gatherBufferInfo();
@@ -268,11 +250,7 @@ private:
 
     bool hasFrameUpdate() const;
 
-    status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                            nsecs_t expectedPresentTime);
-
-    status_t updateActiveBuffer();
-    status_t updateFrameNumber();
+    void updateTexImage(nsecs_t latchTime);
 
     sp<Layer> createClone() override;
 
@@ -322,45 +300,6 @@ private:
     // Contains requested position and matrix updates. This will be applied if the client does
     // not specify a destination frame.
     ui::Transform mRequestedTransform;
-
-    // TODO(marissaw): support sticky transform for LEGACY camera mode
-
-    class HwcSlotGenerator : public ClientCache::ErasedRecipient {
-    public:
-        HwcSlotGenerator() {
-            for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
-                mFreeHwcCacheSlots.push(i);
-            }
-        }
-
-        void bufferErased(const client_cache_t& clientCacheId);
-
-        int getHwcCacheSlot(const client_cache_t& clientCacheId);
-
-    private:
-        friend class SlotGenerationTest;
-        int addCachedBuffer(const client_cache_t& clientCacheId) REQUIRES(mMutex);
-        int getFreeHwcCacheSlot() REQUIRES(mMutex);
-        void evictLeastRecentlyUsed() REQUIRES(mMutex);
-        void eraseBufferLocked(const client_cache_t& clientCacheId) REQUIRES(mMutex);
-
-        struct CachedBufferHash {
-            std::size_t operator()(const client_cache_t& clientCacheId) const {
-                return std::hash<uint64_t>{}(clientCacheId.id);
-            }
-        };
-
-        std::mutex mMutex;
-
-        std::unordered_map<client_cache_t, std::pair<int /*HwcCacheSlot*/, uint64_t /*counter*/>,
-                           CachedBufferHash>
-                mCachedBuffers GUARDED_BY(mMutex);
-        std::stack<int /*HwcCacheSlot*/> mFreeHwcCacheSlots GUARDED_BY(mMutex);
-
-        // The cache increments this counter value when a slot is updated or used.
-        // Used to track the least recently-used buffer
-        uint64_t mCounter = 0;
-    };
 
     sp<HwcSlotGenerator> mHwcSlotGenerator;
 };
