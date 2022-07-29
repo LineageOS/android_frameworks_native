@@ -6706,9 +6706,7 @@ TEST_F(SingleTouchInputMapperTest,
     NotifyMotionArgs motionArgs;
 
     // Down.
-    int32_t x = 100;
-    int32_t y = 200;
-    processDown(mapper, x, y);
+    processDown(mapper, 100, 200);
     processSync(mapper);
 
     // We should receive a down event
