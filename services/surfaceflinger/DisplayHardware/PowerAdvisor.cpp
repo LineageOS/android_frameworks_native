@@ -187,7 +187,7 @@ bool PowerAdvisor::supportsPowerHintSession() {
     if (!mSupportsPowerHint.has_value()) {
         std::lock_guard lock(mPowerHalMutex);
         HalWrapper* const halWrapper = getPowerHal();
-        mSupportsPowerHint = halWrapper->supportsPowerHintSession();
+        mSupportsPowerHint = halWrapper && halWrapper->supportsPowerHintSession();
     }
     return *mSupportsPowerHint;
 }
