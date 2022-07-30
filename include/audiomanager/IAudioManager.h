@@ -20,6 +20,7 @@
 #include <audiomanager/AudioManager.h>
 #include <utils/Errors.h>
 #include <binder/IInterface.h>
+#include <binder/PersistableBundle.h>
 #include <hardware/power.h>
 #include <system/audio.h>
 
@@ -41,6 +42,7 @@ public:
         RECORDER_EVENT                        = IBinder::FIRST_CALL_TRANSACTION + 5,
         RELEASE_RECORDER                      = IBinder::FIRST_CALL_TRANSACTION + 6,
         PLAYER_SESSION_ID                     = IBinder::FIRST_CALL_TRANSACTION + 7,
+        PORT_EVENT                            = IBinder::FIRST_CALL_TRANSACTION + 8,
     };
 
     DECLARE_META_INTERFACE(AudioManager)
@@ -59,6 +61,8 @@ public:
     /*oneway*/ virtual status_t recorderEvent(audio_unique_id_t riid, recorder_state_t event) = 0;
     /*oneway*/ virtual status_t releaseRecorder(audio_unique_id_t riid) = 0;
     /*oneway*/ virtual status_t playerSessionId(audio_unique_id_t piid, audio_session_t sessionId) = 0;
+    /*oneway*/ virtual status_t portEvent(audio_port_handle_t portId, player_state_t event,
+                const std::unique_ptr<os::PersistableBundle>& extras) = 0;
 };
 
 // ----------------------------------------------------------------------------

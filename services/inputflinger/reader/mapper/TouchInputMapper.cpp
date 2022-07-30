@@ -1031,8 +1031,9 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
                     : getInverseRotation(mViewport.orientation);
             // For orientation-aware devices that work in the un-rotated coordinate space, the
             // viewport update should be skipped if it is only a change in the orientation.
-            skipViewportUpdate = mParameters.orientationAware && mDisplayWidth == oldDisplayWidth &&
-                    mDisplayHeight == oldDisplayHeight && viewportOrientationChanged;
+            skipViewportUpdate = !viewportDisplayIdChanged && mParameters.orientationAware &&
+                    mDisplayWidth == oldDisplayWidth && mDisplayHeight == oldDisplayHeight &&
+                    viewportOrientationChanged;
 
             // Apply the input device orientation for the device.
             mInputDeviceOrientation =
@@ -1047,8 +1048,6 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
             mDisplayHeight = rawHeight;
             mInputDeviceOrientation = DISPLAY_ORIENTATION_0;
         }
-        // If displayId changed, do not skip viewport update.
-        skipViewportUpdate &= !viewportDisplayIdChanged;
     }
 
     // If moving between pointer modes, need to reset some state.
