@@ -4,6 +4,8 @@
 + [libgui_surfaceComposer_fuzzer](#SurfaceComposer)
 + [libgui_surfaceComposerClient_fuzzer](#SurfaceComposerClient)
 + [libgui_parcelable_fuzzer](#Libgui_Parcelable)
++ [libgui_bufferQueue_fuzzer](#BufferQueue)
++ [libgui_consumer_fuzzer](#Libgui_Consumer)
 
 # <a name="libgui_surfaceComposer_fuzzer"></a> Fuzzer for SurfaceComposer
 
@@ -121,4 +123,70 @@ Libgui_Parcelable supports the following parameters:
 ```
   $ adb sync data
   $ adb shell /data/fuzz/arm64/libgui_fuzzer/libgui_fuzzer
+```
+
+# <a name="libgui_bufferQueue_fuzzer"></a> Fuzzer for BufferQueue
+
+BufferQueue supports the following parameters:
+1. SurfaceWidth (parameter name:`width`)
+2. SurfaceHeight (parameter name:`height`)
+3. TransactionStateFlags (parameter name:`flags`)
+4. TransformHint (parameter name:`outTransformHint`)
+5. SurfacePixelFormat (parameter name:`format`)
+6. LayerId (parameter name:`layerId`)
+7. BufferId (parameter name:`bufferId`)
+8. FrameNumber (parameter name:`frameNumber`)
+9. FrameRate (parameter name:`frameRate`)
+10. Compatability (parameter name:`compatability`)
+11. LatchTime (parameter name:`latchTime`)
+12. AcquireTime (parameter name:`acquireTime`)
+13. RefreshTime (parameter name:`refreshTime`)
+14. DequeueTime (parameter name:`dequeueTime`)
+15. Slot (parameter name:`slot`)
+16. MaxBuffers (parameter name:`maxBuffers`)
+17. GenerationNumber (parameter name:`generationNumber`)
+18. Api (parameter name:`api`)
+19. Usage (parameter name:`usage`)
+20. MaxFrameNumber (parameter name:`maxFrameNumber`)
+21. BufferCount (parameter name:`bufferCount`)
+22. MaxAcquredBufferCount (parameter name:`maxAcquredBufferCount`)
+23. Status (parameter name:`status`)
+24. ApiConnection (parameter name:`apiConnection`)
+25. Dataspace (parameter name:`dataspace`)
+
+| Parameter| Valid Values| Configured Value|
+|------------- |-------------| ----- |
+|`status`| 0.`OK`, 1.`NO_MEMORY`, 2.`NO_INIT`, 3.`BAD_VALUE`, 4.`DEAD_OBJECT`, 5.`INVALID_OPERATION`, 6.`TIMED_OUT`, 7.`WOULD_BLOCK`, 8.`UNKNOWN_ERROR`, 9.`ALREADY_EXISTS`, |Value obtained from FuzzedDataProvider|
+|`apiConnection`| 0.`BufferQueueCore::CURRENTLY_CONNECTED_API`, 1.`BufferQueueCore::NO_CONNECTED_API`, 2.`NATIVE_WINDOW_API_EGL`, 3.`NATIVE_WINDOW_API_CPU`, 4.`NATIVE_WINDOW_API_MEDIA`, 5.`NATIVE_WINDOW_API_CAMERA`, |Value obtained from FuzzedDataProvider|
+|`dataspace`| 0.`ui::Dataspace::UNKNOWN`, 1.`ui::Dataspace::ARBITRARY`, 2.`ui::Dataspace::STANDARD_SHIFT`, 3.`ui::Dataspace::STANDARD_MASK`, 4.`ui::Dataspace::STANDARD_UNSPECIFIED`, 5.`ui::Dataspace::STANDARD_BT709`, 6.`ui::Dataspace::STANDARD_BT601_625`, 7.`ui::Dataspace::STANDARD_BT601_625_UNADJUSTED`, 8.`ui::Dataspace::STANDARD_BT601_525`, 9.`ui::Dataspace::STANDARD_BT601_525_UNADJUSTED`, 10.`ui::Dataspace::STANDARD_BT2020`, 11.`ui::Dataspace::STANDARD_BT2020_CONSTANT_LUMINANCE`, 12.`ui::Dataspace::STANDARD_BT470M`, 13.`ui::Dataspace::STANDARD_FILM`, 14.`ui::Dataspace::STANDARD_DCI_P3`, 15.`ui::Dataspace::STANDARD_ADOBE_RGB`, 16.`ui::Dataspace::TRANSFER_SHIFT`, 17.`ui::Dataspace::TRANSFER_MASK`, 18.`ui::Dataspace::TRANSFER_UNSPECIFIED`, 19.`ui::Dataspace::TRANSFER_LINEAR`, 20.`ui::Dataspace::TRANSFER_SRGB`, 21.`ui::Dataspace::TRANSFER_SMPTE_170M`, 22.`ui::Dataspace::TRANSFER_GAMMA2_2`, 23.`ui::Dataspace::TRANSFER_GAMMA2_6`, 24.`ui::Dataspace::TRANSFER_GAMMA2_8`, 25.`ui::Dataspace::TRANSFER_ST2084`, 26.`ui::Dataspace::TRANSFER_HLG`, 27.`ui::Dataspace::RANGE_SHIFT`, 28.`ui::Dataspace::RANGE_MASK`, 29.`ui::Dataspace::RANGE_UNSPECIFIED`, 30.`ui::Dataspace::RANGE_FULL`, 31.`ui::Dataspace::RANGE_LIMITED`, 32.`ui::Dataspace::RANGE_EXTENDED`, 33.`ui::Dataspace::SRGB_LINEAR`, 34.`ui::Dataspace::V0_SRGB_LINEAR`, 35.`ui::Dataspace::V0_SCRGB_LINEAR`, 36.`ui::Dataspace::SRGB`, 37.`ui::Dataspace::V0_SRGB`, 38.`ui::Dataspace::V0_SCRGB`, 39.`ui::Dataspace::JFIF`, 40.`ui::Dataspace::V0_JFIF`, 41.`ui::Dataspace::BT601_625`, 42.`ui::Dataspace::V0_BT601_625`, 43.`ui::Dataspace::BT601_525`, 44.`ui::Dataspace::V0_BT601_525`, 45.`ui::Dataspace::BT709`, 46.`ui::Dataspace::V0_BT709`, 47.`ui::Dataspace::DCI_P3_LINEAR`, 48.`ui::Dataspace::DCI_P3`, 49.`ui::Dataspace::DISPLAY_P3_LINEAR`, 50.`ui::Dataspace::DISPLAY_P3`, 51.`ui::Dataspace::ADOBE_RGB`, 52.`ui::Dataspace::BT2020_LINEAR`, 53.`ui::Dataspace::BT2020`, 54.`ui::Dataspace::BT2020_PQ`, 55.`ui::Dataspace::DEPTH`, 56.`ui::Dataspace::SENSOR`, 57.`ui::Dataspace::BT2020_ITU`, 58.`ui::Dataspace::BT2020_ITU_PQ`, 59.`ui::Dataspace::BT2020_ITU_HLG`, 60.`ui::Dataspace::BT2020_HLG`, 61.`ui::Dataspace::DISPLAY_BT2020`, 62.`ui::Dataspace::DYNAMIC_DEPTH`, 63.`ui::Dataspace::JPEG_APP_SEGMENTS`, 64.`ui::Dataspace::HEIF`, |Value obtained from FuzzedDataProvider|
+
+#### Steps to run
+1. Build the fuzzer
+```
+  $ mm -j$(nproc) libgui_bufferQueue_fuzzer
+```
+2. To run on device
+```
+  $ adb sync data
+  $ adb shell /data/fuzz/arm64/libgui_bufferQueue_fuzzer/libgui_bufferQueue_fuzzer
+```
+
+# <a name="libgui_consumer_fuzzer"></a> Fuzzer for Libgui_Consumer
+
+Libgui_Consumer supports the following parameters:
+1. GraphicWidth (parameter name:`graphicWidth`)
+2. GraphicHeight (parameter name:`graphicHeight`)
+4. TransformHint (parameter name:`outTransformHint`)
+5. GraphicPixelFormat (parameter name:`format`)
+6. Usage (parameter name:`usage`)
+
+#### Steps to run
+1. Build the fuzzer
+```
+  $ mm -j$(nproc) libgui_consumer_fuzzer
+```
+2. Run on device
+```
+  $ adb sync data
+  $ adb shell /data/fuzz/arm64/libgui_consumer_fuzzer/libgui_consumer_fuzzer
 ```
