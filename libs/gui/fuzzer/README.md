@@ -6,6 +6,7 @@
 + [libgui_parcelable_fuzzer](#Libgui_Parcelable)
 + [libgui_bufferQueue_fuzzer](#BufferQueue)
 + [libgui_consumer_fuzzer](#Libgui_Consumer)
++ [libgui_displayEvent_fuzzer](#LibGui_DisplayEvent)
 
 # <a name="libgui_surfaceComposer_fuzzer"></a> Fuzzer for SurfaceComposer
 
@@ -189,4 +190,30 @@ Libgui_Consumer supports the following parameters:
 ```
   $ adb sync data
   $ adb shell /data/fuzz/arm64/libgui_consumer_fuzzer/libgui_consumer_fuzzer
+```
+
+# <a name="libgui_displayEvent_fuzzer"></a> Fuzzer for LibGui_DisplayEvent
+
+LibGui_DisplayEvent supports the following parameters:
+1. DisplayEventType (parameter name:`type`)
+2. Events (parameter name:`events`)
+3. VsyncSource (parameter name:`vsyncSource`)
+4. EventRegistrationFlags (parameter name:`flags`)
+
+| Parameter| Valid Values| Configured Value|
+|------------- |-------------| ----- |
+|`vsyncSource`| 0.`ISurfaceComposer::eVsyncSourceApp`, 1.`ISurfaceComposer::eVsyncSourceSurfaceFlinger`, |Value obtained from FuzzedDataProvider|
+|`flags`| 0.`ISurfaceComposer::EventRegistration::modeChanged`, 1.`ISurfaceComposer::EventRegistration::frameRateOverride`, |Value obtained from FuzzedDataProvider|
+|`type`| 0.`DisplayEventReceiver::DISPLAY_EVENT_NULL`, 1.`DisplayEventReceiver::DISPLAY_EVENT_VSYNC`, 2.`DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG`, 3.`DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE`, 4.`DisplayEventReceiver::DISPLAY_EVENT_FRAME_RATE_OVERRIDE`, 5.`DisplayEventReceiver::DISPLAY_EVENT_FRAME_RATE_OVERRIDE_FLUSH`, |Value obtained from FuzzedDataProvider|
+|`events`| 0.`Looper::EVENT_INPUT`, 1.`Looper::EVENT_OUTPUT`, 2.`Looper::EVENT_ERROR`, 3.`Looper::EVENT_HANGUP`, 4.`Looper::EVENT_INVALID`, |Value obtained from FuzzedDataProvider|
+
+#### Steps to run
+1. Build the fuzzer
+```
+  $ mm -j$(nproc) libgui_displayEvent_fuzzer
+```
+2. Run on device
+```
+  $ adb sync data
+  $ adb shell /data/fuzz/arm64/libgui_displayEvent_fuzzer/libgui_displayEvent_fuzzer
 ```
