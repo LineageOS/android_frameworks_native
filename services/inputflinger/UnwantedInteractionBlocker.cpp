@@ -58,8 +58,7 @@ static bool isFromTouchscreen(int32_t source) {
 }
 
 static ::base::TimeTicks toChromeTimestamp(nsecs_t eventTime) {
-    return ::base::TimeTicks::UnixEpoch() +
-            ::base::Milliseconds(static_cast<float>(ns2ms(eventTime)));
+    return ::base::TimeTicks::UnixEpoch() + ::base::TimeDelta::FromNanosecondsD(eventTime);
 }
 
 /**
