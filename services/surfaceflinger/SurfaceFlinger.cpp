@@ -2087,11 +2087,9 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     // Save this once per commit + composite to ensure consistency
     mPowerHintSessionEnabled = mPowerAdvisor->usePowerHintSession();
     if (mPowerHintSessionEnabled) {
-        nsecs_t vsyncPeriod;
-        {
-            Mutex::Autolock lock(mStateLock);
-            vsyncPeriod = getVsyncPeriodFromHWC();
-        }
+        const auto& display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked()).get();
+        // get stable vsync period from display mode
+        const nsecs_t vsyncPeriod = display->getActiveMode()->getVsyncPeriod();
         mPowerAdvisor->setCommitStart(frameTime);
         mPowerAdvisor->setExpectedPresentTime(mExpectedPresentTime);
         const nsecs_t idealSfWorkDuration =
