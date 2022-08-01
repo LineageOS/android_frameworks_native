@@ -64,6 +64,9 @@ struct Value {
     wp<ABpBinder> binder;
 };
 void clean(const void* id, void* obj, void* cookie) {
+    // be weary of leaks!
+    // LOG(INFO) << "Deleting an ABpBinder";
+
     CHECK(id == kId) << id << " " << obj << " " << cookie;
 
     delete static_cast<Value*>(obj);
@@ -239,25 +242,10 @@ status_t ABBinder::onTransact(transaction_code_t code, const Parcel& data, Parce
 }
 
 ABpBinder::ABpBinder(const ::android::sp<::android::IBinder>& binder)
-    : AIBinder(nullptr /*clazz*/), BpRefBase(binder) {
+    : AIBinder(nullptr /*clazz*/), mRemote(binder) {
     CHECK(binder != nullptr);
 }
 ABpBinder::~ABpBinder() {}
-
-void ABpBinder::onLastStrongRef(const void* id) {
-    // Since ABpBinder is OBJECT_LIFETIME_WEAK, we must remove this weak reference in order for
-    // the ABpBinder to be deleted. Even though we have no more references on the ABpBinder
-    // (BpRefBase), the remote object may still exist (for instance, if we
-    // receive it from another process, before the ABpBinder is attached).
-
-    ABpBinderTag::Value* value =
-            static_cast<ABpBinderTag::Value*>(remote()->findObject(ABpBinderTag::kId));
-    CHECK_NE(nullptr, value) << "ABpBinder must always be attached";
-
-    remote()->withLock([&]() { value->binder = nullptr; });
-
-    BpRefBase::onLastStrongRef(id);
-}
 
 sp<AIBinder> ABpBinder::lookupOrCreateFromBinder(const ::android::sp<::android::IBinder>& binder) {
     if (binder == nullptr) {
