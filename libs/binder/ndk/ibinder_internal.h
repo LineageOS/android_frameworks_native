@@ -91,7 +91,7 @@ struct ABBinder : public AIBinder, public ::android::BBinder {
 
 // This binder object may be remote or local (even though it is 'Bp'). The implication if it is
 // local is that it is an IBinder object created outside of the domain of libbinder_ndk.
-struct ABpBinder : public AIBinder, public ::android::BpRefBase {
+struct ABpBinder : public AIBinder {
     // Looks up to see if this object has or is an existing ABBinder or ABpBinder object, otherwise
     // it creates an ABpBinder object.
     static ::android::sp<AIBinder> lookupOrCreateFromBinder(
@@ -99,14 +99,13 @@ struct ABpBinder : public AIBinder, public ::android::BpRefBase {
 
     virtual ~ABpBinder();
 
-    void onLastStrongRef(const void* id) override;
-
-    ::android::sp<::android::IBinder> getBinder() override { return remote(); }
+    ::android::sp<::android::IBinder> getBinder() override { return mRemote; }
     ABpBinder* asABpBinder() override { return this; }
 
    private:
     friend android::sp<ABpBinder>;
     explicit ABpBinder(const ::android::sp<::android::IBinder>& binder);
+    ::android::sp<::android::IBinder> mRemote;
 };
 
 struct AIBinder_Class {
