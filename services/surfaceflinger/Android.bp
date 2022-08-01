@@ -145,7 +145,6 @@ filegroup {
         "ClientCache.cpp",
         "Client.cpp",
         "EffectLayer.cpp",
-        "ContainerLayer.cpp",
         "DisplayDevice.cpp",
         "DisplayHardware/AidlComposerHal.cpp",
         "DisplayHardware/HidlComposerHal.cpp",

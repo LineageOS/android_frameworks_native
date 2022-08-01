@@ -108,7 +108,6 @@
 #include "BufferStateLayer.h"
 #include "Client.h"
 #include "Colorizer.h"
-#include "ContainerLayer.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/FramebufferSurface.h"
@@ -4582,7 +4581,9 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
         if (!mirrorFrom) {
             return NAME_NOT_FOUND;
         }
-        status_t result = createContainerLayer(args, outHandle, &mirrorLayer);
+        LayerCreationArgs mirrorArgs = args;
+        mirrorArgs.flags |= ISurfaceComposerClient::eNoColorFill;
+        status_t result = createEffectLayer(mirrorArgs, outHandle, &mirrorLayer);
         if (result != NO_ERROR) {
             return result;
         }
@@ -4621,11 +4622,11 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
                                         pendingBufferCounter);
             }
         } break;
+        case ISurfaceComposerClient::eFXSurfaceContainer:
+            args.flags |= ISurfaceComposerClient::eNoColorFill;
+            FMT_FALLTHROUGH;
         case ISurfaceComposerClient::eFXSurfaceEffect:
             result = createEffectLayer(args, outHandle, &layer);
-            break;
-        case ISurfaceComposerClient::eFXSurfaceContainer:
-            result = createContainerLayer(args, outHandle, &layer);
             break;
         default:
             result = BAD_VALUE;
@@ -4678,13 +4679,6 @@ status_t SurfaceFlinger::createBufferStateLayer(LayerCreationArgs& args, sp<IBin
 status_t SurfaceFlinger::createEffectLayer(const LayerCreationArgs& args, sp<IBinder>* handle,
                                            sp<Layer>* outLayer) {
     *outLayer = getFactory().createEffectLayer(args);
-    *handle = (*outLayer)->getHandle();
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::createContainerLayer(const LayerCreationArgs& args, sp<IBinder>* handle,
-                                              sp<Layer>* outLayer) {
-    *outLayer = getFactory().createContainerLayer(args);
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }

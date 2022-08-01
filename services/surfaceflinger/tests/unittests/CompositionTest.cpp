@@ -37,7 +37,6 @@
 #include <system/window.h>
 #include <utils/String8.h>
 
-#include "ContainerLayer.h"
 #include "DisplayRenderArea.h"
 #include "EffectLayer.h"
 #include "Layer.h"
@@ -952,12 +951,12 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
 template <typename LayerProperties>
 struct ContainerLayerVariant : public BaseLayerVariant<LayerProperties> {
     using Base = BaseLayerVariant<LayerProperties>;
-    using FlingerLayerType = sp<ContainerLayer>;
+    using FlingerLayerType = sp<EffectLayer>;
 
     static FlingerLayerType createLayer(CompositionTest* test) {
         LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-container-layer",
                                LayerProperties::LAYER_FLAGS, LayerMetadata());
-        FlingerLayerType layer = new ContainerLayer(args);
+        FlingerLayerType layer = new EffectLayer(args);
         Base::template initLayerDrawingStateAndComputeBounds(test, layer);
         return layer;
     }

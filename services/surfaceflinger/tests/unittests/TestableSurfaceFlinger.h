@@ -30,7 +30,6 @@
 #include <gui/ScreenCaptureResults.h>
 
 #include "BufferStateLayer.h"
-#include "ContainerLayer.h"
 #include "DisplayDevice.h"
 #include "EffectLayer.h"
 #include "FakeVsyncConfiguration.h"
@@ -126,10 +125,6 @@ public:
     }
 
     sp<EffectLayer> createEffectLayer(const LayerCreationArgs&) override { return nullptr; }
-
-    sp<ContainerLayer> createContainerLayer(const LayerCreationArgs&) override {
-        return nullptr;
-    }
 
     std::unique_ptr<FrameTracer> createFrameTracer() override {
         return std::make_unique<mock::FrameTracer>();

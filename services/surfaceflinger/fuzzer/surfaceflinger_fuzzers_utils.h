@@ -31,7 +31,6 @@
 #include <ui/DynamicDisplayInfo.h>
 
 #include "BufferStateLayer.h"
-#include "ContainerLayer.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/ComposerHal.h"
 #include "EffectLayer.h"
@@ -349,10 +348,6 @@ public:
 
     sp<EffectLayer> createEffectLayer(const LayerCreationArgs &args) override {
         return new EffectLayer(args);
-    }
-
-    sp<ContainerLayer> createContainerLayer(const LayerCreationArgs &args) override {
-        return new ContainerLayer(args);
     }
 
     std::unique_ptr<FrameTracer> createFrameTracer() override {
