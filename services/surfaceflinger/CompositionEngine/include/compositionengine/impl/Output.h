@@ -89,7 +89,6 @@ public:
                                     compositionengine::Output::CoverageState&) override;
     void setReleasedLayers(const compositionengine::CompositionRefreshArgs&) override;
 
-    void updateLayerStateFromFE(const CompositionRefreshArgs&) const override;
     void updateCompositionState(const compositionengine::CompositionRefreshArgs&) override;
     void planComposition() override;
     void writeCompositionState(const compositionengine::CompositionRefreshArgs&) override;

@@ -91,7 +91,6 @@ public:
                  void(sp<compositionengine::LayerFE>&, compositionengine::Output::CoverageState&));
     MOCK_METHOD1(setReleasedLayers, void(const compositionengine::CompositionRefreshArgs&));
 
-    MOCK_CONST_METHOD1(updateLayerStateFromFE, void(const CompositionRefreshArgs&));
     MOCK_METHOD1(updateCompositionState, void(const CompositionRefreshArgs&));
     MOCK_METHOD0(planComposition, void());
     MOCK_METHOD1(writeCompositionState, void(const CompositionRefreshArgs&));

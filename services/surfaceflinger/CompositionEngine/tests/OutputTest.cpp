@@ -758,56 +758,6 @@ TEST_F(OutputSetReleasedLayersTest, setReleasedLayersTakesGivenLayers) {
 }
 
 /*
- * Output::updateLayerStateFromFE()
- */
-
-using OutputUpdateLayerStateFromFETest = OutputTest;
-
-TEST_F(OutputUpdateLayerStateFromFETest, handlesNoOutputLayerCase) {
-    CompositionRefreshArgs refreshArgs;
-
-    mOutput->updateLayerStateFromFE(refreshArgs);
-}
-
-TEST_F(OutputUpdateLayerStateFromFETest, preparesContentStateForAllContainedLayers) {
-    InjectedLayer layer1;
-    InjectedLayer layer2;
-    InjectedLayer layer3;
-
-    EXPECT_CALL(*layer1.layerFE.get(), prepareCompositionState(LayerFE::StateSubset::Content));
-    EXPECT_CALL(*layer2.layerFE.get(), prepareCompositionState(LayerFE::StateSubset::Content));
-    EXPECT_CALL(*layer3.layerFE.get(), prepareCompositionState(LayerFE::StateSubset::Content));
-
-    injectOutputLayer(layer1);
-    injectOutputLayer(layer2);
-    injectOutputLayer(layer3);
-
-    CompositionRefreshArgs refreshArgs;
-    refreshArgs.updatingGeometryThisFrame = false;
-
-    mOutput->updateLayerStateFromFE(refreshArgs);
-}
-
-TEST_F(OutputUpdateLayerStateFromFETest, preparesGeometryAndContentStateForAllContainedLayers) {
-    InjectedLayer layer1;
-    InjectedLayer layer2;
-    InjectedLayer layer3;
-
-    EXPECT_CALL(*layer1.layerFE, prepareCompositionState(LayerFE::StateSubset::GeometryAndContent));
-    EXPECT_CALL(*layer2.layerFE, prepareCompositionState(LayerFE::StateSubset::GeometryAndContent));
-    EXPECT_CALL(*layer3.layerFE, prepareCompositionState(LayerFE::StateSubset::GeometryAndContent));
-
-    injectOutputLayer(layer1);
-    injectOutputLayer(layer2);
-    injectOutputLayer(layer3);
-
-    CompositionRefreshArgs refreshArgs;
-    refreshArgs.updatingGeometryThisFrame = true;
-
-    mOutput->updateLayerStateFromFE(refreshArgs);
-}
-
-/*
  * Output::updateAndWriteCompositionState()
  */
 
@@ -1536,9 +1486,6 @@ const Region OutputEnsureOutputLayerIfVisibleTest::kTransparentRegionHintNegativ
 
 TEST_F(OutputEnsureOutputLayerIfVisibleTest, performsGeomLatchBeforeCheckingIfLayerIncluded) {
     EXPECT_CALL(mOutput, includesLayer(sp<LayerFE>(mLayer.layerFE))).WillOnce(Return(false));
-    EXPECT_CALL(*mLayer.layerFE,
-                prepareCompositionState(compositionengine::LayerFE::StateSubset::BasicGeometry));
-
     mGeomSnapshots.clear();
 
     ensureOutputLayerIfVisible();

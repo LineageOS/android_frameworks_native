@@ -105,8 +105,6 @@ void CompositionEngine::present(CompositionRefreshArgs& args) {
         }
     }
 
-    updateLayerStateFromFE(args);
-
     for (const auto& output : args.outputs) {
         output->present(args);
     }
@@ -119,8 +117,6 @@ void CompositionEngine::updateCursorAsync(CompositionRefreshArgs& args) {
     for (const auto& output : args.outputs) {
         for (auto* layer : output->getOutputLayersOrderedByZ()) {
             if (layer->isHardwareCursor()) {
-                // Latch the cursor composition state from each front-end layer.
-                layer->getLayerFE().prepareCompositionState(LayerFE::StateSubset::Cursor);
                 layer->writeCursorPositionToHWC();
             }
         }
@@ -136,7 +132,7 @@ void CompositionEngine::preComposition(CompositionRefreshArgs& args) {
     mRefreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
     for (auto& layer : args.layers) {
-        if (layer->onPreComposition(mRefreshStartTime)) {
+        if (layer->onPreComposition(mRefreshStartTime, args.updatingOutputGeometryThisFrame)) {
             needsAnotherUpdate = true;
         }
     }
@@ -150,13 +146,6 @@ void CompositionEngine::dump(std::string&) const {
 
 void CompositionEngine::setNeedsAnotherUpdateForTest(bool value) {
     mNeedsAnotherUpdate = value;
-}
-
-void CompositionEngine::updateLayerStateFromFE(CompositionRefreshArgs& args) {
-    // Update the composition state from each front-end layer
-    for (const auto& output : args.outputs) {
-        output->updateLayerStateFromFE(args);
-    }
 }
 
 } // namespace impl
