@@ -144,7 +144,7 @@ ui::Dataspace EffectLayer::getDataSpace() const {
 sp<Layer> EffectLayer::createClone() {
     sp<EffectLayer> layer = mFlinger->getFactory().createEffectLayer(
             LayerCreationArgs(mFlinger.get(), nullptr, mName + " (Mirror)", 0, LayerMetadata()));
-    layer->setInitialValuesForClone(this);
+    layer->setInitialValuesForClone(sp<Layer>::fromExisting(this));
     return layer;
 }
 

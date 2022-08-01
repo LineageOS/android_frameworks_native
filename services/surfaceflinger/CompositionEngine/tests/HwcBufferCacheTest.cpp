@@ -66,8 +66,10 @@ public:
     }
 
     impl::HwcBufferCache mCache;
-    sp<GraphicBuffer> mBuffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
-    sp<GraphicBuffer> mBuffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+    sp<GraphicBuffer> mBuffer1 =
+            sp<GraphicBuffer>::make(1u, 1u, HAL_PIXEL_FORMAT_RGBA_8888, 1u, 0u);
+    sp<GraphicBuffer> mBuffer2 =
+            sp<GraphicBuffer>::make(1u, 1u, HAL_PIXEL_FORMAT_RGBA_8888, 1u, 0u);
 };
 
 TEST_F(HwcBufferCacheTest, cacheWorksForSlotZero) {

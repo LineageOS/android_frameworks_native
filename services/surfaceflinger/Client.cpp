@@ -83,8 +83,8 @@ binder::Status Client::createSurface(const std::string& name, int32_t flags,
     sp<IBinder> handle;
     int32_t layerId;
     uint32_t transformHint;
-    LayerCreationArgs args(mFlinger.get(), this, name.c_str(), static_cast<uint32_t>(flags),
-                           std::move(metadata));
+    LayerCreationArgs args(mFlinger.get(), sp<Client>::fromExisting(this), name.c_str(),
+                           static_cast<uint32_t>(flags), std::move(metadata));
     const status_t status =
             mFlinger->createLayer(args, &handle, parent, &layerId, nullptr, &transformHint);
     if (status == NO_ERROR) {
@@ -137,7 +137,8 @@ binder::Status Client::mirrorSurface(const sp<IBinder>& mirrorFromHandle,
                                      gui::MirrorSurfaceResult* outResult) {
     sp<IBinder> handle;
     int32_t layerId;
-    LayerCreationArgs args(mFlinger.get(), this, "MirrorRoot", 0 /* flags */, gui::LayerMetadata());
+    LayerCreationArgs args(mFlinger.get(), sp<Client>::fromExisting(this), "MirrorRoot",
+                           0 /* flags */, gui::LayerMetadata());
     status_t status = mFlinger->mirrorLayer(args, mirrorFromHandle, &handle, &layerId);
     if (status == NO_ERROR) {
         outResult->handle = handle;

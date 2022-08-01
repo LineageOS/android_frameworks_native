@@ -138,7 +138,7 @@ protected:
         // Allow SurfaceInterceptor write to /data
         system("setenforce 0");
 
-        mComposerClient = new SurfaceComposerClient;
+        mComposerClient = sp<SurfaceComposerClient>::make();
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
     }
 

@@ -46,7 +46,7 @@ void SurfaceInterceptor::addTransactionTraceListener(
 
     std::scoped_lock lock(mListenersMutex);
 
-    asBinder->linkToDeath(this);
+    asBinder->linkToDeath(sp<DeathRecipient>::fromExisting(this));
 
     listener->onToggled(mEnabled); // notifies of current state
 
@@ -115,8 +115,9 @@ void SurfaceInterceptor::saveExistingSurfacesLocked(const SortedVector<sp<Layer>
     ATRACE_CALL();
     for (const auto& l : layers) {
         l->traverseInZOrder(LayerVector::StateSet::Drawing, [this](Layer* layer) {
-            addSurfaceCreationLocked(createTraceIncrementLocked(), layer);
-            addInitialSurfaceStateLocked(createTraceIncrementLocked(), layer);
+            addSurfaceCreationLocked(createTraceIncrementLocked(), sp<Layer>::fromExisting(layer));
+            addInitialSurfaceStateLocked(createTraceIncrementLocked(),
+                                         sp<Layer>::fromExisting(layer));
         });
     }
 }

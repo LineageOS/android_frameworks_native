@@ -250,7 +250,7 @@ struct layer_state_t {
     mat4 colorTransform;
     std::vector<BlurRegion> blurRegions;
 
-    sp<gui::WindowInfoHandle> windowInfoHandle = new gui::WindowInfoHandle();
+    sp<gui::WindowInfoHandle> windowInfoHandle = sp<gui::WindowInfoHandle>::make();
 
     LayerMetadata metadata;
 

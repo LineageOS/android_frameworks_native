@@ -33,7 +33,7 @@ protected:
         consumer->setConsumerName(String8("Virtual disp consumer"));
         consumer->setDefaultBufferSize(100, 100);
 
-        mGLConsumer = new GLConsumer(consumer, GLConsumer::TEXTURE_EXTERNAL, true, false);
+        mGLConsumer = sp<GLConsumer>::make(consumer, GLConsumer::TEXTURE_EXTERNAL, true, false);
     }
 
     sp<IGraphicBufferProducer> mProducer;
@@ -55,7 +55,7 @@ TEST_F(VirtualDisplayTest, VirtualDisplayDestroyedSurfaceReuse) {
     // add another sync since we are deferring the display destruction
     t.apply(true);
 
-    sp<Surface> surface = new Surface(mProducer);
+    sp<Surface> surface = sp<Surface>::make(mProducer);
     sp<ANativeWindow> window(surface);
 
     ASSERT_EQ(NO_ERROR, native_window_api_connect(window.get(), NATIVE_WINDOW_API_EGL));

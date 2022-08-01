@@ -29,8 +29,8 @@ class WindowInfosListenerTest : public ::testing::Test {
 protected:
     void SetUp() override {
         seteuid(AID_SYSTEM);
-        mClient = new SurfaceComposerClient;
-        mWindowInfosListener = new SyncWindowInfosListener();
+        mClient = sp<SurfaceComposerClient>::make();
+        mWindowInfosListener = sp<SyncWindowInfosListener>::make();
         mClient->addWindowInfosListener(mWindowInfosListener);
     }
 
@@ -77,7 +77,7 @@ std::optional<WindowInfo> findMatchingWindowInfo(WindowInfo targetWindowInfo,
 
 TEST_F(WindowInfosListenerTest, WindowInfoAddedAndRemoved) {
     std::string name = "Test Layer";
-    sp<IBinder> token = new BBinder();
+    sp<IBinder> token = sp<BBinder>::make();
     WindowInfo windowInfo;
     windowInfo.name = name;
     windowInfo.token = token;
@@ -105,7 +105,7 @@ TEST_F(WindowInfosListenerTest, WindowInfoAddedAndRemoved) {
 
 TEST_F(WindowInfosListenerTest, WindowInfoChanged) {
     std::string name = "Test Layer";
-    sp<IBinder> token = new BBinder();
+    sp<IBinder> token = sp<BBinder>::make();
     WindowInfo windowInfo;
     windowInfo.name = name;
     windowInfo.token = token;

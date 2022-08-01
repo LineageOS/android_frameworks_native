@@ -152,13 +152,13 @@ auto RefreshRateOverlay::SevenSegmentDrawer::draw(int number, SkColor color,
             }
         }();
 
-        sp<GraphicBuffer> buffer =
-                new GraphicBuffer(static_cast<uint32_t>(bufferWidth),
-                                  static_cast<uint32_t>(bufferHeight), HAL_PIXEL_FORMAT_RGBA_8888,
-                                  1,
-                                  GRALLOC_USAGE_SW_WRITE_RARELY | GRALLOC_USAGE_HW_COMPOSER |
-                                          GRALLOC_USAGE_HW_TEXTURE,
-                                  "RefreshRateOverlayBuffer");
+        const auto kUsageFlags =
+                static_cast<uint64_t>(GRALLOC_USAGE_SW_WRITE_RARELY | GRALLOC_USAGE_HW_COMPOSER |
+                                      GRALLOC_USAGE_HW_TEXTURE);
+        sp<GraphicBuffer> buffer = sp<GraphicBuffer>::make(static_cast<uint32_t>(bufferWidth),
+                                                           static_cast<uint32_t>(bufferHeight),
+                                                           HAL_PIXEL_FORMAT_RGBA_8888, 1u,
+                                                           kUsageFlags, "RefreshRateOverlayBuffer");
 
         const status_t bufferStatus = buffer->initCheck();
         LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "RefreshRateOverlay: Buffer failed to allocate: %d",

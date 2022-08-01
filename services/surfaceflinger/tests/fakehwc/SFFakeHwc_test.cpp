@@ -220,8 +220,8 @@ protected:
         mFakeComposerClient = new FakeComposerClient();
         mFakeComposerClient->setMockHal(mMockComposer.get());
 
-        sp<V2_4::hal::ComposerClient> client = new V2_4::hal::ComposerClient(mFakeComposerClient);
-        mFakeService = new FakeComposerService(client);
+        auto client = sp<V2_4::hal::ComposerClient>::make(mFakeComposerClient);
+        mFakeService = sp<FakeComposerService>::make(client);
         ASSERT_EQ(android::OK, mFakeService->registerAsService("mock"));
 
         android::hardware::ProcessState::self()->startThreadPool();
@@ -242,13 +242,13 @@ protected:
         // Fake composer wants to enable VSync injection
         mFakeComposerClient->onSurfaceFlingerStart();
 
-        mComposerClient = new SurfaceComposerClient;
+        mComposerClient = sp<SurfaceComposerClient>::make();
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
 
         mReceiver.reset(
                 new DisplayEventReceiver(gui::ISurfaceComposer::VsyncSource::eVsyncSourceApp,
                                          gui::ISurfaceComposer::EventRegistration::modeChanged));
-        mLooper = new Looper(false);
+        mLooper = sp<Looper>::make(false);
         mLooper->addFd(mReceiver->getFd(), 0, ALOOPER_EVENT_INPUT, processDisplayEvents, this);
     }
 
@@ -1143,8 +1143,8 @@ protected:
         // TODO: See TODO comment at DisplayTest::SetUp for background on
         // the lifetime of the FakeComposerClient.
         sFakeComposer = new FakeComposerClient;
-        sp<V2_4::hal::ComposerClient> client = new V2_4::hal::ComposerClient(sFakeComposer);
-        sp<V2_1::IComposer> fakeService = new FakeComposerService(client);
+        auto client = sp<V2_4::hal::ComposerClient>::make(sFakeComposer);
+        sp<V2_1::IComposer> fakeService = sp<FakeComposerService>::make(client);
         (void)fakeService->registerAsService("mock");
 
         android::hardware::ProcessState::self()->startThreadPool();
@@ -1167,7 +1167,7 @@ protected:
 
     void SetUp() override {
         ALOGI("TransactionTest::SetUp");
-        mComposerClient = new SurfaceComposerClient;
+        mComposerClient = sp<SurfaceComposerClient>::make();
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
 
         ALOGI("TransactionTest::SetUp - display");

@@ -25,6 +25,7 @@
 #include <android/gui/IDisplayEventConnection.h>
 #include <private/gui/BitTube.h>
 #include <utils/Looper.h>
+#include <utils/StrongPointer.h>
 #include <utils/Timers.h>
 
 #include "EventThread.h"
@@ -47,6 +48,9 @@ class Task : public MessageHandler {
     template <typename G>
     friend auto makeTask(G&&);
 
+    template <typename... Args>
+    friend sp<Task<F>> sp<Task<F>>::make(Args&&... args);
+
     explicit Task(F&& f) : mTask(std::move(f)) {}
 
     void handleMessage(const Message&) override { mTask(); }
@@ -57,7 +61,7 @@ class Task : public MessageHandler {
 
 template <typename F>
 inline auto makeTask(F&& f) {
-    sp<Task<F>> task = new Task<F>(std::move(f));
+    sp<Task<F>> task = sp<Task<F>>::make(std::move(f));
     return std::make_pair(task, task->mTask.get_future());
 }
 

@@ -48,7 +48,8 @@ protected:
     class MockEventThreadConnection : public android::EventThreadConnection {
     public:
         explicit MockEventThreadConnection(EventThread* eventThread)
-              : EventThreadConnection(eventThread, /*callingUid=*/0, ResyncCallback()) {}
+              : EventThreadConnection(eventThread, /*callingUid*/ static_cast<uid_t>(0),
+                                      ResyncCallback()) {}
         ~MockEventThreadConnection() = default;
 
         MOCK_METHOD1(stealReceiveChannel, binder::Status(gui::BitTube* outChannel));
@@ -79,7 +80,7 @@ SchedulerTest::SchedulerTest() {
     mEventThread = eventThread.get();
     EXPECT_CALL(*mEventThread, registerDisplayEventConnection(_)).WillOnce(Return(0));
 
-    mEventThreadConnection = new MockEventThreadConnection(mEventThread);
+    mEventThreadConnection = sp<MockEventThreadConnection>::make(mEventThread);
 
     // createConnection call to scheduler makes a createEventConnection call to EventThread. Make
     // sure that call gets executed and returns an EventThread::Connection object.

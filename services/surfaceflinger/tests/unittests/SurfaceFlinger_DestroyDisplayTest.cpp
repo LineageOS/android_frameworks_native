@@ -65,7 +65,7 @@ TEST_F(DestroyDisplayTest, destroyDisplayHandlesUnknownDisplay) {
     // --------------------------------------------------------------------
     // Preconditions
 
-    sp<BBinder> displayToken = new BBinder();
+    sp<BBinder> displayToken = sp<BBinder>::make();
 
     // --------------------------------------------------------------------
     // Invocation

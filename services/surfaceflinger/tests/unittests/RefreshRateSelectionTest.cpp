@@ -93,17 +93,17 @@ sp<BufferStateLayer> RefreshRateSelectionTest::createBufferStateLayer() {
     sp<Client> client;
     LayerCreationArgs args(mFlinger.flinger(), client, "buffer-queue-layer", LAYER_FLAGS,
                            LayerMetadata());
-    return new BufferStateLayer(args);
+    return sp<BufferStateLayer>::make(args);
 }
 
 sp<EffectLayer> RefreshRateSelectionTest::createEffectLayer() {
     sp<Client> client;
     LayerCreationArgs args(mFlinger.flinger(), client, "color-layer", LAYER_FLAGS, LayerMetadata());
-    return new EffectLayer(args);
+    return sp<EffectLayer>::make(args);
 }
 
 void RefreshRateSelectionTest::setParent(Layer* child, Layer* parent) {
-    child->setParent(parent);
+    child->setParent(sp<Layer>::fromExisting(parent));
 }
 
 void RefreshRateSelectionTest::commitTransaction(Layer* layer) {
@@ -117,13 +117,15 @@ void RefreshRateSelectionTest::setupScheduler() {
 
     EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*eventThread, createEventConnection(_, _))
-            .WillOnce(Return(new EventThreadConnection(eventThread.get(), /*callingUid=*/0,
-                                                       ResyncCallback())));
+            .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
+                                                             mock::EventThread::kCallingUid,
+                                                             ResyncCallback())));
 
     EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-            .WillOnce(Return(new EventThreadConnection(sfEventThread.get(), /*callingUid=*/0,
-                                                       ResyncCallback())));
+            .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
+                                                             mock::EventThread::kCallingUid,
+                                                             ResyncCallback())));
 
     auto vsyncController = std::make_unique<mock::VsyncController>();
     auto vsyncTracker = std::make_unique<mock::VSyncTracker>();

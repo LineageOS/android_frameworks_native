@@ -60,8 +60,8 @@ protected:
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
     sp<DisplayDevice> mDisplay;
     sp<compositionengine::mock::DisplaySurface> mDisplaySurface =
-            new compositionengine::mock::DisplaySurface();
-    mock::NativeWindow* mNativeWindow = new mock::NativeWindow();
+            sp<compositionengine::mock::DisplaySurface>::make();
+    sp<mock::NativeWindow> mNativeWindow = sp<mock::NativeWindow>::make();
     mock::TimeStats* mTimeStats = new mock::TimeStats();
     Hwc2::mock::PowerAdvisor* mPowerAdvisor = nullptr;
     Hwc2::mock::Composer* mComposer = nullptr;
@@ -105,13 +105,15 @@ void SurfaceFlingerPowerHintTest::setupScheduler() {
 
     EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*eventThread, createEventConnection(_, _))
-            .WillOnce(Return(new EventThreadConnection(eventThread.get(), /*callingUid=*/0,
-                                                       ResyncCallback())));
+            .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
+                                                             mock::EventThread::kCallingUid,
+                                                             ResyncCallback())));
 
     EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-            .WillOnce(Return(new EventThreadConnection(sfEventThread.get(), /*callingUid=*/0,
-                                                       ResyncCallback())));
+            .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
+                                                             mock::EventThread::kCallingUid,
+                                                             ResyncCallback())));
 
     auto vsyncController = std::make_unique<mock::VsyncController>();
     auto vsyncTracker = std::make_unique<mock::VSyncTracker>();

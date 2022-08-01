@@ -1160,7 +1160,8 @@ void Output::finishFrame(const CompositionRefreshArgs& refreshArgs, GpuCompositi
 
     if (isPowerHintSessionEnabled()) {
         // get fence end time to know when gpu is complete in display
-        setHintSessionGpuFence(std::make_unique<FenceTime>(new Fence(dup(optReadyFence->get()))));
+        setHintSessionGpuFence(
+                std::make_unique<FenceTime>(sp<Fence>::make(dup(optReadyFence->get()))));
     }
     // swap buffers (presentation)
     mRenderSurface->queueBuffer(std::move(*optReadyFence));

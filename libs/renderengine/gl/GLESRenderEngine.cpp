@@ -454,8 +454,9 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
     mImageManager->initThread();
     mDrawingBuffer = createFramebuffer();
     sp<GraphicBuffer> buf =
-            new GraphicBuffer(1, 1, PIXEL_FORMAT_RGBA_8888, 1,
-                              GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE, "placeholder");
+            sp<GraphicBuffer>::make(1, 1, PIXEL_FORMAT_RGBA_8888, 1,
+                                    GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE,
+                                    "placeholder");
 
     const status_t err = buf->initCheck();
     if (err != OK) {

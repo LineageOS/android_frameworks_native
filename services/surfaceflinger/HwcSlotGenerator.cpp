@@ -56,7 +56,8 @@ int HwcSlotGenerator::addCachedBuffer(const client_cache_t& clientCacheId) REQUI
         return BufferQueue::INVALID_BUFFER_SLOT;
     }
 
-    ClientCache::getInstance().registerErasedRecipient(clientCacheId, wp<ErasedRecipient>(this));
+    ClientCache::getInstance().registerErasedRecipient(clientCacheId,
+                                                       wp<ErasedRecipient>::fromExisting(this));
 
     int hwcCacheSlot = getFreeHwcCacheSlot();
     mCachedBuffers[clientCacheId] = {hwcCacheSlot, mCounter++};
@@ -85,7 +86,8 @@ void HwcSlotGenerator::evictLeastRecentlyUsed() REQUIRES(mMutex) {
     }
     eraseBufferLocked(minClientCacheId);
 
-    ClientCache::getInstance().unregisterErasedRecipient(minClientCacheId, this);
+    ClientCache::getInstance().unregisterErasedRecipient(minClientCacheId,
+                                                         wp<ErasedRecipient>::fromExisting(this));
 }
 
 void HwcSlotGenerator::eraseBufferLocked(const client_cache_t& clientCacheId) REQUIRES(mMutex) {

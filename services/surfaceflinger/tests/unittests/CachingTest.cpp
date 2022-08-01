@@ -27,13 +27,16 @@ namespace android {
 class SlotGenerationTest : public testing::Test {
 protected:
     sp<HwcSlotGenerator> mHwcSlotGenerator = sp<HwcSlotGenerator>::make();
-    sp<GraphicBuffer> mBuffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
-    sp<GraphicBuffer> mBuffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
-    sp<GraphicBuffer> mBuffer3{new GraphicBuffer(10, 10, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+    sp<GraphicBuffer> mBuffer1 =
+            sp<GraphicBuffer>::make(1u, 1u, HAL_PIXEL_FORMAT_RGBA_8888, 1u, 0u);
+    sp<GraphicBuffer> mBuffer2 =
+            sp<GraphicBuffer>::make(1u, 1u, HAL_PIXEL_FORMAT_RGBA_8888, 1u, 0u);
+    sp<GraphicBuffer> mBuffer3 =
+            sp<GraphicBuffer>::make(10u, 10u, HAL_PIXEL_FORMAT_RGBA_8888, 1u, 0u);
 };
 
 TEST_F(SlotGenerationTest, getHwcCacheSlot_Invalid) {
-    sp<IBinder> binder = new BBinder();
+    sp<IBinder> binder = sp<BBinder>::make();
     // test getting invalid client_cache_id
     client_cache_t id;
     int slot = mHwcSlotGenerator->getHwcCacheSlot(id);
@@ -41,7 +44,7 @@ TEST_F(SlotGenerationTest, getHwcCacheSlot_Invalid) {
 }
 
 TEST_F(SlotGenerationTest, getHwcCacheSlot_Basic) {
-    sp<IBinder> binder = new BBinder();
+    sp<IBinder> binder = sp<BBinder>::make();
     client_cache_t id;
     id.token = binder;
     id.id = 0;
@@ -62,7 +65,7 @@ TEST_F(SlotGenerationTest, getHwcCacheSlot_Basic) {
 }
 
 TEST_F(SlotGenerationTest, getHwcCacheSlot_Reuse) {
-    sp<IBinder> binder = new BBinder();
+    sp<IBinder> binder = sp<BBinder>::make();
     std::vector<client_cache_t> ids;
     uint32_t cacheId = 0;
     // fill up cache
