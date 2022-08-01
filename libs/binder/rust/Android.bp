@@ -148,6 +148,7 @@ rust_bindgen {
     name: "libbinder_rpc_unstable_bindgen",
     wrapper_src: ":libbinder_rpc_unstable_header",
     crate_name: "binder_rpc_unstable_bindgen",
+    visibility: ["//packages/modules/Virtualization:__subpackages__"],
     source_stem: "bindings",
     shared_libs: [
         "libutils",
