@@ -610,8 +610,22 @@ void BBinder::removeRpcServerLink(const sp<RpcServerLink>& link) {
 
 BBinder::~BBinder()
 {
-    if (!wasParceled() && getExtension()) {
-        ALOGW("Binder %p destroyed with extension attached before being parceled.", this);
+    if (!wasParceled()) {
+        if (getExtension()) {
+             ALOGW("Binder %p destroyed with extension attached before being parceled.", this);
+        }
+        if (isRequestingSid()) {
+             ALOGW("Binder %p destroyed when requesting SID before being parceled.", this);
+        }
+        if (isInheritRt()) {
+             ALOGW("Binder %p destroyed after setInheritRt before being parceled.", this);
+        }
+        if (getMinSchedulerPolicy() != SCHED_NORMAL) {
+             ALOGW("Binder %p destroyed after setMinSchedulerPolicy before being parceled.", this);
+        }
+        if (getMinSchedulerPriority() != 0) {
+             ALOGW("Binder %p destroyed after setMinSchedulerPolicy before being parceled.", this);
+        }
     }
 
     Extras* e = mExtras.load(std::memory_order_relaxed);
