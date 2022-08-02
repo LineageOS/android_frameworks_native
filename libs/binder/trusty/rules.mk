@@ -69,6 +69,11 @@ MODULE_EXPORT_INCLUDES += \
 	$(LIBUTILS_DIR)/include \
 	$(FMTLIB_DIR)/include \
 
+# The android/binder_to_string.h header is shared between libbinder and
+# libbinder_ndk and included by auto-generated AIDL C++ files
+MODULE_EXPORT_INCLUDES += \
+	$(LIBBINDER_DIR)/ndk/include_cpp \
+
 MODULE_EXPORT_COMPILEFLAGS += \
 	-DBINDER_NO_KERNEL_IPC \
 	-DBINDER_RPC_SINGLE_THREADED \
