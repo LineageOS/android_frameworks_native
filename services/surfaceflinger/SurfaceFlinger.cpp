@@ -6653,6 +6653,11 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     std::vector<Layer*> renderedLayers;
     bool disableBlurs = false;
     traverseLayers([&](Layer* layer) {
+        // Layer::prepareClientComposition uses the layer's snapshot to populate the resulting
+        // LayerSettings. Calling Layer::updateSnapshot ensures that LayerSettings are
+        // generated with the layer's current buffer and geometry.
+        layer->updateSnapshot(true /* updateGeometry */);
+
         disableBlurs |= layer->getDrawingState().sidebandStream != nullptr;
 
         Region clip(renderArea.getBounds());
