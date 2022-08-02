@@ -478,7 +478,7 @@ void SurfaceFlinger::binderDied(const wp<IBinder>&) {
 
     // Sever the link to inputflinger since it's gone as well.
     static_cast<void>(mScheduler->schedule(
-            [=] { mInputFlinger = sp<os::IInputFlinger>::fromExisting(nullptr); }));
+            [this] { mInputFlinger.clear(); }));
 
     // restore initial conditions (default device unblank, etc)
     initializeDisplays();
