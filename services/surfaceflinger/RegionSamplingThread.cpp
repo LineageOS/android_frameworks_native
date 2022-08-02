@@ -132,7 +132,7 @@ RegionSamplingThread::~RegionSamplingThread() {
 void RegionSamplingThread::addListener(const Rect& samplingArea, const wp<Layer>& stopLayer,
                                        const sp<IRegionSamplingListener>& listener) {
     sp<IBinder> asBinder = IInterface::asBinder(listener);
-    asBinder->linkToDeath(this);
+    asBinder->linkToDeath(sp<DeathRecipient>::fromExisting(this));
     std::lock_guard lock(mSamplingMutex);
     mDescriptors.emplace(wp<IBinder>(asBinder), Descriptor{samplingArea, stopLayer, listener});
 }
@@ -344,8 +344,8 @@ void RegionSamplingThread::captureSample() {
         const uint32_t usage =
                 GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
         sp<GraphicBuffer> graphicBuffer =
-                new GraphicBuffer(sampledBounds.getWidth(), sampledBounds.getHeight(),
-                                  PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
+                sp<GraphicBuffer>::make(sampledBounds.getWidth(), sampledBounds.getHeight(),
+                                        PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
         const status_t bufferStatus = graphicBuffer->initCheck();
         LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "captureSample: Buffer failed to allocate: %d",
                             bufferStatus);

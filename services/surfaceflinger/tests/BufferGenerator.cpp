@@ -70,12 +70,13 @@ public:
         consumer->setDefaultBufferSize(width, height);
         consumer->setDefaultBufferFormat(format);
 
-        mBufferItemConsumer = new BufferItemConsumer(consumer, GraphicBuffer::USAGE_HW_TEXTURE);
+        mBufferItemConsumer =
+                sp<BufferItemConsumer>::make(consumer, GraphicBuffer::USAGE_HW_TEXTURE);
 
-        mListener = new BufferListener(consumer, callback);
+        mListener = sp<BufferListener>::make(consumer, callback);
         mBufferItemConsumer->setFrameAvailableListener(mListener);
 
-        mSurface = new Surface(producer, true);
+        mSurface = sp<Surface>::make(producer, true);
     }
 
     /* Used by Egl manager. The surface is never displayed. */
@@ -364,7 +365,7 @@ status_t BufferGenerator::get(sp<GraphicBuffer>* outBuffer, sp<Fence>* outFence)
         *outBuffer = mGraphicBuffer;
     }
     if (outFence) {
-        *outFence = new Fence(mFence);
+        *outFence = sp<Fence>::make(mFence);
     } else {
         close(mFence);
     }

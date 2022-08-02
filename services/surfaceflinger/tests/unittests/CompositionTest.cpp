@@ -129,13 +129,15 @@ public:
 
         EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
         EXPECT_CALL(*eventThread, createEventConnection(_, _))
-                .WillOnce(Return(new EventThreadConnection(eventThread.get(), /*callingUid=*/0,
-                                                           ResyncCallback())));
+                .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
+                                                                 mock::EventThread::kCallingUid,
+                                                                 ResyncCallback())));
 
         EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
         EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-                .WillOnce(Return(new EventThreadConnection(sfEventThread.get(), /*callingUid=*/0,
-                                                           ResyncCallback())));
+                .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
+                                                                 mock::EventThread::kCallingUid,
+                                                                 ResyncCallback())));
 
         auto vsyncController = std::make_unique<mock::VsyncController>();
         auto vsyncTracker = std::make_unique<mock::VSyncTracker>();
@@ -177,11 +179,11 @@ public:
     sp<DisplayDevice> mDisplay;
     sp<DisplayDevice> mExternalDisplay;
     sp<compositionengine::mock::DisplaySurface> mDisplaySurface =
-            new compositionengine::mock::DisplaySurface();
-    mock::NativeWindow* mNativeWindow = new mock::NativeWindow();
+            sp<compositionengine::mock::DisplaySurface>::make();
+    sp<mock::NativeWindow> mNativeWindow = sp<mock::NativeWindow>::make();
     std::vector<sp<Layer>> mAuxiliaryLayers;
 
-    sp<GraphicBuffer> mBuffer = new GraphicBuffer();
+    sp<GraphicBuffer> mBuffer = sp<GraphicBuffer>::make();
     ANativeWindowBuffer* mNativeWindowBuffer = mBuffer->getNativeBuffer();
 
     Hwc2::mock::Composer* mComposer = nullptr;
@@ -315,7 +317,7 @@ struct BaseDisplayVariant {
                                  .setSecure(Derived::IS_SECURE)
                                  .setPowerMode(Derived::INIT_POWER_MODE)
                                  .inject();
-        Mock::VerifyAndClear(test->mNativeWindow);
+        Mock::VerifyAndClear(test->mNativeWindow.get());
         test->mDisplay->setLayerStack(LAYER_STACK);
     }
 
@@ -867,7 +869,7 @@ struct EffectLayerVariant : public BaseLayerVariant<LayerProperties> {
 
     static FlingerLayerType createLayer(CompositionTest* test) {
         FlingerLayerType layer = Base::template createLayerWithFactory<EffectLayer>(test, [test]() {
-            return new EffectLayer(
+            return sp<EffectLayer>::make(
                     LayerCreationArgs(test->mFlinger.flinger(), sp<Client>(), "test-layer",
                                       LayerProperties::LAYER_FLAGS, LayerMetadata()));
         });
@@ -909,7 +911,7 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
                     LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-layer",
                                            LayerProperties::LAYER_FLAGS, LayerMetadata());
                     args.textureName = test->mFlinger.mutableTexturePool().back();
-                    return new BufferStateLayer(args);
+                    return sp<BufferStateLayer>::make(args);
                 });
 
         LayerProperties::setupLayerState(test, layer);
@@ -956,7 +958,7 @@ struct ContainerLayerVariant : public BaseLayerVariant<LayerProperties> {
     static FlingerLayerType createLayer(CompositionTest* test) {
         LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-container-layer",
                                LayerProperties::LAYER_FLAGS, LayerMetadata());
-        FlingerLayerType layer = new EffectLayer(args);
+        FlingerLayerType layer = sp<EffectLayer>::make(args);
         Base::template initLayerDrawingStateAndComputeBounds(test, layer);
         return layer;
     }

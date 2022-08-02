@@ -228,10 +228,11 @@ TEST_F(LayerBorderTest, BufferStateLayer) {
                                        mContainerLayer->getHandle());
 
         sp<GraphicBuffer> buffer =
-                new GraphicBuffer(400, 400, PIXEL_FORMAT_RGBA_8888, 1,
-                                  BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
-                                          BufferUsage::COMPOSER_OVERLAY | BufferUsage::GPU_TEXTURE,
-                                  "test");
+                sp<GraphicBuffer>::make(400u, 400u, PIXEL_FORMAT_RGBA_8888, 1u,
+                                        BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                                BufferUsage::COMPOSER_OVERLAY |
+                                                BufferUsage::GPU_TEXTURE,
+                                        "test");
         TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, 200, 200), Color::GREEN);
         TransactionUtils::fillGraphicBufferColor(buffer, Rect(200, 200, 400, 400), Color::BLUE);
 

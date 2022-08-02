@@ -111,8 +111,8 @@ public:
     // Test instances
 
     TestableSurfaceFlinger mFlinger;
-    sp<mock::NativeWindow> mNativeWindow = new mock::NativeWindow();
-    sp<GraphicBuffer> mBuffer = new GraphicBuffer();
+    sp<mock::NativeWindow> mNativeWindow = sp<mock::NativeWindow>::make();
+    sp<GraphicBuffer> mBuffer = sp<GraphicBuffer>::make();
     Hwc2::mock::PowerAdvisor mPowerAdvisor;
 
     // These mocks are created by the test, but are destroyed by SurfaceFlinger
@@ -120,7 +120,7 @@ public:
     // to keep a reference to them for use in setting up call expectations.
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
     Hwc2::mock::Composer* mComposer = nullptr;
-    sp<mock::SurfaceInterceptor> mSurfaceInterceptor = new mock::SurfaceInterceptor;
+    sp<mock::SurfaceInterceptor> mSurfaceInterceptor = sp<mock::SurfaceInterceptor>::make();
 
     mock::VsyncController* mVsyncController = new mock::VsyncController;
     mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker;

@@ -53,14 +53,14 @@ VsyncModulator::VsyncConfigOpt VsyncModulator::setTransactionSchedule(Transactio
         case Schedule::EarlyStart:
             if (token) {
                 mEarlyWakeupRequests.emplace(token);
-                token->linkToDeath(this);
+                token->linkToDeath(sp<DeathRecipient>::fromExisting(this));
             } else {
                 ALOGW("%s: EarlyStart requested without a valid token", __func__);
             }
             break;
         case Schedule::EarlyEnd: {
             if (token && mEarlyWakeupRequests.erase(token) > 0) {
-                token->unlinkToDeath(this);
+                token->unlinkToDeath(sp<DeathRecipient>::fromExisting(this));
             } else {
                 ALOGW("%s: Unexpected EarlyEnd", __func__);
             }

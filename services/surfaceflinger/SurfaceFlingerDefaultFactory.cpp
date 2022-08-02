@@ -56,22 +56,22 @@ std::unique_ptr<scheduler::VsyncConfiguration> DefaultFactory::createVsyncConfig
 }
 
 sp<SurfaceInterceptor> DefaultFactory::createSurfaceInterceptor() {
-    return new android::impl::SurfaceInterceptor();
+    return sp<android::impl::SurfaceInterceptor>::make();
 }
 
 sp<StartPropertySetThread> DefaultFactory::createStartPropertySetThread(
         bool timestampPropertyValue) {
-    return new StartPropertySetThread(timestampPropertyValue);
+    return sp<StartPropertySetThread>::make(timestampPropertyValue);
 }
 
 sp<DisplayDevice> DefaultFactory::createDisplayDevice(DisplayDeviceCreationArgs& creationArgs) {
-    return new DisplayDevice(creationArgs);
+    return sp<DisplayDevice>::make(creationArgs);
 }
 
 sp<GraphicBuffer> DefaultFactory::createGraphicBuffer(uint32_t width, uint32_t height,
                                                       PixelFormat format, uint32_t layerCount,
                                                       uint64_t usage, std::string requestorName) {
-    return new GraphicBuffer(width, height, format, layerCount, usage, requestorName);
+    return sp<GraphicBuffer>::make(width, height, format, layerCount, usage, requestorName);
 }
 
 void DefaultFactory::createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
@@ -90,11 +90,11 @@ std::unique_ptr<compositionengine::CompositionEngine> DefaultFactory::createComp
 }
 
 sp<BufferStateLayer> DefaultFactory::createBufferStateLayer(const LayerCreationArgs& args) {
-    return new BufferStateLayer(args);
+    return sp<BufferStateLayer>::make(args);
 }
 
 sp<EffectLayer> DefaultFactory::createEffectLayer(const LayerCreationArgs& args) {
-    return new EffectLayer(args);
+    return sp<EffectLayer>::make(args);
 }
 
 std::unique_ptr<FrameTracer> DefaultFactory::createFrameTracer() {

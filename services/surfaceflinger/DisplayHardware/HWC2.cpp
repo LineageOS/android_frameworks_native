@@ -369,7 +369,7 @@ Error Display::getReleaseFences(std::unordered_map<HWC2::Layer*, sp<Fence>>* out
     for (uint32_t element = 0; element < numElements; ++element) {
         auto layer = getLayerById(layerIds[element]);
         if (layer) {
-            sp<Fence> fence(new Fence(fenceFds[element]));
+            sp<Fence> fence(sp<Fence>::make(fenceFds[element]));
             releaseFences.emplace(layer.get(), fence);
         } else {
             ALOGE("getReleaseFences: invalid layer %" PRIu64
@@ -394,7 +394,7 @@ Error Display::present(sp<Fence>* outPresentFence)
         return error;
     }
 
-    *outPresentFence = new Fence(presentFenceFd);
+    *outPresentFence = sp<Fence>::make(presentFenceFd);
     return Error::NONE;
 }
 
@@ -532,7 +532,7 @@ Error Display::presentOrValidate(nsecs_t expectedPresentTime, uint32_t* outNumTy
     }
 
     if (*state == 1) {
-        *outPresentFence = new Fence(presentFenceFd);
+        *outPresentFence = sp<Fence>::make(presentFenceFd);
     }
 
     if (*state == 0) {

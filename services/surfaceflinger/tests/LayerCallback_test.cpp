@@ -442,8 +442,8 @@ TEST_F(LayerCallbackTest, Merge_SameLayer) {
 }
 
 TEST_F(LayerCallbackTest, Merge_DifferentClients) {
-    sp<SurfaceComposerClient> client1(new SurfaceComposerClient),
-            client2(new SurfaceComposerClient);
+    sp<SurfaceComposerClient> client1(sp<SurfaceComposerClient>::make()),
+            client2(sp<SurfaceComposerClient>::make());
 
     ASSERT_EQ(NO_ERROR, client1->initCheck()) << "failed to create SurfaceComposerClient";
     ASSERT_EQ(NO_ERROR, client2->initCheck()) << "failed to create SurfaceComposerClient";
@@ -620,8 +620,8 @@ TEST_F(LayerCallbackTest, MultipleTransactions_Merge) {
 }
 
 TEST_F(LayerCallbackTest, MultipleTransactions_Merge_DifferentClients) {
-    sp<SurfaceComposerClient> client1(new SurfaceComposerClient),
-            client2(new SurfaceComposerClient);
+    sp<SurfaceComposerClient> client1(sp<SurfaceComposerClient>::make()),
+            client2(sp<SurfaceComposerClient>::make());
     ASSERT_EQ(NO_ERROR, client1->initCheck()) << "failed to create SurfaceComposerClient";
     ASSERT_EQ(NO_ERROR, client2->initCheck()) << "failed to create SurfaceComposerClient";
 
@@ -669,8 +669,8 @@ TEST_F(LayerCallbackTest, MultipleTransactions_Merge_DifferentClients) {
 }
 
 TEST_F(LayerCallbackTest, MultipleTransactions_Merge_DifferentClients_NoStateChange) {
-    sp<SurfaceComposerClient> client1(new SurfaceComposerClient),
-            client2(new SurfaceComposerClient);
+    sp<SurfaceComposerClient> client1(sp<SurfaceComposerClient>::make()),
+            client2(sp<SurfaceComposerClient>::make());
     ASSERT_EQ(NO_ERROR, client1->initCheck()) << "failed to create SurfaceComposerClient";
     ASSERT_EQ(NO_ERROR, client2->initCheck()) << "failed to create SurfaceComposerClient";
 
@@ -730,8 +730,8 @@ TEST_F(LayerCallbackTest, MultipleTransactions_Merge_DifferentClients_NoStateCha
 }
 
 TEST_F(LayerCallbackTest, MultipleTransactions_Merge_DifferentClients_SameStateChange) {
-    sp<SurfaceComposerClient> client1(new SurfaceComposerClient),
-            client2(new SurfaceComposerClient);
+    sp<SurfaceComposerClient> client1(sp<SurfaceComposerClient>::make()),
+            client2(sp<SurfaceComposerClient>::make());
 
     ASSERT_EQ(NO_ERROR, client1->initCheck()) << "failed to create SurfaceComposerClient";
     ASSERT_EQ(NO_ERROR, client2->initCheck()) << "failed to create SurfaceComposerClient";

@@ -232,14 +232,14 @@ public:
     std::shared_ptr<renderengine::ExternalTexture> allocateDefaultBuffer() {
         return std::make_shared<
                 renderengine::impl::
-                        ExternalTexture>(new GraphicBuffer(DEFAULT_DISPLAY_WIDTH,
-                                                           DEFAULT_DISPLAY_HEIGHT,
-                                                           HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                                           GRALLOC_USAGE_SW_READ_OFTEN |
-                                                                   GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                                                   GRALLOC_USAGE_HW_RENDER |
-                                                                   GRALLOC_USAGE_HW_TEXTURE,
-                                                           "output"),
+                        ExternalTexture>(sp<GraphicBuffer>::
+                                                 make(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT,
+                                                      HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                                      GRALLOC_USAGE_SW_READ_OFTEN |
+                                                              GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                              GRALLOC_USAGE_HW_RENDER |
+                                                              GRALLOC_USAGE_HW_TEXTURE,
+                                                      "output"),
                                          *mRE,
                                          renderengine::impl::ExternalTexture::Usage::READABLE |
                                                  renderengine::impl::ExternalTexture::Usage::
@@ -251,12 +251,12 @@ public:
                                                                         uint32_t height) {
         return std::make_shared<
                 renderengine::impl::
-                        ExternalTexture>(new GraphicBuffer(width, height,
-                                                           HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                                           GRALLOC_USAGE_SW_READ_OFTEN |
-                                                                   GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                                                   GRALLOC_USAGE_HW_TEXTURE,
-                                                           "input"),
+                        ExternalTexture>(sp<GraphicBuffer>::
+                                                 make(width, height, HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                                      GRALLOC_USAGE_SW_READ_OFTEN |
+                                                              GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                              GRALLOC_USAGE_HW_TEXTURE,
+                                                      "input"),
                                          *mRE,
                                          renderengine::impl::ExternalTexture::Usage::READABLE |
                                                  renderengine::impl::ExternalTexture::Usage::
@@ -285,10 +285,12 @@ public:
     }
 
     std::shared_ptr<renderengine::ExternalTexture> allocateR8Buffer(int width, int height) {
-        auto buffer = new GraphicBuffer(width, height, android::PIXEL_FORMAT_R_8, 1,
-                                        GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                                GRALLOC_USAGE_HW_TEXTURE,
-                                        "r8");
+        const auto kUsageFlags =
+                static_cast<uint64_t>(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                      GRALLOC_USAGE_HW_TEXTURE);
+        auto buffer =
+                sp<GraphicBuffer>::make(static_cast<uint32_t>(width), static_cast<uint32_t>(height),
+                                        android::PIXEL_FORMAT_R_8, 1u, kUsageFlags, "r8");
         if (buffer->initCheck() != 0) {
             // Devices are not required to support R8.
             return nullptr;
@@ -1496,13 +1498,13 @@ void RenderEngineTest::tonemap(ui::Dataspace sourceDataspace, std::function<vec3
 
     auto buf = std::make_shared<
             renderengine::impl::
-                    ExternalTexture>(new GraphicBuffer(kGreyLevels, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                       1,
-                                                       GRALLOC_USAGE_SW_READ_OFTEN |
-                                                               GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                                               GRALLOC_USAGE_HW_RENDER |
-                                                               GRALLOC_USAGE_HW_TEXTURE,
-                                                       "input"),
+                    ExternalTexture>(sp<GraphicBuffer>::make(kGreyLevels, 1,
+                                                             HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                                             GRALLOC_USAGE_SW_READ_OFTEN |
+                                                                     GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                                     GRALLOC_USAGE_HW_RENDER |
+                                                                     GRALLOC_USAGE_HW_TEXTURE,
+                                                             "input"),
                                      *mRE,
                                      renderengine::impl::ExternalTexture::Usage::READABLE |
                                              renderengine::impl::ExternalTexture::Usage::WRITEABLE);
@@ -1529,13 +1531,13 @@ void RenderEngineTest::tonemap(ui::Dataspace sourceDataspace, std::function<vec3
 
     mBuffer = std::make_shared<
             renderengine::impl::
-                    ExternalTexture>(new GraphicBuffer(kGreyLevels, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                       1,
-                                                       GRALLOC_USAGE_SW_READ_OFTEN |
-                                                               GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                                               GRALLOC_USAGE_HW_RENDER |
-                                                               GRALLOC_USAGE_HW_TEXTURE,
-                                                       "output"),
+                    ExternalTexture>(sp<GraphicBuffer>::make(kGreyLevels, 1,
+                                                             HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                                             GRALLOC_USAGE_SW_READ_OFTEN |
+                                                                     GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                                     GRALLOC_USAGE_HW_RENDER |
+                                                                     GRALLOC_USAGE_HW_TEXTURE,
+                                                             "output"),
                                      *mRE,
                                      renderengine::impl::ExternalTexture::Usage::READABLE |
                                              renderengine::impl::ExternalTexture::Usage::WRITEABLE);

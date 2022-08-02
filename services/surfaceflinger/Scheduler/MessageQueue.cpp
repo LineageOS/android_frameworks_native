@@ -34,7 +34,7 @@ void MessageQueue::Handler::dispatchFrame(int64_t vsyncId, nsecs_t expectedVsync
     if (!mFramePending.exchange(true)) {
         mVsyncId = vsyncId;
         mExpectedVsyncTime = expectedVsyncTime;
-        mQueue.mLooper->sendMessage(this, Message());
+        mQueue.mLooper->sendMessage(sp<MessageHandler>::fromExisting(this), Message());
     }
 }
 

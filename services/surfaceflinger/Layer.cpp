@@ -94,7 +94,7 @@ std::atomic<int32_t> Layer::sSequence{1};
 
 Layer::Layer(const LayerCreationArgs& args)
       : sequence(args.sequence.value_or(sSequence++)),
-        mFlinger(args.flinger),
+        mFlinger(sp<SurfaceFlinger>::fromExisting(args.flinger)),
         mName(base::StringPrintf("%s#%d", args.name.c_str(), sequence)),
         mClientRef(args.client),
         mWindowType(static_cast<WindowInfo::Type>(
@@ -228,7 +228,7 @@ void Layer::removeRelativeZ(const std::vector<Layer*>& layersInTree) {
     }
 
     if (!std::binary_search(layersInTree.begin(), layersInTree.end(), strongRelative.get())) {
-        strongRelative->removeZOrderRelative(this);
+        strongRelative->removeZOrderRelative(wp<Layer>::fromExisting(this));
         mFlinger->setTransactionFlags(eTraversalNeeded);
         setZOrderRelativeOf(nullptr);
     }
@@ -240,13 +240,13 @@ void Layer::removeFromCurrentState() {
         mFlinger->mScheduler->deregisterLayer(this);
     }
 
-    mFlinger->markLayerPendingRemovalLocked(this);
+    mFlinger->markLayerPendingRemovalLocked(sp<Layer>::fromExisting(this));
 }
 
 sp<Layer> Layer::getRootLayer() {
     sp<Layer> parent = getParent();
     if (parent == nullptr) {
-        return this;
+        return sp<Layer>::fromExisting(this);
     }
     return parent->getRootLayer();
 }
@@ -289,7 +289,7 @@ sp<IBinder> Layer::getHandle() {
         return nullptr;
     }
     mGetHandleCalled = true;
-    return new Handle(mFlinger, this);
+    return sp<Handle>::make(mFlinger, sp<Layer>::fromExisting(this));
 }
 
 // ---------------------------------------------------------------------------
@@ -521,8 +521,9 @@ void Layer::prepareCursorCompositionState() {
 }
 
 sp<compositionengine::LayerFE> Layer::asLayerFE() const {
-    return const_cast<compositionengine::LayerFE*>(
+    compositionengine::LayerFE* layerFE = const_cast<compositionengine::LayerFE*>(
             static_cast<const compositionengine::LayerFE*>(this));
+    return sp<compositionengine::LayerFE>::fromExisting(layerFE);
 }
 
 sp<compositionengine::LayerFE> Layer::getCompositionEngineLayerFE() const {
@@ -813,7 +814,7 @@ bool Layer::setLayer(int32_t z) {
     if (mDrawingState.zOrderRelativeOf != nullptr) {
         sp<Layer> strongRelative = mDrawingState.zOrderRelativeOf.promote();
         if (strongRelative != nullptr) {
-            strongRelative->removeZOrderRelative(this);
+            strongRelative->removeZOrderRelative(wp<Layer>::fromExisting(this));
         }
         setZOrderRelativeOf(nullptr);
     }
@@ -871,10 +872,10 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relati
 
     auto oldZOrderRelativeOf = mDrawingState.zOrderRelativeOf.promote();
     if (oldZOrderRelativeOf != nullptr) {
-        oldZOrderRelativeOf->removeZOrderRelative(this);
+        oldZOrderRelativeOf->removeZOrderRelative(wp<Layer>::fromExisting(this));
     }
     setZOrderRelativeOf(relative);
-    relative->addZOrderRelative(this);
+    relative->addZOrderRelative(wp<Layer>::fromExisting(this));
 
     setTransactionFlags(eTransactionNeeded);
 
@@ -1241,7 +1242,7 @@ bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool* tran
 
 void Layer::updateTreeHasFrameRateVote() {
     const auto root = [&]() -> sp<Layer> {
-        sp<Layer> layer = this;
+        sp<Layer> layer = sp<Layer>::fromExisting(this);
         while (auto parent = layer->getParent()) {
             layer = parent;
         }
@@ -1614,7 +1615,7 @@ void Layer::addChild(const sp<Layer>& layer) {
     setTransactionFlags(eTransactionNeeded);
 
     mCurrentChildren.add(layer);
-    layer->setParent(this);
+    layer->setParent(sp<Layer>::fromExisting(this));
     layer->setGameModeForTree(mGameMode);
     updateTreeHasFrameRateVote();
 }
@@ -1659,11 +1660,11 @@ bool Layer::reparent(const sp<IBinder>& newParentHandle) {
 
     sp<Layer> parent = getParent();
     if (parent != nullptr) {
-        parent->removeChild(this);
+        parent->removeChild(sp<Layer>::fromExisting(this));
     }
 
     if (newParentHandle != nullptr) {
-        newParent->addChild(this);
+        newParent->addChild(sp<Layer>::fromExisting(this));
         if (!newParent->isRemovedFromCurrentState()) {
             addToCurrentState();
         } else {
@@ -2064,7 +2065,7 @@ void Layer::commitChildList() {
                   zOrderRelativeOf->mName.c_str());
             ALOGE("Severing rel Z loop, potentially dangerous");
             mDrawingState.isRelativeOf = false;
-            zOrderRelativeOf->removeZOrderRelative(this);
+            zOrderRelativeOf->removeZOrderRelative(wp<Layer>::fromExisting(this));
         }
     }
 }
@@ -2342,7 +2343,7 @@ void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& screenToDi
 }
 
 void Layer::fillTouchOcclusionMode(WindowInfo& info) {
-    sp<Layer> p = this;
+    sp<Layer> p = sp<Layer>::fromExisting(this);
     while (p != nullptr && !p->hasInputInfo()) {
         p = p->mDrawingParent.promote();
     }
@@ -2494,7 +2495,7 @@ WindowInfo Layer::fillInputInfo(const InputDisplayArgs& displayArgs) {
 
 sp<Layer> Layer::getClonedRoot() {
     if (mClonedChild != nullptr) {
-        return this;
+        return sp<Layer>::fromExisting(this);
     }
     if (mDrawingParent == nullptr || mDrawingParent.promote() == nullptr) {
         return nullptr;
@@ -2548,7 +2549,7 @@ void Layer::updateMirrorInfo() {
     }
 
     mClonedChild->updateClonedDrawingState(clonedLayersMap);
-    mClonedChild->updateClonedChildren(this, clonedLayersMap);
+    mClonedChild->updateClonedChildren(sp<Layer>::fromExisting(this), clonedLayersMap);
     mClonedChild->updateClonedRelatives(clonedLayersMap);
 }
 
@@ -2559,7 +2560,7 @@ void Layer::updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayer
     if (isClonedFromAlive()) {
         sp<Layer> clonedFrom = getClonedFrom();
         cloneDrawingState(clonedFrom.get());
-        clonedLayersMap.emplace(clonedFrom, this);
+        clonedLayersMap.emplace(clonedFrom, sp<Layer>::fromExisting(this));
     }
 
     // The clone layer may have children in drawingState since they may have been created and
@@ -2603,7 +2604,7 @@ void Layer::updateClonedInputInfo(const std::map<sp<Layer>, sp<Layer>>& clonedLa
         if (clonedLayersMap.count(cropLayer) == 0) {
             // Real layer had a crop layer but it's not in the cloned hierarchy. Just set to
             // self as crop layer to avoid going outside bounds.
-            mDrawingState.touchableRegionCrop = this;
+            mDrawingState.touchableRegionCrop = wp<Layer>::fromExisting(this);
         } else {
             const sp<Layer>& clonedCropLayer = clonedLayersMap.at(cropLayer);
             mDrawingState.touchableRegionCrop = clonedCropLayer;
@@ -2615,7 +2616,7 @@ void Layer::updateClonedInputInfo(const std::map<sp<Layer>, sp<Layer>>& clonedLa
 }
 
 void Layer::updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap) {
-    mDrawingState.zOrderRelativeOf = nullptr;
+    mDrawingState.zOrderRelativeOf = wp<Layer>();
     mDrawingState.zOrderRelatives.clear();
 
     if (!isClonedFromAlive()) {
@@ -2651,7 +2652,7 @@ void Layer::updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLa
 
 void Layer::addChildToDrawing(const sp<Layer>& layer) {
     mDrawingChildren.add(layer);
-    layer->mDrawingParent = this;
+    layer->mDrawingParent = sp<Layer>::fromExisting(this);
 }
 
 Layer::FrameRateCompatibility Layer::FrameRate::convertCompatibility(int8_t compatibility) {
@@ -2713,7 +2714,7 @@ wp<Layer> Layer::fromHandle(const sp<IBinder>& handleBinder) {
     }
 
     // We can safely cast this binder since its local and we verified its interface descriptor.
-    sp<Handle> handle = static_cast<Handle*>(handleBinder.get());
+    sp<Handle> handle = sp<Handle>::cast(handleBinder);
     return handle->owner;
 }
 

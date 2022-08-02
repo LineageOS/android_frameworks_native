@@ -228,7 +228,7 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchManyDifferences) {
 }
 
 TEST_F(LayerStackTest, getApproximateMatch_exactMatchesSameBuffer) {
-    sp<GraphicBuffer> buffer = new GraphicBuffer();
+    sp<GraphicBuffer> buffer = sp<GraphicBuffer>::make();
     mock::OutputLayer outputLayerOne;
     sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne;
@@ -268,7 +268,7 @@ TEST_F(LayerStackTest, getApproximateMatch_alwaysMatchesClientComposition) {
             .dataspace = ui::Dataspace::SRGB,
     };
     LayerFECompositionState layerFECompositionStateOne;
-    layerFECompositionStateOne.buffer = new GraphicBuffer();
+    layerFECompositionStateOne.buffer = sp<GraphicBuffer>::make();
     layerFECompositionStateOne.alpha = sAlphaOne;
     layerFECompositionStateOne.colorTransformIsIdentity = true;
     setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
@@ -285,7 +285,7 @@ TEST_F(LayerStackTest, getApproximateMatch_alwaysMatchesClientComposition) {
             .dataspace = ui::Dataspace::DISPLAY_P3,
     };
     LayerFECompositionState layerFECompositionStateTwo;
-    layerFECompositionStateTwo.buffer = new GraphicBuffer();
+    layerFECompositionStateTwo.buffer = sp<GraphicBuffer>::make();
     layerFECompositionStateTwo.alpha = sAlphaTwo;
     layerFECompositionStateTwo.colorTransformIsIdentity = false;
     layerFECompositionStateTwo.colorTransform = sMat4One;
@@ -310,7 +310,7 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchMultipleApproximations) {
             .sourceCrop = sFloatRectOne,
     };
     LayerFECompositionState layerFECompositionStateOne;
-    layerFECompositionStateOne.buffer = new GraphicBuffer();
+    layerFECompositionStateOne.buffer = sp<GraphicBuffer>::make();
     setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
@@ -321,7 +321,7 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchMultipleApproximations) {
             .sourceCrop = sFloatRectTwo,
     };
     LayerFECompositionState layerFECompositionStateTwo;
-    layerFECompositionStateTwo.buffer = new GraphicBuffer();
+    layerFECompositionStateTwo.buffer = sp<GraphicBuffer>::make();
     setupMocksForLayer(outputLayerTwo, *layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);

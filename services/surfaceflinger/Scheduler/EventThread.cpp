@@ -173,7 +173,7 @@ EventThreadConnection::~EventThreadConnection() {
 
 void EventThreadConnection::onFirstRef() {
     // NOTE: mEventThread doesn't hold a strong reference on us
-    mEventThread->registerDisplayEventConnection(this);
+    mEventThread->registerDisplayEventConnection(sp<EventThreadConnection>::fromExisting(this));
 }
 
 binder::Status EventThreadConnection::stealReceiveChannel(gui::BitTube* outChannel) {
@@ -188,20 +188,22 @@ binder::Status EventThreadConnection::stealReceiveChannel(gui::BitTube* outChann
 }
 
 binder::Status EventThreadConnection::setVsyncRate(int rate) {
-    mEventThread->setVsyncRate(static_cast<uint32_t>(rate), this);
+    mEventThread->setVsyncRate(static_cast<uint32_t>(rate),
+                               sp<EventThreadConnection>::fromExisting(this));
     return binder::Status::ok();
 }
 
 binder::Status EventThreadConnection::requestNextVsync() {
     ATRACE_CALL();
-    mEventThread->requestNextVsync(this);
+    mEventThread->requestNextVsync(sp<EventThreadConnection>::fromExisting(this));
     return binder::Status::ok();
 }
 
 binder::Status EventThreadConnection::getLatestVsyncEventData(
         ParcelableVsyncEventData* outVsyncEventData) {
     ATRACE_CALL();
-    outVsyncEventData->vsync = mEventThread->getLatestVsyncEventData(this);
+    outVsyncEventData->vsync =
+            mEventThread->getLatestVsyncEventData(sp<EventThreadConnection>::fromExisting(this));
     return binder::Status::ok();
 }
 
@@ -289,9 +291,9 @@ void EventThread::setDuration(std::chrono::nanoseconds workDuration,
 
 sp<EventThreadConnection> EventThread::createEventConnection(
         ResyncCallback resyncCallback, EventRegistrationFlags eventRegistration) const {
-    return new EventThreadConnection(const_cast<EventThread*>(this),
-                                     IPCThreadState::self()->getCallingUid(),
-                                     std::move(resyncCallback), eventRegistration);
+    return sp<EventThreadConnection>::make(const_cast<EventThread*>(this),
+                                           IPCThreadState::self()->getCallingUid(),
+                                           std::move(resyncCallback), eventRegistration);
 }
 
 status_t EventThread::registerDisplayEventConnection(const sp<EventThreadConnection>& connection) {

@@ -108,11 +108,12 @@ void FlattenerTest::SetUp() {
         testLayer->outputLayerCompositionState.visibleRegion =
                 Region(Rect(pos + 1, pos + 1, pos + 2, pos + 2));
 
+        const auto kUsageFlags =
+                static_cast<uint64_t>(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                      GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE);
         testLayer->layerFECompositionState.buffer =
-                new GraphicBuffer(100, 100, HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                  GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                          GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE,
-                                  "output");
+                sp<GraphicBuffer>::make(100u, 100u, HAL_PIXEL_FORMAT_RGBA_8888, 1u, kUsageFlags,
+                                        "output");
 
         testLayer->layerFE = sp<mock::LayerFE>::make();
 

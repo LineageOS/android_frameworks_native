@@ -955,11 +955,11 @@ native_handle_t* OutputLayerWriteStateToHWCTest::kSidebandStreamHandle =
         reinterpret_cast<native_handle_t*>(1031);
 const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kBuffer;
 const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kOverrideBuffer =
-        new GraphicBuffer(4, 5, PIXEL_FORMAT_RGBA_8888,
-                          AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
-                                  AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN);
+        sp<GraphicBuffer>::make(4, 5, PIXEL_FORMAT_RGBA_8888,
+                                AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
+                                        AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN);
 const sp<Fence> OutputLayerWriteStateToHWCTest::kFence;
-const sp<Fence> OutputLayerWriteStateToHWCTest::kOverrideFence = new Fence();
+const sp<Fence> OutputLayerWriteStateToHWCTest::kOverrideFence = sp<Fence>::make();
 const std::string OutputLayerWriteStateToHWCTest::kLayerGenericMetadata1Key =
         "com.example.metadata.1";
 const std::vector<uint8_t> OutputLayerWriteStateToHWCTest::kLayerGenericMetadata1Value{{1, 2, 3}};

@@ -193,8 +193,9 @@ sp<EventThreadTest::MockEventThreadConnection> EventThreadTest::createConnection
         ConnectionEventRecorder& recorder, EventRegistrationFlags eventRegistration,
         uid_t ownerUid) {
     sp<MockEventThreadConnection> connection =
-            new MockEventThreadConnection(mThread.get(), ownerUid,
-                                          mResyncCallRecorder.getInvocable(), eventRegistration);
+            sp<MockEventThreadConnection>::make(mThread.get(), ownerUid,
+                                                mResyncCallRecorder.getInvocable(),
+                                                eventRegistration);
     EXPECT_CALL(*connection, postEvent(_)).WillRepeatedly(Invoke(recorder.getInvocable()));
     return connection;
 }

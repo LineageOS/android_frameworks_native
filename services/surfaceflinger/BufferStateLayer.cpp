@@ -134,7 +134,7 @@ BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args)
       : Layer(args),
         mTextureName(args.textureName),
         mCompositionState{mFlinger->getCompositionEngine().createLayerFECompositionState()},
-        mHwcSlotGenerator(new HwcSlotGenerator()) {
+        mHwcSlotGenerator(sp<HwcSlotGenerator>::make()) {
     ALOGV("Creating Layer %s", getDebugName());
 
     mPremultipliedAlpha = !(args.flags & ISurfaceComposerClient::eNonPremultiplied);
@@ -812,7 +812,7 @@ sp<Layer> BufferStateLayer::createClone() {
     args.textureName = mTextureName;
     sp<BufferStateLayer> layer = mFlinger->getFactory().createBufferStateLayer(args);
     layer->mHwcSlotGenerator = mHwcSlotGenerator;
-    layer->setInitialValuesForClone(this);
+    layer->setInitialValuesForClone(sp<Layer>::fromExisting(this));
     return layer;
 }
 
@@ -1573,7 +1573,8 @@ void BufferStateLayer::getDrawingTransformMatrix(bool filteringEnabled, float ou
 void BufferStateLayer::setInitialValuesForClone(const sp<Layer>& clonedFrom) {
     Layer::setInitialValuesForClone(clonedFrom);
 
-    sp<BufferStateLayer> bufferClonedFrom = static_cast<BufferStateLayer*>(clonedFrom.get());
+    sp<BufferStateLayer> bufferClonedFrom =
+            sp<BufferStateLayer>::fromExisting(static_cast<BufferStateLayer*>(clonedFrom.get()));
     mPremultipliedAlpha = bufferClonedFrom->mPremultipliedAlpha;
     mPotentialCursor = bufferClonedFrom->mPotentialCursor;
     mProtectedByApp = bufferClonedFrom->mProtectedByApp;
@@ -1586,7 +1587,8 @@ void BufferStateLayer::updateCloneBufferInfo() {
         return;
     }
 
-    sp<BufferStateLayer> clonedFrom = static_cast<BufferStateLayer*>(getClonedFrom().get());
+    sp<BufferStateLayer> clonedFrom = sp<BufferStateLayer>::fromExisting(
+            static_cast<BufferStateLayer*>(getClonedFrom().get()));
     mBufferInfo = clonedFrom->mBufferInfo;
     mSidebandStream = clonedFrom->mSidebandStream;
     surfaceDamageRegion = clonedFrom->surfaceDamageRegion;

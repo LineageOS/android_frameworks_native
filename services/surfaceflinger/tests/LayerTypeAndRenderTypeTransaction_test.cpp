@@ -799,7 +799,7 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBufferFormat) {
     sp<Surface> surface = layer->getSurface();
 
     sp<GraphicBuffer> buffer =
-            new GraphicBuffer(width, height, PIXEL_FORMAT_RGBX_8888, 1, kUsageFlags, "test");
+            sp<GraphicBuffer>::make(width, height, PIXEL_FORMAT_RGBX_8888, 1, kUsageFlags, "test");
     ASSERT_NO_FATAL_FAILURE(
             TransactionUtils::fillGraphicBufferColor(buffer, crop, Color::TRANSPARENT));
 
@@ -815,7 +815,7 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBufferFormat) {
         shot->expectColor(crop, Color::BLACK);
     }
 
-    buffer = new GraphicBuffer(width, height, PIXEL_FORMAT_RGBA_8888, 1, kUsageFlags, "test");
+    buffer = sp<GraphicBuffer>::make(width, height, PIXEL_FORMAT_RGBA_8888, 1, kUsageFlags, "test");
     ASSERT_NO_FATAL_FAILURE(
             TransactionUtils::fillGraphicBufferColor(buffer, crop, Color::TRANSPARENT));
 

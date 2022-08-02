@@ -60,7 +60,7 @@ public:
         sp<Client> client;
         LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", 0,
                                LayerMetadata());
-        return new BufferStateLayer(args);
+        return sp<BufferStateLayer>::make(args);
     }
 
     void commitTransaction(Layer* layer) {
@@ -74,13 +74,15 @@ public:
 
         EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
         EXPECT_CALL(*eventThread, createEventConnection(_, _))
-                .WillOnce(Return(new EventThreadConnection(eventThread.get(), /*callingUid=*/0,
-                                                           ResyncCallback())));
+                .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
+                                                                 mock::EventThread::kCallingUid,
+                                                                 ResyncCallback())));
 
         EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
         EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-                .WillOnce(Return(new EventThreadConnection(sfEventThread.get(), /*callingUid=*/0,
-                                                           ResyncCallback())));
+                .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
+                                                                 mock::EventThread::kCallingUid,
+                                                                 ResyncCallback())));
 
         auto vsyncController = std::make_unique<mock::VsyncController>();
         auto vsyncTracker = std::make_unique<mock::VSyncTracker>();
@@ -115,7 +117,7 @@ public:
 
     void PresentedSurfaceFrameForBufferTransaction() {
         sp<BufferStateLayer> layer = createBufferStateLayer();
-        sp<Fence> fence(new Fence());
+        sp<Fence> fence(sp<Fence>::make());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
         BufferData bufferData;
         bufferData.acquireFence = fence;
@@ -150,7 +152,7 @@ public:
     void DroppedSurfaceFrameForBufferTransaction() {
         sp<BufferStateLayer> layer = createBufferStateLayer();
 
-        sp<Fence> fence1(new Fence());
+        sp<Fence> fence1(sp<Fence>::make());
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
         BufferData bufferData;
         bufferData.acquireFence = fence1;
@@ -170,7 +172,7 @@ public:
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
         const auto droppedSurfaceFrame = layer->mDrawingState.bufferSurfaceFrameTX;
 
-        sp<Fence> fence2(new Fence());
+        sp<Fence> fence2(sp<Fence>::make());
         auto acquireFence2 = fenceFactory.createFenceTimeForTest(fence2);
         nsecs_t start = systemTime();
         bufferData.acquireFence = fence2;
@@ -216,7 +218,7 @@ public:
         EXPECT_EQ(1u, layer->mDrawingState.bufferlessSurfaceFramesTX.size());
         ASSERT_EQ(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
 
-        sp<Fence> fence(new Fence());
+        sp<Fence> fence(sp<Fence>::make());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
         BufferData bufferData;
         bufferData.acquireFence = fence;
@@ -248,7 +250,7 @@ public:
 
     void BufferlessSurfaceFrameNotCreatedIfBufferSufaceFrameExists() {
         sp<BufferStateLayer> layer = createBufferStateLayer();
-        sp<Fence> fence(new Fence());
+        sp<Fence> fence(sp<Fence>::make());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
         BufferData bufferData;
         bufferData.acquireFence = fence;
@@ -291,7 +293,7 @@ public:
         ASSERT_EQ(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
         const auto bufferlessSurfaceFrame2 = layer->mDrawingState.bufferlessSurfaceFramesTX[4];
 
-        sp<Fence> fence(new Fence());
+        sp<Fence> fence(sp<Fence>::make());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
         BufferData bufferData;
         bufferData.acquireFence = fence;
@@ -336,7 +338,7 @@ public:
     void PendingSurfaceFramesRemovedAfterClassification() {
         sp<BufferStateLayer> layer = createBufferStateLayer();
 
-        sp<Fence> fence1(new Fence());
+        sp<Fence> fence1(sp<Fence>::make());
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
         BufferData bufferData;
         bufferData.acquireFence = fence1;
@@ -355,7 +357,7 @@ public:
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
         const auto droppedSurfaceFrame = layer->mDrawingState.bufferSurfaceFrameTX;
 
-        sp<Fence> fence2(new Fence());
+        sp<Fence> fence2(sp<Fence>::make());
         auto acquireFence2 = fenceFactory.createFenceTimeForTest(fence2);
         bufferData.acquireFence = fence2;
         bufferData.frameNumber = 1;
@@ -388,7 +390,7 @@ public:
     void BufferSurfaceFrame_ReplaceValidTokenBufferWithInvalidTokenBuffer() {
         sp<BufferStateLayer> layer = createBufferStateLayer();
 
-        sp<Fence> fence1(new Fence());
+        sp<Fence> fence1(sp<Fence>::make());
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
         BufferData bufferData;
         bufferData.acquireFence = fence1;
@@ -408,7 +410,7 @@ public:
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
         const auto droppedSurfaceFrame1 = layer->mDrawingState.bufferSurfaceFrameTX;
 
-        sp<Fence> fence2(new Fence());
+        sp<Fence> fence2(sp<Fence>::make());
         auto acquireFence2 = fenceFactory.createFenceTimeForTest(fence2);
         auto dropStartTime1 = systemTime();
         bufferData.acquireFence = fence2;
@@ -429,7 +431,7 @@ public:
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
         const auto droppedSurfaceFrame2 = layer->mDrawingState.bufferSurfaceFrameTX;
 
-        sp<Fence> fence3(new Fence());
+        sp<Fence> fence3(sp<Fence>::make());
         auto acquireFence3 = fenceFactory.createFenceTimeForTest(fence3);
         auto dropStartTime2 = systemTime();
         bufferData.acquireFence = fence3;
@@ -479,7 +481,7 @@ public:
         uint32_t surfaceFramesPendingClassification = 0;
         std::vector<std::shared_ptr<frametimeline::SurfaceFrame>> bufferlessSurfaceFrames;
         for (int i = 0; i < 10; i += 2) {
-            sp<Fence> fence(new Fence());
+            sp<Fence> fence(sp<Fence>::make());
             BufferData bufferData;
             bufferData.acquireFence = fence;
             bufferData.frameNumber = 1;

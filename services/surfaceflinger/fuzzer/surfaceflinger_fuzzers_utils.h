@@ -305,21 +305,21 @@ public:
     }
 
     sp<SurfaceInterceptor> createSurfaceInterceptor() override {
-        return new android::impl::SurfaceInterceptor();
+        return sp<android::impl::SurfaceInterceptor>::make();
     }
 
     sp<StartPropertySetThread> createStartPropertySetThread(bool timestampPropertyValue) override {
-        return new StartPropertySetThread(timestampPropertyValue);
+        return sp<StartPropertySetThread>::make(timestampPropertyValue);
     }
 
     sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs &creationArgs) override {
-        return new DisplayDevice(creationArgs);
+        return sp<DisplayDevice>::make(creationArgs);
     }
 
     sp<GraphicBuffer> createGraphicBuffer(uint32_t width, uint32_t height, PixelFormat format,
                                           uint32_t layerCount, uint64_t usage,
                                           std::string requestorName) override {
-        return new GraphicBuffer(width, height, format, layerCount, usage, requestorName);
+        return sp<GraphicBuffer>::make(width, height, format, layerCount, usage, requestorName);
     }
 
     void createBufferQueue(sp<IGraphicBufferProducer> *outProducer,
@@ -347,7 +347,7 @@ public:
     }
 
     sp<EffectLayer> createEffectLayer(const LayerCreationArgs &args) override {
-        return new EffectLayer(args);
+        return sp<EffectLayer>::make(args);
     }
 
     std::unique_ptr<FrameTracer> createFrameTracer() override {
@@ -520,7 +520,7 @@ public:
 
     sp<IBinder> fuzzBoot(FuzzedDataProvider *fdp) {
         mFlinger->callingThreadHasUnscopedSurfaceFlingerAccess(fdp->ConsumeBool());
-        const sp<Client> client = new Client(mFlinger);
+        const sp<Client> client = sp<Client>::make(mFlinger);
 
         DisplayIdGenerator<HalVirtualDisplayId> kGenerator;
         HalVirtualDisplayId halVirtualDisplayId = kGenerator.generateId().value();
@@ -776,7 +776,8 @@ private:
     void triggerOnFrameRateOverridesChanged() override {}
 
     surfaceflinger::test::Factory mFactory;
-    sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(mFactory, SurfaceFlinger::SkipInitialization);
+    sp<SurfaceFlinger> mFlinger =
+            sp<SurfaceFlinger>::make(mFactory, SurfaceFlinger::SkipInitialization);
     scheduler::TestableScheduler *mScheduler = nullptr;
     std::shared_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
 };

@@ -77,7 +77,7 @@ LayerCreationArgs LayerFuzzer::createLayerCreationArgs(TestableSurfaceFlinger* f
 
 void LayerFuzzer::invokeEffectLayer() {
     TestableSurfaceFlinger flinger;
-    sp<Client> client = sp<Client>::make(flinger.flinger());
+    sp<Client> client = sp<Client>::make(sp<SurfaceFlinger>::fromExisting(flinger.flinger()));
     const LayerCreationArgs layerCreationArgs = createLayerCreationArgs(&flinger, client);
     sp<EffectLayer> effectLayer = sp<EffectLayer>::make(layerCreationArgs);
 
@@ -109,7 +109,7 @@ void LayerFuzzer::invokeEffectLayer() {
 
 void LayerFuzzer::invokeBufferStateLayer() {
     TestableSurfaceFlinger flinger;
-    sp<Client> client = sp<Client>::make(flinger.flinger());
+    sp<Client> client = sp<Client>::make(sp<SurfaceFlinger>::fromExisting(flinger.flinger()));
     sp<BufferStateLayer> layer =
             sp<BufferStateLayer>::make(createLayerCreationArgs(&flinger, client));
     sp<Fence> fence = sp<Fence>::make();

@@ -519,7 +519,7 @@ TEST_F(ScreenCaptureTest, CaptureSize) {
 
 TEST_F(ScreenCaptureTest, CaptureInvalidLayer) {
     LayerCaptureArgs args;
-    args.layerHandle = new BBinder();
+    args.layerHandle = sp<BBinder>::make();
 
     ScreenCaptureResults captureResults;
     // Layer was deleted so captureLayers should fail with NAME_NOT_FOUND

@@ -51,7 +51,7 @@ void HdrLayerInfoReporter::binderDied(const wp<IBinder>& who) {
 
 void HdrLayerInfoReporter::addListener(const sp<gui::IHdrLayerInfoListener>& listener) {
     sp<IBinder> asBinder = IInterface::asBinder(listener);
-    asBinder->linkToDeath(this);
+    asBinder->linkToDeath(sp<DeathRecipient>::fromExisting(this));
     std::lock_guard lock(mMutex);
     mListeners.emplace(wp<IBinder>(asBinder), TrackedListener{listener, HdrLayerInfo{}});
 }

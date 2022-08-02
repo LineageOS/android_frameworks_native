@@ -233,7 +233,7 @@ private:
 
     // Queues up transactions using this token in SurfaceFlinger. This prevents queued up
     // transactions from other parts of the client from blocking this transaction.
-    const sp<IBinder> mApplyToken GUARDED_BY(mMutex) = new BBinder();
+    const sp<IBinder> mApplyToken GUARDED_BY(mMutex) = sp<BBinder>::make();
 
     // Guards access to mDequeueTimestamps since we cannot hold to mMutex in onFrameDequeued or
     // we will deadlock.

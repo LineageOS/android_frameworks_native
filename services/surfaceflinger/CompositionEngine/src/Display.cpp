@@ -196,7 +196,7 @@ void Display::setReleasedLayers(const compositionengine::CompositionRefreshArgs&
                             });
 
         if (hasQueuedFrames) {
-            releasedLayers.emplace_back(layerFE);
+            releasedLayers.emplace_back(wp<LayerFE>::fromExisting(layerFE));
         }
     }
 

@@ -408,12 +408,12 @@ TEST_F(DisplayTransactionCommitTest, processesVirtualDisplayAdded) {
 
     // A virtual display was added to the current state, and it has a
     // surface(producer)
-    sp<BBinder> displayToken = new BBinder();
+    sp<BBinder> displayToken = sp<BBinder>::make();
 
     DisplayDeviceState state;
     state.isSecure = static_cast<bool>(Case::Display::SECURE);
 
-    sp<mock::GraphicBufferProducer> surface{new mock::GraphicBufferProducer()};
+    sp<mock::GraphicBufferProducer> surface{sp<mock::GraphicBufferProducer>::make()};
     state.surface = surface;
     mFlinger.mutableCurrentState().displays.add(displayToken, state);
 
@@ -479,7 +479,7 @@ TEST_F(DisplayTransactionCommitTest, processesVirtualDisplayAddedWithNoSurface) 
 
     // A virtual display was added to the current state, but it does not have a
     // surface.
-    sp<BBinder> displayToken = new BBinder();
+    sp<BBinder> displayToken = sp<BBinder>::make();
 
     DisplayDeviceState state;
     state.isSecure = static_cast<bool>(Case::Display::SECURE);
@@ -656,9 +656,11 @@ TEST_F(DisplayTransactionCommitTest, processesDisplayWidthChanges) {
     // Preconditions
 
     // A display is set up
-    auto nativeWindow = new mock::NativeWindow();
-    auto displaySurface = new compositionengine::mock::DisplaySurface();
-    sp<GraphicBuffer> buf = new GraphicBuffer();
+    auto nativeWindow = sp<mock::NativeWindow>::make();
+    auto displaySurface = sp<compositionengine::mock::DisplaySurface>::make();
+    sp<GraphicBuffer> buf =
+
+            sp<GraphicBuffer>::make();
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.setNativeWindow(nativeWindow);
     display.setDisplaySurface(displaySurface);
@@ -701,9 +703,9 @@ TEST_F(DisplayTransactionCommitTest, processesDisplayHeightChanges) {
     // Preconditions
 
     // A display is set up
-    auto nativeWindow = new mock::NativeWindow();
-    auto displaySurface = new compositionengine::mock::DisplaySurface();
-    sp<GraphicBuffer> buf = new GraphicBuffer();
+    auto nativeWindow = sp<mock::NativeWindow>::make();
+    auto displaySurface = sp<compositionengine::mock::DisplaySurface>::make();
+    sp<GraphicBuffer> buf = sp<GraphicBuffer>::make();
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.setNativeWindow(nativeWindow);
     display.setDisplaySurface(displaySurface);
@@ -750,9 +752,9 @@ TEST_F(DisplayTransactionCommitTest, processesDisplaySizeDisplayRectAndLayerStac
     // Preconditions
 
     // A display is set up
-    auto nativeWindow = new mock::NativeWindow();
-    auto displaySurface = new compositionengine::mock::DisplaySurface();
-    sp<GraphicBuffer> buf = new GraphicBuffer();
+    auto nativeWindow = sp<mock::NativeWindow>::make();
+    auto displaySurface = sp<compositionengine::mock::DisplaySurface>::make();
+    sp<GraphicBuffer> buf = sp<GraphicBuffer>::make();
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.setNativeWindow(nativeWindow);
     display.setDisplaySurface(displaySurface);

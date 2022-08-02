@@ -95,8 +95,8 @@ protected:
 
     sp<TestableFpsListener> mFpsListener;
     fake::FakeClock* mClock = new fake::FakeClock();
-    sp<FpsReporter> mFpsReporter =
-            new FpsReporter(mFrameTimeline, *(mFlinger.flinger()), std::unique_ptr<Clock>(mClock));
+    sp<FpsReporter> mFpsReporter = sp<FpsReporter>::make(mFrameTimeline, *(mFlinger.flinger()),
+                                                         std::unique_ptr<Clock>(mClock));
 };
 
 FpsReporterTest::FpsReporterTest() {
@@ -107,7 +107,7 @@ FpsReporterTest::FpsReporterTest() {
     setupScheduler();
     mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
 
-    mFpsListener = new TestableFpsListener();
+    mFpsListener = sp<TestableFpsListener>::make();
 }
 
 FpsReporterTest::~FpsReporterTest() {
@@ -119,7 +119,7 @@ FpsReporterTest::~FpsReporterTest() {
 sp<BufferStateLayer> FpsReporterTest::createBufferStateLayer(LayerMetadata metadata = {}) {
     sp<Client> client;
     LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", LAYER_FLAGS, metadata);
-    return new BufferStateLayer(args);
+    return sp<BufferStateLayer>::make(args);
 }
 
 void FpsReporterTest::setupScheduler() {
@@ -128,13 +128,15 @@ void FpsReporterTest::setupScheduler() {
 
     EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*eventThread, createEventConnection(_, _))
-            .WillOnce(Return(new EventThreadConnection(eventThread.get(), /*callingUid=*/0,
-                                                       ResyncCallback())));
+            .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
+                                                             mock::EventThread::kCallingUid,
+                                                             ResyncCallback())));
 
     EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-            .WillOnce(Return(new EventThreadConnection(sfEventThread.get(), /*callingUid=*/0,
-                                                       ResyncCallback())));
+            .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
+                                                             mock::EventThread::kCallingUid,
+                                                             ResyncCallback())));
 
     auto vsyncController = std::make_unique<mock::VsyncController>();
     auto vsyncTracker = std::make_unique<mock::VSyncTracker>();

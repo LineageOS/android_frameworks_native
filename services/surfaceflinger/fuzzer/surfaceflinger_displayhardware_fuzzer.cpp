@@ -480,8 +480,8 @@ void DisplayHardwareFuzzer::invokeFrameBufferSurface() {
     BufferQueue::createBufferQueue(&bqProducer, &bqConsumer);
 
     sp<FramebufferSurface> surface =
-            new FramebufferSurface(mHwc, mPhysicalDisplayId, bqConsumer, getFuzzedSize() /*size*/,
-                                   getFuzzedSize() /*maxSize*/);
+            sp<FramebufferSurface>::make(mHwc, mPhysicalDisplayId, bqConsumer,
+                                         getFuzzedSize() /*size*/, getFuzzedSize() /*maxSize*/);
     surface->beginFrame(mFdp.ConsumeBool());
 
     surface->prepareFrame(mFdp.PickValueInArray(kCompositionTypes));
@@ -497,15 +497,15 @@ void DisplayHardwareFuzzer::invokeVirtualDisplaySurface() {
     DisplayIdGenerator<HalVirtualDisplayId> mGenerator;
     VirtualDisplayId VirtualDisplayId = mGenerator.generateId().value();
 
-    sp<SurfaceComposerClient> mClient = new SurfaceComposerClient();
+    sp<SurfaceComposerClient> mClient = sp<SurfaceComposerClient>::make();
     sp<SurfaceControl> mSurfaceControl =
             mClient->createSurface(String8("TestSurface"), 100, 100, PIXEL_FORMAT_RGBA_8888,
                                    ISurfaceComposerClient::eFXSurfaceBufferState,
                                    /*parent*/ nullptr);
 
-    sp<BLASTBufferQueue> mBlastBufferQueueAdapter =
-            new BLASTBufferQueue("TestBLASTBufferQueue", mSurfaceControl, 100, 100,
-                                 PIXEL_FORMAT_RGBA_8888);
+    auto mBlastBufferQueueAdapter =
+            sp<BLASTBufferQueue>::make("TestBLASTBufferQueue", mSurfaceControl, 100, 100,
+                                       PIXEL_FORMAT_RGBA_8888);
 
     sp<IGraphicBufferProducer> sink = mBlastBufferQueueAdapter->getIGraphicBufferProducer();
     sp<IGraphicBufferProducer> bqProducer = mBlastBufferQueueAdapter->getIGraphicBufferProducer();
@@ -513,9 +513,9 @@ void DisplayHardwareFuzzer::invokeVirtualDisplaySurface() {
     BufferQueue::createBufferQueue(&bqProducer, &bqConsumer);
     BufferQueue::createBufferQueue(&sink, &bqConsumer);
 
-    sp<VirtualDisplaySurface> surface =
-            new VirtualDisplaySurface(mHwc, VirtualDisplayId, sink, bqProducer, bqConsumer,
-                                      mFdp.ConsumeRandomLengthString().c_str() /*name*/);
+    auto surface =
+            sp<VirtualDisplaySurface>::make(mHwc, VirtualDisplayId, sink, bqProducer, bqConsumer,
+                                            mFdp.ConsumeRandomLengthString().c_str() /*name*/);
 
     surface->beginFrame(mFdp.ConsumeBool());
     surface->prepareFrame(mFdp.PickValueInArray(kCompositionTypes));
@@ -565,7 +565,7 @@ void DisplayHardwareFuzzer::invokeComposer() {
 
     mHwc.getLayerReleaseFence(halDisplayID, layer);
 
-    mHwc.setOutputBuffer(halVirtualDisplayId, sp<Fence>::make().get(), sp<GraphicBuffer>::make());
+    mHwc.setOutputBuffer(halVirtualDisplayId, sp<Fence>::make(), sp<GraphicBuffer>::make());
 
     mHwc.clearReleaseFences(halDisplayID);
 
