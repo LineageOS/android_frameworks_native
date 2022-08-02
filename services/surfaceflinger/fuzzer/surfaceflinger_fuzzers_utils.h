@@ -534,7 +534,9 @@ public:
         ui::PixelFormat pixelFormat{};
         mFlinger->getHwComposer().allocateVirtualDisplay(halVirtualDisplayId, uiSize, &pixelFormat);
 
-        PhysicalDisplayId physicalDisplayId = SurfaceComposerClient::getInternalDisplayId().value();
+        PhysicalDisplayId physicalDisplayId =
+                SurfaceComposerClient::getInternalDisplayId().value_or(
+                        PhysicalDisplayId::fromPort(fdp->ConsumeIntegral<uint8_t>()));
         mFlinger->getHwComposer().allocatePhysicalDisplay(kHwDisplayId, physicalDisplayId);
 
         sp<IBinder> display =
