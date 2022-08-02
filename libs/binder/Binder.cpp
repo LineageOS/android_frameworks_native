@@ -620,12 +620,14 @@ BBinder::~BBinder()
         if (isInheritRt()) {
              ALOGW("Binder %p destroyed after setInheritRt before being parceled.", this);
         }
+#ifdef __linux__
         if (getMinSchedulerPolicy() != SCHED_NORMAL) {
              ALOGW("Binder %p destroyed after setMinSchedulerPolicy before being parceled.", this);
         }
         if (getMinSchedulerPriority() != 0) {
              ALOGW("Binder %p destroyed after setMinSchedulerPolicy before being parceled.", this);
         }
+#endif // __linux__
     }
 
     Extras* e = mExtras.load(std::memory_order_relaxed);
