@@ -64,7 +64,7 @@ public:
                 .num_handles = 0, // TODO: add ancillaryFds
                 .handles = nullptr,
         };
-        int rc = send_msg(mSocket.get(), &msg);
+        ssize_t rc = send_msg(mSocket.get(), &msg);
         if (rc == ERR_NOT_ENOUGH_BUFFER) {
             // Peer is blocked, wait until it unblocks.
             // TODO: when tipc supports a send-unblocked handler,
@@ -89,7 +89,7 @@ public:
             return statusFromTrusty(rc);
         }
         LOG_ALWAYS_FATAL_IF(static_cast<size_t>(rc) != size,
-                            "Sent the wrong number of bytes %d!=%zu", rc, size);
+                            "Sent the wrong number of bytes %zd!=%zu", rc, size);
 
         return OK;
     }
@@ -129,7 +129,7 @@ public:
                     .num_handles = 0, // TODO: support ancillaryFds
                     .handles = nullptr,
             };
-            int rc = read_msg(mSocket.get(), mMessageInfo.id, mMessageOffset, &msg);
+            ssize_t rc = read_msg(mSocket.get(), mMessageInfo.id, mMessageOffset, &msg);
             if (rc < 0) {
                 return statusFromTrusty(rc);
             }
