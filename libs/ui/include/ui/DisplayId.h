@@ -17,8 +17,9 @@
 #pragma once
 
 #include <cstdint>
-#include <optional>
 #include <string>
+
+#include <ftl/optional.h>
 
 namespace android {
 
@@ -68,7 +69,7 @@ inline std::string to_string(DisplayId displayId) {
 
 // DisplayId of a physical display, such as the internal display or externally connected display.
 struct PhysicalDisplayId : DisplayId {
-    static constexpr std::optional<PhysicalDisplayId> tryCast(DisplayId id) {
+    static constexpr ftl::Optional<PhysicalDisplayId> tryCast(DisplayId id) {
         if (id.value & FLAG_VIRTUAL) {
             return std::nullopt;
         }
