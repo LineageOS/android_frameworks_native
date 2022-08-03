@@ -96,12 +96,12 @@
 #include <utility>
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+#include "Client.h"
 
 using namespace android::surfaceflinger;
 
 namespace android {
 
-class Client;
 class EventThread;
 class FlagManager;
 class FpsReporter;
@@ -819,6 +819,9 @@ private:
     status_t mirrorLayer(const LayerCreationArgs& args, const sp<IBinder>& mirrorFromHandle,
                          sp<IBinder>* outHandle, int32_t* outLayerId);
 
+    status_t mirrorDisplay(DisplayId displayId, const LayerCreationArgs& args,
+                           sp<IBinder>* outHandle, int32_t* outLayerId);
+
     // called when all clients have released all their references to
     // this layer meaning it is entirely safe to destroy all
     // resources associated to this layer.
@@ -1371,6 +1374,19 @@ private:
     bool commitCreatedLayers(int64_t vsyncId);
     void handleLayerCreatedLocked(const LayerCreatedState& state, int64_t vsyncId)
             REQUIRES(mStateLock);
+
+    mutable std::mutex mMirrorDisplayLock;
+    struct MirrorDisplayState {
+        MirrorDisplayState(ui::LayerStack layerStack, sp<IBinder>& rootHandle,
+                           const sp<Client>& client)
+              : layerStack(layerStack), rootHandle(rootHandle), client(client) {}
+
+        ui::LayerStack layerStack;
+        sp<IBinder> rootHandle;
+        const sp<Client> client;
+    };
+    std::vector<MirrorDisplayState> mMirrorDisplays GUARDED_BY(mMirrorDisplayLock);
+    bool commitMirrorDisplays(int64_t vsyncId);
 
     std::atomic<ui::Transform::RotationFlags> mActiveDisplayTransformHint;
 

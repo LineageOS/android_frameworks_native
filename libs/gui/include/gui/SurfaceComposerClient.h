@@ -341,6 +341,8 @@ public:
     //      B               B'
     sp<SurfaceControl> mirrorSurface(SurfaceControl* mirrorFromSurface);
 
+    sp<SurfaceControl> mirrorDisplay(DisplayId displayId);
+
     //! Create a virtual display
     static sp<IBinder> createDisplay(const String8& displayName, bool secure);
 
