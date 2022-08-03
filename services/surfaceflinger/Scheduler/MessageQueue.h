@@ -61,7 +61,7 @@ class Task : public MessageHandler {
 
 template <typename F>
 inline auto makeTask(F&& f) {
-    sp<Task<F>> task = sp<Task<F>>::make(std::move(f));
+    sp<Task<F>> task = sp<Task<F>>::make(std::forward<F>(f));
     return std::make_pair(task, task->mTask.get_future());
 }
 
