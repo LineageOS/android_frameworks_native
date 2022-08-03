@@ -29,7 +29,7 @@ namespace inputdispatcher {
 struct TouchedWindow {
     sp<gui::WindowInfoHandle> windowHandle;
     int32_t targetFlags;
-    BitSet32 pointerIds; // zero unless target flag FLAG_SPLIT is set
+    BitSet32 pointerIds;
 };
 
 } // namespace inputdispatcher
