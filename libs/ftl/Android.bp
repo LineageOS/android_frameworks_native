@@ -14,6 +14,7 @@ cc_test {
         address: true,
     },
     srcs: [
+        "algorithm_test.cpp",
         "cast_test.cpp",
         "concat_test.cpp",
         "enum_test.cpp",
