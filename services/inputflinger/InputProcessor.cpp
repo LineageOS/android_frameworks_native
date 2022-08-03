@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "InputClassifier"
+#define LOG_TAG "InputProcessor"
 
-#include "InputClassifier.h"
+#include "InputProcessor.h"
 #include "InputCommonConverter.h"
 
 #include <android-base/stringprintf.h>
@@ -27,7 +27,7 @@
 #include <algorithm>
 #include <cmath>
 #if defined(__linux__)
-    #include <pthread.h>
+#include <pthread.h>
 #endif
 #include <unordered_set>
 
@@ -44,10 +44,10 @@ using aidl::android::hardware::input::processor::IInputProcessor;
 
 namespace android {
 
-//Max number of elements to store in mEvents.
+// Max number of elements to store in mEvents.
 static constexpr size_t MAX_EVENTS = 5;
 
-template<class K, class V>
+template <class K, class V>
 static V getValueForKey(const std::unordered_map<K, V>& map, K key, V defaultValue) {
     auto it = map.find(key);
     if (it == map.end()) {
@@ -123,15 +123,15 @@ ScopedDeathRecipient::~ScopedDeathRecipient() {
 
 // --- ClassifierEvent ---
 
-ClassifierEvent::ClassifierEvent(std::unique_ptr<NotifyMotionArgs> args) :
-        type(ClassifierEventType::MOTION), args(std::move(args)) { };
-ClassifierEvent::ClassifierEvent(std::unique_ptr<NotifyDeviceResetArgs> args) :
-        type(ClassifierEventType::DEVICE_RESET), args(std::move(args)) { };
-ClassifierEvent::ClassifierEvent(ClassifierEventType type, std::unique_ptr<NotifyArgs> args) :
-        type(type), args(std::move(args)) { };
+ClassifierEvent::ClassifierEvent(std::unique_ptr<NotifyMotionArgs> args)
+      : type(ClassifierEventType::MOTION), args(std::move(args)){};
+ClassifierEvent::ClassifierEvent(std::unique_ptr<NotifyDeviceResetArgs> args)
+      : type(ClassifierEventType::DEVICE_RESET), args(std::move(args)){};
+ClassifierEvent::ClassifierEvent(ClassifierEventType type, std::unique_ptr<NotifyArgs> args)
+      : type(type), args(std::move(args)){};
 
-ClassifierEvent::ClassifierEvent(ClassifierEvent&& other) :
-        type(other.type), args(std::move(other.args)) { };
+ClassifierEvent::ClassifierEvent(ClassifierEvent&& other)
+      : type(other.type), args(std::move(other.args)){};
 
 ClassifierEvent& ClassifierEvent::operator=(ClassifierEvent&& other) {
     type = other.type;
@@ -180,7 +180,7 @@ MotionClassifier::MotionClassifier(std::shared_ptr<IInputProcessor> service)
     mHalThread = std::thread(&MotionClassifier::processEvents, this);
 #if defined(__linux__)
     // Set the thread name for debugging
-    pthread_setname_np(mHalThread.native_handle(), "InputClassifier");
+    pthread_setname_np(mHalThread.native_handle(), "InputProcessor");
 #endif
 }
 
@@ -198,7 +198,7 @@ MotionClassifier::~MotionClassifier() {
 
 /**
  * Obtain the classification from the HAL for a given MotionEvent.
- * Should only be called from the InputClassifier thread (mHalThread).
+ * Should only be called from the InputProcessor thread (mHalThread).
  * Should not be called from the thread that notifyMotion runs on.
  *
  * There is no way to provide a timeout for a HAL call. So if the HAL takes too long
@@ -239,8 +239,8 @@ void MotionClassifier::processEvents() {
             }
         }
         if (!halResponseOk) {
-            ALOGE("Error communicating with InputClassifier HAL. "
-                    "Exiting MotionClassifier HAL thread");
+            ALOGE("Error communicating with InputProcessor HAL. "
+                  "Exiting MotionClassifier HAL thread");
             clearClassifications();
             return;
         }
@@ -262,14 +262,14 @@ void MotionClassifier::requestExit() {
 }
 
 void MotionClassifier::updateClassification(int32_t deviceId, nsecs_t eventTime,
-        MotionClassification classification) {
+                                            MotionClassification classification) {
     std::scoped_lock lock(mLock);
     const nsecs_t lastDownTime = getValueForKey(mLastDownTimes, deviceId, static_cast<nsecs_t>(0));
     if (eventTime < lastDownTime) {
         // HAL just finished processing an event that belonged to an earlier gesture,
         // but new gesture is already in progress. Drop this classification.
         ALOGW("Received late classification. Late by at least %" PRId64 " ms.",
-                nanoseconds_to_milliseconds(lastDownTime - eventTime));
+              nanoseconds_to_milliseconds(lastDownTime - eventTime));
         return;
     }
     mClassifications[deviceId] = classification;
@@ -319,14 +319,14 @@ void MotionClassifier::reset() {
 
 /**
  * Per-device reset. Clear the outstanding events that are going to be sent to HAL.
- * Request InputClassifier thread to call resetDevice for this particular device.
+ * Request InputProcessor thread to call resetDevice for this particular device.
  */
 void MotionClassifier::reset(const NotifyDeviceResetArgs& args) {
     int32_t deviceId = args.deviceId;
     // Clear the pending events right away, to avoid unnecessary work done by the HAL.
     mEvents.erase([deviceId](const ClassifierEvent& event) {
-            std::optional<int32_t> eventDeviceId = event.getDeviceId();
-            return eventDeviceId && (*eventDeviceId == deviceId);
+        std::optional<int32_t> eventDeviceId = event.getDeviceId();
+        return eventDeviceId && (*eventDeviceId == deviceId);
     });
     enqueueEvent(std::make_unique<NotifyDeviceResetArgs>(args));
 }
@@ -334,23 +334,22 @@ void MotionClassifier::reset(const NotifyDeviceResetArgs& args) {
 void MotionClassifier::dump(std::string& dump) {
     std::scoped_lock lock(mLock);
     dump += StringPrintf(INDENT2 "mService connected: %s\n", mService ? "true" : "false");
-    dump += StringPrintf(INDENT2 "mEvents: %zu element(s) (max=%zu)\n",
-            mEvents.size(), MAX_EVENTS);
+    dump += StringPrintf(INDENT2 "mEvents: %zu element(s) (max=%zu)\n", mEvents.size(), MAX_EVENTS);
     dump += INDENT2 "mClassifications, mLastDownTimes:\n";
     dump += INDENT3 "Device Id\tClassification\tLast down time";
     // Combine mClassifications and mLastDownTimes into a single table.
     // Create a superset of device ids.
     std::unordered_set<int32_t> deviceIds;
     std::for_each(mClassifications.begin(), mClassifications.end(),
-            [&deviceIds](auto pair){ deviceIds.insert(pair.first); });
+                  [&deviceIds](auto pair) { deviceIds.insert(pair.first); });
     std::for_each(mLastDownTimes.begin(), mLastDownTimes.end(),
-            [&deviceIds](auto pair){ deviceIds.insert(pair.first); });
-    for(int32_t deviceId : deviceIds) {
+                  [&deviceIds](auto pair) { deviceIds.insert(pair.first); });
+    for (int32_t deviceId : deviceIds) {
         const MotionClassification classification =
                 getValueForKey(mClassifications, deviceId, MotionClassification::NONE);
         const nsecs_t downTime = getValueForKey(mLastDownTimes, deviceId, static_cast<nsecs_t>(0));
-        dump += StringPrintf("\n" INDENT4 "%" PRId32 "\t%s\t%" PRId64,
-                deviceId, motionClassificationToString(classification), downTime);
+        dump += StringPrintf("\n" INDENT4 "%" PRId32 "\t%s\t%" PRId64, deviceId,
+                             motionClassificationToString(classification), downTime);
     }
 }
 
@@ -366,20 +365,20 @@ void MotionClassifier::monitor() {
     }
 }
 
-// --- InputClassifier ---
+// --- InputProcessor ---
 
-InputClassifier::InputClassifier(InputListenerInterface& listener) : mQueuedListener(listener) {}
+InputProcessor::InputProcessor(InputListenerInterface& listener) : mQueuedListener(listener) {}
 
-void InputClassifier::onBinderDied(void* cookie) {
-    InputClassifier* classifier = static_cast<InputClassifier*>(cookie);
-    if (classifier == nullptr) {
+void InputProcessor::onBinderDied(void* cookie) {
+    InputProcessor* processor = static_cast<InputProcessor*>(cookie);
+    if (processor == nullptr) {
         LOG_ALWAYS_FATAL("Cookie is not valid");
         return;
     }
-    classifier->setMotionClassifierEnabled(false);
+    processor->setMotionClassifierEnabled(false);
 }
 
-void InputClassifier::setMotionClassifierEnabled(bool enabled) {
+void InputProcessor::setMotionClassifierEnabled(bool enabled) {
     std::scoped_lock lock(mLock);
     if (enabled) {
         ALOGI("Enabling motion classifier");
@@ -392,7 +391,7 @@ void InputClassifier::setMotionClassifierEnabled(bool enabled) {
                  * and we can't continue because 'mInitializeMotionClassifier' will block in its
                  * destructor.
                  */
-                LOG_ALWAYS_FATAL("The thread to load IInputClassifier is stuck!");
+                LOG_ALWAYS_FATAL("The thread to load IInputProcessor is stuck!");
             }
         }
         mInitializeMotionClassifier = std::async(std::launch::async, [this] {
@@ -416,19 +415,19 @@ void InputClassifier::setMotionClassifierEnabled(bool enabled) {
     }
 }
 
-void InputClassifier::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
+void InputProcessor::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
     // pass through
     mQueuedListener.notifyConfigurationChanged(args);
     mQueuedListener.flush();
 }
 
-void InputClassifier::notifyKey(const NotifyKeyArgs* args) {
+void InputProcessor::notifyKey(const NotifyKeyArgs* args) {
     // pass through
     mQueuedListener.notifyKey(args);
     mQueuedListener.flush();
 }
 
-void InputClassifier::notifyMotion(const NotifyMotionArgs* args) {
+void InputProcessor::notifyMotion(const NotifyMotionArgs* args) {
     { // acquire lock
         std::scoped_lock lock(mLock);
         // MotionClassifier is only used for touch events, for now
@@ -444,25 +443,25 @@ void InputClassifier::notifyMotion(const NotifyMotionArgs* args) {
     mQueuedListener.flush();
 }
 
-void InputClassifier::notifySensor(const NotifySensorArgs* args) {
+void InputProcessor::notifySensor(const NotifySensorArgs* args) {
     // pass through
     mQueuedListener.notifySensor(args);
     mQueuedListener.flush();
 }
 
-void InputClassifier::notifyVibratorState(const NotifyVibratorStateArgs* args) {
+void InputProcessor::notifyVibratorState(const NotifyVibratorStateArgs* args) {
     // pass through
     mQueuedListener.notifyVibratorState(args);
     mQueuedListener.flush();
 }
 
-void InputClassifier::notifySwitch(const NotifySwitchArgs* args) {
+void InputProcessor::notifySwitch(const NotifySwitchArgs* args) {
     // pass through
     mQueuedListener.notifySwitch(args);
     mQueuedListener.flush();
 }
 
-void InputClassifier::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
+void InputProcessor::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     { // acquire lock
         std::scoped_lock lock(mLock);
         if (mMotionClassifier) {
@@ -475,13 +474,13 @@ void InputClassifier::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     mQueuedListener.flush();
 }
 
-void InputClassifier::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
+void InputProcessor::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
     // pass through
     mQueuedListener.notifyPointerCaptureChanged(args);
     mQueuedListener.flush();
 }
 
-void InputClassifier::setMotionClassifierLocked(
+void InputProcessor::setMotionClassifierLocked(
         std::unique_ptr<MotionClassifierInterface> motionClassifier) REQUIRES(mLock) {
     if (motionClassifier == nullptr) {
         // Destroy the ScopedDeathRecipient object, which will cause it to unlinkToDeath.
@@ -491,9 +490,9 @@ void InputClassifier::setMotionClassifierLocked(
     mMotionClassifier = std::move(motionClassifier);
 }
 
-void InputClassifier::dump(std::string& dump) {
+void InputProcessor::dump(std::string& dump) {
     std::scoped_lock lock(mLock);
-    dump += "Input Classifier State:\n";
+    dump += "Input Processor State:\n";
     dump += INDENT1 "Motion Classifier:\n";
     if (mMotionClassifier) {
         mMotionClassifier->dump(dump);
@@ -503,12 +502,11 @@ void InputClassifier::dump(std::string& dump) {
     dump += "\n";
 }
 
-void InputClassifier::monitor() {
+void InputProcessor::monitor() {
     std::scoped_lock lock(mLock);
     if (mMotionClassifier) mMotionClassifier->monitor();
 }
 
-InputClassifier::~InputClassifier() {
-}
+InputProcessor::~InputProcessor() {}
 
 } // namespace android
