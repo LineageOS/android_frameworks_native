@@ -108,7 +108,6 @@
 #include "BufferStateLayer.h"
 #include "Client.h"
 #include "Colorizer.h"
-#include "ContainerLayer.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/FramebufferSurface.h"
@@ -335,7 +334,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mFrameTimeline(mFactory.createFrameTimeline(mTimeStats, mPid)),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mHwcServiceName(base::GetProperty("debug.sf.hwc_service_name"s, "default"s)),
-        mTunnelModeEnabledReporter(new TunnelModeEnabledReporter()),
+        mTunnelModeEnabledReporter(sp<TunnelModeEnabledReporter>::make()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
         mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)),
         mPowerAdvisor(std::make_unique<Hwc2::impl::PowerAdvisor>(*this)),
@@ -478,7 +477,8 @@ void SurfaceFlinger::binderDied(const wp<IBinder>&) {
     mBootFinished = false;
 
     // Sever the link to inputflinger since it's gone as well.
-    static_cast<void>(mScheduler->schedule([=] { mInputFlinger = nullptr; }));
+    static_cast<void>(mScheduler->schedule(
+            [=] { mInputFlinger = sp<os::IInputFlinger>::fromExisting(nullptr); }));
 
     // restore initial conditions (default device unblank, etc)
     initializeDisplays();
@@ -506,7 +506,7 @@ sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool secur
         virtual ~DisplayToken() {
              // no more references, this display must be terminated
              Mutex::Autolock _l(flinger->mStateLock);
-             flinger->mCurrentState.displays.removeItem(this);
+             flinger->mCurrentState.displays.removeItem(wp<IBinder>::fromExisting(this));
              flinger->setTransactionFlags(eDisplayTransactionNeeded);
          }
      public:
@@ -515,7 +515,7 @@ sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool secur
         }
     };
 
-    sp<BBinder> token = new DisplayToken(this);
+    sp<BBinder> token = sp<DisplayToken>::make(sp<SurfaceFlinger>::fromExisting(this));
 
     Mutex::Autolock _l(mStateLock);
     // Display ID is assigned when virtual display is allocated by HWC.
@@ -663,7 +663,7 @@ void SurfaceFlinger::bootFinished() {
     const String16 name("window");
     mWindowManager = defaultServiceManager()->getService(name);
     if (mWindowManager != 0) {
-        mWindowManager->linkToDeath(static_cast<IBinder::DeathRecipient*>(this));
+        mWindowManager->linkToDeath(sp<IBinder::DeathRecipient>::fromExisting(this));
     }
 
     // stop boot animation
@@ -2698,7 +2698,7 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 state.isSecure = true; // All physical displays are currently considered secure.
                 state.displayName = std::move(info->name);
 
-                sp<IBinder> token = new BBinder();
+                sp<IBinder> token = sp<BBinder>::make();
                 mCurrentState.displays.add(token, state);
                 mPhysicalDisplayTokens.try_emplace(displayId, std::move(token));
                 mInterceptor->saveDisplayCreation(state);
@@ -2744,7 +2744,8 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const DisplayDeviceState& state,
         const sp<compositionengine::DisplaySurface>& displaySurface,
         const sp<IGraphicBufferProducer>& producer) {
-    DisplayDeviceCreationArgs creationArgs(this, getHwComposer(), displayToken, compositionDisplay);
+    DisplayDeviceCreationArgs creationArgs(sp<SurfaceFlinger>::fromExisting(this), getHwComposer(),
+                                           displayToken, compositionDisplay);
     creationArgs.sequenceId = state.sequenceId;
     creationArgs.isSecure = state.isSecure;
     creationArgs.displaySurface = displaySurface;
@@ -3143,11 +3144,11 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
         mVisibleRegionsDirty = true;
         mUpdateInputInfo = true;
         mDrawingState.traverseInZOrder([&](Layer* layer) {
-            if (mLayersPendingRemoval.indexOf(layer) >= 0) {
+            if (mLayersPendingRemoval.indexOf(sp<Layer>::fromExisting(layer)) >= 0) {
                 // this layer is not visible anymore
                 Region visibleReg;
                 visibleReg.set(layer->getScreenBounds());
-                invalidateLayerStack(layer, visibleReg);
+                invalidateLayerStack(sp<Layer>::fromExisting(layer), visibleReg);
             }
         });
     }
@@ -3382,8 +3383,9 @@ void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
                           *mFrameTimeline->getTokenManager(), configs.late.sfWorkDuration);
 
     mRegionSamplingThread =
-            new RegionSamplingThread(*this, RegionSamplingThread::EnvironmentTimingTunables());
-    mFpsReporter = new FpsReporter(*mFrameTimeline, *this);
+            sp<RegionSamplingThread>::make(*this,
+                                           RegionSamplingThread::EnvironmentTimingTunables());
+    mFpsReporter = sp<FpsReporter>::make(*mFrameTimeline, *this);
     // Dispatch a mode change request for the primary display on scheduler
     // initialization, so that the EventThreads always contain a reference to a
     // prior configuration.
@@ -3505,7 +3507,7 @@ bool SurfaceFlinger::latchBuffers() {
 
         if (layer->hasReadyFrame()) {
             frameQueued = true;
-            mLayersWithQueuedFrames.emplace(layer);
+            mLayersWithQueuedFrames.emplace(sp<Layer>::fromExisting(layer));
         } else {
             layer->useEmptyDamage();
         }
@@ -4287,7 +4289,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     if (layer == nullptr) {
         for (auto& [listener, callbackIds] : s.listeners) {
             mTransactionCallbackInvoker.registerUnpresentedCallbackHandle(
-                    new CallbackHandle(listener, callbackIds, s.surface));
+                    sp<CallbackHandle>::make(listener, callbackIds, s.surface));
         }
         return 0;
     }
@@ -4541,7 +4543,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     std::vector<sp<CallbackHandle>> callbackHandles;
     if ((what & layer_state_t::eHasListenerCallbacksChanged) && (!filteredListeners.empty())) {
         for (auto& [listener, callbackIds] : filteredListeners) {
-            callbackHandles.emplace_back(new CallbackHandle(listener, callbackIds, s.surface));
+            callbackHandles.emplace_back(
+                    sp<CallbackHandle>::make(listener, callbackIds, s.surface));
         }
     }
 
@@ -4582,7 +4585,9 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
         if (!mirrorFrom) {
             return NAME_NOT_FOUND;
         }
-        status_t result = createContainerLayer(args, outHandle, &mirrorLayer);
+        LayerCreationArgs mirrorArgs = args;
+        mirrorArgs.flags |= ISurfaceComposerClient::eNoColorFill;
+        status_t result = createEffectLayer(mirrorArgs, outHandle, &mirrorLayer);
         if (result != NO_ERROR) {
             return result;
         }
@@ -4621,11 +4626,11 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
                                         pendingBufferCounter);
             }
         } break;
+        case ISurfaceComposerClient::eFXSurfaceContainer:
+            args.flags |= ISurfaceComposerClient::eNoColorFill;
+            FMT_FALLTHROUGH;
         case ISurfaceComposerClient::eFXSurfaceEffect:
             result = createEffectLayer(args, outHandle, &layer);
-            break;
-        case ISurfaceComposerClient::eFXSurfaceContainer:
-            result = createContainerLayer(args, outHandle, &layer);
             break;
         default:
             result = BAD_VALUE;
@@ -4678,13 +4683,6 @@ status_t SurfaceFlinger::createBufferStateLayer(LayerCreationArgs& args, sp<IBin
 status_t SurfaceFlinger::createEffectLayer(const LayerCreationArgs& args, sp<IBinder>* handle,
                                            sp<Layer>* outLayer) {
     *outLayer = getFactory().createEffectLayer(args);
-    *handle = (*outLayer)->getHandle();
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::createContainerLayer(const LayerCreationArgs& args, sp<IBinder>* handle,
-                                              sp<Layer>* outLayer) {
-    *outLayer = getFactory().createContainerLayer(args);
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
@@ -6410,7 +6408,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
                 return;
             }
 
-            sp<Layer> p = layer;
+            auto p = sp<Layer>::fromExisting(layer);
             while (p != nullptr) {
                 if (excludeLayers.count(p) != 0) {
                     return;
@@ -7187,7 +7185,7 @@ binder::Status SurfaceComposerAIDL::createDisplayEventConnection(
 }
 
 binder::Status SurfaceComposerAIDL::createConnection(sp<gui::ISurfaceComposerClient>* outClient) {
-    const sp<Client> client = new Client(mFlinger);
+    const sp<Client> client = sp<Client>::make(mFlinger);
     if (client->initCheck() == NO_ERROR) {
         *outClient = client;
         return binder::Status::ok();

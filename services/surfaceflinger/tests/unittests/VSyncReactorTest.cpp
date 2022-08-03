@@ -77,12 +77,12 @@ struct MockVSyncDispatch : VSyncDispatch {
 };
 
 std::shared_ptr<android::FenceTime> generateInvalidFence() {
-    sp<Fence> fence = new Fence();
+    sp<Fence> fence = sp<Fence>::make();
     return std::make_shared<android::FenceTime>(fence);
 }
 
 std::shared_ptr<android::FenceTime> generatePendingFence() {
-    sp<Fence> fence = new Fence(dup(fileno(tmpfile())));
+    sp<Fence> fence = sp<Fence>::make(dup(fileno(tmpfile())));
     return std::make_shared<android::FenceTime>(fence);
 }
 
@@ -92,7 +92,7 @@ void signalFenceWithTime(std::shared_ptr<android::FenceTime> const& fence, nsecs
 }
 
 std::shared_ptr<android::FenceTime> generateSignalledFenceWithTime(nsecs_t time) {
-    sp<Fence> fence = new Fence(dup(fileno(tmpfile())));
+    sp<Fence> fence = sp<Fence>::make(dup(fileno(tmpfile())));
     std::shared_ptr<android::FenceTime> ft = std::make_shared<android::FenceTime>(fence);
     signalFenceWithTime(ft, time);
     return ft;

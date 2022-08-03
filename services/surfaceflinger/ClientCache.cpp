@@ -30,7 +30,7 @@ namespace android {
 
 ANDROID_SINGLETON_STATIC_INSTANCE(ClientCache);
 
-ClientCache::ClientCache() : mDeathRecipient(new CacheDeathRecipient) {}
+ClientCache::ClientCache() : mDeathRecipient(sp<CacheDeathRecipient>::make()) {}
 
 bool ClientCache::getBuffer(const client_cache_t& cacheId,
                             ClientCacheBuffer** outClientCacheBuffer) {

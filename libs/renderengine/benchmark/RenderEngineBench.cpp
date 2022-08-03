@@ -117,11 +117,12 @@ static std::shared_ptr<ExternalTexture> allocateBuffer(RenderEngine& re, uint32_
                                                        uint64_t extraUsageFlags = 0,
                                                        std::string name = "output") {
     return std::make_shared<
-            impl::ExternalTexture>(new GraphicBuffer(width, height, HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                                     GRALLOC_USAGE_HW_RENDER |
-                                                             GRALLOC_USAGE_HW_TEXTURE |
-                                                             extraUsageFlags,
-                                                     std::move(name)),
+            impl::ExternalTexture>(sp<GraphicBuffer>::make(width, height,
+                                                           HAL_PIXEL_FORMAT_RGBA_8888, 1u,
+                                                           GRALLOC_USAGE_HW_RENDER |
+                                                                   GRALLOC_USAGE_HW_TEXTURE |
+                                                                   extraUsageFlags,
+                                                           std::move(name)),
                                    re,
                                    impl::ExternalTexture::Usage::READABLE |
                                            impl::ExternalTexture::Usage::WRITEABLE);

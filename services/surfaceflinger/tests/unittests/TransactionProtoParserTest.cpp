@@ -27,8 +27,8 @@ using namespace android::surfaceflinger;
 namespace android {
 
 TEST(TransactionProtoParserTest, parse) {
-    const sp<IBinder> layerHandle = new BBinder();
-    const sp<IBinder> displayHandle = new BBinder();
+    const sp<IBinder> layerHandle = sp<BBinder>::make();
+    const sp<IBinder> displayHandle = sp<BBinder>::make();
     TransactionState t1;
     t1.originPid = 1;
     t1.originUid = 2;
@@ -49,7 +49,7 @@ TEST(TransactionProtoParserTest, parse) {
         ComposerState s;
         if (i == 1) {
             layer.parentSurfaceControlForChild =
-                    new SurfaceControl(SurfaceComposerClient::getDefault(), layerHandle, 42);
+                    sp<SurfaceControl>::make(SurfaceComposerClient::getDefault(), layerHandle, 42);
         }
         s.state = layer;
         t1.states.add(s);

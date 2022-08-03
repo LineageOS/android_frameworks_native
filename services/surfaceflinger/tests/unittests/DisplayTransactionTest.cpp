@@ -66,13 +66,15 @@ DisplayTransactionTest::~DisplayTransactionTest() {
 void DisplayTransactionTest::injectMockScheduler() {
     EXPECT_CALL(*mEventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*mEventThread, createEventConnection(_, _))
-            .WillOnce(Return(
-                    new EventThreadConnection(mEventThread, /*callingUid=*/0, ResyncCallback())));
+            .WillOnce(Return(sp<EventThreadConnection>::make(mEventThread,
+                                                             mock::EventThread::kCallingUid,
+                                                             ResyncCallback())));
 
     EXPECT_CALL(*mSFEventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*mSFEventThread, createEventConnection(_, _))
-            .WillOnce(Return(
-                    new EventThreadConnection(mSFEventThread, /*callingUid=*/0, ResyncCallback())));
+            .WillOnce(Return(sp<EventThreadConnection>::make(mSFEventThread,
+                                                             mock::EventThread::kCallingUid,
+                                                             ResyncCallback())));
 
     mFlinger.setupScheduler(std::unique_ptr<scheduler::VsyncController>(mVsyncController),
                             std::unique_ptr<scheduler::VSyncTracker>(mVSyncTracker),
@@ -100,8 +102,8 @@ void DisplayTransactionTest::injectFakeBufferQueueFactory() {
     // This setup is only expected once per test.
     ASSERT_TRUE(mConsumer == nullptr && mProducer == nullptr);
 
-    mConsumer = new mock::GraphicBufferConsumer();
-    mProducer = new mock::GraphicBufferProducer();
+    mConsumer = sp<mock::GraphicBufferConsumer>::make();
+    mProducer = sp<mock::GraphicBufferProducer>::make();
 
     mFlinger.setCreateBufferQueueFunction([this](auto outProducer, auto outConsumer, bool) {
         *outProducer = mProducer;

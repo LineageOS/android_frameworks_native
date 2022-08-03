@@ -30,7 +30,7 @@ std::unique_ptr<surfaceflinger::NativeWindowSurface> createNativeWindowSurface(
     class NativeWindowSurface final : public surfaceflinger::NativeWindowSurface {
     public:
         explicit NativeWindowSurface(const sp<IGraphicBufferProducer>& producer)
-              : mSurface(new Surface(producer, /* controlledByApp */ false)) {}
+              : mSurface(sp<Surface>::make(producer, /* controlledByApp */ false)) {}
 
         ~NativeWindowSurface() override = default;
 

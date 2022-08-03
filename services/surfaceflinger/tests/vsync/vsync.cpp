@@ -61,8 +61,7 @@ int main(int /*argc*/, char** /*argv*/)
 {
     DisplayEventReceiver myDisplayEvent;
 
-
-    sp<Looper> loop = new Looper(false);
+    sp<Looper> loop = sp<Looper>::make(false);
     loop->addFd(myDisplayEvent.getFd(), 0, ALOOPER_EVENT_INPUT, receiver,
             &myDisplayEvent);
 

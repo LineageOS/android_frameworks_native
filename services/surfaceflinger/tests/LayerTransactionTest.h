@@ -41,7 +41,7 @@ using android::hardware::graphics::common::V1_1::BufferUsage;
 class LayerTransactionTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        mClient = new SurfaceComposerClient;
+        mClient = sp<SurfaceComposerClient>::make();
         ASSERT_EQ(NO_ERROR, mClient->initCheck()) << "failed to create SurfaceComposerClient";
 
         ASSERT_NO_FATAL_FAILURE(SetUpDisplay());
@@ -140,10 +140,13 @@ protected:
     virtual void fillBufferStateLayerColor(const sp<SurfaceControl>& layer, const Color& color,
                                            int32_t bufferWidth, int32_t bufferHeight) {
         sp<GraphicBuffer> buffer =
-                new GraphicBuffer(bufferWidth, bufferHeight, PIXEL_FORMAT_RGBA_8888, 1,
-                                  BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
-                                          BufferUsage::COMPOSER_OVERLAY | BufferUsage::GPU_TEXTURE,
-                                  "test");
+                sp<GraphicBuffer>::make(static_cast<uint32_t>(bufferWidth),
+                                        static_cast<uint32_t>(bufferHeight), PIXEL_FORMAT_RGBA_8888,
+                                        1u,
+                                        BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                                BufferUsage::COMPOSER_OVERLAY |
+                                                BufferUsage::GPU_TEXTURE,
+                                        "test");
         TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, bufferWidth, bufferHeight),
                                                  color);
         Transaction().setBuffer(layer, buffer).apply();
@@ -209,10 +212,13 @@ protected:
                                               const Color& topRight, const Color& bottomLeft,
                                               const Color& bottomRight) {
         sp<GraphicBuffer> buffer =
-                new GraphicBuffer(bufferWidth, bufferHeight, PIXEL_FORMAT_RGBA_8888, 1,
-                                  BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
-                                          BufferUsage::COMPOSER_OVERLAY | BufferUsage::GPU_TEXTURE,
-                                  "test");
+                sp<GraphicBuffer>::make(static_cast<uint32_t>(bufferWidth),
+                                        static_cast<uint32_t>(bufferHeight), PIXEL_FORMAT_RGBA_8888,
+                                        1u,
+                                        BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                                BufferUsage::COMPOSER_OVERLAY |
+                                                BufferUsage::GPU_TEXTURE,
+                                        "test");
 
         ASSERT_TRUE(bufferWidth % 2 == 0 && bufferHeight % 2 == 0);
 

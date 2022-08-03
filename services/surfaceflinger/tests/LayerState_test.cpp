@@ -35,7 +35,7 @@ TEST(LayerStateTest, ParcellingDisplayCaptureArgs) {
     args.frameScaleX = 2;
     args.frameScaleY = 4;
     args.captureSecureLayers = true;
-    args.displayToken = new BBinder();
+    args.displayToken = sp<BBinder>::make();
     args.width = 10;
     args.height = 20;
     args.useIdentityTransform = true;
@@ -67,8 +67,8 @@ TEST(LayerStateTest, ParcellingLayerCaptureArgs) {
     args.frameScaleX = 2;
     args.frameScaleY = 4;
     args.captureSecureLayers = true;
-    args.layerHandle = new BBinder();
-    args.excludeHandles = {new BBinder(), new BBinder()};
+    args.layerHandle = sp<BBinder>::make();
+    args.excludeHandles = {sp<BBinder>::make(), sp<BBinder>::make()};
     args.childrenOnly = false;
     args.grayscale = true;
 
@@ -92,8 +92,8 @@ TEST(LayerStateTest, ParcellingLayerCaptureArgs) {
 
 TEST(LayerStateTest, ParcellingScreenCaptureResults) {
     ScreenCaptureResults results;
-    results.buffer = new GraphicBuffer(100, 200, PIXEL_FORMAT_RGBA_8888, 1, 0);
-    results.fence = new Fence(dup(fileno(tmpfile())));
+    results.buffer = sp<GraphicBuffer>::make(100u, 200u, PIXEL_FORMAT_RGBA_8888, 1u, 0u);
+    results.fence = sp<Fence>::make(dup(fileno(tmpfile())));
     results.capturedSecureLayers = true;
     results.capturedDataspace = ui::Dataspace::DISPLAY_P3;
     results.result = BAD_VALUE;

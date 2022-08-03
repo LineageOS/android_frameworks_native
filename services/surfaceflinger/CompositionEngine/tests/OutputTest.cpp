@@ -293,7 +293,7 @@ TEST_F(OutputTest, setLayerCachingEnabled_disablesCachingAndResetsOverrideInfo) 
     InjectedLayer layer;
     layer.outputLayerState.overrideInfo.buffer = std::make_shared<
             renderengine::impl::
-                    ExternalTexture>(new GraphicBuffer(), renderEngine,
+                    ExternalTexture>(sp<GraphicBuffer>::make(), renderEngine,
                                      renderengine::impl::ExternalTexture::Usage::READABLE |
                                              renderengine::impl::ExternalTexture::Usage::WRITEABLE);
     injectOutputLayer(layer);
@@ -1017,7 +1017,7 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, peekThroughLayerChangesOrder) {
 
     std::shared_ptr<renderengine::ExternalTexture> buffer = std::make_shared<
             renderengine::impl::
-                    ExternalTexture>(new GraphicBuffer(), renderEngine,
+                    ExternalTexture>(sp<GraphicBuffer>::make(), renderEngine,
                                      renderengine::impl::ExternalTexture::Usage::READABLE |
                                              renderengine::impl::ExternalTexture::Usage::WRITEABLE);
     layer1.outputLayerState.overrideInfo.buffer = buffer;
@@ -3449,7 +3449,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
     StrictMock<OutputPartialMock> mOutput;
     std::shared_ptr<renderengine::ExternalTexture> mOutputBuffer = std::make_shared<
             renderengine::impl::
-                    ExternalTexture>(new GraphicBuffer(), mRenderEngine,
+                    ExternalTexture>(sp<GraphicBuffer>::make(), mRenderEngine,
                                      renderengine::impl::ExternalTexture::Usage::READABLE |
                                              renderengine::impl::ExternalTexture::Usage::WRITEABLE);
 
@@ -3687,7 +3687,7 @@ TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChanges) {
 
     const auto otherOutputBuffer = std::make_shared<
             renderengine::impl::
-                    ExternalTexture>(new GraphicBuffer(), mRenderEngine,
+                    ExternalTexture>(sp<GraphicBuffer>::make(), mRenderEngine,
                                      renderengine::impl::ExternalTexture::Usage::READABLE |
                                              renderengine::impl::ExternalTexture::Usage::WRITEABLE);
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_))

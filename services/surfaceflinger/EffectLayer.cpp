@@ -74,7 +74,7 @@ std::vector<compositionengine::LayerFE::LayerSettings> EffectLayer::prepareClien
 }
 
 bool EffectLayer::isVisible() const {
-    return !isHiddenByPolicy() && (getAlpha() > 0.0_hf || hasBlur()) && hasSomethingToDraw();
+    return hasSomethingToDraw() && !isHiddenByPolicy() && (getAlpha() > 0.0_hf || hasBlur());
 }
 
 bool EffectLayer::setColor(const half3& color) {
@@ -144,7 +144,7 @@ ui::Dataspace EffectLayer::getDataSpace() const {
 sp<Layer> EffectLayer::createClone() {
     sp<EffectLayer> layer = mFlinger->getFactory().createEffectLayer(
             LayerCreationArgs(mFlinger.get(), nullptr, mName + " (Mirror)", 0, LayerMetadata()));
-    layer->setInitialValuesForClone(this);
+    layer->setInitialValuesForClone(sp<Layer>::fromExisting(this));
     return layer;
 }
 

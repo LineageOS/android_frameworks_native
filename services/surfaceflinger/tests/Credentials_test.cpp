@@ -77,7 +77,7 @@ protected:
     sp<SurfaceControl> mVirtualSurfaceControl;
 
     void initClient() {
-        mComposerClient = new SurfaceComposerClient;
+        mComposerClient = sp<SurfaceComposerClient>::make();
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
     }
 
@@ -169,7 +169,7 @@ TEST_F(CredentialsTest, ClientInitTest) {
 
     // Anyone else can init the client.
     setBinUID();
-    mComposerClient = new SurfaceComposerClient;
+    mComposerClient = sp<SurfaceComposerClient>::make();
     ASSERT_NO_FATAL_FAILURE(initClient());
 }
 

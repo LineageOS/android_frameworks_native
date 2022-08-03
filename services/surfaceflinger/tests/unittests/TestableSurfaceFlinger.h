@@ -30,7 +30,6 @@
 #include <gui/ScreenCaptureResults.h>
 
 #include "BufferStateLayer.h"
-#include "ContainerLayer.h"
 #include "DisplayDevice.h"
 #include "EffectLayer.h"
 #include "FakeVsyncConfiguration.h"
@@ -84,21 +83,21 @@ public:
     }
 
     sp<SurfaceInterceptor> createSurfaceInterceptor() override {
-        return new android::impl::SurfaceInterceptor();
+        return sp<android::impl::SurfaceInterceptor>::make();
     }
 
     sp<StartPropertySetThread> createStartPropertySetThread(bool timestampPropertyValue) override {
-        return new StartPropertySetThread(timestampPropertyValue);
+        return sp<StartPropertySetThread>::make(timestampPropertyValue);
     }
 
     sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs& creationArgs) override {
-        return new DisplayDevice(creationArgs);
+        return sp<DisplayDevice>::make(creationArgs);
     }
 
     sp<GraphicBuffer> createGraphicBuffer(uint32_t width, uint32_t height, PixelFormat format,
                                           uint32_t layerCount, uint64_t usage,
                                           std::string requestorName) override {
-        return new GraphicBuffer(width, height, format, layerCount, usage, requestorName);
+        return sp<GraphicBuffer>::make(width, height, format, layerCount, usage, requestorName);
     }
 
     void createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
@@ -126,10 +125,6 @@ public:
     }
 
     sp<EffectLayer> createEffectLayer(const LayerCreationArgs&) override { return nullptr; }
-
-    sp<ContainerLayer> createContainerLayer(const LayerCreationArgs&) override {
-        return nullptr;
-    }
 
     std::unique_ptr<FrameTracer> createFrameTracer() override {
         return std::make_unique<mock::FrameTracer>();
@@ -720,8 +715,8 @@ public:
                                   std::optional<ui::DisplayConnectionType> connectionType,
                                   std::optional<hal::HWDisplayId> hwcDisplayId, bool isPrimary)
               : mFlinger(flinger),
-                mCreationArgs(flinger.mFlinger.get(), flinger.mFlinger->getHwComposer(),
-                              mDisplayToken, display),
+                mCreationArgs(flinger.mFlinger, flinger.mFlinger->getHwComposer(), mDisplayToken,
+                              display),
                 mHwcDisplayId(hwcDisplayId) {
             mCreationArgs.connectionType = connectionType;
             mCreationArgs.isPrimary = isPrimary;
@@ -869,7 +864,7 @@ public:
 
     private:
         TestableSurfaceFlinger& mFlinger;
-        sp<BBinder> mDisplayToken = new BBinder();
+        sp<BBinder> mDisplayToken = sp<BBinder>::make();
         DisplayDeviceCreationArgs mCreationArgs;
         const std::optional<hal::HWDisplayId> mHwcDisplayId;
     };

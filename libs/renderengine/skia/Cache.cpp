@@ -364,8 +364,8 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
         const int64_t usage = GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
 
         sp<GraphicBuffer> dstBuffer =
-                new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888,
-                                  1, usage, "primeShaderCache_dst");
+                sp<GraphicBuffer>::make(displayRect.width(), displayRect.height(),
+                                        PIXEL_FORMAT_RGBA_8888, 1, usage, "primeShaderCache_dst");
 
         const auto dstTexture =
                 std::make_shared<impl::ExternalTexture>(dstBuffer, *renderengine,
@@ -375,8 +375,8 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
         // something, but the details are not important. Make use of the shadow layer drawing step
         // to populate it.
         sp<GraphicBuffer> srcBuffer =
-                new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888,
-                                  1, usage, "drawImageLayer_src");
+                sp<GraphicBuffer>::make(displayRect.width(), displayRect.height(),
+                                        PIXEL_FORMAT_RGBA_8888, 1, usage, "drawImageLayer_src");
 
         const auto srcTexture = std::make_shared<
                 impl::ExternalTexture>(srcBuffer, *renderengine,
@@ -398,8 +398,9 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
         // GRALLOC_USAGE_HW_TEXTURE should be the same as AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE.
         const int64_t usageExternal = GRALLOC_USAGE_HW_TEXTURE;
         sp<GraphicBuffer> externalBuffer =
-                new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888,
-                                  1, usageExternal, "primeShaderCache_external");
+                sp<GraphicBuffer>::make(displayRect.width(), displayRect.height(),
+                                        PIXEL_FORMAT_RGBA_8888, 1, usageExternal,
+                                        "primeShaderCache_external");
         const auto externalTexture =
                 std::make_shared<impl::ExternalTexture>(externalBuffer, *renderengine,
                                                         impl::ExternalTexture::Usage::READABLE);
@@ -409,8 +410,9 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
         // Another external texture with a different pixel format triggers useIsOpaqueWorkaround.
         // It doesn't have to be f16, but it can't be the usual 8888.
         sp<GraphicBuffer> f16ExternalBuffer =
-                new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_FP16,
-                                  1, usageExternal, "primeShaderCache_external_f16");
+                sp<GraphicBuffer>::make(displayRect.width(), displayRect.height(),
+                                        PIXEL_FORMAT_RGBA_FP16, 1, usageExternal,
+                                        "primeShaderCache_external_f16");
         // The F16 texture may not be usable on all devices, so check first that it was created.
         status_t error = f16ExternalBuffer->initCheck();
         if (!error) {

@@ -110,10 +110,10 @@ public:
     }
 
     static sp<GraphicBuffer> getBuffer() {
-        return new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
-                                 BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
-                                         BufferUsage::COMPOSER_OVERLAY,
-                                 "test");
+        return sp<GraphicBuffer>::make(32u, 32u, PIXEL_FORMAT_RGBA_8888, 1u,
+                                       BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                               BufferUsage::COMPOSER_OVERLAY,
+                                       "test");
     }
     static uint64_t generateFrameNumber() {
         static uint64_t sFrameNumber = 0;
@@ -332,8 +332,10 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_FrameDropping) {
 }
 
 TEST_F(ReleaseBufferCallbackTest, DISABLED_Merge_Different_Processes) {
-    sp<TransactionCompletedListener> firstCompletedListener = new TransactionCompletedListener();
-    sp<TransactionCompletedListener> secondCompletedListener = new TransactionCompletedListener();
+    sp<TransactionCompletedListener> firstCompletedListener =
+            sp<TransactionCompletedListener>::make();
+    sp<TransactionCompletedListener> secondCompletedListener =
+            sp<TransactionCompletedListener>::make();
 
     CallbackHelper callback1, callback2;
 
@@ -433,8 +435,10 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_Merge_Transactions_OverwriteBuffers) 
 }
 
 TEST_F(ReleaseBufferCallbackTest, DISABLED_MergeBuffers_Different_Processes) {
-    sp<TransactionCompletedListener> firstCompletedListener = new TransactionCompletedListener();
-    sp<TransactionCompletedListener> secondCompletedListener = new TransactionCompletedListener();
+    sp<TransactionCompletedListener> firstCompletedListener =
+            sp<TransactionCompletedListener>::make();
+    sp<TransactionCompletedListener> secondCompletedListener =
+            sp<TransactionCompletedListener>::make();
 
     TransactionCompletedListener::setInstance(firstCompletedListener);
 

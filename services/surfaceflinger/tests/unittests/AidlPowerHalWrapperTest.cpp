@@ -57,8 +57,8 @@ protected:
 };
 
 void AidlPowerHalWrapperTest::SetUp() {
-    mMockHal = new NiceMock<MockIPower>();
-    mMockSession = new NiceMock<MockIPowerHintSession>();
+    mMockHal = sp<NiceMock<MockIPower>>::make();
+    mMockSession = sp<NiceMock<MockIPowerHintSession>>::make();
     ON_CALL(*mMockHal.get(), getHintSessionPreferredRate(_)).WillByDefault(Return(Status::ok()));
     mWrapper = std::make_unique<AidlPowerHalWrapper>(mMockHal);
     mWrapper->setAllowedActualDeviation(std::chrono::nanoseconds{10ms}.count());

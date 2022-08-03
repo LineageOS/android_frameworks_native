@@ -48,23 +48,23 @@ public:
     }
 
     sp<SurfaceInterceptor> createSurfaceInterceptor() override {
-        return new android::impl::SurfaceInterceptor();
+        return sp<android::impl::SurfaceInterceptor>::make();
     }
 
     sp<StartPropertySetThread> createStartPropertySetThread(
             bool /* timestampPropertyValue */) override {
-        return nullptr;
+        return sp<StartPropertySetThread>();
     }
 
     sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs& /* creationArgs */) override {
-        return nullptr;
+        return sp<DisplayDevice>();
     }
 
     sp<GraphicBuffer> createGraphicBuffer(uint32_t /* width */, uint32_t /* height */,
                                           PixelFormat /* format */, uint32_t /* layerCount */,
                                           uint64_t /* usage */,
                                           std::string /* requestorName */) override {
-        return nullptr;
+        return sp<GraphicBuffer>();
     }
 
     void createBufferQueue(sp<IGraphicBufferProducer>* /* outProducer */,
@@ -80,16 +80,12 @@ public:
         return compositionengine::impl::createCompositionEngine();
     }
 
-    sp<ContainerLayer> createContainerLayer(const LayerCreationArgs& args) {
-        return sp<ContainerLayer>::make(args);
-    }
-
     sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs& args) {
-        return new BufferStateLayer(args);
+        return sp<BufferStateLayer>::make(args);
     }
 
     sp<EffectLayer> createEffectLayer(const LayerCreationArgs& args) {
-        return new EffectLayer(args);
+        return sp<EffectLayer>::make(args);
     }
 
     std::unique_ptr<FrameTracer> createFrameTracer() override {
@@ -178,7 +174,7 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
     }
 
     Factory mFactory;
-    sp<MockSurfaceFlinger> flinger = new MockSurfaceFlinger(mFactory);
+    sp<MockSurfaceFlinger> flinger = sp<MockSurfaceFlinger>::make(mFactory);
     TestableSurfaceFlinger mFlinger(flinger);
     mFlinger.setupRenderEngine(
             std::make_unique<testing::NiceMock<renderengine::mock::RenderEngine>>());

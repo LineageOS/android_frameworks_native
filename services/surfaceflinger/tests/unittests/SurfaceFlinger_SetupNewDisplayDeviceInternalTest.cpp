@@ -197,10 +197,10 @@ public:
 
 template <typename Case>
 void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
-    const sp<BBinder> displayToken = new BBinder();
+    const sp<BBinder> displayToken = sp<BBinder>::make();
     const sp<compositionengine::mock::DisplaySurface> displaySurface =
-            new compositionengine::mock::DisplaySurface();
-    const sp<mock::GraphicBufferProducer> producer = new mock::GraphicBufferProducer();
+            sp<compositionengine::mock::DisplaySurface>::make();
+    const auto producer = sp<mock::GraphicBufferProducer>::make();
 
     // --------------------------------------------------------------------
     // Preconditions

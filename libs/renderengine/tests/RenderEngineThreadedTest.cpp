@@ -176,7 +176,7 @@ TEST_F(RenderEngineThreadedTest, drawLayers) {
     std::vector<renderengine::LayerSettings> layers;
     std::shared_ptr<renderengine::ExternalTexture> buffer = std::make_shared<
             renderengine::impl::
-                    ExternalTexture>(new GraphicBuffer(), *mRenderEngine,
+                    ExternalTexture>(sp<GraphicBuffer>::make(), *mRenderEngine,
                                      renderengine::impl::ExternalTexture::Usage::READABLE |
                                              renderengine::impl::ExternalTexture::Usage::WRITEABLE);
 

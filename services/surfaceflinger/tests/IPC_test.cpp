@@ -136,7 +136,7 @@ public:
     }
 
     status_t initClient() override {
-        mClient = new SurfaceComposerClient;
+        mClient = sp<SurfaceComposerClient>::make();
         auto err = mClient->initCheck();
         return err;
     }
@@ -221,7 +221,7 @@ public:
         ProcessState::self()->startThreadPool();
     }
     void SetUp() {
-        mClient = new SurfaceComposerClient;
+        mClient = sp<SurfaceComposerClient>::make();
         ASSERT_EQ(NO_ERROR, mClient->initCheck());
 
         mPrimaryDisplay = mClient->getInternalDisplayToken();

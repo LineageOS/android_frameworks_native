@@ -63,7 +63,8 @@ void FpsReporter::dispatchLayerFps() {
                 for (TrackedListener& listener : localListeners) {
                     if (listener.taskId == taskId) {
                         seenTasks.insert(taskId);
-                        listenersAndLayersToReport.push_back({listener, sp<Layer>(layer)});
+                        listenersAndLayersToReport.push_back(
+                                {listener, sp<Layer>::fromExisting(layer)});
                         break;
                     }
                 }
@@ -90,7 +91,7 @@ void FpsReporter::binderDied(const wp<IBinder>& who) {
 
 void FpsReporter::addListener(const sp<gui::IFpsListener>& listener, int32_t taskId) {
     sp<IBinder> asBinder = IInterface::asBinder(listener);
-    asBinder->linkToDeath(this);
+    asBinder->linkToDeath(sp<DeathRecipient>::fromExisting(this));
     std::lock_guard lock(mMutex);
     mListeners.emplace(wp<IBinder>(asBinder), TrackedListener{listener, taskId});
 }

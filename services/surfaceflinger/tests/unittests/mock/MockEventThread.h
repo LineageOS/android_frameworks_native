@@ -24,6 +24,8 @@ namespace android::mock {
 
 class EventThread : public android::EventThread {
 public:
+    static constexpr auto kCallingUid = static_cast<uid_t>(0);
+
     EventThread();
     ~EventThread() override;
 

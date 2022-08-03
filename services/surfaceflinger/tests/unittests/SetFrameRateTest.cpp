@@ -78,11 +78,11 @@ SetFrameRateTest::SetFrameRateTest() {
 }
 
 void SetFrameRateTest::addChild(sp<Layer> layer, sp<Layer> child) {
-    layer.get()->addChild(child.get());
+    layer->addChild(child);
 }
 
 void SetFrameRateTest::removeChild(sp<Layer> layer, sp<Layer> child) {
-    layer.get()->removeChild(child.get());
+    layer->removeChild(child);
 }
 
 void SetFrameRateTest::commitTransaction() {

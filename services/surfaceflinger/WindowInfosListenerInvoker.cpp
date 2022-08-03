@@ -62,7 +62,7 @@ private:
 
 void WindowInfosListenerInvoker::addWindowInfosListener(sp<IWindowInfosListener> listener) {
     sp<IBinder> asBinder = IInterface::asBinder(listener);
-    asBinder->linkToDeath(this);
+    asBinder->linkToDeath(sp<DeathRecipient>::fromExisting(this));
 
     std::scoped_lock lock(mListenersMutex);
     mWindowInfosListeners.try_emplace(asBinder, std::move(listener));
@@ -73,7 +73,7 @@ void WindowInfosListenerInvoker::removeWindowInfosListener(
     sp<IBinder> asBinder = IInterface::asBinder(listener);
 
     std::scoped_lock lock(mListenersMutex);
-    asBinder->unlinkToDeath(this);
+    asBinder->unlinkToDeath(sp<DeathRecipient>::fromExisting(this));
     mWindowInfosListeners.erase(asBinder);
 }
 

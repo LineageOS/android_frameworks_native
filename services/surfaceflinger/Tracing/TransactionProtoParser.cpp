@@ -457,9 +457,9 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
             layer.parentSurfaceControlForChild = nullptr;
         } else {
             layer.parentSurfaceControlForChild =
-                    new SurfaceControl(SurfaceComposerClient::getDefault(),
-                                       mMapper->getLayerHandle(static_cast<int32_t>(layerId)),
-                                       static_cast<int32_t>(layerId));
+                    sp<SurfaceControl>::make(SurfaceComposerClient::getDefault(),
+                                             mMapper->getLayerHandle(static_cast<int32_t>(layerId)),
+                                             static_cast<int32_t>(layerId));
         }
     }
     if (proto.what() & layer_state_t::eRelativeLayerChanged) {
@@ -468,9 +468,9 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
             layer.relativeLayerSurfaceControl = nullptr;
         } else {
             layer.relativeLayerSurfaceControl =
-                    new SurfaceControl(SurfaceComposerClient::getDefault(),
-                                       mMapper->getLayerHandle(static_cast<int32_t>(layerId)),
-                                       static_cast<int32_t>(layerId));
+                    sp<SurfaceControl>::make(SurfaceComposerClient::getDefault(),
+                                             mMapper->getLayerHandle(static_cast<int32_t>(layerId)),
+                                             static_cast<int32_t>(layerId));
         }
         layer.z = proto.z();
     }
@@ -502,7 +502,7 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
             inputInfo.touchableRegionCropHandle =
                     mMapper->getLayerHandle(static_cast<int32_t>(layerId));
         } else {
-            inputInfo.touchableRegionCropHandle = nullptr;
+            inputInfo.touchableRegionCropHandle = wp<IBinder>();
         }
 
         layer.windowInfoHandle = sp<gui::WindowInfoHandle>::make(inputInfo);

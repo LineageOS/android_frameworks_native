@@ -101,10 +101,10 @@ protected:
     void SetUp() override {
         // add layers
         mTracing.setBufferSize(SMALL_BUFFER_SIZE);
-        const sp<IBinder> fakeLayerHandle = new BBinder();
+        const sp<IBinder> fakeLayerHandle = sp<BBinder>::make();
         mTracing.onLayerAdded(fakeLayerHandle->localBinder(), mParentLayerId, "parent",
                               123 /* flags */, -1 /* parentId */);
-        const sp<IBinder> fakeChildLayerHandle = new BBinder();
+        const sp<IBinder> fakeChildLayerHandle = sp<BBinder>::make();
         mTracing.onLayerAdded(fakeChildLayerHandle->localBinder(), mChildLayerId, "child",
                               456 /* flags */, mParentLayerId);
 
@@ -234,10 +234,10 @@ protected:
     void SetUp() override {
         // add layers
         mTracing.setBufferSize(SMALL_BUFFER_SIZE);
-        const sp<IBinder> fakeLayerHandle = new BBinder();
+        const sp<IBinder> fakeLayerHandle = sp<BBinder>::make();
         mTracing.onLayerAdded(fakeLayerHandle->localBinder(), mLayerId, "Test Layer",
                               123 /* flags */, -1 /* parentId */);
-        const sp<IBinder> fakeMirrorLayerHandle = new BBinder();
+        const sp<IBinder> fakeMirrorLayerHandle = sp<BBinder>::make();
         mTracing.onMirrorLayerAdded(fakeMirrorLayerHandle->localBinder(), mMirrorLayerId, "Mirror",
                                     mLayerId);
         mTracing.onLayerAddedToDrawingState(mLayerId, mVsyncId);

@@ -80,7 +80,7 @@ TEST_F(LayerTransactionTest, DISABLED_BufferQueueLayerMergeDamageRegionWhenDropp
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", width, height));
     const auto producer = layer->getIGraphicBufferProducer();
-    const sp<IProducerListener> stubListener(new StubProducerListener);
+    const sp<IProducerListener> stubListener(sp<StubProducerListener>::make());
     IGraphicBufferProducer::QueueBufferOutput queueBufferOutput;
     ASSERT_EQ(OK, producer->connect(stubListener, NATIVE_WINDOW_API_CPU, true, &queueBufferOutput));
 
