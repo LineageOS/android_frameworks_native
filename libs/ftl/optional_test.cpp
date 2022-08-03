@@ -20,6 +20,7 @@
 #include <ftl/unit.h>
 #include <gtest/gtest.h>
 
+#include <cstdlib>
 #include <functional>
 #include <numeric>
 #include <utility>
@@ -80,6 +81,64 @@ TEST(Optional, Transform) {
                        return std::accumulate(v.begin(), v.end(), std::string());
                      })
                      .transform([](const std::string& s) { return s.length(); }));
+}
+
+namespace {
+
+Optional<int> parse_int(const std::string& str) {
+  if (const int i = std::atoi(str.c_str())) return i;
+  return std::nullopt;
+}
+
+}  // namespace
+
+TEST(Optional, AndThen) {
+  // Empty.
+  EXPECT_EQ(std::nullopt, Optional<int>().and_then([](int) -> Optional<int> { return 0; }));
+  EXPECT_EQ(std::nullopt, Optional<int>().and_then([](int) { return Optional<int>(); }));
+
+  // By value.
+  EXPECT_EQ(0, Optional(0).and_then([](int x) { return Optional(x); }));
+  EXPECT_EQ(123, Optional("123").and_then(parse_int));
+  EXPECT_EQ(std::nullopt, Optional("abc").and_then(parse_int));
+
+  // By reference.
+  {
+    Optional opt = 'x';
+    EXPECT_EQ('z', opt.and_then([](char& c) {
+      c = 'y';
+      return Optional('z');
+    }));
+
+    EXPECT_EQ('y', opt);
+  }
+
+  // By rvalue reference.
+  {
+    std::string out;
+    EXPECT_EQ("xyz"s, Optional("abc"s).and_then([&out](std::string&& str) {
+      out = std::move(str);
+      return Optional("xyz"s);
+    }));
+
+    EXPECT_EQ(out, "abc"s);
+  }
+
+  // Chaining.
+  using StringVector = StaticVector<std::string, 3>;
+  EXPECT_EQ(14u, Optional(StaticVector{"-"s, "1"s})
+                     .and_then([](StringVector&& v) -> Optional<StringVector> {
+                       if (v.push_back("4"s)) return v;
+                       return {};
+                     })
+                     .and_then([](const StringVector& v) -> Optional<std::string> {
+                       if (v.full()) return std::accumulate(v.begin(), v.end(), std::string());
+                       return {};
+                     })
+                     .and_then(parse_int)
+                     .and_then([](int i) {
+                       return i > 0 ? std::nullopt : std::make_optional(static_cast<unsigned>(-i));
+                     }));
 }
 
 }  // namespace android::test

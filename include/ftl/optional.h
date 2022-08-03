@@ -18,8 +18,9 @@
 
 #include <functional>
 #include <optional>
-#include <type_traits>
 #include <utility>
+
+#include <ftl/details/optional.h>
 
 namespace android::ftl {
 
@@ -37,30 +38,59 @@ struct Optional final : std::optional<T> {
   // Returns Optional<U> where F is a function that maps T to U.
   template <typename F>
   constexpr auto transform(F&& f) const& {
-    using U = std::remove_cv_t<std::invoke_result_t<F, decltype(value())>>;
-    if (has_value()) return Optional<U>(std::invoke(std::forward<F>(f), value()));
-    return Optional<U>();
+    using R = details::transform_result_t<F, decltype(value())>;
+    if (has_value()) return R(std::invoke(std::forward<F>(f), value()));
+    return R();
   }
 
   template <typename F>
   constexpr auto transform(F&& f) & {
-    using U = std::remove_cv_t<std::invoke_result_t<F, decltype(value())>>;
-    if (has_value()) return Optional<U>(std::invoke(std::forward<F>(f), value()));
-    return Optional<U>();
+    using R = details::transform_result_t<F, decltype(value())>;
+    if (has_value()) return R(std::invoke(std::forward<F>(f), value()));
+    return R();
   }
 
   template <typename F>
   constexpr auto transform(F&& f) const&& {
-    using U = std::invoke_result_t<F, decltype(std::move(value()))>;
-    if (has_value()) return Optional<U>(std::invoke(std::forward<F>(f), std::move(value())));
-    return Optional<U>();
+    using R = details::transform_result_t<F, decltype(std::move(value()))>;
+    if (has_value()) return R(std::invoke(std::forward<F>(f), std::move(value())));
+    return R();
   }
 
   template <typename F>
   constexpr auto transform(F&& f) && {
-    using U = std::invoke_result_t<F, decltype(std::move(value()))>;
-    if (has_value()) return Optional<U>(std::invoke(std::forward<F>(f), std::move(value())));
-    return Optional<U>();
+    using R = details::transform_result_t<F, decltype(std::move(value()))>;
+    if (has_value()) return R(std::invoke(std::forward<F>(f), std::move(value())));
+    return R();
+  }
+
+  // Returns Optional<U> where F is a function that maps T to Optional<U>.
+  template <typename F>
+  constexpr auto and_then(F&& f) const& {
+    using R = details::and_then_result_t<F, decltype(value())>;
+    if (has_value()) return std::invoke(std::forward<F>(f), value());
+    return R();
+  }
+
+  template <typename F>
+  constexpr auto and_then(F&& f) & {
+    using R = details::and_then_result_t<F, decltype(value())>;
+    if (has_value()) return std::invoke(std::forward<F>(f), value());
+    return R();
+  }
+
+  template <typename F>
+  constexpr auto and_then(F&& f) const&& {
+    using R = details::and_then_result_t<F, decltype(std::move(value()))>;
+    if (has_value()) return std::invoke(std::forward<F>(f), std::move(value()));
+    return R();
+  }
+
+  template <typename F>
+  constexpr auto and_then(F&& f) && {
+    using R = details::and_then_result_t<F, decltype(std::move(value()))>;
+    if (has_value()) return std::invoke(std::forward<F>(f), std::move(value()));
+    return R();
   }
 };
 
