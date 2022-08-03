@@ -44,7 +44,7 @@ InputEventTimeline getTestTimeline() {
     graphicsTimeline[GraphicsTimeline::GPU_COMPLETED_TIME] = 9;
     graphicsTimeline[GraphicsTimeline::PRESENT_TIME] = 10;
     expectedCT.setGraphicsTimeline(std::move(graphicsTimeline));
-    t.connectionTimelines.emplace(new BBinder(), std::move(expectedCT));
+    t.connectionTimelines.emplace(sp<BBinder>::make(), std::move(expectedCT));
     return t;
 }
 
@@ -56,8 +56,8 @@ protected:
     sp<IBinder> connection2;
 
     void SetUp() override {
-        connection1 = new BBinder();
-        connection2 = new BBinder();
+        connection1 = sp<BBinder>::make();
+        connection2 = sp<BBinder>::make();
 
         mTracker = std::make_unique<LatencyTracker>(this);
     }

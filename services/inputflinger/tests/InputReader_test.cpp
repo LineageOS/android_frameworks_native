@@ -1332,7 +1332,7 @@ class InputReaderPolicyTest : public testing::Test {
 protected:
     sp<FakeInputReaderPolicy> mFakePolicy;
 
-    void SetUp() override { mFakePolicy = new FakeInputReaderPolicy(); }
+    void SetUp() override { mFakePolicy = sp<FakeInputReaderPolicy>::make(); }
     void TearDown() override { mFakePolicy.clear(); }
 };
 
@@ -1570,7 +1570,7 @@ protected:
 
     void SetUp() override {
         mFakeEventHub = std::make_unique<FakeEventHub>();
-        mFakePolicy = new FakeInputReaderPolicy();
+        mFakePolicy = sp<FakeInputReaderPolicy>::make();
         mFakeListener = std::make_unique<TestInputListener>();
 
         mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
@@ -2254,7 +2254,7 @@ protected:
     std::shared_ptr<FakePointerController> mFakePointerController;
 
     void SetUp() override {
-        mFakePolicy = new FakeInputReaderPolicy();
+        mFakePolicy = sp<FakeInputReaderPolicy>::make();
         mFakePointerController = std::make_shared<FakePointerController>();
         mFakePolicy->setPointerController(mFakePointerController);
         mTestListener = std::make_unique<TestInputListener>(2000ms /*eventHappenedTimeout*/,
@@ -2653,7 +2653,7 @@ protected:
 
     void SetUp() override {
         mFakeEventHub = std::make_unique<FakeEventHub>();
-        mFakePolicy = new FakeInputReaderPolicy();
+        mFakePolicy = sp<FakeInputReaderPolicy>::make();
         mFakeListener = std::make_unique<TestInputListener>();
         mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
                                                             *mFakeListener);
@@ -2940,7 +2940,7 @@ protected:
 
     virtual void SetUp(ftl::Flags<InputDeviceClass> classes) {
         mFakeEventHub = std::make_unique<FakeEventHub>();
-        mFakePolicy = new FakeInputReaderPolicy();
+        mFakePolicy = sp<FakeInputReaderPolicy>::make();
         mFakeListener = std::make_unique<TestInputListener>();
         mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
                                                             *mFakeListener);
@@ -9833,7 +9833,7 @@ protected:
 
     virtual void SetUp(ftl::Flags<InputDeviceClass> classes) {
         mFakeEventHub = std::make_unique<FakeEventHub>();
-        mFakePolicy = new FakeInputReaderPolicy();
+        mFakePolicy = sp<FakeInputReaderPolicy>::make();
         mFakeListener = std::make_unique<TestInputListener>();
         mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
                                                             *mFakeListener);

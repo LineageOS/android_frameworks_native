@@ -555,10 +555,10 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         mLatencyAggregator(),
         mLatencyTracker(&mLatencyAggregator),
         kPerDisplayTouchModeEnabled(mPolicy->isPerDisplayTouchModeEnabled()) {
-    mLooper = new Looper(false);
+    mLooper = sp<Looper>::make(false);
     mReporter = createInputReporter();
 
-    mWindowInfoListener = new DispatcherWindowListener(*this);
+    mWindowInfoListener = sp<DispatcherWindowListener>::make(*this);
     SurfaceComposerClient::getDefault()->addWindowInfosListener(mWindowInfoListener);
 
     mKeyRepeatState.lastKeyEntry = nullptr;
@@ -5510,7 +5510,7 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const 
         const sp<IBinder>& token = serverChannel->getConnectionToken();
         int fd = serverChannel->getFd();
         sp<Connection> connection =
-                new Connection(std::move(serverChannel), false /*monitor*/, mIdGenerator);
+                sp<Connection>::make(std::move(serverChannel), false /*monitor*/, mIdGenerator);
 
         if (mConnectionsByToken.find(token) != mConnectionsByToken.end()) {
             ALOGE("Created a new connection, but the token %p is already known", token.get());
@@ -5520,7 +5520,8 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const 
         std::function<int(int events)> callback = std::bind(&InputDispatcher::handleReceiveCallback,
                                                             this, std::placeholders::_1, token);
 
-        mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, new LooperEventCallback(callback), nullptr);
+        mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, sp<LooperEventCallback>::make(callback),
+                       nullptr);
     } // release lock
 
     // Wake the looper because some connections have changed.
@@ -5546,7 +5547,8 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_
                                           << " without a specified display.";
         }
 
-        sp<Connection> connection = new Connection(serverChannel, true /*monitor*/, mIdGenerator);
+        sp<Connection> connection =
+                sp<Connection>::make(serverChannel, true /*monitor*/, mIdGenerator);
         const sp<IBinder>& token = serverChannel->getConnectionToken();
         const int fd = serverChannel->getFd();
 
@@ -5559,7 +5561,8 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_
 
         mGlobalMonitorsByDisplay[displayId].emplace_back(serverChannel, pid);
 
-        mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, new LooperEventCallback(callback), nullptr);
+        mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, sp<LooperEventCallback>::make(callback),
+                       nullptr);
     }
 
     // Wake the looper because some connections have changed.
@@ -6367,7 +6370,7 @@ void InputDispatcher::onWindowInfosChanged(const std::vector<WindowInfo>& window
     std::unordered_map<int32_t, std::vector<sp<WindowInfoHandle>>> handlesPerDisplay;
     for (const auto& info : windowInfos) {
         handlesPerDisplay.emplace(info.displayId, std::vector<sp<WindowInfoHandle>>());
-        handlesPerDisplay[info.displayId].push_back(new WindowInfoHandle(info));
+        handlesPerDisplay[info.displayId].push_back(sp<WindowInfoHandle>::make(info));
     }
 
     { // acquire lock
