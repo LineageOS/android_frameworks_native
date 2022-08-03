@@ -33,7 +33,7 @@ namespace {
 // RpcTransport for Trusty.
 class RpcTransportTipcTrusty : public RpcTransport {
 public:
-    explicit RpcTransportTipcTrusty(android::base::unique_fd socket) : mSocket(std::move(socket)) {}
+    explicit RpcTransportTipcTrusty(android::TransportFd socket) : mSocket(std::move(socket)) {}
     ~RpcTransportTipcTrusty() { releaseMessage(); }
 
     status_t pollRead() override {
@@ -64,7 +64,7 @@ public:
                 .num_handles = 0, // TODO: add ancillaryFds
                 .handles = nullptr,
         };
-        ssize_t rc = send_msg(mSocket.get(), &msg);
+        ssize_t rc = send_msg(mSocket.fd.get(), &msg);
         if (rc == ERR_NOT_ENOUGH_BUFFER) {
             // Peer is blocked, wait until it unblocks.
             // TODO: when tipc supports a send-unblocked handler,
@@ -72,7 +72,7 @@ public:
             // when the handler gets called by the library
             uevent uevt;
             do {
-                rc = ::wait(mSocket.get(), &uevt, INFINITE_TIME);
+                rc = ::wait(mSocket.fd.get(), &uevt, INFINITE_TIME);
                 if (rc < 0) {
                     return statusFromTrusty(rc);
                 }
@@ -83,7 +83,7 @@ public:
 
             // Retry the send, it should go through this time because
             // sending is now unblocked
-            rc = send_msg(mSocket.get(), &msg);
+            rc = send_msg(mSocket.fd.get(), &msg);
         }
         if (rc < 0) {
             return statusFromTrusty(rc);
@@ -129,7 +129,7 @@ public:
                     .num_handles = 0, // TODO: support ancillaryFds
                     .handles = nullptr,
             };
-            ssize_t rc = read_msg(mSocket.get(), mMessageInfo.id, mMessageOffset, &msg);
+            ssize_t rc = read_msg(mSocket.fd.get(), mMessageInfo.id, mMessageOffset, &msg);
             if (rc < 0) {
                 return statusFromTrusty(rc);
             }
@@ -169,6 +169,8 @@ public:
         }
     }
 
+    bool isWaiting() override { return mSocket.isInPollingState(); }
+
 private:
     status_t ensureMessage(bool wait) {
         int rc;
@@ -179,7 +181,7 @@ private:
 
         /* TODO: interruptible wait, maybe with a timeout??? */
         uevent uevt;
-        rc = ::wait(mSocket.get(), &uevt, wait ? INFINITE_TIME : 0);
+        rc = ::wait(mSocket.fd.get(), &uevt, wait ? INFINITE_TIME : 0);
         if (rc < 0) {
             if (rc == ERR_TIMED_OUT && !wait) {
                 // If we timed out with wait==false, then there's no message
@@ -192,7 +194,7 @@ private:
             return OK;
         }
 
-        rc = get_msg(mSocket.get(), &mMessageInfo);
+        rc = get_msg(mSocket.fd.get(), &mMessageInfo);
         if (rc < 0) {
             return statusFromTrusty(rc);
         }
@@ -204,12 +206,12 @@ private:
 
     void releaseMessage() {
         if (mHaveMessage) {
-            put_msg(mSocket.get(), mMessageInfo.id);
+            put_msg(mSocket.fd.get(), mMessageInfo.id);
             mHaveMessage = false;
         }
     }
 
-    base::unique_fd mSocket;
+    android::TransportFd mSocket;
 
     bool mHaveMessage = false;
     ipc_msg_info mMessageInfo;
@@ -219,9 +221,9 @@ private:
 // RpcTransportCtx for Trusty.
 class RpcTransportCtxTipcTrusty : public RpcTransportCtx {
 public:
-    std::unique_ptr<RpcTransport> newTransport(android::base::unique_fd fd,
+    std::unique_ptr<RpcTransport> newTransport(android::TransportFd socket,
                                                FdTrigger*) const override {
-        return std::make_unique<RpcTransportTipcTrusty>(std::move(fd));
+        return std::make_unique<RpcTransportTipcTrusty>(std::move(socket));
     }
     std::vector<uint8_t> getCertificate(RpcCertificateFormat) const override { return {}; }
 };

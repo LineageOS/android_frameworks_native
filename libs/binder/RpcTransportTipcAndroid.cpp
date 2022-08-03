@@ -36,8 +36,7 @@ namespace {
 // RpcTransport for writing Trusty IPC clients in Android.
 class RpcTransportTipcAndroid : public RpcTransport {
 public:
-    explicit RpcTransportTipcAndroid(android::base::unique_fd socket)
-          : mSocket(std::move(socket)) {}
+    explicit RpcTransportTipcAndroid(android::TransportFd socket) : mSocket(std::move(socket)) {}
 
     status_t pollRead() override {
         if (mReadBufferPos < mReadBufferSize) {
@@ -46,7 +45,7 @@ public:
         }
 
         // Trusty IPC device is not a socket, so MSG_PEEK is not available
-        pollfd pfd{.fd = mSocket.get(), .events = static_cast<int16_t>(POLLIN), .revents = 0};
+        pollfd pfd{.fd = mSocket.fd.get(), .events = static_cast<int16_t>(POLLIN), .revents = 0};
         ssize_t ret = TEMP_FAILURE_RETRY(::poll(&pfd, 1, 0));
         if (ret < 0) {
             int savedErrno = errno;
@@ -84,9 +83,9 @@ public:
             // to send any.
             LOG_ALWAYS_FATAL_IF(ancillaryFds != nullptr && !ancillaryFds->empty(),
                                 "File descriptors are not supported on Trusty yet");
-            return TEMP_FAILURE_RETRY(tipc_send(mSocket.get(), iovs, niovs, nullptr, 0));
+            return TEMP_FAILURE_RETRY(tipc_send(mSocket.fd.get(), iovs, niovs, nullptr, 0));
         };
-        return interruptableReadOrWrite(mSocket.get(), fdTrigger, iovs, niovs, writeFn, "tipc_send",
+        return interruptableReadOrWrite(mSocket, fdTrigger, iovs, niovs, writeFn, "tipc_send",
                                         POLLOUT, altPoll);
     }
 
@@ -120,9 +119,11 @@ public:
 
             return processSize;
         };
-        return interruptableReadOrWrite(mSocket.get(), fdTrigger, iovs, niovs, readFn, "read",
-                                        POLLIN, altPoll);
+        return interruptableReadOrWrite(mSocket, fdTrigger, iovs, niovs, readFn, "read", POLLIN,
+                                        altPoll);
     }
+
+    bool isWaiting() override { return mSocket.isInPollingState(); }
 
 private:
     status_t fillReadBuffer() {
@@ -146,8 +147,8 @@ private:
         mReadBufferSize = 0;
 
         while (true) {
-            ssize_t processSize =
-                    TEMP_FAILURE_RETRY(read(mSocket.get(), mReadBuffer.get(), mReadBufferCapacity));
+            ssize_t processSize = TEMP_FAILURE_RETRY(
+                    read(mSocket.fd.get(), mReadBuffer.get(), mReadBufferCapacity));
             if (processSize == 0) {
                 return DEAD_OBJECT;
             } else if (processSize < 0) {
@@ -173,7 +174,7 @@ private:
         }
     }
 
-    base::unique_fd mSocket;
+    TransportFd mSocket;
 
     // For now, we copy all the input data into a temporary buffer because
     // we might get multiple interruptableReadFully calls per message, but
@@ -192,8 +193,7 @@ private:
 // RpcTransportCtx for Trusty.
 class RpcTransportCtxTipcAndroid : public RpcTransportCtx {
 public:
-    std::unique_ptr<RpcTransport> newTransport(android::base::unique_fd fd,
-                                               FdTrigger*) const override {
+    std::unique_ptr<RpcTransport> newTransport(android::TransportFd fd, FdTrigger*) const override {
         return std::make_unique<RpcTransportTipcAndroid>(std::move(fd));
     }
     std::vector<uint8_t> getCertificate(RpcCertificateFormat) const override { return {}; }

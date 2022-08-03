@@ -86,7 +86,7 @@ status_t RpcServer::setupInetServer(const char* address, unsigned int port,
         LOG_ALWAYS_FATAL_IF(socketAddress.addr()->sa_family != AF_INET, "expecting inet");
         sockaddr_in addr{};
         socklen_t len = sizeof(addr);
-        if (0 != getsockname(mServer.get(), reinterpret_cast<sockaddr*>(&addr), &len)) {
+        if (0 != getsockname(mServer.fd.get(), reinterpret_cast<sockaddr*>(&addr), &len)) {
             int savedErrno = errno;
             ALOGE("Could not getsockname at %s: %s", socketAddress.toString().c_str(),
                   strerror(savedErrno));
@@ -181,7 +181,7 @@ void RpcServer::join() {
 
     {
         RpcMutexLockGuard _l(mLock);
-        LOG_ALWAYS_FATAL_IF(!mServer.ok(), "RpcServer must be setup to join.");
+        LOG_ALWAYS_FATAL_IF(!mServer.fd.ok(), "RpcServer must be setup to join.");
         LOG_ALWAYS_FATAL_IF(mShutdownTrigger != nullptr, "Already joined");
         mJoinThreadRunning = true;
         mShutdownTrigger = FdTrigger::make();
@@ -194,24 +194,24 @@ void RpcServer::join() {
         static_assert(addr.size() >= sizeof(sockaddr_storage), "kRpcAddressSize is too small");
 
         socklen_t addrLen = addr.size();
-        unique_fd clientFd(
-                TEMP_FAILURE_RETRY(accept4(mServer.get(), reinterpret_cast<sockaddr*>(addr.data()),
-                                           &addrLen, SOCK_CLOEXEC | SOCK_NONBLOCK)));
+        TransportFd clientSocket(unique_fd(TEMP_FAILURE_RETRY(
+                accept4(mServer.fd.get(), reinterpret_cast<sockaddr*>(addr.data()), &addrLen,
+                        SOCK_CLOEXEC | SOCK_NONBLOCK))));
 
         LOG_ALWAYS_FATAL_IF(addrLen > static_cast<socklen_t>(sizeof(sockaddr_storage)),
                             "Truncated address");
 
-        if (clientFd < 0) {
+        if (clientSocket.fd < 0) {
             ALOGE("Could not accept4 socket: %s", strerror(errno));
             continue;
         }
-        LOG_RPC_DETAIL("accept4 on fd %d yields fd %d", mServer.get(), clientFd.get());
+        LOG_RPC_DETAIL("accept4 on fd %d yields fd %d", mServer.fd.get(), clientSocket.fd.get());
 
         {
             RpcMutexLockGuard _l(mLock);
             RpcMaybeThread thread =
                     RpcMaybeThread(&RpcServer::establishConnection,
-                                   sp<RpcServer>::fromExisting(this), std::move(clientFd), addr,
+                                   sp<RpcServer>::fromExisting(this), std::move(clientSocket), addr,
                                    addrLen, RpcSession::join);
 
             auto& threadRef = mConnectingThreads[thread.get_id()];
@@ -296,7 +296,7 @@ size_t RpcServer::numUninitializedSessions() {
 }
 
 void RpcServer::establishConnection(
-        sp<RpcServer>&& server, base::unique_fd clientFd, std::array<uint8_t, kRpcAddressSize> addr,
+        sp<RpcServer>&& server, TransportFd clientFd, std::array<uint8_t, kRpcAddressSize> addr,
         size_t addrLen,
         std::function<void(sp<RpcSession>&&, RpcSession::PreJoinSetupResult&&)>&& joinFn) {
     // mShutdownTrigger can only be cleared once connection threads have joined.
@@ -306,7 +306,7 @@ void RpcServer::establishConnection(
 
     status_t status = OK;
 
-    int clientFdForLog = clientFd.get();
+    int clientFdForLog = clientFd.fd.get();
     auto client = server->mCtx->newTransport(std::move(clientFd), server->mShutdownTrigger.get());
     if (client == nullptr) {
         ALOGE("Dropping accept4()-ed socket because sslAccept fails");
@@ -488,15 +488,15 @@ status_t RpcServer::setupSocketServer(const RpcSocketAddress& addr) {
     LOG_RPC_DETAIL("Setting up socket server %s", addr.toString().c_str());
     LOG_ALWAYS_FATAL_IF(hasServer(), "Each RpcServer can only have one server.");
 
-    unique_fd serverFd(TEMP_FAILURE_RETRY(
-            socket(addr.addr()->sa_family, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0)));
-    if (serverFd == -1) {
+    TransportFd transportFd(unique_fd(TEMP_FAILURE_RETRY(
+            socket(addr.addr()->sa_family, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0))));
+    if (!transportFd.fd.ok()) {
         int savedErrno = errno;
         ALOGE("Could not create socket: %s", strerror(savedErrno));
         return -savedErrno;
     }
 
-    if (0 != TEMP_FAILURE_RETRY(bind(serverFd.get(), addr.addr(), addr.addrSize()))) {
+    if (0 != TEMP_FAILURE_RETRY(bind(transportFd.fd.get(), addr.addr(), addr.addrSize()))) {
         int savedErrno = errno;
         ALOGE("Could not bind socket at %s: %s", addr.toString().c_str(), strerror(savedErrno));
         return -savedErrno;
@@ -506,7 +506,7 @@ status_t RpcServer::setupSocketServer(const RpcSocketAddress& addr) {
     // the backlog is increased to a large number.
     // TODO(b/189955605): Once we create threads dynamically & lazily, the backlog can be reduced
     //  to 1.
-    if (0 != TEMP_FAILURE_RETRY(listen(serverFd.get(), 50 /*backlog*/))) {
+    if (0 != TEMP_FAILURE_RETRY(listen(transportFd.fd.get(), 50 /*backlog*/))) {
         int savedErrno = errno;
         ALOGE("Could not listen socket at %s: %s", addr.toString().c_str(), strerror(savedErrno));
         return -savedErrno;
@@ -514,7 +514,7 @@ status_t RpcServer::setupSocketServer(const RpcSocketAddress& addr) {
 
     LOG_RPC_DETAIL("Successfully setup socket server %s", addr.toString().c_str());
 
-    if (status_t status = setupExternalServer(std::move(serverFd)); status != OK) {
+    if (status_t status = setupExternalServer(std::move(transportFd.fd)); status != OK) {
         ALOGE("Another thread has set up server while calling setupSocketServer. Race?");
         return status;
     }
@@ -542,17 +542,17 @@ void RpcServer::onSessionIncomingThreadEnded() {
 
 bool RpcServer::hasServer() {
     RpcMutexLockGuard _l(mLock);
-    return mServer.ok();
+    return mServer.fd.ok();
 }
 
 unique_fd RpcServer::releaseServer() {
     RpcMutexLockGuard _l(mLock);
-    return std::move(mServer);
+    return std::move(mServer.fd);
 }
 
 status_t RpcServer::setupExternalServer(base::unique_fd serverFd) {
     RpcMutexLockGuard _l(mLock);
-    if (mServer.ok()) {
+    if (mServer.fd.ok()) {
         ALOGE("Each RpcServer can only have one server.");
         return INVALID_OPERATION;
     }
