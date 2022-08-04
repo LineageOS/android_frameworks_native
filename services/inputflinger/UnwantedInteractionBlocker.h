@@ -101,6 +101,9 @@ private:
     std::map<int32_t /*deviceId*/, PalmRejector> mPalmRejectors GUARDED_BY(mLock);
     // TODO(b/210159205): delete this when simultaneous stylus and touch is supported
     void notifyMotionLocked(const NotifyMotionArgs* args) REQUIRES(mLock);
+
+    // Call this function for outbound events so that they can be logged when logging is enabled.
+    void enqueueOutboundMotionLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
 };
 
 class SlotState {
