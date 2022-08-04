@@ -223,8 +223,10 @@ int main(int argc, char** argv) {
 
     if (forkPid == 0) {
         // Server process
-        android::sp<android::TestInputManager> manager = new android::TestInputManager();
-        android::sp<android::TestInputQuery> query = new android::TestInputQuery(manager);
+        android::sp<android::TestInputManager> manager =
+                android::sp<android::TestInputManager>::make();
+        android::sp<android::TestInputQuery> query =
+                android::sp<android::TestInputQuery>::make(manager);
 
         android::defaultServiceManager()->addService(android::kTestServiceName, manager,
                                                      false /*allowIsolated*/);
