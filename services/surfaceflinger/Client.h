@@ -59,6 +59,8 @@ private:
     binder::Status mirrorSurface(const sp<IBinder>& mirrorFromHandle,
                                  gui::MirrorSurfaceResult* outResult) override;
 
+    binder::Status mirrorDisplay(int64_t displayId, gui::MirrorSurfaceResult* outResult) override;
+
     // constant
     sp<SurfaceFlinger> mFlinger;
 

@@ -249,12 +249,13 @@ Pipe make_worker(int num, int iterations, int worker_count, int payload_size, bo
     pid_t pid = fork();
     if (pid) {
         /* parent */
-        return move(get<0>(pipe_pair));
+        return std::move(get<0>(pipe_pair));
     } else {
         /* child */
-        worker_fx(num, worker_count, iterations, payload_size, cs_pair, move(get<1>(pipe_pair)));
+        worker_fx(num, worker_count, iterations, payload_size, cs_pair,
+                  std::move(get<1>(pipe_pair)));
         /* never get here */
-        return move(get<0>(pipe_pair));
+        return std::move(get<0>(pipe_pair));
     }
 
 }

@@ -2177,6 +2177,16 @@ sp<SurfaceControl> SurfaceComposerClient::mirrorSurface(SurfaceControl* mirrorFr
     return nullptr;
 }
 
+sp<SurfaceControl> SurfaceComposerClient::mirrorDisplay(DisplayId displayId) {
+    gui::MirrorSurfaceResult result;
+    const binder::Status status = mClient->mirrorDisplay(displayId.value, &result);
+    const status_t err = statusTFromBinderStatus(status);
+    if (err == NO_ERROR) {
+        return new SurfaceControl(this, result.handle, result.layerId);
+    }
+    return nullptr;
+}
+
 status_t SurfaceComposerClient::clearLayerFrameStats(const sp<IBinder>& token) const {
     if (mStatus != NO_ERROR) {
         return mStatus;
