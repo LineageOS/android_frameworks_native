@@ -398,14 +398,13 @@ Pipe make_process(int num, int iterations, int no_process, int payload_size) {
   pid_t pid = fork();
   if (pid) {
     // parent
-    return move(get<0>(pipe_pair));
+    return std::move(get<0>(pipe_pair));
   } else {
     // child
     thread_dump(is_client(num) ? "client" : "server");
-    worker_fx(num, no_process, iterations, payload_size,
-              move(get<1>(pipe_pair)));
+    worker_fx(num, no_process, iterations, payload_size, std::move(get<1>(pipe_pair)));
     // never get here
-    return move(get<0>(pipe_pair));
+    return std::move(get<0>(pipe_pair));
   }
 }
 

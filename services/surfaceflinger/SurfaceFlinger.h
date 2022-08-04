@@ -96,12 +96,12 @@
 #include <utility>
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+#include "Client.h"
 
 using namespace android::surfaceflinger;
 
 namespace android {
 
-class Client;
 class EventThread;
 class FlagManager;
 class FpsReporter;
@@ -754,14 +754,7 @@ private:
     int flushPendingTransactionQueues(
             std::vector<TransactionState>& transactions,
             std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
-            std::unordered_set<sp<IBinder>, SpHash<IBinder>>& applyTokensWithUnsignaledTransactions,
             bool tryApplyUnsignaled) REQUIRES(mStateLock);
-
-    int flushUnsignaledPendingTransactionQueues(
-            std::vector<TransactionState>& transactions,
-            std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
-            std::unordered_set<sp<IBinder>, SpHash<IBinder>>& applyTokensWithUnsignaledTransactions)
-            REQUIRES(mStateLock);
 
     uint32_t setClientStateLocked(const FrameTimelineInfo&, ComposerState&,
                                   int64_t desiredPresentTime, bool isAutoTimestamp,
@@ -794,8 +787,6 @@ private:
     static LatchUnsignaledConfig getLatchUnsignaledConfig();
     bool shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t&, size_t numStates,
                                size_t totalTXapplied) const;
-    bool stopTransactionProcessing(const std::unordered_set<sp<IBinder>, SpHash<IBinder>>&
-                                           applyTokensWithUnsignaledTransactions) const;
     bool applyTransactions(std::vector<TransactionState>& transactions, int64_t vsyncId)
             REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
@@ -818,6 +809,9 @@ private:
 
     status_t mirrorLayer(const LayerCreationArgs& args, const sp<IBinder>& mirrorFromHandle,
                          sp<IBinder>* outHandle, int32_t* outLayerId);
+
+    status_t mirrorDisplay(DisplayId displayId, const LayerCreationArgs& args,
+                           sp<IBinder>* outHandle, int32_t* outLayerId);
 
     // called when all clients have released all their references to
     // this layer meaning it is entirely safe to destroy all
@@ -1242,7 +1236,6 @@ private:
     uint32_t mTexturePoolSize = 0;
     std::vector<uint32_t> mTexturePool;
 
-    Condition mTransactionQueueCV;
     std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash>
             mPendingTransactionQueues;
     LocklessQueue<TransactionState> mLocklessTransactionQueue;
@@ -1371,6 +1364,19 @@ private:
     bool commitCreatedLayers(int64_t vsyncId);
     void handleLayerCreatedLocked(const LayerCreatedState& state, int64_t vsyncId)
             REQUIRES(mStateLock);
+
+    mutable std::mutex mMirrorDisplayLock;
+    struct MirrorDisplayState {
+        MirrorDisplayState(ui::LayerStack layerStack, sp<IBinder>& rootHandle,
+                           const sp<Client>& client)
+              : layerStack(layerStack), rootHandle(rootHandle), client(client) {}
+
+        ui::LayerStack layerStack;
+        sp<IBinder> rootHandle;
+        const sp<Client> client;
+    };
+    std::vector<MirrorDisplayState> mMirrorDisplays GUARDED_BY(mMirrorDisplayLock);
+    bool commitMirrorDisplays(int64_t vsyncId);
 
     std::atomic<ui::Transform::RotationFlags> mActiveDisplayTransformHint;
 

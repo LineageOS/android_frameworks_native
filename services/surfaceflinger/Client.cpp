@@ -147,5 +147,20 @@ binder::Status Client::mirrorSurface(const sp<IBinder>& mirrorFromHandle,
     return binderStatusFromStatusT(status);
 }
 
+binder::Status Client::mirrorDisplay(int64_t displayId, gui::MirrorSurfaceResult* outResult) {
+    sp<IBinder> handle;
+    int32_t layerId;
+    LayerCreationArgs args(mFlinger.get(), sp<Client>::fromExisting(this),
+                           "MirrorRoot-" + std::to_string(displayId), 0 /* flags */,
+                           gui::LayerMetadata());
+    std::optional<DisplayId> id = DisplayId::fromValue(static_cast<uint64_t>(displayId));
+    status_t status = mFlinger->mirrorDisplay(*id, args, &handle, &layerId);
+    if (status == NO_ERROR) {
+        outResult->handle = handle;
+        outResult->layerId = layerId;
+    }
+    return binderStatusFromStatusT(status);
+}
+
 // ---------------------------------------------------------------------------
 }; // namespace android

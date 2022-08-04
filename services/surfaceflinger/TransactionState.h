@@ -98,7 +98,6 @@ struct TransactionState {
     int originUid;
     uint64_t id;
     std::shared_ptr<CountDownLatch> transactionCommittedSignal;
-    int64_t queueTime = 0;
     bool sentFenceTimeoutWarning = false;
 };
 

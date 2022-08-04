@@ -478,7 +478,7 @@ void SurfaceFlinger::binderDied(const wp<IBinder>&) {
 
     // Sever the link to inputflinger since it's gone as well.
     static_cast<void>(mScheduler->schedule(
-            [=] { mInputFlinger = sp<os::IInputFlinger>::fromExisting(nullptr); }));
+            [this] { mInputFlinger.clear(); }));
 
     // restore initial conditions (default device unblank, etc)
     initializeDisplays();
@@ -2100,6 +2100,7 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
 
         bool needsTraversal = false;
         if (clearTransactionFlags(eTransactionFlushNeeded)) {
+            needsTraversal |= commitMirrorDisplays(vsyncId);
             needsTraversal |= commitCreatedLayers(vsyncId);
             needsTraversal |= flushTransactionQueues(vsyncId);
         }
@@ -3620,39 +3621,21 @@ void SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule sche
     }
 }
 
-bool SurfaceFlinger::stopTransactionProcessing(
-        const std::unordered_set<sp<IBinder>, SpHash<IBinder>>&
-                applyTokensWithUnsignaledTransactions) const {
-    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::AutoSingleLayer) {
-        // if we are in LatchUnsignaledConfig::AutoSingleLayer
-        // then we should have only one applyToken for processing.
-        // so we can stop further transactions on this applyToken.
-        return !applyTokensWithUnsignaledTransactions.empty();
-    }
-
-    return false;
-}
-
-int SurfaceFlinger::flushUnsignaledPendingTransactionQueues(
-        std::vector<TransactionState>& transactions,
-        std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
-        std::unordered_set<sp<IBinder>, SpHash<IBinder>>& applyTokensWithUnsignaledTransactions) {
-    return flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
-                                         applyTokensWithUnsignaledTransactions,
-                                         /*tryApplyUnsignaled*/ true);
-}
-
 int SurfaceFlinger::flushPendingTransactionQueues(
         std::vector<TransactionState>& transactions,
         std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
-        std::unordered_set<sp<IBinder>, SpHash<IBinder>>& applyTokensWithUnsignaledTransactions,
         bool tryApplyUnsignaled) {
+    std::unordered_set<sp<IBinder>, SpHash<IBinder>> applyTokensWithUnsignaledTransactions;
     int transactionsPendingBarrier = 0;
     auto it = mPendingTransactionQueues.begin();
     while (it != mPendingTransactionQueues.end()) {
         auto& [applyToken, transactionQueue] = *it;
         while (!transactionQueue.empty()) {
-            if (stopTransactionProcessing(applyTokensWithUnsignaledTransactions)) {
+            // if we are in LatchUnsignaledConfig::AutoSingleLayer
+            // then we should have only one applyToken for processing.
+            // so we can stop further transactions on this applyToken.
+            if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::AutoSingleLayer &&
+                !applyTokensWithUnsignaledTransactions.empty()) {
                 ATRACE_NAME("stopTransactionProcessing");
                 break;
             }
@@ -3700,7 +3683,6 @@ int SurfaceFlinger::flushPendingTransactionQueues(
 
         if (transactionQueue.empty()) {
             it = mPendingTransactionQueues.erase(it);
-            mTransactionQueueCV.broadcast();
         } else {
             it = std::next(it, 1);
         }
@@ -3715,68 +3697,16 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
     std::vector<TransactionState> transactions;
     // Layer handles that have transactions with buffers that are ready to be applied.
     std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>> bufferLayersReadyToPresent;
-    std::unordered_set<sp<IBinder>, SpHash<IBinder>> applyTokensWithUnsignaledTransactions;
     {
         Mutex::Autolock _l(mStateLock);
         {
-            int lastTransactionsPendingBarrier = 0;
-            int transactionsPendingBarrier = 0;
-            // First collect transactions from the pending transaction queues.
-            // We are not allowing unsignaled buffers here as we want to
-            // collect all the transactions from applyTokens that are ready first.
-            transactionsPendingBarrier =
-                    flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
-                            applyTokensWithUnsignaledTransactions, /*tryApplyUnsignaled*/ false);
-
-            // Second, collect transactions from the transaction queue.
-            // Here as well we are not allowing unsignaled buffers for the same
-            // reason as above.
             while (!mLocklessTransactionQueue.isEmpty()) {
                 auto maybeTransaction = mLocklessTransactionQueue.pop();
                 if (!maybeTransaction.has_value()) {
                     break;
                 }
                 auto transaction = maybeTransaction.value();
-                const bool pendingTransactions =
-                        mPendingTransactionQueues.find(transaction.applyToken) !=
-                        mPendingTransactionQueues.end();
-                const auto ready = [&]() REQUIRES(mStateLock) {
-                    if (pendingTransactions) {
-                        ATRACE_NAME("pendingTransactions");
-                        return TransactionReadiness::NotReady;
-                    }
-
-                    return transactionIsReadyToBeApplied(transaction, transaction.frameTimelineInfo,
-                                                         transaction.isAutoTimestamp,
-                                                         transaction.desiredPresentTime,
-                                                         transaction.originUid, transaction.states,
-                                                         bufferLayersReadyToPresent,
-                                                         transactions.size(),
-                                                         /*tryApplyUnsignaled*/ false);
-                }();
-                ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
-                if (ready != TransactionReadiness::Ready) {
-                    if (ready == TransactionReadiness::NotReadyBarrier) {
-                        transactionsPendingBarrier++;
-                    }
-                    mPendingTransactionQueues[transaction.applyToken].push(std::move(transaction));
-                } else {
-                    transaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
-                        const bool frameNumberChanged = state.bufferData->flags.test(
-                                BufferData::BufferDataChange::frameNumberChanged);
-                        if (frameNumberChanged) {
-                            bufferLayersReadyToPresent[state.surface] = state.bufferData->frameNumber;
-                        } else {
-                            // Barrier function only used for BBQ which always includes a frame number.
-                            // This value only used for barrier logic.
-                            bufferLayersReadyToPresent[state.surface] =
-                                std::numeric_limits<uint64_t>::max();
-                        }
-                    });
-                    transactions.emplace_back(std::move(transaction));
-                    mPendingTransactionCount--;
-                    ATRACE_INT("TransactionQueue", mPendingTransactionCount.load());
-                }
+                mPendingTransactionQueues[transaction.applyToken].push(std::move(transaction));
             }
 
             // Transactions with a buffer pending on a barrier may be on a different applyToken
@@ -3789,20 +3719,21 @@ bool SurfaceFlinger::flushTransactionQueues(int64_t vsyncId) {
             // loop through flushPendingTransactionQueues until we perform an iteration
             // where the number of transactionsPendingBarrier doesn't change. This way
             // we can continue to resolve dependency chains of barriers as far as possible.
-            while (lastTransactionsPendingBarrier != transactionsPendingBarrier) {
+            int lastTransactionsPendingBarrier = 0;
+            int transactionsPendingBarrier = 0;
+            do {
                 lastTransactionsPendingBarrier = transactionsPendingBarrier;
                 transactionsPendingBarrier =
-                    flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
-                        applyTokensWithUnsignaledTransactions,
-                        /*tryApplyUnsignaled*/ false);
-            }
+                        flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
+                                                      /*tryApplyUnsignaled*/ false);
+            } while (lastTransactionsPendingBarrier != transactionsPendingBarrier);
 
             // We collected all transactions that could apply without latching unsignaled buffers.
             // If we are allowing latch unsignaled of some form, now it's the time to go over the
             // transactions that were not applied and try to apply them unsignaled.
             if (enableLatchUnsignaledConfig != LatchUnsignaledConfig::Disabled) {
-                flushUnsignaledPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
-                                                        applyTokensWithUnsignaledTransactions);
+                flushPendingTransactionQueues(transactions, bufferLayersReadyToPresent,
+                                              /*tryApplyUnsignaled*/ true);
             }
 
             return applyTransactions(transactions, vsyncId);
@@ -3976,7 +3907,7 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(TransactionState& transaction
 
         if (fenceUnsignaled && !allowLatchUnsignaled) {
             if (!transaction.sentFenceTimeoutWarning &&
-                queueProcessTime - transaction.queueTime > std::chrono::nanoseconds(4s).count()) {
+                queueProcessTime - transaction.postTime > std::chrono::nanoseconds(4s).count()) {
                 transaction.sentFenceTimeoutWarning = true;
                 auto listener = s.bufferData->releaseBufferListener;
                 if (listener) {
@@ -4003,7 +3934,6 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(TransactionState& transaction
 }
 
 void SurfaceFlinger::queueTransaction(TransactionState& state) {
-    state.queueTime = systemTime();
     // Generate a CountDownLatch pending state if this is a synchronous transaction.
     if (state.flags & eSynchronous) {
         state.transactionCommittedSignal =
@@ -4602,6 +4532,55 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
     }
     return addClientLayer(args.client, *outHandle, mirrorLayer /* layer */, nullptr /* parent */,
                           false /* addToRoot */, nullptr /* outTransformHint */);
+}
+
+status_t SurfaceFlinger::mirrorDisplay(DisplayId displayId, const LayerCreationArgs& args,
+                                       sp<IBinder>* outHandle, int32_t* outLayerId) {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int uid = ipc->getCallingUid();
+    if (uid != AID_ROOT && uid != AID_GRAPHICS && uid != AID_SYSTEM && uid != AID_SHELL) {
+        ALOGE("Permission denied when trying to mirror display");
+        return PERMISSION_DENIED;
+    }
+
+    ui::LayerStack layerStack;
+    sp<Layer> rootMirrorLayer;
+    status_t result = 0;
+
+    {
+        Mutex::Autolock lock(mStateLock);
+
+        const auto display = getDisplayDeviceLocked(displayId);
+        if (!display) {
+            return NAME_NOT_FOUND;
+        }
+
+        layerStack = display->getLayerStack();
+        LayerCreationArgs mirrorArgs = args;
+        mirrorArgs.flags |= ISurfaceComposerClient::eNoColorFill;
+        result = createEffectLayer(mirrorArgs, outHandle, &rootMirrorLayer);
+        *outLayerId = rootMirrorLayer->sequence;
+        result |= addClientLayer(args.client, *outHandle, rootMirrorLayer /* layer */,
+                                 nullptr /* parent */, true /* addToRoot */,
+                                 nullptr /* outTransformHint */);
+    }
+
+    if (result != NO_ERROR) {
+        return result;
+    }
+
+    if (mTransactionTracing) {
+        mTransactionTracing->onLayerAdded((*outHandle)->localBinder(), *outLayerId, args.name,
+                                          args.flags, -1 /* parentId */);
+    }
+
+    {
+        std::scoped_lock<std::mutex> lock(mMirrorDisplayLock);
+        mMirrorDisplays.emplace_back(layerStack, *outHandle, args.client);
+    }
+
+    setTransactionFlags(eTransactionFlushNeeded);
+    return NO_ERROR;
 }
 
 status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
@@ -7125,6 +7104,45 @@ std::shared_ptr<renderengine::ExternalTexture> SurfaceFlinger::getExternalTextur
              "limit.",
              layerName);
     return buffer;
+}
+
+bool SurfaceFlinger::commitMirrorDisplays(int64_t vsyncId) {
+    std::vector<MirrorDisplayState> mirrorDisplays;
+    {
+        std::scoped_lock<std::mutex> lock(mMirrorDisplayLock);
+        mirrorDisplays = std::move(mMirrorDisplays);
+        mMirrorDisplays.clear();
+        if (mirrorDisplays.size() == 0) {
+            return false;
+        }
+    }
+
+    sp<IBinder> unused;
+    for (const auto& mirrorDisplay : mirrorDisplays) {
+        // Set mirror layer's default layer stack to -1 so it doesn't end up rendered on a display
+        // accidentally.
+        sp<Layer> rootMirrorLayer = Layer::fromHandle(mirrorDisplay.rootHandle).promote();
+        rootMirrorLayer->setLayerStack(ui::LayerStack::fromValue(-1));
+        for (const auto& layer : mDrawingState.layersSortedByZ) {
+            if (layer->getLayerStack() != mirrorDisplay.layerStack ||
+                layer->isInternalDisplayOverlay()) {
+                continue;
+            }
+
+            LayerCreationArgs mirrorArgs(this, mirrorDisplay.client, "MirrorLayerParent",
+                                         ISurfaceComposerClient::eNoColorFill,
+                                         gui::LayerMetadata());
+            sp<Layer> childMirror;
+            createEffectLayer(mirrorArgs, &unused, &childMirror);
+            childMirror->setClonedChild(layer->createClone());
+            if (mTransactionTracing) {
+                mTransactionTracing->onLayerAddedToDrawingState(childMirror->getSequence(),
+                                                                vsyncId);
+            }
+            childMirror->reparent(mirrorDisplay.rootHandle);
+        }
+    }
+    return true;
 }
 
 bool SurfaceFlinger::commitCreatedLayers(int64_t vsyncId) {
