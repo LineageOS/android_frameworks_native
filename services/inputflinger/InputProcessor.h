@@ -61,8 +61,8 @@ struct ClassifierEvent {
  */
 class MotionClassifierInterface {
 public:
-    MotionClassifierInterface() { }
-    virtual ~MotionClassifierInterface() { }
+    MotionClassifierInterface() {}
+    virtual ~MotionClassifierInterface() {}
     /**
      * Based on the motion event described by NotifyMotionArgs,
      * provide a MotionClassification for the current gesture.
@@ -92,7 +92,7 @@ public:
  * Base interface for an InputListener stage.
  * Provides classification to events.
  */
-class InputClassifierInterface : public InputListenerInterface {
+class InputProcessorInterface : public InputListenerInterface {
 public:
     virtual void setMotionClassifierEnabled(bool enabled) = 0;
     /**
@@ -104,8 +104,8 @@ public:
     /** Called by the heartbeat to ensure that the classifier has not deadlocked. */
     virtual void monitor() = 0;
 
-    InputClassifierInterface() { }
-    virtual ~InputClassifierInterface() { }
+    InputProcessorInterface() {}
+    virtual ~InputProcessorInterface() {}
 };
 
 // --- Implementations ---
@@ -124,10 +124,10 @@ private:
 };
 
 /**
- * Implementation of MotionClassifierInterface that calls the InputClassifier HAL
+ * Implementation of MotionClassifierInterface that calls the InputProcessor HAL
  * in order to determine the classification for the current gesture.
  *
- * The InputClassifier HAL may keep track of the entire gesture in order to determine
+ * The InputProcessor HAL may keep track of the entire gesture in order to determine
  * the classification, and may be hardware-specific. It may use the data in
  * NotifyMotionArgs::videoFrames field to drive the classification decisions.
  * The HAL is called from a separate thread.
@@ -174,20 +174,20 @@ private:
      */
     void enqueueEvent(ClassifierEvent&& event);
     /**
-     * Thread that will communicate with InputClassifier HAL.
-     * This should be the only thread that communicates with InputClassifier HAL,
+     * Thread that will communicate with InputProcessor HAL.
+     * This should be the only thread that communicates with InputProcessor HAL,
      * because this thread is allowed to block on the HAL calls.
      */
     std::thread mHalThread;
     /**
-     * Process events and call the InputClassifier HAL
+     * Process events and call the InputProcessor HAL
      */
     void processEvents();
     /**
      * Access to the InputProcessor HAL. May be null if init() hasn't completed yet.
      * When init() successfully completes, mService is guaranteed to remain non-null and to not
      * change its value until MotionClassifier is destroyed.
-     * This variable is *not* guarded by mLock in the InputClassifier thread, because
+     * This variable is *not* guarded by mLock in the InputProcessor thread, because
      * that thread knows exactly when this variable is initialized.
      * When accessed in any other thread, mService is checked for nullness with a lock.
      */
@@ -197,8 +197,8 @@ private:
      * Per-device input classifications. Should only be accessed using the
      * getClassification / setClassification methods.
      */
-    std::unordered_map<int32_t /*deviceId*/, MotionClassification>
-            mClassifications GUARDED_BY(mLock);
+    std::unordered_map<int32_t /*deviceId*/, MotionClassification> mClassifications
+            GUARDED_BY(mLock);
     /**
      * Set the current classification for a given device.
      */
@@ -208,7 +208,7 @@ private:
      */
     MotionClassification getClassification(int32_t deviceId);
     void updateClassification(int32_t deviceId, nsecs_t eventTime,
-            MotionClassification classification);
+                              MotionClassification classification);
     /**
      * Clear all current classifications
      */
@@ -217,7 +217,7 @@ private:
      * Per-device times when the last ACTION_DOWN was received.
      * Used to reject late classifications that do not belong to the current gesture.
      *
-     * Accessed indirectly by both InputClassifier thread and the thread that receives notifyMotion.
+     * Accessed indirectly by both InputProcessor thread and the thread that receives notifyMotion.
      */
     std::unordered_map<int32_t /*deviceId*/, nsecs_t /*downTime*/> mLastDownTimes GUARDED_BY(mLock);
 
@@ -226,7 +226,7 @@ private:
     void clearDeviceState(int32_t deviceId);
 
     /**
-     * Exit the InputClassifier HAL thread.
+     * Exit the InputProcessor HAL thread.
      * Useful for tests to ensure proper cleanup.
      */
     void requestExit();
@@ -237,14 +237,14 @@ private:
 };
 
 /**
- * Implementation of the InputClassifierInterface.
+ * Implementation of the InputProcessorInterface.
  * Represents a separate stage of input processing. All of the input events go through this stage.
  * Acts as a passthrough for all input events except for motion events.
  * The events of motion type are sent to MotionClassifier.
  */
-class InputClassifier : public InputClassifierInterface {
+class InputProcessor : public InputProcessorInterface {
 public:
-    explicit InputClassifier(InputListenerInterface& listener);
+    explicit InputProcessor(InputListenerInterface& listener);
 
     void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
     void notifyKey(const NotifyKeyArgs* args) override;
@@ -258,7 +258,7 @@ public:
     void dump(std::string& dump) override;
     void monitor() override;
 
-    ~InputClassifier();
+    ~InputProcessor();
 
     // Called from InputManager
     void setMotionClassifierEnabled(bool enabled) override;

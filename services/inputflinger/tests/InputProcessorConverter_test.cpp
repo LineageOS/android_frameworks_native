@@ -24,7 +24,7 @@ using namespace aidl::android::hardware::input;
 
 namespace android {
 
-// --- InputClassifierConverterTest ---
+// --- InputProcessorConverterTest ---
 
 static NotifyMotionArgs generateBasicMotionArgs() {
     // Create a basic motion event for testing
@@ -52,7 +52,7 @@ static NotifyMotionArgs generateBasicMotionArgs() {
 
 static float getMotionEventAxis(common::PointerCoords coords, common::Axis axis) {
     uint32_t index = BitSet64::getIndexOfBit(static_cast<uint64_t>(coords.bits),
-            static_cast<uint64_t>(axis));
+                                             static_cast<uint64_t>(axis));
     return coords.values[index];
 }
 
@@ -60,7 +60,7 @@ static float getMotionEventAxis(common::PointerCoords coords, common::Axis axis)
  * Check that coordinates get converted properly from the framework's PointerCoords
  * to the hidl PointerCoords in input::common.
  */
-TEST(InputClassifierConverterTest, PointerCoordsAxes) {
+TEST(InputProcessorConverterTest, PointerCoordsAxes) {
     const NotifyMotionArgs motionArgs = generateBasicMotionArgs();
     ASSERT_EQ(1, motionArgs.pointerCoords[0].getX());
     ASSERT_EQ(2, motionArgs.pointerCoords[0].getY());
@@ -76,7 +76,7 @@ TEST(InputClassifierConverterTest, PointerCoordsAxes) {
     ASSERT_EQ(getMotionEventAxis(motionEvent.pointerCoords[0], common::Axis::SIZE),
               motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_SIZE));
     ASSERT_EQ(BitSet64::count(motionArgs.pointerCoords[0].bits),
-            BitSet64::count(motionEvent.pointerCoords[0].bits));
+              BitSet64::count(motionEvent.pointerCoords[0].bits));
 }
 
 } // namespace android
