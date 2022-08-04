@@ -15,9 +15,10 @@ rust_library {
         "libutils",
     ],
     rustlibs: [
-        "liblibc",
         "libbinder_ndk_sys",
         "libdowncast_rs",
+        "liblazy_static",
+        "liblibc",
     ],
     host_supported: true,
     vendor_available: true,
@@ -170,9 +171,10 @@ rust_test {
         "libbinder_ndk",
     ],
     rustlibs: [
-        "liblibc",
         "libbinder_ndk_sys",
         "libdowncast_rs",
+        "liblazy_static",
+        "liblibc",
     ],
 }
 
