@@ -48,4 +48,14 @@ status_t getRandomBytes(uint8_t* data, size_t size) {
     return OK;
 }
 
+status_t dupFileDescriptor(int oldFd, int* newFd) {
+    int ret = fcntl(oldFd, F_DUPFD_CLOEXEC, 0);
+    if (ret < 0) {
+        return -errno;
+    }
+
+    *newFd = ret;
+    return OK;
+}
+
 } // namespace android
