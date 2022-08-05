@@ -41,7 +41,7 @@ private:
 
 InputThread::InputThread(std::string name, std::function<void()> loop, std::function<void()> wake)
       : mName(name), mThreadWake(wake) {
-    mThread = new InputThreadImpl(loop);
+    mThread = sp<InputThreadImpl>::make(loop);
     mThread->run(mName.c_str(), ANDROID_PRIORITY_URGENT_DISPLAY);
 }
 

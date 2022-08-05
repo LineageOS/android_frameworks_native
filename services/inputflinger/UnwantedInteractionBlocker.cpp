@@ -39,6 +39,30 @@ using PalmFilterImplementation = ::ui::NeuralStylusPalmDetectionFilter;
 
 namespace android {
 
+/**
+ * Log detailed debug messages about each inbound motion event notification to the blocker.
+ * Enable this via "adb shell setprop log.tag.UnwantedInteractionBlockerInboundMotion DEBUG"
+ * (requires restart)
+ */
+const bool DEBUG_INBOUND_MOTION =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "InboundMotion", ANDROID_LOG_INFO);
+
+/**
+ * Log detailed debug messages about each outbound motion event processed by the blocker.
+ * Enable this via "adb shell setprop log.tag.UnwantedInteractionBlockerOutboundMotion DEBUG"
+ * (requires restart)
+ */
+const bool DEBUG_OUTBOUND_MOTION =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "OutboundMotion", ANDROID_LOG_INFO);
+
+/**
+ * Log the data sent to the model and received back from the model.
+ * Enable this via "adb shell setprop log.tag.UnwantedInteractionBlockerModel DEBUG"
+ * (requires restart)
+ */
+const bool DEBUG_MODEL =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Model", ANDROID_LOG_INFO);
+
 // Category (=namespace) name for the input settings that are applied at boot time
 static const char* INPUT_NATIVE_BOOT = "input_native_boot";
 /**
@@ -309,6 +333,7 @@ void UnwantedInteractionBlocker::notifyKey(const NotifyKeyArgs* args) {
 }
 
 void UnwantedInteractionBlocker::notifyMotion(const NotifyMotionArgs* args) {
+    ALOGD_IF(DEBUG_INBOUND_MOTION, "%s: %s", __func__, args->dump().c_str());
     { // acquire lock
         std::scoped_lock lock(mLock);
         const std::vector<NotifyMotionArgs> processedArgs =
@@ -322,17 +347,22 @@ void UnwantedInteractionBlocker::notifyMotion(const NotifyMotionArgs* args) {
     mQueuedListener.flush();
 }
 
+void UnwantedInteractionBlocker::enqueueOutboundMotionLocked(const NotifyMotionArgs& args) {
+    ALOGD_IF(DEBUG_OUTBOUND_MOTION, "%s: %s", __func__, args.dump().c_str());
+    mQueuedListener.notifyMotion(&args);
+}
+
 void UnwantedInteractionBlocker::notifyMotionLocked(const NotifyMotionArgs* args) {
     auto it = mPalmRejectors.find(args->deviceId);
     const bool sendToPalmRejector = it != mPalmRejectors.end() && isFromTouchscreen(args->source);
     if (!sendToPalmRejector) {
-        mQueuedListener.notifyMotion(args);
+        enqueueOutboundMotionLocked(*args);
         return;
     }
 
     std::vector<NotifyMotionArgs> processedArgs = it->second.processMotion(*args);
     for (const NotifyMotionArgs& loopArgs : processedArgs) {
-        mQueuedListener.notifyMotion(&loopArgs);
+        enqueueOutboundMotionLocked(loopArgs);
     }
 }
 
@@ -616,7 +646,17 @@ std::vector<NotifyMotionArgs> PalmRejector::processMotion(const NotifyMotionArgs
             getTouches(args, mDeviceInfo, oldSlotState, mSlotState);
     ::base::TimeTicks chromeTimestamp = toChromeTimestamp(args.eventTime);
 
+    if (DEBUG_MODEL) {
+        std::stringstream touchesStream;
+        for (const ::ui::InProgressTouchEvdev& touch : touches) {
+            touchesStream << touch.tracking_id << " : " << touch << "\n";
+        }
+        ALOGD("Filter: touches = %s", touchesStream.str().c_str());
+    }
     mPalmDetectionFilter->Filter(touches, chromeTimestamp, &slotsToHold, &slotsToSuppress);
+
+    ALOGD_IF(DEBUG_MODEL, "Response: slotsToHold = %s, slotsToSuppress = %s",
+             slotsToHold.to_string().c_str(), slotsToSuppress.to_string().c_str());
 
     // Now that we know which slots should be suppressed, let's convert those to pointer id's.
     std::set<int32_t> oldSuppressedIds;

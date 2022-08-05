@@ -405,11 +405,11 @@ protected:
 };
 
 /**
- * Create a basic configuration change and send it to input classifier.
+ * Create a basic configuration change and send it to input processor.
  * Expect that the event is received by the next input stage, unmodified.
  */
 TEST_F(UnwantedInteractionBlockerTest, ConfigurationChangedIsPassedToNextListener) {
-    // Create a basic configuration change and send to classifier
+    // Create a basic configuration change and send to blocker
     NotifyConfigurationChangedArgs args(1 /*sequenceNum*/, 2 /*eventTime*/);
 
     mBlocker->notifyConfigurationChanged(&args);
@@ -423,7 +423,7 @@ TEST_F(UnwantedInteractionBlockerTest, ConfigurationChangedIsPassedToNextListene
  * to next stage unmodified.
  */
 TEST_F(UnwantedInteractionBlockerTest, KeyIsPassedToNextListener) {
-    // Create a basic key event and send to classifier
+    // Create a basic key event and send to blocker
     NotifyKeyArgs args(1 /*sequenceNum*/, 2 /*eventTime*/, 21 /*readTime*/, 3 /*deviceId*/,
                        AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_DEFAULT, 0 /*policyFlags*/,
                        AKEY_EVENT_ACTION_DOWN, 4 /*flags*/, AKEYCODE_HOME, 5 /*scanCode*/,

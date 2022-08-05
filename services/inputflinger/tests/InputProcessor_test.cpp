@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "../InputClassifier.h"
+#include "../InputProcessor.h"
 #include <gtest/gtest.h>
 #include <gui/constants.h>
 
@@ -31,7 +31,7 @@ using aidl::android::hardware::input::processor::IInputProcessor;
 
 namespace android {
 
-// --- InputClassifierTest ---
+// --- InputProcessorTest ---
 
 static NotifyMotionArgs generateBasicMotionArgs() {
     // Create a basic motion event for testing
@@ -56,105 +56,104 @@ static NotifyMotionArgs generateBasicMotionArgs() {
     return motionArgs;
 }
 
-class InputClassifierTest : public testing::Test {
+class InputProcessorTest : public testing::Test {
 protected:
     TestInputListener mTestListener;
-    std::unique_ptr<InputClassifierInterface> mClassifier;
+    std::unique_ptr<InputProcessorInterface> mProcessor;
 
-    void SetUp() override { mClassifier = std::make_unique<InputClassifier>(mTestListener); }
+    void SetUp() override { mProcessor = std::make_unique<InputProcessor>(mTestListener); }
 };
 
 /**
- * Create a basic configuration change and send it to input classifier.
+ * Create a basic configuration change and send it to input processor.
  * Expect that the event is received by the next input stage, unmodified.
  */
-TEST_F(InputClassifierTest, SendToNextStage_NotifyConfigurationChangedArgs) {
-    // Create a basic configuration change and send to classifier
-    NotifyConfigurationChangedArgs args(1/*sequenceNum*/, 2/*eventTime*/);
+TEST_F(InputProcessorTest, SendToNextStage_NotifyConfigurationChangedArgs) {
+    // Create a basic configuration change and send to processor
+    NotifyConfigurationChangedArgs args(1 /*sequenceNum*/, 2 /*eventTime*/);
 
-    mClassifier->notifyConfigurationChanged(&args);
+    mProcessor->notifyConfigurationChanged(&args);
     NotifyConfigurationChangedArgs outArgs;
     ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyConfigurationChangedWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);
 }
 
-TEST_F(InputClassifierTest, SendToNextStage_NotifyKeyArgs) {
-    // Create a basic key event and send to classifier
+TEST_F(InputProcessorTest, SendToNextStage_NotifyKeyArgs) {
+    // Create a basic key event and send to processor
     NotifyKeyArgs args(1 /*sequenceNum*/, 2 /*eventTime*/, 21 /*readTime*/, 3 /*deviceId*/,
                        AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_DEFAULT, 0 /*policyFlags*/,
                        AKEY_EVENT_ACTION_DOWN, 4 /*flags*/, AKEYCODE_HOME, 5 /*scanCode*/,
                        AMETA_NONE, 6 /*downTime*/);
 
-    mClassifier->notifyKey(&args);
+    mProcessor->notifyKey(&args);
     NotifyKeyArgs outArgs;
     ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyKeyWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);
 }
 
-
 /**
- * Create a basic motion event and send it to input classifier.
+ * Create a basic motion event and send it to input processor.
  * Expect that the event is received by the next input stage, unmodified.
  */
-TEST_F(InputClassifierTest, SendToNextStage_NotifyMotionArgs) {
+TEST_F(InputProcessorTest, SendToNextStage_NotifyMotionArgs) {
     NotifyMotionArgs motionArgs = generateBasicMotionArgs();
-    mClassifier->notifyMotion(&motionArgs);
+    mProcessor->notifyMotion(&motionArgs);
     NotifyMotionArgs args;
     ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(motionArgs, args);
 }
 
 /**
- * Create a basic switch event and send it to input classifier.
+ * Create a basic switch event and send it to input processor.
  * Expect that the event is received by the next input stage, unmodified.
  */
-TEST_F(InputClassifierTest, SendToNextStage_NotifySwitchArgs) {
-    NotifySwitchArgs args(1/*sequenceNum*/, 2/*eventTime*/, 3/*policyFlags*/, 4/*switchValues*/,
-            5/*switchMask*/);
+TEST_F(InputProcessorTest, SendToNextStage_NotifySwitchArgs) {
+    NotifySwitchArgs args(1 /*sequenceNum*/, 2 /*eventTime*/, 3 /*policyFlags*/, 4 /*switchValues*/,
+                          5 /*switchMask*/);
 
-    mClassifier->notifySwitch(&args);
+    mProcessor->notifySwitch(&args);
     NotifySwitchArgs outArgs;
     ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifySwitchWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);
 }
 
 /**
- * Create a basic device reset event and send it to input classifier.
+ * Create a basic device reset event and send it to input processor.
  * Expect that the event is received by the next input stage, unmodified.
  */
-TEST_F(InputClassifierTest, SendToNextStage_NotifyDeviceResetArgs) {
-    NotifyDeviceResetArgs args(1/*sequenceNum*/, 2/*eventTime*/, 3/*deviceId*/);
+TEST_F(InputProcessorTest, SendToNextStage_NotifyDeviceResetArgs) {
+    NotifyDeviceResetArgs args(1 /*sequenceNum*/, 2 /*eventTime*/, 3 /*deviceId*/);
 
-    mClassifier->notifyDeviceReset(&args);
+    mProcessor->notifyDeviceReset(&args);
     NotifyDeviceResetArgs outArgs;
     ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyDeviceResetWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);
 }
 
-TEST_F(InputClassifierTest, SetMotionClassifier_Enabled) {
-    mClassifier->setMotionClassifierEnabled(true);
+TEST_F(InputProcessorTest, SetMotionClassifier_Enabled) {
+    mProcessor->setMotionClassifierEnabled(true);
 }
 
-TEST_F(InputClassifierTest, SetMotionClassifier_Disabled) {
-    mClassifier->setMotionClassifierEnabled(false);
+TEST_F(InputProcessorTest, SetMotionClassifier_Disabled) {
+    mProcessor->setMotionClassifierEnabled(false);
 }
 
 /**
  * Try to break it by calling setMotionClassifierEnabled multiple times.
  */
-TEST_F(InputClassifierTest, SetMotionClassifier_Multiple) {
-    mClassifier->setMotionClassifierEnabled(true);
-    mClassifier->setMotionClassifierEnabled(true);
-    mClassifier->setMotionClassifierEnabled(true);
-    mClassifier->setMotionClassifierEnabled(false);
-    mClassifier->setMotionClassifierEnabled(false);
-    mClassifier->setMotionClassifierEnabled(true);
-    mClassifier->setMotionClassifierEnabled(true);
-    mClassifier->setMotionClassifierEnabled(true);
+TEST_F(InputProcessorTest, SetMotionClassifier_Multiple) {
+    mProcessor->setMotionClassifierEnabled(true);
+    mProcessor->setMotionClassifierEnabled(true);
+    mProcessor->setMotionClassifierEnabled(true);
+    mProcessor->setMotionClassifierEnabled(false);
+    mProcessor->setMotionClassifierEnabled(false);
+    mProcessor->setMotionClassifierEnabled(true);
+    mProcessor->setMotionClassifierEnabled(true);
+    mProcessor->setMotionClassifierEnabled(true);
 }
 
 /**
- * A minimal implementation of IInputClassifier.
+ * A minimal implementation of IInputProcessor.
  */
 class TestHal : public aidl::android::hardware::input::processor::BnInputProcessor {
     ::ndk::ScopedAStatus classify(
@@ -212,7 +211,7 @@ TEST_F(MotionClassifierTest, Classify_OneVideoFrame) {
     NotifyMotionArgs motionArgs = generateBasicMotionArgs();
 
     std::vector<int16_t> videoData = {1, 2, 3, 4};
-    timeval timestamp = { 1, 1};
+    timeval timestamp = {1, 1};
     TouchVideoFrame frame(2, 2, std::move(videoData), timestamp);
     motionArgs.videoFrames = {frame};
 
@@ -228,11 +227,11 @@ TEST_F(MotionClassifierTest, Classify_TwoVideoFrames) {
     NotifyMotionArgs motionArgs = generateBasicMotionArgs();
 
     std::vector<int16_t> videoData1 = {1, 2, 3, 4};
-    timeval timestamp1 = { 1, 1};
+    timeval timestamp1 = {1, 1};
     TouchVideoFrame frame1(2, 2, std::move(videoData1), timestamp1);
 
     std::vector<int16_t> videoData2 = {6, 6, 6, 6};
-    timeval timestamp2 = { 1, 2};
+    timeval timestamp2 = {1, 2};
     TouchVideoFrame frame2(2, 2, std::move(videoData2), timestamp2);
 
     motionArgs.videoFrames = {frame1, frame2};
@@ -253,7 +252,7 @@ TEST_F(MotionClassifierTest, Reset_DoesNotCrash) {
  * Make sure MotionClassifier does not crash when a device is reset.
  */
 TEST_F(MotionClassifierTest, DeviceReset_DoesNotCrash) {
-    NotifyDeviceResetArgs args(1/*sequenceNum*/, 2/*eventTime*/, 3/*deviceId*/);
+    NotifyDeviceResetArgs args(1 /*sequenceNum*/, 2 /*eventTime*/, 3 /*deviceId*/);
     ASSERT_NO_FATAL_FAILURE(mMotionClassifier->reset(args));
 }
 

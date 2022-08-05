@@ -260,14 +260,15 @@ static NotifyMotionArgs generateMotionArgs() {
 
 static void benchmarkNotifyMotion(benchmark::State& state) {
     // Create dispatcher
-    sp<FakeInputDispatcherPolicy> fakePolicy = new FakeInputDispatcherPolicy();
+    sp<FakeInputDispatcherPolicy> fakePolicy = sp<FakeInputDispatcherPolicy>::make();
     InputDispatcher dispatcher(fakePolicy);
     dispatcher.setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
     dispatcher.start();
 
     // Create a window that will receive motion events
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> window = new FakeWindowHandle(application, dispatcher, "Fake Window");
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window");
 
     dispatcher.setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
@@ -294,14 +295,15 @@ static void benchmarkNotifyMotion(benchmark::State& state) {
 
 static void benchmarkInjectMotion(benchmark::State& state) {
     // Create dispatcher
-    sp<FakeInputDispatcherPolicy> fakePolicy = new FakeInputDispatcherPolicy();
+    sp<FakeInputDispatcherPolicy> fakePolicy = sp<FakeInputDispatcherPolicy>::make();
     InputDispatcher dispatcher(fakePolicy);
     dispatcher.setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
     dispatcher.start();
 
     // Create a window that will receive motion events
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> window = new FakeWindowHandle(application, dispatcher, "Fake Window");
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window");
 
     dispatcher.setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
@@ -327,14 +329,15 @@ static void benchmarkInjectMotion(benchmark::State& state) {
 
 static void benchmarkOnWindowInfosChanged(benchmark::State& state) {
     // Create dispatcher
-    sp<FakeInputDispatcherPolicy> fakePolicy = new FakeInputDispatcherPolicy();
+    sp<FakeInputDispatcherPolicy> fakePolicy = sp<FakeInputDispatcherPolicy>::make();
     InputDispatcher dispatcher(fakePolicy);
     dispatcher.setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
     dispatcher.start();
 
     // Create a window
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> window = new FakeWindowHandle(application, dispatcher, "Fake Window");
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window");
 
     std::vector<gui::WindowInfo> windowInfos{*window->getInfo()};
     gui::DisplayInfo info;
