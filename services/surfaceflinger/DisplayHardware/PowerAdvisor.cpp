@@ -315,7 +315,8 @@ void PowerAdvisor::setExpectedPresentTime(nsecs_t expectedPresentTime) {
     mExpectedPresentTimes.append(expectedPresentTime);
 }
 
-void PowerAdvisor::setPresentFenceTime(nsecs_t presentFenceTime) {
+void PowerAdvisor::setSfPresentTiming(nsecs_t presentFenceTime, nsecs_t presentEndTime) {
+    mLastSfPresentEndTime = presentEndTime;
     mLastPresentFenceTime = presentFenceTime;
 }
 
@@ -334,13 +335,7 @@ void PowerAdvisor::setCommitStart(nsecs_t commitStartTime) {
 }
 
 void PowerAdvisor::setCompositeEnd(nsecs_t compositeEnd) {
-    mLastCompositeEndTime = compositeEnd;
-    // calculate the postcomp time here as well
-    std::vector<DisplayId>&& displays = getOrderedDisplayIds(&DisplayTimingData::hwcPresentEndTime);
-    DisplayTimingData& timingData = mDisplayTimingData[displays.back()];
-    mLastPostcompDuration = compositeEnd -
-            (timingData.skippedValidate ? *timingData.hwcValidateEndTime
-                                        : *timingData.hwcPresentEndTime);
+    mLastPostcompDuration = compositeEnd - mLastSfPresentEndTime;
 }
 
 void PowerAdvisor::setDisplays(std::vector<DisplayId>& displayIds) {
@@ -399,7 +394,7 @@ std::optional<nsecs_t> PowerAdvisor::estimateWorkDuration(bool earlyHint) {
             getOrderedDisplayIds(&DisplayTimingData::hwcPresentStartTime);
     DisplayTimeline referenceTiming, estimatedTiming;
 
-    // Iterate over the displays in the same order they are presented
+    // Iterate over the displays that use hwc in the same order they are presented
     for (DisplayId displayId : displayIds) {
         if (mDisplayTimingData.count(displayId) == 0) {
             continue;
@@ -451,8 +446,11 @@ std::optional<nsecs_t> PowerAdvisor::estimateWorkDuration(bool earlyHint) {
     }
     ATRACE_INT64("Idle duration", idleDuration);
 
+    nsecs_t estimatedFlingerEndTime = earlyHint ? estimatedEndTime : mLastSfPresentEndTime;
+
     // Don't count time spent idly waiting in the estimate as we could do more work in that time
     estimatedEndTime -= idleDuration;
+    estimatedFlingerEndTime -= idleDuration;
 
     // We finish the frame when both present and the gpu are done, so wait for the later of the two
     // Also add the frame delay duration since the target did not move while we were delayed
@@ -460,7 +458,10 @@ std::optional<nsecs_t> PowerAdvisor::estimateWorkDuration(bool earlyHint) {
             std::max(estimatedEndTime, estimatedGpuEndTime.value_or(0)) - mCommitStartTimes[0];
 
     // We finish SurfaceFlinger when post-composition finishes, so add that in here
-    nsecs_t flingerDuration = estimatedEndTime + mLastPostcompDuration - mCommitStartTimes[0];
+    nsecs_t flingerDuration =
+            estimatedFlingerEndTime + mLastPostcompDuration - mCommitStartTimes[0];
+
+    // Combine the two timings into a single normalized one
     nsecs_t combinedDuration = combineTimingEstimates(totalDuration, flingerDuration);
 
     return std::make_optional(combinedDuration);
