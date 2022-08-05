@@ -38,6 +38,7 @@ cc_defaults {
         "-Wshadow",
         "-Wshadow-field-in-constructor-modified",
         "-Wshadow-uncaptured-local",
+        "-DANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION",
     ],
     sanitize: {
         misc_undefined: ["bounds"],
@@ -56,7 +57,7 @@ cc_defaults {
 filegroup {
     name: "libinputflinger_sources",
     srcs: [
-        "InputClassifier.cpp",
+        "InputProcessor.cpp",
         "InputCommonConverter.cpp",
         "PreferStylusOverTouchBlocker.cpp",
         "UnwantedInteractionBlocker.cpp",
