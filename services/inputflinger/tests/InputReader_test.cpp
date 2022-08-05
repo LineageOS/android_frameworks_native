@@ -2945,6 +2945,8 @@ protected:
         mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
                                                             *mFakeListener);
         mDevice = newDevice(DEVICE_ID, DEVICE_NAME, DEVICE_LOCATION, EVENTHUB_ID, classes);
+        // Consume the device reset notification generated when adding a new device.
+        mFakeListener->assertNotifyDeviceResetWasCalled();
     }
 
     void SetUp() override {
@@ -2969,6 +2971,8 @@ protected:
             mReader->loopOnce();
         }
         mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), changes);
+        // Loop the reader to flush the input listener queue.
+        mReader->loopOnce();
     }
 
     std::shared_ptr<InputDevice> newDevice(int32_t deviceId, const std::string& name,
@@ -2992,6 +2996,8 @@ protected:
         configureDevice(0);
         mDevice->reset(ARBITRARY_TIME);
         mapper.reset(ARBITRARY_TIME);
+        // Loop the reader to flush the input listener queue.
+        mReader->loopOnce();
         return mapper;
     }
 
@@ -3017,6 +3023,7 @@ protected:
         event.code = code;
         event.value = value;
         mapper.process(&event);
+        // Loop the reader to flush the input listener queue.
         mReader->loopOnce();
     }
 
@@ -4913,7 +4920,6 @@ TEST_F(CursorInputMapperTest, Process_PointerCapture) {
     ASSERT_TRUE(mReader->getContext()->getGeneration() != generation);
 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
-    ASSERT_EQ(ARBITRARY_TIME, resetArgs.eventTime);
     ASSERT_EQ(DEVICE_ID, resetArgs.deviceId);
 
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
