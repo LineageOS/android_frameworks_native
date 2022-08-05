@@ -6730,6 +6730,61 @@ TEST_F(SingleTouchInputMapperTest,
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());
 }
 
+TEST_F(SingleTouchInputMapperTest,
+       Process_WhenViewportActiveStatusChanged_TouchIsCanceledAndDeviceIsReset) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareButtons();
+    prepareAxes(POSITION);
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());
+    NotifyMotionArgs motionArgs;
+
+    // Start a new gesture.
+    processDown(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+
+    // Make the viewport inactive. This will put the device in disabled mode.
+    auto viewport = mFakePolicy->getDisplayViewportByType(ViewportType::INTERNAL);
+    viewport->isActive = false;
+    mFakePolicy->updateViewport(*viewport);
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+
+    // We should receive a cancel event for the ongoing gesture.
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_CANCEL, motionArgs.action);
+    // Then we should be notified that the device was reset.
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());
+
+    // No events are generated while the viewport is inactive.
+    processMove(mapper, 101, 201);
+    processSync(mapper);
+    processDown(mapper, 102, 202);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // Make the viewport active again. The device should resume processing events.
+    viewport->isActive = true;
+    mFakePolicy->updateViewport(*viewport);
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+
+    // The device is reset because it changes back to direct mode, without generating any events.
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // Start a new gesture.
+    processDown(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+
+    // No more events.
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasNotCalled());
+}
+
 // --- TouchDisplayProjectionTest ---
 
 class TouchDisplayProjectionTest : public SingleTouchInputMapperTest {
@@ -8587,27 +8642,27 @@ TEST_F(MultiTouchInputMapperTest, Process_DeactivateViewport_AbortTouches) {
     ASSERT_TRUE(mFakePolicy->updateViewport(displayViewport));
     configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
 
-    // Finger move
+    // The ongoing touch should be canceled immediately
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    EXPECT_EQ(AMOTION_EVENT_ACTION_CANCEL, motionArgs.action);
+
+    // Finger move is ignored
     x += 10, y += 10;
     processPosition(mapper, x, y);
     processSync(mapper);
-
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
-    EXPECT_EQ(AMOTION_EVENT_ACTION_CANCEL, motionArgs.action);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 
     // Reactivate display viewport
     displayViewport.isActive = true;
     ASSERT_TRUE(mFakePolicy->updateViewport(displayViewport));
     configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
 
-    // Finger move again
+    // Finger move again starts new gesture
     x += 10, y += 10;
     processPosition(mapper, x, y);
     processSync(mapper);
-
-    // Gesture is aborted, so events after display is activated won't be dispatched until there is
-    // no pointer on the touch device.
-    mFakeListener->assertNotifyMotionWasNotCalled();
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
 }
 
 TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
