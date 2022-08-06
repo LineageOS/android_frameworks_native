@@ -190,6 +190,7 @@ phony {
         "libinputservice_test",
         "Bug-115739809",
         "StructLayout_test",
+        "inputflinger_latencytracker_fuzzer",
 
         // Java/Kotlin targets
         "CtsWindowManagerDeviceTestCases",
