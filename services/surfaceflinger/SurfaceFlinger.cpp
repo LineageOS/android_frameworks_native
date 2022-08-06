@@ -2172,10 +2172,14 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
 
     refreshArgs.updatingOutputGeometryThisFrame = mVisibleRegionsDirty;
     refreshArgs.updatingGeometryThisFrame = mGeometryDirty.exchange(false) || mVisibleRegionsDirty;
-    mDrawingState.traverseInZOrder([&refreshArgs](Layer* layer) {
+    std::vector<Layer*> layers;
+
+    mDrawingState.traverseInZOrder([&refreshArgs, &layers](Layer* layer) {
         layer->updateSnapshot(refreshArgs.updatingGeometryThisFrame);
         if (auto layerFE = layer->getCompositionEngineLayerFE()) {
+            layer->moveSnapshotToLayerFE();
             refreshArgs.layers.push_back(layerFE);
+            layers.push_back(layer);
         }
     });
     refreshArgs.blursAreExpensive = mBlursAreExpensive;
@@ -2206,6 +2210,19 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
     const auto presentTime = systemTime();
 
     mCompositionEngine->present(refreshArgs);
+
+    for (auto& layer : layers) {
+        layer->moveSnapshotToLayer();
+        CompositionResult compositionResult{
+                layer->getCompositionEngineLayerFE()->stealCompositionResult()};
+        layer->onPreComposition(compositionResult.refreshStartTime);
+        for (auto releaseFence : compositionResult.releaseFences) {
+            layer->onLayerDisplayed(releaseFence);
+        }
+        if (compositionResult.lastClientCompositionFence) {
+            layer->setWasClientComposed(compositionResult.lastClientCompositionFence);
+        }
+    }
 
     mTimeStats->recordFrameDuration(frameTime.ns(), systemTime());
 
@@ -3291,7 +3308,21 @@ void SurfaceFlinger::updateCursorAsync() {
         }
     }
 
+    std::vector<Layer*> cursorLayers;
+    mDrawingState.traverse([&cursorLayers](Layer* layer) {
+        if (layer->getLayerSnapshot()->compositionType ==
+            aidl::android::hardware::graphics::composer3::Composition::CURSOR) {
+            layer->updateSnapshot(false /* updateGeometry */);
+            layer->moveSnapshotToLayerFE();
+            cursorLayers.push_back(layer);
+        }
+    });
+
     mCompositionEngine->updateCursorAsync(refreshArgs);
+
+    for (Layer* layer : cursorLayers) {
+        layer->moveSnapshotToLayer();
+    }
 }
 
 void SurfaceFlinger::requestDisplayModes(
@@ -6444,8 +6475,16 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                 isHdrLayer(layer) ? displayBrightnessNits : sdrWhitePointNits,
 
         };
+        auto layerFE = layer->getCompositionEngineLayerFE();
+        if (!layerFE) {
+            return;
+        }
+
+        layer->moveSnapshotToLayerFE();
         std::optional<compositionengine::LayerFE::LayerSettings> settings =
-                layer->prepareClientComposition(targetSettings);
+                layerFE->prepareClientComposition(targetSettings);
+        layer->moveSnapshotToLayer();
+
         if (!settings) {
             return;
         }

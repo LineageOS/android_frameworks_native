@@ -118,6 +118,10 @@ public:
 
     sp<Layer> createEffectLayer(const LayerCreationArgs&) override { return nullptr; }
 
+    sp<LayerFE> createLayerFE(const std::string& layerName) override {
+        return sp<LayerFE>::make(layerName);
+    }
+
     std::unique_ptr<FrameTracer> createFrameTracer() override {
         return std::make_unique<mock::FrameTracer>();
     }
