@@ -57,4 +57,9 @@ cc_test {
     static_libs: [
         "libgmock",
     ],
+    // FIXME: Workaround LTO build breakage
+    // http://b/241699694
+    lto: {
+        never: true,
+    },
 }
