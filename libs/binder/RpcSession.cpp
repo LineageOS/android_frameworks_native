@@ -36,6 +36,7 @@
 #include <utils/Compat.h>
 #include <utils/String8.h>
 
+#include "BuildFlags.h"
 #include "FdTrigger.h"
 #include "OS.h"
 #include "RpcSocketAddress.h"
@@ -78,10 +79,8 @@ sp<RpcSession> RpcSession::make(std::unique_ptr<RpcTransportCtxFactory> rpcTrans
 
 void RpcSession::setMaxIncomingThreads(size_t threads) {
     RpcMutexLockGuard _l(mMutex);
-    LOG_ALWAYS_FATAL_IF(!mConnections.mOutgoing.empty() || !mConnections.mIncoming.empty(),
-                        "Must set max incoming threads before setting up connections, but has %zu "
-                        "client(s) and %zu server(s)",
-                        mConnections.mOutgoing.size(), mConnections.mIncoming.size());
+    LOG_ALWAYS_FATAL_IF(mStartedSetup,
+                        "Must set max incoming threads before setting up connections");
     mMaxIncomingThreads = threads;
 }
 
@@ -92,10 +91,8 @@ size_t RpcSession::getMaxIncomingThreads() {
 
 void RpcSession::setMaxOutgoingThreads(size_t threads) {
     RpcMutexLockGuard _l(mMutex);
-    LOG_ALWAYS_FATAL_IF(!mConnections.mOutgoing.empty() || !mConnections.mIncoming.empty(),
-                        "Must set max outgoing threads before setting up connections, but has %zu "
-                        "client(s) and %zu server(s)",
-                        mConnections.mOutgoing.size(), mConnections.mIncoming.size());
+    LOG_ALWAYS_FATAL_IF(mStartedSetup,
+                        "Must set max outgoing threads before setting up connections");
     mMaxOutgoingThreads = threads;
 }
 
@@ -104,7 +101,7 @@ size_t RpcSession::getMaxOutgoingThreads() {
     return mMaxOutgoingThreads;
 }
 
-bool RpcSession::setProtocolVersion(uint32_t version) {
+bool RpcSession::setProtocolVersionInternal(uint32_t version, bool checkStarted) {
     if (version >= RPC_WIRE_PROTOCOL_VERSION_NEXT &&
         version != RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL) {
         ALOGE("Cannot start RPC session with version %u which is unknown (current protocol version "
@@ -114,6 +111,8 @@ bool RpcSession::setProtocolVersion(uint32_t version) {
     }
 
     RpcMutexLockGuard _l(mMutex);
+    LOG_ALWAYS_FATAL_IF(checkStarted && mStartedSetup,
+                        "Must set protocol version before setting up connections");
     if (mProtocolVersion && version > *mProtocolVersion) {
         ALOGE("Cannot upgrade explicitly capped protocol version %u to newer version %u",
               *mProtocolVersion, version);
@@ -124,12 +123,19 @@ bool RpcSession::setProtocolVersion(uint32_t version) {
     return true;
 }
 
+bool RpcSession::setProtocolVersion(uint32_t version) {
+    return setProtocolVersionInternal(version, true);
+}
+
 std::optional<uint32_t> RpcSession::getProtocolVersion() {
     RpcMutexLockGuard _l(mMutex);
     return mProtocolVersion;
 }
 
 void RpcSession::setFileDescriptorTransportMode(FileDescriptorTransportMode mode) {
+    RpcMutexLockGuard _l(mMutex);
+    LOG_ALWAYS_FATAL_IF(mStartedSetup,
+                        "Must set file descriptor transport mode before setting up connections");
     mFileDescriptorTransportMode = mode;
 }
 
@@ -445,9 +451,16 @@ status_t RpcSession::setupClient(const std::function<status_t(const std::vector<
                                                               bool incoming)>& connectAndInit) {
     {
         RpcMutexLockGuard _l(mMutex);
-        LOG_ALWAYS_FATAL_IF(mConnections.mOutgoing.size() != 0,
-                            "Must only setup session once, but already has %zu clients",
-                            mConnections.mOutgoing.size());
+        LOG_ALWAYS_FATAL_IF(mStartedSetup, "Must only setup session once");
+        mStartedSetup = true;
+
+        if constexpr (!kEnableRpcThreads) {
+            LOG_ALWAYS_FATAL_IF(mMaxIncomingThreads > 0,
+                                "Incoming threads are not supported on single-threaded libbinder");
+            // mMaxIncomingThreads should not change from here to its use below,
+            // since we set mStartedSetup==true and setMaxIncomingThreads checks
+            // for that
+        }
     }
 
     if (auto status = initShutdownTrigger(); status != OK) return status;
@@ -488,7 +501,7 @@ status_t RpcSession::setupClient(const std::function<status_t(const std::vector<
                                                     sp<RpcSession>::fromExisting(this), &version);
             status != OK)
             return status;
-        if (!setProtocolVersion(version)) return BAD_VALUE;
+        if (!setProtocolVersionInternal(version, false)) return BAD_VALUE;
     }
 
     // TODO(b/189955605): we should add additional sessions dynamically
@@ -506,11 +519,7 @@ status_t RpcSession::setupClient(const std::function<status_t(const std::vector<
         return status;
     }
 
-#ifdef BINDER_RPC_SINGLE_THREADED
-    constexpr size_t outgoingThreads = 1;
-#else  // BINDER_RPC_SINGLE_THREADED
     size_t outgoingThreads = std::min(numThreadsAvailable, mMaxOutgoingThreads);
-#endif // BINDER_RPC_SINGLE_THREADED
     ALOGI_IF(outgoingThreads != numThreadsAvailable,
              "Server hints client to start %zu outgoing threads, but client will only start %zu "
              "because it is preconfigured to start at most %zu outgoing threads.",
