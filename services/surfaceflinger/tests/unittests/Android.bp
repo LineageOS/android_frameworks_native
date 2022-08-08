@@ -109,6 +109,7 @@ cc_test {
         "SurfaceFlinger_SetDisplayStateTest.cpp",
         "SurfaceFlinger_SetPowerModeInternalTest.cpp",
         "SurfaceFlinger_SetupNewDisplayDeviceInternalTest.cpp",
+        "SurfaceFlinger_UpdateLayerMetadataSnapshotTest.cpp",
         "SchedulerTest.cpp",
         "SetFrameRateTest.cpp",
         "RefreshRateConfigsTest.cpp",
