@@ -76,6 +76,7 @@ cc_defaults {
 
     srcs: [
         "Binder.cpp",
+        "BinderRecordReplay.cpp",
         "BpBinder.cpp",
         "Debug.cpp",
         "FdTrigger.cpp",
@@ -147,7 +148,10 @@ cc_defaults {
         },
 
         debuggable: {
-            cflags: ["-DBINDER_RPC_DEV_SERVERS"],
+            cflags: [
+                "-DBINDER_RPC_DEV_SERVERS",
+                "-DBINDER_ENABLE_RECORDING",
+            ],
         },
     },
 
