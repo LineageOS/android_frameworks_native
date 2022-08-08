@@ -136,10 +136,6 @@ void DisplayDevice::setDeviceProductInfo(std::optional<DeviceProductInfo> info) 
     mDeviceProductInfo = std::move(info);
 }
 
-uint32_t DisplayDevice::getPageFlipCount() const {
-    return mCompositionDisplay->getRenderSurface()->getPageFlipCount();
-}
-
 auto DisplayDevice::getInputInfo() const -> InputInfo {
     gui::DisplayInfo info;
     info.displayId = getLayerStack().id;

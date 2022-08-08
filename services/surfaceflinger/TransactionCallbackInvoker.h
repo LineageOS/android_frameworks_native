@@ -70,7 +70,7 @@ public:
     status_t registerUnpresentedCallbackHandle(const sp<CallbackHandle>& handle);
     void addEmptyTransaction(const ListenerCallbacks& listenerCallbacks);
 
-    void addPresentFence(const sp<Fence>& presentFence);
+    void addPresentFence(sp<Fence>);
 
     void sendCallbacks(bool onCommitOnly);
     void clearCompletedTransactions() {

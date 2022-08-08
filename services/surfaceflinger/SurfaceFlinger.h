@@ -56,6 +56,7 @@
 #include <compositionengine/OutputColorSetting.h>
 #include <scheduler/Fps.h>
 #include <scheduler/PresentLatencyTracker.h>
+#include <scheduler/Time.h>
 
 #include "ClientCache.h"
 #include "DisplayDevice.h"
@@ -174,7 +175,7 @@ struct SurfaceFlingerBE {
     static const size_t NUM_BUCKETS = 8; // < 1-7, 7+
     nsecs_t mFrameBuckets[NUM_BUCKETS] = {};
     nsecs_t mTotalTime = 0;
-    std::atomic<nsecs_t> mLastSwapTime = 0;
+    TimePoint mLastPresentTime;
 };
 
 class SurfaceFlinger : public BnSurfaceComposer,
@@ -196,29 +197,6 @@ public:
     static status_t setSchedAttr(bool enabled);
 
     static char const* getServiceName() ANDROID_API { return "SurfaceFlinger"; }
-
-    // This is the phase offset in nanoseconds of the software vsync event
-    // relative to the vsync event reported by HWComposer.  The software vsync
-    // event is when SurfaceFlinger and Choreographer-based applications run each
-    // frame.
-    //
-    // This phase offset allows adjustment of the minimum latency from application
-    // wake-up time (by Choreographer) to the time at which the resulting window
-    // image is displayed.  This value may be either positive (after the HW vsync)
-    // or negative (before the HW vsync). Setting it to 0 will result in a lower
-    // latency bound of two vsync periods because the app and SurfaceFlinger
-    // will run just after the HW vsync.  Setting it to a positive number will
-    // result in the minimum latency being:
-    //
-    //     (2 * VSYNC_PERIOD - (vsyncPhaseOffsetNs % VSYNC_PERIOD))
-    //
-    // Note that reducing this latency makes it more likely for the applications
-    // to not have their window content image ready in time.  When this happens
-    // the latency will end up being an additional vsync period, and animations
-    // will hiccup.  Therefore, this latency should be tuned somewhat
-    // conservatively (or at least with awareness of the trade-off being made).
-    static int64_t vsyncPhaseOffsetNs;
-    static int64_t sfVsyncPhaseOffsetNs;
 
     // If fences from sync Framework are supported.
     static bool hasSyncFramework;
@@ -385,10 +363,6 @@ private:
     using RenderAreaFuture = ftl::Future<std::unique_ptr<RenderArea>>;
     using DumpArgs = Vector<String16>;
     using Dumper = std::function<void(const DumpArgs&, bool asProto, std::string&)>;
-
-    // This value is specified in number of frames.  Log frame stats at most
-    // every half hour.
-    enum { LOG_FRAME_STATS_PERIOD =  30*60*60 };
 
     class State {
     public:
@@ -938,7 +912,6 @@ private:
      * Compositing
      */
     void postComposition() REQUIRES(kMainThreadContext);
-    void postFrame() REQUIRES(kMainThreadContext);
 
     /*
      * Display management
@@ -1038,7 +1011,7 @@ private:
     void clearStatsLocked(const DumpArgs& args, std::string& result);
     void dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const;
     void dumpFrameTimeline(const DumpArgs& args, std::string& result) const;
-    void logFrameStats() REQUIRES(kMainThreadContext);
+    void logFrameStats(TimePoint now) REQUIRES(kMainThreadContext);
 
     void dumpVSync(std::string& result) const REQUIRES(mStateLock);
     void dumpStaticScreenStats(std::string& result) const;
