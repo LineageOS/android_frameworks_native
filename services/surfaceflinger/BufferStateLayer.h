@@ -159,6 +159,9 @@ public:
     std::atomic<int32_t>* getPendingBufferCounter() override { return &mPendingBufferTransactions; }
     std::string getPendingBufferCounterName() override { return mBlastTransactionName; }
 
+    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&) const override;
+
 protected:
     void gatherBufferInfo();
     void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame);
@@ -187,9 +190,6 @@ protected:
     };
 
     BufferInfo mBufferInfo;
-
-    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
-            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
 
     /*
      * compositionengine::LayerFE overrides
@@ -236,7 +236,7 @@ private:
 
     // Computes the transform matrix using the setFilteringEnabled to determine whether the
     // transform matrix should be computed for use with bilinear filtering.
-    void getDrawingTransformMatrix(bool filteringEnabled, float outMatrix[16]);
+    void getDrawingTransformMatrix(bool filteringEnabled, float outMatrix[16]) const;
 
     std::unique_ptr<compositionengine::LayerFECompositionState> mCompositionState;
 
@@ -269,6 +269,9 @@ private:
                                    const sp<GraphicBuffer>& buffer, uint64_t framenumber,
                                    const sp<Fence>& releaseFence,
                                    uint32_t currentMaxAcquiredBufferCount);
+
+    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientCompositionInternal(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&) const;
 
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     uint64_t mPreviousReleasedFrameNumber = 0;

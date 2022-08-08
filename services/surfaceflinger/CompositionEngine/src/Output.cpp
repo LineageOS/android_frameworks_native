@@ -1366,7 +1366,7 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
     bool firstLayer = true;
 
     bool disableBlurs = false;
-    sp<GraphicBuffer> previousOverrideBuffer = nullptr;
+    uint64_t previousOverrideBufferId = 0;
 
     for (auto* layer : getOutputLayersOrderedByZ()) {
         const auto& layerState = layer->getState();
@@ -1402,11 +1402,10 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                 !layerState.visibleRegion.subtract(layerState.shadowRegion).isEmpty();
 
         if (clientComposition || clearClientComposition) {
-            std::vector<LayerFE::LayerSettings> results;
-            if (layer->getState().overrideInfo.buffer != nullptr) {
-                if (layer->getState().overrideInfo.buffer->getBuffer() != previousOverrideBuffer) {
-                    results = layer->getOverrideCompositionList();
-                    previousOverrideBuffer = layer->getState().overrideInfo.buffer->getBuffer();
+            if (auto overrideSettings = layer->getOverrideCompositionSettings()) {
+                if (overrideSettings->bufferId != previousOverrideBufferId) {
+                    previousOverrideBufferId = overrideSettings->bufferId;
+                    clientCompositionLayers.push_back(std::move(*overrideSettings));
                     ALOGV("Replacing [%s] with override in RE", layer->getLayerFE().getDebugName());
                 } else {
                     ALOGV("Skipping redundant override buffer for [%s] in RE",
@@ -1432,20 +1431,18 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                                        .clearContent = !clientComposition,
                                        .blurSetting = blurSetting,
                                        .whitePointNits = layerState.whitePointNits};
-                results = layerFE.prepareClientCompositionList(targetSettings);
-                if (realContentIsVisible && !results.empty()) {
-                    layer->editState().clientCompositionTimestamp = systemTime();
+                if (auto clientCompositionSettings =
+                            layerFE.prepareClientComposition(targetSettings)) {
+                    clientCompositionLayers.push_back(std::move(*clientCompositionSettings));
+                    if (realContentIsVisible) {
+                        layer->editState().clientCompositionTimestamp = systemTime();
+                    }
                 }
             }
 
             if (clientComposition) {
                 outLayerFEs.push_back(&layerFE);
             }
-
-            clientCompositionLayers.insert(clientCompositionLayers.end(),
-                                           std::make_move_iterator(results.begin()),
-                                           std::make_move_iterator(results.end()));
-            results.clear();
         }
 
         firstLayer = false;

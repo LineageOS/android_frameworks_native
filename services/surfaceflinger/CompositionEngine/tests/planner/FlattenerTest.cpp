@@ -124,12 +124,11 @@ void FlattenerTest::SetUp() {
         EXPECT_CALL(*testLayer->layerFE, getCompositionState)
                 .WillRepeatedly(Return(&testLayer->layerFECompositionState));
 
-        std::vector<LayerFE::LayerSettings> clientCompositionList = {
-                LayerFE::LayerSettings{},
-        };
+        std::optional<LayerFE::LayerSettings> clientComposition;
+        clientComposition.emplace();
 
-        EXPECT_CALL(*testLayer->layerFE, prepareClientCompositionList)
-                .WillRepeatedly(Return(clientCompositionList));
+        EXPECT_CALL(*testLayer->layerFE, prepareClientComposition)
+                .WillRepeatedly(Return(clientComposition));
         EXPECT_CALL(testLayer->outputLayer, getLayerFE)
                 .WillRepeatedly(ReturnRef(*testLayer->layerFE));
         EXPECT_CALL(testLayer->outputLayer, getState)
@@ -638,16 +637,15 @@ TEST_F(FlattenerTest, flattenLayers_pip) {
 
     EXPECT_CALL(*mTestLayers[2]->layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
 
-    std::vector<LayerFE::LayerSettings> clientCompositionList = {
-            LayerFE::LayerSettings{},
-    };
-    clientCompositionList[0].source.buffer.buffer = std::make_shared<
+    std::optional<LayerFE::LayerSettings> clientComposition;
+    clientComposition.emplace();
+    clientComposition->source.buffer.buffer = std::make_shared<
             renderengine::impl::ExternalTexture>(mTestLayers[2]->layerFECompositionState.buffer,
                                                  mRenderEngine,
                                                  renderengine::impl::ExternalTexture::Usage::
                                                          READABLE);
-    EXPECT_CALL(*mTestLayers[2]->layerFE, prepareClientCompositionList(_))
-            .WillOnce(Return(clientCompositionList));
+    EXPECT_CALL(*mTestLayers[2]->layerFE, prepareClientComposition(_))
+            .WillOnce(Return(clientComposition));
 
     const std::vector<const LayerState*> layers = {
             layerState1.get(),
@@ -712,16 +710,15 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleLayer) {
 
     EXPECT_CALL(*mTestLayers[1]->layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
 
-    std::vector<LayerFE::LayerSettings> clientCompositionList = {
-            LayerFE::LayerSettings{},
-    };
-    clientCompositionList[0].source.buffer.buffer = std::make_shared<
+    std::optional<LayerFE::LayerSettings> clientComposition;
+    clientComposition.emplace();
+    clientComposition->source.buffer.buffer = std::make_shared<
             renderengine::impl::ExternalTexture>(mTestLayers[1]->layerFECompositionState.buffer,
                                                  mRenderEngine,
                                                  renderengine::impl::ExternalTexture::Usage::
                                                          READABLE);
-    EXPECT_CALL(*mTestLayers[1]->layerFE, prepareClientCompositionList(_))
-            .WillOnce(Return(clientCompositionList));
+    EXPECT_CALL(*mTestLayers[1]->layerFE, prepareClientComposition(_))
+            .WillOnce(Return(clientComposition));
 
     const std::vector<const LayerState*> layers = {
             layerState0.get(),
@@ -784,16 +781,15 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleColorLayer) {
 
     EXPECT_CALL(*mTestLayers[1]->layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
 
-    std::vector<LayerFE::LayerSettings> clientCompositionList = {
-            LayerFE::LayerSettings{},
-    };
-    clientCompositionList[0].source.buffer.buffer = std::make_shared<
+    std::optional<LayerFE::LayerSettings> clientComposition;
+    clientComposition.emplace();
+    clientComposition->source.buffer.buffer = std::make_shared<
             renderengine::impl::ExternalTexture>(mTestLayers[1]->layerFECompositionState.buffer,
                                                  mRenderEngine,
                                                  renderengine::impl::ExternalTexture::Usage::
                                                          READABLE);
-    EXPECT_CALL(*mTestLayers[1]->layerFE, prepareClientCompositionList(_))
-            .WillOnce(Return(clientCompositionList));
+    EXPECT_CALL(*mTestLayers[1]->layerFE, prepareClientComposition(_))
+            .WillOnce(Return(clientComposition));
 
     const std::vector<const LayerState*> layers = {
             layerState0.get(),
