@@ -180,6 +180,20 @@ void EventHubTest::assertNoMoreEvents() {
 }
 
 /**
+ * Ensure that two identical devices get assigned unique descriptors from EventHub.
+ */
+TEST_F(EventHubTest, DevicesWithMatchingUniqueIdsAreUnique) {
+    std::unique_ptr<UinputHomeKey> keyboard2 = createUinputDevice<UinputHomeKey>();
+    int32_t deviceId2;
+    ASSERT_NO_FATAL_FAILURE(deviceId2 = waitForDeviceCreation());
+
+    ASSERT_NE(mEventHub->getDeviceIdentifier(mDeviceId).descriptor,
+              mEventHub->getDeviceIdentifier(deviceId2).descriptor);
+    keyboard2.reset();
+    waitForDeviceClose(deviceId2);
+}
+
+/**
  * Ensure that input_events are generated with monotonic clock.
  * That means input_event should receive a timestamp that is in the future of the time
  * before the event was sent.
