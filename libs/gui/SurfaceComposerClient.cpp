@@ -1085,16 +1085,6 @@ std::vector<PhysicalDisplayId> SurfaceComposerClient::getPhysicalDisplayIds() {
     return physicalDisplayIds;
 }
 
-status_t SurfaceComposerClient::getPrimaryPhysicalDisplayId(PhysicalDisplayId* id) {
-    int64_t displayId;
-    binder::Status status =
-            ComposerServiceAIDL::getComposerService()->getPrimaryPhysicalDisplayId(&displayId);
-    if (status.isOk()) {
-        *id = *DisplayId::fromValue<PhysicalDisplayId>(static_cast<uint64_t>(displayId));
-    }
-    return statusTFromBinderStatus(status);
-}
-
 std::optional<PhysicalDisplayId> SurfaceComposerClient::getInternalDisplayId() {
     ComposerServiceAIDL& instance = ComposerServiceAIDL::getInstance();
     return instance.getInternalDisplayId();
