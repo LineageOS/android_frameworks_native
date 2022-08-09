@@ -659,6 +659,13 @@ void InputDispatcher::processNoFocusedWindowAnrLocked() {
     if (focusedWindowHandle != nullptr) {
         return; // We now have a focused window. No need for ANR.
     }
+    std::optional<FocusRequest> pendingRequest =
+            mFocusResolver.getFocusRequest(mAwaitedApplicationDisplayId);
+    if (pendingRequest.has_value() && onAnrLocked(*pendingRequest)) {
+        // We don't have a focusable window but we know which window should have
+        // been focused. Blame that process in case it doesn't belong to the focused app.
+        return;
+    }
     onAnrLocked(mAwaitedFocusedApplication);
 }
 
@@ -5846,6 +5853,25 @@ void InputDispatcher::sendDropWindowCommandLocked(const sp<IBinder>& token, floa
         mPolicy->notifyDropWindow(token, x, y);
     };
     postCommandLocked(std::move(command));
+}
+
+bool InputDispatcher::onAnrLocked(const android::gui::FocusRequest& pendingFocusRequest) {
+    if (pendingFocusRequest.token == nullptr) {
+        return false;
+    }
+
+    const std::string reason = android::base::StringPrintf("%s is not focusable.",
+                                                           pendingFocusRequest.windowName.c_str());
+    updateLastAnrStateLocked(pendingFocusRequest.windowName, reason);
+    sp<Connection> connection = getConnectionLocked(pendingFocusRequest.token);
+    if (connection != nullptr) {
+        processConnectionUnresponsiveLocked(*connection, std::move(reason));
+        // Stop waking up for events on this connection, it is already unresponsive
+        cancelEventsForAnrLocked(connection);
+    } else {
+        sendWindowUnresponsiveCommandLocked(pendingFocusRequest.token, std::nullopt, reason);
+    }
+    return true;
 }
 
 void InputDispatcher::onAnrLocked(const sp<Connection>& connection) {
