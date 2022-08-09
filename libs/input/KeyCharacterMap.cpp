@@ -304,9 +304,8 @@ char16_t KeyCharacterMap::getNumber(int32_t keyCode) const {
 
 char16_t KeyCharacterMap::getCharacter(int32_t keyCode, int32_t metaState) const {
     char16_t result = 0;
-    const Key* key;
-    const Behavior* behavior;
-    if (getKeyBehavior(keyCode, metaState, &key, &behavior)) {
+    const Behavior* behavior = getKeyBehavior(keyCode, metaState);
+    if (behavior != nullptr) {
         result = behavior->character;
     }
 #if DEBUG_MAPPING
@@ -321,9 +320,8 @@ bool KeyCharacterMap::getFallbackAction(int32_t keyCode, int32_t metaState,
     outFallbackAction->metaState = 0;
 
     bool result = false;
-    const Key* key;
-    const Behavior* behavior;
-    if (getKeyBehavior(keyCode, metaState, &key, &behavior)) {
+    const Behavior* behavior = getKeyBehavior(keyCode, metaState);
+    if (behavior != nullptr) {
         if (behavior->fallbackKeyCode) {
             outFallbackAction->keyCode = behavior->fallbackKeyCode;
             outFallbackAction->metaState = metaState & ~behavior->metaState;
@@ -438,9 +436,8 @@ void KeyCharacterMap::tryRemapKey(int32_t keyCode, int32_t metaState,
     *outKeyCode = keyCode;
     *outMetaState = metaState;
 
-    const Key* key;
-    const Behavior* behavior;
-    if (getKeyBehavior(keyCode, metaState, &key, &behavior)) {
+    const Behavior* behavior = getKeyBehavior(keyCode, metaState);
+    if (behavior != nullptr) {
         if (behavior->replacementKeyCode) {
             *outKeyCode = behavior->replacementKeyCode;
             int32_t newMetaState = metaState & ~behavior->metaState;
@@ -484,21 +481,19 @@ bool KeyCharacterMap::getKey(int32_t keyCode, const Key** outKey) const {
     return false;
 }
 
-bool KeyCharacterMap::getKeyBehavior(int32_t keyCode, int32_t metaState,
-        const Key** outKey, const Behavior** outBehavior) const {
+const KeyCharacterMap::Behavior* KeyCharacterMap::getKeyBehavior(int32_t keyCode,
+                                                                 int32_t metaState) const {
     const Key* key;
     if (getKey(keyCode, &key)) {
         const Behavior* behavior = key->firstBehavior;
         while (behavior) {
             if (matchesMetaState(metaState, behavior->metaState)) {
-                *outKey = key;
-                *outBehavior = behavior;
-                return true;
+                return behavior;
             }
             behavior = behavior->next;
         }
     }
-    return false;
+    return nullptr;
 }
 
 bool KeyCharacterMap::matchesMetaState(int32_t eventMetaState, int32_t behaviorMetaState) {
