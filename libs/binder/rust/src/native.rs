@@ -22,6 +22,7 @@ use crate::parcel::{BorrowedParcel, Serialize};
 use crate::proxy::SpIBinder;
 use crate::sys;
 
+use lazy_static::lazy_static;
 use std::convert::TryFrom;
 use std::ffi::{c_void, CStr, CString};
 use std::fs::File;
@@ -30,6 +31,7 @@ use std::ops::Deref;
 use std::os::raw::c_char;
 use std::os::unix::io::FromRawFd;
 use std::slice;
+use std::sync::Mutex;
 
 /// Rust wrapper around Binder remotable objects.
 ///
@@ -487,10 +489,65 @@ pub fn register_lazy_service(identifier: &str, mut binder: SpIBinder) -> Result<
 /// If persist is true then shut down will be blocked until this function is called again with
 /// persist false. If this is to be the initial state, call this function before calling
 /// register_lazy_service.
+///
+/// Consider using [`LazyServiceGuard`] rather than calling this directly.
 pub fn force_lazy_services_persist(persist: bool) {
     unsafe {
         // Safety: No borrowing or transfer of ownership occurs here.
         sys::AServiceManager_forceLazyServicesPersist(persist)
+    }
+}
+
+/// An RAII object to ensure a process which registers lazy services is not killed. During the
+/// lifetime of any of these objects the service manager will not not kill the process even if none
+/// of its lazy services are in use.
+#[must_use]
+#[derive(Debug)]
+pub struct LazyServiceGuard {
+    // Prevent construction outside this module.
+    _private: (),
+}
+
+lazy_static! {
+    // Count of how many LazyServiceGuard objects are in existence.
+    static ref GUARD_COUNT: Mutex<u64> = Mutex::new(0);
+}
+
+impl LazyServiceGuard {
+    /// Create a new LazyServiceGuard to prevent the service manager prematurely killing this
+    /// process.
+    pub fn new() -> Self {
+        let mut count = GUARD_COUNT.lock().unwrap();
+        *count += 1;
+        if *count == 1 {
+            // It's important that we make this call with the mutex held, to make sure
+            // that multiple calls (e.g. if the count goes 1 -> 0 -> 1) are correctly
+            // sequenced. (That also means we can't just use an AtomicU64.)
+            force_lazy_services_persist(true);
+        }
+        Self { _private: () }
+    }
+}
+
+impl Drop for LazyServiceGuard {
+    fn drop(&mut self) {
+        let mut count = GUARD_COUNT.lock().unwrap();
+        *count -= 1;
+        if *count == 0 {
+            force_lazy_services_persist(false);
+        }
+    }
+}
+
+impl Clone for LazyServiceGuard {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
+impl Default for LazyServiceGuard {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
