@@ -640,9 +640,8 @@ AidlPowerHalWrapper::AidlPowerHalWrapper(sp<IPower> powerHal) : mPowerHal(std::m
 
     mSupportsPowerHint = checkPowerHintSessionSupported();
 
-    mAllowedActualDeviation =
-            base::GetIntProperty<nsecs_t>("debug.sf.allowed_actual_deviation",
-                                          std::chrono::nanoseconds(250us).count());
+    // Currently set to 0 to disable rate limiter by default
+    mAllowedActualDeviation = base::GetIntProperty<nsecs_t>("debug.sf.allowed_actual_deviation", 0);
 }
 
 AidlPowerHalWrapper::~AidlPowerHalWrapper() {
