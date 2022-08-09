@@ -161,7 +161,8 @@ cc_library_shared {
     ],
 
     srcs: [
-        ":framework_native_aidl",
+        ":framework_native_aidl_binder",
+        ":framework_native_aidl_gui",
         ":inputconstants_aidl",
         ":libgui_bufferqueue_sources",
 
