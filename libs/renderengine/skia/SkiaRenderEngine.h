@@ -135,7 +135,7 @@ private:
     void initCanvas(SkCanvas* canvas, const DisplaySettings& display);
     void drawShadow(SkCanvas* canvas, const SkRRect& casterRRect,
                     const ShadowSettings& shadowSettings);
-    void drawLayersInternal(const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+    void drawLayersInternal(const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
                             const DisplaySettings& display,
                             const std::vector<LayerSettings>& layers,
                             const std::shared_ptr<ExternalTexture>& buffer,

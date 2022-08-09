@@ -632,7 +632,7 @@ private:
 };
 
 void SkiaRenderEngine::drawLayersInternal(
-        const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+        const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
         const DisplaySettings& display, const std::vector<LayerSettings>& layers,
         const std::shared_ptr<ExternalTexture>& buffer, const bool /*useFramebufferCache*/,
         base::unique_fd&& bufferFence) {
@@ -642,7 +642,7 @@ void SkiaRenderEngine::drawLayersInternal(
 
     if (buffer == nullptr) {
         ALOGE("No output buffer provided. Aborting GPU composition.");
-        resultPromise->set_value({BAD_VALUE, base::unique_fd()});
+        resultPromise->set_value(base::unexpected(BAD_VALUE));
         return;
     }
 
@@ -675,7 +675,7 @@ void SkiaRenderEngine::drawLayersInternal(
     SkCanvas* dstCanvas = mCapture->tryCapture(dstSurface.get());
     if (dstCanvas == nullptr) {
         ALOGE("Cannot acquire canvas from Skia.");
-        resultPromise->set_value({BAD_VALUE, base::unique_fd()});
+        resultPromise->set_value(base::unexpected(BAD_VALUE));
         return;
     }
 
@@ -1126,8 +1126,7 @@ void SkiaRenderEngine::drawLayersInternal(
     }
 
     base::unique_fd drawFence = flushAndSubmit(grContext);
-    resultPromise->set_value({NO_ERROR, std::move(drawFence)});
-    return;
+    resultPromise->set_value(sp<Fence>::make(std::move(drawFence)));
 }
 
 size_t SkiaRenderEngine::getMaxTextureSize() const {

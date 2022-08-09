@@ -20,30 +20,14 @@
 #include <utils/Errors.h>
 #include <utils/StrongPointer.h>
 
-// TODO(b/232535621): Pull this file to <ui/FenceResult.h> so that RenderEngine::drawLayers returns
-// FenceResult rather than RenderEngineResult.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-#include <renderengine/RenderEngine.h>
-#pragma clang diagnostic pop
-
 namespace android {
 
 class Fence;
 
 using FenceResult = base::expected<sp<Fence>, status_t>;
 
-// TODO(b/232535621): Prevent base::unexpected(NO_ERROR) from being a valid FenceResult.
 inline status_t fenceStatus(const FenceResult& fenceResult) {
     return fenceResult.ok() ? NO_ERROR : fenceResult.error();
-}
-
-inline FenceResult toFenceResult(renderengine::RenderEngineResult&& result) {
-    if (auto [status, fence] = std::move(result); fence.ok()) {
-        return sp<Fence>::make(std::move(fence));
-    } else {
-        return base::unexpected(status);
-    }
 }
 
 } // namespace android

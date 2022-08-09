@@ -56,11 +56,11 @@ public:
     void useProtectedContext(bool useProtectedContext) override;
     void cleanupPostRender() override;
 
-    std::future<RenderEngineResult> drawLayers(const DisplaySettings& display,
-                                               const std::vector<LayerSettings>& layers,
-                                               const std::shared_ptr<ExternalTexture>& buffer,
-                                               const bool useFramebufferCache,
-                                               base::unique_fd&& bufferFence) override;
+    ftl::Future<FenceResult> drawLayers(const DisplaySettings& display,
+                                        const std::vector<LayerSettings>& layers,
+                                        const std::shared_ptr<ExternalTexture>& buffer,
+                                        const bool useFramebufferCache,
+                                        base::unique_fd&& bufferFence) override;
 
     void cleanFramebufferCache() override;
     int getContextPriority() override;
@@ -73,7 +73,7 @@ protected:
     void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable) override;
     void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
     bool canSkipPostRenderCleanup() const override;
-    void drawLayersInternal(const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+    void drawLayersInternal(const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
                             const DisplaySettings& display,
                             const std::vector<LayerSettings>& layers,
                             const std::shared_ptr<ExternalTexture>& buffer,

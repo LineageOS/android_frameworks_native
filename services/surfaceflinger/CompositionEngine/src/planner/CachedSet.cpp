@@ -273,11 +273,10 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
 
     constexpr bool kUseFramebufferCache = false;
 
-    auto fenceResult =
-            toFenceResult(renderEngine
-                                  .drawLayers(displaySettings, layerSettings, texture->get(),
-                                              kUseFramebufferCache, std::move(bufferFence))
-                                  .get());
+    auto fenceResult = renderEngine
+                               .drawLayers(displaySettings, layerSettings, texture->get(),
+                                           kUseFramebufferCache, std::move(bufferFence))
+                               .get();
 
     if (fenceStatus(fenceResult) == NO_ERROR) {
         mDrawFence = std::move(fenceResult).value_or(Fence::NO_FENCE);

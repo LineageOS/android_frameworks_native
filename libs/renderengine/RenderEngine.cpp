@@ -63,12 +63,13 @@ void RenderEngine::validateOutputBufferUsage(const sp<GraphicBuffer>& buffer) {
                         "output buffer not gpu writeable");
 }
 
-std::future<RenderEngineResult> RenderEngine::drawLayers(
-        const DisplaySettings& display, const std::vector<LayerSettings>& layers,
-        const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
-        base::unique_fd&& bufferFence) {
-    const auto resultPromise = std::make_shared<std::promise<RenderEngineResult>>();
-    std::future<RenderEngineResult> resultFuture = resultPromise->get_future();
+ftl::Future<FenceResult> RenderEngine::drawLayers(const DisplaySettings& display,
+                                                  const std::vector<LayerSettings>& layers,
+                                                  const std::shared_ptr<ExternalTexture>& buffer,
+                                                  const bool useFramebufferCache,
+                                                  base::unique_fd&& bufferFence) {
+    const auto resultPromise = std::make_shared<std::promise<FenceResult>>();
+    std::future<FenceResult> resultFuture = resultPromise->get_future();
     drawLayersInternal(std::move(resultPromise), display, layers, buffer, useFramebufferCache,
                        std::move(bufferFence));
     return resultFuture;
