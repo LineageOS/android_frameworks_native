@@ -72,8 +72,8 @@ public:
                                      nsecs_t presentEndTime) = 0;
     // Reports the expected time that the current frame will present to the display
     virtual void setExpectedPresentTime(nsecs_t expectedPresentTime) = 0;
-    // Reports the most recent present fence time once it's known at the end of the frame
-    virtual void setPresentFenceTime(nsecs_t presentFenceTime) = 0;
+    // Reports the most recent present fence time and end time once known
+    virtual void setSfPresentTiming(nsecs_t presentFenceTime, nsecs_t presentEndTime) = 0;
     // Reports whether a display used client composition this frame
     virtual void setRequiresClientComposition(DisplayId displayId,
                                               bool requiresClientComposition) = 0;
@@ -142,7 +142,7 @@ public:
     void setSkippedValidate(DisplayId displayId, bool skipped) override;
     void setRequiresClientComposition(DisplayId displayId, bool requiresClientComposition) override;
     void setExpectedPresentTime(nsecs_t expectedPresentTime) override;
-    void setPresentFenceTime(nsecs_t presentFenceTime) override;
+    void setSfPresentTiming(nsecs_t presentFenceTime, nsecs_t presentEndTime) override;
     void setHwcPresentDelayedTime(
             DisplayId displayId,
             std::chrono::steady_clock::time_point earliestFrameStartTime) override;
@@ -245,8 +245,6 @@ private:
 
     // Current frame's delay
     nsecs_t mFrameDelayDuration = 0;
-    // Last frame's composite end time
-    nsecs_t mLastCompositeEndTime = -1;
     // Last frame's post-composition duration
     nsecs_t mLastPostcompDuration = 0;
     // Buffer of recent commit start times
@@ -255,6 +253,8 @@ private:
     RingBuffer<nsecs_t, 2> mExpectedPresentTimes;
     // Most recent present fence time, set at the end of the frame once known
     nsecs_t mLastPresentFenceTime = -1;
+    // Most recent present fence time, set at the end of the frame once known
+    nsecs_t mLastSfPresentEndTime = -1;
     // Target for the entire pipeline including gpu
     std::optional<nsecs_t> mTotalFrameTargetDuration;
     // Updated list of display IDs
