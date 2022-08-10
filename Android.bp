@@ -64,14 +64,20 @@ filegroup {
     name: "framework_native_aidl_binder",
     srcs: ["aidl/binder/**/*.aidl"],
     path: "aidl/binder",
-    visibility: ["//frameworks/native"],
+    visibility: [
+        "//frameworks/native",
+        "//frameworks/native/libs/gui",
+    ],
 }
 
 filegroup {
     name: "framework_native_aidl_gui",
     srcs: ["aidl/gui/**/*.aidl"],
     path: "aidl/gui",
-    visibility: ["//frameworks/native"],
+    visibility: [
+        "//frameworks/native",
+        "//frameworks/native/libs/gui",
+    ],
 }
 
 filegroup {
@@ -82,7 +88,7 @@ filegroup {
     ],
 }
 
-cc_library_headers{
+cc_library_headers {
     name: "libandroid_headers_private",
     export_include_dirs: ["include/private"],
 }
