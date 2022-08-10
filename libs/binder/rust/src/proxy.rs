@@ -133,6 +133,14 @@ impl SpIBinder {
     }
 }
 
+fn interface_cast<T: FromIBinder + ?Sized>(service: Option<SpIBinder>) -> Result<Strong<T>> {
+    if let Some(service) = service {
+        FromIBinder::try_from(service)
+    } else {
+        Err(StatusCode::NAME_NOT_FOUND)
+    }
+}
+
 pub mod unstable_api {
     use super::{sys, SpIBinder};
 
@@ -780,21 +788,13 @@ pub fn wait_for_service(name: &str) -> Option<SpIBinder> {
 /// Retrieve an existing service for a particular interface, blocking for a few
 /// seconds if it doesn't yet exist.
 pub fn get_interface<T: FromIBinder + ?Sized>(name: &str) -> Result<Strong<T>> {
-    let service = get_service(name);
-    match service {
-        Some(service) => FromIBinder::try_from(service),
-        None => Err(StatusCode::NAME_NOT_FOUND),
-    }
+    interface_cast(get_service(name))
 }
 
 /// Retrieve an existing service for a particular interface, or start it if it
 /// is configured as a dynamic service and isn't yet started.
 pub fn wait_for_interface<T: FromIBinder + ?Sized>(name: &str) -> Result<Strong<T>> {
-    let service = wait_for_service(name);
-    match service {
-        Some(service) => FromIBinder::try_from(service),
-        None => Err(StatusCode::NAME_NOT_FOUND),
-    }
+    interface_cast(wait_for_service(name))
 }
 
 /// Check if a service is declared (e.g. in a VINTF manifest)
