@@ -607,12 +607,6 @@ std::vector<PhysicalDisplayId> SurfaceFlinger::getPhysicalDisplayIdsLocked() con
     return displayIds;
 }
 
-status_t SurfaceFlinger::getPrimaryPhysicalDisplayId(PhysicalDisplayId* id) const {
-    Mutex::Autolock lock(mStateLock);
-    *id = getPrimaryDisplayIdLocked();
-    return NO_ERROR;
-}
-
 sp<IBinder> SurfaceFlinger::getPhysicalDisplayToken(PhysicalDisplayId displayId) const {
     Mutex::Autolock lock(mStateLock);
     return getPhysicalDisplayTokenLocked(displayId);
@@ -2065,7 +2059,11 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     }
 
     // Save this once per commit + composite to ensure consistency
-    mPowerHintSessionEnabled = mPowerAdvisor->usePowerHintSession();
+    // TODO (b/240619471): consider removing active display check once AOD is fixed
+    const auto activeDisplay =
+            FTL_FAKE_GUARD(mStateLock, getDisplayDeviceLocked(mActiveDisplayToken));
+    mPowerHintSessionEnabled = mPowerAdvisor->usePowerHintSession() && activeDisplay &&
+            activeDisplay->getPowerMode() == hal::PowerMode::ON;
     if (mPowerHintSessionEnabled) {
         const auto& display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked()).get();
         // get stable vsync period from display mode
@@ -7232,20 +7230,6 @@ binder::Status SurfaceComposerAIDL::getPhysicalDisplayIds(std::vector<int64_t>* 
     }
     *outDisplayIds = displayIds;
     return binder::Status::ok();
-}
-
-binder::Status SurfaceComposerAIDL::getPrimaryPhysicalDisplayId(int64_t* outDisplayId) {
-    status_t status = checkAccessPermission();
-    if (status != OK) {
-        return binderStatusFromStatusT(status);
-    }
-
-    PhysicalDisplayId id;
-    status = mFlinger->getPrimaryPhysicalDisplayId(&id);
-    if (status == NO_ERROR) {
-        *outDisplayId = id.value;
-    }
-    return binderStatusFromStatusT(status);
 }
 
 binder::Status SurfaceComposerAIDL::getPhysicalDisplayToken(int64_t displayId,

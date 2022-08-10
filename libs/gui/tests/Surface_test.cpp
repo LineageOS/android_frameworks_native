@@ -745,10 +745,6 @@ public:
         return binder::Status::ok();
     }
 
-    binder::Status getPrimaryPhysicalDisplayId(int64_t* /*outDisplayId*/) override {
-        return binder::Status::ok();
-    }
-
     binder::Status getPhysicalDisplayToken(int64_t /*displayId*/,
                                            sp<IBinder>* /*outDisplay*/) override {
         return binder::Status::ok();
