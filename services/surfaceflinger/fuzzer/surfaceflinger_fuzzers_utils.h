@@ -425,7 +425,8 @@ public:
         mFlinger->clearStatsLocked(dumpArgs, result);
 
         mFlinger->dumpTimeStats(dumpArgs, fdp->ConsumeBool(), result);
-        FTL_FAKE_GUARD(kMainThreadContext, mFlinger->logFrameStats());
+        FTL_FAKE_GUARD(kMainThreadContext,
+                       mFlinger->logFrameStats(TimePoint::fromNs(fdp->ConsumeIntegral<nsecs_t>())));
 
         result = fdp->ConsumeRandomLengthString().c_str();
         mFlinger->dumpFrameTimeline(dumpArgs, result);
@@ -612,7 +613,6 @@ public:
         mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(mFdp.ConsumeIntegral<uid_t>());
 
         FTL_FAKE_GUARD(kMainThreadContext, mFlinger->postComposition());
-        FTL_FAKE_GUARD(kMainThreadContext, mFlinger->postFrame());
 
         mFlinger->calculateExpectedPresentTime({});
 

@@ -345,12 +345,12 @@ char16_t KeyCharacterMap::getMatch(int32_t keyCode, const char16_t* chars, size_
         // Try to find the most general behavior that maps to this character.
         // For example, the base key behavior will usually be last in the list.
         // However, if we find a perfect meta state match for one behavior then use that one.
-        for (const Behavior* behavior = key->firstBehavior; behavior; behavior = behavior->next) {
-            if (behavior->character) {
+        for (const Behavior& behavior : key->behaviors) {
+            if (behavior.character) {
                 for (size_t i = 0; i < numChars; i++) {
-                    if (behavior->character == chars[i]) {
-                        result = behavior->character;
-                        if ((behavior->metaState & metaState) == behavior->metaState) {
+                    if (behavior.character == chars[i]) {
+                        result = behavior.character;
+                        if ((behavior.metaState & metaState) == behavior.metaState) {
                             goto ExactMatch;
                         }
                         break;
@@ -485,12 +485,10 @@ const KeyCharacterMap::Behavior* KeyCharacterMap::getKeyBehavior(int32_t keyCode
                                                                  int32_t metaState) const {
     const Key* key;
     if (getKey(keyCode, &key)) {
-        const Behavior* behavior = key->firstBehavior;
-        while (behavior) {
-            if (matchesMetaState(metaState, behavior->metaState)) {
-                return behavior;
+        for (const Behavior& behavior : key->behaviors) {
+            if (matchesMetaState(metaState, behavior.metaState)) {
+                return &behavior;
             }
-            behavior = behavior->next;
         }
     }
     return nullptr;
@@ -538,12 +536,12 @@ bool KeyCharacterMap::findKey(char16_t ch, int32_t* outKeyCode, int32_t* outMeta
         // Try to find the most general behavior that maps to this character.
         // For example, the base key behavior will usually be last in the list.
         const Behavior* found = nullptr;
-        for (const Behavior* behavior = key->firstBehavior; behavior; behavior = behavior->next) {
-            if (behavior->character == ch) {
-                found = behavior;
+        for (const Behavior& behavior : key->behaviors) {
+            if (behavior.character == ch) {
+                found = &behavior;
             }
         }
-        if (found) {
+        if (found != nullptr) {
             *outKeyCode = mKeys.keyAt(i);
             *outMetaState = found->metaState;
             return true;
@@ -701,7 +699,6 @@ std::shared_ptr<KeyCharacterMap> KeyCharacterMap::readFromParcel(Parcel* parcel)
         key->number = number;
         map->mKeys.add(keyCode, key);
 
-        Behavior* lastBehavior = nullptr;
         while (parcel->readInt32()) {
             int32_t metaState = parcel->readInt32();
             char16_t character = parcel->readInt32();
@@ -711,17 +708,12 @@ std::shared_ptr<KeyCharacterMap> KeyCharacterMap::readFromParcel(Parcel* parcel)
                 return nullptr;
             }
 
-            Behavior* behavior = new Behavior();
-            behavior->metaState = metaState;
-            behavior->character = character;
-            behavior->fallbackKeyCode = fallbackKeyCode;
-            behavior->replacementKeyCode = replacementKeyCode;
-            if (lastBehavior) {
-                lastBehavior->next = behavior;
-            } else {
-                key->firstBehavior = behavior;
-            }
-            lastBehavior = behavior;
+            key->behaviors.push_back({
+                    .metaState = metaState,
+                    .character = character,
+                    .fallbackKeyCode = fallbackKeyCode,
+                    .replacementKeyCode = replacementKeyCode,
+            });
         }
 
         if (parcel->errorCheck()) {
@@ -772,13 +764,12 @@ void KeyCharacterMap::writeToParcel(Parcel* parcel) const {
         parcel->writeInt32(keyCode);
         parcel->writeInt32(key->label);
         parcel->writeInt32(key->number);
-        for (const Behavior* behavior = key->firstBehavior; behavior != nullptr;
-                behavior = behavior->next) {
+        for (const Behavior& behavior : key->behaviors) {
             parcel->writeInt32(1);
-            parcel->writeInt32(behavior->metaState);
-            parcel->writeInt32(behavior->character);
-            parcel->writeInt32(behavior->fallbackKeyCode);
-            parcel->writeInt32(behavior->replacementKeyCode);
+            parcel->writeInt32(behavior.metaState);
+            parcel->writeInt32(behavior.character);
+            parcel->writeInt32(behavior.fallbackKeyCode);
+            parcel->writeInt32(behavior.replacementKeyCode);
         }
         parcel->writeInt32(0);
     }
@@ -799,38 +790,10 @@ void KeyCharacterMap::writeToParcel(Parcel* parcel) const {
 
 // --- KeyCharacterMap::Key ---
 
-KeyCharacterMap::Key::Key() :
-        label(0), number(0), firstBehavior(nullptr) {
-}
+KeyCharacterMap::Key::Key() : label(0), number(0) {}
 
-KeyCharacterMap::Key::Key(const Key& other) :
-        label(other.label), number(other.number),
-        firstBehavior(other.firstBehavior ? new Behavior(*other.firstBehavior) : nullptr) {
-}
-
-KeyCharacterMap::Key::~Key() {
-    Behavior* behavior = firstBehavior;
-    while (behavior) {
-        Behavior* next = behavior->next;
-        delete behavior;
-        behavior = next;
-    }
-}
-
-
-// --- KeyCharacterMap::Behavior ---
-
-KeyCharacterMap::Behavior::Behavior() :
-        next(nullptr), metaState(0), character(0), fallbackKeyCode(0), replacementKeyCode(0) {
-}
-
-KeyCharacterMap::Behavior::Behavior(const Behavior& other) :
-        next(other.next ? new Behavior(*other.next) : nullptr),
-        metaState(other.metaState), character(other.character),
-        fallbackKeyCode(other.fallbackKeyCode),
-        replacementKeyCode(other.replacementKeyCode) {
-}
-
+KeyCharacterMap::Key::Key(const Key& other)
+      : label(other.label), number(other.number), behaviors(other.behaviors) {}
 
 // --- KeyCharacterMap::Parser ---
 
@@ -1208,23 +1171,21 @@ status_t KeyCharacterMap::Parser::parseKeyProperty() {
 #endif
             break;
         case PROPERTY_META: {
-            for (Behavior* b = key->firstBehavior; b; b = b->next) {
-                if (b->metaState == property.metaState) {
+            for (const Behavior& b : key->behaviors) {
+                if (b.metaState == property.metaState) {
                     ALOGE("%s: Duplicate key behavior for modifier.",
                             mTokenizer->getLocation().string());
                     return BAD_VALUE;
                 }
             }
-            Behavior* newBehavior = new Behavior(behavior);
-            newBehavior->metaState = property.metaState;
-            newBehavior->next = key->firstBehavior;
-            key->firstBehavior = newBehavior;
-#if DEBUG_PARSER
-            ALOGD("Parsed key meta: keyCode=%d, meta=0x%x, char=%d, fallback=%d replace=%d.",
-                    mKeyCode,
-                    newBehavior->metaState, newBehavior->character,
-                    newBehavior->fallbackKeyCode, newBehavior->replacementKeyCode);
-#endif
+            Behavior newBehavior = behavior;
+            newBehavior.metaState = property.metaState;
+            key->behaviors.push_front(newBehavior);
+            ALOGD_IF(DEBUG_PARSER,
+                     "Parsed key meta: keyCode=%d, meta=0x%x, char=%d, fallback=%d replace=%d.",
+                     mKeyCode, key->behaviors.front().metaState, key->behaviors.front().character,
+                     key->behaviors.front().fallbackKeyCode,
+                     key->behaviors.front().replacementKeyCode);
             break;
         }
         }
@@ -1237,8 +1198,8 @@ status_t KeyCharacterMap::Parser::finishKey(Key* key) {
     if (!key->number) {
         char16_t digit = 0;
         char16_t symbol = 0;
-        for (Behavior* b = key->firstBehavior; b; b = b->next) {
-            char16_t ch = b->character;
+        for (const Behavior& b : key->behaviors) {
+            char16_t ch = b.character;
             if (ch) {
                 if (ch >= '0' && ch <= '9') {
                     digit = ch;

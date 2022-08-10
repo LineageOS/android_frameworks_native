@@ -94,8 +94,6 @@ interface ISurfaceComposer {
      */
     long[] getPhysicalDisplayIds();
 
-    long getPrimaryPhysicalDisplayId();
-
     /**
      * Get token for a physical display given its stable ID obtained via getPhysicalDisplayIds or
      * a DisplayEventReceiver hotplug event.

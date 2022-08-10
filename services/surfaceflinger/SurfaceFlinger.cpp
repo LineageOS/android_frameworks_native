@@ -607,12 +607,6 @@ std::vector<PhysicalDisplayId> SurfaceFlinger::getPhysicalDisplayIdsLocked() con
     return displayIds;
 }
 
-status_t SurfaceFlinger::getPrimaryPhysicalDisplayId(PhysicalDisplayId* id) const {
-    Mutex::Autolock lock(mStateLock);
-    *id = getPrimaryDisplayIdLocked();
-    return NO_ERROR;
-}
-
 sp<IBinder> SurfaceFlinger::getPhysicalDisplayToken(PhysicalDisplayId displayId) const {
     Mutex::Autolock lock(mStateLock);
     return getPhysicalDisplayTokenLocked(displayId);
@@ -2065,7 +2059,11 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     }
 
     // Save this once per commit + composite to ensure consistency
-    mPowerHintSessionEnabled = mPowerAdvisor->usePowerHintSession();
+    // TODO (b/240619471): consider removing active display check once AOD is fixed
+    const auto activeDisplay =
+            FTL_FAKE_GUARD(mStateLock, getDisplayDeviceLocked(mActiveDisplayToken));
+    mPowerHintSessionEnabled = mPowerAdvisor->usePowerHintSession() && activeDisplay &&
+            activeDisplay->getPowerMode() == hal::PowerMode::ON;
     if (mPowerHintSessionEnabled) {
         const auto& display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked()).get();
         // get stable vsync period from display mode
@@ -2247,7 +2245,6 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId)
         scheduleComposite(FrameHint::kNone);
     }
 
-    postFrame();
     postComposition();
 
     const bool prevFrameHadClientComposition = mHadClientComposition;
@@ -2363,7 +2360,7 @@ ui::Rotation SurfaceFlinger::getPhysicalDisplayOrientation(DisplayId displayId,
 
 void SurfaceFlinger::postComposition() {
     ATRACE_CALL();
-    ALOGV("postComposition");
+    ALOGV(__func__);
 
     const auto* display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked()).get();
 
@@ -2378,18 +2375,19 @@ void SurfaceFlinger::postComposition() {
     }
 
     mPreviousPresentFences[1] = mPreviousPresentFences[0];
-    mPreviousPresentFences[0].fence =
-            display ? getHwComposer().getPresentFence(display->getPhysicalId()) : Fence::NO_FENCE;
-    mPreviousPresentFences[0].fenceTime =
-            std::make_shared<FenceTime>(mPreviousPresentFences[0].fence);
 
-    nsecs_t now = systemTime();
+    auto presentFence =
+            display ? getHwComposer().getPresentFence(display->getPhysicalId()) : Fence::NO_FENCE;
+
+    auto presentFenceTime = std::make_shared<FenceTime>(presentFence);
+    mPreviousPresentFences[0] = {presentFence, presentFenceTime};
+
+    const TimePoint presentTime = scheduler::SchedulerClock::now();
 
     // Set presentation information before calling Layer::releasePendingBuffer, such that jank
     // information from previous' frame classification is already available when sending jank info
     // to clients, so they get jank classification as early as possible.
-    mFrameTimeline->setSfPresent(/* sfPresentTime */ now, mPreviousPresentFences[0].fenceTime,
-                                 glCompositionDoneFenceTime);
+    mFrameTimeline->setSfPresent(presentTime.ns(), presentFenceTime, glCompositionDoneFenceTime);
 
     // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
     // be sampled a little later than when we started doing work for this frame,
@@ -2397,11 +2395,10 @@ void SurfaceFlinger::postComposition() {
     const TimePoint compositeTime =
             TimePoint::fromNs(mCompositionEngine->getLastFrameRefreshTimestamp());
     const Duration presentLatency =
-            mPresentLatencyTracker.trackPendingFrame(compositeTime,
-                                                     mPreviousPresentFences[0].fenceTime);
+            mPresentLatencyTracker.trackPendingFrame(compositeTime, presentFenceTime);
 
     const auto& schedule = mScheduler->getVsyncSchedule();
-    const TimePoint vsyncDeadline = schedule.vsyncDeadlineAfter(TimePoint::fromNs(now));
+    const TimePoint vsyncDeadline = schedule.vsyncDeadlineAfter(presentTime);
     const Period vsyncPeriod = schedule.period();
     const nsecs_t vsyncPhase = mVsyncConfiguration->getCurrentConfigs().late.sfOffset;
 
@@ -2409,9 +2406,9 @@ void SurfaceFlinger::postComposition() {
                                             presentLatency.ns());
 
     for (const auto& layer: mLayersWithQueuedFrames) {
-        layer->onPostComposition(display, glCompositionDoneFenceTime,
-                                 mPreviousPresentFences[0].fenceTime, compositorTiming);
-        layer->releasePendingBuffer(/*dequeueReadyTime*/ now);
+        layer->onPostComposition(display, glCompositionDoneFenceTime, presentFenceTime,
+                                 compositorTiming);
+        layer->releasePendingBuffer(presentTime.ns());
     }
 
     std::vector<std::pair<std::shared_ptr<compositionengine::Display>, sp<HdrLayerInfoReporter>>>
@@ -2468,13 +2465,16 @@ void SurfaceFlinger::postComposition() {
     mSomeDataspaceChanged = false;
     mVisibleRegionsWereDirtyThisFrame = false;
 
-    mTransactionCallbackInvoker.addPresentFence(mPreviousPresentFences[0].fence);
+    mTransactionCallbackInvoker.addPresentFence(std::move(presentFence));
     mTransactionCallbackInvoker.sendCallbacks(false /* onCommitOnly */);
     mTransactionCallbackInvoker.clearCompletedTransactions();
 
+    mTimeStats->incrementTotalFrames();
+    mTimeStats->setPresentFenceGlobal(presentFenceTime);
+
     if (display && display->isInternal() && display->getPowerMode() == hal::PowerMode::ON &&
-        mPreviousPresentFences[0].fenceTime->isValid()) {
-        mScheduler->addPresentFence(mPreviousPresentFences[0].fenceTime);
+        presentFenceTime->isValid()) {
+        mScheduler->addPresentFence(std::move(presentFenceTime));
     }
 
     const bool isDisplayConnected =
@@ -2486,9 +2486,6 @@ void SurfaceFlinger::postComposition() {
         }
     }
 
-    mTimeStats->incrementTotalFrames();
-    mTimeStats->setPresentFenceGlobal(mPreviousPresentFences[0].fenceTime);
-
     const size_t sfConnections = mScheduler->getEventThreadConnectionCount(mSfConnectionHandle);
     const size_t appConnections = mScheduler->getEventThreadConnectionCount(mAppConnectionHandle);
     mTimeStats->recordDisplayEventConnectionCount(sfConnections + appConnections);
@@ -2498,20 +2495,19 @@ void SurfaceFlinger::postComposition() {
         return;
     }
 
-    nsecs_t currentTime = systemTime();
     if (mHasPoweredOff) {
         mHasPoweredOff = false;
     } else {
-        nsecs_t elapsedTime = currentTime - getBE().mLastSwapTime;
-        const size_t numPeriods = static_cast<size_t>(elapsedTime / vsyncPeriod.ns());
+        const Duration elapsedTime = presentTime - getBE().mLastPresentTime;
+        const size_t numPeriods = static_cast<size_t>(elapsedTime.ns() / vsyncPeriod.ns());
         if (numPeriods < SurfaceFlingerBE::NUM_BUCKETS - 1) {
-            getBE().mFrameBuckets[numPeriods] += elapsedTime;
+            getBE().mFrameBuckets[numPeriods] += elapsedTime.ns();
         } else {
-            getBE().mFrameBuckets[SurfaceFlingerBE::NUM_BUCKETS - 1] += elapsedTime;
+            getBE().mFrameBuckets[SurfaceFlingerBE::NUM_BUCKETS - 1] += elapsedTime.ns();
         }
-        getBE().mTotalTime += elapsedTime;
+        getBE().mTotalTime += elapsedTime.ns();
     }
-    getBE().mLastSwapTime = currentTime;
+    getBE().mLastPresentTime = presentTime;
 
     // Cleanup any outstanding resources due to rendering a prior frame.
     getRenderEngine().cleanupPostRender();
@@ -2539,6 +2535,8 @@ void SurfaceFlinger::postComposition() {
         // getTotalSize returns the total number of buffers that were allocated by SurfaceFlinger
         ATRACE_INT64("Total Buffer Size", GraphicBufferAllocator::get().getTotalSize());
     }
+
+    logFrameStats(presentTime);
 }
 
 FloatRect SurfaceFlinger::getMaxDisplayBounds() {
@@ -2568,16 +2566,6 @@ void SurfaceFlinger::computeLayerBounds() {
     const FloatRect maxBounds = getMaxDisplayBounds();
     for (const auto& layer : mDrawingState.layersSortedByZ) {
         layer->computeBounds(maxBounds, ui::Transform(), 0.f /* shadowRadius */);
-    }
-}
-
-void SurfaceFlinger::postFrame() {
-    const auto display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked());
-    if (display && getHwComposer().isConnected(display->getPhysicalId())) {
-        uint32_t flipCount = display->getPageFlipCount();
-        if (flipCount % LOG_FRAME_STATS_PERIOD == 0) {
-            logFrameStats();
-        }
     }
 }
 
@@ -4956,7 +4944,14 @@ void SurfaceFlinger::dumpFrameTimeline(const DumpArgs& args, std::string& result
     mFrameTimeline->parseArgs(args, result);
 }
 
-void SurfaceFlinger::logFrameStats() {
+void SurfaceFlinger::logFrameStats(TimePoint now) {
+    using namespace std::chrono_literals;
+
+    static TimePoint sTimestamp = now;
+    if (now - sTimestamp < 30min) return;
+    sTimestamp = now;
+
+    ATRACE_CALL();
     mDrawingState.traverse([&](Layer* layer) { layer->logFrameStats(); });
 }
 
@@ -5560,15 +5555,8 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 reply->writeInt32(0);
                 reply->writeInt32(mDebugDisableHWC);
                 return NO_ERROR;
-            case 1013: {
-                const auto display = getDefaultDisplayDevice();
-                if (!display) {
-                    return NAME_NOT_FOUND;
-                }
-
-                reply->writeInt32(display->getPageFlipCount());
-                return NO_ERROR;
-            }
+            case 1013: // Unused.
+                return NAME_NOT_FOUND;
             case 1014: {
                 Mutex::Autolock _l(mStateLock);
                 // daltonize
@@ -7242,20 +7230,6 @@ binder::Status SurfaceComposerAIDL::getPhysicalDisplayIds(std::vector<int64_t>* 
     }
     *outDisplayIds = displayIds;
     return binder::Status::ok();
-}
-
-binder::Status SurfaceComposerAIDL::getPrimaryPhysicalDisplayId(int64_t* outDisplayId) {
-    status_t status = checkAccessPermission();
-    if (status != OK) {
-        return binderStatusFromStatusT(status);
-    }
-
-    PhysicalDisplayId id;
-    status = mFlinger->getPrimaryPhysicalDisplayId(&id);
-    if (status == NO_ERROR) {
-        *outDisplayId = id.value;
-    }
-    return binderStatusFromStatusT(status);
 }
 
 binder::Status SurfaceComposerAIDL::getPhysicalDisplayToken(int64_t displayId,
