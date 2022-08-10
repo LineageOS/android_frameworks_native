@@ -27,6 +27,7 @@
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/mock/DisplaySurface.h>
+#include <ftl/fake_guard.h>
 #include <gui/ScreenCaptureResults.h>
 
 #include "BufferStateLayer.h"
@@ -316,25 +317,22 @@ public:
      * Forwarding for functions being tested
      */
 
-    nsecs_t commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expectedVSyncTime) {
+    TimePoint commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expectedVSyncTime) {
         mFlinger->commit(frameTime, vsyncId, expectedVSyncTime);
         return frameTime;
     }
 
-    nsecs_t commit(nsecs_t frameTime, int64_t vsyncId) {
-        std::chrono::nanoseconds period = 10ms;
-        return commit(frameTime, vsyncId, frameTime + period.count());
+    TimePoint commit(TimePoint frameTime, VsyncId vsyncId) {
+        return commit(frameTime, vsyncId, frameTime + Period(10ms));
     }
 
-    nsecs_t commit() {
-        const nsecs_t now = systemTime();
-        const nsecs_t expectedVsyncTime = now + 10'000'000;
-        return commit(now, kVsyncId, expectedVsyncTime);
+    TimePoint commit() {
+        const TimePoint frameTime = scheduler::SchedulerClock::now();
+        return commit(frameTime, kVsyncId);
     }
 
-    void commitAndComposite(const nsecs_t frameTime, const int64_t vsyncId,
-                            const nsecs_t expectedVsyncTime) {
-        mFlinger->composite(commit(frameTime, vsyncId, expectedVsyncTime), kVsyncId);
+    void commitAndComposite(TimePoint frameTime, VsyncId vsyncId, TimePoint expectedVsyncTime) {
+        mFlinger->composite(commit(frameTime, vsyncId, expectedVsyncTime), vsyncId);
     }
 
     void commitAndComposite() { mFlinger->composite(commit(), kVsyncId); }
@@ -432,7 +430,9 @@ public:
                                              listenerCallbacks, transactionId);
     }
 
-    auto flushTransactionQueues() { return mFlinger->flushTransactionQueues(0); };
+    auto flushTransactionQueues() {
+        return FTL_FAKE_GUARD(kMainThreadContext, mFlinger->flushTransactionQueues(kVsyncId));
+    }
 
     auto onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) {
         return mFlinger->onTransact(code, data, reply, flags);
@@ -870,7 +870,7 @@ public:
     };
 
 private:
-    constexpr static int64_t kVsyncId = 123;
+    static constexpr VsyncId kVsyncId{123};
 
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger;

@@ -28,6 +28,9 @@
 #include <utils/StrongPointer.h>
 #include <utils/Timers.h>
 
+#include <scheduler/Time.h>
+#include <scheduler/VsyncId.h>
+
 #include "EventThread.h"
 #include "TracedOrdinal.h"
 #include "VSyncDispatch.h"
@@ -35,8 +38,8 @@
 namespace android {
 
 struct ICompositor {
-    virtual bool commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expectedVsyncTime) = 0;
-    virtual void composite(nsecs_t frameTime, int64_t vsyncId) = 0;
+    virtual bool commit(TimePoint frameTime, VsyncId, TimePoint expectedVsyncTime) = 0;
+    virtual void composite(TimePoint frameTime, VsyncId) = 0;
     virtual void sample() = 0;
 
 protected:
@@ -88,8 +91,9 @@ protected:
     class Handler : public MessageHandler {
         MessageQueue& mQueue;
         std::atomic_bool mFramePending = false;
-        std::atomic<int64_t> mVsyncId = 0;
-        std::atomic<nsecs_t> mExpectedVsyncTime = 0;
+
+        std::atomic<VsyncId> mVsyncId;
+        std::atomic<TimePoint> mExpectedVsyncTime;
 
     public:
         explicit Handler(MessageQueue& queue) : mQueue(queue) {}
@@ -97,7 +101,7 @@ protected:
 
         bool isFramePending() const;
 
-        virtual void dispatchFrame(int64_t vsyncId, nsecs_t expectedVsyncTime);
+        virtual void dispatchFrame(VsyncId, TimePoint expectedVsyncTime);
     };
 
     friend class Handler;
@@ -108,6 +112,8 @@ protected:
     void vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, nsecs_t readyTime);
 
 private:
+    virtual void onFrameSignal(ICompositor&, VsyncId, TimePoint expectedVsyncTime) = 0;
+
     ICompositor& mCompositor;
     const sp<Looper> mLooper;
     const sp<Handler> mHandler;
@@ -119,7 +125,7 @@ private:
         mutable std::mutex mutex;
         TracedOrdinal<std::chrono::nanoseconds> workDuration
                 GUARDED_BY(mutex) = {"VsyncWorkDuration-sf", std::chrono::nanoseconds(0)};
-        std::chrono::nanoseconds lastCallbackTime GUARDED_BY(mutex) = std::chrono::nanoseconds{0};
+        TimePoint lastCallbackTime GUARDED_BY(mutex);
         std::optional<nsecs_t> scheduledFrameTime GUARDED_BY(mutex);
         TracedOrdinal<int> value = {"VSYNC-sf", 0};
     };

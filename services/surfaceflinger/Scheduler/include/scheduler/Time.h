@@ -46,7 +46,8 @@ struct TimePoint : scheduler::SchedulerClock::time_point {
 
 struct Duration : TimePoint::duration {
     // Implicit conversion from std::chrono counterpart.
-    constexpr Duration(TimePoint::duration d) : TimePoint::duration(d) {}
+    template <typename R, typename P>
+    constexpr Duration(std::chrono::duration<R, P> d) : TimePoint::duration(d) {}
 
     static constexpr Duration fromNs(nsecs_t ns) { return {std::chrono::nanoseconds(ns)}; }
 
@@ -63,6 +64,17 @@ constexpr TimePoint TimePoint::fromNs(nsecs_t ns) {
 
 inline nsecs_t TimePoint::ns() const {
     return Duration(time_since_epoch()).ns();
+}
+
+// Shorthand to convert the tick count of a Duration to Period and Rep. For example:
+//
+//     const auto i = ticks<std::ratio<1>>(d);      // Integer seconds.
+//     const auto f = ticks<std::milli, float>(d);  // Floating-point milliseconds.
+//
+template <typename Period, typename Rep = Duration::rep>
+constexpr Rep ticks(Duration d) {
+    using D = std::chrono::duration<Rep, Period>;
+    return std::chrono::duration_cast<D>(d).count();
 }
 
 } // namespace android
