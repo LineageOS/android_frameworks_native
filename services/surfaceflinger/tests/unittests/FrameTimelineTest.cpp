@@ -1680,7 +1680,7 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent) 
     EXPECT_EQ(displayFrame0->getActuals().presentTime, 52);
     EXPECT_EQ(displayFrame0->getFramePresentMetadata(), FramePresentMetadata::LatePresent);
     EXPECT_EQ(displayFrame0->getFrameReadyMetadata(), FrameReadyMetadata::LateFinish);
-    EXPECT_EQ(displayFrame0->getJankType(), JankType::SurfaceFlingerCpuDeadlineMissed);
+    EXPECT_EQ(displayFrame0->getJankType(), JankType::SurfaceFlingerGpuDeadlineMissed);
 
     // case 3 - cpu time = 86 - 82 = 4, vsync period = 30
     mFrameTimeline->setSfWakeUp(sfToken3, 106, Fps::fromPeriodNsecs(30));
@@ -2182,6 +2182,50 @@ TEST_F(FrameTimelineTest, jankClassification_appDeadlineAdjustedForBufferStuffin
     EXPECT_EQ(presentedSurfaceFrame2.getFramePresentMetadata(), FramePresentMetadata::LatePresent);
     EXPECT_EQ(presentedSurfaceFrame2.getFrameReadyMetadata(), FrameReadyMetadata::OnTimeFinish);
     EXPECT_EQ(presentedSurfaceFrame2.getJankType(), JankType::BufferStuffing);
+}
+
+TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent_GpuAndCpuMiss) {
+    auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    auto gpuFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 26, 40});
+    int64_t sfToken2 = mTokenManager->generateTokenForPredictions({52, 60, 60});
+
+    // Case 1: cpu time = 33 - 12 = 21, vsync period = 11
+    mFrameTimeline->setSfWakeUp(sfToken1, 12, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfPresent(33, presentFence1, gpuFence1);
+    auto displayFrame = getDisplayFrame(0);
+    gpuFence1->signalForTest(36);
+    presentFence1->signalForTest(52);
+
+    // Fences haven't been flushed yet, so it should be 0
+    EXPECT_EQ(displayFrame->getActuals().presentTime, 0);
+
+    addEmptyDisplayFrame();
+    displayFrame = getDisplayFrame(0);
+
+    // Fences have flushed, so the present timestamps should be updated
+    EXPECT_EQ(displayFrame->getActuals().presentTime, 52);
+    EXPECT_EQ(displayFrame->getFramePresentMetadata(), FramePresentMetadata::LatePresent);
+    EXPECT_EQ(displayFrame->getFrameReadyMetadata(), FrameReadyMetadata::LateFinish);
+    EXPECT_EQ(displayFrame->getJankType(), JankType::SurfaceFlingerGpuDeadlineMissed);
+
+    // Case 2: No GPU fence so it will not use GPU composition.
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(30));
+    mFrameTimeline->setSfPresent(66, presentFence2);
+    auto displayFrame2 = getDisplayFrame(2); // 2 because of previous empty frame
+    presentFence2->signalForTest(90);
+
+    // Fences for the frame haven't been flushed yet, so it should be 0
+    EXPECT_EQ(displayFrame2->getActuals().presentTime, 0);
+
+    addEmptyDisplayFrame();
+
+    // Fences have flushed, so the present timestamps should be updated
+    EXPECT_EQ(displayFrame2->getActuals().presentTime, 90);
+    EXPECT_EQ(displayFrame2->getFramePresentMetadata(), FramePresentMetadata::LatePresent);
+    EXPECT_EQ(displayFrame2->getFrameReadyMetadata(), FrameReadyMetadata::LateFinish);
+    EXPECT_EQ(displayFrame2->getJankType(), JankType::SurfaceFlingerCpuDeadlineMissed);
 }
 
 TEST_F(FrameTimelineTest, computeFps_noLayerIds_returnsZero) {

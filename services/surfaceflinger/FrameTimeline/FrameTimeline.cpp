@@ -109,11 +109,11 @@ std::string jankTypeBitmaskToString(int32_t jankType) {
         jankType &= ~JankType::DisplayHAL;
     }
     if (jankType & JankType::SurfaceFlingerCpuDeadlineMissed) {
-        janks.emplace_back("SurfaceFlinger CPU Deadline Missed");
+        janks.emplace_back("SurfaceFlinger deadline missed (while in HWC)");
         jankType &= ~JankType::SurfaceFlingerCpuDeadlineMissed;
     }
     if (jankType & JankType::SurfaceFlingerGpuDeadlineMissed) {
-        janks.emplace_back("SurfaceFlinger GPU Deadline Missed");
+        janks.emplace_back("SurfaceFlinger deadline missed (while in GPU comp)");
         jankType &= ~JankType::SurfaceFlingerGpuDeadlineMissed;
     }
     if (jankType & JankType::AppDeadlineMissed) {
@@ -986,11 +986,8 @@ void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& 
                                     mJankClassificationThresholds.presentThreshold) {
                     // Classify CPU vs GPU if SF wasn't stuffed or if SF was stuffed but this frame
                     // was presented more than a vsync late.
-                    if (mGpuFence != FenceTime::NO_FENCE &&
-                        mSurfaceFlingerActuals.endTime - mSurfaceFlingerActuals.startTime <
-                                mRefreshRate.getPeriodNsecs()) {
-                        // If SF was in GPU composition and the CPU work finished before the vsync
-                        // period, classify it as GPU deadline missed.
+                    if (mGpuFence != FenceTime::NO_FENCE) {
+                        // If SF was in GPU composition, classify it as GPU deadline missed.
                         mJankType = JankType::SurfaceFlingerGpuDeadlineMissed;
                     } else {
                         mJankType = JankType::SurfaceFlingerCpuDeadlineMissed;
