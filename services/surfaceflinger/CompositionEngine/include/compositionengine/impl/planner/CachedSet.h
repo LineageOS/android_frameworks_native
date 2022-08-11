@@ -148,8 +148,6 @@ public:
     bool hasProtectedLayers() const;
 
 private:
-    CachedSet() = default;
-
     const NonBufferHash mFingerprint;
     std::chrono::steady_clock::time_point mLastUpdate = std::chrono::steady_clock::now();
     std::vector<Layer> mLayers;
