@@ -1275,13 +1275,10 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAlpha
         return *this;
     }
     if (alpha < 0.0f || alpha > 1.0f) {
-        ALOGE("SurfaceComposerClient::Transaction::setAlpha: invalid alpha %f", alpha);
-        mStatus = BAD_VALUE;
-        return *this;
-
+        ALOGE("SurfaceComposerClient::Transaction::setAlpha: invalid alpha %f, clamping", alpha);
     }
     s->what |= layer_state_t::eAlphaChanged;
-    s->alpha = alpha;
+    s->alpha = std::clamp(alpha, 0.f, 1.f);
 
     registerSurfaceControlForCallback(sc);
     return *this;
