@@ -4852,6 +4852,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 {"--vsync"s, dumper(&SurfaceFlinger::dumpVSync)},
                 {"--wide-color"s, dumper(&SurfaceFlinger::dumpWideColorInfo)},
                 {"--frametimeline"s, argsDumper(&SurfaceFlinger::dumpFrameTimeline)},
+                {"--hwclayers"s, dumper(&SurfaceFlinger::dumpHwcLayersMinidumpLocked)},
         };
 
         const auto flag = args.empty() ? ""s : std::string(String8(args[0]));
@@ -5163,6 +5164,23 @@ void SurfaceFlinger::dumpOffscreenLayers(std::string& result) {
     result.append(future.get());
 }
 
+void SurfaceFlinger::dumpHwcLayersMinidumpLocked(std::string& result) const {
+    for (const auto& [token, display] : mDisplays) {
+        const auto displayId = HalDisplayId::tryCast(display->getId());
+        if (!displayId) {
+            continue;
+        }
+
+        StringAppendF(&result, "Display %s (%s) HWC layers:\n", to_string(*displayId).c_str(),
+                      (isDisplayActiveLocked(display) ? "active" : "inactive"));
+        Layer::miniDumpHeader(result);
+
+        const DisplayDevice& ref = *display;
+        mCurrentState.traverseInZOrder([&](Layer* layer) { layer->miniDump(result, ref); });
+        result.append("\n");
+    }
+}
+
 void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) const {
     const bool colorize = !args.empty() && args[0] == String16("--color");
     Colorizer colorizer(colorize);
@@ -5297,23 +5315,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     }
     result.push_back('\n');
 
-    /*
-     * HWC layer minidump
-     */
-    for (const auto& [token, display] : mDisplays) {
-        const auto displayId = HalDisplayId::tryCast(display->getId());
-        if (!displayId) {
-            continue;
-        }
-
-        StringAppendF(&result, "Display %s (%s) HWC layers:\n", to_string(*displayId).c_str(),
-                      (isDisplayActiveLocked(display) ? "active" : "inactive"));
-        Layer::miniDumpHeader(result);
-
-        const DisplayDevice& ref = *display;
-        mCurrentState.traverseInZOrder([&](Layer* layer) { layer->miniDump(result, ref); });
-        result.append("\n");
-    }
+    dumpHwcLayersMinidumpLocked(result);
 
     {
         DumpArgs plannerArgs;
