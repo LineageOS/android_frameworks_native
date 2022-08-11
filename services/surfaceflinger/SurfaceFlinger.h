@@ -171,13 +171,6 @@ enum class LatchUnsignaledConfig {
 
 using DisplayColorSetting = compositionengine::OutputColorSetting;
 
-struct SurfaceFlingerBE {
-    static const size_t NUM_BUCKETS = 8; // < 1-7, 7+
-    nsecs_t mFrameBuckets[NUM_BUCKETS] = {};
-    nsecs_t mTotalTime = 0;
-    TimePoint mLastPresentTime;
-};
-
 class SurfaceFlinger : public BnSurfaceComposer,
                        public PriorityDumper,
                        private IBinder::DeathRecipient,
@@ -250,9 +243,6 @@ public:
 
     // starts SurfaceFlinger main loop in the current thread
     void run() ANDROID_API;
-
-    SurfaceFlingerBE& getBE() { return mBE; }
-    const SurfaceFlingerBE& getBE() const { return mBE; }
 
     // Indicates frame activity, i.e. whether commit and/or composite is taking place.
     enum class FrameHint { kNone, kActive };
@@ -1016,7 +1006,6 @@ private:
     void logFrameStats(TimePoint now) REQUIRES(kMainThreadContext);
 
     void dumpVSync(std::string& result) const REQUIRES(mStateLock);
-    void dumpStaticScreenStats(std::string& result) const;
 
     void dumpCompositionDisplays(std::string& result) const REQUIRES(mStateLock);
     void dumpDisplays(std::string& result) const REQUIRES(mStateLock);
@@ -1215,13 +1204,6 @@ private:
             mPendingTransactionQueues;
     LocklessQueue<TransactionState> mLocklessTransactionQueue;
     std::atomic<size_t> mPendingTransactionCount = 0;
-    /*
-     * Feature prototyping
-     */
-
-    // Static screen stats
-    bool mHasPoweredOff = false;
-
     std::atomic<size_t> mNumLayers = 0;
 
     // to linkToDeath
@@ -1249,7 +1231,6 @@ private:
     ui::Dataspace mColorSpaceAgnosticDataspace;
     float mDimmingRatio = -1.f;
 
-    SurfaceFlingerBE mBE;
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
     // mMaxRenderTargetSize is only set once in init() so it doesn't need to be protected by
     // any mutex.
