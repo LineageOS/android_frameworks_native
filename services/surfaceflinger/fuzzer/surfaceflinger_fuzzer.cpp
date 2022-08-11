@@ -244,7 +244,6 @@ void SurfaceFlingerFuzzer::process(const uint8_t *data, size_t size) {
     setDisplayStateLocked();
 
     setTransactionState();
-    mTestableFlinger.flushTransactionQueues();
 
     onTransact(data, size);
 }

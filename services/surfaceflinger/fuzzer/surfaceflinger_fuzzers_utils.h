@@ -153,14 +153,22 @@ static constexpr ui::PixelFormat kPixelFormats[] = {ui::PixelFormat::RGBA_8888,
                                                     ui::PixelFormat::YCBCR_P010,
                                                     ui::PixelFormat::HSV_888};
 
-FloatRect getFuzzedFloatRect(FuzzedDataProvider *fdp) {
+inline VsyncId getFuzzedVsyncId(FuzzedDataProvider& fdp) {
+    return VsyncId{fdp.ConsumeIntegral<int64_t>()};
+}
+
+inline TimePoint getFuzzedTimePoint(FuzzedDataProvider& fdp) {
+    return TimePoint::fromNs(fdp.ConsumeIntegral<nsecs_t>());
+}
+
+inline FloatRect getFuzzedFloatRect(FuzzedDataProvider* fdp) {
     return FloatRect(fdp->ConsumeFloatingPoint<float>() /*left*/,
                      fdp->ConsumeFloatingPoint<float>() /*right*/,
                      fdp->ConsumeFloatingPoint<float>() /*top*/,
                      fdp->ConsumeFloatingPoint<float>() /*bottom*/);
 }
 
-HdrMetadata getFuzzedHdrMetadata(FuzzedDataProvider *fdp) {
+inline HdrMetadata getFuzzedHdrMetadata(FuzzedDataProvider* fdp) {
     HdrMetadata hdrMetadata;
     if (fdp->ConsumeBool()) {
         hdrMetadata.cta8613.maxContentLightLevel = fdp->ConsumeFloatingPoint<float>();
@@ -270,8 +278,8 @@ public:
 
 private:
     // ICompositor overrides:
-    bool commit(nsecs_t, int64_t, nsecs_t) override { return false; }
-    void composite(nsecs_t, int64_t) override {}
+    bool commit(TimePoint, VsyncId, TimePoint) override { return false; }
+    void composite(TimePoint, VsyncId) override {}
     void sample() override {}
 
     // MessageQueue overrides:
@@ -284,13 +292,18 @@ private:
 namespace surfaceflinger::test {
 
 class Factory final : public surfaceflinger::Factory {
+    struct NoOpMessageQueue : android::impl::MessageQueue {
+        using android::impl::MessageQueue::MessageQueue;
+        void onFrameSignal(ICompositor&, VsyncId, TimePoint) override {}
+    };
+
 public:
     ~Factory() = default;
 
-    std::unique_ptr<HWComposer> createHWComposer(const std::string &) override { return nullptr; }
+    std::unique_ptr<HWComposer> createHWComposer(const std::string&) override { return nullptr; }
 
-    std::unique_ptr<MessageQueue> createMessageQueue(ICompositor &compositor) {
-        return std::make_unique<android::impl::MessageQueue>(compositor);
+    std::unique_ptr<MessageQueue> createMessageQueue(ICompositor& compositor) {
+        return std::make_unique<NoOpMessageQueue>(compositor);
     }
 
     std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
@@ -595,13 +608,14 @@ public:
 
         setVsyncConfig(&mFdp);
 
-        mFlinger->flushTransactionQueues(0);
+        FTL_FAKE_GUARD(kMainThreadContext,
+                       mFlinger->flushTransactionQueues(getFuzzedVsyncId(mFdp)));
 
         mFlinger->setTransactionFlags(mFdp.ConsumeIntegral<uint32_t>());
         mFlinger->clearTransactionFlags(mFdp.ConsumeIntegral<uint32_t>());
         mFlinger->commitOffscreenLayers();
 
-        mFlinger->frameIsEarly(mFdp.ConsumeIntegral<nsecs_t>(), mFdp.ConsumeIntegral<int64_t>());
+        mFlinger->frameIsEarly(getFuzzedTimePoint(mFdp), getFuzzedVsyncId(mFdp));
         mFlinger->computeLayerBounds();
         mFlinger->startBootAnim();
 
@@ -735,8 +749,6 @@ public:
                                              isAutoTimestamp, uncacheBuffer, hasListenerCallbacks,
                                              listenerCallbacks, transactionId);
     }
-
-    auto flushTransactionQueues() { return mFlinger->flushTransactionQueues(0); };
 
     auto onTransact(uint32_t code, const Parcel &data, Parcel *reply, uint32_t flags) {
         return mFlinger->onTransact(code, data, reply, flags);

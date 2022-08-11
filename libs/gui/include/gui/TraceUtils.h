@@ -21,13 +21,14 @@
 #include <cutils/trace.h>
 #include <utils/Trace.h>
 
-#define ATRACE_FORMAT(fmt, ...)           \
-    TraceUtils::TraceEnder __traceEnder = \
-            (TraceUtils::atraceFormatBegin(fmt, ##__VA_ARGS__), TraceUtils::TraceEnder())
+#define ATRACE_FORMAT(fmt, ...)                                                 \
+    TraceUtils::TraceEnder traceEnder =                                         \
+            (CC_UNLIKELY(ATRACE_ENABLED()) &&                                   \
+                     (TraceUtils::atraceFormatBegin(fmt, ##__VA_ARGS__), true), \
+             TraceUtils::TraceEnder())
 
-#define ATRACE_FORMAT_BEGIN(fmt, ...) TraceUtils::atraceFormatBegin(fmt, ##__VA_ARGS__)
-
-#define ATRACE_FORMAT_INSTANT(fmt, ...) TraceUtils::intantFormat(fmt, ##__VA_ARGS__)
+#define ATRACE_FORMAT_INSTANT(fmt, ...) \
+    (CC_UNLIKELY(ATRACE_ENABLED()) && (TraceUtils::instantFormat(fmt, ##__VA_ARGS__), true))
 
 namespace android {
 
@@ -39,8 +40,6 @@ public:
     };
 
     static void atraceFormatBegin(const char* fmt, ...) {
-        if (CC_LIKELY(!ATRACE_ENABLED())) return;
-
         const int BUFFER_SIZE = 256;
         va_list ap;
         char buf[BUFFER_SIZE];
@@ -52,9 +51,7 @@ public:
         ATRACE_BEGIN(buf);
     }
 
-    static void intantFormat(const char* fmt, ...) {
-        if (CC_LIKELY(!ATRACE_ENABLED())) return;
-
+    static void instantFormat(const char* fmt, ...) {
         const int BUFFER_SIZE = 256;
         va_list ap;
         char buf[BUFFER_SIZE];
@@ -65,7 +62,6 @@ public:
 
         ATRACE_INSTANT(buf);
     }
+};
 
-}; // class TraceUtils
-
-} /* namespace android */
+} // namespace android

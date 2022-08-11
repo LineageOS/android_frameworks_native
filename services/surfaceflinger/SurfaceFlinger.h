@@ -623,11 +623,11 @@ private:
 
     // Commits transactions for layers and displays. Returns whether any state has been invalidated,
     // i.e. whether a frame should be composited for each display.
-    bool commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expectedVsyncTime) override;
+    bool commit(TimePoint frameTime, VsyncId, TimePoint expectedVsyncTime) override;
 
     // Composites a frame for each display. CompositionEngine performs GPU and/or HAL composition
     // via RenderEngine and the Composer HAL, respectively.
-    void composite(nsecs_t frameTime, int64_t vsyncId) override;
+    void composite(TimePoint frameTime, VsyncId) override;
 
     // Samples the composited frame via RegionSamplingThread.
     void sample() override;
@@ -719,15 +719,15 @@ private:
                                const std::vector<ListenerCallbacks>& listenerCallbacks,
                                int originPid, int originUid, uint64_t transactionId)
             REQUIRES(mStateLock);
-    // flush pending transaction that was presented after desiredPresentTime.
-    bool flushTransactionQueues(int64_t vsyncId);
+    // Flush pending transactions that were presented after desiredPresentTime.
+    bool flushTransactionQueues(VsyncId) REQUIRES(kMainThreadContext);
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
 
     int flushPendingTransactionQueues(
             std::vector<TransactionState>& transactions,
             std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
-            bool tryApplyUnsignaled) REQUIRES(mStateLock);
+            bool tryApplyUnsignaled) REQUIRES(mStateLock) REQUIRES(kMainThreadContext);
 
     uint32_t setClientStateLocked(const FrameTimelineInfo&, ComposerState&,
                                   int64_t desiredPresentTime, bool isAutoTimestamp,
@@ -751,21 +751,24 @@ private:
         Ready,
         ReadyUnsignaled,
     };
-    TransactionReadiness transactionIsReadyToBeApplied(TransactionState& state,
-            const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
-            uid_t originUid, const Vector<ComposerState>& states,
-            const std::unordered_map<
-                sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
-            size_t totalTXapplied, bool tryApplyUnsignaled) const REQUIRES(mStateLock);
+    TransactionReadiness transactionIsReadyToBeApplied(
+            TransactionState&, const FrameTimelineInfo&, bool isAutoTimestamp,
+            TimePoint desiredPresentTime, uid_t originUid, const Vector<ComposerState>&,
+            const std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>&
+                    bufferLayersReadyToPresent,
+            size_t totalTXapplied, bool tryApplyUnsignaled) const REQUIRES(mStateLock)
+            REQUIRES(kMainThreadContext);
+
     static LatchUnsignaledConfig getLatchUnsignaledConfig();
     bool shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t&, size_t numStates,
                                size_t totalTXapplied) const;
-    bool applyTransactions(std::vector<TransactionState>& transactions, int64_t vsyncId)
+    bool applyTransactions(std::vector<TransactionState>& transactions, VsyncId)
             REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
             REQUIRES(mStateLock);
-    bool frameIsEarly(nsecs_t expectedPresentTime, int64_t vsyncId) const;
+    bool frameIsEarly(TimePoint expectedPresentTime, VsyncId) const;
+
     /*
      * Layer management
      */
@@ -945,7 +948,7 @@ private:
 
     using FenceTimePtr = std::shared_ptr<FenceTime>;
 
-    const FenceTimePtr& getPreviousPresentFence(nsecs_t frameTime, Period)
+    const FenceTimePtr& getPreviousPresentFence(TimePoint frameTime, Period)
             REQUIRES(kMainThreadContext);
 
     // Blocks the thread waiting for up to graceTimeMs in case the fence is about to signal.
@@ -953,7 +956,7 @@ private:
 
     // Calculates the expected present time for this frame. For negative offsets, performs a
     // correction using the predicted vsync for the next frame instead.
-    TimePoint calculateExpectedPresentTime(nsecs_t frameTime) const;
+    TimePoint calculateExpectedPresentTime(TimePoint frameTime) const;
 
     /*
      * Display identification
@@ -1189,7 +1192,7 @@ private:
     const std::unique_ptr<FrameTracer> mFrameTracer;
     const std::unique_ptr<frametimeline::FrameTimeline> mFrameTimeline;
 
-    int64_t mLastCommittedVsyncId = -1;
+    VsyncId mLastCommittedVsyncId;
 
     // If blurs should be enabled on this device.
     bool mSupportsBlur = false;
@@ -1278,8 +1281,9 @@ private:
     };
     std::array<FenceWithFenceTime, 2> mPreviousPresentFences;
 
-    std::atomic<nsecs_t> mExpectedPresentTime = 0;
-    nsecs_t mScheduledPresentTime = 0;
+    TimePoint mScheduledPresentTime GUARDED_BY(kMainThreadContext);
+    TimePoint mExpectedPresentTime GUARDED_BY(kMainThreadContext);
+
     hal::Vsync mHWCVsyncPendingState = hal::Vsync::DISABLE;
     hal::Vsync mLastHWCVsyncState = hal::Vsync::DISABLE;
 
@@ -1333,9 +1337,8 @@ private:
     // A temporay pool that store the created layers and will be added to current state in main
     // thread.
     std::vector<LayerCreatedState> mCreatedLayers GUARDED_BY(mCreatedLayersLock);
-    bool commitCreatedLayers(int64_t vsyncId);
-    void handleLayerCreatedLocked(const LayerCreatedState& state, int64_t vsyncId)
-            REQUIRES(mStateLock);
+    bool commitCreatedLayers(VsyncId);
+    void handleLayerCreatedLocked(const LayerCreatedState&, VsyncId) REQUIRES(mStateLock);
 
     mutable std::mutex mMirrorDisplayLock;
     struct MirrorDisplayState {
@@ -1348,7 +1351,7 @@ private:
         const sp<Client> client;
     };
     std::vector<MirrorDisplayState> mMirrorDisplays GUARDED_BY(mMirrorDisplayLock);
-    bool commitMirrorDisplays(int64_t vsyncId);
+    bool commitMirrorDisplays(VsyncId);
 
     std::atomic<ui::Transform::RotationFlags> mActiveDisplayTransformHint;
 
