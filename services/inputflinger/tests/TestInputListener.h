@@ -18,6 +18,7 @@
 #define _UI_TEST_INPUT_LISTENER_H
 
 #include <android-base/thread_annotations.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "InputListener.h"
 
@@ -47,6 +48,8 @@ public:
     void assertNotifyKeyWasNotCalled();
 
     void assertNotifyMotionWasCalled(NotifyMotionArgs* outEventArgs = nullptr);
+
+    void assertNotifyMotionWasCalled(const ::testing::Matcher<NotifyMotionArgs>& matcher);
 
     void assertNotifyMotionWasNotCalled();
 

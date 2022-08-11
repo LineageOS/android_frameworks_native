@@ -147,7 +147,7 @@ public:
     std::vector<NotifyMotionArgs> processMotion(const NotifyMotionArgs& args);
 
     // Get the device info of this device, for comparison purposes
-    const AndroidPalmFilterDeviceInfo& getPalmFilterDeviceInfo();
+    const AndroidPalmFilterDeviceInfo& getPalmFilterDeviceInfo() const;
     std::string dump() const;
 
 private:

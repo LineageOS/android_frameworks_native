@@ -99,17 +99,15 @@ static bool isPalmRejectionEnabled() {
     return false;
 }
 
-static int getLinuxToolType(int32_t toolType) {
-    switch (toolType) {
-        case AMOTION_EVENT_TOOL_TYPE_FINGER:
-            return MT_TOOL_FINGER;
-        case AMOTION_EVENT_TOOL_TYPE_STYLUS:
-            return MT_TOOL_PEN;
-        case AMOTION_EVENT_TOOL_TYPE_PALM:
-            return MT_TOOL_PALM;
+static int getLinuxToolCode(int toolType) {
+    if (toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS) {
+        return BTN_TOOL_PEN;
     }
-    ALOGW("Got tool type %" PRId32 ", converting to MT_TOOL_FINGER", toolType);
-    return MT_TOOL_FINGER;
+    if (toolType == AMOTION_EVENT_TOOL_TYPE_FINGER) {
+        return BTN_TOOL_FINGER;
+    }
+    ALOGW("Got tool type %" PRId32 ", converting to BTN_TOOL_FINGER", toolType);
+    return BTN_TOOL_FINGER;
 }
 
 static int32_t getActionUpForPointerId(const NotifyMotionArgs& args, int32_t pointerId) {
@@ -562,7 +560,7 @@ std::vector<::ui::InProgressTouchEvdev> getTouches(const NotifyMotionArgs& args,
         touches.emplace_back(::ui::InProgressTouchEvdev());
         touches.back().major = args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR);
         touches.back().minor = args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR);
-        touches.back().tool_type = getLinuxToolType(args.pointerProperties[i].toolType);
+        // The field 'tool_type' is not used for palm rejection
 
         // Whether there is new information for the touch.
         touches.back().altered = true;
@@ -609,10 +607,10 @@ std::vector<::ui::InProgressTouchEvdev> getTouches(const NotifyMotionArgs& args,
 
         // The fields 'radius_x' and 'radius_x' are not used for palm rejection
         touches.back().pressure = args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE);
-        touches.back().tool_code = BTN_TOOL_FINGER;
+        touches.back().tool_code = getLinuxToolCode(args.pointerProperties[i].toolType);
         // The field 'orientation' is not used for palm rejection
         // The fields 'tilt_x' and 'tilt_y' are not used for palm rejection
-        touches.back().reported_tool_type = ::ui::EventPointerType::kTouch;
+        // The field 'reported_tool_type' is not used for palm rejection
         touches.back().stylus_button = false;
     }
     return touches;
@@ -691,7 +689,7 @@ std::vector<NotifyMotionArgs> PalmRejector::processMotion(const NotifyMotionArgs
     return argsWithoutUnwantedPointers;
 }
 
-const AndroidPalmFilterDeviceInfo& PalmRejector::getPalmFilterDeviceInfo() {
+const AndroidPalmFilterDeviceInfo& PalmRejector::getPalmFilterDeviceInfo() const {
     return mDeviceInfo;
 }
 
