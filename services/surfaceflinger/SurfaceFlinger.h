@@ -996,6 +996,7 @@ private:
      * Debugging & dumpsys
      */
     void dumpAllLocked(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
+    void dumpHwcLayersMinidumpLocked(std::string& result) const REQUIRES(mStateLock);
 
     void appendSfConfigString(std::string& result) const;
     void listLayersLocked(std::string& result) const;
