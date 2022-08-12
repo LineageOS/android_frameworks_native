@@ -84,6 +84,8 @@ public:
     void dump(std::string& result) const;
 
 private:
+    nsecs_t adjustVsyncIfNeeded(VSyncTracker& tracker, nsecs_t nextVsyncTime) const;
+
     const std::string mName;
     const VSyncDispatch::Callback mCallback;
 

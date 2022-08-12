@@ -201,8 +201,6 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
     TraceGenFlingerDataMapper* dataMapper = mapper.get();
     TransactionProtoParser parser(std::move(mapper));
 
-    nsecs_t frameTime;
-    int64_t vsyncId;
     ALOGD("Generating %d transactions...", traceFile.entry_size());
     for (int i = 0; i < traceFile.entry_size(); i++) {
         proto::TransactionTraceEntry entry = traceFile.entry(i);
@@ -256,8 +254,8 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
                                          transaction.listenerCallbacks, transaction.id);
         }
 
-        frameTime = entry.elapsed_realtime_nanos();
-        vsyncId = entry.vsync_id();
+        const auto frameTime = TimePoint::fromNs(entry.elapsed_realtime_nanos());
+        const auto vsyncId = VsyncId{entry.vsync_id()};
         mFlinger.commit(frameTime, vsyncId);
 
         for (int j = 0; j < entry.removed_layer_handles_size(); j++) {
