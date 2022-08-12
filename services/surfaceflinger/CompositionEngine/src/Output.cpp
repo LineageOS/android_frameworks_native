@@ -1493,7 +1493,6 @@ void Output::postFramebuffer() {
 
     auto& outputState = editState();
     outputState.dirtyRegion.clear();
-    mRenderSurface->flip();
 
     auto frame = presentAndGetFrameFences();
 

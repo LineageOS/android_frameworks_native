@@ -44,6 +44,8 @@ public:
         ON_CALL(*this, nextAnticipatedVSyncTimeFrom(_))
                 .WillByDefault(Invoke(this, &MockVSyncTracker::nextVSyncTime));
         ON_CALL(*this, addVsyncTimestamp(_)).WillByDefault(Return(true));
+        ON_CALL(*this, currentPeriod())
+                .WillByDefault(Invoke(this, &MockVSyncTracker::getCurrentPeriod));
     }
 
     MOCK_METHOD1(addVsyncTimestamp, bool(nsecs_t));
@@ -61,6 +63,8 @@ public:
         }
         return (timePoint - (timePoint % mPeriod) + mPeriod);
     }
+
+    nsecs_t getCurrentPeriod() const { return mPeriod; }
 
 protected:
     nsecs_t const mPeriod;
@@ -391,6 +395,43 @@ TEST_F(VSyncDispatchTimerQueueTest, basicTwoAlarmSetting) {
     EXPECT_THAT(cb0.mCalls[0], Eq(1075));
     ASSERT_THAT(cb1.mCalls.size(), Eq(1));
     EXPECT_THAT(cb1.mCalls[0], Eq(1063));
+}
+
+TEST_F(VSyncDispatchTimerQueueTest, noCloseCallbacksAfterPeriodChange) {
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(_))
+            .Times(4)
+            .WillOnce(Return(1000))
+            .WillOnce(Return(2000))
+            .WillOnce(Return(2500))
+            .WillOnce(Return(4000));
+
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmAt(_, 900)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmAt(_, 1900)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmAt(_, 3900)).InSequence(seq);
+
+    CountingCallback cb(mDispatch);
+
+    mDispatch.schedule(cb, {.workDuration = 100, .readyDuration = 0, .earliestVsync = 0});
+
+    advanceToNextCallback();
+
+    ASSERT_THAT(cb.mCalls.size(), Eq(1));
+    EXPECT_THAT(cb.mCalls[0], Eq(1000));
+
+    mDispatch.schedule(cb, {.workDuration = 100, .readyDuration = 0, .earliestVsync = 1000});
+
+    advanceToNextCallback();
+
+    ASSERT_THAT(cb.mCalls.size(), Eq(2));
+    EXPECT_THAT(cb.mCalls[1], Eq(2000));
+
+    mDispatch.schedule(cb, {.workDuration = 100, .readyDuration = 0, .earliestVsync = 2000});
+
+    advanceToNextCallback();
+
+    ASSERT_THAT(cb.mCalls.size(), Eq(3));
+    EXPECT_THAT(cb.mCalls[2], Eq(4000));
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, rearmsFaroutTimeoutWhenCancellingCloseOne) {
