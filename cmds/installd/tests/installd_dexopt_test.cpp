@@ -1293,6 +1293,23 @@ TEST_F(ProfileTest, ProfilePrepareFailProfileChangedUid) {
     preparePackageProfile(package_name_, "primary.prof", /*expected_result*/ false);
 }
 
+TEST_F(ProfileTest, ClearAppProfilesOk) {
+    LOG(INFO) << "ClearAppProfilesOk";
+
+    ASSERT_BINDER_SUCCESS(service_->clearAppProfiles(package_name_, "primary.prof"));
+    ASSERT_BINDER_SUCCESS(service_->clearAppProfiles(package_name_, "image_editor.split.prof"));
+}
+
+TEST_F(ProfileTest, ClearAppProfilesFailWrongProfileName) {
+    LOG(INFO) << "ClearAppProfilesFailWrongProfileName";
+
+    ASSERT_BINDER_FAIL(
+            service_->clearAppProfiles(package_name_,
+                                       "../../../../dalvik-cache/arm64/"
+                                       "system@app@SecureElement@SecureElement.apk@classes.vdex"));
+    ASSERT_BINDER_FAIL(service_->clearAppProfiles(package_name_, "image_editor.split.apk"));
+}
+
 TEST_F(ProfileTest, CopySystemProfileOk) {
     LOG(INFO) << "CopySystemProfileOk";
 

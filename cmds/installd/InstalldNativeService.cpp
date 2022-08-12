@@ -1028,6 +1028,12 @@ binder::Status InstalldNativeService::clearAppProfiles(const std::string& packag
         const std::string& profileName) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    CHECK_ARGUMENT_FILE_NAME(profileName);
+    if (!base::EndsWith(profileName, ".prof")) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                         StringPrintf("Profile name %s does not end with .prof",
+                                      profileName.c_str()));
+    }
     LOCK_PACKAGE();
 
     binder::Status res = ok();
