@@ -65,7 +65,8 @@ public:
     // Rendering a pending cached set is optional: if the renderDeadline is not far enough in the
     // future then the planner may opt to skip rendering the cached set.
     void renderCachedSets(const OutputCompositionState& outputState,
-                          std::optional<std::chrono::steady_clock::time_point> renderDeadline);
+                          std::optional<std::chrono::steady_clock::time_point> renderDeadline,
+                          bool deviceHandlesColorTransform);
 
     void setTexturePoolEnabled(bool enabled) { mFlattener.setTexturePoolEnabled(enabled); }
 
