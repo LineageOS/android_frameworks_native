@@ -431,7 +431,7 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
                     calculateLayerScoreLocked(layer, mode->getFps(), isSeamlessSwitch);
             const float weightedLayerScore = weight * layerScore;
 
-            // Layer with fixed source has a special consideration depends on the
+            // Layer with fixed source has a special consideration which depends on the
             // mConfig.frameRateMultipleThreshold. We don't want these layers to score
             // refresh rates above the threshold, but we also don't want to favor the lower
             // ones by having a greater number of layers scoring them. Instead, we calculate
@@ -454,9 +454,9 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
             const bool layerBelowThreshold = mConfig.frameRateMultipleThreshold != 0 &&
                     layer.desiredRefreshRate <
                             Fps::fromValue(mConfig.frameRateMultipleThreshold / 2);
-            const bool modeAboveThreshold = layerBelowThreshold &&
-                    mode->getFps() >= Fps::fromValue(mConfig.frameRateMultipleThreshold);
             if (fixedSourceLayer && layerBelowThreshold) {
+                const bool modeAboveThreshold =
+                        mode->getFps() >= Fps::fromValue(mConfig.frameRateMultipleThreshold);
                 if (modeAboveThreshold) {
                     ALOGV("%s gives %s fixed source (above threshold) score of %.4f",
                           formatLayerInfo(layer, weight).c_str(), to_string(mode->getFps()).c_str(),
