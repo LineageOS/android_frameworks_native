@@ -167,7 +167,9 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
         vsyncTS[i] = timestamp;
         meanTS += timestamp;
 
-        const auto ordinal = (vsyncTS[i] + currentPeriod / 2) / currentPeriod * kScalingFactor;
+        const auto ordinal = currentPeriod == 0
+                ? 0
+                : (vsyncTS[i] + currentPeriod / 2) / currentPeriod * kScalingFactor;
         ordinals[i] = ordinal;
         meanOrdinal += ordinal;
     }
