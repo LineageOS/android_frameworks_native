@@ -40,22 +40,26 @@ namespace {
 
 struct RefreshRateScore {
     DisplayModeIterator modeIt;
-    float score;
+    float overallScore;
+    struct {
+        float modeBelowThreshold;
+        float modeAboveThreshold;
+    } fixedRateBelowThresholdLayersScore;
 };
 
 template <typename Iterator>
 const DisplayModePtr& getMaxScoreRefreshRate(Iterator begin, Iterator end) {
     const auto it =
             std::max_element(begin, end, [](RefreshRateScore max, RefreshRateScore current) {
-                const auto& [modeIt, score] = current;
+                const auto& [modeIt, overallScore, _] = current;
 
                 std::string name = to_string(modeIt->second->getFps());
-                ALOGV("%s scores %.2f", name.c_str(), score);
+                ALOGV("%s scores %.2f", name.c_str(), overallScore);
 
-                ATRACE_INT(name.c_str(), static_cast<int>(std::round(score * 100)));
+                ATRACE_INT(name.c_str(), static_cast<int>(std::round(overallScore * 100)));
 
                 constexpr float kEpsilon = 0.0001f;
-                return score > max.score * (1 + kEpsilon);
+                return overallScore > max.overallScore * (1 + kEpsilon);
             });
 
     return it->modeIt->second;
@@ -151,31 +155,6 @@ std::pair<nsecs_t, nsecs_t> RefreshRateConfigs::getDisplayFrames(nsecs_t layerPe
     return {quotient, remainder};
 }
 
-bool RefreshRateConfigs::isVoteAllowed(const LayerRequirement& layer, Fps refreshRate) const {
-    using namespace fps_approx_ops;
-
-    switch (layer.vote) {
-        case LayerVoteType::ExplicitExactOrMultiple:
-        case LayerVoteType::Heuristic:
-            if (mConfig.frameRateMultipleThreshold != 0 &&
-                refreshRate >= Fps::fromValue(mConfig.frameRateMultipleThreshold) &&
-                layer.desiredRefreshRate < Fps::fromValue(mConfig.frameRateMultipleThreshold / 2)) {
-                // Don't vote high refresh rates past the threshold for layers with a low desired
-                // refresh rate. For example, desired 24 fps with 120 Hz threshold means no vote for
-                // 120 Hz, but desired 60 fps should have a vote.
-                return false;
-            }
-            break;
-        case LayerVoteType::ExplicitDefault:
-        case LayerVoteType::ExplicitExact:
-        case LayerVoteType::Max:
-        case LayerVoteType::Min:
-        case LayerVoteType::NoVote:
-            break;
-    }
-    return true;
-}
-
 float RefreshRateConfigs::calculateNonExactMatchingLayerScoreLocked(const LayerRequirement& layer,
                                                                     Fps refreshRate) const {
     constexpr float kScoreForFractionalPairs = .8f;
@@ -240,10 +219,6 @@ float RefreshRateConfigs::calculateNonExactMatchingLayerScoreLocked(const LayerR
 
 float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& layer, Fps refreshRate,
                                                     bool isSeamlessSwitch) const {
-    if (!isVoteAllowed(layer, refreshRate)) {
-        return 0;
-    }
-
     // Slightly prefer seamless switches.
     constexpr float kSeamedSwitchPenalty = 0.95f;
     const float seamlessness = isSeamlessSwitch ? 1.0f : kSeamedSwitchPenalty;
@@ -300,6 +275,7 @@ auto RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequirement>&
 auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequirement>& layers,
                                                   GlobalSignals signals) const
         -> std::pair<DisplayModePtr, GlobalSignals> {
+    using namespace fps_approx_ops;
     ATRACE_CALL();
     ALOGV("%s: %zu layers", __func__, layers.size());
 
@@ -409,7 +385,7 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
 
         const auto weight = layer.weight;
 
-        for (auto& [modeIt, score] : scores) {
+        for (auto& [modeIt, overallScore, fixedRateBelowThresholdLayersScore] : scores) {
             const auto& [id, mode] = *modeIt;
             const bool isSeamlessSwitch = mode->getGroup() == mActiveModeIt->second->getGroup();
 
@@ -451,18 +427,92 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
                 continue;
             }
 
-            const auto layerScore =
+            const float layerScore =
                     calculateLayerScoreLocked(layer, mode->getFps(), isSeamlessSwitch);
-            ALOGV("%s gives %s score of %.4f", formatLayerInfo(layer, weight).c_str(),
-                  to_string(mode->getFps()).c_str(), layerScore);
+            const float weightedLayerScore = weight * layerScore;
 
-            score += weight * layerScore;
+            // Layer with fixed source has a special consideration which depends on the
+            // mConfig.frameRateMultipleThreshold. We don't want these layers to score
+            // refresh rates above the threshold, but we also don't want to favor the lower
+            // ones by having a greater number of layers scoring them. Instead, we calculate
+            // the score independently for these layers and later decide which
+            // refresh rates to add it. For example, desired 24 fps with 120 Hz threshold should not
+            // score 120 Hz, but desired 60 fps should contribute to the score.
+            const bool fixedSourceLayer = [](LayerVoteType vote) {
+                switch (vote) {
+                    case LayerVoteType::ExplicitExactOrMultiple:
+                    case LayerVoteType::Heuristic:
+                        return true;
+                    case LayerVoteType::NoVote:
+                    case LayerVoteType::Min:
+                    case LayerVoteType::Max:
+                    case LayerVoteType::ExplicitDefault:
+                    case LayerVoteType::ExplicitExact:
+                        return false;
+                }
+            }(layer.vote);
+            const bool layerBelowThreshold = mConfig.frameRateMultipleThreshold != 0 &&
+                    layer.desiredRefreshRate <
+                            Fps::fromValue(mConfig.frameRateMultipleThreshold / 2);
+            if (fixedSourceLayer && layerBelowThreshold) {
+                const bool modeAboveThreshold =
+                        mode->getFps() >= Fps::fromValue(mConfig.frameRateMultipleThreshold);
+                if (modeAboveThreshold) {
+                    ALOGV("%s gives %s fixed source (above threshold) score of %.4f",
+                          formatLayerInfo(layer, weight).c_str(), to_string(mode->getFps()).c_str(),
+                          layerScore);
+                    fixedRateBelowThresholdLayersScore.modeAboveThreshold += weightedLayerScore;
+                } else {
+                    ALOGV("%s gives %s fixed source (below threshold) score of %.4f",
+                          formatLayerInfo(layer, weight).c_str(), to_string(mode->getFps()).c_str(),
+                          layerScore);
+                    fixedRateBelowThresholdLayersScore.modeBelowThreshold += weightedLayerScore;
+                }
+            } else {
+                ALOGV("%s gives %s score of %.4f", formatLayerInfo(layer, weight).c_str(),
+                      to_string(mode->getFps()).c_str(), layerScore);
+                overallScore += weightedLayerScore;
+            }
         }
     }
 
-    // Now that we scored all the refresh rates we need to pick the one that got the highest score.
-    // In case of a tie we will pick the higher refresh rate if any of the layers wanted Max,
-    // or the lower otherwise.
+    // We want to find the best refresh rate without the fixed source layers,
+    // so we could know whether we should add the modeAboveThreshold scores or not.
+    // If the best refresh rate is already above the threshold, it means that
+    // some non-fixed source layers already scored it, so we can just add the score
+    // for all fixed source layers, even the ones that are above the threshold.
+    const bool maxScoreAboveThreshold = [&] {
+        if (mConfig.frameRateMultipleThreshold == 0 || scores.empty()) {
+            return false;
+        }
+
+        const auto maxScoreIt =
+                std::max_element(scores.begin(), scores.end(),
+                                 [](RefreshRateScore max, RefreshRateScore current) {
+                                     const auto& [modeIt, overallScore, _] = current;
+                                     return overallScore > max.overallScore;
+                                 });
+        ALOGV("%s is the best refresh rate without fixed source layers. It is %s the threshold for "
+              "refresh rate multiples",
+              to_string(maxScoreIt->modeIt->second->getFps()).c_str(),
+              maxScoreAboveThreshold ? "above" : "below");
+        return maxScoreIt->modeIt->second->getFps() >=
+                Fps::fromValue(mConfig.frameRateMultipleThreshold);
+    }();
+
+    // Now we can add the fixed rate layers score
+    for (auto& [modeIt, overallScore, fixedRateBelowThresholdLayersScore] : scores) {
+        overallScore += fixedRateBelowThresholdLayersScore.modeBelowThreshold;
+        if (maxScoreAboveThreshold) {
+            overallScore += fixedRateBelowThresholdLayersScore.modeAboveThreshold;
+        }
+        ALOGV("%s adjusted overallScore is %.4f", to_string(modeIt->second->getFps()).c_str(),
+              overallScore);
+    }
+
+    // Now that we scored all the refresh rates we need to pick the one that got the highest
+    // overallScore. In case of a tie we will pick the higher refresh rate if any of the layers
+    // wanted Max, or the lower otherwise.
     const DisplayModePtr& bestRefreshRate = maxVoteLayers > 0
             ? getMaxScoreRefreshRate(scores.rbegin(), scores.rend())
             : getMaxScoreRefreshRate(scores.begin(), scores.end());
@@ -471,7 +521,7 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
         // If we never scored any layers, then choose the rate from the primary
         // range instead of picking a random score from the app range.
         if (std::all_of(scores.begin(), scores.end(),
-                        [](RefreshRateScore score) { return score.score == 0; })) {
+                        [](RefreshRateScore score) { return score.overallScore == 0; })) {
             const DisplayModePtr& max = getMaxRefreshRateByPolicyLocked(anchorGroup);
             ALOGV("layers not scored - choose %s", to_string(max->getFps()).c_str());
             return {max, kNoSignals};
@@ -575,7 +625,7 @@ RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverr
             continue;
         }
 
-        for (auto& [_, score] : scores) {
+        for (auto& [_, score, _1] : scores) {
             score = 0;
         }
 
@@ -587,7 +637,7 @@ RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverr
             LOG_ALWAYS_FATAL_IF(layer->vote != LayerVoteType::ExplicitDefault &&
                                 layer->vote != LayerVoteType::ExplicitExactOrMultiple &&
                                 layer->vote != LayerVoteType::ExplicitExact);
-            for (auto& [modeIt, score] : scores) {
+            for (auto& [modeIt, score, _] : scores) {
                 constexpr bool isSeamlessSwitch = true;
                 const auto layerScore = calculateLayerScoreLocked(*layer, modeIt->second->getFps(),
                                                                   isSeamlessSwitch);
@@ -605,7 +655,7 @@ RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverr
 
         // If we never scored any layers, we don't have a preferred frame rate
         if (std::all_of(scores.begin(), scores.end(),
-                        [](RefreshRateScore score) { return score.score == 0; })) {
+                        [](RefreshRateScore score) { return score.overallScore == 0; })) {
             continue;
         }
 
