@@ -154,6 +154,14 @@ private:
     PalmRejector(const PalmRejector&) = delete;
     PalmRejector& operator=(const PalmRejector&) = delete;
 
+    /**
+     * Update the slot state and send this event to the palm rejection model for palm detection.
+     * Return the pointer ids that should be suppressed.
+     *
+     * This function is not const because it has side-effects. It will update the slot state using
+     * the incoming args! Also, it will call Filter(..), which has side-effects.
+     */
+    std::set<int32_t> detectPalmPointers(const NotifyMotionArgs& args);
     std::unique_ptr<::ui::SharedPalmDetectionFilterState> mSharedPalmState;
     AndroidPalmFilterDeviceInfo mDeviceInfo;
     std::unique_ptr<::ui::PalmDetectionFilter> mPalmDetectionFilter;
