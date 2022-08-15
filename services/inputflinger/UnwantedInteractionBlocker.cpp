@@ -616,6 +616,48 @@ std::vector<::ui::InProgressTouchEvdev> getTouches(const NotifyMotionArgs& args,
     return touches;
 }
 
+std::set<int32_t> PalmRejector::detectPalmPointers(const NotifyMotionArgs& args) {
+    std::bitset<::ui::kNumTouchEvdevSlots> slotsToHold;
+    std::bitset<::ui::kNumTouchEvdevSlots> slotsToSuppress;
+
+    // Store the slot state before we call getTouches and update it. This way, we can find
+    // the slots that have been removed due to the incoming event.
+    SlotState oldSlotState = mSlotState;
+    mSlotState.update(args);
+
+    std::vector<::ui::InProgressTouchEvdev> touches =
+            getTouches(args, mDeviceInfo, oldSlotState, mSlotState);
+    ::base::TimeTicks chromeTimestamp = toChromeTimestamp(args.eventTime);
+
+    if (DEBUG_MODEL) {
+        std::stringstream touchesStream;
+        for (const ::ui::InProgressTouchEvdev& touch : touches) {
+            touchesStream << touch.tracking_id << " : " << touch << "\n";
+        }
+        ALOGD("Filter: touches = %s", touchesStream.str().c_str());
+    }
+
+    mPalmDetectionFilter->Filter(touches, chromeTimestamp, &slotsToHold, &slotsToSuppress);
+
+    ALOGD_IF(DEBUG_MODEL, "Response: slotsToHold = %s, slotsToSuppress = %s",
+             slotsToHold.to_string().c_str(), slotsToSuppress.to_string().c_str());
+
+    // Now that we know which slots should be suppressed, let's convert those to pointer id's.
+    std::set<int32_t> newSuppressedIds;
+    for (size_t i = 0; i < args.pointerCount; i++) {
+        const int32_t pointerId = args.pointerProperties[i].id;
+        std::optional<size_t> slot = oldSlotState.getSlotForPointerId(pointerId);
+        if (!slot) {
+            slot = mSlotState.getSlotForPointerId(pointerId);
+            LOG_ALWAYS_FATAL_IF(!slot, "Could not find slot for pointer id %" PRId32, pointerId);
+        }
+        if (slotsToSuppress.test(*slot)) {
+            newSuppressedIds.insert(pointerId);
+        }
+    }
+    return newSuppressedIds;
+}
+
 std::vector<NotifyMotionArgs> PalmRejector::processMotion(const NotifyMotionArgs& args) {
     if (mPalmDetectionFilter == nullptr) {
         return {args};
@@ -633,43 +675,10 @@ std::vector<NotifyMotionArgs> PalmRejector::processMotion(const NotifyMotionArgs
     if (args.action == AMOTION_EVENT_ACTION_DOWN) {
         mSuppressedPointerIds.clear();
     }
-    std::bitset<::ui::kNumTouchEvdevSlots> slotsToHold;
-    std::bitset<::ui::kNumTouchEvdevSlots> slotsToSuppress;
 
-    // Store the slot state before we call getTouches and update it. This way, we can find
-    // the slots that have been removed due to the incoming event.
-    SlotState oldSlotState = mSlotState;
-    mSlotState.update(args);
-    std::vector<::ui::InProgressTouchEvdev> touches =
-            getTouches(args, mDeviceInfo, oldSlotState, mSlotState);
-    ::base::TimeTicks chromeTimestamp = toChromeTimestamp(args.eventTime);
-
-    if (DEBUG_MODEL) {
-        std::stringstream touchesStream;
-        for (const ::ui::InProgressTouchEvdev& touch : touches) {
-            touchesStream << touch.tracking_id << " : " << touch << "\n";
-        }
-        ALOGD("Filter: touches = %s", touchesStream.str().c_str());
-    }
-    mPalmDetectionFilter->Filter(touches, chromeTimestamp, &slotsToHold, &slotsToSuppress);
-
-    ALOGD_IF(DEBUG_MODEL, "Response: slotsToHold = %s, slotsToSuppress = %s",
-             slotsToHold.to_string().c_str(), slotsToSuppress.to_string().c_str());
-
-    // Now that we know which slots should be suppressed, let's convert those to pointer id's.
     std::set<int32_t> oldSuppressedIds;
     std::swap(oldSuppressedIds, mSuppressedPointerIds);
-    for (size_t i = 0; i < args.pointerCount; i++) {
-        const int32_t pointerId = args.pointerProperties[i].id;
-        std::optional<size_t> slot = oldSlotState.getSlotForPointerId(pointerId);
-        if (!slot) {
-            slot = mSlotState.getSlotForPointerId(pointerId);
-            LOG_ALWAYS_FATAL_IF(!slot, "Could not find slot for pointer id %" PRId32, pointerId);
-        }
-        if (slotsToSuppress.test(*slot)) {
-            mSuppressedPointerIds.insert(pointerId);
-        }
-    }
+    mSuppressedPointerIds = detectPalmPointers(args);
 
     std::vector<NotifyMotionArgs> argsWithoutUnwantedPointers =
             cancelSuppressedPointers(args, oldSuppressedIds, mSuppressedPointerIds);
