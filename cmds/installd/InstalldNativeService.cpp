@@ -230,6 +230,19 @@ binder::Status checkArgumentPath(const std::optional<std::string>& path) {
     }
 }
 
+binder::Status checkArgumentFileName(const std::string& path) {
+    if (path.empty()) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT, "Missing name");
+    }
+    for (const char& c : path) {
+        if (c == '\0' || c == '\n' || c == '/') {
+            return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                             StringPrintf("Name %s is malformed", path.c_str()));
+        }
+    }
+    return ok();
+}
+
 #define ENFORCE_UID(uid) {                                  \
     binder::Status status = checkUid((uid));                \
     if (!status.isOk()) {                                   \
@@ -265,6 +278,14 @@ binder::Status checkArgumentPath(const std::optional<std::string>& path) {
         return status;                                      \
     }                                                       \
 }
+
+#define CHECK_ARGUMENT_FILE_NAME(path)                         \
+    {                                                          \
+        binder::Status status = checkArgumentFileName((path)); \
+        if (!status.isOk()) {                                  \
+            return status;                                     \
+        }                                                      \
+    }
 
 #ifdef GRANULAR_LOCKS
 
@@ -1007,6 +1028,12 @@ binder::Status InstalldNativeService::clearAppProfiles(const std::string& packag
         const std::string& profileName) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    CHECK_ARGUMENT_FILE_NAME(profileName);
+    if (!base::EndsWith(profileName, ".prof")) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                         StringPrintf("Profile name %s does not end with .prof",
+                                      profileName.c_str()));
+    }
     LOCK_PACKAGE();
 
     binder::Status res = ok();
@@ -2974,7 +3001,19 @@ binder::Status InstalldNativeService::copySystemProfile(const std::string& syste
         int32_t packageUid, const std::string& packageName, const std::string& profileName,
         bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(systemProfile);
+    if (!base::EndsWith(systemProfile, ".prof")) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                         StringPrintf("System profile path %s does not end with .prof",
+                                      systemProfile.c_str()));
+    }
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    CHECK_ARGUMENT_FILE_NAME(profileName);
+    if (!base::EndsWith(profileName, ".prof")) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                         StringPrintf("Profile name %s does not end with .prof",
+                                      profileName.c_str()));
+    }
     LOCK_PACKAGE();
     *_aidl_return = copy_system_profile(systemProfile, packageUid, packageName, profileName);
     return ok();
