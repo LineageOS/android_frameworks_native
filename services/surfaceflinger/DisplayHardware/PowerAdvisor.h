@@ -251,11 +251,11 @@ private:
     RingBuffer<nsecs_t, 2> mCommitStartTimes;
     // Buffer of recent expected present times
     RingBuffer<nsecs_t, 2> mExpectedPresentTimes;
-    // Most recent present fence time, set at the end of the frame once known
+    // Most recent present fence time, provided by SF after composition engine finishes presenting
     nsecs_t mLastPresentFenceTime = -1;
-    // Most recent present fence time, set at the end of the frame once known
+    // Most recent composition engine present end time, returned with the present fence from SF
     nsecs_t mLastSfPresentEndTime = -1;
-    // Target for the entire pipeline including gpu
+    // Target duration for the entire pipeline including gpu
     std::optional<nsecs_t> mTotalFrameTargetDuration;
     // Updated list of display IDs
     std::vector<DisplayId> mDisplayIds;
