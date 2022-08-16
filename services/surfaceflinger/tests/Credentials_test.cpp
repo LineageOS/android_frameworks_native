@@ -74,8 +74,17 @@ protected:
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
     }
 
+    static sp<IBinder> getFirstDisplayToken() {
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        if (ids.empty()) {
+            return nullptr;
+        }
+
+        return SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
+    }
+
     void setupBackgroundSurface() {
-        mDisplay = SurfaceComposerClient::getInternalDisplayToken();
+        mDisplay = getFirstDisplayToken();
         ASSERT_FALSE(mDisplay == nullptr);
 
         ui::DisplayMode mode;
@@ -158,9 +167,7 @@ TEST_F(CredentialsTest, ClientInitTest) {
 }
 
 TEST_F(CredentialsTest, GetBuiltInDisplayAccessTest) {
-    std::function<bool()> condition = [] {
-        return SurfaceComposerClient::getInternalDisplayToken() != nullptr;
-    };
+    std::function<bool()> condition = [] { return getFirstDisplayToken() != nullptr; };
     // Anyone can access display information.
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges(condition, true, true));
 }
@@ -169,7 +176,7 @@ TEST_F(CredentialsTest, AllowedGetterMethodsTest) {
     // The following methods are tested with a UID that is not root, graphics,
     // or system, to show that anyone can access them.
     UIDFaker f(AID_BIN);
-    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    const auto display = getFirstDisplayToken();
     ASSERT_TRUE(display != nullptr);
 
     ui::DisplayMode mode;
@@ -181,7 +188,7 @@ TEST_F(CredentialsTest, AllowedGetterMethodsTest) {
 }
 
 TEST_F(CredentialsTest, GetDynamicDisplayInfoTest) {
-    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    const auto display = getFirstDisplayToken();
     std::function<status_t()> condition = [=]() {
         ui::DynamicDisplayInfo info;
         return SurfaceComposerClient::getDynamicDisplayInfo(display, &info);
@@ -190,7 +197,7 @@ TEST_F(CredentialsTest, GetDynamicDisplayInfoTest) {
 }
 
 TEST_F(CredentialsTest, GetDisplayNativePrimariesTest) {
-    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    const auto display = getFirstDisplayToken();
     std::function<status_t()> condition = [=]() {
         ui::DisplayPrimaries primaries;
         return SurfaceComposerClient::getDisplayNativePrimaries(display, primaries);
@@ -199,7 +206,7 @@ TEST_F(CredentialsTest, GetDisplayNativePrimariesTest) {
 }
 
 TEST_F(CredentialsTest, SetDesiredDisplayConfigsTest) {
-    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    const auto display = getFirstDisplayToken();
     ui::DisplayModeId defaultMode;
     bool allowGroupSwitching;
     float primaryFpsMin;
@@ -222,7 +229,7 @@ TEST_F(CredentialsTest, SetDesiredDisplayConfigsTest) {
 }
 
 TEST_F(CredentialsTest, SetActiveColorModeTest) {
-    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    const auto display = getFirstDisplayToken();
     std::function<status_t()> condition = [=]() {
         return SurfaceComposerClient::setActiveColorMode(display, ui::ColorMode::NATIVE);
     };
@@ -274,7 +281,7 @@ TEST_F(CredentialsTest, CreateDisplayTest) {
 }
 
 TEST_F(CredentialsTest, CaptureTest) {
-    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    const auto display = getFirstDisplayToken();
     std::function<status_t()> condition = [=]() {
         sp<GraphicBuffer> outBuffer;
         DisplayCaptureArgs captureArgs;
@@ -333,7 +340,7 @@ TEST_F(CredentialsTest, GetLayerDebugInfo) {
 }
 
 TEST_F(CredentialsTest, IsWideColorDisplayBasicCorrectness) {
-    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    const auto display = getFirstDisplayToken();
     ASSERT_FALSE(display == nullptr);
     bool result = false;
     status_t error = SurfaceComposerClient::isWideColorDisplay(display, &result);
@@ -357,7 +364,7 @@ TEST_F(CredentialsTest, IsWideColorDisplayBasicCorrectness) {
 }
 
 TEST_F(CredentialsTest, IsWideColorDisplayWithPrivileges) {
-    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    const auto display = getFirstDisplayToken();
     ASSERT_FALSE(display == nullptr);
     std::function<status_t()> condition = [=]() {
         bool result = false;
@@ -367,7 +374,7 @@ TEST_F(CredentialsTest, IsWideColorDisplayWithPrivileges) {
 }
 
 TEST_F(CredentialsTest, GetActiveColorModeBasicCorrectness) {
-    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    const auto display = getFirstDisplayToken();
     ASSERT_FALSE(display == nullptr);
     ui::DynamicDisplayInfo info;
     SurfaceComposerClient::getDynamicDisplayInfo(display, &info);

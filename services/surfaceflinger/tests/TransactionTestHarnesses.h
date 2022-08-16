@@ -35,7 +35,10 @@ public:
                 return mDelegate->screenshot();
             case RenderPath::VIRTUAL_DISPLAY:
 
-                const auto displayToken = SurfaceComposerClient::getInternalDisplayToken();
+                const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+                const auto displayToken = ids.empty()
+                        ? nullptr
+                        : SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
 
                 ui::DisplayState displayState;
                 SurfaceComposerClient::getDisplayState(displayToken, &displayState);

@@ -34,7 +34,9 @@ protected:
         toHalf3 = ColorTransformHelper::toHalf3;
         toHalf4 = ColorTransformHelper::toHalf4;
 
-        const auto display = SurfaceComposerClient::getInternalDisplayToken();
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        ASSERT_FALSE(ids.empty());
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         ASSERT_FALSE(display == nullptr);
         mColorOrange = toHalf4({255, 140, 0, 255});
         mParentLayer = createColorLayer("Parent layer", Color::RED);

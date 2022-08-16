@@ -289,7 +289,9 @@ protected:
 
 private:
     void SetUpDisplay() {
-        mDisplay = mClient->getInternalDisplayToken();
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        ASSERT_FALSE(ids.empty());
+        mDisplay = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         ASSERT_FALSE(mDisplay == nullptr) << "failed to get display";
 
         ui::DisplayMode mode;

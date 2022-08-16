@@ -529,6 +529,13 @@ public:
         mFlinger->setVsyncConfig(vsyncConfig, fdp->ConsumeIntegral<nsecs_t>());
     }
 
+    // TODO(b/248317436): extend to cover all displays for multi-display devices
+    static std::optional<PhysicalDisplayId> getFirstDisplayId() {
+        std::vector<PhysicalDisplayId> ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        if (ids.empty()) return {};
+        return ids.front();
+    }
+
     sp<IBinder> fuzzBoot(FuzzedDataProvider *fdp) {
         mFlinger->callingThreadHasUnscopedSurfaceFlingerAccess(fdp->ConsumeBool());
         const sp<Client> client = sp<Client>::make(mFlinger);
@@ -540,9 +547,8 @@ public:
         ui::PixelFormat pixelFormat{};
         mFlinger->getHwComposer().allocateVirtualDisplay(halVirtualDisplayId, uiSize, &pixelFormat);
 
-        PhysicalDisplayId physicalDisplayId =
-                SurfaceComposerClient::getInternalDisplayId().value_or(
-                        PhysicalDisplayId::fromPort(fdp->ConsumeIntegral<uint8_t>()));
+        PhysicalDisplayId physicalDisplayId = getFirstDisplayId().value_or(
+                PhysicalDisplayId::fromPort(fdp->ConsumeIntegral<uint8_t>()));
         mFlinger->getHwComposer().allocatePhysicalDisplay(kHwDisplayId, physicalDisplayId);
 
         sp<IBinder> display =

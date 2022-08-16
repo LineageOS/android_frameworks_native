@@ -80,16 +80,26 @@ std::pair<uint32_t, uint32_t> getDisplaySize() {
     std::once_flag once;
     std::call_once(once, []() {
         auto surfaceComposerClient = SurfaceComposerClient::getDefault();
-        auto displayToken = surfaceComposerClient->getInternalDisplayToken();
-        ui::DisplayMode displayMode;
-        if (surfaceComposerClient->getActiveDisplayMode(displayToken, &displayMode) < 0) {
-            LOG_ALWAYS_FATAL("Failed to get active display mode!");
+        auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        LOG_ALWAYS_FATAL_IF(ids.empty(), "Failed to get any display!");
+        ui::Size resolution = ui::kEmptySize;
+        // find the largest display resolution
+        for (auto id : ids) {
+            auto displayToken = surfaceComposerClient->getPhysicalDisplayToken(id);
+            ui::DisplayMode displayMode;
+            if (surfaceComposerClient->getActiveDisplayMode(displayToken, &displayMode) < 0) {
+                LOG_ALWAYS_FATAL("Failed to get active display mode!");
+            }
+            auto tw = displayMode.resolution.width;
+            auto th = displayMode.resolution.height;
+            LOG_ALWAYS_FATAL_IF(tw <= 0 || th <= 0, "Invalid display size!");
+            if (resolution.width * resolution.height <
+                displayMode.resolution.width * displayMode.resolution.height) {
+                resolution = displayMode.resolution;
+            }
         }
-        auto w = displayMode.resolution.width;
-        auto h = displayMode.resolution.height;
-        LOG_ALWAYS_FATAL_IF(w <= 0 || h <= 0, "Invalid display size!");
-        width = static_cast<uint32_t>(w);
-        height = static_cast<uint32_t>(h);
+        width = static_cast<uint32_t>(resolution.width);
+        height = static_cast<uint32_t>(resolution.height);
     });
     return std::pair<uint32_t, uint32_t>(width, height);
 }

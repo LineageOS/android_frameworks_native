@@ -187,8 +187,8 @@ public:
             nsecs_t* outDisplayPresentTime, nsecs_t* outDequeueReadyTime,
             nsecs_t* outReleaseTime);
 
-    status_t getWideColorSupport(bool* supported);
-    status_t getHdrSupport(bool* supported);
+    status_t getWideColorSupport(bool* supported) __attribute__((__deprecated__));
+    status_t getHdrSupport(bool* supported) __attribute__((__deprecated__));
 
     status_t getUniqueId(uint64_t* outId) const;
     status_t getConsumerUsage(uint64_t* outUsage) const;

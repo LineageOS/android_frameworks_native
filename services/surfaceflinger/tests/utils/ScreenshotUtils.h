@@ -51,7 +51,11 @@ public:
     }
 
     static void captureScreen(std::unique_ptr<ScreenCapture>* sc) {
-        captureScreen(sc, SurfaceComposerClient::getInternalDisplayToken());
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        // TODO(b/248317436): extend to cover all displays for multi-display devices
+        const auto display =
+                ids.empty() ? nullptr : SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
+        captureScreen(sc, display);
     }
 
     static void captureScreen(std::unique_ptr<ScreenCapture>* sc, sp<IBinder> displayToken) {

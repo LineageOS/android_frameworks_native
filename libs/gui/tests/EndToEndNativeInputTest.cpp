@@ -360,8 +360,10 @@ public:
     void SetUp() {
         mComposerClient = new SurfaceComposerClient;
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
-
-        const auto display = mComposerClient->getInternalDisplayToken();
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        ASSERT_FALSE(ids.empty());
+        // display 0 is picked for now, can extend to support all displays if needed
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         ASSERT_NE(display, nullptr);
 
         ui::DisplayMode mode;

@@ -29,8 +29,10 @@ protected:
     virtual void SetUp() {
         LayerTransactionTest::SetUp();
         ASSERT_EQ(NO_ERROR, mClient->initCheck());
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        ASSERT_FALSE(ids.empty());
 
-        const auto display = SurfaceComposerClient::getInternalDisplayToken();
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         ASSERT_FALSE(display == nullptr);
 
         mParentLayer = createColorLayer("Parent layer", Color::RED);
@@ -231,7 +233,10 @@ TEST_F(MirrorLayerTest, MirrorBufferLayer) {
 
 // Test that the mirror layer is initially offscreen.
 TEST_F(MirrorLayerTest, InitialMirrorState) {
-    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+    ASSERT_FALSE(ids.empty());
+
+    const auto display = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
     ui::DisplayMode mode;
     SurfaceComposerClient::getActiveDisplayMode(display, &mode);
     const ui::Size& size = mode.resolution;
@@ -275,7 +280,9 @@ TEST_F(MirrorLayerTest, InitialMirrorState) {
 
 // Test that a mirror layer can be screenshot when offscreen
 TEST_F(MirrorLayerTest, OffscreenMirrorScreenshot) {
-    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+    ASSERT_FALSE(ids.empty());
+    const auto display = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
     ui::DisplayMode mode;
     SurfaceComposerClient::getActiveDisplayMode(display, &mode);
     const ui::Size& size = mode.resolution;
