@@ -286,17 +286,12 @@ std::vector<HWComposer::HWCDisplayMode> HWComposer::getModes(PhysicalDisplayId d
 
 std::optional<hal::HWConfigId> HWComposer::getActiveMode(PhysicalDisplayId displayId) const {
     RETURN_IF_INVALID_DISPLAY(displayId, std::nullopt);
-
     const auto hwcId = *fromPhysicalDisplayId(displayId);
-    ALOGV("[%" PRIu64 "] getActiveMode", hwcId);
+
     hal::HWConfigId configId;
-    auto error = static_cast<hal::Error>(mComposer->getActiveConfig(hwcId, &configId));
+    const auto error = static_cast<hal::Error>(mComposer->getActiveConfig(hwcId, &configId));
 
-    if (error == hal::Error::BAD_CONFIG) {
-        LOG_DISPLAY_ERROR(displayId, "No active mode");
-        return std::nullopt;
-    }
-
+    RETURN_IF_HWC_ERROR_FOR("getActiveConfig", error, displayId, std::nullopt);
     return configId;
 }
 
