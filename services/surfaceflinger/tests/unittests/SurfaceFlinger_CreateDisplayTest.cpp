@@ -51,8 +51,8 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForNonsecureDisplay) {
     // --------------------------------------------------------------------
     // Cleanup conditions
 
-    // Destroying the display invalidates the display state.
-    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+    // Creating the display commits a display transaction.
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 }
 
 TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForSecureDisplay) {
@@ -86,8 +86,8 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForSecureDisplay) {
     // --------------------------------------------------------------------
     // Cleanup conditions
 
-    // Destroying the display invalidates the display state.
-    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+    // Creating the display commits a display transaction.
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 }
 
 } // namespace

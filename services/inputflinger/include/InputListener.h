@@ -22,7 +22,6 @@
 #include <input/Input.h>
 #include <input/InputDevice.h>
 #include <input/TouchVideoFrame.h>
-#include <utils/RefBase.h>
 
 namespace android {
 
@@ -40,7 +39,7 @@ struct NotifyArgs {
 
     virtual ~NotifyArgs() { }
 
-    virtual void notify(const sp<InputListenerInterface>& listener) const = 0;
+    virtual void notify(InputListenerInterface& listener) const = 0;
 };
 
 
@@ -57,7 +56,7 @@ struct NotifyConfigurationChangedArgs : public NotifyArgs {
 
     virtual ~NotifyConfigurationChangedArgs() { }
 
-    virtual void notify(const sp<InputListenerInterface>& listener) const;
+    void notify(InputListenerInterface& listener) const override;
 };
 
 
@@ -88,7 +87,7 @@ struct NotifyKeyArgs : public NotifyArgs {
 
     virtual ~NotifyKeyArgs() { }
 
-    virtual void notify(const sp<InputListenerInterface>& listener) const;
+    void notify(InputListenerInterface& listener) const override;
 };
 
 
@@ -142,7 +141,9 @@ struct NotifyMotionArgs : public NotifyArgs {
 
     bool operator==(const NotifyMotionArgs& rhs) const;
 
-    virtual void notify(const sp<InputListenerInterface>& listener) const;
+    void notify(InputListenerInterface& listener) const override;
+
+    std::string dump() const;
 };
 
 /* Describes a sensor event. */
@@ -167,7 +168,7 @@ struct NotifySensorArgs : public NotifyArgs {
 
     ~NotifySensorArgs() override {}
 
-    void notify(const sp<InputListenerInterface>& listener) const override;
+    void notify(InputListenerInterface& listener) const override;
 };
 
 /* Describes a switch event. */
@@ -187,7 +188,7 @@ struct NotifySwitchArgs : public NotifyArgs {
 
     virtual ~NotifySwitchArgs() { }
 
-    virtual void notify(const sp<InputListenerInterface>& listener) const;
+    void notify(InputListenerInterface& listener) const override;
 };
 
 
@@ -206,7 +207,7 @@ struct NotifyDeviceResetArgs : public NotifyArgs {
 
     virtual ~NotifyDeviceResetArgs() { }
 
-    virtual void notify(const sp<InputListenerInterface>& listener) const;
+    void notify(InputListenerInterface& listener) const override;
 };
 
 /* Describes a change in the state of Pointer Capture. */
@@ -224,7 +225,7 @@ struct NotifyPointerCaptureChangedArgs : public NotifyArgs {
 
     virtual ~NotifyPointerCaptureChangedArgs() {}
 
-    virtual void notify(const sp<InputListenerInterface>& listener) const;
+    void notify(InputListenerInterface& listener) const override;
 };
 
 /* Describes a vibrator state event. */
@@ -242,18 +243,19 @@ struct NotifyVibratorStateArgs : public NotifyArgs {
 
     virtual ~NotifyVibratorStateArgs() {}
 
-    virtual void notify(const sp<InputListenerInterface>& listener) const;
+    void notify(InputListenerInterface& listener) const override;
 };
 
 /*
  * The interface used by the InputReader to notify the InputListener about input events.
  */
-class InputListenerInterface : public virtual RefBase {
-protected:
+class InputListenerInterface {
+public:
     InputListenerInterface() { }
+    InputListenerInterface(const InputListenerInterface&) = delete;
+    InputListenerInterface& operator=(const InputListenerInterface&) = delete;
     virtual ~InputListenerInterface() { }
 
-public:
     virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) = 0;
     virtual void notifyKey(const NotifyKeyArgs* args) = 0;
     virtual void notifyMotion(const NotifyMotionArgs* args) = 0;
@@ -264,17 +266,14 @@ public:
     virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) = 0;
 };
 
-
 /*
  * An implementation of the listener interface that queues up and defers dispatch
  * of decoded events until flushed.
  */
 class QueuedInputListener : public InputListenerInterface {
-protected:
-    virtual ~QueuedInputListener();
 
 public:
-    explicit QueuedInputListener(const sp<InputListenerInterface>& innerListener);
+    explicit QueuedInputListener(InputListenerInterface& innerListener);
 
     virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
     virtual void notifyKey(const NotifyKeyArgs* args) override;
@@ -288,8 +287,8 @@ public:
     void flush();
 
 private:
-    sp<InputListenerInterface> mInnerListener;
-    std::vector<NotifyArgs*> mArgsQueue;
+    InputListenerInterface& mInnerListener;
+    std::vector<std::unique_ptr<NotifyArgs>> mArgsQueue;
 };
 
 } // namespace android

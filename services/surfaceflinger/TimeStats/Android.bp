@@ -12,6 +12,9 @@ cc_library {
     srcs: [
         "TimeStats.cpp",
     ],
+    header_libs: [
+        "libscheduler_headers",
+    ],
     shared_libs: [
         "android.hardware.graphics.composer@2.4",
         "libbase",
@@ -24,6 +27,9 @@ cc_library {
         "libutils",
     ],
     export_include_dirs: ["."],
+    export_header_lib_headers: [
+        "libscheduler_headers",
+    ],
     export_shared_lib_headers: [
         "libtimestats_proto",
     ],

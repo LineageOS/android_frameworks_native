@@ -15,13 +15,6 @@
  */
 
 #define LOG_TAG "VelocityTracker"
-//#define LOG_NDEBUG 0
-
-// Log debug messages about velocity tracking.
-#define DEBUG_VELOCITY 0
-
-// Log debug messages about the progress of the algorithm itself.
-#define DEBUG_STRATEGY 0
 
 #include <array>
 #include <inttypes.h>
@@ -30,12 +23,32 @@
 #include <optional>
 
 #include <android-base/stringprintf.h>
-#include <cutils/properties.h>
 #include <input/VelocityTracker.h>
 #include <utils/BitSet.h>
 #include <utils/Timers.h>
 
 namespace android {
+
+/**
+ * Log debug messages about velocity tracking.
+ * Enable this via "adb shell setprop log.tag.VelocityTrackerVelocity DEBUG" (requires restart)
+ */
+const bool DEBUG_VELOCITY =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Velocity", ANDROID_LOG_INFO);
+
+/**
+ * Log debug messages about the progress of the algorithm itself.
+ * Enable this via "adb shell setprop log.tag.VelocityTrackerStrategy DEBUG" (requires restart)
+ */
+const bool DEBUG_STRATEGY =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Strategy", ANDROID_LOG_INFO);
+
+/**
+ * Log debug messages about the 'impulse' strategy.
+ * Enable this via "adb shell setprop log.tag.VelocityTrackerImpulse DEBUG" (requires restart)
+ */
+const bool DEBUG_IMPULSE =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Impulse", ANDROID_LOG_INFO);
 
 // Nanoseconds per milliseconds.
 static const nsecs_t NANOS_PER_MS = 1000000;
@@ -64,7 +77,6 @@ static float vectorNorm(const float* a, uint32_t m) {
     return sqrtf(r);
 }
 
-#if DEBUG_STRATEGY || DEBUG_VELOCITY
 static std::string vectorToString(const float* a, uint32_t m) {
     std::string str;
     str += "[";
@@ -77,9 +89,11 @@ static std::string vectorToString(const float* a, uint32_t m) {
     str += " ]";
     return str;
 }
-#endif
 
-#if DEBUG_STRATEGY
+static std::string vectorToString(const std::vector<float>& v) {
+    return vectorToString(v.data(), v.size());
+}
+
 static std::string matrixToString(const float* a, uint32_t m, uint32_t n, bool rowMajor) {
     std::string str;
     str = "[";
@@ -99,7 +113,6 @@ static std::string matrixToString(const float* a, uint32_t m, uint32_t n, bool r
     str += " ]";
     return str;
 }
-#endif
 
 
 // --- VelocityTracker ---
@@ -133,12 +146,18 @@ std::unique_ptr<VelocityTrackerStrategy> VelocityTracker::createStrategy(
         VelocityTracker::Strategy strategy) {
     switch (strategy) {
         case VelocityTracker::Strategy::IMPULSE:
+            if (DEBUG_STRATEGY) {
+                ALOGI("Initializing impulse strategy");
+            }
             return std::make_unique<ImpulseVelocityTrackerStrategy>();
 
         case VelocityTracker::Strategy::LSQ1:
             return std::make_unique<LeastSquaresVelocityTrackerStrategy>(1);
 
         case VelocityTracker::Strategy::LSQ2:
+            if (DEBUG_STRATEGY && !DEBUG_IMPULSE) {
+                ALOGI("Initializing lsq2 strategy");
+            }
             return std::make_unique<LeastSquaresVelocityTrackerStrategy>(2);
 
         case VelocityTracker::Strategy::LSQ3:
@@ -204,10 +223,10 @@ void VelocityTracker::addMovement(nsecs_t eventTime, BitSet32 idBits,
 
     if ((mCurrentPointerIdBits.value & idBits.value)
             && eventTime >= mLastEventTime + ASSUME_POINTER_STOPPED_TIME) {
-#if DEBUG_VELOCITY
-        ALOGD("VelocityTracker: stopped for %0.3f ms, clearing state.",
-                (eventTime - mLastEventTime) * 0.000001f);
-#endif
+        if (DEBUG_VELOCITY) {
+            ALOGD("VelocityTracker: stopped for %0.3f ms, clearing state.",
+                  (eventTime - mLastEventTime) * 0.000001f);
+        }
         // We have not received any movements for too long.  Assume that all pointers
         // have stopped.
         mStrategy->clear();
@@ -221,24 +240,24 @@ void VelocityTracker::addMovement(nsecs_t eventTime, BitSet32 idBits,
 
     mStrategy->addMovement(eventTime, idBits, positions);
 
-#if DEBUG_VELOCITY
-    ALOGD("VelocityTracker: addMovement eventTime=%" PRId64 ", idBits=0x%08x, activePointerId=%d",
-            eventTime, idBits.value, mActivePointerId);
-    for (BitSet32 iterBits(idBits); !iterBits.isEmpty(); ) {
-        uint32_t id = iterBits.firstMarkedBit();
-        uint32_t index = idBits.getIndexOfBit(id);
-        iterBits.clearBit(id);
-        Estimator estimator;
-        getEstimator(id, &estimator);
-        ALOGD("  %d: position (%0.3f, %0.3f), "
-                "estimator (degree=%d, xCoeff=%s, yCoeff=%s, confidence=%f)",
-                id, positions[index].x, positions[index].y,
-                int(estimator.degree),
-                vectorToString(estimator.xCoeff, estimator.degree + 1).c_str(),
-                vectorToString(estimator.yCoeff, estimator.degree + 1).c_str(),
-                estimator.confidence);
+    if (DEBUG_VELOCITY) {
+        ALOGD("VelocityTracker: addMovement eventTime=%" PRId64
+              ", idBits=0x%08x, activePointerId=%d",
+              eventTime, idBits.value, mActivePointerId);
+        for (BitSet32 iterBits(idBits); !iterBits.isEmpty();) {
+            uint32_t id = iterBits.firstMarkedBit();
+            uint32_t index = idBits.getIndexOfBit(id);
+            iterBits.clearBit(id);
+            Estimator estimator;
+            getEstimator(id, &estimator);
+            ALOGD("  %d: position (%0.3f, %0.3f), "
+                  "estimator (degree=%d, xCoeff=%s, yCoeff=%s, confidence=%f)",
+                  id, positions[index].x, positions[index].y, int(estimator.degree),
+                  vectorToString(estimator.xCoeff, estimator.degree + 1).c_str(),
+                  vectorToString(estimator.yCoeff, estimator.degree + 1).c_str(),
+                  estimator.confidence);
+        }
     }
-#endif
 }
 
 void VelocityTracker::addMovement(const MotionEvent* event) {
@@ -419,11 +438,10 @@ void LeastSquaresVelocityTrackerStrategy::addMovement(
 static bool solveLeastSquares(const std::vector<float>& x, const std::vector<float>& y,
                               const std::vector<float>& w, uint32_t n, float* outB, float* outDet) {
     const size_t m = x.size();
-#if DEBUG_STRATEGY
-    ALOGD("solveLeastSquares: m=%d, n=%d, x=%s, y=%s, w=%s", int(m), int(n),
-            vectorToString(x, m).c_str(), vectorToString(y, m).c_str(),
-            vectorToString(w, m).c_str());
-#endif
+    if (DEBUG_STRATEGY) {
+        ALOGD("solveLeastSquares: m=%d, n=%d, x=%s, y=%s, w=%s", int(m), int(n),
+              vectorToString(x).c_str(), vectorToString(y).c_str(), vectorToString(w).c_str());
+    }
     LOG_ALWAYS_FATAL_IF(m != y.size() || m != w.size(), "Mismatched vector sizes");
 
     // Expand the X vector to a matrix A, pre-multiplied by the weights.
@@ -434,9 +452,9 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
             a[i][h] = a[i - 1][h] * x[h];
         }
     }
-#if DEBUG_STRATEGY
-    ALOGD("  - a=%s", matrixToString(&a[0][0], m, n, false /*rowMajor*/).c_str());
-#endif
+    if (DEBUG_STRATEGY) {
+        ALOGD("  - a=%s", matrixToString(&a[0][0], m, n, false /*rowMajor*/).c_str());
+    }
 
     // Apply the Gram-Schmidt process to A to obtain its QR decomposition.
     float q[n][m]; // orthonormal basis, column-major order
@@ -455,9 +473,9 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
         float norm = vectorNorm(&q[j][0], m);
         if (norm < 0.000001f) {
             // vectors are linearly dependent or zero so no solution
-#if DEBUG_STRATEGY
-            ALOGD("  - no solution, norm=%f", norm);
-#endif
+            if (DEBUG_STRATEGY) {
+                ALOGD("  - no solution, norm=%f", norm);
+            }
             return false;
         }
 
@@ -469,22 +487,22 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
             r[j][i] = i < j ? 0 : vectorDot(&q[j][0], &a[i][0], m);
         }
     }
-#if DEBUG_STRATEGY
-    ALOGD("  - q=%s", matrixToString(&q[0][0], m, n, false /*rowMajor*/).c_str());
-    ALOGD("  - r=%s", matrixToString(&r[0][0], n, n, true /*rowMajor*/).c_str());
+    if (DEBUG_STRATEGY) {
+        ALOGD("  - q=%s", matrixToString(&q[0][0], m, n, false /*rowMajor*/).c_str());
+        ALOGD("  - r=%s", matrixToString(&r[0][0], n, n, true /*rowMajor*/).c_str());
 
-    // calculate QR, if we factored A correctly then QR should equal A
-    float qr[n][m];
-    for (uint32_t h = 0; h < m; h++) {
-        for (uint32_t i = 0; i < n; i++) {
-            qr[i][h] = 0;
-            for (uint32_t j = 0; j < n; j++) {
-                qr[i][h] += q[j][h] * r[j][i];
+        // calculate QR, if we factored A correctly then QR should equal A
+        float qr[n][m];
+        for (uint32_t h = 0; h < m; h++) {
+            for (uint32_t i = 0; i < n; i++) {
+                qr[i][h] = 0;
+                for (uint32_t j = 0; j < n; j++) {
+                    qr[i][h] += q[j][h] * r[j][i];
+                }
             }
         }
+        ALOGD("  - qr=%s", matrixToString(&qr[0][0], m, n, false /*rowMajor*/).c_str());
     }
-    ALOGD("  - qr=%s", matrixToString(&qr[0][0], m, n, false /*rowMajor*/).c_str());
-#endif
 
     // Solve R B = Qt W Y to find B.  This is easy because R is upper triangular.
     // We just work from bottom-right to top-left calculating B's coefficients.
@@ -500,9 +518,9 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
         }
         outB[i] /= r[i][i];
     }
-#if DEBUG_STRATEGY
-    ALOGD("  - b=%s", vectorToString(outB, n).c_str());
-#endif
+    if (DEBUG_STRATEGY) {
+        ALOGD("  - b=%s", vectorToString(outB, n).c_str());
+    }
 
     // Calculate the coefficient of determination as 1 - (SSerr / SStot) where
     // SSerr is the residual sum of squares (variance of the error),
@@ -528,11 +546,11 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
         sstot += w[h] * w[h] * var * var;
     }
     *outDet = sstot > 0.000001f ? 1.0f - (sserr / sstot) : 1;
-#if DEBUG_STRATEGY
-    ALOGD("  - sserr=%f", sserr);
-    ALOGD("  - sstot=%f", sstot);
-    ALOGD("  - det=%f", *outDet);
-#endif
+    if (DEBUG_STRATEGY) {
+        ALOGD("  - sserr=%f", sserr);
+        ALOGD("  - sstot=%f", sstot);
+        ALOGD("  - det=%f", *outDet);
+    }
     return true;
 }
 
@@ -655,13 +673,11 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
             outEstimator->time = newestMovement.eventTime;
             outEstimator->degree = degree;
             outEstimator->confidence = xdet * ydet;
-#if DEBUG_STRATEGY
-            ALOGD("estimate: degree=%d, xCoeff=%s, yCoeff=%s, confidence=%f",
-                    int(outEstimator->degree),
-                    vectorToString(outEstimator->xCoeff, n).c_str(),
-                    vectorToString(outEstimator->yCoeff, n).c_str(),
-                    outEstimator->confidence);
-#endif
+            if (DEBUG_STRATEGY) {
+                ALOGD("estimate: degree=%d, xCoeff=%s, yCoeff=%s, confidence=%f",
+                      int(outEstimator->degree), vectorToString(outEstimator->xCoeff, n).c_str(),
+                      vectorToString(outEstimator->yCoeff, n).c_str(), outEstimator->confidence);
+            }
             return true;
         }
     }
@@ -1169,9 +1185,27 @@ bool ImpulseVelocityTrackerStrategy::getEstimator(uint32_t id,
     outEstimator->time = newestMovement.eventTime;
     outEstimator->degree = 2; // similar results to 2nd degree fit
     outEstimator->confidence = 1;
-#if DEBUG_STRATEGY
-    ALOGD("velocity: (%f, %f)", outEstimator->xCoeff[1], outEstimator->yCoeff[1]);
-#endif
+    if (DEBUG_STRATEGY) {
+        ALOGD("velocity: (%.1f, %.1f)", outEstimator->xCoeff[1], outEstimator->yCoeff[1]);
+    }
+    if (DEBUG_IMPULSE) {
+        // TODO(b/134179997): delete this block once the switch to 'impulse' is complete.
+        // Calculate the lsq2 velocity for the same inputs to allow runtime comparisons
+        VelocityTracker lsq2(VelocityTracker::Strategy::LSQ2);
+        BitSet32 idBits;
+        const uint32_t pointerId = 0;
+        idBits.markBit(pointerId);
+        for (ssize_t i = m - 1; i >= 0; i--) {
+            lsq2.addMovement(time[i], idBits, {{x[i], y[i]}});
+        }
+        float outVx = 0, outVy = 0;
+        const bool computed = lsq2.getVelocity(pointerId, &outVx, &outVy);
+        if (computed) {
+            ALOGD("lsq2 velocity: (%.1f, %.1f)", outVx, outVy);
+        } else {
+            ALOGD("lsq2 velocity: could not compute velocity");
+        }
+    }
     return true;
 }
 

@@ -183,6 +183,10 @@ TEST_F(PowerHalWrapperAidlTest, TestSetModeUnsupported) {
 
     auto result = mWrapper->setMode(Mode::LAUNCH, true);
     ASSERT_TRUE(result.isUnsupported());
+
+    EXPECT_CALL(*mMockHal.get(), isModeSupported(Eq(Mode::CAMERA_STREAMING_HIGH), _))
+            .Times(Exactly(1))
+            .WillRepeatedly(DoAll(SetArgPointee<1>(false), Return(Status())));
     result = mWrapper->setMode(Mode::CAMERA_STREAMING_HIGH, true);
     ASSERT_TRUE(result.isUnsupported());
 }

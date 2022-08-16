@@ -33,28 +33,22 @@ class RenderEngine;
  */
 class ExternalTexture {
 public:
-    // Usage specifies the rendering intent for the buffer.
-    enum Usage : uint32_t {
-        // When a buffer is not READABLE but is WRITEABLE, then GLESRenderEngine will use that as a
-        // hint to load the buffer into a separate cache
-        READABLE = 1 << 0,
+    ExternalTexture() = default;
+    virtual ~ExternalTexture() = default;
 
-        // The buffer needs to be mapped as a 2D texture if set, otherwise must be mapped as an
-        // external texture
-        WRITEABLE = 1 << 1,
-    };
-    // Creates an ExternalTexture for the provided buffer and RenderEngine instance, with the given
-    // usage hint of type Usage.
-    ExternalTexture(const sp<GraphicBuffer>& buffer, RenderEngine& renderEngine, uint32_t usage);
-
-    ~ExternalTexture();
+    virtual bool hasSameBuffer(const ExternalTexture& other) const = 0;
+    virtual uint32_t getWidth() const = 0;
+    virtual uint32_t getHeight() const = 0;
+    virtual uint64_t getId() const = 0;
+    virtual PixelFormat getPixelFormat() const = 0;
+    virtual uint64_t getUsage() const = 0;
 
     // Retrieves the buffer that is bound to this texture.
-    const sp<GraphicBuffer>& getBuffer() const { return mBuffer; }
+    virtual const sp<GraphicBuffer>& getBuffer() const = 0;
 
-private:
-    sp<GraphicBuffer> mBuffer;
-    RenderEngine& mRenderEngine;
+    Rect getBounds() const {
+        return {0, 0, static_cast<int32_t>(getWidth()), static_cast<int32_t>(getHeight())};
+    }
     DISALLOW_COPY_AND_ASSIGN(ExternalTexture);
 };
 

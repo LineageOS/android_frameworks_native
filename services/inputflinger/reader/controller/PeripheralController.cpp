@@ -17,9 +17,9 @@
 #include <locale>
 #include <regex>
 
-#include "../Macros.h"
+#include <ftl/enum.h>
 
-#include <ftl/NamedEnum.h>
+#include "../Macros.h"
 #include "PeripheralController.h"
 
 // Log detailed debug messages about input device lights.
@@ -286,7 +286,7 @@ void PeripheralController::dump(std::string& dump) {
         for (const auto& [lightId, light] : mLights) {
             dump += StringPrintf(INDENT4 "Id: %d", lightId);
             dump += StringPrintf(INDENT4 "Name: %s", light->name.c_str());
-            dump += StringPrintf(INDENT4 "Type: %s", NamedEnum::string(light->type).c_str());
+            dump += StringPrintf(INDENT4 "Type: %s", ftl::enum_string(light->type).c_str());
             light->dump(dump);
         }
     }
@@ -487,7 +487,7 @@ bool PeripheralController::setLightColor(int32_t lightId, int32_t color) {
     auto& light = it->second;
     if (DEBUG_LIGHT_DETAILS) {
         ALOGD("setLightColor lightId %d type %s color 0x%x", lightId,
-              NamedEnum::string(light->type).c_str(), color);
+              ftl::enum_string(light->type).c_str(), color);
     }
     return light->setLightColor(color);
 }
@@ -501,7 +501,7 @@ std::optional<int32_t> PeripheralController::getLightColor(int32_t lightId) {
     std::optional<int32_t> color = light->getLightColor();
     if (DEBUG_LIGHT_DETAILS) {
         ALOGD("getLightColor lightId %d type %s color 0x%x", lightId,
-              NamedEnum::string(light->type).c_str(), color.value_or(0));
+              ftl::enum_string(light->type).c_str(), color.value_or(0));
     }
     return color;
 }

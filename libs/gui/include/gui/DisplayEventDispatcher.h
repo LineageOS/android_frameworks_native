@@ -21,20 +21,6 @@
 namespace android {
 using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
 
-struct VsyncEventData {
-    // The Vsync Id corresponsing to this vsync event. This will be used to
-    // populate ISurfaceComposer::setFrameTimelineVsync and
-    // SurfaceComposerClient::setFrameTimelineVsync
-    int64_t id = FrameTimelineInfo::INVALID_VSYNC_ID;
-
-    // The deadline in CLOCK_MONOTONIC that the app needs to complete its
-    // frame by (both on the CPU and the GPU)
-    int64_t deadlineTimestamp = std::numeric_limits<int64_t>::max();
-
-    // The current frame interval in ns when this frame was scheduled.
-    int64_t frameInterval = 0;
-};
-
 class DisplayEventDispatcher : public LooperCallback {
 public:
     explicit DisplayEventDispatcher(
@@ -48,6 +34,7 @@ public:
     void injectEvent(const DisplayEventReceiver::Event& event);
     int getFd() const;
     virtual int handleEvent(int receiveFd, int events, void* data);
+    status_t getLatestVsyncEventData(ParcelableVsyncEventData* outVsyncEventData) const;
 
 protected:
     virtual ~DisplayEventDispatcher() = default;
@@ -76,5 +63,8 @@ private:
 
     bool processPendingEvents(nsecs_t* outTimestamp, PhysicalDisplayId* outDisplayId,
                               uint32_t* outCount, VsyncEventData* outVsyncEventData);
+
+    void populateFrameTimelines(const DisplayEventReceiver::Event& event,
+                                VsyncEventData* outVsyncEventData) const;
 };
 } // namespace android

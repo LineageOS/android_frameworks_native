@@ -24,11 +24,13 @@
 
 namespace android::scheduler {
 class CallbackRepeater;
+class VSyncTracker;
 
 class DispSyncSource final : public VSyncSource {
 public:
-    DispSyncSource(VSyncDispatch& vSyncDispatch, std::chrono::nanoseconds workDuration,
-                   std::chrono::nanoseconds readyDuration, bool traceVsync, const char* name);
+    DispSyncSource(VSyncDispatch& vSyncDispatch, VSyncTracker& vSyncTracker,
+                   std::chrono::nanoseconds workDuration, std::chrono::nanoseconds readyDuration,
+                   bool traceVsync, const char* name);
 
     ~DispSyncSource() override;
 
@@ -38,6 +40,7 @@ public:
     void setCallback(VSyncSource::Callback* callback) override;
     void setDuration(std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration) override;
+    VSyncData getLatestVSyncData() const override;
 
     void dump(std::string&) const override;
 
@@ -49,6 +52,8 @@ private:
 
     const bool mTraceVsync;
     const std::string mVsyncOnLabel;
+
+    const VSyncTracker& mVSyncTracker;
 
     std::unique_ptr<CallbackRepeater> mCallbackRepeater;
 

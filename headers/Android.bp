@@ -28,6 +28,11 @@ cc_library_headers {
         "libstagefright_foundation_headers",
     ],
     min_sdk_version: "29",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media",
+        "com.android.media.swcodec",
+    ],
 
     host_supported: true,
     target: {

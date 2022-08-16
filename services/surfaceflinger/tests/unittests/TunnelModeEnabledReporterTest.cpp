@@ -27,7 +27,6 @@
 #include "TunnelModeEnabledReporter.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/MockEventThread.h"
-#include "mock/MockMessageQueue.h"
 
 namespace android {
 
@@ -69,12 +68,12 @@ protected:
 
     TestableSurfaceFlinger mFlinger;
     Hwc2::mock::Composer* mComposer = nullptr;
-    sp<TestableTunnelModeEnabledListener> mTunnelModeEnabledListener =
-            new TestableTunnelModeEnabledListener();
-    sp<TunnelModeEnabledReporter> mTunnelModeEnabledReporter =
-            new TunnelModeEnabledReporter();
 
-    mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
+    sp<TestableTunnelModeEnabledListener> mTunnelModeEnabledListener =
+            sp<TestableTunnelModeEnabledListener>::make();
+
+    sp<TunnelModeEnabledReporter> mTunnelModeEnabledReporter =
+            sp<TunnelModeEnabledReporter>::make();
 };
 
 TunnelModeEnabledReporterTest::TunnelModeEnabledReporterTest() {
@@ -82,7 +81,6 @@ TunnelModeEnabledReporterTest::TunnelModeEnabledReporterTest() {
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-    mFlinger.mutableEventQueue().reset(mMessageQueue);
     setupScheduler();
     mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
     mFlinger.flinger()->mTunnelModeEnabledReporter = mTunnelModeEnabledReporter;
@@ -100,8 +98,7 @@ TunnelModeEnabledReporterTest::~TunnelModeEnabledReporterTest() {
 sp<BufferStateLayer> TunnelModeEnabledReporterTest::createBufferStateLayer(
         LayerMetadata metadata = {}) {
     sp<Client> client;
-    LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", WIDTH, HEIGHT,
-                           LAYER_FLAGS, metadata);
+    LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", LAYER_FLAGS, metadata);
     return new BufferStateLayer(args);
 }
 

@@ -144,6 +144,64 @@ TEST(StaticVector, Construct) {
   }
 }
 
+TEST(StaticVector, Copy) {
+  {
+    // Same capacity.
+    const StaticVector vector = {"snow"s, "cone"s};
+
+    StaticVector<const std::string, 2> copy(vector);
+    EXPECT_EQ(copy, vector);
+
+    // The vector is assignable even if T is const.
+    const StaticVector<std::string, 2> other = {"tiramisu"s};
+    copy = other;
+    EXPECT_EQ(copy, other);
+  }
+  {
+    // From smaller capacity.
+    const StaticVector vector = {"snow"s, "cone"s};
+
+    StaticVector<const std::string, 3> copy(vector);
+    EXPECT_EQ(copy, vector);
+
+    // The vector is assignable even if T is const.
+    const StaticVector other = {"tiramisu"s};
+    copy = other;
+    EXPECT_EQ(copy, other);
+  }
+}
+
+TEST(StaticVector, Move) {
+  {
+    // Same capacity.
+    StaticVector vector = {"snow"s, "cone"s};
+
+    StaticVector<const std::string, 2> move(std::move(vector));
+    EXPECT_TRUE(vector.empty());
+    EXPECT_EQ(move, (StaticVector{"snow"s, "cone"s}));
+
+    // The vector is assignable even if T is const.
+    StaticVector<std::string, 2> other = {"tiramisu"s};
+    move = std::move(other);
+    EXPECT_TRUE(other.empty());
+    EXPECT_EQ(move, (StaticVector{"tiramisu"s}));
+  }
+  {
+    // From smaller capacity.
+    StaticVector vector = {"snow"s, "cone"s};
+
+    StaticVector<const std::string, 3> move(std::move(vector));
+    EXPECT_TRUE(vector.empty());
+    EXPECT_EQ(move, (StaticVector{"snow"s, "cone"s}));
+
+    // The vector is assignable even if T is const.
+    StaticVector other = {"tiramisu"s};
+    move = std::move(other);
+    EXPECT_TRUE(other.empty());
+    EXPECT_EQ(move, (StaticVector{"tiramisu"s}));
+  }
+}
+
 TEST(StaticVector, String) {
   StaticVector<char, 10> chars;
   char c = 'a';
@@ -328,21 +386,20 @@ struct DestroyCounts {
   bool alive = true;
 };
 
-void swap(DestroyCounts& lhs, DestroyCounts& rhs) {
-  std::swap(lhs.alive, rhs.alive);
-}
-
 }  // namespace
 
 TEST(StaticVector, Destroy) {
   int live = 0;
   int dead = 0;
-
-  { StaticVector<DestroyCounts, 5> counts; }
+  {
+    // Empty.
+    StaticVector<DestroyCounts, 5> counts;
+  }
   EXPECT_EQ(0, live);
   EXPECT_EQ(0, dead);
 
   {
+    // Non-empty.
     StaticVector<DestroyCounts, 5> counts;
     counts.emplace_back(live, dead);
     counts.emplace_back(live, dead);
@@ -353,30 +410,33 @@ TEST(StaticVector, Destroy) {
 
   live = 0;
   {
+    // Copy.
     StaticVector<DestroyCounts, 5> counts;
     counts.emplace_back(live, dead);
     counts.emplace_back(live, dead);
     counts.emplace_back(live, dead);
 
-    auto copy = counts;
+    const auto copy = counts;
   }
   EXPECT_EQ(6, live);
   EXPECT_EQ(0, dead);
 
   live = 0;
   {
+    // Move.
     StaticVector<DestroyCounts, 5> counts;
     counts.emplace_back(live, dead);
     counts.emplace_back(live, dead);
     counts.emplace_back(live, dead);
 
-    auto move = std::move(counts);
+    const auto move = std::move(counts);
   }
   EXPECT_EQ(3, live);
   EXPECT_EQ(3, dead);
 
   live = dead = 0;
   {
+    // Swap.
     StaticVector<DestroyCounts, 5> counts1;
     counts1.emplace_back(live, dead);
     counts1.emplace_back(live, dead);
@@ -384,15 +444,35 @@ TEST(StaticVector, Destroy) {
 
     StaticVector<DestroyCounts, 5> counts2;
     counts2.emplace_back(live, dead);
+    counts2.emplace_back(live, dead);
 
     swap(counts1, counts2);
 
+    EXPECT_EQ(2u, counts1.size());
+    EXPECT_EQ(3u, counts2.size());
+
     EXPECT_EQ(0, live);
-    EXPECT_EQ(2, dead);
+    EXPECT_EQ(7, dead);  // 3 moves per swap, plus 1 move.
 
     dead = 0;
   }
-  EXPECT_EQ(4, live);
+  EXPECT_EQ(5, live);
+  EXPECT_EQ(0, dead);
+}
+
+TEST(StaticVector, Clear) {
+  int live = 0;
+  int dead = 0;
+  {
+    StaticVector<DestroyCounts, 5> counts;
+    counts.emplace_back(live, dead);
+    counts.emplace_back(live, dead);
+
+    counts.clear();
+
+    EXPECT_TRUE(counts.empty());
+  }
+  EXPECT_EQ(2, live);
   EXPECT_EQ(0, dead);
 }
 

@@ -103,7 +103,7 @@ private:
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             T result = halFn(hal.get());
-            if (result.checkAndLogFailure(functionName)) {
+            if (result.isFailedLogged(functionName)) {
                 tryReconnect();
             } else {
                 return result;

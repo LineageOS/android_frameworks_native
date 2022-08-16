@@ -22,6 +22,8 @@
 #include <gui/LayerState.h>
 
 namespace android {
+using gui::DisplayCaptureArgs;
+using gui::LayerCaptureArgs;
 using gui::ScreenCaptureResults;
 
 namespace test {
@@ -40,11 +42,11 @@ TEST(LayerStateTest, ParcellingDisplayCaptureArgs) {
     args.grayscale = true;
 
     Parcel p;
-    args.write(p);
+    args.writeToParcel(&p);
     p.setDataPosition(0);
 
     DisplayCaptureArgs args2;
-    args2.read(p);
+    args2.readFromParcel(&p);
 
     ASSERT_EQ(args.pixelFormat, args2.pixelFormat);
     ASSERT_EQ(args.sourceCrop, args2.sourceCrop);
@@ -71,11 +73,11 @@ TEST(LayerStateTest, ParcellingLayerCaptureArgs) {
     args.grayscale = true;
 
     Parcel p;
-    args.write(p);
+    args.writeToParcel(&p);
     p.setDataPosition(0);
 
     LayerCaptureArgs args2;
-    args2.read(p);
+    args2.readFromParcel(&p);
 
     ASSERT_EQ(args.pixelFormat, args2.pixelFormat);
     ASSERT_EQ(args.sourceCrop, args2.sourceCrop);

@@ -74,23 +74,6 @@ void BatteryService::disableSensorImpl(uid_t uid, int handle) {
     }
 }
 
-void BatteryService::cleanupImpl(uid_t uid) {
-    if (checkService()) {
-        Mutex::Autolock _l(mActivationsLock);
-        int64_t identity = IPCThreadState::self()->clearCallingIdentity();
-        for (size_t i=0 ; i<mActivations.size() ; ) {
-            const Info& info(mActivations[i]);
-            if (info.uid == uid) {
-                mBatteryStatService->noteStopSensor(info.uid, info.handle);
-                mActivations.removeAt(i);
-            } else {
-              i++;
-            }
-        }
-        IPCThreadState::self()->restoreCallingIdentity(identity);
-    }
-}
-
 bool BatteryService::checkService() {
     if (mBatteryStatService == nullptr) {
         const sp<IServiceManager> sm(defaultServiceManager());

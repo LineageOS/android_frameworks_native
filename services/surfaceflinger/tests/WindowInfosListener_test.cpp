@@ -22,6 +22,7 @@
 
 namespace android {
 using Transaction = SurfaceComposerClient::Transaction;
+using gui::DisplayInfo;
 using gui::WindowInfo;
 
 class WindowInfosListenerTest : public ::testing::Test {
@@ -40,7 +41,8 @@ protected:
 
     struct SyncWindowInfosListener : public gui::WindowInfosListener {
     public:
-        void onWindowInfosChanged(const std::vector<WindowInfo>& windowInfos) override {
+        void onWindowInfosChanged(const std::vector<WindowInfo>& windowInfos,
+                                  const std::vector<DisplayInfo>&) override {
             windowInfosPromise.set_value(windowInfos);
         }
 
@@ -84,7 +86,7 @@ TEST_F(WindowInfosListenerTest, WindowInfoAddedAndRemoved) {
                                    ISurfaceComposerClient::eFXSurfaceBufferState);
 
     Transaction()
-            .setLayerStack(surfaceControl, 0)
+            .setLayerStack(surfaceControl, ui::DEFAULT_LAYER_STACK)
             .show(surfaceControl)
             .setLayer(surfaceControl, INT32_MAX - 1)
             .setInputWindowInfo(surfaceControl, windowInfo)
@@ -112,7 +114,7 @@ TEST_F(WindowInfosListenerTest, WindowInfoChanged) {
                                    ISurfaceComposerClient::eFXSurfaceBufferState);
     const Rect crop(0, 0, 100, 100);
     Transaction()
-            .setLayerStack(surfaceControl, 0)
+            .setLayerStack(surfaceControl, ui::DEFAULT_LAYER_STACK)
             .show(surfaceControl)
             .setLayer(surfaceControl, INT32_MAX - 1)
             .setCrop(surfaceControl, crop)

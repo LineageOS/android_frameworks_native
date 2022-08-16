@@ -20,7 +20,6 @@
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
 #include <utils/BitSet.h>
-#include <utils/RefBase.h>
 
 namespace android {
 
@@ -31,7 +30,8 @@ namespace android {
  * fingers
  *
  * The pointer controller is responsible for providing synchronization and for tracking
- * display orientation changes if needed.
+ * display orientation changes if needed. It works in the display panel's coordinate space, which
+ * is the same coordinate space used by InputReader.
  */
 class PointerControllerInterface {
 protected:

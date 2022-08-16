@@ -152,6 +152,11 @@ int main(int, char**) {
     sm->addService(String16(SurfaceFlinger::getServiceName()), flinger, false,
                    IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL | IServiceManager::DUMP_FLAG_PROTO);
 
+    // publish gui::ISurfaceComposer, the new AIDL interface
+    sp<SurfaceComposerAIDL> composerAIDL = new SurfaceComposerAIDL(flinger);
+    sm->addService(String16("SurfaceFlingerAIDL"), composerAIDL, false,
+                   IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL | IServiceManager::DUMP_FLAG_PROTO);
+
     startDisplayService(); // dependency on SF getting registered above
 
     if (SurfaceFlinger::setSchedFifo(true) != NO_ERROR) {

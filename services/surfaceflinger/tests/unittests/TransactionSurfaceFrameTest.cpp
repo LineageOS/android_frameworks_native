@@ -22,6 +22,7 @@
 #include <gui/SurfaceComposerClient.h>
 #include <log/log.h>
 #include <renderengine/ExternalTexture.h>
+#include <renderengine/mock/FakeExternalTexture.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <utils/String8.h>
 
@@ -46,6 +47,7 @@ public:
         ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
         setupScheduler();
         mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
+        mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
     }
 
     ~TransactionSurfaceFrameTest() {
@@ -56,7 +58,7 @@ public:
 
     sp<BufferStateLayer> createBufferStateLayer() {
         sp<Client> client;
-        LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", 100, 100, 0,
+        LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", 0,
                                LayerMetadata());
         return new BufferStateLayer(args);
     }
@@ -92,10 +94,9 @@ public:
     }
 
     TestableSurfaceFlinger mFlinger;
-    renderengine::mock::RenderEngine mRenderEngine;
+    renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
 
     FenceToFenceTimeMap fenceFactory;
-    client_cache_t mClientCache;
 
     void PresentedSurfaceFrameForBufferlessTransaction() {
         sp<BufferStateLayer> layer = createBufferStateLayer();
@@ -114,13 +115,18 @@ public:
         sp<BufferStateLayer> layer = createBufferStateLayer();
         sp<Fence> fence(new Fence());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
-        const auto buffer = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                 1, 0),
-                                               mRenderEngine, false);
-        layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
-                         nullptr /* releaseBufferEndpoint */);
+        BufferData bufferData;
+        bufferData.acquireFence = fence;
+        bufferData.frameNumber = 1;
+        bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+        bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+        std::shared_ptr<renderengine::ExternalTexture> externalTexture = std::make_shared<
+                renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                         1ULL /* bufferId */,
+                                                         HAL_PIXEL_FORMAT_RGBA_8888,
+                                                         0ULL /*usage*/);
+        layer->setBuffer(externalTexture, bufferData, 10, 20, false, std::nullopt,
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
         acquireFence->signalForTest(12);
 
         commitTransaction(layer.get());
@@ -143,27 +149,36 @@ public:
 
         sp<Fence> fence1(new Fence());
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
-        const auto buffer1 = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                 1, 0),
-                                               mRenderEngine, false);
-        layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
-                         nullptr /* releaseBufferEndpoint */);
+        BufferData bufferData;
+        bufferData.acquireFence = fence1;
+        bufferData.frameNumber = 1;
+        bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+        bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+        std::shared_ptr<renderengine::ExternalTexture> externalTexture1 = std::make_shared<
+                renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                         1ULL /* bufferId */,
+                                                         HAL_PIXEL_FORMAT_RGBA_8888,
+                                                         0ULL /*usage*/);
+        layer->setBuffer(externalTexture1, bufferData, 10, 20, false, std::nullopt,
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
         EXPECT_EQ(0u, layer->mDrawingState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
         const auto droppedSurfaceFrame = layer->mDrawingState.bufferSurfaceFrameTX;
 
         sp<Fence> fence2(new Fence());
         auto acquireFence2 = fenceFactory.createFenceTimeForTest(fence2);
-        const auto buffer2 = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                 1, 0),
-                                               mRenderEngine, false);
         nsecs_t start = systemTime();
-        layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
-                         nullptr /* releaseBufferEndpoint */);
+        bufferData.acquireFence = fence2;
+        bufferData.frameNumber = 1;
+        bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+        bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+        std::shared_ptr<renderengine::ExternalTexture> externalTexture2 = std::make_shared<
+                renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                         2ULL /* bufferId */,
+                                                         HAL_PIXEL_FORMAT_RGBA_8888,
+                                                         0ULL /*usage*/);
+        layer->setBuffer(externalTexture2, bufferData, 10, 20, false, std::nullopt,
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
         nsecs_t end = systemTime();
         acquireFence2->signalForTest(12);
 
@@ -198,13 +213,18 @@ public:
 
         sp<Fence> fence(new Fence());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
-        const auto buffer = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                 1, 0),
-                                               mRenderEngine, false);
-        layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
-                         nullptr /* releaseBufferEndpoint */);
+        BufferData bufferData;
+        bufferData.acquireFence = fence;
+        bufferData.frameNumber = 1;
+        bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+        bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+        std::shared_ptr<renderengine::ExternalTexture> externalTexture = std::make_shared<
+                renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                         1ULL /* bufferId */,
+                                                         HAL_PIXEL_FORMAT_RGBA_8888,
+                                                         0ULL /*usage*/);
+        layer->setBuffer(externalTexture, bufferData, 10, 20, false, std::nullopt,
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
         acquireFence->signalForTest(12);
 
         EXPECT_EQ(0u, layer->mDrawingState.bufferlessSurfaceFramesTX.size());
@@ -227,13 +247,18 @@ public:
         sp<BufferStateLayer> layer = createBufferStateLayer();
         sp<Fence> fence(new Fence());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
-        const auto buffer = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                 1, 0),
-                                               mRenderEngine, false);
-        layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
-                         nullptr /* releaseBufferEndpoint */);
+        BufferData bufferData;
+        bufferData.acquireFence = fence;
+        bufferData.frameNumber = 1;
+        bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+        bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+        std::shared_ptr<renderengine::ExternalTexture> externalTexture = std::make_shared<
+                renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                         1ULL /* bufferId */,
+                                                         HAL_PIXEL_FORMAT_RGBA_8888,
+                                                         0ULL /*usage*/);
+        layer->setBuffer(externalTexture, bufferData, 10, 20, false, std::nullopt,
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
         EXPECT_EQ(0u, layer->mDrawingState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
 
@@ -260,13 +285,18 @@ public:
 
         sp<Fence> fence(new Fence());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
-        const auto buffer = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                 1, 0),
-                                               mRenderEngine, false);
-        layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 3, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
-                         nullptr /* releaseBufferEndpoint */);
+        BufferData bufferData;
+        bufferData.acquireFence = fence;
+        bufferData.frameNumber = 1;
+        bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+        bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+        std::shared_ptr<renderengine::ExternalTexture> externalTexture = std::make_shared<
+                renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                         1ULL /* bufferId */,
+                                                         HAL_PIXEL_FORMAT_RGBA_8888,
+                                                         0ULL /*usage*/);
+        layer->setBuffer(externalTexture, bufferData, 10, 20, false, std::nullopt,
+                         {/*vsyncId*/ 3, /*inputEventId*/ 0});
         EXPECT_EQ(2u, layer->mDrawingState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
         const auto bufferSurfaceFrameTX = layer->mDrawingState.bufferSurfaceFrameTX;
@@ -299,25 +329,34 @@ public:
 
         sp<Fence> fence1(new Fence());
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
-        const auto buffer1 = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                 1, 0),
-                                               mRenderEngine, false);
-        layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
-                         nullptr /* releaseBufferEndpoint */);
+        BufferData bufferData;
+        bufferData.acquireFence = fence1;
+        bufferData.frameNumber = 1;
+        bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+        bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+        std::shared_ptr<renderengine::ExternalTexture> externalTexture1 = std::make_shared<
+                renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                         1ULL /* bufferId */,
+                                                         HAL_PIXEL_FORMAT_RGBA_8888,
+                                                         0ULL /*usage*/);
+        layer->setBuffer(externalTexture1, bufferData, 10, 20, false, std::nullopt,
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
         const auto droppedSurfaceFrame = layer->mDrawingState.bufferSurfaceFrameTX;
 
         sp<Fence> fence2(new Fence());
         auto acquireFence2 = fenceFactory.createFenceTimeForTest(fence2);
-        const auto buffer2 = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                 1, 0),
-                                               mRenderEngine, false);
-        layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
-                         nullptr /* releaseBufferEndpoint */);
+        bufferData.acquireFence = fence2;
+        bufferData.frameNumber = 1;
+        bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+        bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+        std::shared_ptr<renderengine::ExternalTexture> externalTexture2 = std::make_shared<
+                renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                         1ULL /* bufferId */,
+                                                         HAL_PIXEL_FORMAT_RGBA_8888,
+                                                         0ULL /*usage*/);
+        layer->setBuffer(externalTexture2, bufferData, 10, 20, false, std::nullopt,
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
         acquireFence2->signalForTest(12);
 
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
@@ -330,7 +369,7 @@ public:
         // Both the droppedSurfaceFrame and presentedSurfaceFrame should be in
         // pendingJankClassifications.
         EXPECT_EQ(2u, layer->mPendingJankClassifications.size());
-        presentedSurfaceFrame->onPresent(20, JankType::None, Fps::fromPeriodNsecs(11),
+        presentedSurfaceFrame->onPresent(20, JankType::None, 90_Hz,
                                          /*displayDeadlineDelta*/ 0, /*displayPresentDelta*/ 0);
         layer->releasePendingBuffer(25);
 
@@ -342,27 +381,36 @@ public:
 
         sp<Fence> fence1(new Fence());
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
-        const auto buffer1 = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                 1, 0),
-                                               mRenderEngine, false);
-        layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
-                         nullptr /* releaseBufferEndpoint */);
+        BufferData bufferData;
+        bufferData.acquireFence = fence1;
+        bufferData.frameNumber = 1;
+        bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+        bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+        std::shared_ptr<renderengine::ExternalTexture> externalTexture1 = std::make_shared<
+                renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                         1ULL /* bufferId */,
+                                                         HAL_PIXEL_FORMAT_RGBA_8888,
+                                                         0ULL /*usage*/);
+        layer->setBuffer(externalTexture1, bufferData, 10, 20, false, std::nullopt,
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
         EXPECT_EQ(0u, layer->mDrawingState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
         const auto droppedSurfaceFrame1 = layer->mDrawingState.bufferSurfaceFrameTX;
 
         sp<Fence> fence2(new Fence());
         auto acquireFence2 = fenceFactory.createFenceTimeForTest(fence2);
-        const auto buffer2 = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                 1, 0),
-                                               mRenderEngine, false);
         auto dropStartTime1 = systemTime();
-        layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ FrameTimelineInfo::INVALID_VSYNC_ID, /*inputEventId*/ 0},
-                         nullptr /* releaseBufferCallback */, nullptr /* releaseBufferEndpoint */);
+        bufferData.acquireFence = fence2;
+        bufferData.frameNumber = 1;
+        bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+        bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+        std::shared_ptr<renderengine::ExternalTexture> externalTexture2 = std::make_shared<
+                renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                         1ULL /* bufferId */,
+                                                         HAL_PIXEL_FORMAT_RGBA_8888,
+                                                         0ULL /*usage*/);
+        layer->setBuffer(externalTexture2, bufferData, 10, 20, false, std::nullopt,
+                         {/*vsyncId*/ FrameTimelineInfo::INVALID_VSYNC_ID, /*inputEventId*/ 0});
         auto dropEndTime1 = systemTime();
         EXPECT_EQ(0u, layer->mDrawingState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mDrawingState.bufferSurfaceFrameTX);
@@ -370,14 +418,18 @@ public:
 
         sp<Fence> fence3(new Fence());
         auto acquireFence3 = fenceFactory.createFenceTimeForTest(fence3);
-        const auto buffer3 = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                 1, 0),
-                                               mRenderEngine, false);
         auto dropStartTime2 = systemTime();
-        layer->setBuffer(buffer3, fence3, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 2, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */,
-                         nullptr /* releaseBufferEndpoint */);
+        bufferData.acquireFence = fence3;
+        bufferData.frameNumber = 1;
+        bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+        bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+        std::shared_ptr<renderengine::ExternalTexture> externalTexture3 = std::make_shared<
+                renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                         1ULL /* bufferId */,
+                                                         HAL_PIXEL_FORMAT_RGBA_8888,
+                                                         0ULL /*usage*/);
+        layer->setBuffer(externalTexture3, bufferData, 10, 20, false, std::nullopt,
+                         {/*vsyncId*/ 2, /*inputEventId*/ 0});
         auto dropEndTime2 = systemTime();
         acquireFence3->signalForTest(12);
 
@@ -413,16 +465,19 @@ public:
         uint32_t surfaceFramesPendingClassification = 0;
         std::vector<std::shared_ptr<frametimeline::SurfaceFrame>> bufferlessSurfaceFrames;
         for (int i = 0; i < 10; i += 2) {
-            sp<Fence> fence1(new Fence());
-            const auto buffer1 = std::make_shared<
-                    renderengine::ExternalTexture>(new GraphicBuffer(1, 1,
-                                                                     HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                                                     0),
-                                                   mRenderEngine, false);
-            layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
-                             {/*vsyncId*/ 1, /*inputEventId*/ 0},
-                             nullptr /* releaseBufferCallback */,
-                             nullptr /* releaseBufferEndpoint */);
+            sp<Fence> fence(new Fence());
+            BufferData bufferData;
+            bufferData.acquireFence = fence;
+            bufferData.frameNumber = 1;
+            bufferData.flags |= BufferData::BufferDataChange::fenceChanged;
+            bufferData.flags |= BufferData::BufferDataChange::frameNumberChanged;
+            std::shared_ptr<renderengine::ExternalTexture> externalTexture = std::make_shared<
+                    renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                             1ULL /* bufferId */,
+                                                             HAL_PIXEL_FORMAT_RGBA_8888,
+                                                             0ULL /*usage*/);
+            layer->setBuffer(externalTexture, bufferData, 10, 20, false, std::nullopt,
+                             {/*vsyncId*/ 1, /*inputEventId*/ 0});
             layer->setFrameTimelineVsyncForBufferlessTransaction({/*vsyncId*/ 2,
                                                                   /*inputEventId*/ 0},
                                                                  10);
@@ -444,10 +499,10 @@ public:
         // BufferlessSurfaceFrames are immediately set to presented and added to the DisplayFrame.
         // Since we don't have access to DisplayFrame here, trigger an onPresent directly.
         for (auto& surfaceFrame : bufferlessSurfaceFrames) {
-            surfaceFrame->onPresent(20, JankType::None, Fps::fromPeriodNsecs(11),
+            surfaceFrame->onPresent(20, JankType::None, 90_Hz,
                                     /*displayDeadlineDelta*/ 0, /*displayPresentDelta*/ 0);
         }
-        presentedBufferSurfaceFrame->onPresent(20, JankType::None, Fps::fromPeriodNsecs(11),
+        presentedBufferSurfaceFrame->onPresent(20, JankType::None, 90_Hz,
                                                /*displayDeadlineDelta*/ 0,
                                                /*displayPresentDelta*/ 0);
 

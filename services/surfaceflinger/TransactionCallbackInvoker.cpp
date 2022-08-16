@@ -24,6 +24,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "TransactionCallbackInvoker.h"
+#include "BackgroundExecutor.h"
 
 #include <cinttypes>
 
@@ -49,121 +50,25 @@ static bool containsOnCommitCallbacks(const std::vector<CallbackId>& callbacks) 
     return !callbacks.empty() && callbacks.front().type == CallbackId::Type::ON_COMMIT;
 }
 
-TransactionCallbackInvoker::~TransactionCallbackInvoker() {
-    {
-        std::lock_guard lock(mMutex);
-        for (const auto& [listener, transactionStats] : mCompletedTransactions) {
-            listener->unlinkToDeath(mDeathRecipient);
-        }
-    }
-}
-
-status_t TransactionCallbackInvoker::startRegistration(const ListenerCallbacks& listenerCallbacks) {
-    std::lock_guard lock(mMutex);
-
-    auto [itr, inserted] = mRegisteringTransactions.insert(listenerCallbacks);
+void TransactionCallbackInvoker::addEmptyTransaction(const ListenerCallbacks& listenerCallbacks) {
     auto& [listener, callbackIds] = listenerCallbacks;
-
-    if (inserted) {
-        if (mCompletedTransactions.count(listener) == 0) {
-            status_t err = listener->linkToDeath(mDeathRecipient);
-            if (err != NO_ERROR) {
-                ALOGE("cannot add callback because linkToDeath failed, err: %d", err);
-                return err;
-            }
-        }
-        auto& transactionStatsDeque = mCompletedTransactions[listener];
-        transactionStatsDeque.emplace_back(callbackIds);
-    }
-
-    return NO_ERROR;
+    auto& transactionStatsDeque = mCompletedTransactions[listener];
+    transactionStatsDeque.emplace_back(callbackIds);
 }
 
-status_t TransactionCallbackInvoker::endRegistration(const ListenerCallbacks& listenerCallbacks) {
-    std::lock_guard lock(mMutex);
-
-    auto itr = mRegisteringTransactions.find(listenerCallbacks);
-    if (itr == mRegisteringTransactions.end()) {
-        ALOGE("cannot end a registration that does not exist");
-        return BAD_VALUE;
-    }
-
-    mRegisteringTransactions.erase(itr);
-
-    return NO_ERROR;
-}
-
-bool TransactionCallbackInvoker::isRegisteringTransaction(
-        const sp<IBinder>& transactionListener, const std::vector<CallbackId>& callbackIds) {
-    ListenerCallbacks listenerCallbacks(transactionListener, callbackIds);
-
-    auto itr = mRegisteringTransactions.find(listenerCallbacks);
-    return itr != mRegisteringTransactions.end();
-}
-
-status_t TransactionCallbackInvoker::registerPendingCallbackHandle(
-        const sp<CallbackHandle>& handle) {
-    std::lock_guard lock(mMutex);
-
-    // If we can't find the transaction stats something has gone wrong. The client should call
-    // startRegistration before trying to register a pending callback handle.
-    TransactionStats* transactionStats;
-    status_t err = findTransactionStats(handle->listener, handle->callbackIds, &transactionStats);
-    if (err != NO_ERROR) {
-        ALOGE("cannot find transaction stats");
-        return err;
-    }
-
-    mPendingTransactions[handle->listener][handle->callbackIds]++;
-    return NO_ERROR;
-}
-
-status_t TransactionCallbackInvoker::finalizeCallbackHandle(const sp<CallbackHandle>& handle,
-                                                            const std::vector<JankData>& jankData) {
-    auto listener = mPendingTransactions.find(handle->listener);
-    if (listener != mPendingTransactions.end()) {
-        auto& pendingCallbacks = listener->second;
-        auto pendingCallback = pendingCallbacks.find(handle->callbackIds);
-
-        if (pendingCallback != pendingCallbacks.end()) {
-            auto& pendingCount = pendingCallback->second;
-
-            // Decrease the pending count for this listener
-            if (--pendingCount == 0) {
-                pendingCallbacks.erase(pendingCallback);
-            }
-        } else {
-            ALOGW("there are more latched callbacks than there were registered callbacks");
-        }
-        if (listener->second.size() == 0) {
-            mPendingTransactions.erase(listener);
-        }
-    } else {
-        ALOGW("cannot find listener in mPendingTransactions");
-    }
-
-    status_t err = addCallbackHandle(handle, jankData);
-    if (err != NO_ERROR) {
-        ALOGE("could not add callback handle");
-        return err;
-    }
-    return NO_ERROR;
-}
-
-status_t TransactionCallbackInvoker::finalizeOnCommitCallbackHandles(
+status_t TransactionCallbackInvoker::addOnCommitCallbackHandles(
         const std::deque<sp<CallbackHandle>>& handles,
         std::deque<sp<CallbackHandle>>& outRemainingHandles) {
     if (handles.empty()) {
         return NO_ERROR;
     }
-    std::lock_guard lock(mMutex);
     const std::vector<JankData>& jankData = std::vector<JankData>();
     for (const auto& handle : handles) {
         if (!containsOnCommitCallbacks(handle->callbackIds)) {
             outRemainingHandles.push_back(handle);
             continue;
         }
-        status_t err = finalizeCallbackHandle(handle, jankData);
+        status_t err = addCallbackHandle(handle, jankData);
         if (err != NO_ERROR) {
             return err;
         }
@@ -172,14 +77,13 @@ status_t TransactionCallbackInvoker::finalizeOnCommitCallbackHandles(
     return NO_ERROR;
 }
 
-status_t TransactionCallbackInvoker::finalizePendingCallbackHandles(
+status_t TransactionCallbackInvoker::addCallbackHandles(
         const std::deque<sp<CallbackHandle>>& handles, const std::vector<JankData>& jankData) {
     if (handles.empty()) {
         return NO_ERROR;
     }
-    std::lock_guard lock(mMutex);
     for (const auto& handle : handles) {
-        status_t err = finalizeCallbackHandle(handle, jankData);
+        status_t err = addCallbackHandle(handle, jankData);
         if (err != NO_ERROR) {
             return err;
         }
@@ -190,12 +94,10 @@ status_t TransactionCallbackInvoker::finalizePendingCallbackHandles(
 
 status_t TransactionCallbackInvoker::registerUnpresentedCallbackHandle(
         const sp<CallbackHandle>& handle) {
-    std::lock_guard lock(mMutex);
-
     return addCallbackHandle(handle, std::vector<JankData>());
 }
 
-status_t TransactionCallbackInvoker::findTransactionStats(
+status_t TransactionCallbackInvoker::findOrCreateTransactionStats(
         const sp<IBinder>& listener, const std::vector<CallbackId>& callbackIds,
         TransactionStats** outTransactionStats) {
     auto& transactionStatsDeque = mCompletedTransactions[listener];
@@ -208,9 +110,8 @@ status_t TransactionCallbackInvoker::findTransactionStats(
             return NO_ERROR;
         }
     }
-
-    ALOGE("could not find transaction stats");
-    return BAD_VALUE;
+    *outTransactionStats = &transactionStatsDeque.emplace_back(callbackIds);
+    return NO_ERROR;
 }
 
 status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>& handle,
@@ -218,7 +119,8 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
     // If we can't find the transaction stats something has gone wrong. The client should call
     // startRegistration before trying to add a callback handle.
     TransactionStats* transactionStats;
-    status_t err = findTransactionStats(handle->listener, handle->callbackIds, &transactionStats);
+    status_t err =
+            findOrCreateTransactionStats(handle->listener, handle->callbackIds, &transactionStats);
     if (err != NO_ERROR) {
         return err;
     }
@@ -229,11 +131,44 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
     // destroyed the client side is dead and there won't be anyone to send the callback to.
     sp<IBinder> surfaceControl = handle->surfaceControl.promote();
     if (surfaceControl) {
+        sp<Fence> prevFence = nullptr;
+
+        for (const auto& future : handle->previousReleaseFences) {
+            sp<Fence> currentFence = future.get().value_or(Fence::NO_FENCE);
+            if (prevFence == nullptr && currentFence->getStatus() != Fence::Status::Invalid) {
+                prevFence = std::move(currentFence);
+                handle->previousReleaseFence = prevFence;
+            } else if (prevFence != nullptr) {
+                // If both fences are signaled or both are unsignaled, we need to merge
+                // them to get an accurate timestamp.
+                if (prevFence->getStatus() != Fence::Status::Invalid &&
+                    prevFence->getStatus() == currentFence->getStatus()) {
+                    char fenceName[32] = {};
+                    snprintf(fenceName, 32, "%.28s", handle->name.c_str());
+                    sp<Fence> mergedFence = Fence::merge(fenceName, prevFence, currentFence);
+                    if (mergedFence->isValid()) {
+                        handle->previousReleaseFence = std::move(mergedFence);
+                        prevFence = handle->previousReleaseFence;
+                    }
+                } else if (currentFence->getStatus() == Fence::Status::Unsignaled) {
+                    // If one fence has signaled and the other hasn't, the unsignaled
+                    // fence will approximately correspond with the correct timestamp.
+                    // There's a small race if both fences signal at about the same time
+                    // and their statuses are retrieved with unfortunate timing. However,
+                    // by this point, they will have both signaled and only the timestamp
+                    // will be slightly off; any dependencies after this point will
+                    // already have been met.
+                    handle->previousReleaseFence = std::move(currentFence);
+                }
+            }
+        }
+        handle->previousReleaseFences.clear();
+
         FrameEventHistoryStats eventStats(handle->frameNumber,
                                           handle->gpuCompositionDoneFence->getSnapshot().fence,
                                           handle->compositorTiming, handle->refreshStartTime,
                                           handle->dequeueReadyTime);
-        transactionStats->surfaceStats.emplace_back(surfaceControl, handle->acquireTime,
+        transactionStats->surfaceStats.emplace_back(surfaceControl, handle->acquireTimeOrFence,
                                                     handle->previousReleaseFence,
                                                     handle->transformHint,
                                                     handle->currentMaxAcquiredBufferCount,
@@ -244,15 +179,13 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
 }
 
 void TransactionCallbackInvoker::addPresentFence(const sp<Fence>& presentFence) {
-    std::lock_guard<std::mutex> lock(mMutex);
     mPresentFence = presentFence;
 }
 
-void TransactionCallbackInvoker::sendCallbacks() {
-    std::lock_guard lock(mMutex);
-
+void TransactionCallbackInvoker::sendCallbacks(bool onCommitOnly) {
     // For each listener
     auto completedTransactionsItr = mCompletedTransactions.begin();
+    BackgroundExecutor::Callbacks callbacks;
     while (completedTransactionsItr != mCompletedTransactions.end()) {
         auto& [listener, transactionStatsDeque] = *completedTransactionsItr;
         ListenerStats listenerStats;
@@ -262,28 +195,14 @@ void TransactionCallbackInvoker::sendCallbacks() {
         auto transactionStatsItr = transactionStatsDeque.begin();
         while (transactionStatsItr != transactionStatsDeque.end()) {
             auto& transactionStats = *transactionStatsItr;
-
-            // If this transaction is still registering, it is not safe to send a callback
-            // because there could be surface controls that haven't been added to
-            // transaction stats or mPendingTransactions.
-            if (isRegisteringTransaction(listener, transactionStats.callbackIds)) {
-                break;
-            }
-
-            // If we are still waiting on the callback handles for this transaction, stop
-            // here because all transaction callbacks for the same listener must come in order
-            auto pendingTransactions = mPendingTransactions.find(listener);
-            if (pendingTransactions != mPendingTransactions.end() &&
-                pendingTransactions->second.count(transactionStats.callbackIds) != 0) {
-                break;
+            if (onCommitOnly && !containsOnCommitCallbacks(transactionStats.callbackIds)) {
+                transactionStatsItr++;
+                continue;
             }
 
             // If the transaction has been latched
             if (transactionStats.latchTime >= 0 &&
                 !containsOnCommitCallbacks(transactionStats.callbackIds)) {
-                if (!mPresentFence) {
-                    break;
-                }
                 transactionStats.presentFence = mPresentFence;
             }
 
@@ -301,27 +220,20 @@ void TransactionCallbackInvoker::sendCallbacks() {
                 // keep it as an IBinder due to consistency reasons: if we
                 // interface_cast at the IPC boundary when reading a Parcel,
                 // we get pointers that compare unequal in the SF process.
-                interface_cast<ITransactionCompletedListener>(listenerStats.listener)
-                        ->onTransactionCompleted(listenerStats);
-                if (transactionStatsDeque.empty()) {
-                    listener->unlinkToDeath(mDeathRecipient);
-                    completedTransactionsItr =
-                            mCompletedTransactions.erase(completedTransactionsItr);
-                } else {
-                    completedTransactionsItr++;
-                }
-            } else {
-                completedTransactionsItr =
-                        mCompletedTransactions.erase(completedTransactionsItr);
+                callbacks.emplace_back([stats = std::move(listenerStats)]() {
+                    interface_cast<ITransactionCompletedListener>(stats.listener)
+                            ->onTransactionCompleted(stats);
+                });
             }
-        } else {
-            completedTransactionsItr++;
         }
+        completedTransactionsItr++;
     }
 
     if (mPresentFence) {
         mPresentFence.clear();
     }
+
+    BackgroundExecutor::getInstance().sendCallbacks(std::move(callbacks));
 }
 
 // -----------------------------------------------------------------------

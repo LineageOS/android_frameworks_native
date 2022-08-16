@@ -19,6 +19,7 @@
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
+#include <android/hdr_metadata.h>
 #include <jni.h>
 #include <system/graphics.h>
 
@@ -82,12 +83,12 @@ typedef int (*ASurfaceTexture_fenceWait)(int fence, void* fencePassThroughHandle
  * The caller gets ownership of the buffer and need to release it with
  * AHardwareBuffer_release.
  */
-AHardwareBuffer* ASurfaceTexture_dequeueBuffer(ASurfaceTexture* st, int* outSlotid,
-                                               android_dataspace* outDataspace,
-                                               float* outTransformMatrix, bool* outNewContent,
-                                               ASurfaceTexture_createReleaseFence createFence,
-                                               ASurfaceTexture_fenceWait fenceWait,
-                                               void* fencePassThroughHandle);
+AHardwareBuffer* ASurfaceTexture_dequeueBuffer(
+        ASurfaceTexture* st, int* outSlotid, android_dataspace* outDataspace,
+        AHdrMetadataType* outHdrType, android_cta861_3_metadata* outCta861_3,
+        android_smpte2086_metadata* outSmpte2086, float* outTransformMatrix, uint32_t* outTransform,
+        bool* outNewContent, ASurfaceTexture_createReleaseFence createFence,
+        ASurfaceTexture_fenceWait fenceWait, void* fencePassThroughHandle, ARect* currentCrop);
 
 } // namespace android
 

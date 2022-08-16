@@ -32,7 +32,6 @@ class BatteryService : public Singleton<BatteryService> {
 
     void enableSensorImpl(uid_t uid, int handle);
     void disableSensorImpl(uid_t uid, int handle);
-    void cleanupImpl(uid_t uid);
 
     struct Info {
         uid_t uid;
@@ -57,9 +56,6 @@ public:
     }
     static void disableSensor(uid_t uid, int handle) {
         BatteryService::getInstance().disableSensorImpl(uid, handle);
-    }
-    static void cleanup(uid_t uid) {
-        BatteryService::getInstance().cleanupImpl(uid);
     }
 };
 

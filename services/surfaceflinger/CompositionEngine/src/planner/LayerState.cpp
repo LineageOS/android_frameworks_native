@@ -41,7 +41,7 @@ LayerState::LayerState(compositionengine::OutputLayer* layer)
     update(layer);
 }
 
-Flags<LayerStateField> LayerState::update(compositionengine::OutputLayer* layer) {
+ftl::Flags<LayerStateField> LayerState::update(compositionengine::OutputLayer* layer) {
     ALOGE_IF(mOutputLayer != layer && layer->getLayerFE().getSequence() != mId.get(),
              "[%s] Expected mOutputLayer ID to never change: %d, %d", __func__,
              layer->getLayerFE().getSequence(), mId.get());
@@ -50,7 +50,7 @@ Flags<LayerStateField> LayerState::update(compositionengine::OutputLayer* layer)
     // same, i.e., the LayerFE is the same. An example use-case is screen rotation.
     mOutputLayer = layer;
 
-    Flags<LayerStateField> differences;
+    ftl::Flags<LayerStateField> differences;
 
     // Update the unique fields as well, since we have to set them at least
     // once from the OutputLayer
@@ -76,8 +76,8 @@ size_t LayerState::getHash() const {
     return hash;
 }
 
-Flags<LayerStateField> LayerState::getDifferingFields(const LayerState& other) const {
-    Flags<LayerStateField> differences;
+ftl::Flags<LayerStateField> LayerState::getDifferingFields(const LayerState& other) const {
+    ftl::Flags<LayerStateField> differences;
     auto myFields = getNonUniqueFields();
     auto otherFields = other.getNonUniqueFields();
     for (size_t i = 0; i < myFields.size(); ++i) {
@@ -93,11 +93,7 @@ Flags<LayerStateField> LayerState::getDifferingFields(const LayerState& other) c
 
 void LayerState::dump(std::string& result) const {
     for (const StateInterface* field : getNonUniqueFields()) {
-        if (auto viewOpt = flag_name(field->getField()); viewOpt) {
-            base::StringAppendF(&result, "  %16s: ", std::string(*viewOpt).c_str());
-        } else {
-            result.append("<UNKNOWN FIELD>:\n");
-        }
+        base::StringAppendF(&result, "  %16s: ", ftl::flag_string(field->getField()).c_str());
 
         bool first = true;
         for (const std::string& line : field->toStrings()) {
@@ -126,11 +122,7 @@ std::optional<std::string> LayerState::compare(const LayerState& other) const {
             continue;
         }
 
-        if (auto viewOpt = flag_name(thisField->getField()); viewOpt) {
-            base::StringAppendF(&result, "  %16s: ", std::string(*viewOpt).c_str());
-        } else {
-            result.append("<UNKNOWN FIELD>:\n");
-        }
+        base::StringAppendF(&result, "  %16s: ", ftl::flag_string(thisField->getField()).c_str());
 
         const auto& thisStrings = thisField->toStrings();
         const auto& otherStrings = otherField->toStrings();
@@ -168,7 +160,8 @@ bool operator==(const LayerState& lhs, const LayerState& rhs) {
             lhs.mColorTransform == rhs.mColorTransform &&
             lhs.mCompositionType == rhs.mCompositionType &&
             lhs.mSidebandStream == rhs.mSidebandStream && lhs.mBuffer == rhs.mBuffer &&
-            (lhs.mCompositionType.get() != hal::Composition::SOLID_COLOR ||
+            (lhs.mCompositionType.get() !=
+                     aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR ||
              lhs.mSolidColor == rhs.mSolidColor);
 }
 

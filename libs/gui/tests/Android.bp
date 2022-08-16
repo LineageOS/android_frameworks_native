@@ -26,6 +26,7 @@ cc_test {
         "BufferQueue_test.cpp",
         "CpuConsumer_test.cpp",
         "EndToEndNativeInputTest.cpp",
+        "DisplayInfo_test.cpp",
         "DisplayedContentSampling_test.cpp",
         "FillBuffer.cpp",
         "GLTest.cpp",
@@ -42,6 +43,7 @@ cc_test {
         "SurfaceTextureMultiContextGL_test.cpp",
         "Surface_test.cpp",
         "TextureRenderer.cpp",
+        "VsyncEventData_test.cpp",
         "WindowInfo_test.cpp",
     ],
 

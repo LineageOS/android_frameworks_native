@@ -55,12 +55,12 @@ sp<hardware::ISensorPrivacyManager> SensorPrivacyManager::getService()
     return service;
 }
 
-bool SensorPrivacyManager::supportsSensorToggle(int sensor) {
+bool SensorPrivacyManager::supportsSensorToggle(int toggleType, int sensor) {
     if (mSupportedCache.find(sensor) == mSupportedCache.end()) {
         sp<hardware::ISensorPrivacyManager> service = getService();
         if (service != nullptr) {
             bool result;
-            service->supportsSensorToggle(sensor, &result);
+            service->supportsSensorToggle(toggleType, sensor, &result);
             mSupportedCache[sensor] = result;
             return result;
         }
@@ -80,12 +80,12 @@ void SensorPrivacyManager::addSensorPrivacyListener(
     }
 }
 
-status_t SensorPrivacyManager::addIndividualSensorPrivacyListener(int userId, int sensor,
+status_t SensorPrivacyManager::addToggleSensorPrivacyListener(
         const sp<hardware::ISensorPrivacyListener>& listener)
 {
     sp<hardware::ISensorPrivacyManager> service = getService();
     if (service != nullptr) {
-        return service->addIndividualSensorPrivacyListener(userId, sensor, listener)
+        return service->addToggleSensorPrivacyListener(listener)
                 .transactionError();
     }
     return UNEXPECTED_NULL;
@@ -100,12 +100,12 @@ void SensorPrivacyManager::removeSensorPrivacyListener(
     }
 }
 
-void SensorPrivacyManager::removeIndividualSensorPrivacyListener(int sensor,
+void SensorPrivacyManager::removeToggleSensorPrivacyListener(
         const sp<hardware::ISensorPrivacyListener>& listener)
 {
     sp<hardware::ISensorPrivacyManager> service = getService();
     if (service != nullptr) {
-        service->removeIndividualSensorPrivacyListener(sensor, listener);
+        service->removeToggleSensorPrivacyListener(listener);
     }
 }
 
@@ -121,24 +121,36 @@ bool SensorPrivacyManager::isSensorPrivacyEnabled()
     return false;
 }
 
-bool SensorPrivacyManager::isIndividualSensorPrivacyEnabled(int userId, int sensor)
+bool SensorPrivacyManager::isToggleSensorPrivacyEnabled(int sensor)
 {
-    sp<hardware::ISensorPrivacyManager> service = getService();
+	sp<hardware::ISensorPrivacyManager> service = getService();
     if (service != nullptr) {
         bool result;
-        service->isIndividualSensorPrivacyEnabled(userId, sensor, &result);
+        service->isCombinedToggleSensorPrivacyEnabled(sensor, &result);
         return result;
     }
     // if the SensorPrivacyManager is not available then assume sensor privacy is disabled
     return false;
 }
 
-status_t SensorPrivacyManager::isIndividualSensorPrivacyEnabled(int userId, int sensor,
+bool SensorPrivacyManager::isToggleSensorPrivacyEnabled(int toggleType, int sensor)
+{
+    sp<hardware::ISensorPrivacyManager> service = getService();
+    if (service != nullptr) {
+        bool result;
+        service->isToggleSensorPrivacyEnabled(toggleType, sensor, &result);
+        return result;
+    }
+    // if the SensorPrivacyManager is not available then assume sensor privacy is disabled
+    return false;
+}
+
+status_t SensorPrivacyManager::isToggleSensorPrivacyEnabled(int toggleType, int sensor,
         bool &returnVal)
 {
     sp<hardware::ISensorPrivacyManager> service = getService();
     if (service != nullptr) {
-        binder::Status res = service->isIndividualSensorPrivacyEnabled(userId, sensor, &returnVal);
+        binder::Status res = service->isToggleSensorPrivacyEnabled(toggleType, sensor, &returnVal);
         return res.transactionError();
     }
     // if the SensorPrivacyManager is not available then assume sensor privacy is disabled

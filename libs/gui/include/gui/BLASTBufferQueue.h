@@ -73,7 +73,7 @@ class BLASTBufferQueue
     : public ConsumerBase::FrameAvailableListener, public BufferItemConsumer::BufferFreedListener
 {
 public:
-    BLASTBufferQueue(const std::string& name);
+    BLASTBufferQueue(const std::string& name, bool updateDestinationFrame = true);
     BLASTBufferQueue(const std::string& name, const sp<SurfaceControl>& surface, int width,
                      int height, int32_t format);
 
@@ -81,6 +81,7 @@ public:
         return mProducer;
     }
     sp<Surface> getSurface(bool includeSurfaceControlHandle);
+    bool isSameSurfaceControl(const sp<SurfaceControl>& surfaceControl) const;
 
     void onBufferFreed(const wp<GraphicBuffer>&/* graphicBuffer*/) override { /* TODO */ }
     void onFrameReplaced(const BufferItem& item) override;
@@ -90,19 +91,18 @@ public:
 
     void transactionCommittedCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
                                       const std::vector<SurfaceControlStats>& stats);
-    void transactionCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
-            const std::vector<SurfaceControlStats>& stats);
+    virtual void transactionCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
+                                     const std::vector<SurfaceControlStats>& stats);
     void releaseBufferCallback(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
-                               uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount);
-    void releaseBufferCallbackLocked(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
-                                     uint32_t transformHint, uint32_t currentMaxAcquiredBufferCount);
-    void setNextTransaction(SurfaceComposerClient::Transaction *t);
+                               std::optional<uint32_t> currentMaxAcquiredBufferCount);
+    void syncNextTransaction(std::function<void(SurfaceComposerClient::Transaction*)> callback,
+                             bool acquireSingleBuffer = true);
+    void stopContinuousSyncTransaction();
     void mergeWithNextTransaction(SurfaceComposerClient::Transaction* t, uint64_t frameNumber);
-    void setTransactionCompleteCallback(uint64_t frameNumber,
-                                        std::function<void(int64_t)>&& transactionCompleteCallback);
+    void applyPendingTransactions(uint64_t frameNumber);
+    SurfaceComposerClient::Transaction* gatherPendingTransactions(uint64_t frameNumber);
 
-    void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format,
-                SurfaceComposerClient::Transaction* outTransaction = nullptr);
+    void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format);
 
     status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
     status_t setFrameTimelineInfo(const FrameTimelineInfo& info);
@@ -110,9 +110,16 @@ public:
     void setSidebandStream(const sp<NativeHandle>& stream);
 
     uint32_t getLastTransformHint() const;
-    void flushShadowQueue();
-
     uint64_t getLastAcquiredFrameNum();
+    void abandon();
+
+    /**
+     * Set a callback to be invoked when we are hung. The boolean parameter
+     * indicates whether the hang is due to an unfired fence.
+     * TODO: The boolean is always true atm, unfired fence is
+     * the only case we detect.
+     */
+    void setTransactionHangCallback(std::function<void(bool)> callback);
 
     virtual ~BLASTBufferQueue();
 
@@ -132,9 +139,14 @@ private:
     bool rejectBuffer(const BufferItem& item) REQUIRES(mMutex);
     bool maxBuffersAcquired(bool includeExtraAcquire) const REQUIRES(mMutex);
     static PixelFormat convertBufferFormat(PixelFormat& format);
+    void mergePendingTransactions(SurfaceComposerClient::Transaction* t, uint64_t frameNumber)
+            REQUIRES(mMutex);
 
-    void flushShadowQueueLocked() REQUIRES(mMutex);
+    void flushShadowQueue() REQUIRES(mMutex);
     void acquireAndReleaseBuffer() REQUIRES(mMutex);
+    void releaseBuffer(const ReleaseCallbackId& callbackId, const sp<Fence>& releaseFence)
+            REQUIRES(mMutex);
+    void flushAndWaitForFreeBuffer(std::unique_lock<std::mutex>& lock);
 
     std::string mName;
     // Represents the queued buffer count from buffer queue,
@@ -144,15 +156,15 @@ private:
     std::string mQueuedBufferTrace;
     sp<SurfaceControl> mSurfaceControl;
 
-    std::mutex mMutex;
+    mutable std::mutex mMutex;
     std::condition_variable mCallbackCV;
 
     // BufferQueue internally allows 1 more than
     // the max to be acquired
     int32_t mMaxAcquiredBuffers = 1;
 
-    int32_t mNumFrameAvailable GUARDED_BY(mMutex);
-    int32_t mNumAcquired GUARDED_BY(mMutex);
+    int32_t mNumFrameAvailable GUARDED_BY(mMutex) = 0;
+    int32_t mNumAcquired GUARDED_BY(mMutex) = 0;
 
     // Keep a reference to the submitted buffers so we can release when surfaceflinger drops the
     // buffer or the buffer has been presented and a new buffer is ready to be presented.
@@ -165,12 +177,6 @@ private:
     struct ReleasedBuffer {
         ReleaseCallbackId callbackId;
         sp<Fence> releaseFence;
-        bool operator==(const ReleasedBuffer& rhs) const {
-            // Only compare Id so if we somehow got two callbacks
-            // with different fences we don't decrement mNumAcquired
-            // too far.
-            return rhs.callbackId == callbackId;
-        }
     };
     std::deque<ReleasedBuffer> mPendingRelease GUARDED_BY(mMutex);
 
@@ -217,22 +223,16 @@ private:
     sp<IGraphicBufferProducer> mProducer;
     sp<BLASTBufferItemConsumer> mBufferItemConsumer;
 
-    SurfaceComposerClient::Transaction* mNextTransaction GUARDED_BY(mMutex);
+    std::function<void(SurfaceComposerClient::Transaction*)> mTransactionReadyCallback
+            GUARDED_BY(mMutex);
+    SurfaceComposerClient::Transaction* mSyncTransaction GUARDED_BY(mMutex);
     std::vector<std::tuple<uint64_t /* framenumber */, SurfaceComposerClient::Transaction>>
             mPendingTransactions GUARDED_BY(mMutex);
-
-    // Last requested auto refresh state set by the producer. The state indicates that the consumer
-    // should acquire the next frame as soon as it can and not wait for a frame to become available.
-    // This is only relevant for shared buffer mode.
-    bool mAutoRefresh GUARDED_BY(mMutex) = false;
 
     std::queue<FrameTimelineInfo> mNextFrameTimelineInfoQueue GUARDED_BY(mMutex);
 
     // Tracks the last acquired frame number
     uint64_t mLastAcquiredFrameNumber GUARDED_BY(mMutex) = 0;
-
-    std::function<void(int64_t)> mTransactionCompleteCallback GUARDED_BY(mMutex) = nullptr;
-    uint64_t mTransactionCompleteFrameNumber GUARDED_BY(mMutex){0};
 
     // Queues up transactions using this token in SurfaceFlinger. This prevents queued up
     // transactions from other parts of the client from blocking this transaction.
@@ -251,7 +251,34 @@ private:
     std::queue<sp<SurfaceControl>> mSurfaceControlsWithPendingCallback GUARDED_BY(mMutex);
 
     uint32_t mCurrentMaxAcquiredBufferCount;
-    bool mWaitForTransactionCallback = false;
+    bool mWaitForTransactionCallback GUARDED_BY(mMutex) = false;
+
+    // Flag to determine if syncTransaction should only acquire a single buffer and then clear or
+    // continue to acquire buffers until explicitly cleared
+    bool mAcquireSingleBuffer GUARDED_BY(mMutex) = true;
+
+    // True if BBQ will update the destination frame used to scale the buffer to the requested size.
+    // If false, the caller is responsible for updating the destination frame on the BBQ
+    // surfacecontol. This is useful if the caller wants to synchronize the buffer scale with
+    // additional scales in the hierarchy.
+    bool mUpdateDestinationFrame GUARDED_BY(mMutex) = true;
+
+    // We send all transactions on our apply token over one-way binder calls to avoid blocking
+    // client threads. All of our transactions remain in order, since they are one-way binder calls
+    // from a single process, to a single interface. However once we give up a Transaction for sync
+    // we can start to have ordering issues. When we return from sync to normal frame production,
+    // we wait on the commit callback of sync frames ensuring ordering, however we don't want to
+    // wait on the commit callback for every normal frame (since even emitting them has a
+    // performance cost) this means we need a method to ensure frames are in order when switching
+    // from one-way application on our apply token, to application on some other apply token. We
+    // make use of setBufferHasBarrier to declare this ordering. This boolean simply tracks when we
+    // need to set this flag, notably only in the case where we are transitioning from a previous
+    // transaction applied by us (one way, may not yet have reached server) and an upcoming
+    // transaction that will be applied by some sync consumer.
+    bool mAppliedLastTransaction = false;
+    uint64_t mLastAppliedFrameNumber = 0;
+
+    std::function<void(bool)> mTransactionHangCallback;
 };
 
 } // namespace android

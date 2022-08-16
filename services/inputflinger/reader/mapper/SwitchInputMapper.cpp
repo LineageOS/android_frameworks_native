@@ -25,7 +25,7 @@ SwitchInputMapper::SwitchInputMapper(InputDeviceContext& deviceContext)
 
 SwitchInputMapper::~SwitchInputMapper() {}
 
-uint32_t SwitchInputMapper::getSources() {
+uint32_t SwitchInputMapper::getSources() const {
     return AINPUT_SOURCE_SWITCH;
 }
 
@@ -58,7 +58,7 @@ void SwitchInputMapper::sync(nsecs_t when) {
         uint32_t updatedSwitchValues = mSwitchValues & mUpdatedSwitchMask;
         NotifySwitchArgs args(getContext()->getNextId(), when, 0 /*policyFlags*/,
                               updatedSwitchValues, mUpdatedSwitchMask);
-        getListener()->notifySwitch(&args);
+        getListener().notifySwitch(&args);
 
         mUpdatedSwitchMask = 0;
     }

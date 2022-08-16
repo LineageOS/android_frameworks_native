@@ -46,7 +46,8 @@ public:
     MOCK_CONST_METHOD0(getHwcLayer, HWC2::Layer*());
     MOCK_CONST_METHOD0(requiresClientComposition, bool());
     MOCK_CONST_METHOD0(isHardwareCursor, bool());
-    MOCK_METHOD1(applyDeviceCompositionTypeChange, void(Hwc2::IComposerClient::Composition));
+    MOCK_METHOD1(applyDeviceCompositionTypeChange,
+                 void(aidl::android::hardware::graphics::composer3::Composition));
     MOCK_METHOD0(prepareForDeviceLayerRequests, void());
     MOCK_METHOD1(applyDeviceLayerRequest, void(Hwc2::IComposerClient::LayerRequest request));
     MOCK_CONST_METHOD0(needsFiltering, bool());

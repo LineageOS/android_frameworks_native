@@ -201,10 +201,8 @@ private:
     std::array<std::atomic<HalSupport>,
                static_cast<int32_t>(hardware::power::Boost::DISPLAY_UPDATE_IMMINENT) + 1>
             mBoostSupportedArray GUARDED_BY(mBoostMutex) = {HalSupport::UNKNOWN};
-    // Android framework only sends mode upto DISPLAY_INACTIVE.
-    // Need to increase the array if more mode supported.
     std::array<std::atomic<HalSupport>,
-               static_cast<int32_t>(hardware::power::Mode::DISPLAY_INACTIVE) + 1>
+               static_cast<int32_t>(*(android::enum_range<hardware::power::Mode>().end() - 1)) + 1>
             mModeSupportedArray GUARDED_BY(mModeMutex) = {HalSupport::UNKNOWN};
 };
 

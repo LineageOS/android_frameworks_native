@@ -121,6 +121,7 @@ void LayerFECompositionState::dump(std::string& out) const {
     dumpVal(out, "isColorspaceAgnostic", isColorspaceAgnostic);
     dumpVal(out, "dataspace", toString(dataspace), dataspace);
     dumpVal(out, "hdr metadata types", hdrMetadata.validTypes);
+    dumpVal(out, "dimming enabled", dimmingEnabled);
     dumpVal(out, "colorTransform", colorTransform);
 
     out.append("\n");

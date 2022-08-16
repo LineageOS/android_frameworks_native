@@ -134,6 +134,10 @@ float Transform::dsdy() const {
     return mMatrix[1][1];
 }
 
+float Transform::det() const {
+    return mMatrix[0][0] * mMatrix[1][1] - mMatrix[0][1] * mMatrix[1][0];
+}
+
 float Transform::getScaleX() const {
     return sqrt((dsdx() * dsdx()) + (dtdx() * dtdx()));
 }
@@ -390,12 +394,17 @@ Transform Transform::inverse() const {
         const float x = M[2][0];
         const float y = M[2][1];
 
-        const float idet = 1.0f / (a*d - b*c);
+        const float idet = 1.0f / det();
         result.mMatrix[0][0] =  d*idet;
         result.mMatrix[0][1] = -c*idet;
         result.mMatrix[1][0] = -b*idet;
         result.mMatrix[1][1] =  a*idet;
         result.mType = mType;
+        if (getOrientation() & ROT_90) {
+            // Recalculate the type if there is a 90-degree rotation component, since the inverse
+            // of ROT_90 is ROT_270 and vice versa.
+            result.mType |= UNKNOWN_TYPE;
+        }
 
         vec2 T(-x, -y);
         T = result.transform(T);

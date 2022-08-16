@@ -36,6 +36,7 @@ status_t ScreenCaptureResults::writeToParcel(android::Parcel* parcel) const {
     }
 
     SAFE_PARCEL(parcel->writeBool, capturedSecureLayers);
+    SAFE_PARCEL(parcel->writeBool, capturedHdrLayers);
     SAFE_PARCEL(parcel->writeUint32, static_cast<uint32_t>(capturedDataspace));
     SAFE_PARCEL(parcel->writeInt32, result);
     return NO_ERROR;
@@ -57,6 +58,7 @@ status_t ScreenCaptureResults::readFromParcel(const android::Parcel* parcel) {
     }
 
     SAFE_PARCEL(parcel->readBool, &capturedSecureLayers);
+    SAFE_PARCEL(parcel->readBool, &capturedHdrLayers);
     uint32_t dataspace = 0;
     SAFE_PARCEL(parcel->readUint32, &dataspace);
     capturedDataspace = static_cast<ui::Dataspace>(dataspace);

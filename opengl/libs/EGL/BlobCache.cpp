@@ -52,35 +52,37 @@ BlobCache::BlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxTotalSize
     ALOGV("initializing random seed using %lld", (unsigned long long)now);
 }
 
-void BlobCache::set(const void* key, size_t keySize, const void* value, size_t valueSize) {
+BlobCache::InsertResult BlobCache::set(const void* key, size_t keySize, const void* value,
+                                       size_t valueSize) {
     if (mMaxKeySize < keySize) {
         ALOGV("set: not caching because the key is too large: %zu (limit: %zu)", keySize,
               mMaxKeySize);
-        return;
+        return InsertResult::kKeyTooBig;
     }
     if (mMaxValueSize < valueSize) {
         ALOGV("set: not caching because the value is too large: %zu (limit: %zu)", valueSize,
               mMaxValueSize);
-        return;
+        return InsertResult::kValueTooBig;
     }
     if (mMaxTotalSize < keySize + valueSize) {
         ALOGV("set: not caching because the combined key/value size is too "
               "large: %zu (limit: %zu)",
               keySize + valueSize, mMaxTotalSize);
-        return;
+        return InsertResult::kCombinedTooBig;
     }
     if (keySize == 0) {
         ALOGW("set: not caching because keySize is 0");
-        return;
+        return InsertResult::kInvalidKeySize;
     }
-    if (valueSize <= 0) {
+    if (valueSize == 0) {
         ALOGW("set: not caching because valueSize is 0");
-        return;
+        return InsertResult::kInvalidValueSize;
     }
 
     std::shared_ptr<Blob> cacheKey(new Blob(key, keySize, false));
     CacheEntry cacheEntry(cacheKey, nullptr);
 
+    bool didClean = false;
     while (true) {
         auto index = std::lower_bound(mCacheEntries.begin(), mCacheEntries.end(), cacheEntry);
         if (index == mCacheEntries.end() || cacheEntry < *index) {
@@ -92,13 +94,14 @@ void BlobCache::set(const void* key, size_t keySize, const void* value, size_t v
                 if (isCleanable()) {
                     // Clean the cache and try again.
                     clean();
+                    didClean = true;
                     continue;
                 } else {
                     ALOGV("set: not caching new key/value pair because the "
                           "total cache size limit would be exceeded: %zu "
                           "(limit: %zu)",
                           keySize + valueSize, mMaxTotalSize);
-                    break;
+                    return InsertResult::kNotEnoughSpace;
                 }
             }
             mCacheEntries.insert(index, CacheEntry(keyBlob, valueBlob));
@@ -114,12 +117,13 @@ void BlobCache::set(const void* key, size_t keySize, const void* value, size_t v
                 if (isCleanable()) {
                     // Clean the cache and try again.
                     clean();
+                    didClean = true;
                     continue;
                 } else {
                     ALOGV("set: not caching new value because the total cache "
                           "size limit would be exceeded: %zu (limit: %zu)",
                           keySize + valueSize, mMaxTotalSize);
-                    break;
+                    return InsertResult::kNotEnoughSpace;
                 }
             }
             index->setValue(valueBlob);
@@ -128,7 +132,7 @@ void BlobCache::set(const void* key, size_t keySize, const void* value, size_t v
                   "value",
                   keySize, valueSize);
         }
-        break;
+        return didClean ? InsertResult::kDidClean : InsertResult::kInserted;
     }
 }
 

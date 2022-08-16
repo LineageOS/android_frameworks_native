@@ -17,12 +17,16 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <unordered_set>
 
 #include <utils/Mutex.h>
 
+#include <android/hardware/power/IPower.h>
+#include <ui/DisplayIdentification.h>
 #include "../Scheduler/OneShotTimer.h"
-#include "DisplayIdentification.h"
+
+using namespace std::chrono_literals;
 
 namespace android {
 
@@ -40,6 +44,13 @@ public:
     virtual void setExpensiveRenderingExpected(DisplayId displayId, bool expected) = 0;
     virtual bool isUsingExpensiveRendering() = 0;
     virtual void notifyDisplayUpdateImminent() = 0;
+    virtual bool usePowerHintSession() = 0;
+    virtual bool supportsPowerHintSession() = 0;
+    virtual bool isPowerHintSessionRunning() = 0;
+    virtual void setTargetWorkDuration(int64_t targetDurationNanos) = 0;
+    virtual void sendActualWorkDuration(int64_t actualDurationNanos, nsecs_t timestamp) = 0;
+    virtual void enablePowerHint(bool enabled) = 0;
+    virtual bool startPowerHintSession(const std::vector<int32_t>& threadIds) = 0;
 };
 
 namespace impl {
@@ -54,6 +65,17 @@ public:
 
         virtual bool setExpensiveRendering(bool enabled) = 0;
         virtual bool notifyDisplayUpdateImminent() = 0;
+        virtual bool supportsPowerHintSession() = 0;
+        virtual bool isPowerHintSessionRunning() = 0;
+        virtual void restartPowerHintSession() = 0;
+        virtual void setPowerHintSessionThreadIds(const std::vector<int32_t>& threadIds) = 0;
+        virtual bool startPowerHintSession() = 0;
+        virtual void setTargetWorkDuration(int64_t targetDurationNanos) = 0;
+        virtual void sendActualWorkDuration(int64_t actualDurationNanos,
+                                            nsecs_t timeStampNanos) = 0;
+        virtual bool shouldReconnectHAL() = 0;
+        virtual std::vector<int32_t> getPowerHintSessionThreadIds() = 0;
+        virtual std::optional<int64_t> getTargetWorkDuration() = 0;
     };
 
     PowerAdvisor(SurfaceFlinger& flinger);
@@ -62,8 +84,15 @@ public:
     void init() override;
     void onBootFinished() override;
     void setExpensiveRenderingExpected(DisplayId displayId, bool expected) override;
-    bool isUsingExpensiveRendering() override { return mNotifiedExpensiveRendering; }
+    bool isUsingExpensiveRendering() override { return mNotifiedExpensiveRendering; };
     void notifyDisplayUpdateImminent() override;
+    bool usePowerHintSession() override;
+    bool supportsPowerHintSession() override;
+    bool isPowerHintSessionRunning() override;
+    void setTargetWorkDuration(int64_t targetDurationNanos) override;
+    void sendActualWorkDuration(int64_t actualDurationNanos, nsecs_t timestamp) override;
+    void enablePowerHint(bool enabled) override;
+    bool startPowerHintSession(const std::vector<int32_t>& threadIds) override;
 
 private:
     HalWrapper* getPowerHal() REQUIRES(mPowerHalMutex);
@@ -71,14 +100,86 @@ private:
     std::mutex mPowerHalMutex;
 
     std::atomic_bool mBootFinished = false;
+    std::optional<bool> mPowerHintEnabled;
+    std::optional<bool> mSupportsPowerHint;
+    bool mPowerHintSessionRunning = false;
+
+    // An adjustable safety margin which moves the "target" earlier to allow flinger to
+    // go a bit over without dropping a frame, especially since we can't measure
+    // the exact time HWC finishes composition so "actual" durations are measured
+    // from the end of present() instead, which is a bit later.
+    static constexpr const std::chrono::nanoseconds kTargetSafetyMargin = 2ms;
 
     std::unordered_set<DisplayId> mExpensiveDisplays;
     bool mNotifiedExpensiveRendering = false;
 
     SurfaceFlinger& mFlinger;
-    const bool mUseScreenUpdateTimer;
     std::atomic_bool mSendUpdateImminent = true;
-    scheduler::OneShotTimer mScreenUpdateTimer;
+    std::atomic<nsecs_t> mLastScreenUpdatedTime = 0;
+    std::optional<scheduler::OneShotTimer> mScreenUpdateTimer;
+};
+
+class AidlPowerHalWrapper : public PowerAdvisor::HalWrapper {
+public:
+    explicit AidlPowerHalWrapper(sp<hardware::power::IPower> powerHal);
+    ~AidlPowerHalWrapper() override;
+
+    static std::unique_ptr<HalWrapper> connect();
+
+    bool setExpensiveRendering(bool enabled) override;
+    bool notifyDisplayUpdateImminent() override;
+    bool supportsPowerHintSession() override;
+    bool isPowerHintSessionRunning() override;
+    void restartPowerHintSession() override;
+    void setPowerHintSessionThreadIds(const std::vector<int32_t>& threadIds) override;
+    bool startPowerHintSession() override;
+    void setTargetWorkDuration(int64_t targetDurationNanos) override;
+    void sendActualWorkDuration(int64_t actualDurationNanos, nsecs_t timeStampNanos) override;
+    bool shouldReconnectHAL() override;
+    std::vector<int32_t> getPowerHintSessionThreadIds() override;
+    std::optional<int64_t> getTargetWorkDuration() override;
+
+private:
+    bool checkPowerHintSessionSupported();
+    void closePowerHintSession();
+    bool shouldReportActualDurationsNow();
+    bool shouldSetTargetDuration(int64_t targetDurationNanos);
+
+    const sp<hardware::power::IPower> mPowerHal = nullptr;
+    bool mHasExpensiveRendering = false;
+    bool mHasDisplayUpdateImminent = false;
+    // Used to indicate an error state and need for reconstruction
+    bool mShouldReconnectHal = false;
+    // This is not thread safe, but is currently protected by mPowerHalMutex so it needs no lock
+    sp<hardware::power::IPowerHintSession> mPowerHintSession = nullptr;
+    // Queue of actual durations saved to report
+    std::vector<hardware::power::WorkDuration> mPowerHintQueue;
+    // The latest un-normalized values we have received for target and actual
+    int64_t mTargetDuration = kDefaultTarget.count();
+    std::optional<int64_t> mActualDuration;
+    // The list of thread ids, stored so we can restart the session from this class if needed
+    std::vector<int32_t> mPowerHintThreadIds;
+    bool mSupportsPowerHint;
+    // Keep track of the last messages sent for rate limiter change detection
+    std::optional<int64_t> mLastActualDurationSent;
+    // timestamp of the last report we sent, used to avoid stale sessions
+    int64_t mLastActualReportTimestamp = 0;
+    int64_t mLastTargetDurationSent = kDefaultTarget.count();
+    // Whether to normalize all the actual values as error terms relative to a constant target
+    // This saves a binder call by not setting the target, and should not affect the pid values
+    static const bool sNormalizeTarget;
+    // Whether we should emit ATRACE_INT data for hint sessions
+    static const bool sTraceHintSessionData;
+
+    // Max percent the actual duration can vary without causing a report (eg: 0.1 = 10%)
+    static constexpr double kAllowedActualDeviationPercent = 0.1;
+    // Max percent the target duration can vary without causing a report (eg: 0.1 = 10%)
+    static constexpr double kAllowedTargetDeviationPercent = 0.1;
+    // Target used for init and normalization, the actual value does not really matter
+    static constexpr const std::chrono::nanoseconds kDefaultTarget = 50ms;
+    // Amount of time after the last message was sent before the session goes stale
+    // actually 100ms but we use 80 here to ideally avoid going stale
+    static constexpr const std::chrono::nanoseconds kStaleTimeout = 80ms;
 };
 
 } // namespace impl

@@ -95,7 +95,7 @@ KeyboardInputMapper::KeyboardInputMapper(InputDeviceContext& deviceContext, uint
 
 KeyboardInputMapper::~KeyboardInputMapper() {}
 
-uint32_t KeyboardInputMapper::getSources() {
+uint32_t KeyboardInputMapper::getSources() const {
     return mSource;
 }
 
@@ -354,7 +354,7 @@ void KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down, 
                        getDisplayId(), policyFlags,
                        down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
                        AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState, downTime);
-    getListener()->notifyKey(&args);
+    getListener().notifyKey(&args);
 }
 
 ssize_t KeyboardInputMapper::findKeyDown(int32_t scanCode) {
@@ -375,6 +375,10 @@ int32_t KeyboardInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanC
     return getDeviceContext().getScanCodeState(scanCode);
 }
 
+int32_t KeyboardInputMapper::getKeyCodeForKeyLocation(int32_t locationKeyCode) const {
+    return getDeviceContext().getKeyCodeForKeyLocation(locationKeyCode);
+}
+
 bool KeyboardInputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
                                                 const int32_t* keyCodes, uint8_t* outFlags) {
     return getDeviceContext().markSupportedKeyCodes(numCodes, keyCodes, outFlags);
@@ -384,8 +388,13 @@ int32_t KeyboardInputMapper::getMetaState() {
     return mMetaState;
 }
 
-void KeyboardInputMapper::updateMetaState(int32_t keyCode) {
+bool KeyboardInputMapper::updateMetaState(int32_t keyCode) {
+    if (!android::isMetaKey(keyCode) || !getDeviceContext().hasKeyCode(keyCode)) {
+        return false;
+    }
+
     updateMetaStateIfNeeded(keyCode, false);
+    return true;
 }
 
 bool KeyboardInputMapper::updateMetaStateIfNeeded(int32_t keyCode, bool down) {
@@ -419,6 +428,8 @@ void KeyboardInputMapper::initializeLedState(LedState& ledState, int32_t led) {
 }
 
 void KeyboardInputMapper::updateLedState(bool reset) {
+    // Clear the local led state then union the global led state.
+    mMetaState &= ~(AMETA_CAPS_LOCK_ON | AMETA_NUM_LOCK_ON | AMETA_SCROLL_LOCK_ON);
     mMetaState |= getContext()->getLedMetaState();
 
     constexpr int32_t META_NUM = 3;

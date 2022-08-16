@@ -23,9 +23,14 @@ package {
 
 cc_test {
     name: "librenderengine_test",
-    defaults: ["skia_deps", "surfaceflinger_defaults"],
+    defaults: [
+        "skia_deps",
+        "surfaceflinger_defaults",
+    ],
     test_suites: ["device-tests"],
     srcs: [
+        "DisplaySettingsTest.cpp",
+        "LayerSettingsTest.cpp",
         "RenderEngineTest.cpp",
         "RenderEngineThreadedTest.cpp",
     ],
@@ -36,9 +41,15 @@ cc_test {
         "libgmock",
         "librenderengine",
         "librenderengine_mocks",
+        "libshaders",
+        "libtonemap",
+    ],
+    header_libs: [
+        "libtonemap_headers",
     ],
 
     shared_libs: [
+        "android.hardware.graphics.composer3-V1-ndk",
         "libbase",
         "libcutils",
         "libEGL",

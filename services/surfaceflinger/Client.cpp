@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -76,40 +72,34 @@ sp<Layer> Client::getLayerUser(const sp<IBinder>& handle) const
     return lbc;
 }
 
-status_t Client::createSurface(const String8& name, uint32_t w, uint32_t h, PixelFormat format,
-                               uint32_t flags, const sp<IBinder>& parentHandle,
-                               LayerMetadata metadata, sp<IBinder>* handle,
-                               sp<IGraphicBufferProducer>* gbp, int32_t* outLayerId,
-                               uint32_t* outTransformHint) {
+status_t Client::createSurface(const String8& name, uint32_t /* w */, uint32_t /* h */,
+                               PixelFormat /* format */, uint32_t flags,
+                               const sp<IBinder>& parentHandle, LayerMetadata metadata,
+                               sp<IBinder>* outHandle, sp<IGraphicBufferProducer>* /* gbp */,
+                               int32_t* outLayerId, uint32_t* outTransformHint) {
     // We rely on createLayer to check permissions.
-    return mFlinger->createLayer(name, this, w, h, format, flags, std::move(metadata), handle, gbp,
-                                 parentHandle, outLayerId, nullptr, outTransformHint);
+    LayerCreationArgs args(mFlinger.get(), this, name.c_str(), flags, std::move(metadata));
+    return mFlinger->createLayer(args, outHandle, parentHandle, outLayerId, nullptr,
+                                 outTransformHint);
 }
 
-status_t Client::createWithSurfaceParent(const String8& name, uint32_t w, uint32_t h,
-                                         PixelFormat format, uint32_t flags,
-                                         const sp<IGraphicBufferProducer>& parent,
-                                         LayerMetadata metadata, sp<IBinder>* handle,
-                                         sp<IGraphicBufferProducer>* gbp, int32_t* outLayerId,
-                                         uint32_t* outTransformHint) {
-    if (mFlinger->authenticateSurfaceTexture(parent) == false) {
-        ALOGE("failed to authenticate surface texture");
-        return BAD_VALUE;
-    }
-
-    const auto& layer = (static_cast<MonitoredProducer*>(parent.get()))->getLayer();
-    if (layer == nullptr) {
-        ALOGE("failed to find parent layer");
-        return BAD_VALUE;
-    }
-
-    return mFlinger->createLayer(name, this, w, h, format, flags, std::move(metadata), handle, gbp,
-                                 nullptr, outLayerId, layer, outTransformHint);
+status_t Client::createWithSurfaceParent(const String8& /* name */, uint32_t /* w */,
+                                         uint32_t /* h */, PixelFormat /* format */,
+                                         uint32_t /* flags */,
+                                         const sp<IGraphicBufferProducer>& /* parent */,
+                                         LayerMetadata /* metadata */, sp<IBinder>* /* handle */,
+                                         sp<IGraphicBufferProducer>* /* gbp */,
+                                         int32_t* /* outLayerId */,
+                                         uint32_t* /* outTransformHint */) {
+    // This api does not make sense with blast since SF no longer tracks IGBP. This api should be
+    // removed.
+    return BAD_VALUE;
 }
 
 status_t Client::mirrorSurface(const sp<IBinder>& mirrorFromHandle, sp<IBinder>* outHandle,
                                int32_t* outLayerId) {
-    return mFlinger->mirrorLayer(this, mirrorFromHandle, outHandle, outLayerId);
+    LayerCreationArgs args(mFlinger.get(), this, "MirrorRoot", 0 /* flags */, LayerMetadata());
+    return mFlinger->mirrorLayer(args, mirrorFromHandle, outHandle, outLayerId);
 }
 
 status_t Client::clearLayerFrameStats(const sp<IBinder>& handle) const {
@@ -132,6 +122,3 @@ status_t Client::getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outSt
 
 // ---------------------------------------------------------------------------
 }; // namespace android
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"

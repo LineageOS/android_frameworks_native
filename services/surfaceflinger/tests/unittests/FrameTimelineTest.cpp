@@ -66,9 +66,10 @@ public:
     }
 
     void SetUp() override {
+        constexpr bool kUseBootTimeClock = true;
         mTimeStats = std::make_shared<mock::TimeStats>();
         mFrameTimeline = std::make_unique<impl::FrameTimeline>(mTimeStats, kSurfaceFlingerPid,
-                                                               kTestThresholds);
+                                                               kTestThresholds, !kUseBootTimeClock);
         mFrameTimeline->registerDataSource();
         mTokenManager = &mFrameTimeline->mTokenManager;
         mTraceCookieCounter = &mFrameTimeline->mTraceCookieCounter;
@@ -169,13 +170,14 @@ public:
 
 static const std::string sLayerNameOne = "layer1";
 static const std::string sLayerNameTwo = "layer2";
-static constexpr const uid_t sUidOne = 0;
-static constexpr pid_t sPidOne = 10;
-static constexpr pid_t sPidTwo = 20;
-static constexpr int32_t sInputEventId = 5;
-static constexpr int32_t sLayerIdOne = 1;
-static constexpr int32_t sLayerIdTwo = 2;
-static constexpr int32_t sGameMode = 0;
+
+constexpr const uid_t sUidOne = 0;
+constexpr pid_t sPidOne = 10;
+constexpr pid_t sPidTwo = 20;
+constexpr int32_t sInputEventId = 5;
+constexpr int32_t sLayerIdOne = 1;
+constexpr int32_t sLayerIdTwo = 2;
+constexpr GameMode sGameMode = GameMode::Unsupported;
 
 TEST_F(FrameTimelineTest, tokenManagerRemovesStalePredictions) {
     int64_t token1 = mTokenManager->generateTokenForPredictions({0, 0, 0});
@@ -559,7 +561,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsDisplayMiss) {
 }
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMiss) {
-    Fps refreshRate = Fps(11.0);
+    Fps refreshRate = 11_Hz;
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(TimeStats::JankyFramesInfo{refreshRate, std::nullopt, sUidOne,
                                                                 sLayerNameOne, sGameMode,
@@ -1278,7 +1280,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
     validateTraceEvent(actualSurfaceFrameEnd2, protoPresentedSurfaceFrameActualEnd);
 }
 
-TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredDoesNotTraceExpectedTimeline) {
+TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredIsAppMissedDeadline) {
     auto tracingSession = getTracingSessionForTest();
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
@@ -1311,7 +1313,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredDoesNotTraceExpecte
             createProtoActualSurfaceFrameStart(traceCookie + 1, surfaceFrameToken,
                                                displayFrameToken, sPidOne, sLayerNameOne,
                                                FrameTimelineEvent::PRESENT_UNSPECIFIED, false,
-                                               false, FrameTimelineEvent::JANK_UNKNOWN,
+                                               false, FrameTimelineEvent::JANK_APP_DEADLINE_MISSED,
                                                FrameTimelineEvent::PREDICTION_EXPIRED, true);
     auto protoActualSurfaceFrameEnd = createProtoFrameEnd(traceCookie + 1);
 

@@ -276,6 +276,30 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
         mStringType = SENSOR_STRING_TYPE_HINGE_ANGLE;
         mFlags |= SENSOR_FLAG_ON_CHANGE_MODE;
         break;
+    case SENSOR_TYPE_HEAD_TRACKER:
+        mStringType = SENSOR_STRING_TYPE_HEAD_TRACKER;
+        mFlags |= SENSOR_FLAG_CONTINUOUS_MODE;
+        break;
+    case SENSOR_TYPE_ACCELEROMETER_LIMITED_AXES:
+        mStringType = SENSOR_STRING_TYPE_ACCELEROMETER_LIMITED_AXES;
+        mFlags |= SENSOR_FLAG_CONTINUOUS_MODE;
+        break;
+    case SENSOR_TYPE_GYROSCOPE_LIMITED_AXES:
+        mStringType = SENSOR_STRING_TYPE_GYROSCOPE_LIMITED_AXES;
+        mFlags |= SENSOR_FLAG_CONTINUOUS_MODE;
+        break;
+    case SENSOR_TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED:
+        mStringType = SENSOR_STRING_TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED;
+        mFlags |= SENSOR_FLAG_CONTINUOUS_MODE;
+        break;
+    case SENSOR_TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED:
+        mStringType = SENSOR_STRING_TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED;
+        mFlags |= SENSOR_FLAG_CONTINUOUS_MODE;
+        break;
+    case SENSOR_TYPE_HEADING:
+        mStringType = SENSOR_STRING_TYPE_HEADING;
+        mFlags |= SENSOR_FLAG_CONTINUOUS_MODE;
+        break;
     default:
         // Only pipe the stringType, requiredPermission and flags for custom sensors.
         if (halVersion > SENSORS_DEVICE_API_VERSION_1_0 && hwSensor.stringType) {
@@ -468,7 +492,15 @@ const Sensor::uuid_t& Sensor::getUuid() const {
 }
 
 void Sensor::setId(int32_t id) {
-    mUuid.i64[0] = id;
+    mId = id;
+}
+
+int32_t Sensor::getId() const {
+    return mId;
+}
+
+void Sensor::anonymizeUuid() {
+    mUuid.i64[0] = mId;
     mUuid.i64[1] = 0;
 }
 
@@ -485,17 +517,14 @@ void Sensor::capHighestDirectReportRateLevel(int32_t cappedRateLevel) {
     }
 }
 
-int32_t Sensor::getId() const {
-    return int32_t(mUuid.i64[0]);
-}
-
 size_t Sensor::getFlattenedSize() const {
     size_t fixedSize =
             sizeof(mVersion) + sizeof(mHandle) + sizeof(mType) +
             sizeof(mMinValue) + sizeof(mMaxValue) + sizeof(mResolution) +
             sizeof(mPower) + sizeof(mMinDelay) + sizeof(mFifoMaxEventCount) +
             sizeof(mFifoMaxEventCount) + sizeof(mRequiredPermissionRuntime) +
-            sizeof(mRequiredAppOp) + sizeof(mMaxDelay) + sizeof(mFlags) + sizeof(mUuid);
+            sizeof(mRequiredAppOp) + sizeof(mMaxDelay) + sizeof(mFlags) +
+            sizeof(mUuid) + sizeof(mId);
 
     size_t variableSize =
             sizeof(uint32_t) + FlattenableUtils::align<4>(mName.length()) +
@@ -529,18 +558,8 @@ status_t Sensor::flatten(void* buffer, size_t size) const {
     FlattenableUtils::write(buffer, size, mRequiredAppOp);
     FlattenableUtils::write(buffer, size, mMaxDelay);
     FlattenableUtils::write(buffer, size, mFlags);
-    if (mUuid.i64[1] != 0) {
-        // We should never hit this case with our current API, but we
-        // could via a careless API change.  If that happens,
-        // this code will keep us from leaking our UUID (while probably
-        // breaking dynamic sensors).  See b/29547335.
-        ALOGW("Sensor with UUID being flattened; sending 0.  Expect "
-              "bad dynamic sensor behavior");
-        uuid_t tmpUuid;  // default constructor makes this 0.
-        FlattenableUtils::write(buffer, size, tmpUuid);
-    } else {
-        FlattenableUtils::write(buffer, size, mUuid);
-    }
+    FlattenableUtils::write(buffer, size, mUuid);
+    FlattenableUtils::write(buffer, size, mId);
     return NO_ERROR;
 }
 
@@ -580,7 +599,7 @@ status_t Sensor::unflatten(void const* buffer, size_t size) {
 
     size_t fixedSize2 =
             sizeof(mRequiredPermissionRuntime) + sizeof(mRequiredAppOp) + sizeof(mMaxDelay) +
-            sizeof(mFlags) + sizeof(mUuid);
+            sizeof(mFlags) + sizeof(mUuid) + sizeof(mId);
     if (size < fixedSize2) {
         return NO_MEMORY;
     }
@@ -590,6 +609,7 @@ status_t Sensor::unflatten(void const* buffer, size_t size) {
     FlattenableUtils::read(buffer, size, mMaxDelay);
     FlattenableUtils::read(buffer, size, mFlags);
     FlattenableUtils::read(buffer, size, mUuid);
+    FlattenableUtils::read(buffer, size, mId);
     return NO_ERROR;
 }
 

@@ -36,7 +36,7 @@ protected:
         mParentLayer = createColorLayer("Parent layer", Color::RED);
         mChildLayer = createColorLayer("Child layer", Color::GREEN, mParentLayer.get());
         asTransaction([&](Transaction& t) {
-            t.setDisplayLayerStack(display, 0);
+            t.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
             t.setLayer(mParentLayer, INT32_MAX - 2).show(mParentLayer);
             t.setCrop(mChildLayer, Rect(0, 0, 400, 400)).show(mChildLayer);
             t.setPosition(mChildLayer, 50, 50);

@@ -40,8 +40,8 @@ TEST_F(DestroyDisplayTest, destroyDisplayClearsCurrentStateForDisplay) {
     // The call should notify the interceptor that a display was created.
     EXPECT_CALL(*mSurfaceInterceptor, saveDisplayDeletion(_)).Times(1);
 
-    // Destroying the display invalidates the display state.
-    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+    // Destroying the display commits a display transaction.
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation

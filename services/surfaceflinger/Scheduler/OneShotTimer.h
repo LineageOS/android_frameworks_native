@@ -103,6 +103,8 @@ private:
     // check in the main loop if they were.
     std::atomic<bool> mResetTriggered = false;
     std::atomic<bool> mStopTriggered = false;
+    std::atomic<bool> mWaiting = false;
+    std::atomic<std::chrono::steady_clock::time_point> mLastResetTime;
 };
 
 } // namespace scheduler

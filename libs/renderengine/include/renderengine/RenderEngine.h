@@ -68,6 +68,7 @@ class Image;
 class Mesh;
 class Texture;
 struct RenderEngineCreationArgs;
+struct RenderEngineResult;
 
 namespace threaded {
 class RenderEngineThreaded;
@@ -75,6 +76,7 @@ class RenderEngineThreaded;
 
 namespace impl {
 class RenderEngine;
+class ExternalTexture;
 }
 
 enum class Protection {
@@ -98,7 +100,7 @@ public:
         SKIA_GL_THREADED = 4,
     };
 
-    static std::unique_ptr<RenderEngine> create(RenderEngineCreationArgs args);
+    static std::unique_ptr<RenderEngine> create(const RenderEngineCreationArgs& args);
 
     virtual ~RenderEngine() = 0;
 
@@ -156,17 +158,12 @@ public:
     // parameter does nothing.
     // @param bufferFence Fence signalling that the buffer is ready to be drawn
     // to.
-    // @param drawFence A pointer to a fence, which will fire when the buffer
-    // has been drawn to and is ready to be examined. The fence will be
-    // initialized by this method. The caller will be responsible for owning the
-    // fence.
-    // @return An error code indicating whether drawing was successful. For
-    // now, this always returns NO_ERROR.
-    virtual status_t drawLayers(const DisplaySettings& display,
-                                const std::vector<const LayerSettings*>& layers,
-                                const std::shared_ptr<ExternalTexture>& buffer,
-                                const bool useFramebufferCache, base::unique_fd&& bufferFence,
-                                base::unique_fd* drawFence) = 0;
+    // @return A future object of RenderEngineResult struct indicating whether
+    // drawing was successful in async mode.
+    virtual std::future<RenderEngineResult> drawLayers(
+            const DisplaySettings& display, const std::vector<LayerSettings>& layers,
+            const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
+            base::unique_fd&& bufferFence);
 
     // Clean-up method that should be called on the main thread after the
     // drawFence returned by drawLayers fires. This method will free up
@@ -192,6 +189,12 @@ public:
 
     static void validateInputBufferUsage(const sp<GraphicBuffer>&);
     static void validateOutputBufferUsage(const sp<GraphicBuffer>&);
+
+    // Allows flinger to get the render engine thread id for power management with ADPF
+    // Returns the tid of the renderengine thread if it's threaded, and std::nullopt otherwise
+    virtual std::optional<pid_t> getRenderEngineTid() const { return std::nullopt; }
+
+    virtual void setEnableTracing(bool /*tracingEnabled*/) {}
 
 protected:
     RenderEngine() : RenderEngine(RenderEngineType::GLES) {}
@@ -228,10 +231,16 @@ protected:
     // avoid any thread synchronization that may be required by directly calling postRenderCleanup.
     virtual bool canSkipPostRenderCleanup() const = 0;
 
-    friend class ExternalTexture;
+    friend class impl::ExternalTexture;
     friend class threaded::RenderEngineThreaded;
     friend class RenderEngineTest_cleanupPostRender_cleansUpOnce_Test;
     const RenderEngineType mRenderEngineType;
+
+    virtual void drawLayersInternal(
+            const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+            const DisplaySettings& display, const std::vector<LayerSettings>& layers,
+            const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
+            base::unique_fd&& bufferFence) = 0;
 };
 
 struct RenderEngineCreationArgs {
@@ -316,6 +325,13 @@ private:
     RenderEngine::ContextPriority contextPriority = RenderEngine::ContextPriority::MEDIUM;
     RenderEngine::RenderEngineType renderEngineType =
             RenderEngine::RenderEngineType::SKIA_GL_THREADED;
+};
+
+struct RenderEngineResult {
+    // status indicates if drawing is successful
+    status_t status;
+    // drawFence will fire when the buffer has been drawn to and is ready to be examined.
+    base::unique_fd drawFence;
 };
 
 } // namespace renderengine

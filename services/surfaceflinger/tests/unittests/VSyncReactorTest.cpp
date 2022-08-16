@@ -22,19 +22,22 @@
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 #define LOG_NDEBUG 0
 
-#include "Scheduler/TimeKeeper.h"
-#include "Scheduler/VSyncDispatch.h"
-#include "Scheduler/VSyncReactor.h"
-#include "Scheduler/VSyncTracker.h"
+#include <array>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <ui/Fence.h>
 #include <ui/FenceTime.h>
-#include <array>
+
+#include <scheduler/TimeKeeper.h>
+
+#include "Scheduler/VSyncDispatch.h"
+#include "Scheduler/VSyncReactor.h"
+#include "Scheduler/VSyncTracker.h"
 
 using namespace testing;
 using namespace std::literals;
+
 namespace android::scheduler {
 
 class MockVSyncTracker : public VSyncTracker {
@@ -65,14 +68,12 @@ private:
     std::shared_ptr<Clock> const mClock;
 };
 
-class MockVSyncDispatch : public VSyncDispatch {
-public:
-    MOCK_METHOD2(registerCallback,
-                 CallbackToken(std::function<void(nsecs_t, nsecs_t, nsecs_t)> const&, std::string));
-    MOCK_METHOD1(unregisterCallback, void(CallbackToken));
-    MOCK_METHOD2(schedule, ScheduleResult(CallbackToken, ScheduleTiming));
-    MOCK_METHOD1(cancel, CancelResult(CallbackToken token));
-    MOCK_CONST_METHOD1(dump, void(std::string&));
+struct MockVSyncDispatch : VSyncDispatch {
+    MOCK_METHOD(CallbackToken, registerCallback, (Callback, std::string), (override));
+    MOCK_METHOD(void, unregisterCallback, (CallbackToken), (override));
+    MOCK_METHOD(ScheduleResult, schedule, (CallbackToken, ScheduleTiming), (override));
+    MOCK_METHOD(CancelResult, cancel, (CallbackToken), (override));
+    MOCK_METHOD(void, dump, (std::string&), (const, override));
 };
 
 std::shared_ptr<android::FenceTime> generateInvalidFence() {

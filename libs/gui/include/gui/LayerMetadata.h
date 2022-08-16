@@ -59,4 +59,14 @@ struct LayerMetadata : public Parcelable {
     std::string itemToString(uint32_t key, const char* separator) const;
 };
 
+// Keep in sync with the GameManager.java constants.
+enum class GameMode : int32_t {
+    Unsupported = 0,
+    Standard = 1,
+    Performance = 2,
+    Battery = 3,
+
+    ftl_last = Battery
+};
+
 } // namespace android

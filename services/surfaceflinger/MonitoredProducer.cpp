@@ -33,13 +33,7 @@ MonitoredProducer::MonitoredProducer(const sp<IGraphicBufferProducer>& producer,
     mFlinger(flinger),
     mLayer(layer) {}
 
-MonitoredProducer::~MonitoredProducer() {
-    // Remove ourselves from SurfaceFlinger's list. We do this asynchronously
-    // because we don't know where this destructor is called from. It could be
-    // called with the mStateLock held, leading to a dead-lock (it actually
-    // happens).
-    mFlinger->removeGraphicBufferProducerAsync(onAsBinder());
-}
+MonitoredProducer::~MonitoredProducer() {}
 
 status_t MonitoredProducer::requestBuffer(int slot, sp<GraphicBuffer>* buf) {
     return mProducer->requestBuffer(slot, buf);

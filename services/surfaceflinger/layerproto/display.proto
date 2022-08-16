@@ -33,4 +33,6 @@ message DisplayProto {
     RectProto layer_stack_space_rect = 5;
 
     TransformProto transform = 6;
+
+    bool is_virtual = 7;
 }

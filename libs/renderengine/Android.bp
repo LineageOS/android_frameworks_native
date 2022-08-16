@@ -27,6 +27,7 @@ cc_defaults {
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
     shared_libs: [
+        "android.hardware.graphics.composer3-V1-ndk",
         "libbase",
         "libcutils",
         "libEGL",
@@ -39,6 +40,11 @@ cc_defaults {
         "libsync",
         "libui",
         "libutils",
+    ],
+
+    static_libs: [
+        "libshaders",
+        "libtonemap",
     ],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
@@ -94,6 +100,8 @@ filegroup {
         "skia/debug/SkiaCapture.cpp",
         "skia/debug/SkiaMemoryReporter.cpp",
         "skia/filters/BlurFilter.cpp",
+        "skia/filters/GaussianBlurFilter.cpp",
+        "skia/filters/KawaseBlurFilter.cpp",
         "skia/filters/LinearEffect.cpp",
         "skia/filters/StretchShaderFactory.cpp",
     ],
@@ -113,6 +121,9 @@ cc_library_static {
         ":librenderengine_gl_sources",
         ":librenderengine_threaded_sources",
         ":librenderengine_skia_sources",
+    ],
+    header_libs: [
+        "libtonemap_headers",
     ],
     include_dirs: [
         "external/skia/src/gpu",

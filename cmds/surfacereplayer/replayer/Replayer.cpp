@@ -528,7 +528,7 @@ void Replayer::setTransparentRegionHint(SurfaceComposerClient::Transaction& t,
 void Replayer::setLayerStack(SurfaceComposerClient::Transaction& t,
         layer_id id, const LayerStackChange& lsc) {
     ALOGV("Layer %d: Setting LayerStack -- layer_stack=%d", id, lsc.layer_stack());
-    t.setLayerStack(mLayers[id], lsc.layer_stack());
+    t.setLayerStack(mLayers[id], ui::LayerStack::fromValue(lsc.layer_stack()));
 }
 
 void Replayer::setHiddenFlag(SurfaceComposerClient::Transaction& t,
@@ -566,7 +566,7 @@ void Replayer::setDisplaySurface(SurfaceComposerClient::Transaction& t,
 
 void Replayer::setDisplayLayerStack(SurfaceComposerClient::Transaction& t,
         display_id id, const LayerStackChange& lsc) {
-    t.setDisplayLayerStack(mDisplays[id], lsc.layer_stack());
+    t.setDisplayLayerStack(mDisplays[id], ui::LayerStack::fromValue(lsc.layer_stack()));
 }
 
 void Replayer::setDisplaySize(SurfaceComposerClient::Transaction& t,

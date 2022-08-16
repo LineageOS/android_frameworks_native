@@ -1353,7 +1353,7 @@ TEST_P(LayerRenderTypeTransactionTest, DISABLED_SetFenceBasic_BufferState) {
         return;
     }
 
-    Transaction().setBuffer(layer, buffer).setAcquireFence(layer, fence).apply();
+    Transaction().setBuffer(layer, buffer, fence).apply();
 
     status_t status = fence->wait(1000);
     ASSERT_NE(static_cast<status_t>(Fence::Status::Unsignaled), status);
@@ -1375,7 +1375,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetFenceNull_BufferState) {
 
     sp<Fence> fence = Fence::NO_FENCE;
 
-    Transaction().setBuffer(layer, buffer).setAcquireFence(layer, fence).apply();
+    Transaction().setBuffer(layer, buffer, fence).apply();
 
     auto shot = getScreenCapture();
     shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
