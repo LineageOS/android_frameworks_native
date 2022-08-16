@@ -73,7 +73,7 @@ cc_defaults {
         "libui",
         "lib-platform-compat-native-api",
         "server_configurable_flags",
-        "InputFlingerProperties",
+        "libInputFlingerProperties",
     ],
     static_libs: [
         "libattestation",
@@ -125,7 +125,7 @@ filegroup {
         "InputListener.cpp",
         "InputReaderBase.cpp",
         "InputThread.cpp",
-        "VibrationElement.cpp"
+        "VibrationElement.cpp",
     ],
 }
 

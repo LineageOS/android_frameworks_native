@@ -268,7 +268,7 @@ cc_library_shared {
         "liblog",
     ],
     static_libs: [
-        "SurfaceFlingerProperties",
+        "libSurfaceFlingerProperties",
     ],
     export_shared_lib_headers: [
         "android.hardware.graphics.common@1.2",
@@ -276,6 +276,6 @@ cc_library_shared {
         "libui",
     ],
     export_static_lib_headers: [
-        "SurfaceFlingerProperties",
+        "libSurfaceFlingerProperties",
     ],
 }
