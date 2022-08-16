@@ -18,14 +18,14 @@
 
 #include <gmock/gmock.h>
 
-#include "Layer.h"
+#include "BufferStateLayer.h"
 
 namespace android::mock {
 
-class MockLayer : public Layer {
+class MockLayer : public BufferStateLayer {
 public:
     MockLayer(SurfaceFlinger* flinger, std::string name)
-          : Layer(LayerCreationArgs(flinger, nullptr, std::move(name), 0, {})) {
+          : BufferStateLayer(LayerCreationArgs(flinger, nullptr, std::move(name), 0, {})) {
         EXPECT_CALL(*this, getDefaultFrameRateCompatibility())
                 .WillOnce(testing::Return(scheduler::LayerInfo::FrameRateCompatibility::Default));
     }

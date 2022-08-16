@@ -300,10 +300,6 @@ bool BufferStateLayer::willPresentCurrentTransaction() const {
              (mDrawingState.buffer != nullptr || mDrawingState.bgColorLayer != nullptr)));
 }
 
-Rect BufferStateLayer::getCrop(const Layer::State& s) const {
-    return s.crop;
-}
-
 bool BufferStateLayer::setTransform(uint32_t transform) {
     if (mDrawingState.bufferTransform == transform) return false;
     mDrawingState.bufferTransform = transform;
@@ -316,16 +312,6 @@ bool BufferStateLayer::setTransformToDisplayInverse(bool transformToDisplayInver
     if (mDrawingState.transformToDisplayInverse == transformToDisplayInverse) return false;
     mDrawingState.sequence++;
     mDrawingState.transformToDisplayInverse = transformToDisplayInverse;
-    mDrawingState.modified = true;
-    setTransactionFlags(eTransactionNeeded);
-    return true;
-}
-
-bool BufferStateLayer::setCrop(const Rect& crop) {
-    if (mDrawingState.crop == crop) return false;
-    mDrawingState.sequence++;
-    mDrawingState.crop = crop;
-
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
@@ -407,9 +393,6 @@ bool BufferStateLayer::setMatrix(const layer_state_t::matrix22_t& matrix) {
         mRequestedTransform.dtdx() == matrix.dtdx && mRequestedTransform.dsdy() == matrix.dsdy) {
         return false;
     }
-
-    ui::Transform t;
-    t.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
 
     mRequestedTransform.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
 
@@ -536,6 +519,7 @@ bool BufferStateLayer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>&
 }
 
 bool BufferStateLayer::setDataspace(ui::Dataspace dataspace) {
+    mDrawingState.dataspaceRequested = true;
     if (mDrawingState.dataspace == dataspace) return false;
     mDrawingState.dataspace = dataspace;
     mDrawingState.modified = true;
@@ -858,6 +842,9 @@ void BufferStateLayer::tracePendingBufferCount(int32_t pendingBuffers) {
  * how to go from screen space back to window space.
  */
 ui::Transform BufferStateLayer::getInputTransform() const {
+    if (!hasBufferOrSidebandStream()) {
+        return getTransform();
+    }
     sp<Layer> parent = mDrawingParent.promote();
     if (parent == nullptr) {
         return ui::Transform();
@@ -872,6 +859,10 @@ ui::Transform BufferStateLayer::getInputTransform() const {
  * that's already included.
  */
 Rect BufferStateLayer::getInputBounds() const {
+    if (!hasBufferOrSidebandStream()) {
+        return getCroppedBufferSize(getDrawingState());
+    }
+
     Rect bufferBounds = getCroppedBufferSize(getDrawingState());
     if (mDrawingState.transform.getType() == ui::Transform::IDENTITY || !bufferBounds.isValid()) {
         return bufferBounds;
@@ -1080,13 +1071,22 @@ void BufferStateLayer::useEmptyDamage() {
 bool BufferStateLayer::isOpaque(const Layer::State& s) const {
     // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
     // layer's opaque flag.
-    if ((mSidebandStream == nullptr) && (mBufferInfo.mBuffer == nullptr)) {
+    if (!hasSomethingToDraw()) {
         return false;
     }
 
-    // if the layer has the opaque flag, then we're always opaque,
-    // otherwise we use the current buffer's format.
-    return ((s.flags & layer_state_t::eLayerOpaque) != 0) || getOpacityForFormat(getPixelFormat());
+    // if the layer has the opaque flag, then we're always opaque
+    if ((s.flags & layer_state_t::eLayerOpaque) == layer_state_t::eLayerOpaque) {
+        return true;
+    }
+
+    // If the buffer has no alpha channel, then we are opaque
+    if (hasBufferOrSidebandStream() && isOpaqueFormat(getPixelFormat())) {
+        return true;
+    }
+
+    // Lastly consider the layer opaque if drawing a color with alpha == 1.0
+    return fillsColor() && getAlpha() == 1.0_hf;
 }
 
 bool BufferStateLayer::canReceiveInput() const {
@@ -1094,8 +1094,15 @@ bool BufferStateLayer::canReceiveInput() const {
 }
 
 bool BufferStateLayer::isVisible() const {
-    return !isHiddenByPolicy() && getAlpha() > 0.0f &&
-            (mBufferInfo.mBuffer != nullptr || mSidebandStream != nullptr);
+    if (!hasSomethingToDraw()) {
+        return false;
+    }
+
+    if (isHiddenByPolicy()) {
+        return false;
+    }
+
+    return getAlpha() > 0.0f || hasBlur();
 }
 
 std::optional<compositionengine::LayerFE::LayerSettings> BufferStateLayer::prepareClientComposition(
@@ -1127,6 +1134,11 @@ BufferStateLayer::prepareClientCompositionInternal(
     std::optional<compositionengine::LayerFE::LayerSettings> result =
             Layer::prepareClientComposition(targetSettings);
     if (!result) {
+        return result;
+    }
+
+    if (hasEffect()) {
+        prepareEffectsClientComposition(*result, targetSettings);
         return result;
     }
 
@@ -1241,6 +1253,18 @@ BufferStateLayer::prepareClientCompositionInternal(
     return layer;
 }
 
+void BufferStateLayer::prepareEffectsClientComposition(
+        compositionengine::LayerFE::LayerSettings& layerSettings,
+        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) const {
+    // If fill bounds are occluded or the fill color is invalid skip the fill settings.
+    if (targetSettings.realContentIsVisible && fillsColor()) {
+        // Set color for color fill settings.
+        layerSettings.source.solidColor = getColor().rgb;
+    } else if (hasBlur() || drawShadows()) {
+        layerSettings.skipContentDraw = true;
+    }
+}
+
 bool BufferStateLayer::isHdrY410() const {
     // pixel format is HDR Y410 masquerading as RGBA_1010102
     return (mBufferInfo.mDataspace == ui::Dataspace::BT2020_ITU_PQ &&
@@ -1249,7 +1273,12 @@ bool BufferStateLayer::isHdrY410() const {
 }
 
 sp<compositionengine::LayerFE> BufferStateLayer::getCompositionEngineLayerFE() const {
-    return asLayerFE();
+    // There's no need to get a CE Layer if the layer isn't going to draw anything.
+    if (hasSomethingToDraw()) {
+        return asLayerFE();
+    } else {
+        return nullptr;
+    }
 }
 
 compositionengine::LayerFECompositionState* BufferStateLayer::editCompositionState() {
@@ -1262,7 +1291,14 @@ const compositionengine::LayerFECompositionState* BufferStateLayer::getCompositi
 
 void BufferStateLayer::preparePerFrameCompositionState() {
     Layer::preparePerFrameCompositionState();
+    if (hasBufferOrSidebandStream()) {
+        preparePerFrameBufferCompositionState();
+    } else {
+        preparePerFrameEffectsCompositionState();
+    }
+}
 
+void BufferStateLayer::preparePerFrameBufferCompositionState() {
     // Sideband layers
     auto* compositionState = editCompositionState();
     if (compositionState->sidebandStream.get() && !compositionState->sidebandStreamHasFrame) {
@@ -1287,6 +1323,13 @@ void BufferStateLayer::preparePerFrameCompositionState() {
     compositionState->acquireFence = mBufferInfo.mFence;
     compositionState->frameNumber = mBufferInfo.mFrameNumber;
     compositionState->sidebandStreamHasFrame = false;
+}
+
+void BufferStateLayer::preparePerFrameEffectsCompositionState() {
+    auto* compositionState = editCompositionState();
+    compositionState->color = getColor();
+    compositionState->compositionType =
+            aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR;
 }
 
 void BufferStateLayer::onPostComposition(const DisplayDevice* display,
@@ -1441,7 +1484,7 @@ bool BufferStateLayer::isProtected() const {
 // hardware.h, instead of using hard-coded values here.
 #define HARDWARE_IS_DEVICE_FORMAT(f) ((f) >= 0x100 && (f) <= 0x1FF)
 
-bool BufferStateLayer::getOpacityForFormat(PixelFormat format) {
+bool BufferStateLayer::isOpaqueFormat(PixelFormat format) {
     if (HARDWARE_IS_DEVICE_FORMAT(format)) {
         return true;
     }
@@ -1458,6 +1501,9 @@ bool BufferStateLayer::getOpacityForFormat(PixelFormat format) {
 }
 
 bool BufferStateLayer::needsFiltering(const DisplayDevice* display) const {
+    if (!hasBufferOrSidebandStream()) {
+        return false;
+    }
     const auto outputLayer = findOutputLayerForDisplay(display);
     if (outputLayer == nullptr) {
         return false;
@@ -1474,6 +1520,9 @@ bool BufferStateLayer::needsFiltering(const DisplayDevice* display) const {
 
 bool BufferStateLayer::needsFilteringForScreenshots(
         const DisplayDevice* display, const ui::Transform& inverseParentTransform) const {
+    if (!hasBufferOrSidebandStream()) {
+        return false;
+    }
     const auto outputLayer = findOutputLayerForDisplay(display);
     if (outputLayer == nullptr) {
         return false;
@@ -1535,7 +1584,11 @@ uint32_t BufferStateLayer::getBufferTransform() const {
 }
 
 ui::Dataspace BufferStateLayer::getDataSpace() const {
-    return mBufferInfo.mDataspace;
+    return mDrawingState.dataspaceRequested ? getRequestedDataSpace() : ui::Dataspace::UNKNOWN;
+}
+
+ui::Dataspace BufferStateLayer::getRequestedDataSpace() const {
+    return hasBufferOrSidebandStream() ? mBufferInfo.mDataspace : mDrawingState.dataspace;
 }
 
 ui::Dataspace BufferStateLayer::translateDataspace(ui::Dataspace dataspace) {
@@ -1634,6 +1687,30 @@ void BufferStateLayer::setTransformHint(ui::Transform::RotationFlags displayTran
 
 const std::shared_ptr<renderengine::ExternalTexture>& BufferStateLayer::getExternalTexture() const {
     return mBufferInfo.mBuffer;
+}
+
+bool BufferStateLayer::setColor(const half3& color) {
+    if (mDrawingState.color.r == color.r && mDrawingState.color.g == color.g &&
+        mDrawingState.color.b == color.b) {
+        return false;
+    }
+
+    mDrawingState.sequence++;
+    mDrawingState.color.r = color.r;
+    mDrawingState.color.g = color.g;
+    mDrawingState.color.b = color.b;
+    mDrawingState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool BufferStateLayer::fillsColor() const {
+    return !hasBufferOrSidebandStream() && mDrawingState.color.r >= 0.0_hf &&
+            mDrawingState.color.g >= 0.0_hf && mDrawingState.color.b >= 0.0_hf;
+}
+
+bool BufferStateLayer::hasBlur() const {
+    return getBackgroundBlurRadius() > 0 || getDrawingState().blurRegions.size() > 0;
 }
 
 } // namespace android

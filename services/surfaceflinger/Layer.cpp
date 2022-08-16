@@ -124,6 +124,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mDrawingState.acquireFence = sp<Fence>::make(-1);
     mDrawingState.acquireFenceTime = std::make_shared<FenceTime>(mDrawingState.acquireFence);
     mDrawingState.dataspace = ui::Dataspace::UNKNOWN;
+    mDrawingState.dataspaceRequested = false;
     mDrawingState.hdrMetadata.validTypes = 0;
     mDrawingState.surfaceDamageRegion = Region::INVALID_REGION;
     mDrawingState.cornerRadius = 0.0f;
@@ -203,13 +204,6 @@ LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, sp<Client> client,
 // ---------------------------------------------------------------------------
 // callbacks
 // ---------------------------------------------------------------------------
-
-/*
- * onLayerDisplayed is only meaningful for BufferLayer, but, is called through
- * Layer.  So, the implementation is done in BufferLayer.  When called on a
- * EffectLayer object, it's essentially a NOP.
- */
-void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult>) {}
 
 void Layer::removeRelativeZ(const std::vector<Layer*>& layersInTree) {
     if (mDrawingState.zOrderRelativeOf == nullptr) {
@@ -521,22 +515,6 @@ sp<compositionengine::LayerFE> Layer::asLayerFE() const {
     return sp<compositionengine::LayerFE>::fromExisting(layerFE);
 }
 
-sp<compositionengine::LayerFE> Layer::getCompositionEngineLayerFE() const {
-    return nullptr;
-}
-
-compositionengine::LayerFECompositionState* Layer::editCompositionState() {
-    return nullptr;
-}
-
-const compositionengine::LayerFECompositionState* Layer::getCompositionState() const {
-    return nullptr;
-}
-
-bool Layer::onPreComposition(nsecs_t) {
-    return false;
-}
-
 void Layer::prepareCompositionState(compositionengine::LayerFE::StateSubset subset) {
     using StateSubset = compositionengine::LayerFE::StateSubset;
 
@@ -736,16 +714,6 @@ void Layer::setTransactionFlags(uint32_t mask) {
     mTransactionFlags |= mask;
 }
 
-bool Layer::setPosition(float x, float y) {
-    if (mDrawingState.transform.tx() == x && mDrawingState.transform.ty() == y) return false;
-    mDrawingState.sequence++;
-    mDrawingState.transform.set(x, y);
-
-    mDrawingState.modified = true;
-    setTransactionFlags(eTransactionNeeded);
-    return true;
-}
-
 bool Layer::setChildLayer(const sp<Layer>& childLayer, int32_t z) {
     ssize_t idx = mCurrentChildren.indexOf(childLayer);
     if (idx < 0) {
@@ -936,24 +904,6 @@ bool Layer::setBackgroundBlurRadius(int backgroundBlurRadius) {
     }
     mDrawingState.backgroundBlurRadius = backgroundBlurRadius;
     mDrawingState.modified = true;
-    setTransactionFlags(eTransactionNeeded);
-    return true;
-}
-bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix) {
-    if (matrix.dsdx == mDrawingState.transform.dsdx() &&
-        matrix.dtdy == mDrawingState.transform.dtdy() &&
-        matrix.dtdx == mDrawingState.transform.dtdx() &&
-        matrix.dsdy == mDrawingState.transform.dsdy()) {
-        return false;
-    }
-
-    ui::Transform t;
-    t.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
-
-    mDrawingState.sequence++;
-    mDrawingState.transform.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
-    mDrawingState.modified = true;
-
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
@@ -2188,14 +2138,6 @@ bool Layer::isRemovedFromCurrentState() const  {
     return mRemovedFromDrawingState;
 }
 
-ui::Transform Layer::getInputTransform() const {
-    return getTransform();
-}
-
-Rect Layer::getInputBounds() const {
-    return getCroppedBufferSize(getDrawingState());
-}
-
 // Applies the given transform to the region, while protecting against overflows caused by any
 // offsets. If applying the offset in the transform to any of the Rects in the region would result
 // in an overflow, they are not added to the output Region.
@@ -2459,10 +2401,6 @@ bool Layer::hasInputInfo() const {
             mDrawingState.inputInfo.inputConfig.test(WindowInfo::InputConfig::NO_INPUT_CHANNEL);
 }
 
-bool Layer::canReceiveInput() const {
-    return !isHiddenByPolicy();
-}
-
 compositionengine::OutputLayer* Layer::findOutputLayerForDisplay(
         const DisplayDevice* display) const {
     if (!display) return nullptr;
@@ -2682,18 +2620,6 @@ void Layer::cloneDrawingState(const Layer* from) {
     // Skip callback info since they are not applicable for cloned layers.
     mDrawingState.releaseBufferListener = nullptr;
     mDrawingState.callbackHandles = {};
-}
-
-bool Layer::setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& handles) {
-    if (handles.empty()) {
-        return false;
-    }
-
-    for (const auto& handle : handles) {
-        mFlinger->getTransactionCallbackInvoker().registerUnpresentedCallbackHandle(handle);
-    }
-
-    return true;
 }
 
 // ---------------------------------------------------------------------------
