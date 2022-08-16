@@ -38,8 +38,11 @@
 #include <gtest/gtest.h>
 #include <gui/constants.h>
 
+#include "android/hardware/input/InputDeviceCountryCode.h"
 #include "input/DisplayViewport.h"
 #include "input/Input.h"
+
+using android::hardware::input::InputDeviceCountryCode;
 
 namespace android {
 
@@ -455,6 +458,7 @@ class FakeEventHub : public EventHubInterface {
         BitArray<MSC_MAX> mscBitmask;
         std::vector<VirtualKeyDefinition> virtualKeys;
         bool enabled;
+        InputDeviceCountryCode countryCode;
 
         status_t enable() {
             enabled = true;
@@ -582,6 +586,11 @@ public:
     void setKeyCodeState(int32_t deviceId, int32_t keyCode, int32_t state) {
         Device* device = getDevice(deviceId);
         device->keyCodeStates.replaceValueFor(keyCode, state);
+    }
+
+    void setCountryCode(int32_t deviceId, InputDeviceCountryCode countryCode) {
+        Device* device = getDevice(deviceId);
+        device->countryCode = countryCode;
     }
 
     void setScanCodeState(int32_t deviceId, int32_t scanCode, int32_t state) {
@@ -843,6 +852,14 @@ private:
             }
         }
         return AKEY_STATE_UNKNOWN;
+    }
+
+    InputDeviceCountryCode getCountryCode(int32_t deviceId) const override {
+        Device* device = getDevice(deviceId);
+        if (device) {
+            return device->countryCode;
+        }
+        return InputDeviceCountryCode::INVALID;
     }
 
     int32_t getKeyCodeState(int32_t deviceId, int32_t keyCode) const override {
@@ -2683,6 +2700,17 @@ TEST_F(InputDeviceTest, ImmutableProperties) {
     ASSERT_EQ(DEVICE_ID, mDevice->getId());
     ASSERT_STREQ(DEVICE_NAME, mDevice->getName().c_str());
     ASSERT_EQ(ftl::Flags<InputDeviceClass>(0), mDevice->getClasses());
+}
+
+TEST_F(InputDeviceTest, CountryCodeCorrectlyMapped) {
+    mFakeEventHub->setCountryCode(EVENTHUB_ID, InputDeviceCountryCode::INTERNATIONAL);
+
+    // Configuration
+    mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD);
+    InputReaderConfiguration config;
+    mDevice->configure(ARBITRARY_TIME, &config, 0);
+
+    ASSERT_EQ(InputDeviceCountryCode::INTERNATIONAL, mDevice->getDeviceInfo().getCountryCode());
 }
 
 TEST_F(InputDeviceTest, WhenDeviceCreated_EnabledIsFalse) {

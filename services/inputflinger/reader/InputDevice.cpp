@@ -35,6 +35,8 @@
 #include "SwitchInputMapper.h"
 #include "VibratorInputMapper.h"
 
+using android::hardware::input::InputDeviceCountryCode;
+
 namespace android {
 
 InputDevice::InputDevice(InputReaderContext* context, int32_t id, int32_t generation,
@@ -240,6 +242,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
     mSources = 0;
     mClasses = ftl::Flags<InputDeviceClass>(0);
     mControllerNumber = 0;
+    mCountryCode = InputDeviceCountryCode::INVALID;
 
     for_each_subdevice([this](InputDeviceContext& context) {
         mClasses |= context.getDeviceClasses();
@@ -250,6 +253,16 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
                       "controller numbers");
             }
             mControllerNumber = controllerNumber;
+        }
+
+        InputDeviceCountryCode countryCode = context.getCountryCode();
+        if (countryCode != InputDeviceCountryCode::INVALID) {
+            if (mCountryCode != InputDeviceCountryCode::INVALID && mCountryCode != countryCode) {
+                ALOGW("InputDevice::configure(): %s device contains multiple unique country "
+                      "codes",
+                      getName().c_str());
+            }
+            mCountryCode = countryCode;
         }
     });
 
@@ -422,7 +435,7 @@ void InputDevice::updateExternalStylusState(const StylusState& state) {
 InputDeviceInfo InputDevice::getDeviceInfo() {
     InputDeviceInfo outDeviceInfo;
     outDeviceInfo.initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias, mIsExternal,
-                             mHasMic);
+                             mHasMic, mCountryCode);
     for_each_mapper(
             [&outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(&outDeviceInfo); });
 

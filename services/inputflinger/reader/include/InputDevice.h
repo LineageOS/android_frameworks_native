@@ -158,6 +158,7 @@ private:
     int32_t mId;
     int32_t mGeneration;
     int32_t mControllerNumber;
+    hardware::input::InputDeviceCountryCode mCountryCode;
     InputDeviceIdentifier mIdentifier;
     std::string mAlias;
     ftl::Flags<InputDeviceClass> mClasses;
@@ -311,6 +312,9 @@ public:
     }
 
     inline std::vector<TouchVideoFrame> getVideoFrames() { return mEventHub->getVideoFrames(mId); }
+    inline hardware::input::InputDeviceCountryCode getCountryCode() const {
+        return mEventHub->getCountryCode(mId);
+    }
     inline int32_t getScanCodeState(int32_t scanCode) const {
         return mEventHub->getScanCodeState(mId, scanCode);
     }
