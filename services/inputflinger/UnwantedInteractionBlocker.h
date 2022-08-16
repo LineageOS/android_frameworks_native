@@ -43,6 +43,25 @@ std::optional<AndroidPalmFilterDeviceInfo> createPalmFilterDeviceInfo(
 
 static constexpr int32_t ACTION_UNKNOWN = -1;
 
+/**
+ * Remove the data for the provided pointers from the args. The pointers are identified by their
+ * pointerId, not by the index inside the array.
+ * Return the new NotifyMotionArgs struct that has the remaining pointers.
+ * The only fields that may be different in the returned args from the provided args are:
+ *     - action
+ *     - pointerCount
+ *     - pointerProperties
+ *     - pointerCoords
+ * Action might change because it contains a pointer index. If another pointer is removed, the
+ * active pointer index would be shifted.
+ *
+ * If the active pointer id is removed (for example, for events like
+ * POINTER_UP or POINTER_DOWN), then the action is set to ACTION_UNKNOWN. It is up to the caller
+ * to set the action appropriately after the call.
+ *
+ * @param args the args from which the pointers should be removed
+ * @param pointerIds the pointer ids of the pointers that should be removed
+ */
 NotifyMotionArgs removePointerIds(const NotifyMotionArgs& args,
                                   const std::set<int32_t>& pointerIds);
 
