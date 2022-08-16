@@ -53,40 +53,40 @@ Rect getSideStrip(const Rect& rect, ui::Rotation rotation) {
 
 TEST(ProjectionSpaceTest, getTransformToSelfIsIdentity) {
     ProjectionSpace space;
-    space.content = Rect(100, 200);
-    space.bounds = Rect(100, 200);
+    space.setContent(Rect(100, 200));
+    space.setBounds(ui::Size(100, 200));
 
     const ui::Transform identity;
     for (int rotation = 0; rotation <= 3; rotation++) {
-        space.orientation = ui::Rotation(rotation);
+        space.setOrientation(ui::Rotation(rotation));
         EXPECT_EQ(space.getTransform(space), identity);
     }
 }
 
 TEST(ProjectionSpaceTest, getTransformWhenTranslationIsNeeded) {
     ProjectionSpace source;
-    source.content = Rect(10, 10, 20, 20);
-    source.bounds = Rect(100, 200);
+    source.setContent(Rect(10, 10, 20, 20));
+    source.setBounds(ui::Size(100, 200));
 
     ProjectionSpace dest;
-    dest.content = Rect(10, 20, 30, 20);
-    dest.bounds = source.bounds;
+    dest.setContent(Rect(10, 20, 30, 20));
+    dest.setBounds(source.getBounds());
 
     const auto transform = source.getTransform(dest);
-    EXPECT_EQ(transform.transform(source.content), dest.content);
+    EXPECT_EQ(transform.transform(source.getContent()), dest.getContent());
 }
 
 TEST(ProjectionSpaceTest, getTransformWhenScaleIsNeeded) {
     ProjectionSpace source;
-    source.content = Rect(0, 0, 20, 20);
-    source.bounds = Rect(100, 200);
+    source.setContent(Rect(0, 0, 20, 20));
+    source.setBounds(ui::Size(100, 200));
 
     ProjectionSpace dest;
-    dest.content = Rect(0, 0, 40, 30);
-    dest.bounds = source.bounds;
+    dest.setContent(Rect(0, 0, 40, 30));
+    dest.setBounds(source.getBounds());
 
     const auto transform = source.getTransform(dest);
-    EXPECT_EQ(transform.transform(source.content), dest.content);
+    EXPECT_EQ(transform.transform(source.getContent()), dest.getContent());
 }
 
 TEST(ProjectionSpaceTest, getSideStripTest) {
@@ -99,7 +99,7 @@ TEST(ProjectionSpaceTest, getSideStripTest) {
 
 void testTransform(const ProjectionSpace& source, const ProjectionSpace& dest) {
     const auto transform = source.getTransform(dest);
-    EXPECT_EQ(transform.transform(source.content), dest.content)
+    EXPECT_EQ(transform.transform(source.getContent()), dest.getContent())
             << "Source content doesn't map to dest content when projecting " << to_string(source)
             << " onto " << to_string(dest);
 
@@ -113,8 +113,8 @@ void testTransform(const ProjectionSpace& source, const ProjectionSpace& dest) {
     //      |     |                |       *
     //      +-----+                +-------*
     // source(ROTATION_0)      dest (ROTATION_90)
-    const auto sourceStrip = getSideStrip(source.content, source.orientation);
-    const auto destStrip = getSideStrip(dest.content, dest.orientation);
+    const auto sourceStrip = getSideStrip(source.getContent(), source.getOrientation());
+    const auto destStrip = getSideStrip(dest.getContent(), dest.getOrientation());
     ASSERT_NE(sourceStrip, Rect::INVALID_RECT);
     ASSERT_NE(destStrip, Rect::INVALID_RECT);
     const auto mappedStrip = transform.transform(sourceStrip);
@@ -126,16 +126,16 @@ void testTransform(const ProjectionSpace& source, const ProjectionSpace& dest) {
 
 TEST(ProjectionSpaceTest, getTransformWithOrienations) {
     ProjectionSpace source;
-    source.bounds = Rect(12, 13, 678, 789);
-    source.content = Rect(40, 50, 234, 343);
+    source.setBounds(ui::Size(666, 776));
+    source.setContent(Rect(40, 50, 234, 343));
     ProjectionSpace dest;
-    dest.bounds = Rect(17, 18, 879, 564);
-    dest.content = Rect(43, 52, 432, 213);
+    dest.setBounds(ui::Size(862, 546));
+    dest.setContent(Rect(43, 52, 432, 213));
 
     for (int sourceRot = 0; sourceRot <= 3; sourceRot++) {
-        source.orientation = ui::Rotation(sourceRot);
+        source.setOrientation(ui::Rotation(sourceRot));
         for (int destRot = 0; destRot <= 3; destRot++) {
-            dest.orientation = ui::Rotation(destRot);
+            dest.setOrientation(ui::Rotation(destRot));
             testTransform(source, dest);
         }
     }

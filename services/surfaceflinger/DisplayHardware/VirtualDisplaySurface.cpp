@@ -19,21 +19,19 @@
 #pragma clang diagnostic ignored "-Wconversion"
 
 // #define LOG_NDEBUG 0
-#include "VirtualDisplaySurface.h"
 
-#include <inttypes.h>
+#include <cinttypes>
 
-#include "HWComposer.h"
-#include "SurfaceFlinger.h"
-
+#include <ftl/enum.h>
+#include <ftl/flags.h>
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
 #include <gui/IProducerListener.h>
 #include <system/window.h>
 
-// ---------------------------------------------------------------------------
-namespace android {
-// ---------------------------------------------------------------------------
+#include "HWComposer.h"
+#include "SurfaceFlinger.h"
+#include "VirtualDisplaySurface.h"
 
 #define VDS_LOGE(msg, ...) ALOGE("[%s] " msg, \
         mDisplayName.c_str(), ##__VA_ARGS__)
@@ -42,20 +40,11 @@ namespace android {
 #define VDS_LOGV(msg, ...) ALOGV("[%s] " msg, \
         mDisplayName.c_str(), ##__VA_ARGS__)
 
-static const char* dbgCompositionTypeStr(compositionengine::DisplaySurface::CompositionType type) {
-    switch (type) {
-        case compositionengine::DisplaySurface::COMPOSITION_UNKNOWN:
-            return "UNKNOWN";
-        case compositionengine::DisplaySurface::COMPOSITION_GPU:
-            return "GPU";
-        case compositionengine::DisplaySurface::COMPOSITION_HWC:
-            return "HWC";
-        case compositionengine::DisplaySurface::COMPOSITION_MIXED:
-            return "MIXED";
-        default:
-            return "<INVALID>";
-    }
-}
+#define UNSUPPORTED()                                               \
+    VDS_LOGE("%s: Invalid operation on virtual display", __func__); \
+    return INVALID_OPERATION
+
+namespace android {
 
 VirtualDisplaySurface::VirtualDisplaySurface(HWComposer& hwc, VirtualDisplayId displayId,
                                              const sp<IGraphicBufferProducer>& sink,
@@ -76,14 +65,10 @@ VirtualDisplaySurface::VirtualDisplaySurface(HWComposer& hwc, VirtualDisplayId d
         mQueueBufferOutput(),
         mSinkBufferWidth(0),
         mSinkBufferHeight(0),
-        mCompositionType(COMPOSITION_UNKNOWN),
         mFbFence(Fence::NO_FENCE),
         mOutputFence(Fence::NO_FENCE),
         mFbProducerSlot(BufferQueue::INVALID_BUFFER_SLOT),
         mOutputProducerSlot(BufferQueue::INVALID_BUFFER_SLOT),
-        mDbgState(DBG_STATE_IDLE),
-        mDbgLastCompositionType(COMPOSITION_UNKNOWN),
-        mMustRecompose(false),
         mForceHwcCopy(SurfaceFlinger::useHwcForRgbToYuv) {
     mSource[SOURCE_SINK] = sink;
     mSource[SOURCE_SCRATCH] = bqProducer;
@@ -131,9 +116,9 @@ status_t VirtualDisplaySurface::beginFrame(bool mustRecompose) {
 
     mMustRecompose = mustRecompose;
 
-    VDS_LOGW_IF(mDbgState != DBG_STATE_IDLE,
-            "Unexpected beginFrame() in %s state", dbgStateStr());
-    mDbgState = DBG_STATE_BEGUN;
+    VDS_LOGW_IF(mDebugState != DebugState::Idle, "Unexpected %s in %s state", __func__,
+                ftl::enum_string(mDebugState).c_str());
+    mDebugState = DebugState::Begun;
 
     return refreshOutputBuffer();
 }
@@ -143,12 +128,12 @@ status_t VirtualDisplaySurface::prepareFrame(CompositionType compositionType) {
         return NO_ERROR;
     }
 
-    VDS_LOGW_IF(mDbgState != DBG_STATE_BEGUN,
-            "Unexpected prepareFrame() in %s state", dbgStateStr());
-    mDbgState = DBG_STATE_PREPARED;
+    VDS_LOGW_IF(mDebugState != DebugState::Begun, "Unexpected %s in %s state", __func__,
+                ftl::enum_string(mDebugState).c_str());
+    mDebugState = DebugState::Prepared;
 
     mCompositionType = compositionType;
-    if (mForceHwcCopy && mCompositionType == COMPOSITION_GPU) {
+    if (mForceHwcCopy && mCompositionType == CompositionType::Gpu) {
         // Some hardware can do RGB->YUV conversion more efficiently in hardware
         // controlled by HWC than in hardware controlled by the video encoder.
         // Forcing GPU-composed frames to go through an extra copy by the HWC
@@ -157,16 +142,16 @@ status_t VirtualDisplaySurface::prepareFrame(CompositionType compositionType) {
         //
         // On the other hand, when the consumer prefers RGB or can consume RGB
         // inexpensively, this forces an unnecessary copy.
-        mCompositionType = COMPOSITION_MIXED;
+        mCompositionType = CompositionType::Mixed;
     }
 
-    if (mCompositionType != mDbgLastCompositionType) {
-        VDS_LOGV("prepareFrame: composition type changed to %s",
-                dbgCompositionTypeStr(mCompositionType));
-        mDbgLastCompositionType = mCompositionType;
+    if (mCompositionType != mDebugLastCompositionType) {
+        VDS_LOGV("%s: composition type changed to %s", __func__,
+                 toString(mCompositionType).c_str());
+        mDebugLastCompositionType = mCompositionType;
     }
 
-    if (mCompositionType != COMPOSITION_GPU &&
+    if (mCompositionType != CompositionType::Gpu &&
         (mOutputFormat != mDefaultOutputFormat || mOutputUsage != GRALLOC_USAGE_HW_COMPOSER)) {
         // We must have just switched from GPU-only to MIXED or HWC
         // composition. Stop using the format and usage requested by the GPU
@@ -191,33 +176,32 @@ status_t VirtualDisplaySurface::advanceFrame() {
         return NO_ERROR;
     }
 
-    if (mCompositionType == COMPOSITION_HWC) {
-        VDS_LOGW_IF(mDbgState != DBG_STATE_PREPARED,
-                "Unexpected advanceFrame() in %s state on HWC frame",
-                dbgStateStr());
+    if (mCompositionType == CompositionType::Hwc) {
+        VDS_LOGW_IF(mDebugState != DebugState::Prepared, "Unexpected %s in %s state on HWC frame",
+                    __func__, ftl::enum_string(mDebugState).c_str());
     } else {
-        VDS_LOGW_IF(mDbgState != DBG_STATE_GPU_DONE,
-                    "Unexpected advanceFrame() in %s state on GPU/MIXED frame", dbgStateStr());
+        VDS_LOGW_IF(mDebugState != DebugState::GpuDone,
+                    "Unexpected %s in %s state on GPU/MIXED frame", __func__,
+                    ftl::enum_string(mDebugState).c_str());
     }
-    mDbgState = DBG_STATE_HWC;
+    mDebugState = DebugState::Hwc;
 
     if (mOutputProducerSlot < 0 ||
-            (mCompositionType != COMPOSITION_HWC && mFbProducerSlot < 0)) {
+        (mCompositionType != CompositionType::Hwc && mFbProducerSlot < 0)) {
         // Last chance bailout if something bad happened earlier. For example,
         // in a graphics API configuration, if the sink disappears then dequeueBuffer
         // will fail, the GPU driver won't queue a buffer, but SurfaceFlinger
         // will soldier on. So we end up here without a buffer. There should
         // be lots of scary messages in the log just before this.
-        VDS_LOGE("advanceFrame: no buffer, bailing out");
+        VDS_LOGE("%s: no buffer, bailing out", __func__);
         return NO_MEMORY;
     }
 
     sp<GraphicBuffer> fbBuffer = mFbProducerSlot >= 0 ?
             mProducerBuffers[mFbProducerSlot] : sp<GraphicBuffer>(nullptr);
     sp<GraphicBuffer> outBuffer = mProducerBuffers[mOutputProducerSlot];
-    VDS_LOGV("advanceFrame: fb=%d(%p) out=%d(%p)",
-            mFbProducerSlot, fbBuffer.get(),
-            mOutputProducerSlot, outBuffer.get());
+    VDS_LOGV("%s: fb=%d(%p) out=%d(%p)", __func__, mFbProducerSlot, fbBuffer.get(),
+             mOutputProducerSlot, outBuffer.get());
 
     const auto halDisplayId = HalVirtualDisplayId::tryCast(mDisplayId);
     LOG_FATAL_IF(!halDisplayId);
@@ -245,16 +229,16 @@ void VirtualDisplaySurface::onFrameCommitted() {
         return;
     }
 
-    VDS_LOGW_IF(mDbgState != DBG_STATE_HWC,
-            "Unexpected onFrameCommitted() in %s state", dbgStateStr());
-    mDbgState = DBG_STATE_IDLE;
+    VDS_LOGW_IF(mDebugState != DebugState::Hwc, "Unexpected %s in %s state", __func__,
+                ftl::enum_string(mDebugState).c_str());
+    mDebugState = DebugState::Idle;
 
     sp<Fence> retireFence = mHwc.getPresentFence(*halDisplayId);
-    if (mCompositionType == COMPOSITION_MIXED && mFbProducerSlot >= 0) {
+    if (mCompositionType == CompositionType::Mixed && mFbProducerSlot >= 0) {
         // release the scratch buffer back to the pool
         Mutex::Autolock lock(mMutex);
         int sslot = mapProducer2SourceSlot(SOURCE_SCRATCH, mFbProducerSlot);
-        VDS_LOGV("onFrameCommitted: release scratch sslot=%d", sslot);
+        VDS_LOGV("%s: release scratch sslot=%d", __func__, sslot);
         addReleaseFenceLocked(sslot, mProducerBuffers[mFbProducerSlot],
                 retireFence);
         releaseBufferLocked(sslot, mProducerBuffers[mFbProducerSlot]);
@@ -263,7 +247,7 @@ void VirtualDisplaySurface::onFrameCommitted() {
     if (mOutputProducerSlot >= 0) {
         int sslot = mapProducer2SourceSlot(SOURCE_SINK, mOutputProducerSlot);
         QueueBufferOutput qbo;
-        VDS_LOGV("onFrameCommitted: queue sink sslot=%d", sslot);
+        VDS_LOGV("%s: queue sink sslot=%d", __func__, sslot);
         if (mMustRecompose) {
             status_t result = mSource[SOURCE_SINK]->queueBuffer(sslot,
                     QueueBufferInput(
@@ -308,8 +292,8 @@ status_t VirtualDisplaySurface::requestBuffer(int pslot,
         return mSource[SOURCE_SINK]->requestBuffer(pslot, outBuf);
     }
 
-    VDS_LOGW_IF(mDbgState != DBG_STATE_GPU, "Unexpected requestBuffer pslot=%d in %s state", pslot,
-                dbgStateStr());
+    VDS_LOGW_IF(mDebugState != DebugState::Gpu, "Unexpected %s pslot=%d in %s state", __func__,
+                pslot, ftl::enum_string(mDebugState).c_str());
 
     *outBuf = mProducerBuffers[pslot];
     return NO_ERROR;
@@ -334,8 +318,8 @@ status_t VirtualDisplaySurface::dequeueBuffer(Source source,
     if (result < 0)
         return result;
     int pslot = mapSource2ProducerSlot(source, *sslot);
-    VDS_LOGV("dequeueBuffer(%s): sslot=%d pslot=%d result=%d",
-            dbgSourceStr(source), *sslot, pslot, result);
+    VDS_LOGV("%s(%s): sslot=%d pslot=%d result=%d", __func__, ftl::enum_string(source).c_str(),
+             *sslot, pslot, result);
     uint64_t sourceBit = static_cast<uint64_t>(source) << pslot;
 
     // reset producer slot reallocation flag
@@ -363,10 +347,9 @@ status_t VirtualDisplaySurface::dequeueBuffer(Source source,
             mSource[source]->cancelBuffer(*sslot, *fence);
             return result;
         }
-        VDS_LOGV("dequeueBuffer(%s): buffers[%d]=%p fmt=%d usage=%#" PRIx64,
-                dbgSourceStr(source), pslot, mProducerBuffers[pslot].get(),
-                mProducerBuffers[pslot]->getPixelFormat(),
-                mProducerBuffers[pslot]->getUsage());
+        VDS_LOGV("%s(%s): buffers[%d]=%p fmt=%d usage=%#" PRIx64, __func__,
+                 ftl::enum_string(source).c_str(), pslot, mProducerBuffers[pslot].get(),
+                 mProducerBuffers[pslot]->getPixelFormat(), mProducerBuffers[pslot]->getUsage());
 
         // propagate reallocation to VDS consumer
         mProducerSlotNeedReallocation |= 1ULL << pslot;
@@ -384,11 +367,11 @@ status_t VirtualDisplaySurface::dequeueBuffer(int* pslot, sp<Fence>* fence, uint
                                                    outTimestamps);
     }
 
-    VDS_LOGW_IF(mDbgState != DBG_STATE_PREPARED,
-            "Unexpected dequeueBuffer() in %s state", dbgStateStr());
-    mDbgState = DBG_STATE_GPU;
+    VDS_LOGW_IF(mDebugState != DebugState::Prepared, "Unexpected %s in %s state", __func__,
+                ftl::enum_string(mDebugState).c_str());
+    mDebugState = DebugState::Gpu;
 
-    VDS_LOGV("dequeueBuffer %dx%d fmt=%d usage=%#" PRIx64, w, h, format, usage);
+    VDS_LOGV("%s %dx%d fmt=%d usage=%#" PRIx64, __func__, w, h, format, usage);
 
     status_t result = NO_ERROR;
     Source source = fbSourceForCompositionType(mCompositionType);
@@ -401,7 +384,7 @@ status_t VirtualDisplaySurface::dequeueBuffer(int* pslot, sp<Fence>* fence, uint
             // will fail, the GPU driver won't queue a buffer, but SurfaceFlinger
             // will soldier on. So we end up here without a buffer. There should
             // be lots of scary messages in the log just before this.
-            VDS_LOGE("dequeueBuffer: no buffer, bailing out");
+            VDS_LOGE("%s: no buffer, bailing out", __func__);
             return NO_MEMORY;
         }
 
@@ -417,12 +400,11 @@ status_t VirtualDisplaySurface::dequeueBuffer(int* pslot, sp<Fence>* fence, uint
                 (format != 0 && format != buf->getPixelFormat()) ||
                 (w != 0 && w != mSinkBufferWidth) ||
                 (h != 0 && h != mSinkBufferHeight)) {
-            VDS_LOGV("dequeueBuffer: dequeueing new output buffer: "
-                    "want %dx%d fmt=%d use=%#" PRIx64 ", "
-                    "have %dx%d fmt=%d use=%#" PRIx64,
-                    w, h, format, usage,
-                    mSinkBufferWidth, mSinkBufferHeight,
-                    buf->getPixelFormat(), buf->getUsage());
+            VDS_LOGV("%s: dequeueing new output buffer: "
+                     "want %dx%d fmt=%d use=%#" PRIx64 ", "
+                     "have %dx%d fmt=%d use=%#" PRIx64,
+                     __func__, w, h, format, usage, mSinkBufferWidth, mSinkBufferHeight,
+                     buf->getPixelFormat(), buf->getUsage());
             mOutputFormat = format;
             mOutputUsage = usage;
             result = refreshOutputBuffer();
@@ -452,21 +434,16 @@ status_t VirtualDisplaySurface::dequeueBuffer(int* pslot, sp<Fence>* fence, uint
     return result;
 }
 
-status_t VirtualDisplaySurface::detachBuffer(int /* slot */) {
-    VDS_LOGE("detachBuffer is not available for VirtualDisplaySurface");
-    return INVALID_OPERATION;
+status_t VirtualDisplaySurface::detachBuffer(int) {
+    UNSUPPORTED();
 }
 
-status_t VirtualDisplaySurface::detachNextBuffer(
-        sp<GraphicBuffer>* /* outBuffer */, sp<Fence>* /* outFence */) {
-    VDS_LOGE("detachNextBuffer is not available for VirtualDisplaySurface");
-    return INVALID_OPERATION;
+status_t VirtualDisplaySurface::detachNextBuffer(sp<GraphicBuffer>*, sp<Fence>*) {
+    UNSUPPORTED();
 }
 
-status_t VirtualDisplaySurface::attachBuffer(int* /* outSlot */,
-        const sp<GraphicBuffer>& /* buffer */) {
-    VDS_LOGE("attachBuffer is not available for VirtualDisplaySurface");
-    return INVALID_OPERATION;
+status_t VirtualDisplaySurface::attachBuffer(int*, const sp<GraphicBuffer>&) {
+    UNSUPPORTED();
 }
 
 status_t VirtualDisplaySurface::queueBuffer(int pslot,
@@ -475,14 +452,14 @@ status_t VirtualDisplaySurface::queueBuffer(int pslot,
         return mSource[SOURCE_SINK]->queueBuffer(pslot, input, output);
     }
 
-    VDS_LOGW_IF(mDbgState != DBG_STATE_GPU, "Unexpected queueBuffer(pslot=%d) in %s state", pslot,
-                dbgStateStr());
-    mDbgState = DBG_STATE_GPU_DONE;
+    VDS_LOGW_IF(mDebugState != DebugState::Gpu, "Unexpected %s(pslot=%d) in %s state", __func__,
+                pslot, ftl::enum_string(mDebugState).c_str());
+    mDebugState = DebugState::GpuDone;
 
-    VDS_LOGV("queueBuffer pslot=%d", pslot);
+    VDS_LOGV("%s pslot=%d", __func__, pslot);
 
     status_t result;
-    if (mCompositionType == COMPOSITION_MIXED) {
+    if (mCompositionType == CompositionType::Mixed) {
         // Queue the buffer back into the scratch pool
         QueueBufferOutput scratchQBO;
         int sslot = mapProducer2SourceSlot(SOURCE_SCRATCH, pslot);
@@ -498,15 +475,15 @@ status_t VirtualDisplaySurface::queueBuffer(int pslot,
         if (result != NO_ERROR)
             return result;
         VDS_LOGW_IF(item.mSlot != sslot,
-                "queueBuffer: acquired sslot %d from SCRATCH after queueing sslot %d",
-                item.mSlot, sslot);
+                    "%s: acquired sslot %d from SCRATCH after queueing sslot %d", __func__,
+                    item.mSlot, sslot);
         mFbProducerSlot = mapSource2ProducerSlot(SOURCE_SCRATCH, item.mSlot);
         mFbFence = mSlots[item.mSlot].mFence;
 
     } else {
-        LOG_FATAL_IF(mCompositionType != COMPOSITION_GPU,
-                     "Unexpected queueBuffer in state %s for compositionType %s", dbgStateStr(),
-                     dbgCompositionTypeStr(mCompositionType));
+        LOG_FATAL_IF(mCompositionType != CompositionType::Gpu,
+                     "Unexpected %s in state %s for composition type %s", __func__,
+                     ftl::enum_string(mDebugState).c_str(), toString(mCompositionType).c_str());
 
         // Extract the GPU release fence for HWC to acquire
         int64_t timestamp;
@@ -533,9 +510,9 @@ status_t VirtualDisplaySurface::cancelBuffer(int pslot,
         return mSource[SOURCE_SINK]->cancelBuffer(mapProducer2SourceSlot(SOURCE_SINK, pslot), fence);
     }
 
-    VDS_LOGW_IF(mDbgState != DBG_STATE_GPU, "Unexpected cancelBuffer(pslot=%d) in %s state", pslot,
-                dbgStateStr());
-    VDS_LOGV("cancelBuffer pslot=%d", pslot);
+    VDS_LOGW_IF(mDebugState != DebugState::Gpu, "Unexpected %s(pslot=%d) in %s state", __func__,
+                pslot, ftl::enum_string(mDebugState).c_str());
+    VDS_LOGV("%s pslot=%d", __func__, pslot);
     Source source = fbSourceForCompositionType(mCompositionType);
     return mSource[source]->cancelBuffer(
             mapProducer2SourceSlot(source, pslot), fence);
@@ -573,8 +550,8 @@ status_t VirtualDisplaySurface::disconnect(int api, DisconnectMode mode) {
     return mSource[SOURCE_SINK]->disconnect(api, mode);
 }
 
-status_t VirtualDisplaySurface::setSidebandStream(const sp<NativeHandle>& /*stream*/) {
-    return INVALID_OPERATION;
+status_t VirtualDisplaySurface::setSidebandStream(const sp<NativeHandle>&) {
+    UNSUPPORTED();
 }
 
 void VirtualDisplaySurface::allocateBuffers(uint32_t /* width */,
@@ -586,40 +563,32 @@ status_t VirtualDisplaySurface::allowAllocation(bool /* allow */) {
     return INVALID_OPERATION;
 }
 
-status_t VirtualDisplaySurface::setGenerationNumber(uint32_t /* generation */) {
-    ALOGE("setGenerationNumber not supported on VirtualDisplaySurface");
-    return INVALID_OPERATION;
+status_t VirtualDisplaySurface::setGenerationNumber(uint32_t) {
+    UNSUPPORTED();
 }
 
 String8 VirtualDisplaySurface::getConsumerName() const {
     return String8("VirtualDisplaySurface");
 }
 
-status_t VirtualDisplaySurface::setSharedBufferMode(bool /*sharedBufferMode*/) {
-    ALOGE("setSharedBufferMode not supported on VirtualDisplaySurface");
-    return INVALID_OPERATION;
+status_t VirtualDisplaySurface::setSharedBufferMode(bool) {
+    UNSUPPORTED();
 }
 
-status_t VirtualDisplaySurface::setAutoRefresh(bool /*autoRefresh*/) {
-    ALOGE("setAutoRefresh not supported on VirtualDisplaySurface");
-    return INVALID_OPERATION;
+status_t VirtualDisplaySurface::setAutoRefresh(bool) {
+    UNSUPPORTED();
 }
 
-status_t VirtualDisplaySurface::setDequeueTimeout(nsecs_t /* timeout */) {
-    ALOGE("setDequeueTimeout not supported on VirtualDisplaySurface");
-    return INVALID_OPERATION;
+status_t VirtualDisplaySurface::setDequeueTimeout(nsecs_t) {
+    UNSUPPORTED();
 }
 
-status_t VirtualDisplaySurface::getLastQueuedBuffer(
-        sp<GraphicBuffer>* /*outBuffer*/, sp<Fence>* /*outFence*/,
-        float[16] /* outTransformMatrix*/) {
-    ALOGE("getLastQueuedBuffer not supported on VirtualDisplaySurface");
-    return INVALID_OPERATION;
+status_t VirtualDisplaySurface::getLastQueuedBuffer(sp<GraphicBuffer>*, sp<Fence>*, float[16]) {
+    UNSUPPORTED();
 }
 
-status_t VirtualDisplaySurface::getUniqueId(uint64_t* /*outId*/) const {
-    ALOGE("getUniqueId not supported on VirtualDisplaySurface");
-    return INVALID_OPERATION;
+status_t VirtualDisplaySurface::getUniqueId(uint64_t*) const {
+    UNSUPPORTED();
 }
 
 status_t VirtualDisplaySurface::getConsumerUsage(uint64_t* outUsage) const {
@@ -633,7 +602,7 @@ void VirtualDisplaySurface::updateQueueBufferOutput(
 }
 
 void VirtualDisplaySurface::resetPerFrameState() {
-    mCompositionType = COMPOSITION_UNKNOWN;
+    mCompositionType = CompositionType::Unknown;
     mFbFence = Fence::NO_FENCE;
     mOutputFence = Fence::NO_FENCE;
     mOutputProducerSlot = -1;
@@ -682,39 +651,16 @@ int VirtualDisplaySurface::mapProducer2SourceSlot(Source source, int pslot) {
     return mapSource2ProducerSlot(source, pslot);
 }
 
-VirtualDisplaySurface::Source
-VirtualDisplaySurface::fbSourceForCompositionType(CompositionType type) {
-    return type == COMPOSITION_MIXED ? SOURCE_SCRATCH : SOURCE_SINK;
+auto VirtualDisplaySurface::fbSourceForCompositionType(CompositionType type) -> Source {
+    return type == CompositionType::Mixed ? SOURCE_SCRATCH : SOURCE_SINK;
 }
 
-const char* VirtualDisplaySurface::dbgStateStr() const {
-    switch (mDbgState) {
-        case DBG_STATE_IDLE:
-            return "IDLE";
-        case DBG_STATE_PREPARED:
-            return "PREPARED";
-        case DBG_STATE_GPU:
-            return "GPU";
-        case DBG_STATE_GPU_DONE:
-            return "GPU_DONE";
-        case DBG_STATE_HWC:
-            return "HWC";
-        default:
-            return "INVALID";
-    }
+std::string VirtualDisplaySurface::toString(CompositionType type) {
+    using namespace std::literals;
+    return type == CompositionType::Unknown ? "Unknown"s : ftl::Flags(type).string();
 }
 
-const char* VirtualDisplaySurface::dbgSourceStr(Source s) {
-    switch (s) {
-        case SOURCE_SINK:    return "SINK";
-        case SOURCE_SCRATCH: return "SCRATCH";
-        default:             return "INVALID";
-    }
-}
-
-// ---------------------------------------------------------------------------
 } // namespace android
-// ---------------------------------------------------------------------------
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"

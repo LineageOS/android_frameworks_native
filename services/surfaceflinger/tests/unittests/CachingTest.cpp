@@ -14,11 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-#pragma clang diagnostic ignored "-Wextra"
-
 #undef LOG_TAG
 #define LOG_TAG "CachingTest"
 
@@ -42,7 +37,7 @@ TEST_F(SlotGenerationTest, getHwcCacheSlot_Invalid) {
     sp<IBinder> binder = new BBinder();
     // test getting invalid client_cache_id
     client_cache_t id;
-    uint32_t slot = mHwcSlotGenerator->getHwcCacheSlot(id);
+    int slot = mHwcSlotGenerator->getHwcCacheSlot(id);
     EXPECT_EQ(BufferQueue::INVALID_BUFFER_SLOT, slot);
 }
 
@@ -51,7 +46,7 @@ TEST_F(SlotGenerationTest, getHwcCacheSlot_Basic) {
     client_cache_t id;
     id.token = binder;
     id.id = 0;
-    uint32_t slot = mHwcSlotGenerator->getHwcCacheSlot(id);
+    int slot = mHwcSlotGenerator->getHwcCacheSlot(id);
     EXPECT_EQ(BufferQueue::NUM_BUFFER_SLOTS - 1, slot);
 
     client_cache_t idB;
@@ -72,31 +67,28 @@ TEST_F(SlotGenerationTest, getHwcCacheSlot_Reuse) {
     std::vector<client_cache_t> ids;
     uint32_t cacheId = 0;
     // fill up cache
-    for (uint32_t i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
+    for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
         client_cache_t id;
         id.token = binder;
         id.id = cacheId;
         ids.push_back(id);
 
-        uint32_t slot = mHwcSlotGenerator->getHwcCacheSlot(id);
+        int slot = mHwcSlotGenerator->getHwcCacheSlot(id);
         EXPECT_EQ(BufferQueue::NUM_BUFFER_SLOTS - (i + 1), slot);
         cacheId++;
     }
-    for (uint32_t i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
-        uint32_t slot = mHwcSlotGenerator->getHwcCacheSlot(ids[i]);
+    for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
+        int slot = mHwcSlotGenerator->getHwcCacheSlot(ids[static_cast<uint32_t>(i)]);
         EXPECT_EQ(BufferQueue::NUM_BUFFER_SLOTS - (i + 1), slot);
     }
 
-    for (uint32_t i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
+    for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
         client_cache_t id;
         id.token = binder;
         id.id = cacheId;
-        uint32_t slot = mHwcSlotGenerator->getHwcCacheSlot(id);
+        int slot = mHwcSlotGenerator->getHwcCacheSlot(id);
         EXPECT_EQ(BufferQueue::NUM_BUFFER_SLOTS - (i + 1), slot);
         cacheId++;
     }
 }
 } // namespace android
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"

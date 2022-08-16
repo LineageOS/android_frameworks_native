@@ -455,6 +455,32 @@ TEST_P(Gralloc4TestSmpte2094_40, Smpte2094_40) {
     ASSERT_NO_FATAL_FAILURE(testHelperStableAidlTypeOptional(GetParam(), gralloc4::encodeSmpte2094_40, gralloc4::decodeSmpte2094_40));
 }
 
+class Gralloc4TestSmpte2094_10
+      : public testing::TestWithParam<std::optional<std::vector<uint8_t>>> {};
+
+INSTANTIATE_TEST_CASE_P(
+        Gralloc4TestSmpte2094_10Params, Gralloc4TestSmpte2094_10,
+        ::testing::Values(
+                std::optional<std::vector<uint8_t>>({}),
+                std::optional<std::vector<uint8_t>>({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}),
+                std::optional<std::vector<uint8_t>>({std::numeric_limits<uint8_t>::min(),
+                                                     std::numeric_limits<uint8_t>::min() + 1,
+                                                     std::numeric_limits<uint8_t>::min() + 2,
+                                                     std::numeric_limits<uint8_t>::min() + 3,
+                                                     std::numeric_limits<uint8_t>::min() + 4}),
+                std::optional<std::vector<uint8_t>>({std::numeric_limits<uint8_t>::max(),
+                                                     std::numeric_limits<uint8_t>::max() - 1,
+                                                     std::numeric_limits<uint8_t>::max() - 2,
+                                                     std::numeric_limits<uint8_t>::max() - 3,
+                                                     std::numeric_limits<uint8_t>::max() - 4}),
+                std::nullopt));
+
+TEST_P(Gralloc4TestSmpte2094_10, Smpte2094_10) {
+    ASSERT_NO_FATAL_FAILURE(testHelperStableAidlTypeOptional(GetParam(),
+                                                             gralloc4::encodeSmpte2094_10,
+                                                             gralloc4::decodeSmpte2094_10));
+}
+
 class Gralloc4TestBufferDescriptorInfo : public testing::TestWithParam<BufferDescriptorInfo> { };
 
 INSTANTIATE_TEST_CASE_P(
@@ -491,6 +517,7 @@ TEST_F(Gralloc4TestErrors, Gralloc4TestEncodeNull) {
     ASSERT_NE(NO_ERROR, gralloc4::encodeSmpte2086({{}}, nullptr));
     ASSERT_NE(NO_ERROR, gralloc4::encodeCta861_3({{}}, nullptr));
     ASSERT_NE(NO_ERROR, gralloc4::encodeSmpte2094_40({{}}, nullptr));
+    ASSERT_NE(NO_ERROR, gralloc4::encodeSmpte2094_10({{}}, nullptr));
 }
 
 TEST_F(Gralloc4TestErrors, Gralloc4TestDecodeNull) {
@@ -516,6 +543,7 @@ TEST_F(Gralloc4TestErrors, Gralloc4TestDecodeNull) {
     ASSERT_NE(NO_ERROR, gralloc4::decodeSmpte2086(vec, nullptr));
     ASSERT_NE(NO_ERROR, gralloc4::decodeCta861_3(vec, nullptr));
     ASSERT_NE(NO_ERROR, gralloc4::decodeSmpte2094_40(vec, nullptr));
+    ASSERT_NE(NO_ERROR, gralloc4::decodeSmpte2094_10(vec, nullptr));
 }
 
 TEST_F(Gralloc4TestErrors, Gralloc4TestDecodeBadVec) {

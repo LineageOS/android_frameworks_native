@@ -20,4 +20,8 @@ namespace android::compositionengine {
 
 DisplaySurface::~DisplaySurface() = default;
 
+bool DisplaySurface::supportsCompositionStrategyPrediction() const {
+    return true;
+}
+
 } // namespace android::compositionengine

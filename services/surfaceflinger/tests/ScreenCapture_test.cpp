@@ -55,7 +55,7 @@ protected:
         TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
 
         asTransaction([&](Transaction& t) {
-            t.setDisplayLayerStack(display, 0);
+            t.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
 
             t.setLayer(mBGSurfaceControl, INT32_MAX - 2).show(mBGSurfaceControl);
 
@@ -112,7 +112,7 @@ TEST_F(ScreenCaptureTest, SetFlagsSecureEUidSystem) {
     args.captureSecureLayers = true;
     ASSERT_EQ(NO_ERROR, ScreenCapture::captureDisplay(args, mCaptureResults));
     ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
-    ScreenCapture sc(mCaptureResults.buffer);
+    ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
     sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
 
@@ -147,7 +147,7 @@ TEST_F(ScreenCaptureTest, CaptureChildSetParentFlagsSecureEUidSystem) {
     args.captureSecureLayers = true;
     ASSERT_EQ(NO_ERROR, ScreenCapture::captureDisplay(args, mCaptureResults));
     ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
-    ScreenCapture sc(mCaptureResults.buffer);
+    ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
     sc.expectColor(Rect(0, 0, 10, 10), Color::BLUE);
 }
 
@@ -374,7 +374,7 @@ TEST_F(ScreenCaptureTest, CaptureBufferLayerWithoutBufferFails) {
     ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(child, Color::RED, 32, 32));
     SurfaceComposerClient::Transaction().apply(true);
     ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(args, captureResults));
-    ScreenCapture sc(captureResults.buffer);
+    ScreenCapture sc(captureResults.buffer, captureResults.capturedHdrLayers);
     sc.expectColor(Rect(0, 0, 9, 9), Color::RED);
 }
 
@@ -556,7 +556,7 @@ TEST_F(ScreenCaptureTest, CaptureSecureLayer) {
     Transaction()
             .show(redLayer)
             .show(secureLayer)
-            .setLayerStack(redLayer, 0)
+            .setLayerStack(redLayer, ui::DEFAULT_LAYER_STACK)
             .setLayer(redLayer, INT32_MAX)
             .apply();
 
@@ -648,7 +648,7 @@ TEST_F(ScreenCaptureTest, CaptureDisplayPrimaryDisplayOnly) {
     Transaction()
             .show(layer)
             .hide(mFGSurfaceControl)
-            .setLayerStack(layer, 0)
+            .setLayerStack(layer, ui::DEFAULT_LAYER_STACK)
             .setLayer(layer, INT32_MAX)
             .setColor(layer, {layerColor.r / 255, layerColor.g / 255, layerColor.b / 255})
             .setCrop(layer, bounds)
@@ -695,7 +695,7 @@ TEST_F(ScreenCaptureTest, CaptureDisplayChildPrimaryDisplayOnly) {
             .show(layer)
             .show(childLayer)
             .hide(mFGSurfaceControl)
-            .setLayerStack(layer, 0)
+            .setLayerStack(layer, ui::DEFAULT_LAYER_STACK)
             .setLayer(layer, INT32_MAX)
             .setColor(layer, {layerColor.r / 255, layerColor.g / 255, layerColor.b / 255})
             .setColor(childLayer, {childColor.r / 255, childColor.g / 255, childColor.b / 255})
@@ -858,6 +858,46 @@ TEST_F(ScreenCaptureTest, CaptureOffscreen) {
     ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->expectSize(32, 32);
     mCapture->expectColor(Rect(0, 0, 32, 32), Color::RED);
+}
+
+TEST_F(ScreenCaptureTest, CaptureNonHdrLayer) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test layer", 32, 32,
+                                                ISurfaceComposerClient::eFXSurfaceBufferState,
+                                                mBGSurfaceControl.get()));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::BLACK, 32, 32));
+    Transaction()
+            .show(layer)
+            .setLayer(layer, INT32_MAX)
+            .setDataspace(layer, ui::Dataspace::V0_SRGB)
+            .apply();
+
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = layer->getHandle();
+
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
+    mCapture->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+    ASSERT_FALSE(mCapture->capturedHdrLayers());
+}
+
+TEST_F(ScreenCaptureTest, CaptureHdrLayer) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test layer", 32, 32,
+                                                ISurfaceComposerClient::eFXSurfaceBufferState,
+                                                mBGSurfaceControl.get()));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::BLACK, 32, 32));
+    Transaction()
+            .show(layer)
+            .setLayer(layer, INT32_MAX)
+            .setDataspace(layer, ui::Dataspace::BT2020_ITU_PQ)
+            .apply();
+
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = layer->getHandle();
+
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
+    mCapture->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+    ASSERT_TRUE(mCapture->capturedHdrLayers());
 }
 
 // In the following tests we verify successful skipping of a parent layer,

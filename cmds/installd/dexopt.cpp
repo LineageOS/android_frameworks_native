@@ -624,12 +624,15 @@ class RunProfman : public ExecVHelper {
                   /*for_boot_image*/false);
     }
 
-    void SetupDump(const std::vector<unique_fd>& profiles_fd,
-                   const unique_fd& reference_profile_fd,
+    void SetupDump(const std::vector<unique_fd>& profiles_fd, const unique_fd& reference_profile_fd,
                    const std::vector<std::string>& dex_locations,
-                   const std::vector<unique_fd>& apk_fds,
+                   const std::vector<unique_fd>& apk_fds, bool dump_classes_and_methods,
                    const unique_fd& output_fd) {
-        AddArg("--dump-only");
+        if (dump_classes_and_methods) {
+            AddArg("--dump-classes-and-methods");
+        } else {
+            AddArg("--dump-only");
+        }
         AddArg(StringPrintf("--dump-output-to-fd=%d", output_fd.get()));
         SetupArgs(profiles_fd,
                   reference_profile_fd,
@@ -772,7 +775,7 @@ int analyze_primary_profiles(uid_t uid, const std::string& package_name,
 }
 
 bool dump_profiles(int32_t uid, const std::string& pkgname, const std::string& profile_name,
-        const std::string& code_path) {
+                   const std::string& code_path, bool dump_classes_and_methods) {
     std::vector<unique_fd> profile_fds;
     unique_fd reference_profile_fd;
     std::string out_file_name = StringPrintf("/data/misc/profman/%s-%s.txt",
@@ -808,7 +811,8 @@ bool dump_profiles(int32_t uid, const std::string& pkgname, const std::string& p
 
 
     RunProfman profman_dump;
-    profman_dump.SetupDump(profile_fds, reference_profile_fd, dex_locations, apk_fds, output_fd);
+    profman_dump.SetupDump(profile_fds, reference_profile_fd, dex_locations, apk_fds,
+                           dump_classes_and_methods, output_fd);
     pid_t pid = fork();
     if (pid == 0) {
         /* child -- drop privileges before continuing */
@@ -2773,13 +2777,23 @@ bool prepare_app_profile(const std::string& package_name,
                          const std::string& profile_name,
                          const std::string& code_path,
                          const std::optional<std::string>& dex_metadata) {
-    // Prepare the current profile.
-    std::string cur_profile  = create_current_profile_path(user_id, package_name, profile_name,
-            /*is_secondary_dex*/ false);
-    uid_t uid = multiuser_get_uid(user_id, app_id);
-    if (fs_prepare_file_strict(cur_profile.c_str(), 0600, uid, uid) != 0) {
-        PLOG(ERROR) << "Failed to prepare " << cur_profile;
-        return false;
+    if (user_id != USER_NULL) {
+        if (user_id < 0) {
+            LOG(ERROR) << "Unexpected user ID " << user_id;
+            return false;
+        }
+
+        // Prepare the current profile.
+        std::string cur_profile = create_current_profile_path(user_id, package_name, profile_name,
+                                                              /*is_secondary_dex*/ false);
+        uid_t uid = multiuser_get_uid(user_id, app_id);
+        if (fs_prepare_file_strict(cur_profile.c_str(), 0600, uid, uid) != 0) {
+            PLOG(ERROR) << "Failed to prepare " << cur_profile;
+            return false;
+        }
+    } else {
+        // Prepare the reference profile as the system user.
+        user_id = USER_SYSTEM;
     }
 
     // Check if we need to install the profile from the dex metadata.
@@ -2788,8 +2802,9 @@ bool prepare_app_profile(const std::string& package_name,
     }
 
     // We have a dex metdata. Merge the profile into the reference profile.
-    unique_fd ref_profile_fd = open_reference_profile(uid, package_name, profile_name,
-            /*read_write*/ true, /*is_secondary_dex*/ false);
+    unique_fd ref_profile_fd =
+            open_reference_profile(multiuser_get_uid(user_id, app_id), package_name, profile_name,
+                                   /*read_write*/ true, /*is_secondary_dex*/ false);
     unique_fd dex_metadata_fd(TEMP_FAILURE_RETRY(
             open(dex_metadata->c_str(), O_RDONLY | O_NOFOLLOW)));
     unique_fd apk_fd(TEMP_FAILURE_RETRY(open(code_path.c_str(), O_RDONLY | O_NOFOLLOW)));
@@ -2821,6 +2836,23 @@ bool prepare_app_profile(const std::string& package_name,
         return false;
     }
     return true;
+}
+
+int get_odex_visibility(const char* apk_path, const char* instruction_set, const char* oat_dir) {
+    char oat_path[PKG_PATH_MAX];
+    if (!create_oat_out_path(apk_path, instruction_set, oat_dir, /*is_secondary_dex=*/false,
+                             oat_path)) {
+        return -1;
+    }
+    struct stat st;
+    if (stat(oat_path, &st) == -1) {
+        if (errno == ENOENT) {
+            return ODEX_NOT_FOUND;
+        }
+        PLOG(ERROR) << "Could not stat " << oat_path;
+        return -1;
+    }
+    return (st.st_mode & S_IROTH) ? ODEX_IS_PUBLIC : ODEX_IS_PRIVATE;
 }
 
 }  // namespace installd

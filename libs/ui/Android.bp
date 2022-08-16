@@ -29,6 +29,11 @@ license {
     ],
 }
 
+cc_library_headers {
+    name: "libui_fuzzableDataspaces_headers",
+    export_include_dirs: ["include/ui/fuzzer/"],
+}
+
 cc_defaults {
     name: "libui-defaults",
     cflags: [
@@ -85,6 +90,7 @@ cc_library_static {
 
     export_include_dirs: [
         "include",
+        "include_mock",
         "include_private",
         "include_types",
     ],
@@ -120,6 +126,7 @@ cc_library_shared {
     srcs: [
         "DebugUtils.cpp",
         "DeviceProductInfo.cpp",
+        "DisplayIdentification.cpp",
         "DisplayMode.cpp",
         "DynamicDisplayInfo.cpp",
         "Fence.cpp",
@@ -135,7 +142,7 @@ cc_library_shared {
         "HdrCapabilities.cpp",
         "PixelFormat.cpp",
         "PublicFormat.cpp",
-        "Size.cpp",
+        "StaticAsserts.cpp",
         "StaticDisplayInfo.cpp",
     ],
 
@@ -157,13 +164,15 @@ cc_library_shared {
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.allocator@3.0",
         "android.hardware.graphics.allocator@4.0",
-        "android.hardware.graphics.common-V2-ndk",
+        "android.hardware.graphics.allocator-V1-ndk",
+        "android.hardware.graphics.common-V3-ndk",
         "android.hardware.graphics.common@1.2",
         "android.hardware.graphics.mapper@2.0",
         "android.hardware.graphics.mapper@2.1",
         "android.hardware.graphics.mapper@3.0",
         "android.hardware.graphics.mapper@4.0",
         "libbase",
+        "libbinder_ndk",
         "libcutils",
         "libgralloctypes",
         "libhidlbase",
@@ -174,12 +183,13 @@ cc_library_shared {
 
     export_shared_lib_headers: [
         "android.hardware.graphics.common@1.2",
-        "android.hardware.graphics.common-V2-ndk",
+        "android.hardware.graphics.common-V3-ndk",
         "android.hardware.graphics.mapper@4.0",
         "libgralloctypes",
     ],
 
     static_libs: [
+        "libaidlcommonsupport",
         "libarect",
         "libgrallocusage",
         "libmath",
@@ -223,8 +233,18 @@ cc_library_shared {
         "libui_headers",
     ],
     min_sdk_version: "29",
+    // TODO(b/214400477) to remove use of GraphicBuffer
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media.swcodec",
+        "test_com.android.media.swcodec",
+    ],
 
     afdo: true,
+
+    header_abi_checker: {
+        diff_flags: ["-allow-adding-removing-weak-symbols"],
+    },
 }
 
 cc_library_headers {
@@ -246,6 +266,11 @@ cc_library_headers {
         "libmath_headers",
     ],
     min_sdk_version: "29",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media.swcodec",
+        "test_com.android.media.swcodec",
+    ],
 }
 
 // defaults to enable VALIDATE_REGIONS traces

@@ -323,11 +323,10 @@ void SurfaceInterceptor::addFlagsLocked(Transaction* transaction, int32_t layerI
 }
 
 void SurfaceInterceptor::addLayerStackLocked(Transaction* transaction, int32_t layerId,
-        uint32_t layerStack)
-{
+                                             ui::LayerStack layerStack) {
     SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
     LayerStackChange* layerStackChange(change->mutable_layer_stack());
-    layerStackChange->set_layer_stack(layerStack);
+    layerStackChange->set_layer_stack(layerStack.id);
 }
 
 void SurfaceInterceptor::addCropLocked(Transaction* transaction, int32_t layerId,
@@ -568,12 +567,11 @@ void SurfaceInterceptor::addDisplaySurfaceLocked(Transaction* transaction, int32
     }
 }
 
-void SurfaceInterceptor::addDisplayLayerStackLocked(Transaction* transaction,
-        int32_t sequenceId, uint32_t layerStack)
-{
+void SurfaceInterceptor::addDisplayLayerStackLocked(Transaction* transaction, int32_t sequenceId,
+                                                    ui::LayerStack layerStack) {
     DisplayChange* dispChange(createDisplayChangeLocked(transaction, sequenceId));
     LayerStackChange* layerStackChange(dispChange->mutable_layer_stack());
-    layerStackChange->set_layer_stack(layerStack);
+    layerStackChange->set_layer_stack(layerStack.id);
 }
 
 void SurfaceInterceptor::addDisplayFlagsLocked(Transaction* transaction, int32_t sequenceId,

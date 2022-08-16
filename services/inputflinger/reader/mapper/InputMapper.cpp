@@ -51,6 +51,10 @@ int32_t InputMapper::getSwitchState(uint32_t sourceMask, int32_t switchCode) {
     return AKEY_STATE_UNKNOWN;
 }
 
+int32_t InputMapper::getKeyCodeForKeyLocation(int32_t locationKeyCode) const {
+    return AKEYCODE_UNKNOWN;
+}
+
 bool InputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
                                         const int32_t* keyCodes, uint8_t* outFlags) {
     return false;
@@ -84,7 +88,9 @@ int32_t InputMapper::getMetaState() {
     return 0;
 }
 
-void InputMapper::updateMetaState(int32_t keyCode) {}
+bool InputMapper::updateMetaState(int32_t keyCode) {
+    return false;
+}
 
 void InputMapper::updateExternalStylusState(const StylusState& state) {}
 

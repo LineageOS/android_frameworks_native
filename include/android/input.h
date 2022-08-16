@@ -169,6 +169,9 @@ enum {
 
     /** Drag event */
     AINPUT_EVENT_TYPE_DRAG = 5,
+
+    /** TouchMode event */
+    AINPUT_EVENT_TYPE_TOUCH_MODE = 6,
 };
 
 /**
@@ -805,6 +808,34 @@ enum {
 };
 
 /**
+ * Constants that identify different gesture classification types.
+ */
+enum AMotionClassification : uint32_t {
+    /**
+     * Classification constant: None.
+     *
+     * No additional information is available about the current motion event stream.
+     */
+    AMOTION_EVENT_CLASSIFICATION_NONE = 0,
+    /**
+     * Classification constant: Ambiguous gesture.
+     *
+     * The user's intent with respect to the current event stream is not yet determined. Events
+     * starting in AMBIGUOUS_GESTURE will eventually resolve into either DEEP_PRESS or NONE.
+     * Gestural actions, such as scrolling, should be inhibited until the classification resolves
+     * to another value or the event stream ends.
+     */
+    AMOTION_EVENT_CLASSIFICATION_AMBIGUOUS_GESTURE = 1,
+    /**
+     * Classification constant: Deep press.
+     *
+     * The current event stream represents the user intentionally pressing harder on the screen.
+     * This classification type should be used to accelerate the long press behaviour.
+     */
+    AMOTION_EVENT_CLASSIFICATION_DEEP_PRESS = 2,
+};
+
+/**
  * Input source masks.
  *
  * Refer to the documentation on android.view.InputDevice for more details about input sources
@@ -874,6 +905,7 @@ enum {
  * Keyboard types.
  *
  * Refer to the documentation on android.view.InputDevice for more details.
+ * Note: When adding a new keyboard type here InputDeviceInfo::setKeyboardType needs to be updated.
  */
 enum {
     /** none */
@@ -1323,6 +1355,33 @@ float AMotionEvent_getHistoricalAxisValue(const AInputEvent* motion_event,
         int32_t axis, size_t pointer_index, size_t history_index);
 
 /**
+ * Get the action button for the motion event. Returns a valid action button when the
+ * event is associated with a button press or button release action. For other actions
+ * the return value is undefined.
+ *
+ * @see #AMOTION_EVENT_BUTTON_PRIMARY
+ * @see #AMOTION_EVENT_BUTTON_SECONDARY
+ * @see #AMOTION_EVENT_BUTTON_TERTIARY
+ * @see #AMOTION_EVENT_BUTTON_BACK
+ * @see #AMOTION_EVENT_BUTTON_FORWARD
+ * @see #AMOTION_EVENT_BUTTON_STYLUS_PRIMARY
+ * @see #AMOTION_EVENT_BUTTON_STYLUS_SECONDARY
+ */
+int32_t AMotionEvent_getActionButton(const AInputEvent* motion_event)
+        __INTRODUCED_IN(__ANDROID_API_T__);
+
+/**
+ * Returns the classification for the current gesture.
+ * The classification may change as more events become available for the same gesture.
+ *
+ * @see #AMOTION_EVENT_CLASSIFICATION_NONE
+ * @see #AMOTION_EVENT_CLASSIFICATION_AMBIGUOUS_GESTURE
+ * @see #AMOTION_EVENT_CLASSIFICATION_DEEP_PRESS
+*/
+int32_t AMotionEvent_getClassification(const AInputEvent* motion_event)
+        __INTRODUCED_IN(__ANDROID_API_T__);
+
+/**
  * Creates a native AInputEvent* object that is a copy of the specified Java
  * android.view.MotionEvent. The result may be used with generic and MotionEvent-specific
  * AInputEvent_* functions. The object returned by this function must be disposed using
@@ -1381,6 +1440,17 @@ int32_t AInputQueue_preDispatchEvent(AInputQueue* queue, AInputEvent* event);
  * This must be called after receiving an event with AInputQueue_get_event().
  */
 void AInputQueue_finishEvent(AInputQueue* queue, AInputEvent* event, int handled);
+
+/**
+ * Returns the AInputQueue* object associated with the supplied Java InputQueue
+ * object. The returned native object holds a weak reference to the Java object,
+ * and is only valid as long as the Java object has not yet been disposed. You
+ * should ensure that there is a strong reference to the Java object and that it
+ * has not been disposed before using the returned object.
+ *
+ * Available since API level 33.
+ */
+AInputQueue* AInputQueue_fromJava(JNIEnv* env, jobject inputQueue) __INTRODUCED_IN(33);
 
 #ifdef __cplusplus
 }

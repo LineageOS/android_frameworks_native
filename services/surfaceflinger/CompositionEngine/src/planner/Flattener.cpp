@@ -211,7 +211,8 @@ size_t Flattener::calculateDisplayCost(const std::vector<const LayerState*>& lay
         displayCost += static_cast<size_t>(layer->getDisplayFrame().width() *
                                            layer->getDisplayFrame().height());
 
-        hasClientComposition |= layer->getCompositionType() == hal::Composition::CLIENT;
+        hasClientComposition |= layer->getCompositionType() ==
+                aidl::android::hardware::graphics::composer3::Composition::CLIENT;
     }
 
     if (hasClientComposition) {
@@ -409,25 +410,29 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
     bool runHasFirstLayer = false;
 
     for (auto currentSet = mLayers.cbegin(); currentSet != mLayers.cend(); ++currentSet) {
-        const bool layerIsInactive =
-                now - currentSet->getLastUpdate() > mTunables.mActiveLayerTimeout;
+        bool layerIsInactive = now - currentSet->getLastUpdate() > mTunables.mActiveLayerTimeout;
         const bool layerHasBlur = currentSet->hasBlurBehind();
+
+        // Layers should also be considered inactive whenever their framerate is lower than 1fps.
+        if (!layerIsInactive && currentSet->getLayerCount() == kNumLayersFpsConsideration) {
+            auto layerFps = currentSet->getFirstLayer().getState()->getFps();
+            if (layerFps > 0 && layerFps <= kFpsActiveThreshold) {
+                ATRACE_FORMAT("layer is considered inactive due to low FPS [%s] %f",
+                              currentSet->getFirstLayer().getName().c_str(), layerFps);
+                layerIsInactive = true;
+            }
+        }
 
         if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur) &&
             !currentSet->hasUnsupportedDataspace()) {
             if (isPartOfRun) {
-                builder.append(currentSet->getLayerCount());
+                builder.increment();
             } else {
-                // Runs can't start with a non-buffer layer
-                if (currentSet->getFirstLayer().getBuffer() == nullptr) {
-                    ALOGV("[%s] Skipping initial non-buffer layer", __func__);
-                } else {
-                    builder.init(currentSet);
-                    if (firstLayer) {
-                        runHasFirstLayer = true;
-                    }
-                    isPartOfRun = true;
+                builder.init(currentSet);
+                if (firstLayer) {
+                    runHasFirstLayer = true;
                 }
+                isPartOfRun = true;
             }
         } else if (isPartOfRun) {
             builder.setHolePunchCandidate(&(*currentSet));
@@ -489,6 +494,13 @@ void Flattener::buildCachedSets(time_point now) {
         // TODO (b/191997217): make it less aggressive, and sync with findCandidateRuns
         if (layer.hasProtectedLayers()) {
             ATRACE_NAME("layer->hasProtectedLayers()");
+            return;
+        }
+    }
+
+    for (const CachedSet& layer : mLayers) {
+        if (layer.hasSolidColorLayers()) {
+            ATRACE_NAME("layer->hasSolidColorLayers()");
             return;
         }
     }

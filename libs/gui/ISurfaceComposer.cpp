@@ -17,13 +17,13 @@
 // tag as surfaceflinger
 #define LOG_TAG "SurfaceFlinger"
 
+#include <android/gui/IDisplayEventConnection.h>
+#include <android/gui/IRegionSamplingListener.h>
 #include <android/gui/ITransactionTraceListener.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/Parcel.h>
-#include <gui/IDisplayEventConnection.h>
 #include <gui/IGraphicBufferProducer.h>
-#include <gui/IRegionSamplingListener.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerDebugInfo.h>
@@ -42,9 +42,15 @@
 
 // ---------------------------------------------------------------------------
 
+using namespace aidl::android::hardware::graphics;
+
 namespace android {
 
+using gui::DisplayCaptureArgs;
+using gui::IDisplayEventConnection;
+using gui::IRegionSamplingListener;
 using gui::IWindowInfosListener;
+using gui::LayerCaptureArgs;
 using ui::ColorMode;
 
 class BpSurfaceComposer : public BpInterface<ISurfaceComposer>
@@ -105,43 +111,19 @@ public:
 
         SAFE_PARCEL(data.writeUint64, transactionId);
 
-        return remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE, data, &reply);
+        if (flags & ISurfaceComposer::eOneWay) {
+            return remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE,
+                    data, &reply, IBinder::FLAG_ONEWAY);
+        } else {
+            return remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE,
+                    data, &reply);
+        }
     }
 
     void bootFinished() override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         remote()->transact(BnSurfaceComposer::BOOT_FINISHED, data, &reply);
-    }
-
-    status_t captureDisplay(const DisplayCaptureArgs& args,
-                            const sp<IScreenCaptureListener>& captureListener) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(args.write, data);
-        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(captureListener));
-
-        return remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY, data, &reply);
-    }
-
-    status_t captureDisplay(uint64_t displayOrLayerStack,
-                            const sp<IScreenCaptureListener>& captureListener) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(data.writeUint64, displayOrLayerStack);
-        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(captureListener));
-
-        return remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY_BY_ID, data, &reply);
-    }
-
-    status_t captureLayers(const LayerCaptureArgs& args,
-                           const sp<IScreenCaptureListener>& captureListener) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(args.write, data);
-        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(captureListener));
-
-        return remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
     }
 
     bool authenticateSurfaceTexture(
@@ -244,93 +226,6 @@ public:
         return result;
     }
 
-    sp<IBinder> createDisplay(const String8& displayName, bool secure) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        status_t status = data.writeString8(displayName);
-        if (status) {
-            return nullptr;
-        }
-        status = data.writeBool(secure);
-        if (status) {
-            return nullptr;
-        }
-
-        status = remote()->transact(BnSurfaceComposer::CREATE_DISPLAY, data, &reply);
-        if (status) {
-            return nullptr;
-        }
-        sp<IBinder> display;
-        status = reply.readNullableStrongBinder(&display);
-        if (status) {
-            return nullptr;
-        }
-        return display;
-    }
-
-    void destroyDisplay(const sp<IBinder>& display) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-        remote()->transact(BnSurfaceComposer::DESTROY_DISPLAY, data, &reply);
-    }
-
-    std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (remote()->transact(BnSurfaceComposer::GET_PHYSICAL_DISPLAY_IDS, data, &reply) ==
-            NO_ERROR) {
-            std::vector<uint64_t> rawIds;
-            if (reply.readUint64Vector(&rawIds) == NO_ERROR) {
-                std::vector<PhysicalDisplayId> displayIds(rawIds.size());
-                std::transform(rawIds.begin(), rawIds.end(), displayIds.begin(),
-                               [](uint64_t rawId) { return PhysicalDisplayId(rawId); });
-                return displayIds;
-            }
-        }
-
-        return {};
-    }
-
-    status_t getPrimaryPhysicalDisplayId(PhysicalDisplayId* displayId) const override {
-        Parcel data, reply;
-        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(remote()->transact, BnSurfaceComposer::GET_PRIMARY_PHYSICAL_DISPLAY_ID, data,
-                    &reply);
-        uint64_t rawId;
-        SAFE_PARCEL(reply.readUint64, &rawId);
-        *displayId = PhysicalDisplayId(rawId);
-        return NO_ERROR;
-    }
-
-    sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeUint64(displayId.value);
-        remote()->transact(BnSurfaceComposer::GET_PHYSICAL_DISPLAY_TOKEN, data, &reply);
-        return reply.readStrongBinder();
-    }
-
-    void setPowerMode(const sp<IBinder>& display, int mode) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-        data.writeInt32(mode);
-        remote()->transact(BnSurfaceComposer::SET_POWER_MODE, data, &reply);
-    }
-
-    status_t getDisplayState(const sp<IBinder>& display, ui::DisplayState* state) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-        remote()->transact(BnSurfaceComposer::GET_DISPLAY_STATE, data, &reply);
-        const status_t result = reply.readInt32();
-        if (result == NO_ERROR) {
-            memcpy(state, reply.readInplace(sizeof(ui::DisplayState)), sizeof(ui::DisplayState));
-        }
-        return result;
-    }
-
     status_t getStaticDisplayInfo(const sp<IBinder>& display,
                                   ui::StaticDisplayInfo* info) override {
         Parcel data, reply;
@@ -351,20 +246,6 @@ public:
         const status_t result = reply.readInt32();
         if (result != NO_ERROR) return result;
         return reply.read(*info);
-    }
-
-    status_t getDisplayStats(const sp<IBinder>& display, DisplayStatInfo* stats) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-        remote()->transact(BnSurfaceComposer::GET_DISPLAY_STATS, data, &reply);
-        status_t result = reply.readInt32();
-        if (result == NO_ERROR) {
-            memcpy(stats,
-                    reply.readInplace(sizeof(DisplayStatInfo)),
-                    sizeof(DisplayStatInfo));
-        }
-        return result;
     }
 
     status_t getDisplayNativePrimaries(const sp<IBinder>& display,
@@ -418,52 +299,29 @@ public:
         return static_cast<status_t>(reply.readInt32());
     }
 
-    void setAutoLowLatencyMode(const sp<IBinder>& display, bool on) override {
+    status_t setBootDisplayMode(const sp<IBinder>& display,
+                                ui::DisplayModeId displayModeId) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
-            ALOGE("setAutoLowLatencyMode failed to writeInterfaceToken: %d", result);
-            return;
-        }
-
-        result = data.writeStrongBinder(display);
-        if (result != NO_ERROR) {
-            ALOGE("setAutoLowLatencyMode failed to writeStrongBinder: %d", result);
-            return;
-        }
-        result = data.writeBool(on);
-        if (result != NO_ERROR) {
-            ALOGE("setAutoLowLatencyMode failed to writeBool: %d", result);
-            return;
-        }
-        result = remote()->transact(BnSurfaceComposer::SET_AUTO_LOW_LATENCY_MODE, data, &reply);
-        if (result != NO_ERROR) {
-            ALOGE("setAutoLowLatencyMode failed to transact: %d", result);
-            return;
-        }
-    }
-
-    void setGameContentType(const sp<IBinder>& display, bool on) override {
-        Parcel data, reply;
-        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (result != NO_ERROR) {
-            ALOGE("setGameContentType failed to writeInterfaceToken: %d", result);
-            return;
+            ALOGE("setBootDisplayMode failed to writeInterfaceToken: %d", result);
+            return result;
         }
         result = data.writeStrongBinder(display);
         if (result != NO_ERROR) {
-            ALOGE("setGameContentType failed to writeStrongBinder: %d", result);
-            return;
+            ALOGE("setBootDisplayMode failed to writeStrongBinder: %d", result);
+            return result;
         }
-        result = data.writeBool(on);
+        result = data.writeInt32(displayModeId);
         if (result != NO_ERROR) {
-            ALOGE("setGameContentType failed to writeBool: %d", result);
-            return;
+            ALOGE("setBootDisplayMode failed to writeIint32: %d", result);
+            return result;
         }
-        result = remote()->transact(BnSurfaceComposer::SET_GAME_CONTENT_TYPE, data, &reply);
+        result = remote()->transact(BnSurfaceComposer::SET_BOOT_DISPLAY_MODE, data, &reply);
         if (result != NO_ERROR) {
-            ALOGE("setGameContentType failed to transact: %d", result);
+            ALOGE("setBootDisplayMode failed to transact: %d", result);
         }
+        return result;
     }
 
     status_t clearAnimationFrameStats() override {
@@ -740,26 +598,6 @@ public:
         return error;
     }
 
-    status_t isWideColorDisplay(const sp<IBinder>& token,
-                                bool* outIsWideColorDisplay) const override {
-        Parcel data, reply;
-        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (error != NO_ERROR) {
-            return error;
-        }
-        error = data.writeStrongBinder(token);
-        if (error != NO_ERROR) {
-            return error;
-        }
-
-        error = remote()->transact(BnSurfaceComposer::IS_WIDE_COLOR_DISPLAY, data, &reply);
-        if (error != NO_ERROR) {
-            return error;
-        }
-        error = reply.readBool(outIsWideColorDisplay);
-        return error;
-    }
-
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
                                        const sp<IRegionSamplingListener>& listener) override {
         Parcel data, reply;
@@ -992,109 +830,6 @@ public:
         return reply.readInt32();
     }
 
-    status_t getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
-                                         bool* outSupport) const override {
-        Parcel data, reply;
-        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (error != NO_ERROR) {
-            ALOGE("getDisplayBrightnessSupport: failed to write interface token: %d", error);
-            return error;
-        }
-        error = data.writeStrongBinder(displayToken);
-        if (error != NO_ERROR) {
-            ALOGE("getDisplayBrightnessSupport: failed to write display token: %d", error);
-            return error;
-        }
-        error = remote()->transact(BnSurfaceComposer::GET_DISPLAY_BRIGHTNESS_SUPPORT, data, &reply);
-        if (error != NO_ERROR) {
-            ALOGE("getDisplayBrightnessSupport: failed to transact: %d", error);
-            return error;
-        }
-        bool support;
-        error = reply.readBool(&support);
-        if (error != NO_ERROR) {
-            ALOGE("getDisplayBrightnessSupport: failed to read support: %d", error);
-            return error;
-        }
-        *outSupport = support;
-        return NO_ERROR;
-    }
-
-    status_t setDisplayBrightness(const sp<IBinder>& displayToken,
-                                  const gui::DisplayBrightness& brightness) override {
-        Parcel data, reply;
-        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (error != NO_ERROR) {
-            ALOGE("setDisplayBrightness: failed to write interface token: %d", error);
-            return error;
-        }
-        error = data.writeStrongBinder(displayToken);
-        if (error != NO_ERROR) {
-            ALOGE("setDisplayBrightness: failed to write display token: %d", error);
-            return error;
-        }
-        error = data.writeParcelable(brightness);
-        if (error != NO_ERROR) {
-            ALOGE("setDisplayBrightness: failed to write brightness: %d", error);
-            return error;
-        }
-        error = remote()->transact(BnSurfaceComposer::SET_DISPLAY_BRIGHTNESS, data, &reply);
-        if (error != NO_ERROR) {
-            ALOGE("setDisplayBrightness: failed to transact: %d", error);
-            return error;
-        }
-        return NO_ERROR;
-    }
-
-    status_t addHdrLayerInfoListener(const sp<IBinder>& displayToken,
-                                     const sp<gui::IHdrLayerInfoListener>& listener) override {
-        Parcel data, reply;
-        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(data.writeStrongBinder, displayToken);
-        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(listener));
-        const status_t error =
-                remote()->transact(BnSurfaceComposer::ADD_HDR_LAYER_INFO_LISTENER, data, &reply);
-        if (error != OK) {
-            ALOGE("addHdrLayerInfoListener: Failed to transact; error = %d", error);
-        }
-        return error;
-    }
-
-    status_t removeHdrLayerInfoListener(const sp<IBinder>& displayToken,
-                                        const sp<gui::IHdrLayerInfoListener>& listener) override {
-        Parcel data, reply;
-        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(data.writeStrongBinder, displayToken);
-        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(listener));
-        const status_t error =
-                remote()->transact(BnSurfaceComposer::REMOVE_HDR_LAYER_INFO_LISTENER, data, &reply);
-        if (error != OK) {
-            ALOGE("removeHdrLayerInfoListener: Failed to transact; error = %d", error);
-        }
-        return error;
-    }
-
-    status_t notifyPowerBoost(int32_t boostId) override {
-        Parcel data, reply;
-        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (error != NO_ERROR) {
-            ALOGE("notifyPowerBoost: failed to write interface token: %d", error);
-            return error;
-        }
-        error = data.writeInt32(boostId);
-        if (error != NO_ERROR) {
-            ALOGE("notifyPowerBoost: failed to write boostId: %d", error);
-            return error;
-        }
-        error = remote()->transact(BnSurfaceComposer::NOTIFY_POWER_BOOST, data, &reply,
-                                   IBinder::FLAG_ONEWAY);
-        if (error != NO_ERROR) {
-            ALOGE("notifyPowerBoost: failed to transact: %d", error);
-            return error;
-        }
-        return NO_ERROR;
-    }
-
     status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
                                      float lightPosY, float lightPosZ, float lightRadius) override {
         Parcel data, reply;
@@ -1124,6 +859,54 @@ public:
         return NO_ERROR;
     }
 
+    status_t getDisplayDecorationSupport(
+            const sp<IBinder>& displayToken,
+            std::optional<common::DisplayDecorationSupport>* outSupport) const override {
+        Parcel data, reply;
+        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (error != NO_ERROR) {
+            ALOGE("getDisplayDecorationSupport: failed to write interface token: %d", error);
+            return error;
+        }
+        error = data.writeStrongBinder(displayToken);
+        if (error != NO_ERROR) {
+            ALOGE("getDisplayDecorationSupport: failed to write display token: %d", error);
+            return error;
+        }
+        error = remote()->transact(BnSurfaceComposer::GET_DISPLAY_DECORATION_SUPPORT, data, &reply);
+        if (error != NO_ERROR) {
+            ALOGE("getDisplayDecorationSupport: failed to transact: %d", error);
+            return error;
+        }
+        bool support;
+        error = reply.readBool(&support);
+        if (error != NO_ERROR) {
+            ALOGE("getDisplayDecorationSupport: failed to read support: %d", error);
+            return error;
+        }
+
+        if (support) {
+            int32_t format, alphaInterpretation;
+            error = reply.readInt32(&format);
+            if (error != NO_ERROR) {
+                ALOGE("getDisplayDecorationSupport: failed to read format: %d", error);
+                return error;
+            }
+            error = reply.readInt32(&alphaInterpretation);
+            if (error != NO_ERROR) {
+                ALOGE("getDisplayDecorationSupport: failed to read alphaInterpretation: %d", error);
+                return error;
+            }
+            outSupport->emplace();
+            outSupport->value().format = static_cast<common::PixelFormat>(format);
+            outSupport->value().alphaInterpretation =
+                    static_cast<common::AlphaInterpretation>(alphaInterpretation);
+        } else {
+            outSupport->reset();
+        }
+        return NO_ERROR;
+    }
+
     status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
                           int8_t compatibility, int8_t changeFrameRateStrategy) override {
         Parcel data, reply;
@@ -1140,41 +923,6 @@ public:
         }
 
         return reply.readInt32();
-    }
-
-    status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) override {
-        if (!outToken) return BAD_VALUE;
-
-        Parcel data, reply;
-        status_t err = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (err != NO_ERROR) {
-            ALOGE("acquireFrameRateFlexibilityToken: failed writing interface token: %s (%d)",
-                  strerror(-err), -err);
-            return err;
-        }
-
-        err = remote()->transact(BnSurfaceComposer::ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN, data,
-                                 &reply);
-        if (err != NO_ERROR) {
-            ALOGE("acquireFrameRateFlexibilityToken: failed to transact: %s (%d)", strerror(-err),
-                  err);
-            return err;
-        }
-
-        err = reply.readInt32();
-        if (err != NO_ERROR) {
-            ALOGE("acquireFrameRateFlexibilityToken: call failed: %s (%d)", strerror(-err), err);
-            return err;
-        }
-
-        err = reply.readStrongBinder(outToken);
-        if (err != NO_ERROR) {
-            ALOGE("acquireFrameRateFlexibilityToken: failed reading binder token: %s (%d)",
-                  strerror(-err), err);
-            return err;
-        }
-
-        return NO_ERROR;
     }
 
     status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
@@ -1254,6 +1002,21 @@ public:
         SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
         SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(windowInfosListener));
         return remote()->transact(BnSurfaceComposer::REMOVE_WINDOW_INFOS_LISTENER, data, &reply);
+    }
+
+    status_t setOverrideFrameRate(uid_t uid, float frameRate) override {
+        Parcel data, reply;
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeUint32, uid);
+        SAFE_PARCEL(data.writeFloat, frameRate);
+
+        status_t err = remote()->transact(BnSurfaceComposer::SET_OVERRIDE_FRAME_RATE, data, &reply);
+        if (err != NO_ERROR) {
+            ALOGE("setOverrideFrameRate: failed to transact %s (%d)", strerror(-err), err);
+            return err;
+        }
+
+        return NO_ERROR;
     }
 };
 
@@ -1344,33 +1107,6 @@ status_t BnSurfaceComposer::onTransact(
             bootFinished();
             return NO_ERROR;
         }
-        case CAPTURE_DISPLAY: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            DisplayCaptureArgs args;
-            sp<IScreenCaptureListener> captureListener;
-            SAFE_PARCEL(args.read, data);
-            SAFE_PARCEL(data.readStrongBinder, &captureListener);
-
-            return captureDisplay(args, captureListener);
-        }
-        case CAPTURE_DISPLAY_BY_ID: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            uint64_t displayOrLayerStack = 0;
-            sp<IScreenCaptureListener> captureListener;
-            SAFE_PARCEL(data.readUint64, &displayOrLayerStack);
-            SAFE_PARCEL(data.readStrongBinder, &captureListener);
-
-            return captureDisplay(displayOrLayerStack, captureListener);
-        }
-        case CAPTURE_LAYERS: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            LayerCaptureArgs args;
-            sp<IScreenCaptureListener> captureListener;
-            SAFE_PARCEL(args.read, data);
-            SAFE_PARCEL(data.readStrongBinder, &captureListener);
-
-            return captureLayers(args, captureListener);
-        }
         case AUTHENTICATE_SURFACE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IGraphicBufferProducer> bufferProducer =
@@ -1409,41 +1145,6 @@ status_t BnSurfaceComposer::onTransact(
             reply->writeStrongBinder(IInterface::asBinder(connection));
             return NO_ERROR;
         }
-        case CREATE_DISPLAY: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            String8 displayName;
-            SAFE_PARCEL(data.readString8, &displayName);
-            bool secure = false;
-            SAFE_PARCEL(data.readBool, &secure);
-            sp<IBinder> display = createDisplay(displayName, secure);
-            SAFE_PARCEL(reply->writeStrongBinder, display);
-            return NO_ERROR;
-        }
-        case DESTROY_DISPLAY: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> display = data.readStrongBinder();
-            destroyDisplay(display);
-            return NO_ERROR;
-        }
-        case GET_PHYSICAL_DISPLAY_TOKEN: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            PhysicalDisplayId displayId(data.readUint64());
-            sp<IBinder> display = getPhysicalDisplayToken(displayId);
-            reply->writeStrongBinder(display);
-            return NO_ERROR;
-        }
-        case GET_DISPLAY_STATE: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            ui::DisplayState state;
-            const sp<IBinder> display = data.readStrongBinder();
-            const status_t result = getDisplayState(display, &state);
-            reply->writeInt32(result);
-            if (result == NO_ERROR) {
-                memcpy(reply->writeInplace(sizeof(ui::DisplayState)), &state,
-                       sizeof(ui::DisplayState));
-            }
-            return NO_ERROR;
-        }
         case GET_STATIC_DISPLAY_INFO: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             ui::StaticDisplayInfo info;
@@ -1462,18 +1163,6 @@ status_t BnSurfaceComposer::onTransact(
             SAFE_PARCEL(reply->writeInt32, result);
             if (result != NO_ERROR) return result;
             SAFE_PARCEL(reply->write, info);
-            return NO_ERROR;
-        }
-        case GET_DISPLAY_STATS: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            DisplayStatInfo stats;
-            sp<IBinder> display = data.readStrongBinder();
-            status_t result = getDisplayStats(display, &stats);
-            reply->writeInt32(result);
-            if (result == NO_ERROR) {
-                memcpy(reply->writeInplace(sizeof(DisplayStatInfo)),
-                        &stats, sizeof(DisplayStatInfo));
-            }
             return NO_ERROR;
         }
         case GET_DISPLAY_NATIVE_PRIMARIES: {
@@ -1515,39 +1204,21 @@ status_t BnSurfaceComposer::onTransact(
             result = reply->writeInt32(result);
             return result;
         }
-        case SET_AUTO_LOW_LATENCY_MODE: {
+        case SET_BOOT_DISPLAY_MODE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> display = nullptr;
             status_t result = data.readStrongBinder(&display);
             if (result != NO_ERROR) {
-                ALOGE("setAutoLowLatencyMode failed to readStrongBinder: %d", result);
+                ALOGE("setBootDisplayMode failed to readStrongBinder: %d", result);
                 return result;
             }
-            bool setAllm = false;
-            result = data.readBool(&setAllm);
+            ui::DisplayModeId displayModeId;
+            result = data.readInt32(&displayModeId);
             if (result != NO_ERROR) {
-                ALOGE("setAutoLowLatencyMode failed to readBool: %d", result);
+                ALOGE("setBootDisplayMode failed to readInt32: %d", result);
                 return result;
             }
-            setAutoLowLatencyMode(display, setAllm);
-            return result;
-        }
-        case SET_GAME_CONTENT_TYPE: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> display = nullptr;
-            status_t result = data.readStrongBinder(&display);
-            if (result != NO_ERROR) {
-                ALOGE("setGameContentType failed to readStrongBinder: %d", result);
-                return result;
-            }
-            bool setGameContentTypeOn = false;
-            result = data.readBool(&setGameContentTypeOn);
-            if (result != NO_ERROR) {
-                ALOGE("setGameContentType failed to readBool: %d", result);
-                return result;
-            }
-            setGameContentType(display, setGameContentTypeOn);
-            return result;
+            return setBootDisplayMode(display, displayModeId);
         }
         case CLEAR_ANIMATION_FRAME_STATS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
@@ -1561,13 +1232,6 @@ status_t BnSurfaceComposer::onTransact(
             status_t result = getAnimationFrameStats(&stats);
             reply->write(stats);
             reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case SET_POWER_MODE: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> display = data.readStrongBinder();
-            int32_t mode = data.readInt32();
-            setPowerMode(display, mode);
             return NO_ERROR;
         }
         case ENABLE_VSYNC_INJECTIONS: {
@@ -1718,38 +1382,6 @@ status_t BnSurfaceComposer::onTransact(
                 reply->writeBool(result);
             }
             return error;
-        }
-        case IS_WIDE_COLOR_DISPLAY: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> display = nullptr;
-            status_t error = data.readStrongBinder(&display);
-            if (error != NO_ERROR) {
-                return error;
-            }
-            bool result;
-            error = isWideColorDisplay(display, &result);
-            if (error == NO_ERROR) {
-                reply->writeBool(result);
-            }
-            return error;
-        }
-        case GET_PHYSICAL_DISPLAY_IDS: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            std::vector<PhysicalDisplayId> ids = getPhysicalDisplayIds();
-            std::vector<uint64_t> rawIds(ids.size());
-            std::transform(ids.begin(), ids.end(), rawIds.begin(),
-                           [](PhysicalDisplayId id) { return id.value; });
-            return reply->writeUint64Vector(rawIds);
-        }
-        case GET_PRIMARY_PHYSICAL_DISPLAY_ID: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            PhysicalDisplayId id;
-            status_t result = getPrimaryPhysicalDisplayId(&id);
-            if (result != NO_ERROR) {
-                ALOGE("getPrimaryPhysicalDisplayId: Failed to get id");
-                return result;
-            }
-            return reply->writeUint64(id.value);
         }
         case ADD_REGION_SAMPLING_LISTENER: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
@@ -1948,77 +1580,6 @@ status_t BnSurfaceComposer::onTransact(
             reply->writeInt32(result);
             return result;
         }
-        case GET_DISPLAY_BRIGHTNESS_SUPPORT: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> displayToken;
-            status_t error = data.readNullableStrongBinder(&displayToken);
-            if (error != NO_ERROR) {
-                ALOGE("getDisplayBrightnessSupport: failed to read display token: %d", error);
-                return error;
-            }
-            bool support = false;
-            error = getDisplayBrightnessSupport(displayToken, &support);
-            reply->writeBool(support);
-            return error;
-        }
-        case SET_DISPLAY_BRIGHTNESS: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> displayToken;
-            status_t error = data.readNullableStrongBinder(&displayToken);
-            if (error != NO_ERROR) {
-                ALOGE("setDisplayBrightness: failed to read display token: %d", error);
-                return error;
-            }
-            gui::DisplayBrightness brightness;
-            error = data.readParcelable(&brightness);
-            if (error != NO_ERROR) {
-                ALOGE("setDisplayBrightness: failed to read brightness: %d", error);
-                return error;
-            }
-            return setDisplayBrightness(displayToken, brightness);
-        }
-        case ADD_HDR_LAYER_INFO_LISTENER: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> displayToken;
-            status_t error = data.readNullableStrongBinder(&displayToken);
-            if (error != NO_ERROR) {
-                ALOGE("addHdrLayerInfoListener: Failed to read display token");
-                return error;
-            }
-            sp<gui::IHdrLayerInfoListener> listener;
-            error = data.readNullableStrongBinder(&listener);
-            if (error != NO_ERROR) {
-                ALOGE("addHdrLayerInfoListener: Failed to read listener");
-                return error;
-            }
-            return addHdrLayerInfoListener(displayToken, listener);
-        }
-        case REMOVE_HDR_LAYER_INFO_LISTENER: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> displayToken;
-            status_t error = data.readNullableStrongBinder(&displayToken);
-            if (error != NO_ERROR) {
-                ALOGE("removeHdrLayerInfoListener: Failed to read display token");
-                return error;
-            }
-            sp<gui::IHdrLayerInfoListener> listener;
-            error = data.readNullableStrongBinder(&listener);
-            if (error != NO_ERROR) {
-                ALOGE("removeHdrLayerInfoListener: Failed to read listener");
-                return error;
-            }
-            return removeHdrLayerInfoListener(displayToken, listener);
-        }
-        case NOTIFY_POWER_BOOST: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            int32_t boostId;
-            status_t error = data.readInt32(&boostId);
-            if (error != NO_ERROR) {
-                ALOGE("notifyPowerBoost: failed to read boostId: %d", error);
-                return error;
-            }
-            return notifyPowerBoost(boostId);
-        }
         case SET_GLOBAL_SHADOW_SETTINGS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
 
@@ -2037,6 +1598,23 @@ status_t BnSurfaceComposer::onTransact(
             float lightRadius = shadowConfig[10];
             return setGlobalShadowSettings(ambientColor, spotColor, lightPosY, lightPosZ,
                                            lightRadius);
+        }
+        case GET_DISPLAY_DECORATION_SUPPORT: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> displayToken;
+            SAFE_PARCEL(data.readNullableStrongBinder, &displayToken);
+            std::optional<common::DisplayDecorationSupport> support;
+            auto error = getDisplayDecorationSupport(displayToken, &support);
+            if (error != NO_ERROR) {
+                ALOGE("getDisplayDecorationSupport failed with error %d", error);
+                return error;
+            }
+            reply->writeBool(support.has_value());
+            if (support) {
+                reply->writeInt32(static_cast<int32_t>(support.value().format));
+                reply->writeInt32(static_cast<int32_t>(support.value().alphaInterpretation));
+            }
+            return error;
         }
         case SET_FRAME_RATE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
@@ -2060,16 +1638,6 @@ status_t BnSurfaceComposer::onTransact(
             status_t result =
                     setFrameRate(surface, frameRate, compatibility, changeFrameRateStrategy);
             reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> token;
-            status_t result = acquireFrameRateFlexibilityToken(&token);
-            reply->writeInt32(result);
-            if (result == NO_ERROR) {
-                reply->writeStrongBinder(token);
-            }
             return NO_ERROR;
         }
         case SET_FRAME_TIMELINE_INFO: {
@@ -2158,6 +1726,17 @@ status_t BnSurfaceComposer::onTransact(
             SAFE_PARCEL(data.readStrongBinder, &listener);
 
             return removeWindowInfosListener(listener);
+        }
+        case SET_OVERRIDE_FRAME_RATE: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+
+            uid_t uid;
+            SAFE_PARCEL(data.readUint32, &uid);
+
+            float frameRate;
+            SAFE_PARCEL(data.readFloat, &frameRate);
+
+            return setOverrideFrameRate(uid, frameRate);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

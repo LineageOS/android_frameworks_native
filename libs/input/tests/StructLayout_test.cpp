@@ -49,7 +49,7 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Key, downTime, 88);
 
   CHECK_OFFSET(InputMessage::Body::Motion, eventId, 0);
-  CHECK_OFFSET(InputMessage::Body::Motion, empty1, 4);
+  CHECK_OFFSET(InputMessage::Body::Motion, pointerCount, 4);
   CHECK_OFFSET(InputMessage::Body::Motion, eventTime, 8);
   CHECK_OFFSET(InputMessage::Body::Motion, deviceId, 16);
   CHECK_OFFSET(InputMessage::Body::Motion, source, 20);
@@ -74,16 +74,17 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Motion, yPrecision, 124);
   CHECK_OFFSET(InputMessage::Body::Motion, xCursorPosition, 128);
   CHECK_OFFSET(InputMessage::Body::Motion, yCursorPosition, 132);
-  CHECK_OFFSET(InputMessage::Body::Motion, displayOrientation, 136);
-  CHECK_OFFSET(InputMessage::Body::Motion, displayWidth, 140);
-  CHECK_OFFSET(InputMessage::Body::Motion, displayHeight, 144);
-  CHECK_OFFSET(InputMessage::Body::Motion, pointerCount, 148);
-  CHECK_OFFSET(InputMessage::Body::Motion, pointers, 152);
+  CHECK_OFFSET(InputMessage::Body::Motion, dsdxRaw, 136);
+  CHECK_OFFSET(InputMessage::Body::Motion, dtdxRaw, 140);
+  CHECK_OFFSET(InputMessage::Body::Motion, dtdyRaw, 144);
+  CHECK_OFFSET(InputMessage::Body::Motion, dsdyRaw, 148);
+  CHECK_OFFSET(InputMessage::Body::Motion, txRaw, 152);
+  CHECK_OFFSET(InputMessage::Body::Motion, tyRaw, 156);
+  CHECK_OFFSET(InputMessage::Body::Motion, pointers, 160);
 
   CHECK_OFFSET(InputMessage::Body::Focus, eventId, 0);
   CHECK_OFFSET(InputMessage::Body::Focus, hasFocus, 4);
-  CHECK_OFFSET(InputMessage::Body::Focus, inTouchMode, 5);
-  CHECK_OFFSET(InputMessage::Body::Focus, empty, 6);
+  CHECK_OFFSET(InputMessage::Body::Focus, empty, 5);
 
   CHECK_OFFSET(InputMessage::Body::Capture, eventId, 0);
   CHECK_OFFSET(InputMessage::Body::Capture, pointerCaptureEnabled, 4);
@@ -102,6 +103,10 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Timeline, eventId, 0);
   CHECK_OFFSET(InputMessage::Body::Timeline, empty, 4);
   CHECK_OFFSET(InputMessage::Body::Timeline, graphicsTimeline, 8);
+
+  CHECK_OFFSET(InputMessage::Body::TouchMode, eventId, 0);
+  CHECK_OFFSET(InputMessage::Body::TouchMode, isInTouchMode, 4);
+  CHECK_OFFSET(InputMessage::Body::TouchMode, empty, 5);
 }
 
 void TestHeaderSize() {
@@ -110,12 +115,9 @@ void TestHeaderSize() {
     static_assert(sizeof(InputMessage::Header) == 8);
 }
 
-/**
- * We cannot use the Body::size() method here because it is not static for
- * the Motion type, where "pointerCount" variable affects the size and can change at runtime.
- */
 void TestBodySize() {
     static_assert(sizeof(InputMessage::Body::Key) == 96);
+    static_assert(sizeof(InputMessage::Body::Motion::Pointer) == 136);
     static_assert(sizeof(InputMessage::Body::Motion) ==
                   offsetof(InputMessage::Body::Motion, pointers) +
                           sizeof(InputMessage::Body::Motion::Pointer) * MAX_POINTERS);
@@ -123,9 +125,42 @@ void TestBodySize() {
     static_assert(sizeof(InputMessage::Body::Focus) == 8);
     static_assert(sizeof(InputMessage::Body::Capture) == 8);
     static_assert(sizeof(InputMessage::Body::Drag) == 16);
+    static_assert(sizeof(InputMessage::Body::TouchMode) == 8);
     // Timeline
     static_assert(GraphicsTimeline::SIZE == 2);
     static_assert(sizeof(InputMessage::Body::Timeline) == 24);
+
+    /**
+     * We cannot use the Body::size() method here because it is not static for
+     * the Motion type, where "pointerCount" variable affects the size and can change at runtime.
+     */
+    static_assert(sizeof(InputMessage::Body) ==
+                  offsetof(InputMessage::Body::Motion, pointers) +
+                          sizeof(InputMessage::Body::Motion::Pointer) * MAX_POINTERS);
+    static_assert(sizeof(InputMessage::Body) == 160 + 136 * 16);
+    static_assert(sizeof(InputMessage::Body) == 2336);
+}
+
+/**
+ * In general, we are sending a variable-length message across the socket, because the number of
+ * pointers varies. When we receive the message, we still need to allocate enough memory for the
+ * entire InputMessage struct. This size is, therefore, the worst case scenario. However, it is
+ * still helpful to compute to get an idea of the sizes that are involved.
+ */
+void TestWorstCaseInputMessageSize() {
+    static_assert(sizeof(InputMessage) == /*header*/ 8 + /*body*/ 2336);
+    static_assert(sizeof(InputMessage) == 2344);
+}
+
+/**
+ * Assuming a single pointer, how big is the message that we are sending across the socket?
+ */
+void CalculateSinglePointerInputMessageSize() {
+    constexpr size_t pointerCount = 1;
+    constexpr size_t bodySize = offsetof(InputMessage::Body::Motion, pointers) +
+            sizeof(InputMessage::Body::Motion::Pointer) * pointerCount;
+    static_assert(bodySize == 160 + 136);
+    static_assert(bodySize == 296); // For the total message size, add the small header
 }
 
 // --- VerifiedInputEvent ---

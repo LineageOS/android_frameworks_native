@@ -62,5 +62,23 @@ using ChromaSiting = aidl::android::hardware::graphics::common::ChromaSiting;
 using Compression = aidl::android::hardware::graphics::common::Compression;
 using Interlaced = aidl::android::hardware::graphics::common::Interlaced;
 
+inline aidl::android::hardware::graphics::common::XyColor translate(const android_xy_color& color) {
+    return aidl::android::hardware::graphics::common::XyColor{.x = color.x, .y = color.y};
+}
+
+inline Smpte2086 translate(const android_smpte2086_metadata& metadata) {
+    return Smpte2086{.primaryRed = translate(metadata.displayPrimaryRed),
+                     .primaryGreen = translate(metadata.displayPrimaryGreen),
+                     .primaryBlue = translate(metadata.displayPrimaryBlue),
+                     .whitePoint = translate(metadata.whitePoint),
+                     .maxLuminance = metadata.maxLuminance,
+                     .minLuminance = metadata.minLuminance};
+}
+
+inline Cta861_3 translate(const android_cta861_3_metadata& metadata) {
+    return Cta861_3{.maxContentLightLevel = metadata.maxContentLightLevel,
+                    .maxFrameAverageLightLevel = metadata.maxFrameAverageLightLevel};
+}
+
 }  // namespace ui
 }  // namespace android

@@ -27,13 +27,12 @@ namespace inputdispatcher {
 struct InjectionState {
     mutable int32_t refCount;
 
-    int32_t injectorPid;
-    int32_t injectorUid;
+    std::optional<int32_t> targetUid;
     android::os::InputEventInjectionResult injectionResult; // initially PENDING
     bool injectionIsAsync;               // set to true if injection is not waiting for the result
     int32_t pendingForegroundDispatches; // the number of foreground dispatches in progress
 
-    InjectionState(int32_t injectorPid, int32_t injectorUid);
+    explicit InjectionState(const std::optional<int32_t>& targetUid);
     void release();
 
 private:

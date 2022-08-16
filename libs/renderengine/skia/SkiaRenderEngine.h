@@ -44,22 +44,22 @@ public:
     virtual void deleteTextures(size_t /*count*/, uint32_t const* /*names*/) override{};
     virtual bool isProtected() const override { return false; } // mInProtectedContext; }
     virtual bool supportsProtectedContent() const override { return false; };
-    virtual status_t drawLayers(const DisplaySettings& /*display*/,
-                                const std::vector<const LayerSettings*>& /*layers*/,
-                                const std::shared_ptr<ExternalTexture>& /*buffer*/,
-                                const bool /*useFramebufferCache*/,
-                                base::unique_fd&& /*bufferFence*/,
-                                base::unique_fd* /*drawFence*/) override {
-        return 0;
-    };
     virtual int getContextPriority() override { return 0; }
-    virtual void assertShadersCompiled(int numShaders) {}
     virtual int reportShadersCompiled() { return 0; }
+    virtual void setEnableTracing(bool tracingEnabled) override;
 
 protected:
     virtual void mapExternalTextureBuffer(const sp<GraphicBuffer>& /*buffer*/,
                                           bool /*isRenderable*/) override = 0;
     virtual void unmapExternalTextureBuffer(const sp<GraphicBuffer>& /*buffer*/) override = 0;
+
+    virtual void drawLayersInternal(
+            const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+            const DisplaySettings& display, const std::vector<LayerSettings>& layers,
+            const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
+            base::unique_fd&& bufferFence) override {
+        resultPromise->set_value({NO_ERROR, base::unique_fd()});
+    };
 };
 
 } // namespace skia

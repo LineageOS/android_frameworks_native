@@ -16,8 +16,8 @@
 
 #define LOG_TAG "LayerState"
 
-#include <apex/window.h>
-#include <inttypes.h>
+#include <cinttypes>
+#include <cmath>
 
 #include <android/native_window.h>
 #include <binder/Parcel.h>
@@ -25,9 +25,8 @@
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
 #include <private/gui/ParcelUtils.h>
+#include <system/window.h>
 #include <utils/Errors.h>
-
-#include <cmath>
 
 namespace android {
 
@@ -35,13 +34,14 @@ using gui::FocusRequest;
 using gui::WindowInfoHandle;
 
 layer_state_t::layer_state_t()
-      : what(0),
+      : surface(nullptr),
+        layerId(-1),
+        what(0),
         x(0),
         y(0),
         z(0),
         w(0),
         h(0),
-        layerStack(0),
         alpha(0),
         flags(0),
         mask(0),
@@ -51,7 +51,6 @@ layer_state_t::layer_state_t()
         transform(0),
         transformToDisplayInverse(false),
         crop(Rect::INVALID_RECT),
-        orientedDisplaySpaceRect(Rect::INVALID_RECT),
         dataspace(ui::Dataspace::UNKNOWN),
         surfaceDamageRegion(),
         api(-1),
@@ -65,12 +64,10 @@ layer_state_t::layer_state_t()
         frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
         changeFrameRateStrategy(ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS),
         fixedTransformHint(ui::Transform::ROT_INVALID),
-        frameNumber(0),
         autoRefresh(false),
         isTrustedOverlay(false),
         bufferCrop(Rect::INVALID_RECT),
         destinationFrame(Rect::INVALID_RECT),
-        releaseBufferListener(nullptr),
         dropInputMode(gui::DropInputMode::NONE) {
     matrix.dsdx = matrix.dtdy = 1.0f;
     matrix.dsdy = matrix.dtdx = 0.0f;
@@ -87,7 +84,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeInt32, z);
     SAFE_PARCEL(output.writeUint32, w);
     SAFE_PARCEL(output.writeUint32, h);
-    SAFE_PARCEL(output.writeUint32, layerStack);
+    SAFE_PARCEL(output.writeUint32, layerStack.id);
     SAFE_PARCEL(output.writeFloat, alpha);
     SAFE_PARCEL(output.writeUint32, flags);
     SAFE_PARCEL(output.writeUint32, mask);
@@ -103,21 +100,6 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.write, transparentRegion);
     SAFE_PARCEL(output.writeUint32, transform);
     SAFE_PARCEL(output.writeBool, transformToDisplayInverse);
-    SAFE_PARCEL(output.write, orientedDisplaySpaceRect);
-
-    if (buffer) {
-        SAFE_PARCEL(output.writeBool, true);
-        SAFE_PARCEL(output.write, *buffer);
-    } else {
-        SAFE_PARCEL(output.writeBool, false);
-    }
-
-    if (acquireFence) {
-        SAFE_PARCEL(output.writeBool, true);
-        SAFE_PARCEL(output.write, *acquireFence);
-    } else {
-        SAFE_PARCEL(output.writeBool, false);
-    }
 
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dataspace));
     SAFE_PARCEL(output.write, hdrMetadata);
@@ -134,8 +116,6 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.write, colorTransform.asArray(), 16 * sizeof(float));
     SAFE_PARCEL(output.writeFloat, cornerRadius);
     SAFE_PARCEL(output.writeUint32, backgroundBlurRadius);
-    SAFE_PARCEL(output.writeStrongBinder, cachedBuffer.token.promote());
-    SAFE_PARCEL(output.writeUint64, cachedBuffer.id);
     SAFE_PARCEL(output.writeParcelable, metadata);
     SAFE_PARCEL(output.writeFloat, bgColorAlpha);
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(bgColorDataspace));
@@ -152,9 +132,8 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeByte, frameRateCompatibility);
     SAFE_PARCEL(output.writeByte, changeFrameRateStrategy);
     SAFE_PARCEL(output.writeUint32, fixedTransformHint);
-    SAFE_PARCEL(output.writeUint64, frameNumber);
     SAFE_PARCEL(output.writeBool, autoRefresh);
-    SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(releaseBufferListener));
+    SAFE_PARCEL(output.writeBool, dimmingEnabled);
 
     SAFE_PARCEL(output.writeUint32, blurRegions.size());
     for (auto region : blurRegions) {
@@ -175,8 +154,13 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.write, destinationFrame);
     SAFE_PARCEL(output.writeBool, isTrustedOverlay);
 
-    SAFE_PARCEL(output.writeStrongBinder, releaseBufferEndpoint);
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dropInputMode));
+
+    const bool hasBufferData = (bufferData != nullptr);
+    SAFE_PARCEL(output.writeBool, hasBufferData);
+    if (hasBufferData) {
+        SAFE_PARCEL(output.writeParcelable, *bufferData);
+    }
     return NO_ERROR;
 }
 
@@ -190,7 +174,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readInt32, &z);
     SAFE_PARCEL(input.readUint32, &w);
     SAFE_PARCEL(input.readUint32, &h);
-    SAFE_PARCEL(input.readUint32, &layerStack);
+    SAFE_PARCEL(input.readUint32, &layerStack.id);
     SAFE_PARCEL(input.readFloat, &alpha);
 
     SAFE_PARCEL(input.readUint32, &flags);
@@ -216,20 +200,6 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, transparentRegion);
     SAFE_PARCEL(input.readUint32, &transform);
     SAFE_PARCEL(input.readBool, &transformToDisplayInverse);
-    SAFE_PARCEL(input.read, orientedDisplaySpaceRect);
-
-    bool tmpBool = false;
-    SAFE_PARCEL(input.readBool, &tmpBool);
-    if (tmpBool) {
-        buffer = new GraphicBuffer();
-        SAFE_PARCEL(input.read, *buffer);
-    }
-
-    SAFE_PARCEL(input.readBool, &tmpBool);
-    if (tmpBool) {
-        acquireFence = new Fence();
-        SAFE_PARCEL(input.read, *acquireFence);
-    }
 
     uint32_t tmpUint32 = 0;
     SAFE_PARCEL(input.readUint32, &tmpUint32);
@@ -238,6 +208,8 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, hdrMetadata);
     SAFE_PARCEL(input.read, surfaceDamageRegion);
     SAFE_PARCEL(input.readInt32, &api);
+
+    bool tmpBool = false;
     SAFE_PARCEL(input.readBool, &tmpBool);
     if (tmpBool) {
         sidebandStream = NativeHandle::create(input.readNativeHandle(), true);
@@ -246,10 +218,6 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, &colorTransform, 16 * sizeof(float));
     SAFE_PARCEL(input.readFloat, &cornerRadius);
     SAFE_PARCEL(input.readUint32, &backgroundBlurRadius);
-    sp<IBinder> tmpBinder;
-    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
-    cachedBuffer.token = tmpBinder;
-    SAFE_PARCEL(input.readUint64, &cachedBuffer.id);
     SAFE_PARCEL(input.readParcelable, &metadata);
 
     SAFE_PARCEL(input.readFloat, &bgColorAlpha);
@@ -274,14 +242,8 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readByte, &changeFrameRateStrategy);
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
-    SAFE_PARCEL(input.readUint64, &frameNumber);
     SAFE_PARCEL(input.readBool, &autoRefresh);
-
-    tmpBinder = nullptr;
-    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
-    if (tmpBinder) {
-        releaseBufferListener = checked_interface_cast<ITransactionCompletedListener>(tmpBinder);
-    }
+    SAFE_PARCEL(input.readBool, &dimmingEnabled);
 
     uint32_t numRegions = 0;
     SAFE_PARCEL(input.readUint32, &numRegions);
@@ -306,11 +268,18 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, destinationFrame);
     SAFE_PARCEL(input.readBool, &isTrustedOverlay);
 
-    SAFE_PARCEL(input.readNullableStrongBinder, &releaseBufferEndpoint);
-
     uint32_t mode;
     SAFE_PARCEL(input.readUint32, &mode);
     dropInputMode = static_cast<gui::DropInputMode>(mode);
+
+    bool hasBufferData;
+    SAFE_PARCEL(input.readBool, &hasBufferData);
+    if (hasBufferData) {
+        bufferData = std::make_shared<BufferData>();
+        SAFE_PARCEL(input.readParcelable, bufferData.get());
+    } else {
+        bufferData = nullptr;
+    }
     return NO_ERROR;
 }
 
@@ -322,21 +291,14 @@ status_t ComposerState::read(const Parcel& input) {
     return state.read(input);
 }
 
-DisplayState::DisplayState()
-      : what(0),
-        layerStack(0),
-        flags(0),
-        layerStackSpaceRect(Rect::EMPTY_RECT),
-        orientedDisplaySpaceRect(Rect::EMPTY_RECT),
-        width(0),
-        height(0) {}
+DisplayState::DisplayState() = default;
 
 status_t DisplayState::write(Parcel& output) const {
     SAFE_PARCEL(output.writeStrongBinder, token);
     SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(surface));
     SAFE_PARCEL(output.writeUint32, what);
-    SAFE_PARCEL(output.writeUint32, layerStack);
     SAFE_PARCEL(output.writeUint32, flags);
+    SAFE_PARCEL(output.writeUint32, layerStack.id);
     SAFE_PARCEL(output.writeUint32, toRotationInt(orientation));
     SAFE_PARCEL(output.write, layerStackSpaceRect);
     SAFE_PARCEL(output.write, orientedDisplaySpaceRect);
@@ -352,8 +314,8 @@ status_t DisplayState::read(const Parcel& input) {
     surface = interface_cast<IGraphicBufferProducer>(tmpBinder);
 
     SAFE_PARCEL(input.readUint32, &what);
-    SAFE_PARCEL(input.readUint32, &layerStack);
     SAFE_PARCEL(input.readUint32, &flags);
+    SAFE_PARCEL(input.readUint32, &layerStack.id);
     uint32_t tmpUint = 0;
     SAFE_PARCEL(input.readUint32, &tmpUint);
     orientation = ui::toRotation(tmpUint);
@@ -419,6 +381,14 @@ void layer_state_t::sanitize(int32_t permissions) {
                 what &= ~eMatrixChanged;
                 ALOGE("Stripped non rect preserving matrix in sanitize");
             }
+        }
+    }
+
+    if (what & eFlagsChanged) {
+        if ((flags & eLayerIsDisplayDecoration) &&
+            !(permissions & Permission::INTERNAL_SYSTEM_WINDOW)) {
+            flags &= ~eLayerIsDisplayDecoration;
+            ALOGE("Stripped attempt to set LayerIsDisplayDecoration in sanitize");
         }
     }
 
@@ -533,12 +503,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eBufferChanged) {
         what |= eBufferChanged;
-        buffer = other.buffer;
-        releaseBufferEndpoint = other.releaseBufferEndpoint;
-    }
-    if (other.what & eAcquireFenceChanged) {
-        what |= eAcquireFenceChanged;
-        acquireFence = other.acquireFence;
+        bufferData = other.bufferData;
     }
     if (other.what & eDataspaceChanged) {
         what |= eDataspaceChanged;
@@ -571,11 +536,6 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eInputInfoChanged;
         windowInfoHandle = new WindowInfoHandle(*other.windowInfoHandle);
     }
-    if (other.what & eCachedBufferChanged) {
-        what |= eCachedBufferChanged;
-        cachedBuffer = other.cachedBuffer;
-        releaseBufferEndpoint = other.releaseBufferEndpoint;
-    }
     if (other.what & eBackgroundColorChanged) {
         what |= eBackgroundColorChanged;
         color = other.color;
@@ -604,10 +564,6 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eFixedTransformHintChanged;
         fixedTransformHint = other.fixedTransformHint;
     }
-    if (other.what & eFrameNumberChanged) {
-        what |= eFrameNumberChanged;
-        frameNumber = other.frameNumber;
-    }
     if (other.what & eAutoRefreshChanged) {
         what |= eAutoRefreshChanged;
         autoRefresh = other.autoRefresh;
@@ -615,13 +571,6 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eTrustedOverlayChanged) {
         what |= eTrustedOverlayChanged;
         isTrustedOverlay = other.isTrustedOverlay;
-    }
-    if (other.what & eReleaseBufferListenerChanged) {
-        if (releaseBufferListener) {
-            ALOGW("Overriding releaseBufferListener");
-        }
-        what |= eReleaseBufferListenerChanged;
-        releaseBufferListener = other.releaseBufferListener;
     }
     if (other.what & eStretchChanged) {
         what |= eStretchChanged;
@@ -635,6 +584,9 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eDestinationFrameChanged;
         destinationFrame = other.destinationFrame;
     }
+    if (other.what & eProducerDisconnect) {
+        what |= eProducerDisconnect;
+    }
     if (other.what & eDropInputModeChanged) {
         what |= eDropInputModeChanged;
         dropInputMode = other.dropInputMode;
@@ -643,19 +595,27 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eColorChanged;
         color = other.color;
     }
+    if (other.what & eColorSpaceAgnosticChanged) {
+        what |= eColorSpaceAgnosticChanged;
+        colorSpaceAgnostic = other.colorSpaceAgnostic;
+    }
+    if (other.what & eDimmingEnabledChanged) {
+        what |= eDimmingEnabledChanged;
+        dimmingEnabled = other.dimmingEnabled;
+    }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "
-              "other.what=0x%" PRIu64 " what=0x%" PRIu64,
-              other.what, what);
+              "other.what=0x%" PRIX64 " what=0x%" PRIX64 " unmerged flags=0x%" PRIX64,
+              other.what, what, (other.what & what) ^ other.what);
     }
 }
 
 bool layer_state_t::hasBufferChanges() const {
-    return (what & layer_state_t::eBufferChanged) || (what & layer_state_t::eCachedBufferChanged);
+    return what & layer_state_t::eBufferChanged;
 }
 
 bool layer_state_t::hasValidBuffer() const {
-    return buffer || cachedBuffer.isValid();
+    return bufferData && (bufferData->buffer || bufferData->cachedBuffer.isValid());
 }
 
 status_t layer_state_t::matrix22_t::write(Parcel& output) const {
@@ -687,9 +647,7 @@ bool InputWindowCommands::merge(const InputWindowCommands& other) {
 }
 
 bool InputWindowCommands::empty() const {
-    bool empty = true;
-    empty = focusRequests.empty() && !syncInputWindows;
-    return empty;
+    return focusRequests.empty() && !syncInputWindows;
 }
 
 void InputWindowCommands::clear() {
@@ -720,7 +678,9 @@ bool ValidateFrameRate(float frameRate, int8_t compatibility, int8_t changeFrame
 
     if (compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT &&
         compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE &&
-        (!privileged || compatibility != ANATIVEWINDOW_FRAME_RATE_EXACT)) {
+        (!privileged ||
+         (compatibility != ANATIVEWINDOW_FRAME_RATE_EXACT &&
+          compatibility != ANATIVEWINDOW_FRAME_RATE_NO_VOTE))) {
         ALOGE("%s failed - invalid compatibility value %d privileged: %s", functionName,
               compatibility, privileged ? "yes" : "no");
         return false;
@@ -737,82 +697,163 @@ bool ValidateFrameRate(float frameRate, int8_t compatibility, int8_t changeFrame
 
 // ----------------------------------------------------------------------------
 
-status_t CaptureArgs::write(Parcel& output) const {
-    SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(pixelFormat));
-    SAFE_PARCEL(output.write, sourceCrop);
-    SAFE_PARCEL(output.writeFloat, frameScaleX);
-    SAFE_PARCEL(output.writeFloat, frameScaleY);
-    SAFE_PARCEL(output.writeBool, captureSecureLayers);
-    SAFE_PARCEL(output.writeInt32, uid);
-    SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(dataspace));
-    SAFE_PARCEL(output.writeBool, allowProtected);
-    SAFE_PARCEL(output.writeBool, grayscale);
+namespace gui {
+
+status_t CaptureArgs::writeToParcel(Parcel* output) const {
+    SAFE_PARCEL(output->writeInt32, static_cast<int32_t>(pixelFormat));
+    SAFE_PARCEL(output->write, sourceCrop);
+    SAFE_PARCEL(output->writeFloat, frameScaleX);
+    SAFE_PARCEL(output->writeFloat, frameScaleY);
+    SAFE_PARCEL(output->writeBool, captureSecureLayers);
+    SAFE_PARCEL(output->writeInt32, uid);
+    SAFE_PARCEL(output->writeInt32, static_cast<int32_t>(dataspace));
+    SAFE_PARCEL(output->writeBool, allowProtected);
+    SAFE_PARCEL(output->writeBool, grayscale);
     return NO_ERROR;
 }
 
-status_t CaptureArgs::read(const Parcel& input) {
+status_t CaptureArgs::readFromParcel(const Parcel* input) {
     int32_t value = 0;
-    SAFE_PARCEL(input.readInt32, &value);
+    SAFE_PARCEL(input->readInt32, &value);
     pixelFormat = static_cast<ui::PixelFormat>(value);
-    SAFE_PARCEL(input.read, sourceCrop);
-    SAFE_PARCEL(input.readFloat, &frameScaleX);
-    SAFE_PARCEL(input.readFloat, &frameScaleY);
-    SAFE_PARCEL(input.readBool, &captureSecureLayers);
-    SAFE_PARCEL(input.readInt32, &uid);
-    SAFE_PARCEL(input.readInt32, &value);
+    SAFE_PARCEL(input->read, sourceCrop);
+    SAFE_PARCEL(input->readFloat, &frameScaleX);
+    SAFE_PARCEL(input->readFloat, &frameScaleY);
+    SAFE_PARCEL(input->readBool, &captureSecureLayers);
+    SAFE_PARCEL(input->readInt32, &uid);
+    SAFE_PARCEL(input->readInt32, &value);
     dataspace = static_cast<ui::Dataspace>(value);
-    SAFE_PARCEL(input.readBool, &allowProtected);
-    SAFE_PARCEL(input.readBool, &grayscale);
+    SAFE_PARCEL(input->readBool, &allowProtected);
+    SAFE_PARCEL(input->readBool, &grayscale);
     return NO_ERROR;
 }
 
-status_t DisplayCaptureArgs::write(Parcel& output) const {
-    SAFE_PARCEL(CaptureArgs::write, output);
+status_t DisplayCaptureArgs::writeToParcel(Parcel* output) const {
+    SAFE_PARCEL(CaptureArgs::writeToParcel, output);
 
-    SAFE_PARCEL(output.writeStrongBinder, displayToken);
-    SAFE_PARCEL(output.writeUint32, width);
-    SAFE_PARCEL(output.writeUint32, height);
-    SAFE_PARCEL(output.writeBool, useIdentityTransform);
+    SAFE_PARCEL(output->writeStrongBinder, displayToken);
+    SAFE_PARCEL(output->writeUint32, width);
+    SAFE_PARCEL(output->writeUint32, height);
+    SAFE_PARCEL(output->writeBool, useIdentityTransform);
     return NO_ERROR;
 }
 
-status_t DisplayCaptureArgs::read(const Parcel& input) {
-    SAFE_PARCEL(CaptureArgs::read, input);
+status_t DisplayCaptureArgs::readFromParcel(const Parcel* input) {
+    SAFE_PARCEL(CaptureArgs::readFromParcel, input);
 
-    SAFE_PARCEL(input.readStrongBinder, &displayToken);
-    SAFE_PARCEL(input.readUint32, &width);
-    SAFE_PARCEL(input.readUint32, &height);
-    SAFE_PARCEL(input.readBool, &useIdentityTransform);
+    SAFE_PARCEL(input->readStrongBinder, &displayToken);
+    SAFE_PARCEL(input->readUint32, &width);
+    SAFE_PARCEL(input->readUint32, &height);
+    SAFE_PARCEL(input->readBool, &useIdentityTransform);
     return NO_ERROR;
 }
 
-status_t LayerCaptureArgs::write(Parcel& output) const {
-    SAFE_PARCEL(CaptureArgs::write, output);
+status_t LayerCaptureArgs::writeToParcel(Parcel* output) const {
+    SAFE_PARCEL(CaptureArgs::writeToParcel, output);
 
-    SAFE_PARCEL(output.writeStrongBinder, layerHandle);
-    SAFE_PARCEL(output.writeInt32, excludeHandles.size());
+    SAFE_PARCEL(output->writeStrongBinder, layerHandle);
+    SAFE_PARCEL(output->writeInt32, excludeHandles.size());
     for (auto el : excludeHandles) {
-        SAFE_PARCEL(output.writeStrongBinder, el);
+        SAFE_PARCEL(output->writeStrongBinder, el);
     }
-    SAFE_PARCEL(output.writeBool, childrenOnly);
+    SAFE_PARCEL(output->writeBool, childrenOnly);
     return NO_ERROR;
 }
 
-status_t LayerCaptureArgs::read(const Parcel& input) {
-    SAFE_PARCEL(CaptureArgs::read, input);
+status_t LayerCaptureArgs::readFromParcel(const Parcel* input) {
+    SAFE_PARCEL(CaptureArgs::readFromParcel, input);
 
-    SAFE_PARCEL(input.readStrongBinder, &layerHandle);
+    SAFE_PARCEL(input->readStrongBinder, &layerHandle);
 
     int32_t numExcludeHandles = 0;
-    SAFE_PARCEL_READ_SIZE(input.readInt32, &numExcludeHandles, input.dataSize());
+    SAFE_PARCEL_READ_SIZE(input->readInt32, &numExcludeHandles, input->dataSize());
     excludeHandles.reserve(numExcludeHandles);
     for (int i = 0; i < numExcludeHandles; i++) {
         sp<IBinder> binder;
-        SAFE_PARCEL(input.readStrongBinder, &binder);
+        SAFE_PARCEL(input->readStrongBinder, &binder);
         excludeHandles.emplace(binder);
     }
 
-    SAFE_PARCEL(input.readBool, &childrenOnly);
+    SAFE_PARCEL(input->readBool, &childrenOnly);
+    return NO_ERROR;
+}
+
+}; // namespace gui
+
+ReleaseCallbackId BufferData::generateReleaseCallbackId() const {
+    uint64_t bufferId;
+    if (buffer) {
+        bufferId = buffer->getId();
+    } else {
+        bufferId = cachedBuffer.id;
+    }
+    return {bufferId, frameNumber};
+}
+
+status_t BufferData::writeToParcel(Parcel* output) const {
+    SAFE_PARCEL(output->writeInt32, flags.get());
+
+    if (buffer) {
+        SAFE_PARCEL(output->writeBool, true);
+        SAFE_PARCEL(output->write, *buffer);
+    } else {
+        SAFE_PARCEL(output->writeBool, false);
+    }
+
+    if (acquireFence) {
+        SAFE_PARCEL(output->writeBool, true);
+        SAFE_PARCEL(output->write, *acquireFence);
+    } else {
+        SAFE_PARCEL(output->writeBool, false);
+    }
+
+    SAFE_PARCEL(output->writeUint64, frameNumber);
+    SAFE_PARCEL(output->writeStrongBinder, IInterface::asBinder(releaseBufferListener));
+    SAFE_PARCEL(output->writeStrongBinder, releaseBufferEndpoint);
+
+    SAFE_PARCEL(output->writeStrongBinder, cachedBuffer.token.promote());
+    SAFE_PARCEL(output->writeUint64, cachedBuffer.id);
+    SAFE_PARCEL(output->writeBool, hasBarrier);
+    SAFE_PARCEL(output->writeUint64, barrierFrameNumber);
+
+    return NO_ERROR;
+}
+
+status_t BufferData::readFromParcel(const Parcel* input) {
+    int32_t tmpInt32;
+    SAFE_PARCEL(input->readInt32, &tmpInt32);
+    flags = ftl::Flags<BufferDataChange>(tmpInt32);
+
+    bool tmpBool = false;
+    SAFE_PARCEL(input->readBool, &tmpBool);
+    if (tmpBool) {
+        buffer = new GraphicBuffer();
+        SAFE_PARCEL(input->read, *buffer);
+    }
+
+    SAFE_PARCEL(input->readBool, &tmpBool);
+    if (tmpBool) {
+        acquireFence = new Fence();
+        SAFE_PARCEL(input->read, *acquireFence);
+    }
+
+    SAFE_PARCEL(input->readUint64, &frameNumber);
+
+    sp<IBinder> tmpBinder = nullptr;
+    SAFE_PARCEL(input->readNullableStrongBinder, &tmpBinder);
+    if (tmpBinder) {
+        releaseBufferListener = checked_interface_cast<ITransactionCompletedListener>(tmpBinder);
+    }
+    SAFE_PARCEL(input->readNullableStrongBinder, &releaseBufferEndpoint);
+
+    tmpBinder = nullptr;
+    SAFE_PARCEL(input->readNullableStrongBinder, &tmpBinder);
+    cachedBuffer.token = tmpBinder;
+    SAFE_PARCEL(input->readUint64, &cachedBuffer.id);
+
+    SAFE_PARCEL(input->readBool, &hasBarrier);
+    SAFE_PARCEL(input->readUint64, &barrierFrameNumber);
+
     return NO_ERROR;
 }
 

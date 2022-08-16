@@ -58,7 +58,7 @@ interface IInstalld {
             @utf8InCpp String seInfo, int targetSdkVersion, @utf8InCpp String fromCodePath);
 
     // Returns false if it is cancelled. Returns true if it is completed or have other errors.
-    boolean dexopt(@utf8InCpp String apkPath, int uid, @nullable @utf8InCpp String packageName,
+    boolean dexopt(@utf8InCpp String apkPath, int uid, @utf8InCpp String packageName,
             @utf8InCpp String instructionSet, int dexoptNeeded,
             @nullable @utf8InCpp String outputPath, int dexFlags,
             @utf8InCpp String compilerFilter, @nullable @utf8InCpp String uuid,
@@ -77,28 +77,29 @@ interface IInstalld {
 
     int mergeProfiles(int uid, @utf8InCpp String packageName, @utf8InCpp String profileName);
     boolean dumpProfiles(int uid, @utf8InCpp String packageName, @utf8InCpp String  profileName,
-            @utf8InCpp String codePath);
+            @utf8InCpp String codePath, boolean dumpClassesAndMethods);
     boolean copySystemProfile(@utf8InCpp String systemProfile, int uid,
             @utf8InCpp String packageName, @utf8InCpp String profileName);
     void clearAppProfiles(@utf8InCpp String packageName, @utf8InCpp String profileName);
     void destroyAppProfiles(@utf8InCpp String packageName);
+    void deleteReferenceProfile(@utf8InCpp String packageName, @utf8InCpp String profileName);
 
     boolean createProfileSnapshot(int appId, @utf8InCpp String packageName,
             @utf8InCpp String profileName, @utf8InCpp String classpath);
     void destroyProfileSnapshot(@utf8InCpp String packageName, @utf8InCpp String profileName);
 
-    void rmPackageDir(@utf8InCpp String packageDir);
-    void freeCache(@nullable @utf8InCpp String uuid, long targetFreeBytes,
-            long cacheReservedBytes, int flags);
+    void rmPackageDir(@utf8InCpp String packageName, @utf8InCpp String packageDir);
+    void freeCache(@nullable @utf8InCpp String uuid, long targetFreeBytes, int flags);
     void linkNativeLibraryDirectory(@nullable @utf8InCpp String uuid,
             @utf8InCpp String packageName, @utf8InCpp String nativeLibPath32, int userId);
-    void createOatDir(@utf8InCpp String oatDir, @utf8InCpp String instructionSet);
-    void linkFile(@utf8InCpp String relativePath, @utf8InCpp String fromBase,
-            @utf8InCpp String toBase);
-    void moveAb(@utf8InCpp String apkPath, @utf8InCpp String instructionSet,
-            @utf8InCpp String outputPath);
-    long deleteOdex(@utf8InCpp String apkPath, @utf8InCpp String instructionSet,
-            @nullable @utf8InCpp String outputPath);
+    void createOatDir(@utf8InCpp String packageName, @utf8InCpp String oatDir,
+            @utf8InCpp String instructionSet);
+    void linkFile(@utf8InCpp String packageName, @utf8InCpp String relativePath,
+            @utf8InCpp String fromBase, @utf8InCpp String toBase);
+    void moveAb(@utf8InCpp String packageName, @utf8InCpp String apkPath,
+            @utf8InCpp String instructionSet, @utf8InCpp String outputPath);
+    long deleteOdex(@utf8InCpp String packageName, @utf8InCpp String apkPath,
+            @utf8InCpp String instructionSet, @nullable @utf8InCpp String outputPath);
 
     boolean reconcileSecondaryDexFile(@utf8InCpp String dexPath, @utf8InCpp String pkgName,
         int uid, in @utf8InCpp String[] isas, @nullable @utf8InCpp String volume_uuid,
@@ -130,6 +131,9 @@ interface IInstalld {
 
     void cleanupInvalidPackageDirs(@nullable @utf8InCpp String uuid, int userId, int flags);
 
+    int getOdexVisibility(@utf8InCpp String packageName, @utf8InCpp String apkPath,
+            @utf8InCpp String instructionSet, @nullable @utf8InCpp String outputPath);
+
     const int FLAG_STORAGE_DE = 0x1;
     const int FLAG_STORAGE_CE = 0x2;
     const int FLAG_STORAGE_EXTERNAL = 0x4;
@@ -141,6 +145,8 @@ interface IInstalld {
     const int FLAG_FREE_CACHE_V2 = 0x100;
     const int FLAG_FREE_CACHE_V2_DEFY_QUOTA = 0x200;
     const int FLAG_FREE_CACHE_NOOP = 0x400;
+    // Set below flag to clear cache irrespective of target free bytes required
+    const int FLAG_FREE_CACHE_DEFY_TARGET_FREE_BYTES = 0x800;
 
     const int FLAG_USE_QUOTA = 0x1000;
     const int FLAG_FORCE = 0x2000;

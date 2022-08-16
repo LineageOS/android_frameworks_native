@@ -192,17 +192,23 @@ void ASurfaceTexture_releaseConsumerOwnership(ASurfaceTexture* texture) {
     texture->consumer->releaseConsumerOwnership();
 }
 
-AHardwareBuffer* ASurfaceTexture_dequeueBuffer(ASurfaceTexture* st, int* outSlotid,
-                                               android_dataspace* outDataspace,
-                                               float* outTransformMatrix, bool* outNewContent,
-                                               ASurfaceTexture_createReleaseFence createFence,
-                                               ASurfaceTexture_fenceWait fenceWait, void* handle) {
+AHardwareBuffer* ASurfaceTexture_dequeueBuffer(
+        ASurfaceTexture* st, int* outSlotid, android_dataspace* outDataspace,
+        AHdrMetadataType* outHdrType, android_cta861_3_metadata* outCta861_3,
+        android_smpte2086_metadata* outSmpte2086, float* outTransformMatrix, uint32_t* outTransform,
+        bool* outNewContent, ASurfaceTexture_createReleaseFence createFence,
+        ASurfaceTexture_fenceWait fenceWait, void* handle, ARect* currentCrop) {
     sp<GraphicBuffer> buffer;
     *outNewContent = false;
     bool queueEmpty;
     do {
-        buffer = st->consumer->dequeueBuffer(outSlotid, outDataspace, outTransformMatrix,
-                                             &queueEmpty, createFence, fenceWait, handle);
+        HdrMetadata metadata;
+        buffer = st->consumer->dequeueBuffer(outSlotid, outDataspace, &metadata, outTransformMatrix,
+                                             outTransform, &queueEmpty, createFence, fenceWait,
+                                             handle, currentCrop);
+        *outHdrType = static_cast<AHdrMetadataType>(metadata.validTypes);
+        *outCta861_3 = metadata.cta8613;
+        *outSmpte2086 = metadata.smpte2086;
         if (!queueEmpty) {
             *outNewContent = true;
         }

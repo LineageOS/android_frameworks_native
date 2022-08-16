@@ -17,6 +17,7 @@
 #ifndef ANDROID_SENSOR_DIRECT_CONNECTION_H
 #define ANDROID_SENSOR_DIRECT_CONNECTION_H
 
+#include <optional>
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -100,10 +101,19 @@ private:
     std::unordered_map<int, int> mActivatedBackup;
     std::unordered_map<int, int> mMicRateBackup;
 
-    std::atomic_bool mIsRateCappedBasedOnPermission;
     mutable Mutex mDestroyLock;
     bool mDestroyed;
     userid_t mUserId;
+
+    std::optional<bool> mIsRateCappedBasedOnPermission;
+
+    bool isRateCappedBasedOnPermission() {
+      if (!mIsRateCappedBasedOnPermission.has_value()) {
+        mIsRateCappedBasedOnPermission =
+            mService->isRateCappedBasedOnPermission(mOpPackageName);
+      }
+      return mIsRateCappedBasedOnPermission.value();
+    }
 };
 
 } // namepsace android

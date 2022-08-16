@@ -63,7 +63,7 @@ protected:
         TransactionUtils::fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
 
         asTransaction([&](Transaction& t) {
-            t.setDisplayLayerStack(display, 0);
+            t.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
 
             t.setLayer(mBGSurfaceControl, INT32_MAX - 2).show(mBGSurfaceControl);
 

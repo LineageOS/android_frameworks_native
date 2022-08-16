@@ -160,7 +160,7 @@ private:
     void addTransparentRegionLocked(Transaction* transaction, int32_t layerId,
             const Region& transRegion);
     void addFlagsLocked(Transaction* transaction, int32_t layerId, uint8_t flags, uint8_t mask);
-    void addLayerStackLocked(Transaction* transaction, int32_t layerId, uint32_t layerStack);
+    void addLayerStackLocked(Transaction* transaction, int32_t layerId, ui::LayerStack);
     void addCropLocked(Transaction* transaction, int32_t layerId, const Rect& rect);
     void addCornerRadiusLocked(Transaction* transaction, int32_t layerId, float cornerRadius);
     void addBackgroundBlurRadiusLocked(Transaction* transaction, int32_t layerId,
@@ -183,8 +183,7 @@ private:
     DisplayChange* createDisplayChangeLocked(Transaction* transaction, int32_t sequenceId);
     void addDisplaySurfaceLocked(Transaction* transaction, int32_t sequenceId,
             const sp<const IGraphicBufferProducer>& surface);
-    void addDisplayLayerStackLocked(Transaction* transaction, int32_t sequenceId,
-            uint32_t layerStack);
+    void addDisplayLayerStackLocked(Transaction* transaction, int32_t sequenceId, ui::LayerStack);
     void addDisplayFlagsLocked(Transaction* transaction, int32_t sequenceId, uint32_t flags);
     void addDisplaySizeLocked(Transaction* transaction, int32_t sequenceId, uint32_t w,
             uint32_t h);

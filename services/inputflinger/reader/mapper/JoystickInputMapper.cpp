@@ -25,15 +25,14 @@ JoystickInputMapper::JoystickInputMapper(InputDeviceContext& deviceContext)
 
 JoystickInputMapper::~JoystickInputMapper() {}
 
-uint32_t JoystickInputMapper::getSources() {
+uint32_t JoystickInputMapper::getSources() const {
     return AINPUT_SOURCE_JOYSTICK;
 }
 
 void JoystickInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     InputMapper::populateDeviceInfo(info);
 
-    for (std::pair<const int32_t, Axis>& pair : mAxes) {
-        const Axis& axis = pair.second;
+    for (const auto& [_, axis] : mAxes) {
         addMotionRange(axis.axisInfo.axis, axis, info);
 
         if (axis.axisInfo.mode == AxisInfo::MODE_SPLIT) {
@@ -336,15 +335,18 @@ void JoystickInputMapper::sync(nsecs_t when, nsecs_t readTime, bool force) {
     // button will likely wake the device.
     // TODO: Use the input device configuration to control this behavior more finely.
     uint32_t policyFlags = 0;
+    int32_t displayId = ADISPLAY_ID_NONE;
+    if (getDeviceContext().getAssociatedViewport()) {
+        displayId = getDeviceContext().getAssociatedViewport()->displayId;
+    }
 
     NotifyMotionArgs args(getContext()->getNextId(), when, readTime, getDeviceId(),
-                          AINPUT_SOURCE_JOYSTICK, ADISPLAY_ID_NONE, policyFlags,
-                          AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, buttonState,
-                          MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
-                          &pointerProperties, &pointerCoords, 0, 0,
+                          AINPUT_SOURCE_JOYSTICK, displayId, policyFlags, AMOTION_EVENT_ACTION_MOVE,
+                          0, 0, metaState, buttonState, MotionClassification::NONE,
+                          AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties, &pointerCoords, 0, 0,
                           AMOTION_EVENT_INVALID_CURSOR_POSITION,
                           AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {});
-    getListener()->notifyMotion(&args);
+    getListener().notifyMotion(&args);
 }
 
 void JoystickInputMapper::setPointerCoordsAxisValue(PointerCoords* pointerCoords, int32_t axis,

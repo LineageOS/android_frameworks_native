@@ -17,9 +17,9 @@
 #include <gtest/gtest.h>
 #include <thread>
 
+#include <android/gui/BnRegionSamplingListener.h>
 #include <binder/ProcessState.h>
 #include <gui/DisplayEventReceiver.h>
-#include <gui/IRegionSamplingListener.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
@@ -135,12 +135,13 @@ private:
     std::atomic<bool> poll_{true};
 };
 
-struct Listener : BnRegionSamplingListener {
-    void onSampleCollected(float medianLuma) override {
+struct Listener : android::gui::BnRegionSamplingListener {
+    binder::Status onSampleCollected(float medianLuma) override {
         std::unique_lock<decltype(mutex)> lk(mutex);
         received = true;
         mLuma = medianLuma;
         cv.notify_all();
+        return binder::Status::ok();
     };
     bool wait_event(std::chrono::milliseconds timeout) {
         std::unique_lock<decltype(mutex)> lk(mutex);

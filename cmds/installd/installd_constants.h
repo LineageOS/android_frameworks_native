@@ -18,6 +18,8 @@
 #ifndef INSTALLD_CONSTANTS_H_
 #define INSTALLD_CONSTANTS_H_
 
+#include "cutils/multiuser.h"
+
 namespace android {
 namespace installd {
 
@@ -82,6 +84,15 @@ constexpr int FLAG_STORAGE_CE = 1 << 1;
 constexpr int PROFILES_ANALYSIS_OPTIMIZE                     = 1;
 constexpr int PROFILES_ANALYSIS_DONT_OPTIMIZE_SMALL_DELTA    = 2;
 constexpr int PROFILES_ANALYSIS_DONT_OPTIMIZE_EMPTY_PROFILES = 3;
+
+// NOTE: keep in sync with Installer.java
+constexpr int ODEX_NOT_FOUND = 0;
+constexpr int ODEX_IS_PUBLIC = 1;
+constexpr int ODEX_IS_PRIVATE = 2;
+
+// NOTE: keep in sync with UserHandle.java
+constexpr userid_t USER_NULL = -10000;
+constexpr userid_t USER_SYSTEM = 0;
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(*(a)))
 

@@ -21,6 +21,7 @@
 #include "InputManager.h"
 #include "InputDispatcherFactory.h"
 #include "InputReaderFactory.h"
+#include "UnwantedInteractionBlocker.h"
 
 #include <binder/IPCThreadState.h>
 
@@ -32,8 +33,6 @@
 namespace android {
 
 using gui::FocusRequest;
-using gui::WindowInfo;
-using gui::WindowInfoHandle;
 
 static int32_t exceptionCodeFromStatusT(status_t status) {
     switch (status) {
@@ -54,12 +53,17 @@ static int32_t exceptionCodeFromStatusT(status_t status) {
     }
 }
 
+/**
+ * The event flow is via the "InputListener" interface, as follows:
+ * InputReader -> UnwantedInteractionBlocker -> InputClassifier -> InputDispatcher
+ */
 InputManager::InputManager(
         const sp<InputReaderPolicyInterface>& readerPolicy,
         const sp<InputDispatcherPolicyInterface>& dispatcherPolicy) {
     mDispatcher = createInputDispatcher(dispatcherPolicy);
-    mClassifier = new InputClassifier(mDispatcher);
-    mReader = createInputReader(readerPolicy, mClassifier);
+    mClassifier = std::make_unique<InputClassifier>(*mDispatcher);
+    mBlocker = std::make_unique<UnwantedInteractionBlocker>(*mClassifier);
+    mReader = createInputReader(readerPolicy, *mBlocker);
 }
 
 InputManager::~InputManager() {
@@ -102,16 +106,27 @@ status_t InputManager::stop() {
     return status;
 }
 
-sp<InputReaderInterface> InputManager::getReader() {
-    return mReader;
+InputReaderInterface& InputManager::getReader() {
+    return *mReader;
 }
 
-sp<InputClassifierInterface> InputManager::getClassifier() {
-    return mClassifier;
+UnwantedInteractionBlockerInterface& InputManager::getUnwantedInteractionBlocker() {
+    return *mBlocker;
 }
 
-sp<InputDispatcherInterface> InputManager::getDispatcher() {
-    return mDispatcher;
+InputClassifierInterface& InputManager::getClassifier() {
+    return *mClassifier;
+}
+
+InputDispatcherInterface& InputManager::getDispatcher() {
+    return *mDispatcher;
+}
+
+void InputManager::monitor() {
+    mReader->monitor();
+    mBlocker->monitor();
+    mClassifier->monitor();
+    mDispatcher->monitor();
 }
 
 // Used by tests only.

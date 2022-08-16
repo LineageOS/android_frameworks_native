@@ -244,6 +244,7 @@ static const TracingCategory k_categories[] = {
         { OPT,      "events/kmem/ion_heap_shrink/enable" },
         { OPT,      "events/ion/ion_stat/enable" },
         { OPT,      "events/gpu_mem/gpu_mem_total/enable" },
+        { OPT,      "events/fastrpc/fastrpc_dma_stat/enable" },
     } },
     { "thermal",  "Thermal event", ATRACE_TAG_THERMAL, {
         { REQ,      "events/thermal/thermal_temperature/enable" },

@@ -71,8 +71,7 @@ public:
 
     void erase(const std::function<bool(const T&)>& lambda) {
         std::scoped_lock lock(mLock);
-        mQueue.erase(std::remove_if(mQueue.begin(), mQueue.end(),
-                [&lambda](const T& t) { return lambda(t); }), mQueue.end());
+        std::erase_if(mQueue, [&lambda](const auto& t) { return lambda(t); });
     }
 
     /**

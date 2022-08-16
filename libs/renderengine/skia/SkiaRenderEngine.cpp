@@ -20,15 +20,15 @@
 
 #include "SkiaRenderEngine.h"
 
-#include <android-base/properties.h>
 #include <src/core/SkTraceEventCommon.h>
 
 namespace android {
 namespace renderengine {
 namespace skia {
-SkiaRenderEngine::SkiaRenderEngine(RenderEngineType type) : RenderEngine(type) {
-    SkAndroidFrameworkTraceUtil::setEnableTracing(
-            base::GetBoolProperty(PROPERTY_SKIA_ATRACE_ENABLED, false));
+SkiaRenderEngine::SkiaRenderEngine(RenderEngineType type) : RenderEngine(type) {}
+
+void SkiaRenderEngine::setEnableTracing(bool tracingEnabled) {
+    SkAndroidFrameworkTraceUtil::setEnableTracing(tracingEnabled);
 }
 } // namespace skia
 } // namespace renderengine

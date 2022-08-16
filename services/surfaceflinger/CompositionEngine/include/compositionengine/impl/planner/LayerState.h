@@ -16,17 +16,20 @@
 
 #pragma once
 
+#include <string>
+
+#include <aidl/android/hardware/graphics/common/BufferUsage.h>
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <android-base/strings.h>
+#include <ftl/flags.h>
+#include <math/HashCombine.h>
+
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
-#include <ftl/Flags.h>
-
-#include <string>
 
 #include "DisplayHardware/Hal.h"
-#include "math/HashCombine.h"
 
 namespace std {
 template <typename T>
@@ -81,13 +84,13 @@ class StateInterface {
 public:
     virtual ~StateInterface() = default;
 
-    virtual Flags<LayerStateField> update(const compositionengine::OutputLayer* layer) = 0;
+    virtual ftl::Flags<LayerStateField> update(const compositionengine::OutputLayer* layer) = 0;
 
     virtual size_t getHash() const = 0;
 
     virtual LayerStateField getField() const = 0;
 
-    virtual Flags<LayerStateField> getFieldIfDifferent(const StateInterface* other) const = 0;
+    virtual ftl::Flags<LayerStateField> getFieldIfDifferent(const StateInterface* other) const = 0;
 
     virtual bool equals(const StateInterface* other) const = 0;
 
@@ -149,12 +152,12 @@ public:
     ~OutputLayerState() override = default;
 
     // Returns this member's field flag if it was changed
-    Flags<LayerStateField> update(const compositionengine::OutputLayer* layer) override {
+    ftl::Flags<LayerStateField> update(const compositionengine::OutputLayer* layer) override {
         T newValue = mReader(layer);
         return update(newValue);
     }
 
-    Flags<LayerStateField> update(const T& newValue) {
+    ftl::Flags<LayerStateField> update(const T& newValue) {
         if (!mEquals(mValue, newValue)) {
             mValue = newValue;
             mHash = {};
@@ -173,14 +176,14 @@ public:
         return *mHash;
     }
 
-    Flags<LayerStateField> getFieldIfDifferent(const StateInterface* other) const override {
+    ftl::Flags<LayerStateField> getFieldIfDifferent(const StateInterface* other) const override {
         if (other->getField() != FIELD) {
             return {};
         }
 
         // The early return ensures that this downcast is sound
         const OutputLayerState* otherState = static_cast<const OutputLayerState*>(other);
-        return *this != *otherState ? FIELD : Flags<LayerStateField>{};
+        return *this != *otherState ? FIELD : ftl::Flags<LayerStateField>{};
     }
 
     bool equals(const StateInterface* other) const override {
@@ -212,7 +215,7 @@ public:
     LayerState(compositionengine::OutputLayer* layer);
 
     // Returns which fields were updated
-    Flags<LayerStateField> update(compositionengine::OutputLayer*);
+    ftl::Flags<LayerStateField> update(compositionengine::OutputLayer*);
 
     // Computes a hash for this LayerState.
     // The hash is only computed from NonUniqueFields, and excludes GraphicBuffers since they are
@@ -221,7 +224,7 @@ public:
 
     // Returns the bit-set of differing fields between this LayerState and another LayerState.
     // This bit-set is based on NonUniqueFields only, and excludes GraphicBuffers.
-    Flags<LayerStateField> getDifferingFields(const LayerState& other) const;
+    ftl::Flags<LayerStateField> getDifferingFields(const LayerState& other) const;
 
     compositionengine::OutputLayer* getOutputLayer() const { return mOutputLayer; }
     int32_t getId() const { return mId.get(); }
@@ -232,7 +235,7 @@ public:
         return mBackgroundBlurRadius.get() > 0 || !mBlurRegions.get().empty();
     }
     int32_t getBackgroundBlurRadius() const { return mBackgroundBlurRadius.get(); }
-    hardware::graphics::composer::hal::Composition getCompositionType() const {
+    aidl::android::hardware::graphics::composer3::Composition getCompositionType() const {
         return mCompositionType.get();
     }
 
@@ -245,6 +248,13 @@ public:
     bool isProtected() const {
         return getOutputLayer()->getLayerFE().getCompositionState()->hasProtectedContent;
     }
+
+    bool hasSolidColorCompositionType() const {
+        return getOutputLayer()->getLayerFE().getCompositionState()->compositionType ==
+                aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR;
+    }
+
+    float getFps() const { return getOutputLayer()->getLayerFE().getCompositionState()->fps; }
 
     void dump(std::string& result) const;
     std::optional<std::string> compare(const LayerState& other) const;
@@ -369,17 +379,18 @@ private:
 
     OutputLayerState<mat4, LayerStateField::ColorTransform> mColorTransform;
 
-    using CompositionTypeState = OutputLayerState<hardware::graphics::composer::hal::Composition,
-                                                  LayerStateField::CompositionType>;
-    CompositionTypeState
-            mCompositionType{[](auto layer) {
-                                 return layer->getState().forceClientComposition
-                                         ? hardware::graphics::composer::hal::Composition::CLIENT
-                                         : layer->getLayerFE()
-                                                   .getCompositionState()
-                                                   ->compositionType;
-                             },
-                             CompositionTypeState::getHalToStrings()};
+    using CompositionTypeState =
+            OutputLayerState<aidl::android::hardware::graphics::composer3::Composition,
+                             LayerStateField::CompositionType>;
+    CompositionTypeState mCompositionType{[](auto layer) {
+                                              return layer->getState().forceClientComposition
+                                                      ? aidl::android::hardware::graphics::
+                                                                composer3::Composition::CLIENT
+                                                      : layer->getLayerFE()
+                                                                .getCompositionState()
+                                                                ->compositionType;
+                                          },
+                                          CompositionTypeState::getHalToStrings()};
 
     OutputLayerState<void*, LayerStateField::SidebandStream>
             mSidebandStream{[](auto layer) {
@@ -391,6 +402,21 @@ private:
                                 return std::vector<std::string>{base::StringPrintf("%p", p)};
                             }};
 
+    static auto constexpr BufferEquals = [](const wp<GraphicBuffer>& lhs,
+                                            const wp<GraphicBuffer>& rhs) -> bool {
+        // Avoid a promotion if the wp<>'s aren't equal
+        if (lhs != rhs) return false;
+
+        // Even if the buffer didn't change, check to see if we need to act as if the buffer changed
+        // anyway. Specifically, look to see if the buffer is FRONT_BUFFER & if so act as if it's
+        // always different
+        using ::aidl::android::hardware::graphics::common::BufferUsage;
+        sp<GraphicBuffer> promotedBuffer = lhs.promote();
+        return !(promotedBuffer &&
+                 ((promotedBuffer->getUsage() & static_cast<int64_t>(BufferUsage::FRONT_BUFFER)) !=
+                  0));
+    };
+
     OutputLayerState<wp<GraphicBuffer>, LayerStateField::Buffer>
             mBuffer{[](auto layer) { return layer->getLayerFE().getCompositionState()->buffer; },
                     [](const wp<GraphicBuffer>& buffer) {
@@ -399,7 +425,14 @@ private:
                                 base::StringPrintf("%p",
                                                    promotedBuffer ? promotedBuffer.get()
                                                                   : nullptr)};
-                    }};
+                    },
+                    BufferEquals};
+
+    // Even if the same buffer is passed to BLAST's setBuffer(), we still increment the frame
+    // number and need to treat it as if the buffer changed. Otherwise we break existing
+    // front-buffer rendering paths (such as egl's EGL_SINGLE_BUFFER).
+    OutputLayerState<uint64_t, LayerStateField::Buffer> mFrameNumber{
+            [](auto layer) { return layer->getLayerFE().getCompositionState()->frameNumber; }};
 
     int64_t mFramesSinceBufferUpdate = 0;
 
@@ -449,7 +482,7 @@ private:
                                       return hash;
                                   }};
 
-    static const constexpr size_t kNumNonUniqueFields = 16;
+    static const constexpr size_t kNumNonUniqueFields = 17;
 
     std::array<StateInterface*, kNumNonUniqueFields> getNonUniqueFields() {
         std::array<const StateInterface*, kNumNonUniqueFields> constFields =
@@ -468,6 +501,7 @@ private:
                 &mAlpha,        &mLayerMetadata,  &mVisibleRegion,        &mOutputDataspace,
                 &mPixelFormat,  &mColorTransform, &mCompositionType,      &mSidebandStream,
                 &mBuffer,       &mSolidColor,     &mBackgroundBlurRadius, &mBlurRegions,
+                &mFrameNumber,
         };
     }
 };

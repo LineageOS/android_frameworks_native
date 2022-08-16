@@ -17,12 +17,12 @@
 #ifndef _UI_INPUTREADER_INPUT_DEVICE_H
 #define _UI_INPUTREADER_INPUT_DEVICE_H
 
-#include <ftl/Flags.h>
+#include <ftl/flags.h>
 #include <input/DisplayViewport.h>
 #include <input/InputDevice.h>
 #include <input/PropertyMap.h>
-#include <stdint.h>
 
+#include <cstdint>
 #include <optional>
 #include <unordered_map>
 #include <vector>
@@ -53,13 +53,16 @@ public:
     inline int32_t getGeneration() const { return mGeneration; }
     inline const std::string getName() const { return mIdentifier.name; }
     inline const std::string getDescriptor() { return mIdentifier.descriptor; }
-    inline Flags<InputDeviceClass> getClasses() const { return mClasses; }
+    inline ftl::Flags<InputDeviceClass> getClasses() const { return mClasses; }
     inline uint32_t getSources() const { return mSources; }
     inline bool hasEventHubDevices() const { return !mDevices.empty(); }
 
     inline bool isExternal() { return mIsExternal; }
     inline std::optional<uint8_t> getAssociatedDisplayPort() const {
         return mAssociatedDisplayPort;
+    }
+    inline std::optional<std::string> getAssociatedDisplayUniqueId() const {
+        return mAssociatedDisplayUniqueId;
     }
     inline std::optional<DisplayViewport> getAssociatedViewport() const {
         return mAssociatedViewport;
@@ -84,6 +87,7 @@ public:
     int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode);
     int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
     int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode);
+    int32_t getKeyCodeForKeyLocation(int32_t locationKeyCode) const;
     bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes, const int32_t* keyCodes,
                                uint8_t* outFlags);
     void vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token);
@@ -156,7 +160,7 @@ private:
     int32_t mControllerNumber;
     InputDeviceIdentifier mIdentifier;
     std::string mAlias;
-    Flags<InputDeviceClass> mClasses;
+    ftl::Flags<InputDeviceClass> mClasses;
 
     // map from eventHubId to device context and mappers
     using MapperVector = std::vector<std::unique_ptr<InputMapper>>;
@@ -216,7 +220,8 @@ private:
     // return the first value returned by a function over every mapper.
     // if all mappers return nullopt, return nullopt.
     template <typename T>
-    inline std::optional<T> first_in_mappers(std::function<std::optional<T>(InputMapper&)> f) {
+    inline std::optional<T> first_in_mappers(
+            std::function<std::optional<T>(InputMapper&)> f) const {
         for (auto& deviceEntry : mDevices) {
             auto& devicePair = deviceEntry.second;
             auto& mappers = devicePair.second;
@@ -245,7 +250,7 @@ public:
     inline int32_t getId() { return mDeviceId; }
     inline int32_t getEventHubId() { return mId; }
 
-    inline Flags<InputDeviceClass> getDeviceClasses() const {
+    inline ftl::Flags<InputDeviceClass> getDeviceClasses() const {
         return mEventHub->getDeviceClasses(mId);
     }
     inline InputDeviceIdentifier getDeviceIdentifier() const {
@@ -312,6 +317,9 @@ public:
     inline int32_t getKeyCodeState(int32_t keyCode) const {
         return mEventHub->getKeyCodeState(mId, keyCode);
     }
+    inline int32_t getKeyCodeForKeyLocation(int32_t locationKeyCode) const {
+        return mEventHub->getKeyCodeForKeyLocation(mId, locationKeyCode);
+    }
     inline int32_t getSwitchState(int32_t sw) const { return mEventHub->getSwitchState(mId, sw); }
     inline status_t getAbsoluteAxisValue(int32_t code, int32_t* outValue) const {
         return mEventHub->getAbsoluteAxisValue(mId, code, outValue);
@@ -323,6 +331,7 @@ public:
     inline bool hasScanCode(int32_t scanCode) const {
         return mEventHub->hasScanCode(mId, scanCode);
     }
+    inline bool hasKeyCode(int32_t keyCode) const { return mEventHub->hasKeyCode(mId, keyCode); }
     inline bool hasLed(int32_t led) const { return mEventHub->hasLed(mId, led); }
     inline void setLedState(int32_t led, bool on) { return mEventHub->setLedState(mId, led, on); }
     inline void getVirtualKeyDefinitions(std::vector<VirtualKeyDefinition>& outVirtualKeys) const {
@@ -379,6 +388,9 @@ public:
     inline bool isExternal() { return mDevice.isExternal(); }
     inline std::optional<uint8_t> getAssociatedDisplayPort() const {
         return mDevice.getAssociatedDisplayPort();
+    }
+    inline std::optional<std::string> getAssociatedDisplayUniqueId() const {
+        return mDevice.getAssociatedDisplayUniqueId();
     }
     inline std::optional<DisplayViewport> getAssociatedViewport() const {
         return mDevice.getAssociatedViewport();

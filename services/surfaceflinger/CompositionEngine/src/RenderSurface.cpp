@@ -28,6 +28,7 @@
 #include <log/log.h>
 #include <renderengine/ExternalTexture.h>
 #include <renderengine/RenderEngine.h>
+#include <renderengine/impl/ExternalTexture.h>
 #include <system/window.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
@@ -127,19 +128,18 @@ status_t RenderSurface::beginFrame(bool mustRecompose) {
 }
 
 void RenderSurface::prepareFrame(bool usesClientComposition, bool usesDeviceComposition) {
-    DisplaySurface::CompositionType compositionType;
-    if (usesClientComposition && usesDeviceComposition) {
-        compositionType = DisplaySurface::COMPOSITION_MIXED;
-    } else if (usesClientComposition) {
-        compositionType = DisplaySurface::COMPOSITION_GPU;
-    } else if (usesDeviceComposition) {
-        compositionType = DisplaySurface::COMPOSITION_HWC;
-    } else {
+    const auto compositionType = [=] {
+        using CompositionType = DisplaySurface::CompositionType;
+
+        if (usesClientComposition && usesDeviceComposition) return CompositionType::Mixed;
+        if (usesClientComposition) return CompositionType::Gpu;
+        if (usesDeviceComposition) return CompositionType::Hwc;
+
         // Nothing to do -- when turning the screen off we get a frame like
         // this. Call it a HWC frame since we won't be doing any GPU work but
         // will do a prepare/set cycle.
-        compositionType = DisplaySurface::COMPOSITION_HWC;
-    }
+        return CompositionType::Hwc;
+    }();
 
     if (status_t result = mDisplaySurface->prepareFrame(compositionType); result != NO_ERROR) {
         ALOGE("updateCompositionType failed for %s: %d (%s)", mDisplay.getName().c_str(), result,
@@ -183,9 +183,10 @@ std::shared_ptr<renderengine::ExternalTexture> RenderSurface::dequeueBuffer(
         mTexture = texture;
     } else {
         mTexture = std::make_shared<
-                renderengine::ExternalTexture>(GraphicBuffer::from(buffer),
-                                               mCompositionEngine.getRenderEngine(),
-                                               renderengine::ExternalTexture::Usage::WRITEABLE);
+                renderengine::impl::ExternalTexture>(GraphicBuffer::from(buffer),
+                                                     mCompositionEngine.getRenderEngine(),
+                                                     renderengine::impl::ExternalTexture::Usage::
+                                                             WRITEABLE);
     }
     mTextureCache.push_back(mTexture);
     if (mTextureCache.size() > mMaxTextureCacheSize) {
@@ -286,6 +287,10 @@ void RenderSurface::setSizeForTest(const ui::Size& size) {
 
 std::shared_ptr<renderengine::ExternalTexture>& RenderSurface::mutableTextureForTest() {
     return mTexture;
+}
+
+bool RenderSurface::supportsCompositionStrategyPrediction() const {
+    return mDisplaySurface->supportsCompositionStrategyPrediction();
 }
 
 } // namespace impl

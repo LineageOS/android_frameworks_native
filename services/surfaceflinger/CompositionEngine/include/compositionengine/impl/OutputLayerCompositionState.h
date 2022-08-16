@@ -35,6 +35,8 @@
 
 #include "DisplayHardware/ComposerHal.h"
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
@@ -88,6 +90,10 @@ struct OutputLayerCompositionState {
     // The dataspace for this layer
     ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
 
+    // A hint to the HWC that this region is transparent and may be skipped in
+    // order to save power.
+    Region outputSpaceBlockingRegionHint;
+
     // Overrides the buffer, acquire fence, and display frame stored in LayerFECompositionState
     struct {
         std::shared_ptr<renderengine::ExternalTexture> buffer = nullptr;
@@ -123,8 +129,8 @@ struct OutputLayerCompositionState {
         std::shared_ptr<HWC2::Layer> hwcLayer;
 
         // The most recently set HWC composition type for this layer
-        Hwc2::IComposerClient::Composition hwcCompositionType{
-                Hwc2::IComposerClient::Composition::INVALID};
+        aidl::android::hardware::graphics::composer3::Composition hwcCompositionType{
+                aidl::android::hardware::graphics::composer3::Composition::INVALID};
 
         // The buffer cache for this layer. This is used to lower the
         // cost of sending reused buffers to the HWC.
@@ -146,6 +152,12 @@ struct OutputLayerCompositionState {
 
     // Timestamp for when the layer is queued for client composition
     nsecs_t clientCompositionTimestamp{0};
+
+    static constexpr float kDefaultWhitePointNits = 200.f;
+    float whitePointNits = kDefaultWhitePointNits;
+    // Dimming ratio of the layer from [0, 1]
+    static constexpr float kDefaultDimmingRatio = 1.f;
+    float dimmingRatio = kDefaultDimmingRatio;
 };
 
 } // namespace compositionengine::impl

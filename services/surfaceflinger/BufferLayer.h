@@ -62,6 +62,7 @@ public:
     void useEmptyDamage() override;
 
     bool isOpaque(const Layer::State& s) const override;
+    bool canReceiveInput() const override;
 
     // isVisible - true if this layer is visible, false otherwise
     bool isVisible() const override;
@@ -77,7 +78,7 @@ public:
 
     bool isHdrY410() const override;
 
-    bool onPostComposition(const DisplayDevice*, const std::shared_ptr<FenceTime>& glDoneFence,
+    void onPostComposition(const DisplayDevice*, const std::shared_ptr<FenceTime>& glDoneFence,
                            const std::shared_ptr<FenceTime>& presentFence,
                            const CompositorTiming&) override;
 
@@ -87,9 +88,6 @@ public:
     // to figure out if the content or size of a surface has changed.
     bool latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
                      nsecs_t expectedPresentTime) override;
-
-    bool isBufferLatched() const override { return mRefreshPending; }
-
     bool hasReadyFrame() const override;
 
     // Returns the current scaling mode
@@ -110,6 +108,7 @@ public:
     ui::Dataspace getDataSpace() const override;
 
     sp<GraphicBuffer> getBuffer() const override;
+    const std::shared_ptr<renderengine::ExternalTexture>& getExternalTexture() const override;
 
     ui::Transform::RotationFlags getTransformHint() const override { return mTransformHint; }
 
@@ -152,19 +151,14 @@ protected:
     bool onPreComposition(nsecs_t) override;
     void preparePerFrameCompositionState() override;
 
-    static bool getOpacityForFormat(uint32_t format);
+    static bool getOpacityForFormat(PixelFormat format);
 
     // from graphics API
     const uint32_t mTextureName;
-
-    bool mRefreshPending{false};
-
     ui::Dataspace translateDataspace(ui::Dataspace dataspace);
     void setInitialValuesForClone(const sp<Layer>& clonedFrom);
     void updateCloneBufferInfo() override;
     uint64_t mPreviousFrameNumber = 0;
-
-    uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const override;
 
     void setTransformHint(ui::Transform::RotationFlags displayTransformHint) override;
 
@@ -172,7 +166,7 @@ protected:
     // the mStateLock.
     ui::Transform::RotationFlags mTransformHint = ui::Transform::ROT_0;
 
-    bool getAutoRefresh() const { return mAutoRefresh; }
+    bool getAutoRefresh() const { return mDrawingState.autoRefresh; }
     bool getSidebandStreamChanged() const { return mSidebandStreamChanged; }
 
     // Returns true if the next buffer should be presented at the expected present time
@@ -183,14 +177,11 @@ protected:
     // specific logic
     virtual bool isBufferDue(nsecs_t /*expectedPresentTime*/) const = 0;
 
-    std::atomic<bool> mAutoRefresh{false};
     std::atomic<bool> mSidebandStreamChanged{false};
 
 private:
     virtual bool fenceHasSignaled() const = 0;
     virtual bool framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const = 0;
-    virtual uint64_t getFrameNumber(nsecs_t expectedPresentTime) const = 0;
-
 
     // Latch sideband stream and returns true if the dirty region should be updated.
     virtual bool latchSidebandStream(bool& recomputeVisibleRegions) = 0;
@@ -201,7 +192,7 @@ private:
                                     nsecs_t expectedPresentTime) = 0;
 
     virtual status_t updateActiveBuffer() = 0;
-    virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
+    virtual status_t updateFrameNumber() = 0;
 
     // We generate InputWindowHandles for all non-cursor buffered layers regardless of whether they
     // have an InputChannel. This is to enable the InputDispatcher to do PID based occlusion

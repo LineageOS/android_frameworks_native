@@ -31,7 +31,7 @@ cc_library_static {
     target: {
         darwin: {
             enabled: false,
-        }
+        },
     },
 
     shared_libs: [
@@ -46,6 +46,11 @@ cc_library_static {
         "-Werror",
     ],
     min_sdk_version: "29",
+    // static link, so it won't straddle a module boundary at runtime.
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media.swcodec",
+    ],
 }
 
 hidl_package_root {

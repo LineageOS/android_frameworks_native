@@ -126,7 +126,7 @@ int DisplayEventDispatcher::handleEvent(int, int events, void*) {
         ALOGV("dispatcher %p ~ Vsync pulse: timestamp=%" PRId64
               ", displayId=%s, count=%d, vsyncId=%" PRId64,
               this, ns2ms(vsyncTimestamp), to_string(vsyncDisplayId).c_str(), vsyncCount,
-              vsyncEventData.id);
+              vsyncEventData.preferredVsyncId());
         mWaitingForVsync = false;
         mLastVsyncCount = vsyncCount;
         dispatchVsync(vsyncTimestamp, vsyncDisplayId, vsyncCount, vsyncEventData);
@@ -166,9 +166,7 @@ bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
                     *outTimestamp = ev.header.timestamp;
                     *outDisplayId = ev.header.displayId;
                     *outCount = ev.vsync.count;
-                    outVsyncEventData->id = ev.vsync.vsyncId;
-                    outVsyncEventData->deadlineTimestamp = ev.vsync.deadlineTimestamp;
-                    outVsyncEventData->frameInterval = ev.vsync.frameInterval;
+                    *outVsyncEventData = ev.vsync.vsyncData;
                     break;
                 case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
                     dispatchHotplug(ev.header.timestamp, ev.header.displayId, ev.hotplug.connected);
@@ -197,6 +195,11 @@ bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
         ALOGW("Failed to get events from display event dispatcher, status=%d", status_t(n));
     }
     return gotVsync;
+}
+
+status_t DisplayEventDispatcher::getLatestVsyncEventData(
+        ParcelableVsyncEventData* outVsyncEventData) const {
+    return mReceiver.getLatestVsyncEventData(outVsyncEventData);
 }
 
 } // namespace android

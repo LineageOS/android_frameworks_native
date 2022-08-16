@@ -61,6 +61,38 @@ TEST(SizeTest, BasicLessThanComparison) {
     EXPECT_FALSE(Size(1, 1) < Size(1, 1));
 }
 
+TEST(SizeTest, Transpose) {
+    Size s(123, 456);
+    s.transpose();
+    EXPECT_EQ(s, Size(456, 123));
+}
+
+TEST(SizeTest, Rotate) {
+    {
+        Size s(123, 456);
+        s.rotate(Rotation::Rotation0);
+        EXPECT_EQ(s, Size(123, 456));
+    }
+
+    {
+        Size s(123, 456);
+        s.rotate(Rotation::Rotation90);
+        EXPECT_EQ(s, Size(456, 123));
+    }
+
+    {
+        Size s(123, 456);
+        s.rotate(Rotation::Rotation180);
+        EXPECT_EQ(s, Size(123, 456));
+    }
+
+    {
+        Size s(123, 456);
+        s.rotate(Rotation::Rotation270);
+        EXPECT_EQ(s, Size(456, 123));
+    }
+}
+
 TEST(SizeTest, ValidAndEmpty) {
     {
         Size s;
@@ -93,9 +125,8 @@ TEST(SizeTest, ValidAndEmpty) {
     }
 
     {
-        const auto& s = Size::INVALID;
-        EXPECT_FALSE(s.isValid());
-        EXPECT_FALSE(s.isEmpty());
+        EXPECT_FALSE(kInvalidSize.isValid());
+        EXPECT_FALSE(kInvalidSize.isEmpty());
     }
 
     {
@@ -112,9 +143,8 @@ TEST(SizeTest, ValidAndEmpty) {
     }
 
     {
-        const auto& s = Size::EMPTY;
-        EXPECT_TRUE(s.isValid());
-        EXPECT_TRUE(s.isEmpty());
+        EXPECT_TRUE(kEmptySize.isValid());
+        EXPECT_TRUE(kEmptySize.isEmpty());
     }
 
     {

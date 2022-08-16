@@ -31,7 +31,7 @@ RotaryEncoderInputMapper::RotaryEncoderInputMapper(InputDeviceContext& deviceCon
 
 RotaryEncoderInputMapper::~RotaryEncoderInputMapper() {}
 
-uint32_t RotaryEncoderInputMapper::getSources() {
+uint32_t RotaryEncoderInputMapper::getSources() const {
     return mSource;
 }
 
@@ -127,7 +127,7 @@ void RotaryEncoderInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                     AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                     &pointerCoords, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                     AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {});
-        getListener()->notifyMotion(&scrollArgs);
+        getListener().notifyMotion(&scrollArgs);
     }
 
     mRotaryEncoderScrollAccumulator.finishSync();

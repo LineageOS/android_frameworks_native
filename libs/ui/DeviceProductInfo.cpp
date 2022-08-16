@@ -57,7 +57,7 @@ status_t DeviceProductInfo::unflatten(void const* buffer, size_t size) {
 }
 
 void DeviceProductInfo::dump(std::string& result) const {
-    StringAppendF(&result, "{name=%s, ", name.c_str());
+    StringAppendF(&result, "{name=\"%s\", ", name.c_str());
     StringAppendF(&result, "manufacturerPnpId=%s, ", manufacturerPnpId.data());
     StringAppendF(&result, "productId=%s, ", productId.c_str());
 

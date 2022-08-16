@@ -27,28 +27,40 @@ cc_test {
     name: "Region_test",
     shared_libs: ["libui"],
     srcs: ["Region_test.cpp"],
-    cflags: ["-Wall", "-Werror"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 }
 
 cc_test {
     name: "colorspace_test",
     shared_libs: ["libui"],
     srcs: ["colorspace_test.cpp"],
-    cflags: ["-Wall", "-Werror"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 }
 
 cc_test {
     name: "DisplayId_test",
     shared_libs: ["libui"],
     srcs: ["DisplayId_test.cpp"],
-    cflags: ["-Wall", "-Werror"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 }
 
 cc_test {
     name: "FlattenableHelpers_test",
     shared_libs: ["libui"],
     srcs: ["FlattenableHelpers_test.cpp"],
-    cflags: ["-Wall", "-Werror"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 }
 
 cc_test {
@@ -68,7 +80,10 @@ cc_test {
         "GraphicBufferAllocator_test.cpp",
         "mock/MockGrallocAllocator.cpp",
     ],
-    cflags: ["-Wall", "-Werror"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 }
 
 cc_test {
@@ -83,14 +98,20 @@ cc_test {
         "libutils",
     ],
     srcs: ["GraphicBuffer_test.cpp"],
-    cflags: ["-Wall", "-Werror"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 }
 
 // This test has a main method, and requires a separate binary to be built.
 cc_test {
     name: "GraphicBufferOverBinder_test",
     srcs: ["GraphicBufferOverBinder_test.cpp"],
-    cflags: ["-Wall", "-Werror"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
     shared_libs: [
         "libbinder",
         "liblog",
@@ -104,7 +125,10 @@ cc_test {
     test_suites: ["device-tests"],
     shared_libs: ["libui"],
     srcs: ["Rect_test.cpp"],
-    cflags: ["-Wall", "-Werror"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 }
 
 cc_test {
@@ -112,5 +136,39 @@ cc_test {
     test_suites: ["device-tests"],
     shared_libs: ["libui"],
     srcs: ["Size_test.cpp"],
-    cflags: ["-Wall", "-Werror"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
+
+cc_test {
+    name: "MockFence_test",
+    shared_libs: ["libui"],
+    static_libs: ["libgmock"],
+    srcs: ["MockFence_test.cpp"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
+
+cc_test {
+    name: "Transform_test",
+    shared_libs: ["libui"],
+    srcs: ["Transform_test.cpp"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
+
+cc_test {
+    name: "DataspaceUtils_test",
+    shared_libs: ["libui"],
+    srcs: ["DataspaceUtils_test.cpp"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 }

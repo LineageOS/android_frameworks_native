@@ -26,23 +26,7 @@
 namespace android {
 namespace renderengine {
 
-std::unique_ptr<RenderEngine> RenderEngine::create(RenderEngineCreationArgs args) {
-    // Keep the ability to override by PROPERTIES:
-    char prop[PROPERTY_VALUE_MAX];
-    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "");
-    if (strcmp(prop, "gles") == 0) {
-        args.renderEngineType = RenderEngineType::GLES;
-    }
-    if (strcmp(prop, "threaded") == 0) {
-        args.renderEngineType = RenderEngineType::THREADED;
-    }
-    if (strcmp(prop, "skiagl") == 0) {
-        args.renderEngineType = RenderEngineType::SKIA_GL;
-    }
-    if (strcmp(prop, "skiaglthreaded") == 0) {
-        args.renderEngineType = RenderEngineType::SKIA_GL_THREADED;
-    }
-
+std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArgs& args) {
     switch (args.renderEngineType) {
         case RenderEngineType::THREADED:
             ALOGD("Threaded RenderEngine with GLES Backend");
@@ -77,6 +61,17 @@ void RenderEngine::validateInputBufferUsage(const sp<GraphicBuffer>& buffer) {
 void RenderEngine::validateOutputBufferUsage(const sp<GraphicBuffer>& buffer) {
     LOG_ALWAYS_FATAL_IF(!(buffer->getUsage() & GraphicBuffer::USAGE_HW_RENDER),
                         "output buffer not gpu writeable");
+}
+
+std::future<RenderEngineResult> RenderEngine::drawLayers(
+        const DisplaySettings& display, const std::vector<LayerSettings>& layers,
+        const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
+        base::unique_fd&& bufferFence) {
+    const auto resultPromise = std::make_shared<std::promise<RenderEngineResult>>();
+    std::future<RenderEngineResult> resultFuture = resultPromise->get_future();
+    drawLayersInternal(std::move(resultPromise), display, layers, buffer, useFramebufferCache,
+                       std::move(bufferFence));
+    return resultFuture;
 }
 
 } // namespace renderengine

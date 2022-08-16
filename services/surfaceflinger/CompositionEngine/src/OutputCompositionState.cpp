@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <ftl/enum.h>
+
 #include <compositionengine/impl/DumpHelpers.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 
@@ -23,20 +25,19 @@ void OutputCompositionState::dump(std::string& out) const {
     out.append("   ");
     dumpVal(out, "isEnabled", isEnabled);
     dumpVal(out, "isSecure", isSecure);
-
-    dumpVal(out, "usesClientComposition", usesClientComposition);
     dumpVal(out, "usesDeviceComposition", usesDeviceComposition);
+
+    out.append("\n   ");
+    dumpVal(out, "usesClientComposition", usesClientComposition);
     dumpVal(out, "flipClientTarget", flipClientTarget);
     dumpVal(out, "reusedClientComposition", reusedClientComposition);
 
-    dumpVal(out, "layerStack", layerStackId);
-    dumpVal(out, "layerStackInternal", layerStackInternal);
-
     out.append("\n   ");
-
+    dumpVal(out, "layerFilter", layerFilter);
+    out.append("\n   ");
     dumpVal(out, "transform", transform);
 
-    out.append("\n   ");
+    out.append("   "); // ui::Transform::dump appends EOL.
     dumpVal(out, "layerStackSpace", to_string(layerStackSpace));
     out.append("\n   ");
     dumpVal(out, "framebufferSpace", to_string(framebufferSpace));
@@ -48,14 +49,27 @@ void OutputCompositionState::dump(std::string& out) const {
     dumpVal(out, "needsFiltering", needsFiltering);
 
     out.append("\n   ");
-
     dumpVal(out, "colorMode", toString(colorMode), colorMode);
     dumpVal(out, "renderIntent", toString(renderIntent), renderIntent);
     dumpVal(out, "dataspace", toString(dataspace), dataspace);
-    dumpVal(out, "colorTransformMatrix", colorTransformMatrix);
-    dumpVal(out, "target dataspace", toString(targetDataspace), targetDataspace);
+    dumpVal(out, "targetDataspace", toString(targetDataspace), targetDataspace);
 
-    out.append("\n");
+    out.append("\n   ");
+    dumpVal(out, "colorTransformMatrix", colorTransformMatrix);
+
+    out.append("\n   ");
+    dumpVal(out, "displayBrightnessNits", displayBrightnessNits);
+    dumpVal(out, "sdrWhitePointNits", sdrWhitePointNits);
+    dumpVal(out, "clientTargetBrightness", clientTargetBrightness);
+    dumpVal(out, "displayBrightness", displayBrightness);
+
+    out.append("\n   ");
+    dumpVal(out, "compositionStrategyPredictionState", ftl::enum_string(strategyPrediction));
+
+    out.append("\n   ");
+    dumpVal(out, "treate170mAsSrgb", treat170mAsSrgb);
+
+    out += '\n';
 }
 
 } // namespace android::compositionengine::impl

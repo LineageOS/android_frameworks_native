@@ -28,23 +28,30 @@
 #include "mock/MockVSyncTracker.h"
 #include "mock/MockVsyncController.h"
 
-namespace android {
+namespace android::scheduler {
 
-class TestableScheduler : public Scheduler {
+class TestableScheduler : public Scheduler, private ICompositor {
 public:
-    TestableScheduler(const std::shared_ptr<scheduler::RefreshRateConfigs>& refreshRateConfigs,
-                      ISchedulerCallback& callback)
+    TestableScheduler(std::shared_ptr<RefreshRateConfigs> configs, ISchedulerCallback& callback)
           : TestableScheduler(std::make_unique<mock::VsyncController>(),
-                              std::make_unique<mock::VSyncTracker>(), refreshRateConfigs,
+                              std::make_unique<mock::VSyncTracker>(), std::move(configs),
                               callback) {}
 
-    TestableScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
-                      std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
-                      const std::shared_ptr<scheduler::RefreshRateConfigs>& refreshRateConfigs,
-                      ISchedulerCallback& callback)
-          : Scheduler({std::move(vsyncController), std::move(vsyncTracker), nullptr},
-                      refreshRateConfigs, callback, createLayerHistory(),
-                      {.useContentDetection = true}) {}
+    TestableScheduler(std::unique_ptr<VsyncController> controller,
+                      std::unique_ptr<VSyncTracker> tracker,
+                      std::shared_ptr<RefreshRateConfigs> configs, ISchedulerCallback& callback)
+          : Scheduler(*this, callback, Feature::kContentDetection) {
+        mVsyncSchedule.emplace(VsyncSchedule(std::move(tracker), nullptr, std::move(controller)));
+        setRefreshRateConfigs(std::move(configs));
+
+        ON_CALL(*this, postMessage).WillByDefault([](sp<MessageHandler>&& handler) {
+            // Execute task to prevent broken promise exception on destruction.
+            handler->handleMessage(Message());
+        });
+    }
+
+    MOCK_METHOD(void, scheduleFrame, (), (override));
+    MOCK_METHOD(void, postMessage, (sp<MessageHandler>&&), (override));
 
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
@@ -58,20 +65,16 @@ public:
     auto& mutablePrimaryHWVsyncEnabled() { return mPrimaryHWVsyncEnabled; }
     auto& mutableHWVsyncAvailable() { return mHWVsyncAvailable; }
 
-    bool hasLayerHistory() const { return static_cast<bool>(mLayerHistory); }
-
-    auto* mutableLayerHistory() { return mLayerHistory.get(); }
+    auto& mutableLayerHistory() { return mLayerHistory; }
 
     size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {
-        if (!mLayerHistory) return 0;
-        return mutableLayerHistory()->mLayerInfos.size();
+        return mLayerHistory.mActiveLayerInfos.size() + mLayerHistory.mInactiveLayerInfos.size();
     }
 
     auto refreshRateConfigs() { return holdRefreshRateConfigs(); }
 
     size_t getNumActiveLayers() NO_THREAD_SAFETY_ANALYSIS {
-        if (!mLayerHistory) return 0;
-        return mutableLayerHistory()->mActiveLayersEnd;
+        return mLayerHistory.mActiveLayerInfos.size();
     }
 
     void replaceTouchTimer(int64_t millis) {
@@ -86,32 +89,29 @@ public:
     }
 
     bool isTouchActive() {
-        std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        return mFeatures.touch == Scheduler::TouchState::Active;
+        std::lock_guard<std::mutex> lock(mPolicyLock);
+        return mPolicy.touch == Scheduler::TouchState::Active;
     }
 
     void dispatchCachedReportedMode() {
-        std::lock_guard<std::mutex> lock(mFeatureStateLock);
+        std::lock_guard<std::mutex> lock(mPolicyLock);
         return Scheduler::dispatchCachedReportedMode();
     }
 
-    void clearOptionalFieldsInFeatures() {
-        std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        mFeatures.cachedModeChangedParams.reset();
+    void clearCachedReportedMode() {
+        std::lock_guard<std::mutex> lock(mPolicyLock);
+        mPolicy.cachedModeChangedParams.reset();
     }
 
     void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, DisplayModePtr mode) {
         return Scheduler::onNonPrimaryDisplayModeChanged(handle, mode);
     }
 
-    ~TestableScheduler() {
-        // All these pointer and container clears help ensure that GMock does
-        // not report a leaked object, since the Scheduler instance may
-        // still be referenced by something despite our best efforts to destroy
-        // it after each test is done.
-        mVsyncSchedule.controller.reset();
-        mConnections.clear();
-    }
+private:
+    // ICompositor overrides:
+    bool commit(nsecs_t, int64_t, nsecs_t) override { return false; }
+    void composite(nsecs_t, int64_t) override {}
+    void sample() override {}
 };
 
-} // namespace android
+} // namespace android::scheduler

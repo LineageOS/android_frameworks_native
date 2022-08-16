@@ -20,6 +20,9 @@
 #include <android/hardware/graphics/composer/2.4/IComposer.h>
 #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+#include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
+
 #define ERROR_HAS_CHANGES 5
 
 namespace android {
@@ -48,13 +51,10 @@ using V2_4::VsyncPeriodNanos;
 
 using Attribute = IComposerClient::Attribute;
 using BlendMode = IComposerClient::BlendMode;
-using Color = IComposerClient::Color;
-using Composition = IComposerClient::Composition;
 using Connection = IComposerCallback::Connection;
 using ContentType = IComposerClient::ContentType;
 using Capability = IComposer::Capability;
 using ClientTargetProperty = IComposerClient::ClientTargetProperty;
-using DisplayCapability = IComposerClient::DisplayCapability;
 using DisplayRequest = IComposerClient::DisplayRequest;
 using DisplayType = IComposerClient::DisplayType;
 using HWConfigId = V2_1::Config;
@@ -95,20 +95,48 @@ inline std::string to_string(hardware::graphics::composer::hal::Attribute attrib
     }
 }
 
-inline std::string to_string(hardware::graphics::composer::hal::Composition composition) {
+inline std::string to_string(
+        aidl::android::hardware::graphics::composer3::Composition composition) {
     switch (composition) {
-        case hardware::graphics::composer::hal::Composition::INVALID:
+        case aidl::android::hardware::graphics::composer3::Composition::INVALID:
             return "Invalid";
-        case hardware::graphics::composer::hal::Composition::CLIENT:
+        case aidl::android::hardware::graphics::composer3::Composition::CLIENT:
             return "Client";
-        case hardware::graphics::composer::hal::Composition::DEVICE:
+        case aidl::android::hardware::graphics::composer3::Composition::DEVICE:
             return "Device";
-        case hardware::graphics::composer::hal::Composition::SOLID_COLOR:
+        case aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR:
             return "SolidColor";
-        case hardware::graphics::composer::hal::Composition::CURSOR:
+        case aidl::android::hardware::graphics::composer3::Composition::CURSOR:
             return "Cursor";
-        case hardware::graphics::composer::hal::Composition::SIDEBAND:
+        case aidl::android::hardware::graphics::composer3::Composition::SIDEBAND:
             return "Sideband";
+        case aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION:
+            return "DisplayDecoration";
+        default:
+            return "Unknown";
+    }
+}
+
+inline std::string to_string(
+        aidl::android::hardware::graphics::composer3::DisplayCapability displayCapability) {
+    switch (displayCapability) {
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::INVALID:
+            return "Invalid";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::
+                SKIP_CLIENT_COLOR_TRANSFORM:
+            return "SkipColorTransform";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::DOZE:
+            return "Doze";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::BRIGHTNESS:
+            return "Brightness";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::PROTECTED_CONTENTS:
+            return "ProtectedContents";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::AUTO_LOW_LATENCY_MODE:
+            return "AutoLowLatencyMode";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::SUSPEND:
+            return "Suspend";
+        case aidl::android::hardware::graphics::composer3::DisplayCapability::DISPLAY_IDLE_TIMER:
+            return "DisplayIdleTimer";
         default:
             return "Unknown";
     }

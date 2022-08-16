@@ -20,10 +20,9 @@
 
 namespace android::inputdispatcher {
 
-InjectionState::InjectionState(int32_t injectorPid, int32_t injectorUid)
+InjectionState::InjectionState(const std::optional<int32_t>& targetUid)
       : refCount(1),
-        injectorPid(injectorPid),
-        injectorUid(injectorUid),
+        targetUid(targetUid),
         injectionResult(android::os::InputEventInjectionResult::PENDING),
         injectionIsAsync(false),
         pendingForegroundDispatches(0) {}

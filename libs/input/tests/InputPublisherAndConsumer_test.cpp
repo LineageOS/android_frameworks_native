@@ -56,6 +56,7 @@ protected:
     void PublishAndConsumeFocusEvent();
     void PublishAndConsumeCaptureEvent();
     void PublishAndConsumeDragEvent();
+    void PublishAndConsumeTouchModeEvent();
 };
 
 TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
@@ -159,13 +160,14 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     constexpr float yScale = 3;
     constexpr float xOffset = -10;
     constexpr float yOffset = -20;
+    constexpr float rawXScale = 4;
+    constexpr float rawYScale = -5;
+    constexpr float rawXOffset = -11;
+    constexpr float rawYOffset = 42;
     constexpr float xPrecision = 0.25;
     constexpr float yPrecision = 0.5;
     constexpr float xCursorPosition = 1.3;
     constexpr float yCursorPosition = 50.6;
-    constexpr uint32_t displayOrientation = ui::Transform::ROT_0;
-    constexpr int32_t displayWidth = 1000;
-    constexpr int32_t displayHeight = 2000;
     constexpr nsecs_t downTime = 3;
     constexpr size_t pointerCount = 3;
     constexpr nsecs_t eventTime = 4;
@@ -191,12 +193,14 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
 
     ui::Transform transform;
     transform.set({xScale, 0, xOffset, 0, yScale, yOffset, 0, 0, 1});
+    ui::Transform rawTransform;
+    rawTransform.set({rawXScale, 0, rawXOffset, 0, rawYScale, rawYOffset, 0, 0, 1});
     status = mPublisher->publishMotionEvent(seq, eventId, deviceId, source, displayId, hmac, action,
                                             actionButton, flags, edgeFlags, metaState, buttonState,
                                             classification, transform, xPrecision, yPrecision,
-                                            xCursorPosition, yCursorPosition, displayOrientation,
-                                            displayWidth, displayHeight, downTime, eventTime,
-                                            pointerCount, pointerProperties, pointerCoords);
+                                            xCursorPosition, yCursorPosition, rawTransform,
+                                            downTime, eventTime, pointerCount, pointerProperties,
+                                            pointerCoords);
     ASSERT_EQ(OK, status)
             << "publisher publishMotionEvent should return OK";
 
@@ -233,9 +237,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     EXPECT_EQ(yCursorPosition, motionEvent->getRawYCursorPosition());
     EXPECT_EQ(xCursorPosition * xScale + xOffset, motionEvent->getXCursorPosition());
     EXPECT_EQ(yCursorPosition * yScale + yOffset, motionEvent->getYCursorPosition());
-    EXPECT_EQ(displayOrientation, motionEvent->getDisplayOrientation());
-    EXPECT_EQ(displayWidth, motionEvent->getDisplaySize().x);
-    EXPECT_EQ(displayHeight, motionEvent->getDisplaySize().y);
+    EXPECT_EQ(rawTransform, motionEvent->getRawTransform());
     EXPECT_EQ(downTime, motionEvent->getDownTime());
     EXPECT_EQ(eventTime, motionEvent->getEventTime());
     EXPECT_EQ(pointerCount, motionEvent->getPointerCount());
@@ -246,28 +248,24 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
         EXPECT_EQ(pointerProperties[i].id, motionEvent->getPointerId(i));
         EXPECT_EQ(pointerProperties[i].toolType, motionEvent->getToolType(i));
 
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_X),
-                motionEvent->getRawX(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y),
-                motionEvent->getRawY(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_X) * xScale + xOffset,
-                  motionEvent->getX(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y) * yScale + yOffset,
-                  motionEvent->getY(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE),
-                motionEvent->getPressure(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_SIZE),
-                motionEvent->getSize(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR),
-                motionEvent->getTouchMajor(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR),
-                motionEvent->getTouchMinor(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR),
-                motionEvent->getToolMajor(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR),
-                motionEvent->getToolMinor(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION),
-                motionEvent->getOrientation(i));
+        const auto& pc = pointerCoords[i];
+        EXPECT_EQ(pc.getX() * rawXScale + rawXOffset, motionEvent->getRawX(i));
+        EXPECT_EQ(pc.getY() * rawYScale + rawYOffset, motionEvent->getRawY(i));
+        EXPECT_EQ(pc.getX() * xScale + xOffset, motionEvent->getX(i));
+        EXPECT_EQ(pc.getY() * yScale + yOffset, motionEvent->getY(i));
+        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE), motionEvent->getPressure(i));
+        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_SIZE), motionEvent->getSize(i));
+        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR), motionEvent->getTouchMajor(i));
+        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR), motionEvent->getTouchMinor(i));
+        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR), motionEvent->getToolMajor(i));
+        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR), motionEvent->getToolMinor(i));
+
+        // Calculate the orientation after scaling, keeping in mind that an orientation of 0 is
+        // "up", and the positive y direction is "down".
+        const float unscaledOrientation = pc.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
+        const float x = sinf(unscaledOrientation) * xScale;
+        const float y = -cosf(unscaledOrientation) * yScale;
+        EXPECT_EQ(atan2f(x, -y), motionEvent->getOrientation(i));
     }
 
     status = mConsumer->sendFinishedSignal(seq, false);
@@ -292,10 +290,9 @@ void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
     constexpr uint32_t seq = 15;
     int32_t eventId = InputEvent::nextId();
     constexpr bool hasFocus = true;
-    constexpr bool inTouchMode = true;
     const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
-    status = mPublisher->publishFocusEvent(seq, eventId, hasFocus, inTouchMode);
+    status = mPublisher->publishFocusEvent(seq, eventId, hasFocus);
     ASSERT_EQ(OK, status) << "publisher publishFocusEvent should return OK";
 
     uint32_t consumeSeq;
@@ -311,7 +308,6 @@ void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
     EXPECT_EQ(seq, consumeSeq);
     EXPECT_EQ(eventId, focusEvent->getId());
     EXPECT_EQ(hasFocus, focusEvent->getHasFocus());
-    EXPECT_EQ(inTouchMode, focusEvent->getInTouchMode());
 
     status = mConsumer->sendFinishedSignal(seq, true);
     ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
@@ -413,6 +409,46 @@ void InputPublisherAndConsumerTest::PublishAndConsumeDragEvent() {
             << "finished signal's consume time should be greater than publish time";
 }
 
+void InputPublisherAndConsumerTest::PublishAndConsumeTouchModeEvent() {
+    status_t status;
+
+    constexpr uint32_t seq = 15;
+    int32_t eventId = InputEvent::nextId();
+    constexpr bool touchModeEnabled = true;
+    const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
+
+    status = mPublisher->publishTouchModeEvent(seq, eventId, touchModeEnabled);
+    ASSERT_EQ(OK, status) << "publisher publishTouchModeEvent should return OK";
+
+    uint32_t consumeSeq;
+    InputEvent* event;
+    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    ASSERT_EQ(OK, status) << "consumer consume should return OK";
+
+    ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
+    ASSERT_EQ(AINPUT_EVENT_TYPE_TOUCH_MODE, event->getType())
+            << "consumer should have returned a touch mode event";
+
+    const TouchModeEvent& touchModeEvent = static_cast<const TouchModeEvent&>(*event);
+    EXPECT_EQ(seq, consumeSeq);
+    EXPECT_EQ(eventId, touchModeEvent.getId());
+    EXPECT_EQ(touchModeEnabled, touchModeEvent.isInTouchMode());
+
+    status = mConsumer->sendFinishedSignal(seq, true);
+    ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
+
+    Result<InputPublisher::ConsumerResponse> result = mPublisher->receiveConsumerResponse();
+    ASSERT_TRUE(result.ok()) << "receiveConsumerResponse should return OK";
+    ASSERT_TRUE(std::holds_alternative<InputPublisher::Finished>(*result));
+    const InputPublisher::Finished& finish = std::get<InputPublisher::Finished>(*result);
+    ASSERT_EQ(seq, finish.seq)
+            << "receiveConsumerResponse should have returned the original sequence number";
+    ASSERT_TRUE(finish.handled)
+            << "receiveConsumerResponse should have set handled to consumer's reply";
+    ASSERT_GE(finish.consumeTime, publishTime)
+            << "finished signal's consume time should be greater than publish time";
+}
+
 TEST_F(InputPublisherAndConsumerTest, SendTimeline) {
     const int32_t inputEventId = 20;
     std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline;
@@ -449,6 +485,10 @@ TEST_F(InputPublisherAndConsumerTest, PublishDragEvent_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeDragEvent());
 }
 
+TEST_F(InputPublisherAndConsumerTest, PublishTouchModeEvent_EndToEnd) {
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeTouchModeEvent());
+}
+
 TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZero_ReturnsError) {
     status_t status;
     const size_t pointerCount = 1;
@@ -460,12 +500,12 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZer
     }
 
     ui::Transform identityTransform;
-    status = mPublisher->publishMotionEvent(0, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
-                                            0, 0, 0, MotionClassification::NONE, identityTransform,
-                                            0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                            ui::Transform::ROT_0, 0, 0, 0, 0, pointerCount,
-                                            pointerProperties, pointerCoords);
+    status =
+            mPublisher->publishMotionEvent(0, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
+                                           0, 0, 0, MotionClassification::NONE, identityTransform,
+                                           0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                           AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform,
+                                           0, 0, pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
 }
@@ -477,12 +517,12 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountLessTha
     PointerCoords pointerCoords[pointerCount];
 
     ui::Transform identityTransform;
-    status = mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
-                                            0, 0, 0, MotionClassification::NONE, identityTransform,
-                                            0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                            ui::Transform::ROT_0, 0, 0, 0, 0, pointerCount,
-                                            pointerProperties, pointerCoords);
+    status =
+            mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
+                                           0, 0, 0, MotionClassification::NONE, identityTransform,
+                                           0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                           AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform,
+                                           0, 0, pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
 }
@@ -499,12 +539,12 @@ TEST_F(InputPublisherAndConsumerTest,
     }
 
     ui::Transform identityTransform;
-    status = mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
-                                            0, 0, 0, MotionClassification::NONE, identityTransform,
-                                            0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                            ui::Transform::ROT_0, 0, 0, 0, 0, pointerCount,
-                                            pointerProperties, pointerCoords);
+    status =
+            mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
+                                           0, 0, 0, MotionClassification::NONE, identityTransform,
+                                           0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                           AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform,
+                                           0, 0, pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
 }
@@ -520,6 +560,7 @@ TEST_F(InputPublisherAndConsumerTest, PublishMultipleEvents_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeDragEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeTouchModeEvent());
 }
 
 } // namespace android

@@ -18,6 +18,8 @@
 
 #include "MultiTouchInputMapper.h"
 
+#include <android/sysprop/InputProperties.sysprop.h>
+
 namespace android {
 
 // --- Constants ---
@@ -95,13 +97,13 @@ void MultiTouchMotionAccumulator::process(const RawEvent* rawEvent) {
         }
 
         if (mCurrentSlot < 0 || size_t(mCurrentSlot) >= mSlotCount) {
-#if DEBUG_POINTERS
-            if (newSlot) {
-                ALOGW("MultiTouch device emitted invalid slot index %d but it "
-                      "should be between 0 and %zd; ignoring this slot.",
-                      mCurrentSlot, mSlotCount - 1);
+            if (DEBUG_POINTERS) {
+                if (newSlot) {
+                    ALOGW("MultiTouch device emitted invalid slot index %d but it "
+                          "should be between 0 and %zd; ignoring this slot.",
+                          mCurrentSlot, mSlotCount - 1);
+                }
             }
-#endif
         } else {
             Slot* slot = &mSlots[mCurrentSlot];
             // If mUsingSlotsProtocol is true, it means the raw pointer has axis info of
@@ -273,19 +275,19 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
             if (id) {
                 outState->rawPointerData.canceledIdBits.markBit(id.value());
             }
-#if DEBUG_POINTERS
-            ALOGI("Stop processing slot %zu for it received a palm event from device %s", inIndex,
-                  getDeviceName().c_str());
-#endif
+            if (DEBUG_POINTERS) {
+                ALOGI("Stop processing slot %zu for it received a palm event from device %s",
+                      inIndex, getDeviceName().c_str());
+            }
             continue;
         }
 
         if (outCount >= MAX_POINTERS) {
-#if DEBUG_POINTERS
-            ALOGD("MultiTouch device %s emitted more than maximum of %d pointers; "
-                  "ignoring the rest.",
-                  getDeviceName().c_str(), MAX_POINTERS);
-#endif
+            if (DEBUG_POINTERS) {
+                ALOGD("MultiTouch device %s emitted more than maximum of %zu pointers; "
+                      "ignoring the rest.",
+                      getDeviceName().c_str(), MAX_POINTERS);
+            }
             break; // too many fingers!
         }
 
@@ -308,6 +310,10 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
             if (outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
                 outPointer.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
             }
+        }
+        if (shouldSimulateStylusWithTouch() &&
+            outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_FINGER) {
+            outPointer.toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
         }
 
         bool isHovering = mTouchButtonAccumulator.getToolType() != AMOTION_EVENT_TOOL_TYPE_MOUSE &&
@@ -385,7 +391,15 @@ void MultiTouchInputMapper::configureRawPointerAxes() {
 }
 
 bool MultiTouchInputMapper::hasStylus() const {
-    return mMultiTouchMotionAccumulator.hasStylus() || mTouchButtonAccumulator.hasStylus();
+    return mMultiTouchMotionAccumulator.hasStylus() || mTouchButtonAccumulator.hasStylus() ||
+            shouldSimulateStylusWithTouch();
+}
+
+bool MultiTouchInputMapper::shouldSimulateStylusWithTouch() const {
+    static const bool SIMULATE_STYLUS_WITH_TOUCH =
+            sysprop::InputProperties::simulate_stylus_with_touch().value_or(false);
+    return SIMULATE_STYLUS_WITH_TOUCH &&
+            mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN;
 }
 
 } // namespace android

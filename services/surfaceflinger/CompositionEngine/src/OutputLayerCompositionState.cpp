@@ -61,12 +61,17 @@ void OutputLayerCompositionState::dump(std::string& out) const {
     dumpVal(out, "shadowRegion", shadowRegion);
 
     out.append("      ");
+    dumpVal(out, "outputSpaceBlockingRegionHint", outputSpaceBlockingRegionHint);
+
+    out.append("      ");
     dumpVal(out, "forceClientComposition", forceClientComposition);
     dumpVal(out, "clearClientTarget", clearClientTarget);
     dumpVal(out, "displayFrame", displayFrame);
     dumpVal(out, "sourceCrop", sourceCrop);
     dumpVal(out, "bufferTransform", toString(bufferTransform), bufferTransform);
     dumpVal(out, "dataspace", toString(dataspace), dataspace);
+    dumpVal(out, "whitePointNits", whitePointNits);
+    dumpVal(out, "dimmingRatio", dimmingRatio);
     dumpVal(out, "override buffer", overrideInfo.buffer.get());
     dumpVal(out, "override acquire fence", overrideInfo.acquireFence.get());
     dumpVal(out, "override display frame", overrideInfo.displayFrame);

@@ -66,13 +66,13 @@ static void runBenchmark(benchmark::State& state, microseconds delay, R (IPower:
     sp<IPower> hal = waitForVintfService<IPower>();
 
     if (hal == nullptr) {
-        ALOGI("Power HAL not available, skipping test...");
+        ALOGV("Power HAL not available, skipping test...");
         return;
     }
 
     binder::Status ret = (*hal.*fn)(std::forward<Args1>(args1)...);
     if (ret.exceptionCode() == binder::Status::Exception::EX_UNSUPPORTED_OPERATION) {
-        ALOGI("Power HAL does not support this operation, skipping test...");
+        ALOGV("Power HAL does not support this operation, skipping test...");
         return;
     }
 
@@ -93,7 +93,7 @@ static void runSessionBenchmark(benchmark::State& state, R (IPowerHintSession::*
     sp<IPower> pwHal = waitForVintfService<IPower>();
 
     if (pwHal == nullptr) {
-        ALOGI("Power HAL not available, skipping test...");
+        ALOGV("Power HAL not available, skipping test...");
         return;
     }
 
@@ -105,13 +105,13 @@ static void runSessionBenchmark(benchmark::State& state, R (IPowerHintSession::*
     auto status = pwHal->createHintSession(1, 0, threadIds, durationNanos, &hal);
 
     if (hal == nullptr) {
-        ALOGI("Power HAL doesn't support session, skipping test...");
+        ALOGV("Power HAL doesn't support session, skipping test...");
         return;
     }
 
     binder::Status ret = (*hal.*fn)(std::forward<Args1>(args1)...);
     if (ret.exceptionCode() == binder::Status::Exception::EX_UNSUPPORTED_OPERATION) {
-        ALOGI("Power HAL does not support this operation, skipping test...");
+        ALOGV("Power HAL does not support this operation, skipping test...");
         return;
     }
 
@@ -159,13 +159,13 @@ static void BM_PowerHalAidlBenchmarks_createHintSession(benchmark::State& state)
     sp<IPower> hal = waitForVintfService<IPower>();
 
     if (hal == nullptr) {
-        ALOGI("Power HAL not available, skipping test...");
+        ALOGV("Power HAL not available, skipping test...");
         return;
     }
 
     binder::Status ret = hal->createHintSession(tgid, uid, threadIds, durationNanos, &appSession);
     if (ret.exceptionCode() == binder::Status::Exception::EX_UNSUPPORTED_OPERATION) {
-        ALOGI("Power HAL does not support this operation, skipping test...");
+        ALOGV("Power HAL does not support this operation, skipping test...");
         return;
     }
 

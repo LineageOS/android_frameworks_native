@@ -16,6 +16,13 @@
 
 #define LOG_TAG "Gralloc4"
 
+#include <aidl/android/hardware/graphics/allocator/AllocationError.h>
+#include <aidl/android/hardware/graphics/allocator/AllocationResult.h>
+#include <aidl/android/hardware/graphics/common/BufferUsage.h>
+#include <aidlcommonsupport/NativeHandle.h>
+#include <android/binder_enums.h>
+#include <android/binder_manager.h>
+#include <gralloctypes/Gralloc4.h>
 #include <hidl/ServiceManagement.h>
 #include <hwbinder/IPCThreadState.h>
 #include <ui/Gralloc4.h>
@@ -27,16 +34,22 @@
 #include <sync/sync.h>
 #pragma clang diagnostic pop
 
+using aidl::android::hardware::graphics::allocator::AllocationError;
+using aidl::android::hardware::graphics::allocator::AllocationResult;
 using aidl::android::hardware::graphics::common::ExtendableType;
 using aidl::android::hardware::graphics::common::PlaneLayoutComponentType;
 using aidl::android::hardware::graphics::common::StandardMetadataType;
 using android::hardware::hidl_vec;
 using android::hardware::graphics::allocator::V4_0::IAllocator;
 using android::hardware::graphics::common::V1_2::BufferUsage;
+using android::hardware::graphics::common::V1_2::PixelFormat;
 using android::hardware::graphics::mapper::V4_0::BufferDescriptor;
 using android::hardware::graphics::mapper::V4_0::Error;
 using android::hardware::graphics::mapper::V4_0::IMapper;
+using AidlIAllocator = ::aidl::android::hardware::graphics::allocator::IAllocator;
+using AidlBufferUsage = ::aidl::android::hardware::graphics::common::BufferUsage;
 using AidlDataspace = ::aidl::android::hardware::graphics::common::Dataspace;
+using AidlNativeHandle = ::aidl::android::hardware::common::NativeHandle;
 using BufferDump = android::hardware::graphics::mapper::V4_0::IMapper::BufferDump;
 using MetadataDump = android::hardware::graphics::mapper::V4_0::IMapper::MetadataDump;
 using MetadataType = android::hardware::graphics::mapper::V4_0::IMapper::MetadataType;
@@ -48,6 +61,10 @@ namespace android {
 namespace {
 
 static constexpr Error kTransactionError = Error::NO_RESOURCES;
+static const auto kAidlAllocatorServiceName = AidlIAllocator::descriptor + std::string("/default");
+
+// TODO(b/72323293, b/72703005): Remove these invalid bits from callers
+static constexpr uint64_t kRemovedUsageBits = static_cast<uint64_t>((1 << 10) | (1 << 13));
 
 uint64_t getValidUsageBits() {
     static const uint64_t validUsageBits = []() -> uint64_t {
@@ -55,6 +72,17 @@ uint64_t getValidUsageBits() {
         for (const auto bit :
              hardware::hidl_enum_range<hardware::graphics::common::V1_2::BufferUsage>()) {
             bits = bits | bit;
+        }
+        return bits;
+    }();
+    return validUsageBits | kRemovedUsageBits;
+}
+
+uint64_t getValidUsageBits41() {
+    static const uint64_t validUsageBits = []() -> uint64_t {
+        uint64_t bits = 0;
+        for (const auto bit : ndk::enum_range<AidlBufferUsage>{}) {
+            bits |= static_cast<int64_t>(bit);
         }
         return bits;
     }();
@@ -69,9 +97,48 @@ static inline IMapper::Rect sGralloc4Rect(const Rect& rect) {
     outRect.height = rect.height();
     return outRect;
 }
-static inline void sBufferDescriptorInfo(std::string name, uint32_t width, uint32_t height,
-                                         PixelFormat format, uint32_t layerCount, uint64_t usage,
-                                         IMapper::BufferDescriptorInfo* outDescriptorInfo) {
+
+// See if gralloc "4.1" is available.
+static bool hasIAllocatorAidl() {
+    // Avoid re-querying repeatedly for this information;
+    static bool sHasIAllocatorAidl = []() -> bool {
+        if (__builtin_available(android 31, *)) {
+            return AServiceManager_isDeclared(kAidlAllocatorServiceName.c_str());
+        }
+        return false;
+    }();
+    return sHasIAllocatorAidl;
+}
+
+// Determines whether the passed info is compatible with the mapper.
+static status_t validateBufferDescriptorInfo(IMapper::BufferDescriptorInfo* descriptorInfo) {
+    uint64_t validUsageBits = getValidUsageBits();
+    if (hasIAllocatorAidl()) {
+        validUsageBits |= getValidUsageBits41();
+    }
+
+    if (descriptorInfo->usage & ~validUsageBits) {
+        ALOGE("buffer descriptor contains invalid usage bits 0x%" PRIx64,
+              descriptorInfo->usage & ~validUsageBits);
+        return BAD_VALUE;
+    }
+
+    // Combinations that are only allowed with gralloc 4.1.
+    // Previous grallocs must be protected from this.
+    if (!hasIAllocatorAidl() &&
+            descriptorInfo->format != hardware::graphics::common::V1_2::PixelFormat::BLOB &&
+            descriptorInfo->usage & BufferUsage::GPU_DATA_BUFFER) {
+        ALOGE("non-BLOB pixel format with GPU_DATA_BUFFER usage is not supported prior to gralloc 4.1");
+        return BAD_VALUE;
+    }
+
+    return NO_ERROR;
+}
+
+static inline status_t sBufferDescriptorInfo(std::string name, uint32_t width, uint32_t height,
+                                             PixelFormat format, uint32_t layerCount,
+                                             uint64_t usage,
+                                             IMapper::BufferDescriptorInfo* outDescriptorInfo) {
     outDescriptorInfo->name = name;
     outDescriptorInfo->width = width;
     outDescriptorInfo->height = height;
@@ -79,6 +146,8 @@ static inline void sBufferDescriptorInfo(std::string name, uint32_t width, uint3
     outDescriptorInfo->format = static_cast<hardware::graphics::common::V1_2::PixelFormat>(format);
     outDescriptorInfo->usage = usage;
     outDescriptorInfo->reservedSize = 0;
+
+    return validateBufferDescriptorInfo(outDescriptorInfo);
 }
 
 } // anonymous namespace
@@ -100,18 +169,6 @@ Gralloc4Mapper::Gralloc4Mapper() {
 
 bool Gralloc4Mapper::isLoaded() const {
     return mMapper != nullptr;
-}
-
-status_t Gralloc4Mapper::validateBufferDescriptorInfo(
-        IMapper::BufferDescriptorInfo* descriptorInfo) const {
-    uint64_t validUsageBits = getValidUsageBits();
-
-    if (descriptorInfo->usage & ~validUsageBits) {
-        ALOGE("buffer descriptor contains invalid usage bits 0x%" PRIx64,
-              descriptorInfo->usage & ~validUsageBits);
-        return BAD_VALUE;
-    }
-    return NO_ERROR;
 }
 
 status_t Gralloc4Mapper::createDescriptor(void* bufferDescriptorInfo,
@@ -166,8 +223,10 @@ status_t Gralloc4Mapper::validateBufferSize(buffer_handle_t bufferHandle, uint32
                                             uint32_t layerCount, uint64_t usage,
                                             uint32_t stride) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
-    sBufferDescriptorInfo("validateBufferSize", width, height, format, layerCount, usage,
-                          &descriptorInfo);
+    if (auto error = sBufferDescriptorInfo("validateBufferSize", width, height, format, layerCount,
+                                           usage, &descriptorInfo) != OK) {
+        return error;
+    }
 
     auto buffer = const_cast<native_handle_t*>(bufferHandle);
     auto ret = mMapper->validateBufferSize(buffer, descriptorInfo, stride);
@@ -386,7 +445,7 @@ int Gralloc4Mapper::unlock(buffer_handle_t bufferHandle) const {
             if (fd >= 0) {
                 releaseFence = fd;
             } else {
-                ALOGD("failed to dup unlock release fence");
+                ALOGW("failed to dup unlock release fence");
                 sync_wait(fenceHandle->data[0], -1);
             }
         }
@@ -407,7 +466,12 @@ status_t Gralloc4Mapper::isSupported(uint32_t width, uint32_t height, PixelForma
                                      uint32_t layerCount, uint64_t usage,
                                      bool* outSupported) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
-    sBufferDescriptorInfo("isSupported", width, height, format, layerCount, usage, &descriptorInfo);
+    if (auto error = sBufferDescriptorInfo("isSupported", width, height, format, layerCount, usage,
+                                           &descriptorInfo) != OK) {
+        // Usage isn't known to the HAL or otherwise failed validation.
+        *outSupported = false;
+        return OK;
+    }
 
     Error error;
     auto ret = mMapper->isSupported(descriptorInfo,
@@ -459,6 +523,37 @@ status_t Gralloc4Mapper::get(buffer_handle_t bufferHandle, const MetadataType& m
     }
 
     return decodeFunction(vec, outMetadata);
+}
+
+template <class T>
+status_t Gralloc4Mapper::set(buffer_handle_t bufferHandle, const MetadataType& metadataType,
+                             const T& metadata, EncodeFunction<T> encodeFunction) const {
+    hidl_vec<uint8_t> encodedMetadata;
+    if (const status_t status = encodeFunction(metadata, &encodedMetadata); status != OK) {
+        ALOGE("Encoding metadata(%s) failed with %d", metadataType.name.c_str(), status);
+        return status;
+    }
+    hidl_vec<uint8_t> vec;
+    auto ret =
+            mMapper->set(const_cast<native_handle_t*>(bufferHandle), metadataType, encodedMetadata);
+
+    const Error error = ret.withDefault(kTransactionError);
+    switch (error) {
+        case Error::BAD_DESCRIPTOR:
+        case Error::BAD_BUFFER:
+        case Error::BAD_VALUE:
+        case Error::NO_RESOURCES:
+            ALOGE("set(%s, %" PRIu64 ", ...) failed with %d", metadataType.name.c_str(),
+                  metadataType.value, error);
+            break;
+        // It is not an error to attempt to set metadata that a particular gralloc implementation
+        // happens to not support.
+        case Error::UNSUPPORTED:
+        case Error::NONE:
+            break;
+    }
+
+    return static_cast<status_t>(error);
 }
 
 status_t Gralloc4Mapper::getBufferId(buffer_handle_t bufferHandle, uint64_t* outBufferId) const {
@@ -610,6 +705,12 @@ status_t Gralloc4Mapper::getDataspace(buffer_handle_t bufferHandle,
     return NO_ERROR;
 }
 
+status_t Gralloc4Mapper::setDataspace(buffer_handle_t bufferHandle, ui::Dataspace dataspace) const {
+    return set(bufferHandle, gralloc4::MetadataType_Dataspace,
+               static_cast<aidl::android::hardware::graphics::common::Dataspace>(dataspace),
+               gralloc4::encodeDataspace);
+}
+
 status_t Gralloc4Mapper::getBlendMode(buffer_handle_t bufferHandle,
                                       ui::BlendMode* outBlendMode) const {
     return get(bufferHandle, gralloc4::MetadataType_BlendMode, gralloc4::decodeBlendMode,
@@ -622,16 +723,45 @@ status_t Gralloc4Mapper::getSmpte2086(buffer_handle_t bufferHandle,
                outSmpte2086);
 }
 
+status_t Gralloc4Mapper::setSmpte2086(buffer_handle_t bufferHandle,
+                                      std::optional<ui::Smpte2086> smpte2086) const {
+    return set(bufferHandle, gralloc4::MetadataType_Smpte2086, smpte2086,
+               gralloc4::encodeSmpte2086);
+}
+
 status_t Gralloc4Mapper::getCta861_3(buffer_handle_t bufferHandle,
                                      std::optional<ui::Cta861_3>* outCta861_3) const {
     return get(bufferHandle, gralloc4::MetadataType_Cta861_3, gralloc4::decodeCta861_3,
                outCta861_3);
 }
 
+status_t Gralloc4Mapper::setCta861_3(buffer_handle_t bufferHandle,
+                                     std::optional<ui::Cta861_3> cta861_3) const {
+    return set(bufferHandle, gralloc4::MetadataType_Cta861_3, cta861_3, gralloc4::encodeCta861_3);
+}
+
 status_t Gralloc4Mapper::getSmpte2094_40(
         buffer_handle_t bufferHandle, std::optional<std::vector<uint8_t>>* outSmpte2094_40) const {
     return get(bufferHandle, gralloc4::MetadataType_Smpte2094_40, gralloc4::decodeSmpte2094_40,
                outSmpte2094_40);
+}
+
+status_t Gralloc4Mapper::setSmpte2094_40(buffer_handle_t bufferHandle,
+                                         std::optional<std::vector<uint8_t>> smpte2094_40) const {
+    return set(bufferHandle, gralloc4::MetadataType_Smpte2094_40, smpte2094_40,
+               gralloc4::encodeSmpte2094_40);
+}
+
+status_t Gralloc4Mapper::getSmpte2094_10(
+        buffer_handle_t bufferHandle, std::optional<std::vector<uint8_t>>* outSmpte2094_10) const {
+    return get(bufferHandle, gralloc4::MetadataType_Smpte2094_10, gralloc4::decodeSmpte2094_10,
+               outSmpte2094_10);
+}
+
+status_t Gralloc4Mapper::setSmpte2094_10(buffer_handle_t bufferHandle,
+                                         std::optional<std::vector<uint8_t>> smpte2094_10) const {
+    return set(bufferHandle, gralloc4::MetadataType_Smpte2094_10, smpte2094_10,
+               gralloc4::encodeSmpte2094_10);
 }
 
 template <class T>
@@ -644,7 +774,10 @@ status_t Gralloc4Mapper::getDefault(uint32_t width, uint32_t height, PixelFormat
     }
 
     IMapper::BufferDescriptorInfo descriptorInfo;
-    sBufferDescriptorInfo("getDefault", width, height, format, layerCount, usage, &descriptorInfo);
+    if (auto error = sBufferDescriptorInfo("getDefault", width, height, format, layerCount, usage,
+                                           &descriptorInfo) != OK) {
+        return error;
+    }
 
     hidl_vec<uint8_t> vec;
     Error error;
@@ -935,9 +1068,10 @@ status_t Gralloc4Mapper::bufferDumpHelper(const BufferDump& bufferDump, std::ost
     }
     double allocationSizeKiB = static_cast<double>(allocationSize) / 1024;
 
-    *outDump << "+ name:" << name << ", id:" << bufferId << ", size:" << allocationSizeKiB
-             << "KiB, w/h:" << width << "x" << height << ", usage: 0x" << std::hex << usage
-             << std::dec << ", req fmt:" << static_cast<int32_t>(pixelFormatRequested)
+    *outDump << "+ name:" << name << ", id:" << bufferId << ", size:" << std::fixed
+             << allocationSizeKiB << "KiB, w/h:" << width << "x" << height << ", usage: 0x"
+             << std::hex << usage << std::dec
+             << ", req fmt:" << static_cast<int32_t>(pixelFormatRequested)
              << ", fourcc/mod:" << pixelFormatFourCC << "/" << pixelFormatModifier
              << ", dataspace: 0x" << std::hex << static_cast<uint32_t>(dataspace) << std::dec
              << ", compressed: ";
@@ -1059,14 +1193,21 @@ std::string Gralloc4Mapper::dumpBuffers(bool less) const {
 
 Gralloc4Allocator::Gralloc4Allocator(const Gralloc4Mapper& mapper) : mMapper(mapper) {
     mAllocator = IAllocator::getService();
-    if (mAllocator == nullptr) {
+    if (__builtin_available(android 31, *)) {
+        if (hasIAllocatorAidl()) {
+            mAidlAllocator = AidlIAllocator::fromBinder(ndk::SpAIBinder(
+                    AServiceManager_waitForService(kAidlAllocatorServiceName.c_str())));
+            ALOGE_IF(!mAidlAllocator, "AIDL IAllocator declared but failed to get service");
+        }
+    }
+    if (mAllocator == nullptr && mAidlAllocator == nullptr) {
         ALOGW("allocator 4.x is not supported");
         return;
     }
 }
 
 bool Gralloc4Allocator::isLoaded() const {
-    return mAllocator != nullptr;
+    return mAllocator != nullptr || mAidlAllocator != nullptr;
 }
 
 std::string Gralloc4Allocator::dumpDebugInfo(bool less) const {
@@ -1078,12 +1219,62 @@ status_t Gralloc4Allocator::allocate(std::string requestorName, uint32_t width, 
                                      uint64_t usage, uint32_t bufferCount, uint32_t* outStride,
                                      buffer_handle_t* outBufferHandles, bool importBuffers) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
-    sBufferDescriptorInfo(requestorName, width, height, format, layerCount, usage, &descriptorInfo);
+    if (auto error = sBufferDescriptorInfo(requestorName, width, height, format, layerCount, usage,
+                                           &descriptorInfo) != OK) {
+        return error;
+    }
 
     BufferDescriptor descriptor;
     status_t error = mMapper.createDescriptor(static_cast<void*>(&descriptorInfo),
                                               static_cast<void*>(&descriptor));
     if (error != NO_ERROR) {
+        return error;
+    }
+
+    if (mAidlAllocator) {
+        AllocationResult result;
+        auto status = mAidlAllocator->allocate(descriptor, bufferCount, &result);
+        if (!status.isOk()) {
+            error = status.getExceptionCode();
+            if (error == EX_SERVICE_SPECIFIC) {
+                error = status.getServiceSpecificError();
+            }
+            if (error == OK) {
+                error = UNKNOWN_ERROR;
+            }
+        } else {
+            if (importBuffers) {
+                for (uint32_t i = 0; i < bufferCount; i++) {
+                    auto handle = makeFromAidl(result.buffers[i]);
+                    error = mMapper.importBuffer(handle, &outBufferHandles[i]);
+                    native_handle_delete(handle);
+                    if (error != NO_ERROR) {
+                        for (uint32_t j = 0; j < i; j++) {
+                            mMapper.freeBuffer(outBufferHandles[j]);
+                            outBufferHandles[j] = nullptr;
+                        }
+                        break;
+                    }
+                }
+            } else {
+                for (uint32_t i = 0; i < bufferCount; i++) {
+                    outBufferHandles[i] = dupFromAidl(result.buffers[i]);
+                    if (!outBufferHandles[i]) {
+                        for (uint32_t j = 0; j < i; j++) {
+                            auto buffer = const_cast<native_handle_t*>(outBufferHandles[j]);
+                            native_handle_close(buffer);
+                            native_handle_delete(buffer);
+                            outBufferHandles[j] = nullptr;
+                        }
+                    }
+                }
+            }
+        }
+        *outStride = result.stride;
+        // Release all the resources held by AllocationResult (specifically any remaining FDs)
+        result = {};
+        // make sure the kernel driver sees BC_FREE_BUFFER and closes the fds now
+        hardware::IPCThreadState::self()->flushCommands();
         return error;
     }
 

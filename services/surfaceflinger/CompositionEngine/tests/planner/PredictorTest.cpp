@@ -24,6 +24,10 @@
 #include <gtest/gtest.h>
 #include <log/log.h>
 
+#include <aidl/android/hardware/graphics/composer3/Composition.h>
+
+using aidl::android::hardware::graphics::composer3::Composition;
+
 namespace android::compositionengine::impl::planner {
 namespace {
 
@@ -69,26 +73,26 @@ struct LayerStackTest : public testing::Test {
 
 TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchSizeDifferences) {
     mock::OutputLayer outputLayerOne;
-    mock::LayerFE layerFEOne;
+    sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne;
     LayerFECompositionState layerFECompositionStateOne;
-    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+    setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
 
     mock::OutputLayer outputLayerTwo;
-    mock::LayerFE layerFETwo;
+    sp<mock::LayerFE> layerFETwo = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateTwo;
     LayerFECompositionState layerFECompositionStateTwo;
-    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+    setupMocksForLayer(outputLayerTwo, *layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);
 
     mock::OutputLayer outputLayerThree;
-    mock::LayerFE layerFEThree;
+    sp<mock::LayerFE> layerFEThree = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateThree;
     LayerFECompositionState layerFECompositionStateThree;
-    setupMocksForLayer(outputLayerThree, layerFEThree, outputLayerCompositionStateThree,
+    setupMocksForLayer(outputLayerThree, *layerFEThree, outputLayerCompositionStateThree,
                        layerFECompositionStateThree);
     LayerState layerStateThree(&outputLayerThree);
 
@@ -100,20 +104,20 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchSizeDifferences) {
 
 TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchDifferentCompositionTypes) {
     mock::OutputLayer outputLayerOne;
-    mock::LayerFE layerFEOne;
+    sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne;
     LayerFECompositionState layerFECompositionStateOne;
-    layerFECompositionStateOne.compositionType = hal::Composition::DEVICE;
-    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+    layerFECompositionStateOne.compositionType = Composition::DEVICE;
+    setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
 
     mock::OutputLayer outputLayerTwo;
-    mock::LayerFE layerFETwo;
+    sp<mock::LayerFE> layerFETwo = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateTwo;
     LayerFECompositionState layerFECompositionStateTwo;
-    layerFECompositionStateTwo.compositionType = hal::Composition::SOLID_COLOR;
-    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+    layerFECompositionStateTwo.compositionType = Composition::SOLID_COLOR;
+    setupMocksForLayer(outputLayerTwo, *layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);
 
@@ -124,22 +128,22 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchDifferentCompositionTypes
 
 TEST_F(LayerStackTest, getApproximateMatch_matchesSingleDifferenceInSingleLayer) {
     mock::OutputLayer outputLayerOne;
-    mock::LayerFE layerFEOne;
+    sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
             .sourceCrop = sFloatRectOne,
     };
     LayerFECompositionState layerFECompositionStateOne;
-    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+    setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
 
     mock::OutputLayer outputLayerTwo;
-    mock::LayerFE layerFETwo;
+    sp<mock::LayerFE> layerFETwo = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateTwo{
             .sourceCrop = sFloatRectTwo,
     };
     LayerFECompositionState layerFECompositionStateTwo;
-    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+    setupMocksForLayer(outputLayerTwo, *layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);
 
@@ -155,22 +159,22 @@ TEST_F(LayerStackTest, getApproximateMatch_matchesSingleDifferenceInSingleLayer)
 
 TEST_F(LayerStackTest, getApproximateMatch_matchesSingleDifferenceInMultiLayerStack) {
     mock::OutputLayer outputLayerOne;
-    mock::LayerFE layerFEOne;
+    sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
             .sourceCrop = sFloatRectOne,
     };
     LayerFECompositionState layerFECompositionStateOne;
-    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+    setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
 
     mock::OutputLayer outputLayerTwo;
-    mock::LayerFE layerFETwo;
+    sp<mock::LayerFE> layerFETwo = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateTwo{
             .sourceCrop = sFloatRectTwo,
     };
     LayerFECompositionState layerFECompositionStateTwo;
-    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+    setupMocksForLayer(outputLayerTwo, *layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);
 
@@ -186,7 +190,7 @@ TEST_F(LayerStackTest, getApproximateMatch_matchesSingleDifferenceInMultiLayerSt
 
 TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchManyDifferences) {
     mock::OutputLayer outputLayerOne;
-    mock::LayerFE layerFEOne;
+    sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
             .visibleRegion = sRegionOne,
             .displayFrame = sRectOne,
@@ -197,12 +201,12 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchManyDifferences) {
     layerFECompositionStateOne.alpha = sAlphaOne;
     layerFECompositionStateOne.colorTransformIsIdentity = true;
     layerFECompositionStateOne.blendMode = hal::BlendMode::NONE;
-    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+    setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
 
     mock::OutputLayer outputLayerTwo;
-    mock::LayerFE layerFETwo;
+    sp<mock::LayerFE> layerFETwo = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateTwo{
             .visibleRegion = sRegionTwo,
             .displayFrame = sRectTwo,
@@ -214,7 +218,7 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchManyDifferences) {
     layerFECompositionStateTwo.colorTransformIsIdentity = false;
     layerFECompositionStateTwo.colorTransform = sMat4One;
     layerFECompositionStateTwo.blendMode = hal::BlendMode::PREMULTIPLIED;
-    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+    setupMocksForLayer(outputLayerTwo, *layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);
 
@@ -226,20 +230,20 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchManyDifferences) {
 TEST_F(LayerStackTest, getApproximateMatch_exactMatchesSameBuffer) {
     sp<GraphicBuffer> buffer = new GraphicBuffer();
     mock::OutputLayer outputLayerOne;
-    mock::LayerFE layerFEOne;
+    sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne;
     LayerFECompositionState layerFECompositionStateOne;
     layerFECompositionStateOne.buffer = buffer;
-    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+    setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
 
     mock::OutputLayer outputLayerTwo;
-    mock::LayerFE layerFETwo;
+    sp<mock::LayerFE> layerFETwo = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateTwo;
     LayerFECompositionState layerFECompositionStateTwo;
     layerFECompositionStateTwo.buffer = buffer;
-    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+    setupMocksForLayer(outputLayerTwo, *layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);
 
@@ -255,7 +259,7 @@ TEST_F(LayerStackTest, getApproximateMatch_exactMatchesSameBuffer) {
 
 TEST_F(LayerStackTest, getApproximateMatch_alwaysMatchesClientComposition) {
     mock::OutputLayer outputLayerOne;
-    mock::LayerFE layerFEOne;
+    sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
             .visibleRegion = sRegionOne,
             .forceClientComposition = true,
@@ -267,12 +271,12 @@ TEST_F(LayerStackTest, getApproximateMatch_alwaysMatchesClientComposition) {
     layerFECompositionStateOne.buffer = new GraphicBuffer();
     layerFECompositionStateOne.alpha = sAlphaOne;
     layerFECompositionStateOne.colorTransformIsIdentity = true;
-    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+    setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
 
     mock::OutputLayer outputLayerTwo;
-    mock::LayerFE layerFETwo;
+    sp<mock::LayerFE> layerFETwo = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateTwo{
             .visibleRegion = sRegionTwo,
             .forceClientComposition = true,
@@ -285,7 +289,7 @@ TEST_F(LayerStackTest, getApproximateMatch_alwaysMatchesClientComposition) {
     layerFECompositionStateTwo.alpha = sAlphaTwo;
     layerFECompositionStateTwo.colorTransformIsIdentity = false;
     layerFECompositionStateTwo.colorTransform = sMat4One;
-    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+    setupMocksForLayer(outputLayerTwo, *layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);
 
@@ -301,24 +305,24 @@ TEST_F(LayerStackTest, getApproximateMatch_alwaysMatchesClientComposition) {
 
 TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchMultipleApproximations) {
     mock::OutputLayer outputLayerOne;
-    mock::LayerFE layerFEOne;
+    sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
             .sourceCrop = sFloatRectOne,
     };
     LayerFECompositionState layerFECompositionStateOne;
     layerFECompositionStateOne.buffer = new GraphicBuffer();
-    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+    setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
 
     mock::OutputLayer outputLayerTwo;
-    mock::LayerFE layerFETwo;
+    sp<mock::LayerFE> layerFETwo = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateTwo{
             .sourceCrop = sFloatRectTwo,
     };
     LayerFECompositionState layerFECompositionStateTwo;
     layerFECompositionStateTwo.buffer = new GraphicBuffer();
-    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+    setupMocksForLayer(outputLayerTwo, *layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);
 
@@ -344,22 +348,22 @@ struct PredictionTest : public testing::Test {
 
 TEST_F(LayerStackTest, reorderingChangesNonBufferHash) {
     mock::OutputLayer outputLayerOne;
-    mock::LayerFE layerFEOne;
+    sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
             .sourceCrop = sFloatRectOne,
     };
     LayerFECompositionState layerFECompositionStateOne;
-    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+    setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
 
     mock::OutputLayer outputLayerTwo;
-    mock::LayerFE layerFETwo;
+    sp<mock::LayerFE> layerFETwo = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateTwo{
             .sourceCrop = sFloatRectTwo,
     };
     LayerFECompositionState layerFECompositionStateTwo;
-    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+    setupMocksForLayer(outputLayerTwo, *layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);
 
@@ -370,7 +374,7 @@ TEST_F(LayerStackTest, reorderingChangesNonBufferHash) {
 
 TEST_F(PredictionTest, constructPrediction) {
     Plan plan;
-    plan.addLayerType(hal::Composition::DEVICE);
+    plan.addLayerType(Composition::DEVICE);
 
     Prediction prediction({}, plan);
 
@@ -439,16 +443,16 @@ TEST_F(PredictorTest, getPredictedPlan_emptyLayersWithoutExactMatch_returnsNullo
 
 TEST_F(PredictorTest, getPredictedPlan_recordCandidateAndRetrieveExactMatch) {
     mock::OutputLayer outputLayerOne;
-    mock::LayerFE layerFEOne;
+    sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne;
     LayerFECompositionState layerFECompositionStateOne;
-    layerFECompositionStateOne.compositionType = hal::Composition::DEVICE;
-    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+    layerFECompositionStateOne.compositionType = Composition::DEVICE;
+    setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
 
     Plan plan;
-    plan.addLayerType(hal::Composition::DEVICE);
+    plan.addLayerType(Composition::DEVICE);
 
     Predictor predictor;
 
@@ -464,27 +468,27 @@ TEST_F(PredictorTest, getPredictedPlan_recordCandidateAndRetrieveExactMatch) {
 
 TEST_F(PredictorTest, getPredictedPlan_recordCandidateAndRetrieveApproximateMatch) {
     mock::OutputLayer outputLayerOne;
-    mock::LayerFE layerFEOne;
+    sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
             .sourceCrop = sFloatRectOne,
     };
     LayerFECompositionState layerFECompositionStateOne;
-    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+    setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
 
     mock::OutputLayer outputLayerTwo;
-    mock::LayerFE layerFETwo;
+    sp<mock::LayerFE> layerFETwo = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateTwo{
             .sourceCrop = sFloatRectTwo,
     };
     LayerFECompositionState layerFECompositionStateTwo;
-    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+    setupMocksForLayer(outputLayerTwo, *layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);
 
     Plan plan;
-    plan.addLayerType(hal::Composition::DEVICE);
+    plan.addLayerType(Composition::DEVICE);
 
     Predictor predictor;
 
@@ -501,27 +505,27 @@ TEST_F(PredictorTest, getPredictedPlan_recordCandidateAndRetrieveApproximateMatc
 
 TEST_F(PredictorTest, recordMissedPlan_skipsApproximateMatch) {
     mock::OutputLayer outputLayerOne;
-    mock::LayerFE layerFEOne;
+    sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
             .sourceCrop = sFloatRectOne,
     };
     LayerFECompositionState layerFECompositionStateOne;
-    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+    setupMocksForLayer(outputLayerOne, *layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
 
     mock::OutputLayer outputLayerTwo;
-    mock::LayerFE layerFETwo;
+    sp<mock::LayerFE> layerFETwo = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateTwo{
             .sourceCrop = sFloatRectTwo,
     };
     LayerFECompositionState layerFECompositionStateTwo;
-    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+    setupMocksForLayer(outputLayerTwo, *layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);
 
     Plan plan;
-    plan.addLayerType(hal::Composition::DEVICE);
+    plan.addLayerType(Composition::DEVICE);
 
     Predictor predictor;
 
@@ -535,7 +539,7 @@ TEST_F(PredictorTest, recordMissedPlan_skipsApproximateMatch) {
     EXPECT_EQ(Prediction::Type::Approximate, predictedPlan->type);
 
     Plan planTwo;
-    planTwo.addLayerType(hal::Composition::CLIENT);
+    planTwo.addLayerType(Composition::CLIENT);
     predictor.recordResult(predictedPlan, hashTwo, {&layerStateTwo}, false, planTwo);
     // Now trying to retrieve the predicted plan again returns a nullopt instead.
     // TODO(b/158790260): Even though this is enforced in this test, we might want to reassess this.

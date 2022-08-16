@@ -31,10 +31,8 @@
 #include <stdint.h>
 #include <ui/Transform.h>
 #include <utils/BitSet.h>
-#include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
-#include <utils/Vector.h>
 #include <array>
 #include <limits>
 #include <queue>
@@ -88,7 +86,7 @@ enum {
      */
     AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE = 0x40,
 
-#ifdef __linux__
+#if defined(__linux__)
     /**
      * This event was generated or modified by accessibility service.
      */
@@ -166,7 +164,7 @@ enum {
  * (We want at least 10 but some touch controllers obstensibly configured for 10 pointers
  * will occasionally emit 11.  There is not much harm making this constant bigger.)
  */
-#define MAX_POINTERS 16
+static constexpr size_t MAX_POINTERS = 16;
 
 /*
  * Maximum number of samples supported per motion event.
@@ -201,7 +199,16 @@ namespace android {
 class Parcel;
 #endif
 
+/*
+ * Apply the given transform to the point without applying any translation/offset.
+ */
+vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy);
+
 const char* inputEventTypeToString(int32_t type);
+
+std::string inputEventSourceToString(int32_t source);
+
+bool isFromSource(uint32_t source, uint32_t test);
 
 /*
  * Flags that flow alongside events in the input dispatch system to help with certain
@@ -268,23 +275,21 @@ enum {
 
 /**
  * Classifications of the current gesture, if available.
- *
- * The following values must be kept in sync with MotionEvent.java
  */
 enum class MotionClassification : uint8_t {
     /**
      * No classification is available.
      */
-    NONE = 0,
+    NONE = AMOTION_EVENT_CLASSIFICATION_NONE,
     /**
      * Too early to classify the current gesture. Need more events. Look for changes in the
      * upcoming motion events.
      */
-    AMBIGUOUS_GESTURE = 1,
+    AMBIGUOUS_GESTURE = AMOTION_EVENT_CLASSIFICATION_AMBIGUOUS_GESTURE,
     /**
      * The current gesture likely represents a user intentionally exerting force on the touchscreen.
      */
-    DEEP_PRESS = 2,
+    DEEP_PRESS = AMOTION_EVENT_CLASSIFICATION_DEEP_PRESS,
 };
 
 /**
@@ -369,13 +374,10 @@ struct PointerCoords {
     float getAxisValue(int32_t axis) const;
     status_t setAxisValue(int32_t axis, float value);
 
-    void scale(float globalScale);
-
     // Scale the pointer coordinates according to a global scale and a
     // window scale. The global scale will be applied to TOUCH/TOOL_MAJOR/MINOR
     // axes, however the window scaling will not.
     void scale(float globalScale, float windowXScale, float windowYScale);
-    void applyOffset(float xOffset, float yOffset);
 
     void transform(const ui::Transform& transform);
 
@@ -526,12 +528,16 @@ public:
 
     inline int32_t getAction() const { return mAction; }
 
-    inline int32_t getActionMasked() const { return mAction & AMOTION_EVENT_ACTION_MASK; }
+    static int32_t getActionMasked(int32_t action) { return action & AMOTION_EVENT_ACTION_MASK; }
 
-    inline int32_t getActionIndex() const {
-        return (mAction & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK)
-                >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+    inline int32_t getActionMasked() const { return getActionMasked(mAction); }
+
+    static uint8_t getActionIndex(int32_t action) {
+        return (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >>
+                AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
     }
+
+    inline int32_t getActionIndex() const { return getActionIndex(mAction); }
 
     inline void setAction(int32_t action) { mAction = action; }
 
@@ -561,7 +567,9 @@ public:
 
     inline float getYOffset() const { return mTransform.ty(); }
 
-    inline ui::Transform getTransform() const { return mTransform; }
+    inline const ui::Transform& getTransform() const { return mTransform; }
+
+    int getSurfaceRotation() const;
 
     inline float getXPrecision() const { return mXPrecision; }
 
@@ -577,9 +585,7 @@ public:
 
     void setCursorPosition(float x, float y);
 
-    uint32_t getDisplayOrientation() const { return mDisplayOrientation; }
-
-    int2 getDisplaySize() const { return {mDisplayWidth, mDisplayHeight}; }
+    inline const ui::Transform& getRawTransform() const { return mRawTransform; }
 
     static inline bool isValidCursorPosition(float x, float y) { return !isnan(x) && !isnan(y); }
 
@@ -755,8 +761,8 @@ public:
                     int32_t flags, int32_t edgeFlags, int32_t metaState, int32_t buttonState,
                     MotionClassification classification, const ui::Transform& transform,
                     float xPrecision, float yPrecision, float rawXCursorPosition,
-                    float rawYCursorPosition, uint32_t displayOrientation, int32_t displayWidth,
-                    int32_t displayHeight, nsecs_t downTime, nsecs_t eventTime, size_t pointerCount,
+                    float rawYCursorPosition, const ui::Transform& rawTransform, nsecs_t downTime,
+                    nsecs_t eventTime, size_t pointerCount,
                     const PointerProperties* pointerProperties, const PointerCoords* pointerCoords);
 
     void copyFrom(const MotionEvent* other, bool keepHistory);
@@ -789,17 +795,27 @@ public:
 
     // Low-level accessors.
     inline const PointerProperties* getPointerProperties() const {
-        return mPointerProperties.array();
+        return mPointerProperties.data();
     }
     inline const nsecs_t* getSampleEventTimes() const { return mSampleEventTimes.data(); }
     inline const PointerCoords* getSamplePointerCoords() const {
-            return mSamplePointerCoords.array();
+        return mSamplePointerCoords.data();
     }
 
     static const char* getLabel(int32_t axis);
     static int32_t getAxisFromLabel(const char* label);
 
     static std::string actionToString(int32_t action);
+
+    // MotionEvent will transform various axes in different ways, based on the source. For
+    // example, the x and y axes will not have any offsets/translations applied if it comes from a
+    // relative mouse device (since SOURCE_RELATIVE_MOUSE is a non-pointer source). These methods
+    // are used to apply these transformations for different axes.
+    static vec2 calculateTransformedXY(uint32_t source, const ui::Transform&, const vec2& xy);
+    static float calculateTransformedAxisValue(int32_t axis, uint32_t source, const ui::Transform&,
+                                               const PointerCoords&);
+    static PointerCoords calculateTransformedCoords(uint32_t source, const ui::Transform&,
+                                                    const PointerCoords&);
 
 protected:
     int32_t mAction;
@@ -814,14 +830,14 @@ protected:
     float mYPrecision;
     float mRawXCursorPosition;
     float mRawYCursorPosition;
-    uint32_t mDisplayOrientation;
-    int32_t mDisplayWidth;
-    int32_t mDisplayHeight;
+    ui::Transform mRawTransform;
     nsecs_t mDownTime;
-    Vector<PointerProperties> mPointerProperties;
+    std::vector<PointerProperties> mPointerProperties;
     std::vector<nsecs_t> mSampleEventTimes;
-    Vector<PointerCoords> mSamplePointerCoords;
+    std::vector<PointerCoords> mSamplePointerCoords;
 };
+
+std::ostream& operator<<(std::ostream& out, const MotionEvent& event);
 
 /*
  * Focus events.
@@ -834,15 +850,12 @@ public:
 
     inline bool getHasFocus() const { return mHasFocus; }
 
-    inline bool getInTouchMode() const { return mInTouchMode; }
-
-    void initialize(int32_t id, bool hasFocus, bool inTouchMode);
+    void initialize(int32_t id, bool hasFocus);
 
     void initialize(const FocusEvent& from);
 
 protected:
     bool mHasFocus;
-    bool mInTouchMode;
 };
 
 /*
@@ -888,6 +901,25 @@ protected:
     float mX, mY;
 };
 
+/*
+ * Touch mode events.
+ */
+class TouchModeEvent : public InputEvent {
+public:
+    virtual ~TouchModeEvent() {}
+
+    virtual int32_t getType() const override { return AINPUT_EVENT_TYPE_TOUCH_MODE; }
+
+    inline bool isInTouchMode() const { return mIsInTouchMode; }
+
+    void initialize(int32_t id, bool isInTouchMode);
+
+    void initialize(const TouchModeEvent& from);
+
+protected:
+    bool mIsInTouchMode;
+};
+
 /**
  * Base class for verified events.
  * Do not create a VerifiedInputEvent explicitly.
@@ -912,8 +944,8 @@ struct __attribute__((__packed__)) VerifiedInputEvent {
  */
 struct __attribute__((__packed__)) VerifiedKeyEvent : public VerifiedInputEvent {
     int32_t action;
-    nsecs_t downTimeNanos;
     int32_t flags;
+    nsecs_t downTimeNanos;
     int32_t keyCode;
     int32_t scanCode;
     int32_t metaState;
@@ -928,8 +960,8 @@ struct __attribute__((__packed__)) VerifiedMotionEvent : public VerifiedInputEve
     float rawX;
     float rawY;
     int32_t actionMasked;
-    nsecs_t downTimeNanos;
     int32_t flags;
+    nsecs_t downTimeNanos;
     int32_t metaState;
     int32_t buttonState;
 };
@@ -952,6 +984,7 @@ public:
     virtual FocusEvent* createFocusEvent() = 0;
     virtual CaptureEvent* createCaptureEvent() = 0;
     virtual DragEvent* createDragEvent() = 0;
+    virtual TouchModeEvent* createTouchModeEvent() = 0;
 };
 
 /*
@@ -968,6 +1001,7 @@ public:
     virtual FocusEvent* createFocusEvent() override { return &mFocusEvent; }
     virtual CaptureEvent* createCaptureEvent() override { return &mCaptureEvent; }
     virtual DragEvent* createDragEvent() override { return &mDragEvent; }
+    virtual TouchModeEvent* createTouchModeEvent() override { return &mTouchModeEvent; }
 
 private:
     KeyEvent mKeyEvent;
@@ -975,6 +1009,7 @@ private:
     FocusEvent mFocusEvent;
     CaptureEvent mCaptureEvent;
     DragEvent mDragEvent;
+    TouchModeEvent mTouchModeEvent;
 };
 
 /*
@@ -990,6 +1025,7 @@ public:
     virtual FocusEvent* createFocusEvent() override;
     virtual CaptureEvent* createCaptureEvent() override;
     virtual DragEvent* createDragEvent() override;
+    virtual TouchModeEvent* createTouchModeEvent() override;
 
     void recycle(InputEvent* event);
 
@@ -1001,6 +1037,7 @@ private:
     std::queue<std::unique_ptr<FocusEvent>> mFocusEventPool;
     std::queue<std::unique_ptr<CaptureEvent>> mCaptureEventPool;
     std::queue<std::unique_ptr<DragEvent>> mDragEventPool;
+    std::queue<std::unique_ptr<TouchModeEvent>> mTouchModeEventPool;
 };
 
 /*

@@ -281,6 +281,10 @@ status_t GraphicBufferMapper::getDataspace(buffer_handle_t bufferHandle,
     return mMapper->getDataspace(bufferHandle, outDataspace);
 }
 
+status_t GraphicBufferMapper::setDataspace(buffer_handle_t bufferHandle, ui::Dataspace dataspace) {
+    return mMapper->setDataspace(bufferHandle, dataspace);
+}
+
 status_t GraphicBufferMapper::getBlendMode(buffer_handle_t bufferHandle,
                                            ui::BlendMode* outBlendMode) {
     return mMapper->getBlendMode(bufferHandle, outBlendMode);
@@ -291,14 +295,39 @@ status_t GraphicBufferMapper::getSmpte2086(buffer_handle_t bufferHandle,
     return mMapper->getSmpte2086(bufferHandle, outSmpte2086);
 }
 
+status_t GraphicBufferMapper::setSmpte2086(buffer_handle_t bufferHandle,
+                                           std::optional<ui::Smpte2086> smpte2086) {
+    return mMapper->setSmpte2086(bufferHandle, smpte2086);
+}
+
 status_t GraphicBufferMapper::getCta861_3(buffer_handle_t bufferHandle,
                                           std::optional<ui::Cta861_3>* outCta861_3) {
     return mMapper->getCta861_3(bufferHandle, outCta861_3);
 }
 
+status_t GraphicBufferMapper::setCta861_3(buffer_handle_t bufferHandle,
+                                          std::optional<ui::Cta861_3> cta861_3) {
+    return mMapper->setCta861_3(bufferHandle, cta861_3);
+}
+
 status_t GraphicBufferMapper::getSmpte2094_40(
         buffer_handle_t bufferHandle, std::optional<std::vector<uint8_t>>* outSmpte2094_40) {
     return mMapper->getSmpte2094_40(bufferHandle, outSmpte2094_40);
+}
+
+status_t GraphicBufferMapper::setSmpte2094_40(buffer_handle_t bufferHandle,
+                                              std::optional<std::vector<uint8_t>> smpte2094_40) {
+    return mMapper->setSmpte2094_40(bufferHandle, smpte2094_40);
+}
+
+status_t GraphicBufferMapper::getSmpte2094_10(
+        buffer_handle_t bufferHandle, std::optional<std::vector<uint8_t>>* outSmpte2094_10) {
+    return mMapper->getSmpte2094_10(bufferHandle, outSmpte2094_10);
+}
+
+status_t GraphicBufferMapper::setSmpte2094_10(buffer_handle_t bufferHandle,
+                                              std::optional<std::vector<uint8_t>> smpte2094_10) {
+    return mMapper->setSmpte2094_10(bufferHandle, smpte2094_10);
 }
 
 status_t GraphicBufferMapper::getDefaultPixelFormatFourCC(uint32_t width, uint32_t height,

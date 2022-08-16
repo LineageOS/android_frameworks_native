@@ -213,6 +213,13 @@ enum {
      */
     ASENSOR_TYPE_HEART_BEAT = 31,
     /**
+     * A constant describing a dynamic sensor meta event sensor.
+     *
+     * A sensor event of this type is received when a dynamic sensor is added to or removed from
+     * the system. This sensor type should always use special trigger report mode.
+     */
+    ASENSOR_TYPE_DYNAMIC_SENSOR_META = 32,
+    /**
      * This sensor type is for delivering additional sensor information aside
      * from sensor event data.
      *
@@ -256,6 +263,60 @@ enum {
      * The hinge angle sensor value is returned in degrees.
      */
     ASENSOR_TYPE_HINGE_ANGLE = 36,
+    /**
+     * {@link ASENSOR_TYPE_HEAD_TRACKER}
+     * reporting-mode: continuous
+     *
+     * Measures the orientation and rotational velocity of a user's head. Only for internal use
+     * within the Android system.
+     */
+    ASENSOR_TYPE_HEAD_TRACKER = 37,
+    /**
+     * {@link ASENSOR_TYPE_ACCELEROMETER_LIMITED_AXES}
+     * reporting-mode: continuous
+     *
+     * The first three values are in SI units (m/s^2) and measure the acceleration of the device
+     * minus the force of gravity. The last three values indicate which acceleration axes are
+     * supported. A value of 1.0 means supported and a value of 0 means not supported.
+     */
+    ASENSOR_TYPE_ACCELEROMETER_LIMITED_AXES = 38,
+    /**
+     * {@link ASENSOR_TYPE_GYROSCOPE_LIMITED_AXES}
+     * reporting-mode: continuous
+     *
+     * The first three values are in radians/second and measure the rate of rotation around the X,
+     * Y and Z axis. The last three values indicate which rotation axes are supported. A value of
+     * 1.0 means supported and a value of 0 means not supported.
+     */
+    ASENSOR_TYPE_GYROSCOPE_LIMITED_AXES = 39,
+    /**
+     * {@link ASENSOR_TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED}
+     * reporting-mode: continuous
+     *
+     * The first three values are in SI units (m/s^2) and measure the acceleration of the device
+     * minus the force of gravity. The middle three values represent the estimated bias for each
+     * axis. The last three values indicate which acceleration axes are supported. A value of 1.0
+     * means supported and a value of 0 means not supported.
+     */
+    ASENSOR_TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED = 40,
+    /**
+     * {@link ASENSOR_TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED}
+     * reporting-mode: continuous
+     *
+     * The first three values are in radians/second and measure the rate of rotation around the X,
+     * Y and Z axis. The middle three values represent the estimated drift around each axis in
+     * rad/s. The last three values indicate which rotation axes are supported. A value of 1.0 means
+     * supported and a value of 0 means not supported.
+     */
+    ASENSOR_TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED = 41,
+    /**
+     * {@link ASENSOR_TYPE_HEADING}
+     * reporting-mode: continuous
+     *
+     * A heading sensor measures the direction in which the device is pointing
+     * relative to true north in degrees.
+     */
+    ASENSOR_TYPE_HEADING = 42,
 };
 
 /**
@@ -440,6 +501,101 @@ typedef struct AAdditionalInfoEvent {
     };
 } AAdditionalInfoEvent;
 
+typedef struct AHeadTrackerEvent {
+    /**
+     * The fields rx, ry, rz are an Euler vector (rotation vector, i.e. a vector
+     * whose direction indicates the axis of rotation and magnitude indicates
+     * the angle to rotate around that axis) representing the transform from
+     * the (arbitrary, possibly slowly drifting) reference frame to the
+     * head frame. Expressed in radians. Magnitude of the vector must be
+     * in the range [0, pi], while the value of individual axes are
+     * in the range [-pi, pi].
+     */
+    float rx;
+    float ry;
+    float rz;
+
+    /**
+     * The fields vx, vy, vz are an Euler vector (rotation vector) representing
+     * the angular velocity of the head (relative to itself), in radians per
+     * second. The direction of this vector indicates the axis of rotation, and
+     * the magnitude indicates the rate of rotation.
+     */
+    float vx;
+    float vy;
+    float vz;
+
+    /**
+     * This value changes each time the reference frame is suddenly and
+     * significantly changed, for example if an orientation filter algorithm
+     * used for determining the orientation has had its state reset.
+     */
+    int32_t discontinuity_count;
+} AHeadTrackerEvent;
+
+typedef struct ALimitedAxesImuEvent {
+    union {
+        float calib[3];
+        struct {
+            float x;
+            float y;
+            float z;
+        };
+    };
+    union {
+        float supported[3];
+        struct {
+            float x_supported;
+            float y_supported;
+            float z_supported;
+        };
+    };
+} ALimitedAxesImuEvent;
+
+typedef struct ALimitedAxesImuUncalibratedEvent {
+    union {
+        float uncalib[3];
+        struct {
+            float x_uncalib;
+            float y_uncalib;
+            float z_uncalib;
+        };
+    };
+    union {
+        float bias[3];
+        struct {
+            float x_bias;
+            float y_bias;
+            float z_bias;
+        };
+    };
+    union {
+        float supported[3];
+        struct {
+            float x_supported;
+            float y_supported;
+            float z_supported;
+        };
+    };
+} ALimitedAxesImuUncalibratedEvent;
+
+typedef struct AHeadingEvent {
+    /**
+     * The direction in which the device is pointing relative to true north in
+     * degrees. The value must be between 0.0 (inclusive) and 360.0 (exclusive),
+     * with 0 indicating north, 90 east, 180 south, and 270 west.
+     */
+    float heading;
+    /**
+     * Accuracy is defined at 68% confidence. In the case where the underlying
+     * distribution is assumed Gaussian normal, this would be considered one
+     * standard deviation. For example, if the heading returns 60 degrees, and
+     * accuracy returns 10 degrees, then there is a 68 percent probability of
+     * the true heading being between 50 degrees and 70 degrees.
+     */
+    float accuracy;
+} AHeadingEvent;
+
 /**
  * Information that describes a sensor event, refer to
  * <a href="/reference/android/hardware/SensorEvent">SensorEvent</a> for additional
@@ -476,6 +632,10 @@ typedef struct ASensorEvent {
             AHeartRateEvent heart_rate;
             ADynamicSensorEvent dynamic_sensor_meta;
             AAdditionalInfoEvent additional_info;
+            AHeadTrackerEvent head_tracker;
+            ALimitedAxesImuEvent limited_axes_imu;
+            ALimitedAxesImuUncalibratedEvent limited_axes_imu_uncalibrated;
+            AHeadingEvent heading;
         };
         union {
             uint64_t        data[8];
@@ -591,9 +751,38 @@ ASensorManager* ASensorManager_getInstance() __DEPRECATED_IN(26);
 ASensorManager* ASensorManager_getInstanceForPackage(const char* packageName) __INTRODUCED_IN(26);
 
 /**
- * Returns the list of available sensors.
+ * Returns the list of available sensors. The returned list is owned by the
+ * sensor manager and will not change between calls to this function.
+ *
+ * \param manager the {@link ASensorManager} instance obtained from
+ *                {@link ASensorManager_getInstanceForPackage}.
+ * \param list    the returned list of sensors.
+ * \return positive number of returned sensors or negative error code.
+ *         BAD_VALUE: manager is NULL.
  */
 int ASensorManager_getSensorList(ASensorManager* manager, ASensorList* list);
+
+/**
+ * Returns the list of available dynamic sensors. If there are no dynamic
+ * sensors available, returns nullptr in list.
+ *
+ * Each time this is called, the previously returned list is deallocated and
+ * must no longer be used.
+ *
+ * Clients should call this if they receive a sensor update from
+ * {@link ASENSOR_TYPE_DYNAMIC_SENSOR_META} indicating the sensors have changed.
+ * If this happens, previously received lists from this method will be stale.
+ *
+ * Available since API level 33.
+ *
+ * \param manager the {@link ASensorManager} instance obtained from
+ *                {@link ASensorManager_getInstanceForPackage}.
+ * \param list    the returned list of dynamic sensors.
+ * \return positive number of returned sensors or negative error code.
+ *         BAD_VALUE: manager is NULL.
+ */
+ssize_t ASensorManager_getDynamicSensorList(
+        ASensorManager* manager, ASensorList* list) __INTRODUCED_IN(33);
 
 /**
  * Returns the default sensor for the given type, or NULL if no sensor

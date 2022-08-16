@@ -134,12 +134,15 @@ private:
 
         void verifySurfaceControlStats(const SurfaceControlStats& surfaceControlStats,
                                        nsecs_t latchTime) const {
-            const auto& [surfaceControl, latch, acquireTime, presentFence, previousReleaseFence,
-                         transformHint, frameEvents, ignore] = surfaceControlStats;
+            const auto& [surfaceControl, latch, acquireTimeOrFence, presentFence,
+                         previousReleaseFence, transformHint, frameEvents] = surfaceControlStats;
 
-            ASSERT_EQ(acquireTime > 0, mBufferResult == ExpectedResult::Buffer::ACQUIRED)
+            ASSERT_TRUE(std::holds_alternative<nsecs_t>(acquireTimeOrFence));
+            ASSERT_EQ(std::get<nsecs_t>(acquireTimeOrFence) > 0,
+                      mBufferResult == ExpectedResult::Buffer::ACQUIRED)
                     << "bad acquire time";
-            ASSERT_LE(acquireTime, latchTime) << "acquire time should be <= latch time";
+            ASSERT_LE(std::get<nsecs_t>(acquireTimeOrFence), latchTime)
+                    << "acquire time should be <= latch time";
 
             if (mPreviousBufferResult == ExpectedResult::PreviousBuffer::RELEASED) {
                 ASSERT_NE(previousReleaseFence, nullptr)

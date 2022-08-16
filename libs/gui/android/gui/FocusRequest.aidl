@@ -21,7 +21,7 @@ parcelable FocusRequest {
     /**
      * Input channel token used to identify the window that should gain focus.
      */
-    IBinder token;
+    @nullable IBinder token;
     @utf8InCpp String windowName;
     /**
      * The token that the caller expects currently to be focused. If the

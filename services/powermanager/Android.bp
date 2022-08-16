@@ -24,11 +24,11 @@ cc_library_shared {
     ],
 
     aidl: {
-       local_include_dirs: ["include"],
-       include_dirs: [
-           "frameworks/base/core/java/android/os",
-       ],
-       export_aidl_headers: true
+        local_include_dirs: ["include"],
+        include_dirs: [
+            "frameworks/base/core/java/android/os",
+        ],
+        export_aidl_headers: true,
     },
 
     shared_libs: [
@@ -38,7 +38,7 @@ cc_library_shared {
         "libutils",
         "android.hardware.power@1.0",
         "android.hardware.power@1.1",
-        "android.hardware.power-V2-cpp",
+        "android.hardware.power-V3-cpp",
     ],
 
     cflags: [
@@ -50,6 +50,6 @@ cc_library_shared {
 
     local_include_dirs: ["include"],
     export_include_dirs: [
-         "include",
+        "include",
     ],
 }

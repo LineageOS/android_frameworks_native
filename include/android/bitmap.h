@@ -68,6 +68,8 @@ enum AndroidBitmapFormat {
     ANDROID_BITMAP_FORMAT_A_8       = 8,
     /** Each component is stored as a half float. **/
     ANDROID_BITMAP_FORMAT_RGBA_F16  = 9,
+    /** Red: 10 bits, Green: 10 bits, Blue: 10 bits, Alpha: 2 bits. **/
+    ANDROID_BITMAP_FORMAT_RGBA_1010102 = 10,
 };
 
 /** Bitmap alpha format */

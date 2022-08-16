@@ -54,11 +54,6 @@ public:
     ~SkiaGLRenderEngine() override EXCLUDES(mRenderingMutex);
 
     std::future<void> primeCache() override;
-    status_t drawLayers(const DisplaySettings& display,
-                        const std::vector<const LayerSettings*>& layers,
-                        const std::shared_ptr<ExternalTexture>& buffer,
-                        const bool useFramebufferCache, base::unique_fd&& bufferFence,
-                        base::unique_fd* drawFence) override;
     void cleanupPostRender() override;
     void cleanFramebufferCache() override{};
     int getContextPriority() override;
@@ -66,7 +61,6 @@ public:
     bool supportsProtectedContent() const override;
     void useProtectedContext(bool useProtectedContext) override;
     bool supportsBackgroundBlur() override { return mBlurFilter != nullptr; }
-    void assertShadersCompiled(int numShaders) override;
     void onActiveDisplaySizeChanged(ui::Size size) override;
     int reportShadersCompiled() override;
 
@@ -77,6 +71,11 @@ protected:
     void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable) override;
     void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
     bool canSkipPostRenderCleanup() const override;
+    void drawLayersInternal(const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+                            const DisplaySettings& display,
+                            const std::vector<LayerSettings>& layers,
+                            const std::shared_ptr<ExternalTexture>& buffer,
+                            const bool useFramebufferCache, base::unique_fd&& bufferFence) override;
 
 private:
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
@@ -92,7 +91,7 @@ private:
     inline SkRect getSkRect(const Rect& layer);
     inline std::pair<SkRRect, SkRRect> getBoundsAndClip(const FloatRect& bounds,
                                                         const FloatRect& crop, float cornerRadius);
-    inline bool layerHasBlur(const LayerSettings* layer, bool colorTransformModifiesAlpha);
+    inline bool layerHasBlur(const LayerSettings& layer, bool colorTransformModifiesAlpha);
     inline SkColor getSkColor(const vec4& color);
     inline SkM44 getSkM44(const mat4& matrix);
     inline SkPoint3 getSkPoint3(const vec3& vector);
@@ -106,13 +105,18 @@ private:
     void initCanvas(SkCanvas* canvas, const DisplaySettings& display);
     void drawShadow(SkCanvas* canvas, const SkRRect& casterRRect,
                     const ShadowSettings& shadowSettings);
+
     // If requiresLinearEffect is true or the layer has a stretchEffect a new shader is returned.
     // Otherwise it returns the input shader.
-    sk_sp<SkShader> createRuntimeEffectShader(sk_sp<SkShader> shader,
-                                              const LayerSettings* layer,
-                                              const DisplaySettings& display,
-                                              bool undoPremultipliedAlpha,
-                                              bool requiresLinearEffect);
+    struct RuntimeEffectShaderParameters {
+        sk_sp<SkShader> shader;
+        const LayerSettings& layer;
+        const DisplaySettings& display;
+        bool undoPremultipliedAlpha;
+        bool requiresLinearEffect;
+        float layerDimmingRatio;
+    };
+    sk_sp<SkShader> createRuntimeEffectShader(const RuntimeEffectShaderParameters&);
 
     EGLDisplay mEGLDisplay;
     EGLContext mEGLContext;
@@ -134,7 +138,8 @@ private:
     // Cache of GL textures that we'll store per GraphicBuffer ID, shared between GPU contexts.
     std::unordered_map<GraphicBufferId, std::shared_ptr<AutoBackendTexture::LocalRef>> mTextureCache
             GUARDED_BY(mRenderingMutex);
-    std::unordered_map<LinearEffect, sk_sp<SkRuntimeEffect>, LinearEffectHasher> mRuntimeEffects;
+    std::unordered_map<shaders::LinearEffect, sk_sp<SkRuntimeEffect>, shaders::LinearEffectHasher>
+            mRuntimeEffects;
     AutoBackendTexture::CleanupManager mTextureCleanupMgr GUARDED_BY(mRenderingMutex);
 
     StretchShaderFactory mStretchShaderFactory;
@@ -172,8 +177,11 @@ private:
             return shadersCachedSinceLastCall;
         }
 
+        int totalShadersCompiled() const { return mTotalShadersCompiled; }
+
     private:
         int mShadersCachedSinceLastCall = 0;
+        int mTotalShadersCompiled = 0;
     };
 
     SkSLCacheMonitor mSkSLCacheMonitor;
