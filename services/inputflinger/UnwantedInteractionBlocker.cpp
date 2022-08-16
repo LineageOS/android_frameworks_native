@@ -77,8 +77,7 @@ static std::string toLower(std::string s) {
 }
 
 static bool isFromTouchscreen(int32_t source) {
-    return isFromSource(source, AINPUT_SOURCE_TOUCHSCREEN) &&
-            !isFromSource(source, AINPUT_SOURCE_STYLUS);
+    return isFromSource(source, AINPUT_SOURCE_TOUCHSCREEN);
 }
 
 static ::base::TimeTicks toChromeTimestamp(nsecs_t eventTime) {
@@ -142,23 +141,6 @@ static int32_t resolveActionForPointer(uint8_t pointerIndex, int32_t action) {
     return AMOTION_EVENT_ACTION_MOVE;
 }
 
-/**
- * Remove the data for the provided pointers from the args. The pointers are identified by their
- * pointerId, not by the index inside the array.
- * Return the new NotifyMotionArgs struct that has the remaining pointers.
- * The only fields that may be different in the returned args from the provided args are:
- *     - action
- *     - pointerCount
- *     - pointerProperties
- *     - pointerCoords
- * Action might change because it contains a pointer index. If another pointer is removed, the
- * active pointer index would be shifted.
- * Do not call this function for events with POINTER_UP or POINTER_DOWN events when removed pointer
- * id is the acting pointer id.
- *
- * @param args the args from which the pointers should be removed
- * @param pointerIds the pointer ids of the pointers that should be removed
- */
 NotifyMotionArgs removePointerIds(const NotifyMotionArgs& args,
                                   const std::set<int32_t>& pointerIds) {
     const uint8_t actionIndex = MotionEvent::getActionIndex(args.action);
@@ -202,6 +184,26 @@ NotifyMotionArgs removePointerIds(const NotifyMotionArgs& args,
         }
     }
     return newArgs;
+}
+
+/**
+ * Remove stylus pointers from the provided NotifyMotionArgs.
+ *
+ * Return NotifyMotionArgs where the stylus pointers have been removed.
+ * If this results in removal of the active pointer, then return nullopt.
+ */
+static std::optional<NotifyMotionArgs> removeStylusPointerIds(const NotifyMotionArgs& args) {
+    std::set<int32_t> stylusPointerIds;
+    for (uint32_t i = 0; i < args.pointerCount; i++) {
+        if (args.pointerProperties[i].toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS) {
+            stylusPointerIds.insert(args.pointerProperties[i].id);
+        }
+    }
+    NotifyMotionArgs withoutStylusPointers = removePointerIds(args, stylusPointerIds);
+    if (withoutStylusPointers.pointerCount == 0 || withoutStylusPointers.action == ACTION_UNKNOWN) {
+        return std::nullopt;
+    }
+    return withoutStylusPointers;
 }
 
 std::optional<AndroidPalmFilterDeviceInfo> createPalmFilterDeviceInfo(
@@ -616,6 +618,48 @@ std::vector<::ui::InProgressTouchEvdev> getTouches(const NotifyMotionArgs& args,
     return touches;
 }
 
+std::set<int32_t> PalmRejector::detectPalmPointers(const NotifyMotionArgs& args) {
+    std::bitset<::ui::kNumTouchEvdevSlots> slotsToHold;
+    std::bitset<::ui::kNumTouchEvdevSlots> slotsToSuppress;
+
+    // Store the slot state before we call getTouches and update it. This way, we can find
+    // the slots that have been removed due to the incoming event.
+    SlotState oldSlotState = mSlotState;
+    mSlotState.update(args);
+
+    std::vector<::ui::InProgressTouchEvdev> touches =
+            getTouches(args, mDeviceInfo, oldSlotState, mSlotState);
+    ::base::TimeTicks chromeTimestamp = toChromeTimestamp(args.eventTime);
+
+    if (DEBUG_MODEL) {
+        std::stringstream touchesStream;
+        for (const ::ui::InProgressTouchEvdev& touch : touches) {
+            touchesStream << touch.tracking_id << " : " << touch << "\n";
+        }
+        ALOGD("Filter: touches = %s", touchesStream.str().c_str());
+    }
+
+    mPalmDetectionFilter->Filter(touches, chromeTimestamp, &slotsToHold, &slotsToSuppress);
+
+    ALOGD_IF(DEBUG_MODEL, "Response: slotsToHold = %s, slotsToSuppress = %s",
+             slotsToHold.to_string().c_str(), slotsToSuppress.to_string().c_str());
+
+    // Now that we know which slots should be suppressed, let's convert those to pointer id's.
+    std::set<int32_t> newSuppressedIds;
+    for (size_t i = 0; i < args.pointerCount; i++) {
+        const int32_t pointerId = args.pointerProperties[i].id;
+        std::optional<size_t> slot = oldSlotState.getSlotForPointerId(pointerId);
+        if (!slot) {
+            slot = mSlotState.getSlotForPointerId(pointerId);
+            LOG_ALWAYS_FATAL_IF(!slot, "Could not find slot for pointer id %" PRId32, pointerId);
+        }
+        if (slotsToSuppress.test(*slot)) {
+            newSuppressedIds.insert(pointerId);
+        }
+    }
+    return newSuppressedIds;
+}
+
 std::vector<NotifyMotionArgs> PalmRejector::processMotion(const NotifyMotionArgs& args) {
     if (mPalmDetectionFilter == nullptr) {
         return {args};
@@ -633,42 +677,17 @@ std::vector<NotifyMotionArgs> PalmRejector::processMotion(const NotifyMotionArgs
     if (args.action == AMOTION_EVENT_ACTION_DOWN) {
         mSuppressedPointerIds.clear();
     }
-    std::bitset<::ui::kNumTouchEvdevSlots> slotsToHold;
-    std::bitset<::ui::kNumTouchEvdevSlots> slotsToSuppress;
 
-    // Store the slot state before we call getTouches and update it. This way, we can find
-    // the slots that have been removed due to the incoming event.
-    SlotState oldSlotState = mSlotState;
-    mSlotState.update(args);
-    std::vector<::ui::InProgressTouchEvdev> touches =
-            getTouches(args, mDeviceInfo, oldSlotState, mSlotState);
-    ::base::TimeTicks chromeTimestamp = toChromeTimestamp(args.eventTime);
-
-    if (DEBUG_MODEL) {
-        std::stringstream touchesStream;
-        for (const ::ui::InProgressTouchEvdev& touch : touches) {
-            touchesStream << touch.tracking_id << " : " << touch << "\n";
-        }
-        ALOGD("Filter: touches = %s", touchesStream.str().c_str());
-    }
-    mPalmDetectionFilter->Filter(touches, chromeTimestamp, &slotsToHold, &slotsToSuppress);
-
-    ALOGD_IF(DEBUG_MODEL, "Response: slotsToHold = %s, slotsToSuppress = %s",
-             slotsToHold.to_string().c_str(), slotsToSuppress.to_string().c_str());
-
-    // Now that we know which slots should be suppressed, let's convert those to pointer id's.
     std::set<int32_t> oldSuppressedIds;
     std::swap(oldSuppressedIds, mSuppressedPointerIds);
-    for (size_t i = 0; i < args.pointerCount; i++) {
-        const int32_t pointerId = args.pointerProperties[i].id;
-        std::optional<size_t> slot = oldSlotState.getSlotForPointerId(pointerId);
-        if (!slot) {
-            slot = mSlotState.getSlotForPointerId(pointerId);
-            LOG_ALWAYS_FATAL_IF(!slot, "Could not find slot for pointer id %" PRId32, pointerId);
-        }
-        if (slotsToSuppress.test(*slot)) {
-            mSuppressedPointerIds.insert(pointerId);
-        }
+
+    std::optional<NotifyMotionArgs> touchOnlyArgs = removeStylusPointerIds(args);
+    if (touchOnlyArgs) {
+        mSuppressedPointerIds = detectPalmPointers(*touchOnlyArgs);
+    } else {
+        // This is a stylus-only event.
+        // We can skip this event and just keep the suppressed pointer ids the same as before.
+        mSuppressedPointerIds = oldSuppressedIds;
     }
 
     std::vector<NotifyMotionArgs> argsWithoutUnwantedPointers =

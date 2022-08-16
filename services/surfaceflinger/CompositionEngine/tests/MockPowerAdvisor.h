@@ -55,7 +55,8 @@ public:
     MOCK_METHOD(void, setRequiresClientComposition,
                 (DisplayId displayId, bool requiresClientComposition), (override));
     MOCK_METHOD(void, setExpectedPresentTime, (nsecs_t expectedPresentTime), (override));
-    MOCK_METHOD(void, setPresentFenceTime, (nsecs_t presentFenceTime), (override));
+    MOCK_METHOD(void, setSfPresentTiming, (nsecs_t presentFenceTime, nsecs_t presentEndTime),
+                (override));
     MOCK_METHOD(void, setHwcPresentDelayedTime,
                 (DisplayId displayId,
                  std::chrono::steady_clock::time_point earliestFrameStartTime));
