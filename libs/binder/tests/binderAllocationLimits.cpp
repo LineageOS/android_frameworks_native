@@ -27,6 +27,8 @@
 #include <functional>
 #include <vector>
 
+static android::String8 gEmpty(""); // make sure first allocation from optimization runs
+
 struct DestructionAction {
     DestructionAction(std::function<void()> f) : mF(std::move(f)) {}
     ~DestructionAction() { mF(); };
