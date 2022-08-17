@@ -69,6 +69,13 @@ void TestInputListener::assertNotifyMotionWasCalled(NotifyMotionArgs* outEventAr
                                            "Expected notifyMotion() to have been called."));
 }
 
+void TestInputListener::assertNotifyMotionWasCalled(
+        const ::testing::Matcher<NotifyMotionArgs>& matcher) {
+    NotifyMotionArgs outEventArgs;
+    ASSERT_NO_FATAL_FAILURE(assertNotifyMotionWasCalled(&outEventArgs));
+    ASSERT_THAT(outEventArgs, matcher);
+}
+
 void TestInputListener::assertNotifyMotionWasNotCalled() {
     ASSERT_NO_FATAL_FAILURE(
             assertNotCalled<NotifyMotionArgs>("notifyMotion() should not be called."));
