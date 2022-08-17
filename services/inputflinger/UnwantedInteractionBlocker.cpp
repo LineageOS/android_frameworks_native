@@ -77,8 +77,7 @@ static std::string toLower(std::string s) {
 }
 
 static bool isFromTouchscreen(int32_t source) {
-    return isFromSource(source, AINPUT_SOURCE_TOUCHSCREEN) &&
-            !isFromSource(source, AINPUT_SOURCE_STYLUS);
+    return isFromSource(source, AINPUT_SOURCE_TOUCHSCREEN);
 }
 
 static ::base::TimeTicks toChromeTimestamp(nsecs_t eventTime) {
@@ -142,23 +141,6 @@ static int32_t resolveActionForPointer(uint8_t pointerIndex, int32_t action) {
     return AMOTION_EVENT_ACTION_MOVE;
 }
 
-/**
- * Remove the data for the provided pointers from the args. The pointers are identified by their
- * pointerId, not by the index inside the array.
- * Return the new NotifyMotionArgs struct that has the remaining pointers.
- * The only fields that may be different in the returned args from the provided args are:
- *     - action
- *     - pointerCount
- *     - pointerProperties
- *     - pointerCoords
- * Action might change because it contains a pointer index. If another pointer is removed, the
- * active pointer index would be shifted.
- * Do not call this function for events with POINTER_UP or POINTER_DOWN events when removed pointer
- * id is the acting pointer id.
- *
- * @param args the args from which the pointers should be removed
- * @param pointerIds the pointer ids of the pointers that should be removed
- */
 NotifyMotionArgs removePointerIds(const NotifyMotionArgs& args,
                                   const std::set<int32_t>& pointerIds) {
     const uint8_t actionIndex = MotionEvent::getActionIndex(args.action);
@@ -202,6 +184,26 @@ NotifyMotionArgs removePointerIds(const NotifyMotionArgs& args,
         }
     }
     return newArgs;
+}
+
+/**
+ * Remove stylus pointers from the provided NotifyMotionArgs.
+ *
+ * Return NotifyMotionArgs where the stylus pointers have been removed.
+ * If this results in removal of the active pointer, then return nullopt.
+ */
+static std::optional<NotifyMotionArgs> removeStylusPointerIds(const NotifyMotionArgs& args) {
+    std::set<int32_t> stylusPointerIds;
+    for (uint32_t i = 0; i < args.pointerCount; i++) {
+        if (args.pointerProperties[i].toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS) {
+            stylusPointerIds.insert(args.pointerProperties[i].id);
+        }
+    }
+    NotifyMotionArgs withoutStylusPointers = removePointerIds(args, stylusPointerIds);
+    if (withoutStylusPointers.pointerCount == 0 || withoutStylusPointers.action == ACTION_UNKNOWN) {
+        return std::nullopt;
+    }
+    return withoutStylusPointers;
 }
 
 std::optional<AndroidPalmFilterDeviceInfo> createPalmFilterDeviceInfo(
@@ -678,7 +680,15 @@ std::vector<NotifyMotionArgs> PalmRejector::processMotion(const NotifyMotionArgs
 
     std::set<int32_t> oldSuppressedIds;
     std::swap(oldSuppressedIds, mSuppressedPointerIds);
-    mSuppressedPointerIds = detectPalmPointers(args);
+
+    std::optional<NotifyMotionArgs> touchOnlyArgs = removeStylusPointerIds(args);
+    if (touchOnlyArgs) {
+        mSuppressedPointerIds = detectPalmPointers(*touchOnlyArgs);
+    } else {
+        // This is a stylus-only event.
+        // We can skip this event and just keep the suppressed pointer ids the same as before.
+        mSuppressedPointerIds = oldSuppressedIds;
+    }
 
     std::vector<NotifyMotionArgs> argsWithoutUnwantedPointers =
             cancelSuppressedPointers(args, oldSuppressedIds, mSuppressedPointerIds);
