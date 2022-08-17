@@ -915,6 +915,11 @@ private:
     bool configureLocked() REQUIRES(mStateLock) REQUIRES(kMainThreadContext)
             EXCLUDES(mHotplugMutex);
 
+    // Returns a string describing the hotplug, or nullptr if it was rejected.
+    const char* processHotplug(PhysicalDisplayId, hal::HWDisplayId, bool connected,
+                               DisplayIdentificationInfo&&) REQUIRES(mStateLock)
+            REQUIRES(kMainThreadContext);
+
     sp<DisplayDevice> setupNewDisplayDeviceInternal(
             const wp<IBinder>& displayToken,
             std::shared_ptr<compositionengine::Display> compositionDisplay,
