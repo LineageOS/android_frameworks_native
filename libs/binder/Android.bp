@@ -335,6 +335,34 @@ cc_library_shared {
     defaults: ["libbinder_tls_defaults"],
 }
 
+cc_library_shared {
+    name: "libbinder_trusty",
+    vendor: true,
+    srcs: [
+        "RpcTransportTipcAndroid.cpp",
+        "RpcTrusty.cpp",
+    ],
+
+    shared_libs: [
+        "libbinder",
+        "liblog",
+        "libtrusty",
+        "libutils",
+    ],
+    static_libs: [
+        "libbase",
+    ],
+    export_include_dirs: ["include_trusty"],
+
+    // Most of Android doesn't need this library and shouldn't use it,
+    // so we restrict its visibility to the Trusty-specific packages.
+    visibility: [
+        ":__subpackages__",
+        "//system/core/trusty:__subpackages__",
+        "//vendor:__subpackages__",
+    ],
+}
+
 // For testing
 cc_library_static {
     name: "libbinder_tls_static",
