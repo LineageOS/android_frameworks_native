@@ -7,7 +7,7 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
-cc_library_shared {
+cc_library {
     name: "libsensorservice",
 
     srcs: [
@@ -88,6 +88,12 @@ cc_library_shared {
     ],
 
     afdo: true,
+}
+
+cc_library_headers {
+    name: "libsensorservice_headers",
+    export_include_dirs: ["."],
+    visibility: ["//frameworks/native/services/sensorservice/fuzzer"],
 }
 
 cc_binary {
