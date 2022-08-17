@@ -138,6 +138,8 @@ public:
     MOCK_METHOD(Hwc2::AidlTransform, getPhysicalDisplayOrientation, (PhysicalDisplayId),
                 (const, override));
     MOCK_METHOD(bool, getValidateSkipped, (HalDisplayId), (const, override));
+    MOCK_METHOD(status_t, getOverlaySupport,
+                (aidl::android::hardware::graphics::composer3::OverlayProperties*));
 };
 
 } // namespace mock

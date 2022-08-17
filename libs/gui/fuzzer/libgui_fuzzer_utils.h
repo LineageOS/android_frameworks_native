@@ -156,6 +156,7 @@ public:
                 (override));
     MOCK_METHOD(binder::Status, removeWindowInfosListener, (const sp<gui::IWindowInfosListener>&),
                 (override));
+    MOCK_METHOD(binder::Status, getOverlaySupport, (gui::OverlayProperties*), (override));
 };
 
 class FakeBnSurfaceComposerClient : public gui::BnSurfaceComposerClient {

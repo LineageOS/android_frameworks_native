@@ -179,6 +179,10 @@ public:
 
     // Gets if boot display mode operations are supported on a device
     static status_t getBootDisplayModeSupport(bool* support);
+
+    // Gets the overlay properties of the device
+    static status_t getOverlaySupport(gui::OverlayProperties* outProperties);
+
     // Sets the user-preferred display mode that a device should boot in
     static status_t setBootDisplayMode(const sp<IBinder>& display, ui::DisplayModeId);
     // Clears the user-preferred display mode
