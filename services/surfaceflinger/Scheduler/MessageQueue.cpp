@@ -158,6 +158,19 @@ void MessageQueue::postMessage(sp<MessageHandler>&& handler) {
     mLooper->sendMessage(handler, Message());
 }
 
+void MessageQueue::scheduleConfigure() {
+    struct ConfigureHandler : MessageHandler {
+        explicit ConfigureHandler(ICompositor& compositor) : compositor(compositor) {}
+
+        void handleMessage(const Message&) override { compositor.configure(); }
+
+        ICompositor& compositor;
+    };
+
+    // TODO(b/241285876): Batch configure tasks that happen within some duration.
+    postMessage(sp<ConfigureHandler>::make(mCompositor));
+}
+
 void MessageQueue::scheduleFrame() {
     ATRACE_CALL();
 

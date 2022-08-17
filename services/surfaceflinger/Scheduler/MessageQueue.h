@@ -38,6 +38,7 @@
 namespace android {
 
 struct ICompositor {
+    virtual void configure() = 0;
     virtual bool commit(TimePoint frameTime, VsyncId, TimePoint expectedVsyncTime) = 0;
     virtual void composite(TimePoint frameTime, VsyncId) = 0;
     virtual void sample() = 0;
@@ -78,6 +79,7 @@ public:
     virtual void setInjector(sp<EventThreadConnection>) = 0;
     virtual void waitMessage() = 0;
     virtual void postMessage(sp<MessageHandler>&&) = 0;
+    virtual void scheduleConfigure() = 0;
     virtual void scheduleFrame() = 0;
 
     using Clock = std::chrono::steady_clock;
@@ -152,6 +154,7 @@ public:
     void waitMessage() override;
     void postMessage(sp<MessageHandler>&&) override;
 
+    void scheduleConfigure() override;
     void scheduleFrame() override;
 
     std::optional<Clock::time_point> getScheduledFrameTime() const override;

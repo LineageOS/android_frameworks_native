@@ -50,6 +50,7 @@ public:
         });
     }
 
+    MOCK_METHOD(void, scheduleConfigure, (), (override));
     MOCK_METHOD(void, scheduleFrame, (), (override));
     MOCK_METHOD(void, postMessage, (sp<MessageHandler>&&), (override));
 
@@ -109,6 +110,7 @@ public:
 
 private:
     // ICompositor overrides:
+    void configure() override {}
     bool commit(TimePoint, VsyncId, TimePoint) override { return false; }
     void composite(TimePoint, VsyncId) override {}
     void sample() override {}
