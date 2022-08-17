@@ -2581,10 +2581,9 @@ std::pair<DisplayModes, DisplayModePtr> SurfaceFlinger::loadDisplayModes(
     do {
         hwcModes = getHwComposer().getModes(displayId);
         activeModeHwcId = getHwComposer().getActiveMode(displayId);
-        LOG_ALWAYS_FATAL_IF(!activeModeHwcId, "HWC returned no active mode");
 
         const auto isActiveMode = [activeModeHwcId](const HWComposer::HWCDisplayMode& mode) {
-            return mode.hwcId == *activeModeHwcId;
+            return mode.hwcId == activeModeHwcId;
         };
 
         if (std::any_of(hwcModes.begin(), hwcModes.end(), isActiveMode)) {
@@ -2592,10 +2591,14 @@ std::pair<DisplayModes, DisplayModePtr> SurfaceFlinger::loadDisplayModes(
         }
     } while (++attempt < kMaxAttempts);
 
-    LOG_ALWAYS_FATAL_IF(attempt == kMaxAttempts,
-                        "After %d attempts HWC still returns an active mode which is not"
-                        " supported. Active mode ID = %" PRIu64 ". Supported modes = %s",
-                        kMaxAttempts, *activeModeHwcId, base::Join(hwcModes, ", ").c_str());
+    if (attempt == kMaxAttempts) {
+        const std::string activeMode =
+                activeModeHwcId ? std::to_string(*activeModeHwcId) : "unknown"s;
+        ALOGE("HWC failed to report an active mode that is supported: activeModeHwcId=%s, "
+              "hwcModes={%s}",
+              activeMode.c_str(), base::Join(hwcModes, ", ").c_str());
+        return {};
+    }
 
     DisplayModes oldModes;
     if (const auto token = getPhysicalDisplayTokenLocked(displayId)) {
@@ -2653,6 +2656,12 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
 
         if (event.connection == hal::Connection::CONNECTED) {
             auto [supportedModes, activeMode] = loadDisplayModes(displayId);
+            if (!activeMode) {
+                // TODO(b/241286153): Report hotplug failure to the framework.
+                ALOGE("Failed to hotplug display %s", to_string(displayId).c_str());
+                getHwComposer().disconnectDisplay(displayId);
+                continue;
+            }
 
             if (!token) {
                 ALOGV("Creating display %s", to_string(displayId).c_str());
