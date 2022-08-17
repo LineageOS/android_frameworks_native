@@ -575,7 +575,7 @@ const char* Layer::getDebugName() const {
 // ---------------------------------------------------------------------------
 
 std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientComposition(
-        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
+        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) const {
     if (!getCompositionState()) {
         return {};
     }
@@ -651,30 +651,6 @@ void Layer::prepareClearClientComposition(LayerFE::LayerSettings& layerSettings,
     // If layer is blacked out, force alpha to 1 so that we draw a black color layer.
     layerSettings.alpha = blackout ? 1.0f : 0.0f;
     layerSettings.name = getName();
-}
-
-// TODO(b/188891810): This method now only ever returns 0 or 1 layers so we should return
-// std::optional instead of a vector.  Additionally, we should consider removing
-// this method entirely in favor of calling prepareClientComposition directly.
-std::vector<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCompositionList(
-        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
-    std::optional<compositionengine::LayerFE::LayerSettings> layerSettings =
-            prepareClientComposition(targetSettings);
-    // Nothing to render.
-    if (!layerSettings) {
-        return {};
-    }
-
-    // HWC requests to clear this layer.
-    if (targetSettings.clearContent) {
-        prepareClearClientComposition(*layerSettings, false /* blackout */);
-        return {*layerSettings};
-    }
-
-    // set the shadow for the layer if needed
-    prepareShadowClientComposition(*layerSettings, targetSettings.viewport);
-
-    return {*layerSettings};
 }
 
 aidl::android::hardware::graphics::composer3::Composition Layer::getCompositionType(
@@ -2006,7 +1982,7 @@ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
 }
 
 void Layer::prepareShadowClientComposition(LayerFE::LayerSettings& caster,
-                                           const Rect& layerStackRect) {
+                                           const Rect& layerStackRect) const {
     renderengine::ShadowSettings state = mFlinger->mDrawingState.globalShadowSettings;
 
     // Note: this preserves existing behavior of shadowing the entire layer and not cropping it if

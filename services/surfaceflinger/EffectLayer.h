@@ -52,8 +52,9 @@ protected:
      */
     const compositionengine::LayerFECompositionState* getCompositionState() const override;
     void preparePerFrameCompositionState() override;
-    std::vector<compositionengine::LayerFE::LayerSettings> prepareClientCompositionList(
-            compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) override;
+    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
+            compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings)
+            const override;
 
     std::unique_ptr<compositionengine::LayerFECompositionState> mCompositionState;
 

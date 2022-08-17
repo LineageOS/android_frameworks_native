@@ -6579,27 +6579,24 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                 isHdrLayer(layer) ? displayBrightnessNits : sdrWhitePointNits,
 
         };
-        std::vector<compositionengine::LayerFE::LayerSettings> results =
-                layer->prepareClientCompositionList(targetSettings);
-        if (results.size() > 0) {
-            for (auto& settings : results) {
-                settings.geometry.positionTransform =
-                        transform.asMatrix4() * settings.geometry.positionTransform;
-                // There's no need to process blurs when we're executing region sampling,
-                // we're just trying to understand what we're drawing, and doing so without
-                // blurs is already a pretty good approximation.
-                if (regionSampling) {
-                    settings.backgroundBlurRadius = 0;
-                }
-                captureResults.capturedHdrLayers |= isHdrLayer(layer);
-            }
-
-            clientCompositionLayers.insert(clientCompositionLayers.end(),
-                                           std::make_move_iterator(results.begin()),
-                                           std::make_move_iterator(results.end()));
-            renderedLayers.push_back(layer);
+        std::optional<compositionengine::LayerFE::LayerSettings> settings =
+                layer->prepareClientComposition(targetSettings);
+        if (!settings) {
+            return;
         }
 
+        settings->geometry.positionTransform =
+                transform.asMatrix4() * settings->geometry.positionTransform;
+        // There's no need to process blurs when we're executing region sampling,
+        // we're just trying to understand what we're drawing, and doing so without
+        // blurs is already a pretty good approximation.
+        if (regionSampling) {
+            settings->backgroundBlurRadius = 0;
+        }
+        captureResults.capturedHdrLayers |= isHdrLayer(layer);
+
+        clientCompositionLayers.push_back(std::move(*settings));
+        renderedLayers.push_back(layer);
     });
 
     std::vector<renderengine::LayerSettings> clientRenderEngineLayers;

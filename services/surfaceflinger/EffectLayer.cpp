@@ -47,11 +47,10 @@ EffectLayer::EffectLayer(const LayerCreationArgs& args)
 
 EffectLayer::~EffectLayer() = default;
 
-std::vector<compositionengine::LayerFE::LayerSettings> EffectLayer::prepareClientCompositionList(
-        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
-    std::vector<compositionengine::LayerFE::LayerSettings> results;
+std::optional<compositionengine::LayerFE::LayerSettings> EffectLayer::prepareClientComposition(
+        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) const {
     std::optional<compositionengine::LayerFE::LayerSettings> layerSettings =
-            prepareClientComposition(targetSettings);
+            Layer::prepareClientComposition(targetSettings);
     // Nothing to render.
     if (!layerSettings) {
         return {};
@@ -64,13 +63,13 @@ std::vector<compositionengine::LayerFE::LayerSettings> EffectLayer::prepareClien
     if (targetSettings.realContentIsVisible && fillsColor()) {
         // Set color for color fill settings.
         layerSettings->source.solidColor = getColor().rgb;
-        results.push_back(*layerSettings);
+        return layerSettings;
     } else if (hasBlur() || drawShadows()) {
         layerSettings->skipContentDraw = true;
-        results.push_back(*layerSettings);
+        return layerSettings;
     }
 
-    return results;
+    return {};
 }
 
 bool EffectLayer::isVisible() const {
