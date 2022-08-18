@@ -77,10 +77,6 @@ namespace gui {
 class LayerDebugInfo;
 }
 
-namespace impl {
-class SurfaceInterceptor;
-}
-
 namespace frametimeline {
 class SurfaceFrame;
 } // namespace frametimeline
@@ -916,8 +912,6 @@ public:
                                         std::unordered_set<Layer*>& visited);
 
 protected:
-    friend class impl::SurfaceInterceptor;
-
     // For unit tests
     friend class TestableSurfaceFlinger;
     friend class FpsReporterTest;

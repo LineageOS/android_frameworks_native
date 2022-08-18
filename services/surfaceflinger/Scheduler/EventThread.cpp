@@ -237,16 +237,13 @@ namespace impl {
 
 EventThread::EventThread(std::unique_ptr<VSyncSource> vsyncSource,
                          android::frametimeline::TokenManager* tokenManager,
-                         InterceptVSyncsCallback interceptVSyncsCallback,
                          ThrottleVsyncCallback throttleVsyncCallback,
                          GetVsyncPeriodFunction getVsyncPeriodFunction)
       : mVSyncSource(std::move(vsyncSource)),
         mTokenManager(tokenManager),
-        mInterceptVSyncsCallback(std::move(interceptVSyncsCallback)),
         mThrottleVsyncCallback(std::move(throttleVsyncCallback)),
         mGetVsyncPeriodFunction(std::move(getVsyncPeriodFunction)),
         mThreadName(mVSyncSource->getName()) {
-
     LOG_ALWAYS_FATAL_IF(getVsyncPeriodFunction == nullptr,
             "getVsyncPeriodFunction must not be null");
 
@@ -443,21 +440,13 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
             event = mPendingEvents.front();
             mPendingEvents.pop_front();
 
-            switch (event->header.type) {
-                case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
-                    if (event->hotplug.connected && !mVSyncState) {
-                        mVSyncState.emplace(event->header.displayId);
-                    } else if (!event->hotplug.connected && mVSyncState &&
-                               mVSyncState->displayId == event->header.displayId) {
-                        mVSyncState.reset();
-                    }
-                    break;
-
-                case DisplayEventReceiver::DISPLAY_EVENT_VSYNC:
-                    if (mInterceptVSyncsCallback) {
-                        mInterceptVSyncsCallback(event->header.timestamp);
-                    }
-                    break;
+            if (event->header.type == DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG) {
+                if (event->hotplug.connected && !mVSyncState) {
+                    mVSyncState.emplace(event->header.displayId);
+                } else if (!event->hotplug.connected && mVSyncState &&
+                           mVSyncState->displayId == event->header.displayId) {
+                    mVSyncState.reset();
+                }
             }
         }
 

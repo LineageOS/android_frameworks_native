@@ -46,7 +46,6 @@
 #include "StartPropertySetThread.h"
 #include "SurfaceFlinger.h"
 #include "SurfaceFlingerDefaultFactory.h"
-#include "SurfaceInterceptor.h"
 #include "ThreadContext.h"
 #include "TimeStats/TimeStats.h"
 
@@ -60,7 +59,6 @@
 #include "tests/unittests/mock/MockFrameTimeline.h"
 #include "tests/unittests/mock/MockFrameTracer.h"
 #include "tests/unittests/mock/MockNativeWindowSurface.h"
-#include "tests/unittests/mock/MockSurfaceInterceptor.h"
 #include "tests/unittests/mock/MockTimeStats.h"
 #include "tests/unittests/mock/MockVSyncTracker.h"
 #include "tests/unittests/mock/MockVsyncController.h"
@@ -314,10 +312,6 @@ public:
             const std::shared_ptr<scheduler::RefreshRateConfigs> &,
             scheduler::ISchedulerCallback &) {
         return nullptr;
-    }
-
-    sp<SurfaceInterceptor> createSurfaceInterceptor() override {
-        return sp<android::impl::SurfaceInterceptor>::make();
     }
 
     sp<StartPropertySetThread> createStartPropertySetThread(bool timestampPropertyValue) override {
@@ -765,12 +759,10 @@ public:
     /* Read-write access to private data to set up preconditions and assert
      * post-conditions.
      */
-
     auto& mutableSupportsWideColor() { return mFlinger->mSupportsWideColor; }
     auto& mutableCurrentState() { return mFlinger->mCurrentState; }
     auto& mutableDisplays() { return mFlinger->mDisplays; }
     auto& mutableDrawingState() { return mFlinger->mDrawingState; }
-    auto& mutableInterceptor() { return mFlinger->mInterceptor; }
 
     auto fromHandle(const sp<IBinder> &handle) { return mFlinger->fromHandle(handle); }
 
@@ -778,7 +770,6 @@ public:
         mutableDisplays().clear();
         mutableCurrentState().displays.clear();
         mutableDrawingState().displays.clear();
-        mutableInterceptor().clear();
         mFlinger->mScheduler.reset();
         mFlinger->mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());
         mFlinger->mCompositionEngine->setRenderEngine(

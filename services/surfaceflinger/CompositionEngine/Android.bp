@@ -42,7 +42,6 @@ cc_defaults {
         "libmath",
         "librenderengine",
         "libtonemap",
-        "libtrace_proto",
         "libaidlcommonsupport",
         "libprocessgroup",
         "libcgrouprc",
