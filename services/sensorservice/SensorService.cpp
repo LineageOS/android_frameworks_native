@@ -1328,6 +1328,7 @@ Vector<Sensor> SensorService::getSensorList(const String16& opPackageName) {
             mSensors.getUserDebugSensors() : mSensors.getUserSensors();
     Vector<Sensor> accessibleSensorList;
 
+    resetTargetSdkVersionCache(opPackageName);
     bool isCapped = isRateCappedBasedOnPermission(opPackageName);
     for (size_t i = 0; i < initialSensorList.size(); i++) {
         Sensor sensor = initialSensorList[i];
@@ -1367,6 +1368,7 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
     if (requestedMode != NORMAL && requestedMode != DATA_INJECTION) {
         return nullptr;
     }
+    resetTargetSdkVersionCache(opPackageName);
 
     Mutex::Autolock _l(mLock);
     // To create a client in DATA_INJECTION mode to inject data, SensorService should already be
@@ -1402,6 +1404,7 @@ int SensorService::isDataInjectionEnabled() {
 sp<ISensorEventConnection> SensorService::createSensorDirectConnection(
         const String16& opPackageName, uint32_t size, int32_t type, int32_t format,
         const native_handle *resource) {
+    resetTargetSdkVersionCache(opPackageName);
     ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
 
     // No new direct connections are allowed when sensor privacy is enabled
@@ -1641,14 +1644,6 @@ void SensorService::cleanupConnection(SensorEventConnection* c) {
     mConnectionHolder.removeEventConnection(connection);
     if (c->needsWakeLock()) {
         checkWakeLockStateLocked(&connLock);
-    }
-
-    {
-        Mutex::Autolock packageLock(sPackageTargetVersionLock);
-        auto iter = sPackageTargetVersion.find(c->mOpPackageName);
-        if (iter != sPackageTargetVersion.end()) {
-            sPackageTargetVersion.erase(iter);
-        }
     }
 
     SensorDevice& dev(SensorDevice::getInstance());
@@ -2089,6 +2084,14 @@ int SensorService::getTargetSdkVersion(const String16& opPackageName) {
         sPackageTargetVersion[opPackageName] = targetSdkVersion;
     }
     return targetSdkVersion;
+}
+
+void SensorService::resetTargetSdkVersionCache(const String16& opPackageName) {
+    Mutex::Autolock packageLock(sPackageTargetVersionLock);
+    auto iter = sPackageTargetVersion.find(opPackageName);
+    if (iter != sPackageTargetVersion.end()) {
+        sPackageTargetVersion.erase(iter);
+    }
 }
 
 void SensorService::checkWakeLockState() {
