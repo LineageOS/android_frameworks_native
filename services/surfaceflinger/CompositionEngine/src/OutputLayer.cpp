@@ -787,7 +787,7 @@ bool OutputLayer::needsFiltering() const {
             sourceCrop.getWidth() != displayFrame.getWidth();
 }
 
-std::vector<LayerFE::LayerSettings> OutputLayer::getOverrideCompositionList() const {
+std::optional<LayerFE::LayerSettings> OutputLayer::getOverrideCompositionSettings() const {
     if (getState().overrideInfo.buffer == nullptr) {
         return {};
     }
@@ -816,7 +816,7 @@ std::vector<LayerFE::LayerSettings> OutputLayer::getOverrideCompositionList() co
     settings.alpha = 1.0f;
     settings.whitePointNits = getOutput().getState().sdrWhitePointNits;
 
-    return {static_cast<LayerFE::LayerSettings>(settings)};
+    return settings;
 }
 
 void OutputLayer::dump(std::string& out) const {

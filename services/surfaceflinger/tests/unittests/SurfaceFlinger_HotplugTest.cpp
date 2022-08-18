@@ -20,7 +20,6 @@
 #include "DisplayTransactionTestHelpers.h"
 
 namespace android {
-namespace {
 
 class HotplugTest : public DisplayTransactionTest {};
 
@@ -107,5 +106,35 @@ TEST_F(HotplugTest, processesEnqueuedEventsIfCalledOnMainThread) {
     EXPECT_TRUE(mFlinger.mutablePendingHotplugEvents().empty());
 }
 
-} // namespace
+TEST_F(HotplugTest, rejectsHotplugIfFailedToLoadDisplayModes) {
+    // Inject a primary display.
+    PrimaryDisplayVariant::injectHwcDisplay(this);
+
+    using ExternalDisplay = ExternalDisplayVariant;
+    constexpr bool kFailedHotplug = true;
+    ExternalDisplay::setupHwcHotplugCallExpectations<kFailedHotplug>(this);
+
+    // Simulate a connect event that fails to load display modes due to HWC already having
+    // disconnected the display but SF yet having to process the queued disconnect event.
+    EXPECT_CALL(*mComposer, getActiveConfig(ExternalDisplay::HWC_DISPLAY_ID, _))
+            .WillRepeatedly(Return(Error::BAD_DISPLAY));
+
+    // TODO(b/241286146): Remove this unnecessary call.
+    EXPECT_CALL(*mComposer,
+                setVsyncEnabled(ExternalDisplay::HWC_DISPLAY_ID, IComposerClient::Vsync::DISABLE))
+            .WillOnce(Return(Error::NONE));
+
+    ExternalDisplay::injectPendingHotplugEvent(this, Connection::CONNECTED);
+    mFlinger.processDisplayHotplugEvents();
+
+    // The hotplug should be rejected, so no HWComposer::DisplayData should be created.
+    EXPECT_FALSE(hasPhysicalHwcDisplay(ExternalDisplay::HWC_DISPLAY_ID));
+
+    // Disconnecting a display that does not exist should be a no-op.
+    ExternalDisplay::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
+    mFlinger.processDisplayHotplugEvents();
+
+    EXPECT_FALSE(hasPhysicalHwcDisplay(ExternalDisplay::HWC_DISPLAY_ID));
+}
+
 } // namespace android

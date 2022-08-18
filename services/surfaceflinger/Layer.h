@@ -618,8 +618,9 @@ public:
     const compositionengine::LayerFECompositionState* getCompositionState() const override;
     bool onPreComposition(nsecs_t) override;
     void prepareCompositionState(compositionengine::LayerFE::StateSubset subset) override;
-    std::vector<compositionengine::LayerFE::LayerSettings> prepareClientCompositionList(
-            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
+
+    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&) const override;
     void onLayerDisplayed(ftl::SharedFuture<FenceResult>) override;
 
     void setWasClientComposed(const sp<Fence>& fence) override {
@@ -918,8 +919,6 @@ protected:
     friend class TransactionSurfaceFrameTest;
 
     virtual void setInitialValuesForClone(const sp<Layer>& clonedFrom);
-    virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
-            compositionengine::LayerFE::ClientCompositionTargetSettings&);
     virtual void preparePerFrameCompositionState();
     virtual void commitTransaction(State& stateToCommit);
     virtual void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>&) {}
@@ -940,7 +939,8 @@ protected:
     // Modifies the passed in layer settings to clear the contents. If the blackout flag is set,
     // the settings clears the content with a solid black fill.
     void prepareClearClientComposition(LayerFE::LayerSettings&, bool blackout) const;
-    void prepareShadowClientComposition(LayerFE::LayerSettings& caster, const Rect& layerStackRect);
+    void prepareShadowClientComposition(LayerFE::LayerSettings& caster,
+                                        const Rect& layerStackRect) const;
 
     void prepareBasicGeometryCompositionState();
     void prepareGeometryCompositionState();

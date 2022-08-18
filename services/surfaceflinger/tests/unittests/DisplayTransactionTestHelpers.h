@@ -434,14 +434,18 @@ struct HwcDisplayVariant {
         }
     }
 
+    template <bool kFailedHotplug = false>
     static void setupHwcHotplugCallExpectations(DisplayTransactionTest* test) {
-        constexpr auto CONNECTION_TYPE =
-                PhysicalDisplay::CONNECTION_TYPE == ui::DisplayConnectionType::Internal
-                ? IComposerClient::DisplayConnectionType::INTERNAL
-                : IComposerClient::DisplayConnectionType::EXTERNAL;
+        if constexpr (!kFailedHotplug) {
+            constexpr auto CONNECTION_TYPE =
+                    PhysicalDisplay::CONNECTION_TYPE == ui::DisplayConnectionType::Internal
+                    ? IComposerClient::DisplayConnectionType::INTERNAL
+                    : IComposerClient::DisplayConnectionType::EXTERNAL;
 
-        EXPECT_CALL(*test->mComposer, getDisplayConnectionType(HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(CONNECTION_TYPE), Return(hal::V2_4::Error::NONE)));
+            EXPECT_CALL(*test->mComposer, getDisplayConnectionType(HWC_DISPLAY_ID, _))
+                    .WillOnce(DoAll(SetArgPointee<1>(CONNECTION_TYPE),
+                                    Return(hal::V2_4::Error::NONE)));
+        }
 
         EXPECT_CALL(*test->mComposer, setClientTargetSlotCount(_))
                 .WillOnce(Return(hal::Error::NONE));

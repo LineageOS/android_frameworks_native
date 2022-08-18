@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <optional>
+
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/Output.h>
@@ -51,7 +53,7 @@ public:
     MOCK_METHOD0(prepareForDeviceLayerRequests, void());
     MOCK_METHOD1(applyDeviceLayerRequest, void(Hwc2::IComposerClient::LayerRequest request));
     MOCK_CONST_METHOD0(needsFiltering, bool());
-    MOCK_CONST_METHOD0(getOverrideCompositionList, std::vector<LayerFE::LayerSettings>());
+    MOCK_CONST_METHOD0(getOverrideCompositionSettings, std::optional<LayerFE::LayerSettings>());
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
 };

@@ -45,9 +45,9 @@ public:
     MOCK_METHOD1(onPreComposition, bool(nsecs_t));
 
     MOCK_METHOD1(prepareCompositionState, void(compositionengine::LayerFE::StateSubset));
-    MOCK_METHOD1(prepareClientCompositionList,
-                 std::vector<compositionengine::LayerFE::LayerSettings>(
-                         compositionengine::LayerFE::ClientCompositionTargetSettings&));
+    MOCK_CONST_METHOD1(prepareClientComposition,
+                       std::optional<compositionengine::LayerFE::LayerSettings>(
+                               compositionengine::LayerFE::ClientCompositionTargetSettings&));
 
     MOCK_METHOD(void, onLayerDisplayed, (ftl::SharedFuture<FenceResult>), (override));
 

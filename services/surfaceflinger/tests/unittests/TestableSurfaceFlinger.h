@@ -371,6 +371,10 @@ public:
         mFlinger->onComposerHalHotplug(hwcDisplayId, connection);
     }
 
+    void processDisplayHotplugEvents() {
+        FTL_FAKE_GUARD(mFlinger->mStateLock, mFlinger->processDisplayHotplugEventsLocked());
+    }
+
     auto setDisplayStateLocked(const DisplayState& s) {
         Mutex::Autolock lock(mFlinger->mStateLock);
         return mFlinger->setDisplayStateLocked(s);
@@ -499,7 +503,9 @@ public:
     const auto& currentState() const { return mFlinger->mCurrentState; }
     const auto& drawingState() const { return mFlinger->mDrawingState; }
     const auto& transactionFlags() const { return mFlinger->mTransactionFlags; }
+
     const auto& hwcPhysicalDisplayIdMap() const { return getHwComposer().mPhysicalDisplayIdMap; }
+    const auto& hwcDisplayData() const { return getHwComposer().mDisplayData; }
 
     auto& mutableHasWideColorDisplay() { return SurfaceFlinger::hasWideColorDisplay; }
 

@@ -168,7 +168,12 @@ sp<DisplayDevice> DisplayTransactionTest::injectDefaultInternalDisplay(
 }
 
 bool DisplayTransactionTest::hasPhysicalHwcDisplay(HWDisplayId hwcDisplayId) const {
-    return mFlinger.hwcPhysicalDisplayIdMap().count(hwcDisplayId) == 1;
+    const auto& map = mFlinger.hwcPhysicalDisplayIdMap();
+
+    const auto it = map.find(hwcDisplayId);
+    if (it == map.end()) return false;
+
+    return mFlinger.hwcDisplayData().count(it->second) == 1;
 }
 
 bool DisplayTransactionTest::hasTransactionFlagSet(int32_t flag) const {
